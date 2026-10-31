@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { fork, spawnSync, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer, request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -14,7 +14,7 @@ import { after, before, test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { buildDoclingWorker } from "../../../packages/cli/scripts/build-docling-worker.ts";
 import { createProtocolHandler, ORIGIN } from "../../desktop/src/host-protocol.ts";
-import { createDoclingHost } from "../server/docling.ts";
+import { createDoclingHost } from "./helpers/docling-host.ts";
 import { accessPath, RootAccess } from "../server/file-access.ts";
 import { PluginStore } from "../server/plugin-store.ts";
 import { INCOMPLETE } from "../server/plugin-output.ts";
@@ -26,6 +26,12 @@ import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 const fixture = mkdtempSync(path.join(tmpdir(), "litzio-worker-tests-"));
 const bundled = path.join(fixture, "bundled");
 before(() => buildDoclingWorker(bundled));
+function withHost(directory: string, manifest: object) {
+  const original = JSON.parse(readFileSync(path.join(bundled, "manifest.json"), "utf8"));
+  copyFileSync(path.join(bundled, "host.cjs"), path.join(directory, "host.cjs"));
+  return { ...manifest, host: original.host, routes: original.routes };
+}
+
 after(() => rmSync(fixture, { recursive: true, force: true }));
 async function until<T>(read: () => T | Promise<T>, accept: (value: T) => boolean): Promise<T> {
   const deadline = Date.now() + 15_000;
@@ -184,7 +190,7 @@ test("Host close awaits admitted workers and permanently prevents another runtim
     const folder = path.join(root, phase), worker = path.join(folder, "worker"); mkdirSync(worker, { recursive: true });
     const input = path.join(folder, "paper.pdf"), pidFile = path.join(folder, "worker.pid"); writeFileSync(input, "%PDF-1.7\nclose");
     writeFileSync(path.join(worker, "worker.cjs"), `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); require(${JSON.stringify(path.join(bundled, "worker.cjs"))});`);
-    writeFileSync(path.join(worker, "manifest.json"), JSON.stringify({ id: "docling", version: "close-test", workerApi: 1, entry: "worker.cjs" }));
+    writeFileSync(path.join(worker, "manifest.json"), JSON.stringify(withHost(worker, { id: "docling", version: "close-test", workerApi: 1, entry: "worker.cjs" })));
     const plugins = path.join(folder, "plugins"), host = createDoclingHost(new RootAccess([folder]), path.join(folder, "settings.json"), { directory: plugins, manifest: path.join(worker, "manifest.json") });
     t.after(() => host.close()); host.configure(fake.url);
     const submissions = fake.submissions(), job = await host.start(input);
@@ -226,7 +232,7 @@ test("manifest/API validation and crashed registry lock recovery preserve the co
   assert.equal(store.register(manifest).enabled, true);
   const db = new DatabaseSync(path.join(root, "runtime.sqlite"));
   db.prepare("UPDATE plugins SET value=? WHERE id='docling'").run(JSON.stringify({ ...installed, workerApi: 2 })); db.close();
-  assert.throws(() => store.admit({ id: randomUUID(), input: "input.pdf", output: "output", startedAt: Date.now(), state: "running", progress: { phase: "checking" } }, "input"), /incompatible/,
+  assert.throws(() => store.admit({ id: randomUUID(), input: "input.pdf", output: "output", startedAt: Date.now(), state: "running", progress: { phase: "checking" } }, "input", "docling"), /incompatible/,
     "admission revalidates persisted worker API compatibility");
 });
 
@@ -234,17 +240,17 @@ test("a new owner session at the identical live PID cannot revive an interrupted
   const root = directory("owner-identity"), first = new PluginStore(root);
   first.register(path.join(bundled, "manifest.json"));
   const job = { id: randomUUID(), input: path.join(root, "paper.pdf"), output: path.join(root, "result"), startedAt: Date.now(), state: "running" as const, progress: { phase: "checking" as const } };
-  first.admit(job, "same-input");
+  first.admit(job, "same-input", "docling");
   first.close();
   // Both Host sessions use this test process's live PID. OS PID reuse cannot
   // change the answer: only the original session's kernel lock proves ownership.
   const second = new PluginStore(root);
   try {
     const newJob = { ...job, id: randomUUID() };
-    second.admit(newJob, "other-input");
+    second.admit(newJob, "other-input", "docling");
     assert.equal(second.get(newJob.id)!.status, "running");
     assert.equal(second.get(job.id)!.status, "uncertain");
-    assert.equal(second.admit(job, "same-input").fresh, false);
+    assert.equal(second.admit(job, "same-input", "docling").fresh, false);
   } finally { second.close(); }
 });
 
@@ -253,12 +259,12 @@ test("worker kill during a partial REST download and deadline leave Host alive a
   const otherStaging = path.join(root, ".litzio-plugin-other-request"); mkdirSync(otherStaging);
   const otherFile = path.join(otherStaging, "document.md"); writeFileSync(otherFile, "another request's retained output");
   writeFileSync(input, "%PDF-1.7\nimmutable"); const original = readFileSync(input);
-  const sourceJson = fileURLToPath(new URL("../../../packages/docling/test/fixtures/synthetic/document.json", import.meta.url));
+  const sourceJson = fileURLToPath(new URL("../../../plugins/docling/test/fixtures/synthetic/document.json", import.meta.url));
   const jsonBefore = readFileSync(sourceJson);
   const custom = path.join(root, "worker"); mkdirSync(custom);
   const pidFile = path.join(root, "worker.pid");
   writeFileSync(path.join(custom, "worker.cjs"), `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); require(${JSON.stringify(path.join(bundled, "worker.cjs"))});`);
-  writeFileSync(path.join(custom, "manifest.json"), JSON.stringify({ id: "docling", version: "fault-test", workerApi: 1, entry: "worker.cjs" }));
+  writeFileSync(path.join(custom, "manifest.json"), JSON.stringify(withHost(custom, { id: "docling", version: "fault-test", workerApi: 1, entry: "worker.cjs" })));
   const access = new RootAccess([root]);
   const host = createDoclingHost(access, path.join(root, "settings.json"), { directory: path.join(root, "plugins"), manifest: path.join(custom, "manifest.json") });
   const fake = await fakeDoclingServer(); host.configure(fake.url);
@@ -310,7 +316,7 @@ test("Desktop registration is used by an independent serve; UUID conflict, disab
   const workerPids = path.join(root, "worker-pids.txt"), custom = path.join(root, "worker"); mkdirSync(custom);
   writeFileSync(path.join(custom, "worker.cjs"), `require('node:fs').appendFileSync(${JSON.stringify(workerPids)}, process.pid + '\\n'); require(${JSON.stringify(path.join(bundled, "worker.cjs"))});`);
   const manifest = path.join(custom, "manifest.json");
-  writeFileSync(manifest, JSON.stringify({ id: "docling", version: "shared-test", workerApi: 1, entry: "worker.cjs" }));
+  writeFileSync(manifest, JSON.stringify(withHost(custom, { id: "docling", version: "shared-test", workerApi: 1, entry: "worker.cjs" })));
   writeFileSync(path.join(root, "index.html"), "<!doctype html><title>test</title>");
   const previousPlugins = process.env.LITZIO_PLUGINS_DIR, previousSettings = process.env.LITZIO_DOCLING_SETTINGS_FILE;
   process.env.LITZIO_PLUGINS_DIR = plugins; process.env.LITZIO_DOCLING_SETTINGS_FILE = settings;

@@ -4,9 +4,9 @@ import { convertDoclingPdf, DoclingPdfError } from "./pdf.ts";
 // cancel a remote Docling task or sandbox untrusted CPU loops. No child process
 // is started by this worker.
 process.once("disconnect", () => process.exit(1));
-process.once("message", async (request: { input: string; output: string; server: string }) => {
+process.once("message", async (request: { input: string; output: string; server: string; timeoutMs?: number }) => {
   try {
-    await convertDoclingPdf(request.input, request.output, { server: request.server,
+    await convertDoclingPdf(request.input, request.output, { server: request.server, timeoutMs: request.timeoutMs,
       onProgress: progress => process.send?.({ type: "progress", progress }),
     });
     process.send?.({ type: "complete" }, () => process.exit(0));

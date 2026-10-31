@@ -199,8 +199,10 @@ ordinary document identity/unsaved input. Required packaged Desktop CI exercises
 actual UI loading and re-registration alongside the shared Desktop/HTTP tests.
 
 Conditions 4/5 are resolved for this trusted UI contract, while real-service
-condition 1 remains manual. Settings plugin management, conversion-dialog
-migration and official plugin install/update/removal remain subsequent work.
+condition 1 remains manual. #869 subsequently migrates the conversion dialog, Docling settings and Host facade
+into the independently built `plugins/docling` folder through the same contribution
+boundary and a thin installed Host-operation entry. Settings plugin management and
+official plugin install/update/removal remain subsequent work.
 The AI agent framework will be a default-included provider-neutral plugin, and
 Docling remains bundled until its official installation flow is available, per
 the later decisions in Discussion #767. The AI plugin and official installer are

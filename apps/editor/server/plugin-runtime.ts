@@ -1,10 +1,10 @@
 import { fork, type ChildProcess } from "node:child_process";
-import { createReadStream } from "node:fs";
+import { createReadStream, readFileSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
-import type { ConversionJob, ConversionFailure, PdfProgress } from "@litzio/docling/server-types";
-import type { ConversionExecutor, ConversionRequest } from "@litzio/docling/server";
+import type { ConversionJob, ConversionFailure, PdfProgress } from "@litzio/plugin-api/worker";
+import type { ConversionExecutor, ConversionRequest } from "@litzio/plugin-api/worker";
 import { digest, PluginStore, requestUuid, type Receipt } from "./plugin-store.ts";
 import { INCOMPLETE, STAGING_PREFIX } from "./plugin-output.ts";
 
@@ -27,7 +27,9 @@ export class PluginRuntime implements ConversionExecutor {
   }
   ensureBundled() {
     // Seed the first-party worker once; explicit unregistration remains durable.
-    if (!this.store.list().some(item => item.id === "docling")) this.store.register(this.bundledManifest, true);
+    const { id } = JSON.parse(readFileSync(this.bundledManifest, "utf8"));
+    if (!this.store.list().some(item => item.id === id)) this.store.register(this.bundledManifest, true);
+    return id as string;
   }
   current(id: string): ConversionJob | null {
     if (this.fault) throw this.fault;
@@ -37,11 +39,11 @@ export class PluginRuntime implements ConversionExecutor {
     if (this.closed) throw new Error("The plugin runtime is closing.");
     if (this.fault) throw this.fault;
     request.job.id = requestUuid(request.job.id);
-    this.ensureBundled();
+    const plugin = request.plugin ?? this.ensureBundled();
     const sourceHash = await fileHash(request.job.input);
     if (this.closed) throw new Error("The plugin runtime is closing.");
-    const fingerprint = digest(JSON.stringify({ input: request.job.input, sourceHash, server: request.server }));
-    const { receipt, fresh } = this.store.admit(request.job, fingerprint);
+    const fingerprint = digest(JSON.stringify({ input: request.job.input, sourceHash, server: request.server, plugin }));
+    const { receipt, fresh } = this.store.admit(request.job, fingerprint, plugin);
     if (fresh) {
       const execution: Execution = { done: Promise.resolve() };
       this.active.set(receipt.job.id, execution);
@@ -55,7 +57,7 @@ export class PluginRuntime implements ConversionExecutor {
   private async execute(receipt: Receipt, request: ConversionRequest, sourceHash: string, execution: Execution): Promise<void> {
     const { job, installation } = receipt;
     let staging: string | undefined, outputOwned = false;
-    const timer = setTimeout(() => { execution.stopped = "timeout"; execution.child?.kill(); }, this.timeoutMs);
+    const timer = setTimeout(() => { execution.stopped = "timeout"; execution.child?.kill(); }, request.timeoutMs ?? this.timeoutMs);
     const stopped = () => { if (this.closed || execution.stopped) throw new Error(execution.stopped ?? "The plugin runtime is closing."); };
     try {
       if (!installation.entry || installation.workerApi !== 1) throw new Error("Plugin has no compatible worker.");
@@ -88,7 +90,7 @@ export class PluginRuntime implements ConversionExecutor {
         });
         child.once("close", (code, signal) => complete && code === 0 && !execution.stopped ? resolve()
           : reject(failure ?? new Error(`Docling worker stopped (${signal ?? code}). The server task may continue.`)));
-        child.send({ input: job.input, output: path.join(staging!, "bundle"), server: request.server }, error => { if (error) { failure = error; child.kill(); } });
+        child.send({ input: job.input, output: path.join(staging!, "bundle"), server: request.server, timeoutMs: request.timeoutMs }, error => { if (error) { failure = error; child.kill(); } });
       });
       stopped();
       request.beforePublish();

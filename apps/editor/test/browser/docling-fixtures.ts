@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
-import { convertDoclingDocument } from "@litzio/docling";
-import type { SourceDocument, SourceItem } from "../../../../packages/docling/src/source.ts";
+import { convertDoclingDocument } from "../../../../plugins/docling/src/index.ts";
+import type { SourceDocument, SourceItem } from "../../../../plugins/docling/src/source.ts";
 
 /** Public fixtures, with a declared synthetic supplement for unsupported/TOPLEFT/endnote UI. */
 export function comparisonFiles() {
   return ["nist-sp1108r4", "synthetic"].flatMap(name => {
-    const root = new URL(`../../../../packages/docling/test/fixtures/${name}/`, import.meta.url);
+    const root = new URL(`../../../../plugins/docling/test/fixtures/${name}/`, import.meta.url);
     const source = JSON.parse(readFileSync(new URL("document.json", root), "utf8")) as SourceDocument;
     if (name === "synthetic") {
       const add = (label: string, text: string, top: number) => {

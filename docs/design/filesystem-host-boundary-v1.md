@@ -77,7 +77,7 @@ This does not add a document session, persistence service or semantic write path
 The read-only `GET /api/docling-compare?path=…` route uses the same handler and
 Root/media real-path checks in Vite, Desktop and HTTP Host. It admits the native
 Markdown through Core and delegates correspondence interpretation/hash checking
-to `@litzio/docling`. Page images use the ordinary document-relative media route;
+through the installed Docling Host operation (no direct implementation import). Page images use the ordinary document-relative media route;
 remote/data image URIs and paths escaping the conversion folder are refused.
 No large source document.json is sent to the UI: correspondence v1 already carries
 the needed page/item data. See [Docling comparison](docling-compare-v1.md).

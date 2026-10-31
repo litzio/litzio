@@ -1,4 +1,3 @@
-import { PLUGIN_UI } from "@litzio/plugin-api/config";
 import { fileURLToPath, URL } from "node:url";
 import { prepareSampleDocuments } from "./server/sample-documents.ts";
 import { randomBytes } from "node:crypto";
@@ -35,9 +34,9 @@ export default defineConfig({
       async configureServer(server: ViteDevServer) {
         await buildDoclingWorker(fileURLToPath(new URL("../../tmp/docling-worker", import.meta.url)));
         const assetSigningKey = randomBytes(32);
-        let docling: Promise<ReturnType<typeof import("./server/docling.ts").createDoclingHost>> | undefined;
-        const doclingHost = () => docling ??= server.ssrLoadModule("/server/docling.ts").then(mod => mod.createDoclingHost());
-        server.httpServer?.once("close", () => { void docling?.then(host => host.close()); });
+        let plugins: Promise<ReturnType<typeof import("./server/plugin-host.ts").createPluginHost>> | undefined;
+        const pluginHost = () => plugins ??= server.ssrLoadModule("/server/plugin-host.ts").then(mod => mod.createPluginHost());
+        server.httpServer?.once("close", () => { void plugins?.then(host => host.close()); });
         const sampleAvailability = prepareSampleDocuments(fileURLToPath(new URL("./samples", import.meta.url)), fileURLToPath(new URL("../../tmp/sample-native-v1", import.meta.url)));
         server.middlewares.use((req, res, next) => {
           const requestUrl = req.url ?? "";
@@ -52,7 +51,7 @@ export default defineConfig({
             });
             return;
           }
-          if (url !== PLUGIN_UI.route && url !== "/api/worker-plugins" && url !== "/api/docling-settings" && url !== "/api/docling-check" && url !== "/api/docling-conversion" && url !== "/api/file" && url !== "/api/bibliography" && url !== "/api/file-preview" && url !== "/api/document" && url !== "/api/folder" && url !== "/api/folder-browse" && url !== "/api/folder-places" && url !== "/api/document-source" && url !== "/api/docling-compare" && url !== "/api/figure-validation" && !url.startsWith("/document/")) {
+          if (!url.startsWith("/api/") && !url.startsWith("/document/")) {
             next();
             return;
           }
@@ -60,7 +59,7 @@ export default defineConfig({
           void server.ssrLoadModule("/server/document-api.ts").then(async (mod) => {
             const handle = (mod as { handleDocumentRequest: typeof import("./server/document-api.ts").handleDocumentRequest })
               .handleDocumentRequest;
-            return handle(req, res, next, LOCAL_FILE_ACCESS, Infinity, undefined, sampleAvailability, await doclingHost());
+            return handle(req, res, next, LOCAL_FILE_ACCESS, Infinity, undefined, sampleAvailability, await pluginHost());
           }).catch((error: unknown) => {
             res.statusCode = 500;
             res.setHeader("Content-Type", "application/json; charset=utf-8");

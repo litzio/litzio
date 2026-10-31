@@ -13,10 +13,19 @@ export function contributionNotices(plugin: ActiveUi | undefined, kind: string, 
 export function checkUiCompatibility(registration: UiRegistration, reactVersion: string) {
   if (registration.ui.api !== PLUGIN_UI.api || registration.ui.reactMajor !== PLUGIN_UI.reactMajor ||
       Number(reactVersion.split(".")[0]) !== registration.ui.reactMajor || registration.ui.script !== PLUGIN_UI.script ||
-      (registration.ui.style !== undefined && registration.ui.style !== PLUGIN_UI.style)) throw new Error("Incompatible UI Host API / React major.");
+      (registration.ui.style !== undefined && registration.ui.style !== PLUGIN_UI.style) ||
+      (registration.ui.jobRoute !== undefined && !/^api\/[a-z0-9-]+$/u.test(registration.ui.jobRoute))) throw new Error("Incompatible UI Host API / React major.");
 }
 function checkContributions(value: UiContributions) {
   if (!value || typeof value.dispose !== "function") throw new Error("Invalid UI activation.");
+  for (const items of [value.settings ?? [], value.fileActions ?? []]) {
+    const ids = new Set<string>();
+    for (const item of items) {
+      if (!item || !/^[a-z][a-z0-9-]*$/u.test(item.id) || ids.has(item.id) || typeof item.label !== "string") throw new Error("Invalid UI contribution.");
+      if ("View" in item ? !item.View || typeof item.description !== "string" : typeof item.run !== "function" || !Array.isArray(item.extensions) || item.extensions.some(extension => !/^\.[a-z0-9]+$/u.test(extension))) throw new Error("Invalid UI contribution.");
+      ids.add(item.id);
+    }
+  }
   for (const [type, items] of [["commands", value.commands], ["sidebar", value.sidebar], ["tabs", value.tabs]] as const) {
     if (!Array.isArray(items)) throw new Error(`Invalid UI ${type}.`);
     const ids = new Set<string>();
@@ -30,7 +39,7 @@ function checkContributions(value: UiContributions) {
     }
   }
 }
-type Loaded = { module: UiModule; release(): void };
+type Loaded = { module: UiModule; initialJob?: unknown; initialJobRead?: Promise<unknown>; release(): void };
 type Entry = { state: ActiveUi; controller: AbortController; loaded?: Loaded; alive: boolean };
 /** Pending loads cannot revive detached registrations. One plugin changing never
  * remounts another. ESM module memory remains owned by the browser realm. */
@@ -39,7 +48,7 @@ export class UiRegistry {
   private closed = false;
   constructor(private reactVersion: string, private publish: (states: ActiveUi[]) => void,
     private load: (registration: UiRegistration, signal: AbortSignal) => Promise<Loaded>,
-    private host: (registration: UiRegistration, guard: () => void, signal: AbortSignal) => UiHost,
+    private host: (registration: UiRegistration, guard: () => void, signal: AbortSignal, initialJob?: unknown, initialJobRead?: Promise<unknown>) => UiHost,
     private report: (error: unknown) => void) {}
   private emit() { this.publish([...this.entries.values()].map(entry => entry.state)); }
   private dispose(entry: Entry) {
@@ -72,7 +81,7 @@ export class UiRegistry {
       if (!entry.alive) { loaded.release(); return; }
       entry.loaded = loaded;
       const guard = () => { if (!entry.alive) throw new Error("Plugin is disabled."); };
-      contributions = loaded.module.activate(this.host(entry.state, guard, entry.controller.signal));
+      contributions = loaded.module.activate(this.host(entry.state, guard, entry.controller.signal, loaded.initialJob, loaded.initialJobRead));
       checkContributions(contributions);
       entry.state = { ...entry.state, contributions };
     } catch (error) {

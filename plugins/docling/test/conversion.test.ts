@@ -257,7 +257,7 @@ test("module imports only public Core API; Core never imports a module", () => {
       if (specifier.startsWith(".")) assert.ok(new URL(specifier, root).href.startsWith(new URL("../", root).href));
     }
   }
-  const manifest = JSON.parse(readFileSync(new URL("../../core/package.json", import.meta.url), "utf8"));
+  const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.resolve("@litzio/core")), "utf8"));
   assert.equal(Object.hasOwn(manifest.dependencies, "@litzio/docling"), false);
   // Core's existing public-api test additionally checks every Core source import.
 });

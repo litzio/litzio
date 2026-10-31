@@ -2,11 +2,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { ConversionJob } from "@litzio/docling/server-types";
+import type { ConversionJob } from "@litzio/plugin-api/worker";
 import { PLUGIN_UI, type UiManifest, type UiRegistration } from "@litzio/plugin-api/config";
 
-export type WorkerManifest = { id: string; version: string; workerApi?: 1; entry?: "worker.cjs"; ui?: UiManifest };
-export type Installation = WorkerManifest & { directory: string; sha256: string; revision: string; uiHashes?: Record<string, string>; enabled: boolean };
+export type WorkerManifest = { id: string; version: string; workerApi?: 1; entry?: "worker.cjs"; ui?: UiManifest; host?: { api: 1; entry: "host.cjs" }; routes?: string[] };
+export type Installation = WorkerManifest & { directory: string; sha256: string; revision: string; hostHash?: string; uiHashes?: Record<string, string>; enabled: boolean };
 export type Receipt = { job: ConversionJob; fingerprint: string; owner: string; installation: Installation; staging?: string;
   status: "running" | "success" | "error" | "cancelled" | "uncertain" };
 export const digest = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex");
@@ -18,11 +18,15 @@ function workerManifest(value: unknown): WorkerManifest {
     throw new Error("Invalid worker manifest or incompatible worker Host API (expected 1).");
   }
   if (manifest.ui !== undefined && (!manifest.ui || manifest.ui.api !== PLUGIN_UI.api || manifest.ui.reactMajor !== PLUGIN_UI.reactMajor ||
-      manifest.ui.script !== PLUGIN_UI.script || (manifest.ui.style !== undefined && manifest.ui.style !== PLUGIN_UI.style))) {
+      manifest.ui.script !== PLUGIN_UI.script || (manifest.ui.style !== undefined && manifest.ui.style !== PLUGIN_UI.style) ||
+      (manifest.ui.jobRoute !== undefined && !/^api\/[a-z0-9-]+$/u.test(manifest.ui.jobRoute)))) {
     throw new Error("Invalid UI manifest or incompatible UI Host API / React major.");
   }
+  if (manifest.host !== undefined && (manifest.host?.api !== 1 || manifest.host.entry !== "host.cjs")) throw new Error("Incompatible plugin Host API (expected 1).");
+  if (manifest.routes !== undefined && (!manifest.host || !Array.isArray(manifest.routes) || manifest.routes.some(route => typeof route !== "string" || !/^\/api\/[a-z0-9-]+$/u.test(route)))) throw new Error("Invalid plugin Host routes.");
   return { id: manifest.id, version: manifest.version, workerApi: manifest.workerApi, entry: manifest.entry,
-    ...(manifest.ui ? { ui: { api: manifest.ui.api, reactMajor: manifest.ui.reactMajor, script: manifest.ui.script, ...(manifest.ui.style ? { style: manifest.ui.style } : {}) } } : {}) };
+    ...(manifest.host ? { host: { api: manifest.host.api, entry: manifest.host.entry }, routes: manifest.routes } : {}),
+    ...(manifest.ui ? { ui: { api: manifest.ui.api, reactMajor: manifest.ui.reactMajor, script: manifest.ui.script, ...(manifest.ui.style ? { style: manifest.ui.style } : {}), ...(manifest.ui.jobRoute ? { jobRoute: manifest.ui.jobRoute } : {}) } } : {}) };
 }
 export function requestUuid(value: unknown): string {
   if (typeof value !== "string" || !/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu.test(value)) throw new Error("A request UUID is required.");
@@ -50,13 +54,14 @@ export class PluginStore {
   register(manifestFile: string, onlyIfMissing = false, checkPath: (file: string) => void = () => {}): Installation {
     const manifest = workerManifest(JSON.parse(readFileSync(manifestFile, "utf8")));
     const files = new Map<string, Buffer>();
-    for (const name of [manifest.entry, manifest.ui?.script, manifest.ui?.style]) if (name) {
+    for (const name of [manifest.entry, manifest.host?.entry, manifest.ui?.script, manifest.ui?.style]) if (name) {
       const file = path.join(path.dirname(manifestFile), name); checkPath(file);
       files.set(name, readFileSync(file));
     }
     const sha256 = digest(files.get("worker.cjs") ?? "");
-    const uiHashes = manifest.ui ? Object.fromEntries([...files].filter(([name]) => name !== "worker.cjs").map(([name, bytes]) => [name, digest(bytes)])) : undefined;
-    const revision = digest(JSON.stringify({ manifest, sha256, uiHashes }));
+    const hostHash = manifest.host ? digest(files.get(manifest.host.entry)!) : undefined;
+    const uiHashes = manifest.ui ? Object.fromEntries([...files].filter(([name]) => name === manifest.ui?.script || name === manifest.ui?.style).map(([name, bytes]) => [name, digest(bytes)])) : undefined;
+    const revision = digest(JSON.stringify({ manifest, sha256, hostHash, uiHashes }));
     const directory = path.join(this.directory, "installed", revision);
     mkdirSync(path.dirname(directory), { recursive: true });
     const temporary = `${directory}.${randomUUID()}.tmp`;
@@ -70,13 +75,21 @@ export class PluginStore {
     return this.transaction(() => {
       const existing = this.list().find(item => item.id === manifest.id);
       if (onlyIfMissing && existing) return existing;
-      const value: Installation = { ...manifest, directory, sha256, revision, uiHashes, enabled: true };
+      const value: Installation = { ...manifest, directory, sha256, revision, hostHash, uiHashes, enabled: true };
       this.db.prepare("INSERT OR REPLACE INTO plugins VALUES (?, ?)").run(manifest.id, JSON.stringify(value));
       return value;
     });
   }
   uiList(): UiRegistration[] {
     return this.list().filter(item => item.enabled && item.ui).map(item => ({ id: item.id, revision: item.revision, ui: item.ui! }));
+  }
+  hostEntry(id: string): string {
+    const item = this.list().find(item => item.id === id);
+    if (!item?.host) throw new Error("Plugin Host operations are unavailable.");
+    workerManifest(item);
+    const file = path.join(item.directory, item.host.entry);
+    if (digest(readFileSync(file)) !== item.hostHash) throw new Error("Installed Host entry hash mismatch.");
+    return file;
   }
   uiAsset(id: string, revision: string, name: string): Buffer {
     const item = this.list().find(item => item.id === id && item.enabled && item.revision === revision);
@@ -129,15 +142,15 @@ export class PluginStore {
       return receipt;
     });
   }
-  admit(job: ConversionJob, fingerprint: string): { receipt: Receipt; fresh: boolean } {
+  admit(job: ConversionJob, fingerprint: string, plugin: string): { receipt: Receipt; fresh: boolean } {
     this.holdOwnership();
     return this.transaction(() => {
       const existing = this.read(job.id);
       if (existing) {
-        if (existing.fingerprint !== fingerprint) throw new Error("Request UUID conflicts with an admitted conversion.");
+        if (existing.fingerprint !== fingerprint || existing.installation.id !== plugin) throw new Error("Request UUID conflicts with an admitted conversion.");
         return { receipt: existing, fresh: false };
       }
-      const installation = this.list().find(item => item.id === "docling" && item.enabled);
+      const installation = this.list().find(item => item.id === plugin && item.enabled);
       if (!installation) throw new Error("The Docling worker plugin is not registered.");
       workerManifest(installation);
       if (!installation.entry || !/^[a-f\d]{64}$/u.test(installation.sha256) || !/^[a-f\d]{64}$/u.test(installation.revision) ||

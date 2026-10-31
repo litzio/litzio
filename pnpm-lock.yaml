@@ -173,6 +173,9 @@ importers:
 
   .:
     devDependencies:
+      '@litzio/plugin-api':
+        specifier: workspace:*
+        version: link:packages/plugin-api
       '@playwright/cli':
         specifier: 0.1.21
         version: 0.1.21
@@ -239,9 +242,6 @@ importers:
       '@litzio/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@litzio/docling':
-        specifier: workspace:*
-        version: link:../../packages/docling
       '@litzio/file-commit':
         specifier: workspace:*
         version: link:../../packages/file-commit
@@ -351,9 +351,6 @@ importers:
       '@litzio/core':
         specifier: workspace:*
         version: link:../core
-      '@litzio/docling':
-        specifier: workspace:*
-        version: link:../docling
       '@litzio/file-commit':
         specifier: workspace:*
         version: link:../file-commit
@@ -417,14 +414,42 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
-  packages/docling:
+  packages/file-commit:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.5.2
+        version: 24.13.6
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  packages/plugin-api:
     dependencies:
+      '@babel/parser':
+        specifier: 7.29.9
+        version: 7.29.9
       '@litzio/core':
         specifier: workspace:*
         version: link:../core
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+    devDependencies:
+      '@types/react':
+        specifier: ^19.1.13
+        version: 19.3.0
+
+  plugins/docling:
+    dependencies:
+      '@litzio/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@litzio/plugin-api':
         specifier: workspace:*
-        version: link:../plugin-api
+        version: link:../../packages/plugin-api
       ajv:
         specifier: 8.20.0
         version: 8.20.0
@@ -441,34 +466,15 @@ importers:
       '@types/react':
         specifier: ^19.1.13
         version: 19.3.0
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
       typescript:
         specifier: 7.0.2
         version: 7.0.2
-
-  packages/file-commit:
-    devDependencies:
-      '@types/node':
-        specifier: ^24.5.2
-        version: 24.13.6
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
-      typescript:
-        specifier: 7.0.2
-        version: 7.0.2
-
-  packages/plugin-api:
-    dependencies:
-      '@litzio/core':
-        specifier: workspace:*
-        version: link:../core
-    devDependencies:
-      '@types/react':
-        specifier: ^19.1.13
-        version: 19.3.0
 
 packages:
 

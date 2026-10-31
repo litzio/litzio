@@ -111,7 +111,7 @@ test("plugin UI build refuses editor internals and bundles only injected React e
   await assert.rejects(buildPluginUi(source, root), /cannot import editor/u);
   writeFileSync(source, 'import type { Editor } from "../../apps/editor/src/DocumentEditor.tsx"; export function activate() {}');
   await assert.rejects(buildPluginUi(source, root), /cannot import editor/u);
-  const graph = await buildPluginUi(path.resolve("../../packages/docling/src/ui-plugin.tsx"), root);
+  const graph = await buildPluginUi(path.resolve("../../plugins/docling/src/ui-plugin.tsx"), root);
   const external = Object.values(graph.inputs).flatMap(input => input.imports).filter(item => item.external).map(item => item.path);
   assert.deepEqual([...new Set(external)].sort(), ["react", "react/jsx-runtime"]);
 });

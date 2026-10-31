@@ -1,6 +1,7 @@
 # Host worker plugins v1
 
 - Status: Implemented
+- Folder/Host boundary verified: 2026-11-01 (#869: relocated-folder build/typecheck/tests, shared Host and headless CLI, Docling browser scenarios; packaging remains required CI and the real service remains manual).
 - Last verified: 2026-10-31 (#853 and PR #855 review: shared Host tests, filesystem alias denial, ancestor-listing permission regression, scoped image-reference scans and shutdown/admission races; real Docling remains manual and packaged Desktop is checked by CI).
 - Authority: [ADR-0012](../adr/0012-plugin-runtime-and-ui-contributions.md), with [ADR-0004](../adr/0004-desktop-host-distribution.md) and [ADR-0005](../adr/0005-http-host.md).
 - Scope: trusted local worker execution in Vite, in-process Desktop and independent `litzio serve`. The same registration also supports [UI contributions](plugin-ui-v1.md) under ADR-0012 (#857).
@@ -19,11 +20,11 @@ A worker manifest is JSON with `id` (lowercase ASCII identifier), `version`
 `entry: "worker.cjs"`. The entry is a self-contained Node CommonJS bundle beside
 the manifest. Registration copies its bytes into `installed/<SHA-256>/worker.cjs`
 and stores the selected manifest and hash. With #857, the directory SHA-256 is
-the complete installation revision (manifest plus worker/UI hashes), and optional
+the complete installation revision (manifest plus worker/Host/UI hashes), and optional
 UI assets share that immutable directory. Each admission pins that installation;
 the runtime checks its hash before execution. Re-registering changes future work
 only. API mismatch is refused before registration or execution. Worker API 1
-accepts the Docling PDF request shape; it is not a general document API.
+accepts the PDF request shape published by `@litzio/plugin-api/worker`; it is not a general document API.
 
 The first-party Docling bundle ships with the CLI and Desktop, and Vite builds
 the same entry at startup. UI discovery or first conversion registers it only if no Docling
@@ -45,6 +46,61 @@ HTTP retains its Origin/Host/body limits. Desktop uses the same handler through
 `litzio://app`, with no TCP listener. #857 adds the read-only UI listing/asset
 surface described in [Plugin UI contributions](plugin-ui-v1.md). Registration is explicit trusted code execution, without an OS
 sandbox, download, approval workflow or additional permissions model.
+
+## Plugin-owned Host operations and folder (#869)
+
+Docling lives in `plugins/docling`, with its own package, source, profile, schema,
+fixtures, build and tests. Application/Host/CLI runtime and type imports cannot
+reference that folder or `@litzio/docling`. `pnpm boundaries:check` checks that
+boundary and all plugin source/build imports, including erased types and dynamic
+imports. Repository dependencies are restricted to public `@litzio/core` and
+`@litzio/plugin-api` exports; existing Node, React and validation libraries remain.
+The plugin build runs the same source check. No document semantics move to Host.
+
+An optional `host: { api: 1, entry: "host.cjs" }` declares a self-contained trusted
+Host facade. Registration validates/copies/hashes it alongside worker and UI assets.
+Optional `routes` lists the existing `/api/<name>` endpoints it contributes.
+The shared handler dispatches those declared routes and
+`POST /api/plugin-operation`, `{ plugin, operation, args }`, to the same installed
+facade. Core/native admission, text decoding, Root/media resolution, worker
+execution and publication remain injected Host services. Host modules are trusted
+in-process adapters, not isolated workers; PDF conversion still runs in a worker.
+Installation introduces no new sandbox or permissions system.
+
+`createPluginHost().invoke(id, operation, args)` is the matching headless entry.
+There was no generic installed-operation entry before #869: the old Host imported
+the Docling facade directly. CLI `docling convert` now calls the installed facade
+synchronously to preserve `runCli`; `convert-pdf` calls it asynchronously and uses
+the existing worker admission/publication path, explicit output/server/timeout
+and result fields. Both work without UI loading or an HTTP listener.
+
+Host facade activations follow installation revisions. Plugin-owned transient
+session data preserves the current job/admission gate across re-registration;
+it is not durable state or startup restoration. Disable refuses new operations,
+except declared draining operations: Docling status/cancel and UUID replay. A new
+UUID still fails worker admission after disable. Accepted work keeps its pinned
+worker. CJS module records, like UI ESM records, are not claimed to unload.
+
+The only first-party composition connections are the build wrapper that invokes
+the folder's build, bundled manifest location, and CLI `docling` command dispatch.
+No installed source or application code imports the implementation. Docling remains
+bundled; official distribution/installation/signing (#867) remains deferred.
+
+### Later extraction
+
+1. Move `plugins/docling` intact, including `package.json`, `scripts`, `src`,
+   `profiles`, `schema`, fixtures/tests and licenses. Its tests use the public API
+   package's shared test helper and resolve Core through its public package entry.
+2. Replace only the two `workspace:*` API dependencies with the chosen released
+   `@litzio/core` and `@litzio/plugin-api` versions (or explicit local package
+   references while developing). Create the new repository lockfile and run
+   `pnpm build`, `pnpm typecheck`, `pnpm test` there. Publishing those APIs and
+   choosing release/install policy are separate work, not implemented here.
+3. Point first-party build composition at the resulting `manifest.json`,
+   `worker.cjs`, `host.cjs`, `ui.mjs` and `ui.css` bundle. Keep the existing Host/UI
+   API versions and bundled default; remove the workspace entry/source scan and
+   relocate fixture consumers/links. No application implementation imports need
+   changing. License collection must continue to include plugin dependencies.
 
 ## Identity, durable state and recovery
 

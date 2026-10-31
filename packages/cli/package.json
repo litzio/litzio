@@ -8,13 +8,12 @@
     "build": "tsx scripts/build.ts",
     "package": "pnpm build && npm pack ./dist --pack-destination ./dist --ignore-scripts",
     "test:packaged": "tsx --test test/packaged.test.ts",
-    "test": "tsx --test test/cli.test.ts",
+    "test": "tsx ../../plugins/docling/scripts/build.ts ../../tmp/docling-worker && tsx --test test/cli.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@litzio/plugin-api": "workspace:*",
     "@litzio/core": "workspace:*",
-    "@litzio/docling": "workspace:*",
     "@litzio/file-commit": "workspace:*"
   },
   "devDependencies": {

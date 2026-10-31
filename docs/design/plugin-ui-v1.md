@@ -1,6 +1,7 @@
 # Plugin UI contributions v1
 
 - Status: Implemented
+- Complete Docling UI boundary verified: 2026-11-01 (#869: settings/file-action/activation-view migration, unchanged conversion and comparison browser assertions at 1440/640px, English Light/Korean Dark).
 - Last verified: 2026-10-31 (#857; shared Host, boundary, activation and browser checks; packaged Desktop runs in required CI).
 - Authority: [ADR-0012](../adr/0012-plugin-runtime-and-ui-contributions.md), [Discussion #767](https://github.com/litzio/litzio/discussions/767) and [brand-neutral Host API decision #856](https://github.com/litzio/litzio/discussions/856).
 
@@ -38,7 +39,7 @@ explicit disable and pinned registrations survive later discovery/app updates.
 ## Renderer and API surface
 
 The UI ESM exports `activate(host)` and returns commands, sidebar actions, tab
-kinds and a mandatory `dispose()`. The build wraps a CommonJS bundle in a lexical
+kinds, optional settings sections/file actions/activation view and a mandatory `dispose()`. The build wraps a CommonJS bundle in a lexical
 factory whose two external imports bind to **the exact Host React and JSX runtime
 objects**. Nothing evaluates a string or loads a second React. Both registration
 and Editor activation reject a different UI API or React major before requesting
@@ -53,7 +54,11 @@ actual plugin hooks and the production renderer, not just a version string.
 | `text`, `imageUrl` | Current translation and existing document-relative media route. |
 | `readJson` | GET-only same-origin `/api/<route>` with Host Root checks; aborted/rejected on detach. |
 | `pickFolder`, `openTab` | Shared folder picker and plugin-scoped shell tab navigation. |
-| `showPdfConversion` | Existing shell PDF picker/progress dialog; conversion remains callable headlessly through the Host. |
+| `Input`, `Dialog`, button variant | Existing shell controls and modal focus/portal behavior, with plugin-owned content. |
+| `pickFile`, `openExternalLink` | Existing Host PDF picker and external-link opener. The plugin supplies labels and completion action. |
+| `requestJson` | Same-origin Host method/body transport; shares Root checks and abort/rejection on detach. |
+| `setBusy`, `notify` | Activation-scoped file-action busy state and shared notifications, including reveal action. |
+| `initialJob`, `initialJobRead` | Handoff from the manifest-declared `jobRoute` observation while assets load. |
 
 The generic contribution shapes contain no AI provider, document mutation or
 editor engine. A later provider-neutral AI plugin can contribute the same
@@ -94,9 +99,22 @@ dependency/failure boundary, not a sandbox for infinite loops, arbitrary global
 DOM/CSS mutation, uncaught asynchronous plugin code or resource exhaustion.
 Detachment never cancels an accepted worker or deletes its receipts.
 
-Settings plugin management, conversion-dialog migration, official plugin
-installation/update/removal, AI agent implementation, OS sandbox and daemon are
-outside #857. Docling remains bundled until its official installation flow exists.
+#869 moves Docling's settings category, PDF file action, polling, conversion dialog
+and completion/error handling into its plugin. The shell renders generic settings
+sections and an activation view using the same controls, geometry, focus return
+and notification center. Disable unmounts those views before disposal; settings
+falls back to Appearance when its contributed category disappears. File actions
+are filtered by declared extension and respect activation busy state.
+
+Optional `jobRoute: "api/<name>"` declares a Host job snapshot to observe before
+UI assets finish loading. The loader retains completion only after observing a
+running job. It hands the current read to the activated view, so a held initial
+status cannot be bypassed by a second read or prematurely enable Start. Polling
+after activation is plugin-owned. Failed reads retry only GET; no automatic POST
+or startup restoration is introduced. Observation stops on detach/failure/handoff.
+
+Settings plugin management, official plugin installation/update/removal, AI agent
+implementation, OS sandbox and daemon remain outside these changes. Docling remains bundled until its official installation flow exists.
 No new Core semantics or semantic CLI command is introduced. Existing headless
 conversion and shared Host registration APIs remain available without a view.
 

@@ -1,0 +1,37 @@
+{
+  "name": "@litzio/docling",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./compare": "./src/compare.ts",
+    "./compare-host": "./src/compare-host.ts",
+    "./ui": "./src/CompareView.tsx",
+    "./server": "./src/server.ts",
+    "./server-types": "./src/server-types.ts",
+    "./server-ui": "./src/ServerSettings.tsx"
+  },
+  "scripts": {
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsx scripts/build.ts"
+  },
+  "dependencies": {
+    "@litzio/plugin-api": "workspace:*",
+    "@litzio/core": "workspace:*",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.13",
+    "@types/node": "^24.5.2",
+    "tsx": "^4.23.15",
+    "typescript": "7.0.2",
+    "esbuild": "0.28.2"
+  },
+  "peerDependencies": {
+    "react": "^19.1.1"
+  }
+}
