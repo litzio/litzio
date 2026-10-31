@@ -213,7 +213,7 @@ test("manifest/API validation and crashed registry lock recovery preserve the co
   const manifest = path.join(bundled, "manifest.json");
   const installed = store.register(manifest);
   const incompatible = path.join(root, "bad.json");
-  writeFileSync(incompatible, JSON.stringify({ ...installed, workerApi: 2 }));
+  writeFileSync(incompatible, JSON.stringify({ ...installed, workerApi: 99 }));
   assert.throws(() => store.register(incompatible), /incompatible/);
   assert.equal(store.list()[0].sha256, installed.sha256);
   const lock = child("lock", root); t.after(() => kill(lock));

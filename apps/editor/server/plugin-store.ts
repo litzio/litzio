@@ -4,8 +4,9 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { ConversionJob } from "@litzio/docling/server-types";
 import { PLUGIN_UI, type UiManifest, type UiRegistration } from "@litzio/plugin-api/config";
+import { ProposalRuntime, type ProposalReceipt } from "./proposal-runtime.ts";
 
-export type WorkerManifest = { id: string; version: string; workerApi?: 1; entry?: "worker.cjs"; ui?: UiManifest };
+export type WorkerManifest = { id: string; version: string; workerApi?: 1 | 2; entry?: "worker.cjs"; ui?: UiManifest };
 export type Installation = WorkerManifest & { directory: string; sha256: string; revision: string; uiHashes?: Record<string, string>; enabled: boolean };
 export type Receipt = { job: ConversionJob; fingerprint: string; owner: string; installation: Installation; staging?: string;
   status: "running" | "success" | "error" | "cancelled" | "uncertain" };
@@ -14,8 +15,8 @@ function workerManifest(value: unknown): WorkerManifest {
   const manifest = value as WorkerManifest;
   if (!manifest || typeof manifest.id !== "string" || !/^[a-z][a-z0-9-]{0,63}$/u.test(manifest.id) ||
       typeof manifest.version !== "string" || !/^[\w.+-]{1,128}$/u.test(manifest.version) ||
-      (manifest.entry !== undefined || manifest.workerApi !== undefined ? manifest.workerApi !== 1 || manifest.entry !== "worker.cjs" : !manifest.ui)) {
-    throw new Error("Invalid worker manifest or incompatible worker Host API (expected 1).");
+      (manifest.entry !== undefined || manifest.workerApi !== undefined ? ![1, 2].includes(manifest.workerApi!) || manifest.entry !== "worker.cjs" : !manifest.ui)) {
+    throw new Error("Invalid worker manifest or incompatible worker Host API (expected 1 or 2).");
   }
   if (manifest.ui !== undefined && (!manifest.ui || manifest.ui.api !== PLUGIN_UI.api || manifest.ui.reactMajor !== PLUGIN_UI.reactMajor ||
       manifest.ui.script !== PLUGIN_UI.script || (manifest.ui.style !== undefined && manifest.ui.style !== PLUGIN_UI.style))) {
@@ -33,13 +34,14 @@ export function requestUuid(value: unknown): string {
  * on crash; ownership never depends on a PID, clock, heartbeat or stale timeout.
  * Use a local per-user filesystem, not a network share. */
 export class PluginStore {
+  readonly proposals = new ProposalRuntime(this);
   private db: DatabaseSync;
   private lease?: DatabaseSync;
   readonly owner = randomUUID();
   constructor(readonly directory: string) {
     mkdirSync(path.join(directory, "owners"), { recursive: true });
     this.db = new DatabaseSync(path.join(directory, "runtime.sqlite"));
-    this.db.exec("PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS plugins (id TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS requests (id TEXT PRIMARY KEY, value TEXT NOT NULL)");
+    this.db.exec("PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS plugins (id TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS requests (id TEXT PRIMARY KEY, value TEXT NOT NULL); CREATE TABLE IF NOT EXISTS proposals (id TEXT PRIMARY KEY, value TEXT NOT NULL)");
   }
   private transaction<T>(action: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");
@@ -133,6 +135,7 @@ export class PluginStore {
     this.holdOwnership();
     return this.transaction(() => {
       const existing = this.read(job.id);
+      if (this.readProposal(job.id)) throw new Error("Request UUID conflicts with an admitted proposal.");
       if (existing) {
         if (existing.fingerprint !== fingerprint) throw new Error("Request UUID conflicts with an admitted conversion.");
         return { receipt: existing, fresh: false };
@@ -140,6 +143,7 @@ export class PluginStore {
       const installation = this.list().find(item => item.id === "docling" && item.enabled);
       if (!installation) throw new Error("The Docling worker plugin is not registered.");
       workerManifest(installation);
+      if (installation.workerApi !== 1) throw new Error("Invalid or incompatible worker API for a conversion request (expected 1).");
       if (!installation.entry || !/^[a-f\d]{64}$/u.test(installation.sha256) || !/^[a-f\d]{64}$/u.test(installation.revision) ||
         installation.directory !== path.join(this.directory, "installed", installation.revision)) throw new Error("Invalid installed worker location.");
       const receipt: Receipt = { job, fingerprint, owner: this.owner, installation, status: "running" };
@@ -152,6 +156,50 @@ export class PluginStore {
       const current = this.read(receipt.job.id);
       if (current?.owner !== this.owner || current.status !== "running") throw new Error("Conversion ownership was lost.");
       this.save(receipt);
+    });
+  }
+  private readProposal(id: string): ProposalReceipt | null {
+    const row = this.db.prepare("SELECT value FROM proposals WHERE id=?").get(id);
+    return row ? JSON.parse(row.value as string) : null;
+  }
+  private saveProposal(receipt: ProposalReceipt) {
+    this.db.prepare("INSERT OR REPLACE INTO proposals VALUES (?, ?)").run(receipt.id, JSON.stringify(receipt));
+  }
+  getProposal(id: string): ProposalReceipt | null {
+    return this.transaction(() => {
+      const receipt = this.readProposal(requestUuid(id));
+      if (receipt?.status === "running" && !this.ownerAlive(receipt.owner)) {
+        receipt.status = "uncertain";
+        receipt.error = "Proposal outcome is uncertain after Host interruption. Request again with a new UUID; never automatically replayed.";
+        this.saveProposal(receipt);
+      }
+      return receipt;
+    });
+  }
+  admitProposal(id: string, fingerprint: string): { receipt: ProposalReceipt; fresh: boolean } {
+    id = requestUuid(id);
+    this.holdOwnership();
+    return this.transaction(() => {
+      const existing = this.readProposal(requestUuid(id));
+      if (this.read(id)) throw new Error("Request UUID conflicts with an admitted conversion.");
+      if (existing) {
+        if (existing.fingerprint !== fingerprint) throw new Error("Request UUID conflicts with an admitted proposal.");
+        return { receipt: existing, fresh: false };
+      }
+      const installation = this.list().find(item => item.id === "ai-agent" && item.enabled && item.workerApi === 2);
+      if (!installation?.entry || !/^[a-f\d]{64}$/u.test(installation.revision) || !/^[a-f\d]{64}$/u.test(installation.sha256) ||
+          installation.directory !== path.join(this.directory, "installed", installation.revision)) throw new Error("The AI proposal worker plugin is not registered.");
+      workerManifest(installation);
+      const receipt: ProposalReceipt = { id, fingerprint, installation, owner: this.owner, status: "running" };
+      this.saveProposal(receipt);
+      return { receipt, fresh: true };
+    });
+  }
+  finishProposal(receipt: ProposalReceipt) {
+    this.transaction(() => {
+      const current = this.readProposal(receipt.id);
+      if (current?.owner !== this.owner || current.status !== "running") throw new Error("Proposal ownership was lost.");
+      this.saveProposal(receipt);
     });
   }
   close() { this.lease?.close(); this.lease = undefined; this.db.close(); }

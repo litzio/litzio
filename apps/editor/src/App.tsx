@@ -7,6 +7,7 @@ import { usePluginUi } from "./plugin-ui.tsx";
 import { contributionNotices } from "./plugin-ui-registry.ts";
 import { PluginTab, type ContributedTab } from "./PluginTab.tsx";
 import type { UiHost } from "@litzio/plugin-api/ui";
+import { getEditableDocument, parse, replaceBlockProposal } from "@litzio/core";
 import { NotificationProvider, NotificationSource } from "./components/ui/notification-center.tsx";
 import { UiError } from "./ui-message.ts";
 import { useMessageState } from "./ui-message.ts";
@@ -162,6 +163,16 @@ function EditorApp() {
 
   const compareReturn = useRef<HTMLElement | null>(null);
   const ui = usePluginUi({
+    readSelection: readPluginSelection,
+    applyBlockProposal(selection, markdown) {
+      const { tab, revision } = JSON.parse(selection.token);
+      const owner = sessions.current.get(tab);
+      if (!owner || owner.kind !== "native" || !owner.editorRef.current || !owner.isCurrent() || owner.view !== "visual" || owner.busyRef.current || operationRef.current) throw new Error("Open the original editable document and request again.");
+      const document = replaceBlockProposal(parse(selection.source), selection.index, markdown);
+      const block = getEditableDocument(document).blocks[selection.index];
+      if (!block || !("content" in block)) throw new Error("Invalid proposal block.");
+      owner.editorRef.current.applyProposal(revision, selection.index, block.content);
+    },
     pickFolder: (options, focus) => { compareReturn.current = focus; setPluginPicker(options); },
     openTab: openPluginTab,
     showPdfConversion: focus => {
@@ -315,6 +326,15 @@ function EditorApp() {
   } = nativeSession ?? {};
   const { openedPath = "", draftActive = false, documentDirty = false, reloadDialog = false } = session ?? {};
   const busy = Boolean(operation || fileOperationPending || session?.busy || continuationPending);
+  async function readPluginSelection() {
+    const owner = nativeSession;
+    const editor = owner?.editorRef.current;
+    if (!owner || !editor || busy || owner.view !== "visual") throw new Error("Select a paragraph or heading in an editable native document first.");
+    const captured = editor.captureProposal();
+    const source = await owner.appliedSource();
+    if (!owner.isCurrent() || owner.editorRef.current?.captureProposal().revision !== captured.revision) throw new Error("The document changed while reading the selection. Request again.");
+    return { source, index: captured.index, token: JSON.stringify({ tab: activeId, revision: captured.revision }) };
+  }
   const switching = Boolean(operation || session?.switching);
   function compareBeforeSave(returnFocus: HTMLElement | null, owner = session): void {
     if (!owner || owner.kind !== "native" || operationRef.current || owner.busy || !(owner.documentDirty || owner.draftActive)) return;

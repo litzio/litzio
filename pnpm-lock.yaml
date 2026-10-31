@@ -470,6 +470,22 @@ importers:
         specifier: ^19.1.13
         version: 19.3.0
 
+  plugins/ai-agent:
+    dependencies:
+      '@litzio/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@litzio/plugin-api':
+        specifier: workspace:*
+        version: link:../../packages/plugin-api
+    devDependencies:
+      '@types/node':
+        specifier: ^24.5.2
+        version: 24.13.6
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
 packages:
 
   '@antfu/install-pkg@2.1.0':

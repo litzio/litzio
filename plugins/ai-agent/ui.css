@@ -1,0 +1,6 @@
+.ai-agent-proposal { padding: var(--space-5); color: var(--id-color-text); max-width: 70rem; margin-inline: auto; display: grid; gap: var(--space-3); }
+.ai-agent-proposal h2 { font-size: 1.125rem; font-weight: 600; }
+.ai-agent-proposal label { display: grid; gap: var(--space-2); }
+.ai-agent-proposal textarea { width: 100%; min-height: 5rem; padding: var(--space-2); border: 1px solid var(--id-color-border-control); border-radius: var(--id-radius-sm); background: var(--id-color-surface); color: inherit; font: inherit; resize: vertical; }
+.ai-agent-proposal [role=alert] { color: var(--id-color-danger); overflow-wrap: anywhere; }
+.ai-agent-actions { display: flex; gap: var(--space-2); }

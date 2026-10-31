@@ -6,7 +6,7 @@ import { i18n } from "../i18n.ts";
 
 export type Comparison = { before: string; after: string; fallback?: string; changed: boolean; missing: boolean; failure?: Error };
 
-export default function SourceCompare({ load, recovery = false }: { load(signal: AbortSignal): Promise<Comparison>; recovery?: boolean }) {
+export default function SourceCompare({ load, recovery = false, proposal = false }: { load(signal: AbortSignal): Promise<Comparison>; recovery?: boolean; proposal?: boolean }) {
   useTranslation();
   const [result, setResult] = useState<Comparison>();
   const [diff, setDiff] = useState<RecoveryDiff>();
@@ -50,8 +50,8 @@ export default function SourceCompare({ load, recovery = false }: { load(signal:
     const target = region.current?.querySelector<HTMLElement>(`[data-change-start="${next}"]`);
     target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: "nearest" });
   }
-  return <section className="recovery-comparison" aria-label={i18n.t(recovery ? "Recovery comparison" : "Changes before saving")}>
-    <p>{i18n.t("Current disk file → content Save would write. Canonical formatting changes are included.")}</p>
+  return <section className="recovery-comparison" aria-label={proposal ? "원문과 AI 제안 비교" : i18n.t(recovery ? "Recovery comparison" : "Changes before saving")}>
+    <p>{proposal ? "원문 → AI 제안. 적용하면 현재 편집 내용이 바뀝니다." : i18n.t("Current disk file → content Save would write. Canonical formatting changes are included." )}</p>
     {!diff && !error && !result?.failure ? <p role="status">{result ? i18n.t("Calculating differences…") : i18n.t("Loading comparison…")}</p> : null}
     {result?.failure ? <p role="alert">{i18n.t("Save preview unavailable: {{reason}}", { reason: result.failure.message })}</p> : null}
     {error ? <p role="alert">{i18n.t("Comparison unavailable: {{reason}}", { reason: error })}</p> : null}
@@ -67,7 +67,7 @@ export default function SourceCompare({ load, recovery = false }: { load(signal:
         <Button size="sm" variant="secondary" disabled={!diff.count} onClick={() => move(1)}>{i18n.t("Next change")}</Button>
         <span aria-live="polite">{current ? i18n.t("Change {{current}} of {{count}}", { current, count: diff.count }) : ""}</span>
       </div>
-      <p>{i18n.t(recovery ? "Line numbers: disk / recovery. − removed, + added. Long lines wrap." : "Line numbers: disk / Save preview. − removed, + added. Long lines wrap.")}</p>
+      <p>{proposal ? "줄 번호: 원문 / 제안. − 삭제, + 추가." : i18n.t(recovery ? "Line numbers: disk / recovery. − removed, + added. Long lines wrap." : "Line numbers: disk / Save preview. − removed, + added. Long lines wrap.")}</p>
       <div className="recovery-diff" ref={region} tabIndex={0} role="region" aria-label={i18n.t("Source differences")}>
         {diff.groups.map((group, g) => <div key={g} data-kind={group.kind} data-change-start={group.start ? group.change : undefined}
           data-current={group.change > 0 && group.change === current} tabIndex={group.start ? -1 : undefined}

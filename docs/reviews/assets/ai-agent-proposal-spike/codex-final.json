@@ -1,0 +1,12 @@
+{
+  "elapsedMs": 4198,
+  "receipt": {
+    "id": "3cb58e4f-8136-4290-95ee-948f88d5bc4d",
+    "status": "success",
+    "result": {
+      "markdown": "This sentence is lengthy and vague.",
+      "before": "---\nlitzio: 1\n---\n\nThis sentence is very very long and vague.\n",
+      "after": "---\nlitzio: 1\n---\n\nThis sentence is lengthy and vague.\n"
+    }
+  }
+}

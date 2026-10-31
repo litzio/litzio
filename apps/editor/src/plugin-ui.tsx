@@ -7,8 +7,13 @@ import { ReadOnlyDocument } from "./ReadOnlyDocument.tsx";
 import { Button } from "./components/ui/button.tsx";
 import { i18n, type MessageKey } from "./i18n.ts";
 import { UiRegistry, type ActiveUi } from "./plugin-ui-registry.ts";
+import SourceCompare from "./shell/SourceCompare.tsx";
 
-type ShellApi = Pick<UiHost, "pickFolder" | "openTab" | "showPdfConversion">;
+type ShellApi = Pick<UiHost, "pickFolder" | "openTab" | "showPdfConversion" | "readSelection" | "applyBlockProposal">;
+function ProposalComparison({ before, after }: { before: string; after: string }) {
+  const load = React.useCallback(async () => ({ before, after, changed: false, missing: false }), [before, after]);
+  return <SourceCompare load={load} proposal />;
+}
 function PluginButton(props: { children?: React.ReactNode; onClick(): void; disabled?: boolean }) {
   return <Button size="sm" variant="ghost" {...props} />;
 }
@@ -59,6 +64,18 @@ export function usePluginUi(shellApi: ShellApi) {
         pickFolder: (options, focus) => { guard(); api.current.pickFolder(options, focus); },
         openTab: (kind, resource) => { guard(); return api.current.openTab(`${registration.id}/${kind}`, resource); },
         showPdfConversion: focus => { guard(); api.current.showPdfConversion(focus); },
+        readSelection: async () => { guard(); const value = await api.current.readSelection(); guard(); return value; },
+        applyBlockProposal: (selection, markdown) => { guard(); api.current.applyBlockProposal(selection, markdown); },
+        requestProposal: async input => {
+          guard();
+          if (registration.id !== "ai-agent") throw new Error("This plugin has no proposal worker.");
+          const response = await fetch(`${import.meta.env.BASE_URL}api/ai-proposal`, { method: "POST", signal,
+            headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+          const value = await response.json(); guard();
+          if (!response.ok) throw new Error(value.error ?? "Proposal request failed.");
+          return value;
+        },
+        SourceComparison: ProposalComparison,
       }), error => setProblem(String(error)));
     const observe = async () => {
       try {

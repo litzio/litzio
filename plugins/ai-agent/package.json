@@ -1,0 +1,9 @@
+{
+  "name": "@litzio/ai-agent",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "typecheck": "tsc --noEmit -p tsconfig.json" },
+  "dependencies": { "@litzio/core": "workspace:*", "@litzio/plugin-api": "workspace:*" },
+  "devDependencies": { "@types/node": "^24.5.2", "typescript": "7.0.2" }
+}

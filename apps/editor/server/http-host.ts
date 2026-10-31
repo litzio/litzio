@@ -13,7 +13,7 @@ import { requestQuery } from "./request-query.ts";
 
 export const MAX_JSON_BYTES = 32 * 1024 * 1024;
 const DOCUMENT_ROUTES = new Set([PLUGIN_UI.route, "/api/worker-plugins", "/api/docling-settings", "/api/docling-check", "/api/docling-conversion", "/api/file", "/api/bibliography", "/api/file-preview", "/api/document", "/api/folder", "/api/folder-browse", "/api/folder-places",
-  "/api/document-source", "/api/docling-compare", "/api/figure-validation"]);
+  "/api/document-source", "/api/docling-compare", "/api/figure-validation", "/api/ai-proposal"]);
 
 export type HttpHostOptions = {
   roots: readonly string[];

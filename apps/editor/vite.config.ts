@@ -7,6 +7,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type ViteDevServer } from "vite";
 import { buildDoclingWorker } from "../../packages/cli/scripts/build-docling-worker.ts";
+import { buildAiAgent } from "../../packages/cli/scripts/build-ai-agent.ts";
 import { brand } from "../../brand.ts";
 
 export default defineConfig({
@@ -34,9 +35,15 @@ export default defineConfig({
       name: "litzio-document",
       async configureServer(server: ViteDevServer) {
         await buildDoclingWorker(fileURLToPath(new URL("../../tmp/docling-worker", import.meta.url)));
+        const aiDirectory = fileURLToPath(new URL("../../tmp/ai-agent", import.meta.url));
+        await buildAiAgent(aiDirectory);
         const assetSigningKey = randomBytes(32);
         let docling: Promise<ReturnType<typeof import("./server/docling.ts").createDoclingHost>> | undefined;
-        const doclingHost = () => docling ??= server.ssrLoadModule("/server/docling.ts").then(mod => mod.createDoclingHost());
+        const doclingHost = () => docling ??= server.ssrLoadModule("/server/docling.ts").then(mod => {
+          const host = mod.createDoclingHost();
+          host.plugins().register(`${aiDirectory}/manifest.json`, true);
+          return host;
+        });
         server.httpServer?.once("close", () => { void docling?.then(host => host.close()); });
         const sampleAvailability = prepareSampleDocuments(fileURLToPath(new URL("./samples", import.meta.url)), fileURLToPath(new URL("../../tmp/sample-native-v1", import.meta.url)));
         server.middlewares.use((req, res, next) => {
@@ -44,6 +51,12 @@ export default defineConfig({
           const base = server.config.base;
           const localUrl = requestUrl.startsWith(base) ? `/${requestUrl.slice(base.length)}` : requestUrl;
           const url = localUrl.split("?")[0];
+          if (url === "/api/ai-proposal") {
+            req.url = localUrl;
+            void server.ssrLoadModule("/server/document-api.ts").then(async mod => mod.handleDocumentRequest(req, res, next, LOCAL_FILE_ACCESS, Infinity, undefined, undefined, await doclingHost()))
+              .catch(error => { res.statusCode = 500; res.end(JSON.stringify({ error: String(error) })); });
+            return;
+          }
           if (url === "/api/asset") {
             void server.ssrLoadModule("/server/asset-api.ts").then(mod => mod.handleAssetRequest(req, res, assetSigningKey, LOCAL_FILE_ACCESS)).catch((error: unknown) => {
               res.statusCode = 500;

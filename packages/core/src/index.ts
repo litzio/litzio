@@ -11,6 +11,7 @@ import { createDocument as createNativeDocument, parseNativeDocument as parseTre
   canonicalWriteError as canonicalWriteErrorTree, canonicalWriteIssue as canonicalWriteIssueTree } from "./myst/native.ts";
 import type { MystDocument } from "./myst/tree.ts";
 import * as operations from "./operations.ts";
+import * as proposal from "./myst/proposal.ts";
 import { unresolvedReferences as unresolvedReferencesTree } from "./references.ts";
 import { validateStructure as validateTree } from "./validation.ts";
 import { updateDocumentTitle as updateDocumentTitleTree } from "./myst/title.ts";
@@ -64,6 +65,8 @@ function fence<F>(implementation: F): Fenced<F> {
 }
 
 export const parse = fence(parseTree);
+export const proposalBlock = fence(proposal.proposalBlock);
+export const replaceBlockProposal = fence(proposal.replaceBlockProposal);
 export const createDocument = fence(createNativeDocument);
 export const serialize = fence(serializeTree);
 /** Why canonical write (serialize) would refuse the document, or undefined when it is writable. */

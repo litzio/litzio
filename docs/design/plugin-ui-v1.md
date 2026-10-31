@@ -6,6 +6,32 @@
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
 
+## Branch-only AI proposal experiment
+
+The non-merging `spike/ai-agent-proposal` branch adds these narrow injected
+capabilities to UI API 1 for a trusted concept plugin (no compatibility migration):
+
+- `readSelection()` captures `{ token, source, index }` from an editable native
+  paragraph/heading, without unapplied drafts. `token` is opaque, scoped to its
+  tab, editor instance and monotonically changing applied-document revision.
+- `requestProposal(input)` admits work through the proposal Host route, scoped
+  to the `ai-agent` registration. Existing `readJson` reads its durable receipt.
+- `SourceComparison({ before, after })` supplies the existing shared diff worker,
+  line/word rendering, navigation, limits and cleanup, with proposal-specific labels.
+- `applyBlockProposal(selection, markdown)` revalidates with Core and updates only
+  that block's inline content in the retained editor through one normal history
+  transaction. It refuses a changed/remounted/read-only/busy document or drafts;
+  an unrelated edit anywhere invalidates the snapshot. Undo boundaries separate
+  both earlier and later manual edits from the proposal. No file is written.
+
+The command `AI에게 수정 제안 요청` captures the selection before opening a contributed
+proposal tab. The plugin owns the instruction, waiting/error and apply/reject
+view; rejection only changes view-local decision state. Disable uses the existing
+detachment/disabled-tab contract and does not cancel accepted worker requests.
+This is a concept UI, with Korean copy and no language/provider configuration UI.
+The original API 1 contract below remains the master baseline; these branch-only
+additions are not an adoption decision. See [measurements](../reviews/ai-agent-proposal-spike.md).
+
 ## Manifest and assets
 
 The brand-independent `@litzio/plugin-api` contract owns the identifiers in

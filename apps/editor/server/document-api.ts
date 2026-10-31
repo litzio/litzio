@@ -306,6 +306,20 @@ export async function handleDocumentRequest(
     } catch (error) { failure(error); }
     return;
   }
+  if (url === "/api/ai-proposal") {
+    if (!docling) { sendJson(res, 503, { error: "Plugins are unavailable on this Host." }); return; }
+    if (!["GET", "POST"].includes(req.method ?? "")) { res.statusCode = 405; res.end(); return; }
+    try {
+      const store = docling.plugins();
+      const receipt = req.method === "POST" ? await store.proposals.start(JSON.parse(await readBody(req))) : store.getProposal(query.get("id") ?? "");
+      if (!receipt) throw new Error("Proposal request was not found.");
+      // Local installation paths and ownership are not part of the public receipt.
+      const { id, status, result, error } = receipt;
+      res.setHeader("Cache-Control", "no-store");
+      sendJson(res, 200, { id, status, result, error });
+    } catch (error) { failure(error); }
+    return;
+  }
   if (["/api/docling-settings", "/api/docling-check", "/api/docling-conversion"].includes(url)) {
     if (!docling) { sendJson(res, 503, { error: "Docling is unavailable on this Host." }); return; }
     const methods = url === "/api/docling-settings" ? ["GET", "PUT"] : url === "/api/docling-check" ? ["POST"] : ["GET", "POST", "DELETE"];

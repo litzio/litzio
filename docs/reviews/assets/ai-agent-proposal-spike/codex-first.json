@@ -1,0 +1,12 @@
+{
+  "receipt": {
+    "id": "44babc57-b71d-4743-8bd9-a20146b49341",
+    "status": "success",
+    "result": {
+      "markdown": "This sentence is overly long and vague.",
+      "before": "---\nlitzio: 1\n---\n\nThis sentence is very very long and vague.\n",
+      "after": "---\nlitzio: 1\n---\n\nThis sentence is overly long and vague.\n"
+    }
+  },
+  "elapsedMs": 5105
+}

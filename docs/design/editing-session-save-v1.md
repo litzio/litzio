@@ -752,6 +752,13 @@ request-owned Worker, 500ms total/100ms optional word budget, input limits, 2-se
 word-omission notice and cleanup on completion/failure/close/retry. Pre-save budget refusal asks
 the user to narrow the changes rather than pointing at a nonexistent recovery-copy control.
 
+On the non-merging AI proposal spike branch, an injected plugin UI surface also
+reuses this renderer with original/proposal labels. It compares Core-canonical
+snapshots and applies through ordinary editor history, independently of Save;
+see the [branch-only plugin UI additions](plugin-ui-v1.md#branch-only-ai-proposal-experiment)
+and [spike evidence](../reviews/ai-agent-proposal-spike.md). The Save/recovery
+request, acknowledgement and readonly comparison behavior remain unchanged.
+
 The dialog compares the captured applied state with disk at request time. An external revision
 mismatch is explicitly reported; it never acknowledges the new disk version, and Save still
 conflicts. An absent file is always reported; the notice says all content is shown as additions only

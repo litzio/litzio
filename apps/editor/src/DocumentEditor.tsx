@@ -45,7 +45,7 @@ import { REFERENCE_STYLES, type ReferenceStyle } from "./reference-style.ts";
 import type { ReferenceTemplates } from "@litzio/core/numbering";
 import { defaultHeadingNumbering } from "@litzio/core/numbering";
 import { labelKey } from "@litzio/core/label";
-import { LIST_STYLES, type EditableDocument, type ListStyle, type ListDelimiter } from "@litzio/core";
+import { LIST_STYLES, type EditableDocument, type ListStyle, type ListDelimiter, type InlineContent } from "@litzio/core";
 import {
   DocumentPathContext,
   createEditorExtensions,
@@ -54,7 +54,7 @@ import {
   type DraftKind,
   editorDocumentJSON,
 } from "./editor-schema.tsx";
-import { appliedDocument, freshBlockPath, toTiptapDocument, type TiptapJSON } from "./tiptap-document.ts";
+import { appliedDocument, freshBlockPath, paragraphContent, toTiptapDocument, type TiptapJSON } from "./tiptap-document.ts";
 import { MARKDOWN_INPUT_RULES } from "./markdown-input-rules.ts";
 import { currentOutlineItem, documentOutline, documentTargets, sameOutline, type DocumentOutline, type NavigationList, type OutlineItem } from "./outline.ts";
 import { documentEnd, runHistoryShortcut } from "./document-interaction.ts";
@@ -69,6 +69,8 @@ function insertMenuItem(item: { id: string; label: string; group: string; hint?:
 }
 
 export type DocumentEditorHandle = {
+  captureProposal(): { revision: string; index: number };
+  applyProposal(revision: string, index: number, content: InlineContent[]): void;
   getDocument(): TiptapJSON;
   getSnapshot(): EditorSnapshot;
   /** Let the New dialog hand focus to the newly mounted editor through Base UI. */
@@ -215,6 +217,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     });
   }, []);
   const documentPathRef = useRef(documentPath);
+  const proposalRevision = useRef({ instance: crypto.randomUUID(), version: 0 });
   documentPathRef.current = documentPath;
   // This component remounts for a new document. Keep extension and view option identities
   // stable during React updates so setOptions cannot rebuild NodeViews holding drafts.
@@ -400,6 +403,12 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     };
   });
   const editor = useEditor(editorOptions);
+  useLayoutEffect(() => {
+    if (!editor) return;
+    const changed = ({ transaction }: { transaction: { docChanged: boolean } }) => { if (transaction.docChanged) proposalRevision.current.version++; };
+    editor.on("transaction", changed);
+    return () => { editor.off("transaction", changed); };
+  }, [editor]);
   useDocumentReading(editor, host, { onReadingLayout, onReadingSelection });
   useLayoutEffect(() => {
     if (!editor || editor.isEditable === !readOnly) return;
@@ -503,6 +512,33 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   useImperativeHandle(
     ref,
     () => ({
+      captureProposal() {
+        if (!editor?.isEditable || activeDrafts.current.size) throw new Error("Open an editable document without unapplied drafts first.");
+        const { selection } = editor.state;
+        const block = selection instanceof NodeSelection ? selection.node : selection.$from.depth > 0 ? selection.$from.node(1) : undefined;
+        if (!block || !["paragraph", "heading"].includes(block.type.name) ||
+            (!(selection instanceof NodeSelection) && (selection.$to.depth < 1 || selection.$to.node(1) !== block))) {
+          throw new Error("Select one top-level paragraph or heading for a proposal.");
+        }
+        const index = appliedDocument(editorDocumentJSON(editor.state)).content?.findIndex(node => node.attrs?.sourcePath === block.attrs.sourcePath) ?? -1;
+        if (index < 0) throw new Error("The selected block is not applied content.");
+        return { revision: `${proposalRevision.current.instance}:${proposalRevision.current.version}`, index };
+      },
+      applyProposal(revision, index, content) {
+        if (!editor?.isEditable || activeDrafts.current.size || revision !== `${proposalRevision.current.instance}:${proposalRevision.current.version}`) {
+          throw new Error("문서가 제안 기준 이후 바뀌었습니다. 문서에서 다시 요청하세요.");
+        }
+        const applied = appliedDocument(editorDocumentJSON(editor.state)).content?.[index];
+        let position = -1;
+        editor.state.doc.forEach((node, offset) => { if (node.attrs.sourcePath === applied?.attrs?.sourcePath) position = offset; });
+        const node = position < 0 ? undefined : editor.state.doc.nodeAt(position);
+        if (!node || !["paragraph", "heading"].includes(node.type.name)) throw new Error("The proposal block is no longer available.");
+        const replacement = editor.schema.nodeFromJSON({ type: node.type.name, attrs: node.attrs, content: paragraphContent(content) });
+        const transaction = closeHistory(editor.state.tr).replaceWith(position + 1, position + node.nodeSize - 1, replacement.content);
+        editor.view.dispatch(transaction);
+        if (!editor.state.doc.eq(transaction.doc)) throw new Error("The editor refused this proposal.");
+        editor.view.dispatch(closeHistory(editor.state.tr));
+      },
       getFocusTarget() { return editor?.view.dom ?? null; },
       canUndo() { return Boolean(editor?.isEditable && editor.can().undo()); },
       canRedo() { return Boolean(editor?.isEditable && editor.can().redo()); },

@@ -143,6 +143,6 @@ export class PluginRuntime implements ConversionExecutor {
       const failed = outcomes.find(outcome => outcome.status === "rejected");
       if (failed?.status === "rejected") throw failed.reason;
       if (this.fault) throw this.fault;
-    } finally { this.store.close(); }
+    } finally { try { await this.store.proposals.close(); } finally { this.store.close(); } }
   }
 }

@@ -7,6 +7,37 @@
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
 
+## Branch-only AI proposal experiment
+
+The non-merging `spike/ai-agent-proposal` branch adds an experimental worker API 2;
+API 1 remains conversion-only. API 2 accepts IPC
+`{ operation: "propose", block, instruction, adapter }` and returns either
+`{ type: "result", markdown }` or `{ type: "error", error }`, followed by exit.
+The installed worker hash is checked before forking. Registry admission accepts
+1/2, while each execution surface admits only its own worker API.
+
+`POST /api/ai-proposal` takes `{ id: UUID, source, index, instruction, adapter? }`.
+`source` is a native applied snapshot, `index` its top-level block ordinal;
+`adapter` defaults to `codex`, with `fake` reserved for deterministic verification.
+The receipt `{ id, status, result?, error? }` is read through
+`GET /api/ai-proposal?id=<UUID>`. The route has no file path or document write.
+Only the selected public Core block model and instruction reach the worker.
+The Host parses the replacement and canonicalizes the whole candidate using Core
+before publishing `result: { markdown, before, after }`. No partial result appears
+on worker failure, malformed output, shutdown or timeout (Codex 120s, fake 1s).
+Termination targets the owned worker process tree, including its CLI child.
+
+Receipts use the shared installation database's `proposals` table and the same
+OS ownership lock as conversions. UUID conflicts are refused across both request
+kinds and independent Hosts. Existing receipts remain readable after disable;
+new work is refused, accepted work drains, and an ended owner becomes uncertain
+without replay. The Vite adapter alone builds/seeds this bundled concept plugin,
+once if absent, preserving explicit disable. HTTP/Desktop share the callable
+handler but require explicit registration; packaging was not added or measured.
+
+These additions are experimental, not an adopted product contract. See the
+[spike measurements and limits](../reviews/ai-agent-proposal-spike.md).
+
 ## Installation and API
 
 All Hosts running as one OS user share `~/.litzio/plugins`.

@@ -13,6 +13,24 @@ import {
 
 const native = (body: string) => `---\nlitzio: 1\n---\n\n${body}`;
 
+test("block proposals preserve surrounding document and reject unsupported or structural output", () => {
+  const original = parse(native("# Context\n\nOriginal **paragraph**.\n\nUnchanged neighbour.\n"));
+  const before = serialize(original);
+  const next = core.replaceBlockProposal(original, 1, "A **clearer** paragraph.");
+  assert.equal(core.proposalBlock(next, 1).text, "A clearer paragraph.");
+  assert.equal(core.proposalBlock(next, 2).text, "Unchanged neighbour.");
+  assert.equal(serialize(parse(serialize(next))), serialize(next));
+  assert.equal(serialize(original), before);
+  for (const output of ["```{unsupported-proposal}\nbroken\n```", "First.\n\nSecond.", "## Wrong kind", "---\nlitzio: 1\n---\ntext"]) {
+    assert.throws(() => core.replaceBlockProposal(original, 1, output));
+    assert.equal(serialize(original), before);
+  }
+  assert.throws(() => core.replaceBlockProposal(original, 0, "## Changed level"));
+  const heading = core.replaceBlockProposal(original, 0, "# Better context");
+  assert.equal(core.proposalBlock(heading, 0).text, "Better context");
+  assert.throws(() => core.proposalBlock(original, -1));
+});
+
 test("frontmatter title alone owns the title; edits preserve body levels, labels and metadata", () => {
   const source = "---\nlitzio: 1 # marker\ntitle: IEEE 1547 · 제7장 발췌\nnumbering:\n  headings: true # sections\n  title: false\n---\n\n(clause)=\n# Power quality\n\n## Detail\n\nSee {ref}`clause`.\n";
   const original = parse(source);

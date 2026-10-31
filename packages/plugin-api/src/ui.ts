@@ -9,6 +9,8 @@ export type ReadingSurfaceProps = {
   onSelection(key: string | undefined): void;
 };
 export type TabContent = { path: string; data: unknown };
+/** Opaque editor revision; source is a Core-native applied snapshot, not disk access. */
+export type BlockSelection = { token: string; source: string; index: number };
 export type UiAction = { id: string; label: string; keywords?: string[]; run(returnFocus: HTMLElement | null): void | Promise<void> };
 export type TabKind = {
   id: string; label: string; className?: string;
@@ -33,5 +35,10 @@ export type UiHost = {
   openTab(kind: string, resource: string): Promise<string>;
   /** The existing shell PDF picker/dialog. It does not implement plugin work. */
   showPdfConversion(returnFocus: HTMLElement | null): void;
+  /** Experimental proposal spike. No editor-engine objects cross this boundary. */
+  readSelection(): Promise<BlockSelection>;
+  applyBlockProposal(selection: BlockSelection, markdown: string): void;
+  requestProposal<T>(input: { id: string; source: string; index: number; instruction: string }): Promise<T>;
+  SourceComparison: React.ComponentType<{ before: string; after: string }>;
 };
 export type UiModule = { activate(host: UiHost): UiContributions };
