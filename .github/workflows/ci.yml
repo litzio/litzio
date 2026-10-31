@@ -224,7 +224,9 @@ jobs:
       - run: pnpm --filter @litzio/cli test:packaged
       - name: Check Windows filesystem and HTTP boundaries
         if: runner.os == 'Windows'
-        run: pnpm --filter @litzio/editor exec tsx --test test/http-host.test.ts test/plugin-ui.test.ts test/plugin-runtime.test.ts test/file-operations.test.ts
+        run: |
+          pnpm exec tsx packages/cli/scripts/build-docling-worker.ts
+          pnpm --filter @litzio/editor exec tsx --test test/http-host.test.ts test/plugin-ui.test.ts test/plugin-runtime.test.ts test/plugin-host.test.ts test/file-operations.test.ts
       - name: Cache Playwright browsers
         if: runner.os == 'Linux'
         uses: actions/cache@v6

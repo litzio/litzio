@@ -56,6 +56,11 @@ boundary and all plugin source/build imports, including erased types and dynamic
 imports. Repository dependencies are restricted to public `@litzio/core` and
 `@litzio/plugin-api` exports; existing Node, React and validation libraries remain.
 The plugin build runs the same source check. No document semantics move to Host.
+Package test scripts prepare the bundled plugin. Direct source-Host test calls
+using `pnpm exec tsx --test` must first run
+`pnpm exec tsx packages/cli/scripts/build-docling-worker.ts`; the Windows HTTP
+boundary CI step does this explicitly. A packaged CLI bundle is a separate output
+and does not prepare `tmp/docling-worker` for source tests.
 
 An optional `host: { api: 1, entry: "host.cjs" }` declares a self-contained trusted
 Host facade. Registration validates/copies/hashes it alongside worker and UI assets.
