@@ -39,6 +39,8 @@ pnpm --filter @litzio/desktop package
 
 ## 다른 브랜드와 함께 설치
 
+[ADR-0013](../adr/0013-official-plugin-distribution.md)은 공식 플러그인의 카탈로그 URL·identity·공개 서명 키와 패키저의 교체·재빌드 규칙을 다루는 **Proposed 권장안**이다. 소유자 승인과 후속 구현 전까지 `officialPluginsUrl`은 위 표의 `null`이며, 플러그인 서명 키 설정·카탈로그 게시·공식 설치 UI는 아직 없다. 현재 브랜드 설정이 이 검증을 제공한다고 해석하지 않는다.
+
 별도 빌드는 표시 이름만 바꾸지 말고 `appId`, `appName`, `executableName`, `protocol`,
 `folders.desktopData`, `folders.cli`, `folders.shared`, `cliCommand`, `storagePrefix`를 모두 별도로 지정한다.
 플러그인 하위 폴더 이름이 같아도 공용 상위 폴더가 달라야 한다. 설치/폴더/명령 이름에는

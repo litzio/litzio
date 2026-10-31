@@ -208,6 +208,12 @@ not implemented in #857.
 
 ## Non-decisions
 
+[ADR-0013: Official plugin distribution and lifecycle](0013-official-plugin-distribution.md)
+is a Proposed follow-up for #867, covering the owner's later official-plugin
+direction in Discussion #767. Its distribution, signature and update details
+await owner acceptance and do not yet replace the exclusions below or the
+current trusted-local installation contracts.
+
 - AI-generated plugin installation, user approval and automatic download flows.
 - OS sandbox implementation. Initially only trusted local code is allowed;
   untrusted code is not allowed before OS sandbox validation.

@@ -18,12 +18,15 @@
 | Status | Meaning |
 | --- | --- |
 | Draft | 논의 중이며 현재 구현 계약이 아님 |
+| Proposed | 소유자 승인을 기다리는 ADR 권장안이며 현재 architecture 규범이 아님 |
 | Accepted | 승인된 architecture decision |
 | Implemented | 현재 master behavior를 설명하는 계약 |
 | Historical | 당시 조사·검토·실험 기록이며 현재 요구사항이 아님 |
 | Superseded | 다른 문서로 대체됨. 후속 문서를 반드시 링크 |
 
 Status 값은 위 단어를 사용한다. `Scope`나 `Authority`로 개발 Host에 한정되는지, historical security review인지 등을 덧붙인다. Implemented는 모든 플랫폼의 수동 검증 완료나 제품 release를 뜻하지 않는다.
+
+새 ADR의 권장안은 Proposed로 분리하고, 소유자가 결정을 승인한 뒤 Accepted로 바꾼다. 기존 Accepted ADR은 후속 Proposed ADR만으로 대체되지 않는다.
 
 ## Required metadata
 
