@@ -187,7 +187,7 @@ for (const name of scenarios) {
     const liveInput = path.join(REPOSITORY_ROOT, "tmp", "797-real", "nist-source.pdf");
     if (liveDocling) {
       mkdirSync(path.dirname(liveInput), { recursive: true });
-      writeFileSync(liveInput, readFileSync(path.join(REPOSITORY_ROOT, "packages/docling/test/fixtures/nist-sp1108r4/source.pdf")));
+      writeFileSync(liveInput, readFileSync(path.join(REPOSITORY_ROOT, "plugins/docling/test/fixtures/nist-sp1108r4/source.pdf")));
     }
     let result;
     try { result = await scenario(page, { brand, pluginFixture: uiPluginFixture(path.join(REPOSITORY_ROOT, "tmp/plugin-ui")), assertSavedSource: savedSourceAssertion(test.info()), screenshots, showNotifications, fileActionsRoot: FILE_ACTIONS_ROOT, expect, recoveryRecords, openFolderPicker, openDocument, openPath, waitForActivePath, reloadDocument, waitForEditorFocus, activeDocument, withBlockHover, bibliographyFixture,

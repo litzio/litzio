@@ -10,14 +10,14 @@ import test, { type TestContext } from "node:test";
 import { documentRevision, loadDocumentFile } from "../server/document-api.ts";
 import { MAX_JSON_BYTES, startHttpHost } from "../server/http-host.ts";
 import { RootAccess } from "../server/file-access.ts";
-import { convertDoclingFile } from "@litzio/docling";
+import { convertDoclingFile } from "../../../plugins/docling/src/index.ts";
 
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
 
 test("comparison reads a self-contained bundle through the shared Host, refuses writes and Root/media escapes", async t => {
   const { a, outside, send } = await fixture(t);
   const directory = path.join(a, "comparison");
-  convertDoclingFile(fileURLToPath(new URL("../../../packages/docling/test/fixtures/synthetic/document.json", import.meta.url)), directory);
+  convertDoclingFile(fileURLToPath(new URL("../../../plugins/docling/test/fixtures/synthetic/document.json", import.meta.url)), directory);
   const file = path.join(directory, "document.md");
   const endpoint = `/api/docling-compare?${new URLSearchParams({ path: file })}`;
   const original = fs.readFileSync(file, "utf8");
@@ -173,7 +173,10 @@ async function fixture(t: TestContext, external?: string) {
   }
   fs.writeFileSync(path.join(editorDir, "index.html"), "<!doctype html><title>Editor</title>");
   fs.writeFileSync(path.join(editorDir, "app.js"), "export {};");
+  const previousPlugins = process.env.LITZIO_PLUGINS_DIR;
+  process.env.LITZIO_PLUGINS_DIR = path.join(base, "plugins");
   const host = await startFetchServer(() => startHttpHost({ editorDir, roots: [a, b], port: 0, publicOrigin: external }));
+  if (previousPlugins === undefined) delete process.env.LITZIO_PLUGINS_DIR; else process.env.LITZIO_PLUGINS_DIR = previousPlugins;
   const address = host.server.address();
   assert.ok(address && typeof address !== "string");
   const url = `http://127.0.0.1:${address.port}`;

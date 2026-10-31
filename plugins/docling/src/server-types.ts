@@ -7,8 +7,8 @@ export type ServerCheck = {
   code?: "unreachable" | "not-ready" | "version" | "openapi";
   message?: string;
 };
-export type PdfProgress = { phase: "checking" | "uploading" | "pending" | "started" | "downloading" | "writing"; taskId?: string };
-export type ConversionFailure = { code: "model-missing" | "capacity" | "source" | "timeout" | "server" | "output" | NonNullable<ServerCheck["code"]>; taskId?: string };
+export type { PdfProgress, ConversionFailure, ConversionJob } from "@litzio/plugin-api/worker";
+import type { ConversionFailure } from "@litzio/plugin-api/worker";
 /** Public response causes only. A redacted internal error is never guessed to be a missing model. */
 export function doclingFailureOf(value: any): ConversionFailure {
   const messages = [value?.failure?.message, value?.error_message, value?.detail, ...(Array.isArray(value?.errors) ? value.errors.map((error: any) => error?.error_message) : [])]
@@ -30,8 +30,3 @@ export function doclingFailureMessage(failure?: ConversionFailure): string {
     default: return "Could not create the conversion bundle. Check the PDF, result folder permissions and server logs.";
   }
 }
-export type ConversionJob = {
-  id: string; input: string; output: string; startedAt: number;
-  state: "running" | "success" | "error" | "cancelled";
-  progress: PdfProgress; error?: string; failure?: ConversionFailure;
-};

@@ -1,6 +1,7 @@
 # Docling conversion v1
 
 - Status: Implemented
+- Plugin-folder verification: 2026-11-01 (#869; independent folder build/typecheck/tests, shared Host, CLI and unchanged Docling conversion browser assertions; no real Docling service launched).
 - Worker boundary verified: 2026-10-31 (#853 synthetic REST/shared Host tests; real service and packaged checks follow the plugin contract).
 - Last verified: 2026-10-30 (module/CLI tests, public and synthetic fixtures, canonical reopen, local IEEE conversion and NIST PDF REST conversion).
 - Scope: `@litzio/docling` and thin CLI, under [ADR-0011](../adr/0011-code-module-boundary.md).
@@ -51,7 +52,7 @@ retried, including after a timeout: an upload can have reached the server even
 when the client has no task ID. This command does not cancel or resume server jobs.
 
 The sole fixed profile is
-[`litzio-pdf-en-v1`](../../packages/docling/profiles/litzio-pdf-en-v1.json).
+[`litzio-pdf-en-v1`](../../plugins/docling/profiles/litzio-pdf-en-v1.json).
 There is no profile selector or individual conversion-option flag. Its request
 values are copied verbatim from the owner's `crd-engine` profile
 `profiles/crd-pdf-rest-v1.json`, under that project's ADR-0003. The copied source
@@ -132,7 +133,7 @@ The public NIST excerpt and synthetic fixtures were regenerated in #784 through
 `convert-pdf` with this fixed profile. They contain unresized images with readable
 names, `conversion-record.json` and the native Markdown/map, alongside unchanged
 source PDFs. The old #768 resized, hash-named images and manifests are replaced;
-the [fixture README](../../packages/docling/test/fixtures/README.md) records rights,
+the [fixture README](../../plugins/docling/test/fixtures/README.md) records rights,
 sizes and reproduction steps. Saved JSON and conversion records are unedited CLI
 output; integrity checks do not certify OCR or semantic fidelity.
 
@@ -206,7 +207,10 @@ is missing. The existing CLI diagnostic retains its error/context.
 This is Host/UI access to the already headless `docling convert-pdf` operation;
 no new Core semantics or CLI command is needed. Connection checks, REST conversion and module UI stay in `@litzio/docling`;
 the Host owns worker admission, lifetime, request receipts and result publication; Editor provides shared controls, translation,
-file picker, shell dialogs/tabs and external-link handling under ADR-0011.
+file picker, generic dialogs/tabs/settings sections and external-link handling under ADR-0012.
+#869 moves the remaining settings/conversion UI and Host facade into `plugins/docling`;
+CLI commands use installed [Host operations](plugin-runtime-v1.md#plugin-owned-host-operations-and-folder-869).
+Conversion policy, source preservation, failure reporting and public command results remain unchanged.
 
 ## Correspondence sidecar
 
@@ -285,7 +289,7 @@ silently treats an unrelated occurrence of the same number as an endnote call.
 Read-only comparison is defined by [Docling comparison](docling-compare-v1.md).
 Confirmation state, correction records and post-edit relinking remain outside
 this contract. Public fixture provenance, licenses and reproduction
-commands are in the [fixture README](../../packages/docling/test/fixtures/README.md).
+commands are in the [fixture README](../../plugins/docling/test/fixtures/README.md).
 
 ## App verification on 2026-10-30
 

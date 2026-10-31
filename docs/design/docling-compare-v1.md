@@ -1,6 +1,7 @@
 # Docling comparison v1
 
 - Status: Implemented
+- Plugin-folder verification: 2026-11-01 (#869; unchanged comparison scenario on Windows persistent Chrome, 1440/640px capture path).
 - Last verified: 2026-10-31 (#815 fixed Read surface/reverse correspondence; #857 dynamic UI contribution with unchanged comparison behavior).
 - Authority: owner decisions in [#766](https://github.com/litzio/litzio/discussions/766), [#767](https://github.com/litzio/litzio/discussions/767), [#769](https://github.com/litzio/litzio/issues/769), under [ADR-0011](../adr/0011-code-module-boundary.md).
 
@@ -46,7 +47,7 @@ are hidden, and the same engine transaction filter rejects document changes.
 The shell's thin reading-surface adapter supplies the public Core read model;
 the module receives only block/recursive list-item positions and the current
 snapshot selection key through callbacks, never Editor DOM or engine types.
-All source matching, source inspection state and scrolling stay in `packages/docling`.
+All source matching, source inspection state and scrolling stay in `plugins/docling`.
 The Endnotes
 action reveals trailing definitions. Source notes retain their original language.
 

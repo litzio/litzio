@@ -5,7 +5,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
+import { listenForFetch } from "@litzio/plugin-api/testing";
 import { convertDoclingPdf, readDoclingMap } from "../src/index.ts";
 import profile from "../profiles/litzio-pdf-en-v1.json" with { type: "json" };
 import { doclingFailureOf } from "../src/server-types.ts";

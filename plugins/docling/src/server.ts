@@ -4,21 +4,19 @@ import path from "node:path";
 import { checkDoclingServer, doclingServerUrl } from "./pdf.ts";
 import { DEFAULT_DOCLING_SERVER, type ConversionJob } from "./server-types.ts";
 
-export type ConversionRequest = { job: ConversionJob; server: string; beforePublish(): void };
-export interface ConversionExecutor {
-  start(request: ConversionRequest): Promise<ConversionJob>;
-  current(id: string): ConversionJob | null;
-  cancel(id: string): Promise<ConversionJob>;
-  close(): Promise<void>;
-}
+import type { ConversionExecutor } from "@litzio/plugin-api/worker";
+export type { ConversionExecutor, ConversionRequest } from "@litzio/plugin-api/worker";
 
 /** Existing UI/settings facade. Execution and durable receipts belong to Host. */
+export type ConversionSession = { job?: ConversionJob; admitting: boolean };
 export class DoclingHost {
-  private job?: ConversionJob;
-  private admitting = false;
+  private get job() { return this.session.job; }
+  private set job(value: ConversionJob | undefined) { this.session.job = value; }
+  private get admitting() { return this.session.admitting; }
+  private set admitting(value: boolean) { this.session.admitting = value; }
   private settingsFile: string;
   private resolve: (file: string, create?: boolean) => string;
-  constructor(settingsFile: string, resolve: (file: string, create?: boolean) => string, private executor: ConversionExecutor) {
+  constructor(settingsFile: string, resolve: (file: string, create?: boolean) => string, private executor: ConversionExecutor, private session: ConversionSession = { admitting: false }) {
     this.settingsFile = settingsFile; this.resolve = resolve;
   }
 

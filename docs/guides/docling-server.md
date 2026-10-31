@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Last verified: 2026-10-30. Windows Docker Desktop, NVIDIA RTX 3070 Ti와 CUDA 이미지 1.32.0에서 NIST 11쪽 PDF를 앱으로 변환했다. CPU 실행·영구 볼륨 재시작·최소 자원은 확인 안 됨.
-- Scope: Litzio 관리자·서버 운영자의 외부 Docling 서비스 구성. 제품 동작은 [Docling 변환 계약](../design/docling-conversion-v1.md), 실행 근거는 [공개 fixture 재현 절차](../../packages/docling/test/fixtures/README.md#reproduction)를 따른다.
+- Scope: Litzio 관리자·서버 운영자의 외부 Docling 서비스 구성. 제품 동작은 [Docling 변환 계약](../design/docling-conversion-v1.md), 실행 근거는 [공개 fixture 재현 절차](../../plugins/docling/test/fixtures/README.md#reproduction)를 따른다.
 
 ## Litzio와 서버의 관계
 
@@ -150,4 +150,4 @@ Windows에서 이번 작업을 위해 Docker Desktop도 직접 켰다면 Docker 
 - [공식 docling-serve v1.32.0 모델 운영 안내](https://github.com/docling-project/docling-serve/blob/v1.32.0/docs/models.md): 추가 모델·artifacts 경로·사전 다운로드와 영구 저장 방법.
 - [공식 v1.32.0 앱/API 구현](https://github.com/docling-project/docling-serve/blob/v1.32.0/docling_serve/app.py): readiness·version·변환 작업 경계. 이번 실행 서버의 OpenAPI 전체 경로도 대조했다.
 - [Docker volume 초기 내용 복사](https://docs.docker.com/engine/storage/volumes/#populate-a-volume-using-a-container): 새 named volume과 기존 이미지 디렉터리의 관계.
-- [저장소 공개 fixture 절차](../../packages/docling/test/fixtures/README.md#reproduction): 일회용 컨테이너의 CodeFormulaV2 준비·원본 자료·프로필 근거.
+- [저장소 공개 fixture 절차](../../plugins/docling/test/fixtures/README.md#reproduction): 일회용 컨테이너의 CodeFormulaV2 준비·원본 자료·프로필 근거.

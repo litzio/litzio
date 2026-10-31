@@ -1,7 +1,5 @@
-import { DoclingServerSettings } from "@litzio/docling/server-ui";
-import { Input } from "@/components/ui/input.tsx";
-import type { MessageKey } from "../i18n.ts";
-import { openExternalLink } from "../link-opening.ts";
+import type { SettingsSection } from "@litzio/plugin-api/ui";
+import { ContributionBoundary } from "../PluginTab.tsx";
 import { useMessageState } from "../ui-message.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
@@ -55,7 +53,7 @@ export function updateStatusText(info: DesktopInfo): string {
   }
 }
 
-export type SettingsCategory = "appearance" | "recovery" | "docling" | "about";
+export type SettingsCategory = "appearance" | "recovery" | "about" | `plugin/${string}`;
 
 function CliSettings({ desktop }: { desktop: DesktopBridge }) {
   const [state, setState] = useState<CliIntegrationState | null>(null);
@@ -99,6 +97,7 @@ function CliSettings({ desktop }: { desktop: DesktopBridge }) {
 }
 
 type SettingsDialogProps = {
+  sections?: SettingsSection[];
   open: boolean;
   theme: ThemePreference;
   themeProblem: boolean;
@@ -122,8 +121,11 @@ type SettingsDialogProps = {
 };
 
 /** Shared local recovery settings; About and update controls require the Desktop bridge. */
-export function SettingsDialog({ theme, themeProblem, onThemeChange, open, highlightUpdate = false, category, onCategoryChange, documentName, unsaved, desktop, info, onInfo, onInstall, returnFocus, onClose, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
+export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChange, open, highlightUpdate = false, category, onCategoryChange, documentName, unsaved, desktop, info, onInfo, onInstall, returnFocus, onClose, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
   useTranslation();
+  useEffect(() => {
+    if (category.startsWith("plugin/") && !sections.some(section => section.id === category)) onCategoryChange("appearance");
+  }, [category, sections, onCategoryChange]);
   const backButton = useRef<HTMLButtonElement>(null);
   const [clearConfirm, setClearConfirm] = useState(false);
   const clearButton = useRef<HTMLButtonElement>(null);
@@ -148,10 +150,12 @@ export function SettingsDialog({ theme, themeProblem, onThemeChange, open, highl
   const categories = [
     { id: "appearance", label: i18n.t("Appearance & language"), icon: Palette },
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
-    { id: "docling", label: i18n.t("Docling"), icon: FileText },
+    ...sections.map(section => ({ id: section.id as SettingsCategory, label: i18n.t(section.label as any), icon: FileText })),
     ...(desktop ? [{ id: "about" as const, label: i18n.t("About & updates"), icon: Info }] : []),
   ] as const;
 
+  const contributed = sections.find(section => section.id === category);
+  const Section = contributed?.View;
   return (
     <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
       <DialogContent className="settings-screen" data-testid="settings-dialog" showCloseButton={false}
@@ -185,10 +189,10 @@ export function SettingsDialog({ theme, themeProblem, onThemeChange, open, highl
                 <h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2>
                 <p>{category === "appearance" ? i18n.t("How {{product}} looks on this device.")
                   : category === "recovery" ? i18n.t("Local recovery keeps applied edits on this device.")
-                  : category === "docling" ? i18n.t("PDF conversion on the Host device.")
+                  : contributed ? i18n.t(contributed.description as any)
                   : i18n.t("Version and how {{product}} Desktop receives updates.")}</p>
               </header>
-              {category === "docling" ? <DoclingServerSettings base={import.meta.env.BASE_URL} text={key => i18n.t(key as MessageKey)} Input={Input} Button={DoclingSettingsButton} GuideLink={DoclingGuideLink} /> : null}
+              {Section ? <ContributionBoundary key={category}><Section /></ContributionBoundary> : null}
               {category === "appearance" ? <>
                 <section className="settings-section" aria-labelledby="settings-theme">
                   <div className="settings-label">
@@ -349,12 +353,4 @@ export function SettingsDialog({ theme, themeProblem, onThemeChange, open, highl
       </DialogContent>
     </Dialog>
   );
-}
-
-function DoclingSettingsButton(props: { children?: React.ReactNode; onClick(): void; disabled?: boolean }) {
-  return <Button size="sm" variant="secondary" {...props} />;
-}
-function DoclingGuideLink({ children }: { children?: React.ReactNode }) {
-  const href = "https://github.com/litzio/litzio/blob/master/docs/guides/docling-server.md";
-  return <a href={href} className="w-fit text-primary underline underline-offset-4" onClick={event => { event.preventDefault(); openExternalLink(href); }}>{children}</a>;
 }

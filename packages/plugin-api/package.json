@@ -4,7 +4,20 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "exports": { "./ui": "./src/ui.ts", "./config": "./src/config.ts" },
-  "dependencies": { "@litzio/core": "workspace:*" },
-  "devDependencies": { "@types/react": "^19.1.13" }
+  "exports": {
+    "./ui": "./src/ui.ts",
+    "./config": "./src/config.ts",
+    "./build": "./src/build.ts",
+    "./worker": "./src/worker.ts",
+    "./host": "./src/host.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "dependencies": {
+    "@litzio/core": "workspace:*",
+    "@babel/parser": "7.29.9",
+    "esbuild": "0.28.2"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.13"
+  }
 }

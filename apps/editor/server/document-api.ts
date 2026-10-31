@@ -1,7 +1,6 @@
 import { readBibliographySources } from "./bibliography.ts";
-import { loadDoclingComparison } from "./docling-compare.ts";
 import { PLUGIN_UI } from "@litzio/plugin-api/config";
-import type { createDoclingHost } from "./docling.ts";
+import type { createPluginHost } from "./plugin-host.ts";
 import { MAX_ASSET_BYTES } from "../shared/asset-policy.ts";
 import { ImageValidationError, validateImage } from "./image-validation.ts";
 import fs, { readFileSync, statSync, writeFileSync } from "node:fs";
@@ -260,7 +259,7 @@ export async function handleDocumentRequest(
   bodyLimit = Infinity,
   removeFile?: (file: string) => void | Promise<void>,
   sampleAvailability?: SampleAvailability,
-  docling?: ReturnType<typeof createDoclingHost>,
+  plugins?: ReturnType<typeof createPluginHost>,
 ): Promise<void> {
   const readBody = async (request: IncomingMessage) => decodeUtf8(await readRequestBody(request, bodyLimit));
   const failure = (error: unknown) => sendJson(res,
@@ -273,9 +272,9 @@ export async function handleDocumentRequest(
   const url = new URL(req.url ?? "", "http://localhost").pathname;
   if (url === PLUGIN_UI.route) {
     if (req.method !== "GET") { res.statusCode = 405; res.end(); return; }
-    if (!docling) { sendJson(res, 503, { error: "Plugins are unavailable on this Host." }); return; }
+    if (!plugins) { sendJson(res, 503, { error: "Plugins are unavailable on this Host." }); return; }
     try {
-      const store = docling.plugins(true), asset = query.get("asset");
+      const store = plugins.plugins(true), asset = query.get("asset");
       res.setHeader("Cache-Control", "no-store");
       if (!asset) sendJson(res, 200, store.uiList());
       else {
@@ -288,10 +287,10 @@ export async function handleDocumentRequest(
     return;
   }
   if (url === "/api/worker-plugins") {
-    if (!docling) { sendJson(res, 503, { error: "Plugins are unavailable on this Host." }); return; }
+    if (!plugins) { sendJson(res, 503, { error: "Plugins are unavailable on this Host." }); return; }
     if (!["GET", "POST", "DELETE"].includes(req.method ?? "")) { res.statusCode = 405; res.end(); return; }
     try {
-      const store = docling.plugins();
+      const store = plugins.plugins();
       if (req.method === "GET") sendJson(res, 200, store.list());
       else {
         const body = JSON.parse(await readBody(req));
@@ -306,23 +305,14 @@ export async function handleDocumentRequest(
     } catch (error) { failure(error); }
     return;
   }
-  if (["/api/docling-settings", "/api/docling-check", "/api/docling-conversion"].includes(url)) {
-    if (!docling) { sendJson(res, 503, { error: "Docling is unavailable on this Host." }); return; }
-    const methods = url === "/api/docling-settings" ? ["GET", "PUT"] : url === "/api/docling-check" ? ["POST"] : ["GET", "POST", "DELETE"];
-    if (!methods.includes(req.method ?? "")) { res.statusCode = 405; res.end(); return; }
+  if (url === "/api/plugin-operation") {
+    if (!plugins) { sendJson(res, 503, { error: "Plugins are unavailable on this Host." }); return; }
+    if (req.method !== "POST") { res.statusCode = 405; res.end(); return; }
     try {
-      const body = req.method === "GET" ? undefined : JSON.parse(await readBody(req));
-      const result = url === "/api/docling-settings" ? req.method === "GET" ? docling.settings() : docling.configure(body.server)
-        : url === "/api/docling-check" ? await docling.check()
-        : req.method === "GET" ? docling.current(query.get("id") ?? undefined) : req.method === "DELETE" ? await docling.cancel(body.id) : await docling.start(body.path, body.id);
-      sendJson(res, 200, result);
+      const body = JSON.parse(await readBody(req));
+      if (typeof body.plugin !== "string" || typeof body.operation !== "string") throw new Error("Plugin and operation are required.");
+      sendJson(res, 200, await plugins.invoke(body.plugin, body.operation, body.args));
     } catch (error) { failure(error); }
-    return;
-  }
-  if (url === "/api/docling-compare") {
-    if (req.method !== "GET") { res.statusCode = 405; res.end(); return; }
-    try { sendJson(res, 200, loadDoclingComparison(query.get("path") ?? undefined, access)); }
-    catch (error) { failure(error); }
     return;
   }
   if (url === "/api/file") {
@@ -435,7 +425,19 @@ export async function handleDocumentRequest(
     return;
   }
   if (url !== "/api/document") {
-    next();
+    if (url.startsWith("/api/") && plugins) {
+    try {
+      const route = plugins.route(url);
+      if (route) {
+        const operation = route.methods[req.method as keyof typeof route.methods];
+        if (!operation) { res.statusCode = 405; res.end(); return; }
+        const args = req.method === "GET" ? Object.fromEntries(query) : JSON.parse(await readBody(req));
+        sendJson(res, 200, await plugins.invoke(route.id, operation, args));
+        return;
+      }
+    } catch (error) { failure(error); return; }
+  }
+  next();
     return;
   }
 

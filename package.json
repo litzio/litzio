@@ -7,20 +7,22 @@
     "node": ">=24.21.0 <25"
   },
   "scripts": {
+    "boundaries:check": "tsx scripts/check-plugin-boundaries.ts",
     "issues:forms": "node scripts/issues.mjs forms",
     "issues:check": "node scripts/issues.mjs check",
     "issues:test": "node --test scripts/issue-policy.test.mjs",
     "issues:labels": "node scripts/issues.mjs labels",
     "issue:create": "node scripts/issues.mjs create",
     "docs:check": "tsx scripts/check-docs.ts",
-    "test": "pnpm --filter @litzio/core test && pnpm --filter @litzio/file-commit test && pnpm --filter @litzio/docling test && pnpm --filter @litzio/cli test && pnpm --filter @litzio/editor test && pnpm --filter @litzio/desktop test",
+    "test": "pnpm boundaries:check && pnpm --filter @litzio/core test && pnpm --filter @litzio/file-commit test && pnpm --filter @litzio/docling test && pnpm --filter @litzio/cli test && pnpm --filter @litzio/editor test && pnpm --filter @litzio/desktop test",
     "typecheck": "pnpm --filter @litzio/core typecheck && pnpm --filter @litzio/file-commit typecheck && pnpm --filter @litzio/docling typecheck && pnpm --filter @litzio/cli typecheck && pnpm --filter @litzio/editor typecheck && pnpm --filter @litzio/desktop typecheck",
     "editor": "pnpm --filter @litzio/editor dev",
     "browser:prepare": "tsx apps/editor/test/browser/prepare.ts",
     "browser:test": "tsx apps/editor/test/browser/run.ts",
-    "cli": "tsx packages/cli/src/cli.ts"
+    "cli": "tsx packages/cli/scripts/build-docling-worker.ts && tsx packages/cli/src/cli.ts"
   },
   "devDependencies": {
+    "@litzio/plugin-api": "workspace:*",
     "@playwright/cli": "0.1.21",
     "@playwright/test": "1.64.0-alpha-1789764292000",
     "js-yaml": "5.4.2",

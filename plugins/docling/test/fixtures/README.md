@@ -133,9 +133,9 @@ try {
   # Wait for /ready to return 200 before submitting either PDF.
   Invoke-RestMethod http://127.0.0.1:8001/ready
   New-Item -ItemType Directory -Force tmp/784 | Out-Null
-  pnpm cli docling convert-pdf packages/docling/test/fixtures/nist-sp1108r4/source.pdf --server http://127.0.0.1:8001 --output tmp/784/nist-sp1108r4
+  pnpm cli docling convert-pdf plugins/docling/test/fixtures/nist-sp1108r4/source.pdf --server http://127.0.0.1:8001 --output tmp/784/nist-sp1108r4
   if ($LASTEXITCODE) { throw 'NIST conversion failed' }
-  pnpm cli docling convert-pdf packages/docling/test/fixtures/synthetic/source.pdf --server http://127.0.0.1:8001 --output tmp/784/synthetic
+  pnpm cli docling convert-pdf plugins/docling/test/fixtures/synthetic/source.pdf --server http://127.0.0.1:8001 --output tmp/784/synthetic
   if ($LASTEXITCODE) { throw 'Synthetic conversion failed' }
 } finally {
   if ($startedHere) { docker compose -f C:/Projects/docling-local/compose.yaml down }
@@ -154,7 +154,7 @@ profile options to conceal it. After review, replace only generated files,
 preserving `source.pdf`:
 
 ```powershell
-$fixtures = (Resolve-Path packages/docling/test/fixtures).Path
+$fixtures = (Resolve-Path plugins/docling/test/fixtures).Path
 foreach ($name in @('nist-sp1108r4', 'synthetic')) {
   $target = (Resolve-Path (Join-Path $fixtures $name)).Path
   if (-not $target.StartsWith($fixtures + [IO.Path]::DirectorySeparatorChar)) { throw 'Unexpected fixture path' }
@@ -186,7 +186,7 @@ Litzio runtime dependency. Verify the full PDF against the SHA-256 above first:
 ```powershell
 Invoke-WebRequest https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.1108r4.pdf -OutFile tmp/784/nist-full.pdf
 Get-FileHash tmp/784/nist-full.pdf -Algorithm SHA256
-uv run --with pypdf==6.21.4 --with reportlab==5.1.0 python packages/docling/test/fixtures/generate.py tmp/784/nist-full.pdf
+uv run --with pypdf==6.21.4 --with reportlab==5.1.0 python plugins/docling/test/fixtures/generate.py tmp/784/nist-full.pdf
 ```
 
 No browser prints a PDF, and no semantic JSON edits manufacture extraction

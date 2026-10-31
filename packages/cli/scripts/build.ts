@@ -58,6 +58,7 @@ function collectPackage(directory: string): void {
   }
 }
 collectPackage(path.join(repo, "apps/editor"));
+collectPackage(path.join(repo, "plugins/docling"));
 const notices = [...packageDirs].sort().map(directory => {
   const pkg = JSON.parse(readFileSync(path.join(directory, "package.json"), "utf8"));
   const licenses = readdirSync(directory).filter(name => /^(license|licence|copying|notice)(\.|$)/i.test(name));

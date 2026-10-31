@@ -10,6 +10,11 @@ export type ReadingSurfaceProps = {
 };
 export type TabContent = { path: string; data: unknown };
 export type UiAction = { id: string; label: string; keywords?: string[]; run(returnFocus: HTMLElement | null): void | Promise<void> };
+export type UiFileAction = { id: string; label: string; extensions: string[]; run(path: string, returnFocus: HTMLElement | null): void | Promise<void> };
+export type SettingsSection = { id: string; label: string; description: string; View: React.ComponentType };
+export type UiNotice = { id: string; message: string; severity: "error" | "warning" | "info"; reveal?(): void };
+export type PluginDialogProps = { open: boolean; onClose(): void; title: string; description: string;
+  returnFocus: React.RefObject<HTMLElement | null>; children?: React.ReactNode; footer?: React.ReactNode; testId?: string };
 export type TabKind = {
   id: string; label: string; className?: string;
   open(resource: string): Promise<TabContent>;
@@ -18,20 +23,32 @@ export type TabKind = {
 };
 export type UiContributions = {
   commands: UiAction[]; sidebar: UiAction[]; tabs: TabKind[];
+  settings?: SettingsSection[];
+  fileActions?: UiFileAction[];
+  /** Mounted once per activation, including while no plugin tab is open. */
+  View?: React.ComponentType;
   /** Called once per activation after views unmount. Must release non-React resources. */
   dispose(): void;
 };
 export type UiHost = {
   api: number; React: typeof React; jsx: typeof Jsx;
   ReadingSurface: React.ComponentType<ReadingSurfaceProps>;
-  Button: React.ComponentType<{ children?: React.ReactNode; onClick(): void; disabled?: boolean }>;
-  text(key: string): string;
+  Button: React.ComponentType<{ children?: React.ReactNode; onClick(): void; disabled?: boolean; variant?: "ghost" | "secondary" | "default"; size?: "sm" | "default" }>;
+  Input: React.ComponentType<React.InputHTMLAttributes<HTMLInputElement>>;
+  Dialog: React.ComponentType<PluginDialogProps>;
+  text(key: string, values?: Record<string, string | number>): string;
+  openExternalLink(url: string): void;
   /** GET-only, same-origin Host read surface; document Root checks remain Host-owned. */
   readJson<T>(route: string, query: Record<string, string>): Promise<T>;
+  requestJson<T>(route: string, method: string, body?: unknown): Promise<T>;
+  /** Snapshot observed running during this activation's asset load, if any. */
+  initialJob?: unknown;
+  initialJobRead?: Promise<unknown>;
+  setBusy(busy: boolean): void;
+  notify(notice: UiNotice | null): void;
   imageUrl(path: string, uri: string): string;
   pickFolder(options: { title: string; description: string; open(folder: string): Promise<string> }, returnFocus: HTMLElement | null): void;
-  openTab(kind: string, resource: string): Promise<string>;
-  /** The existing shell PDF picker/dialog. It does not implement plugin work. */
-  showPdfConversion(returnFocus: HTMLElement | null): void;
+  openTab(kind: string, resource: string, current?: () => boolean): Promise<string>;
+  pickFile(options: { title: string; description: string; choose: "pdf"; open(path: string): Promise<string> }, returnFocus: HTMLElement | null): void;
 };
 export type UiModule = { activate(host: UiHost): UiContributions };

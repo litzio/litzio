@@ -1,3 +1,4 @@
+import type { UiFileAction } from "@litzio/plugin-api/ui";
 import { Menu } from "@base-ui/react/menu";
 import { THEME_LABELS, THEMES, type ThemePreference } from "../preferences.ts";
 import { ContextMenu, type ContextMenuAction } from "@/components/ui/context-menu.tsx";
@@ -14,8 +15,7 @@ import { treeKey, visibleTreeItems, type FolderTreeState, type TreeItem } from "
 
 type SidebarProps = {
   contributions?: { id: string; label: string; run(returnFocus: HTMLElement): void }[];
-  onDoclingConvert?(path: string, returnFocus: HTMLElement): void;
-  doclingBusy?: boolean;
+  pluginFileActions?: (UiFileAction & { disabled?: boolean })[];
   onFileAction: FileActionHandler;
   fileActionsDisabled: boolean;
   isFileDirty(path: string): boolean;
@@ -56,7 +56,7 @@ type SidebarProps = {
 export function Sidebar({
   onFileAction, fileActionsDisabled, isFileDirty, open, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
   folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, updateVersion,
-  theme = "system", onThemeChange, contributions = [], onDoclingConvert, doclingBusy,
+  theme = "system", onThemeChange, contributions = [], pluginFileActions = [],
 }: SidebarProps) {
   useTranslation();
   return (
@@ -84,7 +84,7 @@ export function Sidebar({
         {folders.length > 0 ? folders.map(tree => (
           <FolderTree
             key={tree.root}
-            onDoclingConvert={onDoclingConvert} doclingBusy={doclingBusy}
+            pluginFileActions={pluginFileActions}
             onFileAction={onFileAction} fileActionsDisabled={fileActionsDisabled} isFileDirty={isFileDirty}
             tree={tree}
             focusFolder={focusFolder}
@@ -167,8 +167,7 @@ function SettingsEntry({ iconOnly, onOpen, updateVersion }: { updateVersion?: st
 }
 
 type FolderTreeProps = {
-  onDoclingConvert?(path: string, returnFocus: HTMLElement): void;
-  doclingBusy?: boolean;
+  pluginFileActions?: (UiFileAction & { disabled?: boolean })[];
   onFileAction: FileActionHandler;
   fileActionsDisabled: boolean;
   isFileDirty(path: string): boolean;
@@ -190,7 +189,7 @@ type FolderTreeProps = {
 };
 
 /** One opened folder as a tree: folders expand in place, documents open. */
-function FolderTree({ onDoclingConvert, doclingBusy, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
+function FolderTree({ pluginFileActions = [], onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
   useTranslation();
   const treeId = useId();
   const section = useRef<HTMLElement>(null);
@@ -327,7 +326,10 @@ function FolderTree({ onDoclingConvert, doclingBusy, onFileAction, fileActionsDi
             setFileAction({ action, item });
           };
           const actions: ContextMenuAction[] = [
-            ...(/\.pdf$/i.test(entry.name) && onDoclingConvert ? [{ id: "docling-convert", label: i18n.t("Convert with Docling"), icon: <FileText aria-hidden="true" />, disabled: doclingBusy, run: () => onDoclingConvert(entry.path, rows.current.get(entry.path)!) }] : []),
+            ...pluginFileActions.filter(action => action.extensions.some(extension => entry.name.toLowerCase().endsWith(extension))).map(action => ({
+              id: action.id, label: i18n.t(action.label as MessageKey), icon: <FileText aria-hidden="true" />, disabled: action.disabled,
+              run: () => action.run(entry.path, rows.current.get(entry.path)!),
+            })),
             ...(entry.kind === "document" && onOpenRight ? [{ id: "open-right", label: i18n.t("Open to the right"), icon: <PanelRightOpen aria-hidden="true" />, disabled: openRightDisabled, run: () => onOpenRight(entry.path) }] : []),
             { id: "rename", label: i18n.t("Rename…"), icon: <Pencil aria-hidden="true" />, run: () => choose("rename") },
             { id: "delete", label: i18n.t("Delete file…"), icon: <Trash2 aria-hidden="true" />, danger: true, run: () => choose("delete") },

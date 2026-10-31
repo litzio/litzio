@@ -98,7 +98,7 @@ import {
 import { assertUnicode, commitFile, decodeUtf8, preflightFileCommit, textRevision } from "@litzio/file-commit";
 import { resolveMediaPath } from "../../../apps/editor/server/document-path.ts";
 import { figureMediaPath } from "../../../apps/editor/shared/figure-media-path.ts";
-import { convertDoclingFile, convertDoclingPdf } from "@litzio/docling";
+import { createPluginHost } from "../../../apps/editor/server/plugin-host.ts";
 
 const HELP_GROUPS = [
   "Create and inspect",
@@ -877,11 +877,9 @@ function main(argv: string[]): number {
   if (command === "docling") {
     if (rest.length !== 4 || rest[0] !== "convert" || rest[2] !== "--output" ||
         rest[1].startsWith("-") || rest[3].startsWith("-")) throw new Error(commandHelp(command));
-    const result = convertDoclingFile(rest[1], rest[3]);
-    const counts = result.map.items.reduce<Record<string, number>>((sum, item) => {
-      sum[item.status] = (sum[item.status] ?? 0) + 1; return sum;
-    }, {});
-    process.stdout.write(JSON.stringify({ output: path.resolve(rest[3]), ...counts }) + "\n");
+    const host = createPluginHost();
+    try { process.stdout.write(JSON.stringify(host.invoke("docling", "convert", { input: rest[1], output: rest[3] })) + "\n"); }
+    finally { void host.close(); }
     return 0;
   }
   if (!rest[0]) {
@@ -1883,8 +1881,9 @@ export async function runCliAsync(args: string[]): Promise<number> {
     if (!output || !server) throw new Error("convert-pdf requires --output and --server (or LITZIO_DOCLING_SERVER)");
     const seconds = flags.has("--timeout") ? Number(flags.get("--timeout")) : 1800;
     if (!Number.isFinite(seconds) || seconds <= 0) throw new Error("--timeout must be a positive number of seconds");
-    const record = await convertDoclingPdf(input, output, { server, timeoutMs: seconds * 1000 });
-    process.stdout.write(JSON.stringify({ output: path.resolve(output), taskId: record.taskId, pages: record.document.pages, elapsedMs: record.elapsedMs }) + "\n");
+    const host = createPluginHost();
+    try { process.stdout.write(JSON.stringify(await host.invoke("docling", "convert-pdf", { input, output, server, timeoutMs: seconds * 1000 })) + "\n"); }
+    finally { await host.close(); }
     return 0;
   } catch (error) { return reportError(args, error); }
 }

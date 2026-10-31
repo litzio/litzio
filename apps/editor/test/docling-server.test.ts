@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
-import { createDoclingHost } from "../server/docling.ts";
+import { createDoclingHost } from "./helpers/docling-host.ts";
 import { RootAccess } from "../server/file-access.ts";
 import { handleDocumentRequest } from "../server/document-api.ts";
 import { listenForFetch } from "../../../test/helpers/fetch-server.ts";

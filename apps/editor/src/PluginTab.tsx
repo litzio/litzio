@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 import { Notice } from "./ui/primitives.tsx";
 
 export type ContributedTab = TabContent & { id: string; plugin: string; kind: string; label: string; className?: string };
-class ContributionBoundary extends Component<{ children: ReactNode }, { error: boolean }> {
+export class ContributionBoundary extends Component<{ children: ReactNode }, { error: boolean }> {
   state = { error: false };
   static getDerivedStateFromError() { return { error: true }; }
   render() { return this.state.error ? <Notice tone="error" className="plugin-tab-message">{i18n.t("Plugin view failed.")}</Notice> : this.props.children; }

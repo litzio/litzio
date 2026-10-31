@@ -8,7 +8,13 @@ import { after, test } from "node:test";
 import { CONTENT_SECURITY_POLICY, createProtocolHandler, ORIGIN } from "../src/host-protocol.ts";
 
 const root = mkdtempSync(path.join(os.tmpdir(), "litzio-protocol-"));
-after(() => rmSync(root, { recursive: true, force: true }));
+const previousPlugins = process.env.LITZIO_PLUGINS_DIR;
+process.env.LITZIO_PLUGINS_DIR = path.join(root, "plugins");
+after(async () => {
+  await handle.close();
+  if (previousPlugins === undefined) delete process.env.LITZIO_PLUGINS_DIR; else process.env.LITZIO_PLUGINS_DIR = previousPlugins;
+  rmSync(root, { recursive: true, force: true });
+});
 const editorDir = path.join(root, "editor");
 mkdirSync(path.join(editorDir, "assets"), { recursive: true });
 writeFileSync(path.join(editorDir, "index.html"), "<!doctype html><title>Litzio</title>");
@@ -23,7 +29,7 @@ const localizedSamples = { ko: path.join(documents, "ko.md"), en: path.join(docu
 const handle = createProtocolHandler(editorDir, { document: initial, samples: localizedSamples });
 const get = (pathname: string) => handle(new Request(`${ORIGIN}${pathname}`));
 
-test("Docling settings, checking and transient-task routes use the shared Desktop Host adapter", async () => {
+test("Docling settings, checking and transient-task routes use the shared Desktop Host adapter", async t => {
   const previous = process.env.LITZIO_DOCLING_SETTINGS_FILE;
   process.env.LITZIO_DOCLING_SETTINGS_FILE = path.join(root, "docling-settings.json");
   let docling: ReturnType<typeof createProtocolHandler>;
@@ -32,6 +38,7 @@ test("Docling settings, checking and transient-task routes use the shared Deskto
     if (previous === undefined) delete process.env.LITZIO_DOCLING_SETTINGS_FILE;
     else process.env.LITZIO_DOCLING_SETTINGS_FILE = previous;
   }
+  t.after(() => docling.close());
   const request = (endpoint: string, method = "GET", body?: unknown) => docling(new Request(`${ORIGIN}/api/docling-${endpoint}`, { method,
     ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) }));
   assert.equal((await (await request("settings")).json()).server, "http://127.0.0.1:8001");

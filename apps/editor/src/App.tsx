@@ -1,11 +1,8 @@
 import { productName } from "../../../brand.ts";
-import { useDoclingConversion } from "@litzio/docling/server-ui";
-import { doclingFailureMessage } from "@litzio/docling/server-types";
-import { DoclingConversionDialog } from "./shell/DoclingConversionDialog.tsx";
 import { COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
 import { usePluginUi } from "./plugin-ui.tsx";
 import { contributionNotices } from "./plugin-ui-registry.ts";
-import { PluginTab, type ContributedTab } from "./PluginTab.tsx";
+import { ContributionBoundary, PluginTab, type ContributedTab } from "./PluginTab.tsx";
 import type { UiHost } from "@litzio/plugin-api/ui";
 import { NotificationProvider, NotificationSource } from "./components/ui/notification-center.tsx";
 import { UiError } from "./ui-message.ts";
@@ -150,45 +147,17 @@ function EditorApp() {
   const [pluginTabs, setPluginTabs] = useState<ContributedTab[]>([]);
   const [pluginPicker, setPluginPicker] = useState<Parameters<UiHost["pickFolder"]>[0] | null>(null);
   const [pluginActionProblem, setPluginActionProblem] = useState("");
-  const converter = useDoclingConversion(import.meta.env.BASE_URL);
-  const [conversionOpen, setConversionOpen] = useState(false);
-  const [pdfPicker, setPdfPicker] = useState(false);
-  const [conversionPath, setConversionPath] = useState("");
-  const conversionReturn = useRef<HTMLElement | null>(null);
-  const finishedConversion = useRef("");
-  const conversionAttempt = useRef(0);
-  const currentConversionId = useRef(converter.job?.id); currentConversionId.current = converter.job?.id;
-  const [conversionNotice, setConversionNotice] = useState<{ id: string; message: string } | null>(null);
-
+  const [pluginFilePicker, setPluginFilePicker] = useState<Parameters<UiHost["pickFile"]>[0] | null>(null);
+  const filePickerReturn = useRef<HTMLElement | null>(null);
+  const pickedFile = useRef("");
+  const filePickerRequest = useRef<Parameters<UiHost["pickFile"]>[0] | null>(null);
   const compareReturn = useRef<HTMLElement | null>(null);
   const ui = usePluginUi({
     pickFolder: (options, focus) => { compareReturn.current = focus; setPluginPicker(options); },
     openTab: openPluginTab,
-    showPdfConversion: focus => {
-      conversionReturn.current = focus;
-      if (converter.job?.state === "running") { setConversionPath(converter.job.input); setConversionOpen(true); }
-      else { setConversionPath(""); setPdfPicker(true); }
-    },
+    pickFile: (options, focus) => { filePickerReturn.current = focus; pickedFile.current = ""; filePickerRequest.current = options; setPluginFilePicker(options); },
   });
   const currentPlugins = useRef(ui.plugins); currentPlugins.current = ui.plugins;
-  useEffect(() => {
-    const job = converter.job;
-    if (!job) return;
-    if (job.state === "running") { setConversionNotice(null); return; }
-    if (finishedConversion.current === job.id) return;
-    const doclingUi = ui.plugins.find(plugin => plugin.id === "docling");
-    if (job.state === "success" && ((!ui.observed && !ui.problem) || (doclingUi && !doclingUi.contributions && !doclingUi.error))) return;
-    finishedConversion.current = job.id;
-    if (job.state === "success") {
-      const attempt = conversionAttempt.current;
-      const current = () => attempt === conversionAttempt.current && currentConversionId.current === job.id;
-      void openComparison(job.output, current).then(problem => {
-        if (!current()) return;
-        if (problem) setConversionNotice({ id: job.id, message: problem });
-        else { setConversionOpen(false); setConversionNotice(null); }
-      });
-    } else if (job.state === "error") setConversionNotice({ id: job.id, message: `${i18n.t(doclingFailureMessage(job.failure) as MessageKey)}${job.failure?.taskId ? ` (${i18n.t("Server task")}: ${job.failure.taskId})` : ""}` });
-  }, [converter.job?.id, converter.job?.state, ui.plugins, ui.observed, ui.problem]);
   const pluginActions = (surface: "commands" | "sidebar") => ui.plugins.flatMap(plugin =>
     (plugin.contributions?.[surface] ?? []).map(action => ({ ...action, id: `${plugin.id}/${action.id}`,
       run: (focus: HTMLElement | null) => {
@@ -681,9 +650,6 @@ function EditorApp() {
       return messageOf(cause);
     } finally { operationRef.current = false; setOperation(""); }
   }
-  async function openComparison(folder: string, current = () => true): Promise<string> {
-    return openPluginTab("docling/comparison", folder, current);
-  }
   async function openPluginTab(key: string, resource: string, current = () => true): Promise<string> {
     try {
       const [pluginId, kindId] = key.split("/");
@@ -1059,8 +1025,13 @@ function EditorApp() {
     <div ref={shell} className={`app-shell${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !pluginTab && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
       <Sidebar
         theme={theme} onThemeChange={changeTheme}
-        onDoclingConvert={(path, element) => { conversionReturn.current = element; setConversionPath(path); setConversionOpen(true); setConversionNotice(null); }}
-        doclingBusy={converter.pending || converter.job?.state === "running"}
+        pluginFileActions={ui.plugins.flatMap(plugin => (plugin.contributions?.fileActions ?? []).map(action => ({ ...action,
+          id: `${plugin.id}/${action.id}`, disabled: ui.busy[plugin.id],
+          run: (path, focus) => {
+            try { void Promise.resolve(action.run(path, focus)).catch(error => setPluginActionProblem(String(error))); }
+            catch (error) { setPluginActionProblem(String(error)); }
+          },
+        })))}
         contributions={pluginActions("sidebar")}
         onFileAction={fileAction} fileActionsDisabled={busy || Boolean(continuation)}
         isFileDirty={path => { const tab = tabs.find(tab => tab.path === path); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
@@ -1229,19 +1200,15 @@ function EditorApp() {
           }}
         />
       ) : null}
-      <DoclingConversionDialog open={conversionOpen} input={conversionPath || converter.job?.input || ""} job={converter.job} pending={converter.pending}
-        problem={converter.problem} returnFocus={conversionReturn} onClose={() => setConversionOpen(false)}
-        onStart={() => { conversionAttempt.current++; setConversionNotice(null); void converter.start(conversionPath).catch(cause => setConversionNotice({ id: `start-${Date.now()}`, message: messageOf(cause) })); }}
-        onCancel={() => void converter.cancel()} />
-      <FolderDialog open={pdfPicker} choose="pdf" title={i18n.t("Convert with Docling")}
-        description={i18n.t("Choose a PDF on the Host device.")}
+      {ui.plugins.map(plugin => { const View = plugin.contributions?.View; return View ? <ContributionBoundary key={`${plugin.id}/${plugin.revision}`}><View /></ContributionBoundary> : null; })}
+      <FolderDialog open={Boolean(pluginFilePicker)} choose={pluginFilePicker?.choose} title={pluginFilePicker?.title ?? ""}
+        description={pluginFilePicker?.description ?? ""}
         initialPath={folders.roots.at(-1) ?? splitDocumentPath(openedPath).directory} recent={visibleRecent}
         restricted={allowedRoots !== undefined} browse={browseHostPdfs} places={folderPlaces}
-        onOpen={async path => { setConversionPath(path); setConversionNotice(null); return ""; }}
-        returnFocus={conversionReturn} onClose={() => setPdfPicker(false)}
-        onClosed={() => { if (conversionPath) setConversionOpen(true); }} />
-      <NotificationSource items={[...(themeProblem && !settingsOpen ? [{ id: "theme-storage", severity: "error" as const, message: i18n.t("Theme could not be saved. This choice applies until you close this page.") }] : []), ...(conversionNotice ? [{ id: `docling-error-${conversionNotice.id}`, severity: "error" as const, message: conversionNotice.message,
-        reveal: () => { setConversionPath(converter.job?.input ?? conversionPath); setConversionOpen(true); } }] : []),
+        onOpen={async path => { pickedFile.current = path; return ""; }}
+        returnFocus={filePickerReturn} onClose={() => setPluginFilePicker(null)}
+        onClosed={() => { if (pickedFile.current && filePickerRequest.current) void filePickerRequest.current.open(pickedFile.current).catch(error => setPluginActionProblem(String(error))); }} />
+      <NotificationSource items={[...(themeProblem && !settingsOpen ? [{ id: "theme-storage", severity: "error" as const, message: i18n.t("Theme could not be saved. This choice applies until you close this page.") }] : []), ...ui.plugins.flatMap(plugin => ui.notices[plugin.id] ? [{ ...ui.notices[plugin.id]!, id: `${plugin.id}/${ui.notices[plugin.id]!.id}` }] : []),
         ...[ui.problem, pluginActionProblem, ...ui.plugins.filter(plugin => plugin.error).map(plugin => `${plugin.id}: ${plugin.error}`)].filter(Boolean).map(message => ({ id: `plugin-error-${message}`, severity: "error" as const, message })),
         ...pluginTabs.flatMap(tab => contributionNotices(ui.plugins.find(plugin => plugin.id === tab.plugin), tab.kind, tab.data).map(notice => ({ ...notice, id: `plugin-${tab.id}-${notice.id}`,
         reveal: () => {
@@ -1259,6 +1226,7 @@ function EditorApp() {
         }}
         returnFocus={compareReturn} onClose={() => setPluginPicker(null)} />
       <SettingsDialog
+          sections={ui.plugins.flatMap(plugin => (plugin.contributions?.settings ?? []).map(section => ({ ...section, id: `plugin/${plugin.id}/${section.id}` })))}
           open={settingsOpen}
           theme={theme} themeProblem={themeProblem} onThemeChange={changeTheme}
           category={settingsCategory}

@@ -33,9 +33,10 @@ import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 const cliRoot = fileURLToPath(new URL("..", import.meta.url));
 const nativeSource = (body: string): string => `---\nlitzio: 1\n---\n\n${body}`;
 const fixtures = mkdtempSync(path.join(tmpdir(), "litzio-cli-native-fixtures-"));
+process.env.LITZIO_PLUGINS_DIR = path.join(fixtures, "plugins");
 
 test("docling convert delegates whole-document conversion and refuses overwrite and range options", () => {
-  const input = fileURLToPath(new URL("../../docling/test/fixtures/synthetic/document.json", import.meta.url));
+  const input = fileURLToPath(new URL("../../../plugins/docling/test/fixtures/synthetic/document.json", import.meta.url));
   const before = readFileSync(input);
   const output = path.join(fixtures, "docling-bundle");
   const converted = run(["docling", "convert", input, "--output", output]);
