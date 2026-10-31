@@ -94,10 +94,25 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
   await capture('pdf-menu-en-1440');
   await page.getByRole('menuitem', { name: 'Convert with Docling' }).click();
   const progress = page.getByTestId('docling-conversion');
-  const expectComparison = async (label = 'Docling comparison') => {
+  const endpoint = page.url().split('/').slice(0, 3).join('/') + '/api/docling-conversion';
+  // Conversion runs in a worker/service. Observe this admission's terminal Host
+  // snapshot before applying the unchanged UI transition assertions. Listen to
+  // the application's reads; test-side polling must not hide a broken observer.
+  const nextCompletion = () => {
+    const admitted = page.waitForResponse(response => response.url() === endpoint && response.request().method() === 'POST' && response.ok()).then(response => response.json());
+    return page.waitForResponse(async response => {
+      if (response.url() !== endpoint || response.request().method() !== 'GET' || !response.ok()) return false;
+      const job = await response.json();
+      return job?.id === (await admitted).id && job.state !== 'running';
+    }).then(response => response.json());
+  };
+  const expectComparison = async (completion, label = 'Docling comparison') => {
+    const completed = await completion;
+    expect(completed.state).toBe('success');
     await expect(progress).toHaveCount(0);
     const job = await (await page.request.get(page.url().split('/').slice(0, 3).join('/') + '/api/docling-conversion')).json();
     expect(job.state).toBe('success');
+    expect(job.id).toBe(completed.id);
     const bundle = job.output.split(/[\\/]/).at(-1);
     await expect(page.getByRole('tab', { name: `${bundle} · ${label}`, exact: true })).toBeVisible();
   };
@@ -120,7 +135,9 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
   await page.getByTestId('folder-open').click();
   await expect(progress).toBeVisible();
   fixture.mode('model-missing');
+  const missingModel = nextCompletion();
   await progress.getByRole('button', { name: /Start conversion|Convert again/ }).click();
+  expect((await missingModel).state).toBe('error');
   await expect(progress).toContainText('Docling conversion failed.');
   await progress.getByRole('button', { name: 'Close', exact: true }).last().click();
   // A modal can make the retained window center inert; its cause must still be stored/rendered.
@@ -141,7 +158,9 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     await progress.getByRole('button', { name: 'Convert again' }).click();
     await openingA;
     fixture.mode('failure');
+    const failedNewer = nextCompletion();
     await progress.getByRole('button', { name: 'Convert again' }).click();
+    expect((await failedNewer).state).toBe('error');
     await expect(progress).toContainText('Docling conversion failed.');
     const newer = await (await page.request.get(page.url().split('/').slice(0, 3).join('/') + '/api/docling-conversion')).json();
     await expect(center).toContainText(newer.failure.taskId);
@@ -152,15 +171,15 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     expect(await center.textContent()).toContain(newer.failure.taskId);
   } finally { releaseComparison(); await page.unroute('**/api/docling-compare?*', delayedComparison); }
   fixture.mode('success');
+  const retriedCompletion = nextCompletion();
   await progress.getByRole('button', { name: 'Convert again' }).click();
-  await expectComparison();
+  await expectComparison(retriedCompletion);
   await expect(page.locator('.docling-source img')).toBeVisible();
   await expect(center).toBeVisible();
   await expect(center.locator(':scope > button')).toHaveAccessibleName('Notifications: none');
   await expect(center.locator('li[data-severity]')).toHaveCount(0);
   await capture('completed-en-1440');
   // A prior success is a baseline, never evidence that a rejected/lost new start succeeded.
-  const endpoint = page.url().split('/').slice(0, 3).join('/') + '/api/docling-conversion';
   const oldSuccess = await (await page.request.get(endpoint)).json();
   let releaseInitial, readRetried, reads = 0, refusedPosts = 0, refuse = '';
   const initialGate = new Promise(resolve => { releaseInitial = resolve; });
@@ -203,8 +222,9 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     }
     expect(refusedPosts).toBe(2); // Exactly the two explicit user attempts; no automatic POST retry.
     refuse = '';
+    const acceptedRetry = nextCompletion();
     await progress.getByRole('button', { name: 'Start conversion' }).click();
-    await expectComparison();
+    await expectComparison(acceptedRetry);
     await expect(center).toBeVisible();
     await expect(center.locator(':scope > button')).toHaveAccessibleName('Notifications: none');
     await expect(center.locator('li[data-severity]')).toHaveCount(0);
@@ -218,14 +238,19 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
   fixture.mode('pending');
   const accepted = await page.request.post(endpoint, { headers: { Origin: page.url().split('/').slice(0, 3).join('/') }, data: { path: fixture.input } });
   expect(accepted.ok()).toBe(true);
+  const acceptedJob = await accepted.json();
   await page.route('**/api/ui-plugins?*asset=ui.mjs*', slowUi);
   try {
     const runningRead = page.waitForResponse(async response => response.url() === endpoint && response.request().method() === 'GET' && response.ok() && (await response.json())?.state === 'running');
     await page.reload(); await requestedUi; await runningRead;
-    const completedRead = page.waitForResponse(async response => response.url() === endpoint && response.request().method() === 'GET' && response.ok() && (await response.json())?.state === 'success');
+    const completedRead = page.waitForResponse(async response => {
+      if (response.url() !== endpoint || response.request().method() !== 'GET' || !response.ok()) return false;
+      const job = await response.json();
+      return job?.id === acceptedJob.id && job.state === 'success';
+    });
     fixture.mode('success'); await completedRead;
     releaseUi();
-    await expectComparison();
+    await expectComparison(completedRead.then(response => response.json()));
   } finally { releaseUi(); await page.unroute('**/api/ui-plugins?*asset=ui.mjs*', slowUi); }
   if (screenshots) {
     await page.evaluate(() => localStorage.setItem('litzio.uiLanguage', 'ko'));
@@ -247,10 +272,11 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     await pdf.click({ button: 'right' }); await capture('pdf-menu-ko-640');
     await page.getByRole('menuitem', { name: 'Docling으로 변환' }).click();
     fixture.mode('pending');
+    const koreanCompletion = nextCompletion();
     await progress.getByRole('button', { name: /변환 시작|다시 변환/ }).click();
     await expect(progress).toContainText('서버 작업'); await capture('progress-ko-640');
     fixture.mode('success');
-    await expectComparison('Docling 대조');
+    await expectComparison(koreanCompletion, 'Docling 대조');
     await expect(progress).toHaveCount(0); await capture('completed-ko-640');
     await page.getByRole('button', { name: '설정', exact: true }).click();
     await page.getByRole('button', { name: '표시·언어', exact: true }).click();

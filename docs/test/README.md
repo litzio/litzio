@@ -454,6 +454,10 @@ This prior measurement was documented on 2026-10-16 in [the Host recovery verifi
 scratch PDF, with the real Host routes. The same scenario can target a running
 production HTTP Host via `LITZIO_BROWSER_URL`; no external Docling is used in
 normal CI. Browser profiles follow the existing persistent-profile rules.
+Completion checks first observe the application's terminal Host GET for the UUID
+returned by that start's POST. Worker/service execution is not bounded by the
+5-second UI assertion budget. Dialog/tab/notification assertions keep that budget
+after the terminal snapshot; no test-side polling, retry or reload supplies it.
 
 For manual real-service verification, first prepare the pinned local service
 using the [administrator guide](../guides/docling-server.md), then run from the
