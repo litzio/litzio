@@ -44,13 +44,13 @@ async (page, { openPath, activeDocument, expect, screenshots }) => {
       return o.top >= v.top && o.bottom <= v.bottom && o.left >= v.left && o.right <= v.right;
     }), 'Overlay stays inside its document viewport').toBe(true);
   };
-  const clearsSelection = overlay => overlay.evaluate(node => {
-    const instance = node.closest('.document').querySelector('.ProseMirror').editor;
+  const clearsSelection = async overlay => overlay.evaluate((node, owner) => {
+    const instance = owner.editor;
     const { from, to } = instance.state.selection;
     const start = instance.view.coordsAtPos(from), end = instance.view.coordsAtPos(to);
     const o = node.getBoundingClientRect();
     return o.bottom <= Math.min(start.top, end.top) || o.top >= Math.max(start.bottom, end.bottom);
-  });
+  }, await editor.elementHandle());
   const states = screenshots ? [[1440, 'light', 'en'], [640, 'light', 'en'], [1440, 'dark', 'ko'], [640, 'dark', 'ko']] : [[1440, 'light', 'en'], [640, 'light', 'en'], [640, 'dark', 'ko']];
   for (const [width, theme, language] of states) {
     await page.setViewportSize({ width, height: 900 });
@@ -149,7 +149,7 @@ async (page, { openPath, activeDocument, expect, screenshots }) => {
     await paragraph.click();
     await page.keyboard.press('Home');
     await page.keyboard.type('/');
-    const menu = surface.getByRole('menu');
+    const menu = page.getByRole('menu');
     await expect(menu).toBeVisible();
     await position(paragraph, height - 36);
     // Home addresses the current visual line, which can be the paragraph's second line.
