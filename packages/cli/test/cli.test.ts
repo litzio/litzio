@@ -60,7 +60,7 @@ test("docling convert delegates whole-document conversion and refuses overwrite 
   writeFileSync(recordFile, JSON.stringify(record, null, 2) + "\n");
   const applied = run(["docling", "apply-corrections", output]);
   assert.equal(applied.status, 0, applied.stderr);
-  assert.equal(JSON.parse(applied.stdout).output, output);
+  assert.equal(JSON.parse(applied.stdout).output, fs.realpathSync.native(output));
   const updated = readFileSync(path.join(output, "document.md"), "utf8");
   assert.ok(getEditableDocument(parse(updated)).blocks.some(b => b.block === "heading" && b.level === 6 && b.text === heading.text));
   const correspondence = JSON.parse(readFileSync(path.join(output, "document.docling-map.json"), "utf8"));
