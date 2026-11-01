@@ -56,4 +56,3 @@ async (page, {openPath}) => {
   }
   return {phase, environment:await page.evaluate(()=>({userAgent:navigator.userAgent,dpr:devicePixelRatio}))};
 }
-
