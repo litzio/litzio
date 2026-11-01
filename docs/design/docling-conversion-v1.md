@@ -96,9 +96,14 @@ proposals, approval screens and block confirmation state remain follow-up work.
 Publication builds a complete private sibling copy of the folder, including
 untouched source/assets/user files, then renames the old folder to a private
 backup and the new generation to the public name. An exclusive folder lock
-rejects simultaneous correction writers. Source/folder revisions are checked
+rejects simultaneous correction writers. Native canonical paths determine both
+the public name and lock: Windows 8.3 aliases preserve the original long name
+and share its lock. Source/folder revisions are checked
 immediately before replacement. A second-rename failure rolls back the first;
-temporary siblings and the lock are removed after completion. As with existing
+temporary sibling cleanup and owned-lock release are attempted independently.
+Cleanup failures report each retained sibling/lock path together with the original
+publication/rollback error, retaining all causes. A failure after publication
+explicitly states that the result was published. As with existing
 file replacement, revision checking and rename are separate, not atomic CAS.
 The two renames can briefly make the path unavailable but never publish
 individual files from an incomplete generation. A process/OS interruption in
@@ -117,7 +122,9 @@ close/reopen after replay to read the new generation.
 Verification uses synthetic inputs and the saved NIST bundle: all operations,
 original-byte preservation, invalid/conflicting entries, dependent-removal refusal,
 byte-identical output after undo, publication rollback, concurrent-edit refusal
-and thin installed-Host CLI integration. No Docling server or review/AI UI is used.
+and thin installed-Host CLI integration. Windows regressions cover real 8.3 alias
+publication/locking; injected sibling cleanup failures cover lock release and
+preserved publication/rollback diagnostics. No Docling server or review/AI UI is used.
 
 ## External PDF service and source bundle
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { syncBuiltinESMExports } from "node:module";
+import { execFileSync } from "node:child_process";
 import fs, { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
@@ -41,6 +42,88 @@ function snapshot(folder: string) {
     const file = path.join(x.parentPath, x.name); return [path.relative(folder, file), sha256(readFileSync(file))];
   }).sort((a, b) => a[0].localeCompare(b[0]));
 }
+
+function windowsAlias(t: test.TestContext, f: ReturnType<typeof setup>) {
+  const folder = path.join(f.root, "LongConversionFolder");
+  fs.renameSync(f.folder, folder);
+  const alias = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+    "(New-Object -ComObject Scripting.FileSystemObject).GetFolder($env:LITZIO_TEST_CONVERSION_FOLDER).ShortPath"],
+  { encoding: "utf8", windowsHide: true, env: { ...process.env, LITZIO_TEST_CONVERSION_FOLDER: folder } }).trim();
+  if (path.basename(alias).toLowerCase() === path.basename(folder).toLowerCase()) {
+    t.skip("The temporary filesystem does not provide an 8.3 folder alias"); return;
+  }
+  return { folder, alias };
+}
+
+test("Windows 8.3 correction input preserves the original public folder name and bytes", { skip: process.platform !== "win32" }, t => {
+  const f = setup(t), names = windowsAlias(t, f);
+  if (!names) return;
+  const before = snapshot(names.folder);
+  applyDoclingCorrections(names.alias);
+  assert.ok(fs.existsSync(names.folder), "the original long public path must still exist");
+  assert.deepEqual(snapshot(names.folder), before);
+  assert.deepEqual(readdirSync(f.root).sort(), ["LongConversionFolder", "source.json"]);
+});
+
+test("Windows long and 8.3 correction paths share a lock without releasing another writer's lock", { skip: process.platform !== "win32" }, t => {
+  const f = setup(t), names = windowsAlias(t, f);
+  if (!names) return;
+  const lock = path.join(f.root, ".LongConversionFolder.corrections.lock"), before = snapshot(names.folder);
+  fs.mkdirSync(lock);
+  assert.throws(() => applyDoclingCorrections(names.alias), /already being updated/);
+  assert.ok(fs.existsSync(lock), "a rejected writer must leave the owner's lock intact");
+  assert.deepEqual(snapshot(names.folder), before);
+  rmSync(lock, { recursive: true });
+  applyDoclingCorrections(names.folder);
+});
+
+function includesError(error: unknown, expected: Error): boolean {
+  return error === expected || (error instanceof AggregateError && error.errors.some(cause => includesError(cause, expected))) ||
+    (error instanceof Error && includesError(error.cause, expected));
+}
+
+for (const failure of ["staging", "backup", "rollback"] as const) test(`${failure} cleanup failure still releases the correction lock and preserves diagnostics`, t => {
+  const f = setup(t), before = snapshot(f.folder), rename = fs.renameSync, remove = fs.rmSync;
+  const publicationError = new Error("injected publication failure"), rollbackError = new Error("injected rollback failure");
+  const cleanupError = Object.assign(new Error("injected EPERM cleanup failure"), { code: "EPERM" });
+  const lock = path.join(f.root, ".result.corrections.lock");
+  let retained: string | undefined, previous: string | undefined;
+  fs.renameSync = ((from, to) => {
+    if (String(to).includes(".previous-")) previous = String(to);
+    if (failure !== "backup" && String(from).includes(".corrections-") && String(to) === f.folder) throw publicationError;
+    if (failure === "rollback" && String(from).includes(".previous-") && String(to) === f.folder) throw rollbackError;
+    return rename(from, to);
+  }) as typeof rename;
+  fs.rmSync = ((file, options) => {
+    if (String(file).includes(failure === "backup" ? ".previous-" : ".corrections-")) { retained = String(file); throw cleanupError; }
+    return remove(file, options);
+  }) as typeof remove;
+  syncBuiltinESMExports();
+  let problem: unknown;
+  try {
+    assert.throws(() => addDoclingCorrection(f.folder, approval("depth", 0, { operation: "heading", value: { level: 2 } })), error => { problem = error; return true; });
+  } finally { fs.renameSync = rename; fs.rmSync = remove; syncBuiltinESMExports(); }
+  assert.equal(fs.existsSync(lock), false, "cleanup of a sibling must not prevent lock release");
+  assert.ok(retained && fs.existsSync(retained));
+  assert.ok(problem instanceof Error); assert.ok(problem.message.includes(retained));
+  assert.ok(includesError(problem, cleanupError));
+  if (failure === "backup") {
+    assert.match(problem.message, /published/i);
+    assert.deepEqual(snapshot(retained), before);
+    assert.ok(blocks(readFileSync(path.join(f.folder, "document.md"), "utf8")).some(b => b.block === "heading" && b.level === 2));
+  } else {
+    assert.ok(includesError(problem, publicationError)); assert.match(problem.message, /injected publication failure/);
+    if (failure === "rollback") {
+      assert.ok(includesError(problem, rollbackError)); assert.match(problem.message, /injected rollback failure/);
+      assert.ok(previous && fs.existsSync(previous)); assert.ok(problem.message.includes(previous));
+      assert.deepEqual(snapshot(previous), before);
+      assert.equal(fs.existsSync(f.folder), false);
+      rename(previous, f.folder); // Test-only manual recovery of the retained generation.
+    } else assert.deepEqual(snapshot(f.folder), before);
+  }
+  applyDoclingCorrections(f.folder); // An ordinary later request is no longer blocked.
+  assert.ok(fs.existsSync(retained), "leftover siblings are reported, not silently recovered by a later request");
+});
 
 test("heading depth and both heading/body decisions use Core conversion, with original source metadata", t => {
   const f = setup(t);

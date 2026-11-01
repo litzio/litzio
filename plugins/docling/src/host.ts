@@ -1,6 +1,6 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 import type { HostPlugin, PluginHostContext } from "@litzio/plugin-api/host";
 import { DoclingHost, type ConversionSession } from "./conversion/server.ts";
@@ -37,7 +37,7 @@ export function activate(host: PluginHostContext): HostPlugin {
   });
   const correct = (args: any, change: "apply" | "add" | "remove") => {
     requireFeature("conversion");
-    const folder = host.resolvePath(path.resolve(args.folder));
+    const folder = realpathSync.native(host.resolvePath(path.resolve(args.folder)));
     const options = { resolveSource: (file: string) => host.resolvePath(file), beforePublish: () => { host.resolvePath(folder); host.resolvePath(path.dirname(folder)); } };
     const result = change === "add" ? addDoclingCorrection(folder, args.entry, options)
       : change === "remove" ? removeDoclingCorrection(folder, args.id, options) : applyDoclingCorrections(folder, options);

@@ -1,6 +1,6 @@
 import { syncBuiltinESMExports } from "node:module";
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
 import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import fs from "node:fs";
@@ -66,6 +66,17 @@ test("docling convert delegates whole-document conversion and refuses overwrite 
   const correspondence = JSON.parse(readFileSync(path.join(output, "document.docling-map.json"), "utf8"));
   assert.equal(correspondence.document.sha256, textRevision(updated));
   assert.deepEqual(readFileSync(input), before);
+  if (process.platform === "win32") {
+    const alias = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+      "(New-Object -ComObject Scripting.FileSystemObject).GetFolder($env:LITZIO_TEST_CONVERSION_FOLDER).ShortPath"],
+    { encoding: "utf8", windowsHide: true, env: { ...process.env, LITZIO_TEST_CONVERSION_FOLDER: output } }).trim();
+    const replay = run(["docling", "apply-corrections", alias]);
+    assert.equal(replay.status, 0, replay.stderr);
+    assert.ok(fs.existsSync(output), "the installed Host must preserve the long public folder path");
+    assert.equal(JSON.parse(replay.stdout).output, fs.realpathSync.native(output));
+    assert.equal(readFileSync(path.join(output, "document.md"), "utf8"), updated);
+    assert.deepEqual(JSON.parse(readFileSync(path.join(output, "document.docling-map.json"), "utf8")), correspondence);
+  }
   record.entries[0].self_ref = "#/texts/99999";
   writeFileSync(recordFile, JSON.stringify(record));
   const rejected = run(["docling", "apply-corrections", output]);

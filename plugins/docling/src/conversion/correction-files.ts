@@ -8,6 +8,7 @@ import type { Conversion } from "./convert.ts";
 
 type Options = { resolveSource?: (file: string) => string; beforePublish?: () => void };
 const read = (file: string): string => new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(readFileSync(file));
+const message = (error: unknown): string => error instanceof Error ? error.message : String(error);
 
 /** Optimistic revision of the complete folder, including user files and source images. */
 function revision(folder: string): string {
@@ -31,18 +32,21 @@ export function readFolderCorrections(folder: string): DoclingCorrections {
 }
 
 function regenerate(folder: string, update: (record: DoclingCorrections) => void, options: Options): Conversion {
-  folder = realpathSync(folder);
+  // Native Windows resolution expands 8.3 aliases before naming the public
+  // generation and its shared lock. JS realpath can retain the short spelling.
+  folder = realpathSync.native(folder);
   const parent = path.dirname(folder), base = path.basename(folder);
   if (parent === folder) throw new Error("Choose a conversion folder, not a filesystem root");
   const lock = path.join(parent, `.${base}.corrections.lock`);
   try { mkdirSync(lock); } catch (cause) { throw new Error("Conversion folder is already being updated (corrections lock)", { cause }); }
   let staging: string | undefined, backup: string | undefined, published = false;
+  let failed = false, failure: unknown;
   try {
     const before = revision(folder), record = readFolderCorrections(folder);
     update(record);
     readDoclingCorrections(JSON.stringify(record));
     const sourcePath = path.resolve(folder, record.source.file);
-    const input = options.resolveSource?.(sourcePath) ?? realpathSync(sourcePath), source = read(input);
+    const input = realpathSync.native(options.resolveSource?.(sourcePath) ?? sourcePath), source = read(input);
     const { images, assets } = loadDoclingImages(input, source, path.dirname(input) === folder);
     const result = convertWithDoclingCorrections(source, record, { images });
     // Publish a complete sibling generation. Two directory renames can briefly
@@ -62,15 +66,26 @@ function regenerate(folder: string, update: (record: DoclingCorrections) => void
     try { renameSync(staging, folder); staging = undefined; published = true; }
     catch (cause) {
       try { renameSync(backup, folder); backup = undefined; }
-      catch (rollback) { throw new Error(`Could not restore conversion folder; complete previous generation retained at ${backup}`, { cause: new AggregateError([cause, rollback]) }); }
+      catch (rollback) { throw new Error(`Could not restore conversion folder; publication failed: ${message(cause)}; rollback failed: ${message(rollback)}; complete previous generation retained at ${backup}`, { cause: new AggregateError([cause, rollback]) }); }
       throw cause;
     }
     return result;
+  } catch (error) {
+    failed = true; failure = error; throw error;
   } finally {
-    // Never remove a backup if restoring the public path failed.
-    if (backup && published) rmSync(backup, { recursive: true, force: true });
-    if (staging) rmSync(staging, { recursive: true, force: true });
-    rmSync(lock, { recursive: true, force: true });
+    const cleanupErrors: Error[] = [];
+    // A failed sibling deletion must not skip releasing our lock. Never delete
+    // the retained previous generation when restoring the public path failed.
+    for (const [kind, target] of [["backup", published ? backup : undefined], ["staging", staging], ["lock", lock]] as const) {
+      if (!target) continue;
+      try { rmSync(target, { recursive: true, force: true }); }
+      catch (cause) { cleanupErrors.push(new Error(`Could not remove correction ${kind} at ${target}: ${message(cause)}`, { cause })); }
+    }
+    if (cleanupErrors.length) {
+      const outcome = failed ? message(failure) : "Correction result was published";
+      throw new AggregateError(failed ? [failure, ...cleanupErrors] : cleanupErrors,
+        `${outcome}; cleanup failed: ${cleanupErrors.map(error => error.message).join("; ")}`, { cause: failure });
+    }
   }
 }
 
