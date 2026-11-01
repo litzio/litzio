@@ -31,6 +31,52 @@ writes a `{table}` directive even when both are absent (#584; [format contract](
 - Verification: existing table command/unit tests, extended table-authoring browser regression, typecheck, production build and required CI.
 - CLI: no new semantic operation; existing Core/CLI table commands already cover these actions. Handles and focus are Editor-only.
 
+## Cell wrapping (#897)
+
+Tables first fit the document width, wrapping prose within cells. Unbreakable URLs
+and identifiers use `overflow-wrap: anywhere` only when needed. The adjustable
+`--size-table-cell-min-width` in tokens.css is 5.5rem; tables with too many columns
+to preserve that minimum scroll locally with the existing edge fades. Editing,
+Read and Docling comparison share this presentation. Row/column handles follow
+measured cells, upper Edit/More and metadata remain outside horizontal scrolling,
+and Append row remains after the caption. No Core, CLI or serialization changes.
+
+### Verification and captures
+
+Before product edits, the extended `table-authoring` assertion failed at 1440px:
+NIST Table 1 overflowed by 3710px with a single text line; the URL fixture overflowed
+by 1749px. Afterward, both fit at 1440/640px, including Read at 640px. Existing
+many-column scrolling, handle alignment, keyboard commands and Save/Reload checks
+remain active. `docling-compare` also checks the actual NIST Table 1 wraps.
+`quiet-document` now expects inherited `anywhere` specifically inside table cells;
+all other inline code/math contexts keep their previous wrapping expectation.
+
+Local checks: 33 targeted unit/fixture/token tests; Editor typecheck/build;
+`table-authoring`, `table-cell-editing`, `layout-rules`, `quiet-document`,
+`docling-compare`; docs and whitespace checks. Platform/packaging checks belong to CI.
+
+Manual captures use the existing persistent Chrome runner at 127.0.0.1:5292,
+DPR 1, bundled Pretendard, 1440×1000 Light/English and 640×1000 Dark/Korean.
+The [capture script](assets/table-wrap-897/capture.browser.js) uses an exact copy
+of NIST Table 1 plus a separate Korean/URL supplement; wide captures use the
+small authoring fixture with seven appended columns. Self-review covered cell
+padding/vertical centering, current-cell outline, table hover boundary, measured
+handles, upper controls, caption/Append row, local scrolling and directional fades.
+The 5.5rem minimum lets the three-column table fit the 640px expanded-Explorer
+layout; long prose there necessarily produces tall rows. Comparison captures show
+converted text layout; their source-page placeholders are not source-fidelity proof.
+Capture traversal is manual evidence, not an extra automated regression pass.
+
+| State | Before | After |
+| --- | --- | --- |
+| Table 1, 1440px | [PNG](assets/table-wrap-897/before-1440.png) | [PNG](assets/table-wrap-897/after-1440.png) |
+| Table 1, 640px Dark/Korean | [PNG](assets/table-wrap-897/before-640.png) | [PNG](assets/table-wrap-897/after-640.png) |
+| Korean/URL, 640px | — | [PNG](assets/table-wrap-897/after-640-korean.png) |
+| Read, 640px | — | [PNG](assets/table-wrap-897/after-640-read.png) |
+| Wide table, 1440px | — | [Start](assets/table-wrap-897/after-1440-wide-start.png) · [End](assets/table-wrap-897/after-1440-wide-end.png) |
+| Wide table, 640px | — | [Start](assets/table-wrap-897/after-640-wide-start.png) · [End](assets/table-wrap-897/after-640-wide-end.png) |
+| Docling comparison, 1440px | — | [PNG](assets/table-wrap-897/after-1440-compare.png) |
+
 ## Property entry (#557)
 
 The number area of the metadata line selects the whole Table on single click, opens its

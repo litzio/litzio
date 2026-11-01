@@ -49,6 +49,24 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
     return items;
   };
   const result = {};
+  // Real NIST Table 1 and unbreakable input fit before resorting to local scrolling.
+  await openPath(page, file.replace('tables.md', 'wrapping.md'));
+  for (const [width, mode] of [[1440, "view-visual"], [640, "view-visual"], [640, "view-read"]]) {
+    await page.getByTestId(mode).click();
+    await page.setViewportSize({width, height:900});
+    await page.evaluate(() => document.fonts.ready);
+    const wrapping = await tables.evaluateAll(blocks => blocks.map(block => {
+      const scroll = block.querySelector('.table-scroll');
+      const longest = [...block.querySelectorAll('td')].sort((a,b) => b.textContent.length - a.textContent.length)[0];
+      const range = document.createRange(); range.selectNodeContents(longest);
+      return {overflow:scroll.scrollWidth-scroll.clientWidth, lines:range.getClientRects().length,
+        cellOverflow:longest.scrollWidth-longest.clientWidth};
+    }));
+    if (wrapping.length !== 2 || wrapping.some(t => t.overflow > 1 || t.lines < 2 || t.cellOverflow > 1))
+      throw Error(`Table prose and identifiers must wrap at ${width}px: ${JSON.stringify(wrapping)}`);
+  }
+  await page.getByTestId("view-visual").click();
+  await page.setViewportSize({width:1280,height:720});
   await open();
 
   // Whole-table controls belong above the grid, independently of its horizontal scroll.

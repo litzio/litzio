@@ -198,7 +198,12 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "chapter.md", create: () => '---\nlitzio: 1\ntitle: IEEE 1547 · Chapter 7\nnumbering:\n  headings: true\n  title: false\n---\n\n(clause-7)=\n# Power quality\n\n## Detail\n\nSee {ref}`clause-7`.\n\n# Next clause\n\nBody.\n' },
     { name: "untitled.md", create: () => nativeSource("Lead paragraph.\n\n## Part\n\nBody.\n") },
     { name: "untitled-empty.md", create: () => nativeSource("Lead paragraph.\n") }], scenarios: ["document-title"] },
-  "table-authoring": { files: [fixture("tables.md")], scenarios: ["table-authoring", "table-caption", "save-error"] },
+  "table-authoring": { files: [fixture("tables.md"), { name: "wrapping.md", create: () => {
+    const nist = readFileSync(path.join(REPOSITORY_ROOT, "plugins/docling/test/fixtures/nist-sp1108r4/document.md"), "utf8");
+    const start = nist.indexOf(":::{table} Table 1 -");
+    const table = nist.slice(start, nist.indexOf("\n:::", start) + 4);
+    return nativeSource(table + "\n\n| 한국어 | 식별자 |\n| --- | --- |\n| 표 안의 긴 한국어 문장도 본문 너비 안에서 자연스럽게 여러 줄로 표시되어야 합니다. | https://example.com/" + "identifier".repeat(30) + " |\n");
+  } }], scenarios: ["table-authoring", "table-caption", "save-error"] },
   "quote-save-reload": { files: [fixture("quotes.md")], scenarios: ["quote-save-reload"] },
   "section-reference": {
     files: [{ name: "sections.md", create: () => nativeSource("# Guide\n\n## Install\n\nRun the installer.\n\n## Use\n\nSee the install section.\n\n## 개요\n\nKorean heading.\n") }],
