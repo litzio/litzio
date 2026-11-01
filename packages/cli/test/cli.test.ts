@@ -51,6 +51,28 @@ test("docling convert delegates whole-document conversion and refuses overwrite 
   assert.equal(run(["docling", "convert", input, "--output", refused, "--chapter", "7"]).status, 1);
   assert.equal(fs.existsSync(refused), false);
   assert.match(run(["help", "docling"]).stdout, /DoclingDocument 1\.10\.0/);
+  assert.match(run(["help", "docling"]).stdout, /apply-corrections/);
+  const recordFile = path.join(output, "corrections.json");
+  const record = JSON.parse(readFileSync(recordFile, "utf8"));
+  const original = JSON.parse(before.toString("utf8"));
+  const heading = original.texts.find((item: any) => item.label === "section_header" && item.content_layer === "body");
+  record.entries.push({ id: "cli-heading", self_ref: heading.self_ref, operation: "heading", value: { level: 6 }, reason: "CLI integration", approvedAt: "2026-11-02T01:00:00Z" });
+  writeFileSync(recordFile, JSON.stringify(record, null, 2) + "\n");
+  const applied = run(["docling", "apply-corrections", output]);
+  assert.equal(applied.status, 0, applied.stderr);
+  assert.equal(JSON.parse(applied.stdout).output, output);
+  const updated = readFileSync(path.join(output, "document.md"), "utf8");
+  assert.ok(getEditableDocument(parse(updated)).blocks.some(b => b.block === "heading" && b.level === 6 && b.text === heading.text));
+  const correspondence = JSON.parse(readFileSync(path.join(output, "document.docling-map.json"), "utf8"));
+  assert.equal(correspondence.document.sha256, textRevision(updated));
+  assert.deepEqual(readFileSync(input), before);
+  record.entries[0].self_ref = "#/texts/99999";
+  writeFileSync(recordFile, JSON.stringify(record));
+  const rejected = run(["docling", "apply-corrections", output]);
+  assert.equal(rejected.status, 1); assert.match(rejected.stderr, /does not exist/);
+  assert.equal(readFileSync(path.join(output, "document.md"), "utf8"), updated);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(output, "document.docling-map.json"), "utf8")), correspondence);
+  assert.equal(run(["docling", "apply-corrections", output, "--ai"]).status, 1);
 });
 
 test("docling convert-pdf executable accepts server flag/environment and reports module results", async () => {

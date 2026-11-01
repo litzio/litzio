@@ -6,6 +6,7 @@ import type { HostPlugin, PluginHostContext } from "@litzio/plugin-api/host";
 import { DoclingHost, type ConversionSession } from "./conversion/server.ts";
 import { readComparison } from "./comparison/compare-host.ts";
 import { convertDoclingFile } from "./conversion/files.ts";
+import { applyDoclingCorrections, addDoclingCorrection, removeDoclingCorrection } from "./conversion/correction-files.ts";
 import { doclingServerUrl } from "./conversion/pdf.ts";
 import type { ConversionJob } from "@litzio/plugin-api/worker";
 import { statSync } from "node:fs";
@@ -34,6 +35,14 @@ export function activate(host: PluginHostContext): HostPlugin {
       return { ...result, name: map.source.name, pages: Object.keys(map.pages).length, stale };
     } catch { return { ...result, problem: "Could not read the conversion result." }; }
   });
+  const correct = (args: any, change: "apply" | "add" | "remove") => {
+    requireFeature("conversion");
+    const folder = host.resolvePath(path.resolve(args.folder));
+    const options = { resolveSource: (file: string) => host.resolvePath(file), beforePublish: () => { host.resolvePath(folder); host.resolvePath(path.dirname(folder)); } };
+    const result = change === "add" ? addDoclingCorrection(folder, args.entry, options)
+      : change === "remove" ? removeDoclingCorrection(folder, args.id, options) : applyDoclingCorrections(folder, options);
+    return { output: folder, documentSha256: result.map.document.sha256 };
+  };
   return {
     drainingOperations: ["current", "cancel", "start", "stop"],
     routes: {
@@ -46,6 +55,9 @@ export function activate(host: PluginHostContext): HostPlugin {
       "/api/docling-history": { POST: "stop", DELETE: "forget" },
     },
     operations: {
+      "apply-corrections": args => correct(args, "apply"),
+      "add-correction": args => correct(args, "add"),
+      "remove-correction": args => correct(args, "remove"),
       dashboard: () => ({ ...conversion.settings(), features: features(), requests: history(), results: results() }),
       features: args => {
         if (!args || Object.keys(args).some(key => !["conversion", "comparison"].includes(key)) || Object.values(args).some(value => typeof value !== "boolean")) throw new Error("Invalid Docling features.");
