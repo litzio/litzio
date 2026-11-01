@@ -103,6 +103,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Single Editor Foundation review](reviews/single-editor-foundation.md) | Historical | 당시 architecture 검토 근거. 현재 authority는 ADR-0001과 design contracts. |
 | [Docling plugin runtime spike](reviews/docling-plugin-runtime-spike.md) | Historical | 2026-10-31 별도 worker·공용 설치·UUID·drain·uncertain의 개발 Desktop/serve 실측. 실제 Docling 서버·패키지 Desktop 미검증. 승인된 후속 결정은 ADR-0012. |
 | [Docling plugin UI spike](reviews/docling-plugin-ui-spike.md) | Historical | 2026-10-31 ESM/CSS 명령·대조 탭의 동적 등록/해제·오류 격리·API 경계 실측. React 호환·ESM 해제 한계와 미이전 화면을 보존. 승인된 후속 결정은 ADR-0012. |
+| [AI agent host and extension patterns](reviews/ai-agent-host-patterns-2026-11.md) | Historical | #877 공개 문서·소스 조사. AI 작업/도구·업체 어댑터·검증·승인·수명·다중 에이전트 8개 축과 B 최소 골격 시사점. 설계·채택 결정 아님. |
 | [MyST security alignment review](reviews/myst-security-alignment-v1.md) | Historical | 당시 security 분석. 현재 후속 작업은 issue #11; 현재 안전성의 영구 보증이 아님. |
 | [Desktop shell spike](reviews/desktop-shell-spike-v1.md) | Historical | 실행 가능성과 비용의 실험 근거. 제품 Host·배포 결정이 아님. |
 | [VS Code host spike](reviews/vscode-host-spike-v1.md) | Historical | provider와 저장 모델의 실험 근거. 제품 Host 결정이 아님. |
