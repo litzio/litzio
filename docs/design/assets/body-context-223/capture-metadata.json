@@ -1,0 +1,197 @@
+{
+  "issue": 223,
+  "capturedAt": "2026-11-01T05:24:52.8862169Z",
+  "baseCommit": "94fe928b55b34c5097f466e94780d1198231e9a6",
+  "afterSourceHashes": [
+    {
+      "file": "apps/editor/src/DocumentEditor.tsx",
+      "sha256": "c32acca81f4a43f53d86fb2d7db914f18ba9193eb88267fffd80c885faaf732e"
+    },
+    {
+      "file": "apps/editor/src/CommandMenu.tsx",
+      "sha256": "a51319ca8e88cc46ad8445b79b59820256f1a81e403cfcc2431be3e4d20679c7"
+    },
+    {
+      "file": "apps/editor/src/styles.css",
+      "sha256": "b19a2958870265ddd03cb30de814b13c5f96018a96ba645f80a3cac236f20938"
+    },
+    {
+      "file": "apps/editor/src/ui/use-overlay-bounds.ts",
+      "sha256": "e839fadeeb780ebb6493f39525a8aee959984a8b997c7ce92f329853add99eb5"
+    }
+  ],
+  "before": [
+    {
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "zoom": 1,
+      "theme": "light",
+      "language": "en",
+      "font": "\"Pretendard Variable\", Pretendard, \"Noto Sans KR\", \"Apple SD Gothic Neo\", \"Malgun Gothic\", \"Segoe UI\", sans-serif",
+      "scroll": 998
+    },
+    {
+      "width": 640,
+      "height": 900,
+      "dpr": 1,
+      "zoom": 1,
+      "theme": "dark",
+      "language": "ko",
+      "font": "\"Pretendard Variable\", Pretendard, \"Noto Sans KR\", \"Apple SD Gothic Neo\", \"Malgun Gothic\", \"Segoe UI\", sans-serif",
+      "scroll": 1521
+    }
+  ],
+  "after": [
+    {
+      "width": 1440,
+      "height": 900,
+      "dpr": 1,
+      "zoom": 1,
+      "theme": "light",
+      "language": "en",
+      "font": "\"Pretendard Variable\", Pretendard, \"Noto Sans KR\", \"Apple SD Gothic Neo\", \"Malgun Gothic\", \"Segoe UI\", sans-serif",
+      "scroll": 998,
+      "point": {
+        "x": 1074,
+        "y": 894.390625
+      },
+      "menu": {
+        "x": 985.046875,
+        "y": 612,
+        "width": 190.953125,
+        "height": 280
+      },
+      "notificationOverlap": {
+        "intersects": false,
+        "menuOwnsHit": null
+      }
+    },
+    {
+      "width": 640,
+      "height": 900,
+      "dpr": 1,
+      "zoom": 1,
+      "theme": "dark",
+      "language": "ko",
+      "font": "\"Pretendard Variable\", Pretendard, \"Noto Sans KR\", \"Apple SD Gothic Neo\", \"Malgun Gothic\", \"Segoe UI\", sans-serif",
+      "scroll": 1521,
+      "point": {
+        "x": 602,
+        "y": 893.984375
+      },
+      "menu": {
+        "x": 472,
+        "y": 612,
+        "width": 160,
+        "height": 280
+      },
+      "notificationOverlap": {
+        "intersects": true,
+        "menuOwnsHit": true
+      }
+    }
+  ],
+  "files": [
+    {
+      "file": "after-1440.png",
+      "bytes": 181271,
+      "sha256": "2f9b7574348793e22b7d9b669376e21b5542e5e77efdfc4c8a11aff73c2a21b3"
+    },
+    {
+      "file": "after-640.png",
+      "bytes": 121751,
+      "sha256": "03cc56fb537e3eb739230216aa48bd202688a4e69e26341ea0d04d666ec739f4"
+    },
+    {
+      "file": "before-1440.png",
+      "bytes": 158895,
+      "sha256": "385f37c807c76e69f24cfc27f5244d52534d4cc5b20608f7f4d021563cdbcff1"
+    },
+    {
+      "file": "before-640.png",
+      "bytes": 108640,
+      "sha256": "5931c50c29212c89d52975e18c3822c37ab9a86416dd591e11cc2610ba44d2da"
+    }
+  ],
+  "method": "Windows Chrome, checkout-owned persistent profile, pnpm browser:test. Same fresh quiet-document.md scratch copy; last paragraph scrolled to viewport bottom; secondary click near its right/bottom corner. Before uses baseCommit, after uses the raw Windows worktree source hashes above. Native browser chrome is not included in page PNGs.",
+  "manualReview": [
+    "Inspected refreshed 1440px Light/English and 640px Dark/Korean same-state captures.",
+    "Checked row/icon vertical centres, padding, Korean labels, disabled state and shared danger styling.",
+    "Confirmed scrollbar/Outline clearance and unchanged menu coordinates with 8px viewport right/bottom clearance.",
+    "640px real overlap hit belongs to Delete; browser regression clicks that exact overlap and verifies deletion/Undo, unchanged notification button geometry and collapsed state.",
+    "Compared body, gutter, file and tab stacking using the separately documented diagnostic; all four menus now paint above the unchanged bell.",
+    "Manual captures are visual evidence, not screenshot assertions or owner approval."
+  ],
+  "reproduction": [
+    "Start this checkout on port 5282.",
+    "Copy capture.browser.js to apps/editor/test/body-context-capture.browser.js, set LITZIO_BROWSER_URL=http://127.0.0.1:5282, and run pnpm browser:test body-context-capture.",
+    "Use phase=before with baseCommit source files, phase=after with the PR source. Preserve files between runs.",
+    "Remove the temporary scenario after capture; close caller-owned Vite and runner-owned browser sessions."
+  ],
+  "stackingReview": {
+    "reviewBaseCommit": "cd7a56758f2307ebaccb5f62a1b39bbfb2941e5b",
+    "cause": "Shared CommandMenu was inside the fixed document-scroll stacking context, beneath the notification center. File/tab ContextMenu portals were already above it. CommandMenu now escapes that context through a Portal at the existing menu layer; Table menus retain their Popover portal.",
+    "comparisonMethod": "Open each existing menu normally, then temporarily translate its popup over the unchanged notification button for a same-point stacking diagnostic. Natural gutter/file/tab anchors do not overlap the bell; translation is diagnostic only and is not used in the published layout captures.",
+    "before": [
+      {
+        "surface": "body",
+        "naturalOverlap": true,
+        "menuAboveBellAtDiagnosticPoint": false,
+        "menuZ": "3",
+        "notificationZ": "40"
+      },
+      {
+        "surface": "gutter",
+        "naturalOverlap": false,
+        "menuAboveBellAtDiagnosticPoint": false,
+        "menuZ": "3",
+        "notificationZ": "40"
+      },
+      {
+        "surface": "file",
+        "naturalOverlap": false,
+        "menuAboveBellAtDiagnosticPoint": true,
+        "menuZ": "50",
+        "notificationZ": "40"
+      },
+      {
+        "surface": "tab",
+        "naturalOverlap": false,
+        "menuAboveBellAtDiagnosticPoint": true,
+        "menuZ": "50",
+        "notificationZ": "40"
+      }
+    ],
+    "after": [
+      {
+        "surface": "body",
+        "naturalOverlap": true,
+        "menuAboveBellAtDiagnosticPoint": true,
+        "menuZ": "50",
+        "notificationZ": "40"
+      },
+      {
+        "surface": "gutter",
+        "naturalOverlap": false,
+        "menuAboveBellAtDiagnosticPoint": true,
+        "menuZ": "50",
+        "notificationZ": "40"
+      },
+      {
+        "surface": "file",
+        "naturalOverlap": false,
+        "menuAboveBellAtDiagnosticPoint": true,
+        "menuZ": "50",
+        "notificationZ": "40"
+      },
+      {
+        "surface": "tab",
+        "naturalOverlap": false,
+        "menuAboveBellAtDiagnosticPoint": true,
+        "menuZ": "50",
+        "notificationZ": "40"
+      }
+    ]
+  }
+}

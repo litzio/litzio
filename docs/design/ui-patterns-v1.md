@@ -139,6 +139,7 @@ After는 #792 작업 소스로 촬영했다. source/disk 쓰기 없이 번호 �
 - **목표:** 그림·수식·표 속성 진입은 같은 위쪽 Edit/metadata 행에 둔다. 표 행·열·Append 도구는 grid에, 하단 독립 Delete는 More/actions에 둔다. 도구 표시로 본문 높이를 바꾸지 않고 번호/label을 폼 제목에 반복하지 않는다. 미주 우측 버튼과 복귀 번호는 예외다. 넓은 표에서도 가로 스크롤 전에 도구에 접근하고 caption을 가리지 않아야 한다.
 - **현재 기준:** [그림][figure-view]·[수식][equation-view] NodeView의 상단 도구와 높이를 차지하지 않는 metadata. [표 #793](table-interaction-v1.md#whole-table-tools-793)은 가로 스크롤 밖 상단 행에 Edit/More·metadata를 두고, Delete는 More 메뉴에 둔다. 표는 앞 문단·열 핸들과 겹치지 않도록 상단 행의 공간을 항상 확보하며 도구 표시로 본문 높이를 바꾸지 않는다. 행·열·Append와 caption 간격은 유지한다. 수식도 같은 상단 Edit/metadata 행에서 작은 속성을 열며, 본문 폭 원문 폼은 별도 경로로 유지한다(#788).
 - **사용처:** U01–U06 그림·수식·표·미주, U11 절 label, U18 블록/표 구조 도구.
+- **본문 진입 (#223):** 본문 우클릭과 편집기 안 Shift+F10·메뉴 키도 U18의 기존 여백 핸들 블록 메뉴를 연다. 표·그림·수식도 같은 항목·명령·Undo/Redo를 쓰며 속성 도구 배치와 표시 규칙은 유지한다([본문 메뉴 계약](editor-ux-shell-v1.md#body-block-context-menu-223)).
 - **결정·불일치:** [소유자 결정 P09][decision]은 #517/#721 배치를 바꾼다. 표 배치 D08의 현재 계약·1440/640px 캡처·키보드/가로 스크롤 검증은 [표 도구 기록](table-interaction-v1.md#whole-table-tools-793)에 연결한다. 수식 metadata D04와 미주 예외는 유지한다.
 
 Mermaid의 상시 종류 배지는 공용 metadata 서체, 일반 text 대비, muted 표면과 기존
@@ -154,7 +155,9 @@ padding을 쓴다. 선택하면 interaction-soft fill과 interaction border를 �
 - **목적·사용/비사용:** 동작·값 선택·검색을 구별한다. combobox·tree·toolbar를 모양 때문에 하나의 menu로 합치지 않는다.
 - **목표·현재 기준:** [CommandMenu](../../apps/editor/src/CommandMenu.tsx)와 [공용 메뉴 행](editor-ux-shell-v1.md#unified-action-menus-516)을 유지한다. 같은 action의 icon·문구·disabled 이유를 맞춘다. 값 선택에는 current check, 서식에는 pressed, 실행에는 동사를 쓴다. 검색 active와 선택된 값은 구별한다.
 - **추가 사용처 (#798):** Sidebar 하단 색상 모드 메뉴는 공용 menu surface·행과 Base UI radio 선택을 사용한다. 현재 값의 check와 키보드 focus를 구별하며 Settings·명령 센터와 같은 저장·적용 경로를 쓴다([계약·검증](editor-ux-shell-v1.md#color-mode-entry-798)).
+- **메뉴 쌓임 (#223):** 공용 CommandMenu는 고정 문서 viewport의 stacking context 밖 Portal에서 파일·탭 메뉴와 같은 층을 쓰므로 알림 버튼이 행을 가리지 않는다. 원래 문서의 위치·스크롤·그룹 경계와 미주 소유권을 유지하며, 표는 기존 Popover Portal을 유지한다. 알림 버튼의 위치·동작은 바꾸지 않는다.
 - **사용처:** U17 서식 toolbar, U18 블록·표 메뉴, U19 코드 언어/callout, U20 파일·탭 메뉴, U21 검색·탐색, U09–U10 인용·참조 후보.
+- **본문 메뉴 경계 (#223):** U18은 마우스 위치 또는 현재 블록의 커서 옆에서 같은 CommandMenu를 쓰고 문서 viewport 안으로 배치한다. 선택된 글자 안·입력칸·코드/수식 원문·읽기/읽기 전용에서는 기본 메뉴를 유지하며 클립보드 항목은 추가하지 않는다. 선택 밖 우클릭은 대상 커서/블록으로 이동한다. Esc·닫기는 편집기 선택/focus를 복원하고 다른 control 클릭은 정상 focus 인계를 유지한다. 파일·탭 우클릭과 폴더·Outline은 바꾸지 않는다. `read-view`가 이 경계와 핸들 메뉴 일치·Undo/Redo를 검증한다.
 - **선택·overlay 위치 (#838):** 선택 툴바는 선택 글자를 가리지 않도록 위 공간이 부족하면 아래로 뒤집고, 선택이 콘텐츠 viewport 밖이면 숨긴다. 스크롤로 돌아오면 기존 선택의 툴바를 다시 보인다. 같은 경계 훅의 링크·교차참조·인용 폼, slash 메뉴와 읽기 미리보기도 대상과 겹치지 않는 쪽에 배치한다. 초안의 유지·적용·Esc 취소는 P04 그대로다. 치수·화면 밖 폼의 기존 접근은 [Layout Rules](editor-layout-rules-v1.md#alignment-and-ownership)를 따른다.
 - **#838 검증·시각 근거:** `selection-toolbar`가 상단 선택 가림, 스크롤 밖 숨김·복귀, 링크 Esc 뒤 실제 제목 클릭·URL 보존, 하단 읽기 미리보기·기존 참조/인용 폼·slash 메뉴의 위치를 검사한다. [1440px Before](assets/selection-toolbar-838/before-1440.png) / [After](assets/selection-toolbar-838/after-1440.png), [640px Before](assets/selection-toolbar-838/before-640.png) / [After](assets/selection-toolbar-838/after-640.png), [640px 한국어 Dark](assets/selection-toolbar-838/after-640-dark-ko.png)에서 정렬·패딩·선택 가림·경계 잘림을 자체 점검했다. [촬영 조건·해시](assets/selection-toolbar-838/capture-metadata.json)는 수동 시각 근거이며 소유자 승인을 대신하지 않는다.
 - **결정·불일치:** [소유자 결정 P10][decision]. 메뉴 역할 자체의 알려진 불일치 없음. 표 Delete는 #793에서 상단 More의 기존 공용 danger 메뉴 항목으로 통합했다. 행·열의 명시적 대상, disabled 제한, 삭제·Undo 의미와 키보드 Enter/화살표/Esc 동작은 유지한다(P09/D08).

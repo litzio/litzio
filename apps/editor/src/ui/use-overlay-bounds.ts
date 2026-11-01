@@ -1,6 +1,6 @@
 import { useEditorVisible } from "../editor-visibility.ts";
 import { documentContentBounds, documentScrollContainer } from "../document-scroll.ts";
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, type RefObject } from "react";
 
 export type OverlayAnchor = {
   rect: (overlay: HTMLElement) => Pick<DOMRect, "top" | "bottom" | "left" | "right">;
@@ -10,7 +10,7 @@ export type OverlayAnchor = {
 };
 
 /** Fit overlays to their owning document content viewport in every group layout. */
-export function useOverlayBounds<T extends HTMLElement>(open = true, anchor?: OverlayAnchor) {
+export function useOverlayBounds<T extends HTMLElement>(open = true, anchor?: OverlayAnchor, origin?: RefObject<HTMLElement | null>) {
   const visible = useEditorVisible();
   const ref = useRef<T>(null);
   useLayoutEffect(() => {
@@ -18,9 +18,15 @@ export function useOverlayBounds<T extends HTMLElement>(open = true, anchor?: Ov
     if (!visible || !open || !element) return;
     let x = parseFloat(element.style.getPropertyValue("--overlay-shift-x")) || 0;
     let y = parseFloat(element.style.getPropertyValue("--overlay-shift-y")) || 0;
-    const viewport = documentScrollContainer(element);
+    const viewport = documentScrollContainer(origin?.current ?? element);
     const fit = () => {
       const scrollTop = element.scrollTop;
+      // A portaled menu keeps a zero-size origin in its document's coordinate space.
+      if (origin?.current) {
+        const point = origin.current.getBoundingClientRect();
+        element.style.left = `${point.left}px`;
+        element.style.top = `${point.top}px`;
+      }
       const inset = 8;
       const bounds = viewport ? documentContentBounds(viewport) : null;
       const leftEdge = bounds?.x ?? 0;

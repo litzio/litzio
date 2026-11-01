@@ -75,10 +75,10 @@ async (page, { openPath, activeDocument, expect, screenshots = false }) => {
     n.editor.view.focus(); n.editor.commands.setTextSelection(range);
   });
   const toolbar = surface(bid).getByTestId('selection-toolbar');
-  const overlayBounds = async (overlay,label,allControls=false) => {
+  const overlayBounds = async (overlay,label,allControls=false,ownerId) => {
     await overlay.waitFor();
-    const result = await overlay.evaluate(n => {
-      const viewport=n.closest('.document-scroll'), group=viewport.getBoundingClientRect(), rect=n.getBoundingClientRect();
+    const result = await overlay.evaluate((n,ownerId) => {
+      const viewport=ownerId ? document.querySelector(`[data-document-tab="${ownerId}"]`) : n.closest('.document-scroll'), group=viewport.getBoundingClientRect(), rect=n.getBoundingClientRect();
       const left=group.left+viewport.clientLeft, top=group.top+viewport.clientTop;
       return {group:{left,top,right:Math.min(group.right,left+viewport.clientWidth),bottom:Math.min(group.bottom,top+viewport.clientHeight)},
         overlay:{left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom,width:rect.width},
@@ -87,7 +87,7 @@ async (page, { openPath, activeDocument, expect, screenshots = false }) => {
           const r=control.getBoundingClientRect();
           return {name:control.getAttribute('aria-label')??control.textContent,reachable:control.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))};
         })};
-    });
+    },ownerId);
     check(result.overlay.left>=result.group.left && result.overlay.right<=result.group.right && result.overlay.top>=result.group.top && result.overlay.bottom<=result.group.bottom &&
       (!allControls || result.controls.every(control=>control.reachable)), `${label} is clipped: ${JSON.stringify(result)}`);
     return result;
@@ -142,8 +142,8 @@ async (page, { openPath, activeDocument, expect, screenshots = false }) => {
   await surface(bid).locator('.document-editor').evaluate(n=>n.editor.view.focus());
   // A slash query at the same paragraph edge includes existing long reference labels.
   await page.keyboard.type(' /');
-  const slashMenu=surface(bid).getByRole('menu',{name:'Insert block',exact:true});
-  await overlayBounds(slashMenu,'Slash menu');
+  const slashMenu=page.getByRole('menu',{name:'Insert block',exact:true});
+  await overlayBounds(slashMenu,'Slash menu',false,bid);
   await page.keyboard.press('ArrowDown');
   const activeSlash=slashMenu.locator('.active');
   check(await activeSlash.evaluate(n=>{
@@ -153,8 +153,8 @@ async (page, { openPath, activeDocument, expect, screenshots = false }) => {
   await page.keyboard.press('Backspace'); await page.keyboard.press('Backspace');
   await surface(bid).locator('.paragraph').first().hover();
   await surface(bid).getByRole('button',{name:/^Move paragraph block /}).first().click();
-  const blockMenu=surface(bid).getByRole('menu',{name:'Block actions',exact:true});
-  await overlayBounds(blockMenu,'Block menu');
+  const blockMenu=page.getByRole('menu',{name:'Block actions',exact:true});
+  await overlayBounds(blockMenu,'Block menu',false,bid);
   await page.keyboard.press('ArrowUp');
   check(await blockMenu.evaluate(n=>{
     const focused=document.activeElement, r=focused.getBoundingClientRect();

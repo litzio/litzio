@@ -3,6 +3,8 @@ import { i18n } from "./i18n.ts";
 import type { LucideIcon } from "lucide-react";
 import { Check } from "lucide-react";
 import { Fragment, useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
+import { useEditorVisible } from "./editor-visibility.ts";
 import { useOverlayBounds, type OverlayAnchor } from "./ui/use-overlay-bounds.ts";
 
 export type CommandMenuItem = {
@@ -29,16 +31,31 @@ type CommandMenuProps = {
   activeIndex?: number;
   /** Move focus into the menu when opened from a button. */
   focusOnOpen?: boolean;
+  /** A context menu returns to its editor rather than a button opener. */
+  onReturnFocus?(): void;
   emptyText?: string;
   onSelect(id: string): void;
-  onClose(): void;
+  onClose(event?: MouseEvent): void;
 };
 
 /** Presentational menu shared by the insert menu (`+` and `/`) and the block menu. */
-export function CommandMenu({ label, items, style, anchor, activeIndex, focusOnOpen, emptyText, onSelect, onClose }: CommandMenuProps) {
+export function CommandMenu({ label, items, style, anchor, activeIndex, focusOnOpen, onReturnFocus, emptyText, onSelect, onClose }: CommandMenuProps) {
   useTranslation();
-  const root = useOverlayBounds<HTMLDivElement>(true, anchor);
+  const visible = useEditorVisible();
+  // Table menus already live inside the shared Popover's portal/positioner.
+  const portaled = style.position !== "relative";
+  const origin = useRef<HTMLSpanElement>(null);
+  const root = useOverlayBounds<HTMLDivElement>(true, anchor, portaled ? origin : undefined);
   const returnFocus = useRef<Element | null>(null);
+  useLayoutEffect(() => {
+    // Retain the existing endnote interaction boundary across the DOM portal.
+    const owner = origin.current?.closest("[data-endnote-owner][data-endnote-editor]");
+    for (const name of ["data-endnote-owner", "data-endnote-editor"]) {
+      const value = owner?.getAttribute(name);
+      if (value !== null && value !== undefined) root.current?.setAttribute(name, value);
+      else root.current?.removeAttribute(name);
+    }
+  });
   useLayoutEffect(() => {
     const menu = root.current;
     if (!menu || activeIndex === undefined) return;
@@ -60,24 +77,25 @@ export function CommandMenu({ label, items, style, anchor, activeIndex, focusOnO
     if (!root.current?.contains(document.activeElement)) returnFocus.current = document.activeElement;
     if (focusOnOpen) root.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
     const outside = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) onClose();
+      if (!root.current?.contains(event.target as Node)) onClose(event);
     };
     document.addEventListener("mousedown", outside);
     return () => document.removeEventListener("mousedown", outside);
   }, []);
-  return (
+  const content = (
     <div
       ref={root}
       className="command-menu"
       role="menu"
       aria-label={label}
-      style={style}
+      style={portaled ? { ...style, position: "fixed", left: 0, top: 0 } : style}
       onMouseDown={event => event.stopPropagation()}
       onKeyDown={event => {
         if (event.key === "Escape") {
           event.preventDefault();
           onClose();
-          if (focusOnOpen && returnFocus.current instanceof HTMLElement && returnFocus.current.isConnected) returnFocus.current.focus();
+          if (focusOnOpen && onReturnFocus) onReturnFocus();
+          else if (focusOnOpen && returnFocus.current instanceof HTMLElement && returnFocus.current.isConnected) returnFocus.current.focus();
           return;
         }
         if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
@@ -120,4 +138,9 @@ export function CommandMenu({ label, items, style, anchor, activeIndex, focusOnO
       })}
     </div>
   );
+  if (!portaled || typeof document === "undefined") return content;
+  return <>
+    <span ref={origin} aria-hidden="true" style={{ ...style, position: "absolute", width: 0, height: 0, pointerEvents: "none" }} />
+    {createPortal(<div className="ui-portal" hidden={!visible}>{content}</div>, document.body)}
+  </>;
 }

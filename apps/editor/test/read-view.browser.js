@@ -34,6 +34,187 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
   await expect(edit).toHaveAttribute('aria-pressed', 'true');
   await editor.evaluate(el => { window.readViewEditor = el.editor; window.readViewTextSelection = el.editor.state.selection.constructor; });
 
+  // Body entry points share the handle menu and history; native text/source menus stay available (#223).
+  const blockMenu = page.getByRole('menu', {name:'Block actions', exact:true});
+  const state = () => editor.evaluate(el => ({selection:el.editor.state.selection.toJSON(), focused:el.editor.view.hasFocus()}));
+  await editor.evaluate(el => {
+    window.addEventListener('contextmenu', event => { window.bodyContextPrevented = event.defaultPrevented; });
+    window.addEventListener('keydown', event => { if (event.key === 'ContextMenu' || event.key === 'F10') window.bodyContextKeyPrevented = event.defaultPrevented; });
+  });
+  const contextParagraph = editor.locator('p.paragraph').filter({hasText:'Read this'}).first();
+  const selectProse = () => contextParagraph.evaluate(el => {
+    const editor = el.closest('.document-editor').editor;
+    const start = editor.view.posAtDOM(el, 0);
+    editor.commands.setTextSelection({from:start, to:start+4}); editor.view.focus();
+  });
+  await selectProse();
+  const selected = (await state()).selection;
+  const point = await page.evaluate(() => {
+    const rect = getSelection().getRangeAt(0).getClientRects()[0];
+    return {x:rect.left+2,y:rect.top+rect.height/2};
+  });
+  await page.mouse.click(point.x,point.y,{button:'right'});
+  expect(await page.evaluate(() => window.bodyContextPrevented)).toBe(false);
+  expect((await state()).selection).toEqual(selected);
+  await expect(blockMenu).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Shift+F10');
+  expect(await page.evaluate(() => window.bodyContextKeyPrevented)).toBe(false);
+  expect((await state()).selection).toEqual(selected);
+  await expect(blockMenu).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+a');
+  const selectedAll = (await state()).selection;
+  const allPoint = await page.evaluate(() => {
+    const rect = [...getSelection().getRangeAt(0).getClientRects()].find(rect => rect.width>2 && rect.height>2 && rect.top>=72 && rect.bottom<innerHeight);
+    return {x:rect.left+2,y:rect.top+rect.height/2};
+  });
+  await page.mouse.click(allPoint.x,allPoint.y,{button:'right'});
+  expect(await page.evaluate(() => window.bodyContextPrevented)).toBe(false);
+  expect((await state()).selection).toEqual(selectedAll);
+  await expect(blockMenu).toHaveCount(0); await page.keyboard.press('Escape');
+  await selectProse();
+
+  // A secondary click outside the selected glyphs collapses to that text position.
+  const rect = await contextParagraph.boundingBox();
+  await page.mouse.click(rect.x+rect.width-5,rect.y+rect.height-5,{button:'right'});
+  await expect(blockMenu).toBeVisible();
+  const clicked = (await state()).selection;
+  expect(clicked.anchor).toBe(clicked.head);
+  expect(clicked.anchor).toBeGreaterThan(selected.head);
+  const items = menu => menu.getByRole('menuitem').evaluateAll(rows => rows.map(row => ({label:row.getAttribute('aria-label'),disabled:row.disabled})));
+  const bodyItems = await items(blockMenu);
+  expect(bodyItems.some(item => /copy|paste|cut/i.test(item.label))).toBe(false);
+  await page.keyboard.press('Escape');
+  await expect(blockMenu).toHaveCount(0);
+  expect(await state()).toEqual({selection:clicked,focused:true});
+  const blockIndex = await contextParagraph.evaluate(el => el.closest('.document-editor').editor.state.selection.$from.index(0));
+  await panel.locator('.block-handle').nth(blockIndex).click();
+  await expect(blockMenu).toBeVisible();
+  expect(await items(blockMenu)).toEqual(bodyItems);
+  await page.keyboard.press('Escape');
+
+  for (const key of ['Shift+F10','ContextMenu']) {
+    await editor.evaluate(el => el.editor.view.focus());
+    const retained = (await state()).selection;
+    await page.keyboard.press(key);
+    await expect(blockMenu).toBeVisible();
+    await expect(blockMenu.getByRole('menuitem').first()).toBeFocused();
+    expect(await items(blockMenu)).toEqual(bodyItems);
+    await page.keyboard.press('Escape');
+    await expect(blockMenu).toHaveCount(0);
+    expect(await state()).toEqual({selection:retained,focused:true});
+  }
+  const beforeContext = await json();
+  await contextParagraph.click({button:'right'});
+  await blockMenu.getByRole('menuitem',{name:'Change to Heading 3',exact:true}).click();
+  await expect(editor.locator('h3')).toContainText('Read this');
+  await page.keyboard.press('Control+z'); expect(await json()).toBe(beforeContext);
+  await page.keyboard.press('Control+Shift+z'); await expect(editor.locator('h3')).toContainText('Read this');
+  await page.keyboard.press('Control+z'); expect(await json()).toBe(beforeContext);
+
+  // Cancelling a paragraph menu over an inline atom must leave only that atom selected.
+  for (const [kind, target] of [
+    ['inlineMath', contextParagraph.getByTestId('inline-math').locator('.katex-html')],
+    ['citation', contextParagraph.locator('[data-citation] .cross-reference-chip')],
+    ['crossReference', contextParagraph.getByTestId('cross-reference').locator('.cross-reference-chip')],
+  ]) {
+    const original = await json();
+    const expected = await editor.evaluate((el, kind) => {
+      const {doc} = el.editor.state;
+      let result;
+      doc.descendants((node,pos) => {
+        if (result || node.type.name !== kind) return;
+        const at=doc.resolve(pos), parent=at.parent;
+        result={index:at.index(0),text:parent.textBetween(0,at.parentOffset)+'Z'+parent.textBetween(at.parentOffset+node.nodeSize,parent.content.size),
+          otherInline:parent.content.content.filter(child=>!child.isText&&child.type.name!==kind).map(child=>child.toJSON())};
+      });
+      return result;
+    },kind);
+    await editor.locator('h1').click({position:{x:8,y:8}});
+    await target.click({button:'right'});
+    await expect(blockMenu.getByRole('menuitem',{name:'Change to Heading 3',exact:true})).toBeEnabled();
+    await page.keyboard.press('Escape'); await expect(blockMenu).toHaveCount(0);
+    const retainedInline = await editor.evaluate(el=>el.editor.state.selection.node?.type.name);
+    await page.keyboard.type('Z');
+    const after = await editor.evaluate((el,{index,kind}) => {
+      const paragraph=el.editor.state.doc.child(index);
+      return {text:paragraph.textContent,otherInline:paragraph.content.content.filter(child=>!child.isText&&child.type.name!==kind).map(child=>child.toJSON())};
+    },{index:expected.index,kind});
+    expect(after.text, `${kind}: typing after menu Escape must preserve the surrounding paragraph`).toBe(expected.text);
+    expect(after.otherInline).toEqual(expected.otherInline);
+    expect(retainedInline).toBe(kind);
+    await expect(contextParagraph.locator('a[href="https://example.com"]')).toHaveText('link');
+    await page.keyboard.press('Control+z'); expect(await json()).toBe(original);
+  }
+
+  // Table cells and rendered atomic content target their own block, even from another block's selection.
+  for (const target of [panel.getByTestId('figure-image'),panel.getByTestId('equation-preview'),editor.locator('td').first()]) {
+    await selectProse();
+    await target.click({button:'right'});
+    await expect(blockMenu).toBeVisible();
+    expect(await page.evaluate(() => window.bodyContextPrevented)).toBe(true);
+    expect(await editor.evaluate(el => {
+      const {selection,doc} = el.editor.state;
+      return doc.child(selection.$from.index(0)).type.name;
+    })).toBe(await target.evaluate(el => el.closest('[data-block]').dataset.block === 'code' ? 'codeBlock' : el.closest('[data-block]').dataset.block));
+    const retained = (await state()).selection;
+    await page.keyboard.press('Escape'); await expect(blockMenu).toHaveCount(0);
+    expect(await state()).toEqual({selection:retained,focused:true});
+    await page.keyboard.press('Shift+F10'); await expect(blockMenu).toBeVisible();
+    await page.keyboard.press('Escape'); await expect(blockMenu).toHaveCount(0);
+    expect(await state()).toEqual({selection:retained,focused:true});
+  }
+  for (const width of [640,1440]) {
+    await page.setViewportSize({width,height:900});
+    const target = panel.getByTestId('equation-preview');
+    await target.evaluate(el => el.scrollIntoView({block:'end'}));
+    const edge = await target.boundingBox();
+    await page.mouse.click(edge.x+edge.width-2,edge.y+edge.height-2,{button:'right'});
+    await expect(blockMenu).toBeVisible();
+    expect(await blockMenu.evaluate(async menu => {
+      const {documentContentBounds,documentScrollContainer} = await import('/src/document-scroll.ts');
+      const bounds = documentContentBounds(documentScrollContainer()), rect = menu.getBoundingClientRect();
+      return rect.left >= bounds.x+7.5 && rect.right <= bounds.x+bounds.width-7.5 &&
+        rect.top >= bounds.y+7.5 && rect.bottom <= bounds.y+bounds.height-7.5;
+    })).toBe(true);
+    await page.keyboard.press('Escape'); await expect(blockMenu).toHaveCount(0);
+  }
+  // Linux can open contextmenu on secondary down, before the engine handles mouseup.
+  // Exercise that order on every platform; the later up must not take focus from the menu.
+  const preview = panel.getByTestId('equation-preview');
+  await selectProse();
+  await preview.scrollIntoViewIfNeeded();
+  const previewRect = await preview.boundingBox();
+  const contextPoint = {x:previewRect.x+previewRect.width/2,y:previewRect.y+previewRect.height/2};
+  await page.mouse.move(contextPoint.x,contextPoint.y); await page.mouse.down({button:'right'});
+  await preview.evaluate((el, point) => el.dispatchEvent(new MouseEvent('contextmenu',{
+    bubbles:true,cancelable:true,button:2,buttons:2,clientX:point.x,clientY:point.y,
+  })), contextPoint);
+  await expect(blockMenu.getByRole('menuitem').first()).toBeFocused();
+  await page.mouse.up({button:'right'});
+  expect(await blockMenu.evaluate(menu => menu.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press('Escape'); await expect(blockMenu).toHaveCount(0);
+  // An outside dismissal also returns to the retained editor selection.
+  await contextParagraph.click({button:'right'}); await expect(blockMenu).toBeVisible();
+  const outsideSelection = (await state()).selection;
+  expect(outsideSelection.type).toBe('text'); expect(outsideSelection.anchor).toBe(outsideSelection.head);
+  await page.getByTestId('status').click(); await expect(blockMenu).toHaveCount(0);
+  expect(await state()).toEqual({selection:outsideSelection,focused:true});
+  const code = editor.locator('pre');
+  await code.click({button:'right'});
+  expect(await page.evaluate(() => window.bodyContextPrevented)).toBe(false);
+  await expect(blockMenu).toHaveCount(0); await page.keyboard.press('Escape');
+  await code.click(); await page.keyboard.press('Shift+F10');
+  expect(await page.evaluate(() => window.bodyContextKeyPrevented)).toBe(false);
+  await expect(blockMenu).toHaveCount(0); await page.keyboard.press('Escape');
+  const title = panel.getByRole('textbox',{name:'Title',exact:true});
+  await title.click({button:'right'});
+  expect(await page.evaluate(() => window.bodyContextPrevented)).toBe(false);
+  await expect(blockMenu).toHaveCount(0); await page.keyboard.press('Escape');
+
   // An actual applied edit supplies both undo history and a recovery record.
   await editor.locator('p').filter({hasText: 'Read this'}).first().click({position:{x:4,y:12}});
   await page.keyboard.press('Home');
@@ -60,10 +241,23 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
   const equation = panel.locator('[data-block=equation]');
   await equation.getByTestId('equation-preview').dblclick();
   await page.getByTestId('equation-latex').fill('z=UNAPPLIED');
+  await page.getByTestId('equation-latex').press('ContextMenu');
+  expect(await page.evaluate(() => window.bodyContextKeyPrevented)).toBe(false);
+  await expect(blockMenu).toHaveCount(0);
+  await page.getByTestId('equation-latex').click({button:'right'});
+  expect(await page.evaluate(() => window.bodyContextPrevented)).toBe(false);
+  await expect(blockMenu).toHaveCount(0);
+  await expect(page.getByTestId('equation-latex')).toHaveValue('z=UNAPPLIED');
   const status = await page.getByTestId('status').getAttribute('data-operation');
   await read.click();
   await expect(read).toHaveAttribute('aria-pressed', 'true');
   await expect(editor).toHaveAttribute('contenteditable', 'false');
+  await contextParagraph.click({button:'right'});
+  expect(await page.evaluate(() => window.bodyContextPrevented)).toBe(false);
+  await expect(blockMenu).toHaveCount(0); await page.keyboard.press('Escape');
+  await editor.focus(); await page.keyboard.press('Shift+F10');
+  expect(await page.evaluate(() => window.bodyContextKeyPrevented)).toBe(false);
+  await expect(blockMenu).toHaveCount(0); await page.keyboard.press('Escape');
   await expect(equation.getByTestId('equation-preview')).toBeVisible();
   await expect(page.getByTestId('equation-latex')).toHaveCount(0);
   await expect(page.getByTestId('draft-indicator')).toBeVisible();
@@ -312,5 +506,32 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
       await page.screenshot({path:`tmp/read-view-849/after-controls-${width}.png`});
     }
   }
-  return {mutationRoutesBlocked:true, draftsAndRecoveryPreserved:true, navigationAndCopy:true, independentTabsAndGroups:true};
+  // The lower-right body menu must own the actual hit over the floating notification button.
+  await openPath(page, [root, 'tmp', 'quiet-document', 'quiet-document.md'].join(sep));
+  await page.setViewportSize({width:640,height:900});
+  await configure('ko','dark');
+  const lastParagraph = page.locator('[data-document-tab][data-active=true] .document-editor > p.paragraph').last();
+  const lastText = await lastParagraph.innerText();
+  const bell = page.locator('.notification-center > button');
+  if (await bell.getAttribute('aria-expanded') === 'true') await bell.click();
+  const bellBefore = await bell.boundingBox();
+  await lastParagraph.evaluate(el => el.scrollIntoView({block:'end'}));
+  const lastRect = await lastParagraph.boundingBox();
+  await page.mouse.click(lastRect.x+lastRect.width-6,lastRect.y+lastRect.height-6,{button:'right'});
+  const lowerMenu = page.getByRole('menu',{name:'블록 작업',exact:true});
+  await expect(lowerMenu).toBeVisible();
+  const overlap = await lowerMenu.getByRole('menuitem',{name:'삭제',exact:true}).evaluate(row => {
+    const b=document.querySelector('.notification-center > button').getBoundingClientRect(), r=row.getBoundingClientRect();
+    const left=Math.max(b.left,r.left), right=Math.min(b.right,r.right), top=Math.max(b.top,r.top), bottom=Math.min(b.bottom,r.bottom);
+    const x=(left+right)/2, y=(top+bottom)/2;
+    return {intersects:right>left&&bottom>top,menuOwnsHit:row.contains(document.elementFromPoint(x,y)),x,y};
+  });
+  expect(overlap.intersects).toBe(true); expect(overlap.menuOwnsHit).toBe(true);
+  expect(await bell.boundingBox()).toEqual(bellBefore);
+  await page.mouse.click(overlap.x,overlap.y);
+  await expect(lowerMenu).toHaveCount(0); await expect(lastParagraph).not.toHaveText(lastText);
+  await expect(bell).toHaveAttribute('aria-expanded','false');
+  await page.keyboard.press('Control+z'); await expect(lastParagraph).toHaveText(lastText);
+  await configure('en','light');
+  return {mutationRoutesBlocked:true, draftsAndRecoveryPreserved:true, navigationAndCopy:true, independentTabsAndGroups:true,menuAboveNotifications:true};
 }
