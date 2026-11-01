@@ -11,7 +11,10 @@ import { Button } from "./components/ui/button.tsx";
 import { i18n, type MessageKey } from "./i18n.ts";
 import { UiRegistry, type ActiveUi } from "./plugin-ui-registry.ts";
 
-type ShellApi = Pick<UiHost, "pickFolder" | "openTab" | "pickFile">;
+type ShellApi = Pick<UiHost, "openTab" | "openSettings" | "openDocument" | "openFolder"> & {
+  pickFolder(...args: [...Parameters<UiHost["pickFolder"]>, signal: AbortSignal]): void;
+  pickFile(...args: [...Parameters<UiHost["pickFile"]>, signal: AbortSignal]): void;
+};
 function PluginButton(props: React.ComponentProps<UiHost["Button"]>) {
   return <Button size="sm" variant="ghost" {...props} />;
 }
@@ -86,6 +89,10 @@ export function usePluginUi(shellApi: ShellApi) {
     }), load,
       (registration, guard, signal, initialJob, initialJobRead): UiHost => ({
         api: PLUGIN_UI.api, React, jsx, ReadingSurface: ReadOnlyDocument, Button: PluginButton, Input, Dialog: PluginDialog, initialJob, initialJobRead,
+        features: registration.features,
+        openSettings: (section, focus) => { guard(); api.current.openSettings(`plugin/${registration.id}/${section}`, focus); },
+        openDocument: path => { guard(); return api.current.openDocument(path); },
+        openFolder: path => { guard(); return api.current.openFolder(path); },
         setBusy: busy => { guard(); setBusy(previous => ({ ...previous, [`${registration.id}/${registration.revision}`]: busy })); },
         notify: notice => { guard(); setNotices(previous => ({ ...previous, [`${registration.id}/${registration.revision}`]: notice })); },
         openExternalLink: url => { guard(); openExternalLink(url); },
@@ -108,9 +115,13 @@ export function usePluginUi(shellApi: ShellApi) {
           return value;
         },
         imageUrl: (path, uri) => `${import.meta.env.BASE_URL}document/${uri.split("/").map(encodeURIComponent).join("/")}?${new URLSearchParams({ path })}`,
-        pickFolder: (options, focus) => { guard(); api.current.pickFolder(options, focus); },
+        pickFolder: (options, focus) => { guard(); api.current.pickFolder({ ...options, open: async folder => {
+          guard(); const result = await options.open(folder); guard(); return result;
+        } }, focus, signal); },
         openTab: (kind, resource, current) => { guard(); return api.current.openTab(`${registration.id}/${kind}`, resource, current); },
-        pickFile: (options, focus) => { guard(); api.current.pickFile({ ...options, open: path => { guard(); return options.open(path); } }, focus); },
+        pickFile: (options, focus) => { guard(); api.current.pickFile({ ...options, open: async path => {
+          guard(); const result = await options.open(path); guard(); return result;
+        } }, focus, signal); },
       }), error => setProblem(String(error)));
     const observe = async () => {
       try {

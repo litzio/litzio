@@ -4,6 +4,26 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { checkPluginSources } from "@litzio/plugin-api/build";
+import { checkFeatureBoundaries } from "../scripts/check-boundaries.ts";
+import { fileURLToPath } from "node:url";
+
+test("conversion and comparison meet only through shared file formats, including erased/dynamic imports", t => {
+  checkFeatureBoundaries(fileURLToPath(new URL("../src", import.meta.url)));
+  const root = mkdtempSync(path.join(tmpdir(), "docling-features-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  for (const area of ["conversion", "comparison", "shared"]) mkdirSync(path.join(root, area));
+  for (const [area, code] of [
+    ["conversion", 'import type { ComparisonSnapshot } from "../comparison/compare.ts";'],
+    ["comparison", 'const load = () => import("../conversion/convert.ts");'],
+    ["shared", 'export * from "../conversion/source.ts";'],
+    ["conversion", 'export * from "../host.ts";'],
+  ]) {
+    const file = path.join(root, area, "test.ts"); writeFileSync(file, code);
+    assert.throws(() => checkFeatureBoundaries(root), /cannot import/u);
+    writeFileSync(file, 'import type { DoclingMap } from "../shared/map.ts";');
+  }
+  assert.doesNotThrow(() => checkFeatureBoundaries(root));
+});
 
 test("plugin boundary includes erased, dynamic and nested imports and package dependencies", t => {
   const root = mkdtempSync(path.join(tmpdir(), "plugin-boundary-"));

@@ -392,6 +392,8 @@ test("translated messages and commands follow language changes while operation i
     await i18n.changeLanguage("ko");
     assert.equal(messageText(message), "소스 보기를 사용할 수 없습니다: RAW <detail>");
     assert.equal(i18n.t("recoveryCount", { count: 2 }), "로컬 복구 기록 2개.");
+    assert.equal(i18n.t("doclingPages", { count: 1 }), "1페이지");
+    assert.equal(i18n.t("doclingPages", { count: 2 }), "2페이지");
     for (const query of ["제목", "heading"]) assert.ok(filterInsertCommands(query).some(item => item.id === "heading-2"));
     assert.equal(filterInsertCommands("heading").find(item => item.id === "heading-2")?.label, "제목 2");
     const html = renderToStaticMarkup(<TooltipProvider><DocumentActions documentPath="test.md" status="saving" unsaved
@@ -403,6 +405,8 @@ test("translated messages and commands follow language changes while operation i
     assert.equal(messageText(message), "Source view unavailable: RAW <detail>");
     assert.equal(i18n.t("recoveryCount", { count: 1 }), "1 local recovery record.");
     assert.equal(i18n.t("recoveryCount", { count: 2 }), "2 local recovery records.");
+    assert.equal(i18n.t("doclingPages", { count: 1 }), "1 page");
+    assert.equal(i18n.t("doclingPages", { count: 2 }), "2 pages");
     assert.ok(filterInsertCommands("그림").some(item => item.id === "figure"));
   } finally { await i18n.changeLanguage("en"); }
 });

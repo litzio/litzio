@@ -137,6 +137,23 @@ cross-Host cancellation, shared live task controller or document/session store.
 Startup does not restore completed jobs/tabs; an explicit receipt read remains
 possible. Each Host still admits one new conversion at a time.
 
+#871 exposes scoped history/clear through the same runtime store, without another
+database or queue. The injected plugin executor reads `{ job, status, canCancel }`;
+cancellation remains owning-Host-only. Terminal jobs record `finishedAt`. History
+performs the existing dead-owner check. Clearing only hides an uncertain receipt,
+retaining its UUID/fingerprint tombstone. Reusing that UUID never executes again;
+explicit restart uses a new request through the existing start API. No staging or
+output cleanup is implied. Docling checks input/output Root and private-output
+access before exposing history or result metadata.
+
+Feature booleans live in the existing registration JSON. Injected `features()` /
+`setFeatures()` read and atomically patch only the plugin's own registration;
+re-registration preserves them. The UI listing includes these flags. Docling owns
+`/api/docling-dashboard` (GET history/results/address, POST connection check),
+`/api/docling-features` (PUT flag patch) and `/api/docling-history` (POST owning-Host
+Stop waiting; DELETE uncertain history entry), with matching installed operations. Ordinary Host access checks
+remain in force, and no document persistence is introduced.
+
 ## Worker lifetime and publication
 
 Worker API 1 uses one IPC request `{ input, output, server }`. Progress and task

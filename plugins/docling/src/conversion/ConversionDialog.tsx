@@ -2,7 +2,7 @@ import { useEffect, useState, type RefObject } from "react";
 import { doclingFailureMessage, type ConversionJob, type PdfProgress } from "./server-types.ts";
 import type { UiHost } from "@litzio/plugin-api/ui";
 
-const phases: Record<PdfProgress["phase"], string> = {
+export const phases: Record<PdfProgress["phase"], string> = {
   checking: "Checking the Docling server…", uploading: "Uploading PDF…", pending: "Waiting in the Docling queue…",
   started: "Docling is processing the PDF…", downloading: "Downloading the Docling result…", writing: "Creating the source bundle and {{product}} document…",
 };
@@ -21,7 +21,7 @@ export function DoclingConversionDialog({ host, open, input, job, pending, probl
     return () => clearInterval(timer);
   }, [running, open]);
   return <Dialog open={open} onClose={onClose} returnFocus={returnFocus} testId="docling-conversion"
-    title={text("Convert with Docling")} description={text("Creates a source bundle and {{product}} document, then opens Docling comparison.")}
+    title={text("Convert with Docling")} description={text(host.features?.comparison === false ? "Creates a source bundle and {{product}} document." : "Creates a source bundle and {{product}} document, then opens Docling comparison.")}
     footer={<>
       <Button size="default" variant="secondary" onClick={onClose}>{text(running ? "Keep in background" : "Close")}</Button>
       {running ? <Button size="default" disabled={pending} variant="secondary" onClick={onCancel}>{text("Stop waiting")}</Button>

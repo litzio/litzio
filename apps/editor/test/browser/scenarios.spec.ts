@@ -1,10 +1,12 @@
 import { brand } from "../../../../brand.ts";
+import { PluginStore } from "../../server/plugin-store.ts";
+import { randomUUID } from "node:crypto";
 import { fakeDoclingServer } from "../helpers/docling-server.ts";
 import { uiPluginFixture } from "../helpers/ui-plugin.ts";
 import { citationReport, parse } from "@litzio/core";
 import { test as base, expect, chromium, type BrowserContext, type ConsoleMessage, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { runInNewContext } from "node:vm";
@@ -171,7 +173,7 @@ for (const name of scenarios) {
     if (liveDocling) test.setTimeout(900_000);
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", ...(liveDocling ? ["manual", "docling-live.js"] : [`${name}.browser.js`])), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { brand: typeof brand; pluginFixture: ReturnType<typeof uiPluginFixture>; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: () => void; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown; doclingFixture: { url: string; mode?: (value: import("../helpers/docling-server.ts").DoclingMode) => void; input: string; captures: string; result(folder: string): unknown } }) => Promise<unknown>;
+    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { brand: typeof brand; pluginFixture: ReturnType<typeof uiPluginFixture>; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: () => void; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown; doclingFixture: { url: string; mode?: (value: import("../helpers/docling-server.ts").DoclingMode) => void; input: string; captures: string; uncertain(): string; submissions?: () => number; changeResult(folder: string, remove: boolean): void; result(folder: string): unknown } }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
@@ -181,9 +183,9 @@ for (const name of scenarios) {
         mode === "updated" ? initialBibliography.replace("Control Study", "Updated Study") : mode === "invalid" ? "@article{broken" : initialBibliography),
       report: (markdown: string, text: string) => citationReport(parse(markdown), [{ source: "../refs.bib", status: "ok", text }]),
     };
-    const fake = name === "docling-server" && !liveDocling ? await fakeDoclingServer() : undefined;
-    const captureDirectory = path.join(REPOSITORY_ROOT, "tmp", "docling-797-captures");
-    if (name === "docling-server") mkdirSync(captureDirectory, { recursive: true });
+    const fake = ["docling-server", "docling-dashboard"].includes(name) && !liveDocling ? await fakeDoclingServer() : undefined;
+    const captureDirectory = path.join(REPOSITORY_ROOT, "tmp", name === "docling-dashboard" ? "871-captures" : "docling-797-captures");
+    if (["docling-server", "docling-dashboard"].includes(name)) mkdirSync(captureDirectory, { recursive: true });
     const liveInput = path.join(REPOSITORY_ROOT, "tmp", "797-real", "nist-source.pdf");
     if (liveDocling) {
       mkdirSync(path.dirname(liveInput), { recursive: true });
@@ -192,8 +194,23 @@ for (const name of scenarios) {
     let result;
     try { result = await scenario(page, { brand, pluginFixture: uiPluginFixture(path.join(REPOSITORY_ROOT, "tmp/plugin-ui")), assertSavedSource: savedSourceAssertion(test.info()), screenshots, showNotifications, fileActionsRoot: FILE_ACTIONS_ROOT, expect, recoveryRecords, openFolderPicker, openDocument, openPath, waitForActivePath, reloadDocument, waitForEditorFocus, activeDocument, withBlockHover, bibliographyFixture,
       doclingFixture: { url: fake?.url ?? "http://127.0.0.1:8001", mode: fake?.mode,
-        input: liveDocling ? liveInput : path.join(REPOSITORY_ROOT, "tmp", "docling-server", "paper.pdf"),
+        input: liveDocling ? liveInput : path.join(REPOSITORY_ROOT, "tmp", name === "docling-dashboard" ? "docling-dashboard" : "docling-server", name === "docling-dashboard" ? "completed.pdf" : "paper.pdf"),
         captures: captureDirectory,
+        // Explicit synthetic interrupted receipt: no server submission or worker is run.
+        uncertain: () => {
+          const store = new PluginStore(process.env.LITZIO_PLUGINS_DIR ?? path.join(REPOSITORY_ROOT, "tmp/browser-plugins"));
+          const input = path.join(REPOSITORY_ROOT, "tmp/docling-dashboard/uncertain.pdf"), id = randomUUID();
+          try { store.admit({ id, input, output: path.join(REPOSITORY_ROOT, "tmp/docling-dashboard/uncertain.docling"), startedAt: Date.now(), state: "running", progress: { phase: "started", taskId: "synthetic-interrupted-task" } }, "synthetic-dashboard-interruption", "docling"); }
+          finally { store.close(); }
+          return id;
+        },
+        submissions: fake?.submissions,
+        changeResult: (folder: string, remove: boolean) => {
+          const parent = path.join(REPOSITORY_ROOT, "tmp/docling-dashboard"), resolved = path.resolve(folder), relative = path.relative(parent, resolved);
+          if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Dashboard fixture may change only its own result folders.");
+          if (remove) rmSync(resolved, { recursive: true });
+          else { const file = path.join(resolved, "document.md"); writeFileSync(file, readFileSync(file, "utf8") + "\nExternally changed fixture.\n"); }
+        },
         result: (folder: string) => JSON.parse(readFileSync(path.join(folder, "conversion-record.json"), "utf8")),
       },
       textFixture: { replaceNative: source => writeFileSync(path.join(REPOSITORY_ROOT, "tmp/text-mode/native.md"), source) },

@@ -1,12 +1,14 @@
 import type { UiHost, UiContributions } from "@litzio/plugin-api/ui";
-import { DoclingCompareView } from "./CompareView.tsx";
-import type { ComparisonSnapshot } from "./compare.ts";
+import { DoclingCompareView } from "./comparison/CompareView.tsx";
+import type { ComparisonSnapshot } from "./comparison/compare.ts";
 import { useEffect, useRef, useState } from "react";
-import { DoclingServerSettings, useDoclingConversion, type Request } from "./ServerSettings.tsx";
-import { DoclingConversionDialog } from "./ConversionDialog.tsx";
-import { doclingFailureMessage, type ConversionJob } from "./server-types.ts";
+import { DoclingServerSettings, useDoclingConversion, type Request } from "./conversion/ServerSettings.tsx";
+import { DoclingConversionDialog } from "./conversion/ConversionDialog.tsx";
+import { doclingFailureMessage, type ConversionJob } from "./conversion/server-types.ts";
+import { Dashboard } from "./Dashboard.tsx";
 
 export function activate(host: UiHost): UiContributions {
+  const conversionEnabled = host.features?.conversion !== false, comparisonEnabled = host.features?.comparison !== false;
   const request: Request = (endpoint, method = "GET", body) => host.requestJson(`api/docling-${endpoint}`, method, body);
   let openConversion = (_focus: HTMLElement | null, _path?: string) => {};
   function Conversion() {
@@ -23,7 +25,7 @@ export function activate(host: UiHost): UiContributions {
       }, focus);
     };
     useEffect(() => { host.setBusy(converter.pending || converter.job?.state === "running"); }, [converter.pending, converter.job?.state]);
-    useEffect(() => { host.notify(notice ? { ...notice, severity: "error", reveal: () => { setInput(converter.job?.input ?? input); setOpen(true); } } : null); }, [notice, converter.job?.input, input]);
+    useEffect(() => { host.notify(conversionEnabled && notice ? { ...notice, severity: "error", reveal: () => { setInput(converter.job?.input ?? input); setOpen(true); } } : null); }, [notice, converter.job?.input, input]);
     useEffect(() => {
       const job = converter.job;
       if (!job) return;
@@ -31,6 +33,7 @@ export function activate(host: UiHost): UiContributions {
       if (finished.current === job.id) return;
       finished.current = job.id;
       if (job.state === "success") {
+        if (!comparisonEnabled || !conversionEnabled) { setOpen(false); return; }
         const version = attempt.current;
         const current = () => version === attempt.current && currentId.current === job.id;
         void host.openTab("comparison", job.output, current).then(problem => {
@@ -40,10 +43,10 @@ export function activate(host: UiHost): UiContributions {
         });
       } else if (job.state === "error") setNotice({ id: job.id, message: `${host.text(doclingFailureMessage(job.failure))}${job.failure?.taskId ? ` (${host.text("Server task")}: ${job.failure.taskId})` : ""}` });
     }, [converter.job?.id, converter.job?.state]);
-    return <DoclingConversionDialog host={host} open={open} input={input || converter.job?.input || ""} job={converter.job}
+    return conversionEnabled ? <DoclingConversionDialog host={host} open={open} input={input || converter.job?.input || ""} job={converter.job}
       pending={converter.pending} problem={converter.problem} returnFocus={returnFocus} onClose={() => setOpen(false)}
       onStart={() => { attempt.current++; setNotice(null); void converter.start(input).catch(error => setNotice({ id: `start-${Date.now()}`, message: error instanceof Error ? error.message : String(error) })); }}
-      onCancel={() => void converter.cancel()} />;
+      onCancel={() => void converter.cancel()} /> : null;
   }
   function GuideLink({ children }: { children?: React.ReactNode }) {
     const href = "https://github.com/litzio/litzio/blob/master/docs/guides/docling-server.md";
@@ -56,23 +59,26 @@ export function activate(host: UiHost): UiContributions {
   }, returnFocus);
   return {
     View: Conversion,
-    settings: [{ id: "server", label: "Docling", description: "PDF conversion on the Host device.",
+    settings: conversionEnabled ? [{ id: "server", label: "Docling", description: "PDF conversion on the Host device.",
       View: () => <DoclingServerSettings request={request} text={host.text} Input={host.Input}
-        Button={props => <host.Button variant="secondary" {...props} />} GuideLink={GuideLink} /> }],
-    fileActions: [{ id: "convert", label: "Convert with Docling", extensions: [".pdf"], run: (path, focus) => openConversion(focus, path) }],
-    commands: [{ id: "convert", label: "Convert with Docling", keywords: ["PDF", "Docling", "도클링", "변환"], run: focus => openConversion(focus) }],
-    sidebar: [{ id: "comparison", label: "Docling comparison", run: comparison }],
-    tabs: [{ id: "comparison", label: "Docling comparison", className: "docling-tab",
-      open: async folder => {
+        Button={props => <host.Button variant="secondary" {...props} />} GuideLink={GuideLink} /> }] : [],
+    fileActions: conversionEnabled ? [{ id: "convert", label: "Convert with Docling", extensions: [".pdf"], run: (path, focus) => openConversion(focus, path) }] : [],
+    commands: [{ id: "dashboard", label: "Docling dashboard", keywords: ["Docling", "도클링"], run: () => host.openTab("dashboard", "Docling").then(() => {}) },
+      ...(conversionEnabled ? [{ id: "convert", label: "Convert with Docling", keywords: ["PDF", "Docling", "도클링", "변환"], run: (focus: HTMLElement | null) => openConversion(focus) }] : [])],
+    sidebar: [{ id: "dashboard", label: "Docling", run: () => host.openTab("dashboard", "Docling").then(() => {}) }],
+    tabs: [{ id: "dashboard", label: "Docling dashboard", className: "docling-dashboard-tab", open: async () => ({ path: "Docling", data: null }),
+      View: () => <Dashboard host={host} request={request} convert={(focus, path) => openConversion(focus, path)} compare={comparison} /> },
+      ...(comparisonEnabled ? [{ id: "comparison", label: "Docling comparison", className: "docling-tab",
+      open: async (folder: string) => {
         const path = folder.replace(/[\\/]+$/, "") + (folder.includes("\\") ? "\\" : "/") + "document.md";
         const snapshot = await host.readJson<ComparisonSnapshot>("api/docling-compare", { path });
         return { path: snapshot.path, data: snapshot };
       },
       View: ({ data }: { data: ComparisonSnapshot }) => <DoclingCompareView snapshot={data} ReadingSurface={host.ReadingSurface}
         Button={host.Button} text={host.text} imageUrl={uri => host.imageUrl(data.path, uri)} />,
-      notices: (snapshot: ComparisonSnapshot) => snapshot.stale ? [{ id: "stale", severity: "warning",
+      notices: (snapshot: ComparisonSnapshot) => snapshot.stale ? [{ id: "stale", severity: "warning" as const,
         message: `${snapshot.map.source.name}: ${host.text("The correspondence map does not match this document. Connections and sync scrolling are disabled. Reconvert to compare.")}` }] : [],
-    }],
+    }] : [])],
     dispose() {}, // CompareView releases observers/frames in React's unmount cleanup.
   };
 }

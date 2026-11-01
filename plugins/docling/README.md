@@ -19,3 +19,9 @@ saved fixtures or a synthetic HTTP service; they never launch Docling.
 The [Host contract and extraction steps](../../docs/design/plugin-runtime-v1.md#later-extraction)
 describe moving this whole folder later. API publication, official distribution,
 signing/install flows and an actual repository split remain separate work.
+
+`src/conversion` and `src/comparison` depend only on themselves, public APIs and
+`src/shared` file formats. Plugin entry points compose them and the dashboard.
+`scripts/check-boundaries.ts` verifies this direction, including erased imports,
+as part of builds and boundary tests. They exchange only published conversion
+folder files; neither feature imports the other.

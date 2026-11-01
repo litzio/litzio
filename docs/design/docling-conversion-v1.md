@@ -1,6 +1,7 @@
 # Docling conversion v1
 
 - Status: Implemented
+- Dashboard verification: 2026-11-01 (#871; synthetic Host receipts/results, feature lifecycle, 1440px English Light and 640px Korean Dark; real service remains manual).
 - Plugin-folder verification: 2026-11-01 (#869; independent folder build/typecheck/tests, shared Host, CLI and unchanged Docling conversion browser assertions; no real Docling service launched).
 - Worker boundary verified: 2026-10-31 (#853 synthetic REST/shared Host tests; real service and packaged checks follow the plugin contract).
 - Last verified: 2026-10-30 (module/CLI tests, public and synthetic fixtures, canonical reopen, local IEEE conversion and NIST PDF REST conversion).
@@ -176,7 +177,7 @@ bundle stages, elapsed seconds, task ID once known and the result folder, withou
 invented page percentages. Closing the progress dialog leaves work running;
 Command Center opens it again. **Stop waiting** aborts Litzio requests/waiting,
 waits for local cleanup and explicitly says the server task may continue. There
-is no API cancellation call, retry, persisted queue or resume service. The CLI
+is no server API cancellation call, automatic retry, persisted queue or resume service. The CLI
 still has no interactive cancellation UI. Completed jobs/tabs are not restored
 on page startup. A page may observe a still-running Host job. The UI and hook refuse Start until the first successful Host status snapshot
 (including a known null/no-job snapshot). Failed status reads are retried as GETs,
@@ -189,7 +190,7 @@ action failures have separate lifetimes. A delayed comparison response may
 change tabs/dialogs/notifications only while its conversion is still current;
 it cannot clear or replace a newer task's failure.
 
-Success opens the existing Docling comparison tab. Failure uses the same single
+Success opens the existing Docling comparison tab while comparison is enabled. Failure uses the same single
 window NotificationCenter as stale comparison maps, with Go to problem opening
 the conversion dialog. Retry removes that cause; new failures can appear again.
 This adopts P07 only for Docling; aggregation of existing shell/document errors
@@ -211,6 +212,68 @@ file picker, generic dialogs/tabs/settings sections and external-link handling u
 #869 moves the remaining settings/conversion UI and Host facade into `plugins/docling`;
 CLI commands use installed [Host operations](plugin-runtime-v1.md#plugin-owned-host-operations-and-folder-869).
 Conversion policy, source preservation, failure reporting and public command results remain unchanged.
+
+## Plugin dashboard and feature selection (#871)
+
+The expanded sidebar footer now opens **Docling**, a plugin-contributed dashboard
+tab. Command Center also offers **Docling dashboard**. Its five areas are connection
+status, conversion jobs, recent conversion results, feature selection and quick
+actions. It reuses shared Settings controls, themed tokens and the 640px desktop
+layout. Review, statistics, multiple servers, notification settings, plugin splitting,
+distribution and security mechanisms remain outside this concept-validation scope.
+
+Connection status shows the configured Host address, checking/connected/not
+connected, last check time, Check again and the conversion Settings link. It
+reuses the version/readiness preflight and discloses its model-readiness limit.
+The last check is view-local, not persisted.
+
+Jobs read existing runtime receipts filtered by this Host's Roots. Running jobs
+show PDF, phase, elapsed time and Stop waiting only on their owning Host. Terminal
+jobs show status/time and failures reuse the public translated cause. Retry and
+Start again open the existing confirmation dialog; only explicit Start admits a
+**new UUID**. Observation, opening a dialog and feature changes never resubmit
+uncertain work. Clear record hides only an uncertain receipt while retaining its
+UUID/fingerprint tombstone. It removes neither output nor staging and states that
+the server task may continue. Admission and duplicate execution protection remain
+runtime-owned; there is no new persistent store.
+
+Recent results read successful receipts' output folders for document name, map
+page count, completion time and current/stale correspondence. The shared map
+reader checks exact Markdown bytes. Missing folders are marked explicitly with
+disabled open actions; other unreadable result files have a separate error.
+Open comparison uses the unchanged #815 view, Open document the ordinary editor,
+and Open folder the existing Explorer folder opening. An explicit history view
+does not restore tabs on startup.
+
+Conversion and comparison default to enabled. Their flags share the runtime's
+plugin registration record, survive Host restart and explicit re-registration,
+and propagate to other Editors through registration polling. Turning conversion
+off removes its command, PDF file action, dialog and Settings section. Turning
+comparison off removes its tab kind, picker and quick/result actions. Open
+comparison tabs keep their identity and snapshot in the existing disabled state;
+re-enabling restores them. The dashboard remains available with both features
+off. Detach/reactivate never cancels accepted work. Host operations also reject
+new disabled-feature work while preserving status/cancel and admitted UUID replay.
+Already open PDF and comparison-folder pickers also close on detachment, including
+when another Editor changes the feature flag. Their input/pending completion is
+discarded and focus returns to a safe shell control if the opener was detached.
+
+Plugin entry points compose `conversion/`, `comparison/` and `shared/`. Neither
+feature imports the other or a composition entry. Shared source types and
+correspondence format/readers are the data boundary; the features meet through
+published conversion-folder files. Build and boundary tests check runtime, erased
+and dynamic imports. There is no new document semantic operation: existing
+headless conversion and installed Host operations remain the CLI surface.
+
+Visual review pairs: [1440px before](assets/docling-dashboard-871/before-1440-light-en.png)
+/ [after](assets/docling-dashboard-871/after-1440-light-en.png),
+[640px before](assets/docling-dashboard-871/before-640-dark-ko.png)
+/ [after](assets/docling-dashboard-871/after-640-dark-ko.png).
+The new dashboard has no preceding dashboard screen; Before shows the original
+sidebar entry. After shows running/completed/failed synthetic jobs together.
+[Capture conditions and hashes](assets/docling-dashboard-871/capture-metadata.json)
+record the manual review of alignment, wrapping, Settings consistency and scroll
+access. Synthetic conversion does not establish real-service fidelity.
 
 ## Correspondence sidecar
 

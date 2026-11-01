@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { getEditableDocument, parse, type EditableBlock, type ListContent } from "@litzio/core";
-import type { ImageRef, Provenance, SourceDocument } from "./source.ts";
+import type { ImageRef, Provenance, SourceDocument } from "./source-types.ts";
 
 export type Target = {
   path: number[]; block: EditableBlock["block"]; role: "block" | "caption" | "image-content" | "list-item" | "endnote" | "group";

@@ -3,4 +3,4 @@ export const PLUGIN_UI = {
   api: 1, reactMajor: 19, route: "/api/ui-plugins", script: "ui.mjs", style: "ui.css",
 } as const;
 export type UiManifest = { api: number; reactMajor: number; script: typeof PLUGIN_UI.script; style?: typeof PLUGIN_UI.style; jobRoute?: string };
-export type UiRegistration = { id: string; revision: string; ui: UiManifest };
+export type UiRegistration = { id: string; revision: string; ui: UiManifest; features?: Record<string, boolean> };

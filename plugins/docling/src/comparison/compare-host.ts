@@ -1,5 +1,5 @@
 import { getEditableDocument, parse } from "@litzio/core";
-import { inspectDoclingMap } from "./map.ts";
+import { inspectDoclingMap } from "../shared/map.ts";
 import type { ComparisonSnapshot } from "./compare.ts";
 
 /** The Host supplies boundary-checked bytes. No filesystem authority is granted to the UI. */

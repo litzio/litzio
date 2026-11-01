@@ -145,18 +145,43 @@ function EditorApp() {
   const renameImage = useCallback<ImageRenamer>((...args) => renameImageRef.current!(...args), []);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const [pluginTabs, setPluginTabs] = useState<ContributedTab[]>([]);
-  const [pluginPicker, setPluginPicker] = useState<Parameters<UiHost["pickFolder"]>[0] | null>(null);
+  const [pluginPicker, setPluginPicker] = useState<(Parameters<UiHost["pickFolder"]>[0] & { signal: AbortSignal }) | null>(null);
   const [pluginActionProblem, setPluginActionProblem] = useState("");
-  const [pluginFilePicker, setPluginFilePicker] = useState<Parameters<UiHost["pickFile"]>[0] | null>(null);
+  const [pluginFilePicker, setPluginFilePicker] = useState<(Parameters<UiHost["pickFile"]>[0] & { signal: AbortSignal }) | null>(null);
   const filePickerReturn = useRef<HTMLElement | null>(null);
   const pickedFile = useRef("");
-  const filePickerRequest = useRef<Parameters<UiHost["pickFile"]>[0] | null>(null);
+  const filePickerRequest = useRef<typeof pluginFilePicker>(null);
   const compareReturn = useRef<HTMLElement | null>(null);
   const ui = usePluginUi({
-    pickFolder: (options, focus) => { compareReturn.current = focus; setPluginPicker(options); },
+    openSettings: (section, focus) => { settingsReturnFocus.current = focus; setSettingsCategory(section as SettingsCategory); setSettingsOpen(true); },
+    openDocument: async path => { await openFolderDocument(path); },
+    openFolder: path => openFolder(path),
+    pickFolder: (options, focus, signal) => { compareReturn.current = focus; setPluginPicker({ ...options, signal }); },
     openTab: openPluginTab,
-    pickFile: (options, focus) => { filePickerReturn.current = focus; pickedFile.current = ""; filePickerRequest.current = options; setPluginFilePicker(options); },
+    pickFile: (options, focus, signal) => {
+      const picker = { ...options, signal };
+      filePickerReturn.current = focus; pickedFile.current = ""; filePickerRequest.current = picker; setPluginFilePicker(picker);
+    },
   });
+  useEffect(() => {
+    const subscribe = (signal: AbortSignal | undefined, close: () => void) => {
+      if (!signal) return () => {};
+      signal.addEventListener("abort", close, { once: true });
+      if (signal.aborted) close();
+      return () => signal.removeEventListener("abort", close);
+    };
+    const releaseFile = subscribe(pluginFilePicker?.signal, () => {
+      if (filePickerRequest.current === pluginFilePicker) {
+        filePickerRequest.current = null; pickedFile.current = ""; filePickerReturn.current = null;
+      }
+      setPluginFilePicker(current => current === pluginFilePicker ? null : current);
+    });
+    const releaseFolder = subscribe(pluginPicker?.signal, () => {
+      compareReturn.current = null;
+      setPluginPicker(current => current === pluginPicker ? null : current);
+    });
+    return () => { releaseFile(); releaseFolder(); };
+  }, [pluginFilePicker, pluginPicker]);
   const currentPlugins = useRef(ui.plugins); currentPlugins.current = ui.plugins;
   const pluginActions = (surface: "commands" | "sidebar") => ui.plugins.flatMap(plugin =>
     (plugin.contributions?.[surface] ?? []).map(action => ({ ...action, id: `${plugin.id}/${action.id}`,
@@ -171,7 +196,7 @@ function EditorApp() {
   const pluginTab = pluginTabs.find(tab => tab.id === activeId);
   const pluginTabLabels = tabLabels(pluginTabs);
   const allTabs = [...tabs, ...pluginTabs.map((tab, index) => ({ ...tab,
-    title: `${pluginTabLabels[index]!.folder ?? documentLocation(tab.path)[0]} · ${i18n.t(tab.label as MessageKey)}` }))];
+    title: [pluginTabLabels[index]!.folder ?? documentLocation(tab.path)[0], i18n.t(tab.label as MessageKey)].filter(Boolean).join(" · ") }))];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
@@ -1205,9 +1230,19 @@ function EditorApp() {
         description={pluginFilePicker?.description ?? ""}
         initialPath={folders.roots.at(-1) ?? splitDocumentPath(openedPath).directory} recent={visibleRecent}
         restricted={allowedRoots !== undefined} browse={browseHostPdfs} places={folderPlaces}
-        onOpen={async path => { pickedFile.current = path; return ""; }}
+        onOpen={async path => {
+          if (!pluginFilePicker || pluginFilePicker.signal.aborted) return i18n.t("Plugin is disabled.");
+          pickedFile.current = path; return "";
+        }}
         returnFocus={filePickerReturn} onClose={() => setPluginFilePicker(null)}
-        onClosed={() => { if (pickedFile.current && filePickerRequest.current) void filePickerRequest.current.open(pickedFile.current).catch(error => setPluginActionProblem(String(error))); }} />
+        finalFocus={() => shellReturnFocus(filePickerReturn.current)}
+        onClosed={() => {
+          const request = filePickerRequest.current, path = pickedFile.current;
+          filePickerRequest.current = null; pickedFile.current = "";
+          if (path && request && !request.signal.aborted) void request.open(path).catch(error => {
+            if (!request.signal.aborted) setPluginActionProblem(String(error));
+          });
+        }} />
       <NotificationSource items={[...(themeProblem && !settingsOpen ? [{ id: "theme-storage", severity: "error" as const, message: i18n.t("Theme could not be saved. This choice applies until you close this page.") }] : []), ...ui.plugins.flatMap(plugin => ui.notices[plugin.id] ? [{ ...ui.notices[plugin.id]!, id: `${plugin.id}/${ui.notices[plugin.id]!.id}` }] : []),
         ...[ui.problem, pluginActionProblem, ...ui.plugins.filter(plugin => plugin.error).map(plugin => `${plugin.id}: ${plugin.error}`)].filter(Boolean).map(message => ({ id: `plugin-error-${message}`, severity: "error" as const, message })),
         ...pluginTabs.flatMap(tab => contributionNotices(ui.plugins.find(plugin => plugin.id === tab.plugin), tab.kind, tab.data).map(notice => ({ ...notice, id: `plugin-${tab.id}-${notice.id}`,
@@ -1224,7 +1259,7 @@ function EditorApp() {
           try { return await pluginPicker?.open(folder) ?? i18n.t("Plugin is disabled."); }
           catch (error) { return messageOf(error); }
         }}
-        returnFocus={compareReturn} onClose={() => setPluginPicker(null)} />
+        returnFocus={compareReturn} finalFocus={() => shellReturnFocus(compareReturn.current)} onClose={() => setPluginPicker(null)} />
       <SettingsDialog
           sections={ui.plugins.flatMap(plugin => (plugin.contributions?.settings ?? []).map(section => ({ ...section, id: `plugin/${plugin.id}/${section.id}` })))}
           open={settingsOpen}

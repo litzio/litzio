@@ -1,5 +1,5 @@
 import type { EditableDocument } from "@litzio/core";
-import type { DoclingMap, MapItem, Target } from "./map.ts";
+import type { DoclingMap, MapItem, Target } from "../shared/map.ts";
 
 export type ComparisonSnapshot = { path: string; document: EditableDocument; map: DoclingMap; stale: boolean };
 export type { DocumentPosition, ReadingSurfaceProps } from "@litzio/plugin-api/ui";

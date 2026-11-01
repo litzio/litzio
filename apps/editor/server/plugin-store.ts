@@ -6,9 +6,9 @@ import type { ConversionJob } from "@litzio/plugin-api/worker";
 import { PLUGIN_UI, type UiManifest, type UiRegistration } from "@litzio/plugin-api/config";
 
 export type WorkerManifest = { id: string; version: string; workerApi?: 1; entry?: "worker.cjs"; ui?: UiManifest; host?: { api: 1; entry: "host.cjs" }; routes?: string[] };
-export type Installation = WorkerManifest & { directory: string; sha256: string; revision: string; hostHash?: string; uiHashes?: Record<string, string>; enabled: boolean };
+export type Installation = WorkerManifest & { directory: string; sha256: string; revision: string; hostHash?: string; uiHashes?: Record<string, string>; enabled: boolean; features?: Record<string, boolean> };
 export type Receipt = { job: ConversionJob; fingerprint: string; owner: string; installation: Installation; staging?: string;
-  status: "running" | "success" | "error" | "cancelled" | "uncertain" };
+  status: "running" | "success" | "error" | "cancelled" | "uncertain"; hidden?: boolean };
 export const digest = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex");
 function workerManifest(value: unknown): WorkerManifest {
   const manifest = value as WorkerManifest;
@@ -75,13 +75,37 @@ export class PluginStore {
     return this.transaction(() => {
       const existing = this.list().find(item => item.id === manifest.id);
       if (onlyIfMissing && existing) return existing;
-      const value: Installation = { ...manifest, directory, sha256, revision, hostHash, uiHashes, enabled: true };
+      const value: Installation = { ...manifest, directory, sha256, revision, hostHash, uiHashes, enabled: true, ...(existing?.features ? { features: existing.features } : {}) };
       this.db.prepare("INSERT OR REPLACE INTO plugins VALUES (?, ?)").run(manifest.id, JSON.stringify(value));
       return value;
     });
   }
   uiList(): UiRegistration[] {
-    return this.list().filter(item => item.enabled && item.ui).map(item => ({ id: item.id, revision: item.revision, ui: item.ui! }));
+    return this.list().filter(item => item.enabled && item.ui).map(item => ({ id: item.id, revision: item.revision, ui: item.ui!, ...(item.features ? { features: item.features } : {}) }));
+  }
+  setFeatures(id: string, features: Record<string, boolean>) {
+    if (!features || typeof features !== "object" || Array.isArray(features) || Object.entries(features).some(([key, value]) => !/^[a-z][a-z0-9-]*$/u.test(key) || typeof value !== "boolean")) throw new Error("Invalid plugin features.");
+    return this.transaction(() => {
+      const item = this.list().find(item => item.id === id);
+      if (!item?.enabled) throw new Error("Plugin is disabled.");
+      item.features = { ...item.features, ...features };
+      this.db.prepare("UPDATE plugins SET value=? WHERE id=?").run(JSON.stringify(item), id);
+      return item.features;
+    });
+  }
+  history(plugin: string): Receipt[] {
+    const ids = this.db.prepare("SELECT id FROM requests").all().map(row => row.id as string);
+    return ids.map(id => this.get(id)!).filter(receipt => receipt.installation.id === plugin && !receipt.hidden)
+      .sort((a, b) => b.job.startedAt - a.job.startedAt);
+  }
+  forget(id: string, plugin: string) {
+    this.get(id); // Resolve dead ownership before testing the status.
+    this.transaction(() => {
+      const receipt = this.read(requestUuid(id));
+      if (!receipt || receipt.installation.id !== plugin || receipt.status !== "uncertain") throw new Error("Only an uncertain request record can be cleared.");
+      receipt.hidden = true; // Retain the UUID tombstone: clearing must never permit replay.
+      this.save(receipt);
+    });
   }
   hostEntry(id: string): string {
     const item = this.list().find(item => item.id === id);

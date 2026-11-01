@@ -2,6 +2,8 @@ import type { ConversionExecutor } from "./worker.ts";
 
 /** Trusted Host operations. Hosts retain Root, native admission and publication checks. */
 export type PluginHostContext = {
+  features(): Record<string, boolean>;
+  setFeatures(features: Record<string, boolean>): Record<string, boolean>;
   settingsFile: string;
   resolvePath(file: string, create?: boolean): string;
   documentPath(file: string): string;

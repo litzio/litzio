@@ -5,9 +5,9 @@
 - Last verified: 2026-10-31 (#815 fixed Read surface/reverse correspondence; #857 dynamic UI contribution with unchanged comparison behavior).
 - Authority: owner decisions in [#766](https://github.com/litzio/litzio/discussions/766), [#767](https://github.com/litzio/litzio/discussions/767), [#769](https://github.com/litzio/litzio/issues/769), under [ADR-0011](../adr/0011-code-module-boundary.md).
 
-The Docling plugin contributes its sidebar footer's **Docling comparison** action,
-tab kind and conversion command through [Plugin UI contributions](plugin-ui-v1.md).
-Its action, above Settings, opens the shared folder picker for
+The Docling plugin contributes its sidebar footer's **Docling** dashboard,
+comparison tab kind and conversion command through [Plugin UI contributions](plugin-ui-v1.md).
+Its dashboard's Open conversion folder action opens the shared folder picker for
 a conversion folder containing `document.md` and `document.docling-map.json`.
 The picker shows the comparison-specific description in English and Korean,
 without the folder-opening hint about choosing documents in the sidebar (#840).
@@ -28,7 +28,11 @@ without reloading the window; transient source selection/scroll reset.
 The module entry stays outside Explorer's folder navigation and empty-state help.
 It does not interrupt Collapse Explorer → Open folder keyboard order and is hidden
 with the other Explorer navigation when the sidebar collapses.
-The footer's keyboard sequence after file navigation is Docling comparison → Settings.
+The footer's keyboard sequence after file navigation is Docling → Settings.
+Docling opens the [plugin dashboard](docling-conversion-v1.md#plugin-dashboard-and-feature-selection-871);
+its Open conversion folder quick action enters the existing comparison picker.
+Disabling comparison removes that picker/tab kind, retaining open tabs in the
+same disabled state as plugin detachment. Re-enabling restores their snapshots.
 The empty-state help therefore describes only file browsing, separately from the comparison action
 ([#799](https://github.com/litzio/litzio/issues/799), sidebar item only).
 

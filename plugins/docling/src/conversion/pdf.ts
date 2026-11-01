@@ -6,7 +6,7 @@ import path from "node:path";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { setTimeout as delay } from "node:timers/promises";
-import profile from "../profiles/litzio-pdf-en-v1.json" with { type: "json" };
+import profile from "../../profiles/litzio-pdf-en-v1.json" with { type: "json" };
 import { parseJsonPreservingIntegers, writeBundleDocument } from "./bundle.ts";
 import { doclingFailureOf, type ConversionFailure, type PdfProgress, type ServerCheck } from "./server-types.ts";
 
