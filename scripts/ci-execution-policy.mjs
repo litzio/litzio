@@ -2,7 +2,7 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { eventDiff, isDocumentationOnly } from './ci-quality-mode.mjs';
 
-const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, update: true, smartquotes: true });
+const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, brand: true, update: true, smartquotes: true });
 const inPackage = (path, name) => path.startsWith(`${name}/`);
 const editorUpdate = path => ['apps/editor/shared/desktop-bridge.ts',
   'apps/editor/src/shell/SettingsDialog.tsx', 'apps/editor/src/shell/MessageArea.tsx'].includes(path);
@@ -26,6 +26,7 @@ export function selectJobs(eventName, paths) {
     quality: !isDocumentationOnly(eventName, paths),
     browser, http,
     desktop: http || paths.some(path => inPackage(path, 'apps/desktop')),
+    brand: full || paths.some(path => path === 'brand.ts' || inPackage(path, 'apps/desktop') || path.endsWith('/package.json')),
     update: full || paths.some(path => inPackage(path, 'apps/desktop') || editorUpdate(path)),
     // Package manifests cover MyST/markdown-it version declarations; the lockfile
     // covers transitive updates. Keep the installed patch probe separate from Core.

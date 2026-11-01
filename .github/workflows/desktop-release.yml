@@ -171,9 +171,44 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  brand:
+    name: Release alternate brand regressions
+    needs: preflight
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.preflight.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.21.0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.5.1
+          cache: true
+          run_install: false
+      - run: pnpm install --frozen-lockfile
+      # The proof needs the official installer and bundled plugin hashes on this runner.
+      - name: Build the official default package for brand proof
+        run: pnpm --filter @litzio/desktop package
+      - name: Build and install an alternate brand alongside the official default
+        run: pnpm exec tsx scripts/check-brand-build.ts
+      - name: Upload brand identity proof
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: brand-config
+          path: |
+            tmp/brand-build/proof.json
+            tmp/brand-build/alternate-640-ko-dark.png
+          if-no-files-found: warn
+          retention-days: 7
+
   publish:
     if: inputs.mode != 'verify' && github.ref == 'refs/heads/master'
-    needs: [preflight, browser, build]
+    needs: [preflight, browser, build, brand]
     runs-on: windows-latest
     timeout-minutes: 15
     environment: desktop-release

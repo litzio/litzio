@@ -138,7 +138,7 @@ test('release browser shards match CI while preserving trusted checkout and publ
   assert.equal(diagnostics.if, 'failure()');
   assert.ok(diagnostics.with.name.includes('${{ matrix.shard }}'));
   assert.equal(diagnostics.with.path, ci.jobs.browser.steps.find(step => step.uses?.startsWith('actions/upload-artifact@')).with.path);
-  assert.deepEqual(publish.needs, ['preflight', 'browser', 'build']);
+  assert.deepEqual(publish.needs, ['preflight', 'browser', 'build', 'brand']);
   // No status function overrides Actions' implicit success() gate for all matrix jobs.
   assert.equal(publish.if, "inputs.mode != 'verify' && github.ref == 'refs/heads/master'");
 });
@@ -153,7 +153,7 @@ const github = (eventName, sha, number, queueSha = sha) => ({
 test('workflow consumes event policy outputs and preserves selected-job gates', () => {
   const workflow = load(readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8'));
   assert.deepEqual(workflow.on.merge_group.types, ['checks_requested']);
-  const { changes, quality, browser, http, desktop, 'quality-and-browser': aggregate } = workflow.jobs;
+  const { changes, quality, browser, http, desktop, brand, 'quality-and-browser': aggregate } = workflow.jobs;
   assert.equal(changes.permissions.actions, 'read');
   assert.equal(changes.steps.find(step => step.id === 'policy').run,
     'node scripts/ci-execution-policy.mjs "$GITHUB_EVENT_NAME" "$GITHUB_EVENT_PATH"');
@@ -162,7 +162,7 @@ test('workflow consumes event policy outputs and preserves selected-job gates', 
     const outputs = Object.fromEntries(Object.keys(changes.outputs).map(name => [name, String(selected)]));
     const context = { steps: { policy: { outputs } }, needs: { changes: { outputs } } };
     for (const [name, expression] of Object.entries(changes.outputs)) assert.equal(evaluate(expression, context), String(selected), name);
-    for (const job of [browser, http, desktop]) {
+    for (const job of [browser, http, desktop, brand]) {
       assert.equal(evaluate(job.if, context), selected, job.name);
     }
     const updateSteps = desktop.steps.filter(step => step.run === 'pnpm --filter @litzio/desktop test:update');
@@ -187,7 +187,7 @@ test('workflow consumes event policy outputs and preserves selected-job gates', 
   assert.deepEqual(browser.strategy.matrix.shard, [1, 2, 3, 4]);
   assert.deepEqual(http.strategy.matrix.os, ['ubuntu-latest', 'windows-latest']);
   assert.equal(aggregate.name, 'Core, CLI, Editor, and browser regressions');
-  assert.deepEqual(new Set(aggregate.needs), new Set(['changes', 'quality', 'browser', 'http', 'desktop', 'cache-warm']));
+  assert.deepEqual(new Set(aggregate.needs), new Set(['changes', 'quality', 'browser', 'http', 'desktop', 'brand', 'cache-warm']));
   assert.equal(aggregate.if, '${{ always() }}');
 });
 

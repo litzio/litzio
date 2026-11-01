@@ -28,6 +28,7 @@ jobs:
       browser: ${{ steps.policy.outputs.browser }}
       http: ${{ steps.policy.outputs.http }}
       desktop: ${{ steps.policy.outputs.desktop }}
+      brand: ${{ steps.policy.outputs.brand }}
       update: ${{ steps.policy.outputs.update }}
       smartquotes: ${{ steps.policy.outputs.smartquotes }}
       reused: ${{ steps.policy.outputs.reused }}
@@ -309,18 +310,6 @@ jobs:
           retention-days: 7
       - run: pnpm --filter @litzio/desktop test:uninstall
         if: needs.changes.outputs.update == 'true'
-      - name: Build and install an alternate brand alongside the official default
-        run: pnpm exec tsx scripts/check-brand-build.ts
-      - name: Upload brand identity proof
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: brand-config
-          path: |
-            tmp/brand-build/proof.json
-            tmp/brand-build/alternate-640-ko-dark.png
-          if-no-files-found: warn
-          retention-days: 7
       - name: Upload Desktop diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v6
@@ -347,6 +336,39 @@ jobs:
           name: desktop-uninstall-logs
           path: ${{ steps.uninstall_logs.outputs.path }}
           if-no-files-found: ignore
+          retention-days: 7
+
+  brand:
+    name: Windows alternate brand regressions
+    needs: changes
+    if: needs.changes.outputs.brand == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.21.0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.5.1
+          cache: true
+          run_install: false
+      - run: pnpm install --frozen-lockfile
+      # The proof needs the official installer and bundled plugin hashes on this runner.
+      - name: Build the official default package for brand proof
+        run: pnpm --filter @litzio/desktop package
+      - name: Build and install an alternate brand alongside the official default
+        run: pnpm exec tsx scripts/check-brand-build.ts
+      - name: Upload brand identity proof
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: brand-config
+          path: |
+            tmp/brand-build/proof.json
+            tmp/brand-build/alternate-640-ko-dark.png
+          if-no-files-found: warn
           retention-days: 7
 
   cache-warm:
@@ -393,7 +415,7 @@ jobs:
 
   quality-and-browser:
     name: Core, CLI, Editor, and browser regressions
-    needs: [changes, quality, browser, desktop, http, cache-warm]
+    needs: [changes, quality, browser, desktop, brand, http, cache-warm]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -406,6 +428,8 @@ jobs:
           QUALITY_RESULT: ${{ needs.quality.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
           DESKTOP_RESULT: ${{ needs.desktop.result }}
+          BRAND_RESULT: ${{ needs.brand.result }}
+          BRAND_SELECTED: ${{ needs.changes.outputs.brand }}
           HTTP_RESULT: ${{ needs.http.result }}
           BROWSER_SELECTED: ${{ needs.changes.outputs.browser }}
           DESKTOP_SELECTED: ${{ needs.changes.outputs.desktop }}
@@ -418,7 +442,7 @@ jobs:
             exit 1
           fi
           # A selected job must succeed; only a job the path rules left out may be skipped.
-          for check in "browser:$BROWSER_SELECTED:$BROWSER_RESULT" "http:$HTTP_SELECTED:$HTTP_RESULT" "desktop:$DESKTOP_SELECTED:$DESKTOP_RESULT" "cache:$CACHE_SELECTED:$CACHE_RESULT"; do
+          for check in "browser:$BROWSER_SELECTED:$BROWSER_RESULT" "http:$HTTP_SELECTED:$HTTP_RESULT" "desktop:$DESKTOP_SELECTED:$DESKTOP_RESULT" "brand:$BRAND_SELECTED:$BRAND_RESULT" "cache:$CACHE_SELECTED:$CACHE_RESULT"; do
             IFS=: read -r name selected result <<< "$check"
             if [[ "$selected" == "true" && "$result" != "success" ]] || [[ "$selected" != "true" && "$result" != "skipped" ]]; then
               echo "$name: selected=$selected result=$result"

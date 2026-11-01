@@ -10,21 +10,21 @@ import { executionPolicy, selectJobs, successfulQueueRun } from './ci-execution-
 const sha = 'a'.repeat(40);
 const base = 'b'.repeat(40);
 const event = { merge_group: { base_sha: base, head_sha: sha } };
-const expected = (quality, browser, http, desktop, update, smartquotes = false) =>
-  ({ quality, browser, http, desktop, update, smartquotes, reused: false });
-const full = expected(true, true, true, true, true, true);
+const expected = (quality, browser, http, desktop, update, smartquotes = false, brand = false) =>
+  ({ quality, browser, http, desktop, brand, update, smartquotes, reused: false });
+const full = expected(true, true, true, true, true, true, true);
 
 test('merge_group payloads apply the same path rules as PRs to the entire group diff', async () => {
   const cases = [
     [['docs/test/README.md'], expected(false, false, false, false, false)],
     [['apps/editor/src/App.tsx'], expected(true, true, true, true, false)],
-    [['apps/desktop/installer/cli.nsh'], expected(true, false, false, true, true)],
+    [['apps/desktop/installer/cli.nsh'], expected(true, false, false, true, true, false, true)],
     [['pnpm-lock.yaml'], full],
     // Multiple PRs in one group: take the union, including a deleted file.
-    [['docs/test/README.md', 'apps/editor/src/App.tsx', 'apps/desktop/installer/cli.nsh'], expected(true, true, true, true, true)],
+    [['docs/test/README.md', 'apps/editor/src/App.tsx', 'apps/desktop/installer/cli.nsh'], expected(true, true, true, true, true, false, true)],
     [['packages/cli/src/cli.ts'], expected(true, false, true, true, false)],
     [['plugins/docling/src/convert.ts'], expected(true, false, true, true, false)],
-    [['unknown/config.json'], expected(true, true, true, true, true)],
+    [['unknown/config.json'], expected(true, true, true, true, true, false, true)],
     [['apps/editor/document/fixture.md'], expected(true, true, true, true, false)],
     [['apps/editor/shared/desktop-bridge.ts'], expected(true, true, true, true, true)],
   ];
@@ -69,7 +69,7 @@ test('actual group diff includes successive PR commits, removed paths and both s
     mkdirSync(path.join(dir, 'apps/desktop'), { recursive: true });
     writeFileSync(path.join(dir, 'apps/desktop/installer.nsh'), 'installer\n');
     const divergent = commit('base tree includes installer');
-    assert.deepEqual(await policy(divergent, docs), expected(true, false, false, true, true));
+    assert.deepEqual(await policy(divergent, docs), expected(true, false, false, true, true, false, true));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -87,7 +87,7 @@ const response = runs => async (url, options) => {
 test('only a successful same-SHA merge_group run in this workflow permits master push reuse', async () => {
   assert.deepEqual(await successfulQueueRun({ ...apiInputs, fetchRuns: response([successful]) }), successful);
   const result = await executionPolicy('push', { ref: 'refs/heads/master' }, { ...apiInputs, fetchRuns: response([successful]) });
-  assert.deepEqual(result, { quality: false, browser: false, http: false, desktop: false, update: false, smartquotes: false, reused: true });
+  assert.deepEqual(result, { quality: false, browser: false, http: false, desktop: false, brand: false, update: false, smartquotes: false, reused: true });
   for (const candidate of [null, { ...successful, event: 'pull_request' }, { ...successful, head_sha: base },
     { ...successful, conclusion: 'failure' }, { ...successful, conclusion: 'cancelled' },
     { ...successful, status: 'in_progress' }, { ...successful, html_url: undefined }]) {
@@ -103,6 +103,25 @@ test('only a successful same-SHA merge_group run in this workflow permits master
   assert.deepEqual(await executionPolicy('push', { ref: 'refs/heads/other' }, {
     ...apiInputs, fetchRuns: () => assert.fail('non-master push must not reuse queue CI'),
   }), full);
+});
+
+test('brand proof selects packaging, identity and dependency changes but skips ordinary product edits', () => {
+  const selected = ['brand.ts', 'apps/desktop/src/main.ts', 'apps/desktop/installer/cli.nsh',
+    'apps/desktop/assets/icon.ico', 'apps/desktop/scripts/package.ts', 'scripts/check-brand-build.ts',
+    'package.json', 'packages/core/package.json', 'plugins/docling/package.json',
+    'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'patches/markdown-it@13.0.2.patch',
+    '.github/workflows/ci.yml', '.github/workflows/desktop-release.yml',
+    'scripts/ci-execution-policy.mjs', 'scripts/ci-execution-policy.test.mjs',
+    'scripts/ci-quality-mode.mjs', 'tsconfig.json', 'unknown/config.json'];
+  const skipped = ['apps/editor/src/App.tsx', 'apps/editor/shared/desktop-bridge.ts',
+    'apps/editor/src/shell/SettingsDialog.tsx', 'packages/core/src/index.ts',
+    'packages/cli/src/cli.ts', 'plugins/docling/src/convert.ts', 'docs/guides/branding.md'];
+  for (const event of ['pull_request', 'merge_group']) {
+    for (const file of selected) assert.equal(selectJobs(event, [file]).brand, true, `${event}: ${file}`);
+    for (const file of skipped) assert.equal(selectJobs(event, [file]).brand, false, `${event}: ${file}`);
+    assert.equal(selectJobs(event, [...skipped, selected[0]]).brand, true, 'mixed group includes branding');
+    assert.equal(selectJobs(event, []).brand, true, 'empty diff fails safe');
+  }
 });
 
 test('smartquotes runs for dependency, patch and parser configuration changes, outside default Core tests', () => {
@@ -144,11 +163,11 @@ test('aggregate accepts unselected skips but rejects failed, cancelled or skippe
   const bash = process.platform === 'win32' ? path.join(process.env.ProgramFiles, 'Git/bin/bash.exe') : 'bash';
   const defaults = { CHANGES_RESULT: 'success', QUALITY_RESULT: 'success', BROWSER_SELECTED: 'false', BROWSER_RESULT: 'skipped',
     HTTP_SELECTED: 'false', HTTP_RESULT: 'skipped', DESKTOP_SELECTED: 'false', DESKTOP_RESULT: 'skipped',
-    CACHE_SELECTED: 'false', CACHE_RESULT: 'skipped' };
+    BRAND_SELECTED: 'false', BRAND_RESULT: 'skipped', CACHE_SELECTED: 'false', CACHE_RESULT: 'skipped' };
   const run = env => spawnSync(bash, ['-c', script], { env: { ...process.env, ...defaults, ...env }, encoding: 'utf8' });
   assert.equal(run({}).status, 0, 'docs group');
   assert.equal(run({ CACHE_SELECTED: 'true', CACHE_RESULT: 'success' }).status, 0, 'reused push');
-  for (const name of ['BROWSER', 'HTTP', 'DESKTOP', 'CACHE']) {
+  for (const name of ['BROWSER', 'HTTP', 'DESKTOP', 'BRAND', 'CACHE']) {
     assert.equal(run({ [`${name}_SELECTED`]: 'true', [`${name}_RESULT`]: 'success' }).status, 0);
     for (const result of ['failure', 'cancelled', 'skipped']) {
       assert.equal(run({ [`${name}_SELECTED`]: 'true', [`${name}_RESULT`]: result }).status, 1, `${name}: ${result}`);
@@ -158,4 +177,39 @@ test('aggregate accepts unselected skips but rejects failed, cancelled or skippe
   assert.equal(run({ QUALITY_RESULT: 'skipped' }).status, 1);
   assert.equal(run({ CHANGES_RESULT: 'failure' }).status, 1);
   assert.equal(aggregate.steps.find(step => step.name === 'Reject a cancelled workflow').if, '${{ cancelled() }}');
+});
+
+test('brand proof runs independently and release publication waits without sharing its artifacts', () => {
+  const ci = workflow();
+  const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
+  assert.equal(ci.jobs.changes.outputs.brand, '${{ steps.policy.outputs.brand }}');
+  assert.equal(ci.jobs.brand.needs, 'changes');
+  assert.equal(ci.jobs.brand.if, "needs.changes.outputs.brand == 'true'");
+  assert.ok(ci.jobs['quality-and-browser'].needs.includes('brand'));
+  const aggregateEnv = ci.jobs['quality-and-browser'].steps.find(step => step.name === 'Require all checks to pass').env;
+  assert.equal(aggregateEnv.BRAND_SELECTED, '${{ needs.changes.outputs.brand }}');
+  assert.equal(aggregateEnv.BRAND_RESULT, '${{ needs.brand.result }}');
+  assert.ok(!ci.jobs.desktop.steps.some(step => step.run?.includes('check-brand-build.ts')));
+  for (const job of [ci.jobs.brand, release.jobs.brand]) {
+    assert.equal(job['runs-on'], 'windows-latest');
+    const commands = job.steps.filter(step => step.run).map(step => step.run);
+    assert.deepEqual(commands, ['pnpm install --frozen-lockfile', 'pnpm --filter @litzio/desktop package',
+      'pnpm exec tsx scripts/check-brand-build.ts']);
+    assert.ok(job.steps.filter(step => step.run).every(step => step.if === undefined));
+    const uploads = job.steps.filter(step => step.uses?.startsWith('actions/upload-artifact@'));
+    assert.equal(uploads.length, 1);
+    assert.equal(uploads[0].with.name, 'brand-config');
+    assert.equal(uploads[0].if, 'always()');
+    assert.equal(uploads[0].with['retention-days'], 7);
+    assert.deepEqual(uploads[0].with.path.trim().split('\n'), [
+      'tmp/brand-build/proof.json', 'tmp/brand-build/alternate-640-ko-dark.png']);
+  }
+  assert.equal(release.jobs.brand.needs, 'preflight');
+  assert.equal(release.jobs.brand.if, undefined, 'every release mode checks the alternate brand');
+  assert.deepEqual(release.jobs.brand.steps.find(step => step.uses?.startsWith('actions/checkout@')).with,
+    { ref: '${{ needs.preflight.outputs.commit }}', 'persist-credentials': false });
+  assert.equal(release.jobs.brand.environment, undefined, 'brand proof has no signing secrets');
+  assert.ok(release.jobs.publish.needs.includes('brand'));
+  assert.ok(!release.jobs.build.steps.some(step => step.run?.includes('check-brand-build.ts')),
+    'brand packaging must never overwrite the artifacts selected for publication');
 });

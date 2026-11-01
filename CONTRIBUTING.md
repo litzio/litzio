@@ -107,7 +107,8 @@ CLI/Desktop `package`, `test:packaged`, release/artifact 검증, 설치·업데�
 | Documentation only | `pnpm docs:check`, `git diff --check` |
 | Issue forms / registration tooling | `pnpm issues:forms --check`, `pnpm issues:test`, `pnpm docs:check`, `git diff --check` |
 | Commit provenance tooling / policy | `node --test scripts/commit-provenance.test.mjs`, `pnpm docs:check`, `git diff --check`; 실제 commit의 Git parsed trailers 확인 |
-| CI 실행 정책 / browser shard 설정 | `node --test scripts/ci-quality-mode.test.mjs scripts/ci-execution-policy.test.mjs`, `pnpm --filter @litzio/editor exec tsx --test test/browser-fixtures.test.ts`, `pnpm docs:check`, `git diff --check`; PR의 실제 shard CI 결과 확인 |
+| CI 실행 정책 / workflow 설정 | `node --test scripts/ci-quality-mode.test.mjs scripts/ci-execution-policy.test.mjs`, workflow 문법 검사, `pnpm docs:check`, `git diff --check`; 변경한 job의 PR CI 결과·단계 시간 확인. 패키징·설치/업데이트·브랜드 검사는 CI에서 실행 |
+| Browser shard / fixture 설정 | `node --test scripts/ci-quality-mode.test.mjs scripts/ci-execution-policy.test.mjs`, `pnpm --filter @litzio/editor exec tsx --test test/browser-fixtures.test.ts`, `pnpm docs:check`, `git diff --check`; PR의 실제 shard CI 결과 확인 |
 | Core semantics | Core tests, `pnpm typecheck`, 관련 canonical round-trip/거부 regression |
 | CLI | Core/CLI tests, `pnpm typecheck`, 실제 파일 write 및 실패 시 원본 보존 |
 | Editor logic | Editor tests, `pnpm typecheck`, `pnpm --filter @litzio/editor build` |
@@ -126,20 +127,24 @@ CI 경로 규칙의 기준은 changes job이 호출하는 [ci-execution-policy.m
 | PR / merge group 변경 경로 요약 | quality 외 추가 검증 |
 | --- | --- |
 | `docs/**`, 루트·하위 `*.md`, `.github/ISSUE_TEMPLATE/**`만 변경 | 없음 (아래 패키지·공용 경로에 속하는 Markdown은 해당 경로 규칙 우선) |
+| 각 패키지의 `package.json` | 소속 패키지 규칙 + brand |
 | `packages/cli/**`, `plugins/docling/**` | http, desktop (CLI bundles Docling; Desktop bundles the CLI) |
 | `apps/editor/**`, `packages/core/**`, `packages/file-commit/**` | browser, http, desktop |
-| `apps/desktop/**`, Editor의 업데이트 화면(`apps/editor/shared/desktop-bridge.ts`, `apps/editor/src/shell/SettingsDialog.tsx`, `apps/editor/src/shell/MessageArea.tsx`) | desktop + `test:update`·`test:uninstall` (Editor 파일은 Editor 규칙도 함께 적용) |
-| 공용 설정·도구 (`package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `patches/**`, 루트 `tsconfig*`, `.github/workflows/**`, `scripts/**`) 또는 미분류 경로 | browser, http, desktop + `test:update`·`test:uninstall` |
+| `apps/desktop/**` | desktop, brand + `test:update`·`test:uninstall` |
+| Editor의 업데이트 화면(`apps/editor/shared/desktop-bridge.ts`, `apps/editor/src/shell/SettingsDialog.tsx`, `apps/editor/src/shell/MessageArea.tsx`) | desktop + `test:update`·`test:uninstall` (Editor 파일은 Editor 규칙도 함께 적용) |
+| 공용 설정·도구 (`brand.ts`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `patches/**`, 루트 `tsconfig*`, `.github/workflows/**`, `scripts/**`) 또는 미분류 경로 | browser, http, desktop, brand + `test:update`·`test:uninstall` |
+
+브랜드 검사는 별도 Windows `brand` job에서 Desktop과 병렬 실행한다. `brand.ts`, `apps/desktop/**`, 각 패키지의 `package.json` 및 기존 전체 실행 조건(루트 의존성·공용 설정·workflow·scripts 변경, 미분류 경로, diff 확인 불가)이 선택한다. 따라서 브랜드 검사 스크립트·CI 정책 자체도 포함한다. Editor/Core/CLI/Docling 소스만 바뀌면 생략한다. job 안에서 공식 기본 package를 먼저 만들어 설치 파일과 플러그인 해시를 확보하고, 검증 내용을 줄이지 않은 `scripts/check-brand-build.ts`를 실행한다. 다른 job의 artifact나 완료를 기다리지 않으며 `brand-config` JSON·한국어 640px 캡처만 7일 보관한다.
 
 패키지 내부 Markdown은 fixture나 배포 입력일 수 있어 패키지 경로 규칙을 적용한다. browser는 Editor 4개 shard로 stable 시나리오를 정확히 한 번씩 실행한다. 목록 순서의 순환 분배를 사용하며 각 shard의 배정은 CI 로그에 출력한다. http는 Windows/Linux CLI package·`test:packaged`·HTTP browser 회귀를 실행한다. desktop이 선택되면 clean package·release 자산 검증·`test:packaged`는 항상 실행하고, 로컬 feed 설치·업데이트 및 `test:uninstall`은 기존 `update` 출력으로 선택한다. 선택되면 release workflow와 같은 Windows 러너에서 Stable 다음 Beta를 연달아 실행해 채널 사이의 CLI 정리도 검증한다. 이 설치·업데이트 e2e는 Editor의 Settings·업데이트 알림·Desktop bridge를 직접 조작하므로 해당 파일도 `update` 대상이다. `App.tsx`의 재시작 거부 판단처럼 그 밖의 Editor 변경은 browser `desktop-updates`(mock bridge)와 Desktop packaged 회귀로 검증하고, 실제 설치·업데이트·삭제는 `update` 대상 변경 또는 전체 실행 fallback에서 확인한다. Editor와 CLI는 Core/File commit을 공유하고, Desktop은 Editor 코드와 Host를 직접 사용하며 HTTP용 CLI package도 Editor를 빌드하므로 이 의존 경로를 함께 검증한다.
 
 smartquotes 대형 검사는 기본 Core suite에서 분리한 `pnpm --filter @litzio/core test:smartquotes`로 #11의 설치된 패치를 검증한다. `package.json`, `packages/core/package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `patches/**`, parser/tokenizer 설정을 소유한 `packages/core/src/myst/`의 `parse.ts`·`serialize.ts`·`footnote.ts`·`literal-syntax.ts` 또는 해당 검사 파일 변경 때 선택한다. manifest는 MyST·markdown-it 버전 선언을, lockfile은 전이 의존성을 포함한다. 새 parser/tokenizer 설정 파일을 추가하면 이 선택 목록도 함께 갱신한다. diff/API를 확인할 수 없어 전체 실행할 때도 포함한다. 일반 Core의 따옴표 원문 보존 및 공개 parser의 URL·HTML 보안 검사는 계속 기본 suite에서 실행한다. 패치 제거 조건은 [Parser security boundary](docs/design/parser-security-v1.md)를 따른다.
 
-master push 중복 판정은 이 저장소의 `ci.yml` workflow runs API에서 `event=merge_group`, `head_sha=github.sha`, `status=completed`, `conclusion=success`인 실행을 찾는다. 성공 run URL과 생략/전체 실행 사유를 changes 로그에 남긴다. 성공 기록 없음, 권한·네트워크·응답 오류는 전체 제품 검사·browser·HTTP·Desktop·update/uninstall·smartquotes로 되돌아간다. release workflow는 이 재사용 정책을 적용하지 않는다.
+master push 중복 판정은 이 저장소의 `ci.yml` workflow runs API에서 `event=merge_group`, `head_sha=github.sha`, `status=completed`, `conclusion=success`인 실행을 찾는다. 성공 run URL과 생략/전체 실행 사유를 changes 로그에 남긴다. 성공 기록 없음, 권한·네트워크·응답 오류는 전체 제품 검사·browser·HTTP·Desktop·brand·update/uninstall·smartquotes로 되돌아간다. release workflow는 이 재사용 정책을 적용하지 않는다.
 
 캐시는 key뿐 아니라 ref scope와 path에 따른 cache version도 구분된다([GitHub cache reference](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)). 실제 master 캐시 목록과 [pnpm/action-setup v6 구현](https://github.com/pnpm/action-setup/blob/v6/src/cache-restore/run.ts)을 확인한 결과 pnpm key는 `pnpm-cache-<runner.os>-<arch>-<hashFiles(pnpm-lock.yaml)>`, 경로는 `pnpm store path`다. Linux Playwright key는 `Linux-playwright-<hashFiles(pnpm-lock.yaml)>`, 경로는 `/github/home/.cache/ms-playwright`다. queue/PR scope에만 새 key가 저장되면 master 캐시를 대신하지 못하므로, 중복 생략 push는 Linux(동일 Playwright 컨테이너)·Windows `cache-warm` matrix에서 frozen install을 수행하고 Linux Chromium만 설치/캐시한다. 제품 검사·패키징은 실행하지 않는다. lockfile 또는 잠긴 Playwright 버전 변경은 새 key로 master scope에 저장되고, 동일 key는 복원한다. 전체 실행 fallback에서는 기존 quality/browser/HTTP/Desktop job이 캐시를 유지한다.
 
-필수 aggregate 검사 `Core, CLI, Editor, and browser regressions`는 changes와 quality의 성공을 요구하고, 정책이 선택한 browser/http/desktop/cache-warm은 반드시 성공해야 하고, 선택하지 않은 job만 skipped여야 한다. 실패·취소는 통과하지 않는다. Queue에서도 정확히 같은 검사 이름을 보고한다. 같은 PR에 새 커밋을 push하면 이전 CI 실행을 취소하며, `master` push와 `merge_group` 실행은 이벤트·head SHA별로 유지하고 서로 취소하지 않는다.
+필수 aggregate 검사 `Core, CLI, Editor, and browser regressions`는 changes와 quality의 성공을 요구하고, 정책이 선택한 browser/http/desktop/brand/cache-warm은 반드시 성공해야 하고, 선택하지 않은 job만 skipped여야 한다. 실패·취소는 통과하지 않는다. Queue에서도 정확히 같은 검사 이름을 보고한다. 같은 PR에 새 커밋을 push하면 이전 CI 실행을 취소하며, `master` push와 `merge_group` 실행은 이벤트·head SHA별로 유지하고 서로 취소하지 않는다.
 
 Linux Editor 4개 shard와 HTTP browser job은 공식 `mcr.microsoft.com/playwright:v1.64.0-noble` 컨테이너를 **OS 의존성 제공용**으로 사용한다. 이미지의 CJK/Korean 글꼴을 포함한 의존성을 재사용하며 CI에서 apt를 실행하지 않는다. `@playwright/cli`의 transitive 버전과 맞춘 `1.64.0-alpha-1789764292000` 고정은 유지한다([채택 근거](docs/reviews/reduction-2026-10-10.md#단위-6-runner-채택-근거)). 해당 alpha 이미지가 없으므로 이미지에 포함된 stable 브라우저(`/ms-playwright`)는 사용하지 않는다. `PLAYWRIGHT_BROWSERS_PATH=/github/home/.cache/ms-playwright`로 분리하고 lockfile 키의 캐시를 복원한 뒤 `pnpm exec playwright install chromium`만 실행한다. 이 설치는 2분 제한이며 `--with-deps`를 사용하지 않는다. 기존 CI 경로 테스트가 lockfile의 prerelease 꼬리를 제외한 base 버전과 두 Linux 이미지 태그의 일치를 검사한다.
 
@@ -177,7 +182,7 @@ pnpm --filter @litzio/desktop test:packaged
 
 컨트롤러는 dispatch의 master SHA에서 실행하며, tag 코드 실행 전에 기존 tag와 master ancestry·Desktop 버전을 검증한다. 검증한 commit SHA로 빌드하고 게시 직전 remote tag도 재확인한다. Installer/app의 전체 PE FileVersion, metadata 버전·파일명·SHA-512·크기, builder로 재계산한 blockmap을 검증한다. Beta는 `prerelease=true`, `latest=false`, `beta.yml`만 공개한다.
 
-모든 release 모드는 기존 CI 결과를 재사용하지 않고 검증한 tag commit에서 Editor browser 회귀 전체를 Linux 4개 shard(`pnpm browser:test --shard=N/4`)로 다시 실행한다. CI와 같은 Playwright 컨테이너·고정 Chromium 설치·브라우저 캐시·한글 폰트 확인을 사용하며 shard별 제한은 35분이다. `fail-fast: false`로 나머지 shard도 끝까지 실행하고, 실패 시 Vite 로그와 browser diagnostics를 shard별 artifact에 보존한다. 게시 job의 `needs: [preflight, browser, build]`와 기본 성공 조건을 유지하므로 모든 shard와 Windows build가 성공해야 게시할 수 있다. 하나라도 실패·취소되면 게시하지 않는다.
+모든 release 모드는 기존 CI 결과를 재사용하지 않고 검증한 tag commit에서 Editor browser 회귀 전체를 Linux 4개 shard(`pnpm browser:test --shard=N/4`)로 다시 실행한다. CI와 같은 Playwright 컨테이너·고정 Chromium 설치·브라우저 캐시·한글 폰트 확인을 사용하며 shard별 제한은 35분이다. `fail-fast: false`로 나머지 shard도 끝까지 실행하고, 실패 시 Vite 로그와 browser diagnostics를 shard별 artifact에 보존한다. 게시 job의 `needs: [preflight, browser, build, brand]`와 기본 성공 조건으로 모든 shard, Windows build와 별도 브랜드 검사가 성공해야 게시할 수 있다. 모든 모드에서 `brand`는 검증된 tag commit으로 자체 공식 package와 대체 브랜드 검사를 실행한다. 별도 러너이므로 게시용 build의 서명·자산·artifact를 덮어쓰지 않는다. 하나라도 실패·취소되면 게시하지 않는다.
 
 게시 job만 `contents: write`를 가지며 `desktop-release` environment를 사용한다. 2026-10-28 소유자 결정으로 별도 게시 승인을 없애고 실제 GitHub environment의 required reviewer를 제거했다. API로 required reviewer·wait timer가 없고 custom deployment branch policy가 `master` branch 한 개만 허용함을 확인했다. 릴리스 요청의 명시적 승인과 master에서의 수동 workflow 실행은 유지하며, 검증 성공 후 게시 job은 추가 승인 없이 진행한다. 다음 게시 전에도 실제 환경 규칙을 확인한다. Signed 모드는 이 환경에 `WINDOWS_CSC_LINK`(PFX/인증서 참조), `WINDOWS_CSC_KEY_PASSWORD`도 필요하다. 인증서/키/토큰은 source에 넣지 않는다. 환경·secret 설정과 workflow 실행은 명시적 승인 범위에서 수행한다. 이전 beta.2 게시는 이 변경 전에 소유자 요청에 따른 agent의 reviewer 승인으로 진행했다([기록](docs/releases/v0.1.0-beta.2.md)).
 
