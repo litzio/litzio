@@ -40,10 +40,11 @@ function setup(t: test.TestContext, original = structureReviewSource()) {
   const root = mkdtempSync(path.join(tmpdir(), "docling-review-")), input = path.join(root, "source.json"), folder = path.join(root, "result");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(input, original); convertDoclingFile(input, folder);
-  const service = new FakeService(); let enabled = true, feature = true;
+  const service = new FakeService(); let enabled = true, feature = true, owner = randomUUID();
   const context = {
     session: new Map(), settingsFile: path.join(root, "settings.json"), features: () => ({ conversion: feature }),
     aiTasks: () => enabled ? service : undefined,
+    requestOwner: () => owner, isRequestOwnerAlive: (id: string) => id === owner,
     resolvePath: (file: string) => {
       const relative = path.relative(root, file);
       if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new Error("Outside Root");
@@ -59,7 +60,7 @@ function setup(t: test.TestContext, original = structureReviewSource()) {
   const blocks = () => getEditableDocument(parse(markdown())).blocks;
   return { root, folder, input, original, service, context, call, start, readReview, ledger, markdown, blocks,
     enable: (value: boolean) => { enabled = value; }, feature: (value: boolean) => { feature = value; },
-    reactivate: (restart = false) => { if (restart) context.session.clear(); plugin = activate(context); },
+    reactivate: (restart = false) => { if (restart) { context.session.clear(); owner = randomUUID(); } plugin = activate(context); },
   };
 }
 function files(folder: string) {

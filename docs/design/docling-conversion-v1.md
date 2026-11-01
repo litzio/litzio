@@ -169,13 +169,19 @@ only those files using the three plain material names. They do not contain parti
 AI results. They remain until terminal receipt observation, then are removed in
 the same complete-folder publication as the result or failure. A restarted Host
 can finish this observation; it never starts the task again. An interrupted
-admission without a B receipt becomes `uncertain` on observation only when this
-Host has no live admission for it, such as after a restart. While B's material
-reads are pending, a Host-session admission map retains `running` with
-`canCancel: false` and preserves the input copies across status reads and plugin
-reactivation. The marker is released when `service.start` settles; admitted work
-then follows B's receipt through terminal observation and material cleanup. These
-temporary input copies are not a queue or additional proposal ledgers.
+admission without a B receipt becomes `uncertain` only after the shared runtime
+proves that its owning Host session ended. Before publishing the pending task,
+Docling calls `host.requestOwner()` to retain the runtime's existing session OS
+lock and stores that session UUID as `task.owner`. Other Hosts use
+`host.isRequestOwnerAlive(owner)`, the same SQLite lock probe used for request
+receipts, instead of their own session memory, PIDs or deadlines. A busy lock
+retains `running` with `canCancel: false` and preserves all inputs during B's
+material reads. An unlocked/missing owner lock proves owner loss; a probe error
+does not, so the read preserves the task and copies for a later observation.
+Plugin reactivation keeps the same Host owner. A new Host session at the same PID
+cannot revive the old owner. Once B admits the task, its existing receipt governs
+terminal observation/cleanup. These temporary input copies are not a queue or
+additional proposal ledgers; no new database or ownership store is introduced.
 
 Only B's completed success receipt is consumed, with matching caller/task/baseline.
 Docling checks the JSON shape again and dry-runs each suggestion independently
@@ -197,6 +203,7 @@ One human-readable `structure-review.json` is the durable proposal file:
   "updatedAt": "2026-11-02T01:00:01.000Z",
   "task": {
     "id": "2f922033-366c-4c8f-bcc1-a86186da5bfd",
+    "owner": "ea939d29-f215-4eb4-9d23-930adf38dd2e",
     "baseline": { "sourceSha256": "<64 hex>", "correctionsSha256": "<64 hex>" },
     "startedAt": "2026-11-02T01:00:00.000Z",
     "finishedAt": "2026-11-02T01:00:01.000Z",

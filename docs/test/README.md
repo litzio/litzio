@@ -546,15 +546,23 @@ fake AI service. It verifies request materials/schema/baseline, dry-run separati
 of pending/inapplicable results, storage, approval/rejection/undo, current-ledger
 revalidation, rerun/history retention, source drift, agent disable, cancellation,
 failure/uncertain/no replay, byte preservation and complete-generation rollback.
-The admission regression explicitly pauses material reads before B creates a
-receipt, queries status through same-Host reactivation, and then releases the
-read. It checks `running`, preserved inputs, successful admission/validation and
+The same-Host admission regression explicitly pauses material reads before B
+creates a receipt, queries status through reactivation, and releases the read.
+It checks `running`, preserved inputs, successful admission/validation and
 terminal-only cleanup without sleeps or polling. A separate restart check verifies
-that a saved request with no live admission/receipt becomes uncertain without replay.
+that a saved request with no live owner/receipt becomes uncertain without replay.
 `pnpm --filter @litzio/editor exec tsx --test test/docling-review.test.ts`
 additionally uses the installed plugin through the shared HTTP operation route
 with B's real service/runtime and a deterministic worker. Neither calls an AI
 model or a Docling service.
+The installed test also creates two independent Hosts sharing installations and
+the conversion folder, gates B's actual material reads and queries status from
+the second Host before admission. It verifies live-owner input preservation and
+normal completion, retained inputs on an injected owner-probe EACCES, and
+uncertain/cleanup/no replay only after the original Host closes. The two Host
+sessions run at the same test-process PID, proving that a new live session cannot
+revive an ended owner's OS lock. Existing runtime regressions cover process crash
+and PID-reuse-independent ownership for other plugin work.
 
 Owner manual checks (C2 screens are not part of #884):
 

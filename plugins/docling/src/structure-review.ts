@@ -26,7 +26,7 @@ export type ReviewProposal = {
   state: ProposalState; validationError?: string; history: { state: "approved" | "rejected" | "pending"; at: string }[];
 };
 type ReviewTask = {
-  id: string; baseline: Baseline; startedAt: string; finishedAt?: string;
+  id: string; owner: string; baseline: Baseline; startedAt: string; finishedAt?: string;
   status: "running" | "success" | "error" | "cancelled" | "uncertain"; failure?: AiFailure; error?: string;
 };
 export type StructureReview = {
@@ -73,7 +73,7 @@ function readReview(folder: string): StructureReview {
   const date = (x: string) => typeof x === "string" && Number.isFinite(Date.parse(x));
   const fail = () => { throw new Error("Invalid Docling structure review file/version"); };
   if (!data || data.format !== "litzio-docling-structure-review" || data.version !== 1 || !date(data.updatedAt) || !Array.isArray(data.proposals)) fail();
-  if (data.task !== null && (!data.task || !uuid.test(data.task.id) || !validBaseline(data.task.baseline) || !date(data.task.startedAt) ||
+  if (data.task !== null && (!data.task || !uuid.test(data.task.id) || !uuid.test(data.task.owner) || !validBaseline(data.task.baseline) || !date(data.task.startedAt) ||
     !["running", "success", "error", "cancelled", "uncertain"].includes(data.task.status))) fail();
   const ids = new Set<string>();
   for (const p of data.proposals) {
@@ -101,12 +101,9 @@ function removeMaterials(staging: string, id: string) {
 /** Docling owns domain validation/state; all provider execution stays in the injected service. */
 export class StructureReviewer {
   private services: Map<string, AiTaskService>;
-  private admissions: Map<string, string>;
   constructor(private host: PluginHostContext, private requireConversion: () => void) {
     this.services = (host.session.get("review-services") ?? new Map()) as Map<string, AiTaskService>;
     host.session.set("review-services", this.services);
-    this.admissions = (host.session.get("review-admissions") ?? new Map()) as Map<string, string>;
-    host.session.set("review-admissions", this.admissions);
   }
   private folder(value: string) {
     if (typeof value !== "string" || !value.trim()) throw new Error("Choose a Docling conversion folder.");
@@ -141,9 +138,12 @@ export class StructureReviewer {
     const service = this.service(task.id);
     if (!service) return review;
     const receipt = this.receipt(service, task);
-    // B reads materials before admitting its receipt. This Host still owns that
-    // pending start, including across plugin reactivation; observers must not end it.
-    if (!receipt && this.admissions.get(folder) === task.id) return review;
+    if (!receipt) {
+      // B reads materials before recording a receipt. Use the shared runtime OS
+      // lock, not the observing Host's memory/PID, to establish owner loss.
+      try { if (this.host.isRequestOwnerAlive(task.owner)) return review; }
+      catch { return review; } // Unknown liveness: retain inputs for a later observation.
+    }
     if (receipt?.status === "running") return review;
     updateConversionFolder(folder, () => {
       const current = readReview(folder);
@@ -197,7 +197,7 @@ export class StructureReviewer {
       if (current.task?.status === "running") throw new Error("A structure review is already running for this conversion.");
       const { text, ledger } = this.source(folder);
       if (sha256(text) !== ledger.source.sha256) throw new Error("Docling correction source SHA-256 mismatch; reconvert the changed original before review.");
-      task = { id, baseline: baseline(ledger), startedAt: now(), status: "running" }; current.task = task;
+      task = { id, owner: this.host.requestOwner(), baseline: baseline(ledger), startedAt: now(), status: "running" }; current.task = task;
       return staging => {
         writeFileSync(path.join(staging, materialFile(id, "document.json")), text, "utf8");
         writeFileSync(path.join(staging, materialFile(id, "corrections.json")), json(ledger), "utf8");
@@ -206,7 +206,6 @@ export class StructureReviewer {
       };
     }, () => this.beforePublish(folder));
     this.services.set(id, service);
-    this.admissions.set(folder, id);
     try {
       await service.start({ id, caller: "docling", task: TASK, instruction: structureReviewInstruction,
         materials: materialNames.map(name => ({ path: path.join(folder, materialFile(id, name)), name })),
@@ -219,7 +218,7 @@ export class StructureReviewer {
         return staging => { writeReview(staging, current); removeMaterials(staging, id); };
       }, () => this.beforePublish(folder));
       throw error;
-    } finally { if (this.admissions.get(folder) === id) this.admissions.delete(folder); }
+    }
     return this.list(folder);
   }
   async cancel(value: string) {

@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import fs, { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createServer } from "node:http";
 import { setTimeout as delay } from "node:timers/promises";
+import fsPromises from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import test from "node:test";
 import { listenForFetch } from "@litzio/plugin-api/testing";
 import { buildAiAgent } from "../../../packages/cli/scripts/build-ai-agent.ts";
@@ -13,6 +15,69 @@ import { structureReviewSource, structureReviewSuggestions } from "../../../plug
 import { bundledAiManifest, bundledPluginManifest, createPluginHost } from "../server/plugin-host.ts";
 import { RootAccess } from "../server/file-access.ts";
 import { handleDocumentRequest } from "../server/document-api.ts";
+
+for (const ownerEnds of [false, true]) test(ownerEnds
+  ? "a second Host cleans pre-receipt inputs only after owner loss, without PID reuse or replay"
+  : "a second Host preserves another live Host's pending review admission and completes it", async t => {
+  await buildDoclingWorker(path.dirname(bundledPluginManifest())); await buildAiAgent(path.dirname(bundledAiManifest()));
+  const root = mkdtempSync(path.join(tmpdir(), "shared-docling-admission-")), directory = path.join(root, "plugins"), facade = path.join(root, "fake-agent");
+  mkdirSync(facade);
+  writeFileSync(path.join(facade, "host.cjs"), readFileSync(path.join(path.dirname(bundledAiManifest()), "host.cjs")));
+  writeFileSync(path.join(facade, "worker.cjs"), `process.once("message", () => process.send({type:"complete",result:${JSON.stringify({ proposals: structureReviewSuggestions })}}, () => process.exit(0)));`);
+  writeFileSync(path.join(facade, "manifest.json"), JSON.stringify({ id: "ai-agent", version: "shared-review-fixture", workerApi: 1, entry: "worker.cjs", services: ["ai-task"], tasks: ["ai-task"], host: { api: 1, entry: "host.cjs" } }));
+  const options = { directory, aiManifest: path.join(facade, "manifest.json") };
+  const owner = createPluginHost(new RootAccess([root]), undefined, options), observer = createPluginHost(new RootAccess([root]), undefined, options);
+  t.after(async () => { await observer.close(); await owner.close(); rmSync(root, { recursive: true, force: true }); });
+  const source = path.join(root, "source.json"), folder = path.join(root, "result"), original = structureReviewSource(), id = randomUUID();
+  writeFileSync(source, original); owner.invoke("docling", "convert", { input: source, output: folder });
+  const materialCount = () => readdirSync(folder).filter(name => name.startsWith(`.structure-review-${id}-`)).length;
+  let enter!: () => void, release!: () => void;
+  const entered = new Promise<void>(resolve => { enter = resolve; }), paused = new Promise<void>(resolve => { release = resolve; });
+  const read = fsPromises.readFile;
+  fsPromises.readFile = (async (...args: Parameters<typeof read>) => {
+    if (String(args[0]).includes(`.structure-review-${id}-`)) { enter(); await paused; }
+    return read(...args);
+  }) as typeof read;
+  syncBuiltinESMExports();
+  const starting = owner.invoke<Promise<any>>("docling", "review-start", { folder, id }).then(value => ({ value, error: null }), error => ({ value: null, error }));
+  let during: any, materials: number, unknown: any, ownerId: string, probeFailed = false, outcome: Awaited<typeof starting>;
+  try {
+    await entered;
+    ownerId = JSON.parse(readFileSync(path.join(folder, "structure-review.json"), "utf8")).task.owner;
+    const ownerFile = path.join(directory, "owners", `${ownerId}.sqlite`), stat = fs.statSync;
+    const probe = t.mock.method(fs, "statSync", ((file, options) => {
+      if (String(file) === ownerFile) { probeFailed = true; throw Object.assign(new Error("Injected owner probe EACCES"), { code: "EACCES" }); }
+      return stat(file, options);
+    }) as typeof stat);
+    syncBuiltinESMExports();
+    try { unknown = { view: observer.invoke("docling", "review-status", { folder }), materials: materialCount() }; }
+    finally { probe.mock.restore(); syncBuiltinESMExports(); }
+    if (ownerEnds) {
+      await owner.close();
+      // Both Hosts have this test process's PID. A distinct live session lock
+      // must never revive the original owner's unlocked session.
+      assert.notEqual(observer.plugins().requestOwner(), ownerId);
+    }
+    during = observer.invoke("docling", "review-status", { folder }); materials = materialCount();
+  } finally { fsPromises.readFile = read; syncBuiltinESMExports(); release(); outcome = await starting; }
+  assert.equal(probeFailed, true); assert.equal(unknown.view.task.status, "running"); assert.equal(unknown.materials, 3);
+  if (ownerEnds) {
+    assert.equal(during.task.status, "uncertain"); assert.equal(materials, 0); assert.ok(outcome.error);
+    assert.equal(observer.plugins().getAi(id), null);
+    assert.equal((await observer.invoke<Promise<any>>("docling", "review-start", { folder, id })).task.status, "uncertain");
+    assert.equal(observer.plugins().aiHistory().length, 0);
+    assert.equal(readFileSync(source, "utf8"), original);
+    return;
+  }
+  assert.deepEqual({ status: during.task.status, materials, startError: outcome.error?.code ?? null },
+    { status: "running", materials: 3, startError: null });
+  assert.equal(during.canCancel, false);
+  let done: any; const deadline = Date.now() + 10_000;
+  do { done = observer.invoke("docling", "review-status", { folder }); if (done.task.status !== "running") break; assert.ok(Date.now() < deadline); await delay(10); } while (true);
+  assert.equal(done.task.status, "success"); assert.equal(done.proposals.length, 3);
+  assert.ok(done.proposals.every((p: any) => p.state === "pending")); assert.equal(materialCount(), 0);
+  assert.equal(readFileSync(source, "utf8"), original);
+});
 
 test("installed Docling review uses the mediated service through HTTP operations, preserves source and respects Root/disable", async t => {
   await buildDoclingWorker(path.dirname(bundledPluginManifest())); await buildAiAgent(path.dirname(bundledAiManifest()));
