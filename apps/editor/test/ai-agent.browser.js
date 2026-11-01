@@ -1,4 +1,4 @@
-async (page, { expect, openPath, pluginFixture, screenshots }) => {
+async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   // No model or account is used by browser tests; Host lifecycle is covered headlessly.
   await page.route('**/api/ai-agent-status', route => route.fulfill({ json: { adapter: 'Codex', available: true, loginRequired: false } }));
@@ -50,6 +50,11 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
     // the source bundle supplied by the same local development Host composition.
     const sourceManifest = pluginFixture.document.replace(/[/\\]tmp[/\\]plugin-ui[/\\]document\.md$/, '/tmp/ai-agent-worker/manifest.json');
     const restored = await page.request.post(origin + '/api/worker-plugins', { data: { manifest: sourceManifest } }); expect(restored.ok(), await restored.text()).toBe(true);
+    // These preferences survive page teardown; the next scenario starts in English Light.
+    await page.evaluate(prefix => {
+      localStorage.setItem(prefix + '.uiLanguage', 'en');
+      localStorage.setItem(prefix + '.theme', 'light');
+    }, brand.storagePrefix);
   }
   return { settings: true, minimumViewport: true, nativeDocumentPreserved: true };
 }
