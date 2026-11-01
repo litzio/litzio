@@ -30,6 +30,12 @@
   /* Expand only the overlay; keep the gutter handles and neighboring blocks clear. */
   --space-block-hover-inline: var(--space-2);
   --space-block-hover-block: var(--space-1);
+  /* Out-of-flow heading depth: shared metadata type and subdued theme role. */
+  --font-size-heading-level: var(--font-size-xs);
+  --id-color-heading-level: var(--id-color-text-subtle);
+  --space-heading-level-gap: var(--space-3);
+  /* Fixed reading surfaces have only the existing 16px inset; keep its text geometry. */
+  --space-heading-level-reading-gap: var(--border-width);
   /* Document column, outer insets included. Standard keeps a readable measure (736px of text
    * at 1440px); Wide is the user's Wide document preference and is capped by the window. */
   --layout-content-width: 58rem;

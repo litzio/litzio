@@ -1,0 +1,39 @@
+{
+  "base": "828b8da3e5acc76f396a6e40aa2b5553651f1819",
+  "captured": "2026-11-02",
+  "environment": "Windows installed Chrome, headless, checkout-owned persistent profile, DPR 1, zoom 100%, bundled Pretendard and Consolas metadata",
+  "viewport": {
+    "1440": "1440x1000 Light English",
+    "640": "640x1000 Dark Korean"
+  },
+  "states": {
+    "editor": "Numbered H1-H6, wrapped H3, paper scroll top 0, pointer outside paper and document blurred",
+    "comparison": "NIST SP1108r4 fixture page 1, source and reading scroll top 0, sync on, pointer on first heading, ordinary heading hover outline visible"
+  },
+  "commands": [
+    "pnpm browser:test heading-levels --screenshots",
+    "pnpm browser:test docling-compare --screenshots"
+  ],
+  "before": "Product files temporarily restored byte-for-byte from base; same final fixture/test source. Both scenarios fail their new missing-cue assertions. Final sources restored in finally.",
+  "after": "Working implementation, source hashes below. Both scenarios pass. Capture inspection is manual evidence, separate from test assertions.",
+  "review": "H1-H6 centers align to first line; numbers/wrapping stay clear; 640px cues stay visible; handles replace only their own cue; comparison hover stroke clears cue and paper mask hides the connector behind it; source boxes retain geometry. Metadata reuses section-label mono/12px/16px and theme subtle text; Mermaid remains its distinct filled kind badge.",
+  "productSha256": {
+    "apps/editor/src/BlockHandles.tsx": "a688930cfcaa092df0c0534a564c0d3894010da7b6eaadd939c33330d7f95c06",
+    "apps/editor/src/DocumentEditor.tsx": "8e871de48a14b6b32bcfa6d96da2d3567138e207ff2c430d660651e552fe61ff",
+    "apps/editor/src/ReadOnlyDocument.tsx": "9f4b5861b1484a6b92a22cb48a10621bebbd62d205ede8a8fe01ab819201a7cb",
+    "apps/editor/src/styles.css": "f3433acdb086d69ee19ddbc785f4950d6015c24ff2889c9af1444ceee2c96f30",
+    "apps/editor/src/styles/tokens.css": "3d87f5f0d0dabe3ed85ae6b5d8c725d7c89fd5cb5e147f5dbab6f557d3e87d36",
+    "packages/plugin-api/src/ui.ts": "fbea4fec7656cf2e38a9d47c8143155988f413f1705132789866e7cb01d1451e",
+    "plugins/docling/src/comparison/CompareView.tsx": "59b5a153cfbf2d23c7c4a027b3e3ea4601eb06c736d312f050db4bb6d305d381"
+  },
+  "images": {
+    "after-comparison-1440.png": "1cd0a0a720e9869ce66703b4b0f89a17b184a8555ec49249a288197c135932d2",
+    "after-comparison-640.png": "7b072d3d18fee6f931f99650fedf9219ce0614f7631721bb5f2055701ad952df",
+    "after-editor-1440.png": "6695efb8731c1b9727d6ece8f584fc28090efd302550d19f8a6d5d419c509876",
+    "after-editor-640.png": "1e68f60eaded023eb4af70f7ce0d154abd214272d60a3f617a7e6aa8455a6dfb",
+    "before-comparison-1440.png": "e77236805ff44ea7aade378ffbf6e29bd9ec996ad00e287e843b1175c406cc9d",
+    "before-comparison-640.png": "34b26e3f72a8988da35f0c3ba646e08fc702ef45f4675b4bb351822eb97069fc",
+    "before-editor-1440.png": "6ee5ce089a2a1b912ee45d8651af9dd19a08806382d3db872235c22f9a16afdd",
+    "before-editor-640.png": "d5f043542c971a3102c1cd77018fc4cffa6cbd072239fb5df75a5ee4700f00f2"
+  }
+}

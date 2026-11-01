@@ -186,7 +186,7 @@ export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, ima
         </div>)}
       </div>
       <div className="docling-reading" ref={right} onScroll={() => scroll("right")} tabIndex={0} aria-label={text("Converted document")}>
-        <ReadingSurface document={snapshot.document} path={snapshot.path} onLayout={onLayout} onSelection={selectTarget} />
+        <ReadingSurface document={snapshot.document} path={snapshot.path} showHeadingLevels onLayout={onLayout} onSelection={selectTarget} />
       </div>
       <svg className="docling-wires" aria-label={text("Visible correspondences")} data-link-count={wires.length}>
         {wires.map(wire => <path key={wire.key} d={wire.d} data-category={wire.category} data-selected={wire.selected} />)}

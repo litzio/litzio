@@ -135,6 +135,14 @@ After는 #792 작업 소스로 촬영했다. source/disk 쓰기 없이 번호 �
 
 ## P09 metadata와 블록 도구
 
+제목 깊이 표시(#887/#886)는 편집 모드와 Docling 대조의 고정 읽기에서 왼쪽 여백에
+`H1`–`H6`을 상시 표시한다. 같은 줄의 블록 핸들이 보일 때만 숨기며 도구와 본문을
+움직이지 않는다. 일반 읽기·소스·텍스트 모드에서는 표시하지 않는다. Mermaid 종류
+배지와 같이 문서 밖 장식이며 공용 metadata 크기·줄 간격을 쓴다. 제목 표시는
+절 label과 같은 고정폭 서체·subtle text로 더 조용하게 표현하며 배경 면을 추가하지 않는다.
+정렬·좁은 대조 여백은 [Layout Rules](editor-layout-rules-v1.md#alignment-and-ownership),
+접근성·번역·조절 값은 [Visual Language](editor-visual-language-v1.md#state-rules)를 따른다.
+
 - **목적·사용/비사용:** 짧은 속성과 구조 작업의 진입을 구분한다. 표의 행·열 선택 도구나 미주 복귀 번호를 일반 metadata 도구로 대체하지 않는다.
 - **목표:** 그림·수식·표 속성 진입은 같은 위쪽 Edit/metadata 행에 둔다. 표 행·열·Append 도구는 grid에, 하단 독립 Delete는 More/actions에 둔다. 도구 표시로 본문 높이를 바꾸지 않고 번호/label을 폼 제목에 반복하지 않는다. 미주 우측 버튼과 복귀 번호는 예외다. 넓은 표에서도 가로 스크롤 전에 도구에 접근하고 caption을 가리지 않아야 한다.
 - **현재 기준:** [그림][figure-view]·[수식][equation-view] NodeView의 상단 도구와 높이를 차지하지 않는 metadata. [표 #793](table-interaction-v1.md#whole-table-tools-793)은 가로 스크롤 밖 상단 행에 Edit/More·metadata를 두고, Delete는 More 메뉴에 둔다. 표는 앞 문단·열 핸들과 겹치지 않도록 상단 행의 공간을 항상 확보하며 도구 표시로 본문 높이를 바꾸지 않는다. 행·열·Append와 caption 간격은 유지한다. 수식도 같은 상단 Edit/metadata 행에서 작은 속성을 열며, 본문 폭 원문 폼은 별도 경로로 유지한다(#788).

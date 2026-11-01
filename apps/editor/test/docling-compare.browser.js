@@ -265,6 +265,42 @@ async (page, { expect, screenshots }) => {
   await expect(center.locator('li[data-severity]')).toHaveCount(0);
   await page.getByRole('tab', { selected: true }).press('Delete');
   await expect(page.getByRole('dialog')).toHaveCount(0);
+  const depthGeometry = [];
+  for (const [width, language, theme] of [[1440, 'en', 'light'], [640, 'ko', 'dark']]) {
+    await page.evaluate(({language, theme}) => {
+      localStorage.setItem('litzio.uiLanguage', language); localStorage.setItem('litzio.theme', theme);
+    }, {language, theme});
+    await page.setViewportSize({width, height:1000});
+    await page.reload();
+    await comparisonPicker(language === 'ko');
+    await page.getByTestId('folder-path').fill(folder('nist-sp1108r4'));
+    await page.getByTestId('folder-open').click();
+    await expect(source.locator('img').first()).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    await reading.locator('.heading').first().hover();
+    await expect(reading.getByTestId('block-hover-outline')).toBeVisible();
+    depthGeometry.push(await reading.evaluate(el => ({
+      headings:el.querySelectorAll('.heading').length,
+      outlineLeft:el.querySelector('.block-hover-outline').getBoundingClientRect().left,
+      cues:[...el.querySelectorAll('.heading-level')].map(cue => {
+        const c=cue.getBoundingClientRect(), pane=el.getBoundingClientRect();
+        return {text:cue.textContent, title:cue.title, hidden:cue.getAttribute('aria-hidden'),
+          left:c.left-pane.left, right:c.right, visibility:getComputedStyle(cue).visibility};
+      }),
+    })));
+    if (screenshots) await page.screenshot({path:`tmp/887-evidence/${await reading.locator('.heading-level').count() ? 'after' : 'before'}-comparison-${width}.png`});
+  }
+  for (const [index, geometry] of depthGeometry.entries()) {
+    expect(geometry.headings).toBeGreaterThan(0);
+    expect(geometry.cues).toHaveLength(geometry.headings);
+    expect(geometry.cues[0].right).toBeLessThan(geometry.outlineLeft);
+    for (const cue of geometry.cues) {
+      expect(cue.text).toMatch(/^H[1-6]$/); expect(cue.hidden).toBe('true');
+      expect(cue.title).toBe(`${index === 0 ? 'Heading' : '제목'} ${cue.text.slice(1)}`);
+      expect(cue.visibility).toBe('visible'); expect(cue.left).toBeGreaterThanOrEqual(0);
+    }
+  }
+  await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); });
   if (screenshots) {
     // Same page/selection as the original review pairs; captures are manual evidence.
     for (const [width, theme, language] of [[1440, 'light', 'en'], [640, 'dark', 'ko']]) {

@@ -43,6 +43,14 @@ Role: alignment, spacing, control dimensions and deliberate geometry exceptions;
 
 ## Alignment and ownership
 
+- Heading-depth cues (#887/#886) occupy the existing absolute block gutter and center on
+  each heading's first line, independently of its level, number or wrapping. They reserve
+  no space and change neither text rectangles nor document scroll height. The row's
+  visible insertion/drag handles take precedence over its cue, including keyboard focus
+  and an open block menu. The comparison keeps its existing 16px paper inset: a monospace
+  metadata cue uses the narrow reading gap, and a heading's hover extent starts at the
+  text edge to clear that cue. Other block extents and source boxes/wires are unchanged.
+
 - Frontmatter title (#786) keeps the existing H1-line-height minimum slot. The small empty
   hint's line box matches that slot and centers vertically; empty-state height is explicit
   to prevent a fractional intrinsic-size shift when typing begins. The title focus outline
