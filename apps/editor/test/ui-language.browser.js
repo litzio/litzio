@@ -96,9 +96,10 @@ async (page, { openPath, screenshots }) => {
     const picker = page.getByRole('radiogroup', { name: 'Accent color', exact: true });
     const presets = await picker.getByRole('radio').evaluateAll(options => options.map(option => option.value));
     check(presets.join(',') === 'blue,violet,plum,teal,green,graphite', 'Settings must expose the six validated presets');
+    check(await picker.locator('input[value=plum]').isChecked(), 'Missing preference must select Plum');
     await page.getByTestId('ui-language').focus();
     await page.keyboard.press('Tab');
-    for (const [key, value] of [['ArrowRight','violet'],['ArrowDown','plum'],['ArrowLeft','violet'],['ArrowUp','blue'],['ArrowUp','graphite'],['ArrowRight','blue']]) {
+    for (const [key, value] of [['ArrowRight','teal'],['ArrowDown','green'],['ArrowLeft','teal'],['ArrowUp','plum'],['ArrowUp','violet'],['ArrowRight','plum']]) {
       await page.keyboard.press(key);
       const radio = picker.locator(`input[value="${value}"]`);
       check(await radio.isChecked() && await radio.evaluate(n => n === document.activeElement && n.matches(':focus-visible')),
@@ -293,10 +294,13 @@ async (page, { openPath, screenshots }) => {
     }
     await page.getByTestId('ui-language').selectOption('en');
     await closeSettings();
+    await page.evaluate(() => localStorage.removeItem('litzio.accentColor'));
+    await page.reload(); await ready();
+    check(await page.evaluate(() => window.accentAtFirstUi === 'plum'), 'Missing accent must default to plum before mounting');
     // Malformed and disabled storage fall back safely on startup. The live choice still works.
     await page.evaluate(() => { localStorage.setItem('litzio.accentColor', 'unknown'); localStorage.setItem('litzio.theme', 'unknown'); localStorage.setItem('litzio.pageBackground', 'unknown'); });
     await page.reload(); await ready();
-    check(await page.evaluate(() => window.accentAtFirstUi === 'blue'), 'Invalid accent must fall back to blue before mounting');
+    check(await page.evaluate(() => window.accentAtFirstUi === 'plum'), 'Invalid accent must fall back to plum before mounting');
     check(await page.evaluate(() => window.themeAtFirstUi === 'light'), 'Invalid theme must fall back to System before mounting');
     check(await page.evaluate(() => window.pageAtFirstUi === 'paper'), 'Invalid page background must default to paper');
     await page.addInitScript(() => {
@@ -305,7 +309,7 @@ async (page, { openPath, screenshots }) => {
       Storage.prototype.setItem = function(key, value) { if (['litzio.accentColor','litzio.theme','litzio.pageBackground'].includes(key)) throw Error('blocked'); return set.call(this, key, value); };
     });
     await page.reload(); await ready();
-    check(await page.evaluate(() => window.accentAtFirstUi === 'blue'), 'Unavailable accent store must not block startup');
+    check(await page.evaluate(() => window.accentAtFirstUi === 'plum'), 'Unavailable accent store must not block startup');
     await settings('en');
     check(await page.getByTestId('theme').inputValue() === 'system', 'Unavailable theme storage must fall back to System');
     check(await page.getByTestId('page-background').inputValue() === 'paper', 'Unavailable page store must default to paper');
@@ -315,12 +319,12 @@ async (page, { openPath, screenshots }) => {
     await page.getByTestId('theme').selectOption('dark');
     check(await page.locator('html').getAttribute('data-theme') === 'dark', 'Live theme must work without storage');
     await page.getByRole('alert').filter({hasText:'Theme could not be saved.'}).waitFor();
-    await page.getByTestId('accent-color').getByRole('radio', {name:'Plum',exact:true}).check();
-    check(await page.evaluate(() => document.documentElement.dataset.accent === 'plum'), 'Live accent must work without storage');
+    await page.getByTestId('accent-color').getByRole('radio', {name:'Teal',exact:true}).check();
+    check(await page.evaluate(() => document.documentElement.dataset.accent === 'teal'), 'Live accent must work without storage');
     await page.getByRole('alert').filter({ hasText: 'Accent color could not be saved.' }).waitFor();
     await closeSettings();
     await settings('en');
-    check(await page.getByTestId('accent-color').getByRole('radio', {name:'Plum',exact:true}).isChecked(), 'Reopening Settings lost the live choice');
+    check(await page.getByTestId('accent-color').getByRole('radio', {name:'Teal',exact:true}).isChecked(), 'Reopening Settings lost the live choice');
     check(await page.getByTestId('page-background').inputValue() === 'flat', 'Reopening Settings lost live page choice');
     check(await page.getByTestId('theme').inputValue() === 'dark', 'Reopening Settings lost the live theme choice');
     await page.getByTestId('theme').selectOption('system');

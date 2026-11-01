@@ -226,7 +226,7 @@ async (page, { withBlockHover, reloadDocument, recoveryRecords, expect }) => {
   check(await input.getAttribute('aria-invalid') !== 'true', 'Correcting input did not clear invalid state');
   await page.getByRole('button', {name:'Cancel', exact:true}).focus(); await settle();
   const field = await state(input), secondary = await state(page.getByRole('button', {name:'Cancel', exact:true}));
-  // The primary face shares the ring's blue; a white boundary keeps focus visible.
+  // The primary face shares the ring's accent; a white boundary keeps focus visible.
   await page.mouse.move(0,0); await input.focus();
   for (let i = 0; i < 4 && !await create.evaluate(n => n === document.activeElement); i++) await page.keyboard.press('Tab');
   await settle();

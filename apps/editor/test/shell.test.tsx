@@ -345,16 +345,16 @@ test("accent preference defaults safely and remembers only a validated preset", 
     Object.defineProperty(globalThis, "localStorage", { configurable: true, value: {
       getItem: (key: string) => values.get(key), setItem: (key: string, value: string) => values.set(key, value),
     } });
-    assert.equal(readAccentColor(), "blue");
+    assert.equal(readAccentColor(), "plum");
     for (const color of ACCENT_COLORS) {
       assert.equal(writeAccentColor(color), true);
       assert.equal(values.get(ACCENT_COLOR_KEY), color);
       assert.equal(readAccentColor(), color);
     }
     values.set(ACCENT_COLOR_KEY, "unrecognized");
-    assert.equal(readAccentColor(), "blue");
+    assert.equal(readAccentColor(), "plum");
     Object.defineProperty(globalThis, "localStorage", { configurable: true, get() { throw Error("blocked"); } });
-    assert.equal(readAccentColor(), "blue");
+    assert.equal(readAccentColor(), "plum");
     assert.equal(writeAccentColor("teal"), false);
   } finally {
     if (storage) Object.defineProperty(globalThis, "localStorage", storage); else Reflect.deleteProperty(globalThis, "localStorage");
