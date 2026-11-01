@@ -430,26 +430,40 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     let nativeKeyboardMenu = false;
     const nativeTarget = (target: EventTarget | null) => target instanceof Element &&
       !!target.closest('input, textarea, select, button, [role="textbox"], pre');
+    const blockAt = (target: EventTarget | null) => {
+      let block: { index: number; pos: number } | undefined;
+      editor.state.doc.forEach((_node, pos, index) => {
+        const element = view.nodeDOM(pos);
+        if (element instanceof Element && element.contains(target as Node)) block = { index, pos };
+      });
+      return block;
+    };
     const pointer = (event: MouseEvent) => {
       selectedAtPointer = null;
       nativeKeyboardMenu = false;
+      if (event.button !== 2 || !editor.isEditable || nativeTarget(event.target)) return;
       const { selection } = editor.state;
-      if (event.button !== 2 || selection instanceof NodeSelection || selection.empty) return;
       // Test the actual selected lines, not the selection's bounding box (which includes gaps).
       const native = dom.ownerDocument.getSelection();
-      if (!native || native.isCollapsed) return;
-      for (let index = 0; index < native.rangeCount; index++) {
-        if ([...native.getRangeAt(index).getClientRects()].some(rect =>
-          event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom)) {
-          selectedAtPointer = selection;
-          return;
+      if (!(selection instanceof NodeSelection) && !selection.empty && native && !native.isCollapsed) {
+        for (let index = 0; index < native.rangeCount; index++) {
+          if ([...native.getRangeAt(index).getClientRects()].some(rect =>
+            event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom)) {
+            selectedAtPointer = selection;
+            return;
+          }
         }
+      }
+      if (blockAt(event.target)) {
+        // On Linux contextmenu precedes mouseup. The engine's pending click must not
+        // select/focus the preview after our menu has taken focus; we place its selection below.
+        event.preventDefault();
+        event.stopPropagation();
       }
     };
     const open = (index: number, x: number, y: number) => {
       const rect = host.current?.getBoundingClientRect();
       if (!rect || !editor.state.doc.maybeChild(index)) return false;
-      view.focus();
       setBlockMenu({ kind: "block", index, left: x - rect.left, top: y - rect.top, context: true });
       return true;
     };
@@ -464,16 +478,13 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         if (!retained.eq(editor.state.selection)) view.dispatch(editor.state.tr.setSelection(retained));
         return;
       }
-      let block: { index: number; pos: number } | undefined;
-      editor.state.doc.forEach((_node, pos, index) => {
-        const element = view.nodeDOM(pos);
-        if (element instanceof Element && element.contains(event.target as Node)) block = { index, pos };
-      });
+      const block = blockAt(event.target);
       if (!block) return;
       const hit = view.posAtCoords({ left: event.clientX, top: event.clientY });
       const node = editor.state.doc.child(block.index);
+      const readonly = event.target instanceof Element ? event.target.closest('[contenteditable="false"]') : null;
       // Rendered atomic content has no text caret; captions/cells keep their clicked text position.
-      const selection = node.isAtom || (event.target instanceof Element && event.target.closest('[contenteditable="false"]'))
+      const selection = node.isAtom || readonly && readonly !== dom
         ? NodeSelection.create(editor.state.doc, block.pos)
         : Selection.near(editor.state.doc.resolve(hit?.pos ?? block.pos + 1));
       view.dispatch(editor.state.tr.setSelection(selection));
@@ -823,7 +834,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   };
   const closeBlockMenu = (event?: MouseEvent) => {
     setBlockMenu(null);
-    if (blockMenu?.context) {
+    if (blockMenu?.context && event) {
       // A click on inert shell space must not blur the restored editor as its default action.
       // Actual controls and document clicks still receive their normal focus/caret handoff.
       if (event?.target instanceof Element &&
@@ -1055,6 +1066,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
                 command.rejection?.(editor.state, blockMenu.index) : undefined,
           }))]}
           focusOnOpen
+          onReturnFocus={blockMenu.context ? () => editor.view.focus() : undefined}
           style={blockMenuStyle}
           onSelect={id => runBlockCommand(id, blockMenu.index)}
           onClose={closeBlockMenu}
@@ -1071,6 +1083,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
               editor.state.doc.child(blockMenu.index).attrs.delimiter === delimiter,
           })))}
           focusOnOpen
+          onReturnFocus={blockMenu.context ? () => editor.view.focus() : undefined}
           style={blockMenuStyle}
           onSelect={id => {
             const [style, delimiter] = id.split(":") as [ListStyle, ListDelimiter];

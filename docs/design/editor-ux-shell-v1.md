@@ -1706,7 +1706,9 @@ The menu focuses its first enabled item. Escape and dismissal return focus to th
 editor with its retained selection; clicking another control/document position keeps
 the ordinary focus/caret handoff. Applying an action uses its existing selection and
 history behavior. `read-view` verifies pointer/keyboard entry, handle-menu parity,
-native boundaries, selection/focus return and conversion Undo/Redo.
+native boundaries, selection/focus return and conversion Undo/Redo. It also exercises
+contextmenu before secondary mouseup (Linux ordering): the engine's later pointer
+handling must not take focus from the menu or prevent Escape from closing it.
 
 Manual same-state evidence: [1440px Before](assets/body-context-223/before-1440.png) /
 [After](assets/body-context-223/after-1440.png), [640px Dark/Korean Before](assets/body-context-223/before-640.png) /

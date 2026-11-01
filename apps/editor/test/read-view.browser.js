@@ -147,9 +147,25 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
     })).toBe(true);
     await page.keyboard.press('Escape'); await expect(blockMenu).toHaveCount(0);
   }
+  // Linux can open contextmenu on secondary down, before the engine handles mouseup.
+  // Exercise that order on every platform; the later up must not take focus from the menu.
+  const preview = panel.getByTestId('equation-preview');
+  await selectProse();
+  await preview.scrollIntoViewIfNeeded();
+  const previewRect = await preview.boundingBox();
+  const contextPoint = {x:previewRect.x+previewRect.width/2,y:previewRect.y+previewRect.height/2};
+  await page.mouse.move(contextPoint.x,contextPoint.y); await page.mouse.down({button:'right'});
+  await preview.evaluate((el, point) => el.dispatchEvent(new MouseEvent('contextmenu',{
+    bubbles:true,cancelable:true,button:2,buttons:2,clientX:point.x,clientY:point.y,
+  })), contextPoint);
+  await expect(blockMenu.getByRole('menuitem').first()).toBeFocused();
+  await page.mouse.up({button:'right'});
+  expect(await blockMenu.evaluate(menu => menu.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press('Escape'); await expect(blockMenu).toHaveCount(0);
   // An outside dismissal also returns to the retained editor selection.
   await contextParagraph.click({button:'right'}); await expect(blockMenu).toBeVisible();
   const outsideSelection = (await state()).selection;
+  expect(outsideSelection.type).toBe('text'); expect(outsideSelection.anchor).toBe(outsideSelection.head);
   await page.getByTestId('status').click(); await expect(blockMenu).toHaveCount(0);
   expect(await state()).toEqual({selection:outsideSelection,focused:true});
   const code = editor.locator('pre');

@@ -29,13 +29,15 @@ type CommandMenuProps = {
   activeIndex?: number;
   /** Move focus into the menu when opened from a button. */
   focusOnOpen?: boolean;
+  /** A context menu returns to its editor rather than a button opener. */
+  onReturnFocus?(): void;
   emptyText?: string;
   onSelect(id: string): void;
   onClose(event?: MouseEvent): void;
 };
 
 /** Presentational menu shared by the insert menu (`+` and `/`) and the block menu. */
-export function CommandMenu({ label, items, style, anchor, activeIndex, focusOnOpen, emptyText, onSelect, onClose }: CommandMenuProps) {
+export function CommandMenu({ label, items, style, anchor, activeIndex, focusOnOpen, onReturnFocus, emptyText, onSelect, onClose }: CommandMenuProps) {
   useTranslation();
   const root = useOverlayBounds<HTMLDivElement>(true, anchor);
   const returnFocus = useRef<Element | null>(null);
@@ -77,7 +79,8 @@ export function CommandMenu({ label, items, style, anchor, activeIndex, focusOnO
         if (event.key === "Escape") {
           event.preventDefault();
           onClose();
-          if (focusOnOpen && returnFocus.current instanceof HTMLElement && returnFocus.current.isConnected) returnFocus.current.focus();
+          if (focusOnOpen && onReturnFocus) onReturnFocus();
+          else if (focusOnOpen && returnFocus.current instanceof HTMLElement && returnFocus.current.isConnected) returnFocus.current.focus();
           return;
         }
         if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;

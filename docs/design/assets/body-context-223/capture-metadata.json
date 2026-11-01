@@ -1,15 +1,15 @@
 {
   "issue": 223,
-  "capturedAt": "2026-11-01T04:33:47.2160530Z",
+  "capturedAt": "2026-11-01T04:49:08.2910392Z",
   "baseCommit": "94fe928b55b34c5097f466e94780d1198231e9a6",
   "afterSourceHashes": [
     {
       "file": "apps/editor/src/DocumentEditor.tsx",
-      "sha256": "c4a196d39a24b08968421b81e4601c6d6d468119eb6275ef7805b452171b59de"
+      "sha256": "c32acca81f4a43f53d86fb2d7db914f18ba9193eb88267fffd80c885faaf732e"
     },
     {
       "file": "apps/editor/src/CommandMenu.tsx",
-      "sha256": "0c18832e979fb22abe34b76d4b81df6f6fb152fb54c9b7458ea3d8c0852ba066"
+      "sha256": "5db731999911720e0dff977e58657caddbd62a54cc1cc41ae7c332dc4ef319dc"
     }
   ],
   "before": [
