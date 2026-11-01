@@ -8,7 +8,7 @@ import test from "node:test";
 import { listenForFetch } from "@litzio/plugin-api/testing";
 import { convertDoclingPdf, readDoclingMap } from "../src/index.ts";
 import profile from "../profiles/litzio-pdf-en-v1.json" with { type: "json" };
-import { doclingFailureOf } from "../src/server-types.ts";
+import { doclingFailureOf } from "../src/conversion/server-types.ts";
 
 test("public failure causes distinguish explicit missing models from redacted and other model errors", () => {
   assert.equal(doclingFailureOf({ failure: { message: "Model 'CodeFormulaV2' not found in artifacts_path." } }).code, "model-missing");

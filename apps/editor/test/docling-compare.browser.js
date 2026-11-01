@@ -6,6 +6,10 @@ async (page, { expect, screenshots }) => {
   const separator = initial.path.includes('\\') ? '\\' : '/';
   const root = initial.path.split(separator).slice(0, -4).join(separator);
   const folder = name => [root, 'tmp', 'docling-compare', name].join(separator);
+  const comparisonPicker = async (korean = false) => {
+    await page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true }).click();
+    await page.getByRole('button', { name: korean ? '변환 폴더 대조 열기…' : 'Open conversion folder…', exact: true }).click();
+  };
   // The shared picker keeps sidebar guidance for folder opening, never comparison.
   const comparisonHints = [];
   for (const [width, theme, language] of [[1440, 'light', 'en'], [640, 'dark', 'ko']]) {
@@ -26,7 +30,7 @@ async (page, { expect, screenshots }) => {
     await expect(folderDialog.getByText(hint, { exact: true })).toBeVisible();
     await folderDialog.press('Escape');
     await expect(folderDialog).toBeHidden();
-    await page.getByRole('button', { name: korean ? 'Docling 대조' : 'Docling comparison', exact: true }).click();
+    await comparisonPicker(korean);
     const picker = page.getByRole('dialog');
     await expect(picker).toContainText(korean ? '변환 결과가 저장된 폴더를 선택하세요.' : 'Choose a conversion folder containing document.md and document.docling-map.json.');
     if (screenshots) {
@@ -42,7 +46,7 @@ async (page, { expect, screenshots }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.reload();
   const open = async name => {
-    await page.getByRole('button', { name: 'Docling comparison', exact: true }).click();
+    await comparisonPicker();
     const dialog = page.getByRole('dialog', { name: 'Docling comparison' });
     await dialog.getByTestId('folder-path').fill(folder(name));
     await dialog.getByTestId('folder-open').click();
@@ -63,8 +67,8 @@ async (page, { expect, screenshots }) => {
   // Empty Explorer help belongs to file navigation, separately from the module entry.
   const sidebar = page.getByTestId('sidebar');
   await expect(sidebar.getByTestId('sidebar-empty')).toContainText('Open a folder to browse its files');
-  expect(await sidebar.getByTestId('sidebar-empty').getByRole('button', { name: 'Docling comparison', exact: true }).count()).toBe(0);
-  await sidebar.getByRole('button', { name: 'Docling comparison', exact: true }).focus();
+  expect(await sidebar.getByTestId('sidebar-empty').getByRole('button', { name: 'Docling', exact: true }).count()).toBe(0);
+  await sidebar.getByRole('button', { name: 'Docling', exact: true }).focus();
   await page.keyboard.press('Tab');
   await expect(sidebar.getByRole('button', { name: 'Settings', exact: true })).toBeFocused();
   await expect(page.getByRole('tab', { name: / · Docling comparison$/ })).toHaveCount(1);
@@ -271,7 +275,7 @@ async (page, { expect, screenshots }) => {
       await page.setViewportSize({ width, height: 1000 });
       await page.reload();
       const label = language === 'ko' ? 'Docling 대조' : 'Docling comparison';
-      await page.getByRole('button', { name: label, exact: true }).click();
+      await comparisonPicker(language === 'ko');
       await page.getByTestId('folder-path').fill(folder('nist-sp1108r4'));
       await page.getByTestId('folder-open').click();
       const comparison = page.locator('.docling-tab[data-active=true]');

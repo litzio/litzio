@@ -105,7 +105,8 @@ test("one brand setting produces independently installed identities and the unch
         return new Response(response.text, { status: response.status });
       }, work, fake.url);
       assert.ok(existsSync(path.join(shared, value.folders.plugins)));
-      await page.getByRole("button", { name: "Docling comparison", exact: true }).click();
+      await page.getByRole("button", { name: "Docling", exact: true }).click();
+      await page.getByRole("button", { name: "Open conversion folder…", exact: true }).click();
       await page.getByTestId("folder-path").fill(output);
       await page.getByTestId("folder-open").click();
       const view = page.locator(".docling-tab[data-active=true]");

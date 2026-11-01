@@ -481,8 +481,14 @@ completion Light/Korean/Dark review states separately from normal CI assertions.
 
 The UI contribution boundary is checked separately by
 `pnpm --filter @litzio/editor exec tsx --test test/plugin-ui.test.ts` and
-`pnpm browser:test plugin-ui docling-server docling-compare` (#857). The latter
-retains #815's fixed Read/reverse selection checks. The real worker regression
+`pnpm browser:test plugin-ui docling-server docling-compare docling-dashboard` (#857, #871).
+`docling-compare` retains #815's fixed Read/reverse selection checks. The dashboard
+scenario checks receipt-driven jobs/results, owning-Host Stop waiting, explicit
+retry/restart, uncertain clearing without automatic replay, retained comparison
+tabs and feature toggles/reload, including both disabled. It captures English
+Light 1440px and Korean Dark 640px for manual alignment, wrapping and overflow
+review. Its interrupted receipt is explicitly synthetic; all ordinary conversion
+jobs use the existing fake HTTP service. The real worker regression
 holds the browser's UI module while accepted conversion finishes, then verifies
 the comparison opens after activation. It does not extend timeouts or weaken
 assertions. `plugin-ui` checks live contributions, exact native document identity

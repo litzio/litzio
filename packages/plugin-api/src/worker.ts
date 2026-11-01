@@ -5,10 +5,14 @@ export type ConversionJob = {
   id: string; input: string; output: string; startedAt: number;
   state: "running" | "success" | "error" | "cancelled";
   progress: PdfProgress; error?: string; failure?: ConversionFailure;
+  finishedAt?: number;
 };
+export type RequestRecord = { job: ConversionJob; status: ConversionJob["state"] | "uncertain"; canCancel: boolean };
 
 export type ConversionRequest = { job: ConversionJob; server: string; plugin?: string; timeoutMs?: number; beforePublish(): void };
 export interface ConversionExecutor {
+  history?(): RequestRecord[];
+  forget?(id: string): void;
   start(request: ConversionRequest): Promise<ConversionJob>;
   current(id: string): ConversionJob | null;
   cancel(id: string): Promise<ConversionJob>;

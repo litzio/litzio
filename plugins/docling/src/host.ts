@@ -3,29 +3,68 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
 import type { HostPlugin, PluginHostContext } from "@litzio/plugin-api/host";
-import { DoclingHost, type ConversionSession } from "./server.ts";
-import { readComparison } from "./compare-host.ts";
-import { convertDoclingFile } from "./files.ts";
-import { doclingServerUrl } from "./pdf.ts";
+import { DoclingHost, type ConversionSession } from "./conversion/server.ts";
+import { readComparison } from "./comparison/compare-host.ts";
+import { convertDoclingFile } from "./conversion/files.ts";
+import { doclingServerUrl } from "./conversion/pdf.ts";
 import type { ConversionJob } from "@litzio/plugin-api/worker";
+import { statSync } from "node:fs";
+import { inspectDoclingMap } from "./shared/map.ts";
+import type { Features, ConversionResult } from "./shared/dashboard.ts";
 
 export function activate(host: PluginHostContext): HostPlugin {
   const session = (host.session.get("conversion") ?? { admitting: false }) as ConversionSession;
   host.session.set("conversion", session);
   const conversion = new DoclingHost(host.settingsFile, host.resolvePath, host.executor, session);
+  const features = (): Features => ({ conversion: host.features().conversion !== false, comparison: host.features().comparison !== false });
+  const requireFeature = (name: keyof Features) => { if (!features()[name]) throw new Error("This Docling feature is disabled."); };
+  const history = () => {
+    if (!host.executor.history) throw new Error("Plugin request history is unavailable.");
+    return host.executor.history().filter(({ job }) => {
+      try { host.resolvePath(job.input, true); host.resolvePath(job.output, true); return true; } catch { return false; }
+    });
+  };
+  const results = (): ConversionResult[] => history().filter(record => record.status === "success").map(({ job }) => {
+    const result: ConversionResult = { id: job.id, folder: job.output, path: path.join(job.output, "document.md"), convertedAt: job.finishedAt ?? job.startedAt };
+    try {
+      const folder = host.resolvePath(job.output, true);
+      try { statSync(folder); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return { ...result, missing: true }; throw error; }
+      const document = host.documentPath(result.path);
+      const { map, stale } = inspectDoclingMap(host.readText(host.mediaPath("document.docling-map.json", document)), host.readText(document));
+      return { ...result, name: map.source.name, pages: Object.keys(map.pages).length, stale };
+    } catch { return { ...result, problem: "Could not read the conversion result." }; }
+  });
   return {
-    drainingOperations: ["current", "cancel", "start"],
+    drainingOperations: ["current", "cancel", "start", "stop"],
     routes: {
       "/api/docling-settings": { GET: "settings", PUT: "configure" },
       "/api/docling-check": { POST: "check" },
       "/api/docling-conversion": { GET: "current", POST: "start", DELETE: "cancel" },
       "/api/docling-compare": { GET: "compare" },
+      "/api/docling-dashboard": { GET: "dashboard", POST: "check" },
+      "/api/docling-features": { PUT: "features" },
+      "/api/docling-history": { POST: "stop", DELETE: "forget" },
     },
     operations: {
-      settings: () => conversion.settings(), configure: args => conversion.configure(args.server),
+      dashboard: () => ({ ...conversion.settings(), features: features(), requests: history(), results: results() }),
+      features: args => {
+        if (!args || Object.keys(args).some(key => !["conversion", "comparison"].includes(key)) || Object.values(args).some(value => typeof value !== "boolean")) throw new Error("Invalid Docling features.");
+        host.setFeatures(args); return features();
+      },
+      forget: args => {
+        if (!history().some(record => record.job.id === args.id)) throw new Error("This Docling conversion is no longer available.");
+        if (!host.executor.forget) throw new Error("Plugin request history is unavailable.");
+        host.executor.forget(args.id); return {};
+      },
+      stop: args => {
+        if (!history().some(record => record.job.id === args.id)) throw new Error("This Docling conversion is no longer available.");
+        return host.executor.cancel(args.id);
+      },
+      settings: () => { requireFeature("conversion"); return conversion.settings(); }, configure: args => { requireFeature("conversion"); return conversion.configure(args.server); },
       check: () => conversion.check(), current: args => conversion.current(args.id),
-      start: args => conversion.start(args.path, args.id), cancel: args => conversion.cancel(args.id),
+      start: args => { if (!args.id || !conversion.current(args.id)) requireFeature("conversion"); return conversion.start(args.path, args.id); }, cancel: args => conversion.cancel(args.id),
       compare: args => {
+        requireFeature("comparison");
         if (!args.path?.trim()) throw new Error("Choose a Docling conversion folder.");
         const file = host.documentPath(args.path), source = host.readText(file);
         host.validateDocument(source);
@@ -39,6 +78,7 @@ export function activate(host: PluginHostContext): HostPlugin {
         return snapshot;
       },
       convert: args => {
+        requireFeature("conversion");
         const input = host.resolvePath(path.resolve(args.input)), output = host.resolvePath(path.resolve(args.output), true);
         const result = convertDoclingFile(input, output);
         const counts = result.map.items.reduce<Record<string, number>>((sum, item) => {
@@ -47,6 +87,7 @@ export function activate(host: PluginHostContext): HostPlugin {
         return { output, ...counts };
       },
       "convert-pdf": async args => {
+        requireFeature("conversion");
         const input = host.resolvePath(path.resolve(args.input)), output = host.resolvePath(path.resolve(args.output), true);
         if (existsSync(output)) throw new Error("Output directory already exists; choose a new directory");
         if (!Number.isSafeInteger(args.timeoutMs) || args.timeoutMs <= 0 || args.timeoutMs > 2_147_483_647) throw new Error("Invalid conversion timeout/poll interval");

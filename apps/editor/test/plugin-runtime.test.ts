@@ -43,6 +43,72 @@ async function until<T>(read: () => T | Promise<T>, accept: (value: T) => boolea
   }
 }
 function directory(name: string) { const root = path.join(fixture, name); mkdirSync(root); return root; }
+
+test("dashboard shares registration flags and receipts; clearing uncertain history retains UUID deduplication", async t => {
+  const root = directory("dashboard-receipts"), input = path.join(root, "paper.pdf"), output = path.join(root, "paper.docling");
+  writeFileSync(input, "%PDF-fixture");
+  const installed = path.join(root, "plugins"), manifest = path.join(bundled, "manifest.json");
+  const store = new PluginStore(installed);
+  store.register(manifest);
+  store.setFeatures("docling", { comparison: false, conversion: false });
+  assert.throws(() => store.setFeatures("docling", { conversion: "yes" } as any), /Invalid plugin features/);
+  store.register(manifest);
+  assert.deepEqual(store.uiList()[0].features, { comparison: false, conversion: false });
+  const job = { id: randomUUID(), input, output, startedAt: Date.now(), state: "running" as const, progress: { phase: "started" as const } };
+  store.admit(job, "retained-fingerprint", "docling");
+  store.close(); // No live owner: observing the receipt must mark it uncertain, never execute.
+  const host = createDoclingHost(undefined, path.join(root, "settings.json"), { directory: installed, manifest });
+  t.after(() => host.close());
+  const dashboard = () => host.invoke("docling", "dashboard");
+  const snapshot = dashboard();
+  assert.equal(snapshot.requests[0].status, "uncertain");
+  assert.equal(snapshot.requests[0].canCancel, false);
+  assert.deepEqual(snapshot.features, { comparison: false, conversion: false });
+  assert.throws(() => host.invoke("docling", "compare", { path: path.join(output, "document.md") }), /feature is disabled/);
+  await assert.rejects(() => host.start(input), /feature is disabled/);
+  host.invoke("docling", "forget", { id: job.id });
+  assert.equal(dashboard().requests.length, 0);
+  const replay = host.plugins().admit(job, "retained-fingerprint", "docling");
+  assert.equal(replay.fresh, false);
+  assert.equal(replay.receipt.status, "uncertain");
+  assert.throws(() => host.plugins().admit(job, "conflicting-fingerprint", "docling"), /conflicts/);
+  host.invoke("docling", "features", { conversion: true });
+  assert.deepEqual(dashboard().features, { comparison: false, conversion: true });
+});
+
+test("dashboard reads published folders, reports stale/missing results and filters other Roots", async t => {
+  const root = directory("dashboard-results"), allowed = path.join(root, "allowed"); mkdirSync(allowed);
+  const host = createDoclingHost(new RootAccess([allowed]), path.join(root, "settings.json"), { directory: path.join(root, "plugins"), manifest: path.join(bundled, "manifest.json") });
+  t.after(() => host.close());
+  const fake = await fakeDoclingServer(); t.after(() => fake.close());
+  const input = path.join(allowed, "paper.pdf"); writeFileSync(input, "%PDF-fixture");
+  host.configure(fake.url);
+  const job = await host.start(input);
+  await until(() => host.current(job.id), value => value?.state === "success");
+  const dashboard = () => host.invoke("docling", "dashboard");
+  let snapshot = dashboard();
+  assert.equal(snapshot.results[0].name, "Fixture PDF");
+  assert.equal(snapshot.results[0].pages, 1);
+  assert.equal(snapshot.results[0].stale, false);
+  assert.ok(snapshot.results[0].convertedAt >= job.startedAt);
+  assert.throws(() => host.invoke("docling", "forget", { id: job.id }), /Only an uncertain/);
+  writeFileSync(path.join(job.output, "document.md"), readFileSync(path.join(job.output, "document.md"), "utf8") + "\nChanged outside conversion.\n");
+  assert.equal(dashboard().results[0].stale, true);
+  rmSync(job.output, { recursive: true });
+  assert.equal(dashboard().results[0].missing, true);
+  const hiddenInput = path.join(root, "private.pdf"); writeFileSync(hiddenInput, "%PDF-private");
+  host.plugins().admit({ ...job, id: randomUUID(), input: hiddenInput, output: path.join(root, "private.docling") }, "outside-root", "docling");
+  assert.equal(dashboard().requests.length, 1);
+  // A dashboard may also observe work admitted through the headless operation,
+  // which deliberately does not replace the conversion dialog's session job.
+  fake.mode("pending");
+  const headless = host.invoke<Promise<unknown>>("docling", "convert-pdf", { input, output: path.join(allowed, "headless-result"), server: fake.url, timeoutMs: 15_000 });
+  const stopped = assert.rejects(headless, /Cancelled/);
+  const record = await until(() => dashboard().requests.find((record: any) => record.job.output.endsWith("headless-result")), value => !!value?.canCancel);
+  host.plugins().unregister("docling"); // An admitted request remains cancellable while draining.
+  assert.equal((await host.invoke("docling", "stop", { id: record.job.id })).state, "cancelled");
+  await stopped;
+});
 test("different brands refuse each other's real staging and crash publication leftovers", () => {
   const root = directory("cross-brand-output");
   const helper = fileURLToPath(new URL("./helpers/cross-brand-output.ts", import.meta.url));

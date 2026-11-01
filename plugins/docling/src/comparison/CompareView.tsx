@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { categories, categoryOf, itemsForTarget, pageRegion, scrollAnchors, scrollPosition, targetKey,
   type ComparisonSnapshot, type DocumentPosition, type ReadingSurfaceProps } from "./compare.ts";
-import type { MapItem } from "./map.ts";
+import type { MapItem } from "../shared/map.ts";
 import "./compare.css";
 
 type Props = {

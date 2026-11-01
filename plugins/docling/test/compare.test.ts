@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { convertDoclingDocument } from "../src/convert.ts";
-import { readDoclingMap } from "../src/map.ts";
-import { readComparison } from "../src/compare-host.ts";
-import { itemsForTarget, pageRegion, scrollAnchors, scrollPosition, targetKey } from "../src/compare.ts";
-import type { MapItem, Target } from "../src/map.ts";
+import { convertDoclingDocument } from "../src/conversion/convert.ts";
+import { readDoclingMap } from "../src/shared/map.ts";
+import { readComparison } from "../src/comparison/compare-host.ts";
+import { itemsForTarget, pageRegion, scrollAnchors, scrollPosition, targetKey } from "../src/comparison/compare.ts";
+import type { MapItem, Target } from "../src/shared/map.ts";
 
 test("page regions transform both origins and independent page dimensions", () => {
   const size = { width: 600, height: 800 };

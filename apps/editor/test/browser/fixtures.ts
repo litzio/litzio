@@ -54,6 +54,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     document("diagram.svg"),
   ], scenarios: ["short-field-errors", "ui-prose-wrap", "draft-notice-layout", "read-view"] },
   "docling-server": { files: [{ name: "paper.pdf", create: () => readFileSync(path.join(REPOSITORY_ROOT, "plugins/docling/test/fixtures/synthetic/source.pdf")) }], scenarios: ["docling-server"] },
+  "docling-dashboard": { files: ["completed.pdf", "failed.pdf", "running.pdf", "uncertain.pdf"].map(name => ({ name, create: () => readFileSync(path.join(REPOSITORY_ROOT, "plugins/docling/test/fixtures/synthetic/source.pdf")) })), scenarios: ["docling-dashboard"] },
   "docling-compare": { files: [], scenarios: ["docling-compare"] },
   "plugin-ui": { files: [{ name: "document.md", create: () => nativeSource("# Plugin boundary\n\nOrdinary editable content.\n") }], scenarios: ["plugin-ui"] },
   "caption-selection": { files: [

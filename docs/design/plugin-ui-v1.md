@@ -59,6 +59,8 @@ actual plugin hooks and the production renderer, not just a version string.
 | `requestJson` | Same-origin Host method/body transport; shares Root checks and abort/rejection on detach. |
 | `setBusy`, `notify` | Activation-scoped file-action busy state and shared notifications, including reveal action. |
 | `initialJob`, `initialJobRead` | Handoff from the manifest-declared `jobRoute` observation while assets load. |
+| `features` | Registration feature snapshot; changes use existing detach/reactivate handling. |
+| `openSettings`, `openDocument`, `openFolder` | Plugin-scoped Settings navigation, ordinary editor and Explorer opening. No editor state is exposed. |
 
 The generic contribution shapes contain no AI provider, document mutation or
 editor engine. A later provider-neutral AI plugin can contribute the same
@@ -86,8 +88,15 @@ Shell-owned tab identity, kind, path, data snapshot and label remain when disabl
 The disabled tab can be moved or closed normally and has no Save/recovery session.
 Re-registering reconstructs the view in the same tab; view-local selection and
 scroll reset. Snapshot data is retained, not silently reread. Contributed tabs
-are not restored at startup. Docling's command, picker, footer order, titles,
-stale-map warnings and #815 fixed Read/bidirectional matching remain unchanged.
+are not restored at startup. #871 changes Docling's footer entry to its dashboard,
+keeping the order before Settings. Its comparison picker, titles, stale-map
+warnings and #815 fixed Read/bidirectional matching remain unchanged.
+
+A UI listing may include registration `features` booleans. Changing them detaches
+and reactivates only that plugin under the same disposal and retained-tab rules.
+Docling filters its conversion commands, PDF actions, settings/dialog and comparison
+tab kind by those flags, retaining the dashboard. A comparison is disabled while
+its tab kind is absent and restores its original snapshot on re-enabling.
 
 Native ESM records **cannot be unloaded**. Same-content re-registration uses the
 same revision URL/module record but invokes a fresh activation. Different content

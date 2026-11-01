@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { convertDoclingDocument } from "../../../../plugins/docling/src/index.ts";
-import type { SourceDocument, SourceItem } from "../../../../plugins/docling/src/source.ts";
+import type { SourceDocument, SourceItem } from "../../../../plugins/docling/src/conversion/source.ts";
 
 /** Public fixtures, with a declared synthetic supplement for unsupported/TOPLEFT/endnote UI. */
 export function comparisonFiles() {

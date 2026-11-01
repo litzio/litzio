@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { convertDoclingDocument, type Conversion } from "./convert.ts";
 import { readSource, type ImageRef } from "./source.ts";
-import { sha256 } from "./map.ts";
+import { sha256 } from "../shared/map.ts";
 
 /** Local file adapter owned by the module. Creates one new output directory; never overwrites. */
 export function convertDoclingFile(input: string, output: string): Conversion {

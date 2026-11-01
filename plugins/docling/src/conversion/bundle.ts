@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { convertDoclingDocument } from "./convert.ts";
-import { sha256 } from "./map.ts";
+import { sha256 } from "../shared/map.ts";
 
 type JsonObject = Record<string, any>;
 export type BundleImage = { pointer: string; path: string; sha256: string; bytes: number };

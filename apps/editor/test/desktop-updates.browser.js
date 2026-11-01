@@ -307,10 +307,10 @@ async (page, { screenshots = false, openPath, brand }) => {
 
   // Settings → About, by keyboard: version, the Stable default, a channel change, and focus back.
   await page.keyboard.press('Tab');
-  const comparison = page.getByTestId('sidebar').getByRole('button', {name:'Docling comparison', exact:true});
-  check(await comparison.evaluate(node => node === document.activeElement), 'Tab from the Explorer document did not reach Docling comparison');
+  const comparison = page.getByTestId('sidebar').getByRole('button', {name:'Docling', exact:true});
+  check(await comparison.evaluate(node => node === document.activeElement), 'Tab from the Explorer document did not reach Docling');
   await page.keyboard.press('Tab');
-  check(await settings.evaluate(node => node === document.activeElement), 'Tab from Docling comparison did not reach Settings');
+  check(await settings.evaluate(node => node === document.activeElement), 'Tab from Docling did not reach Settings');
   await page.keyboard.press('Enter');
   await dialog.waitFor();
   await page.waitForFunction(() => document.activeElement?.textContent === 'Back to document', undefined, {timeout:5_000});

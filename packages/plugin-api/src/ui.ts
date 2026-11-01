@@ -31,6 +31,10 @@ export type UiContributions = {
   dispose(): void;
 };
 export type UiHost = {
+  features?: Readonly<Record<string, boolean>>;
+  openSettings(section: string, returnFocus: HTMLElement | null): void;
+  openDocument(path: string): Promise<void>;
+  openFolder(path: string): Promise<string>;
   api: number; React: typeof React; jsx: typeof Jsx;
   ReadingSurface: React.ComponentType<ReadingSurfaceProps>;
   Button: React.ComponentType<{ children?: React.ReactNode; onClick(): void; disabled?: boolean; variant?: "ghost" | "secondary" | "default"; size?: "sm" | "default" }>;

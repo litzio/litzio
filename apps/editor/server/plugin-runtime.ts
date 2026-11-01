@@ -35,6 +35,11 @@ export class PluginRuntime implements ConversionExecutor {
     if (this.fault) throw this.fault;
     return this.store.get(id)?.job ?? null;
   }
+  requestHistory(plugin: string) {
+    if (this.fault) throw this.fault;
+    return this.store.history(plugin).map(receipt => ({ job: receipt.job, status: receipt.status, canCancel: this.active.has(receipt.job.id) }));
+  }
+  forgetRequest(id: string, plugin: string) { this.store.forget(id, plugin); }
   async start(request: ConversionRequest): Promise<ConversionJob> {
     if (this.closed) throw new Error("The plugin runtime is closing.");
     if (this.fault) throw this.fault;
@@ -116,6 +121,7 @@ export class PluginRuntime implements ConversionExecutor {
       job.failure ??= { code: execution.stopped === "timeout" ? "timeout" : "output", taskId: job.progress.taskId };
     } finally {
       clearTimeout(timer);
+      job.finishedAt = Date.now();
       try { if (staging) await rm(staging, { recursive: true, force: true }); }
       catch (error) {
         job.state = "error"; receipt.status = "error";

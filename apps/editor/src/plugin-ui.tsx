@@ -11,7 +11,7 @@ import { Button } from "./components/ui/button.tsx";
 import { i18n, type MessageKey } from "./i18n.ts";
 import { UiRegistry, type ActiveUi } from "./plugin-ui-registry.ts";
 
-type ShellApi = Pick<UiHost, "pickFolder" | "openTab" | "pickFile">;
+type ShellApi = Pick<UiHost, "pickFolder" | "openTab" | "pickFile" | "openSettings" | "openDocument" | "openFolder">;
 function PluginButton(props: React.ComponentProps<UiHost["Button"]>) {
   return <Button size="sm" variant="ghost" {...props} />;
 }
@@ -86,6 +86,10 @@ export function usePluginUi(shellApi: ShellApi) {
     }), load,
       (registration, guard, signal, initialJob, initialJobRead): UiHost => ({
         api: PLUGIN_UI.api, React, jsx, ReadingSurface: ReadOnlyDocument, Button: PluginButton, Input, Dialog: PluginDialog, initialJob, initialJobRead,
+        features: registration.features,
+        openSettings: (section, focus) => { guard(); api.current.openSettings(`plugin/${registration.id}/${section}`, focus); },
+        openDocument: path => { guard(); return api.current.openDocument(path); },
+        openFolder: path => { guard(); return api.current.openFolder(path); },
         setBusy: busy => { guard(); setBusy(previous => ({ ...previous, [`${registration.id}/${registration.revision}`]: busy })); },
         notify: notice => { guard(); setNotices(previous => ({ ...previous, [`${registration.id}/${registration.revision}`]: notice })); },
         openExternalLink: url => { guard(); openExternalLink(url); },

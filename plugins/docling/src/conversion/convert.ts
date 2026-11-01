@@ -4,7 +4,7 @@ import {
   insertTable, parse, serialize, updateHeadingNumbering, updateTableCaption,
   type Document, type InlineContent, type ListContent, type ListStyle,
 } from "@litzio/core";
-import { createMap, readDoclingMap, type MapItem, type Target, type DoclingMap } from "./map.ts";
+import { createMap, readDoclingMap, type MapItem, type Target, type DoclingMap } from "../shared/map.ts";
 import { readSource, type SourceItem } from "./source.ts";
 
 export type Conversion = { markdown: string; map: DoclingMap };

@@ -96,7 +96,8 @@ async (page, { openPath, expect, screenshots }) => {
     await page.emulateMedia({colorScheme:'light'});
     await page.evaluate(() => document.querySelector('.document-scroll[data-active=true]').scrollTo(0,0));
     // The same window-wide empty center also accompanies the read-only comparison.
-    await page.getByRole('button', {name:'Docling comparison',exact:true}).click();
+    await page.getByTestId('sidebar').getByRole('button', {name:'Docling',exact:true}).click();
+    await page.getByRole('button', {name:'Open conversion folder…',exact:true}).click();
     const picker = page.getByRole('dialog', {name:'Docling comparison',exact:true});
     await picker.getByTestId('folder-path').fill([root,'tmp','docling-compare','nist-sp1108r4'].join(sep));
     await picker.getByTestId('folder-open').click();

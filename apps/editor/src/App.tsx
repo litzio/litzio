@@ -153,6 +153,9 @@ function EditorApp() {
   const filePickerRequest = useRef<Parameters<UiHost["pickFile"]>[0] | null>(null);
   const compareReturn = useRef<HTMLElement | null>(null);
   const ui = usePluginUi({
+    openSettings: (section, focus) => { settingsReturnFocus.current = focus; setSettingsCategory(section as SettingsCategory); setSettingsOpen(true); },
+    openDocument: async path => { await openFolderDocument(path); },
+    openFolder: path => openFolder(path),
     pickFolder: (options, focus) => { compareReturn.current = focus; setPluginPicker(options); },
     openTab: openPluginTab,
     pickFile: (options, focus) => { filePickerReturn.current = focus; pickedFile.current = ""; filePickerRequest.current = options; setPluginFilePicker(options); },
@@ -171,7 +174,7 @@ function EditorApp() {
   const pluginTab = pluginTabs.find(tab => tab.id === activeId);
   const pluginTabLabels = tabLabels(pluginTabs);
   const allTabs = [...tabs, ...pluginTabs.map((tab, index) => ({ ...tab,
-    title: `${pluginTabLabels[index]!.folder ?? documentLocation(tab.path)[0]} · ${i18n.t(tab.label as MessageKey)}` }))];
+    title: [pluginTabLabels[index]!.folder ?? documentLocation(tab.path)[0], i18n.t(tab.label as MessageKey)].filter(Boolean).join(" · ") }))];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);

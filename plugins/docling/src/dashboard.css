@@ -1,0 +1,23 @@
+.docling-dashboard {
+  width: 100%; max-width: var(--layout-settings-content-width); margin-inline: auto;
+  padding: var(--space-6); color: var(--id-color-text); font-size: var(--font-size-sm);
+  word-break: var(--word-break-document); overflow-wrap: anywhere;
+}
+.docling-dashboard h1 { font-size: var(--font-size-md); font-weight: 600; }
+.docling-dashboard h2 { font-size: var(--font-size-sm); font-weight: 600; margin-bottom: var(--space-3); }
+.docling-dashboard h3 { font-size: inherit; font-weight: 600; }
+.docling-dashboard header > p, .docling-dashboard-meta { color: var(--id-color-text-muted); }
+.docling-dashboard header { margin-bottom: var(--space-6); }
+.docling-dashboard section { border-top: 1px solid var(--id-color-border-subtle); padding-block: var(--space-4); }
+.docling-dashboard-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.docling-dashboard-details { flex: 1 1 16rem; min-width: 0; }
+.docling-dashboard-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.docling-dashboard-list { list-style: none; margin: 0; padding: 0; }
+.docling-dashboard-list > li + li { border-top: 1px solid var(--id-color-border-subtle); margin-top: var(--space-3); padding-top: var(--space-3); }
+.docling-dashboard-path { word-break: normal; overflow-wrap: anywhere; }
+.docling-dashboard-state--error { color: var(--id-color-danger); }
+.docling-dashboard-state--uncertain { color: var(--id-color-warning); }
+.docling-dashboard-features { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-2); }
+.docling-dashboard-features label { display: flex; align-items: center; gap: var(--space-2); min-height: var(--size-control); }
+.docling-dashboard input[type="checkbox"] { accent-color: var(--id-color-interaction); }
+.plugin-tab.docling-dashboard-tab { overflow-y: auto; min-width: 0; }

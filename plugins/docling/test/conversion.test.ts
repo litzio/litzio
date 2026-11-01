@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 import { getEditableDocument, parse, serialize, type EditableBlock } from "@litzio/core";
 import { convertDoclingDocument, readDoclingMap } from "../src/index.ts";
-import type { Cell, SourceDocument, SourceItem } from "../src/source.ts";
+import type { Cell, SourceDocument, SourceItem } from "../src/conversion/source.ts";
 import profile from "../profiles/litzio-pdf-en-v1.json" with { type: "json" };
 
 const fixture = (name: string): string => readFileSync(new URL(`./fixtures/${name}/document.json`, import.meta.url), "utf8");

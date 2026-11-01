@@ -40,6 +40,8 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
       const file = store.hostEntry(id);
       const module: HostModule = createRequire(import.meta.url)(file);
       plugin = module.activate({
+        features: () => store.list().find(item => item.id === id)?.features ?? {},
+        setFeatures: features => store.setFeatures(id, features),
         settingsFile: settingsFile ?? configuredSettings[`LITZIO_${id.toUpperCase().replaceAll("-", "_")}_SETTINGS_FILE`] ?? path.join(os.homedir(), brand.folders.shared, `${id}.json`),
         resolvePath: (file, create) => accessPath(file, access, create),
         documentPath: file => resolveDocumentPath(file, access),
@@ -48,7 +50,8 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
         validateDocument: source => { readModel(source); },
         session: sessions.get(id) ?? sessions.set(id, new Map()).get(id)!,
         executor: { start: request => getRuntime().start({ ...request, plugin: id }), current: id => getRuntime().current(id),
-          cancel: id => getRuntime().cancel(id), close: () => close() },
+          cancel: id => getRuntime().cancel(id), close: () => close(),
+          history: () => getRuntime().requestHistory(id), forget: request => getRuntime().forgetRequest(request, id) },
       });
       activations.set(key, plugin);
     }

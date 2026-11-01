@@ -1,0 +1,38 @@
+{
+  "issue": 871,
+  "host": "Vite on port 5282, Windows persistent Chrome",
+  "date": "2026-11-01",
+  "captures": [
+    {
+      "bytes": 114702,
+      "file": "before-1440-light-en.png",
+      "sha256": "b1c3deed3286942c44352a82d3f493390d729085839ebb2d37334797f8918de0"
+    },
+    {
+      "bytes": 82138,
+      "file": "before-640-dark-ko.png",
+      "sha256": "33f45c1626bc0d8f463171cceda42c8040c7dc91712b30ca0fe75e6b99541d8d"
+    },
+    {
+      "bytes": 154511,
+      "file": "after-1440-light-en.png",
+      "sha256": "709404e4c5d0d6b8d6f44acce7d3e96d5a8bf520c2e81889059443e5714fdc3f"
+    },
+    {
+      "bytes": 119361,
+      "file": "after-640-dark-ko.png",
+      "sha256": "015966d3b125f45b44d0fd7ec6b9607d58c33e20853526b6809375961ffdb41a"
+    }
+  ],
+  "after": "New dashboard with running, completed and failed requests together; 1440 Light English and 640 Dark Korean",
+  "source": "Existing synthetic Docling HTTP server; real source bundle and runtime receipts",
+  "viewportHeight": 1100,
+  "review": [
+    "row centers and control padding",
+    "long paths and Korean word wrapping",
+    "no horizontal overflow",
+    "vertical access to Quick actions",
+    "shared Settings controls and retained #815 comparison"
+  ],
+  "before": "Original #870 UI entry compiled from commit 79396b5c with source imports relocated only; this new dashboard has no preceding dashboard view"
+}

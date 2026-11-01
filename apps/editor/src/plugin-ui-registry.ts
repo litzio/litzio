@@ -60,7 +60,7 @@ export class UiRegistry {
     const removed: Entry[] = [], added: Entry[] = [];
     for (const [id, entry] of this.entries) {
       const next = registrations.find(registration => registration.id === id);
-      if (!next || next.revision !== entry.state.revision || JSON.stringify(next.ui) !== JSON.stringify(entry.state.ui)) {
+      if (!next || next.revision !== entry.state.revision || JSON.stringify(next.ui) !== JSON.stringify(entry.state.ui) || JSON.stringify(next.features) !== JSON.stringify(entry.state.features)) {
         entry.alive = false; entry.controller.abort(); this.entries.delete(id); removed.push(entry);
       }
     }

@@ -1,4 +1,4 @@
-import { convertDoclingPdf, DoclingPdfError } from "./pdf.ts";
+import { convertDoclingPdf, DoclingPdfError } from "./conversion/pdf.ts";
 
 // IPC disconnect ends local work once the event loop services it. It does not
 // cancel a remote Docling task or sandbox untrusted CPU loops. No child process

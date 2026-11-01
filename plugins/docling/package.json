@@ -6,12 +6,12 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./compare": "./src/compare.ts",
-    "./compare-host": "./src/compare-host.ts",
-    "./ui": "./src/CompareView.tsx",
-    "./server": "./src/server.ts",
-    "./server-types": "./src/server-types.ts",
-    "./server-ui": "./src/ServerSettings.tsx"
+    "./compare": "./src/comparison/compare.ts",
+    "./compare-host": "./src/comparison/compare-host.ts",
+    "./ui": "./src/comparison/CompareView.tsx",
+    "./server": "./src/conversion/server.ts",
+    "./server-types": "./src/conversion/server-types.ts",
+    "./server-ui": "./src/conversion/ServerSettings.tsx"
   },
   "scripts": {
     "test": "tsx --test test/*.test.ts",

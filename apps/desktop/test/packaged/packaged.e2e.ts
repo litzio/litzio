@@ -122,7 +122,8 @@ test("packaged in-process Host forks its shipped Docling worker and opens a comp
       return new Response(response.text, { status: response.status });
     }, folder, fake.url);
     const page = launched.page, timeOrigin = await page.evaluate(() => performance.timeOrigin);
-    await page.getByRole("button", { name: "Docling comparison", exact: true }).click();
+    await page.getByRole("button", { name: "Docling", exact: true }).click();
+    await page.getByRole("button", { name: "Open conversion folder…", exact: true }).click();
     await page.getByTestId("folder-path").fill(output);
     await page.getByTestId("folder-open").click();
     const comparison = page.locator(".docling-tab[data-active=true]");
@@ -132,7 +133,7 @@ test("packaged in-process Host forks its shipped Docling worker and opens a comp
     const manifest = await app.evaluate(() => process.resourcesPath + "/cli/docling-worker/manifest.json");
     assert.equal(await page.evaluate(async () => (await fetch("/api/worker-plugins", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: "docling" }) })).status), 200);
     await expect(comparison.getByText("Plugin is disabled.", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Docling comparison", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Docling", exact: true })).toHaveCount(0);
     assert.equal(await page.evaluate(async manifest => (await fetch("/api/worker-plugins", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ manifest }) })).status, manifest), 200);
     await expect(comparison.locator(".docling-source img").first()).toBeVisible();
     assert.equal(await comparison.getAttribute("aria-labelledby"), tabId);
