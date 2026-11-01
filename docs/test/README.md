@@ -498,7 +498,8 @@ requires MXC; the adapter fails instead of silently using a weaker sandbox.
 
 Owner manual checks:
 
-- With an existing Codex login, submit a task through `POST /api/ai-tasks` using
+- For another Host/account or after adapter changes, use an existing Codex login
+  to submit a task through `POST /api/ai-tasks` using
   an enabled calling plugin, a disposable material file and a strict result schema.
   Confirm the model actually reads the material, result shape/content separately,
   unchanged caller baseline/source, and removed snapshot/control folders.
@@ -512,12 +513,18 @@ Owner manual checks:
   registration and status section. Required CI exercises packaging; native
   Codex/account readiness is not established by synthetic CI.
 
-The 2026-11-02 single real trial (0.164.0) reused login, returned schema-valid JSON,
-reported the global instruction block, preserved source and removed temporary
-folders. It reported a missing `SYSTEMROOT` instead of reading the material.
-The adapter's shell environment was corrected to `core`, and the model-free actual
-exec-harness regression now reads the snapshot successfully. The one-call limit
-means successful model-driven material reading with that correction remains manual. See the
+The initial 2026-11-02 real trial (0.164.0) reported a missing `SYSTEMROOT` instead
+of reading the material. The adapter's shell environment was corrected to `core`,
+and the model-free actual exec-harness regression passed. With explicit owner
+authorization, one additional real call (`gpt-6.1-sol`, 8.4 seconds) then used the
+installed Host service/worker to read a synthetic JSON snapshot successfully.
+The file's unique token and the returned `token` both equalled
+`f37e567422bcf8a41d8c0d629772da9ce5f3a176`; the expected value appeared only in
+the material file, not the instructions, small input or result schema. The
+assertions also checked schema success, unchanged caller baseline/source and
+removed snapshot/control folders. Model-driven reading with `inherit=core` is
+therefore locally verified. Global instruction isolation and real-provider
+cancellation remain manual as listed above. See the
 [runtime contract](../design/plugin-runtime-v1.md#ai-task-service-880).
 
 ## Docling worker runtime (#853)

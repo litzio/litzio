@@ -300,24 +300,29 @@ avoid ordinary personal configuration and alternate network/tool surfaces.
 **Known Codex limitation:** in 0.164.0, global `~/.codex/AGENTS.md` still enters the
 model context with those flags, even with `project_doc_max_bytes=0`. A local
 capture-only provider observed it in the actual request; repository AGENTS was
-absent. The single authenticated model trial also reported the global block.
+absent. The initial authenticated model trial also reported the global block.
 There is no product user-instruction field, but full isolation from global
 instructions is therefore not claimed. Options for a later owner decision are
 an upstream per-run instruction-disable control or a dedicated Codex home with
 an explicit credential-reuse policy. This implementation changes neither the
 user's instruction files nor their credentials.
 
-The one real model trial reused the existing login, returned schema-valid JSON
-and cleaned both folders while preserving the source. Its content reported that
-the then-empty shell environment lacked `SYSTEMROOT`, so it did **not** prove
-successful material reading. The adapter now uses Codex's `core` environment;
-an opt-in, model-free test of the real Codex exec harness now confirms a successful
-shell read with that core environment. The one-model-call limit was honored,
-so the corrected model path remains an
-[owner manual check](../test/README.md#ai-agent-task-service-880). Automated tests
-use fake adapters, and an opt-in no-model native sandbox check proves snapshot
-read, outside-file denial, write denial and network denial locally. Packaging and other OSes
-remain required CI/manual boundaries rather than claims from this trial.
+The initial real model trial reused login and returned schema-valid JSON, but
+reported a missing `SYSTEMROOT` rather than reading the material. After changing
+the shell environment to `core`, the model-free exec-harness regression passed.
+On 2026-11-02 the owner authorized one additional authenticated model call
+(Codex CLI 0.164.0, `gpt-6.1-sol`). Through the installed Host service and worker,
+it read a synthetic JSON snapshot and returned the exact random 40-hex-character
+token stored only in that file, in 8.4 seconds. The token was absent from the
+instructions, small input and result schema. Result/schema success, unchanged
+baseline/source and removal of both temporary folders were checked separately.
+This confirms model-driven material reading with `inherit=core` on this Windows
+Host. It does not resolve global instructions or establish real-provider
+cancellation and other Host/account readiness; those remain
+[owner manual checks](../test/README.md#ai-agent-task-service-880).
+Automated tests use fake adapters. The opt-in no-model native sandbox check
+separately proves outside-file, write and network denial locally. Packaging and
+other OSes remain required CI/manual boundaries rather than claims from this trial.
 
 AI execution is not a document semantic operation, so no CLI command is added.
 The Host HTTP route is the headless execution surface. There is no task registry,
