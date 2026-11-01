@@ -8,10 +8,10 @@ const editorUpdate = path => ['apps/editor/shared/desktop-bridge.ts',
   'apps/editor/src/shell/SettingsDialog.tsx', 'apps/editor/src/shell/MessageArea.tsx'].includes(path);
 const shared = path => ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml'].includes(path) ||
   /^(patches\/|tsconfig[^/]*$|\.github\/workflows\/|scripts\/)/.test(path);
-const product = path => ['packages/cli', 'plugins/docling', 'apps/editor', 'packages/core', 'packages/file-commit', 'apps/desktop']
+const product = path => ['packages/cli', 'plugins/docling', 'plugins/ai-agent', 'packages/plugin-api', 'apps/editor', 'packages/core', 'packages/file-commit', 'apps/desktop']
   .some(name => inPackage(path, name));
 const known = path => product(path) || shared(path) || path.startsWith('docs/') ||
-  path.endsWith('.md') || path.startsWith('.github/ISSUE_TEMPLATE/');
+  path.startsWith('.agents/skills/') || path.endsWith('.md') || path.startsWith('.github/ISSUE_TEMPLATE/');
 // These files create/configure the parser and diagnostic/footnote tokenizers.
 const parserSettings = ['parse.ts', 'serialize.ts', 'footnote.ts', 'literal-syntax.ts']
   .map(name => `packages/core/src/myst/${name}`);
@@ -19,9 +19,9 @@ const parserSettings = ['parse.ts', 'serialize.ts', 'footnote.ts', 'literal-synt
 export function selectJobs(eventName, paths) {
   if (!['pull_request', 'merge_group'].includes(eventName) || !paths?.length) return allJobs();
   const full = paths.some(path => shared(path) || !known(path));
-  const browser = full || paths.some(path => ['apps/editor', 'packages/core', 'packages/file-commit']
+  const browser = full || paths.some(path => ['apps/editor', 'packages/core', 'packages/file-commit', 'packages/plugin-api']
     .some(name => inPackage(path, name)));
-  const http = browser || paths.some(path => ['packages/cli', 'plugins/docling'].some(name => inPackage(path, name)));
+  const http = browser || paths.some(path => ['packages/cli', 'plugins/docling', 'plugins/ai-agent'].some(name => inPackage(path, name)));
   return {
     quality: !isDocumentationOnly(eventName, paths),
     browser, http,
