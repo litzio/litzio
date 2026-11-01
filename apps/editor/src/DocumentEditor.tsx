@@ -61,7 +61,7 @@ import { documentEnd, runHistoryShortcut } from "./document-interaction.ts";
 import { NodeSelection, Plugin, Selection, TextSelection } from "@tiptap/pm/state";
 import type { SaveErrorLocation } from "./save-error.ts";
 
-type BlockMenu = { kind: "insert" | "block" | "list-format"; index: number; top: number };
+type BlockMenu = { kind: "insert" | "block" | "list-format"; index: number; top: number; left?: number; context?: boolean };
 
 /** An insert command or reference item as the insert menu shows it: grouped, with its icon. */
 function insertMenuItem(item: { id: string; label: string; group: string; hint?: string }): CommandMenuItem {
@@ -423,6 +423,89 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   }, [editor, draftRevision]);
 
   useEffect(() => {
+    if (!editor || !visible || readOnly) return;
+    const { view } = editor;
+    const dom = view.dom;
+    let selectedAtPointer: Selection | null = null;
+    let nativeKeyboardMenu = false;
+    const nativeTarget = (target: EventTarget | null) => target instanceof Element &&
+      !!target.closest('input, textarea, select, button, [role="textbox"], pre');
+    const pointer = (event: MouseEvent) => {
+      selectedAtPointer = null;
+      nativeKeyboardMenu = false;
+      const { selection } = editor.state;
+      if (event.button !== 2 || selection instanceof NodeSelection || selection.empty) return;
+      // Test the actual selected lines, not the selection's bounding box (which includes gaps).
+      const native = dom.ownerDocument.getSelection();
+      if (!native || native.isCollapsed) return;
+      for (let index = 0; index < native.rangeCount; index++) {
+        if ([...native.getRangeAt(index).getClientRects()].some(rect =>
+          event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom)) {
+          selectedAtPointer = selection;
+          return;
+        }
+      }
+    };
+    const open = (index: number, x: number, y: number) => {
+      const rect = host.current?.getBoundingClientRect();
+      if (!rect || !editor.state.doc.maybeChild(index)) return false;
+      view.focus();
+      setBlockMenu({ kind: "block", index, left: x - rect.left, top: y - rect.top, context: true });
+      return true;
+    };
+    const context = (event: MouseEvent) => {
+      const retained = selectedAtPointer;
+      selectedAtPointer = null;
+      const nativeKey = nativeKeyboardMenu;
+      nativeKeyboardMenu = false;
+      if (!editor.isEditable || nativeKey || nativeTarget(event.target)) return;
+      if (retained) {
+        // NodeViews can handle secondary mousedown themselves. Native Copy still needs the text selection.
+        if (!retained.eq(editor.state.selection)) view.dispatch(editor.state.tr.setSelection(retained));
+        return;
+      }
+      let block: { index: number; pos: number } | undefined;
+      editor.state.doc.forEach((_node, pos, index) => {
+        const element = view.nodeDOM(pos);
+        if (element instanceof Element && element.contains(event.target as Node)) block = { index, pos };
+      });
+      if (!block) return;
+      const hit = view.posAtCoords({ left: event.clientX, top: event.clientY });
+      const node = editor.state.doc.child(block.index);
+      // Rendered atomic content has no text caret; captions/cells keep their clicked text position.
+      const selection = node.isAtom || (event.target instanceof Element && event.target.closest('[contenteditable="false"]'))
+        ? NodeSelection.create(editor.state.doc, block.pos)
+        : Selection.near(editor.state.doc.resolve(hit?.pos ?? block.pos + 1));
+      view.dispatch(editor.state.tr.setSelection(selection));
+      if (open(block.index, event.clientX, event.clientY)) event.preventDefault();
+    };
+    const key = (event: KeyboardEvent) => {
+      if (!(event.key === "ContextMenu" || event.key === "F10" && event.shiftKey) ||
+          event.isComposing || !editor.isEditable) return;
+      const { selection } = editor.state;
+      if (nativeTarget(event.target) || (!selection.empty && !(selection instanceof NodeSelection)) || selection.$from.parent.type.spec.code) {
+        // Some Hosts emit contextmenu after the unhandled key as well.
+        nativeKeyboardMenu = true;
+        return;
+      }
+      const coords = view.coordsAtPos(selection.from);
+      if (open(selection.$from.index(0), coords.left, coords.bottom)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    // Capture also covers NodeViews whose source/form events ProseMirror intentionally ignores.
+    dom.addEventListener("mousedown", pointer, true);
+    dom.addEventListener("contextmenu", context, true);
+    dom.addEventListener("keydown", key, true);
+    return () => {
+      dom.removeEventListener("mousedown", pointer, true);
+      dom.removeEventListener("contextmenu", context, true);
+      dom.removeEventListener("keydown", key, true);
+    };
+  }, [editor, visible, readOnly]);
+
+  useEffect(() => {
     // Re-evaluate decoration text (placeholders/title) without a transaction, history entry,
     // or recreation of the editor/NodeViews. React NodeViews subscribe independently.
     const redraw = () => { if (!editor.isDestroyed) editor.view.updateState(editor.state); };
@@ -738,6 +821,16 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     editor.view.dispatch(command.run(editor.state, index));
     editor.view.focus();
   };
+  const closeBlockMenu = (event?: MouseEvent) => {
+    setBlockMenu(null);
+    if (blockMenu?.context) {
+      // A click on inert shell space must not blur the restored editor as its default action.
+      // Actual controls and document clicks still receive their normal focus/caret handoff.
+      if (event?.target instanceof Element &&
+          !event.target.closest('button, a[href], input, textarea, select, [tabindex], [contenteditable="true"]')) event.preventDefault();
+      editor.view.focus();
+    }
+  };
 
   // Only top-level paragraphs offer block commands; other inline surfaces keep this menu.
   const slash = blockMenu ? null : slashQueryAt(editor.state);
@@ -808,7 +901,9 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   const referenceStyle = referenceDraft ? caretStyle(referenceDraft.from, false) : undefined;
   const citationStyle = citationDraft !== null && citationDraft <= editor.state.doc.content.size ? caretStyle(citationDraft, false) : undefined;
   const slashStyle = !readOnly && slashOpen && slash ? caretStyle(slash.from, true) : undefined;
-  const blockMenuStyle: CSSProperties | undefined = visible && !readOnly && blockMenu ? { top: blockMenu.top + 32, left: "var(--space-2)" } : undefined;
+  const blockMenuStyle: CSSProperties | undefined = visible && !readOnly && blockMenu ? {
+    top: blockMenu.top + (blockMenu.context ? 0 : 32), left: blockMenu.left ?? "var(--space-2)",
+  } : undefined;
 
   return (
     <EditorAuthoring value={!readOnly}><article data-read-only={readOnly}
@@ -962,7 +1057,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           focusOnOpen
           style={blockMenuStyle}
           onSelect={id => runBlockCommand(id, blockMenu.index)}
-          onClose={() => setBlockMenu(null)}
+          onClose={closeBlockMenu}
         />
       ) : null}
       {blockMenu?.kind === "list-format" && blockMenuStyle ? (
@@ -987,10 +1082,10 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
             }
             editor.view.focus();
           }}
-          onClose={() => {
+          onClose={event => {
             const index = blockMenu.index;
-            setBlockMenu(null);
-            host.current?.querySelectorAll<HTMLElement>(".block-handle")[index]?.focus();
+            closeBlockMenu(event);
+            if (!blockMenu.context) host.current?.querySelectorAll<HTMLElement>(".block-handle")[index]?.focus();
           }}
         />
       ) : null}

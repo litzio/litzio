@@ -31,7 +31,7 @@ type CommandMenuProps = {
   focusOnOpen?: boolean;
   emptyText?: string;
   onSelect(id: string): void;
-  onClose(): void;
+  onClose(event?: MouseEvent): void;
 };
 
 /** Presentational menu shared by the insert menu (`+` and `/`) and the block menu. */
@@ -60,7 +60,7 @@ export function CommandMenu({ label, items, style, anchor, activeIndex, focusOnO
     if (!root.current?.contains(document.activeElement)) returnFocus.current = document.activeElement;
     if (focusOnOpen) root.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
     const outside = (event: MouseEvent) => {
-      if (!root.current?.contains(event.target as Node)) onClose();
+      if (!root.current?.contains(event.target as Node)) onClose(event);
     };
     document.addEventListener("mousedown", outside);
     return () => document.removeEventListener("mousedown", outside);

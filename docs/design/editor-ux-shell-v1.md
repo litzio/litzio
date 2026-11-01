@@ -457,7 +457,7 @@ When the Host exposes `openFolderInExplorer`, every opened root's More actions m
 Each child-folder row also offers More actions with this command. It uses the shared compact
 button and action menu components; activating it does not expand/collapse the folder.
 Vite and HTTP have no capability and display neither the command nor child-folder menu buttons.
-Folder right-click menus remain #223 scope. Failure shows the existing localized error surface.
+Folder right-click menus remain outside the body-menu scope of #223. Failure shows the existing localized error surface.
 Closing a folder synchronizes Desktop's active roots without closing its documents.
 
 Browser verification uses a stand-in Desktop bridge and checks root/child paths, browser absence,
@@ -471,8 +471,9 @@ items (not run). See the [Desktop boundary](desktop-distribution-v1.md#open-fold
 
 Each file tree row (native/foreign document, image or other file) offers Rename… and Delete file…
 in a shared Base UI ContextMenu. Right click and focused-row Shift+F10 / Menu key open the
-same menu in every Host. Only these file targets suppress the browser context
-menu; folder rows and the document body retain native behavior. There are no new ellipsis,
+same menu in every Host. These file targets suppress the browser context menu;
+the document body follows the [block context-menu boundary](#body-block-context-menu-223),
+while folder rows and Outline retain native behavior. There are no new ellipsis,
 toolbar, F2 or Delete entries. Target-local data supplies IDs, labels, icons, visibility and execution;
 there is no global registry. Keyboard menu navigation is independent of tree arrows; Escape
 restores the target row. Choosing an action hands focus to its shared dialog.
@@ -1685,10 +1686,39 @@ Historical layout-specific failures and browser probes: [Shortcut layout verific
 - Equations, Tables, inline math and section labels use the shared explicit properties form; Figure metadata uses the #757 popover described above: selecting a block opens no panel; Edit opens its explicit form (Equation in its document block with LaTeX, draft preview, number and label; Figure in a popover with image, alt text and label), with Apply/Cancel and Escape. Figure image surfaces, block/inline formula previews and Table metadata offer double-click through the same path; Enter on a selected Figure, Table or math node also opens properties (#557). Figure/Table caption and cell double-click keeps native text selection. Inline math has an explicit Cancel button and retains its unapplied draft on outside focus, Save/Source and tab switching. Edit, double-click and selected Enter focus the first field; closing retains a text selection inside the block or returns a [caret after the block](document-editing-v1.md#continuous-editing), so subsequent typing preserves it. Opening properties and focus restoration change neither document nor history; double-click while already editing leaves the existing form untouched. Unapplied changes retain the block-local notice and an explicit applied-only Save/Source notice.
 - Authoring restrictions, reference chips, caption text and errors stay visible. Authoring metadata is hidden at rest and revealed during interaction; actual labels remain explicit in properties/editing. Figure, Equation and every Table number are computed for display and never written into their text. Table numbers do not depend on caption or Label; [all tables use numbered directives](table-caption-v1.md). The [Number headings](heading-numbering-v1.md) checkbox in Document settings optionally numbers H1–H6 body sections in the document and Outline, leaves the frontmatter title unnumbered, and saves MyST numbering settings only.
 
+### Body block context menu (#223)
+
+In editable Visual view, secondary click on a body block opens its existing block menu
+at the pointer, including Table, Figure and Equation. Shift+F10 and the Menu key inside
+the editor open the current block's same menu by the caret. It shares the gutter menu's
+items, icons, disabled reasons, command execution and Undo/Redo; no separate action data,
+clipboard items, Core operation or CLI command is introduced. The shared CommandMenu
+fits inside the owning document viewport, including its right/bottom edges and panels.
+
+A secondary click inside nonempty selected text retains that selection and the browser
+menu. Outside the selected glyphs it moves the caret to the clicked text position or
+selects the rendered atomic block before opening its menu. Inputs and code/equation
+source editing retain native menus; keyboard context-menu entry with selected text
+also stays native. Read view, read-only documents and unavailable block targets never
+suppress the browser menu. Folder/Outline and existing file/tab menus are unchanged.
+
+The menu focuses its first enabled item. Escape and dismissal return focus to the
+editor with its retained selection; clicking another control/document position keeps
+the ordinary focus/caret handoff. Applying an action uses its existing selection and
+history behavior. `read-view` verifies pointer/keyboard entry, handle-menu parity,
+native boundaries, selection/focus return and conversion Undo/Redo.
+
+Manual same-state evidence: [1440px Before](assets/body-context-223/before-1440.png) /
+[After](assets/body-context-223/after-1440.png), [640px Dark/Korean Before](assets/body-context-223/before-640.png) /
+[After](assets/body-context-223/after-640.png). [Capture conditions and hashes](assets/body-context-223/capture-metadata.json)
+and the [manual capture script](assets/body-context-223/capture.browser.js) distinguish visual
+inspection from automated assertions and owner approval. Gutter, file and tab menus were
+also inspected at both widths; only the four representative comparison images are retained.
+
 ### Unified action menus (#516)
 
 Owner decision D2/M1 (2026-10-26, [#507](https://github.com/litzio/litzio/issues/507)):
-block `⠿`, `+`, slash and table row/column/table menus reuse `CommandMenu` with
+block `⠿`/body context menus, `+`, slash and table row/column/table menus reuse `CommandMenu` with
 action-specific 16px pinned lucide line icons, labels, optional real hints and group
 separators. `+`/slash retain their Markdown-input hints as key chips; block actions
 gain no invented keyboard shortcuts. Delete, Delete section, Delete table and
