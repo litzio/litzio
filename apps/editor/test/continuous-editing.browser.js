@@ -180,6 +180,9 @@ async (page, { showNotifications, openDocument }) => {
   // After undoing its own edit, another Undo must not reach the outside textarea.
   await settings.getByRole('button', {name:'Docling',exact:true}).click();
   const serverAddress = settings.getByRole('textbox', {name:'Server address',exact:true});
+  // Capture native history only after the saved Host address replaces the
+  // disabled loading value; a preceding conversion can configure another URL.
+  await serverAddress.and(page.locator(':enabled')).waitFor();
   const originalAddress = await serverAddress.inputValue();
   await serverAddress.focus(); await page.keyboard.press('End'); await page.keyboard.type('x');
   for (const [key, expected] of [
