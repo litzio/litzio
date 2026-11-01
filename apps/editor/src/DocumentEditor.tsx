@@ -483,9 +483,14 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       const hit = view.posAtCoords({ left: event.clientX, top: event.clientY });
       const node = editor.state.doc.child(block.index);
       const readonly = event.target instanceof Element ? event.target.closest('[contenteditable="false"]') : null;
-      // Rendered atomic content has no text caret; captions/cells keep their clicked text position.
-      const selection = node.isAtom || readonly && readonly !== dom
-        ? NodeSelection.create(editor.state.doc, block.pos)
+      const clicked = hit && hit.inside >= 0 ? editor.state.doc.nodeAt(hit.inside) : null;
+      // Match the engine's clicked-leaf selection for inline NodeViews, without selecting their paragraph.
+      // Rendered block content has no text caret; captions/cells keep their clicked text position.
+      const atomPos = hit && clicked?.isInline
+        ? clicked.isAtom && NodeSelection.isSelectable(clicked) ? hit.inside : null
+        : node.isAtom || readonly && readonly !== dom ? block.pos : null;
+      const selection = atomPos !== null
+        ? NodeSelection.create(editor.state.doc, atomPos)
         : Selection.near(editor.state.doc.resolve(hit?.pos ?? block.pos + 1));
       view.dispatch(editor.state.tr.setSelection(selection));
       if (open(block.index, event.clientX, event.clientY)) event.preventDefault();

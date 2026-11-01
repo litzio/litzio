@@ -115,6 +115,41 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
   await page.keyboard.press('Control+Shift+z'); await expect(editor.locator('h3')).toContainText('Read this');
   await page.keyboard.press('Control+z'); expect(await json()).toBe(beforeContext);
 
+  // Cancelling a paragraph menu over an inline atom must leave only that atom selected.
+  for (const [kind, target] of [
+    ['inlineMath', contextParagraph.getByTestId('inline-math').locator('.katex-html')],
+    ['citation', contextParagraph.locator('[data-citation] .cross-reference-chip')],
+    ['crossReference', contextParagraph.getByTestId('cross-reference').locator('.cross-reference-chip')],
+  ]) {
+    const original = await json();
+    const expected = await editor.evaluate((el, kind) => {
+      const {doc} = el.editor.state;
+      let result;
+      doc.descendants((node,pos) => {
+        if (result || node.type.name !== kind) return;
+        const at=doc.resolve(pos), parent=at.parent;
+        result={index:at.index(0),text:parent.textBetween(0,at.parentOffset)+'Z'+parent.textBetween(at.parentOffset+node.nodeSize,parent.content.size),
+          otherInline:parent.content.content.filter(child=>!child.isText&&child.type.name!==kind).map(child=>child.toJSON())};
+      });
+      return result;
+    },kind);
+    await editor.locator('h1').click({position:{x:8,y:8}});
+    await target.click({button:'right'});
+    await expect(blockMenu.getByRole('menuitem',{name:'Change to Heading 3',exact:true})).toBeEnabled();
+    await page.keyboard.press('Escape'); await expect(blockMenu).toHaveCount(0);
+    const retainedInline = await editor.evaluate(el=>el.editor.state.selection.node?.type.name);
+    await page.keyboard.type('Z');
+    const after = await editor.evaluate((el,{index,kind}) => {
+      const paragraph=el.editor.state.doc.child(index);
+      return {text:paragraph.textContent,otherInline:paragraph.content.content.filter(child=>!child.isText&&child.type.name!==kind).map(child=>child.toJSON())};
+    },{index:expected.index,kind});
+    expect(after.text, `${kind}: typing after menu Escape must preserve the surrounding paragraph`).toBe(expected.text);
+    expect(after.otherInline).toEqual(expected.otherInline);
+    expect(retainedInline).toBe(kind);
+    await expect(contextParagraph.locator('a[href="https://example.com"]')).toHaveText('link');
+    await page.keyboard.press('Control+z'); expect(await json()).toBe(original);
+  }
+
   // Table cells and rendered atomic content target their own block, even from another block's selection.
   for (const target of [panel.getByTestId('figure-image'),panel.getByTestId('equation-preview'),editor.locator('td').first()]) {
     await selectProse();

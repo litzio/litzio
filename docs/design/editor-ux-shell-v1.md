@@ -1702,9 +1702,11 @@ and clickable without moving or changing the notification button.
 
 A secondary click inside nonempty selected text retains that selection and the browser
 menu. Outside the selected glyphs it moves the caret to the clicked text position or
-selects the rendered atomic block before opening its menu. Inputs and code/equation
-source editing retain native menus; keyboard context-menu entry with selected text
-also stays native. Read view, read-only documents and unavailable block targets never
+selects the rendered atomic block before opening its menu. An inline NodeView (math,
+citation or cross-reference) retains the engine's inline selection while its enclosing
+block supplies the menu; Escape followed by typing preserves the surrounding content.
+Inputs and code/equation source editing retain native menus; keyboard context-menu
+entry with selected text also stays native. Read view, read-only documents and unavailable block targets never
 suppress the browser menu. Folder/Outline and existing file/tab menus are unchanged.
 
 The menu focuses its first enabled item. Escape and dismissal return focus to the
