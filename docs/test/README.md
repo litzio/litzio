@@ -538,6 +538,49 @@ dedicated-home adoption conditions remain as documented above; real-provider
 cancellation remains manual. See the
 [runtime contract](../design/plugin-runtime-v1.md#ai-task-service-880).
 
+## Docling structure review (#884)
+
+`pnpm --filter @litzio/docling test` includes a synthetic DoclingDocument with
+heading-depth, cross-page paragraph and header/body errors, plus a fixed-result
+fake AI service. It verifies request materials/schema/baseline, dry-run separation
+of pending/inapplicable results, storage, approval/rejection/undo, current-ledger
+revalidation, rerun/history retention, source drift, agent disable, cancellation,
+failure/uncertain/no replay, byte preservation and complete-generation rollback.
+`pnpm --filter @litzio/editor exec tsx --test test/docling-review.test.ts`
+additionally uses the installed plugin through the shared HTTP operation route
+with B's real service/runtime and a deterministic worker. Neither calls an AI
+model or a Docling service.
+
+Owner manual checks (C2 screens are not part of #884):
+
+1. With an existing Codex login and the AI agent enabled, convert a disposable
+   synthetic DoclingDocument, then call `/api/plugin-operation` with
+   `{plugin: "docling", operation: "review-start", args: {folder, id: UUID}}`.
+   Observe `review-status` until terminal; confirm suggestions return, are
+   independently dry-run validated and are stored in `structure-review.json`.
+   Check original SHA-256, no automatic corrections and terminal material cleanup.
+   This is a flow check, not an evaluation of suggestion accuracy.
+2. With an existing IEEE 1547 conversion, repeat the explicit review using its
+   untouched original JSON/current ledger. Inspect the pages and quoted fragments
+   for each proposed decision before approving. Confirm inapplicable/stale results
+   are distinguished, rejection affects only proposals, approval carries reason
+   and `aiEvidence` into A's ledger and regenerates Markdown/map, and undo uses
+   A's replay. Reopen the comparison tab to read the new generation; no automatic
+   C2 screen refresh is implemented here. Do not treat a schema pass or synthetic
+   trial as IEEE content-quality proof.
+3. Check actual Codex cancellation/Host shutdown and provider-process cleanup on
+   the intended machine/account. Disable the agent and confirm explicit service
+   unavailability, ordinary document use and drain of already accepted work.
+   Recheck B's global-instruction limitation and deferred dedicated-home conditions
+   in [ADR-0013](../adr/0013-ai-agent-task-service.md#limitations-and-follow-up).
+
+Local flow evidence on 2026-11-02: one authenticated `gpt-6.1-sol` call through the
+installed Host/service/worker took 17.248 seconds and returned three suggestions.
+All passed schema and A's dry-run and were saved pending; no approval or accuracy
+judgment was made. Original SHA-256 was unchanged, corrections remained empty,
+all three material copies and both B temporary folders were removed, and Host
+shutdown completed. IEEE and real-provider cancellation remain manual.
+
 ## Docling worker runtime (#853)
 
 The UI contribution boundary is checked separately by

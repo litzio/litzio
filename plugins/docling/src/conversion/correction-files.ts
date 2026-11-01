@@ -6,7 +6,7 @@ import { loadDoclingImages } from "./files.ts";
 import { sha256 } from "../shared/map.ts";
 import type { Conversion } from "./convert.ts";
 
-type Options = { resolveSource?: (file: string) => string; beforePublish?: () => void };
+type Options = { resolveSource?: (file: string) => string; beforePublish?: () => void; updateFiles?: (staging: string) => void };
 const read = (file: string): string => new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(readFileSync(file));
 const message = (error: unknown): string => error instanceof Error ? error.message : String(error);
 
@@ -31,7 +31,8 @@ export function readFolderCorrections(folder: string): DoclingCorrections {
   return ledger;
 }
 
-function regenerate(folder: string, update: (record: DoclingCorrections) => void, options: Options): Conversion {
+/** Shared complete-generation publication for corrections and their review state. */
+export function updateConversionFolder(folder: string, prepare: () => (staging: string) => void, beforePublish?: () => void): void {
   // Native Windows resolution expands 8.3 aliases before naming the public
   // generation and its shared lock. JS realpath can retain the short spelling.
   folder = realpathSync.native(folder);
@@ -42,25 +43,14 @@ function regenerate(folder: string, update: (record: DoclingCorrections) => void
   let staging: string | undefined, backup: string | undefined, published = false;
   let failed = false, failure: unknown;
   try {
-    const before = revision(folder), record = readFolderCorrections(folder);
-    update(record);
-    readDoclingCorrections(JSON.stringify(record));
-    const sourcePath = path.resolve(folder, record.source.file);
-    const input = realpathSync.native(options.resolveSource?.(sourcePath) ?? sourcePath), source = read(input);
-    const { images, assets } = loadDoclingImages(input, source, path.dirname(input) === folder);
-    const result = convertWithDoclingCorrections(source, record, { images });
+    const before = revision(folder), write = prepare();
     // Publish a complete sibling generation. Two directory renames can briefly
     // make the path absent, but never expose a mixed Markdown/map/ledger pair.
     staging = mkdtempSync(path.join(parent, `.${base}.corrections-`));
     cpSync(folder, staging, { recursive: true, preserveTimestamps: true });
-    for (const [name, bytes] of assets) {
-      const file = path.join(staging, name); mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, bytes);
-    }
-    writeFileSync(path.join(staging, "document.md"), result.markdown, "utf8");
-    writeFileSync(path.join(staging, "document.docling-map.json"), JSON.stringify(result.map, null, 2) + "\n", "utf8");
-    writeFileSync(path.join(staging, "corrections.json"), JSON.stringify(record, null, 2) + "\n", "utf8");
-    options.beforePublish?.();
-    if (revision(folder) !== before || sha256(read(input)) !== record.source.sha256) throw new Error("Conversion source/folder changed after it was read; nothing was written");
+    write(staging);
+    beforePublish?.();
+    if (revision(folder) !== before) throw new Error("Conversion source/folder changed after it was read; nothing was written");
     backup = path.join(parent, `.${base}.previous-${randomUUID()}`);
     renameSync(folder, backup);
     try { renameSync(staging, folder); staging = undefined; published = true; }
@@ -69,7 +59,6 @@ function regenerate(folder: string, update: (record: DoclingCorrections) => void
       catch (rollback) { throw new Error(`Could not restore conversion folder; publication failed: ${message(cause)}; rollback failed: ${message(rollback)}; complete previous generation retained at ${backup}`, { cause: new AggregateError([cause, rollback]) }); }
       throw cause;
     }
-    return result;
   } catch (error) {
     failed = true; failure = error; throw error;
   } finally {
@@ -87,6 +76,34 @@ function regenerate(folder: string, update: (record: DoclingCorrections) => void
         `${outcome}; cleanup failed: ${cleanupErrors.map(error => error.message).join("; ")}`, { cause: failure });
     }
   }
+}
+
+function regenerate(folder: string, update: (record: DoclingCorrections) => void, options: Options): Conversion {
+  folder = realpathSync.native(folder);
+  let result: Conversion, input: string, record: DoclingCorrections;
+  updateConversionFolder(folder, () => {
+    record = readFolderCorrections(folder);
+    update(record);
+    readDoclingCorrections(JSON.stringify(record));
+    const sourcePath = path.resolve(folder, record.source.file);
+    input = realpathSync.native(options.resolveSource?.(sourcePath) ?? sourcePath);
+    const source = read(input);
+    const { images, assets } = loadDoclingImages(input, source, path.dirname(input) === folder);
+    result = convertWithDoclingCorrections(source, record, { images });
+    return staging => {
+      for (const [name, bytes] of assets) {
+        const file = path.join(staging, name); mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, bytes);
+      }
+      writeFileSync(path.join(staging, "document.md"), result.markdown, "utf8");
+      writeFileSync(path.join(staging, "document.docling-map.json"), JSON.stringify(result.map, null, 2) + "\n", "utf8");
+      writeFileSync(path.join(staging, "corrections.json"), JSON.stringify(record, null, 2) + "\n", "utf8");
+      options.updateFiles?.(staging);
+    };
+  }, () => {
+    options.beforePublish?.();
+    if (sha256(read(input)) !== record.source.sha256) throw new Error("Conversion source/folder changed after it was read; nothing was written");
+  });
+  return result!;
 }
 
 export function applyDoclingCorrections(folder: string, options: Options = {}): Conversion {
