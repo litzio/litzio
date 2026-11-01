@@ -24,7 +24,8 @@ the complete installation revision (manifest plus worker/Host/UI hashes), and op
 UI assets share that immutable directory. Each admission pins that installation;
 the runtime checks its hash before execution. Re-registering changes future work
 only. API mismatch is refused before registration or execution. Worker API 1
-accepts the PDF request shape published by `@litzio/plugin-api/worker`; it is not a general document API.
+retains the PDF request shape published by `@litzio/plugin-api/worker`. #880 adds
+the explicitly declared `ai-task` capability below; neither shape is a general document API.
 
 The first-party Docling bundle ships with the CLI and Desktop, and Vite builds
 the same entry at startup. UI discovery or first conversion registers it only if no Docling
@@ -211,6 +212,117 @@ request UUID, then remove only that receipt's recorded staging and its matching
 UUID-marked incomplete output. Preserve ordinary files, complete results and
 other requests' directories. An unrecorded empty directory from interruption
 between creation and recording is not an automatic cleanup candidate.
+
+## AI task service (#880)
+
+- Last verified: 2026-11-02 (fake adapters and shared Host lifecycle, local native Codex sandbox checks; real model-call limits below).
+- Authority: 2026-11-02 B decision in [Discussion #767](https://github.com/litzio/litzio/discussions/767); [ADR-0013](../adr/0013-ai-agent-task-service.md) remains Proposed pending owner acceptance.
+
+`plugins/ai-agent` ships with Vite, CLI/HTTP Host and Desktop. First discovery
+registers it only if absent; explicit disable is retained. Its installed Host
+facade contributes `aiTaskService`. A manifest declares `services: ["ai-task"]`
+and `tasks: ["ai-task"]` alongside worker API 1. AI IPC is discriminated by
+`type: "ai-task"`; the existing untagged PDF request stays unchanged. An AI worker
+cannot be admitted as a PDF worker, or conversely. This is a minimal capability
+extension, not the proposal spike's worker API 2.
+
+Feature plugins call `host.aiTasks()` from `@litzio/plugin-api/host`. The returned
+service offers `status`, `start`, `current`, `cancel`; it is `undefined` if the
+agent is disabled. The Host checks caller identity for feature-plugin calls;
+direct HTTP is the existing trusted Host transport and carries the caller in
+the message. New requests require an enabled caller registration. Retained
+receipts remain readable and cancellable through the providing plugin after
+disable; a duplicate UUID is replayed without execution, while a fresh UUID is
+refused. UI detachment never cancels accepted work.
+
+| Shared Host request | Result |
+| --- | --- |
+| `GET /api/ai-task-service` | `{ available: boolean }`, including while the agent is off. |
+| `GET /api/ai-agent-status` | `{ adapter, available, loginRequired }`; current Codex status means the executable/login is available, not model or sandbox readiness. |
+| `POST /api/ai-tasks` | Admit the request below and return `{ job, status, canCancel }`. |
+| `GET /api/ai-tasks?id=<UUID>` | Read a scoped receipt; no execution or automatic retry. |
+| `DELETE /api/ai-tasks`, `{ id }` | Await actual local worker/provider termination and cleanup, then return the receipt. |
+
+```json
+{
+  "id": "2f922033-366c-4c8f-bcc1-a86186da5bfd",
+  "caller": "docling",
+  "task": "example-inspection",
+  "instruction": "Read the supplied material and return a summary.",
+  "materials": [{ "path": "/allowed/source.json", "name": "source.json" }],
+  "input": { "page": 1 },
+  "schema": { "type": "object", "properties": { "summary": { "type": "string" } }, "required": ["summary"], "additionalProperties": false },
+  "baseline": "opaque-caller-value"
+}
+```
+
+This is a message example, not an implemented Docling review task. Success is a
+receipt whose job has `state: "success"`, `result` and the unchanged `id`, `caller`,
+`task`, `baseline`. The agent uses AJV's existing JSON Schema draft-07 validation;
+Codex generation additionally requires a schema that Codex's structured-output
+surface supports. Format violations never have `result`. Failures use `provider`,
+`timeout`, `cancelled`, `format`, `uncertain`. Shape validity says nothing about
+content quality or freshness: both remain caller decisions. Agent common
+instructions precede feature instructions; there is no user-instruction field.
+
+The existing SQLite requests table, installation pinning, session OS lock and
+UUID conflict checks cover AI receipts too. Fingerprints include the complete
+message and material hashes. Worker execution has a 120-second deadline; teardown
+is awaited separately. Only complete IPC plus zero exit can publish a result.
+Cancellation sends an abort, waits for the provider process tree and worker to
+exit, and then removes temporary files. Unconfirmed provider termination is
+`uncertain`, never cancellation success. Host shutdown drains both PDF and AI
+executions before releasing the store. Dead-owner reads become `uncertain`; no
+read, restart or duplicate UUID re-executes the task.
+
+Each admitted request records two exact, unique OS temp paths using
+`brand.appName`. The adapter creates them: a material snapshot and separate
+control folder. Copied material hashes must match admission; other source files
+are not copied. Node `spawn.cwd` and Codex `--cd` both use that snapshot, outside
+the repository. `--output-schema` and `--output-last-message` use only the control
+folder. Normal success, failure and cancellation clean both; next runtime
+initialization cleans only recorded dead-owner paths after checking their
+absolute OS-temp parent, branded prefix, UUID and folder suffix. Cleanup faults
+block AI work without blocking ordinary document operations. No Root scan or
+new database is introduced.
+
+`CODEX_POLICY` in the adapter is the sole permission configuration: snapshot reads
+and the CLI's minimal OS/tool runtime reads, no writes or command network access.
+Native Windows explicitly uses MXC and fails closed where unavailable; Linux/macOS
+use Codex's native enforcement. No sandbox installation or global setting change
+is attempted. A newer CLI with named permission profiles is required; this PC's
+0.164.0 was checked. Future broader material access is an adapter-policy change,
+not a consumer or selected-model dependency. Login is reused with the existing
+Codex home; `--ignore-user-config`, `--ignore-rules`, `--ephemeral`, disabled web
+search/subagents/apps/plugins/browser/computer tools and disabled shell profiles
+avoid ordinary personal configuration and alternate network/tool surfaces.
+
+**Known Codex limitation:** in 0.164.0, global `~/.codex/AGENTS.md` still enters the
+model context with those flags, even with `project_doc_max_bytes=0`. A local
+capture-only provider observed it in the actual request; repository AGENTS was
+absent. The single authenticated model trial also reported the global block.
+There is no product user-instruction field, but full isolation from global
+instructions is therefore not claimed. Options for a later owner decision are
+an upstream per-run instruction-disable control or a dedicated Codex home with
+an explicit credential-reuse policy. This implementation changes neither the
+user's instruction files nor their credentials.
+
+The one real model trial reused the existing login, returned schema-valid JSON
+and cleaned both folders while preserving the source. Its content reported that
+the then-empty shell environment lacked `SYSTEMROOT`, so it did **not** prove
+successful material reading. The adapter now uses Codex's `core` environment;
+an opt-in, model-free test of the real Codex exec harness now confirms a successful
+shell read with that core environment. The one-model-call limit was honored,
+so the corrected model path remains an
+[owner manual check](../test/README.md#ai-agent-task-service-880). Automated tests
+use fake adapters, and an opt-in no-model native sandbox check proves snapshot
+read, outside-file denial, write denial and network denial locally. Packaging and other OSes
+remain required CI/manual boundaries rather than claims from this trial.
+
+AI execution is not a document semantic operation, so no CLI command is added.
+The Host HTTP route is the headless execution surface. There is no task registry,
+streaming, retry loop, document proposal, new provider UI, external agent protocol,
+Docling review or official distribution work in B.
 
 ## Verification and remaining adoption
 

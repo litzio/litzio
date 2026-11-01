@@ -1,4 +1,5 @@
 import type { ConversionExecutor } from "./worker.ts";
+import type { AiTaskExecutor, AiTaskService } from "./ai.ts";
 
 /** Trusted Host operations. Hosts retain Root, native admission and publication checks. */
 export type PluginHostContext = {
@@ -11,10 +12,14 @@ export type PluginHostContext = {
   readText(file: string): string;
   validateDocument(source: string): void;
   executor: ConversionExecutor;
+  aiExecutor: AiTaskExecutor;
+  /** Undefined while the providing plugin is disabled. Calls retain caller identity. */
+  aiTasks(): AiTaskService | undefined;
   /** Plugin-owned transient data survives re-registration within this Host. */
   session: Map<string, unknown>;
 };
 export type HostPlugin = {
+  aiTaskService?: AiTaskService;
   operations: Record<string, (args: any) => any>;
   routes: Record<string, Partial<Record<"GET" | "POST" | "PUT" | "DELETE", string>>>;
   /** May observe/cancel accepted work, or replay its UUID; never admit new work. */

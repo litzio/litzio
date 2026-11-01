@@ -1,0 +1,7 @@
+{
+  "name": "@litzio/ai-agent", "version": "0.0.0", "private": true, "license": "MIT", "type": "module",
+  "scripts": { "build": "tsx scripts/build.ts", "typecheck": "tsc --noEmit -p tsconfig.json", "test": "tsx --test test/*.test.ts" },
+  "dependencies": { "@litzio/plugin-api": "workspace:*", "ajv": "8.20.0" },
+  "devDependencies": { "@types/react": "^19.1.13", "@types/node": "^24.5.2", "tsx": "^4.23.15", "typescript": "7.0.2", "esbuild": "0.28.2" },
+  "peerDependencies": { "react": "^19.1.1" }
+}

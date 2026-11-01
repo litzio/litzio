@@ -20,6 +20,7 @@
 | [ADR-0010: Supported viewport and input](adr/0010-supported-viewport-and-input.md) | Accepted | 2026-10-27 소유자 결정. 지원 최소 폭 640px의 데스크톱급 창과 키보드·포인터 입력. 휴대폰·터치 전용 지원은 실제 사용자 확인 후 별도 결정. 정리 작업은 #602. |
 | [ADR-0011: Code module boundary](adr/0011-code-module-boundary.md) | Accepted | 첫 모듈의 패키지 위치, 모듈 → Core 공개 API 의존, 문서 밖 데이터와 얇은 CLI. 정적 연결·등록/동적 로딩 금지와 process-local 전용 작업 상태는 ADR-0012로 일부 Superseded. |
 | [ADR-0012: Plugin runtime and UI contributions](adr/0012-plugin-runtime-and-ui-contributions.md) | Accepted | 2026-10-31 소유자 승인. 데몬 없는 공용 설치 폴더, 별도 worker, 같은 origin의 검증된 ESM/CSS와 좁은 UI API, 동적 기여·drain·비활성 탭, UUID·uncertain·완료 결과 공개. 구현 채택 조건과 범위 제외를 명시하며 스파이크 코드 채택은 아님. |
+| [ADR-0013: AI agent task service](adr/0013-ai-agent-task-service.md) | Proposed | #880 기본 포함 AI 플러그인, Host 중개 작업 메시지, 기능·추론 역할 분리와 자료 스냅샷. B 범위는 소유자 승인됨; ADR의 Accepted 전환은 소유자 확인 뒤 수행. |
 
 ## Current implemented contracts
 

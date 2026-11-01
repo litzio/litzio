@@ -1,6 +1,15 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "AI agent": "AI agent",
+  "AI task execution status": "AI task execution status",
+  "Runs AI tasks requested by feature plugins. Document review and applying results belong to the requesting feature.": "Runs AI tasks requested by feature plugins. Document review and applying results belong to the requesting feature.",
+  "Could not read AI agent status.": "Could not read AI agent status.",
+  "Adapter": "Adapter",
+  "Available": "Available",
+  "Unavailable": "Unavailable",
+  "Codex login is required on the Host.": "Codex login is required on the Host.",
+  "No additional login is required.": "No additional login is required.",
   "Creates a source bundle and {{product}} document.": `Creates a source bundle and ${brand.name.en} document.`,
   "Enable a feature to use quick actions.": "Enable a feature to use quick actions.",
   "Open conversion folder…": "Open conversion folder…",
@@ -835,6 +844,15 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "AI agent": "AI 에이전트",
+  "AI task execution status": "AI 작업 실행 상태",
+  "Runs AI tasks requested by feature plugins. Document review and applying results belong to the requesting feature.": "기능 플러그인이 요청한 AI 작업을 실행합니다. 문서 검수와 결과 적용은 요청한 기능에서 담당합니다.",
+  "Could not read AI agent status.": "AI 에이전트 상태를 읽지 못했습니다.",
+  "Adapter": "어댑터",
+  "Available": "사용 가능",
+  "Unavailable": "사용 불가",
+  "Codex login is required on the Host.": "Host 기기에서 Codex 로그인이 필요합니다.",
+  "No additional login is required.": "추가 로그인이 필요하지 않습니다.",
   "Creates a source bundle and {{product}} document.": `원본 묶음과 ${brand.name.ko} 문서를 만듭니다.`,
   "Enable a feature to use quick actions.": "기능을 켜면 빠른 동작을 사용할 수 있습니다.",
   "Open conversion folder…": "변환 폴더 대조 열기…",

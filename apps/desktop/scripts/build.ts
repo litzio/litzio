@@ -53,7 +53,7 @@ export async function buildDesktop(): Promise<string> {
     format: "esm",
     target: "node22",
     external: ["electron"],
-    define: { __LITZIO_DOCLING_DIRECTORY__: JSON.stringify("../cli/docling-worker"), __LITZIO_REQUIRE_SIGNED_UPDATES__: String(requireSigned) },
+    define: { __LITZIO_AI_DIRECTORY__: JSON.stringify("../cli/ai-agent-worker"), __LITZIO_DOCLING_DIRECTORY__: JSON.stringify("../cli/docling-worker"), __LITZIO_REQUIRE_SIGNED_UPDATES__: String(requireSigned) },
     // Bundled CommonJS dependencies (electron-updater) load `electron` and Node modules with require.
     banner: { js: 'import { createRequire as __litzioCreateRequire } from "node:module"; const require = __litzioCreateRequire(import.meta.url);' },
     legalComments: "none",

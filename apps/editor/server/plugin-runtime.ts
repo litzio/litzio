@@ -7,6 +7,7 @@ import type { ConversionJob, ConversionFailure, PdfProgress } from "@litzio/plug
 import type { ConversionExecutor, ConversionRequest } from "@litzio/plugin-api/worker";
 import { digest, PluginStore, requestUuid, type Receipt } from "./plugin-store.ts";
 import { INCOMPLETE, STAGING_PREFIX } from "./plugin-output.ts";
+import { AiTaskRuntime } from "./ai-task-runtime.ts";
 
 async function fileHash(file: string) {
   const hash = createHash("sha256");
@@ -18,12 +19,14 @@ type Execution = { child?: ChildProcess; stopped?: "cancelled" | "timeout"; done
 /** Worker handles are Host-local. Only registration/receipts are shared. */
 export class PluginRuntime implements ConversionExecutor {
   readonly store: PluginStore;
+  readonly ai: AiTaskRuntime;
   private active = new Map<string, Execution>();
   private closed = false;
   private fault?: Error;
   private closing?: Promise<void>;
-  constructor(directory: string, private bundledManifest: string, private timeoutMs = 1_800_000) {
+  constructor(directory: string, private bundledManifest: string, private timeoutMs = 1_800_000, checkAiPath?: (file: string) => void) {
     this.store = new PluginStore(directory);
+    this.ai = new AiTaskRuntime(this.store, checkAiPath);
   }
   ensureBundled() {
     // Seed the first-party worker once; explicit unregistration remains durable.
@@ -147,7 +150,7 @@ export class PluginRuntime implements ConversionExecutor {
     const executions = [...this.active.values()];
     for (const execution of executions) { execution.stopped = "cancelled"; execution.child?.kill(); }
     try {
-      const outcomes = await Promise.allSettled(executions.map(execution => execution.done));
+      const outcomes = await Promise.allSettled([...executions.map(execution => execution.done), this.ai.close()]);
       const failed = outcomes.find(outcome => outcome.status === "rejected");
       if (failed?.status === "rejected") throw failed.reason;
       if (this.fault) throw this.fault;
