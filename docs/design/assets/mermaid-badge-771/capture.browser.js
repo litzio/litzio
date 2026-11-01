@@ -1,5 +1,5 @@
 // Copy to apps/editor/test/manual-mermaid-badge-771.browser.js, run with
-// IEUMDOC_BROWSER_URL=http://127.0.0.1:5283 pnpm browser:test manual-mermaid-badge-771,
+// LITZIO_BROWSER_URL=http://127.0.0.1:5283 pnpm browser:test manual-mermaid-badge-771,
 // then remove the temporary copy. Manual evidence; mermaid-authoring owns assertions.
 async (page, {openPath, expect}) => {
   const origin = page.url().split('/').slice(0,3).join('/');
@@ -10,8 +10,8 @@ async (page, {openPath, expect}) => {
   for (const [width,language,theme] of [[1440,'en','light'],[640,'ko','dark']]) {
     await page.setViewportSize({width,height:900});
     await page.evaluate(({language,theme}) => {
-      localStorage.setItem('ieumdoc.uiLanguage',language);
-      localStorage.setItem('ieumdoc.theme',theme);
+      localStorage.setItem('litzio.uiLanguage',language);
+      localStorage.setItem('litzio.theme',theme);
     },{language,theme});
     await page.reload();
     await page.locator('[data-testid="status"][data-operation="ready"]').waitFor();

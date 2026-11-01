@@ -22,7 +22,7 @@
       ]
     ],
     "folderState": {
-      "root": "/workspace/ieumdoc-doc-ground/",
+      "root": "/workspace/litzio-doc-ground/",
       "otherRoot": "/workspace/shared-documents",
       "folders": [
         "artifacts",
@@ -55,7 +55,7 @@
     "documentCapture": "Unchanged quiet-document --screenshots rest at 1440x1000 and 375x1000."
   },
   "failFirst": {
-    "command": "IEUMDOC_BROWSER_URL=http://127.0.0.1:5393 pnpm browser:test folder-navigation",
+    "command": "LITZIO_BROWSER_URL=http://127.0.0.1:5393 pnpm browser:test folder-navigation",
     "productUnchanged": true,
     "message": "Folder picker must not count documents absent from its folder-only list",
     "location": "folder-navigation.browser.js:136",

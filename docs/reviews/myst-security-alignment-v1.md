@@ -1,7 +1,5 @@
 # MyST dependency alignment and security remediation v1
 
-당시 이름: 이음독(IeumDoc), 현재 Litzio
-
 - Status: Historical
 - Last verified: 2026-10-23 (current authority link updated; historical experiments/audits below not rerun).
 - Scope: Historical security review with current follow-up tracked in [issue #11](https://github.com/litzio/litzio/issues/11). No permanent assurance of current security.
@@ -55,7 +53,7 @@ backport. No advisory is suppressed or excluded from the audit.
 The following table lists every advisory returned by the baseline and final audits.
 "Fixed upstream" is the first fixed release in the advisory, not a proposed override.
 
-| Package / path | Advisory / CVE | Severity | Fixed upstream | IeumDoc status |
+| Package / path | Advisory / CVE | Severity | Fixed upstream | Litzio status |
 | --- | --- | --- | --- | --- |
 | markdown-it 13.0.2 / P | [GHSA-6v5v-wf23-fmfq](https://github.com/advisories/GHSA-6v5v-wf23-fmfq), CVE-2026-48988 | Moderate | 14.2.0 | **Reachable; mitigated by exact-version upstream backport** |
 | markdown-it 13.0.2 / P | [GHSA-38c4-r59v-3vqw](https://github.com/advisories/GHSA-38c4-r59v-3vqw), CVE-2026-2327 | Moderate | 14.1.1 | Linkify rule is off; vulnerable regex is not reached |
@@ -75,7 +73,7 @@ Evidence for these reachability decisions:
   `dist/config.js` leaves `linkify: false`. Smartquotes therefore runs for CLI and
   local Host parsing of untrusted Markdown. Disabling it would change existing text
   semantics and is not an acceptable mitigation. An instrumented regression checks
-  that automatic linkify scanning functions are not called with IeumDoc's defaults.
+  that automatic linkify scanning functions are not called with Litzio's defaults.
 - Core invokes only `liftMystDirectivesAndRolesTransform` and
   `containerChildrenTransform`. It does not call MyST's `mathTransform`,
   `renderEquation`, or HTML renderer. Importing the transforms package can load

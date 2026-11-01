@@ -1,7 +1,5 @@
 # Editor UX review and improvements (2026-10-17)
 
-당시 이름: 이음독(IeumDoc), 현재 Litzio
-
 - Status: Historical
 - Last verified: 2026-10-17 (implementation and verification recorded below; visual approval is pending with the user).
 - Authority: evidence for one UX review of the running Editor and the changes made from it, not a separate behavior contract. Current contracts: [UX shell](../design/editor-ux-shell-v1.md), [layout](../design/editor-layout-rules-v1.md), [visual language v4.7](../design/editor-visual-language-v1.md), [Filesystem Host boundary](../design/filesystem-host-boundary-v1.md#folder-listing-v1-112), [Native document support](../design/document-support-v1.md), [Table caption](../design/table-caption-v1.md).
@@ -22,7 +20,7 @@ contrast measured at least 6.3:1 and was left unchanged.
 | Same-named tabs both read `technical-document.md — d…`: the distinguishing folder was ellipsized first. | The folder is a separate 12px subtle label after the name and keeps its width; the name ellipsizes first. Accessible names are unchanged. |
 | Wide tables and formulas were clipped at the paper edge with no sign of more content (overlay scrollbars stay hidden). | A scroll-driven edge fade (`--size-overflow-fade`) on the side with more content, absent without overflow, and a thin scrollbar where the platform draws one. |
 | At 375px the expanded sidebar left the document about 90px, breaking headings mid-word. | Below 640px the sidebar starts collapsed to its rail and, opened, overlays the document; Escape or opening a document collapses it. 640px keeps the existing 704–768px tablet contracts. |
-| Every `.md` file looked openable; a non-native file failed only after a click, with `ieumdoc: 1` jargon. | The sidebar listing marks files without the native marker (Core `hasNativeMarker`, first 4KB) with a subtle row, crossed-file icon and description. The refusal explains it in plain words, then shows Core's reason and action as details. |
+| Every `.md` file looked openable; a non-native file failed only after a click, with `litzio: 1` jargon. | The sidebar listing marks files without the native marker (Core `hasNativeMarker`, first 4KB) with a subtle row, crossed-file icon and description. The refusal explains it in plain words, then shows Core's reason and action as details. |
 | Hidden block chrome reserved space: about 90px above a plain table, 60px above equations, and tables sat 32px right of the text axis. | Figure/Equation/Table metadata moved out of flow into the gap above the block. Tables start on the text axis; row handles and Append row live in a layer outside the horizontal scroller, left of the axis. Table Edit (caption and label) joined Table actions and Delete in the action bar below the table. |
 | Four different controls (sidebar tool, Visual/Source, document tab, Outline) shared one blue underline. | The marker means "current place" only (document tabs, sidebar tool). Visual/Source is a segmented control; an on Outline is a pressed toggle with the selected face. |
 | The TopBar repeated the tab's filename. | The TopBar shows the document's location (folders from the chosen sidebar folder, else its own folder) before the name. |
@@ -32,7 +30,7 @@ contrast measured at least 6.3:1 and was left unchanged.
 | After a reload, reopening the previous folder took three steps in the Open folder dialog. | Without a chosen folder the sidebar lists recent folders; one click lists one. Automatic restoration was not added: the current contract keeps recent folders from restoring the sidebar on reload, and browser tests rely on that isolation. |
 | File actions contained only Reload. | Copy path joins Reload. |
 | Source soft-wrapped long lines, so table rows read as two. | One numbered line per Markdown line (numbers are generated content and never copied), scrolling sideways. |
-| `IeumDoc` read as "leumDoc" in Pretendard. | UI and document text use Pretendard `cv08` (serifed capital I) through `--font-feature-sans`. |
+| The product name was hard to read in Pretendard. | UI and document text use Pretendard `cv08` (serifed capital I) through `--font-feature-sans`. |
 | At 1024px the folder heading actions pushed even `docs` onto a second line. | The action group has no inner gaps and the narrow sidebar is 200px. |
 | Favicon 404; native Location select; light dialog titles. | The product SVG mark is the tab icon; the select uses the field box with a chevron; dialog titles are semibold. |
 
@@ -68,9 +66,9 @@ Source numbering are Editor-only interactions outside CLI parity.
 
 All on Windows with installed Chrome, persistent profiles, against the branch's Vite Host:
 
-- After merging `master` and the review fixes: `pnpm typecheck`, `pnpm test` (Core 225, file-commit 4, CLI 64, Editor 252, Desktop 39 passing), `pnpm --filter @ieumdoc/editor build`, `pnpm docs:check`, `git diff --check`.
+- After merging `master` and the review fixes: `pnpm typecheck`, `pnpm test` (Core 225, file-commit 4, CLI 64, Editor 252, Desktop 39 passing), `pnpm --filter @litzio/editor build`, `pnpm docs:check`, `git diff --check`.
 - `pnpm browser:test`: all 47 stable scenarios passed (7.1 min), including the new wide-table and Copy path checks. Before the merge the branch alone passed all 44.
-- `pnpm --filter @ieumdoc/cli build` and `pnpm browser:test http-host`: http-host and http-recovery passed (the HTTP Host shares the folder listing handler).
+- `pnpm --filter @litzio/cli build` and `pnpm browser:test http-host`: http-host and http-recovery passed (the HTTP Host shares the folder listing handler).
 - Same-state Before/After after the master merge: `pnpm browser:test quiet-document --screenshots` in a detached worktree of `b1395b1` (current master, dev server on 5174) and in this branch, 1440/1024/768/705/704/414/375px, 100% zoom, Pretendard loaded; plus a fresh 375px load and the overflowing long-content table hovered at 1024px, taken with the same Playwright script on both. Representative pairs:
 
 | State | Before (`b1395b1`) | After |

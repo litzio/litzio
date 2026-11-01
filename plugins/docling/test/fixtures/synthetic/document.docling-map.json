@@ -5,7 +5,7 @@
     "schema_name": "DoclingDocument",
     "version": "1.10.0",
     "name": "source",
-    "sha256": "0122e7c86148279a926e2d0625bf3a62d509e81afeefe65a97c4011e48bf9e87"
+    "sha256": "5999562c5a3f553831d99fcfb4c54830c1f9772198ce71d1f325b23dffe7f1e4"
   },
   "document": {
     "file": "document.md",

@@ -10,9 +10,9 @@ async (page, { openPath, expect }) => {
   for (const [width, theme, language] of [[1440,'light','en'],[1440,'dark','en'],[640,'light','ko']]) {
     await page.setViewportSize({width,height:900});
     await page.evaluate(({theme,language}) => {
-      localStorage.setItem('ieumdoc.theme',theme);
-      localStorage.setItem('ieumdoc.uiLanguage','en');
-      localStorage.removeItem('ieumdoc.openTabs');
+      localStorage.setItem('litzio.theme',theme);
+      localStorage.setItem('litzio.uiLanguage','en');
+      localStorage.removeItem('litzio.openTabs');
     }, {theme,language});
     await page.reload();
     await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});

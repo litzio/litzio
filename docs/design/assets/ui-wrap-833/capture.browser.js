@@ -8,7 +8,7 @@ async (page, { openPath, expect }) => {
   for (const [width, language, theme] of [[640, 'ko', 'dark'], [1440, 'en', 'light']]) {
     await page.setViewportSize({ width, height: 900 });
     await page.evaluate(async ({ language, theme }) => {
-      localStorage.setItem('ieumdoc.uiLanguage', language);
+      localStorage.setItem('litzio.uiLanguage', language);
       (await import('/src/theme.ts')).applyTheme(theme);
       await (await import('/src/i18n.ts')).i18n.changeLanguage(language);
     }, { language, theme });

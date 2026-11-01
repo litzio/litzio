@@ -13,7 +13,7 @@
 
 결정 시점의 사이드바는 `Open folder…`로 고른 폴더 하나만 보여 준다. 다른 위치의 문서를 함께 다루려면 폴더를 번갈아 다시 열어야 하고, 새로고침하면 그 폴더도 사라진다(#235).
 
-기존 계약은 이 폴더를 "Browser 페이지 상태일 뿐 Workspace가 아니다"라고 정하고, Workspace persistence·project concept·`.ieumdoc/` 설정을 non-goal로 두었다. ADR-0005는 HTTP Root가 접근 경계일 뿐 사이드바 폴더나 Workspace가 아니며, Open Folder가 한 번에 허용 Root나 그 하위 하나를 고른다고 정했다.
+기존 계약은 이 폴더를 "Browser 페이지 상태일 뿐 Workspace가 아니다"라고 정하고, Workspace persistence·project concept·`.litzio/` 설정을 non-goal로 두었다. ADR-0005는 HTTP Root가 접근 경계일 뿐 사이드바 폴더나 Workspace가 아니며, Open Folder가 한 번에 허용 Root나 그 하위 하나를 고른다고 정했다.
 
 사이드바 폴더 목록은 Host가 기억하지 않는다. Editor가 매 요청에 `root`를 보내고 Host가 매번 검증한다. 따라서 여러 폴더를 동시에 여는 것은 Host 상태나 문서 의미 없이 Editor 상태만으로 표현할 수 있다. 바뀌는 것은 "폴더 하나"를 전제로 한 Editor의 문서별 폴더 맥락과 기존 문서의 non-goal 경계다.
 

@@ -7,16 +7,16 @@
 
 ## Working state
 
-Worktree: `C:\Projects\ieumdoc-170-icon`; branch: `design/170-app-icon`; starting commit: `980f60e7b8d0dfb9caedc5150039ae7a616f5cb4`.
+Worktree: `C:\Projects\litzio-170-icon`; branch: `design/170-app-icon`; starting commit: `980f60e7b8d0dfb9caedc5150039ae7a616f5cb4`.
 
 This stage prepared three alternatives. The user selected **B — 날개와 문서 결합** on 2026-10-13 without additional modifications. Existing application assets, packaging behavior and public releases are unchanged.
 
 ## Existing GitHub identity
 
-The current [Ieumbird organization](https://github.com/ieumbird) avatar is a right-facing bird: dark navy head/body, cyan/teal wing and beak, and a white flowing link-shaped gap inside the wing. The live [IeumDoc repository](https://github.com/litzio/litzio) header and generated social preview use that same organization avatar. No separate Litzio product mark was found in the repository's tracked assets or README. The Windows packaging configuration currently specifies no custom icon.
+The current [Litzio organization](https://github.com/litzio) avatar is a right-facing bird: dark navy head/body, cyan/teal wing and beak, and a white flowing link-shaped gap inside the wing. The live [Litzio repository](https://github.com/litzio/litzio) header and generated social preview use that same organization avatar. No separate Litzio product mark was found in the repository's tracked assets or README. The Windows packaging configuration currently specifies no custom icon.
 
-- [Downloaded organization reference](assets/app-icon-170/github-ieumbird-reference.png), from [GitHub avatar](https://avatars.githubusercontent.com/u/331890781?v=4).
-- [Downloaded repository social preview](assets/app-icon-170/github-ieumdoc-reference.png), retrieved from the live repository's `og:image` metadata.
+- [Downloaded organization reference](assets/app-icon-170/github-organization-reference.png), from [GitHub avatar](https://avatars.githubusercontent.com/u/331890781?v=4).
+- [Downloaded repository social preview](assets/app-icon-170/github-repository-reference.png), retrieved from the live repository's `og:image` metadata.
 - These are source references, not newly authored icons. The original SVG or other editable logo source has not been located in this repository.
 
 ## Concepts for selection
@@ -25,7 +25,7 @@ The current [Ieumbird organization](https://github.com/ieumbird) avatar is a rig
 
 | Choice | Direction | Decision to make |
 | --- | --- | --- |
-| [A — 새 계승형](assets/app-icon-170/concept-a-bird.png) | A simplified edition of the existing bird, retaining the wing/link gesture | Strongest direct continuity with Ieumbird |
+| [A — 새 계승형](assets/app-icon-170/concept-a-bird.png) | A simplified edition of the existing bird, retaining the wing/link gesture | Strongest direct continuity with Litzio |
 | [B — 문서 결합형](assets/app-icon-170/concept-b-wing-document.png) | A document and folded wing form one mark, carrying the link-shaped gap | Give Litzio a document identity within the bird family |
 | [C — 연결고리 중심형](assets/app-icon-170/concept-c-linked-pages.png) | Two page-like forms connect through one open channel | Emphasize connected document structure with an abstract mark |
 

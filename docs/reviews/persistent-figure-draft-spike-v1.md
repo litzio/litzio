@@ -1,7 +1,5 @@
 # Persistent Figure Draft spike v1
 
-당시 이름: 이음독(IeumDoc), 현재 Litzio
-
 - Status: Historical
 - Last verified: 2026-10-10. 이 문서의 결과는 실제 실행 결과다(아래 재현 명령). 제품 동작은 바꾸지 않았다.
 - Scope: Technical spike evidence. Figure 계약이나 제품 결정이 아니다.
@@ -10,7 +8,7 @@
 - Date: 2026-10-10
 - Baseline: master `252de5c`. 실험 코드는 브랜치 `spike/persistent-figure-draft` (`40b1bfd`)에만 있다. 병합 대상이 아니다.
 - Environment: Windows 11, Node 24.21.0. 저장소 MyST 의존성은 `myst-parser` 1.7.4, `myst-transforms` 1.3.51, `myst-to-md` 1.0.17이다. 공식 CLI는 `mystmd` 1.11.0을 저장소 밖 임시 디렉터리에 설치해 사용했다(저장소 의존성 변경 없음).
-- Question: 콘텐츠가 없는 Figure를 먼저 배치해 Caption·Label·상호참조를 작성하고, 나중에 Image 또는 Mermaid를 연결하는 워크플로를 MyST 호환성과 IeumDoc 아키텍처를 지키며 구현할 수 있는가.
+- Question: 콘텐츠가 없는 Figure를 먼저 배치해 Caption·Label·상호참조를 작성하고, 나중에 Image 또는 Mermaid를 연결하는 워크플로를 MyST 호환성과 Litzio 아키텍처를 지키며 구현할 수 있는가.
 - Path: 요청 경로는 `docs/spikes/`였다. 저장소 관례상 spike 근거는 `docs/reviews/`에 Historical 상태로 두고 [docs 색인](../README.md)에 연결하므로 이 경로를 썼다.
 
 표기: **[확인]** 코드·문서로 확인한 사실, **[실험]** 실행 결과, **[해석]** 설계 판단, **[미검증]** 확인하지 않은 가정.
@@ -22,10 +20,10 @@
 - **실현 가능성:** 높다. 인자 없는 `{figure}` directive에 `:name:`과 caption만 두면 공식 MyST가 Figure container로 읽는다. label, 번호, 상호참조가 모두 유지된다. 공식 `mystmd` 빌드도 "Figure n"으로 출력하고 참조를 해석한다. **[실험]**
 - **새 노드나 Markdown 확장은 필요 없다.** 같은 container에 나중에 image나 mermaid 자식을 넣으면 위치, label, caption, 번호, 참조가 그대로다. **[실험]**
 - **가장 큰 제약 두 가지:**
-  1. 공식 serializer `myst-to-md`는 이미지가 없는 Figure를 쓰지 못한다(`containerValidator` 오류 후 예외). IeumDoc이 이미 table directive에 쓰는 방식대로, 이 경우만 직접 써야 한다. **[확인][실험]**
-  2. 공식 MyST는 콘텐츠 없는 Figure에 ERROR 진단("contains no valid content")을 내지만 빌드는 성공한다(exit 0). HTML은 경고 없이 caption만 있는 Figure를 그리고, label만 있으면 보이지 않는 번호 붙은 대상이 된다. 출판 경고는 IeumDoc이 직접 정의해야 한다. **[실험]**
+  1. 공식 serializer `myst-to-md`는 이미지가 없는 Figure를 쓰지 못한다(`containerValidator` 오류 후 예외). Litzio가 이미 table directive에 쓰는 방식대로, 이 경우만 직접 써야 한다. **[확인][실험]**
+  2. 공식 MyST는 콘텐츠 없는 Figure에 ERROR 진단("contains no valid content")을 내지만 빌드는 성공한다(exit 0). HTML은 경고 없이 caption만 있는 Figure를 그리고, label만 있으면 보이지 않는 번호 붙은 대상이 된다. 출판 경고는 Litzio가 직접 정의해야 한다. **[실험]**
 - **Editor 위험:** Editor는 "새 블록 + `imageUrl === ""`"를 "Apply하지 않은 placeholder"로 판단한다. Core만 바꾸면 Apply한 pending Figure가 Save에서 조용히 빠진다. **[실험: E4, figure-authoring browser]**
-- **권고:** 네이티브 MyST Figure(방안 A)에 IeumDoc의 최소 규칙을 더한다. 첫 PR은 Core 쓰기 경로와 Editor의 명시적 applied 상태를 함께 바꾼다.
+- **권고:** 네이티브 MyST Figure(방안 A)에 Litzio의 최소 규칙을 더한다. 첫 PR은 Core 쓰기 경로와 Editor의 명시적 applied 상태를 함께 바꾼다.
 
 ## 2. Current Architecture
 
@@ -41,16 +39,16 @@
 
 | 계층 | 위치 | 동작 | 성격 |
 | --- | --- | --- | --- |
-| 필드 규칙 | `figure.ts` `figureContentError` | `imageUrl` 빈 값이면 "Figure image URL is required." | IeumDoc 설계 결정. 주석은 "empty URL drops the figure"라는 관찰을 근거로 든다 |
-| 편집 모델 | `myst/figure.ts` `supportedFigureContent` | 첫 자식이 `image`가 아니면 편집 불가(`undefined`) | IeumDoc Figure v1 범위 |
+| 필드 규칙 | `figure.ts` `figureContentError` | `imageUrl` 빈 값이면 "Figure image URL is required." | Litzio 설계 결정. 주석은 "empty URL drops the figure"라는 관찰을 근거로 든다 |
+| 편집 모델 | `myst/figure.ts` `supportedFigureContent` | 첫 자식이 `image`가 아니면 편집 불가(`undefined`) | Litzio Figure v1 범위 |
 | Writer | `myst-to-md` `containerValidator`, `container()` | image 없는 figure는 진단 후 `node.source.label`에서 예외 | **공식 writer 제약** |
-| Editor | `isSessionPlaceholder`, `isUnappliedFigureDraft`, `neverApplied` | `imageUrl === ""`를 "한 번도 Apply 안 함" 표시로 사용 | IeumDoc 세션 설계 |
+| Editor | `isSessionPlaceholder`, `isUnappliedFigureDraft`, `neverApplied` | `imageUrl === ""`를 "한 번도 Apply 안 함" 표시로 사용 | Litzio 세션 설계 |
 
 **[실험]** 현재 master Core에서 이미지 없는 Figure나 Mermaid Figure가 있는 문서는 이렇게 된다(`core-current-probe.ts`).
 - 읽기와 번호(`blockTargets → {figure:1}`)는 된다.
 - 문서 전체 `canonicalWriteError`는 "Figure container must have image node child"이다. 즉 **그 문서 전체를 쓸 수 없다.**
 
-이미지 필수는 MyST 언어의 금지가 아니다. 공식 writer의 한계이고, IeumDoc은 그 위에서 범위를 좁힌 결정이다.
+이미지 필수는 MyST 언어의 금지가 아니다. 공식 writer의 한계이고, Litzio는 그 위에서 범위를 좁힌 결정이다.
 
 ### Placeholder 제외 규칙이 보호하는 불변식 **[확인]**
 
@@ -96,7 +94,7 @@ fig-last        enumerator=5  [image,caption]    "Figure 5:"
 - `myst build doc.md --jats`, `myst build --html`(book-theme)는 모두 exit 0이다. 콘솔에 ⛔ "container of kind figure contains no valid content [besides caption]"가 출력된다.
 - JATS: `<fig id="figure-2"><label>Figure 2:</label><caption><p>PFC control loop.</p></caption></fig>`, `<xref ref-type="fig" rid="figure-2">Figure 2</xref>`. label만 있는 Figure는 `<fig id="figure-4"/>`이다. Mermaid는 "Unhandled JATS conversion for node of mermaid"(JATS exporter 제약).
 - HTML: `<figure id="fig-pfc-control"><figcaption>Figure 2: PFC control loop.</figcaption></figure>`. 콘텐츠 자리는 비어 있고 **독자에게 보이는 경고는 없다.** `fig-label-only`는 빈 `<figure>`인데 본문 참조는 "Figure 4"로 그곳을 가리킨다. Mermaid Figure는 "Figure 3"으로 번호가 붙는다.
-- IeumDoc spike가 쓴 canonical 출력(`:name:` 형식, `{numref}` 참조)을 그대로 빌드해도 "Figure 1"과 `<xref>`로 해석됐다.
+- Litzio spike가 쓴 canonical 출력(`:name:` 형식, `{numref}` 참조)을 그대로 빌드해도 "Figure 1"과 `<xref>`로 해석됐다.
 
 ### 3.4 대안 표현과 Mermaid의 두 의미 (`myst-numbering-probe.ts alternatives`, `mermaid-probe.ts`) **[실험]**
 
@@ -131,12 +129,12 @@ Mermaid를 그리는 것과 Mermaid에 Figure 번호·참조 의미를 주는 �
   - 콘텐츠 교체가 같은 container 안에서 일어나므로 식별자가 이동하지 않는다.
 - **위험:**
   - 공식 도구가 ERROR 진단을 낸다. 이것은 의도한 "미완성" 신호로 해석한다. **[해석]**
-  - writer를 IeumDoc이 직접 가져야 한다(약 20줄, fingerprint guard가 검증).
+  - writer를 Litzio가 직접 가져야 한다(약 20줄, fingerprint guard가 검증).
   - label만 있는 Figure는 출판물에서 보이지 않는다.
 
 ### B. 제한적 Persistent Draft 표현
 
-- A와 같은 MyST 구조에 미완성 표시를 덧붙이는 변형이다. 검토한 표시는 `:class: ieumdoc-pending`, 주석 `% pending`, 가짜 경로다.
+- A와 같은 MyST 구조에 미완성 표시를 덧붙이는 변형이다. 검토한 표시는 `:class: litzio-pending`, 주석 `% pending`, 가짜 경로다.
 - 기각 근거 **[해석]:**
   - 미완성 여부는 "콘텐츠 자식 없음"이라는 구조만으로 이미 결정된다. 추가 표시는 구조와 어긋날 수 있는 두 번째 진실이 된다.
   - 가짜 이미지 경로는 깨진 링크를 출판한다.
@@ -167,7 +165,7 @@ Mermaid를 그리는 것과 Mermaid에 Figure 번호·참조 의미를 주는 �
 
 ### Approach 1(통합 모델) vs Approach 2(공통 UX + 유형별 문서 모델)
 
-- **저장:** Approach 2를 따른다. Image와 Mermaid는 각자의 공식 MyST 구조(`{figure} url`, body `{mermaid}`)를 유지한다. IeumDoc 전용 "type/state" 필드는 저장하지 않는다.
+- **저장:** Approach 2를 따른다. Image와 Mermaid는 각자의 공식 MyST 구조(`{figure} url`, body `{mermaid}`)를 유지한다. Litzio 전용 "type/state" 필드는 저장하지 않는다.
 - **Core 읽기 모델:** 가벼운 통합이 맞다. `figure` 블록에 `content: { kind: "none" } | { kind: "image", url, alt } | { kind: "mermaid", … }`를 두고, label과 caption은 container 소유로 둔다. 이 통합은 MyST container 구조를 그대로 비춘 것이다. 별도 도메인 모델을 새로 만드는 것이 아니다. **[해석]**
 - **비용:** Approach 1(저장까지 통합)은 MyST 밖의 필드를 만들게 된다. Approach 2만 하고 읽기 모델을 통합하지 않으면 지금처럼 `imageUrl === ""` sentinel이 여러 계층에 퍼진다.
 
@@ -185,12 +183,12 @@ Mermaid를 그리는 것과 Mermaid에 Figure 번호·참조 의미를 주는 �
 
 ```bash
 git checkout spike/persistent-figure-draft
-pnpm --filter @ieumdoc/core exec tsx test/spike/myst-probe.ts
-pnpm --filter @ieumdoc/core exec tsx test/spike/myst-numbering-probe.ts [alternatives]
-pnpm --filter @ieumdoc/core exec tsx test/spike/core-current-probe.ts   # master Core에서 실행하면 현재 동작
-pnpm --filter @ieumdoc/core exec tsx test/spike/mermaid-probe.ts
-pnpm --filter @ieumdoc/core exec tsx --test test/spike/persistent-figure-draft.spike.test.ts
-pnpm --filter @ieumdoc/editor exec tsx --test test/spike/persistent-figure-draft.spike.test.ts
+pnpm --filter @litzio/core exec tsx test/spike/myst-probe.ts
+pnpm --filter @litzio/core exec tsx test/spike/myst-numbering-probe.ts [alternatives]
+pnpm --filter @litzio/core exec tsx test/spike/core-current-probe.ts   # master Core에서 실행하면 현재 동작
+pnpm --filter @litzio/core exec tsx test/spike/mermaid-probe.ts
+pnpm --filter @litzio/core exec tsx --test test/spike/persistent-figure-draft.spike.test.ts
+pnpm --filter @litzio/editor exec tsx --test test/spike/persistent-figure-draft.spike.test.ts
 # 공식 CLI (저장소 밖): npm i --ignore-scripts mystmd@1.11.0; myst build doc.md --jats; myst build --html
 ```
 
@@ -238,8 +236,8 @@ pnpm --filter @ieumdoc/editor exec tsx --test test/spike/persistent-figure-draft
 - **Editor:** "Apply했는가"를 `imageUrl`로 추론하지 않는다. 명시적 세션 상태(예: node attr `applied`)를 둔다. Apply하지 않은 새 Figure는 계속 placeholder로 빼고, Apply한 pending Figure는 Save 대상으로 넣는다.
 - **Save와 Export의 역할:**
   - Save: pending을 무손실로 보존한다. 쓰기 가능성(`canonicalWriteError`)에 영향을 주지 않는다.
-  - Publish readiness: IeumDoc 규칙으로 따로 둔다. Core `figureReadiness`(가칭)가 pending Figure를 위치와 label과 함께 보고한다. CLI `check`는 이를 경고로 출력하고, 출판용 옵션(가칭 `--publish`)에서는 실패(non-zero) 처리한다. Editor는 pending Figure를 "No content yet" 틀로 분명히 표시한다.
-  - IeumDoc 밖의 공식 빌드에서는 MyST의 ⛔ 진단이 같은 신호다. **경고 없이 사라지는 출력은 IeumDoc 경로에서 허용하지 않는다.**
+  - Publish readiness: Litzio 규칙으로 따로 둔다. Core `figureReadiness`(가칭)가 pending Figure를 위치와 label과 함께 보고한다. CLI `check`는 이를 경고로 출력하고, 출판용 옵션(가칭 `--publish`)에서는 실패(non-zero) 처리한다. Editor는 pending Figure를 "No content yet" 틀로 분명히 표시한다.
+  - Litzio 밖의 공식 빌드에서는 MyST의 ⛔ 진단이 같은 신호다. **경고 없이 사라지는 출력은 Litzio 경로에서 허용하지 않는다.**
 
 ## 7. Implementation Plan
 
@@ -270,7 +268,7 @@ pnpm --filter @ieumdoc/editor exec tsx --test test/spike/persistent-figure-draft
 
 ## 핵심 질문에 대한 답
 
-1. **콘텐츠 없는 Figure를 MyST 원본에 안정적으로 저장할 수 있는가?** 그렇다. 인자 없는 `{figure}` + `:name:` + caption이 바이트 단위로 왕복한다. 단 공식 writer가 아니라 IeumDoc writer가 써야 하고, 공식 MyST는 이를 "콘텐츠 없음" ERROR로 진단한다.
+1. **콘텐츠 없는 Figure를 MyST 원본에 안정적으로 저장할 수 있는가?** 그렇다. 인자 없는 `{figure}` + `:name:` + caption이 바이트 단위로 왕복한다. 단 공식 writer가 아니라 Litzio writer가 써야 하고, 공식 MyST는 이를 "콘텐츠 없음" ERROR로 진단한다.
 2. **정식 그림 상호참조 대상이 되는가?** 그렇다. 공식 transform과 `mystmd` 빌드 모두 "Figure n"으로 번호를 매기고 `[](#)`와 `{numref}`를 해석한다. Core의 번호 규칙과도 같다.
 3. **나중에 Image/Mermaid를 연결해도 참조와 캡션이 보존되는가?** Image는 그렇다(T4, E2). Mermaid는 저장 표현과 공식 의미는 보존되지만(T5), Editor 편집 경로는 후속 PR이 필요하다.
 4. **Core 최소 변경은?** 콘텐츠 없는 Figure의 writer, Figure v1의 pending 허용, 읽기 모델 `content.kind`, "caption 또는 label" 규칙. 새 노드와 Markdown 확장은 없다. Editor의 명시적 applied 상태를 같은 PR에 넣어야 한다.

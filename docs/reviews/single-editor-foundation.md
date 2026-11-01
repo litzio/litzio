@@ -1,7 +1,5 @@
 # Single Editor Foundation architecture review
 
-당시 이름: 이음독(IeumDoc), 현재 Litzio
-
 - Status: Historical
 - Last verified: 2026-10-08 (status, links and current authority checked; historical experiments/audits not rerun).
 - Scope: Historical architecture review; results and debt below describe the reviewed baseline only.
@@ -62,7 +60,7 @@ The CLI now accepts rich paragraph insertion through `insert-block --content`, b
 
 - `pnpm typecheck`: passed.
 - `pnpm test`: passed (Core 29, CLI 8, Editor 35).
-- `pnpm --filter @ieumdoc/editor exec vite build`: passed; bundle exceeds Vite's 500 kB advisory threshold. No splitting/refactoring was performed for this unrelated advisory.
+- `pnpm --filter @litzio/editor exec vite build`: passed; bundle exceeds Vite's 500 kB advisory threshold. No splitting/refactoring was performed for this unrelated advisory.
 - Browser regression: pending input retained, next save uses updated revision, 409 retains input, one editing surface. POSTs mocked; fixture bytes unchanged.
 - Static collector: Git inventory succeeded, default dependency/build/sensitive exclusions applied, no hash changes during collection. Markdown anchor handling is unsupported; collector signals were not treated as architecture conclusions.
 - No new dependency, typed block, keyboard editing feature, generic schema/plugin framework or backend infrastructure.

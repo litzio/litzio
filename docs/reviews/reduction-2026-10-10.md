@@ -1,6 +1,4 @@
-# IeumDoc 감량 검증 기록
-
-당시 이름: 이음독(IeumDoc), 현재 Litzio
+# Litzio 감량 검증 기록
 
 - Status: Historical
 - Last verified: 2026-10-11 (baseline 대조, 실제 구현·단위/전체 자동 검증 및 독립 리뷰).
@@ -91,7 +89,7 @@ C15은 empty/v2/v4/v4.1 비교 설명을 기존 Historical visual review로 옮�
 
 Editor225, typecheck/build/docs 통과. code-highlighting/image-assets/visual-states/markdown-input targeted browser 통과. Save 진행 spinner의 normal/reduced-motion도 computed browser state로 통과했다. 독립 UI 비교에서 Open Escape와 toolbar keyboard focus 제한은 변경 전 동일함을 확인했다. Figure/Eq Cancel/Escape의 기존 BODY focus도 보존됐다. 375px touch Edit/Cancel은 실제 touchscreen API와 bounds를 확인했으나 mobile emulation 전환 때문에 375px Save pointer 검사는 신뢰 가능한 등가성 판정이 불가능했다(기존 baseline에서도 Save x417–474 overflow). 물리 기기 검증으로 주장하지 않는다.
 
-비교 baseline worktree의 browser/server/등록은 종료했으나 Windows가 TEMP directory 제거를 끝내지 못했고 후속 Remove-Item은 자동 승인 검토에서 `blocked by policy`로 거절됐다. 잔여 `C:\Users\swBaek\AppData\Local\Temp\ieumdoc-ui-baseline-97fea98`에는 활성 process가 없다(파일 apparent length191,096,707 bytes; disk allocation 아님). 동일 삭제는 재시도하지 않았다.
+비교 baseline worktree의 browser/server/등록은 종료했으나 Windows가 TEMP directory 제거를 끝내지 못했고 후속 Remove-Item은 자동 승인 검토에서 `blocked by policy`로 거절됐다. 잔여 `C:\Users\swBaek\AppData\Local\Temp\litzio-ui-baseline-97fea98`에는 활성 process가 없다(파일 apparent length191,096,707 bytes; disk allocation 아님). 동일 삭제는 재시도하지 않았다.
 
 ### 단위 6: runner 채택 근거
 
@@ -137,12 +135,12 @@ Baseline에서 단위6까지 생산 코드/설정은367줄 추가/601줄 삭제(
 
 추가 생산 코드는 엄격한 HTTP session 검증, 공통 Draft 등록과 source의 늦은 응답 보호, plugin 수명을 유지하는 grammar refresh에 필요하다. 추가 테스트는 malformed protocol, pending label 조합, 미보고 Draft/late Apply, 동시 grammar+asset 수명 및 load failure의 기존 공백을 보호한다. 회귀 테스트 자체를 삭제하거나 skip을 추가하지 않았다. production dependency는 tw-animate-css 하나 제거했고 dev dependency는 기존 Playwright engine 버전과 같은 test surface 하나 추가했다.
 
-정식 `pnpm --filter @ieumdoc/editor build` 각 baseline/final1회: entry JS1,890,997→1,750,377bytes(-140,620); 전체 JS1,890,997→1,890,264(-733); CSS150,100→138,982(-11,118). 언어 chunk139,887bytes는 전체 JS에 포함한다. 위 paired eager/deferred 수치는 지연 분리의 효과를 고립시킨 별도 조건이며 합산하지 않는다. 폰트/라이선스/실제 asset은 그대로다. Save 응답3325→79bytes와 editable projection3→1은 같은 fixture/환경에서 측정했다. latency나 사용자 체감 개선율은 주장하지 않는다.
+정식 `pnpm --filter @litzio/editor build` 각 baseline/final1회: entry JS1,890,997→1,750,377bytes(-140,620); 전체 JS1,890,997→1,890,264(-733); CSS150,100→138,982(-11,118). 언어 chunk139,887bytes는 전체 JS에 포함한다. 위 paired eager/deferred 수치는 지연 분리의 효과를 고립시킨 별도 조건이며 합산하지 않는다. 폰트/라이선스/실제 asset은 그대로다. Save 응답3325→79bytes와 editable projection3→1은 같은 fixture/환경에서 측정했다. latency나 사용자 체감 개선율은 주장하지 않는다.
 
 남은 한계는 baseline부터의 375px TopBar Save overflow와 일부 keyboard/Escape focus 동작, OS IME/실제 clipboard/물리 touch의 수동 확인이다. 375px Edit/Cancel과704px 이상 실제 캡처는 확인했지만 mobile emulation 전환 중 Save pointer 결과는 신뢰할 수 없어 release 검증으로 주장하지 않는다. 새 durable recovery, Host abstraction이나 무관한 layout 재설계로 확대하지 않았다.
 
 
-추가 실험 script/config/PID 파일46개는 소유 경로의 개별 파일로 정리했다. logs/measurements는 TEMP `ieumdoc-conditional-audit-20261010`에 보존했다. 그 안의 `C:\Users\swBaek\AppData\Local\Temp\ieumdoc-conditional-audit-20261010\refresh-lifetime\node_modules` junction 삭제도 자동 승인 검토가 `blocked by policy`로 거절했다(target은 기존 `C:\Projects\ieumdoc\apps\editor\node_modules`). 추가 이유는 제공되지 않았고 재시도하지 않았다. 두 TEMP 잔여물은 활성 process 없이 남아 있다.
+추가 실험 script/config/PID 파일46개는 소유 경로의 개별 파일로 정리했다. logs/measurements는 TEMP `litzio-conditional-audit-20261010`에 보존했다. 그 안의 `C:\Users\swBaek\AppData\Local\Temp\litzio-conditional-audit-20261010\refresh-lifetime\node_modules` junction 삭제도 자동 승인 검토가 `blocked by policy`로 거절했다(target은 기존 `C:\Projects\litzio\apps\editor\node_modules`). 추가 이유는 제공되지 않았고 재시도하지 않았다. 두 TEMP 잔여물은 활성 process 없이 남아 있다.
 
 
 마지막 단위의 최초 두 commit은 provenance 사이 빈 줄 때문에 Git interpret-trailers가 AI-Agent를 읽지 못했다. force push 없이 동일한 code tree를 새 branch에서 정상 trailer block으로 commit하여 #161을 #162로 교체했다. #161은 닫고 옛 branch/history는 보존했다. 최종 stack의 모든 commit에서 AI-Agent/AI-Model을 Git parser로 확인한다.

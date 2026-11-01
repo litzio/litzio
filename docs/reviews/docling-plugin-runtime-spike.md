@@ -1,7 +1,5 @@
 # Docling runtime spike
 
-당시 이름: 이음독(IeumDoc), 현재 Litzio
-
 - Status: Historical
 - Last verified: 2026-10-31 (branch-only experiment; measured results below).
 - Scope: `spike/docling-plugin-runtime`; owner-authorized experiment, no adoption or merge.
@@ -15,8 +13,8 @@ This experiment reuses `convertDoclingPdf` in a bundled child process and Core's
 public API unchanged. Existing Settings, conversion dialog and comparison stay.
 It does not introduce a general Runtime/Adapter, Workspace or Project layer.
 
-The only new durable authority is the user's `~/.ieumdoc/modules` folder
-(`IEUMDOC_MODULES_DIR` can isolate an experiment). `registry.json` holds the
+The only new durable authority is the user's `~/.litzio/modules` folder
+(`LITZIO_MODULES_DIR` can isolate an experiment). `registry.json` holds the
 selected immutable worker installation and enabled flag. Each request UUID has
 one exclusively created `runs/<UUID>` directory and an atomically replaced
 `run.json`. A duplicate ID returns its first run; changed source bytes, path or
@@ -28,13 +26,13 @@ Registration and disable are available live through one command family:
 
 ```powershell
 pnpm exec tsx scripts/build-docling-module.ts
-pnpm ieumdoc module register tmp/docling-module/manifest.json
-pnpm ieumdoc module disable
-pnpm ieumdoc module enable
-pnpm ieumdoc module list
+pnpm litzio module register tmp/docling-module/manifest.json
+pnpm litzio module disable
+pnpm litzio module enable
+pnpm litzio module list
 ```
 
-Hosts opt in with `IEUMDOC_MODULE_RUNTIME=1`. They reread the registry for each
+Hosts opt in with `LITZIO_MODULE_RUNTIME=1`. They reread the registry for each
 new ID, without restarting. The same operation is exposed at
 `GET/POST /api/docling-module` for the development Desktop experiment. HTTP Root
 checks apply to the supplied manifest. This is explicit execution of trusted
@@ -53,7 +51,7 @@ from [WorkNaru ADR 0016](https://github.com/SWBaek/worknaru-dev/blob/main/docs/a
 It does not claim exactly-once external completion: the Docling service's task
 may outlive a stopped local worker. Its task ID remains in the ledger.
 
-The worker writes under a hidden sibling `.ieumdoc-module-<UUID>`, including its
+The worker writes under a hidden sibling `.litzio-module-<UUID>`, including its
 temporary REST response. Normal Host routes refuse that staging path. Only a
 complete result plus exit code 0 can trigger the Host's same-volume directory
 rename into the final bundle. Failed/killed/timed-out workers expose no final
@@ -78,8 +76,8 @@ real extraction, OCR/models and full production-service conversion are **unverif
 | d. No partial output publication | Pass | A 31-byte partial `response.json` existed in private staging; its Host read returned 403, final output did not exist, and kill cleanup removed staging in both Hosts. |
 | e. Request ID deduplication | Pass | Concurrent replay through both live Hosts added no submission; a concurrent fresh UUID produced exactly one submission; conflicting PDF locator refused. |
 | f. Disable/unregister | Pass | Desktop disabled the shared registry while a request ran; both Hosts rejected new UUIDs; the accepted conversion completed. Disable preserves installation/receipts. |
-| g. Desktop and serve | Pass, development Desktop scope | Actual `ieumdoc://app` in-process Host and separately launched built `cli.mjs serve` converted and isolated both faults. Real HTTP process termination/restart marked its receipt uncertain; same UUID did not resubmit. Packaged Desktop unverified. |
-| h. Shared user installation | Pass | Desktop registered the worker in default `~/.ieumdoc/modules`; independently started serve read and executed that copy without another registration. |
+| g. Desktop and serve | Pass, development Desktop scope | Actual `litzio://app` in-process Host and separately launched built `cli.mjs serve` converted and isolated both faults. Real HTTP process termination/restart marked its receipt uncertain; same UUID did not resubmit. Packaged Desktop unverified. |
+| h. Shared user installation | Pass | Desktop registered the worker in default `~/.litzio/modules`; independently started serve read and executed that copy without another registration. |
 
 The raw harness's `checks.a.result: pass` is scoped to its declared synthetic
 REST fixture. It does not establish the owner's complete real-service condition
@@ -101,7 +99,7 @@ Reproduction (builds development files only, no installer/package):
 
 ```powershell
 pnpm exec tsx scripts/build-docling-module.ts
-pnpm --filter @ieumdoc/desktop build
+pnpm --filter @litzio/desktop build
 pnpm browser:test docling-runtime
 ```
 

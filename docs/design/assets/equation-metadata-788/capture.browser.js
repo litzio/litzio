@@ -1,5 +1,5 @@
 // Manual visual review only: copy to apps/editor/test/equation-capture-788.browser.js,
-// run pnpm browser:test equation-capture-788 with IEUMDOC_BROWSER_URL pointing at
+// run pnpm browser:test equation-capture-788 with LITZIO_BROWSER_URL pointing at
 // this checkout's server, then remove the temporary scenario. Never add it to stable.
 // Before uses b9b2b8e9's equation-view.tsx; restore the working source afterwards.
 async (page, {openPath}) => {
@@ -8,7 +8,7 @@ async (page, {openPath}) => {
   const file = [...initial.path.split(sep).slice(0,-4), 'tmp', 'short-fields', 'fields.md'].join(sep);
   for (const [width, language, theme] of [[1440,'en','light'],[640,'ko','dark']]) {
     await page.setViewportSize({width,height:900});
-    await page.evaluate(({language,theme}) => { localStorage.setItem('ieumdoc.uiLanguage',language); localStorage.setItem('ieumdoc.theme',theme); }, {language,theme});
+    await page.evaluate(({language,theme}) => { localStorage.setItem('litzio.uiLanguage',language); localStorage.setItem('litzio.theme',theme); }, {language,theme});
     await page.reload();
     await page.getByTestId('status').waitFor();
     if (width === 1440) await openPath(page,file);

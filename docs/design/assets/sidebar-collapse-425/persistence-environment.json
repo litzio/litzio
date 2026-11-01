@@ -90,7 +90,7 @@
   ],
   "state": "After real page Reload with two remembered roots and the first section remembered collapsed. Files selected; sidebar expanded (phone explicitly opens its full-screen sidebar); active technical-document.md; no menu/dialog; focus blurred; pointer at right edge; scroll 0.",
   "preference": {
-    "key": "ieumdoc.collapsedFolderSections",
+    "key": "litzio.collapsedFolderSections",
     "format": "JSON array of collapsed Host-normalized opened root paths only"
   },
   "review": "Reviewed 1440px and 375px captures directly. The first root stays collapsed after Reload; the second remains expanded. Existing names, actions, alignment and document layout are retained. No new visual styling."

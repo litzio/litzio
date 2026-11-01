@@ -25,7 +25,7 @@ dependency boundary, but its Host and Editor connections are static.
 The [runtime spike](../reviews/docling-plugin-runtime-spike.md) exercised a
 separate worker, shared user installation, request deduplication, failure
 isolation and disable/drain through development Desktop and an independent
-`ieumdoc serve`. Its external Docling REST service was synthetic; actual server
+`litzio serve`. Its external Docling REST service was synthetic; actual server
 conversion and packaged Desktop remain unverified.
 The [UI spike](../reviews/docling-plugin-ui-spike.md) exercised live command/tab
 contributions from installed ESM/CSS, API mismatch rejection and local UI fault

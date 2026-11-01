@@ -7,7 +7,7 @@
   "fonts": "Bundled Pretendard; document.fonts.ready awaited",
   "source": "Public NIST sp1108r4 conversion fixture",
   "state": "Sync off, source page 9 at top, source picture #/pictures/6 selected, then right figure clicked; pointer moved off document",
-  "reproduction": "pnpm browser:test docling-compare --screenshots (IEUMDOC_BROWSER_URL=http://127.0.0.1:5281)",
+  "reproduction": "pnpm browser:test docling-compare --screenshots (LITZIO_BROWSER_URL=http://127.0.0.1:5281)",
   "captures": [
     {
       "file": "after-1440-light-en.png",
