@@ -140,7 +140,8 @@ After는 #792 작업 소스로 촬영했다. source/disk 쓰기 없이 번호 �
 움직이지 않는다. 일반 읽기·소스·텍스트 모드에서는 표시하지 않는다. Mermaid 종류
 배지와 같이 문서 밖 장식이며 공용 metadata 크기·줄 간격을 쓴다. 제목 표시는
 절 label과 같은 고정폭 서체·subtle text로 더 조용하게 표현하며 배경 면을 추가하지 않는다.
-정렬·좁은 대조 여백은 [Layout Rules](editor-layout-rules-v1.md#alignment-and-ownership),
+대조 뷰는 상시 표시용 여백을 확보하고 연결선을 표시 위로 우회해 블록 가장자리에 연결한다.
+정렬·대조 전용 여백은 [Layout Rules](editor-layout-rules-v1.md#alignment-and-ownership),
 접근성·번역·조절 값은 [Visual Language](editor-visual-language-v1.md#state-rules)를 따른다.
 
 - **목적·사용/비사용:** 짧은 속성과 구조 작업의 진입을 구분한다. 표의 행·열 선택 도구나 미주 복귀 번호를 일반 metadata 도구로 대체하지 않는다.

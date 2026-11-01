@@ -45,11 +45,14 @@ Role: alignment, spacing, control dimensions and deliberate geometry exceptions;
 
 - Heading-depth cues (#887/#886) occupy the existing absolute block gutter and center on
   each heading's first line, independently of its level, number or wrapping. They reserve
-  no space and change neither text rectangles nor document scroll height. The row's
+  no space within the established gutter. In Edit they change neither text rectangles
+  nor document scroll height. The row's
   visible insertion/drag handles take precedence over its cue, including keyboard focus
-  and an open block menu. The comparison keeps its existing 16px paper inset: a monospace
-  metadata cue uses the narrow reading gap, and a heading's hover extent starts at the
-  text edge to clear that cue. Other block extents and source boxes/wires are unchanged.
+  and an open block menu. The comparison reserves a constant 48px inspection gutter,
+  with 20px from the cue's right edge to the text edge and 12px to the ordinary expanded
+  block outline. Its heading connectors approach above the gutter, then curve to the
+  measured block edge without crossing the cue. Source boxes are unchanged; reading
+  positions and scroll correspondence recompute from the resulting text layout.
 
 - Frontmatter title (#786) keeps the existing H1-line-height minimum slot. The small empty
   hint's line box matches that slot and centers vertically; empty-state height is explicit

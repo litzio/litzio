@@ -50,10 +50,14 @@ keyboard movement, text selection/copy and reading previews. Authoring controls
 are hidden, and the same engine transaction filter rejects document changes.
 For heading-depth inspection (#886/#887), this surface explicitly requests the Host's
 optional `ReadingSurfaceProps.showHeadingLevels`. Decorative `H1`–`H6` cues remain
-visible in its existing left inset, centered on the first line with localized hover text.
+visible in a constant 48px inspection gutter, centered on the first line with localized hover text.
 They do not enter text selection/copy, the document model or serialization. Ordinary Read
-surfaces omit them. The narrow heading hover extent clears the cue without moving text;
-source boxes, matching, connection geometry and scrolling retain their existing behavior.
+surfaces omit them. The cue stays 12px clear of the ordinary expanded block outline.
+Heading connectors enter above the inspection gutter and curve to the measured block edge,
+never the cue. Their endpoints and synchronization anchors still use measured block positions;
+the reading layout callback recomputes them when the inset changes wrapping. Source boxes,
+matching and the synchronization algorithm are unchanged. Heading sizes and word-break rules
+are unchanged, including the existing mid-word wrapping of long titles at 640px.
 The shell's thin reading-surface adapter supplies the public Core read model;
 the module receives only block/recursive list-item positions and the current
 snapshot selection key through callbacks, never Editor DOM or engine types.

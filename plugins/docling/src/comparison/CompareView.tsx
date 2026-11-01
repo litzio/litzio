@@ -81,8 +81,13 @@ export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, ima
           const x1 = ar.left - hostRect.left + inset + (entry.region.left + entry.region.width) * width;
           const x2 = br.left - hostRect.left + block.left;
           const sy = ar.top - hostRect.top + y1, ty = br.top - hostRect.top + y2;
+          // Enter above the inspection gutter, then approach the block edge vertically.
+          // The endpoint and scroll anchors stay tied to the measured block, never its cue.
+          const laneX = br.left - hostRect.left, laneY = br.top - hostRect.top + block.top - b.scrollTop - inset;
           lines.push({ key: `${entry.key}:${targetKey(target)}`, category: categoryOf(entry.item), selected: selected.includes(entry.item),
-            d: `M${x1},${sy} C${x1 + 32},${sy} ${x2 - 32},${ty} ${x2},${ty}` });
+            d: target.block === "heading"
+              ? `M${x1},${sy} C${x1 + 32},${sy} ${laneX - 32},${laneY} ${laneX},${laneY} Q${x2},${laneY} ${x2},${ty}`
+              : `M${x1},${sy} C${x1 + 32},${sy} ${x2 - 32},${ty} ${x2},${ty}` });
           if (target.role === "endnote" && target.label) notes.add(target.label);
         }
       }

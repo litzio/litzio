@@ -6,7 +6,7 @@ const reject = () => {};
 
 /** Thin shell adapter: the module receives the ordinary Editor's fixed Read mode. */
 export const ReadOnlyDocument = memo(function ReadOnlyDocument({ document, path, showHeadingLevels, onLayout, onSelection }: ReadingSurfaceProps) {
-  return <div className="docling-readonly-document" data-testid="comparison-document">
+  return <div className="docling-readonly-document" data-heading-levels={showHeadingLevels} data-testid="comparison-document">
     <DocumentEditor document={document} documentPath={path} readOnly showHeadingLevels={showHeadingLevels} onStructuralReject={reject}
       onReadingLayout={onLayout} onReadingSelection={onSelection} />
   </div>;

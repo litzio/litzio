@@ -160,8 +160,11 @@ Clean available Save is ghost, unsaved is accent, unavailable muted without hove
 Heading depth #887/#886 was checked with numbered H1–H6, wrapped headings, gutter
 handles/menu, native clipboard, Save/Reload and ordinary Read/Source exclusion in
 `heading-levels`; `docling-compare` checks opt-in fixed Read and narrow hover clearance.
-The comparison cue paints on paper above the connector's last segment, keeping text and
-source/matching geometry unchanged. Same-state Windows Chrome captures are manual evidence:
+The comparison reserves a 48px inspection gutter. The unfilled cue clears the ordinary
+block outline by 12px; heading connectors enter above the gutter and end at the measured
+block edge without crossing the cue. Existing correspondence and scroll assertions remain
+unchanged. Editor captures are retained from the approved head; comparison captures were
+replaced after this clearance correction. Windows Chrome captures are manual evidence:
 
 | Surface | 1440px Light / English | 640px Dark / Korean |
 | --- | --- | --- |
@@ -191,7 +194,7 @@ Values tuned by hand or changed by taste live under **Adjustable values** in `st
 | Command Center | `--layout-command-center-width`, `--layout-command-center-popup-width`, `--layout-command-center-list-height` |
 | Settings | `--layout-settings-content-width`, `--layout-settings-control-width`, `--layout-document-settings-label-width`, `--space-document-settings-after` |
 | Figure metadata | `--layout-figure-popover-width`, `--size-figure-property-thumbnail-max-width/height`, `--space-figure-popover-gap`; preview retains intrinsic ratio |
-| Heading depth | `--font-size-heading-level`, `--id-color-heading-level`, `--space-heading-level-gap`, `--space-heading-level-reading-gap`; all in Adjustable values, using existing metadata/theme tokens |
+| Heading depth | `--font-size-heading-level`, `--id-color-heading-level`, `--space-heading-level-gap`, `--layout-reading-heading-gutter`, `--space-heading-level-reading-gap`; all in Adjustable values, using existing metadata/theme tokens |
 | Folder/image picker | `--layout-folder-picker-width`, `--layout-folder-picker-list-height`, `--layout-folder-picker-folder-list-height`, `--layout-folder-picker-preview-height` |
 | File/reading previews/comparison | `--layout-file-preview-width`, `--layout-file-preview-image-max-height`, `--layout-reading-preview-width/height`, `--layout-recovery-compare-width`, `--layout-recovery-diff-max-height` |
 | Other presentation | `--font-feature-sans`, `--layout-start-width`, `--size-start-mark`, `--size-overflow-fade`, `--reference-underline-offset`; start title has independent UI size/line-height tokens |

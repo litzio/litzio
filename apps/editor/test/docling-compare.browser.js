@@ -279,25 +279,47 @@ async (page, { expect, screenshots }) => {
     await page.evaluate(() => document.fonts.ready);
     await reading.locator('.heading').first().hover();
     await expect(reading.getByTestId('block-hover-outline')).toBeVisible();
-    depthGeometry.push(await reading.evaluate(el => ({
-      headings:el.querySelectorAll('.heading').length,
-      outlineLeft:el.querySelector('.block-hover-outline').getBoundingClientRect().left,
-      cues:[...el.querySelectorAll('.heading-level')].map(cue => {
-        const c=cue.getBoundingClientRect(), pane=el.getBoundingClientRect();
-        return {text:cue.textContent, title:cue.title, hidden:cue.getAttribute('aria-hidden'),
-          left:c.left-pane.left, right:c.right, visibility:getComputedStyle(cue).visibility};
-      }),
-    })));
+    depthGeometry.push(await reading.evaluate(el => {
+      const heading = el.querySelector('.heading').getBoundingClientRect();
+      const pane = el.getBoundingClientRect(), svg = el.closest('.docling-body').querySelector('.docling-wires');
+      const cues = [...el.querySelectorAll('.heading-level')].map(cue => cue.getBoundingClientRect());
+      let wireOverlapsCue = false;
+      for (const path of svg.querySelectorAll('path')) {
+        const matrix = path.getScreenCTM(), length = path.getTotalLength();
+        for (let distance = 0; distance <= length; distance++) {
+          const p = path.getPointAtLength(distance).matrixTransform(matrix);
+          if (cues.some(c => c.bottom > pane.top && c.top < pane.bottom &&
+            p.x > c.left - 4 && p.x < c.right + 4 && p.y > c.top - 4 && p.y < c.bottom + 4)) wireOverlapsCue = true;
+        }
+      }
+      const wire = svg.querySelector('path[data-category="heading"]');
+      const endpoint = wire.getPointAtLength(wire.getTotalLength()).matrixTransform(wire.getScreenCTM());
+      return {
+        wireOverlapsCue,
+        endpointError:Math.hypot(endpoint.x-heading.left, endpoint.y-heading.top-Math.min(heading.height/2,24)),
+        headings:el.querySelectorAll('.heading').length,
+        outlineLeft:el.querySelector('.block-hover-outline').getBoundingClientRect().left,
+        cues:[...el.querySelectorAll('.heading-level')].map(cue => {
+          const c=cue.getBoundingClientRect(), pane=el.getBoundingClientRect();
+          return {text:cue.textContent, title:cue.title, hidden:cue.getAttribute('aria-hidden'),
+            left:c.left-pane.left, right:c.right, visibility:getComputedStyle(cue).visibility};
+        }),
+      };
+    }));
     if (screenshots) await page.screenshot({path:`tmp/887-evidence/${await reading.locator('.heading-level').count() ? 'after' : 'before'}-comparison-${width}.png`});
   }
   for (const [index, geometry] of depthGeometry.entries()) {
     expect(geometry.headings).toBeGreaterThan(0);
     expect(geometry.cues).toHaveLength(geometry.headings);
     expect(geometry.cues[0].right).toBeLessThan(geometry.outlineLeft);
+    expect(geometry.outlineLeft - geometry.cues[0].right).toBeGreaterThanOrEqual(8);
+    expect(geometry.wireOverlapsCue).toBe(false);
+    expect(geometry.endpointError).toBeLessThan(1);
     for (const cue of geometry.cues) {
       expect(cue.text).toMatch(/^H[1-6]$/); expect(cue.hidden).toBe('true');
       expect(cue.title).toBe(`${index === 0 ? 'Heading' : '제목'} ${cue.text.slice(1)}`);
       expect(cue.visibility).toBe('visible'); expect(cue.left).toBeGreaterThanOrEqual(0);
+      expect(cue.left).toBeGreaterThanOrEqual(8);
     }
   }
   await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); });
