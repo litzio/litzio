@@ -92,7 +92,7 @@ test("fake adapter failures, timeout and actual worker cancellation never expose
     process.env.LITZIO_AI_TEST_ADAPTER = mode;
     const request = { ...message(input), caller: AI_TASK.plugin };
     await runtime.start(request, failure === "timeout" ? 50 : 5000, AI_TASK.plugin);
-    if (failure === "cancelled") await runtime.cancel(request.id);
+    if (failure === "cancelled") await runtime.cancel(request.id.toUpperCase());
     const done = await finished(() => runtime.current(request.id));
     assert.equal(done.job.failure, failure); assert.equal(done.job.result, undefined); assert.equal(done.canCancel, false);
     const receipt = store.getAi(request.id)!;

@@ -135,6 +135,7 @@ export class AiTaskRuntime {
     }
   }
   async cancel(id: string): Promise<AiTaskRecord> {
+    id = requestUuid(id);
     const record = this.current(id), execution = this.active.get(id);
     if (!record) throw new Error("AI request is unavailable.");
     if (record.status === "running" && !execution) throw new Error("Only the owning Host can cancel this AI task.");
