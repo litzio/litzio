@@ -25,6 +25,110 @@ All output passes Core serialization and byte-stable parse/serialize reopening.
 Failures to preserve an individual source structure are recorded in the map;
 invalid source schema/graph or an invalid final native document refuses output.
 
+## Approved correction records and replay (#876)
+
+`litzio docling apply-corrections <conversion-folder>` replays `corrections.json`
+without AI or a Docling server. The CLI calls the installed plugin Host operation;
+interpretation stays in Docling and existing Core operations remain unchanged.
+This explicit regeneration replaces manual edits to generated Markdown.
+
+The single human-readable JSON ledger has this versioned shape:
+
+```json
+{
+  "format": "litzio-docling-corrections",
+  "version": 1,
+  "source": { "file": "document.json", "sha256": "<original file SHA-256>" },
+  "entries": [
+    {
+      "id": "heading-1",
+      "self_ref": "#/texts/0",
+      "operation": "heading",
+      "value": { "level": 2 },
+      "reason": "The source section belongs under the preceding H1.",
+      "aiEvidence": "",
+      "approvedAt": "2026-11-02T01:00:00Z"
+    }
+  ]
+}
+```
+
+`id` is unique and identifies an approval for removal; `self_ref` always names
+an original text-array item. Reason and approval timestamp with timezone are
+required. `aiEvidence` is an optional string and may be empty in this phase.
+Unknown fields, versions, operations, duplicate IDs and invalid values refuse
+the entire request. There is no SQLite store or native-document metadata.
+
+JSON `convert` creates an empty ledger with the absolute original input path.
+Its copied assets remain self-contained for reading; replay additionally needs
+that original file and its local images. The original JSON is never rewritten.
+PDF bundles use the unchanged local `document.json`: without a ledger, replay
+starts with an empty one pointing there and saves it on success. Relative source
+paths resolve from the conversion folder. The source hash must match both the
+original bytes and the map's source hash. Source paths pass Host Root checks.
+
+The three operations act on a private, schema/graph-validated copy:
+
+| Operation and value | Source-copy change and conditions |
+| --- | --- |
+| `heading`, `{ "level": 1 }` through `6`, or `{ "level": null }` | Reachable body `text`, `title` or `section_header` becomes `section_header` with that level, or `text` with `level` removed. Text, `orig`, provenance, layer, parent and order stay unchanged. Covers depth changes and both heading/body decisions. |
+| `merge-paragraphs`, `{ "next": "#/texts/3" }` | Target and continuation must be consecutive body `text` leaves in reading order, ignoring furniture and traversing containers (including distinct parents). Target's final provenance page and continuation's first page must be consecutive. Formatting/hyperlinks must match. Append one space plus continuation `text`/`orig` to the target; concatenate provenance, shifting continuation character spans by preceding text's Unicode character count plus one. Remove the continuation's child edge and set its parent to null; retain its array slot, original text and `self_ref`. Never compact arrays or renumber refs. The surviving target can consume further consecutive-page continuations. |
+| `furniture`, `{ "label": "text" }`, `"page_header"` or `"page_footer"` | A body text/heading/header/footer becomes that label and respectively `content_layer: body` or `furniture`; remove heading `level`. Text, `orig`, provenance, parent and order stay unchanged. Label/layer and tree placement are independent Docling facts; conversion already visits both roots and recognizes furniture in either tree. |
+
+All operations require nonempty, unassociated leaf text, preserving picture,
+table, list, footnote and caption relationships. Each ref may receive one heading/
+furniture classification; another classification, including one after a merge, conflicts. Classification can
+precede a merge when it satisfies its conditions. Consumed continuations cannot
+be targeted again; a continuation already surviving another merge is refused.
+Missing targets, unsatisfied conditions, conflicts and corrections the existing
+converter cannot represent return an entry-specific reason before any write.
+No entry is skipped. uint64 and fields outside the stated changes stay intact.
+
+Internal functions `addDoclingCorrection(folder, entry)`,
+`removeDoclingCorrection(folder, id)` and `applyDoclingCorrections(folder)` replay
+the complete resulting ledger from the original. Removal is approval undo, not
+an inverse patch. Installed Host operations `add-correction`, `remove-correction`
+and `apply-corrections` take `{folder, entry}`, `{folder, id}` and `{folder}`;
+conversion must be enabled. They add no UI route or dashboard change. Removing a
+prerequisite that invalidates a remaining entry refuses the removal. AI execution,
+proposals, approval screens and block confirmation state remain follow-up work.
+
+Publication builds a complete private sibling copy of the folder, including
+untouched source/assets/user files, then renames the old folder to a private
+backup and the new generation to the public name. An exclusive folder lock
+rejects simultaneous correction writers. Native canonical paths determine both
+the public name and lock: Windows 8.3 aliases preserve the original long name
+and share its lock. An HTTP Root configured with its 8.3 locator admits that
+same pinned root's native long paths for source and pre-publication rechecks;
+the shared Root boundary still rejects outside targets and replaced roots.
+Source/folder revisions are checked
+immediately before replacement. A second-rename failure rolls back the first;
+temporary sibling cleanup and owned-lock release are attempted independently.
+Cleanup failures report each retained sibling/lock path together with the original
+publication/rollback error, retaining all causes. A failure after publication
+explicitly states that the result was published. As with existing
+file replacement, revision checking and rename are separate, not atomic CAS.
+The two renames can briefly make the path unavailable but never publish
+individual files from an incomplete generation. A process/OS interruption in
+that interval can leave a complete backup and lock beside the folder; automatic
+crash recovery is outside this concept-validation scope. Failed rollback reports
+the retained backup path. Filesystem aliases inside the folder are refused.
+
+The map stays v1, bound to the **original** source hash and new Markdown hash.
+Original refs, labels, layers, parents and individual provenance regions remain
+inspection evidence. Status/targets describe corrected conversion; notes disclose
+approvals. Merged refs share a result target with their own original page/bbox/
+character spans. Existing readers report the new pair as current and an old map
+with changed Markdown as stale. Open comparison tabs retain opening snapshots;
+close/reopen after replay to read the new generation.
+
+Verification uses synthetic inputs and the saved NIST bundle: all operations,
+original-byte preservation, invalid/conflicting entries, dependent-removal refusal,
+byte-identical output after undo, publication rollback, concurrent-edit refusal
+and thin installed-Host CLI integration. Windows regressions cover real 8.3 alias
+publication/locking; injected sibling cleanup failures cover lock release and
+preserved publication/rollback diagnostics. No Docling server or review/AI UI is used.
+
 ## External PDF service and source bundle
 
 ```sh
@@ -262,8 +366,8 @@ Plugin entry points compose `conversion/`, `comparison/` and `shared/`. Neither
 feature imports the other or a composition entry. Shared source types and
 correspondence format/readers are the data boundary; the features meet through
 published conversion-folder files. Build and boundary tests check runtime, erased
-and dynamic imports. There is no new document semantic operation: existing
-headless conversion and installed Host operations remain the CLI surface.
+and dynamic imports. There is no new Core semantic operation. Headless conversion
+and [correction replay](#approved-correction-records-and-replay-876) use installed Host operations.
 
 Visual review pairs: [1440px before](assets/docling-dashboard-871/before-1440-light-en.png)
 / [after](assets/docling-dashboard-871/after-1440-light-en.png),
@@ -350,8 +454,8 @@ display numbers are not a new Core feature in this issue. Conversion never
 silently treats an unrelated occurrence of the same number as an endnote call.
 
 Read-only comparison is defined by [Docling comparison](docling-compare-v1.md).
-Confirmation state, correction records and post-edit relinking remain outside
-this contract. Public fixture provenance, licenses and reproduction
+Confirmation state, AI proposals and post-edit relinking remain outside
+this contract; approved correction replay is defined above. Public fixture provenance, licenses and reproduction
 commands are in the [fixture README](../../plugins/docling/test/fixtures/README.md).
 
 ## App verification on 2026-10-30

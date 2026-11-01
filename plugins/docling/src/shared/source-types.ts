@@ -9,7 +9,7 @@ export type Cell = {
 };
 export type SourceItem = {
   self_ref: string; label: string; content_layer?: string; parent?: Ref | null;
-  children?: Ref[]; prov?: Provenance[]; text?: string; level?: number;
+  children?: Ref[]; prov?: Provenance[]; text?: string; orig?: string; level?: number;
   formatting?: { bold?: boolean; italic?: boolean; underline?: boolean; strikethrough?: boolean; script?: string } | null;
   hyperlink?: string | null; marker?: string; enumerated?: boolean; code_language?: string;
   captions?: Ref[]; footnotes?: Ref[]; references?: Ref[]; image?: ImageRef | null;

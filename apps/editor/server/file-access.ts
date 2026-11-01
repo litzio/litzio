@@ -27,10 +27,15 @@ function locator(value: string): string {
   return path.resolve(value.trim());
 }
 
+/** Compare Windows 8.3 locators and canonical paths in the same pinned boundary. */
+function realPath(value: string): string {
+  return process.platform === "win32" ? fs.realpathSync.native(value) : fs.realpathSync(value);
+}
+
 /** The real path of the nearest existing ancestor. */
 function realParent(target: string): string {
   for (let folder = path.dirname(target); ; folder = path.dirname(folder)) {
-    try { return fs.realpathSync(folder); }
+    try { return realPath(folder); }
     catch (error) { if (path.dirname(folder) === folder) throw error; }
   }
 }
@@ -62,7 +67,7 @@ export class RootAccess {
     const entries: RootEntry[] = [];
     for (const value of roots) {
       const folder = locator(value);
-      const real = fs.realpathSync(folder);
+      const real = realPath(folder);
       const stat = fs.statSync(real);
       if (!stat.isDirectory()) throw new Error(`Root must be an existing directory: ${folder}`);
       if (!entries.some(entry => inside(real, entry.real) && within(entry, entry.real, real))) {
@@ -77,7 +82,7 @@ export class RootAccess {
   private currentRoots(): void {
     for (const entry of this.entries) {
       try {
-        const real = fs.realpathSync(entry.path);
+        const real = realPath(entry.path);
         const stat = fs.statSync(real);
         if (real !== entry.real || stat.dev !== entry.dev || stat.ino !== entry.ino || !stat.isDirectory()) throw new Error();
       } catch { throw new FileAccessError("An allowed folder changed or is unavailable. Restart the Host after checking its roots."); }
@@ -98,7 +103,7 @@ export class RootAccess {
     try {
       // lstat distinguishes a dangling symlink from a genuinely absent new leaf.
       fs.lstatSync(target);
-      real = fs.realpathSync(target);
+      real = realPath(target);
       const stat = fs.statSync(real);
       if (!stat.isFile() && !stat.isDirectory()) throw new FileAccessError("Only regular files and directories are supported.");
     } catch (error) {
@@ -107,7 +112,7 @@ export class RootAccess {
       if (!create || (error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       try { fs.lstatSync(target); throw new FileAccessError("A new file cannot replace a symlink."); }
       catch (leafError) { if ((leafError as NodeJS.ErrnoException).code !== "ENOENT") throw leafError; }
-      const parent = fs.realpathSync(path.dirname(target));
+      const parent = realPath(path.dirname(target));
       if (!fs.statSync(parent).isDirectory()) throw new FileAccessError("Parent must be an existing directory.");
       real = path.join(parent, path.basename(target));
     }

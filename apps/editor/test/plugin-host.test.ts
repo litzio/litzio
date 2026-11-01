@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import fs, { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -8,6 +10,57 @@ import { createPluginHost } from "../server/plugin-host.ts";
 import { handleDocumentRequest } from "../server/document-api.ts";
 import { listenForFetch } from "@litzio/plugin-api/testing";
 import { randomUUID } from "node:crypto";
+import { RootAccess, FileAccessError } from "../server/file-access.ts";
+
+test("installed Docling corrections preserve a long conversion folder under a Windows 8.3 allowed Root", { skip: process.platform !== "win32" }, async t => {
+  const base = mkdtempSync(path.join(tmpdir(), "plugin-host-short-root-"));
+  let host: ReturnType<typeof createPluginHost> | undefined;
+  t.after(async () => { await host?.close(); rmSync(base, { recursive: true, force: true }); });
+  const allowed = path.join(base, "LongAllowedRoot"), outside = path.join(base, "LongAllowedRoot-outside");
+  fs.mkdirSync(allowed); fs.mkdirSync(outside);
+  const folder = path.join(allowed, "LongConversionFolder");
+  fs.cpSync(fileURLToPath(new URL("../../../plugins/docling/test/fixtures/nist-sp1108r4/", import.meta.url)), folder, { recursive: true });
+  const shortRoot = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
+    "(New-Object -ComObject Scripting.FileSystemObject).GetFolder($env:LITZIO_TEST_ALLOWED_ROOT).ShortPath"],
+  { encoding: "utf8", windowsHide: true, env: { ...process.env, LITZIO_TEST_ALLOWED_ROOT: allowed } }).trim();
+  if (path.basename(shortRoot).toLowerCase() === path.basename(allowed).toLowerCase()) {
+    t.skip("The temporary filesystem does not provide an 8.3 Root alias"); return;
+  }
+  const access = new RootAccess([shortRoot]), canonicalRoot = fs.realpathSync.native(allowed);
+  const locator = path.join(shortRoot, "LongConversionFolder"), canonical = fs.realpathSync.native(folder);
+  const read = (file: string) => fs.readFileSync(path.join(folder, file));
+  const original = { source: read("document.json"), document: read("document.md"), map: read("document.docling-map.json") };
+  host = createPluginHost(access, undefined, { directory: path.join(base, "plugins") });
+  assert.equal(host.invoke("docling", "compare", { path: path.join(locator, "document.md") }).stale, false);
+  assert.equal(host.invoke("docling", "apply-corrections", { folder: locator }).output, canonical);
+  const heading = JSON.parse(original.source.toString("utf8")).texts.find((item: any) => item.label === "section_header" && item.content_layer === "body");
+  const entry = { id: "short-root-heading", self_ref: heading.self_ref, operation: "heading", value: { level: 6 }, reason: "Installed Host Root regression", approvedAt: "2026-11-02T01:00:00Z" };
+  assert.equal(host.invoke("docling", "add-correction", { folder: canonical, entry }).output, canonical);
+  assert.equal(host.invoke("docling", "compare", { path: path.join(canonical, "document.md") }).stale, false);
+  assert.equal(host.invoke("docling", "remove-correction", { folder: locator, id: entry.id }).output, canonical);
+  assert.ok(fs.existsSync(folder), "native publication must preserve the original long folder name");
+  assert.deepEqual(read("document.json"), original.source);
+  assert.deepEqual(read("document.md"), original.document); assert.deepEqual(read("document.docling-map.json"), original.map);
+  assert.deepEqual(fs.readdirSync(allowed), ["LongConversionFolder"]);
+
+  // Generic Host callers keep their locator while the same pinned directory
+  // admits canonical paths, creation parents and duplicate Root spellings.
+  for (const root of [shortRoot, canonicalRoot]) {
+    const document = path.join(root, "LongConversionFolder", "document.md");
+    assert.equal(access.resolve(document), document);
+    assert.equal(access.boundary(document), root);
+    assert.equal(access.resolve(path.join(root, "new.md"), true), path.join(root, "new.md"));
+  }
+  assert.deepEqual(new RootAccess([shortRoot, canonicalRoot]).roots, [shortRoot]);
+  const sentinel = path.join(outside, "private.md"); writeFileSync(sentinel, "Outside Root");
+  assert.throws(() => host!.invoke("docling", "apply-corrections", { folder: outside }), FileAccessError);
+  fs.symlinkSync(outside, path.join(allowed, "escape"), "junction");
+  assert.throws(() => access.resolve(path.join(shortRoot, "escape", "private.md")), FileAccessError);
+  assert.throws(() => access.resolve(path.join(canonicalRoot, "escape", "missing.md"), true), FileAccessError);
+  assert.equal(fs.readFileSync(sentinel, "utf8"), "Outside Root");
+  fs.renameSync(allowed, `${allowed}-moved`); fs.mkdirSync(allowed);
+  assert.throws(() => access.resolve(path.join(canonicalRoot, "new.md"), true), /allowed folder changed or is unavailable/);
+});
 
 test("headless Host operations use the installed plugin through local and HTTP calls, validate entry/API and respect disable", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "plugin-host-")), manifest = path.join(root, "manifest.json");

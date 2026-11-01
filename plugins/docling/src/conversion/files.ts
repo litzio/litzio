@@ -4,11 +4,12 @@ import { fileURLToPath } from "node:url";
 import { convertDoclingDocument, type Conversion } from "./convert.ts";
 import { readSource, type ImageRef } from "./source.ts";
 import { sha256 } from "../shared/map.ts";
+import { emptyCorrections } from "./corrections.ts";
 
-/** Local file adapter owned by the module. Creates one new output directory; never overwrites. */
-export function convertDoclingFile(input: string, output: string): Conversion {
-  if (existsSync(output)) throw new Error("Output directory already exists; choose a new directory");
-  const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(readFileSync(input));
+/** Shared image resolution for initial conversion and correction replay. */
+export function loadDoclingImages(input: string, text: string, keepLocalPaths = false): {
+  images: Map<string, string | null>; assets: Map<string, Uint8Array>;
+} {
   const { source, nodes } = readSource(text);
   const sourceRoot = realpathSync(path.dirname(path.resolve(input)));
   const resources = new Map<string, string | null>();
@@ -36,12 +37,23 @@ export function convertDoclingFile(input: string, output: string): Conversion {
         : data[0] === 255 && data[1] === 216 && data[2] === 255 ? ".jpg"
         : data.subarray(0, 4).toString() === "RIFF" && data.subarray(8, 12).toString() === "WEBP" ? ".webp" : undefined;
       if (!ext) throw new Error("Unsupported image bytes");
+      if (keepLocalPaths && !path.isAbsolute(image.uri) && !/^[a-z]+:/iu.test(image.uri)) {
+        resources.set(image.uri, image.uri); return;
+      }
       const name = `assets/${sha256(bytes)}${ext}`;
       assets.set(name, bytes); resources.set(image.uri, name);
     } catch { resources.set(image.uri, null); }
   }
   imageRefs.forEach(load);
-  const result = convertDoclingDocument(text, { images: resources });
+  return { images: resources, assets };
+}
+
+/** Local file adapter owned by the module. Creates one new output directory; never overwrites. */
+export function convertDoclingFile(input: string, output: string): Conversion {
+  if (existsSync(output)) throw new Error("Output directory already exists; choose a new directory");
+  const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(readFileSync(input));
+  const { images, assets } = loadDoclingImages(input, text);
+  const result = convertDoclingDocument(text, { images });
   // All interpretation and canonical checks finish before the first filesystem mutation.
   mkdirSync(output); // exclusive directory creation is the no-overwrite boundary, including races
   try {
@@ -49,6 +61,7 @@ export function convertDoclingFile(input: string, output: string): Conversion {
     for (const [name, bytes] of assets) writeFileSync(path.join(output, name), bytes, { flag: "wx" });
     writeFileSync(path.join(output, "document.md"), result.markdown, { encoding: "utf8", flag: "wx" });
     writeFileSync(path.join(output, "document.docling-map.json"), JSON.stringify(result.map, null, 2) + "\n", { encoding: "utf8", flag: "wx" });
+    writeFileSync(path.join(output, "corrections.json"), JSON.stringify(emptyCorrections(path.resolve(input), text), null, 2) + "\n", { encoding: "utf8", flag: "wx" });
   } catch (error) {
     rmSync(output, { recursive: true, force: true });
     throw error;

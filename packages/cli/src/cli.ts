@@ -228,6 +228,8 @@ const COMMANDS: CommandSpec[] = [
       "--server defaults to LITZIO_DOCLING_SERVER. Uses the fixed litzio-pdf-en-v1 profile.",
       "PDF conversion creates document.json, readable image files, conversion-record.json and the native document/map.",
       "Creates document.md, document.docling-map.json and local image assets.",
+      `${brand.cliCommand} docling apply-corrections <conversion-folder>`,
+      "Replays corrections.json against the unchanged source; replaces the document/map together. No AI execution.",
       "Furniture and unsupported elements are reported in the sidecar. No chapter/range selection.",
       "Original heading numbers remain literal text; automatic heading numbering is off."],
   },
@@ -875,6 +877,12 @@ function main(argv: string[]): number {
     return 0;
   }
   if (command === "docling") {
+    if (rest.length === 2 && rest[0] === "apply-corrections" && !rest[1].startsWith("-")) {
+      const host = createPluginHost();
+      try { process.stdout.write(JSON.stringify(host.invoke("docling", "apply-corrections", { folder: rest[1] })) + "\n"); }
+      finally { void host.close(); }
+      return 0;
+    }
     if (rest.length !== 4 || rest[0] !== "convert" || rest[2] !== "--output" ||
         rest[1].startsWith("-") || rest[3].startsWith("-")) throw new Error(commandHelp(command));
     const host = createPluginHost();

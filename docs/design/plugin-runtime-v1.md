@@ -79,6 +79,12 @@ synchronously to preserve `runCli`; `convert-pdf` calls it asynchronously and us
 the existing worker admission/publication path, explicit output/server/timeout
 and result fields. Both work without UI loading or an HTTP listener.
 
+The thin CLI `docling apply-corrections <conversion-folder>` also invokes this
+installed facade synchronously. Plugin-owned `apply-corrections`, `add-correction`
+and `remove-correction` regenerate the approved ledger and complete folder through
+the [correction replay contract](docling-conversion-v1.md#approved-correction-records-and-replay-876).
+They do not admit a PDF worker job or add an AI/approval UI.
+
 Host facade activations follow installation revisions. Plugin-owned transient
 session data preserves the current job/admission gate across re-registration;
 it is not durable state or startup restoration. Disable refuses new operations,

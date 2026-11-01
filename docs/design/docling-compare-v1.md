@@ -101,9 +101,11 @@ scroll without overflowing the application shell.
 UI uses shared controls/tokens and adopted P11 checkbox/P12 file picker patterns.
 Bbox overlays, correspondence wires and the conversion-note strip are new
 comparison-specific visual patterns, not generic Editor conventions.
-Confirmation state, SQLite, correction, AI proposals, source mutation and post-edit
+Confirmation state, SQLite, correction UI, AI proposals, source mutation and post-edit
 relinking are outside this contract. No new CLI command is needed for read-only UI;
-headless conversion remains `litzio docling convert`.
+headless conversion and [approved correction replay](docling-conversion-v1.md#approved-correction-records-and-replay-876)
+remain separate plugin operations. Replay keeps original source regions and updates
+the map/document hashes together; close/reopen loads the regenerated snapshot.
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
 
