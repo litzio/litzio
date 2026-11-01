@@ -98,7 +98,10 @@ untouched source/assets/user files, then renames the old folder to a private
 backup and the new generation to the public name. An exclusive folder lock
 rejects simultaneous correction writers. Native canonical paths determine both
 the public name and lock: Windows 8.3 aliases preserve the original long name
-and share its lock. Source/folder revisions are checked
+and share its lock. An HTTP Root configured with its 8.3 locator admits that
+same pinned root's native long paths for source and pre-publication rechecks;
+the shared Root boundary still rejects outside targets and replaced roots.
+Source/folder revisions are checked
 immediately before replacement. A second-rename failure rolls back the first;
 temporary sibling cleanup and owned-lock release are attempted independently.
 Cleanup failures report each retained sibling/lock path together with the original
