@@ -99,7 +99,22 @@ test("installed Docling review uses the mediated service through HTTP operations
   }
   const source = path.join(root, "source.json"), folder = path.join(root, "result"), original = structureReviewSource(); writeFileSync(source, original);
   await invoke("convert", { input: source, output: folder });
-  const id = randomUUID(); await invoke("review-start", { folder, id });
+  const id = randomUUID(), remove = fs.rmSync;
+  let cleanupFailed = false;
+  const fault = t.mock.method(fs, "rmSync", ((file, options) => {
+    if (!cleanupFailed && String(file).startsWith(path.join(root, ".result.previous-"))) {
+      cleanupFailed = true; throw Object.assign(new Error("Injected installed review backup EACCES"), { code: "EACCES" });
+    }
+    return remove(file, options);
+  }) as typeof remove);
+  syncBuiltinESMExports();
+  try {
+    const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plugin: "docling", operation: "review-start", args: { folder, id } }) });
+    assert.ok(response.status >= 400);
+    assert.match(JSON.stringify(await response.json()), /published; cleanup failed.*Injected installed review backup EACCES/u);
+  } finally { fault.mock.restore(); syncBuiltinESMExports(); }
+  assert.equal(cleanupFailed, true);
+  assert.ok(host.plugins().getAi(id), "the installed service admits work before reporting publication cleanup failure");
   let result: any;
   const deadline = Date.now() + 10_000;
   do { result = await invoke("review-status", { folder }); if (result.task.status !== "running") break; assert.ok(Date.now() < deadline, "review worker must finish"); await delay(10); } while (true);

@@ -68,6 +68,107 @@ function files(folder: string) {
     [path.relative(folder, path.join(x.parentPath, x.name)), readFileSync(path.join(x.parentPath, x.name)).toString("hex")]).sort();
 }
 
+async function failPublishedCleanup(t: test.TestContext, folder: string, operation: () => unknown, count = 1) {
+  const remove = fs.rmSync, retained: string[] = [];
+  const fault = t.mock.method(fs, "rmSync", ((file, options) => {
+    if (String(file).startsWith(path.join(path.dirname(folder), `.${path.basename(folder)}.previous-`)) && retained.length < count) {
+      retained.push(String(file)); throw Object.assign(new Error("Injected review backup EACCES"), { code: "EACCES" });
+    }
+    return remove(file, options);
+  }) as typeof remove);
+  syncBuiltinESMExports();
+  let problem: unknown;
+  try { await assert.rejects(async () => { await operation(); }, error => { problem = error; return /published; cleanup failed.*Injected review backup EACCES/su.test(String(error)); }); }
+  finally { fault.mock.restore(); syncBuiltinESMExports(); }
+  assert.equal(retained.length, count);
+  assert.ok(retained.every(file => existsSync(file)), "diagnostics retain the complete previous generation");
+  assert.equal(existsSync(path.join(path.dirname(folder), `.${path.basename(folder)}.corrections.lock`)), false);
+  return problem;
+}
+
+test("initial published cleanup failure reports the warning but admits review instead of stranding running work", async t => {
+  const f = setup(t), id = randomUUID();
+  await failPublishedCleanup(t, f.folder, () => f.start(id));
+  assert.equal(f.service.requests.length, 1, "successful publication must continue AI admission despite backup cleanup failure");
+  const running = f.call("status");
+  assert.equal(running.task!.status, "running"); assert.equal(running.canCancel, true);
+  assert.ok(f.service.requests[0].materials.every(m => existsSync(m.path)));
+  await f.start(id); assert.equal(f.service.requests.length, 1, "observing the warned request must not replay it");
+  const cancelled = await f.call<Promise<View>>("cancel");
+  assert.equal(cancelled.task!.status, "cancelled");
+  assert.ok(f.service.requests[0].materials.every(m => !existsSync(m.path)));
+  await f.start(); f.service.complete();
+  assert.equal(f.call("status").task!.status, "success", "a new explicit review must remain usable");
+  assert.equal(readFileSync(f.input, "utf8"), f.original);
+});
+
+test("admission and both published cleanup failures retain all diagnostics and leave a restartable uncertain task", async t => {
+  const f = setup(t), id = randomUUID(), admit = f.service.start.bind(f.service), admissionError = new Error("Injected admission failure");
+  f.service.start = async () => { throw admissionError; };
+  const problem = await failPublishedCleanup(t, f.folder, () => f.start(id), 2);
+  assert.ok(problem instanceof AggregateError);
+  assert.ok(problem.errors.includes(admissionError));
+  assert.equal(problem.errors.filter(error => /published; cleanup failed/u.test(error.message)).length, 2);
+  const failed = f.call("status");
+  assert.equal(failed.task!.status, "uncertain"); assert.match(failed.task!.error!, /Injected admission failure/u);
+  assert.equal(readdirSync(f.folder).some(name => name.startsWith(".structure-review-")), false);
+  await f.start(id); assert.equal(f.service.requests.length, 0, "failed admission must not replay");
+  f.service.start = admit;
+  await f.start(); f.service.complete(); assert.equal(f.call("status").task!.status, "success");
+  assert.equal(readFileSync(f.input, "utf8"), f.original);
+});
+
+for (const status of ["success", "error", "uncertain", "cancelled"] as const) test(`${status} publication cleanup failure leaves terminal review and removes inputs`, async t => {
+  const f = setup(t), running = await f.start(), request = f.service.requests[0];
+  if (status === "success") f.service.complete();
+  else if (status !== "cancelled") {
+    const receipt = f.service.current(running.task!.id)!;
+    receipt.status = status; receipt.job.failure = status === "error" ? "provider" : "uncertain";
+    receipt.job.error = `Injected ${status}`; receipt.canCancel = false;
+  }
+  await failPublishedCleanup(t, f.folder, () => f.call(status === "cancelled" ? "cancel" : "status"));
+  f.reactivate();
+  const done = f.call("status"); assert.equal(done.task!.status, status); assert.equal(done.canCancel, false);
+  assert.ok(request.materials.every(m => !existsSync(m.path)));
+  const proposals = structuredClone(done.proposals);
+  await f.start(running.task!.id); assert.equal(f.service.requests.length, 1);
+  assert.deepEqual(f.call("proposals").proposals, proposals, "terminal observation must not duplicate or replace published proposals");
+  await f.start(); await f.call<Promise<View>>("cancel");
+  assert.equal(readFileSync(f.input, "utf8"), f.original);
+});
+
+for (const action of ["approve", "reject", "undo"] as const) test(`${action} publication cleanup failure retains the whole decision without repeating it`, async t => {
+  const f = setup(t), before = f.markdown(); await f.start(); f.service.complete();
+  const proposal = f.call("status").proposals[0];
+  if (action === "undo") f.call("approve", { id: proposal.id });
+  await failPublishedCleanup(t, f.folder, () => f.call(action, { id: proposal.id }));
+  const state = action === "approve" ? "approved" : action === "reject" ? "rejected" : "pending";
+  const saved = f.call("proposals").proposals.find(p => p.id === proposal.id)!;
+  assert.equal(saved.state, state); assert.equal(saved.history.at(-1)!.state, state);
+  assert.throws(() => f.call(action, { id: proposal.id }), /required approval state|Only an unapproved/u);
+  assert.deepEqual(f.call("proposals").proposals.find(p => p.id === proposal.id), saved);
+  assert.equal(f.ledger().entries.length, action === "approve" ? 1 : 0);
+  if (action === "approve") {
+    assert.ok(f.blocks().some(b => b.block === "heading" && b.level === 2 && b.text === "Subsection"));
+    f.call("undo", { id: proposal.id });
+  }
+  assert.equal(f.markdown(), before);
+  assert.equal(readFileSync(f.input, "utf8"), f.original);
+});
+
+test("initial publication rollback does not admit AI work and allows a new explicit start", async t => {
+  const f = setup(t), before = files(f.folder), rename = fs.renameSync;
+  const fault = t.mock.method(fs, "renameSync", ((from, to) => {
+    if (String(from).includes(".corrections-") && String(to) === f.folder) throw new Error("Injected initial publication failure");
+    return rename(from, to);
+  }) as typeof rename);
+  syncBuiltinESMExports();
+  try { await assert.rejects(() => f.start(), /Injected initial publication failure/u); }
+  finally { fault.mock.restore(); syncBuiltinESMExports(); }
+  assert.deepEqual(files(f.folder), before); assert.equal(f.service.requests.length, 0);
+  await f.start(); await f.call<Promise<View>>("cancel");
+});
+
 test("status during delayed admission preserves live request materials through same-Host reactivation", async t => {
   const f = setup(t), id = randomUUID();
   let entered!: () => void, release!: () => void;

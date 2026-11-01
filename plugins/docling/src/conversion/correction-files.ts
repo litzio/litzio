@@ -10,6 +10,9 @@ type Options = { resolveSource?: (file: string) => string; beforePublish?: () =>
 const read = (file: string): string => new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(readFileSync(file));
 const message = (error: unknown): string => error instanceof Error ? error.message : String(error);
 
+/** Publication succeeded; callers must not treat cleanup failure as a rollback. */
+export class PublishedCorrectionCleanupError extends AggregateError {}
+
 /** Optimistic revision of the complete folder, including user files and source images. */
 function revision(folder: string): string {
   const files: unknown[] = [];
@@ -72,7 +75,8 @@ export function updateConversionFolder(folder: string, prepare: () => (staging: 
     }
     if (cleanupErrors.length) {
       const outcome = failed ? message(failure) : "Correction result was published";
-      throw new AggregateError(failed ? [failure, ...cleanupErrors] : cleanupErrors,
+      const CleanupError = failed ? AggregateError : PublishedCorrectionCleanupError;
+      throw new CleanupError(failed ? [failure, ...cleanupErrors] : cleanupErrors,
         `${outcome}; cleanup failed: ${cleanupErrors.map(error => error.message).join("; ")}`, { cause: failure });
     }
   }

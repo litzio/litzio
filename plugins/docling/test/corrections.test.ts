@@ -8,6 +8,7 @@ import test from "node:test";
 import { getEditableDocument, parse } from "@litzio/core";
 import { convertDoclingFile, addDoclingCorrection, removeDoclingCorrection, applyDoclingCorrections, readDoclingMap, convertWithDoclingCorrections, type DoclingCorrection } from "../src/index.ts";
 import { emptyCorrections } from "../src/conversion/corrections.ts";
+import { PublishedCorrectionCleanupError } from "../src/conversion/correction-files.ts";
 import { inspectDoclingMap, sha256 } from "../src/shared/map.ts";
 import { readSource } from "../src/conversion/source.ts";
 
@@ -107,6 +108,8 @@ for (const failure of ["staging", "backup", "rollback"] as const) test(`${failur
   assert.ok(retained && fs.existsSync(retained));
   assert.ok(problem instanceof Error); assert.ok(problem.message.includes(retained));
   assert.ok(includesError(problem, cleanupError));
+  assert.ok(problem instanceof AggregateError);
+  assert.equal(problem instanceof PublishedCorrectionCleanupError, failure === "backup", "only a successfully published generation can report published cleanup failure");
   if (failure === "backup") {
     assert.match(problem.message, /published/i);
     assert.deepEqual(snapshot(retained), before);

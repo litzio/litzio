@@ -183,6 +183,17 @@ cannot revive the old owner. Once B admits the task, its existing receipt govern
 terminal observation/cleanup. These temporary input copies are not a queue or
 additional proposal ledgers; no new database or ownership store is introduced.
 
+If the initial complete-folder publication succeeds but sibling cleanup fails,
+Docling still submits the published inputs to B before returning the cleanup
+error to the caller. A's `AggregateError` message, paths and causes are retained;
+its `PublishedCorrectionCleanupError` subtype identifies successful publication
+without matching error text. A failed/rolled-back publication never admits work.
+After a cleanup warning, observe the same request UUID to read or cancel the
+admitted task; observing never repeats execution. If admission also fails, the
+task is recorded as `uncertain` and its inputs removed. Admission, initial cleanup
+and failure-record cleanup errors are all reported together when applicable.
+The existing shared Host ownership rules above remain unchanged.
+
 Only B's completed success receipt is consumed, with matching caller/task/baseline.
 Docling checks the JSON shape again and dry-runs each suggestion independently
 through `checkDoclingCorrection`, which invokes A's full ordered replay and native
@@ -249,6 +260,15 @@ A-style locked complete-folder replacement; failure does not publish a mixed
 state. Rejection/result publication use that same lock and replacement. Concurrent
 proposal edits are revision-checked. A's existing source preservation, rollback,
 cleanup diagnostics and concept-stage crash limitations still apply.
+
+If cleanup throws after a terminal result/failure/cancellation or a decision was
+published, that terminal state or complete decision remains authoritative. The
+caller receives the cleanup diagnostics; the next observation reads the saved
+state without consuming results or applying the decision again. Terminal
+publication removes inputs and releases the consumer's service reference even
+when its sibling cleanup reports failure. Leftover backups remain at the reported
+paths for inspection under A's existing contract; they are not silently removed
+or replayed on a later request.
 
 The installed Host operations use the existing `/api/plugin-operation` transport:
 

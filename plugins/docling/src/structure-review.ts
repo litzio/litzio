@@ -5,7 +5,7 @@ import path from "node:path";
 import type { AiFailure, AiTaskRecord, AiTaskService, JsonValue } from "@litzio/plugin-api/ai";
 import type { PluginHostContext } from "@litzio/plugin-api/host";
 import { checkDoclingCorrection, type DoclingCorrection, type DoclingCorrections } from "./conversion/corrections.ts";
-import { addDoclingCorrection, readFolderCorrections, removeDoclingCorrection, updateConversionFolder } from "./conversion/correction-files.ts";
+import { addDoclingCorrection, PublishedCorrectionCleanupError, readFolderCorrections, removeDoclingCorrection, updateConversionFolder } from "./conversion/correction-files.ts";
 import { loadDoclingImages } from "./conversion/files.ts";
 import { sha256 } from "./shared/map.ts";
 
@@ -145,7 +145,7 @@ export class StructureReviewer {
       catch { return review; } // Unknown liveness: retain inputs for a later observation.
     }
     if (receipt?.status === "running") return review;
-    updateConversionFolder(folder, () => {
+    try { updateConversionFolder(folder, () => {
       const current = readReview(folder);
       if (current.task?.id !== task.id || current.task.status !== "running") return () => {};
       const active = current.task;
@@ -170,7 +170,11 @@ export class StructureReviewer {
         }
       }
       return staging => { writeReview(staging, current); removeMaterials(staging, task.id); };
-    }, () => this.beforePublish(folder));
+    }, () => this.beforePublish(folder)); }
+    catch (error) {
+      if (error instanceof PublishedCorrectionCleanupError) this.services.delete(task.id);
+      throw error;
+    }
     this.services.delete(task.id);
     return readReview(folder);
   }
@@ -191,8 +195,8 @@ export class StructureReviewer {
     const previous = this.refresh(folder);
     if (previous.task?.id === id) return this.list(folder); // Observation never re-executes an admitted or uncertain request.
     if (previous.task?.status === "running") throw new Error("A structure review is already running for this conversion.");
-    let task: ReviewTask;
-    updateConversionFolder(folder, () => {
+    let task: ReviewTask, cleanupError: PublishedCorrectionCleanupError | undefined;
+    try { updateConversionFolder(folder, () => {
       const current = readReview(folder);
       if (current.task?.status === "running") throw new Error("A structure review is already running for this conversion.");
       const { text, ledger } = this.source(folder);
@@ -204,21 +208,30 @@ export class StructureReviewer {
         writeFileSync(path.join(staging, materialFile(id, "rejected-proposals.json")), json(current.proposals.filter(p => p.state === "rejected").map(p => p.suggestion)), "utf8");
         writeReview(staging, current);
       };
-    }, () => this.beforePublish(folder));
+    }, () => this.beforePublish(folder)); }
+    catch (error) {
+      if (!(error instanceof PublishedCorrectionCleanupError)) throw error;
+      cleanupError = error; // Inputs are public: finish admission before reporting cleanup.
+    }
     this.services.set(id, service);
     try {
       await service.start({ id, caller: "docling", task: TASK, instruction: structureReviewInstruction,
         materials: materialNames.map(name => ({ path: path.join(folder, materialFile(id, name)), name })),
         input: {}, schema: structureReviewSchema, baseline: JSON.stringify(task!.baseline) });
     } catch (error) {
-      updateConversionFolder(folder, () => {
+      const errors: unknown[] = cleanupError ? [cleanupError, error] : [error];
+      try { updateConversionFolder(folder, () => {
         const current = readReview(folder);
         if (current.task?.id !== id) throw new Error("Structure review changed during AI admission.");
         current.task.status = "uncertain"; current.task.failure = "uncertain"; current.task.error = message(error); current.task.finishedAt = now();
         return staging => { writeReview(staging, current); removeMaterials(staging, id); };
-      }, () => this.beforePublish(folder));
-      throw error;
+      }, () => this.beforePublish(folder)); }
+      catch (recordingError) { errors.push(recordingError); }
+      this.services.delete(id);
+      if (errors.length === 1) throw error;
+      throw new AggregateError(errors, errors.map(message).join("; "), { cause: error });
     }
+    if (cleanupError) throw cleanupError;
     return this.list(folder);
   }
   async cancel(value: string) {

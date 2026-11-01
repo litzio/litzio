@@ -546,6 +546,14 @@ fake AI service. It verifies request materials/schema/baseline, dry-run separati
 of pending/inapplicable results, storage, approval/rejection/undo, current-ledger
 revalidation, rerun/history retention, source drift, agent disable, cancellation,
 failure/uncertain/no replay, byte preservation and complete-generation rollback.
+Injected backup-deletion failures after successful publication cover initial
+admission, success/error/uncertain/cancellation, and approval/rejection/undo.
+They verify reported cleanup diagnostics, continued admission, retained terminal
+states/whole decisions, removed terminal inputs and later explicit review reuse.
+Combined admission and cleanup failures preserve all causes; a rolled-back
+initial publication starts no AI work. A's existing staging/backup/rollback
+cleanup tests also verify that only successful publication carries the typed
+published outcome while retaining its `AggregateError` contract.
 The same-Host admission regression explicitly pauses material reads before B
 creates a receipt, queries status through reactivation, and releases the read.
 It checks `running`, preserved inputs, successful admission/validation and
@@ -555,6 +563,9 @@ that a saved request with no live owner/receipt becomes uncertain without replay
 additionally uses the installed plugin through the shared HTTP operation route
 with B's real service/runtime and a deterministic worker. Neither calls an AI
 model or a Docling service.
+The HTTP test also injects an initial published backup-cleanup failure and checks
+that the error reaches the caller while the real B service admits and completes
+the task, without duplicate execution.
 The installed test also creates two independent Hosts sharing installations and
 the conversion folder, gates B's actual material reads and queries status from
 the second Host before admission. It verifies live-owner input preservation and
