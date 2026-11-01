@@ -3,11 +3,16 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { ConversionJob } from "@litzio/plugin-api/worker";
+import { AI_TASK, type AiTaskJob } from "@litzio/plugin-api/ai";
 import { PLUGIN_UI, type UiManifest, type UiRegistration } from "@litzio/plugin-api/config";
 
-export type WorkerManifest = { id: string; version: string; workerApi?: 1; entry?: "worker.cjs"; ui?: UiManifest; host?: { api: 1; entry: "host.cjs" }; routes?: string[] };
+export type WorkerManifest = { id: string; version: string; workerApi?: 1; entry?: "worker.cjs"; tasks?: (typeof AI_TASK.service)[]; services?: (typeof AI_TASK.service)[]; ui?: UiManifest; host?: { api: 1; entry: "host.cjs" }; routes?: string[] };
 export type Installation = WorkerManifest & { directory: string; sha256: string; revision: string; hostHash?: string; uiHashes?: Record<string, string>; enabled: boolean; features?: Record<string, boolean> };
-export type Receipt = { job: ConversionJob; fingerprint: string; owner: string; installation: Installation; staging?: string;
+type RuntimeJob = ConversionJob | AiTaskJob;
+export const isAiJob = (job: RuntimeJob): job is AiTaskJob => "kind" in job && job.kind === "ai-task";
+export type Receipt<J extends RuntimeJob = ConversionJob> = { job: J; fingerprint: string; owner: string; installation: Installation; staging?: string;
+  temporary?: { snapshot: string; control: string };
+  inputs?: string[];
   status: "running" | "success" | "error" | "cancelled" | "uncertain"; hidden?: boolean };
 export const digest = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex");
 function workerManifest(value: unknown): WorkerManifest {
@@ -24,7 +29,9 @@ function workerManifest(value: unknown): WorkerManifest {
   }
   if (manifest.host !== undefined && (manifest.host?.api !== 1 || manifest.host.entry !== "host.cjs")) throw new Error("Incompatible plugin Host API (expected 1).");
   if (manifest.routes !== undefined && (!manifest.host || !Array.isArray(manifest.routes) || manifest.routes.some(route => typeof route !== "string" || !/^\/api\/[a-z0-9-]+$/u.test(route)))) throw new Error("Invalid plugin Host routes.");
+  for (const key of ["tasks", "services"] as const) if (manifest[key] !== undefined && (!Array.isArray(manifest[key]) || manifest[key]!.length !== 1 || manifest[key]![0] !== AI_TASK.service || !manifest.entry || !manifest.host)) throw new Error("Invalid AI task capability.");
   return { id: manifest.id, version: manifest.version, workerApi: manifest.workerApi, entry: manifest.entry,
+    ...(manifest.tasks ? { tasks: manifest.tasks } : {}), ...(manifest.services ? { services: manifest.services } : {}),
     ...(manifest.host ? { host: { api: manifest.host.api, entry: manifest.host.entry }, routes: manifest.routes } : {}),
     ...(manifest.ui ? { ui: { api: manifest.ui.api, reactMajor: manifest.ui.reactMajor, script: manifest.ui.script, ...(manifest.ui.style ? { style: manifest.ui.style } : {}), ...(manifest.ui.jobRoute ? { jobRoute: manifest.ui.jobRoute } : {}) } } : {}) };
 }
@@ -95,8 +102,12 @@ export class PluginStore {
   }
   history(plugin: string): Receipt[] {
     const ids = this.db.prepare("SELECT id FROM requests").all().map(row => row.id as string);
-    return ids.map(id => this.get(id)!).filter(receipt => receipt.installation.id === plugin && !receipt.hidden)
+    return ids.map(id => this.get(id)).filter((receipt): receipt is Receipt => !!receipt && receipt.installation.id === plugin && !receipt.hidden)
       .sort((a, b) => b.job.startedAt - a.job.startedAt);
+  }
+  aiHistory(deadOwnersOnly = false): Receipt<AiTaskJob>[] {
+    return this.db.prepare("SELECT id FROM requests").all().map(row => this.getRecord(row.id as string)!)
+      .filter((receipt): receipt is Receipt<AiTaskJob> => isAiJob(receipt.job) && (!deadOwnersOnly || !this.ownerAlive(receipt.owner)));
   }
   forget(id: string, plugin: string) {
     this.get(id); // Resolve dead ownership before testing the status.
@@ -147,44 +158,61 @@ export class PluginStore {
       throw error; // I/O/corruption is not proof of a dead owner.
     } finally { probe.close(); }
   }
-  private read(id: string): Receipt | null {
+  private read(id: string): Receipt<RuntimeJob> | null {
     const row = this.db.prepare("SELECT value FROM requests WHERE id=?").get(id);
     return row ? JSON.parse(row.value as string) : null;
   }
-  private save(receipt: Receipt) {
+  private save(receipt: Receipt<RuntimeJob>) {
     this.db.prepare("INSERT OR REPLACE INTO requests VALUES (?, ?)").run(receipt.job.id, JSON.stringify(receipt));
   }
   get(id: string): Receipt | null {
+    const receipt = this.getRecord(id);
+    return receipt && !isAiJob(receipt.job) ? receipt as Receipt : null;
+  }
+  getAi(id: string): Receipt<AiTaskJob> | null {
+    const receipt = this.getRecord(id);
+    return receipt && isAiJob(receipt.job) ? receipt as Receipt<AiTaskJob> : null;
+  }
+  private getRecord(id: string): Receipt<RuntimeJob> | null {
     return this.transaction(() => {
       const receipt = this.read(requestUuid(id));
       if (receipt?.status === "running" && !this.ownerAlive(receipt.owner)) {
         receipt.status = "uncertain"; receipt.job.state = "error";
-        receipt.job.error = "Conversion outcome is uncertain after Host interruption; it is never automatically retried. The server task may continue.";
-        receipt.job.failure = { code: "output", taskId: receipt.job.progress.taskId };
+        if (isAiJob(receipt.job)) {
+          receipt.job.error = "AI task outcome is uncertain after Host interruption; it is never automatically retried.";
+          receipt.job.failure = "uncertain"; delete receipt.job.result;
+        } else {
+          receipt.job.error = "Conversion outcome is uncertain after Host interruption; it is never automatically retried. The server task may continue.";
+          receipt.job.failure = { code: "output", taskId: receipt.job.progress.taskId };
+        }
         this.save(receipt);
       }
       return receipt;
     });
   }
-  admit(job: ConversionJob, fingerprint: string, plugin: string): { receipt: Receipt; fresh: boolean } {
+  admit(job: ConversionJob, fingerprint: string, plugin: string): { receipt: Receipt; fresh: boolean };
+  admit(job: AiTaskJob, fingerprint: string, plugin: string): { receipt: Receipt<AiTaskJob>; fresh: boolean };
+  admit(job: RuntimeJob, fingerprint: string, plugin: string): { receipt: Receipt<RuntimeJob>; fresh: boolean } {
     this.holdOwnership();
     return this.transaction(() => {
       const existing = this.read(job.id);
       if (existing) {
-        if (existing.fingerprint !== fingerprint || existing.installation.id !== plugin) throw new Error("Request UUID conflicts with an admitted conversion.");
+        if (existing.fingerprint !== fingerprint || existing.installation.id !== plugin || isAiJob(job) !== isAiJob(existing.job)) throw new Error("Request UUID conflicts with an admitted conversion or AI task.");
         return { receipt: existing, fresh: false };
       }
       const installation = this.list().find(item => item.id === plugin && item.enabled);
       if (!installation) throw new Error("The Docling worker plugin is not registered.");
+      if (isAiJob(job) && !this.list().some(item => item.id === job.caller && item.enabled)) throw new Error("AI task caller plugin is unavailable.");
       workerManifest(installation);
+      if (isAiJob(job) && !installation.tasks?.includes(AI_TASK.service) || !isAiJob(job) && installation.tasks?.includes(AI_TASK.service)) throw new Error("Worker task capability mismatch.");
       if (!installation.entry || !/^[a-f\d]{64}$/u.test(installation.sha256) || !/^[a-f\d]{64}$/u.test(installation.revision) ||
         installation.directory !== path.join(this.directory, "installed", installation.revision)) throw new Error("Invalid installed worker location.");
-      const receipt: Receipt = { job, fingerprint, owner: this.owner, installation, status: "running" };
+      const receipt: Receipt<RuntimeJob> = { job, fingerprint, owner: this.owner, installation, status: "running" };
       this.save(receipt);
       return { receipt, fresh: true };
     });
   }
-  update(receipt: Receipt) {
+  update(receipt: Receipt<RuntimeJob>) {
     this.transaction(() => {
       const current = this.read(receipt.job.id);
       if (current?.owner !== this.owner || current.status !== "running") throw new Error("Conversion ownership was lost.");

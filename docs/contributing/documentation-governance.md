@@ -18,6 +18,7 @@
 | Status | Meaning |
 | --- | --- |
 | Draft | 논의 중이며 현재 구현 계약이 아님 |
+| Proposed | 소유자의 최종 ADR 수락을 기다리는 아키텍처 제안 |
 | Accepted | 승인된 architecture decision |
 | Implemented | 현재 master behavior를 설명하는 계약 |
 | Historical | 당시 조사·검토·실험 기록이며 현재 요구사항이 아님 |

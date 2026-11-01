@@ -81,7 +81,7 @@ test("installed UI assets use identical validated routes/CSP in Desktop and inde
   http = await startHttpHost({ roots: [root], editorDir: root, port: 0 });
   for (const send of [(route: string) => desktop!(new Request(ORIGIN + route)), (route: string) => fetch(http!.url + route)]) {
     const list = await send(PLUGIN_UI.route); assert.equal(list.status, 200);
-    assert.equal((await list.json())[0].revision, installed.revision);
+    assert.equal((await list.json()).find((item: { id: string }) => item.id === "docling").revision, installed.revision);
     const asset = (name: string, revision = installed.revision) => PLUGIN_UI.route + "?" + new URLSearchParams({ id: "docling", revision, asset: name });
     const script = await send(asset(PLUGIN_UI.script));
     assert.equal(script.status, 200); assert.match(script.headers.get("content-type")!, /javascript/u);
@@ -98,7 +98,7 @@ test("installed UI assets use identical validated routes/CSP in Desktop and inde
   const manifest = JSON.parse(original); manifest.ui.api = 99;
   writeFileSync(path.join(root, "manifest.json"), JSON.stringify(manifest));
   assert.throws(() => store.register(path.join(root, "manifest.json")), /incompatible UI/u);
-  assert.equal(store.list()[0].revision, installed.revision);
+  assert.equal(store.list().find(item => item.id === "docling")!.revision, installed.revision);
   writeFileSync(path.join(root, "manifest.json"), original);
   writeFileSync(path.join(installed.directory, PLUGIN_UI.script), "tampered");
   assert.throws(() => store.uiAsset("docling", installed.revision, PLUGIN_UI.script), /hash mismatch/u);

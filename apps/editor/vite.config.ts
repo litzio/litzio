@@ -6,6 +6,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type ViteDevServer } from "vite";
 import { buildDoclingWorker } from "../../packages/cli/scripts/build-docling-worker.ts";
+import { buildAiAgent } from "../../packages/cli/scripts/build-ai-agent.ts";
 import { brand } from "../../brand.ts";
 
 export default defineConfig({
@@ -33,6 +34,7 @@ export default defineConfig({
       name: "litzio-document",
       async configureServer(server: ViteDevServer) {
         await buildDoclingWorker(fileURLToPath(new URL("../../tmp/docling-worker", import.meta.url)));
+        await buildAiAgent(fileURLToPath(new URL("../../tmp/ai-agent-worker", import.meta.url)));
         const assetSigningKey = randomBytes(32);
         let plugins: Promise<ReturnType<typeof import("./server/plugin-host.ts").createPluginHost>> | undefined;
         const pluginHost = () => plugins ??= server.ssrLoadModule("/server/plugin-host.ts").then(mod => mod.createPluginHost());

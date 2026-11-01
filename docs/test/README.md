@@ -477,6 +477,67 @@ service's startup/model preparation and cleanup. Ordinary `--screenshots` uses
 the fake service to collect Settings success/failure, PDF-menu, progress and
 completion Light/Korean/Dark review states separately from normal CI assertions.
 
+## AI agent task service (#880)
+
+Automated Host tests use only the fake adapter, covering schema success/failure,
+provider failure, timeout, confirmed cancellation, cross-Host duplicate UUIDs,
+dead-owner `uncertain`/no replay, temporary-folder cleanup, service absence after
+disable and ordinary document access. `pnpm browser:test ai-agent --screenshots`
+uses the persistent profile and synthetic status, checks live disable/ordinary
+editing, and captures AI/Docling Settings at 1440px English Light and 640px Korean
+Dark. Captures are manual evidence, not screenshot assertions.
+
+On a machine with a compatible Codex CLI, the optional no-model sandbox check is
+`LITZIO_AI_SANDBOX_TEST=1 pnpm --filter @litzio/ai-agent test` (PowerShell: set
+`$env:LITZIO_AI_SANDBOX_TEST='1'` first). It runs commands through the actual
+adapter permission settings, without invoking a model or changing global setup.
+It verifies snapshot reading, outside-file denial, denied writes/network, and a
+shell read through Codex's actual exec harness using a local synthetic response
+server (no model). Windows
+requires MXC; the adapter fails instead of silently using a weaker sandbox.
+
+On 2026-11-02 the owner reported clearing their global `~/.codex/AGENTS.md`.
+Other users' personal global instructions can still enter the context. Under
+[ADR-0013](../adr/0013-ai-agent-task-service.md#limitations-and-follow-up), a
+dedicated Codex home (`CODEX_HOME` under Litzio's brand-configured user-data
+directory, requiring an initial login) is deferred until the earliest of use
+by someone other than the owner (no later than public distribution with the AI
+agent), introduction of a resident main agent, or an actual result-interference
+problem from global instructions in the owner's environment.
+
+Owner manual checks:
+
+- For another Host/account or after adapter changes, use an existing Codex login
+  to submit a task through `POST /api/ai-tasks` using
+  an enabled calling plugin, a disposable material file and a strict result schema.
+  Confirm the model actually reads the material, result shape/content separately,
+  unchanged caller baseline/source, and removed snapshot/control folders.
+- Recheck global `~/.codex/AGENTS.md` isolation after any upstream or adapter change
+  and when introducing the dedicated home under the conditions above.
+  0.164.0 still injects it despite ignore-user-config/rules and a zero project-doc
+  budget. Do not call this a fully isolated instruction context.
+- Confirm actual Codex cancellation/deadline terminates local provider processes
+  and cleans both folders, and inspect status/login-required in the real Host
+  account. Automated fake cancellation is not a provider-process proof.
+- Confirm the packaged Desktop and independent HTTP Host use the same bundled
+  registration and status section. Required CI exercises packaging; native
+  Codex/account readiness is not established by synthetic CI.
+
+The initial 2026-11-02 real trial (0.164.0) reported a missing `SYSTEMROOT` instead
+of reading the material. The adapter's shell environment was corrected to `core`,
+and the model-free actual exec-harness regression passed. With explicit owner
+authorization, one additional real call (`gpt-6.1-sol`, 8.4 seconds) then used the
+installed Host service/worker to read a synthetic JSON snapshot successfully.
+The file's unique token and the returned `token` both equalled
+`f37e567422bcf8a41d8c0d629772da9ce5f3a176`; the expected value appeared only in
+the material file, not the instructions, small input or result schema. The
+assertions also checked schema success, unchanged caller baseline/source and
+removed snapshot/control folders. Model-driven reading with `inherit=core` is
+therefore locally verified. The structural global-instruction limitation and
+dedicated-home adoption conditions remain as documented above; real-provider
+cancellation remains manual. See the
+[runtime contract](../design/plugin-runtime-v1.md#ai-task-service-880).
+
 ## Docling worker runtime (#853)
 
 The UI contribution boundary is checked separately by

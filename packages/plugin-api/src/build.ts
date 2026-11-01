@@ -11,7 +11,7 @@ import { isBuiltin } from "node:module";
 function checkUiSources(entry: string) {
   const sourceDirectory = path.dirname(entry);
   const root = existsSync(path.join(sourceDirectory, "../package.json")) ? path.dirname(sourceDirectory) : sourceDirectory;
-  const apiSources = new Map(["ui", "config", "worker", "host"].map(name => [`@litzio/plugin-api/${name}`, fileURLToPath(new URL(`./${name}.ts`, import.meta.url))]));
+  const apiSources = new Map(["ui", "config", "worker", "host", "ai"].map(name => [`@litzio/plugin-api/${name}`, fileURLToPath(new URL(`./${name}.ts`, import.meta.url))]));
   const roots = [root, path.dirname(apiSources.get("@litzio/plugin-api/ui")!)];
   const visited = new Set<string>();
   const visit = (file: string) => {

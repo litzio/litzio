@@ -5,6 +5,7 @@
   "license": "MIT",
   "type": "module",
   "exports": {
+    "./ai": "./src/ai.ts",
     "./ui": "./src/ui.ts",
     "./config": "./src/config.ts",
     "./build": "./src/build.ts",

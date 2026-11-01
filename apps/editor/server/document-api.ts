@@ -1,5 +1,6 @@
 import { readBibliographySources } from "./bibliography.ts";
 import { PLUGIN_UI } from "@litzio/plugin-api/config";
+import { AI_TASK } from "@litzio/plugin-api/ai";
 import type { createPluginHost } from "./plugin-host.ts";
 import { MAX_ASSET_BYTES } from "../shared/asset-policy.ts";
 import { ImageValidationError, validateImage } from "./image-validation.ts";
@@ -270,6 +271,11 @@ export async function handleDocumentRequest(
   try { query = requestQuery(req.url ?? ""); }
   catch (error) { failure(error); return; }
   const url = new URL(req.url ?? "", "http://localhost").pathname;
+  if (url === AI_TASK.discoveryRoute) {
+    if (req.method !== "GET") { res.statusCode = 405; res.end(); return; }
+    try { sendJson(res, 200, { available: !!plugins?.aiTasks() }); } catch (error) { failure(error); }
+    return;
+  }
   if (url === PLUGIN_UI.route) {
     if (req.method !== "GET") { res.statusCode = 405; res.end(); return; }
     if (!plugins) { sendJson(res, 503, { error: "Plugins are unavailable on this Host." }); return; }

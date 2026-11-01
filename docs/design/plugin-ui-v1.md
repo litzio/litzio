@@ -63,8 +63,9 @@ actual plugin hooks and the production renderer, not just a version string.
 | `openSettings`, `openDocument`, `openFolder` | Plugin-scoped Settings navigation, ordinary editor and Explorer opening. No editor state is exposed. |
 
 The generic contribution shapes contain no AI provider, document mutation or
-editor engine. A later provider-neutral AI plugin can contribute the same
-commands, sidebar entries and views; it is not implemented here. Plugin source
+editor engine. #880's default-included AI plugin contributes an ordinary Settings
+section through this boundary; its Host service is documented in
+[the runtime contract](plugin-runtime-v1.md#ai-task-service-880). Plugin source
 and erased type imports are checked with the existing Babel parser, and the
 transitive esbuild graph rejects Editor/Tiptap/ProseMirror/renderer internals.
 Core is used only through its public exports. The parser is a build-only dependency.
@@ -127,12 +128,26 @@ status cannot be bypassed by a second read or prematurely enable Start. Polling
 after activation is plugin-owned. Failed reads retry only GET; no automatic POST
 or startup restoration is introduced. Observation stops on detach/failure/handoff.
 
-Settings plugin management, official plugin installation/update/removal, AI agent
-implementation, OS sandbox and daemon remain outside these changes. Docling remains bundled until its official installation flow exists.
+Settings plugin management, official plugin installation/update/removal, a general
+plugin OS sandbox and daemon remain outside these changes. Docling remains bundled until its official installation flow exists.
 No new Core semantics or semantic CLI command is introduced. Existing headless
 conversion and shared Host registration APIs remain available without a view.
 
 ## Verification
+
+`ai-agent` (#880) verifies the contributed status-only Settings section at 1440px
+English Light and 640px Korean Dark, matching Docling's existing Settings geometry.
+It uses a synthetic status response without a model/account call, and verifies
+that disabling the real bundled plugin removes its category/service while the
+same ordinary document DOM and unsaved draft remain editable. Optional
+`--screenshots` captures both sections for manual alignment/wrapping/theme review.
+The status shows adapter, executable/login availability and login requirement;
+there are no provider, credential, permission or user-instruction controls.
+
+Self-reviewed representative captures: [1440px English Light](assets/ai-agent-880/ai-1440-light-en.png)
+and [640px Korean Dark](assets/ai-agent-880/ai-640-dark-ko.png). The paired Docling
+reference captures are reproducible with the same scenario; alignment, spacing,
+clipping and Korean wrapping were reviewed at both widths.
 
 `plugin-ui` checks live commands/sidebar/tab activation, injected React hooks,
 same-module reuse, disposal/style removal, retained tabs, render/load/API failures,

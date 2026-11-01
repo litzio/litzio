@@ -10,15 +10,20 @@ import { accessPath, type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts
 import { resolveDocumentPath, resolveMediaPath } from "./document-path.ts";
 import { readModel } from "./document-replay.ts";
 import { PluginRuntime } from "./plugin-runtime.ts";
+import { AI_TASK, type AiTaskService } from "@litzio/plugin-api/ai";
 
 declare const __LITZIO_DOCLING_DIRECTORY__: string;
+declare const __LITZIO_AI_DIRECTORY__: string;
+export function bundledAiManifest() {
+  return fileURLToPath(new URL(`${typeof __LITZIO_AI_DIRECTORY__ === "string" ? __LITZIO_AI_DIRECTORY__ : "../../../tmp/ai-agent-worker"}/manifest.json`, import.meta.url));
+}
 export function bundledPluginManifest() {
   return fileURLToPath(new URL(`${typeof __LITZIO_DOCLING_DIRECTORY__ === "string" ? __LITZIO_DOCLING_DIRECTORY__ : "../../../tmp/docling-worker"}/manifest.json`, import.meta.url));
 }
 export function pluginsDirectory() { return process.env.LITZIO_PLUGINS_DIR ?? path.join(os.homedir(), brand.folders.shared, brand.folders.plugins); }
 
 /** Load declared trusted operations, never plugin source or an application import. */
-export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { directory?: string; manifest?: string; timeoutMs?: number }) {
+export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { directory?: string; manifest?: string; timeoutMs?: number; aiManifest?: string; aiTimeoutMs?: number }) {
   let runtime: PluginRuntime | undefined, closed = false, closing: Promise<void> | undefined;
   const directory = options?.directory ?? pluginsDirectory();
   const configuredSettings = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith("LITZIO_") && key.endsWith("_SETTINGS_FILE")));
@@ -26,10 +31,15 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
   const sessions = new Map<string, Map<string, unknown>>();
   const getRuntime = () => {
     if (closed) throw new Error("The plugin runtime is closing.");
-    return runtime ??= new PluginRuntime(directory, options?.manifest ?? bundledPluginManifest(), options?.timeoutMs);
+    return runtime ??= new PluginRuntime(directory, options?.manifest ?? bundledPluginManifest(), options?.timeoutMs, file => { accessPath(file, access, true); });
   };
   const plugins = (seed = false) => {
-    const value = getRuntime(); if (seed) value.ensureBundled(); return value.store;
+    const value = getRuntime();
+    if (seed) {
+      value.ensureBundled();
+      if (!value.store.list().some(item => item.id === AI_TASK.plugin)) value.store.register(options?.aiManifest ?? bundledAiManifest(), true);
+    }
+    return value.store;
   };
   const load = (id: string) => {
     const store = plugins(true), installation = store.list().find(item => item.id === id);
@@ -52,10 +62,30 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
         executor: { start: request => getRuntime().start({ ...request, plugin: id }), current: id => getRuntime().current(id),
           cancel: id => getRuntime().cancel(id), close: () => close(),
           history: () => getRuntime().requestHistory(id), forget: request => getRuntime().forgetRequest(request, id) },
+        aiExecutor: { start: (request, timeoutMs) => getRuntime().ai.start(request, options?.aiTimeoutMs ?? timeoutMs, id),
+          current: request => getRuntime().ai.current(request), cancel: request => getRuntime().ai.cancel(request) },
+        aiTasks: () => {
+          const service = aiTasks();
+          if (!service) return undefined;
+          const own = (request: string) => {
+            const record = service.current(request);
+            if (record && record.job.caller !== id) throw new Error("AI task belongs to another caller.");
+            return record;
+          };
+          return { status: service.status, start: request => {
+            if (request.caller !== id || !plugins().list().find(item => item.id === id)?.enabled) throw new Error("AI task caller is unavailable or mismatched.");
+            if (!aiTasks()) throw new Error("AI agent is disabled.");
+            return service.start(request);
+          }, current: own, cancel: request => { own(request); return service.cancel(request); } };
+        },
       });
       activations.set(key, plugin);
     }
     return plugin;
+  };
+  const aiTasks = (): AiTaskService | undefined => {
+    const installation = plugins(true).list().find(item => item.enabled && item.services?.includes(AI_TASK.service));
+    return installation ? load(installation.id).aiTaskService : undefined;
   };
   const invoke = <T = any>(id: string, operation: string, args: unknown = {}): T => {
     const plugin = load(id);
@@ -73,5 +103,5 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
     closed = true;
     return closing ??= (runtime?.close() ?? Promise.resolve()).finally(() => { activations.clear(); sessions.clear(); });
   };
-  return { plugins, invoke, route, close };
+  return { plugins, invoke, route, aiTasks, close };
 }

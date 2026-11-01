@@ -442,6 +442,34 @@ importers:
         specifier: ^19.1.13
         version: 19.3.0
 
+  plugins/ai-agent:
+    dependencies:
+      '@litzio/plugin-api':
+        specifier: workspace:*
+        version: link:../../packages/plugin-api
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
+      react:
+        specifier: ^19.1.1
+        version: 19.3.0
+    devDependencies:
+      '@types/node':
+        specifier: ^24.5.2
+        version: 24.13.6
+      '@types/react':
+        specifier: ^19.1.13
+        version: 19.3.0
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   plugins/docling:
     dependencies:
       '@litzio/core':
