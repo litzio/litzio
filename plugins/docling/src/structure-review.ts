@@ -172,7 +172,7 @@ export class StructureReviewer {
     const folder = this.folder(value), review = this.refresh(folder);
     const sourceSha256 = this.sourceHash(folder);
     const service = this.service(review.task?.id);
-    const receipt = review.task && service ? this.receipt(service, review.task) : null;
+    const receipt = review.task?.status === "running" && service ? this.receipt(service, review.task) : null;
     return { available: !!this.host.aiTasks(), task: review.task, canCancel: receipt?.canCancel ?? false,
       proposals: review.proposals.map(p => ({ ...p, stale: sourceSha256 !== p.baseline.sourceSha256 })) };
   }
@@ -218,6 +218,7 @@ export class StructureReviewer {
   async cancel(value: string) {
     const folder = this.folder(value), review = readReview(folder);
     if (!review.task) throw new Error("No structure review task exists.");
+    if (review.task.status !== "running") return this.list(folder);
     const service = this.service(review.task.id);
     if (!service) return { ...this.list(folder), error: "AI agent is disabled; the AI task service is unavailable." };
     this.receipt(service, review.task); await service.cancel(review.task.id);

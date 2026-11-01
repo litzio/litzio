@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createServer } from "node:http";
@@ -51,5 +51,10 @@ test("installed Docling review uses the mediated service through HTTP operations
   assert.equal((await invoke("review-start", { folder, id: randomUUID() })).available, false);
   assert.equal(readFileSync(source, "utf8"), original);
   for (const receipt of host.plugins().aiHistory()) for (const temporary of Object.values(host.plugins().getAi(receipt.job.id)!.temporary!)) assert.equal(existsSync(temporary), false);
+  // Terminal proposals belong to their file, not to B's old temporary material locators.
+  const moved = path.join(root, "moved-result");
+  renameSync(folder, moved);
+  assert.equal((await invoke("review-proposals", { folder: moved })).proposals[1].state, "rejected");
+  assert.equal((await invoke("review-cancel", { folder: moved })).task.status, "success");
   assert.throws(() => host.invoke("docling", "review-proposals", { folder: path.dirname(root) }), /allowed|outside/i);
 });

@@ -255,6 +255,8 @@ availability is false and B observation waits for the service to become availabl
 B retains UUID deduplication, complete-result publication, dead-owner `uncertain`,
 owning-Host-only cancellation, no automatic retry/replay and cleanup. Docling
 polling never admits another task. There is no detached C background runner.
+Terminal proposals are read from their saved file without consulting B's old
+material locators, including after moving the completed conversion folder.
 
 No CLI is added: AI execution is not a document semantic operation (the same
 reason as B); approved record replay already has A's `apply-corrections` command.
