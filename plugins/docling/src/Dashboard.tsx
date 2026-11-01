@@ -110,7 +110,7 @@ export function Dashboard({ host, request, convert, compare }: { host: UiHost; r
       {!snapshot?.results.length ? <p className="docling-dashboard-meta">{text("No conversion results yet.")}</p> : <ul className="docling-dashboard-list">{snapshot.results.map(result => <li key={result.id} data-result-id={result.id}>
         <div className="docling-dashboard-row"><div className="docling-dashboard-details">
           <h3>{result.name ?? fileName(result.folder)}</h3>
-          <p className="docling-dashboard-meta">{result.pages === undefined ? "" : `${text("{{count}} pages", { count: result.pages })} · `}{formatTime(result.convertedAt)}</p>
+          <p className="docling-dashboard-meta">{result.pages === undefined ? "" : `${text("doclingPages", { count: result.pages })} · `}{formatTime(result.convertedAt)}</p>
           <p className="docling-dashboard-path">{result.folder}</p>
           <p>{text(result.missing ? "The result folder no longer exists." : result.problem ?? (result.stale ? "Correspondence map is stale" : "Correspondence map is current"))}</p>
         </div><div className="docling-dashboard-actions">

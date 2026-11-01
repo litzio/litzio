@@ -14,14 +14,14 @@
       "sha256": "33f45c1626bc0d8f463171cceda42c8040c7dc91712b30ca0fe75e6b99541d8d"
     },
     {
-      "bytes": 154511,
+      "bytes": 154206,
       "file": "after-1440-light-en.png",
-      "sha256": "709404e4c5d0d6b8d6f44acce7d3e96d5a8bf520c2e81889059443e5714fdc3f"
+      "sha256": "2bf82f6a3f4d82f7be774fba0f518cbda8261d33668c5e39a362981c39663446"
     },
     {
-      "bytes": 119361,
+      "bytes": 119388,
       "file": "after-640-dark-ko.png",
-      "sha256": "015966d3b125f45b44d0fd7ec6b9607d58c33e20853526b6809375961ffdb41a"
+      "sha256": "904eaabe4f1fc34ce68e5f6682eb84d0fbcacc07d5bd045987ecca35e81aab82"
     }
   ],
   "after": "New dashboard with running, completed and failed requests together; 1440 Light English and 640 Dark Korean",
@@ -34,5 +34,6 @@
     "vertical access to Quick actions",
     "shared Settings controls and retained #815 comparison"
   ],
-  "before": "Original #870 UI entry compiled from commit 79396b5c with source imports relocated only; this new dashboard has no preceding dashboard view"
+  "before": "Original #870 UI entry compiled from commit 79396b5c with source imports relocated only; this new dashboard has no preceding dashboard view",
+  "reviewCorrection": "PR #872: both activation-owned picker detach regressions pass; English 1 page and Korean 1페이지 checked in refreshed captures."
 }

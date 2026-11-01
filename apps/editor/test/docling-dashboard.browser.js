@@ -17,6 +17,28 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await dashboard.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Server address' })).toHaveValue(fixture.url);
   await page.getByTestId('settings-dialog').press('Escape');
+  // A second Editor can turn a feature off while this Editor owns its picker.
+  // Assert both detach paths before cleanup so either failure remains reported.
+  for (const { feature, action, title, input } of [
+    { feature: 'comparison', action: 'Open conversion folder…', title: 'Docling comparison', input: fixture.input.replace('completed.pdf', '') },
+    { feature: 'conversion', action: 'Convert PDF…', title: 'Convert with Docling', input: fixture.input },
+  ]) {
+    await dashboard.getByRole('button', { name: action, exact: true }).click();
+    const picker = page.getByRole('dialog', { name: title, exact: true });
+    await expect(picker).toBeVisible();
+    await picker.getByTestId('folder-path').fill(input);
+    const submissions = fixture.submissions();
+    await request('features', 'PUT', { [feature]: false });
+    await expect(dashboard.getByRole('button', { name: action, exact: true, includeHidden: true })).toHaveCount(0);
+    await expect.soft(picker, `${feature}: an open picker must detach with its activation`).toBeHidden();
+    // Cleanup after a soft failure permits the other independent path to run.
+    if (await picker.isVisible()) await picker.press('Escape');
+    await expect(page.getByTestId('sidebar').getByRole('button', { name: 'Collapse Explorer', exact: true })).toBeFocused();
+    expect(fixture.submissions()).toBe(submissions);
+    await expect(page.getByTestId('docling-conversion')).toHaveCount(0);
+    await request('features', 'PUT', { [feature]: true });
+    await expect(dashboard.getByRole('button', { name: action, exact: true })).toBeVisible();
+  }
   const start = async (name, mode) => { fixture.mode(mode); return request('conversion', 'POST', { path: fixture.input.replace('completed.pdf', `${name}.pdf`) }); };
   const finished = async (job, state) => {
     await expect.poll(async () => (await request(`conversion?id=${job.id}`)).state).toBe(state);
@@ -29,12 +51,13 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await expect(dashboard.locator(`[data-request-id="${failed.id}"]`)).toContainText('required model is missing');
   await expect(dashboard.locator(`[data-request-id="${failed.id}"]`).getByRole('button', { name: 'Retry…' })).toBeDisabled();
   const result = dashboard.locator(`[data-result-id="${completed.id}"]`);
-  await expect(result).toContainText('Fixture PDF'); await expect(result).toContainText('1 pages');
+  await expect(result).toContainText('Fixture PDF'); await expect(result.locator('.docling-dashboard-meta')).toHaveText(/^1 page · /);
   await expect(result).toContainText('Correspondence map is current');
   const capture = async (width, theme, language) => {
     await page.evaluate(({ theme, language }) => { localStorage.setItem('litzio.theme', theme); localStorage.setItem('litzio.uiLanguage', language); }, { theme, language });
     await page.setViewportSize({ width, height: 1100 }); await page.reload(); await show();
     await expect(dashboard.locator(`[data-request-id="${failed.id}"]`)).toContainText(language === 'ko' ? '실패' : 'Failed');
+    await expect(result.locator('.docling-dashboard-meta')).toHaveText(language === 'ko' ? /^1페이지 · / : /^1 page · /);
     expect(await dashboard.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const panel = page.locator('.docling-dashboard-tab[data-active=true]');

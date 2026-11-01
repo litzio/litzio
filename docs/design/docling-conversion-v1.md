@@ -254,6 +254,9 @@ comparison tabs keep their identity and snapshot in the existing disabled state;
 re-enabling restores them. The dashboard remains available with both features
 off. Detach/reactivate never cancels accepted work. Host operations also reject
 new disabled-feature work while preserving status/cancel and admitted UUID replay.
+Already open PDF and comparison-folder pickers also close on detachment, including
+when another Editor changes the feature flag. Their input/pending completion is
+discarded and focus returns to a safe shell control if the opener was detached.
 
 Plugin entry points compose `conversion/`, `comparison/` and `shared/`. Neither
 feature imports the other or a composition entry. Shared source types and

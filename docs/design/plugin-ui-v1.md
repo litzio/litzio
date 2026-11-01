@@ -94,6 +94,11 @@ warnings and #815 fixed Read/bidirectional matching remain unchanged.
 
 A UI listing may include registration `features` booleans. Changing them detaches
 and reactivates only that plugin under the same disposal and retained-tab rules.
+Shell-owned file/folder pickers share their originating activation's abort signal.
+Detachment closes them, discards selected paths and pending picker callbacks,
+and returns focus to a connected opener or the existing sidebar toggle. A late
+picker completion cannot invoke a detached activation. This does not cancel
+accepted worker requests or close retained contributed tabs.
 Docling filters its conversion commands, PDF actions, settings/dialog and comparison
 tab kind by those flags, retaining the dashboard. A comparison is disabled while
 its tab kind is absent and restores its original snapshot on re-enabling.
