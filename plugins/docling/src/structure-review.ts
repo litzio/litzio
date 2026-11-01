@@ -101,9 +101,12 @@ function removeMaterials(staging: string, id: string) {
 /** Docling owns domain validation/state; all provider execution stays in the injected service. */
 export class StructureReviewer {
   private services: Map<string, AiTaskService>;
+  private admissions: Map<string, string>;
   constructor(private host: PluginHostContext, private requireConversion: () => void) {
     this.services = (host.session.get("review-services") ?? new Map()) as Map<string, AiTaskService>;
     host.session.set("review-services", this.services);
+    this.admissions = (host.session.get("review-admissions") ?? new Map()) as Map<string, string>;
+    host.session.set("review-admissions", this.admissions);
   }
   private folder(value: string) {
     if (typeof value !== "string" || !value.trim()) throw new Error("Choose a Docling conversion folder.");
@@ -138,6 +141,9 @@ export class StructureReviewer {
     const service = this.service(task.id);
     if (!service) return review;
     const receipt = this.receipt(service, task);
+    // B reads materials before admitting its receipt. This Host still owns that
+    // pending start, including across plugin reactivation; observers must not end it.
+    if (!receipt && this.admissions.get(folder) === task.id) return review;
     if (receipt?.status === "running") return review;
     updateConversionFolder(folder, () => {
       const current = readReview(folder);
@@ -200,6 +206,7 @@ export class StructureReviewer {
       };
     }, () => this.beforePublish(folder));
     this.services.set(id, service);
+    this.admissions.set(folder, id);
     try {
       await service.start({ id, caller: "docling", task: TASK, instruction: structureReviewInstruction,
         materials: materialNames.map(name => ({ path: path.join(folder, materialFile(id, name)), name })),
@@ -212,7 +219,7 @@ export class StructureReviewer {
         return staging => { writeReview(staging, current); removeMaterials(staging, id); };
       }, () => this.beforePublish(folder));
       throw error;
-    }
+    } finally { if (this.admissions.get(folder) === id) this.admissions.delete(folder); }
     return this.list(folder);
   }
   async cancel(value: string) {

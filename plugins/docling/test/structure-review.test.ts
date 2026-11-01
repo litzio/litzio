@@ -67,6 +67,50 @@ function files(folder: string) {
     [path.relative(folder, path.join(x.parentPath, x.name)), readFileSync(path.join(x.parentPath, x.name)).toString("hex")]).sort();
 }
 
+test("status during delayed admission preserves live request materials through same-Host reactivation", async t => {
+  const f = setup(t), id = randomUUID();
+  let entered!: () => void, release!: () => void;
+  const reached = new Promise<void>(resolve => { entered = resolve; }), paused = new Promise<void>(resolve => { release = resolve; });
+  const admit = f.service.start.bind(f.service);
+  let request: AiTaskRequest;
+  f.service.start = async value => {
+    request = value; entered(); await paused;
+    return admit(value); // Like B, material reads precede receipt creation.
+  };
+  const starting = f.start(id).then(value => ({ value, error: null }), error => ({ value: null, error }));
+  await reached;
+  let during: View, materialsPresent: boolean;
+  try {
+    assert.equal(f.service.current(id), null);
+    f.reactivate();
+    during = f.call("status");
+    materialsPresent = request!.materials.every(m => existsSync(m.path));
+  } finally { release(); }
+  const outcome = await starting;
+  assert.deepEqual({ status: during.task!.status, materialsPresent, startError: outcome.error?.code ?? null },
+    { status: "running", materialsPresent: true, startError: null });
+  assert.equal(during.canCancel, false);
+  assert.equal(during.task!.finishedAt, undefined);
+  assert.equal(outcome.value!.task!.status, "running");
+  assert.ok(request!.materials.every(m => existsSync(m.path)), "admitted work retains materials until terminal observation");
+  f.service.complete();
+  const done = f.call("status");
+  assert.equal(done.task!.status, "success");
+  assert.ok(done.proposals.every(p => p.state === "pending"));
+  assert.ok(request!.materials.every(m => !existsSync(m.path)));
+  assert.equal(readFileSync(f.input, "utf8"), f.original);
+});
+
+test("restart without a receipt or live admission marks the saved request uncertain without replay", async t => {
+  const f = setup(t), running = await f.start(), request = f.service.requests[0];
+  f.service.records.delete(running.task!.id); // Persisted pre-receipt state after losing the admitting Host.
+  f.reactivate(true);
+  const stopped = f.call("status");
+  assert.equal(stopped.task!.status, "uncertain"); assert.equal(stopped.task!.failure, "uncertain");
+  assert.ok(request.materials.every(m => !existsSync(m.path)));
+  await f.start(running.task!.id); assert.equal(f.service.requests.length, 1);
+});
+
 test("whole-document request, dry-run partition, approval/rejection/undo and current-ledger revalidation preserve source bytes", async t => {
   const f = setup(t), before = f.markdown();
   const running = await f.start(), id = running.task!.id;

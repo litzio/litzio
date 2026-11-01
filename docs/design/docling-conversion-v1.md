@@ -169,8 +169,13 @@ only those files using the three plain material names. They do not contain parti
 AI results. They remain until terminal receipt observation, then are removed in
 the same complete-folder publication as the result or failure. A restarted Host
 can finish this observation; it never starts the task again. An interrupted
-admission without a B receipt becomes `uncertain` on observation. These temporary
-input copies are not a queue or additional proposal ledgers.
+admission without a B receipt becomes `uncertain` on observation only when this
+Host has no live admission for it, such as after a restart. While B's material
+reads are pending, a Host-session admission map retains `running` with
+`canCancel: false` and preserves the input copies across status reads and plugin
+reactivation. The marker is released when `service.start` settles; admitted work
+then follows B's receipt through terminal observation and material cleanup. These
+temporary input copies are not a queue or additional proposal ledgers.
 
 Only B's completed success receipt is consumed, with matching caller/task/baseline.
 Docling checks the JSON shape again and dry-runs each suggestion independently

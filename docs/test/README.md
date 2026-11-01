@@ -546,6 +546,11 @@ fake AI service. It verifies request materials/schema/baseline, dry-run separati
 of pending/inapplicable results, storage, approval/rejection/undo, current-ledger
 revalidation, rerun/history retention, source drift, agent disable, cancellation,
 failure/uncertain/no replay, byte preservation and complete-generation rollback.
+The admission regression explicitly pauses material reads before B creates a
+receipt, queries status through same-Host reactivation, and then releases the
+read. It checks `running`, preserved inputs, successful admission/validation and
+terminal-only cleanup without sleeps or polling. A separate restart check verifies
+that a saved request with no live admission/receipt becomes uncertain without replay.
 `pnpm --filter @litzio/editor exec tsx --test test/docling-review.test.ts`
 additionally uses the installed plugin through the shared HTTP operation route
 with B's real service/runtime and a deterministic worker. Neither calls an AI
