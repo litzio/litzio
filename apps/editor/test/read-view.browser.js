@@ -141,7 +141,7 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
     await expect(blockMenu).toBeVisible();
     expect(await blockMenu.evaluate(async menu => {
       const {documentContentBounds,documentScrollContainer} = await import('/src/document-scroll.ts');
-      const bounds = documentContentBounds(documentScrollContainer(menu)), rect = menu.getBoundingClientRect();
+      const bounds = documentContentBounds(documentScrollContainer()), rect = menu.getBoundingClientRect();
       return rect.left >= bounds.x+7.5 && rect.right <= bounds.x+bounds.width-7.5 &&
         rect.top >= bounds.y+7.5 && rect.bottom <= bounds.y+bounds.height-7.5;
     })).toBe(true);
@@ -471,5 +471,32 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
       await page.screenshot({path:`tmp/read-view-849/after-controls-${width}.png`});
     }
   }
-  return {mutationRoutesBlocked:true, draftsAndRecoveryPreserved:true, navigationAndCopy:true, independentTabsAndGroups:true};
+  // The lower-right body menu must own the actual hit over the floating notification button.
+  await openPath(page, [root, 'tmp', 'quiet-document', 'quiet-document.md'].join(sep));
+  await page.setViewportSize({width:640,height:900});
+  await configure('ko','dark');
+  const lastParagraph = page.locator('[data-document-tab][data-active=true] .document-editor > p.paragraph').last();
+  const lastText = await lastParagraph.innerText();
+  const bell = page.locator('.notification-center > button');
+  if (await bell.getAttribute('aria-expanded') === 'true') await bell.click();
+  const bellBefore = await bell.boundingBox();
+  await lastParagraph.evaluate(el => el.scrollIntoView({block:'end'}));
+  const lastRect = await lastParagraph.boundingBox();
+  await page.mouse.click(lastRect.x+lastRect.width-6,lastRect.y+lastRect.height-6,{button:'right'});
+  const lowerMenu = page.getByRole('menu',{name:'블록 작업',exact:true});
+  await expect(lowerMenu).toBeVisible();
+  const overlap = await lowerMenu.getByRole('menuitem',{name:'삭제',exact:true}).evaluate(row => {
+    const b=document.querySelector('.notification-center > button').getBoundingClientRect(), r=row.getBoundingClientRect();
+    const left=Math.max(b.left,r.left), right=Math.min(b.right,r.right), top=Math.max(b.top,r.top), bottom=Math.min(b.bottom,r.bottom);
+    const x=(left+right)/2, y=(top+bottom)/2;
+    return {intersects:right>left&&bottom>top,menuOwnsHit:row.contains(document.elementFromPoint(x,y)),x,y};
+  });
+  expect(overlap.intersects).toBe(true); expect(overlap.menuOwnsHit).toBe(true);
+  expect(await bell.boundingBox()).toEqual(bellBefore);
+  await page.mouse.click(overlap.x,overlap.y);
+  await expect(lowerMenu).toHaveCount(0); await expect(lastParagraph).not.toHaveText(lastText);
+  await expect(bell).toHaveAttribute('aria-expanded','false');
+  await page.keyboard.press('Control+z'); await expect(lastParagraph).toHaveText(lastText);
+  await configure('en','light');
+  return {mutationRoutesBlocked:true, draftsAndRecoveryPreserved:true, navigationAndCopy:true, independentTabsAndGroups:true,menuAboveNotifications:true};
 }

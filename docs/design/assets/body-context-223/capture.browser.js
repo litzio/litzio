@@ -20,7 +20,12 @@ async (page, { openPath }) => {
     await page.mouse.click(rect.x + rect.width - 6, rect.y + rect.height - 6, {button:'right'});
     if (phase === 'after') await page.getByRole('menu', {name:/^(Block actions|블록 작업)$/}).waitFor();
     await page.screenshot({path:`tmp/body-context-223/${phase}-${width}.png`});
-    metadata.push(await page.evaluate(point => ({width:innerWidth,height:innerHeight,dpr:devicePixelRatio,zoom:visualViewport.scale,theme:document.documentElement.dataset.theme,language:document.documentElement.lang,font:getComputedStyle(document.body).fontFamily,scroll:document.querySelector('.document-scroll[data-active=true]').scrollTop,point,menu:(() => {const rect=document.querySelector('[role=menu]')?.getBoundingClientRect(); return rect ? {x:rect.x,y:rect.y,width:rect.width,height:rect.height} : null;})()}), {x:rect.x+rect.width-6,y:rect.y+rect.height-6}));
+    metadata.push(await page.evaluate(point => ({width:innerWidth,height:innerHeight,dpr:devicePixelRatio,zoom:visualViewport.scale,theme:document.documentElement.dataset.theme,language:document.documentElement.lang,font:getComputedStyle(document.body).fontFamily,scroll:document.querySelector('.document-scroll[data-active=true]').scrollTop,point,menu:(() => {const rect=document.querySelector('[role=menu]')?.getBoundingClientRect(); return rect ? {x:rect.x,y:rect.y,width:rect.width,height:rect.height} : null;})(),notificationOverlap:(() => {
+      const menu=document.querySelector('[role=menu]'),row=menu?.querySelector('button.danger'),bell=document.querySelector('.notification-center > button');
+      if(!row||!bell)return null;
+      const r=row.getBoundingClientRect(),b=bell.getBoundingClientRect(),left=Math.max(r.left,b.left),right=Math.min(r.right,b.right),top=Math.max(r.top,b.top),bottom=Math.min(r.bottom,b.bottom);
+      return {intersects:right>left&&bottom>top,menuOwnsHit:right>left&&bottom>top?row.contains(document.elementFromPoint((left+right)/2,(top+bottom)/2)):null};
+    })()}), {x:rect.x+rect.width-6,y:rect.y+rect.height-6}));
     await page.keyboard.press('Escape');
     if (phase === 'after') {
       const index = await paragraph.evaluate(el => el.closest('.document-editor').editor.state.selection.$from.index(0));

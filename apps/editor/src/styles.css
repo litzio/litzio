@@ -2280,6 +2280,8 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
   object-fit: contain;
 }
 .command-menu {
+  /* Match the portal action menus above floating shell controls (notification center: 40). */
+  z-index: 50;
   display: grid;
   min-width: 10rem;
   width: max-content;

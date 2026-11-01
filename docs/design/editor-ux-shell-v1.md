@@ -1694,6 +1694,11 @@ the editor open the current block's same menu by the caret. It shares the gutter
 items, icons, disabled reasons, command execution and Undo/Redo; no separate action data,
 clipboard items, Core operation or CLI command is introduced. The shared CommandMenu
 fits inside the owning document viewport, including its right/bottom edges and panels.
+Its shared surface is portaled beyond the fixed document scroll viewport, at the same
+menu stacking level as file/tab action menus above the floating notification center.
+An in-document origin retains its scroll/group bounds and endnote interaction ownership;
+Table menus keep their existing Popover portal. A lower-right Delete row remains visible
+and clickable without moving or changing the notification button.
 
 A secondary click inside nonempty selected text retains that selection and the browser
 menu. Outside the selected glyphs it moves the caret to the clicked text position or
@@ -1709,6 +1714,9 @@ history behavior. `read-view` verifies pointer/keyboard entry, handle-menu parit
 native boundaries, selection/focus return and conversion Undo/Redo. It also exercises
 contextmenu before secondary mouseup (Linux ordering): the engine's later pointer
 handling must not take focus from the menu or prevent Escape from closing it.
+The 640px Dark/Korean case also clicks Delete where its row overlaps the notification
+button, checks that the menu owns that hit and Undo restores the paragraph, and retains
+the notification button's geometry and collapsed state.
 
 Manual same-state evidence: [1440px Before](assets/body-context-223/before-1440.png) /
 [After](assets/body-context-223/after-1440.png), [640px Dark/Korean Before](assets/body-context-223/before-640.png) /
