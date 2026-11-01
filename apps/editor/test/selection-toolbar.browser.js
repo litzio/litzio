@@ -87,6 +87,12 @@ async (page, { openPath, activeDocument, expect, screenshots }) => {
       await page.screenshot({ path: `tmp/selection-toolbar-evidence/${width}-${theme}-${language}-preview.png` });
       continue;
     }
+    // Scroll delivery and React's collision correction can outlast two frames.
+    // Wait for the actual flip, then retain every geometry assertion below.
+    await expect.poll(async () => {
+      const current = await geometry(toolbar);
+      return current.top >= current.selectionBottom;
+    }, { message: `Toolbar must flip below the top-edge selection at ${width}px` }).toBe(true);
     const top = await geometry(toolbar);
     expect(top.overlaps, `Toolbar covers the selected line at ${width}px: ${JSON.stringify(top)}`).toBe(false);
     expect(top.inside).toBe(true);
