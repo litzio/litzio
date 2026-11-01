@@ -29,4 +29,3 @@ async (page, {openPath, expect}) => {
   await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(n=>n.editor.commands.undo());
  }
 }
-
