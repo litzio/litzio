@@ -2073,6 +2073,24 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
   pointer-events: none;
 }
 
+/* This sibling of the engine content never enters selection, clipboard or serialization. */
+.heading-level {
+  position: absolute;
+  right: calc(100% - var(--layout-document-gutter) + var(--space-heading-level-gap));
+  transform: translateY(-50%);
+  color: var(--id-color-heading-level);
+  font: var(--font-size-heading-level)/var(--line-height-meta) var(--font-family-mono);
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: auto;
+}
+
+/* Mirror the handle's actual visibility, including an open menu and keyboard focus. */
+.document:is(:hover, :focus-within) .block-gutter-row:has(> .block-controls.visible) > .heading-level,
+.block-gutter-row:has(> .block-controls:is([data-menu-open="true"], :hover, :focus-within)) > .heading-level {
+  visibility: hidden;
+}
+
 .block-controls {
   position: absolute;
   left: var(--space-2);
@@ -2638,6 +2656,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 }
 
 @media (hover: none) {
+  .block-gutter-row:has(> .block-controls) > .heading-level { visibility: hidden; }
   .block-controls,
   .figure-edit,
   .equation-edit {
@@ -3335,6 +3354,8 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .plugin-tab-message { margin: var(--space-4); }
 .docling-readonly-document { min-height: 100%; }
 .docling-readonly-document > .document { --layout-document-gutter: var(--space-4); --layout-document-inline-padding: var(--space-4); width: 100%; margin: 0; padding: var(--space-4); min-height: 100%; border-radius: 0; box-shadow: none; overflow-wrap: anywhere; }
+.docling-readonly-document[data-heading-levels="true"] > .document { --layout-document-gutter: var(--layout-reading-heading-gutter); padding-left: var(--layout-document-gutter); }
+.docling-readonly-document .heading-level { --space-heading-level-gap: var(--space-heading-level-reading-gap); }
 .notification-center { position: fixed; z-index: 40; pointer-events: none; right: var(--space-8); bottom: var(--space-4); display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); width: min(28rem, calc(100vw - var(--notification-sidebar-width) - var(--space-8) - var(--space-4))); --notification-sidebar-width: var(--layout-sidebar-width); max-height: calc(100dvh - var(--app-header-height, 80px) - var(--space-8)); color: var(--id-color-text-muted); font-size: var(--font-size-sm); line-height: var(--line-height-label); }
 .notification-center[data-severity="error"] { color: var(--id-color-danger); }
 .notification-center[data-severity="warning"] { color: var(--id-color-warning); }

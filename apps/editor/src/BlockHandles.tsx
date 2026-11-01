@@ -11,6 +11,7 @@ import { saveErrorBadge, type SaveErrorLocation } from "./save-error.ts";
 
 type BlockHandlesProps = {
   readOnly?: boolean;
+  showHeadingLevels?: boolean;
   editor: Editor;
   saveLocations: readonly SaveErrorLocation[];
   /** Block whose menu is open; its controls stay visible. */
@@ -54,11 +55,12 @@ const HandleControls = memo(function HandleControls({ index, name, endnote, bloc
   </>;
 });
 
-export const BlockHandles = memo(function BlockHandles({ readOnly = false, editor, saveLocations, menuIndex, onInsert, onOpenMenu, moveBlockedHint }: BlockHandlesProps) {
+export const BlockHandles = memo(function BlockHandles({ readOnly = false, showHeadingLevels = false, editor, saveLocations, menuIndex, onInsert, onOpenMenu, moveBlockedHint }: BlockHandlesProps) {
   useTranslation();
   const gutter = useRef<HTMLDivElement>(null);
   const drag = useRef<{ index: number; doc: ProseMirrorNode } | null>(null);
   const [blocks, setBlocks] = useState<{ top: number; height: number; name: string; endnote: boolean; sourcePath: string;
+    heading?: { level: number; center: number };
     cell?: { top: number; left: number; width: number; height: number } }[]>([]);
   // Event handlers read the latest measured geometry, not the controls' last render.
   const geometry = useRef(blocks);
@@ -127,6 +129,10 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, edito
         const pos = blockPos;
         blockPos += node.nodeSize;
         const endnote = endnoteLabel(node) !== undefined;
+        const headingElement = node.type.name === "heading" ? editor.view.nodeDOM(pos) : null;
+        const heading = headingElement instanceof HTMLElement
+          ? { level: Number(node.attrs.level), center: rect.top - top + parseFloat(getComputedStyle(headingElement).lineHeight) / 2 }
+          : undefined;
         const location = saveLocations.find(location => location.index === index);
         const element = location?.cell ? editor.view.nodeDOM(pos) : null;
         const cellRect = element instanceof HTMLElement && location?.cell
@@ -137,7 +143,7 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, edito
         const right = cellRect ? Math.min(cellRect.right, scrollRect?.right ?? cellRect.right) : 0;
         const cell = cellRect && right > left ? { top: cellRect.top - top, left: left - hostRect.left,
           width: right - left, height: cellRect.height } : undefined;
-        return {top: rect.top - top, height: rect.height, endnote,
+        return {top: rect.top - top, height: rect.height, endnote, heading,
           cell,
           sourcePath: String(node.attrs.sourcePath ?? ""),
           name: endnote ? "endnote" : node.type.name.replace(/Block$/, "").toLowerCase()};
@@ -146,6 +152,7 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, edito
         const current = next[index];
         return block.top === current.top && block.height === current.height && block.name === current.name &&
           block.endnote === current.endnote && block.sourcePath === current.sourcePath &&
+          block.heading?.level === current.heading?.level && block.heading?.center === current.heading?.center &&
           JSON.stringify(block.cell) === JSON.stringify(current.cell);
       }) ? previous : next);
       updateHovered(rects);
@@ -163,7 +170,8 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, edito
       pointer = lastPointer;
       const rects = rectangles();
       updateHovered(rects);
-      setActive(rects.findIndex(rect => event.clientY >= rect.top - 8 && event.clientY <= rect.bottom + 8));
+      setActive(event.target instanceof Element && event.target.closest(".heading-level") ? -1
+        : rects.findIndex(rect => event.clientY >= rect.top - 8 && event.clientY <= rect.bottom + 8));
     };
     const over = (event: DragEvent) => {
       if (!drag.current) return;
@@ -251,16 +259,22 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, edito
     setMoving({top: block.top, height: block.height});
   }, [editor]);
   return <div className="block-gutter" ref={gutter}>
-    {!readOnly && blocks.map((block, index) => {
+    {(!readOnly || showHeadingLevels) && blocks.map((block, index) => {
       const blocked = block.endnote ? i18n.t(ENDNOTE_HINT)
         : moveBlockedHint?.(index);
-      return <div key={index} className={`block-controls${active === index || menuIndex === index ? " visible" : ""}`}
-        data-menu-open={menuIndex === index} style={{top: block.top}}>
-        <HandleControls index={index} name={block.name} endnote={block.endnote}
-          blocked={blocked} onInsert={insert} onOpenMenu={openMenu} onDragStart={startDrag} />
+      return <div key={index} className="block-gutter-row">
+        {showHeadingLevels && block.heading ? <span className="heading-level" aria-hidden="true"
+          title={i18n.t("Heading {{level}}", { level: block.heading.level })}
+          style={{ top: block.heading.center }}>H{block.heading.level}</span> : null}
+        {!readOnly ? <div className={`block-controls${active === index || menuIndex === index ? " visible" : ""}`}
+          data-menu-open={menuIndex === index} style={{top: block.top}}>
+          <HandleControls index={index} name={block.name} endnote={block.endnote}
+            blocked={blocked} onInsert={insert} onOpenMenu={openMenu} onDragStart={startDrag} />
+        </div> : null}
       </div>;
     })}
     {!moving && blocks[hovered] && <div className="block-hover-outline" data-testid="block-hover-outline" aria-hidden="true"
+      data-heading-level={showHeadingLevels ? blocks[hovered].heading?.level : undefined}
       style={{top: `calc(${blocks[hovered].top}px - var(--space-block-hover-block))`,
         height: `calc(${blocks[hovered].height}px + 2 * var(--space-block-hover-block))`}} />}
     {saveLocations.map((location, index) => {

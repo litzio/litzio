@@ -33,10 +33,12 @@ const technical = [document("technical-document.md"), document("diagram.svg")];
 /** Scratch directory under `tmp/` → the files a fresh copy holds, and the scenarios using it. */
 export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: string[] }> = {
   "read-view": { files: [
+    { name: "heading-levels.md", create: () => "---\nlitzio: 1\nnumbering:\n  headings: true\n  title: false\n---\n\n" + Array.from({ length: 6 }, (_, i) =>
+      `${"#".repeat(i + 1)} ${i === 2 ? "Long heading 긴 제목의 줄바꿈을 확인하는 충분히 긴 제목 repeated words for wrapping across the available document width" : `Depth ${i + 1} 제목`}\n\n`).join("") + "Body text.\n" },
     { name: "reading.md", create: () => nativeSource("# Reading document\n\n(section-one)=\n## Section one\n\nRead this [link](https://example.com) and $x+1$. Note[^detail]. Reference {eq}`eq-one`. Citation {cite}`missing`.\n\n```{math}\n:label: eq-one\nx=1\n```\n\n:::{figure} ./diagram.svg\n:name: fig-one\n:alt: Diagram\n\nImage caption\n:::\n\n:::{table} Table caption\n:name: tbl-one\n\n| Header |\n| --- |\n| Cell |\n:::\n\n:::{figure}\n:name: fig-flow\n\n```{mermaid}\ngraph LR\n  A --> B\n```\n\nFlow caption\n:::\n\n```python\nprint('reading')\n```\n\n[^detail]: Reading preview content.\n") },
     { name: "other.md", create: () => nativeSource("# Other document\n\nIndependent editing session.\n") },
     document("diagram.svg"),
-  ], scenarios: ["read-view"] },
+  ], scenarios: ["read-view", "heading-levels"] },
   "text-mode": { files: [
     { name: "foreign.md", create: () => "# 일반 Markdown\n\n**서식이 아닌 텍스트**와 <kbd>Ctrl</kbd>\n" },
     { name: "notes.txt", create: () => "일반 텍스트 파일\n탭과 공백, 줄바꿈을 그대로 편집합니다.\n" },

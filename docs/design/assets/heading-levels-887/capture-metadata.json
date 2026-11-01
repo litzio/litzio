@@ -1,0 +1,57 @@
+{
+  "base": "828b8da3e5acc76f396a6e40aa2b5553651f1819",
+  "captured": "2026-11-02",
+  "environment": "Windows installed Chrome, headless, checkout-owned persistent profile, DPR 1, zoom 100%, bundled Pretendard and Consolas metadata",
+  "viewport": {
+    "1440": "1440x1000 Light English",
+    "640": "640x1000 Dark Korean"
+  },
+  "states": {
+    "editor": "Numbered H1-H6, wrapped H3, paper scroll top 0, pointer outside paper and document blurred",
+    "comparison": "NIST SP1108r4 fixture page 1, source and reading scroll top 0, sync on, pointer on first heading, ordinary heading hover outline visible"
+  },
+  "commands": [
+    "pnpm browser:test heading-levels --screenshots",
+    "pnpm browser:test docling-compare --screenshots"
+  ],
+  "before": "Product files temporarily restored byte-for-byte from base; same final fixture/test source. Both scenarios fail their new missing-cue assertions. Final sources restored in finally.",
+  "after": "Editor captures retained from the approved head. Comparison captures replaced after the clearance correction, using the same viewport/theme/language/fixture/scroll/hover conditions. Current comparison product hashes below. Both requested scenarios and typecheck pass.",
+  "review": "Comparison cue is inset from the reading pane edge and remains 12px clear of the ordinary block outline. Heading wires bypass the cue above the gutter and terminate at the measured block edge; a 4px expanded cue exclusion region and endpoint agreement are asserted. Original map-count/selection/synchronized-scroll assertions remain intact. Heading fonts and word-break rules are unchanged; existing narrow title word splitting remains outside scope.",
+  "productSha256": {
+    "apps/editor/src/BlockHandles.tsx": "a688930cfcaa092df0c0534a564c0d3894010da7b6eaadd939c33330d7f95c06",
+    "apps/editor/src/DocumentEditor.tsx": "8e871de48a14b6b32bcfa6d96da2d3567138e207ff2c430d660651e552fe61ff",
+    "apps/editor/src/ReadOnlyDocument.tsx": "9521f83616adc3b244249502d6159fa5e7b94f5e3fc5f40381995c973d3e8697",
+    "apps/editor/src/styles.css": "d433ac0024359d159a7c177db9fd9eea92eab8240b3f3aaaa8a0590f4c148493",
+    "apps/editor/src/styles/tokens.css": "0e1f19573eb41fa718766aeac1bfb424e83afcf1879e7c81b0a44bc08fd68f5b",
+    "packages/plugin-api/src/ui.ts": "fbea4fec7656cf2e38a9d47c8143155988f413f1705132789866e7cb01d1451e",
+    "plugins/docling/src/comparison/CompareView.tsx": "3d097b053268eee900bfc27d8916362be7e381fb299a51aef6004bf8dd8feb1a"
+  },
+  "images": {
+    "after-comparison-1440.png": "214e497a4c290598ca835de2b219d2135cd0fe1119389d205ccb20a20fd0d0ec",
+    "after-comparison-640.png": "fa720f44b2165c8d463d0b9314774bbc11e81ceebebf8a793ecf1e6cd3cb4bfc",
+    "after-editor-1440.png": "6695efb8731c1b9727d6ece8f584fc28090efd302550d19f8a6d5d419c509876",
+    "after-editor-640.png": "1e68f60eaded023eb4af70f7ce0d154abd214272d60a3f617a7e6aa8455a6dfb",
+    "before-comparison-1440.png": "e77236805ff44ea7aade378ffbf6e29bd9ec996ad00e287e843b1175c406cc9d",
+    "before-comparison-640.png": "34b26e3f72a8988da35f0c3ba646e08fc702ef45f4675b4bb351822eb97069fc",
+    "before-editor-1440.png": "6ee5ce089a2a1b912ee45d8651af9dd19a08806382d3db872235c22f9a16afdd",
+    "before-editor-640.png": "d5f043542c971a3102c1cd77018fc4cffa6cbd072239fb5df75a5ee4700f00f2"
+  },
+  "editorCaptureProductSha256": {
+    "apps/editor/src/BlockHandles.tsx": "a688930cfcaa092df0c0534a564c0d3894010da7b6eaadd939c33330d7f95c06",
+    "apps/editor/src/DocumentEditor.tsx": "8e871de48a14b6b32bcfa6d96da2d3567138e207ff2c430d660651e552fe61ff",
+    "apps/editor/src/ReadOnlyDocument.tsx": "9f4b5861b1484a6b92a22cb48a10621bebbd62d205ede8a8fe01ab819201a7cb",
+    "apps/editor/src/styles.css": "f3433acdb086d69ee19ddbc785f4950d6015c24ff2889c9af1444ceee2c96f30",
+    "apps/editor/src/styles/tokens.css": "3d87f5f0d0dabe3ed85ae6b5d8c725d7c89fd5cb5e147f5dbab6f557d3e87d36",
+    "packages/plugin-api/src/ui.ts": "fbea4fec7656cf2e38a9d47c8143155988f413f1705132789866e7cb01d1451e",
+    "plugins/docling/src/comparison/CompareView.tsx": "59b5a153cfbf2d23c7c4a027b3e3ea4601eb06c736d312f050db4bb6d305d381"
+  },
+  "editorCaptureHead": "38dc49c1659866cdd31c7270ab050a5826d6f039",
+  "comparisonRevision": {
+    "parentHead": "38dc49c1659866cdd31c7270ab050a5826d6f039",
+    "gutterPx": 48,
+    "cueToTextPx": 20,
+    "cueToOutlinePx": 12,
+    "routing": "Heading wires enter above the gutter, curve to the actual measured block edge, and keep their original endpoint/scroll-anchor calculation. No paper mask or special heading-outline inset.",
+    "testInstallation": "Re-register current tmp/docling-worker/manifest.json in the checkout-only tmp/browser-plugins PluginStore after the Vite startup build. Installed UI revision 4a81178358027169853b74be79ef0e26dab3c8ffe99d0f1eb25c819225c9e0ad."
+  }
+}

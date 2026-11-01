@@ -132,6 +132,7 @@ These are independent axes. Visual interactions never write document attributes.
 | --- | --- |
 | Rest | No paragraph input box or block extent outline. Gutter/Edit/authoring metadata are hidden, without invisible pointer targets. Captions, references, errors and restrictions remain visible. Endnotes explicitly retain always-visible Edit under the [Endnotes contract](footnotes-v1.md#editor). |
 | Mermaid kind | Editable Visual Editor retains a padded `Mermaid` badge at rest, including failures and pending source drafts; shared metadata typography, normal text contrast, muted surface, structural border, small radius and spacing tokens. Selected blocks add interaction-soft fill and interaction border (#846). Decorative chrome only; [Figure authoring](figure-authoring-v1.md#mermaid-editor) owns scope. |
+| Heading depth (#887/#886) | Edit and the Docling comparison's fixed Read surface retain small, subdued `H1`–`H6` cues in the left gutter. Shared metadata size/line height, monospace as for section labels, and the theme's subtle text role; no badge fill. Center on the first heading line, including numbered/wrapped headings. Hide only while that row's block handles are visible. Decorative `aria-hidden` chrome with localized `Heading 2` / `제목 2` hover text; absent from ordinary Read, Source, text files, copying and saved documents. No setting, Outline or heading-size change. |
 | Hover | Gutter, typed-block Edit and metadata appear without moving text; the route to buttons remains inside the hover area. One top-level block gets a neutral input-transparent extent overlay. Nested lists/cells indicate the whole top-level block. Geometry/clearance belongs to [Layout Rules](editor-layout-rules-v1.md#alignment-and-ownership). |
 | Keyboard focus | Caret/selection shows document focus without a document frame. `:focus-within` reveals tools; controls draw focus only on `:focus-visible`, never after a pointer click. |
 | Current lists | Files, Outline and +/slash use selected surface/text and 600 semibold, no left marker. Hover uses selected-hover while current. Focus never changes current/ARIA state. Command Center retains Base UI highlighting and existing disabled/foreign-text exceptions. |
@@ -154,6 +155,26 @@ Buttons use the solid 2px outer `--focus-ring`; list/menu rows, tab-group contro
 
 Clean available Save is ghost, unsaved is accent, unavailable muted without hover. Saving preserves position/width/name while a spinner overlays a transparent label. The fixed status slot conveys unsaved/saved/operation/failure with localized text/tooltip; clean Ready is blank. Settings' unseen-update dot uses accent with localized tooltip/name; About actions use selected fill/interaction outline without animation. [Shell](editor-ux-shell-v1.md#title-strip-and-tab-row-actions-695) and [Desktop](desktop-distribution-v1.md#settings-update-cue-verification-665) own the operations.
 
+## Heading depth verification (#887/#886)
+
+Heading depth #887/#886 was checked with numbered H1–H6, wrapped headings, gutter
+handles/menu, native clipboard, Save/Reload and ordinary Read/Source exclusion in
+`heading-levels`; `docling-compare` checks opt-in fixed Read and narrow hover clearance.
+The comparison reserves a 48px inspection gutter. The unfilled cue clears the ordinary
+block outline by 12px; heading connectors enter above the gutter and end at the measured
+block edge without crossing the cue. Existing correspondence and scroll assertions remain
+unchanged. Editor captures are retained from the approved head; comparison captures were
+replaced after this clearance correction. Windows Chrome captures are manual evidence:
+
+| Surface | 1440px Light / English | 640px Dark / Korean |
+| --- | --- | --- |
+| Editor | [Before](assets/heading-levels-887/before-editor-1440.png) / [After](assets/heading-levels-887/after-editor-1440.png) | [Before](assets/heading-levels-887/before-editor-640.png) / [After](assets/heading-levels-887/after-editor-640.png) |
+| Comparison (heading hover) | [Before](assets/heading-levels-887/before-comparison-1440.png) / [After](assets/heading-levels-887/after-comparison-1440.png) | [Before](assets/heading-levels-887/before-comparison-640.png) / [After](assets/heading-levels-887/after-comparison-640.png) |
+
+[Capture conditions, source/image hashes and reproduction commands](assets/heading-levels-887/capture-metadata.json)
+record the clean base and working implementation separately. Core and CLI are unchanged:
+these cues are interface decoration with no semantic operation or CLI parity requirement.
+
 ## Adjustable values and preferences
 
 Values tuned by hand or changed by taste live under **Adjustable values** in `styles/tokens.css`, with a comment describing each purpose. Rules/scripts consume shared variables rather than repeat numbers. Regression checks read tokens/resolved relationships while preserving public constraints such as standard/compact control sizes, contrast, word boundaries and unmoved text.
@@ -173,6 +194,7 @@ Values tuned by hand or changed by taste live under **Adjustable values** in `st
 | Command Center | `--layout-command-center-width`, `--layout-command-center-popup-width`, `--layout-command-center-list-height` |
 | Settings | `--layout-settings-content-width`, `--layout-settings-control-width`, `--layout-document-settings-label-width`, `--space-document-settings-after` |
 | Figure metadata | `--layout-figure-popover-width`, `--size-figure-property-thumbnail-max-width/height`, `--space-figure-popover-gap`; preview retains intrinsic ratio |
+| Heading depth | `--font-size-heading-level`, `--id-color-heading-level`, `--space-heading-level-gap`, `--layout-reading-heading-gutter`, `--space-heading-level-reading-gap`; all in Adjustable values, using existing metadata/theme tokens |
 | Folder/image picker | `--layout-folder-picker-width`, `--layout-folder-picker-list-height`, `--layout-folder-picker-folder-list-height`, `--layout-folder-picker-preview-height` |
 | File/reading previews/comparison | `--layout-file-preview-width`, `--layout-file-preview-image-max-height`, `--layout-reading-preview-width/height`, `--layout-recovery-compare-width`, `--layout-recovery-diff-max-height` |
 | Other presentation | `--font-feature-sans`, `--layout-start-width`, `--size-start-mark`, `--size-overflow-fade`, `--reference-underline-offset`; start title has independent UI size/line-height tokens |

@@ -111,6 +111,7 @@ function caretRoom(paper: RefObject<HTMLElement | null>, side: number) {
 type DocumentEditorProps = ReadingCallbacks & {
   /** Reuse rendering/navigation while keeping forms and history alive. */
   readOnly?: boolean;
+  showHeadingLevels?: boolean;
   settingsExpanded?: boolean;
   onSettingsExpandedChange?(expanded: boolean): void;
   settingsDisabled?: boolean;
@@ -141,7 +142,7 @@ type DocumentEditorProps = ReadingCallbacks & {
 };
 
 export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorProps>(function DocumentEditor(
-  { readOnly = false, onReadingLayout, onReadingSelection, settingsExpanded = false, onSettingsExpandedChange, settingsDisabled = false, document, bibliography, initialSnapshot, documentPath, onStructuralReject, onNotice, onDraftChange, onAssetPendingChange, onAssetError, onAssetChange, onDirtyChange, onAppliedEdit, onSaveLocationsChange, onHeadingNumberingChange, onReferenceTemplatesChange, validateFigure, chooseImage, renameImage, onOutlineChange },
+  { readOnly = false, showHeadingLevels = !readOnly, onReadingLayout, onReadingSelection, settingsExpanded = false, onSettingsExpandedChange, settingsDisabled = false, document, bibliography, initialSnapshot, documentPath, onStructuralReject, onNotice, onDraftChange, onAssetPendingChange, onAssetError, onAssetChange, onDirtyChange, onAppliedEdit, onSaveLocationsChange, onHeadingNumberingChange, onReferenceTemplatesChange, validateFigure, chooseImage, renameImage, onOutlineChange },
   ref,
 ) {
   useTranslation();
@@ -945,7 +946,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         </BibliographyContent>
       </ImageRenameContext.Provider></DocumentPathContext.Provider>
       {visible ? <BlockHandles
-        readOnly={readOnly} editor={editor}
+        readOnly={readOnly} showHeadingLevels={showHeadingLevels} editor={editor}
         saveLocations={saveLocations}
         menuIndex={blockMenu?.index}
         onInsert={insertBlockMenu}

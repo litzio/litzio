@@ -5,6 +5,8 @@ import type { EditableDocument } from "@litzio/core";
 export type DocumentPosition = { blocks: { key: string; top: number; left: number; height: number }[]; height: number };
 export type ReadingSurfaceProps = {
   document: EditableDocument; path: string;
+  /** Decorative heading-depth cues for inspection surfaces; ordinary reading omits them. */
+  showHeadingLevels?: boolean;
   onLayout(position: DocumentPosition): void;
   onSelection(key: string | undefined): void;
 };

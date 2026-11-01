@@ -40,6 +40,7 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   await page.keyboard.press('Escape');
   await expect(input()).toHaveValue('# 일반 Markdown\n\n**서식이 아닌 텍스트**와 <kbd>Ctrl</kbd>\n');
   await expect(activeDocument(page).locator('.document-editor')).toHaveCount(0);
+  await expect(activeDocument(page).locator('.heading-level')).toHaveCount(0);
   await expect(page.getByTestId('view-source')).toHaveCount(0);
   await expect(page.getByTestId('text-mode-notice')).toBeVisible();
   await expect(page.getByTestId('save')).toBeEnabled();
