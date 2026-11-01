@@ -91,12 +91,14 @@ async (page, { openPath, expect, screenshots }) => {
   await page.keyboard.press('Control+c');
   const copied = await page.evaluate(() => navigator.clipboard.readText());
   expect(copied).toContain('Depth 1'); expect(copied).not.toMatch(/H[1-6]/);
-  await page.getByTestId('view-read').click();
-  await expect(depthCues).toHaveCount(0);
   await page.getByTestId('view-source').click();
-  await expect(depthCues).toBeHidden();
+  await expect(depthCues.filter({visible:true})).toHaveCount(0);
   const depthSource = await depthPanel.getByTestId('source-view').innerText();
   expect(depthSource).toContain('###### Depth 1'); expect(depthSource).not.toMatch(/H[1-6]/);
+  await page.getByTestId('view-visual').click();
+  await expect(depthCues.first()).toHaveText('H6');
+  await page.getByTestId('view-read').click();
+  await expect(depthCues).toHaveCount(0);
   await page.getByTestId('view-visual').click();
   await expect(depthCues.first()).toHaveText('H6');
   const saving = page.waitForResponse(response => response.url().includes('/api/document') && response.request().method() === 'POST');
