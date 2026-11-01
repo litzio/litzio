@@ -1,7 +1,5 @@
 # Document tabs #204: implementation and review
 
-당시 이름: 이음독(IeumDoc), 현재 Litzio
-
 - Status: Historical
 - Last verified: 2026-10-16 (implementation and user-approved visual review; verification recorded below).
 - Authority: evidence for [#204](https://github.com/litzio/litzio/issues/204), not a separate behavior contract. Current contracts: [Editing session and Save](../design/editing-session-save-v1.md), [UX shell](../design/editor-ux-shell-v1.md), [layout](../design/editor-layout-rules-v1.md), [visual language](../design/editor-visual-language-v1.md).
@@ -136,11 +134,11 @@ All required checks passed on the final implementation on 2026-10-16:
 
 | Check | Result |
 | --- | --- |
-| `pnpm --filter @ieumdoc/editor test` | 246 passed, 0 failed/skipped |
-| `pnpm --filter @ieumdoc/desktop test` | 39 passed, 0 failed/skipped |
+| `pnpm --filter @litzio/editor test` | 246 passed, 0 failed/skipped |
+| `pnpm --filter @litzio/desktop test` | 39 passed, 0 failed/skipped |
 | `pnpm typecheck` | Core, File commit, CLI, Editor and Desktop passed |
-| `pnpm --filter @ieumdoc/editor build` | Passed (existing chunk-size advisory) |
-| `pnpm --filter @ieumdoc/cli build` | Passed; builds the production Editor/HTTP bundle |
+| `pnpm --filter @litzio/editor build` | Passed (existing chunk-size advisory) |
+| `pnpm --filter @litzio/cli build` | Passed; builds the production Editor/HTTP bundle |
 | `pnpm browser:test` | 44/44 passed in one final full run, 5.7 minutes |
 | `pnpm browser:test http-host` | 1/1 passed, production bundle, real two-root Save/Reload/conflict |
 | `pnpm docs:check` and `git diff --check` | Passed |

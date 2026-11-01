@@ -2,6 +2,7 @@
 // pnpm exec tsx apps/editor/test/browser/shortcut-probe.ts chrome (or msedge).
 // Headed installed browsers, one persistent profile per checkout/channel, no native UI automation.
 import assert from "node:assert/strict";
+import { brand } from "../../../../brand.ts";
 import { chromium, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -41,7 +42,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === path.join(REPOSITORY_RO
   const channel = process.argv[2];
   assert.ok(channel === "chrome" || channel === "msedge", "Choose installed chrome or msedge");
   const id = createHash("sha256").update(REPOSITORY_ROOT).digest("hex").slice(0, 16);
-  const profile = path.join(tmpdir(), "ieumdoc-browser-profile", id + (channel === "msedge" ? "-edge" : ""));
+  const profile = path.join(tmpdir(), `${brand.appName}-browser-profile`, id + (channel === "msedge" ? "-edge" : ""));
   const context = await chromium.launchPersistentContext(profile, { channel, headless: false });
   try {
     const page = await context.newPage();

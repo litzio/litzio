@@ -11,7 +11,7 @@ Litzio(리치오)는 Litz wire로 입출력(I/O)을 잇는다는 뜻입니다.
 표·수식·참조가 있는 기술문서를 시각적으로 작성하고, 사람이 읽을 수 있는 plain-text 파일로 Git에서 관리합니다. Editor와 CLI·자동화는 같은 Core로 문서를 읽고 수정합니다.
 **Litzio 네이티브 문서만 열 수 있으며, 일반 Markdown 편집기나 Import 도구는 아닙니다.** Windows x64 Beta 단계이고 Stable은 아직 없습니다. 공개 API와 문서 지원 범위는 바뀔 수 있습니다.
 
-![Litzio 데모: 편집 화면에서 직접 입력과 제목 번호·인라인 수식, /수식으로 레이블·번호 (2) 지정, /다이어그램으로 Mermaid 원문 편집·실시간 미리보기·그림 1 캡션, 식 (2)·그림 1 상호참조 삽입, 소스 화면의 MyST 원문 확인](docs/design/assets/ieumdoc-demo.gif)
+![Litzio 데모: 편집 화면에서 직접 입력과 제목 번호·인라인 수식, /수식으로 레이블·번호 (2) 지정, /다이어그램으로 Mermaid 원문 편집·실시간 미리보기·그림 1 캡션, 식 (2)·그림 1 상호참조 삽입, 소스 화면의 MyST 원문 확인](docs/design/assets/litzio-demo.gif)
 
 <a id="windows-desktop"></a>
 
@@ -19,7 +19,7 @@ Litzio(리치오)는 Litz wire로 입출력(I/O)을 잇는다는 뜻입니다.
 
 ## 설치하고 시작하기
 
-1. [Releases 목록](https://github.com/litzio/litzio/releases)에서 사용할 Beta의 **Assets**를 열고 `IeumDoc-Setup-<버전>.exe`를 내려받아 실행합니다. 현재 사용자에게 설치하며 관리자 권한이나 별도 Node.js·pnpm이 필요하지 않습니다.
+1. [Releases 목록](https://github.com/litzio/litzio/releases)에서 사용할 Beta의 **Assets**를 열고 `Litzio-Setup-<버전>.exe`를 내려받아 실행합니다. 현재 사용자에게 설치하며 관리자 권한이나 별도 Node.js·pnpm이 필요하지 않습니다.
 2. **unsigned Beta**이므로 알 수 없는 게시자 또는 SmartScreen 경고가 나타날 수 있습니다. 공식 저장소의 다운로드인지 확인하고 PC의 보안 정책을 따르세요.
 3. 시작 화면에서 sample을 선택하거나 **Open folder**로 폴더를 연 뒤 Sidebar의 `.md` 또는 `.txt` 파일을 선택합니다. **New file**로 새 문서를 만들고, 편집 후 **Save**로 저장할 수 있습니다.
 

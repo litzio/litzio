@@ -15,7 +15,7 @@ Implementation update (2026-10-23): units A, B and C are implemented in [Citatio
 
 #265의 문제는 본문 `[1]` 평문과 번호 목록을 사람이 따로 관리해야 한다는 것이다. #154는 CLI, #155는 Visual Editor에서 이 마찰을 보고했고, #257에서도 배치 저작 후 인용 부재가 남았다. #154의 `[@key]` 삽입·읽기 전용 보존 경험은 이전 commit `9545731`의 관찰이다. ADR-0006 이후에는 미지원 내용이 있는 문서 전체를 거부하므로 그 경로를 복원하지 않는다.
 
-2026-10-20 결정 당시 `native.ts`의 메타데이터 검증은 `ieumdoc`, `numbering`만 받는다. `projectInlineContent`가 인용을 지원하지 않아 인용 문단은 `native-content`로 거부된다. 내부 MyST parser/writer의 처리 능력, 네이티브 지원 판정, 외부 파일 접근, 서식 표시를 각각 구분해야 한다.
+2026-10-20 결정 당시 `native.ts`의 메타데이터 검증은 `litzio`, `numbering`만 받는다. `projectInlineContent`가 인용을 지원하지 않아 인용 문단은 `native-content`로 거부된다. 내부 MyST parser/writer의 처리 능력, 네이티브 지원 판정, 외부 파일 접근, 서식 표시를 각각 구분해야 한다.
 
 당시 ADR 작업은 결정 문서와 인덱스만 변경했다. 아래 구현 단위의 현재 API·진단·검증은 상단 Citations 계약이 기록하며, 당시 실험과 구분한다.
 
@@ -212,7 +212,7 @@ Windows PowerShell 7.6, Node `24.21.0`, pnpm `12.5.1`. 저장소 파일을 바�
 
 17개 모두 upstream writer 메시지는 없었으며 두 번째 출력은 안정적이었다. 그 중 **5개는 첫 직렬화에서 의미를 잃었다**. 따라서 writer 경고 없음 또는 두 번 format의 idempotency만으로 보존을 증명할 수 없다. Core 내부 serializer는 이 5개를 `prefix/suffix/partial ... became (absent)`의 의미 손실로 거부했다. locator는 별도 typed `locator`가 아니라 `suffix` 문자열로 파싱되었다.
 
-현재 공개 네이티브 경계에서는 인용 17개 모두 `native-content: Unsupported native content: paragraph`로 거부됐다. `bibliography: [refs.bib]`와 일반 본문은 `native-metadata: Native frontmatter supports only ieumdoc and numbering`으로 거부됐다. 외부 `validateProjectFrontmatter`와 `validatePageFrontmatter`는 같은 bibliography 목록을 errors/warnings 없이 반환했다. 외부 validator 성공이 Litzio admission 성공은 아니다.
+현재 공개 네이티브 경계에서는 인용 17개 모두 `native-content: Unsupported native content: paragraph`로 거부됐다. `bibliography: [refs.bib]`와 일반 본문은 `native-metadata: Native frontmatter supports only litzio and numbering`으로 거부됐다. 외부 `validateProjectFrontmatter`와 `validatePageFrontmatter`는 같은 bibliography 목록을 errors/warnings 없이 반환했다. 외부 validator 성공이 Litzio admission 성공은 아니다.
 
 **#327 근거와의 차이:** 기본 role·쉼표 다중 키·잘못 중첩한 locator의 관찰은 재현했다. 다만 “같은 원문으로 다시 쓴다”는 모든 형태에 성립하지 않는다. 다중 `{cite}`는 `{cite:t}`가 되고 공백·구분자가 정규화된다. 미확인 상태였던 대괄호 문법과 role의 중괄호 문법은 실제 prefix/suffix를 파싱하지만 writer에서 손실된다. 이는 parser가 locator 주변 문구를 전혀 표현하지 못한다는 주장과 다르다.
 

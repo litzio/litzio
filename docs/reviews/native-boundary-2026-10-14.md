@@ -1,7 +1,5 @@
 # Native document boundary implementation
 
-당시 이름: 이음독(IeumDoc), 현재 Litzio
-
 - Status: Historical
 - Last verified: 2026-10-14 (implementation and regression verification for #232).
 - Authority: evidence only; current rules are [ADR-0006](../adr/0006-native-document-boundary.md) and [Native document support](../design/document-support-v1.md).
@@ -28,7 +26,7 @@ Hiding metadata from the body projection exposed lookups that confused body arra
 
 The block-boundary guard temporarily completes footnotes with synthetic references. Projecting these temporary nodes as native authoring content masked the final orphan-definition error. The guard now compares parser block types/kinds across its canonical round-trip. A public native regression failed before the correction and passes afterward; the real browser still refuses an orphan definition without writing the file.
 
-The installed `myst-frontmatter@1.10.1` page validator reports `extra key ignored: ieumdoc` and omits the key from its result. This external warning does not define IeumDoc admission; Core owns the native contract.
+The installed `myst-frontmatter@1.10.1` page validator reports `extra key ignored: litzio` and omits the key from its result. This external warning does not define Litzio admission; Core owns the native contract.
 
 ## Verification measurements
 

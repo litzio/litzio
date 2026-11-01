@@ -1,7 +1,5 @@
 # Editor Visual Language history through 2026-10-30
 
-당시 이름: 이음독(IeumDoc), 현재 Litzio
-
 - Status: Historical
 - Last verified: 2026-10-30 (#785: original text, capture paths and incoming anchors preserved; no browser rerun).
 - Scope: Snapshot of the mixed contract/verification document at master `e6eb3282565abb999c3f23c3cc01220f37628983`.
@@ -271,7 +269,7 @@ The following base values describe Light; [Dark overrides](#system-light-and-dar
 
 | Role | Actual values / treatment |
 | --- | --- |
-| Shell | Theme `surface-subtle` sidebar, Document panel and shared header, including native caption-button background; 40px full-width brand/title strip with the existing icon and IEUMDOC (#647; icon only when Files is collapsed), Files and document-navigation headers aligned with the 32px document-tab row and its 1px boundary, 240px sidebar (200px at ≤1024px; supported minimum 640px per ADR-0010), 48px collapsed rail, 256px Document panel (docked at ≥1424px; below, an overlay with the overlay shadow under the header) |
+| Shell | Theme `surface-subtle` sidebar, Document panel and shared header, including native caption-button background; 40px full-width brand/title strip with the existing icon and LITZIO (#647; icon only when Files is collapsed), Files and document-navigation headers aligned with the 32px document-tab row and its 1px boundary, 240px sidebar (200px at ≤1024px; supported minimum 640px per ADR-0010), 48px collapsed rail, 256px Document panel (docked at ≥1424px; below, an overlay with the overlay shadow under the header) |
 | Document | White continuous writing surface on the adjustable `canvas` (`#eceef2`), with a 1px inset `paper-border` edge (Light aliases `border-subtle`), adjustable 6px paper radius and gentle paper shadow (`0 2px 8px rgb(32 36 44 / 6%)`). Paper elevation is quieter than the overlay shadow. 928px maximum column, 16px outer inset, 80px document inset on each side; 736px body at 1440px with sidebar open. At least the viewport height below the measured header, less the top/bottom outer insets; grows with content, without paper sizes or page breaks. |
 | Narrow document | Below 1424px the Document panel starts closed and overlays when opened. At ≤1024px, retain 80px tool gutter; trailing inset becomes 16px. At ≤704px header wraps. Below 640px the sidebar starts closed and the document uses the whole width; opened, the sidebar covers the screen. Otherwise it remains user controlled. |
 | Body | Shared sans stack (below); 17px / 28.9px, 400; 16px paragraph gap |
@@ -307,7 +305,7 @@ Colors originate in the Adjustable values of `styles/tokens.css`. `--id-color-ac
 | `interaction`, `interaction-soft` | Chosen preset's accent (Blue default `#315fd4`) for indicator/focus and an alias to `surface-selected`; no separate copied selection palette |
 | `accent`, `accent-hover` | An alias to `interaction` and `#2449a6`: primary action faces with `text-on-accent` |
 
-Focus indicators appear only on `:focus-visible` (keyboard), never after a mouse click. Buttons show a solid 2px outer ring (`--focus-ring`, `border-focus`); list rows (file tree, Outline, recent folders, menus, folder picker), tab-group controls, checkboxes and table tools show a solid 2px inset ring (`--focus-ring-inset`). The rings are opaque `border-focus`, so their Light Blue composited contrast is 5.65:1 on white and at least 4.55:1 on the hover, pressed and selected surfaces; `visual-states` and `save-session` measure the rendered box-shadow ring against its surface. A current face, error boundary or pressed face stays visible alongside it. Normal UI text meets 4.5:1 and required control/state indicators meet 3:1 against adjacent backgrounds. Files, Outline and + / slash current items add 600 semibold as a non-color cue; selected text/background alone do not distinguish current from normal at 3:1. All `.view-toggle` current segments (Visual/Source and Outline/Tables/Figures) use 600 semibold as a non-color cue, `text` on themed `surface` and `--shadow-segment` (#620). Inactive labels remain muted; a hidden semibold copy reserves label width before selection. Their decorative face/shadow/structural edges do not carry a 3:1 state-boundary requirement because weight distinguishes selection independently of color. Text still meets 4.5:1 and focus-visible rings still meet 3:1. The Command Center trigger uses `surface-subtle` and structural `border`; its text/icon identify the action without an input-like boundary. Input-like controls retain `border-control`. Document-tab accent markers meet 3:1 against their rest and hover surfaces. Decorative dividers and the rest/hover color difference are not required to meet 3:1. Formula typography belongs to KaTeX, whose internals are not restyled. IeumDoc sets only the overall size of inline math (`--math-inline-size`); display equations keep KaTeX's 1.21em. A content-sized IeumDoc wrapper and the enclosing block own horizontal formula scrolling. Tables scroll within their block. Document-wide clipping is prohibited.
+Focus indicators appear only on `:focus-visible` (keyboard), never after a mouse click. Buttons show a solid 2px outer ring (`--focus-ring`, `border-focus`); list rows (file tree, Outline, recent folders, menus, folder picker), tab-group controls, checkboxes and table tools show a solid 2px inset ring (`--focus-ring-inset`). The rings are opaque `border-focus`, so their Light Blue composited contrast is 5.65:1 on white and at least 4.55:1 on the hover, pressed and selected surfaces; `visual-states` and `save-session` measure the rendered box-shadow ring against its surface. A current face, error boundary or pressed face stays visible alongside it. Normal UI text meets 4.5:1 and required control/state indicators meet 3:1 against adjacent backgrounds. Files, Outline and + / slash current items add 600 semibold as a non-color cue; selected text/background alone do not distinguish current from normal at 3:1. All `.view-toggle` current segments (Visual/Source and Outline/Tables/Figures) use 600 semibold as a non-color cue, `text` on themed `surface` and `--shadow-segment` (#620). Inactive labels remain muted; a hidden semibold copy reserves label width before selection. Their decorative face/shadow/structural edges do not carry a 3:1 state-boundary requirement because weight distinguishes selection independently of color. Text still meets 4.5:1 and focus-visible rings still meet 3:1. The Command Center trigger uses `surface-subtle` and structural `border`; its text/icon identify the action without an input-like boundary. Input-like controls retain `border-control`. Document-tab accent markers meet 3:1 against their rest and hover surfaces. Decorative dividers and the rest/hover color difference are not required to meet 3:1. Formula typography belongs to KaTeX, whose internals are not restyled. Litzio sets only the overall size of inline math (`--math-inline-size`); display equations keep KaTeX's 1.21em. A content-sized Litzio wrapper and the enclosing block own horizontal formula scrolling. Tables scroll within their block. Document-wide clipping is prohibited.
 
 The destructive Button variant uses `danger` text and border on `surface`, with `surface-danger` on hover. Keyboard focus retains the danger text and adds the shared blue border/ring. Text meets 4.5:1 and enabled boundaries/focus indicators meet 3:1. Native disabled destructive buttons use an opaque muted face, secondary text (still 4.5:1) and structural border rather than opacity dimming; focusable `aria-disabled` buttons keep the shared disabled treatment. For #276, only **Discard and reload** uses this variant. **Keep editing** remains the initial focus and the existing button order is preserved.
 
@@ -315,7 +313,7 @@ The destructive Button variant uses `danger` text and border on `surface`, with 
 
 Settings → Appearance & language offers System / Light / Dark, defaulting to System.
 System tracks `prefers-color-scheme` changes without a reload; explicit choices ignore
-the OS. `preferences.ts` stores only the choice in `ieumdoc.theme` localStorage.
+the OS. `preferences.ts` stores only the choice in `litzio.theme` localStorage.
 Absent, unknown or unavailable storage falls back to System. A write failure keeps the
 live choice and a localized Settings alert, like accent/language. Nothing enters Markdown,
 Core or the file Host, so no semantic operation or CLI surface is needed. Images are
@@ -492,7 +490,7 @@ Historical comparison evidence is preserved in the [visual review](../design/edi
 
 ## Start without a document (#174)
 
-With no document open, the [start](../design/editor-ux-shell-v1.md#start-without-a-document-174) is the app's start, not a document (#298): it never uses the paper. A centered column at most `--layout-start-width` (640px) wide sits on the canvas, 48px below the header, under the product mark (`--size-start-mark`, 32px) and the 14/20px semibold muted name `IeumDoc`. A 24px semibold UI title, 14/20px muted explanation and 28px actions (Open folder… primary; choose a file in the sidebar after opening the folder) lead; the Recent folders, Recover unsaved work and Sample sections follow as white cards with a `border-subtle` edge, 8px radius and 16px padding. Section labels are 12/16px semibold subtle text. A recent folder is a 32px row whose folder icon sits on the text axis: its name, then its full path in 12/16px subtle text, both ellipsized, with the full path in `title`; hover uses the neutral hover surface and keyboard focus the solid 2px inset ring. Open sample document is an outlined secondary action. The column keeps a 16px inline inset at every width, and a label wider than a card wraps inside its button, so nothing leaves the screen at 375px.
+With no document open, the [start](../design/editor-ux-shell-v1.md#start-without-a-document-174) is the app's start, not a document (#298): it never uses the paper. A centered column at most `--layout-start-width` (640px) wide sits on the canvas, 48px below the header, under the product mark (`--size-start-mark`, 32px) and the 14/20px semibold muted name `Litzio`. A 24px semibold UI title, 14/20px muted explanation and 28px actions (Open folder… primary; choose a file in the sidebar after opening the folder) lead; the Recent folders, Recover unsaved work and Sample sections follow as white cards with a `border-subtle` edge, 8px radius and 16px padding. Section labels are 12/16px semibold subtle text. A recent folder is a 32px row whose folder icon sits on the text axis: its name, then its full path in 12/16px subtle text, both ellipsized, with the full path in `title`; hover uses the neutral hover surface and keyboard focus the solid 2px inset ring. Open sample document is an outlined secondary action. The column keeps a 16px inline inset at every width, and a label wider than a card wraps inside its button, so nothing leaves the screen at 375px.
 
 ## Writing end space (#173)
 
@@ -622,10 +620,10 @@ Mermaid Figure, outside properties. Captures are manual evidence, not assertions
 A change to the Editor's look or a new visible control states which rule above (or in v1) it follows, or updates this document in the same PR. Compare the same states before and after:
 
 1. Capture the clean base before editing and preserve its files separately, or check out the base in a second worktree and start its dev server on a free port (for example 5174).
-2. In each checkout, run `pnpm browser:test quiet-document --screenshots` against that checkout's own server; in the base worktree set `IEUMDOC_BROWSER_URL=http://127.0.0.1:5174`. Fixtures and captures belong to the checkout that runs the command.
+2. In each checkout, run `pnpm browser:test quiet-document --screenshots` against that checkout's own server; in the base worktree set `LITZIO_BROWSER_URL=http://127.0.0.1:5174`. Fixtures and captures belong to the checkout that runs the command.
 3. Compare the captures in each checkout's `tmp/visual-refinement/` and attach the representative pairs to the PR.
 
-IeumDoc keeps one stylesheet; comparison captures do not need a runtime old/new theme toggle. Record the actual HEAD, viewport, DPR/zoom, scroll/interaction state and font environment. CSS studies and mockups are not product Before images.
+Litzio keeps one stylesheet; comparison captures do not need a runtime old/new theme toggle. Record the actual HEAD, viewport, DPR/zoom, scroll/interaction state and font environment. CSS studies and mockups are not product Before images.
 
 ### Empty caption hints #698
 
@@ -791,7 +789,7 @@ Manual comparison: same scratch document, selected block and pointer hovering it
 DPR 1, 100% zoom, scroll (0, 0), Windows Chrome 155.0.8059.85 headless, bundled Pretendard
 Variable (verified with the existing CDP glyph-font check). Before uses the base above;
 After uses the reviewed correction in this change. The refreshed After capture uses the explicit
-`IEUMDOC_BROWSER_URL=http://127.0.0.1:5179` server, whose PID command line and document API path
+`LITZIO_BROWSER_URL=http://127.0.0.1:5179` server, whose PID command line and document API path
 were verified to belong to this worktree, with `pnpm browser:test quiet-document --screenshots`
 and its persistent profile. Only the neutral corners become rounder to follow the
 blue outline's outer curves; text, captions, tools and block positions stay aligned. The existing
@@ -849,7 +847,7 @@ focus/control boundaries; decorative separators are outside those boundary claim
 | Green | 4.99:1 | 6.19:1 | 4.99:1 | 3.08:1 |
 | Graphite | 5.15:1 | 6.40:1 | 5.15:1 | 3.08:1 |
 
-The local preference `ieumdoc.accentColor` stores a preset ID in the existing
+The local preference `litzio.accentColor` stores a preset ID in the existing
 `preferences.ts` path, like display language. It never enters Markdown, Core or Host
 requests. A valid choice is applied before React mounts the first UI; absent, unknown
 or unreadable storage falls back to Blue. Saving failure keeps the live choice and
@@ -945,7 +943,7 @@ Values meant to be tuned by hand, or that change with a user's taste, are shared
 - Paper surface entries (#226): `--id-color-canvas` (`#eceef2`), `--id-radius-paper` (0.375rem / 6px) and `--shadow-paper` (`0 2px 8px rgb(32 36 44 / 6%)`) distinguish the white paper with a slightly darker neutral canvas, small corners and gentle elevation. Visual and Source share this paper treatment; the start without a document deliberately does not (#298). Panel surfaces, control/overlay radii and `--shadow-overlay` retain their own roles. Theme overrides now include independent `paper`, `paper-border` and `size-paper-border` values; see [#595](#system-light-and-dark-595). Settings → Appearance & language offers Page style: Paper (default) / Flat.
   The `:root[data-page="flat"]` scope overrides only canvas, paper edge width, radius and shadow,
   after theme scopes, so both themes share the same behavior and floating surfaces retain their roles.
-  `preferences.ts` stores `ieumdoc.pageBackground` in browser/app-profile localStorage only.
+  `preferences.ts` stores `litzio.pageBackground` in browser/app-profile localStorage only.
   `theme-init.js` applies the validated choice before styles and the runtime reads it before React.
   Absent, invalid or unreadable storage selects Paper; write failure keeps the current-page
   choice with the standard localized Settings alert. Core/CLI are outside this display-only change.
@@ -1206,7 +1204,7 @@ ignored plan were being prepared). Quiet Document rest states use scroll top and
 The new preview captures retain applied dirty text and an unapplied section-label draft behind the
 modal. The existing dialog width (48rem) and image height cap (60dvh) remain unchanged through
 the Adjustable tokens. `pnpm browser:test file-preview --screenshots`, `layout-rules`, and
-`quiet-document --screenshots` passed at that HEAD with `IEUMDOC_BROWSER_URL=http://127.0.0.1:5193`.
+`quiet-document --screenshots` passed at that HEAD with `LITZIO_BROWSER_URL=http://127.0.0.1:5193`.
 The SVG regression first failed with `Invalid SVG image`, then passed with XML declaration,
 comment and external SVG 1.1 DOCTYPE. The browser decodes the committed DOCTYPE fixture as 20×20;
 the DOCTYPE-bearing active fixture still cannot execute scripts/events or fetch its external image/DTD

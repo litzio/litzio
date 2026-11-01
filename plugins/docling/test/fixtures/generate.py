@@ -23,7 +23,7 @@ with (public / "source.pdf").open("wb") as out:
     writer.write(out)
 
 c = canvas.Canvas(str(synthetic / "source.pdf"), pagesize=(612, 792), invariant=1)
-c.setTitle("IeumDoc synthetic structural supplement (MIT)")
+c.setTitle("Litzio synthetic structural supplement (MIT)")
 
 def text(x, y, value, size=11, font="Helvetica"):
     c.setFont(font, size)
@@ -58,6 +58,6 @@ text(60, 294, "b) Retain the recorded values.")
 text(48, 254, "Annex A (informative)", 14, "Helvetica-Bold")
 text(48, 225, "NOTE - This is synthetic test content, released under the repository MIT license.")
 text(48, 195, "Numbers such as 108 are literal text; they are not inferred endnote calls.")
-text(48, 36, "IeumDoc fixture - MIT | 1")
+text(48, 36, "Litzio fixture - MIT | 1")
 c.save()
 print("Created NIST excerpt (11 pages) and synthetic supplement (1 page).")

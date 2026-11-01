@@ -1,7 +1,5 @@
 # Desktop shell spike v1
 
-당시 이름: 이음독(IeumDoc), 현재 Litzio
-
 - Status: Historical
 - Last verified: 2026-10-08 (status, links and current authority checked; historical experiments/audits not rerun).
 - Scope: Historical spike evidence; not a product-host or distribution decision.
@@ -16,7 +14,7 @@
 ## Shape
 
 - Editor: 변경 없음. `vite build --base /` 결과를 그대로 싣는다. Open, Open folder, New, folder sidebar도 그대로 쓴다.
-- Host: 변경 없음. Electron main이 custom protocol `ieumdoc://app`을 등록하고, `/api/*`와 `/document/*` 요청을 기존 `handleDocumentRequest`와 `handleAssetRequest`에 넘긴다. fetch `Request`를 handler가 읽는 Node request/response 모양으로 바꾸는 adapter만 있다. TCP 포트가 없다.
+- Host: 변경 없음. Electron main이 custom protocol `litzio://app`을 등록하고, `/api/*`와 `/document/*` 요청을 기존 `handleDocumentRequest`와 `handleAssetRequest`에 넘긴다. fetch `Request`를 handler가 읽는 Node request/response 모양으로 바꾸는 adapter만 있다. TCP 포트가 없다.
 - Shell(`src/main.ts`, 약 150줄): `contextIsolation`, `sandbox`, preload 없음. 다른 origin으로의 navigation과 새 창을 막고 http(s) 링크는 시스템 브라우저로 연다. Reload/DevTools 단축키가 있는 기본 메뉴를 없앤다. 첫 문서는 `.md` 인자, 없으면 profile의 sample 사본이다.
 - 미저장 보호: Editor의 `beforeunload`를 Electron이 대화상자 없이 막기 때문에, shell이 `will-prevent-unload`에서 확인 창을 띄운다.
 
@@ -88,4 +86,4 @@ npx electron-builder --win portable --x64
 node drive.mjs                          # release/win-unpacked을 Playwright로 실행
 ```
 
-단일 exe는 `release/IeumDoc-Spike-portable.exe`다. 기본 profile은 `%APPDATA%\IeumDoc Spike`이며 sample 문서가 그 아래에 복사된다. `--user-data-dir=<folder>`로 다른 위치를 쓸 수 있다.
+단일 exe는 `release/Litzio-Spike-portable.exe`다. 기본 profile은 `%APPDATA%\Litzio Spike`이며 sample 문서가 그 아래에 복사된다. `--user-data-dir=<folder>`로 다른 위치를 쓸 수 있다.

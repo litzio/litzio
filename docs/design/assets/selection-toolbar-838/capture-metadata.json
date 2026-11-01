@@ -13,7 +13,7 @@
   "server": "http://127.0.0.1:5283",
   "font": "Bundled Pretendard, document.fonts.ready",
   "state": "Home then Shift+End in target paragraph; target paragraph top 12px below document viewport",
-  "reproduce": "IEUMDOC_BROWSER_URL=http://127.0.0.1:5283 pnpm browser:test selection-toolbar --screenshots",
+  "reproduce": "LITZIO_BROWSER_URL=http://127.0.0.1:5283 pnpm browser:test selection-toolbar --screenshots",
   "review": "Manual review of alignment, inset, selected-text clearance, panel/scrollbar boundaries, light English and dark Korean at 1440px and 640px; link forms and reading previews also inspected.",
   "captures": [
     {

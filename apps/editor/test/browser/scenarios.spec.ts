@@ -25,7 +25,7 @@ const scenarios: string[] = process.env.LITZIO_BROWSER_SCENARIOS ? JSON.parse(pr
 const screenshots = process.env.LITZIO_BROWSER_SCREENSHOTS === "true";
 const channel = process.env.LITZIO_BROWSER_CHANNEL ?? (process.platform === "win32" ? "chrome" : undefined);
 if (channel && channel !== "chrome" && channel !== "msedge") throw new Error("Unsupported browser channel");
-const profile = path.join(tmpdir(), "ieumdoc-browser-profile", createHash("sha256").update(REPOSITORY_ROOT).digest("hex").slice(0, 16) + (channel === "msedge" ? "-edge" : ""));
+const profile = path.join(tmpdir(), `${brand.appName}-browser-profile`, createHash("sha256").update(REPOSITORY_ROOT).digest("hex").slice(0, 16) + (channel === "msedge" ? "-edge" : ""));
 
 function sourceDigest(): string {
   const hash = createHash("sha256");

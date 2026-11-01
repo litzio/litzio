@@ -708,7 +708,7 @@
         }
       ]
     },
-    "captureCommand": "IEUMDOC_BROWSER_URL=http://127.0.0.1:5287 pnpm browser:test ui-prose-wrap --screenshots",
+    "captureCommand": "LITZIO_BROWSER_URL=http://127.0.0.1:5287 pnpm browser:test ui-prose-wrap --screenshots",
     "rootCause": "Equation/image/Mermaid draft-status is a sibling of PropertyForm. PropertyForm and form-hint already computed keep-all; sibling draft-status inherited normal from document-editor. Same-specificity source order was not the cause.",
     "afterState": "Working tree fix: add sibling .draft-status to shared UI prose boundary",
     "afterCssBlob": "c2ebb2da5d679901fbadfc4fe4fde0548dfcedb5",

@@ -44,7 +44,7 @@ architecture (Discussion #834), other extensions and conversion are outside this
 
 ## Internal naming (#858)
 
-The native marker is `litzio: 1`, an internal document-format identifier independent of the displayed product name. Core creation, admission and canonical writes use this key; fixtures and samples use the same spelling. Previous `ieumdoc` markers are not accepted or migrated. Product labels and the CLI command stay unchanged.
+The native marker is `litzio: 1`, an internal document-format identifier independent of the displayed product name. Core creation, admission and canonical writes use this key; fixtures and samples use the same spelling. Other native marker keys are not accepted or migrated. Product labels and the CLI command stay unchanged.
 
 ## Contract
 

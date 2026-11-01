@@ -1,3 +1,4 @@
+import { brand } from "../../../../brand.ts";
 import { test, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -10,7 +11,7 @@ import { recoveryRecords, resetRecovery } from "./recovery-records.ts";
 import type { Editor } from "@tiptap/core";
 
 // Same checkout-owned persistent Chrome profile as the serial HTTP harness. No server restart.
-const profile = path.join(tmpdir(), "ieumdoc-browser-profile", createHash("sha256").update(REPOSITORY_ROOT).digest("hex").slice(0, 16));
+const profile = path.join(tmpdir(), `${brand.appName}-browser-profile`, createHash("sha256").update(REPOSITORY_ROOT).digest("hex").slice(0, 16));
 const origin = process.env.LITZIO_BROWSER_URL ?? "http://127.0.0.1:5181";
 const ready = (page: Page) => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: "attached" });
 

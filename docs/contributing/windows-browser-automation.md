@@ -16,7 +16,7 @@
 
 ## Profile reuse and test isolation
 
-기존 checkout의 Chrome 인증 캐시를 재사용하기 위해 browser fixture와 shortcut probe의 임시 경로 prefix `ieumdoc-browser-profile`은 역사적 식별자로 유지한다. 제품 브랜드나 GitHub 저장소 주소가 아니며, 저장소 이전 때 이 경로를 바꿔 새 profile을 만들지 않는다.
+browser fixture, HTTP 복구 검사와 shortcut probe는 `brand.ts`의 `appName`에서 임시 경로 prefix `<appName>-browser-profile`을 가져온다(공식 기본값 `litzio-browser-profile`). 그 아래 checkout 경로의 SHA-256 앞 16자리와 선택적 `-edge` suffix로 고정 profile을 구분한다. 같은 브랜드·checkout·채널은 이 profile을 계속 재사용한다.
 
 공통 `scenarios.spec.ts` persistent context는 `extraHTTPHeaders: { Connection: "close" }`를 사용한다.
 Playwright의 Node 측 `page.request.*`와 `route.fetch()`가 Vite의 만료 직전 유휴 keep-alive

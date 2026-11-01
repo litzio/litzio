@@ -11,7 +11,7 @@ async (page, {openPath}) => {
   const results = [];
   for (const locale of ['en', 'ko']) for (const width of [1440, 390]) {
     await page.setViewportSize({width, height:900});
-    await page.evaluate(() => localStorage.setItem('ieumdoc.uiLanguage', 'en'));
+    await page.evaluate(() => localStorage.setItem('litzio.uiLanguage', 'en'));
     await page.reload();
     await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     await openPath(page, file);
@@ -53,6 +53,6 @@ async (page, {openPath}) => {
     await page.screenshot({path:`tmp/517/PHASE/${locale}-${width}-keyboard-menu.png`});
     await page.keyboard.press('Escape');
   }
-  await page.evaluate(()=>localStorage.setItem('ieumdoc.uiLanguage','en'));
+  await page.evaluate(()=>localStorage.setItem('litzio.uiLanguage','en'));
   return results;
 }

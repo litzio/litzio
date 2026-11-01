@@ -35,7 +35,7 @@ An applied source replaces the node in one transaction and records `{ source, bl
 
 ## CLI
 
-`ieumdoc replace-block-source <file> --at <index> (--source <text> | --source-file <path>)` runs the same Core operation and writes nothing when it fails. `inspect` shows the current `source` of each read-only block.
+`litzio replace-block-source <file> --at <index> (--source <text> | --source-file <path>)` runs the same Core operation and writes nothing when it fails. `inspect` shows the current `source` of each read-only block.
 
 ## Verification
 

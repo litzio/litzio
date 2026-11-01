@@ -11,105 +11,105 @@
   },
   "fixture": {
     "allowedRoots": [
-      "/workspace/ieumdoc-doc-ground",
+      "/workspace/litzio-doc-ground",
       "/workspace/shared-documents"
     ],
     "entries": [
       {
         "name": "artifacts",
         "kind": "folder",
-        "path": "/workspace/ieumdoc-doc-ground/artifacts"
+        "path": "/workspace/litzio-doc-ground/artifacts"
       },
       {
         "name": "assets",
         "kind": "folder",
-        "path": "/workspace/ieumdoc-doc-ground/assets"
+        "path": "/workspace/litzio-doc-ground/assets"
       },
       {
         "name": "docs",
         "kind": "folder",
-        "path": "/workspace/ieumdoc-doc-ground/docs"
+        "path": "/workspace/litzio-doc-ground/docs"
       },
       {
         "name": "examples",
         "kind": "folder",
-        "path": "/workspace/ieumdoc-doc-ground/examples"
+        "path": "/workspace/litzio-doc-ground/examples"
       },
       {
         "name": "notes",
         "kind": "folder",
-        "path": "/workspace/ieumdoc-doc-ground/notes"
+        "path": "/workspace/litzio-doc-ground/notes"
       },
       {
         "name": "references",
         "kind": "folder",
-        "path": "/workspace/ieumdoc-doc-ground/references"
+        "path": "/workspace/litzio-doc-ground/references"
       },
       {
         "name": "scripts",
         "kind": "folder",
-        "path": "/workspace/ieumdoc-doc-ground/scripts"
+        "path": "/workspace/litzio-doc-ground/scripts"
       },
       {
         "name": "templates",
         "kind": "folder",
-        "path": "/workspace/ieumdoc-doc-ground/templates"
+        "path": "/workspace/litzio-doc-ground/templates"
       },
       {
         "name": "README.md",
         "kind": "document",
-        "path": "/workspace/ieumdoc-doc-ground/README.md",
+        "path": "/workspace/litzio-doc-ground/README.md",
         "native": true
       },
       {
         "name": "architecture.md",
         "kind": "document",
-        "path": "/workspace/ieumdoc-doc-ground/architecture.md",
+        "path": "/workspace/litzio-doc-ground/architecture.md",
         "native": true
       },
       {
         "name": "changelog.md",
         "kind": "document",
-        "path": "/workspace/ieumdoc-doc-ground/changelog.md",
+        "path": "/workspace/litzio-doc-ground/changelog.md",
         "native": true
       },
       {
         "name": "design.md",
         "kind": "document",
-        "path": "/workspace/ieumdoc-doc-ground/design.md",
+        "path": "/workspace/litzio-doc-ground/design.md",
         "native": true
       },
       {
         "name": "guide.md",
         "kind": "document",
-        "path": "/workspace/ieumdoc-doc-ground/guide.md",
+        "path": "/workspace/litzio-doc-ground/guide.md",
         "native": true
       },
       {
         "name": "index.md",
         "kind": "document",
-        "path": "/workspace/ieumdoc-doc-ground/index.md",
+        "path": "/workspace/litzio-doc-ground/index.md",
         "native": true
       },
       {
         "name": "notes.md",
         "kind": "document",
-        "path": "/workspace/ieumdoc-doc-ground/notes.md",
+        "path": "/workspace/litzio-doc-ground/notes.md",
         "native": true
       },
       {
         "name": "review.md",
         "kind": "document",
-        "path": "/workspace/ieumdoc-doc-ground/review.md",
+        "path": "/workspace/litzio-doc-ground/review.md",
         "native": true
       }
     ]
   },
   "state": {
-    "currentFolder": "/workspace/ieumdoc-doc-ground/",
+    "currentFolder": "/workspace/litzio-doc-ground/",
     "recentFolders": [],
     "openedFolders": [
-      "/workspace/ieumdoc-doc-ground"
+      "/workspace/litzio-doc-ground"
     ],
     "openDocument": null,
     "newFolderForm": false,
@@ -128,7 +128,7 @@
     "uiLanguage": "ko"
   },
   "captureMethod": {
-    "command": "$env:IEUMDOC_BROWSER_URL='http://127.0.0.1:5392'; pnpm browser:test folder-dialog-mockups",
+    "command": "$env:LITZIO_BROWSER_URL='http://127.0.0.1:5392'; pnpm browser:test folder-dialog-mockups",
     "runner": "apps/editor/test/browser/run.ts and its unchanged scenarios.spec.ts worker fixture",
     "browser": "installed Chrome, headless, checkout-owned persistent profile; one session at a time",
     "server": "this worktree Vite, 127.0.0.1:5392; caller-owned PID 8720 stopped after captures",
@@ -253,7 +253,7 @@
               "bottom": 589
             }
           ],
-          "fieldValue": "/workspace/ieumdoc-doc-ground/",
+          "fieldValue": "/workspace/litzio-doc-ground/",
           "activeDescendant": null,
           "focus": "folder-path",
           "open": {
@@ -271,7 +271,7 @@
               "radius": "6px"
             },
             {
-              "text": "ieumdoc-doc-ground",
+              "text": "litzio-doc-ground",
               "height": 28,
               "radius": "4px"
             },
@@ -286,7 +286,7 @@
               "radius": "6px"
             },
             {
-              "text": "ieumdoc-doc-ground",
+              "text": "litzio-doc-ground",
               "height": 28,
               "radius": "6px"
             },
@@ -301,7 +301,7 @@
               "radius": "6px"
             },
             {
-              "text": "열기 “ieumdoc-doc-ground”",
+              "text": "열기 “litzio-doc-ground”",
               "height": 28,
               "radius": "6px"
             },
@@ -404,7 +404,7 @@
               "bottom": 541
             }
           ],
-          "fieldValue": "/workspace/ieumdoc-doc-ground/",
+          "fieldValue": "/workspace/litzio-doc-ground/",
           "activeDescendant": null,
           "focus": "folder-path",
           "open": {
@@ -422,7 +422,7 @@
               "radius": "6px"
             },
             {
-              "text": "ieumdoc-doc-ground",
+              "text": "litzio-doc-ground",
               "height": 48,
               "radius": "4px"
             },
@@ -437,7 +437,7 @@
               "radius": "6px"
             },
             {
-              "text": "ieumdoc-doc-ground",
+              "text": "litzio-doc-ground",
               "height": 28,
               "radius": "6px"
             },
@@ -452,7 +452,7 @@
               "radius": "6px"
             },
             {
-              "text": "열기 “ieumdoc-doc-ground”",
+              "text": "열기 “litzio-doc-ground”",
               "height": 28,
               "radius": "6px"
             },
@@ -566,7 +566,7 @@
               "bottom": 639.5
             }
           ],
-          "fieldValue": "/workspace/ieumdoc-doc-ground/",
+          "fieldValue": "/workspace/litzio-doc-ground/",
           "activeDescendant": null,
           "focus": "folder-path",
           "open": {
@@ -604,7 +604,7 @@
               "radius": "6px"
             },
             {
-              "text": "“ieumdoc-doc-ground” 열기",
+              "text": "“litzio-doc-ground” 열기",
               "height": 28,
               "radius": "6px"
             },
@@ -707,7 +707,7 @@
               "bottom": 619.5
             }
           ],
-          "fieldValue": "/workspace/ieumdoc-doc-ground/",
+          "fieldValue": "/workspace/litzio-doc-ground/",
           "activeDescendant": null,
           "focus": "folder-path",
           "open": {
@@ -745,7 +745,7 @@
               "radius": "6px"
             },
             {
-              "text": "“ieumdoc-doc-ground” 열기",
+              "text": "“litzio-doc-ground” 열기",
               "height": 28,
               "radius": "6px"
             },
@@ -859,7 +859,7 @@
               "bottom": 617.5
             }
           ],
-          "fieldValue": "/workspace/ieumdoc-doc-ground/",
+          "fieldValue": "/workspace/litzio-doc-ground/",
           "activeDescendant": null,
           "focus": "folder-path",
           "open": {
@@ -897,7 +897,7 @@
               "radius": "6px"
             },
             {
-              "text": "“ieumdoc-doc-ground” 열기",
+              "text": "“litzio-doc-ground” 열기",
               "height": 28,
               "radius": "6px"
             },
@@ -1000,7 +1000,7 @@
               "bottom": 621.5
             }
           ],
-          "fieldValue": "/workspace/ieumdoc-doc-ground/",
+          "fieldValue": "/workspace/litzio-doc-ground/",
           "activeDescendant": null,
           "focus": "folder-path",
           "open": {
@@ -1038,7 +1038,7 @@
               "radius": "6px"
             },
             {
-              "text": "“ieumdoc-doc-ground” 열기",
+              "text": "“litzio-doc-ground” 열기",
               "height": 28,
               "radius": "6px"
             },

@@ -1,7 +1,5 @@
 # Mixed document input performance (#362)
 
-당시 이름: 이음독(IeumDoc), 현재 Litzio
-
 - Status: Historical
 - Last verified: 2026-10-25 (before/after input and CPU/timeline measurements, complete canonical Save/Reload; mixed 2000 p95 96.7ms).
 - Scope: Windows development Editor input; [Continuous editing](../design/document-editing-v1.md) and [ADR-0001](../adr/0001-single-document-editor-architecture.md) remain authoritative.
@@ -138,7 +136,7 @@ Installed headless Chrome 155.0.8059.85, viewport 1280×720, Vite development se
 and this checkout's unchanged persistent `pnpm browser:test` fixture were used for both sides.
 The profile suffix is `e4802c5bba7081e9`. Failed-logon counts before the before-acceptance,
 before-profile, after-profile/acceptance and regression batches were respectively 0, 1, 1, 1.
-No profile was replaced or shared. Other IeumDoc workers paused heavy work. A separate
+No profile was replaced or shared. Other Litzio workers paused heavy work. A separate
 pre-existing Chrome session (PID 32552, started 2026-10-23, `cp3-audit-ready`) remained open
 and untouched; its CPU was not controlled. Normal OS scheduling remains a source of variation.
 
@@ -179,7 +177,7 @@ The bounded temporary modules are retained as evidence, not a new test framework
 To reproduce in a controlled slot, copy the scenario text to `apps/editor/test/perf-362.browser.js`
 and `perf-362-profile.browser.js`, and the fixture helper to `tmp/perf-362/fixtures.ts`.
 Run `pnpm exec tsx tmp/perf-362/fixtures.ts` before each side, then the existing runner with
-`IEUMDOC_BROWSER_URL` pointing to the owned server. After acceptance run the helper with
+`LITZIO_BROWSER_URL` pointing to the owned server. After acceptance run the helper with
 `check <output.json>`; it checks exact whole-document bytes. Archive the scenarios out of
 the test directory before regular tests. The existing scenario registry deliberately rejects
 temporary scenarios: an initial Editor test run reported that one failure; after removal the
@@ -189,7 +187,7 @@ Final local verification:
 
 - Editor tests: **281/281** on the final source after archiving temporary measurement modules.
 - `pnpm typecheck`: all packages pass.
-- `pnpm --filter @ieumdoc/editor build`: pass, with the existing large-chunk advisory.
+- `pnpm --filter @litzio/editor build`: pass, with the existing large-chunk advisory.
 - `pnpm browser:test outline continuous-editing save-session recovery-structure block-move document-title ui-language layout-rules cross-reference`: **9/9**, 1.8 minutes. Existing checks cover heading text/level/numbering/reorder/navigation/current section, selection/history, draft restrictions, actual Save, recovery and layout/hover behavior. No new duplicate semantic tests were added for this display identity change.
 - `pnpm docs:check` and `git diff --check`: pass.
 

@@ -1,7 +1,5 @@
 # 반복 UI 패턴 인벤토리와 목표 디자인 제안 — #777 1단계
 
-당시 이름: 이음독(IeumDoc), 현재 Litzio
-
 - Status: Historical
 - Last verified: 2026-10-30. 기준 `a4d2f64bbcefa48f436bce916aecd0772ad15e93`의 코드·Implemented 계약·이슈 댓글 대조와 실제 Vite Editor 수동 검토용 촬영. 동작 회귀 suite를 재검증했다는 뜻은 아니다.
 - Scope: [#777](https://github.com/litzio/litzio/issues/777)의 **1단계 인벤토리와 당시 목표 제안**. 제품 코드·화면·문서 의미 변경 없음. 승인 전 비교·질문은 역사적 근거로 보존하며 현재 구현 지침으로 사용하지 않는다.
@@ -295,7 +293,7 @@
 
 과거 [#92](https://github.com/litzio/litzio/issues/92)는 수식·그림의 요약/폼 패널을 통일하려던 결정이다. 이후 #637의 본문 원문 편집과 #740의 가벼운 metadata가 목적별로 갈라졌다. 따라서 #92의 동일 패널을 지금 그대로 복원하기보다, 각 목적의 현재 결정과 남은 차이를 함께 판단한다.
 
-외부 자료는 [Brad Frost의 interface inventory](https://bradfrost.com/blog/post/interface-inventory/)에서 서로 다른 표현을 캡처·분류하는 방법, [GOV.UK Patterns](https://design-system.service.gov.uk/patterns/)에서 사용자 과업별 사용 맥락을 문서화하는 방법을 참고했다. 이 자료가 이음독의 popup/완료 동작을 정해 주는 것은 아니다. 외부 제품 실행 결과나 사용성 실험으로 주장하지 않는다. 외부 페이지 확인일은 2026-10-30이다.
+외부 자료는 [Brad Frost의 interface inventory](https://bradfrost.com/blog/post/interface-inventory/)에서 서로 다른 표현을 캡처·분류하는 방법, [GOV.UK Patterns](https://design-system.service.gov.uk/patterns/)에서 사용자 과업별 사용 맥락을 문서화하는 방법을 참고했다. 이 자료가 Litzio의 popup/완료 동작을 정해 주는 것은 아니다. 외부 제품 실행 결과나 사용성 실험으로 주장하지 않는다. 외부 페이지 확인일은 2026-10-30이다.
 
 ## 소유자가 결정할 질문
 

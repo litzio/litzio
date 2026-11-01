@@ -1,7 +1,5 @@
 # Docling UI contribution spike
 
-당시 이름: 이음독(IeumDoc), 현재 Litzio
-
 - Status: Historical
 - Last verified: 2026-10-31 (branch-only measurement; no merge or adoption).
 - Scope: `spike/docling-plugin-ui`, based on runtime spike head `3d4cb6e139313ab458f841f5c1514dadc3e21470`.
@@ -39,7 +37,7 @@ tab and shared notification center. Failed imports/activation are local module
 state; each contributed tab has its own React error boundary.
 
 The same shared handler is routed through Vite, production `serve`, and the
-existing in-process `ieumdoc://app` protocol. No Desktop TCP listener, protocol
+existing in-process `litzio://app` protocol. No Desktop TCP listener, protocol
 privilege or CSP relaxation was added. Both production transports retained
 `script-src 'self'`; Vite retains its existing development policy without CSP.
 
@@ -100,7 +98,7 @@ registration/fault/recovery sequence; `performance.timeOrigin` stayed unchanged.
 | b. Register/disable/register without reload | Pass: an already-open Command Center gained/lost its exact command; registration restored the same tab id and identical reading content. |
 | c. Render/load failure isolation | Pass: injected render throw, module-evaluation throw, and deleted installed ESM each stayed local. The ordinary document retained its exact DOM instance and unsaved text, then accepted more real keyboard input after each fault. Re-registration recovered. [Render error](https://github.com/litzio/litzio/blob/b35f854b69fc7d7c762097326045b34de0610c96/docs/reviews/assets/docling-ui-spike/Desktop-render-error.png). |
 | d. Version mismatch | Pass: API 2 displayed “UI Host API 2 is incompatible; expected 1.”; script request count did not increase and poison code never ran. Command absent; ordinary Editor usable. Host unit check also refuses direct incompatible-asset access. |
-| e. Desktop + serve | Pass: actual `ieumdoc://app/index.html` with CSP and a separate built CLI process at HTTP 5284; also Vite 5283. Packaged Desktop is unverified. |
+| e. Desktop + serve | Pass: actual `litzio://app/index.html` with CSP and a separate built CLI process at HTTP 5284; also Vite 5283. Packaged Desktop is unverified. |
 | f. Disable an open comparison | Pass: same shell tab, explicit disabled state, zero contributed views or stylesheet links; re-registration restored the snapshot. [Disabled tab](https://github.com/litzio/litzio/blob/b35f854b69fc7d7c762097326045b34de0610c96/docs/reviews/assets/docling-ui-spike/serve-disabled.png). |
 | g. Internal-import boundary | Pass: transitive build graph and source/type-contract inspection, React externalization and hook rendering; no Editor/Tiptap/ProseMirror dependency in the plugin. Raw input list/hashes in attempt 5. |
 
@@ -131,11 +129,11 @@ Reproduction (development builds, no package/install):
 
 ```powershell
 pnpm exec tsx scripts/build-docling-module.ts
-pnpm --filter @ieumdoc/desktop build
+pnpm --filter @litzio/desktop build
 pnpm browser:test docling-ui
 ```
 
-The harness isolates its registry with `IEUMDOC_MODULES_DIR` under checkout `tmp`
+The harness isolates its registry with `LITZIO_MODULES_DIR` under checkout `tmp`
 and uses that same installation directory across independent Hosts. It does not
 change the default user registry proven by the first spike. Fixed Electron and
 checkout-hashed Chrome profiles are reused, with test-origin preferences/recovery

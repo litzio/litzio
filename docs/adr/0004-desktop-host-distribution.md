@@ -43,12 +43,12 @@ electron-updater의 GitHub provider는 Stable에서 GitHub의 `releases/latest`�
 ## Amendment: optional Windows CLI integration (#604, 2026-10-27)
 
 The owner approved shipping the existing `packages/cli` build with Desktop. Settings offers an
-explicit, initially disabled command-line integration. Its per-user `ieumdoc.cmd` runs the installed
-`IeumDoc.exe` with `ELECTRON_RUN_AS_NODE=1`; commands, arguments, JSON output, exit codes and `serve`
+explicit, initially disabled command-line integration. Its per-user `litzio.cmd` runs the installed
+`Litzio.exe` with `ELECTRON_RUN_AS_NODE=1`; commands, arguments, JSON output, exit codes and `serve`
 remain the existing CLI's responsibility. The independent Node.js CLI/HTTP distribution remains.
 
 The CLI build's Editor assets are the single packaged copy used by both Desktop and `serve`.
-The shim lives in `%LOCALAPPDATA%\IeumDoc\bin`, outside the installation tree replaced by updates.
+The shim lives in `%LOCALAPPDATA%\litzio\bin`, outside the installation tree replaced by updates.
 An owned directory junction references the fixed application installation folder, avoiding literal
 Unicode installation paths in batch source and any console-code-page change. No version-specific
 path is embedded. Enabling adds only this bin directory to the user's PATH; disabling and actual
@@ -63,7 +63,7 @@ cleanup. A valid record owned by another installation remains protected.
 
 The owner's #629 cleanup clarification (2026-10-28) removes the bin directory nonrecursively
 after its owned files/junction have been removed, only if it is empty. User files and subdirectories
-keep a nonempty bin in place without a cleanup error. The parent `%LOCALAPPDATA%\IeumDoc` is
+keep a nonempty bin in place without a cleanup error. The parent `%LOCALAPPDATA%\litzio` is
 preserved because its creation is not ownership-tracked and it also holds uninstall diagnostics;
 CLI cleanup does not extend to application user data, updater cache or the installation directory.
 
