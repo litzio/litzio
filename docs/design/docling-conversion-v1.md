@@ -607,8 +607,9 @@ display numbers are not a new Core feature in this issue. Conversion never
 silently treats an unrelated occurrence of the same number as an endnote call.
 
 Read-only comparison is defined by [Docling comparison](docling-compare-v1.md).
-Confirmation state, AI proposals and post-edit relinking remain outside
-this contract; approved correction replay is defined above. Public fixture provenance, licenses and reproduction
+Confirmation state, proposal screens and post-edit relinking remain outside
+this contract; headless structure proposals and approved correction replay are
+defined above. Public fixture provenance, licenses and reproduction
 commands are in the [fixture README](../../plugins/docling/test/fixtures/README.md).
 
 ## App verification on 2026-10-30
