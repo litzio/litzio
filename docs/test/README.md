@@ -496,6 +496,15 @@ shell read through Codex's actual exec harness using a local synthetic response
 server (no model). Windows
 requires MXC; the adapter fails instead of silently using a weaker sandbox.
 
+On 2026-11-02 the owner reported clearing their global `~/.codex/AGENTS.md`.
+Other users' personal global instructions can still enter the context. Under
+[ADR-0013](../adr/0013-ai-agent-task-service.md#limitations-and-follow-up), a
+dedicated Codex home (`CODEX_HOME` under Litzio's brand-configured user-data
+directory, requiring an initial login) is deferred until the earliest of use
+by someone other than the owner (no later than public distribution with the AI
+agent), introduction of a resident main agent, or an actual result-interference
+problem from global instructions in the owner's environment.
+
 Owner manual checks:
 
 - For another Host/account or after adapter changes, use an existing Codex login
@@ -503,7 +512,8 @@ Owner manual checks:
   an enabled calling plugin, a disposable material file and a strict result schema.
   Confirm the model actually reads the material, result shape/content separately,
   unchanged caller baseline/source, and removed snapshot/control folders.
-- Confirm global `~/.codex/AGENTS.md` isolation after any upstream or adapter change.
+- Recheck global `~/.codex/AGENTS.md` isolation after any upstream or adapter change
+  and when introducing the dedicated home under the conditions above.
   0.164.0 still injects it despite ignore-user-config/rules and a zero project-doc
   budget. Do not call this a fully isolated instruction context.
 - Confirm actual Codex cancellation/deadline terminates local provider processes
@@ -523,8 +533,9 @@ The file's unique token and the returned `token` both equalled
 the material file, not the instructions, small input or result schema. The
 assertions also checked schema success, unchanged caller baseline/source and
 removed snapshot/control folders. Model-driven reading with `inherit=core` is
-therefore locally verified. Global instruction isolation and real-provider
-cancellation remain manual as listed above. See the
+therefore locally verified. The structural global-instruction limitation and
+dedicated-home adoption conditions remain as documented above; real-provider
+cancellation remains manual. See the
 [runtime contract](../design/plugin-runtime-v1.md#ai-task-service-880).
 
 ## Docling worker runtime (#853)

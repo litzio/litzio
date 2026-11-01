@@ -216,7 +216,7 @@ between creation and recording is not an automatic cleanup candidate.
 ## AI task service (#880)
 
 - Last verified: 2026-11-02 (fake adapters and shared Host lifecycle, local native Codex sandbox checks; real model-call limits below).
-- Authority: 2026-11-02 B decision in [Discussion #767](https://github.com/litzio/litzio/discussions/767); [ADR-0013](../adr/0013-ai-agent-task-service.md) remains Proposed pending owner acceptance.
+- Authority: 2026-11-02 B decision in [Discussion #767](https://github.com/litzio/litzio/discussions/767) and owner-accepted [ADR-0013](../adr/0013-ai-agent-task-service.md) (2026-11-02).
 
 `plugins/ai-agent` ships with Vite, CLI/HTTP Host and Desktop. First discovery
 registers it only if absent; explicit disable is retained. Its installed Host
@@ -301,11 +301,16 @@ avoid ordinary personal configuration and alternate network/tool surfaces.
 model context with those flags, even with `project_doc_max_bytes=0`. A local
 capture-only provider observed it in the actual request; repository AGENTS was
 absent. The initial authenticated model trial also reported the global block.
-There is no product user-instruction field, but full isolation from global
-instructions is therefore not claimed. Options for a later owner decision are
-an upstream per-run instruction-disable control or a dedicated Codex home with
-an explicit credential-reuse policy. This implementation changes neither the
-user's instruction files nor their credentials.
+On 2026-11-02 the owner reported clearing their global instruction file. Other
+users' personal global instructions can still enter the context, so full
+instruction isolation is not claimed. The owner deferred a dedicated Codex home
+(`CODEX_HOME` under Litzio's brand-configured user-data directory, requiring an
+initial login). Under [ADR-0013](../adr/0013-ai-agent-task-service.md#limitations-and-follow-up),
+introduce it at the earliest of use by someone other than the owner (no later
+than public distribution with the AI agent), introduction of a resident main
+agent, or an actual result-interference problem from global instructions in the
+owner's environment. The adapter currently reuses the existing home; it does
+not clear instruction files or change credentials.
 
 The initial real model trial reused login and returned schema-valid JSON, but
 reported a missing `SYSTEMROOT` rather than reading the material. After changing
