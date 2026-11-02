@@ -59,7 +59,7 @@ export class AiAgentConversations {
     this.conversations.set(id, conversation);
     const result = await this.connection.client.request("thread/resume", { threadId: id, cwd: this.connection.cwd,
       approvalPolicy: "never", sandbox: "read-only", excludeTurns: true });
-    // Codex 0.166.0 uses paginated histories; hydrate full turns rather than only the latest page.
+    // Codex uses paginated histories; hydrate full turns rather than only the latest page.
     const turns: any[] = []; let cursor: string | null = null;
     do {
       const page: { data: any[]; nextCursor: string | null } = await this.connection.client.request("thread/turns/list", { threadId: id, cursor, sortDirection: "asc", itemsView: "full" });

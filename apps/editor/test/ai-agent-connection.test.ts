@@ -119,12 +119,12 @@ test("installed CLI launcher paths with spaces support version diagnostics and r
     if (process.platform !== "win32") chmodSync(bin, 0o755);
   };
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  launcher("0.165.0");
+  launcher("0.140.9");
   const old = new CodexAppServer(root, { bin });
-  try { await assert.rejects(old.connect(), /0.166.0 or later/); assert.equal(existsSync(log), false); } finally { await old.close(); }
-  launcher("0.166.0");
+  try { await assert.rejects(old.connect(), /0.141.0 or later/); assert.equal(existsSync(log), false); } finally { await old.close(); }
+  launcher("0.141.0");
   const current = new CodexAppServer(root, { bin });
-  try { assert.equal(await current.version(), "codex-cli 0.166.0"); await current.connect(); assert.ok(existsSync(log)); }
+  try { assert.equal(await current.version(), "codex-cli 0.141.0"); await current.connect(); assert.ok(existsSync(log)); }
   finally { await current.close(); }
 });
 
