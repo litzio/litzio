@@ -51,7 +51,7 @@ description: Orchestrate several Litzio GitHub issues end to end by planning wav
 
 1. 이슈 본문과 관련 Accepted ADR·Implemented 계약([docs index](../../../docs/README.md))을 읽는다. 주장하는 사실은 코드로 확인한다.
 2. 이슈마다 고칠 파일을 예상하고, 같은 파일(예: `App.tsx`, `Sidebar.tsx`, `TopBar.tsx`, `styles.css`, `tokens.css`, `editor-schema.tsx`, `editor-ux-shell-v1.md`, 명령센터 테스트)을 고치는 이슈끼리 선후를 정한다. 해결이 다른 이슈에 포함되면(예: 구조 변경이 버그를 함께 고침) 한 작업으로 묶는다.
-3. 결정 없이 시작할 수 있고 서로 겹치지 않는 이슈를 1차로, 나머지를 선행 PR 병합 순서대로 배치한다. 동시에 실행하는 작업자는 5명 이하로 둔다.
+3. 결정 없이 시작할 수 있고 서로 겹치지 않는 이슈를 1차로, 나머지를 선행 PR 병합 순서대로 배치한다. 동시에 실행하는 작업자와 리뷰어는 8명 이하로 둔다. 예전 5명 상한은 새 browser profile의 첫 실행마다 Windows 로그온 실패가 쌓이던 계정 잠금 카운터 때문이었다. 잠금 임계값이 `Never`인 PC에서는 그 이유가 없으므로, 실제 제약인 같은 파일 충돌(위 2번)과 PC 자원(동시 브라우저·dev server 실행)으로 판단한다. 잠금 임계값이 켜진 PC에서는 3절의 카운터 규칙을 따르고 5명 이하로 둔다.
 4. 계획을 표로 보고한다(이슈, 설정, 주로 고칠 파일, 선행 조건). 제외한 이슈와 이유도 쓴다.
 
 ## 3. 작업자 실행
