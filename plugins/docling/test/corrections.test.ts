@@ -409,7 +409,7 @@ test("page exclusions reject conflicts in either order and invalid pages without
   assert.throws(() => convertWithDoclingCorrections(f.original, { ...ledger, entries: [exclusion([1]), exclusion([1], "other")] }), /conflicts/);
   assert.deepEqual(snapshot(f.folder), before);
 });
-test("page exclusions retain multipage items and refuse splitting caption relationships", () => {
+test("page exclusions retain multipage items and refuse splitting caption relationships", t => {
   const doc = source(); doc.texts[0].prov.push({ ...doc.texts[0].prov[0], page_no: 2 });
   const input = JSON.stringify(doc), ledger = emptyCorrections("source.json", input);
   const result = convertWithDoclingCorrections(input, { ...ledger, entries: [exclusion([1])] });
@@ -421,4 +421,24 @@ test("page exclusions retain multipage items and refuse splitting caption relati
   associated.tables[0].prov.forEach((p: any) => p.page_no = 2);
   const related = JSON.stringify(associated);
   assert.throws(() => convertWithDoclingCorrections(related, { ...emptyCorrections("source.json", related), entries: [exclusion([1])] }), /splits related structure/);
+  // Review reproduction: a retained TableItem must not lose its page-one child.
+  for (const label of ["table", "document_index"]) {
+    const root = mkdtempSync(path.join(tmpdir(), "docling-table-split-"));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const source = JSON.parse(readFileSync(new URL("./fixtures/synthetic/document.json", import.meta.url), "utf8"));
+    source.pages["2"] = { ...source.pages["1"], page_no: 2 };
+    source.tables[0].label = label;
+    source.tables[0].prov.forEach((p: any) => p.page_no = 2);
+    source.body.children = source.body.children.filter((r: { $ref: string }) => r.$ref !== "#/texts/0");
+    source.tables[0].children = [ref("#/texts/0")]; source.texts[0].parent = ref("#/tables/0");
+    const original = JSON.stringify(source), input = path.join(root, "source.json"), folder = path.join(root, "result");
+    writeFileSync(input, original);
+    const converted = convertDoclingFile(input, folder);
+    assert.equal(converted.map.items.find(x => x.self_ref === "#/tables/0")!.status, "converted");
+    const before = snapshot(folder), ledger = readFileSync(path.join(folder, "corrections.json"));
+    assert.throws(() => addDoclingCorrection(folder, exclusion([1])), /splits related structure/, label);
+    assert.deepEqual(snapshot(folder), before, `${label}: preserve the complete published generation`);
+    assert.deepEqual(readFileSync(path.join(folder, "corrections.json")), ledger);
+    assert.equal(readFileSync(input, "utf8"), original);
+  }
 });

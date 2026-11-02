@@ -100,7 +100,7 @@ export function convertWithDoclingCorrections(input: string, ledger: DoclingCorr
   // Atomic owners and their relationships must not be partially removed.
   for (const x of nodes.values()) {
     const relations = [...(x.captions ?? []), ...(x.footnotes ?? []), ...(x.references ?? []),
-      ...(["table", "picture"].includes(label(x)) || excluded.has(x.self_ref) ? x.children ?? [] : [])];
+      ...(["table", "document_index", "picture"].includes(label(x)) || excluded.has(x.self_ref) ? x.children ?? [] : [])];
     for (const r of relations) if (excluded.has(x.self_ref) !== excluded.has(r.$ref))
       throw new Error(`Correction ${ledger.entries.filter(e => e.operation === "exclude-pages").map(e => e.id).join(", ")}: Page exclusion splits related structure ${x.self_ref} and ${r.$ref}; exclude all related pages together`);
   }
