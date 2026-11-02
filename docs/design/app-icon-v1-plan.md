@@ -5,6 +5,10 @@
 - Scope: preparation and the selected icon direction for [#170](https://github.com/litzio/litzio/issues/170). B was selected as the concept. The subsequent [app icon contract](app-icon-v1.md) owns production artwork, integration and verification. No release is authorized by this document.
 - Authority: [AGENTS.md](../../AGENTS.md), [Desktop distribution](desktop-distribution-v1.md), and the user's visual selection.
 
+## Subsequent owner decision
+
+On 2026-11-02, #905 selected candidate E soft-knot SVGs, replacing the later #864 ribbon L PNGs. The [current icon contract](app-icon-v1.md) owns the four SVG originals, Chromium mask-preserving rasterization and adaptive favicon. The selection below remains historical.
+
 ## Working state
 
 Worktree: `C:\Projects\litzio-170-icon`; branch: `design/170-app-icon`; starting commit: `980f60e7b8d0dfb9caedc5150039ae7a616f5cb4`.

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import { prepareSampleDocuments } from "./server/sample-documents.ts";
 import { randomBytes } from "node:crypto";
@@ -7,6 +8,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, type ViteDevServer } from "vite";
 import { buildDoclingWorker } from "../../packages/cli/scripts/build-docling-worker.ts";
 import { buildAiAgent } from "../../packages/cli/scripts/build-ai-agent.ts";
+import { faviconSvg } from "../../scripts/brand-icons.ts";
 import { brand } from "../../brand.ts";
 
 export default defineConfig({
@@ -16,8 +18,8 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
-      "@brand-icon": fileURLToPath(new URL(`../../${brand.icons.png}`, import.meta.url)),
-      "@brand-small-icon": fileURLToPath(new URL(`../../${brand.icons.smallPng}`, import.meta.url)),
+      "@brand-icon": fileURLToPath(new URL(`../../${brand.icons.svg}`, import.meta.url)) + "?no-inline",
+      "@brand-dark-icon": fileURLToPath(new URL(`../../${brand.icons.darkSvg}`, import.meta.url)) + "?no-inline",
     },
   },
   plugins: [
@@ -25,6 +27,14 @@ export default defineConfig({
     tailwindcss(),
     {
       name: "product-brand",
+      configureServer(server) {
+        server.middlewares.use("/favicon.ico", (_req, res) => { res.setHeader("Content-Type", "image/x-icon"); res.end(readFileSync(new URL(`../../${brand.icons.ico}`, import.meta.url))); });
+        server.middlewares.use("/favicon.svg", (_req, res) => { res.setHeader("Content-Type", "image/svg+xml"); res.end(faviconSvg()); });
+      },
+      generateBundle() {
+        this.emitFile({ type: "asset", fileName: "favicon.ico", source: readFileSync(new URL(`../../${brand.icons.ico}`, import.meta.url)) });
+        this.emitFile({ type: "asset", fileName: "favicon.svg", source: faviconSvg() });
+      },
       transformIndexHtml(html) {
         return html.replace("%PRODUCT_NAME%", () => brand.name.en.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;"))
           .replace("%STORAGE_PREFIX%", () => encodeURIComponent(brand.storagePrefix));

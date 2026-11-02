@@ -2,6 +2,7 @@
 
 - Status: Implemented
 - Last verified: 2026-10-31 (#859; 로컬 타입·단위·Editor 빌드와 persistent Chrome의 한국어/영어 640px·1440px. 실제 두 브랜드 설치·플러그인 실행은 Windows CI 검사).
+- SVG icon verification: 2026-11-02 (#905; Electron Chromium 생성·틈 픽셀 검사, SVG Editor·adaptive favicon과 640px 양 테마 캡처. 패키징·대체 브랜드 설치는 PR Windows CI).
 - CI policy verification: 2026-11-02 (#888; 경로·aggregate·릴리스 workflow 회귀와 문서 검사. 실제 패키징·설치는 PR Windows CI).
 - Repository verification: 2026-10-31 (#860; `litzio/litzio` 기본값, 업데이트·릴리스 단위 검사와 전체 typecheck. 실제 패키징·업데이트는 필수 CI).
 - Authority: [Discussion #856](https://github.com/litzio/litzio/discussions/856), [AGENTS.md](../../AGENTS.md), [Desktop 계약](../design/desktop-distribution-v1.md), [ADR-0012](../adr/0012-plugin-runtime-and-ui-contributions.md).
@@ -15,7 +16,7 @@
 | 설정 키 | 공식 기본값 / 용도 |
 | --- | --- |
 | `name.en`, `name.ko` | `Litzio`; 창·페이지 제목, 시작 화면, Sidebar와 번역 문구 |
-| `icons.png`, `icons.smallPng`, `icons.ico` | 저장소 루트 기준 원본/Windows 아이콘 경로; Editor와 패키저가 함께 사용 |
+| `icons.svg`, `icons.smallSvg`, `icons.darkSvg`, `icons.smallDarkSvg`, `icons.ico` | 저장소 루트 기준 원본/Windows 아이콘 경로; Editor와 패키저가 함께 사용 |
 | `appId` | `io.github.litzio.litzio`; Windows 앱·NSIS 설치 식별자·CLI 소유권 |
 | `appName` | `litzio`; 배포 manifest 이름, `%LOCALAPPDATA%\Programs\litzio` 기본 설치 폴더와 `litzio-updater` 캐시, 관리되는 sample 표식 |
 | `executableName` | `Litzio`; EXE, uninstaller와 `Litzio-Setup-<version>.exe` |
@@ -35,7 +36,7 @@ pnpm --filter @litzio/cli package
 pnpm --filter @litzio/desktop package
 ```
 
-이미지를 교체할 때 기본 PNG·16~32px용 PNG·ICO 경로를 설정하고 `pnpm --filter @litzio/desktop icons`로 ICO를 재생성한다. 16·24·32px는 작은 원본, 48·64·128·256px는 기본 원본을 사용한다. Editor 로고와 favicon도 각각 설정된 PNG를 사용한다. 이미지 접근성 이름은 설정된 제품명을 따른다.
+이미지를 교체할 때 기본·small·어두운 배경용 두 SVG와 생성 ICO 경로를 설정하고 `pnpm --filter @litzio/desktop icons`를 실행한다. 16·24·32px는 small, 48·64·128·256px는 기본 SVG를 Electron Chromium으로 직접 래스터화한다. 매 크기의 luminance mask 틈을 픽셀 비교로 검사한다. 새 의존성은 없다. 원본 SVG와 생성 ICO·public favicon을 함께 커밋한다. 패키징은 커밋된 ICO를 사용한다. Editor의 상단·시작 표시는 SVG를 쓰며 Editor 테마에 맞는 원본을 고른다. 웹 favicon은 `prefers-color-scheme`을 포함한 32KB 이하의 `apps/editor/public/favicon.svg`를 우선하고 ICO를 대체로 둔다. Vite는 brand.ts 경로에서 favicon을 제공·빌드하므로 경로만 교체해도 리브랜딩된다. 공개 파일 갱신은 생성 명령이 맡는다. Paseo의 실제 자동 인식은 검사하지 않는다. 상세는 [아이콘 계약](../design/app-icon-v1.md)을 따른다.
 소스 개발용 `pnpm cli`는 고정 개발 도구 진입점이며, 배포 CLI 이름은 생성 manifest에서 정한다.
 
 ## 다른 브랜드와 함께 설치

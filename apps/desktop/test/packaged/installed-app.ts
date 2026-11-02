@@ -8,7 +8,9 @@ const guid = UUID.v5(brand.appId, UUID.parse("50e065bc-3134-11e6-9bab-38c9862bda
 export function installedUninstallCommand(): string {
   const key = `HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${guid}`;
   return execFileSync("powershell.exe", ["-NoProfile", "-Command",
-    `$key = '${key}'; if (Test-Path -LiteralPath $key) { (Get-ItemProperty -LiteralPath $key -ErrorAction Stop).UninstallString }`], { encoding: "utf8", windowsHide: true }).trim();
+    // NSIS can delete the key between Test-Path and Get-ItemProperty during removal.
+    // Read once; only a genuinely missing key means there is no installation.
+    `$key = '${key}'; try { (Get-ItemProperty -LiteralPath $key -ErrorAction Stop).UninstallString } catch [System.Management.Automation.ItemNotFoundException] { exit 0 }`], { encoding: "utf8", windowsHide: true }).trim();
 }
 
 export function installedDirectory(): string {

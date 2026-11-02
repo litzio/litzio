@@ -2,8 +2,10 @@
 export const brand = {
   name: { en: "Litzio", ko: "Litzio" },
   icons: {
-    png: "apps/desktop/assets/litzio-icon-1024.png",
-    smallPng: "apps/desktop/assets/litzio-icon-small-1024.png",
+    svg: "apps/desktop/assets/litzio-E.svg",
+    darkSvg: "apps/desktop/assets/litzio-E-dark.svg",
+    smallSvg: "apps/desktop/assets/litzio-E-small.svg",
+    smallDarkSvg: "apps/desktop/assets/litzio-E-small-dark.svg",
     ico: "apps/desktop/assets/icon.ico",
   },
   appId: "io.github.litzio.litzio",
