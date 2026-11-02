@@ -202,6 +202,35 @@ async (page, { expect, screenshots }) => {
   await expect(source.locator('[data-page="9"] img')).toBeVisible();
   await expect(source.locator(`[data-source-ref="${picture.self_ref}"]`)).toHaveAttribute('aria-pressed', 'true');
   await expect(tab.locator('.docling-wires path[data-selected=true]')).toHaveCount(1);
+  // Keep already visible correspondence in place in both directions (#907).
+  const stationary = [];
+  for (const [pane, target, select] of [
+    [reading, rightPicture, async () => { await pictureRegion.focus(); await page.keyboard.press('Enter'); }],
+    [source, pictureRegion, async () => { await rightPicture.getByTestId('figure-image').click(); }],
+  ]) {
+    await target.evaluate(node => {
+      const pane = node.closest('.docling-source, .docling-reading');
+      pane.scrollTop += node.getBoundingClientRect().top - pane.getBoundingClientRect().top - 100;
+    });
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    const before = await pane.evaluate(el => el.scrollTop);
+    await select();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    stationary.push({ before, after: await pane.evaluate(el => el.scrollTop) });
+    // A clipped top and an entirely hidden target must still be revealed.
+    for (const offset of [-10, -1000]) {
+      await target.evaluate((node, offset) => {
+        const pane = node.closest('.docling-source, .docling-reading');
+        pane.scrollTop += node.getBoundingClientRect().top - pane.getBoundingClientRect().top - offset;
+      }, offset);
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await select();
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      expect(await target.evaluate(node => node.getBoundingClientRect().top -
+        node.closest('.docling-source, .docling-reading').getBoundingClientRect().top)).toBeCloseTo(24, 0);
+    }
+  }
+  expect(stationary.map(({before, after}) => after - before)).toEqual([0, 0]);
   // Inspect a pixel descendant, then reselect the already selected document figure.
   await source.locator(`[data-source-ref="${child.self_ref}"]`).focus();
   await page.keyboard.press('Enter');
