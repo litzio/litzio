@@ -1,0 +1,410 @@
+/* Product values: one source, consumed by CSS and mapped into Tailwind in index.css. */
+:root {
+  /* Docling source categories; status also has distinct border styles. */
+  --id-color-docling-heading: #7655b8;
+  --id-color-docling-text: #2979ad;
+  --id-color-docling-list: #258476;
+  --id-color-docling-table: #a36b19;
+  --id-color-docling-formula: #a54d83;
+  --id-color-docling-picture: #3b8051;
+  --id-color-docling-footnote: #95624c;
+  color-scheme: light;
+
+  /* Adjustable values: tuned by hand or chosen by a user preference. Change them here only;
+   * no rule or script repeats these numbers. See Visual Language "Adjustable values". */
+  /* Paper and canvas are independent of floating surfaces (surface). #593 can flatten the
+   * page by equating canvas/paper and setting paper border width/radius to 0 and elevation
+   * to 0 0 0 transparent (a valid shadow-list entry alongside the inset edge). */
+  --id-color-paper: #ffffff;
+  --id-color-canvas: #eceef2;
+  --id-color-paper-border: var(--id-color-border-subtle);
+  --size-paper-border: var(--border-width);
+  /* Paper corners and gentle elevation; overlays keep their own radius and shadow. */
+  --id-radius-paper: 0.375rem;
+  --shadow-paper: 0 2px 8px rgb(32 36 44 / 6%);
+  /* Pointer-hovered top-level block extent: neutral stroke with breathing room around content. */
+  --id-color-block-hover-outline: var(--id-color-border-strong);
+  --size-block-hover-outline: 1px;
+  /* Shared painted outer radius for hover and selected/editing block overlays. */
+  --id-radius-block-hover: calc(var(--id-radius-sm) + var(--space-1) + var(--border-width));
+  /* Expand only the overlay; keep the gutter handles and neighboring blocks clear. */
+  --space-block-hover-inline: var(--space-2);
+  --space-block-hover-block: var(--space-1);
+  /* Out-of-flow heading depth: shared metadata type and subdued theme role. */
+  --font-size-heading-level: var(--font-size-xs);
+  --id-color-heading-level: var(--id-color-text-subtle);
+  --space-heading-level-gap: var(--space-3);
+  /* Inspection gutter: leave room on both sides of the cue and clear the block outline. */
+  --layout-reading-heading-gutter: var(--space-12);
+  --space-heading-level-reading-gap: calc(var(--space-block-hover-inline) + var(--space-3));
+  /* Minimum clickable cell measure; short columns shrink to their words. */
+  --size-table-cell-min-width: var(--size-control-compact);
+  /* Limit a long identifier's intrinsic claim; cqi resolves against the table scroller. */
+  --size-table-cell-intrinsic-max: 50cqi;
+  /* Document column, outer insets included. Standard keeps a readable measure (736px of text
+   * at 1440px); Wide is the user's Wide document preference and is capped by the window. */
+  --layout-content-width: 58rem;
+  --layout-content-width-wide: 80rem;
+  /* White document's top/bottom padding; the outer canvas gap uses --layout-content-gutter. */
+  --layout-document-block-padding: var(--space-8);
+  --layout-document-block-padding-narrow: var(--space-4);
+  /* Blank paper after the last line, and how far above the window bottom writing keeps the
+   * caret, so the line being written can sit near the middle instead of the bottom edge. */
+  --layout-document-end-space: 35dvh;
+  /* Folder/image picker: width, list scroll cap and active-image preview height. */
+  --layout-folder-picker-width: 42rem;
+  --layout-folder-picker-list-height: 15rem;
+  --layout-folder-picker-folder-list-height: 16rem;
+  --layout-folder-picker-preview-height: 10rem;
+  /* Read-only file preview: preferred dialog width and image height cap within the viewport. */
+  --layout-file-preview-width: 48rem;
+  --layout-file-preview-image-max-height: 60dvh;
+  /* Shared reading overlays for image links, endnotes and citations. */
+  --layout-reading-preview-width: 20rem;
+  --layout-reading-preview-height: 15rem;
+  --layout-recovery-compare-width: 72rem;
+  --layout-recovery-diff-max-height: 42vh;
+  /* Command center: preferred trigger/popup widths and result-list height before scrolling. */
+  --layout-command-center-width: 28rem;
+  --layout-command-center-popup-width: 36rem;
+  --layout-command-center-list-height: 24rem;
+  /* Expanded sidebar: its width, and its width at window widths of 1024px and below. */
+  --layout-sidebar-width: 15rem;
+  --layout-sidebar-width-narrow: 12.5rem;
+  /* Inline document settings: aligned field labels and separation from the title. */
+  --layout-document-settings-label-width: 9rem;
+  --space-document-settings-after: var(--space-5);
+  /* Dedicated Settings: bounded reading column and aligned controls. */
+  --layout-settings-content-width: 42.5rem;
+  --layout-settings-control-width: 15rem;
+  /* Document panel (outline) beside the document; in the narrow layout it overlays at this width. */
+  --layout-document-panel-width: 16rem;
+  /* Document tabs: compact row height and maximum label width before ellipsis. */
+  --layout-document-tab-height: 2rem;
+  --layout-document-tab-max-width: 16rem;
+  /* Pretendard glyph variants for UI and document text. `cv08` gives capital I its serifs, so
+   * An uppercase I stays distinct from a lowercase l, including in variables. */
+  --font-feature-sans: "cv08";
+  /* Start without a document: its centered column and the product mark above its title. */
+  --layout-start-width: 40rem;
+  --size-start-mark: 2rem;
+  /* Inline math size relative to its text. KaTeX's own 1.21em stands out beside Pretendard;
+   * display equations keep it. */
+  --math-inline-size: 1.1em;
+  /* Equation editing: minimum source heights and the inline properties preferred width. */
+  --layout-equation-input-min-height: 5rem;
+  --layout-inline-math-input-min-height: 4rem;
+  --layout-inline-math-popover-width: 36rem;
+  /* Figure metadata popover and its image thumbnail. */
+  --layout-figure-popover-width: 32.5rem;
+  --size-figure-property-thumbnail-max-width: 10rem;
+  --size-figure-property-thumbnail-max-height: 6rem;
+  --space-figure-popover-gap: 8px;
+  /* Shared reference/citation underline distance, including unchecked citations. */
+  --reference-underline-offset: 3px;
+
+  /* Document body font; UI text retains the shared sans stack. */
+  --font-family-document: var(--font-family-sans);
+  /* Korean document prose wraps at eojeol boundaries; oversized tokens retain emergency wrapping. */
+  --word-break-document: keep-all;
+  /* Document body text size. */
+  --font-size-document: 1.0625rem;
+  /* Document body line spacing. */
+  --line-height-document: 1.7;
+  /* Document H1 and title-slot text size. */
+  --font-size-document-h1: 2.125rem;
+  /* Document H2 text size. */
+  --font-size-document-h2: 1.5rem;
+  /* Document H3 text size. */
+  --font-size-document-h3: 1.25rem;
+  /* Document H4 text size. */
+  --font-size-document-h4: 1.125rem;
+  /* Document H5 text size. */
+  --font-size-document-h5: 1rem;
+  /* Document H6 text size. */
+  --font-size-document-h6: 0.875rem;
+  /* Document heading and title-slot weight. */
+  --font-weight-document-heading: 700;
+  /* Document heading and title-slot line spacing. */
+  --line-height-document-heading: 1.35;
+  /* Generated heading and non-current Outline numbers; heading text keeps its own color. */
+  --id-color-document-heading-number: var(--id-color-interaction);
+  /* Space above document headings, except the first block. */
+  --space-document-heading-before: var(--space-8);
+  /* Space below document headings and the title slot. */
+  --space-document-heading-after: var(--space-3);
+  /* Vertical gap around top-level document blocks. */
+  --space-document-block: var(--space-4);
+  /* Indentation at each document list level. */
+  --space-document-list-indent: var(--space-6);
+  /* Inset between a quote's side rule and its text. */
+  --space-document-quote-indent: var(--space-4);
+  /* Left accent rule shared by document quotes and admonitions. */
+  --size-document-side-rule: 3px;
+  /* Figure and table caption text size. */
+  --font-size-document-caption: 0.875rem;
+  /* Figure and table caption line spacing. */
+  --line-height-document-caption: 1.25rem;
+  /* Gap above Figure and table captions. */
+  --space-document-caption: var(--space-2);
+  /* Document table text size. */
+  --font-size-document-table: 0.9375rem;
+  /* Document table line spacing. */
+  --line-height-document-table: 1.375rem;
+  /* Vertical padding inside document table cells. */
+  --space-document-table-cell-block: var(--space-2);
+  /* Horizontal padding inside document table cells. */
+  --space-document-table-cell-inline: var(--space-3);
+  /* Code block text size. */
+  --font-size-document-code: 0.875rem;
+  /* Code block line spacing. */
+  --line-height-document-code: 1.5;
+  /* Inline code size relative to its surrounding text; line spacing is inherited. */
+  --font-size-document-inline-code: 0.9em;
+  /* Endnote definition text size; the separator label remains UI metadata. */
+  --font-size-document-endnote: 1rem;
+  /* Endnote definition line spacing. */
+  --line-height-document-endnote: 1.5;
+  /* Separation before and after the endnotes region. */
+  --space-document-endnotes: var(--space-6);
+  /* Gap between endnotes and below their separator label. */
+  --space-document-endnote-gap: var(--space-2);
+  /* Inset reserving the endnote number beside its definition. */
+  --space-document-endnote-indent: var(--space-6);
+  /* Sidebar file-tree indentation per level; row insets stay structural. */
+  --space-sidebar-tree-indent: var(--space-3);
+  /* Outline indentation per heading level; row insets stay structural. */
+  --space-outline-indent: var(--space-3);
+
+  /* Floating surfaces: menus, dialogs, tabs, fields and the Settings screen; never paper. */
+  --id-color-surface: #ffffff;
+  --id-color-backdrop: rgb(0 0 0 / 10%);
+  --id-color-surface-subtle: #f6f7f9;
+  --id-color-surface-muted: #eef0f4;
+  /* Hover is visible on both the paper and panels. Open/pressed controls stay neutral. */
+  --id-color-surface-hover: #eaedf2;
+  --id-color-surface-pressed: #e3e7ee;
+  --id-color-surface-selected: #f6eaf5;
+  --id-color-surface-selected-hover: #f0e2ee;
+  --id-color-surface-info: var(--id-color-surface-subtle);
+  --id-color-surface-danger: #fff1f0;
+  --id-color-surface-warning: #fff8ed;
+  --id-color-text: #20242c;
+  --id-color-text-muted: #545c68;
+  /* A data-URL SVG cannot inherit color; its stroke matches text-muted in each theme. */
+  --id-image-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23545c68' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  --id-color-text-subtle: #606874;
+  --id-color-text-selected: var(--id-color-accent-hover);
+  --id-color-text-readonly: var(--id-color-text-muted);
+  --id-color-text-on-accent: #ffffff;
+  /* Adjustable accent values: Plum is the default. The preset scopes below override only
+   * these four values. Actions, focus, selection, links and generated numbers share them;
+   * informational states stay neutral; danger and warning keep their separate meanings. */
+  --id-color-accent-blue: #315fd4;
+  --id-color-accent-violet: #7041bd;
+  --id-color-accent-plum: #8a3f85;
+  --id-color-accent-teal: #076f65;
+  --id-color-accent-green: #346d38;
+  --id-color-accent-graphite: #52616b;
+  --id-color-interaction: var(--id-color-accent-plum);
+  --id-color-accent: var(--id-color-interaction);
+  --id-color-accent-hover: #6d2c69;
+  --id-color-interaction-soft: var(--id-color-surface-selected);
+  --id-color-border: #d9dde4;
+  --id-color-border-subtle: #e7eaf0;
+  --id-color-border-strong: #bbc2cd;
+  /* Recognizable fields and outlined input-like controls; >=3:1 on adjacent surfaces. */
+  --id-color-border-control: #7b8390;
+  --id-color-border-focus: var(--id-color-interaction);
+  --id-color-danger: #a12b32;
+  --id-color-info: var(--id-color-text-muted);
+  --id-color-warning: #875717;
+
+  --font-family-sans: "Pretendard Variable", Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
+  --font-family-mono: Consolas, "Courier New", monospace;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-start-title: 1.5rem;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-body: 1.5;
+  --line-height-start-title: 1.35;
+  --line-height-label: 1.25rem;
+  --line-height-meta: 1rem;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  --id-radius-sm: 0.25rem;
+  --id-radius-md: 0.375rem;
+  --id-radius-lg: 0.5rem;
+  --id-radius-xl: 0.75rem;
+  --border-width: 1px;
+  /* Keyboard focus is a solid 2px ring (outer) or inset ring, never a box left behind by a
+   * mouse click; only :focus-visible draws it. Solid --id-color-border-focus keeps >=3:1
+   * against every surface in all presets (Blue: white 5.65:1, other surfaces >=4.55:1). */
+  --focus-ring: 0 0 0 2px var(--id-color-border-focus);
+  --focus-ring-inset: inset 0 0 0 2px var(--id-color-border-focus);
+  --shadow-overlay: 0 8px 24px rgb(32 36 44 / 10%), 0 2px 6px rgb(32 36 44 / 6%);
+  /* The chosen segment of a segmented control sits slightly above its track. */
+  --shadow-segment: 0 1px 2px rgb(32 36 44 / 8%);
+
+  --layout-content-gutter: var(--space-4);
+  --layout-document-inline-padding: var(--layout-document-gutter);
+  --layout-document-gutter: calc(var(--space-2) + var(--size-control-compact) * 2 + var(--layout-gutter-gap) + var(--layout-gutter-safety));
+  --layout-gutter-safety: var(--space-3);
+  --layout-sidebar-rail-width: 3rem;
+  --layout-header-row: 2.5rem;
+  --layout-ui-inset: var(--space-5);
+  --size-control: 2rem;
+  --size-control-compact: 1.75rem;
+  --size-icon-slot: 1rem;
+  /* The 28px table row and column handles with their 4px clearance from the table. */
+  --size-table-handle-gutter: calc(var(--size-control-compact) + var(--space-1));
+  /* How far a wide table or formula fades out at an edge that has more content to scroll to. */
+  --size-overflow-fade: var(--space-8);
+  /* A segment inside its 2px track keeps the track at the compact control height. */
+  --size-view-segment: calc(var(--size-control-compact) - 4px);
+  --layout-gutter-gap: var(--space-1);
+  --size-drop-indicator: 2px;
+  /* New-version cue on the Settings icon, shared by Sidebar and rail. */
+  --size-update-dot: 8px;
+  /* Non-color cue shared by current navigation and the active menu/list choice. */
+  --size-current-marker: 3px;
+}
+
+/* Adjustable values: validated accent presets. Keep all palette numbers here, never in
+ * consumers or preference scripts. Text/number/focus/primary adapters above stay shared. */
+:root[data-accent="violet"] {
+  --id-color-interaction: var(--id-color-accent-violet);
+  --id-color-accent-hover: #552c98;
+  --id-color-surface-selected: #f0eafa;
+  --id-color-surface-selected-hover: #ebe3f7;
+}
+
+:root[data-accent="blue"] {
+  --id-color-interaction: var(--id-color-accent-blue);
+  --id-color-accent-hover: #2449a6;
+  --id-color-surface-selected: #e9f0ff;
+  --id-color-surface-selected-hover: #e1eaff;
+}
+
+:root[data-accent="teal"] {
+  --id-color-interaction: var(--id-color-accent-teal);
+  --id-color-accent-hover: #075b53;
+  --id-color-surface-selected: #e4f3f0;
+  --id-color-surface-selected-hover: #d5ebe7;
+}
+
+:root[data-accent="green"] {
+  --id-color-interaction: var(--id-color-accent-green);
+  --id-color-accent-hover: #27542b;
+  --id-color-surface-selected: #e9f2e7;
+  --id-color-surface-selected-hover: #dfeadb;
+}
+
+:root[data-accent="graphite"] {
+  --id-color-interaction: var(--id-color-accent-graphite);
+  --id-color-accent-hover: #3d4a53;
+  --id-color-surface-selected: #eaf0f3;
+  --id-color-surface-selected-hover: #dfe8ed;
+}
+
+/* Dark role values, not a second palette layer. Images retain their original pixels;
+ * KaTeX inherits text. The brighter paper and thin edge remain visible without elevation. */
+:root[data-theme="dark"] {
+  --id-color-docling-heading: #ba9be9;
+  --id-color-docling-text: #72b7e0;
+  --id-color-docling-list: #69c3b4;
+  --id-color-docling-table: #e8b66a;
+  --id-color-docling-formula: #e591c5;
+  --id-color-docling-picture: #85c997;
+  --id-color-docling-footnote: #cfaa93;
+  color-scheme: dark;
+  --id-color-canvas: #14171c;
+  --id-color-paper: #1e2229;
+  --id-color-paper-border: #485363;
+  --shadow-paper: 0 0 0 transparent;
+  --id-color-surface: #262b34;
+  --id-color-surface-subtle: #191d24;
+  --id-color-surface-muted: #242a33;
+  --id-color-surface-hover: #303743;
+  --id-color-surface-pressed: #37404d;
+  --id-color-surface-selected: #432e40;
+  --id-color-surface-selected-hover: #50384c;
+  --id-color-surface-danger: #422b30;
+  --id-color-surface-warning: #3e3323;
+  --id-color-text: #edf0f5;
+  --id-color-text-muted: #c3cad5;
+  --id-image-select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23c3cad5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  --id-color-text-subtle: #b7c0ce;
+  --id-color-text-on-accent: #14171c;
+  --id-color-accent-blue: #9abbff;
+  --id-color-accent-violet: #c4a8ff;
+  --id-color-accent-plum: #dda3d5;
+  --id-color-accent-teal: #6dd6c7;
+  --id-color-accent-green: #9bce91;
+  --id-color-accent-graphite: #b5c6d1;
+  --id-color-interaction: var(--id-color-accent-plum);
+  --id-color-accent-hover: #efc3e9;
+  --id-color-border: #737f90;
+  --id-color-border-subtle: #363e4a;
+  --id-color-border-strong: #8491a3;
+  --id-color-border-control: #9aa6b7;
+  --id-color-danger: #ffa4aa;
+  --id-color-warning: #efc079;
+  --id-color-backdrop: rgb(0 0 0 / 45%);
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 32%), 0 2px 6px rgb(0 0 0 / 24%);
+  --shadow-segment: 0 1px 2px rgb(0 0 0 / 24%);
+}
+
+:root[data-theme="dark"][data-accent="violet"] {
+  --id-color-interaction: var(--id-color-accent-violet);
+  --id-color-accent-hover: #dac8ff;
+  --id-color-surface-selected: #38304e;
+  --id-color-surface-selected-hover: #44395e;
+}
+
+:root[data-theme="dark"][data-accent="blue"] {
+  --id-color-interaction: var(--id-color-accent-blue);
+  --id-color-accent-hover: #bdd2ff;
+  --id-color-surface-selected: #253954;
+  --id-color-surface-selected-hover: #2d4260;
+}
+
+:root[data-theme="dark"][data-accent="teal"] {
+  --id-color-interaction: var(--id-color-accent-teal);
+  --id-color-accent-hover: #a0e9de;
+  --id-color-surface-selected: #203d3b;
+  --id-color-surface-selected-hover: #284946;
+}
+
+:root[data-theme="dark"][data-accent="green"] {
+  --id-color-interaction: var(--id-color-accent-green);
+  --id-color-accent-hover: #c2e5ba;
+  --id-color-surface-selected: #2d3d2c;
+  --id-color-surface-selected-hover: #374a35;
+}
+
+:root[data-theme="dark"][data-accent="graphite"] {
+  --id-color-interaction: var(--id-color-accent-graphite);
+  --id-color-accent-hover: #d4e0e8;
+  --id-color-surface-selected: #303b43;
+  --id-color-surface-selected-hover: #3a4751;
+}
+
+/* Page presentation only: keep document geometry and floating surfaces unchanged. */
+:root[data-page="flat"] {
+  --id-color-canvas: var(--id-color-paper);
+  --size-paper-border: 0px;
+  --id-radius-paper: 0px;
+  --shadow-paper: 0 0 0 transparent;
+}

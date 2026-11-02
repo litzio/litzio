@@ -1,0 +1,196 @@
+[
+  {
+    "name": "01-qa",
+    "width": 1440,
+    "overflow": false,
+    "font": true,
+    "panels": [
+      {
+        "name": "chat",
+        "height": 670,
+        "scrollHeight": 670,
+        "bottom": 842.5
+      },
+      {
+        "name": "composer",
+        "height": 157,
+        "scrollHeight": 157,
+        "bottom": 1000
+      }
+    ]
+  },
+  {
+    "name": "02-running",
+    "width": 1440,
+    "overflow": false,
+    "font": true,
+    "panels": [
+      {
+        "name": "chat",
+        "height": 670,
+        "scrollHeight": 675,
+        "bottom": 842.5
+      },
+      {
+        "name": "composer",
+        "height": 157,
+        "scrollHeight": 157,
+        "bottom": 1000
+      }
+    ]
+  },
+  {
+    "name": "03-created",
+    "width": 1440,
+    "overflow": false,
+    "font": true,
+    "panels": [
+      {
+        "name": "chat",
+        "height": 670,
+        "scrollHeight": 670,
+        "bottom": 842.5
+      },
+      {
+        "name": "composer",
+        "height": 157,
+        "scrollHeight": 157,
+        "bottom": 1000
+      }
+    ]
+  },
+  {
+    "name": "04-history",
+    "width": 1440,
+    "overflow": false,
+    "font": true,
+    "panels": [
+      {
+        "name": "chat",
+        "height": 670,
+        "scrollHeight": 677,
+        "bottom": 842.5
+      },
+      {
+        "name": "composer",
+        "height": 157,
+        "scrollHeight": 157,
+        "bottom": 1000
+      }
+    ]
+  },
+  {
+    "name": "05-model",
+    "width": 1440,
+    "overflow": false,
+    "font": true,
+    "panels": [
+      {
+        "name": "chat",
+        "height": 670,
+        "scrollHeight": 670,
+        "bottom": 842.5
+      },
+      {
+        "name": "composer",
+        "height": 157,
+        "scrollHeight": 157,
+        "bottom": 1000
+      }
+    ]
+  },
+  {
+    "name": "06-dark",
+    "width": 1440,
+    "overflow": false,
+    "font": true,
+    "panels": [
+      {
+        "name": "chat",
+        "height": 670,
+        "scrollHeight": 670,
+        "bottom": 842.5
+      },
+      {
+        "name": "composer",
+        "height": 157,
+        "scrollHeight": 157,
+        "bottom": 1000
+      }
+    ]
+  },
+  {
+    "name": "07-overlay",
+    "width": 640,
+    "overflow": false,
+    "font": true,
+    "panels": [
+      {
+        "name": "chat",
+        "height": 663,
+        "scrollHeight": 663,
+        "bottom": 842.5
+      },
+      {
+        "name": "composer",
+        "height": 157,
+        "scrollHeight": 157,
+        "bottom": 1000
+      }
+    ]
+  },
+  {
+    "name": "07-closed",
+    "width": 640,
+    "overflow": false,
+    "font": true,
+    "panels": [
+      {
+        "name": "chat",
+        "height": 0,
+        "scrollHeight": 0,
+        "bottom": 0
+      },
+      {
+        "name": "composer",
+        "height": 0,
+        "scrollHeight": 0,
+        "bottom": 0
+      }
+    ]
+  },
+  {
+    "name": "08-setup",
+    "width": 1440,
+    "overflow": false,
+    "font": true,
+    "panels": [
+      {
+        "name": "chat",
+        "height": 670,
+        "scrollHeight": 670,
+        "bottom": 842.5
+      },
+      {
+        "name": "composer",
+        "height": 157,
+        "scrollHeight": 157,
+        "bottom": 1000
+      }
+    ]
+  },
+  {
+    "name": "09-settings",
+    "width": 1440,
+    "overflow": false,
+    "font": true,
+    "panels": [
+      {
+        "name": "settingscontent",
+        "height": 921,
+        "scrollHeight": 921,
+        "bottom": 988.75
+      }
+    ]
+  }
+]

@@ -1,0 +1,25 @@
+v3 정적 UI 시안 / #931
+
+index.html을 브라우저에서 열어 확인합니다. query: view=qa|running|created|history|model|setup|settings|closed|overview, theme=dark.
+모든 문서·계정·모델·강도·사용량·진단은 예시입니다. 실제 AI/CLI/파일 쓰기는 연결하지 않았습니다.
+Ctrl+Shift+A는 소유자 확인 전 후보입니다. 컨텍스트 91%도 임계값 결정이 아닌 알림 표현 예시입니다.
+패널 폭 392px; 시안 드래그 범위 340~560px는 확인 전 예시입니다. 640px에서는 전면 오버레이입니다.
+설정 진단은 app-server 기반 실행 구조를 보여 주며, 문제 상태 카드는 정상 결과와 비교하기 위한 별도 예시입니다.
+모델 자유 입력 대신 model/list 기반 선택을 제안합니다. 실제 반환 모델/강도는 계정에 따라 달라집니다.
+
+근거: #931 본문과 전체 댓글(2026-11-02), origin/design/issue-931-resident-assistant-concept의 HTML,
+ui-patterns-v1, editor-layout-rules-v1, editor-visual-language-v1, TopBar/Sidebar/SettingsDialog,
+packages/cli/src/cli.ts의 inspect/create/apply-batch/check.
+tokens.css는 해당 브랜치 기준 원본 복사입니다. Pretendard 1.3.9의 원본 가변 WOFF2와 OFL을 함께 보관합니다.
+
+재현 (제품 파일을 바꾸지 않는 캡처용 임시 scenario):
+1. 저장소 루트에서 python docs/design/assets/issue-931-v3/capture-server.py
+2. capture.browser.js를 apps/editor/test/issue-931-capture.browser.js에 잠시 복사합니다.
+3. PowerShell: $env:LITZIO_BROWSER_URL='http://127.0.0.1:5391'; pnpm browser:test issue-931-capture
+4. 임시 scenario를 삭제하고 서버를 종료합니다. runner가 Chrome context를 finally에서 닫습니다.
+기존 checkout 고정 profile 재사용. Edge 및 임시 Chrome profile은 사용하지 않습니다.
+
+검증: 마지막 캡처 runner 1/1 통과. 콘솔/페이지 오류 없음, 가로 넘침 없음, Pretendard 로드 확인.
+10개 개별 PNG와 개요를 직접 검토했습니다. 기록 안내/설정 문제 상태의 잘림을 보정한 뒤 재촬영했습니다.
+이 결과는 정적 시안의 렌더링 검증이며 실제 Codex 연결·파일 작성·되돌리기의 동작 검증이 아닙니다.
+제품 코드 변경/PR/master 병합 없음.
