@@ -116,6 +116,35 @@ that interval can leave a complete backup and lock beside the folder; automatic
 crash recovery is outside this concept-validation scope. Failed rollback reports
 the retained backup path. Filesystem aliases inside the folder are refused.
 
+On Windows only, each of the three directory renames (public to backup, staging
+to public, and rollback) retries `EPERM`, `EACCES` and `EBUSY` with six exponential
+waits of 20, 40, 80, 160, 320 and 640 ms. There are at most seven attempts and
+1,260 ms of scheduled waiting per rename; even a transaction that waits at all
+three steps schedules at most 3,780 ms, below the five-second product budget.
+Filesystem I/O and OS scheduling time are additional. A synchronous `Atomics.wait`
+yields CPU rather than spinning; this existing synchronous Host operation can
+block its event loop during that bounded wait. Successful first attempts do not wait.
+Other errors and other platforms fail immediately. The policy stays in Docling's
+folder publication path; shared `packages/file-commit` and other renames are unchanged.
+
+This is a product retry for transient Windows sharing violations (#906), not a
+whole-operation or AI-task replay. Windows browser investigation reproduced the
+second rename's `EPERM` while the comparison tab stayed open during review rerun
+and approval undo. Instrumentation at failure found no pending Node file reads
+or tracked open descriptors; document/media handlers read synchronously into
+memory before sending responses. The owner's working diagnosis is a brief
+external file lock on newly written output (for example antivirus/indexing),
+consistent with [graceful-fs's Windows rename rationale](https://github.com/isaacs/node-graceful-fs/blob/main/polyfills.js).
+The specific external process was not established; no administrator trace was run.
+The short budget absorbs brief contention while bounding unavailable-path and
+Host blocking time, rather than adopting graceful-fs's longer install-time budget.
+Only the failed rename is repeated: preparation, revision/Root checks, lock and
+ownership rules, complete-generation visibility and original-byte preservation
+remain unchanged. Exhaustion throws the last filesystem error through the existing
+rollback/error-display path. Rollback gets the same independent retry bound;
+exhausted rollback still reports and retains the complete previous generation.
+Cleanup and owned-lock release remain independent and are not retried by this policy.
+
 The map stays v1, bound to the **original** source hash and new Markdown hash.
 Original refs, labels, layers, parents and individual provenance regions remain
 inspection evidence. Status/targets describe corrected conversion; notes disclose
@@ -128,7 +157,9 @@ Verification uses synthetic inputs and the saved NIST bundle: all operations,
 original-byte preservation, invalid/conflicting entries, dependent-removal refusal,
 byte-identical output after undo, publication rollback, concurrent-edit refusal
 and thin installed-Host CLI integration. Windows regressions cover real 8.3 alias
-publication/locking; injected sibling cleanup failures cover lock release and
+publication/locking and injected transient/exhausted rename errors at all three
+steps, including bounded waits, rollback and retained-backup diagnostics. Injected
+sibling cleanup failures cover lock release and
 preserved publication/rollback diagnostics. No Docling server or review/AI UI is used.
 
 ## Structure review without UI (#884)

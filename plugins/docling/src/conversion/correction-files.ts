@@ -13,6 +13,22 @@ const message = (error: unknown): string => error instanceof Error ? error.messa
 /** Publication succeeded; callers must not treat cleanup failure as a rollback. */
 export class PublishedCorrectionCleanupError extends AggregateError {}
 
+// Keep this policy local: ordinary file commits and other plugin renames are unchanged.
+// Six exponential waits total 1,260 ms per rename (at most 3,780 ms for the
+// backup/publication/rollback sequence). Yield the CPU so external locks can clear.
+const renameBackoff = [20, 40, 80, 160, 320, 640] as const;
+const renameWait = new Int32Array(new SharedArrayBuffer(4));
+function renameGeneration(from: string, to: string): void {
+  for (let attempt = 0; ; attempt++) {
+    try { renameSync(from, to); return; }
+    catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code;
+      if (process.platform !== "win32" || !["EPERM", "EACCES", "EBUSY"].includes(code ?? "") || attempt >= renameBackoff.length) throw error;
+      Atomics.wait(renameWait, 0, 0, renameBackoff[attempt]);
+    }
+  }
+}
+
 /** Optimistic revision of the complete folder, including user files and source images. */
 function revision(folder: string): string {
   const files: unknown[] = [];
@@ -55,10 +71,10 @@ export function updateConversionFolder(folder: string, prepare: () => (staging: 
     beforePublish?.();
     if (revision(folder) !== before) throw new Error("Conversion source/folder changed after it was read; nothing was written");
     backup = path.join(parent, `.${base}.previous-${randomUUID()}`);
-    renameSync(folder, backup);
-    try { renameSync(staging, folder); staging = undefined; published = true; }
+    renameGeneration(folder, backup);
+    try { renameGeneration(staging, folder); staging = undefined; published = true; }
     catch (cause) {
-      try { renameSync(backup, folder); backup = undefined; }
+      try { renameGeneration(backup, folder); backup = undefined; }
       catch (rollback) { throw new Error(`Could not restore conversion folder; publication failed: ${message(cause)}; rollback failed: ${message(rollback)}; complete previous generation retained at ${backup}`, { cause: new AggregateError([cause, rollback]) }); }
       throw cause;
     }
