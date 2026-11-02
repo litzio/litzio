@@ -50,4 +50,3 @@ async (page, { expect, screenshots, brand }) => {
   await expect(row.getByText('앱 기본 버전과 같음', { exact: true })).toBeVisible();
   await expect(row.getByRole('button')).toHaveCount(0);
 }
-
