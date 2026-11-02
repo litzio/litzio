@@ -61,14 +61,14 @@ async (page, { expect, doclingFixture: fixture }) => {
     failures++; return intercepted.fulfill({ status: 500, json: { error: 'Synthetic comparison refresh unavailable' } });
   });
   await panel.getByRole('button', { name: 'Undo approval', exact: true }).click();
-  await expect(panel.getByRole('alert')).toContainText('Synthetic comparison refresh unavailable');
+  await expect(tab.getByRole('alert')).toContainText('Synthetic comparison refresh unavailable');
   expect(failures).toBeGreaterThan(0);
   await expect(reading, 'an unread current generation must not leave the old document visible').toHaveCount(0);
   failReads = false;
   // No reload or mutation retry: only a later successful GET may reconcile this failure.
   await expect.soft(heading(2), 'a failed document refresh must recover without reopening or resubmitting undo').toHaveCount(1);
   await expect(panel.locator('.docling-review-status')).toHaveText('Pending');
-  await expect(panel.getByRole('alert')).toHaveCount(0);
+  await expect(tab.getByRole('alert')).toHaveCount(0);
   expect(undoRequests).toBe(1);
   await page.unroute('**/api/docling-compare?*');
 }

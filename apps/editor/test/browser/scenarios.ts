@@ -9,6 +9,7 @@ export const STABLE_SCENARIOS = [
   "docling-dashboard",
   "docling-review",
   "docling-review-recovery",
+  "docling-review-retry",
   "plugin-ui",
   "ai-agent",
   "continuous-editing",

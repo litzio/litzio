@@ -27,7 +27,7 @@ Disabling the plugin unmounts its content but retains the same shell tab and
 opening context with a disabled message. Re-registration reconstructs the view
 and rereads the current document/map generation before displaying it, without
 reloading the window; transient source selection/scroll reset. A failed read shows
-a loading/error state and retries GET only, never the old content as current.
+a loading/error state and uses the bounded GET policy below, never old content as current.
 The module entry stays outside Explorer's folder navigation and empty-state help.
 It does not interrupt Collapse Explorer → Open folder keyboard order and is hidden
 with the other Explorer navigation when the sidebar collapses.
@@ -61,9 +61,19 @@ inapplicable entries cannot be approved. Host C1 validation remains authoritativ
 Approval and undo reconcile the current proposal file and document/map even if
 an operation returns an error: publication may already have succeeded before
 cleanup or response delivery failed. The original operation error remains visible.
-A failed reconciliation hides the unread document and leaves a GET-only retry
-pending in the proposal poll; successful recovery clears the read error without
-repeating the mutation. Normal success loads the fresh pair before clearing busy;
+Document reload is independent of the ordinary proposal-status poll. Mount and
+approve/undo recovery each allow **three total comparison GET attempts**, with
+**1 second between attempts** (two retries). This small budget covers brief
+local/HTTP failures and returns control promptly; request latency is additional,
+so it is an attempt cap, not a total-time promise. No POST is retried.
+A failed read hides the unread document. After the third failure automatic document
+requests stop, busy ends, and a localized notice says the comparison may not be
+current. **Reload comparison** remains enabled and starts a new bounded read batch.
+Decision buttons explain that the current document must first be reloaded; they
+are no longer held in Loading. Ordinary proposal observation continues without
+restarting document recovery. Successful manual recovery removes the warning and
+restores decisions. Discarded mount effects and unmount cancel pending retry waits
+and ignore late responses. Normal success loads the fresh pair before clearing busy;
 no tab reopening, automatic AI rerun or document editing session is introduced.
 Disabled review or absent AI service shows a reason and hides proposal controls.
 
@@ -72,7 +82,12 @@ Cancel, proposal selection, approval/rejection/undo and immediate refreshed head
 DOM after busy completion. `docling-review-recovery` adds retained-tab feature
 reactivation, real approve/undo saves with injected post-publication response
 errors, and a failed comparison GET that recovers without reload or repeated POST.
-All four browser assertions failed against pre-fix product code at `277e5e8f`
+`docling-review-retry` additionally verifies persistent mount/approve read failure,
+three-attempt exhaustion, unchanged document-request counts across continued
+proposal polling, enabled manual recovery, no repeated mutation, and tab-close
+cancellation. Its terminal-warning/retry-limit assertions first failed on
+`55bede1a`; no timeout or retry setting was weakened.
+All four earlier recovery assertions failed against pre-fix product code at `277e5e8f`
 (after the master merge); the unchanged corrected assertions then passed. The BOM
 unit regression also first failed there, while conversion already accepted the input. 1440px English Light and 640px Korean Dark captures
 cover wrapping and panel/pane geometry. Real AI suggestion accuracy remains manual.

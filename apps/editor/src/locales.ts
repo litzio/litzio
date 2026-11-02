@@ -1,6 +1,9 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Reload the comparison before applying proposals.": "Reload the comparison before applying proposals.",
+  "The comparison may not be current. Automatic reload stopped. Reload it to continue.": "The comparison may not be current. Automatic reload stopped. Reload it to continue.",
+  "Reload comparison": "Reload comparison",
   "Approved changes": "Approved changes",
   "Other content": "Other content",
   "Page footer": "Page footer",
@@ -896,6 +899,9 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Reload the comparison before applying proposals.": "제안을 적용하기 전에 대조 화면을 다시 불러오세요.",
+  "The comparison may not be current. Automatic reload stopped. Reload it to continue.": "대조 화면이 최신이 아닐 수 있습니다. 자동 불러오기를 중단했습니다. 다시 불러온 뒤 계속하세요.",
+  "Reload comparison": "다시 불러오기",
   "Approved changes": "승인한 변경",
   "Other content": "기타 내용",
   "Page footer": "바닥글",

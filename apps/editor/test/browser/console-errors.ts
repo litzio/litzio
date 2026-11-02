@@ -12,6 +12,9 @@ type ExpectedConsoleErrorRule = {
 };
 
 const EXPECTED_CONSOLE_ERRORS: Record<string, ExpectedConsoleErrorRule[]> = {
+  "docling-review-retry": [
+    { status: 500, pathname: "/api/docling-compare", minimum: 1, description: "persistent comparison failures exercise the automatic read limit and manual recovery" },
+  ],
   "docling-review-recovery": [
     { status: 400, pathname: "/api/docling-review-approve", minimum: 1, description: "successful publication is followed by an injected approval cleanup error" },
     { status: 400, pathname: "/api/docling-review-undo", minimum: 1, description: "successful publication is followed by an injected undo cleanup error" },

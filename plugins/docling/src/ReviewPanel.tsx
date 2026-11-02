@@ -2,26 +2,21 @@ import { useEffect, useRef, useState } from "react";
 import type { UiHost } from "@litzio/plugin-api/ui";
 import type { StructureReviewer } from "./structure-review.ts";
 type Review = ReturnType<StructureReviewer["list"]> & { problem?: string };
-export function ReviewPanel({ host, folder, summary = false, agentReady = true, documentReady = true, onSelect, onChanged }: {
-  host: UiHost; folder: string; summary?: boolean; agentReady?: boolean; documentReady?: boolean; onSelect?(refs: string[]): void; onChanged?(): Promise<void>;
+export function ReviewPanel({ host, folder, summary = false, agentReady = true, documentReady = true, documentLoading = false, onSelect, onChanged }: {
+  host: UiHost; folder: string; summary?: boolean; agentReady?: boolean; documentReady?: boolean; documentLoading?: boolean; onSelect?(refs: string[]): void; onChanged?(): Promise<void>;
 }) {
   const { text, Button } = host;
   const [review, setReview] = useState<Review>(), [problem, setProblem] = useState("");
   const [readProblem, setReadProblem] = useState("");
   const [busy, setBusy] = useState(false), pending = useRef(false);
   const [selected, setSelected] = useState("");
-  const generation = useRef(0), needsDocumentRefresh = useRef(false);
+  const generation = useRef(0);
   const alive = useRef(true), enabled = host.features?.review !== false;
   const refresh = async () => {
     const version = generation.current;
     try {
-      if (needsDocumentRefresh.current) {
-        await onChanged?.();
-        if (!alive.current || version !== generation.current) return;
-      }
       const value = await host.readJson<Review>("api/docling-review", { folder });
       if (!alive.current || version !== generation.current) return;
-      needsDocumentRefresh.current = false;
       setReview(value); setReadProblem("");
     } catch (error) {
       if (alive.current && version === generation.current) setReadProblem(error instanceof Error ? error.message : String(error));
@@ -45,23 +40,24 @@ export function ReviewPanel({ host, folder, summary = false, agentReady = true, 
     generation.current++; pending.current = true; setBusy(true); setProblem("");
     const changesDocument = action === "approve" || action === "undo";
     // Even a failed response may follow a committed publication. Never replay it.
-    if (changesDocument) needsDocumentRefresh.current = true;
     const errors: string[] = [];
     try {
       const value = await host.requestJson<Review & { error?: string }>(`api/docling-review${["approve", "reject", "undo"].includes(action) ? `-${action}` : ""}`,
         action === "cancel" ? "DELETE" : "POST", { folder, id: action === "start" ? crypto.randomUUID() : selected });
       if (value.error) throw new Error(value.error);
-      if (!changesDocument && alive.current) setReview(value);
+      if (alive.current) setReview(value);
     } catch (error) { errors.push(error instanceof Error ? error.message : String(error)); }
+    try { if (changesDocument) await onChanged?.(); }
+    catch { /* Comparison owns bounded document recovery and its manual retry. */ }
     try { if (changesDocument) await refresh(); }
-    catch { /* Keep the reconciliation flag and read error for the next poll. */ }
+    catch { /* Only ordinary proposal observation continues after a failed read. */ }
     finally {
       pending.current = false;
       if (alive.current) { setProblem(errors.join("; ")); setBusy(false); }
     }
   };
 
-  const reason = !enabled ? "Review is disabled." : !review?.available || !agentReady ? "AI agent is disabled or unavailable." : host.features?.conversion === false ? "Enable PDF conversion to apply review corrections." : (!documentReady || needsDocumentRefresh.current) ? "Loading…" : "";
+  const reason = !enabled ? "Review is disabled." : !review?.available || !agentReady ? "AI agent is disabled or unavailable." : host.features?.conversion === false ? "Enable PDF conversion to apply review corrections." : !documentReady ? (documentLoading ? "Loading…" : "Reload the comparison before applying proposals.") : "";
   const task = review?.task, proposal = review?.proposals.find(p => p.id === selected);
   type Proposal = Review["proposals"][number];
   const kind = (operation: Proposal["suggestion"]["operation"]) => text({ heading: "Heading depth", "merge-paragraphs": "Merge paragraphs", furniture: "Header/footer classification" }[operation]);
