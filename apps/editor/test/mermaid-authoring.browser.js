@@ -72,18 +72,21 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
     labelStyles.push(await preview.locator('img').evaluate(img => {
       const svg = new DOMParser().parseFromString(decodeURIComponent(img.src.split(',')[1]), 'image/svg+xml');
       const host = document.createElement('div');
+      host.style.backgroundColor = 'var(--id-color-paper)';
       const shadow = host.attachShadow({mode:'open'});
       shadow.append(document.importNode(svg.documentElement, true));
       document.body.append(host);
       try {
-        return [...shadow.querySelectorAll('.edgeLabel, .edgeLabel p, .labelBkg')]
-          .map(el => getComputedStyle(el).backgroundColor);
+        return {paper: getComputedStyle(host).backgroundColor,
+          backgrounds: [...shadow.querySelectorAll('.edgeLabel, .edgeLabel p, .labelBkg')]
+            .map(el => getComputedStyle(el).backgroundColor)};
       } finally { host.remove(); }
     }));
   }
-  for (const backgrounds of labelStyles) {
+  for (const {paper, backgrounds} of labelStyles) {
+    expect(paper).toMatch(/^rgb\(/);
     expect(backgrounds.length).toBeGreaterThan(0);
-    for (const color of backgrounds) expect(color).toBe('rgba(0, 0, 0, 0)');
+    for (const color of backgrounds) expect(color).toBe(paper);
   }
   await editor.evaluate(el => el.editor.commands.undo());
   expect((await model()).doc).toEqual(labelOpening.doc);

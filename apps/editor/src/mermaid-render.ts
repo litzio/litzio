@@ -6,6 +6,8 @@ let queue: Promise<unknown> = Promise.resolve();
 let sequence = 0;
 
 export function renderMermaid(source: string, dark: boolean): Promise<string> {
+  // Capture the paper token with this request's theme, before entering the global queue.
+  const background = getComputedStyle(document.documentElement).getPropertyValue("--id-color-paper").trim();
   const render = async () => {
     const container = document.createElement("div");
     container.style.cssText = "position:fixed;left:-100000px;top:0;visibility:hidden;pointer-events:none";
@@ -14,9 +16,9 @@ export function renderMermaid(source: string, dark: boolean): Promise<string> {
       mermaid.initialize({ startOnLoad: false, securityLevel: "strict", suppressErrorRendering: true,
         secure: ["secure", "securityLevel", "startOnLoad", "maxTextSize", "suppressErrorRendering", "maxEdges", "theme", "themeVariables", "themeCSS"],
         theme: dark ? "dark" : "default",
-        themeVariables: { edgeLabelBackground: "transparent" },
+        themeVariables: { edgeLabelBackground: background },
         // Mermaid's HTML label backdrop resets the variable's alpha to 0.5.
-        themeCSS: ".edgeLabel .labelBkg { background-color: transparent; }" });
+        themeCSS: `.edgeLabel .labelBkg { background-color: ${background}; }` });
       const { svg } = await mermaid.render(`litzio-mermaid-${++sequence}`, source, container);
       // Mermaid's sanitizer returns HTML serialization (e.g. <br> inside foreignObject).
       // Image SVG is XML: serialize the sanitized tree with namespaces and closed void tags.
