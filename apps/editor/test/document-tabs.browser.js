@@ -29,20 +29,21 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   await page.getByRole('button', {name:'Close technical-document.md',exact:true}).click();
   await page.getByTestId('document-start').waitFor();
   await expect(page).toHaveTitle('Litzio');
-  check(await page.getByTestId('save').isDisabled() && await page.getByTestId('view-source').isDisabled(), 'Start screen exposes document actions without a document');
+  await expect(page.locator('.top-bar-actions')).toHaveCount(0);
   check(await page.locator('.app-titlebar').evaluate(n=>n.offsetHeight) === 40 && await page.locator('.document-tab-row').evaluate(n=>n.offsetHeight) === 33, 'Empty start lost its two fixed shell rows');
+  // Navigation memory restores order and active identity, without restoring editor state.
+  await openPath(page, a);
   await page.setViewportSize({width:640,height:900});
   await page.getByRole('button',{name:'File actions',exact:true}).click();
   const widthMenu = page.getByRole('menuitemcheckbox',{name:'Wide document',exact:true});
   const wasWide = await widthMenu.getAttribute('aria-checked') === 'true';
   await widthMenu.click();
-  check(await page.locator('.app-shell--wide').count() === (wasWide?0:1), 'Compact layout menu cannot toggle width on the start screen');
+  check(await page.locator('.app-shell--wide').count() === (wasWide?0:1), 'Compact layout menu cannot toggle width on a document');
   await page.getByRole('button',{name:'File actions',exact:true}).click();
   await expect(widthMenu).toHaveAttribute('aria-checked',String(!wasWide));
   await widthMenu.click();
   await page.setViewportSize({width:1280,height:720});
-  // Navigation memory restores order and active identity, without restoring editor state.
-  await openPath(page, a);
+
   await openPath(page, b);
   await expect(page).toHaveTitle('technical-2.md — Litzio');
   await activate('technical-1.md');
