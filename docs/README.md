@@ -21,7 +21,7 @@
 | [ADR-0011: Code module boundary](adr/0011-code-module-boundary.md) | Accepted | 첫 모듈의 패키지 위치, 모듈 → Core 공개 API 의존, 문서 밖 데이터와 얇은 CLI. 정적 연결·등록/동적 로딩 금지와 process-local 전용 작업 상태는 ADR-0012로 일부 Superseded. |
 | [ADR-0012: Plugin runtime and UI contributions](adr/0012-plugin-runtime-and-ui-contributions.md) | Accepted | 2026-10-31 소유자 승인. 데몬 없는 공용 설치 폴더, 별도 worker, 같은 origin의 검증된 ESM/CSS와 좁은 UI API, 동적 기여·drain·비활성 탭, UUID·uncertain·완료 결과 공개. 구현 채택 조건과 범위 제외를 명시하며 스파이크 코드 채택은 아님. |
 | [ADR-0013: AI agent task service](adr/0013-ai-agent-task-service.md) | Accepted | 2026-11-02 소유자 승인. #880 기본 포함 AI 플러그인, Host 중개 작업 메시지, 기능·추론 역할 분리와 자료 스냅샷. 전용 Codex 홈 격리의 유예와 도입 조건 포함. |
-| [ADR-0014: Main agent app-server](adr/0014-main-agent-app-server.md) | Accepted | #931 Host 소유 stdio 연결, 사용자 Codex 환경 재사용, 앱 데이터 cwd, provider 이름만 전제한 구조와 ADR-0013 조건 2 변경. 연결·설정과 후속 대화 PR의 경계. |
+| [ADR-0014: Main agent app-server](adr/0014-main-agent-app-server.md) | Accepted | #931 Host 소유 stdio 연결, 사용자 Codex 환경 재사용, 앱 데이터 cwd, provider 이름만 전제한 구조와 ADR-0013 조건 2 변경. 연결·설정·대화의 소유권과 후속 문서 작성 기능의 경계. |
 
 ## Current implemented contracts
 
@@ -31,7 +31,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | --- | --- | --- |
 | [Native document support](design/document-support-v1.md) | Implemented | 현재 계약. 표식·지원 의미·Core 진입/생성/쓰기 경계와 LF/fail-closed 보존. #817 별도 텍스트 종류·저장 경계. |
 | [Host worker plugins](design/plugin-runtime-v1.md) | Implemented | #853 공용 설치·worker API·UUID/uncertain·OS 잠금 복구·Host 결과 공개 및 #869 플러그인 Host 작업·폴더 분리 절차. |
-| [Main agent connection and settings](design/main-agent-v1.md) | Implemented | #931 연결·설정: Codex app-server 수명, 모델 목록·진단·공통 환경, 공유 기본값과 설정 번역. 비서 패널·대화는 후속 PR. |
+| [Main agent connection, settings and conversations](design/main-agent-v1.md) | Implemented | #931 연결·설정·대화: Codex app-server, 모델·진단·공통 환경, 응답 언어 기본값, 셸 비서 패널·thread 기록·스티어링·중단·컨텍스트 사용량. |
 | [Plugin UI contributions](design/plugin-ui-v1.md) | Implemented | #857 중립 UI manifest/API, 같은 origin의 검증된 ESM/CSS, React 주입, 명령·탭·사이드바·설정·변환 화면 기여와 비활성 탭·오류 격리·ESM 수명. |
 | [Docling conversion](design/docling-conversion-v1.md) | Implemented | DoclingDocument 1.10.0 전체 변환, 외부 PDF REST 프로필·원본 묶음·대응표, #871 대시보드·기능 선택과 요청 기록, #876 승인 교정 JSON·재변환·CLI, #884 구조 검수·제안 파일·Host 승인 연산, #900 검수 실행·승인 화면. |
 | [Docling comparison](design/docling-compare-v1.md) | Implemented | 읽기 전용 대조 탭, 원문 bbox·연결선·동기 스크롤, 지연 이미지와 대응표 불일치 경고, #900 제안 선택·승인·거절·되돌리기와 자동 새로 고침. |

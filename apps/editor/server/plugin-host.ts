@@ -12,6 +12,7 @@ import { readModel } from "./document-replay.ts";
 import { PluginRuntime } from "./plugin-runtime.ts";
 import { AI_TASK, AI_AGENT, type AiTaskService } from "@litzio/plugin-api/ai";
 import { AiAgentConnection } from "./ai-agent-connection.ts";
+import { AiAgentConversations } from "./ai-agent-conversations.ts";
 
 declare const __LITZIO_DOCLING_DIRECTORY__: string;
 declare const __LITZIO_AI_DIRECTORY__: string;
@@ -31,10 +32,20 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
   const activations = new Map<string, HostPlugin>();
   const sessions = new Map<string, Map<string, unknown>>();
   let agent: AiAgentConnection | undefined = options?.agent;
+  let conversations: AiAgentConversations | undefined;
+  const history = () => conversations ??= new AiAgentConversations(agent ??= new AiAgentConnection(), access);
   const agentOperations = {
     agentModels: () => (agent ??= new AiAgentConnection()).models(),
     agentDiagnostics: () => (agent ??= new AiAgentConnection()).diagnostics(),
     agentEnvironment: () => (agent ??= new AiAgentConnection()).environment(),
+    agentConversations: (args: any) => args.id ? history().current(args.id) : history().list(),
+    agentConversation: (args: any) => {
+      const settings = load(AI_TASK.plugin).operations.settings({});
+      if (args.action === "resume") return history().resume(args.id, settings, args.responseLanguage ?? settings.responseLanguage ?? "en");
+      if (args.action === "send") return history().send(args, settings);
+      if (args.action === "interrupt") return history().interrupt(args.id);
+      throw new Error("Unknown conversation action.");
+    },
   };
   const getRuntime = () => {
     if (closed) throw new Error("The plugin runtime is closing.");
@@ -97,7 +108,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
     return installation ? load(installation.id).aiTaskService : undefined;
   };
   const closeAgent = async () => {
-    if (agent) { await agent.close(); agent = undefined; }
+    if (agent) { await agent.close(); agent = undefined; conversations = undefined; }
   };
   const unregister = async (id: string) => {
     plugins().unregister(id);
@@ -108,7 +119,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
     if (id === AI_TASK.plugin && Object.hasOwn(agentOperations, operation)) {
       if (!plugins().list().find(item => item.id === id)?.enabled) throw new Error("Plugin is disabled.");
       if (operation !== "agentEnvironment" && !plugin.operations.settings({}).enabled) throw new Error("Codex is disabled.");
-      return agentOperations[operation as keyof typeof agentOperations]() as T;
+      return agentOperations[operation as keyof typeof agentOperations](args) as T;
     }
     if (!Object.hasOwn(plugin.operations, operation)) throw new Error("Unknown plugin operation.");
     if (!plugins().list().find(item => item.id === id)?.enabled && !plugin.drainingOperations?.includes(operation)) throw new Error("Plugin is disabled.");
@@ -127,6 +138,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
     return plugin.operations[operation](args);
   };
   const route = (url: string) => {
+    if (url === AI_AGENT.conversationsRoute) { plugins(true); return { id: AI_TASK.plugin, methods: { GET: "agentConversations", POST: "agentConversation" } }; }
     const operation = { [AI_AGENT.modelsRoute]: "agentModels", [AI_AGENT.diagnosticsRoute]: "agentDiagnostics", [AI_AGENT.environmentRoute]: "agentEnvironment" }[url];
     if (operation) { plugins(true); return { id: AI_TASK.plugin, methods: { GET: operation } }; }
     for (const installation of plugins(true).list()) if (installation.host && installation.routes?.includes(url)) {

@@ -30,7 +30,9 @@ test("shared Host persists device settings, checks the real HTTP service and saf
   assert.equal((await send("settings", "PUT", { server: "file:///secret" })).status, 400);
   assert.equal(existsSync(settings), false);
   assert.equal((await send("settings", "PUT", { server: fake.url })).status, 200);
-  assert.equal(createDoclingHost(access, settings).settings().server, fake.url, "configuration survives a new Host instance");
+  const reopened = createDoclingHost(access, settings);
+  try { assert.equal(reopened.settings().server, fake.url, "configuration survives a new Host instance"); }
+  finally { await reopened.close(); }
   let report = await (await send("check", "POST", {})).json();
   assert.equal(report.ok, true); assert.equal(report.responding, true); assert.equal(report.ready, true); assert.equal(report.compatible, true);
   assert.equal(report.openapiMatches, false, "same version with changed spec is visible and permitted");

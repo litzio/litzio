@@ -55,6 +55,8 @@ async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
   await expect(page.getByText('docs · connected · oAuth', { exact: true })).toBeVisible();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-1440-light-en.png' });
   await page.getByRole('button', { name: '← AI agent', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Response language', exact: true })).toHaveValue('en');
+  await page.getByRole('combobox', { name: 'Response language', exact: true }).selectOption('ja');
   await page.getByLabel('Model', { exact: true }).selectOption('gpt-6-luna');
   await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('low');
   connectionAvailable = false;
@@ -79,7 +81,7 @@ async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
   await page.getByLabel('Reasoning effort', { exact: true }).selectOption('high');
   await page.getByRole('button', { name: 'Save AI settings', exact: true }).click();
   await expect(page.getByText('AI settings saved.', { exact: true })).toBeVisible();
-  expect(settings).toEqual({ provider: 'codex', enabled: true, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'high' });
+  expect(settings).toEqual({ provider: 'codex', enabled: true, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'high', responseLanguage: 'ja' });
   const aiGeometry = await measure();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/ai-1440-light-en.png' });
   await categories.getByRole('button', { name: 'Docling', exact: true }).click();
@@ -137,5 +139,134 @@ async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
       localStorage.setItem(prefix + '.theme', 'light');
     }, brand.storagePrefix);
   }
-  return { settings: true, minimumViewport: true, nativeDocumentPreserved: true };
+  // Panel integration uses the same installed plugin and ordinary unsaved document.
+  await page.getByRole('button', { name: '설정', exact: true }).click();
+  await page.getByRole('button', { name: '표시·언어', exact: true }).click();
+  await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
+  await page.getByTestId('settings-back').click();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const sent = [], conversations = new Map();
+  let selected, sequence = 0, setupMode = 'ready';
+  await page.unroute('**/api/ai-agent-diagnostics*');
+  await page.route('**/api/ai-agent-diagnostics*', route => route.fulfill({ json: { provider: 'codex', connected: setupMode !== 'missing',
+    error: setupMode === 'missing' ? 'Codex CLI is unavailable on the Host.' : undefined,
+    account: setupMode === 'login' ? null : { type: 'chatgpt' } } }));
+  await page.route('**/api/ai-agent-conversations*', route => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON();
+      if (body.action === 'resume') selected = conversations.get(body.id);
+      if (body.action === 'send') {
+        sent.push(body);
+        if (!body.id) { selected = { id: 'thread-' + (++sequence), title: body.message, folders: body.folders, createdAt: 1793590000000,
+          updatedAt: 1793590000000, model: body.model, reasoningEffort: body.reasoningEffort, responseLanguage: body.responseLanguage, turns: [] }; conversations.set(selected.id, selected); }
+        else selected = conversations.get(body.id);
+        let turn = selected.turns.find(turn => turn.status === 'inProgress');
+        if (!turn) { turn = { id: 'turn-' + sent.length, status: 'inProgress', items: [] }; selected.turns.push(turn); }
+        turn.items.push({ id: 'user-' + sent.length, kind: 'user', text: body.message });
+        if (turn.items.length === 1) turn.items.push({ id: 'summary-' + sent.length, kind: 'reasoning', text: 'Checking the document and opened folders.' },
+          { id: 'tool-' + sent.length, kind: 'tool', text: 'Get-Content notes.md', status: 'completed' },
+          { id: 'answer-' + sent.length, kind: 'assistant', text: 'Partial answer' });
+        else turn.items.push({ id: 'steer-' + sent.length, kind: 'plan', text: 'Direction updated: focus on the unsaved paragraph.' });
+        selected.responseLanguage = body.responseLanguage;
+        selected.tokenUsage = { used: 810, limit: 1000 };
+      }
+      if (body.action === 'interrupt') selected.turns.at(-1).status = 'interrupted';
+      return route.fulfill({ json: selected });
+    }
+    const id = route.request().url().split('?id=')[1];
+    return route.fulfill({ json: id ? conversations.get(decodeURIComponent(id)) : [...conversations.values()].map(({ turns, tokenUsage, ...info }) => info) });
+  });
+  if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/closed-1440-light-en.png' });
+  await editor.locator('p').first().click(); await page.keyboard.press('End');
+  await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  const panel = page.getByTestId('assistant-panel');
+  await expect(panel).toBeVisible();
+  const message = panel.getByRole('textbox', { name: 'Message assistant' });
+  await expect(message).toBeEnabled();
+  await expect(panel.getByRole('button', { name: 'Conversation model and language' })).toContainText('gpt-6.1-sol');
+  await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveText('日本語');
+  await panel.getByRole('button', { name: 'Response language', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Response language', exact: true }).selectOption('en');
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeVisible();
+  expect(settings.responseLanguage).toBe('ja');
+  const initialWidth = await panel.evaluate(element => element.getBoundingClientRect().width);
+  const resize = panel.getByRole('separator'); await resize.focus(); await page.keyboard.press('ArrowLeft');
+  await expect(resize).toHaveAttribute('aria-valuenow', String(Math.min(560, initialWidth + 20)));
+  const wide = await panel.evaluate(element => element.getBoundingClientRect().width);
+  expect(wide).toBe(Math.min(560, initialWidth + 20));
+  await message.fill('What changed in the current document?'); await panel.getByRole('button', { name: 'Send message', exact: true }).click();
+  await expect(panel.getByText('Partial answer', { exact: true })).toBeVisible();
+  expect(sent[0].document.source).toContain('preserved AI-off draft');
+  expect(sent[0].document.source).toContain('still editable');
+  expect(sent[0].document.path).toBe(pluginFixture.document);
+  expect(sent[0].responseLanguage).toBe('en');
+  await expect(panel.getByRole('button', { name: 'Conversation model and language' })).toBeDisabled();
+  await panel.getByRole('button', { name: 'Response language', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Model', exact: true })).toBeDisabled();
+  await expect(page.getByRole('combobox', { name: 'Reasoning effort', exact: true })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  selected.turns[0].items.find(item => item.kind === 'assistant').text = 'The unsaved paragraph adds a clear qualification. Check the stated conditions before using the conclusion.';
+  await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
+  await message.fill('Focus on the unsaved paragraph.'); await panel.getByRole('button', { name: 'Steer conversation' }).click();
+  await expect(panel.getByText('Direction updated: focus on the unsaved paragraph.', { exact: true })).toBeVisible();
+  expect(sent[1].id).toBe('thread-1');
+  await expect(panel.getByText('Context is nearly full. Start a new conversation soon.', { exact: true })).toBeVisible();
+  await panel.getByRole('img', { name: 'Context usage' }).hover();
+  await expect(page.locator('[data-slot=tooltip-content]')).toContainText('810 / 1,000 tokens · 81%');
+  if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/running-1440-light-en.png' });
+  await panel.getByRole('button', { name: 'Stop response' }).click();
+  await expect(panel.getByRole('button', { name: 'Conversation model and language' })).toBeEnabled();
+  // Assert direct completion state, without a reload or a polling assertion masking it.
+  expect(await panel.locator('details').evaluate(element => element.open)).toBe(false);
+  expect(await panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false }).isVisible()).toBe(true);
+  if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/stopped-1440-light-en.png' });
+  await panel.getByRole('button', { name: 'New conversation' }).click();
+  await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveText('日本語');
+  await panel.getByRole('button', { name: 'Conversation history' }).click();
+  if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/history-1440-light-en.png' });
+  await panel.getByRole('button', { name: /What changed in the current document/ }).click();
+  await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveText('English');
+  await panel.getByRole('button', { name: 'Close assistant' }).click();
+  await expect(editor).toBeFocused();
+  await page.keyboard.type(' after assistant'); await expect(editor).toContainText('after assistant');
+  await page.keyboard.press('Control+Shift+Y'); await expect(panel).toBeVisible();
+  expect(await panel.evaluate(element => element.getBoundingClientRect().width)).toBe(wide);
+  await panel.getByRole('button', { name: 'Close assistant' }).click();
+  await page.getByRole('button', { name: 'Find documents and commands', exact: true }).click();
+  await page.getByRole('combobox').fill('> Assistant');
+  await page.getByRole('option', { name: /Assistant/ }).click(); await expect(panel).toBeVisible();
+  await panel.getByRole('button', { name: 'Close assistant' }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Appearance & language', exact: true }).click();
+  await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
+  await page.getByTestId('settings-back').click();
+  await page.setViewportSize({ width: 640, height: 1000 });
+  await editor.locator('p').first().click();
+  await page.getByRole('button', { name: '비서', exact: true }).click();
+  await expect(panel).toHaveAttribute('aria-modal', 'true');
+  expect(await panel.evaluate(element => ({ width: element.getBoundingClientRect().width, overflow: element.scrollWidth > element.clientWidth }))).toEqual({ width: 640, overflow: false });
+  expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(true);
+  if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/assistant-640-dark-ko.png' });
+  await panel.getByRole('button', { name: '비서 닫기' }).click(); await expect(editor).toBeFocused();
+  expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(false);
+  if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/closed-640-dark-ko.png' });
+  await page.getByRole('button', { name: '비서', exact: true }).click();
+  await panel.getByRole('button', { name: '새 대화' }).click();
+  await panel.getByRole('button', { name: '비서 닫기' }).click();
+  setupMode = 'login'; await page.getByRole('button', { name: '비서', exact: true }).click();
+  await expect(panel.getByText('대화를 시작하려면 Codex에 로그인하세요.', { exact: true })).toBeVisible();
+  await expect(panel.getByRole('textbox')).toBeDisabled();
+  if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/setup-640-dark-ko.png' });
+  await panel.getByRole('button', { name: 'AI 설정 열기' }).click();
+  await expect(page.getByRole('heading', { name: 'AI 에이전트', exact: true }).last()).toBeVisible();
+  await page.getByTestId('settings-back').click();
+  await panel.getByRole('button', { name: '비서 닫기' }).click();
+  setupMode = 'missing'; await page.getByRole('button', { name: '비서', exact: true }).click();
+  await expect(panel.getByText('이 컴퓨터에서 Codex CLI를 찾을 수 없습니다. 설치 후 설정에서 진단을 실행하세요.', { exact: true })).toBeVisible();
+  await panel.getByRole('button', { name: '비서 닫기' }).click();
+  // Restore preferences for the other stable scenarios.
+  await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantWidth'); }, brand.storagePrefix);
+  return { settings: true, minimumViewport: true, nativeDocumentPreserved: true, conversations: true };
 }

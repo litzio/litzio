@@ -1,8 +1,8 @@
-# Main agent connection and settings
+# Main agent connection, settings and conversations
 
 - Status: Implemented
-- Last verified: 2026-11-02 (#931 connection/settings: fake stdio process and Host tests, targeted browser scenario, one real Codex response).
-- Scope: main-agent connection and Settings only. No conversation panel or thread HTTP API is implemented here.
+- Last verified: 2026-11-02 (#931 PR 2: fake stdio/Host tests, the `ai-agent` browser scenario, one real folder/document Q&A with steering and a separate history read).
+- Scope: main-agent connection, Settings, shell-owned assistant panel and Codex conversations. New-document results/undo and the usage-guide skill remain subsequent work.
 - Authority: [ADR-0014](../adr/0014-main-agent-app-server.md), [#931](https://github.com/litzio/litzio/issues/931) owner decisions and approved v3.1 settings mockup.
 
 ## Connection and environment
@@ -39,7 +39,8 @@ The `ai-agent` plugin's existing settings file stores:
   "enabled": true,
   "model": "gpt-6.1-sol",
   "reasoningEffort": "medium",
-  "writeAccess": "opened-folders"
+  "writeAccess": "opened-folders",
+  "responseLanguage": "ko"
 }
 ```
 
@@ -61,9 +62,24 @@ unregistration; accepted exec work retains its drain/cancellation path.
 Ordinary editing is unaffected.
 
 `writeAccess` is the single main-agent write-scope value (`opened-folders` or
-`read-only`). This phase stores it but exposes no thread execution endpoint.
-The conversation implementation will apply it to opened-folder access; it does
-not grant file access through these metadata routes or alter the Docling policy.
+`read-only`). Each new turn supplies the current opened-folder paths as
+`workspaceWrite.writableRoots`, or uses `readOnly`. Host path checks run before
+passing folder/document context to Codex. The dedicated cwd remains Codex's
+workspace; OS temporary write exceptions and network access are disabled in
+this turn policy. Approval policy is `never`; unsupported client requests are
+rejected, rather than opening an unimplemented approval dialog. User Codex
+configuration, MCP servers and login remain inherited. The existing-document
+rule is an agent instruction, not a new document-edit enforcement system.
+Steering retains the running turn's scope; new folder/settings choices apply to
+the next turn. Docling's separate execution policy is unchanged.
+
+Response language choices are Korean, English, Japanese and Follow document
+language. Until explicitly saved, the initial choice uses the current Litzio
+display language (Korean or English). Explicit Save persists it with the other
+AI settings; provider enablement does not silently save a language draft.
+Each new conversation starts from these defaults. Composer changes affect only
+that conversation and travel with its next message. Its last sent language is
+recovered from Codex history; no extra Litzio transcript is stored.
 
 | Route | Response |
 | --- | --- |
@@ -89,7 +105,7 @@ admitted task or its UUID identity. See [AI task service](plugin-runtime-v1.md#a
 The v3.1 flow is a Codex row with status dot/summary, diagnostics and enable
 switch; the row opens a searchable model dialog with supported efforts, default
 marker, update time and refresh. Diagnostics is a separate subview with return
-navigation. Defaults are provider, model and that model's supported effort.
+navigation. Defaults are provider, model, that model's supported effort and response language.
 The common environment shows cwd, `AGENTS.md` and actual Litzio skills.
 
 The existing Settings content/control widths, colors, type and shared modal
@@ -139,9 +155,98 @@ One real Codex 0.166.0 check used `gpt-6.1-sol` / `medium`, the user's existing
 login and the generated cwd instructions. It returned `Litzio 연결 확인 완료`
 in 12,643 ms, with eight discovered models and no diagnostic errors. Its owned
 app-server closed afterward. This is connection evidence, not folder-Q&A or
-document-writing verification. No second model call is needed for this PR.
+document-writing verification; it is the earlier connection/settings evidence.
 
-The right panel, opened-document context, thread metadata/history/resume,
-steering/interruption and context ring are assigned to PR 2 after this PR merges.
-No panel hook, thread store or conversation API is prebuilt here. AI execution
-is not a semantic document operation, so there is no new CLI command.
+## Assistant panel and conversations (#931 PR 2)
+
+The shell owns the right panel, its width and focus. The title-strip Assistant
+button, command center and `Ctrl+Shift+Y` (`Cmd+Shift+Y` on macOS) open it.
+`Ctrl+Shift+A` is deliberately avoided because Chrome owns it. The assistant
+and Outline share the right-side space: opening Outline replaces the assistant;
+closing the assistant restores the prior Outline choice. The assistant starts
+at `--layout-assistant-width` (392px) and can be resized from 340 to 560px by
+pointer or the focused separator's arrow keys. An explicit width is remembered
+in origin-local preferences. Below 1100px it fills the space below the title
+strip as an overlay; at the supported minimum 640px it is full width. Tab stays
+inside the overlay, Escape/Close returns to the previous editing focus, and
+ordinary editor state is retained. Plugin removal hides the entry and panel;
+Codex being off/unavailable or needing login gives an AI Settings entry instead
+of an enabled composer. The same Settings page provides Codex diagnostics.
+
+One conversation is one persistent Codex thread. A new thread is created on its
+first message with `ephemeral: false`, so it can also be resumed by ID in the
+user's ordinary Codex CLI. Litzio atomically writes only ID, title, folders and
+created/updated times to `assistant/conversations.json`. Messages, results and
+progress are owned by Codex. Choosing history calls `thread/resume` and pages
+`thread/turns/list` with full items. Current snapshots are held only in Host
+memory. A disconnected process marks active work failed and explicit resumption
+reloads Codex history; no model request is automatically replayed.
+
+`GET /api/ai-agent-conversations` lists metadata; `?id=…` reads a loaded snapshot.
+`POST` accepts `send`, `resume` and `interrupt` actions. These are concrete
+AI-plugin Host routes, not an arbitrary JSON-RPC proxy or a new UI contribution
+point. The installed/enabled provider gates all new conversation calls.
+
+Each send captures the current opened folders and active document. Native
+unsaved applied content uses the existing Core-backed `appliedSource()` path;
+unapplied node-view drafts are excluded, just as in Source. A text tab supplies
+its current text. Neither editor-engine objects nor a second Markdown
+implementation cross the Host boundary. The two user-input text parts carry the
+message and a marked read-only JSON context; the UI hides the context part when
+hydrating history. `document` response language follows the supplied document,
+or the user's language when none is open.
+
+A single nonoverlapping 600ms snapshot poll while the panel is open delivers
+message deltas, tool names/statuses, plans and reasoning **summaries**. Raw
+reasoning content is never included in the UI snapshot. Polling reuses the
+existing JSON transport and adds no streaming infrastructure. It pauses during
+an action and ignores responses after closing/switching. Running work continues
+when the panel closes. Model and effort are locked while running; a submitted
+message uses `turn/steer` with the expected turn ID. Stop uses `turn/interrupt`
+and retains partial results. Finished work details collapse to one line.
+
+The composer has model/effort and language chips using the shared Popover and
+select controls. The context ring below the input uses the latest token-usage
+notification and model context window, exposes numbers on hover/focus, and
+recommends a new conversation at 80%. Codex owns automatic compaction. Replies
+remain text; existing-document changes are suggestions with no Apply action.
+
+The browser scenario uses fake metadata/conversation responses to check settings
+language persistence versus per-conversation overrides, width controls,
+open/close/focus, unsaved Core Source context, deltas, steering, interruption,
+collapsed completion, history resumption, token usage, disabled/login/missing
+states and the 640px Korean Dark overlay. Headless tests run real newline RPC
+against the fixture, including scope, persistent metadata, paginated history,
+UTF-8, process loss and Host route admission. These mocks do not prove real
+account/tool availability.
+
+A real Codex 0.166.0 `gpt-6.1-sol`/`medium` turn plus one steering message finished
+in 30,379ms. It identified the folder file's `Atlas` and the unsaved editor
+context's `Hana`, and included the steering marker `STEER-931`; the disk still
+contained `Mira`. The inherited Windows shell failed with
+`CreateProcessAsUserW failed: 5`; the user's inherited Node MCP read the folder
+file successfully. Thus this proves folder/context Q&A and steering in that
+local environment, not general shell execution. A separate read-only resume
+recovered the same answer, Korean language and 31,207/475,000 token usage without
+a second model turn. All owned app-server processes were closed.
+
+Representative product captures from the same automated scenario (mock data):
+
+| State | Capture |
+| --- | --- |
+| Closed document view, 1440px English Light | [Image](assets/assistant-931/closed-1440-light-en.png) |
+| Running/steered, 1440px English Light | [Image](assets/assistant-931/running-1440-light-en.png) |
+| History, 1440px English Light | [Image](assets/assistant-931/history-1440-light-en.png) |
+| Resumed/stopped, 640px Korean Dark | [Image](assets/assistant-931/assistant-640-dark-ko.png) |
+| Login guidance, 640px Korean Dark | [Image](assets/assistant-931/setup-640-dark-ko.png) |
+
+The closed/open pair shows document-space changes for this newly added panel;
+it is not a historical screenshot. Compared with the static v3.1 mockup, the
+existing product shell, shared select popover, native notification control and
+plain-text responses supply the real controls/content. No example file links,
+future providers or new-document actions are fabricated.
+
+AI execution is not a semantic document operation, so this work adds no CLI
+command. New-document creation results/undo, the usage-guide skill, applying
+existing-document changes, Docling orchestration and other providers remain
+outside this PR.

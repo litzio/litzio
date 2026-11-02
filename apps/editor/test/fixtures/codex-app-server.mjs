@@ -1,9 +1,15 @@
 import { createInterface } from "node:readline";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import path from "node:path";
 const [log, mode] = process.argv.slice(2);
 const record = value => { if (log) appendFileSync(log, JSON.stringify(value) + "\n"); };
 record({ pid: process.pid, cwd: process.cwd(), home: process.env.CODEX_HOME ?? null });
 const send = message => process.stdout.write(JSON.stringify(message) + "\n");
+const threadFile = path.join(process.cwd(), "fixture-threads.json");
+const threads = existsSync(threadFile) ? JSON.parse(readFileSync(threadFile, "utf8")) : {};
+const persist = () => writeFileSync(threadFile, JSON.stringify(threads));
+const notify = (method, params) => send({ method, params });
 const model = (name, efforts) => ({ id: name, model: name, displayName: name, description: "한국어 모델", defaultReasoningEffort: efforts[0], supportedReasoningEfforts: efforts.map(reasoningEffort => ({ reasoningEffort, description: reasoningEffort })) });
 createInterface({ input: process.stdin }).on("line", line => {
   const message = JSON.parse(line); record(message);
@@ -13,6 +19,40 @@ createInterface({ input: process.stdin }).on("line", line => {
   if (method === "exit") process.exit(3);
   if (method === "malformed") { process.stdout.write("not json\n"); return; }
   if (method === "fail" || mode === "account-fail" && method === "account/read") { send({ id, error: { message: "fixture error" } }); return; }
+  if (method === "thread/start") {
+    const thread = { id: randomUUID(), turns: [], createdAt: Math.floor(Date.now() / 1000), updatedAt: Math.floor(Date.now() / 1000), cwd: process.cwd(), preview: "", status: { type: "idle" } };
+    threads[thread.id] = thread; persist(); send({ id, result: { thread, model: params.model, reasoningEffort: "medium" } }); return;
+  }
+  if (method === "thread/resume") { send({ id, result: { thread: threads[params.threadId], model: "gpt-6.1-sol", reasoningEffort: "medium", turnsBackwardsCursor: null, itemsBackwardsCursor: null } }); return; }
+  if (method === "thread/turns/list") {
+    const turns = threads[params.threadId].turns, offset = Number(params.cursor ?? 0);
+    send({ id, result: { data: turns.slice(offset, offset + 1), nextCursor: offset + 1 < turns.length ? String(offset + 1) : null, backwardsCursor: null } }); return;
+  }
+  if (method === "turn/start" || method === "turn/steer") {
+    const thread = threads[params.threadId];
+    const turn = method === "turn/start" ? { id: randomUUID(), status: "inProgress", items: [], itemsView: "full", error: null } : thread.turns.at(-1);
+    if (method === "turn/steer" && (turn.id !== params.expectedTurnId || turn.status !== "inProgress")) { send({ id, error: { message: "No matching active turn" } }); return; }
+    if (method === "turn/start") { thread.turns.push(turn); notify("turn/started", { threadId: thread.id, turn }); }
+    const user = { type: "userMessage", id: randomUUID(), clientId: null, content: params.input }; turn.items.push(user);
+    notify("item/completed", { threadId: thread.id, turnId: turn.id, item: user });
+    if (method === "turn/start") {
+      const reasoning = { type: "reasoning", id: randomUUID(), summary: ["Checking the opened document."], content: ["PRIVATE RAW REASONING"] };
+      const tool = { type: "commandExecution", id: randomUUID(), command: "Get-Content notes.md", cwd: process.cwd(), status: "completed", aggregatedOutput: "fixture", exitCode: 0, durationMs: 1, commandActions: [] };
+      turn.items.push(reasoning, tool);
+      for (const item of [reasoning, tool]) notify("item/completed", { threadId: thread.id, turnId: turn.id, item });
+      const answer = { type: "agentMessage", id: randomUUID(), text: "Partial answer", phase: "final_answer" }; turn.items.push(answer);
+      notify("item/started", { threadId: thread.id, turnId: turn.id, item: { ...answer, text: "" } });
+      notify("item/agentMessage/delta", { threadId: thread.id, turnId: turn.id, itemId: answer.id, delta: answer.text });
+      notify("thread/tokenUsage/updated", { threadId: thread.id, turnId: turn.id, tokenUsage: { total: { totalTokens: 2000 }, last: { totalTokens: 810 }, modelContextWindow: 1000 } });
+    }
+    persist(); send({ id, result: method === "turn/start" ? { turn } : { turnId: turn.id } }); return;
+  }
+  if (method === "turn/interrupt" || method === "fixture/finish") {
+    const thread = threads[params.threadId], turn = thread.turns.at(-1);
+    turn.status = method === "turn/interrupt" ? "interrupted" : "completed";
+    for (const item of turn.items.filter(item => item.type === "agentMessage")) notify("item/completed", { threadId: thread.id, turnId: turn.id, item });
+    notify("turn/completed", { threadId: thread.id, turn }); persist(); send({ id, result: {} }); return;
+  }
   const responses = {
     initialize: { userAgent: "fixture" },
     "model/list": params?.cursor ? { data: [model("next-model", ["low"])], nextCursor: null } : { data: [model("gpt-6.1-sol", ["medium", "high"]), model("chosen-model", ["xhigh"])], nextCursor: "page-2" },

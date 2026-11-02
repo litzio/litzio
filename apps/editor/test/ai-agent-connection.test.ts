@@ -6,8 +6,61 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodexAppServer, LineDecoder } from "../server/codex-app-server.ts";
 import { AiAgentConnection, AGENT_INSTRUCTIONS } from "../server/ai-agent-connection.ts";
+import { AiAgentConversations } from "../server/ai-agent-conversations.ts";
+import { RootAccess } from "../server/file-access.ts";
 
 export const fakeServer = fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url));
+
+test("conversation streams summaries, steers and interrupts one Codex thread; only its index is stored by Litzio", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "ai-conversation-")), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");
+  const connection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
+  const conversations = new AiAgentConversations(connection, new RootAccess([root]));
+  const settings = { provider: "codex" as const, enabled: true, writeAccess: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const input = { message: "What changed?", folders: [root], model: settings.model, reasoningEffort: "medium", responseLanguage: "ja" as const,
+    document: { path: path.join(root, "notes.md"), source: "UNSAVED DOCUMENT TEXT" } };
+  writeFileSync(input.document.path, "ON DISK");
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  const conversation = await conversations.send(input, settings);
+  assert.equal(conversation.turns[0]!.status, "inProgress");
+  assert.equal(conversation.turns[0]!.items.find(item => item.kind === "assistant")!.text, "Partial answer");
+  assert.deepEqual(conversation.tokenUsage, { used: 810, limit: 1000 });
+  assert.equal(JSON.stringify(conversation).includes("PRIVATE RAW REASONING"), false);
+  assert.equal(JSON.stringify(conversation).includes("UNSAVED DOCUMENT TEXT"), false, "context is not displayed as a user message");
+  await assert.rejects(conversations.send({ ...input, id: conversation.id, reasoningEffort: "high" }, settings), /locked/);
+  await conversations.send({ ...input, id: conversation.id, message: "Only summarize." }, settings);
+  assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "user").map(item => item.text), ["What changed?", "Only summarize."]);
+  await conversations.interrupt(conversation.id);
+  assert.equal(conversation.turns[0]!.status, "interrupted");
+  assert.equal(conversation.turns[0]!.items.find(item => item.kind === "assistant")!.text, "Partial answer");
+  assert.equal(readFileSync(input.document.path, "utf8"), "ON DISK");
+  const stored = JSON.parse(readFileSync(path.join(cwd, "conversations.json"), "utf8"));
+  assert.deepEqual(Object.keys(stored[0]).sort(), ["createdAt", "folders", "id", "title", "updatedAt"]);
+  const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  const start = rpc.find(item => item.method === "turn/start").params;
+  assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root], networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
+  assert.ok(start.input[1].text.includes("UNSAVED DOCUMENT TEXT"));
+  assert.equal(rpc.find(item => item.method === "thread/start").params.ephemeral, false);
+  assert.equal(rpc.find(item => item.method === "turn/steer").params.expectedTurnId, conversation.turns[0]!.id);
+  await connection.close();
+  const resumedConnection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
+  try {
+    const resumed = new AiAgentConversations(resumedConnection, new RootAccess([root]));
+    const history = await resumed.resume(conversation.id, settings, "en");
+    assert.equal(history.responseLanguage, "ja");
+    assert.equal(history.turns[0]!.status, "interrupted");
+    await resumed.send({ ...input, id: conversation.id, message: "Read only." }, { ...settings, writeAccess: "read-only" });
+    const requests = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+    assert.deepEqual(requests.filter(item => item.method === "turn/start").at(-1).params.sandboxPolicy, { type: "readOnly", networkAccess: false });
+    await resumedConnection.client.request("fixture/finish", { threadId: conversation.id });
+    const paged = await resumed.resume(conversation.id, settings, "en");
+    assert.deepEqual(paged.turns.map(turn => turn.status), ["interrupted", "completed"], "all pages are hydrated oldest first");
+    await resumed.send({ ...input, id: conversation.id, message: "Check disconnect." }, settings);
+    await assert.rejects(resumed.send({ ...input, folders: [path.dirname(root)] }, settings), /outside/);
+    await assert.rejects(resumed.resume("unknown-thread", settings, "en"), /not found/);
+    const active = paged.turns.at(-1)!;
+    await resumedConnection.close(); assert.equal(active.status, "failed"); assert.match(active.error!, /exited/);
+  } finally { await resumedConnection.close(); }
+});
 test("stdio splits UTF-8 safely", () => {
   const messages: any[] = [], decoder = new LineDecoder(message => messages.push(message));
   const bytes = Buffer.from('{"result":"한글"}\n{"result":2}\n');
