@@ -19,7 +19,9 @@ const parserSettings = ['parse.ts', 'serialize.ts', 'footnote.ts', 'literal-synt
 export function selectJobs(eventName, paths) {
   if (!['pull_request', 'merge_group'].includes(eventName) || !paths?.length) return allJobs();
   const full = paths.some(path => shared(path) || !known(path));
-  const browser = full || paths.some(path => ['apps/editor', 'packages/core', 'packages/file-commit', 'packages/plugin-api']
+  // Plugin scenarios consume UI assets, Host operations and conversion fixtures.
+  // Select whole packages rather than maintaining a second dependency graph.
+  const browser = full || paths.some(path => ['apps/editor', 'packages/core', 'packages/file-commit', 'packages/plugin-api', 'plugins/docling', 'plugins/ai-agent']
     .some(name => inPackage(path, name)));
   const http = browser || paths.some(path => ['packages/cli', 'plugins/docling', 'plugins/ai-agent'].some(name => inPackage(path, name)));
   return {
