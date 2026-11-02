@@ -3,6 +3,7 @@
  * shards using observed durations from CI run 40296330682 (#535).
  */
 export const STABLE_SCENARIOS = [
+  "numbering-mode",
   "brand-config",
   "docling-server",
   "docling-compare",

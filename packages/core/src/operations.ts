@@ -40,7 +40,7 @@ import {
   bodyIndex, completeFootnotes, createFootnoteDefinition, endnoteBlocks, endnotePlacement, footnoteLabels, footnoteReferences,
   supportedFootnoteContent,
 } from "./myst/footnote.ts";
-import { nextFootnoteLabel, planEndnoteLifecycle } from "./numbering.ts";
+import { nextFootnoteLabel, planEndnoteLifecycle, planNumberingChange } from "./numbering.ts";
 import { canonicalCitation, type CitationContent } from "./citation.ts";
 import { FRONT_MATTER_FIELD, parse } from "./myst/parse.ts";
 import { serialize, serializeFor } from "./myst/serialize.ts";
@@ -996,8 +996,22 @@ export function updateLabel(document: MystDocument, path: NodePath, label: strin
   return next;
 }
 
-/** Set an authored MyST enumerator, or clear it with "". Number consistency is diagnostic
- * only. Session checks permit incomplete empty equations; final canonical write remains strict. */
+/** Convert caption targets using one pre-conversion display snapshot. */
+export function updateNumberingMode(document: MystDocument, mode: "automatic" | "fixed"): MystDocument {
+  const changes = planNumberingChange(getEditableDocument(document).blocks, mode);
+  const next = cloneDocument(document);
+  for (const change of changes) {
+    const index = change.path[0];
+    if (next.children[index].type === "table") next.children[index] = tableBlockNode(next.children[index], [], "");
+    const node = getNode(next, change.path);
+    if (change.enumerator === "") delete node.enumerator;
+    else node.enumerator = change.enumerator;
+  }
+  serializeFor(next, "Numbering conversion cannot be preserved through canonical round-trip");
+  return next;
+}
+
+/** Set or clear one fixed number. Session checks permit incomplete equations; final writes remain strict. */
 export function updateEnumerator(document: MystDocument, path: NodePath, enumerator: string): MystDocument {
   if (!Array.isArray(path) || path.length !== 1) throw new DocumentDiagnosticError("invalid-operation", "updateEnumerator requires a top-level Equation, Figure or Table path [index]");
   const current = getNode(document, path);

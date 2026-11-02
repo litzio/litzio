@@ -1,6 +1,13 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Caption numbering": "Caption numbering",
+  "Mixed": "Mixed",
+  "Make all automatic": "Make all automatic",
+  "Make all fixed": "Make all fixed",
+  "Fix current number": "Fix current number",
+  "Automatic and fixed numbers may be mixed intentionally, for example in appendices.": "Automatic and fixed numbers may be mixed intentionally, for example in appendices.",
+
   "Reload the comparison before applying proposals.": "Reload the comparison before applying proposals.",
   "The comparison may not be current. Automatic reload stopped. Reload it to continue.": "The comparison may not be current. Automatic reload stopped. Reload it to continue.",
   "Reload comparison": "Reload comparison",
@@ -213,7 +220,7 @@ export const en = {
   "Automatic": "Automatic",
   "Automatic number: {{number}}": "Automatic number: {{number}}",
   "Enter a fixed number or choose Automatic.": "Enter a fixed number or choose Automatic.",
-  "Missing fixed number in a fixed-number document. Saving is allowed.": "Missing fixed number in a fixed-number document. Saving is allowed.",
+  "This target has no fixed number. Saving is allowed.": "This target has no fixed number. Saving is allowed.",
   "Fixed number {{number}} is duplicated for this kind. Saving is allowed.": "Fixed number {{number}} is duplicated for this kind. Saving is allowed.",
   "Numbering warnings: {{count}}. Review Number in block properties for missing or duplicate fixed numbers. Saving is allowed.": "Numbering warnings: {{count}}. Review Number in block properties for missing or duplicate fixed numbers. Saving is allowed.",
   "Open log folder": "Open log folder",
@@ -899,6 +906,13 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Caption numbering": "캡션 번호 방식",
+  "Mixed": "혼합",
+  "Make all automatic": "모두 자동으로",
+  "Make all fixed": "모두 고정으로",
+  "Fix current number": "지금 번호로 고정",
+  "Automatic and fixed numbers may be mixed intentionally, for example in appendices.": "부록 번호 등에서 자동과 고정을 의도적으로 섞어 쓸 수 있습니다.",
+
   "Reload the comparison before applying proposals.": "제안을 적용하기 전에 대조 화면을 다시 불러오세요.",
   "The comparison may not be current. Automatic reload stopped. Reload it to continue.": "대조 화면이 최신이 아닐 수 있습니다. 자동 불러오기를 중단했습니다. 다시 불러온 뒤 계속하세요.",
   "Reload comparison": "다시 불러오기",
@@ -1111,7 +1125,7 @@ export const ko: Record<keyof typeof en, string> = {
   "Automatic": "자동",
   "Automatic number: {{number}}": "자동 번호: {{number}}",
   "Enter a fixed number or choose Automatic.": "고정 번호를 입력하거나 자동을 선택하세요.",
-  "Missing fixed number in a fixed-number document. Saving is allowed.": "고정 번호 문서에서 번호가 빠져 있습니다. 저장할 수 있습니다.",
+  "This target has no fixed number. Saving is allowed.": "이 대상에 고정 번호가 없습니다. 저장할 수 있습니다.",
   "Fixed number {{number}} is duplicated for this kind. Saving is allowed.": "같은 종류에 고정 번호 {{number}}이(가) 중복됩니다. 저장할 수 있습니다.",
   "Numbering warnings: {{count}}. Review Number in block properties for missing or duplicate fixed numbers. Saving is allowed.": "번호 경고 {{count}}개. 블록 속성의 번호에서 누락되거나 중복된 고정 번호를 확인하세요. 저장할 수 있습니다.",
   "Open log folder": "로그 폴더 열기",

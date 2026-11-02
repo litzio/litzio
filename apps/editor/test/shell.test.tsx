@@ -658,10 +658,10 @@ test("document settings summarizes current values and readonly has no editable c
   const props = {expanded: false, onExpandedChange: noop, readOnly: false, disabled: false, headingNumbering: true,
     referenceTemplates: {figure: "Fig. %s", table: "Table %s", equation: "(%s)"}, bibliography: ["refs.bib"],
     onToggleHeadingNumbering: noop, onReferenceStyleChange: noop, onConnectBibliography: noop};
-  const html = renderToStaticMarkup(<DocumentSettings {...props} />);
+  const html = renderToStaticMarkup(<DocumentSettings numberingMode="automatic" onNumberingModeChange={() => {}} {...props} />);
   assert.match(html, /aria-expanded="false"/);
   assert.match(html, /Numbered headings · Concise references · refs.bib/);
-  const readonly = renderToStaticMarkup(<DocumentSettings {...props} readOnly />);
+  const readonly = renderToStaticMarkup(<DocumentSettings numberingMode="automatic" onNumberingModeChange={() => {}} {...props} readOnly />);
   assert.doesNotMatch(readonly, /aria-expanded=|<input|<button/);
   assert.match(readonly, /Numbered headings · Concise references · refs.bib/);
 });

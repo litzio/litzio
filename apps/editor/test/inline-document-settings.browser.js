@@ -11,8 +11,8 @@ async (page, { openPath, screenshots, withBlockHover }) => {
   const separator = defaultPath.includes('\\')?'\\':'/';
   // A minimum-height paper and unchanged editor size must not hide position-only layout changes.
   // Keep the short fixture below the paper minimum even with settings expanded
-  // and #793's permanently reserved table metadata row. Size invariants below remain required.
-  await page.setViewportSize({width:1440,height:1280});
+  // and #793's table metadata row plus #892's caption numbering controls. Size invariants remain required.
+  await page.setViewportSize({width:1440,height:1600});
   const short=[...defaultPath.split(separator).slice(0,-4), 'tmp', 'inline-document-settings', 'short.md'].join(separator);
   await openPath(page,short);
   await page.evaluate(async () => { await document.fonts.ready; });
@@ -74,6 +74,8 @@ async (page, { openPath, screenshots, withBlockHover }) => {
   await body().waitFor();
   await page.keyboard.press('Tab');
   assert(await active().getByRole('checkbox',{name:'Number headings',exact:true}).evaluate(n=>n===document.activeElement),'Tab enters the numbering control');
+  await page.keyboard.press('Tab');
+  assert(await active().getByRole('button',{name:'Make all fixed',exact:true}).evaluate(n=>n===document.activeElement),'Tab reaches caption numbering conversion');
   await page.keyboard.press('Tab'); await page.keyboard.press('Enter');
   const menu = page.getByRole('menu',{name:'Reference style',exact:true});
   await menu.and(page.locator(':focus-within')).waitFor();

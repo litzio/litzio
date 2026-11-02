@@ -265,3 +265,24 @@ test("default reference text matches MyST no-break spaces exactly without author
   assert.equal(core.referenceNumberText("table", 1), "Table\u00a01");
   assert.doesNotMatch(core.serialize(core.createDocument()), /numbering:/);
 });
+
+
+test("document numbering conversion freezes a simultaneous display snapshot and preserves authored strings", async () => {
+  const c = await import("../src/index.ts");
+  const original = c.parse("---\nlitzio: 1\n---\n\n:::{figure}\n:enumerator: A.3\n:::\n\n:::{figure}\n:::\n\n:::{figure}\n:::\n\n$$\nx=1\n$$\n\n| A |\n| --- |\n");
+  const report = (doc: Parameters<typeof c.getEditableDocument>[0]) => c.numberingReport(c.getEditableDocument(doc).blocks);
+  assert.equal(report(original).mode, "mixed");
+  const before = c.serialize(original);
+  const fixed = c.updateNumberingMode(original, "fixed");
+  assert.deepEqual(report(fixed).targets.map(t => t.enumerator), ["A.3", "1", "2", "1", "1"]);
+  assert.equal(report(fixed).mode, "fixed");
+  assert.equal(c.serialize(original), before);
+  assert.equal(c.serialize(c.parse(c.serialize(fixed))), c.serialize(fixed));
+  assert.equal(c.serialize(c.updateNumberingMode(fixed, "fixed")), c.serialize(fixed));
+  const automatic = c.updateNumberingMode(fixed, "automatic");
+  assert.equal(report(automatic).mode, "automatic");
+  assert.deepEqual(report(automatic).targets.map(t => t.number), [1, 2, 3, 1, 1]);
+  assert.equal(report(c.createDocument()).mode, "automatic");
+  const empty = c.insertEquation(c.createDocument(), 1, "");
+  assert.equal(c.canonicalWriteIssue(c.updateNumberingMode(empty, "fixed"))?.code, "fixed-number-unrepresentable");
+});

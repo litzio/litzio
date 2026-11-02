@@ -94,9 +94,10 @@ export function numberingReport(blocks: readonly { block: string; path: readonly
   const targets = blocks.flatMap((block, index) => NUMBERED_KINDS.flatMap(kind => numbers[index][kind] === undefined ? [] : [{
     kind, path: block.path, number: numbers[index][kind]!, ...(block.enumerator !== undefined ? { enumerator: block.enumerator } : {}),
   }]));
-  const mode: "fixed" | "automatic" = targets.some(target => target.enumerator !== undefined) ? "fixed" : "automatic";
+  const fixed = targets.filter(target => target.enumerator !== undefined).length;
+  const mode: "automatic" | "fixed" | "mixed" = fixed === 0 ? "automatic" : fixed === targets.length ? "fixed" : "mixed";
   const diagnostics: NumberingDiagnostic[] = [];
-  if (mode === "fixed") {
+  if (mode !== "automatic") {
     const counts = new Map<NumberedKind, Map<string, number>>();
     for (const target of targets) if (target.enumerator !== undefined) {
       const used = counts.get(target.kind) ?? new Map<string, number>();
@@ -109,6 +110,15 @@ export function numberingReport(blocks: readonly { block: string; path: readonly
     }
   }
   return { mode, targets, diagnostics };
+}
+
+/** A simultaneous conversion plan based on the applied document's current display numbers.
+ * Existing fixed strings are retained; clearing them restores automatic counters. */
+export function planNumberingChange(blocks: Parameters<typeof numberingReport>[0], mode: "automatic" | "fixed") {
+  if (mode !== "automatic" && mode !== "fixed") throw new Error("numbering mode must be automatic or fixed");
+  return numberingReport(blocks).targets.flatMap(target =>
+    mode === "automatic" ? target.enumerator === undefined ? [] : [{ path: target.path, enumerator: "" }]
+      : target.enumerator !== undefined ? [] : [{ path: target.path, enumerator: String(target.number) }]);
 }
 
 /** Number exact identifiers 1, 2, ... in the order their first reference is read. */

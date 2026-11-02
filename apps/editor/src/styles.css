@@ -195,6 +195,7 @@ button {
 }
 .document-settings-row > :first-child { padding-top: var(--space-1); overflow-wrap: anywhere; }
 .document-settings-control { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); min-width: 0; }
+.caption-numbering-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
 .document-settings-row > label { min-height: var(--size-control-compact); cursor: pointer; }
 .document-settings-control input { width: var(--size-icon-slot); height: var(--size-icon-slot); accent-color: var(--id-color-interaction); }
 .document-settings-control input:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); }
