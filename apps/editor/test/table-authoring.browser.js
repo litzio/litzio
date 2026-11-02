@@ -80,6 +80,8 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   const wrapLabel = 'This document’s tables: wrap long text';
   const paper = () => page.locator('[data-document-tab][data-active=true] [data-testid=document-editor]');
   const toggleFromCenter = async () => {
+    // Reload can resolve before React attaches the active editor and app shortcuts.
+    await expect(paper()).toBeVisible();
     await page.keyboard.press('Control+Slash');
     const center = page.getByRole('dialog', {name:'Command center',exact:true});
     await center.getByRole('combobox').fill('> ' + wrapLabel);
