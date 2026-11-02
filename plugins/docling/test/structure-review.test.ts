@@ -86,6 +86,15 @@ async function failPublishedCleanup(t: test.TestContext, folder: string, operati
   return problem;
 }
 
+test("review view accepts the same UTF-8 BOM original as conversion and preserves its bytes", async t => {
+  const original = "\uFEFF" + structureReviewSource(), f = setup(t, original);
+  assert.equal(f.call("status").available, true);
+  await f.start(); f.service.complete();
+  const view = f.call("proposals");
+  assert.equal(view.proposals[0]!.before.text, "Subsection");
+  assert.equal(readFileSync(f.input, "utf8"), original);
+});
+
 test("initial published cleanup failure reports the warning but admits review instead of stranding running work", async t => {
   const f = setup(t), id = randomUUID();
   await failPublishedCleanup(t, f.folder, () => f.start(id));

@@ -2,26 +2,39 @@ import { useEffect, useRef, useState } from "react";
 import type { UiHost } from "@litzio/plugin-api/ui";
 import type { StructureReviewer } from "./structure-review.ts";
 type Review = ReturnType<StructureReviewer["list"]> & { problem?: string };
-export function ReviewPanel({ host, folder, summary = false, agentReady = true, onSelect, onChanged }: {
-  host: UiHost; folder: string; summary?: boolean; agentReady?: boolean; onSelect?(refs: string[]): void; onChanged?(): Promise<void>;
+export function ReviewPanel({ host, folder, summary = false, agentReady = true, documentReady = true, onSelect, onChanged }: {
+  host: UiHost; folder: string; summary?: boolean; agentReady?: boolean; documentReady?: boolean; onSelect?(refs: string[]): void; onChanged?(): Promise<void>;
 }) {
   const { text, Button } = host;
   const [review, setReview] = useState<Review>(), [problem, setProblem] = useState("");
+  const [readProblem, setReadProblem] = useState("");
   const [busy, setBusy] = useState(false), pending = useRef(false);
   const [selected, setSelected] = useState("");
-  const generation = useRef(0);
+  const generation = useRef(0), needsDocumentRefresh = useRef(false);
   const alive = useRef(true), enabled = host.features?.review !== false;
   const refresh = async () => {
     const version = generation.current;
-    const value = await host.readJson<Review>("api/docling-review", { folder });
-    if (alive.current && version === generation.current) setReview(value);
+    try {
+      if (needsDocumentRefresh.current) {
+        await onChanged?.();
+        if (!alive.current || version !== generation.current) return;
+      }
+      const value = await host.readJson<Review>("api/docling-review", { folder });
+      if (!alive.current || version !== generation.current) return;
+      needsDocumentRefresh.current = false;
+      setReview(value); setReadProblem("");
+    } catch (error) {
+      if (alive.current && version === generation.current) setReadProblem(error instanceof Error ? error.message : String(error));
+      throw error;
+    }
   };
+
   useEffect(() => {
     alive.current = true;
     let stopped = false, timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try { if (!pending.current) await refresh(); }
-      catch (error) { if (!stopped) setProblem(String(error)); }
+      catch { /* refresh owns contextual read errors; observation retries GET only. */ }
       finally { if (!stopped) timer = setTimeout(poll, 1000); }
     };
     if (enabled) void poll();
@@ -30,16 +43,25 @@ export function ReviewPanel({ host, folder, summary = false, agentReady = true, 
   const act = async (action: string) => {
     if (pending.current) return;
     generation.current++; pending.current = true; setBusy(true); setProblem("");
+    const changesDocument = action === "approve" || action === "undo";
+    // Even a failed response may follow a committed publication. Never replay it.
+    if (changesDocument) needsDocumentRefresh.current = true;
+    const errors: string[] = [];
     try {
       const value = await host.requestJson<Review & { error?: string }>(`api/docling-review${["approve", "reject", "undo"].includes(action) ? `-${action}` : ""}`,
         action === "cancel" ? "DELETE" : "POST", { folder, id: action === "start" ? crypto.randomUUID() : selected });
       if (value.error) throw new Error(value.error);
-      if (action === "approve" || action === "undo") await onChanged?.();
-      if (alive.current) setReview(value);
-    } catch (error) { if (alive.current) setProblem(error instanceof Error ? error.message : String(error)); }
-    finally { pending.current = false; if (alive.current) setBusy(false); }
+      if (!changesDocument && alive.current) setReview(value);
+    } catch (error) { errors.push(error instanceof Error ? error.message : String(error)); }
+    try { if (changesDocument) await refresh(); }
+    catch { /* Keep the reconciliation flag and read error for the next poll. */ }
+    finally {
+      pending.current = false;
+      if (alive.current) { setProblem(errors.join("; ")); setBusy(false); }
+    }
   };
-  const reason = !enabled ? "Review is disabled." : !review?.available || !agentReady ? "AI agent is disabled or unavailable." : host.features?.conversion === false ? "Enable PDF conversion to apply review corrections." : "";
+
+  const reason = !enabled ? "Review is disabled." : !review?.available || !agentReady ? "AI agent is disabled or unavailable." : host.features?.conversion === false ? "Enable PDF conversion to apply review corrections." : (!documentReady || needsDocumentRefresh.current) ? "Loading…" : "";
   const task = review?.task, proposal = review?.proposals.find(p => p.id === selected);
   type Proposal = Review["proposals"][number];
   const kind = (operation: Proposal["suggestion"]["operation"]) => text({ heading: "Heading depth", "merge-paragraphs": "Merge paragraphs", furniture: "Header/footer classification" }[operation]);
@@ -60,7 +82,7 @@ export function ReviewPanel({ host, folder, summary = false, agentReady = true, 
     </div>
     {reason ? <p>{text(reason)}</p> : null}
     {task ? <p role="status">{text(task.status === "running" ? "Review in progress" : task.status === "success" ? "Review completed" : task.status === "cancelled" ? "Review cancelled" : task.status === "uncertain" ? "Review outcome is uncertain. Check before starting again." : "Review failed")}{task.failure ? ` · ${text(task.failure)}` : ""}{task.error ? ` · ${task.error}` : ""}</p> : null}
-    {problem || review?.problem ? <p role="alert">{problem || review?.problem}</p> : null}
+    {problem || readProblem || review?.problem ? <p role="alert">{[problem, readProblem, review?.problem].filter(Boolean).join("; ")}</p> : null}
     {!summary && enabled && review?.available ? <div className="docling-review-content">
       <div className="docling-review-list" aria-label={text("Review proposals")}>
         {!review.proposals.length ? <p>{text("No review proposals yet.")}</p> : null}

@@ -546,7 +546,8 @@ and POST `api/docling-review-approve`, `-reject`, `-undo`. GET
 `api/docling-review-agent` reads the Host service status, without importing the AI plugin.
 The GET view wraps C1 read failures as a contextual `problem` (for example a removed result folder);
 direct C1 operations and decision refusals retain their errors.
-The proposal read includes actual original target/continuation text, label/level and currently approved changes for
+The proposal read uses the existing source parser, including UTF-8 BOM handling,
+and includes actual original target/continuation text, label/level and currently approved changes for
 that target to explain Before alongside the proposed operation/value After.
 No new CLI: #766 item 6 retains A's `apply-corrections`; AI execution stays in B.
 

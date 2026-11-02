@@ -1,7 +1,7 @@
 import type { UiHost, UiContributions } from "@litzio/plugin-api/ui";
 import { DoclingCompareView } from "./comparison/CompareView.tsx";
 import type { ComparisonSnapshot } from "./comparison/compare.ts";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DoclingServerSettings, useDoclingConversion, type Request } from "./conversion/ServerSettings.tsx";
 import { DoclingConversionDialog } from "./conversion/ConversionDialog.tsx";
 import { doclingFailureMessage, type ConversionJob } from "./conversion/server-types.ts";
@@ -50,17 +50,41 @@ export function activate(host: UiHost): UiContributions {
       onCancel={() => void converter.cancel()} /> : null;
   }
   function Comparison({ data }: { data: ComparisonSnapshot }) {
-    const [snapshot, setSnapshot] = useState(data);
+    const [snapshot, setSnapshot] = useState<ComparisonSnapshot>();
+    const [problem, setProblem] = useState("");
     const [refs, setRefs] = useState<string[]>([]);
+    const alive = useRef(false), generation = useRef(0);
     const folder = data.path.replace(/[\\/][^\\/]+$/, "");
+    const refresh = useCallback(async () => {
+      const version = ++generation.current;
+      try {
+        const current = await host.readJson<ComparisonSnapshot>("api/docling-compare", { path: data.path });
+        if (alive.current && version === generation.current) { setSnapshot(current); setProblem(""); }
+      } catch (error) {
+        if (alive.current && version === generation.current) {
+          setSnapshot(undefined); setProblem(error instanceof Error ? error.message : String(error));
+        }
+        throw error;
+      }
+    }, [data.path]);
+    useEffect(() => {
+      alive.current = true;
+      let stopped = false, timer: ReturnType<typeof setTimeout>;
+      const load = async () => {
+        try { await refresh(); }
+        catch { if (!stopped) timer = setTimeout(load, 1000); }
+      };
+      void load();
+      return () => { stopped = true; alive.current = false; generation.current++; clearTimeout(timer); };
+    }, [refresh]);
     return <div className="docling-review-comparison">
-      <DoclingCompareView snapshot={snapshot} ReadingSurface={host.ReadingSurface} Button={host.Button} text={host.text}
+      {snapshot ? <DoclingCompareView snapshot={snapshot} ReadingSurface={host.ReadingSurface} Button={host.Button} text={host.text}
         selectedRefs={refs} imageUrl={uri => host.imageUrl(snapshot.path, uri)} />
-      <ReviewPanel host={host} folder={folder} onSelect={setRefs} onChanged={async () => {
-        setSnapshot(await host.readJson<ComparisonSnapshot>("api/docling-compare", { path: data.path }));
-      }} />
+        : <div className="docling-compare" role="status">{problem || host.text("Loading…")}</div>}
+      <ReviewPanel host={host} folder={folder} documentReady={!!snapshot} onSelect={setRefs} onChanged={refresh} />
     </div>;
   }
+
   function GuideLink({ children }: { children?: React.ReactNode }) {
     const href = "https://github.com/litzio/litzio/blob/master/docs/guides/docling-server.md";
     return <a href={href} className="w-fit text-primary underline underline-offset-4" onClick={event => { event.preventDefault(); host.openExternalLink(href); }}>{children}</a>;

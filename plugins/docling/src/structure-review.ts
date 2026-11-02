@@ -1,4 +1,5 @@
 import { Ajv } from "ajv";
+import { parseSourceJson, type SourceDocument } from "./conversion/source.ts";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -184,7 +185,7 @@ export class StructureReviewer {
     const service = this.service(review.task?.id);
     const receipt = review.task?.status === "running" && service ? this.receipt(service, review.task) : null;
     const ledger = readFolderCorrections(folder);
-    const original = sourceSha256 === ledger.source.sha256 ? JSON.parse(this.source(folder, ledger).text) : {};
+    const original = sourceSha256 === ledger.source.sha256 ? (parseSourceJson(this.source(folder, ledger).text) as SourceDocument) : { texts: [] };
     return { available: !!this.host.aiTasks(), task: review.task, canCancel: receipt?.canCancel ?? false,
       proposals: review.proposals.map(p => {
         const originalItem = original.texts?.find((item: { self_ref: string }) => item.self_ref === p.suggestion.self_ref);

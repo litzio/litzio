@@ -137,7 +137,10 @@ conversion and shared Host registration APIs remain available without a view.
 `readJson`/`requestJson`, controls and reading-layout callbacks. Original-ref
 selection and measured-block highlighting need no new Host UI contribution point.
 C1 Host operations own decisions and regeneration; the plugin rereads the pair
-before completing approval/undo. Review feature changes use the same activation
+before completing approval/undo. Recreated Docling comparison views reread the
+current generation rather than treating retained shell data as current. Error
+responses after publication and failed refresh reads trigger GET-only reconciliation
+of the comparison and proposals; no approval/undo is replayed. Review feature changes use the same activation
 lifecycle as conversion/comparison. No Editor internal import or CLI is added.
 
 ## Verification
