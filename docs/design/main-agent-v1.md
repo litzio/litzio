@@ -203,7 +203,11 @@ pointer or the focused separator's arrow keys. An explicit width is remembered
 in origin-local preferences. Below 1100px it fills the space below the title
 strip as an overlay; at the supported minimum 640px it is full width. Tab stays
 inside the overlay, Escape/Close returns to the previous editing focus, and
-ordinary editor state is retained. The composer remains disabled until settings,
+ordinary editor state is retained. The notification center stays hidden and inert
+while this modal is open. In the nonmodal layout, notifications sit to the left
+of the assistant instead of over its composer (#970; see
+[layout rules](editor-layout-rules-v1.md#notification-placement-beside-right-panels-970)).
+The composer remains disabled until settings,
 diagnostics and any conversation resumption succeed. Initial focus completes at
 that point only while the panel is still open and no later focus move has occurred;
 slow setup does not steal focus from a control the user selected meanwhile.

@@ -207,6 +207,18 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   expect(await message.inputValue(), 'Typing after opening goes to the assistant').toBe('Assistant keyboard input');
   expect(await editor.textContent()).not.toContain('Assistant keyboard input');
   await message.fill('');
+  // At intermediate widths the assistant remains modal; closing restores the center.
+  for (const width of [1440, 1024]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
+    await expect(page.locator('.notification-center')).toBeVisible();
+    if (screenshots) await page.screenshot({ path: `tmp/970-assistant-${width}-closed.png` });
+    await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+    await expect(message).toBeEnabled();
+    if (width === 1024) await expect(page.locator('.notification-center')).toBeHidden();
+    if (screenshots) await page.screenshot({ path: `tmp/970-assistant-${width}-open.png` });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(panel.getByRole('button', { name: 'Conversation model and language' })).toContainText('gpt-6.1-sol');
   await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveText('日本語');
   await panel.getByRole('button', { name: 'Response language', exact: true }).click();
@@ -220,6 +232,17 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await expect(resize).toHaveAttribute('aria-valuenow', String(Math.min(560, initialWidth + 20)));
   const wide = await panel.evaluate(element => element.getBoundingClientRect().width);
   expect(wide).toBe(Math.min(560, initialWidth + 20));
+  const notification = page.locator('.notification-center');
+  for (const expanded of [false, true]) {
+    const bell = notification.locator(':scope > button');
+    if (await bell.getAttribute('aria-expanded') !== String(expanded)) await bell.click();
+    if (screenshots) await page.screenshot({ path: `tmp/970-assistant-1440-${expanded ? 'list' : 'bell'}.png` });
+    const bounds = await notification.boundingBox();
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual((await panel.boundingBox()).x - 16);
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.y).toBeGreaterThanOrEqual(0);
+  }
+  await notification.locator(':scope > button').click();
   await message.fill('What changed in the current document?'); await panel.getByRole('button', { name: 'Send message', exact: true }).click();
   await expect(panel.getByText('Partial answer', { exact: true })).toBeVisible();
   await expect(panel.locator('[data-kind=tool]').filter({ hasText: 'create_document' })).toContainText('Completed');
