@@ -32,6 +32,7 @@ function command(bin: string) {
   return { bin: shell ? `"${bin}"` : bin, shell };
 }
 export class CodexAppServer extends EventEmitter {
+  toolCall?: (params: any) => unknown;
   private child?: ChildProcessWithoutNullStreams;
   private ready?: Promise<void>;
   private closed = false;
@@ -75,7 +76,16 @@ export class CodexAppServer extends EventEmitter {
   private write(message: Message) { this.child?.stdin.write(JSON.stringify(message) + "\n"); }
   private dispatch(message: Message) {
     if (message.id !== undefined && message.method) {
-      // Settings/diagnostics never run tools or request permission.
+      if (message.method === "item/tool/call" && this.toolCall) {
+        const child = this.child;
+        Promise.resolve().then(() => this.toolCall!(message.params)).then(result => {
+          if (this.child === child) this.write({ id: message.id, result });
+        }, error => {
+          if (this.child === child) this.write({ id: message.id, result: { success: false, contentItems: [{ type: "inputText", text: JSON.stringify({ error: error.message }) }] } });
+        });
+        return;
+      }
+      // All other server requests (including approvals) remain unsupported.
       this.write({ id: message.id, error: { code: -32601, message: "Unsupported client request." } }); return;
     }
     if (message.id !== undefined) {

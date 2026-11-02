@@ -54,7 +54,7 @@ The shell owns the right docked panel, width and focus without a new plugin
 contribution point. Codex owns thread content; Litzio stores only list metadata.
 The panel uses short snapshot polling for summaries/tools, steering,
 interruption and context usage. Model/effort defaults and response language
-come from AI Settings; per-conversation overrides do not change those defaults. New-document results/undo, guide skill content, existing-document
+come from AI Settings; per-conversation overrides do not change those defaults. New-document result cards/undo, guide skill content, existing-document
 editing, Docling integration, other providers, assistant tabs and an agent home
 screen remain outside the current delivery.
 
@@ -64,3 +64,25 @@ document semantics and their existing CLI/Core operations remain unchanged.
 
 Current routes, settings and verification are defined by
 [Main agent connection, settings and conversations](../design/main-agent-v1.md).
+
+
+## Document tool decision (2026-11-02)
+
+The owner's implementation-2 decision uses Codex dynamic tools for
+`create_document`, `read_document` and `list_documents`. Host directly handles
+`item/tool/call` on the same stdio connection; shell execution is unnecessary.
+One small provider-neutral Host module validates inputs and calls existing Core
+operations/read/list paths. No registry framework, MCP server or provider
+abstraction is introduced. Host enforces captured turn write permission, opened
+folders, operator Roots, real-path boundaries and exclusive new-file creation.
+Steering keeps the running scope. Structured result content stays in Codex history
+and is preserved by the Host snapshot, including creation path and revision.
+
+The 0.166.0 resume type cannot register tools. A real fresh-process resume retained
+both the original tool specifications and creation receipt, and a subsequent read
+call succeeded. Threads originally started without tools require a new conversation;
+Litzio does not claim retroactive registration. Terminal CLI resumption has no
+Litzio tool handler: the owner's chosen alternative is usage guidance via a skill
+(delivered with result cards/undo in PR 2). AI execution adds no semantic operation,
+so separate CLI parity is omitted. Exact inputs, permissions and verification are
+in the [implemented contract](../design/main-agent-v1.md#document-tools-931-implementation-2-pr-1).

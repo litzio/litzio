@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync, chmodSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync, chmodSync, mkdirSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -122,4 +122,54 @@ test("installed CLI launcher paths with spaces support version diagnostics and r
   const current = new CodexAppServer(root, { bin });
   try { assert.equal(await current.version(), "codex-cli 0.166.0"); await current.connect(); assert.ok(existsSync(log)); }
   finally { await current.close(); }
+});
+
+
+test("dynamic document tools enforce turn scope and preserve results across process resume", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "ai-tools-")), folder = path.join(root, "docs"), outside = path.join(root, "outside"), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");
+  mkdirSync(folder); mkdirSync(outside);
+  const connection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
+  const conversations = new AiAgentConversations(connection, new RootAccess([root]));
+  const settings = { provider: "codex" as const, enabled: true, writeAccess: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const input = { message: "Create Hello", folders: [folder], model: settings.model, reasoningEffort: "medium", responseLanguage: "en" as const };
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  const conversation = await conversations.send(input, settings);
+  const call = async (tool: string, args: unknown, extra = {}) => (await connection.client.request("fixture/tool", { threadId: conversation.id, tool, arguments: args, ...extra }));
+  const file = path.join(folder, "Hello.md"), args = { path: file, title: "Hello", blocks: [{ type: "heading", level: 2, text: "Welcome" }, { type: "paragraph", text: "Hello world" }] };
+  const created = (await call("create_document", args)).result;
+  assert.equal(created.success, true);
+  const receipt = JSON.parse(created.contentItems[0].text); assert.equal(receipt.path, file); assert.ok(receipt.revision);
+  const read = (await call("read_document", { path: file })).result;
+  assert.equal(read.success, true); assert.equal(JSON.parse(read.contentItems[0].text).revision, receipt.revision);
+  assert.match(JSON.parse(read.contentItems[0].text).source, /Hello world/);
+  const listed = (await call("list_documents", { path: folder })).result;
+  assert.equal(listed.success, true); assert.equal(JSON.parse(listed.contentItems[0].text).entries[0].path, file);
+  const before = readFileSync(file);
+  assert.equal((await call("create_document", args)).result.success, false);
+  assert.deepEqual(readFileSync(file), before);
+  for (const tool of ["create_document", "read_document", "list_documents"]) assert.equal((await call(tool, tool === "create_document" ? { ...args, path: path.join(outside, "escape.md") } : { path: outside })).result.success, false);
+  assert.equal((await call("create_document", { ...args, path: path.join(folder, "bad.md"), blocks: [{ type: "html", text: "bad" }] })).result.success, false);
+  assert.equal(existsSync(path.join(folder, "bad.md")), false);
+  symlinkSync(outside, path.join(folder, "escape"), process.platform === "win32" ? "junction" : "dir");
+  assert.equal((await call("create_document", { ...args, path: path.join(folder, "escape", "bad.md") })).result.success, false);
+  assert.equal((await call("list_documents", { path: path.join(folder, "escape") })).result.success, false);
+  assert.equal((await call("read_document", { path: file }, { turnId: "stale" })).result.success, false);
+  assert.equal((await call("ignored", {}, { method: "unsupported" })).error.code, -32601);
+  await conversations.send({ ...input, id: conversation.id, folders: [outside] }, { ...settings, writeAccess: "read-only" });
+  assert.equal((await call("create_document", { ...args, path: path.join(folder, "Steered.md") })).result.success, true);
+  await connection.client.request("fixture/finish", { threadId: conversation.id });
+  assert.equal((await call("create_document", { ...args, path: path.join(folder, "late.md") })).result.success, false);
+  await connection.close();
+  const next = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
+  try {
+    const history = new AiAgentConversations(next, new RootAccess([root]));
+    const resumed = await history.resume(conversation.id, settings, "en");
+    assert.deepEqual(resumed.turns[0]!.items.find(item => item.toolResult?.success === true)!.toolResult, created);
+    await history.send({ ...input, id: conversation.id }, { ...settings, writeAccess: "read-only" });
+    const denied = await next.client.request("fixture/tool", { threadId: conversation.id, tool: "create_document", arguments: { ...args, path: path.join(folder, "readonly.md") } });
+    assert.equal(denied.result.success, false); assert.equal(existsSync(path.join(folder, "readonly.md")), false);
+    const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["create_document", "read_document", "list_documents"]);
+    assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
+  } finally { await next.close(); }
 });
