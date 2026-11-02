@@ -1,8 +1,8 @@
-import { COMMAND_CENTER_SHORTCUT } from "../shortcuts.ts";
+import { ASSISTANT_SHORTCUT, COMMAND_CENTER_SHORTCUT } from "../shortcuts.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useLayoutEffect, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import { splitDocumentPath } from "./document-path.ts";
 
@@ -13,10 +13,12 @@ type TopBarProps = {
   documentPath: string;
   /** Secondary search context; the tab row already names the active document. */
   location?: string[];
+  onAssistant?(): void;
+  assistantOpen?: boolean;
 };
 
 /** Shared title-strip search. Document actions belong to the owning tab row. */
-export function TopBar({ onOpenCommandCenter, documentPath, location = [] }: TopBarProps) {
+export function TopBar({ onOpenCommandCenter, documentPath, location = [], onAssistant, assistantOpen }: TopBarProps) {
   useTranslation();
   const { name } = splitDocumentPath(documentPath);
   const commandButton = useRef<HTMLButtonElement>(null);
@@ -35,16 +37,20 @@ export function TopBar({ onOpenCommandCenter, documentPath, location = [] }: Top
       const action = commandName.current?.scrollWidth ?? 0;
       const shortcut = commandShortcut.current?.scrollWidth ?? 0;
       const icon = button.querySelector("svg")?.getBoundingClientRect().width ?? 0;
+      const assistant = button.parentElement?.querySelector(".assistant-trigger");
+      button.parentElement?.style.setProperty("--assistant-trigger-width", `${assistant?.getBoundingClientRect().width ?? 0}px`);
       const withShortcut = icon + action + shortcut + gap * 2;
       // The secondary location yields first, then the shortcut; the action ellipsizes last.
       setCommandDetail(available >= withShortcut + 70 ? "path" : available >= withShortcut ? "shortcut" : "name");
     };
     const observer = new ResizeObserver(measure);
     observer.observe(button);
+    const assistant = button.parentElement?.querySelector(".assistant-trigger");
+    if (assistant) observer.observe(assistant);
     measure();
     void document.fonts.ready.then(measure);
     return () => { active = false; observer.disconnect(); };
-  }, [documentPath, name, location.join("/"), i18n.resolvedLanguage]);
+  }, [documentPath, name, location.join("/"), i18n.resolvedLanguage, Boolean(onAssistant)]);
   return (
     <header className="top-bar">
       <Button ref={commandButton} type="button" variant="outline" className="command-center-trigger" data-detail={commandDetail}
@@ -63,6 +69,9 @@ export function TopBar({ onOpenCommandCenter, documentPath, location = [] }: Top
         </span>
         <kbd ref={commandShortcut} aria-hidden="true">{COMMAND_CENTER_SHORTCUT.label}</kbd>
       </Button>
+      {onAssistant ? <Button variant="ghost" size="sm" className="assistant-trigger" aria-label={i18n.t("Assistant")} aria-expanded={assistantOpen}
+        aria-keyshortcuts={ASSISTANT_SHORTCUT.aria} title={`${i18n.t("Assistant")} (${ASSISTANT_SHORTCUT.label})`}
+        onMouseDown={event => { if (event.button === 0) event.preventDefault(); }} onClick={onAssistant}><MessageSquare /><span>{i18n.t("Assistant")}</span></Button> : null}
     </header>
   );
 }

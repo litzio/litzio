@@ -12,6 +12,8 @@
 
   /* Adjustable values: tuned by hand or chosen by a user preference. Change them here only;
    * no rule or script repeats these numbers. See Visual Language "Adjustable values". */
+  /* Initial assistant dock width; an explicit 340–560px user resize overrides it. */
+  --layout-assistant-width: 24.5rem;
   /* Paper and canvas are independent of floating surfaces (surface). #593 can flatten the
    * page by equating canvas/paper and setting paper border width/radius to 0 and elevation
    * to 0 0 0 transparent (a valid shadow-list entry alongside the inset edge). */
