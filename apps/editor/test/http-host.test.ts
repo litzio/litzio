@@ -500,3 +500,18 @@ test("folder notifications debounce versions, renew leases and release watchers"
   t.mock.timers.tick(1);
   assert.equal(closed, 2, "an unused watch is closed");
 });
+
+
+test("background folder disappearance is an availability result; manual errors and access denial stay explicit", async t => {
+  const { a, outside, send } = await fixture(t);
+  const missing = path.join(a, "removed");
+  const query = new URLSearchParams({ root: missing, background: "1" });
+  const background = await send(`/api/folder?${query}`);
+  assert.equal(background.status, 200);
+  assert.equal((await background.json()).unavailable, true);
+  assert.equal((await send(`/api/folder?${new URLSearchParams({ root: missing })}`)).status, 400);
+  const version = await send(`/api/folder-version?${query}`);
+  assert.equal(version.status, 200);
+  assert.deepEqual(await version.json(), { unavailable: true });
+  assert.equal((await send(`/api/folder?${new URLSearchParams({ root: outside, background: "1" })}`)).status, 403);
+});

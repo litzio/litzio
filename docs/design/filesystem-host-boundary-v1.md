@@ -123,7 +123,10 @@ Browser Editor는 Host를 통해 다음을 요청한다.
 
 Explorer notifications use read-only `GET /api/folder-version?root=…` (#927), with the same
 path/Root checks as folder access. The Host retains only a transient recursive watcher and opaque
-change version per real folder, leased for 15 seconds after the last check; timers/watchers do not
+change version per real folder, leased for 15 seconds after the last check. Version checks and
+`GET /api/folder?background=1` report a folder disappearing during refresh as a successful
+`{ unavailable: true }` availability result (listings also carry `error`); the browser keeps its
+cached listing. Manual errors and Root denials retain their error status. Timers/watchers do not
 keep the process alive. No document/listing/session or durable state is retained. Watch failure
 falls back to the browser's periodic/focus refresh. See [Folder refresh](editor-ux-shell-v1.md#automatic-folder-refresh-927).
 

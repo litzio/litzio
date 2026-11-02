@@ -1426,8 +1426,8 @@ function newDestinations(trees: readonly FolderTreeState[]): NewDestination[] {
 }
 
 /** Asks the Host for one level of a folder inside the folder the user chose. */
-async function requestFolder(root: string, path?: string): Promise<FolderResponse> {
-  const query = new URLSearchParams({ root, ...(path ? { path } : {}) });
+async function requestFolder(root: string, path?: string, background = false): Promise<FolderResponse> {
+  const query = new URLSearchParams({ root, ...(path ? { path } : {}), ...(background ? { background: "1" } : {}) });
   const response = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/folder?${query}`);
   const payload = (await response.json()) as Partial<FolderResponse> & Partial<DocumentErrorResponse>;
   if (!response.ok || !Array.isArray(payload.entries)) throw new Error(payload.error ?? `request failed (${response.status})`);

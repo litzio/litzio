@@ -189,7 +189,7 @@ export function treeKey(items: TreeItem[], index: number, key: string, expanded:
 }
 
 /** Opened folders with their Host requests. `request` lists one level of a folder inside an opened one. */
-export function useFolderTrees(request: (root: string, path?: string) => Promise<FolderResponse>, onError: (message: string) => void) {
+export function useFolderTrees(request: (root: string, path?: string, background?: boolean) => Promise<FolderResponse>, onError: (message: string) => void) {
   const [trees, reduce] = useReducer(folderTreesReducer, []);
   const latest = useRef(trees);
   latest.current = trees;
@@ -248,7 +248,7 @@ export function useFolderTrees(request: (root: string, path?: string) => Promise
   const load = (root: string, path: string, preserveExpansion = false, quiet = false) => {
     const id = ++requests.current;
     dispatch({ type: "loadStart", root, path, request: id });
-    request(root, path).then(
+    request(root, path, quiet).then(
       listing => dispatch({ type: "loadSuccess", root, path, request: id, listing }),
       (cause: unknown) => {
         dispatch({ type: "loadFailure", root, path, request: id, preserveExpansion });
@@ -301,7 +301,8 @@ export function useFolderTrees(request: (root: string, path?: string) => Promise
           try {
             const response = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/folder-version?${new URLSearchParams({ root })}`, { signal: controller.signal });
             if (!response.ok) return;
-            const { version } = await response.json() as { version: string };
+            const { version } = await response.json() as { version?: string };
+            if (!version) return;
             if (cancelled) return;
             // A busy listing may predate this change; keep the version pending for the next check.
             if (versions.get(root) !== version && !refreshRoot(root, true)) return;
