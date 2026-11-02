@@ -1,6 +1,7 @@
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
 import { productName } from "../../../brand.ts";
-import { COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
+import { ASSISTANT_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
+import { AssistantPanel, assistantWidth, rememberAssistantWidth } from "./shell/AssistantPanel.tsx";
 import { usePluginUi } from "./plugin-ui.tsx";
 import { contributionNotices } from "./plugin-ui-registry.ts";
 import { ContributionBoundary, PluginTab, type ContributedTab } from "./PluginTab.tsx";
@@ -46,7 +47,7 @@ import darkIcon from "@brand-dark-icon";
 import { CommandCenter } from "./shell/CommandCenter.tsx";
 import { KeyboardShortcutsDialog } from "./shell/KeyboardShortcutsDialog.tsx";
 import type { CommandCenterItem } from "./shell/command-center.ts";
-import { Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal } from "lucide-react";
+import { MessageSquare, Monitor, Bookmark, Quote, Columns3, Copy, FileDiff, FileText, FileX, FolderOpen, Keyboard, PanelLeft, PanelRight, PanelRightOpen, ArrowLeftRight, RotateCcw, RotateCw, Save, Settings2, SlidersHorizontal, SquareCode, StretchHorizontal } from "lucide-react";
 import type {
   DocumentErrorResponse,
   EditorFileResponse,
@@ -81,6 +82,19 @@ export function App() {
 
 function EditorApp() {
   useTranslation();
+  const [assistantOpen, setAssistantOpen] = useState(false);
+  const [assistantSize, setAssistantSize] = useState(assistantWidth);
+  const [assistantOverlay, setAssistantOverlay] = useState(() => matchMedia("(width < 1100px)").matches);
+  const assistantReturn = useRef<HTMLElement | null>(null);
+  const closeAssistant = () => { setAssistantOpen(false); requestAnimationFrame(() => assistantReturn.current?.focus({ preventScroll: true })); };
+  const toggleAssistant = () => {
+    if (assistantOpen) closeAssistant();
+    else { assistantReturn.current = globalThis.document.activeElement as HTMLElement; setAssistantOpen(true); }
+  };
+  useEffect(() => {
+    const media = matchMedia("(width < 1100px)"); const change = () => setAssistantOverlay(media.matches);
+    media.addEventListener("change", change); return () => media.removeEventListener("change", change);
+  }, []);
   const newFileButton = useRef<HTMLElement | null>(null);
   const newFolderButton = useRef<HTMLButtonElement>(null);
   // Open folder… returns focus to the control that opened it.
@@ -103,6 +117,10 @@ function EditorApp() {
   const choosePanelOpen = (open: boolean) => {
     if (!panelOverlay) dockedPanelOpen.current = open;
     setPanelOpen(open);
+  };
+  const toggleOutline = () => {
+    if (assistantOpen) { setAssistantOpen(false); choosePanelOpen(true); }
+    else choosePanelOpen(!panelOpen);
   };
   const outlineToggle = useRef<HTMLButtonElement>(null);
   const fileActionsToggle = useRef<HTMLButtonElement>(null);
@@ -185,6 +203,14 @@ function EditorApp() {
     return () => { releaseFile(); releaseFolder(); };
   }, [pluginFilePicker, pluginPicker]);
   const currentPlugins = useRef(ui.plugins); currentPlugins.current = ui.plugins;
+  const assistantAvailable = ui.plugins.some(plugin => plugin.id === "ai-agent" && plugin.contributions);
+  useEffect(() => { if (!assistantAvailable) setAssistantOpen(false); }, [assistantAvailable]);
+  useEffect(() => {
+    if (!assistantOpen || !assistantOverlay) return;
+    const elements = globalThis.document.querySelectorAll<HTMLElement>(".sidebar, .app-main, .app-titlebar, .document-panel, .notification-center");
+    elements?.forEach(element => { element.inert = true; });
+    return () => elements?.forEach(element => { element.inert = false; });
+  }, [assistantOpen, assistantOverlay]);
   const pluginActions = (surface: "commands" | "sidebar") => ui.plugins.flatMap(plugin =>
     (plugin.contributions?.[surface] ?? []).map(action => ({ ...action, id: `${plugin.id}/${action.id}`,
       run: (focus: HTMLElement | null) => {
@@ -810,6 +836,10 @@ function EditorApp() {
   // never applies. Modal dialogs cover the Save button, so the shortcut waits for them too.
   const saveShortcut = useRef<(event: KeyboardEvent) => void>(() => {});
   saveShortcut.current = (event) => {
+    if (ASSISTANT_SHORTCUT.matches(event) && event.key !== "Process" && event.keyCode !== 229 && assistantAvailable) {
+      if (settingsOpen || globalThis.document.querySelector('[data-slot="dialog-content"]')) return;
+      event.preventDefault(); toggleAssistant(); return;
+    }
     if (COMMAND_CENTER_SHORTCUT.matches(event)) {
       event.preventDefault();
       if (globalThis.document.querySelector('[data-slot="dialog-content"]:not(.command-center-dialog)') ||
@@ -959,6 +989,8 @@ function EditorApp() {
     });
   };
   const commandItems: CommandCenterItem[] = [
+    ...(assistantAvailable ? [{ id: "assistant", kind: "command" as const, label: i18n.t("Assistant"), icon: MessageSquare, takesFocus: true,
+      shortcut: ASSISTANT_SHORTCUT.label, keywords: ["assistant", "비서"], run: () => { assistantReturn.current = commandReturnFocus.current; setAssistantOpen(true); } }] : []),
     ...(samplePath ? [{ id: "open-sample", kind: "command" as const, label: i18n.t("Open sample document"), icon: FileText, takesFocus: true, disabled: busy || Boolean(continuation),
       keywords: ["sample", "샘플"], run: openSample }] : []),
     ...tabs.map((tab, index) => ({
@@ -1013,8 +1045,8 @@ function EditorApp() {
       keywords: ["visual view", "비주얼 보기"], run: () => { globalThis.document.querySelector<HTMLElement>(`[data-editor-group="${navigation.focused}"] [data-testid="view-visual"]`)?.focus(); setView("visual"); } },
     { id: "source", kind: "command" as const, label: i18n.t("View: Source"), icon: SquareCode, disabled: !document || busy, takesFocus: true,
       keywords: ["source markdown", "소스 보기"], run: () => { globalThis.document.querySelector<HTMLElement>(`[data-editor-group="${navigation.focused}"] [data-testid="view-source"]`)?.focus(); void showSource(); } }]),
-    { id: "outline", kind: "command", label: i18n.t(panelOpen ? "Hide outline" : "Show outline"), icon: PanelRight, takesFocus: true, disabled: session?.kind === "text",
-      keywords: ["outline", "개요"], run: () => { outlineToggle.current?.focus(); choosePanelOpen(!panelOpen); } },
+    { id: "outline", kind: "command", label: i18n.t(panelOpen && !assistantOpen ? "Hide outline" : "Show outline"), icon: PanelRight, takesFocus: true, disabled: session?.kind === "text",
+      keywords: ["outline", "개요"], run: () => { outlineToggle.current?.focus(); toggleOutline(); } },
     { id: "sidebar", kind: "command", label: i18n.t(sidebarOpen ? "Collapse Explorer" : "Expand Explorer"), icon: PanelLeft,
       keywords: ["sidebar", "사이드바"], takesFocus: true,
       run: () => { sidebarFocus.current = "sidebar"; setSidebarOpen(value => !value); } },
@@ -1055,7 +1087,7 @@ function EditorApp() {
   ];
 
   return (
-    <div ref={shell} className={`app-shell${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !pluginTab && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
+    <div ref={shell} style={assistantSize ? { "--assistant-width": `${assistantSize}px` } as React.CSSProperties : undefined} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !pluginTab && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
       <Sidebar
         theme={theme} onThemeChange={changeTheme}
         pluginFileActions={ui.plugins.flatMap(plugin => (plugin.contributions?.fileActions ?? []).map(action => ({ ...action,
@@ -1126,6 +1158,7 @@ function EditorApp() {
         </div>
         <div className="top-bar-container">
           <TopBar onOpenCommandCenter={() => openCommandCenter()} documentPath={openedPath}
+            onAssistant={assistantAvailable ? toggleAssistant : undefined} assistantOpen={assistantOpen}
             location={documentLocation(openedPath, folders.rootOf(openedPath))} />
         </div>
       </div>
@@ -1169,8 +1202,8 @@ function EditorApp() {
               onMove={() => { if (group.active) moveTab(group.active); }}
               openRightDisabled={!owner || !canSplit || groupBusy}
               moveDisabled={!owner || !split || groupBusy}
-              outline={panelOpen}
-              onToggleOutline={owner?.kind === "text" ? undefined : () => choosePanelOpen(!panelOpen)}
+              outline={panelOpen && !assistantOpen}
+              onToggleOutline={owner?.kind === "text" ? undefined : toggleOutline}
               outlineToggleRef={group.id === navigation.focused ? outlineToggle : undefined}
             />
           } />
@@ -1222,7 +1255,7 @@ function EditorApp() {
           })}
         </main>
       </div>
-      {panelOpen && !pluginTab && session?.kind !== "text" ? (
+      {panelOpen && !assistantOpen && !pluginTab && session?.kind !== "text" ? (
         <DocumentPanel
           overlay={panelOverlay}
           outline={document ? outlineStore : undefined}
@@ -1234,6 +1267,11 @@ function EditorApp() {
           }}
         />
       ) : null}
+      {assistantAvailable ? <AssistantPanel open={assistantOpen && !settingsOpen} overlay={assistantOverlay} width={assistantSize}
+        onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
+        documentPath={openedPath} folders={openedFolderPaths}
+        context={async () => session ? { path: session.openedPath, source: session.kind === "native" ? await session.appliedSource() : session.getSnapshot().text } : undefined}
+        onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("plugin/ai-agent/ai-agent"); setSettingsOpen(true); }} /> : null}
       {ui.plugins.map(plugin => { const View = plugin.contributions?.View; return View ? <ContributionBoundary key={`${plugin.id}/${plugin.revision}`}><View /></ContributionBoundary> : null; })}
       <FolderDialog open={Boolean(pluginFilePicker)} choose={pluginFilePicker?.choose} title={pluginFilePicker?.title ?? ""}
         description={pluginFilePicker?.description ?? ""}

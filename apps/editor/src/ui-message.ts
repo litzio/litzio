@@ -4,9 +4,12 @@ import { en } from "./locales.ts";
 
 /** Keep application messages unresolved until display; external technical details stay literal. */
 type ParametersIn<S extends string> = S extends `${string}{{${infer Name}}}${infer Rest}` ? Name | ParametersIn<Rest> : never;
-export type UiMessage = string | Error | { [K in MessageKey]: { key: K } &
-  (ParametersIn<typeof en[K]> extends never ? { values?: never } : { values: { [P in ParametersIn<typeof en[K]>]: P extends "count" ? number : string | number } })
-}[MessageKey];
+type PlainMessageKey = { [K in MessageKey]: ParametersIn<typeof en[K]> extends never ? K : never }[MessageKey];
+type ParameterizedMessageKey = Exclude<MessageKey, PlainMessageKey>;
+// Plain keys share one shape; only parameterized keys need a correlated union.
+export type UiMessage = string | Error | { key: PlainMessageKey; values?: never } | {
+  [K in ParameterizedMessageKey]: { key: K; values: { [P in ParametersIn<typeof en[K]>]: P extends "count" ? number : string | number } }
+}[ParameterizedMessageKey];
 export function messageText(message: UiMessage): string {
   if (typeof message === "string") return message;
   if (message instanceof Error) return message instanceof UiError ? messageText(message.detail) : message.message;

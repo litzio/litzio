@@ -34,7 +34,11 @@ async page => {
     result.filesToTopBar = await page.getByRole('button',{name:'Find documents and commands',exact:true}).evaluate(n=>n===document.activeElement);
 
     await page.keyboard.press('Tab');
+    result.searchToAssistant = await page.getByRole('button',{name:'Assistant',exact:true}).evaluate(n=>n===document.activeElement);
+    await page.keyboard.press('Tab');
     result.searchToActiveTab = await page.getByRole('tab', {name:'technical-document.md',exact:true}).evaluate(n=>n===document.activeElement);
+    await page.keyboard.press('Shift+Tab');
+    result.tabToAssistant = await page.getByRole('button',{name:'Assistant',exact:true}).evaluate(n=>n===document.activeElement);
     await page.keyboard.press('Shift+Tab');
     result.tabToSearch = await page.getByRole('button',{name:'Find documents and commands',exact:true}).evaluate(n=>n===document.activeElement);
 

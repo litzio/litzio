@@ -1,0 +1,198 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { MessageSquare, Plus, History, X, ArrowUp, Square } from "lucide-react";
+import { AI_AGENT, AI_TASK, type AiAgentSettings, type AiConversation, type AiConversationInfo, type AiConversationInput, type AiModels, type AiResponseLanguage, type AiDiagnostics } from "@litzio/plugin-api/ai";
+import { Button } from "@/components/ui/button.tsx";
+import { Popover, PopoverContent } from "@/components/ui/popover.tsx";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
+import { i18n } from "../i18n.ts";
+import { brand } from "../../../../brand.ts";
+import "./assistant.css";
+
+async function request<T>(url: string, body?: unknown): Promise<T> {
+  const response = await fetch(import.meta.env.BASE_URL + url.replace(/^\//, ""), body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined);
+  const data = await response.json(); if (!response.ok) throw new Error(data.error ?? response.statusText); return data;
+}
+const widthKey = `${brand.storagePrefix}.assistantWidth`;
+export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
+export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
+type Props = { open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void;
+  documentPath: string; folders: string[]; context(): Promise<AiConversationInput["document"]> };
+
+/** A concrete shell surface; it does not introduce a plugin contribution API. */
+export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSettings, documentPath, folders, context }: Props) {
+  useTranslation();
+  const [settings, setSettings] = useState<AiAgentSettings>();
+  const [models, setModels] = useState<AiModels>();
+  const [conversation, setConversation] = useState<AiConversation>();
+  const [history, setHistory] = useState<AiConversationInfo[] | null>(null);
+  const [model, setModel] = useState("");
+  const [effort, setEffort] = useState("");
+  const [language, setLanguage] = useState<AiResponseLanguage>(i18n.language === "ko" ? "ko" : "en");
+  const [message, setMessage] = useState("");
+  const [problem, setProblem] = useState("");
+  const [setup, setSetup] = useState("");
+  const [ready, setReady] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [choicesOpen, setChoicesOpen] = useState(false);
+  const choicesAnchor = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
+  const initialFocus = useRef(false);
+  const current = useRef(conversation); current.current = conversation;
+  const active = conversation?.turns.some(turn => turn.status === "inProgress") ?? false;
+  const defaults = (value: AiAgentSettings) => { setModel(value.model); setEffort(value.reasoningEffort); setLanguage(value.responseLanguage ?? (i18n.language === "ko" ? "ko" : "en")); };
+  useEffect(() => {
+    if (!open) return;
+    initialFocus.current = true;
+    // A later focus move belongs to the user or another UI, even if setup is slow.
+    const cancelInitialFocus = () => { initialFocus.current = false; };
+    document.addEventListener("focusin", cancelInitialFocus);
+    let alive = true;
+    setSetup("");
+    void request<AiAgentSettings>(AI_TASK.settingsRoute).then(async value => {
+      if (!alive) return;
+      setSettings(value); if (!current.current) defaults(value);
+      if (!value.enabled) {
+        setSetup("Codex is disabled.");
+        setConversation(current => current ? { ...current, turns: current.turns.map(turn => turn.status === "inProgress" ? { ...turn, status: "interrupted" } : turn) } : current);
+        return;
+      }
+      const [catalog, diagnostics] = await Promise.all([request<AiModels>(AI_AGENT.modelsRoute), request<AiDiagnostics>(AI_AGENT.diagnosticsRoute)]);
+      if (!alive) return;
+      setModels(catalog);
+      if (!diagnostics.connected) { setSetup(diagnostics.error ?? "Codex CLI is unavailable on the Host."); return; }
+      if (!diagnostics.account) { setSetup("Sign in to Codex to start a conversation."); return; }
+      if (current.current) {
+        const id = current.current.id;
+        const resumed = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id,
+          responseLanguage: current.current.responseLanguage });
+        if (alive && current.current?.id === id) setConversation(resumed);
+      }
+      if (alive) setReady(true);
+    }).catch(error => { if (alive) setSetup(error.message); });
+    return () => {
+      alive = false; initialFocus.current = false; setReady(false);
+      document.removeEventListener("focusin", cancelInitialFocus);
+    };
+  }, [open]);
+  useLayoutEffect(() => {
+    if (open && ready && settings?.enabled && !setup && initialFocus.current) {
+      initialFocus.current = false;
+      input.current?.focus();
+    }
+  }, [open, ready, settings?.enabled, setup]);
+  useEffect(() => {
+    if (!open || !conversation?.id || pending || !ready || !settings?.enabled || setup) return;
+    let alive = true, polling = false, timer: ReturnType<typeof setTimeout> | undefined;
+    const id = conversation.id;
+    const schedule = () => {
+      if (alive && document.visibilityState === "visible" && !polling && timer === undefined) timer = setTimeout(poll, 600);
+    };
+    const poll = async () => {
+      timer = undefined;
+      if (!alive || document.visibilityState !== "visible") return;
+      polling = true;
+      try { const next = await request<AiConversation>(`${AI_AGENT.conversationsRoute}?id=${encodeURIComponent(id)}`); if (alive && document.visibilityState === "visible") setConversation(next); }
+      catch (error) { if (alive && document.visibilityState === "visible") setProblem((error as Error).message); }
+      polling = false;
+      schedule();
+    };
+    const visibilityChanged = () => {
+      if (document.visibilityState !== "visible") { clearTimeout(timer); timer = undefined; }
+      else schedule();
+    };
+    document.addEventListener("visibilitychange", visibilityChanged);
+    schedule();
+    return () => { alive = false; clearTimeout(timer); document.removeEventListener("visibilitychange", visibilityChanged); };
+  }, [open, conversation?.id, pending, ready, settings?.enabled, setup]);
+  useEffect(() => { const element = transcript.current; if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 180) element.scrollTop = element.scrollHeight; }, [conversation]);
+  const run = async (action: () => Promise<void>) => {
+    if (pending) return;
+    setPending(true); setProblem("");
+    try { await action(); } catch (error) { setProblem((error as Error).message); } finally { setPending(false); }
+  };
+  const send = () => run(async () => {
+    const value = message.trim(); if (!value) return;
+    const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "send", id: conversation?.id, message: value,
+      model, reasoningEffort: effort, responseLanguage: language, folders, document: await context() });
+    setConversation(next); setMessage(""); setHistory(null); input.current?.focus();
+    requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
+  });
+  const catalogModel = models?.models.find(value => value.model === model);
+  const usage = conversation?.tokenUsage, percent = usage?.limit ? Math.min(100, Math.round(usage.used / usage.limit * 100)) : null;
+  return <aside ref={panel} hidden={!open} className={`assistant-panel${overlay ? " assistant-panel--overlay" : ""}`} aria-label={i18n.t("Assistant")}
+    role={overlay ? "dialog" : undefined} aria-modal={overlay ? true : undefined} data-testid="assistant-panel"
+    onKeyDown={event => {
+      if (event.defaultPrevented) return;
+      if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); onClose(); }
+      if (event.key === "Tab" && overlay) {
+        const controls = Array.from(panel.current!.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')).filter(element => element.getClientRects().length);
+        const first = controls[0], last = controls.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    }}>
+    {!overlay ? <div className="assistant-resize" role="separator" aria-label={i18n.t("Assistant width")} aria-orientation="vertical" aria-valuemin={340} aria-valuemax={560} aria-valuenow={width ?? panel.current?.offsetWidth} tabIndex={0}
+      onKeyDown={event => { if (["ArrowLeft", "ArrowRight"].includes(event.key)) { event.preventDefault(); onWidth(Math.max(340, Math.min(560, (width ?? panel.current!.offsetWidth) + (event.key === "ArrowLeft" ? 20 : -20)))); } }}
+      onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); }}
+      onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) onWidth(Math.max(340, Math.min(560, window.innerWidth - event.clientX))); }} /> : null}
+    <div className="assistant-header">
+      <h2><MessageSquare aria-hidden="true" />{i18n.t("Assistant")}</h2>
+      <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={pending || active} onClick={() => { setConversation(undefined); setHistory(null); setProblem(""); setMessage(""); if (settings) defaults(settings); input.current?.focus(); }}><Plus /></Button>
+      <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={pending || active} onClick={() => void run(async () => setHistory(history ? null : await request<AiConversationInfo[]>(AI_AGENT.conversationsRoute)))}><History /></Button>
+      <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
+    </div>
+    <div className="assistant-context" title={[documentPath, ...folders].filter(Boolean).join("\n")}>
+      <span>{documentPath.split(/[\\/]/).at(-1) || i18n.t("No file opened")}</span><span>{i18n.t("Opened folders: {{count}}", { count: folders.length })}</span>
+    </div>
+    <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")}>
+      {history ? <div className="assistant-history"><h3>{i18n.t("Conversation history")}</h3><p>{i18n.t("Continue the same Codex conversation here or in the CLI.")}</p>
+        {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async () => {
+          const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id: entry.id, responseLanguage: settings?.responseLanguage ?? (i18n.language === "ko" ? "ko" : "en") });
+          setConversation(next); setModel(next.model); setEffort(next.reasoningEffort); setLanguage(next.responseLanguage); setHistory(null); input.current?.focus();
+        })}><strong>{entry.title}</strong><small>{new Date(entry.updatedAt).toLocaleString()} · {entry.folders.join(", ")}</small></Button>)}</div>
+        : conversation?.turns.map(turn => <section key={turn.id} className="assistant-turn" data-status={turn.status}>
+          {turn.items.filter(item => item.kind === "user").map(item => <p key={item.id} className="assistant-user">{item.text}</p>)}
+          {turn.items.some(item => !["user", "assistant"].includes(item.kind)) ? <details key={`${turn.id}-${turn.status}`} open={turn.status === "inProgress"} className="assistant-steps"><summary>{i18n.t(turn.status === "inProgress" ? "Working…" : "Work details")}</summary>
+            {turn.items.filter(item => !["user", "assistant"].includes(item.kind)).map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}</details> : null}
+          {turn.items.filter(item => item.kind === "assistant").map(item => <div key={item.id} className="assistant-answer">{item.text}</div>)}
+          {turn.status === "inProgress" ? <p role="status">{i18n.t("Working…")}</p> : turn.status === "interrupted" ? <p>{i18n.t("Stopped")}</p> : null}
+          {turn.error ? <p role="alert">{turn.error}</p> : null}
+        </section>)}
+      {!history && !conversation ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Changes to existing documents are suggested in text.")}</p></div> : null}
+      {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" onClick={onSettings}>{i18n.t("Open AI settings")}</Button></div> : null}
+      {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
+    </div>
+    <form className="assistant-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
+      {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
+      {models && !catalogModel ? <p role="status">{i18n.t("Choose a model and reasoning effort from the available list.")}</p> : null}
+      <textarea ref={input} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => setMessage(event.target.value)}
+        disabled={!ready || !settings?.enabled || !!setup} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
+      <div className="assistant-controls">
+        <Button ref={choicesAnchor} type="button" variant="outline" size="sm" disabled={active || pending} aria-label={i18n.t("Conversation model and language")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{model || "Codex"} · {effort}</Button>
+        <Button type="button" variant="outline" size="sm" aria-label={i18n.t("Response language")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{language === "ko" ? "한국어" : language === "ja" ? "日本語" : language === "en" ? "English" : i18n.t("Follow document language")}</Button>
+        <Popover open={choicesOpen && open} onOpenChange={setChoicesOpen}><PopoverContent anchor={choicesAnchor} side="top" align="start" className="assistant-choices" finalFocus={choicesAnchor}>
+        <label htmlFor="assistant-model">{i18n.t("Model")}</label>
+        <select id="assistant-model" className="form-select" aria-label={i18n.t("Model")} value={model} disabled={active || pending || !models} onChange={event => { const value = models!.models.find(model => model.model === event.target.value)!; setModel(value.model); setEffort(value.defaultReasoningEffort); }}>
+          {!catalogModel ? <option value={model}>{model}</option> : null}{models?.models.map(value => <option key={value.id} value={value.model}>{value.displayName}</option>)}
+        </select>
+        <label htmlFor="assistant-effort">{i18n.t("Reasoning effort")}</label>
+        <select id="assistant-effort" className="form-select" aria-label={i18n.t("Reasoning effort")} value={effort} disabled={active || pending || !catalogModel} onChange={event => setEffort(event.target.value)}>{catalogModel?.supportedReasoningEfforts.map(value => <option key={value.reasoningEffort}>{value.reasoningEffort}</option>)}</select>
+        <label htmlFor="assistant-language">{i18n.t("Response language")}</label>
+        <select id="assistant-language" className="form-select" aria-label={i18n.t("Response language")} value={language} disabled={pending} onChange={event => setLanguage(event.target.value as AiResponseLanguage)}><option value="ko">한국어</option><option value="en">English</option><option value="ja">日本語</option><option value="document">{i18n.t("Follow document language")}</option></select>
+        <small>{i18n.t("These choices apply only to this conversation. Defaults are in AI settings.")}</small>
+        </PopoverContent></Popover>
+      </div>
+      <div className="assistant-footer">
+        <Tooltip><TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
+        </TooltipTrigger><TooltipContent>{usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} tokens${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}</TooltipContent></Tooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
+        {active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async () => setConversation(await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "interrupt", id: conversation!.id })))}><Square /></Button> : null}
+        <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || !ready || !message.trim() || !catalogModel || !settings?.enabled || !!setup}><ArrowUp /></Button>
+      </div>
+    </form>
+  </aside>;
+}
+function activityStatus(value: string) {
+  return value === "inProgress" ? i18n.t("In progress") : value === "completed" ? i18n.t("Completed") : value === "failed" ? i18n.t("Failed") : value === "declined" ? i18n.t("Declined") : value;
+}

@@ -67,7 +67,7 @@ export class CodexAppServer extends EventEmitter {
     child.stdout.on("data", (chunk: Buffer) => { try { decoder.push(chunk); } catch { fail(new Error("Invalid Codex app-server response.")); void this.close().catch(() => {}); } });
     child.stderr.on("data", () => {});
     child.stdin.on("error", fail); child.on("error", fail);
-    child.once("close", () => { fail(new Error("Codex app-server exited.")); if (this.child === child) { this.child = undefined; if (initialized) this.ready = undefined; } });
+    child.once("close", () => { fail(new Error("Codex app-server exited.")); this.emit("disconnected", "Codex app-server exited."); if (this.child === child) { this.child = undefined; if (initialized) this.ready = undefined; } });
     await this.call("initialize", { clientInfo: { name: "litzio", title: "Litzio", version: "0.0.0" }, capabilities: { experimentalApi: true } });
     this.write({ method: "initialized" });
     initialized = true;
