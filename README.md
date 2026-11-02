@@ -18,7 +18,7 @@ Litzio(리치오)는 Litz wire로 입출력(I/O)을 잇는다는 뜻입니다.
 표·수식·참조가 있는 기술문서를 시각적으로 작성하고, 사람이 읽을 수 있는 plain-text 파일로 Git에서 관리합니다. Editor와 CLI·자동화는 같은 Core로 문서를 읽고 수정합니다.
 **구조화 편집은 `litzio: 1` 표식과 지원되는 본문을 갖춘 Litzio 네이티브 문서에 한하며, 미호환 `.md`와 `.txt`는 텍스트 모드로 엽니다. 일반 Markdown 편집기나 Import 도구는 아닙니다.** Windows x64 Beta 단계이고 Stable은 아직 없습니다. 공개 API와 문서 지원 범위는 바뀔 수 있습니다.
 
-![Litzio 데모: 편집 화면에서 직접 입력과 제목 번호·인라인 수식, /수식으로 레이블·번호 (2) 지정, /다이어그램으로 Mermaid 원문 편집·실시간 미리보기·그림 1 캡션, 식 (2)·그림 1 상호참조 삽입, 소스 화면의 MyST 원문 확인](docs/design/assets/litzio-demo.gif)
+![Litzio 데모: 편집 화면에서 직접 입력과 제목 번호·인라인 수식, /수식으로 레이블·번호 (2) 지정, /다이어그램으로 Mermaid 원문 편집·실시간 미리보기·그림 1 캡션, 식 (2)·그림 1 상호참조 삽입, 저장 후 소스 화면의 MyST 원문 확인](docs/design/assets/litzio-demo.gif)
 
 <a id="windows-desktop"></a>
 
