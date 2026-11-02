@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Last verified: 2026-11-02 (#931 PR 2: fake stdio/Host tests, the `ai-agent` browser scenario, one real folder/document Q&A with steering and a separate history read).
-- Scope: main-agent connection, Settings, shell-owned assistant panel and Codex conversations. New-document results/undo and the usage-guide skill remain subsequent work.
+- Scope: main-agent connection, Settings, shell-owned assistant panel and Codex conversations. Includes new-document result cards, guarded creation undo and the product-owned usage-guide skill.
 - Authority: [ADR-0014](../adr/0014-main-agent-app-server.md), [#931](https://github.com/litzio/litzio/issues/931) owner decisions and approved v3.1 settings mockup.
 
 ## Connection and environment
@@ -27,7 +27,7 @@ Linux uses XDG data home and macOS uses Application Support. Source execution
 for local integration/testing. Litzio regenerates its product-owned `AGENTS.md`
 there and lists folders containing `.agents/skills/<name>/SKILL.md`. The file
 instructs the agent to leave existing documents intact and propose edits in text.
-No usage-guide skill is installed in this PR.
+Litzio also regenerates `.agents/skills/litzio-guide/SKILL.md` here. It has name/description frontmatter and usage/CLI guidance, with no executable scripts.
 
 Closing the owning Host ends stdin, waits for exit and terminates the exact
 owned process tree if needed. Shutdown failure is surfaced. The connection is
@@ -117,8 +117,7 @@ focus behavior are reused. Model results have a bounded scroll area. Both
 English Light at 1440px and Korean Dark at 640px retain visible controls and
 no horizontal overflow. Relative to the static mockup, the existing product
 Settings shell supplies navigation, and #930's explicit Save remains. Mockup
-example error rows, future providers, disabled model-add decoration and guide
-skill examples are not presented as functioning features.
+example error rows, future providers, disabled model-add decoration are not presented as functioning features. The common skill list includes the generated `litzio-guide`; this filesystem inventory does not itself prove Codex discovery.
 
 Contribution labels/descriptions are untranslated keys, translated by the shell
 at render time. Plugin view strings use `host.text` during render. Starting in
@@ -264,8 +263,7 @@ plain-text responses supply the real controls/content. No example file links,
 future providers or new-document actions are fabricated.
 
 AI execution is not a semantic document operation, so this work adds no CLI
-command. New-document result cards/undo, the usage-guide skill, applying
-existing-document changes, Docling orchestration and other providers remain
+command. Applying existing-document changes, Docling orchestration and other providers remain
 outside this PR.
 
 
@@ -304,7 +302,7 @@ Failures return the same shape with `success:false` and `{error}` JSON text.
 Codex stores the dynamic item. The Host snapshot retains `toolResult.success` and
 `toolResult.contentItems`, including the JSON path/revision, on live notifications
 and history hydration. The existing progress view shows tool name and completion
-or failure. Result cards, open/undo controls and their protection are PR 2.
+or failure. The result cards and guarded undo below consume these receipts.
 
 Codex **0.166.0** generated `ThreadResumeParams` has no `dynamicTools` field.
 Litzio never sends it on resume. A real local test created `Hello.md` using
@@ -314,7 +312,7 @@ in a subsequent turn without re-registration. Thus tools registered at thread
 creation persist for that thread in this version. Old threads created without
 these tools are not retrofitted; start a new conversation to acquire them.
 Terminal Codex CLI does not provide a Litzio tool handler. The owner chose CLI
-usage guidance through a Litzio skill instead; that skill is PR 2.
+usage guidance through a Litzio skill instead; the generated `litzio-guide` supplies that guidance.
 
 Local evidence (2026-11-02): Codex 0.166.0, `gpt-6.1-sol`/`medium`, temporary
 Host cwd and document folder, inherited user login. Creation and resumed reading
@@ -328,3 +326,65 @@ Fixture tests cover success, read-only/outside/overwrite/symlink/unsupported-blo
 refusal, stale turn rejection, steering scope, unsupported server requests and
 receipt recovery after a fresh process. Browser mocks verify tool progress only;
 they are not proof of real execution.
+
+## Created-document results and undo (#931 implementation 2, PR 2)
+
+Successful structured `create_document` results supply each card's path and creation
+revision. Assistant prose, failed calls and other tools never create actionable cards.
+Cards remain visible after Codex history resumption. Open uses the existing tab-opening
+flow. Undo deletes the created file, as stated beside its controls; it never reruns
+creation after interruption, disconnection or an ambiguous response.
+
+| Current state | Undo behavior |
+| --- | --- |
+| Disk matches creation revision, no unsaved tab changes | Delete without confirmation |
+| Changed disk revision or unsaved tab changes | Ask once; Cancel preserves file and drafts |
+| Changed again after the check/confirmation | Refuse; user must review and explicitly try again |
+| File missing or outside currently opened folders / Host Roots | Refuse and show the error |
+
+Undo reuses `/api/file` and the existing `deleteFile` path. A nonmutating `checkOnly`
+request returns the current revision after the same scope checks. The final delete
+carries that revision as `expectedRevision`, checked immediately before removal.
+Existing callers without a revision keep their behavior. File identity, symlink and
+Root checks remain in force; Desktop retains its existing Trash callback.
+The shell blocks document input during this operation, compares the open tab snapshot
+again after confirmation, and uses the existing tab/recovery cleanup after deletion.
+There is no undo journal or new persistence layer. A deleted receipt remains historical;
+a fresh page may offer Undo again, which refuses a missing file.
+
+The product-owned guide explains opening files/folders, Read/Edit/Source, Docling,
+Settings and the three assistant tools. Terminal continuation uses existing `litzio`
+create, inspect, apply-batch and check commands; it does not promise dynamic-tool
+handlers in terminal Codex. Environment diagnostics list local skill names without
+starting Codex. Runtime discovery is separately verified using
+`skills/list({cwds:[cwd], forceReload:true})`.
+
+AI UI execution and file deletion add no document semantic operation, so no new CLI
+command is added. Existing Core/CLI semantics remain unchanged.
+
+Verification on 2026-11-02: targeted file-operation, connection and browser-fixture
+checks pass. The `ai-result` browser scenario uses synthetic conversation receipts
+with real Host files/deletion: card open, history resumption, immediate clean undo,
+unsaved-tab confirmation/Cancel/discard, and changed-disk confirmation.
+
+A separate local browser run used real Codex 0.166.0 (`gpt-6.1-sol`, medium): a Korean
+request created `live-created.md` with the dynamic tool, the card opened its content,
+and card Undo deleted it, verified by the Host read failing afterward. The test used
+a temporary `CODEX_HOME` and externally supplied in-memory authentication; no auth
+file was copied and neither shared `.litzio` nor user `~/.codex` was written.
+`skills/list({cwds:[cwd], forceReload:true})` found `litzio-guide`, enabled, at the
+generated `.agents/skills/litzio-guide/SKILL.md` path. The owned Codex process closed.
+
+| Capture | Evidence |
+| --- | --- |
+| 1440px English Light | [Cards](assets/assistant-results-931/result-1440-light-en.png) |
+| 1440px Korean Dark | [Cards](assets/assistant-results-931/result-1440-dark-ko.png) |
+| 640px Korean Dark | [Cards](assets/assistant-results-931/result-640-dark-ko.png) |
+| Real Codex creation | [Opened result](assets/assistant-results-931/real-created.png) |
+| Real Codex undo | [Deleted result](assets/assistant-results-931/real-undone.png) |
+
+Compared with v3.1 mockup 03, the product uses its existing shell and shared button
+styles, shows the full Host path rather than a sample relative folder, and keeps
+actual dynamic-tool progress rather than fabricated CLI steps. The creation card
+retains file/open/undo/delete explanation. Korean lines and long paths wrap within
+the supported 640px overlay; the transcript scrolls independently of the composer.

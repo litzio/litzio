@@ -1,3 +1,5 @@
+import { creationUndoNeedsConfirmation } from "../shared/file-operations.ts";
+import { textRevision } from "@litzio/file-commit";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -274,3 +276,32 @@ for (const failure of ["preflight", "publication", "document", "unlink", "rollba
     } finally { t.mock.restoreAll(); }
   });
 }
+
+test("creation undo checks scope and the observed revision again before deletion", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "undo-created-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const file = path.join(root, "created.md"), request = { root, path: file };
+  fs.writeFileSync(file, "created");
+  const created = textRevision("created");
+  assert.equal((await deleteFile({ ...request, checkOnly: true })).revision, created);
+  assert.ok(fs.existsSync(file));
+  fs.writeFileSync(file, "changed");
+  await assert.rejects(deleteFile({ ...request, expectedRevision: created }), /changed/);
+  const observed = (await deleteFile({ ...request, checkOnly: true })).revision!;
+  fs.writeFileSync(file, "changed after confirmation");
+  await assert.rejects(deleteFile({ ...request, expectedRevision: observed }), /changed/);
+  fs.mkdirSync(path.join(root, "other"));
+  await assert.rejects(deleteFile({ ...request, root: path.join(root, "other"), checkOnly: true }), /outside/);
+  await deleteFile({ ...request, expectedRevision: textRevision("changed after confirmation") });
+  await assert.rejects(deleteFile({ ...request, expectedRevision: created }), /ENOENT/);
+  fs.writeFileSync(file, "created");
+  await deleteFile({ ...request, expectedRevision: created });
+  assert.equal(fs.existsSync(file), false);
+});
+
+test("creation undo confirms disk changes and unsaved tabs, including both together", () => {
+  assert.equal(creationUndoNeedsConfirmation("created", "created", false), false);
+  assert.equal(creationUndoNeedsConfirmation("created", "changed", false), true);
+  assert.equal(creationUndoNeedsConfirmation("created", "created", true), true);
+  assert.equal(creationUndoNeedsConfirmation("created", "changed", true), true);
+});

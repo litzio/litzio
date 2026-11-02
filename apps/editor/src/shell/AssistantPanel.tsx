@@ -17,11 +17,13 @@ const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
 type Props = { open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void;
+  onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string }): Promise<boolean>;
   documentPath: string; folders: string[]; context(): Promise<AiConversationInput["document"]> };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSettings, documentPath, folders, context }: Props) {
+export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSettings, documentPath, folders, context, onOpen, onUndo }: Props) {
   useTranslation();
+  const [removed, setRemoved] = useState<string[]>([]);
   const [settings, setSettings] = useState<AiAgentSettings>();
   const [models, setModels] = useState<AiModels>();
   const [conversation, setConversation] = useState<AiConversation>();
@@ -156,6 +158,19 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
           {turn.items.some(item => !["user", "assistant"].includes(item.kind)) ? <details key={`${turn.id}-${turn.status}`} open={turn.status === "inProgress"} className="assistant-steps"><summary>{i18n.t(turn.status === "inProgress" ? "Working…" : "Work details")}</summary>
             {turn.items.filter(item => !["user", "assistant"].includes(item.kind)).map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}</details> : null}
           {turn.items.filter(item => item.kind === "assistant").map(item => <div key={item.id} className="assistant-answer">{item.text}</div>)}
+          {turn.items.map(item => {
+            const result = createdDocument(item);
+            if (!result) return null;
+            const deleted = removed.includes(item.id);
+            return <div key={item.id} className="assistant-result" data-testid="assistant-result">
+              <strong>{i18n.t(deleted ? "Created file deleted" : "Document created")}</strong>
+              <span title={result.path}>{result.path.split(/[\\/]/).at(-1)}</span>
+              <small>{result.path}</small>
+              <div><Button size="sm" disabled={pending || deleted} onClick={() => void run(() => onOpen(result.path))}>{i18n.t("Open")}</Button>
+              <Button size="sm" variant="destructive" disabled={pending || deleted} onClick={() => void run(async () => { if (await onUndo(result)) setRemoved(previous => [...previous, item.id]); })}>{i18n.t("Undo creation")}</Button></div>
+              {!deleted ? <small>{i18n.t("Undo deletes the created file.")}</small> : null}
+            </div>;
+          })}
           {turn.status === "inProgress" ? <p role="status">{i18n.t("Working…")}</p> : turn.status === "interrupted" ? <p>{i18n.t("Stopped")}</p> : null}
           {turn.error ? <p role="alert">{turn.error}</p> : null}
         </section>)}
@@ -195,4 +210,13 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
 }
 function activityStatus(value: string) {
   return value === "inProgress" ? i18n.t("In progress") : value === "completed" ? i18n.t("Completed") : value === "failed" ? i18n.t("Failed") : value === "declined" ? i18n.t("Declined") : value;
+}
+
+function createdDocument(item: import("@litzio/plugin-api/ai").AiConversationItem): { path: string; revision: string } | null {
+  if (item.kind !== "tool" || item.text !== "create_document" || item.toolResult?.success !== true) return null;
+  for (const part of item.toolResult.contentItems) {
+    if (part.type !== "inputText" || !part.text) continue;
+    try { const result = JSON.parse(part.text); if (typeof result.path === "string" && typeof result.revision === "string" && /^[a-f0-9]{64}$/.test(result.revision)) return result; } catch { /* Not a creation receipt. */ }
+  }
+  return null;
 }

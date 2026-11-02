@@ -44,9 +44,14 @@ function assertOwner(request: FileOperationRequest, owner: fs.BigIntStats, acces
 }
 
 /** The same validated deletion for permanent Host deletion and Electron shell.trashItem. */
-export async function deleteFile(request: FileOperationRequest, access: FileAccess = LOCAL_FILE_ACCESS, remove: (file: string) => void | Promise<void> = fs.unlinkSync): Promise<{ path: string }> {
+export async function deleteFile(request: FileOperationRequest, access: FileAccess = LOCAL_FILE_ACCESS, remove: (file: string) => void | Promise<void> = fs.unlinkSync): Promise<{ path: string; revision?: string }> {
   const { file, owner } = scope(request, access);
-  await remove(assertOwner(request, owner, access));
+  if (request.expectedRevision !== undefined && typeof request.expectedRevision !== "string") throw new Error("Invalid expected revision.");
+  if (request.checkOnly !== undefined && typeof request.checkOnly !== "boolean") throw new Error("Invalid deletion check.");
+  if (request.checkOnly) return { path: file, revision: textRevision(fs.readFileSync(file, "utf8")) };
+  const target = assertOwner(request, owner, access);
+  if (request.expectedRevision !== undefined && textRevision(fs.readFileSync(target, "utf8")) !== request.expectedRevision) throw new Error("The file changed during the operation. Review it and try again.");
+  await remove(target);
   return { path: file };
 }
 

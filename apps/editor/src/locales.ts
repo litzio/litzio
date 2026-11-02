@@ -1,6 +1,15 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Undo deletes the created file.": "Undo deletes the created file.",
+  "The file changed during the operation. Review it and try again.": "The file changed during the operation. Review it and try again.",
+  "The created file is outside the opened folders.": "The created file is outside the opened folders.",
+  "Undo document creation?": "Undo document creation?",
+  "“{{name}}” has changed since creation. Delete it and discard unsaved changes?": "“{{name}}” has changed since creation. Delete it and discard unsaved changes?",
+  "Document created": "Document created",
+  "Created file deleted": "Created file deleted",
+  "Undo creation": "Undo creation",
+
   "Declined": "Declined",
   "Codex CLI is unavailable on the Host.": "Codex CLI is unavailable on the Host.",
   "Codex CLI could not be executed on the Host.": "Codex CLI could not be executed on the Host.",
@@ -1008,6 +1017,15 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Undo deletes the created file.": "되돌리면 이번에 만든 파일이 삭제됩니다.",
+  "The file changed during the operation. Review it and try again.": "작업 중 파일이 다시 바뀌었습니다. 확인 후 다시 시도하세요.",
+  "The created file is outside the opened folders.": "만든 파일이 현재 열린 폴더 범위 밖에 있습니다.",
+  "Undo document creation?": "만든 문서를 되돌릴까요?",
+  "“{{name}}” has changed since creation. Delete it and discard unsaved changes?": "“{{name}}”에 생성 이후 변경 사항이 있습니다. 파일을 삭제하고 저장 전 수정을 버릴까요?",
+  "Document created": "문서를 만들었습니다",
+  "Created file deleted": "만든 파일을 삭제했습니다",
+  "Undo creation": "되돌리기",
+
   "Declined": "거절됨",
   "Codex CLI is unavailable on the Host.": "이 컴퓨터에서 Codex CLI를 찾을 수 없습니다. 설치 후 설정에서 진단을 실행하세요.",
   "Codex CLI could not be executed on the Host.": "이 컴퓨터에서 Codex CLI를 실행하지 못했습니다. 설정에서 진단을 실행하세요.",

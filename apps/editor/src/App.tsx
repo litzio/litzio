@@ -1,3 +1,5 @@
+import { creationUndoNeedsConfirmation } from "../shared/file-operations.ts";
+import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
 import { productName } from "../../../brand.ts";
 import { ASSISTANT_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
@@ -159,6 +161,8 @@ function EditorApp() {
   const [newDialog, setNewDialog] = useState(false);
   const [newDirectory, setNewDirectory] = useState("");
   const [newFolderDialog, setNewFolderDialog] = useState(false);
+  const [undoConfirmation, setUndoConfirmation] = useState<{ name: string; resolve(value: boolean): void }>();
+  const undoFocus = useRef<HTMLElement | null>(null);
   const [fileOperationPending, setFileOperationPending] = useState(false);
   const [figureRenamePending, setFigureRenamePending] = useState(false);
   const renameImageRef = useRef<ImageRenamer | undefined>(undefined);
@@ -206,11 +210,11 @@ function EditorApp() {
   const assistantAvailable = ui.plugins.some(plugin => plugin.id === "ai-agent" && plugin.contributions);
   useEffect(() => { if (!assistantAvailable) setAssistantOpen(false); }, [assistantAvailable]);
   useEffect(() => {
-    if (!assistantOpen || !assistantOverlay) return;
+    if (!(assistantOpen && assistantOverlay) && !fileOperationPending) return;
     const elements = globalThis.document.querySelectorAll<HTMLElement>(".sidebar, .app-main, .app-titlebar, .document-panel, .notification-center");
     elements?.forEach(element => { element.inert = true; });
     return () => elements?.forEach(element => { element.inert = false; });
-  }, [assistantOpen, assistantOverlay]);
+  }, [assistantOpen, assistantOverlay, fileOperationPending]);
   const pluginActions = (surface: "commands" | "sidebar") => ui.plugins.flatMap(plugin =>
     (plugin.contributions?.[surface] ?? []).map(action => ({ ...action, id: `${plugin.id}/${action.id}`,
       run: (focus: HTMLElement | null) => {
@@ -521,7 +525,7 @@ function EditorApp() {
     navigate({ type: "close", id });
     rememberTabs();
   }
-  const fileAction = async (action: Parameters<FileActionHandler>[0], chosenRoot: string, entry: FolderEntry, name?: string, figure?: { documentPath: string; imageUrl: string }) => {
+  const fileAction = async (action: Parameters<FileActionHandler>[0], chosenRoot: string, entry: FolderEntry, name?: string, figure?: { documentPath: string; imageUrl: string }, creationRevision?: string) => {
     if (operationRef.current || [...sessions.current.values()].some(owner => owner.busyRef.current)) throw new Error(i18n.t("Wait for the current file operation to finish."));
     operationRef.current = true; setFileOperationPending(true);
     if (figure) setFigureRenamePending(true);
@@ -537,6 +541,24 @@ function EditorApp() {
         throw cause;
       };
       const root = figure ? chosenRoot : folders.trees.map(tree => tree.root).filter(root => folderChain(root, entry.path).length > 0).sort((a, b) => a.length - b.length)[0] ?? chosenRoot;
+      let expectedRevision: string | undefined;
+      if (creationRevision !== undefined) {
+        const check = await fetch(`${import.meta.env.BASE_URL}api/file`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ root, path: entry.path, checkOnly: true }) });
+        const state = await check.json();
+        if (!check.ok || typeof state.revision !== "string") throw new Error(state.error ?? "Could not check file.");
+        expectedRevision = state.revision;
+        const dirty = () => [...sessions.current.values()].some(current => current.openedPath === entry.path && current.editorRef.current?.hasUnsavedChanges());
+        const tabState = () => JSON.stringify([...sessions.current.values()].filter(current => current.openedPath === entry.path).map(current => [current.getSnapshot(), current.editorRef.current?.hasUnsavedChanges()]));
+        const checkedTabState = tabState();
+        if (creationUndoNeedsConfirmation(creationRevision, state.revision, dirty())) {
+          undoFocus.current = globalThis.document.activeElement as HTMLElement;
+          const confirmed = await new Promise<boolean>(resolve => setUndoConfirmation({ name: entry.name, resolve }));
+          setUndoConfirmation(undefined);
+          if (!confirmed) return "";
+        }
+        if (tabState() !== checkedTabState) throw new Error(i18n.t("The file changed during the operation. Review it and try again."));
+        // Input stays inert through the check, modal and deletion; Host rechecks revision.
+      }
       const openDocuments = [];
       if (action === "rename" && entry.kind === "image") {
         for (const current of sessions.current.values()) {
@@ -553,7 +575,7 @@ function EditorApp() {
       }
       const response = await fetch(`${import.meta.env.BASE_URL}api/file`, {
         method: action === "delete" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ root, path: entry.path, ...(action === "rename" ? { name, openDocuments } : {}),
+        body: JSON.stringify({ root, path: entry.path, ...(expectedRevision !== undefined ? { expectedRevision } : {}), ...(action === "rename" ? { name, openDocuments } : {}),
           ...(figure && formSession ? { figureDocument: { path: figure.documentPath, imageUrl: figure.imageUrl,
             historicalSources: formSession.imageRenameSources(),
             revision: formSession.imageRenameRevision(), source: await formSession.appliedSource() } } : {}) }),
@@ -1267,8 +1289,17 @@ function EditorApp() {
           }}
         />
       ) : null}
+      {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes?", { name: undoConfirmation.name })}
+        action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
+        onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
       {assistantAvailable ? <AssistantPanel open={assistantOpen && !settingsOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
+        onOpen={async path => { await openFolderDocument(path); }}
+        onUndo={async result => {
+          const root = folders.rootOf(result.path);
+          if (!root) throw new Error(i18n.t("The created file is outside the opened folders."));
+          return await fileAction("delete", root, { path: result.path, name: splitDocumentPath(result.path).name, kind: "document" }, undefined, undefined, result.revision) !== "";
+        }}
         documentPath={openedPath} folders={openedFolderPaths}
         context={async () => session ? { path: session.openedPath, source: session.kind === "native" ? await session.appliedSource() : session.getSnapshot().text } : undefined}
         onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("plugin/ai-agent/ai-agent"); setSettingsOpen(true); }} /> : null}

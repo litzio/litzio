@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodexAppServer, LineDecoder } from "../server/codex-app-server.ts";
-import { AiAgentConnection, AGENT_INSTRUCTIONS } from "../server/ai-agent-connection.ts";
+import { AiAgentConnection, AGENT_INSTRUCTIONS, LITZIO_GUIDE } from "../server/ai-agent-connection.ts";
 import { AiAgentConversations } from "../server/ai-agent-conversations.ts";
 import { RootAccess } from "../server/file-access.ts";
 
@@ -72,7 +72,11 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   const connection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log, "account-fail"] });
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   assert.equal(existsSync(log), false);
-  const env = connection.environment(); assert.equal(env.cwd, cwd); assert.deepEqual(env.skills, []);
+  const env = connection.environment(); assert.equal(env.cwd, cwd); assert.deepEqual(env.skills, ["litzio-guide"]);
+  const guide = path.join(cwd, ".agents", "skills", "litzio-guide", "SKILL.md");
+  assert.equal(readFileSync(guide, "utf8"), LITZIO_GUIDE);
+  writeFileSync(guide, "stale"); connection.environment();
+  assert.equal(readFileSync(guide, "utf8"), LITZIO_GUIDE);
   assert.equal(readFileSync(env.instructions, "utf8"), AGENT_INSTRUCTIONS);
   const [models, diagnostics] = await Promise.all([connection.models(), connection.diagnostics()]);
   assert.deepEqual(models.models.map(model => model.model), ["gpt-6.1-sol", "chosen-model", "next-model"]);
