@@ -6,6 +6,7 @@ import "./compare.css";
 
 type Props = {
   snapshot: ComparisonSnapshot;
+  selectedRefs?: string[];
   ReadingSurface: ComponentType<ReadingSurfaceProps>;
   Button: ComponentType<{ children?: ReactNode; onClick(): void; disabled?: boolean }>;
   /** All copy is translated by the shell; source labels/notes remain original evidence. */
@@ -15,7 +16,7 @@ type Props = {
 type Wire = { key: string; d: string; category: string; selected: boolean };
 
 /** Owns only module DOM. Reading positions are supplied by the Editor's read-only surface. */
-export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, imageUrl }: Props) {
+export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, imageUrl, selectedRefs }: Props) {
   const { map, stale } = snapshot;
   const left = useRef<HTMLDivElement>(null), right = useRef<HTMLDivElement>(null), body = useRef<HTMLDivElement>(null);
   const [{ width, inset, gap }, setGeometry] = useState({ width: 400, inset: 16, gap: 16 });
@@ -161,6 +162,18 @@ export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, ima
     }
     schedule.current();
   }, [map, pages, stale]);
+  useLayoutEffect(() => {
+    if (!selectedRefs) return;
+    const items = map.items.filter(item => selectedRefs.includes(item.self_ref));
+    const first = items[0], prov = first?.provenance[0];
+    const page = prov && pages.find(page => page.page_no === prov.page_no);
+    if (first) reveal(first);
+    setSelected(items);
+    if (page && prov && left.current) {
+      left.current.scrollTop = Math.max(0, page.top + pageRegion(prov.bbox, page.size).top * page.height - 24);
+      suppressed.current.left = left.current.scrollTop;
+    }
+  }, [selectedRefs, map, pages]);
   function endnotes() {
     const block = snapshot.document.blocks.find(block => block.block === "footnote");
     const location = block && position.current.blocks.find(value => value.key === JSON.stringify(block.path));
@@ -191,9 +204,18 @@ export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, ima
         </div>)}
       </div>
       <div className="docling-reading" ref={right} onScroll={() => scroll("right")} tabIndex={0} aria-label={text("Converted document")}>
-        <ReadingSurface document={snapshot.document} path={snapshot.path} showHeadingLevels onLayout={onLayout} onSelection={selectTarget} />
+        <ReadingSurface key={map.document.sha256} document={snapshot.document} path={snapshot.path} showHeadingLevels onLayout={onLayout} onSelection={selectTarget} />
       </div>
       <svg className="docling-wires" aria-label={text("Visible correspondences")} data-link-count={wires.length}>
+        {selected.flatMap(item => item.targets.map(target => {
+          const block = blocksByKey.current.get(targetKey(target));
+          const pane = right.current, host = body.current;
+          if (!block || !pane || !host || stale) return null;
+          const pr = pane.getBoundingClientRect(), hr = host.getBoundingClientRect();
+          return <rect key={`${item.self_ref}:${targetKey(target)}`} className="docling-target-highlight"
+            x={pr.left - hr.left + block.left} y={pr.top - hr.top + block.top - pane.scrollTop}
+            width={Math.max(0, pane.clientWidth - block.left)} height={block.height} />;
+        }))}
         {wires.map(wire => <path key={wire.key} d={wire.d} data-category={wire.category} data-selected={wire.selected} />)}
       </svg>
     </div>

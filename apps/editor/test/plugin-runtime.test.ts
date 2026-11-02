@@ -63,7 +63,7 @@ test("dashboard shares registration flags and receipts; clearing uncertain histo
   const snapshot = dashboard();
   assert.equal(snapshot.requests[0].status, "uncertain");
   assert.equal(snapshot.requests[0].canCancel, false);
-  assert.deepEqual(snapshot.features, { comparison: false, conversion: false });
+  assert.deepEqual(snapshot.features, { comparison: false, conversion: false, review: true });
   assert.throws(() => host.invoke("docling", "compare", { path: path.join(output, "document.md") }), /feature is disabled/);
   await assert.rejects(() => host.start(input), /feature is disabled/);
   host.invoke("docling", "forget", { id: job.id });
@@ -73,7 +73,7 @@ test("dashboard shares registration flags and receipts; clearing uncertain histo
   assert.equal(replay.receipt.status, "uncertain");
   assert.throws(() => host.plugins().admit(job, "conflicting-fingerprint", "docling"), /conflicts/);
   host.invoke("docling", "features", { conversion: true });
-  assert.deepEqual(dashboard().features, { comparison: false, conversion: true });
+  assert.deepEqual(dashboard().features, { comparison: false, conversion: true, review: true });
 });
 
 test("dashboard reads published folders, reports stale/missing results and filters other Roots", async t => {
