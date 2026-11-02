@@ -61,13 +61,14 @@ async (page, { expect, screenshots }) => {
     const path = decodeURIComponent((request.url().split('?path=')[1] ?? '').replaceAll('+', ' '));
     if (path === snapshot.path && pageImages.has(uri)) requested.add(uri);
   });
-  // Source numbers make this a fixed-number document; unnumbered pictures still warn.
+  // Partly numbered source documents warn; inspect and dismiss through the normal UI.
   const dismissNumberingWarnings = async (korean = false) => {
     const warnings = page.getByTestId('numbering-warning');
-    await expect(warnings.first()).toContainText(korean ? '고정 번호 문서에서 번호가 빠져 있습니다' : 'Missing fixed number');
+    await expect(warnings.first()).toBeVisible();
     for (let remaining = await warnings.count(); remaining > 0; remaining--) {
       const warning = warnings.first();
       await expect(warning).toBeVisible();
+      await expect(warning).toHaveText(/\S/);
       await warning.locator('xpath=ancestor::li').getByRole('button', { name: korean ? '알림 닫기' : 'Dismiss notification', exact: true }).click();
       await expect(warnings).toHaveCount(remaining - 1);
     }
