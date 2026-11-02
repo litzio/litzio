@@ -212,6 +212,11 @@ normalized candidate; a rejected Apply retains the original draft. Core stays st
 not normalize operation input. Whitespace-only source is still rejected. Mermaid syntax errors
 affect preview, not document validity: opaque source can still be applied and saved.
 
+Mermaid edge labels use a transparent `edgeLabelBackground` theme variable and a scoped
+`themeCSS` override for Mermaid's half-opacity HTML label backdrop (#977), retaining
+the light/dark theme's text colors without an opaque box obscuring the connecting line.
+This presentation setting does not change authored source or saved Markdown.
+
 Mermaid is lazy-loaded only for a visible Mermaid Figure. Previews debounce for 250ms; stale
 results and unmounted/hidden views cannot overwrite current results. Rendering is serialized
 around Mermaid's global configuration, with a unique render ID per request. Effective light/dark

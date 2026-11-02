@@ -12,8 +12,11 @@ export function renderMermaid(source: string, dark: boolean): Promise<string> {
     document.body.append(container);
     try {
       mermaid.initialize({ startOnLoad: false, securityLevel: "strict", suppressErrorRendering: true,
-        secure: ["secure", "securityLevel", "startOnLoad", "maxTextSize", "suppressErrorRendering", "maxEdges", "theme", "themeVariables"],
-        theme: dark ? "dark" : "default" });
+        secure: ["secure", "securityLevel", "startOnLoad", "maxTextSize", "suppressErrorRendering", "maxEdges", "theme", "themeVariables", "themeCSS"],
+        theme: dark ? "dark" : "default",
+        themeVariables: { edgeLabelBackground: "transparent" },
+        // Mermaid's HTML label backdrop resets the variable's alpha to 0.5.
+        themeCSS: ".edgeLabel .labelBkg { background-color: transparent; }" });
       const { svg } = await mermaid.render(`litzio-mermaid-${++sequence}`, source, container);
       // Mermaid's sanitizer returns HTML serialization (e.g. <br> inside foreignObject).
       // Image SVG is XML: serialize the sanitized tree with namespaces and closed void tags.
