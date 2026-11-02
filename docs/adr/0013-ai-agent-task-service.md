@@ -33,10 +33,10 @@ this does not decide future broader access. Normal completion/failure/cancellati
 cleans both folders; the next Host initialization cleans exact recorded
 dead-owner leftovers without replaying work.
 
-Codex and a test-only fake adapter are the initial implementations. Settings
-shows adapter and availability/login status, the shared model (free input, default
-`gpt-6.1-sol`) and reasoning effort (`low`, `medium`, `high`, `xhigh`; default
-`medium`). Owner decision #930 adds these settings for all AI tasks. Values use
+Codex and a test-only fake adapter are the initial implementations. Owner decision
+#930 added shared model/effort defaults for all AI tasks (`gpt-6.1-sol`, `medium`).
+#931 replaces the initial free input with the discovered model/effort list and
+provider diagnostics under [ADR-0014](0014-main-agent-app-server.md). Values use
 the existing plugin settings file and are snapshotted at admission. Each receipt
 records execution settings, start/end timestamps, duration, status and failure;
 results remain serializable for future conversation UI. An uncertain owner-loss
@@ -58,11 +58,20 @@ there. Introduce it when the first of these conditions occurs:
 
 1. Someone other than the owner uses Litzio with AI features, and no later than
    a public distribution that includes the AI agent.
-2. A resident main agent is introduced.
+2. **Superseded by [ADR-0014](0014-main-agent-app-server.md):** introducing a resident
+   main agent does not create a dedicated home. It reuses the user's existing
+   Codex environment, with a separate Litzio cwd, to preserve ordinary Codex use
+   and avoid a second login. The existing task service is unchanged.
 3. Global instructions cause an actual result-interference problem in the owner's
    environment.
 
 ## Not decided or implemented
+
+The connection/settings portion of the main agent is now covered by
+[ADR-0014](0014-main-agent-app-server.md) and its
+[implemented contract](../design/main-agent-v1.md). Model free input from #930
+is replaced by the discovered model/effort list; feature tasks retain the
+same shared defaults and execution path.
 
 Conversation UI, user instructions, provider/credential selection, other
 providers, document-edit proposals, task registration, streaming, automatic

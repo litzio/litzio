@@ -5,8 +5,24 @@ export const AI_TASK = {
   settingsRoute: "/api/ai-agent-settings",
   statusRoute: "/api/ai-agent-status", discoveryRoute: "/api/ai-task-service",
 } as const;
-export type AiExecutionSettings = { model: string; reasoningEffort: "low" | "medium" | "high" | "xhigh" };
+export type AiExecutionSettings = { model: string; reasoningEffort: string };
 export const DEFAULT_AI_SETTINGS: AiExecutionSettings = { model: "gpt-6.1-sol", reasoningEffort: "medium" };
+/** Main-agent settings share the execution defaults with feature tasks. */
+export type AiAgentSettings = AiExecutionSettings & { provider: "codex"; enabled: boolean; writeAccess: "opened-folders" | "read-only" };
+export const AI_AGENT = {
+  modelsRoute: "/api/ai-agent-models", diagnosticsRoute: "/api/ai-agent-diagnostics", environmentRoute: "/api/ai-agent-environment",
+} as const;
+export type AiModel = { id: string; model: string; displayName: string; description: string;
+  supportedReasoningEfforts: { reasoningEffort: string; description: string }[]; defaultReasoningEffort: string };
+export type AiModels = { provider: "codex"; models: AiModel[]; updatedAt: number };
+export type AiEnvironment = { cwd: string; instructions: string; skills: string[] };
+export type AiDiagnostics = {
+  provider: "codex"; checkedAt: number; path: string | null; version: string | null; connected: boolean; error?: string;
+  account?: { type: string; email?: string | null; planType?: string } | null;
+  accountError?: string; rateLimitsError?: string; mcpError?: string;
+  rateLimits?: { name: string; windows: { usedPercent: number; windowDurationMins: number | null; resetsAt: number | null }[] }[];
+  mcp?: { name: string; status: string; authStatus: string }[];
+};
 export type AiTaskRequest = {
   id: string; caller: string; task: string; instruction: string;
   materials: { path: string; name: string }[];

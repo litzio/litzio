@@ -38,6 +38,12 @@ explicit disable and pinned registrations survive later discovery/app updates.
 
 ## Renderer and API surface
 
+Settings contribution `label` and `description`, like command labels, are
+untranslated message keys. The shell translates them at render time; plugin
+view content calls `host.text` during render. #931 fixes AI-agent activation in
+Korean followed by English: pretranslating metadata froze the Korean text and
+caused double translation. Docling already follows this convention.
+
 The UI ESM exports `activate(host)` and returns commands, sidebar actions, tab
 kinds, optional settings sections/file actions/activation view and a mandatory `dispose()`. The build wraps a CommonJS bundle in a lexical
 factory whose two external imports bind to **the exact Host React and JSX runtime
@@ -147,14 +153,17 @@ lifecycle as conversion/comparison. No Editor internal import or CLI is added.
 
 ## Verification
 
-`ai-agent` (#880) verifies the contributed status-only Settings section at 1440px
+`ai-agent` (#931) verifies the contributed Settings section at 1440px
 English Light and 640px Korean Dark, matching Docling's existing Settings geometry.
-It uses a synthetic status response without a model/account call, and verifies
+It uses synthetic settings/model/diagnostics responses without a model/account call, and verifies
 that disabling the real bundled plugin removes its category/service while the
 same ordinary document DOM and unsaved draft remain editable. Optional
 `--screenshots` captures both sections for manual alignment/wrapping/theme review.
-The status shows adapter, executable/login availability and login requirement;
-there are no provider, credential, permission or user-instruction controls.
+It also checks Korean activation followed by English, model search/efforts,
+diagnostics, enablement and re-entry. The current settings contract is
+[Main agent connection and settings](main-agent-v1.md); credentials and user
+instruction editing are not exposed. The following captures record #880's
+earlier status-only view.
 
 Self-reviewed representative captures: [1440px English Light](assets/ai-agent-880/ai-1440-light-en.png)
 and [640px Korean Dark](assets/ai-agent-880/ai-640-dark-ko.png). The paired Docling

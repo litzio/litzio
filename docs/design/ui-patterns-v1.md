@@ -69,6 +69,11 @@ Label 입력칸에 focus를 준다(#847). 이미지/pending Figure·Mermaid·수
 
 ## P05 입력칸·placeholder·위계
 
+#931의 [AI 설정](main-agent-v1.md)은 Docling 설정과 같은 Settings 콘텐츠·control
+폭과 공용 Input/select/Button을 사용한다. 모델 기본값은 명시적 Save로 저장하고,
+목록 대화상자는 기존 Dialog의 닫기·포커스 복귀를 사용한다. 한국어 시작 후 English
+전환, 1440px Light·640px Dark의 목록·진단·입력칸을 `ai-agent` 시나리오에서 확인한다.
+
 - **목적·사용/비사용:** 짧은 속성 입력을 찾기 쉽게 하되 중첩 경계를 줄인다. 문서 입력·원문·모달 전체에 경계 제거를 전파하지 않는다.
 - **목표:** 짧은 text field는 subtle fill + hover/focus border, label은 항상 표시한다. 원문은 code surface, 경로·새 이름 같은 독립 모달 핵심 입력은 상시 경계를 유지한다. placeholder는 예시/빈 값 표시이며 label·필수 조건을 대신하지 않는다. 필요한 제약은 label 가까이, 오류는 P07을 따른다.
 - **현재 기준:** [그림 속성 필드][figure-view]의 subtle fill·hover/focus border를 `PropertyForm`/`BlockProperties`의 표·절 label·수식/원문 metadata와 링크의 짧은 text field에 공유한다(#789). label은 상시 표시하며 기존 32px field·28px action·6px radius와 token을 사용한다. 원문 textarea(인라인 LaTeX 포함), 제목·caption과 독립 모달의 핵심 입력은 기존 경계를 유지한다. 교차참조의 target은 text field가 아닌 select로 기존 경계·후보 동작을 유지한다. 인용은 전용 변경 없이 공용 스타일만 따른다(ADR-0008 동결).

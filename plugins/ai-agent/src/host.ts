@@ -3,7 +3,7 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync, renameSync, unlinkS
 import { Ajv } from "ajv";
 import path from "node:path";
 import type { HostPlugin, PluginHostContext } from "@litzio/plugin-api/host";
-import { AI_TASK, DEFAULT_AI_SETTINGS, type AiExecutionSettings, type AiTaskRequest, type AiTaskService } from "@litzio/plugin-api/ai";
+import { AI_TASK, DEFAULT_AI_SETTINGS, type AiAgentSettings, type AiTaskRequest, type AiTaskService } from "@litzio/plugin-api/ai";
 import { selectedAdapter } from "./adapters.ts";
 
 function request(value: AiTaskRequest, host: PluginHostContext): AiTaskRequest {
@@ -21,8 +21,8 @@ function request(value: AiTaskRequest, host: PluginHostContext): AiTaskRequest {
     input: value.input, schema: value.schema, baseline: value.baseline }));
 }
 export function activate(host: PluginHostContext): HostPlugin {
-  const settings = (): AiExecutionSettings => existsSync(host.settingsFile)
-    ? checkedSettings(JSON.parse(readFileSync(host.settingsFile, "utf8"))) : { ...DEFAULT_AI_SETTINGS };
+  const settings = (): AiAgentSettings => existsSync(host.settingsFile)
+    ? checkedSettings(JSON.parse(readFileSync(host.settingsFile, "utf8"))) : { ...DEFAULT_AI_SETTINGS, provider: "codex", enabled: true, writeAccess: "opened-folders" };
   const configure = (value: unknown) => {
     const next = checkedSettings(value);
     mkdirSync(path.dirname(host.settingsFile), { recursive: true });
@@ -32,8 +32,11 @@ export function activate(host: PluginHostContext): HostPlugin {
     return next;
   };
   const service: AiTaskService = {
-    status: () => selectedAdapter().status(),
-    start: value => host.aiExecutor.start(request(value, host), 120_000, settings()),
+    status: () => settings().enabled ? selectedAdapter().status() : Promise.resolve({ adapter: "Codex", available: false, loginRequired: false, message: "Codex is disabled." }),
+    start: value => {
+      const current = settings(); if (!current.enabled && !host.aiExecutor.current(value.id)) throw new Error("Codex is disabled.");
+      return host.aiExecutor.start(request(value, host), 120_000, { model: current.model, reasoningEffort: current.reasoningEffort });
+    },
     current: id => host.aiExecutor.current(id), cancel: id => host.aiExecutor.cancel(id),
   };
   return {
@@ -43,9 +46,11 @@ export function activate(host: PluginHostContext): HostPlugin {
   };
 }
 
-function checkedSettings(value: unknown): AiExecutionSettings {
-  const v = value as AiExecutionSettings;
+function checkedSettings(value: unknown): AiAgentSettings {
+  const v = value as AiAgentSettings;
   if (!v || typeof v.model !== "string" || !v.model.trim() || /[\r\n\x00]/u.test(v.model) ||
-    !["low", "medium", "high", "xhigh"].includes(v.reasoningEffort)) throw new Error("Invalid AI execution settings.");
-  return { model: v.model.trim(), reasoningEffort: v.reasoningEffort };
+    typeof v.reasoningEffort !== "string" || !/^[a-z][a-z0-9-]{0,63}$/.test(v.reasoningEffort) ||
+    v.provider !== undefined && v.provider !== "codex" || v.enabled !== undefined && typeof v.enabled !== "boolean" ||
+    v.writeAccess !== undefined && !["opened-folders", "read-only"].includes(v.writeAccess)) throw new Error("Invalid AI execution settings.");
+  return { model: v.model.trim(), reasoningEffort: v.reasoningEffort, provider: "codex", enabled: v.enabled ?? true, writeAccess: v.writeAccess ?? "opened-folders" };
 }
