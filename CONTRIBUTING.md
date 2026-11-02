@@ -129,7 +129,8 @@ CI 경로 규칙의 기준은 changes job이 호출하는 [ci-execution-policy.m
 | `docs/**`, 루트·하위 `*.md`, `.github/ISSUE_TEMPLATE/**`만 변경 | 없음 (아래 패키지·공용 경로에 속하는 Markdown은 해당 경로 규칙 우선) |
 | `.agents/skills/**` | 없음 (제품이 로드하지 않는 agent 지침·오케스트레이션 도구; 문서 전용 allowlist에는 추가하지 않아 전체 quality 유지) |
 | 각 패키지의 `package.json` | 소속 패키지 규칙 + brand |
-| `packages/cli/**`, `plugins/docling/**`, `plugins/ai-agent/**` | http, desktop (CLI bundles both plugins; Desktop bundles the CLI) |
+| `packages/cli/**` | http, desktop (CLI bundles both plugins; Desktop bundles the CLI) |
+| `plugins/docling/**`, `plugins/ai-agent/**` | browser, http, desktop (UI·Host·worker·fixture를 포함한 패키지 전체) |
 | `apps/editor/**`, `packages/core/**`, `packages/file-commit/**`, `packages/plugin-api/**` | browser, http, desktop |
 | `apps/desktop/**` | desktop, brand + `test:update`·`test:uninstall` |
 | Editor의 업데이트 화면(`apps/editor/shared/desktop-bridge.ts`, `apps/editor/src/shell/SettingsDialog.tsx`, `apps/editor/src/shell/MessageArea.tsx`) | desktop + `test:update`·`test:uninstall` (Editor 파일은 Editor 규칙도 함께 적용) |
@@ -137,7 +138,7 @@ CI 경로 규칙의 기준은 changes job이 호출하는 [ci-execution-policy.m
 
 브랜드 검사는 별도 Windows `brand` job에서 Desktop과 병렬 실행한다. `brand.ts`, `apps/desktop/**`, 각 패키지의 `package.json` 및 기존 전체 실행 조건(루트 의존성·공용 설정·workflow·scripts 변경, 미분류 경로, diff 확인 불가)이 선택한다. 따라서 브랜드 검사 스크립트·CI 정책 자체도 포함한다. Editor/Core/CLI/Docling/AI agent/plugin-api 소스만 바뀌면 생략한다. job 안에서 공식 기본 package를 먼저 만들어 설치 파일과 플러그인 해시를 확보하고, 검증 내용을 줄이지 않은 `scripts/check-brand-build.ts`를 실행한다. 다른 job의 artifact나 완료를 기다리지 않으며 `brand-config` JSON·한국어 640px 캡처만 7일 보관한다.
 
-`packages/plugin-api`는 Editor Host·UI, Docling·AI agent 플러그인과 CLI가 공유하는 계약이므로 browser/http/desktop에서 소비자를 함께 검증한다. `plugins/ai-agent`는 Docling과 같은 번들 의존 경로를 따르며 전체 quality에서 두 플러그인의 테스트·typecheck도 실행한다. `.agents/skills/**`는 제품 빌드·실행 입력이 아니므로 추가 제품 job을 선택하지 않는다. 다른 경로와 섞이면 기존 합집합 규칙을 적용하며 각 `package.json`의 브랜드 조건도 유지한다.
+`packages/plugin-api`는 Editor Host·UI, Docling·AI agent 플러그인과 CLI가 공유하는 계약이므로 browser/http/desktop에서 소비자를 함께 검증한다. `plugins/docling`·`plugins/ai-agent`는 UI뿐 아니라 Host 연산·변환 코드·CSS·manifest·fixture가 화면 시나리오의 입력이므로 패키지 전체를 browser 대상으로 선택한다. Editor의 `docling-server`·`docling-dashboard`·`docling-compare`·`ai-agent`가 이 경계를 검증한다(AI 상태 응답은 mock이며 실제 모델 실행은 검증하지 않는다). 경로별 의존 목록을 따로 유지하지 않으며, 전체 quality에서 두 플러그인의 테스트·typecheck도 실행한다. `.agents/skills/**`는 제품 빌드·실행 입력이 아니므로 추가 제품 job을 선택하지 않는다. 다른 경로와 섞이면 기존 합집합 규칙을 적용하며 각 `package.json`의 브랜드 조건도 유지한다.
 
 패키지 내부 Markdown은 fixture나 배포 입력일 수 있어 패키지 경로 규칙을 적용한다. browser는 Editor 4개 shard로 stable 시나리오를 정확히 한 번씩 실행한다. 목록 순서의 순환 분배를 사용하며 각 shard의 배정은 CI 로그에 출력한다. http는 Windows/Linux CLI package·`test:packaged`·HTTP browser 회귀를 실행한다. desktop이 선택되면 clean package·release 자산 검증·`test:packaged`는 항상 실행하고, 로컬 feed 설치·업데이트 및 `test:uninstall`은 기존 `update` 출력으로 선택한다. 선택되면 release workflow와 같은 Windows 러너에서 Stable 다음 Beta를 연달아 실행해 채널 사이의 CLI 정리도 검증한다. 이 설치·업데이트 e2e는 Editor의 Settings·업데이트 알림·Desktop bridge를 직접 조작하므로 해당 파일도 `update` 대상이다. `App.tsx`의 재시작 거부 판단처럼 그 밖의 Editor 변경은 browser `desktop-updates`(mock bridge)와 Desktop packaged 회귀로 검증하고, 실제 설치·업데이트·삭제는 `update` 대상 변경 또는 전체 실행 fallback에서 확인한다. Editor와 CLI는 Core/File commit을 공유하고, Desktop은 Editor 코드와 Host를 직접 사용하며 HTTP용 CLI package도 Editor를 빌드하므로 이 의존 경로를 함께 검증한다.
 
