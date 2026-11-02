@@ -1112,7 +1112,7 @@ function EditorApp() {
       run: () => { shortcutsReturnFocus.current = commandReturnFocus.current; setShortcutsOpen(true); } },
   ];
 
-  return (
+  return (<>
     <div ref={shell} style={assistantSize ? { "--assistant-width": `${assistantSize}px` } as React.CSSProperties : undefined} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !pluginTab && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
       <Sidebar
         theme={theme} onThemeChange={changeTheme}
@@ -1293,7 +1293,6 @@ function EditorApp() {
           }}
         />
       ) : null}
-      <ShellNotificationCenter />
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
@@ -1481,7 +1480,10 @@ function EditorApp() {
         </DialogContent>
       </Dialog>
     </div>
-  );
+    <ShellNotificationCenter panelWidth={assistantOpen
+      ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
+      : panelOpen && !pluginTab && session?.kind !== "text" ? "var(--layout-document-panel-width)" : "0px"} />
+  </>);
 }
 
 /** Unique New locations in opened-folder/tree order; the first tree supplies each path's label. */

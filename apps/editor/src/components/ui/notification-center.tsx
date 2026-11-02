@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Bell, X } from "lucide-react";
 import { Button } from "./button.tsx";
@@ -32,8 +32,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   return <Registry value={register}><Items value={Object.values(sources).flat()}>{children}</Items></Registry>;
 }
 
-/** Render inside the shell so its geometry follows the document and right panels. */
-export function ShellNotificationCenter() { return <NotificationCenter items={useContext(Items)} />; }
+/** Keep the nonediting history boundary outside the shell while sharing its panel geometry. */
+export function ShellNotificationCenter({ panelWidth }: { panelWidth: string }) {
+  return <div style={{ "--notification-panel-width": panelWidth } as CSSProperties}><NotificationCenter items={useContext(Items)} /></div>;
+}
 
 /** Callbacks read the latest source render, while registry updates follow observable content. */
 export function useNotifications(items: Notification[]) {

@@ -287,3 +287,8 @@ and quiet-document checks pass. The optional notification screenshot traversal
 reaches its unrelated Docling comparison branch and fails its empty-center assertion:
 the comparison currently publishes five applied-number warnings. Its assertion was
 not weakened; the new panel geometry and captures complete before that branch.
+
+CI follow-up: the first head failed the existing `continuous-editing` assertion
+that notification history starts outside `.app-shell`. The center remains a
+shell sibling; the shell now passes only its current right-panel width to the
+notification outlet. The original history assertion is unchanged.

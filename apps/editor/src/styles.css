@@ -3409,7 +3409,3 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .plain-markdown img { max-width: 100%; height: auto; }
 .plain-markdown .table { display: block; overflow-x: auto; }
 .plain-markdown .katex-display { overflow-x: auto; overflow-y: hidden; }
-
-/* Reserve the actual right surface, including the undocked Outline overlay. */
-.app-shell:has(.document-panel) .notification-center { --notification-panel-width: calc(var(--layout-document-panel-width) + var(--document-scrollbar-width, 0px)); }
-.app-shell--assistant .notification-center { --notification-panel-width: var(--assistant-width, var(--layout-assistant-width)); }
