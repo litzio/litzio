@@ -648,8 +648,10 @@ profile, DPR 1, zoom 100%, Pretendard on Windows; captures follow font readiness
 with the panel at its top. The 640px table has its own horizontal scroll and the
 page has no horizontal overflow. Alignment, padding, Korean wrapping, themed
 status chips and scroll access were reviewed against the existing Settings and
-P10/P11 controls. The #871 images below record the prior dashboard layout; they
-are historical, not freshly captured #932 Before states. No claim of real OCR or
+P10/P11 controls. Fresh base captures from `6bcde2ab` use the unchanged dashboard scenario and the
+same running/failed/completed fixture states: [1440px Before](assets/docling-dashboard-932/before-1440-light-en.png)
+and [640px Dark Before](assets/docling-dashboard-932/before-640-dark-ko.png).
+The #871 images below remain historical evidence. No claim of real OCR or
 real AI quality follows from these fixtures. The owner-requested B detail panel,
 review decisions, charts and mobile layout remain outside this first pass.
 
