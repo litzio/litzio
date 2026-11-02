@@ -1245,7 +1245,7 @@ function EditorApp() {
           <DocumentTabs allTabs={allTabs} tabs={group.tabs.flatMap(id => allTabs.filter(tab => tab.id === id)).map(tab => ({ ...tab,
             dirty: Boolean(sessions.current.get(tab.id)?.documentDirty || sessions.current.get(tab.id)?.draftActive),
           }))} active={group.active} disabled={groupBusy || Boolean(continuation)} onActivate={activateTab} onClose={closeTab}
-            onOpenRight={id => moveTab(id, true)} onMove={id => moveTab(id)} openRightDisabled={!canSplit || groupBusy} moveDisabled={!split || groupBusy} actions={
+            onOpenRight={id => moveTab(id, true)} onMove={id => moveTab(id)} openRightDisabled={!canSplit || groupBusy} moveDisabled={!split || groupBusy} actions={tabs.some(tab => tab.id === group.active) ?
             <DocumentActions
               documentPath={owner?.openedPath ?? ""}
               wide={documentWidth === "wide"}
@@ -1256,7 +1256,6 @@ function EditorApp() {
               draftNotice={owner?.draftNotice}
               textMode={owner?.kind === "text"}
               markdownText={owner?.kind === "text" && owner.markdown}
-              hideViewControls={pluginTabs.some(tab => tab.id === group.active)}
               view={owner?.view ?? "visual"}
               viewDisabled={!owner || groupBusy}
               onViewChange={(next) => { if (owner?.kind === "text" && next !== "source") owner.setView(next); if (owner?.kind === "native") { if (next === "source") void owner.showSource(); else owner.setView(next); } }}
@@ -1275,7 +1274,7 @@ function EditorApp() {
               outline={panelOpen && !assistantOpen}
               onToggleOutline={owner?.kind === "text" ? undefined : toggleOutline}
               outlineToggleRef={group.id === navigation.focused ? outlineToggle : undefined}
-            />
+            /> : null
           } />
           </section>;
           })}

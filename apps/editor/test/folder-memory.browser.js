@@ -1,6 +1,6 @@
 // Startup restoration competes with user navigation; inspect the Sidebar, preferences and Reload.
 async (page, { openFolderPicker, openPath, waitForActivePath }) => {
-  const ready = (target = page) => target.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+  const ready = (target = page) => target.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const origin = page.url().split('/').slice(0, 3).join('/');
   const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
   const sep = defaultPath.includes('\\') ? '\\' : '/';

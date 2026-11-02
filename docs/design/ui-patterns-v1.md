@@ -288,3 +288,6 @@ The table block menu uses a checkbox row with current check in a separate View g
 the current value. Settings uses a two-option default selector (P11). This is a
 path-scoped device preference shared by Edit, Read and comparison; it is independent
 of document drafts, Save and Undo. See [table contract](table-interaction-v1.md#per-document-table-presentation-902).
+
+#973: 문서가 없는 시작 화면과 플러그인 탭에서는 탭 줄의 문서 동작 묶음을 숨긴다.
+일반 텍스트 문서의 지원 동작은 유지한다([현재 계약](editor-ux-shell-v1.md#title-strip-and-tab-row-actions-695)).

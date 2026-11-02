@@ -2,7 +2,7 @@
 async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bibliographyFixture, screenshots }) => {
   page.setDefaultTimeout(15000);
   const check = (ok, message) => { if (!ok) throw new Error(message); };
-  const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+  const ready = () => page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const origin = page.url().split('/').slice(0, 3).join('/');
   const start = await (await page.request.get(origin + '/api/document')).json();
   check(start.start && start.allowedRoots?.length === 2 && !start.sample, 'Production HTTP must start without a sample and with two roots');

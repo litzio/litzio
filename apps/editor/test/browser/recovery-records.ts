@@ -26,5 +26,5 @@ export async function resetRecovery(page: Page): Promise<void> {
     request.onblocked = () => reject(new Error("Test recovery reset was blocked"));
   }), `${brand.storagePrefix}-recovery`);
   await page.reload();
-  await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: "attached" });
+  await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({ state: "attached" });
 }
