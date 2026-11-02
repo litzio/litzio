@@ -15,6 +15,10 @@ export type PluginHostContext = {
   aiExecutor: AiTaskExecutor;
   /** Undefined while the providing plugin is disabled. Calls retain caller identity. */
   aiTasks(): AiTaskService | undefined;
+  /** Retain the runtime's existing session OS lock before publishing pending work. */
+  requestOwner(): string;
+  /** Shared liveness probe; I/O errors are not proof of a dead owner. */
+  isRequestOwnerAlive(owner: string): boolean;
   /** Plugin-owned transient data survives re-registration within this Host. */
   session: Map<string, unknown>;
 };

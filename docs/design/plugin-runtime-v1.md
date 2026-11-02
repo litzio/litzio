@@ -136,6 +136,15 @@ SQLite releases writer locks and rolls back incomplete transactions on crash.
 Owner lock files and installed bundles are retained; no garbage collector is
 introduced. These files carry only installation/request ownership information.
 
+The injected Host facade exposes `requestOwner()` to retain this same session
+lock before a feature publishes pre-admission work, and `isRequestOwnerAlive(id)`
+to probe it across Hosts. Docling structure review stores the returned UUID in
+its existing proposal file before B reads its materials. Receipt absence alone
+does not establish owner loss. Missing/unlocked owner locks establish loss;
+permission, I/O or probe errors do not. The facade adds no database, table,
+heartbeat, PID check, task admission or automatic retry, and existing PDF/AI
+receipts continue using the same lock implementation.
+
 A receipt left `running` without its owner becomes `uncertain` on observation.
 The existing UI receives an error snapshot explaining interruption. Neither a
 read nor replay of the same UUID executes it again. Starting another UUID is an

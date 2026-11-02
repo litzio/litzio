@@ -17,6 +17,11 @@ export function emptyCorrections(file: string, input: string): DoclingCorrection
   return { format: "litzio-docling-corrections", version: 1, source: { file, sha256: sha256(input) }, entries: [] };
 }
 
+/** The exact approval replay/representation checks, without filesystem writes. */
+export function checkDoclingCorrection(input: string, ledger: DoclingCorrections, entry: DoclingCorrection, options: ConversionOptions = {}): void {
+  convertWithDoclingCorrections(input, { ...ledger, entries: [...ledger.entries, entry] }, options);
+}
+
 const object = (v: any): boolean => !!v && typeof v === "object" && !Array.isArray(v);
 const keys = (v: any, allowed: string[]): boolean => object(v) && Object.keys(v).every(k => allowed.includes(k));
 const ref = (v: unknown): v is string => typeof v === "string" && /^#\/texts\/(0|[1-9]\d*)$/u.test(v);

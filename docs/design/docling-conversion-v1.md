@@ -1,6 +1,7 @@
 # Docling conversion v1
 
 - Status: Implemented
+- Structure-review verification: 2026-11-02 (#884; synthetic fake-service and installed Host/worker tests; real-provider flow trial and owner checks described below).
 - Dashboard verification: 2026-11-01 (#871; synthetic Host receipts/results, feature lifecycle, 1440px English Light and 640px Korean Dark; real service remains manual).
 - Plugin-folder verification: 2026-11-01 (#869; independent folder build/typecheck/tests, shared Host, CLI and unchanged Docling conversion browser assertions; no real Docling service launched).
 - Worker boundary verified: 2026-10-31 (#853 synthetic REST/shared Host tests; real service and packaged checks follow the plugin contract).
@@ -90,8 +91,9 @@ the complete resulting ledger from the original. Removal is approval undo, not
 an inverse patch. Installed Host operations `add-correction`, `remove-correction`
 and `apply-corrections` take `{folder, entry}`, `{folder, id}` and `{folder}`;
 conversion must be enabled. They add no UI route or dashboard change. Removing a
-prerequisite that invalidates a remaining entry refuses the removal. AI execution,
-proposals, approval screens and block confirmation state remain follow-up work.
+prerequisite that invalidates a remaining entry refuses the removal. Structure-review
+execution and proposal records are defined below; approval screens and block
+confirmation state remain follow-up work.
 
 Publication builds a complete private sibling copy of the folder, including
 untouched source/assets/user files, then renames the old folder to a private
@@ -128,6 +130,189 @@ byte-identical output after undo, publication rollback, concurrent-edit refusal
 and thin installed-Host CLI integration. Windows regressions cover real 8.3 alias
 publication/locking; injected sibling cleanup failures cover lock release and
 preserved publication/rollback diagnostics. No Docling server or review/AI UI is used.
+
+## Structure review without UI (#884)
+
+Authority: the 2026-11-02 “C 구조 검수” decision, items 1–4, 6 and 7 in
+[Discussion #766](https://github.com/litzio/litzio/discussions/766), over A (#876)
+and the [Host-mediated AI task service](plugin-runtime-v1.md#ai-task-service-880)
+under [ADR-0013](../adr/0013-ai-agent-task-service.md). Docling obtains
+`host.aiTasks()` and imports no agent plugin or provider implementation. An absent
+service returns `available: false` and an explicit disabled-agent error. No AI
+work starts in that case; existing conversion and document use remain available.
+
+The one whole-document task is `docling-structure-review`, caller `docling`.
+Its materials are byte-preserving original DoclingDocument JSON, a snapshot of
+the current ordered corrections, and rejected suggestions. The feature instruction
+asks the agent to read only needed portions using search/jq and find only heading
+depth/heading-versus-body, cross-page paragraph merges, and body-versus-header/footer
+classification. It distinguishes labels, content layers and tree placement.
+Original `self_ref`, the same A operation/value, reason, and nonempty evidence
+`[{"page": 1, "text": "literal original fragment"}]` are required for each result.
+Evidence shape is checked; its truth and suggestion accuracy are not established
+by these checks.
+
+The strict draft-07 result Schema is the exported `structureReviewSchema` in
+[structure-review.ts](../../plugins/docling/src/structure-review.ts). The root is
+`{proposals: [...]}`; each array item is an `anyOf` of the three A operation/value
+objects with the shared fields above. All object properties are required and extra
+properties are refused. `heading.level` is an integer 1–6 or null; merge `next`
+is a string; furniture labels are `text`, `page_header`, `page_footer`.
+This is the actual schema passed to B, including Codex structured output.
+
+The opaque task baseline is JSON containing the original `sourceSha256` and
+`correctionsSha256`, the SHA-256 of `JSON.stringify` of A's parsed ledger, including
+its source binding and ordered entries. Original bytes must match A's source/map
+binding before admission. Material files are frozen as three UUID-named
+`.structure-review-<UUID>-*.json` files inside the conversion folder; B snapshots
+only those files using the three plain material names. They do not contain partial
+AI results. They remain until terminal receipt observation, then are removed in
+the same complete-folder publication as the result or failure. A restarted Host
+can finish this observation; it never starts the task again. An interrupted
+admission without a B receipt becomes `uncertain` only after the shared runtime
+proves that its owning Host session ended. Before publishing the pending task,
+Docling calls `host.requestOwner()` to retain the runtime's existing session OS
+lock and stores that session UUID as `task.owner`. Other Hosts use
+`host.isRequestOwnerAlive(owner)`, the same SQLite lock probe used for request
+receipts, instead of their own session memory, PIDs or deadlines. A busy lock
+retains `running` with `canCancel: false` and preserves all inputs during B's
+material reads. An unlocked/missing owner lock proves owner loss; a probe error
+does not, so the read preserves the task and copies for a later observation.
+Plugin reactivation keeps the same Host owner. A new Host session at the same PID
+cannot revive the old owner. Once B admits the task, its existing receipt governs
+terminal observation/cleanup. These temporary input copies are not a queue or
+additional proposal ledgers; no new database or ownership store is introduced.
+
+If the initial complete-folder publication succeeds but sibling cleanup fails,
+Docling still submits the published inputs to B before returning the cleanup
+error to the caller. A's `AggregateError` message, paths and causes are retained;
+its `PublishedCorrectionCleanupError` subtype identifies successful publication
+without matching error text. A failed/rolled-back publication never admits work.
+After a cleanup warning, observe the same request UUID to read or cancel the
+admitted task; observing never repeats execution. If admission also fails, the
+task is recorded as `uncertain` and its inputs removed. Admission, initial cleanup
+and failure-record cleanup errors are all reported together when applicable.
+The existing shared Host ownership rules above remain unchanged.
+
+Only B's completed success receipt is consumed, with matching caller/task/baseline.
+Docling checks the JSON shape again and dry-runs each suggestion independently
+through `checkDoclingCorrection`, which invokes A's full ordered replay and native
+conversion checks without writes. Checks use the frozen original and current
+ledger; one suggested correction never silently satisfies another's prerequisites.
+Passing proposals become `pending`; failures become `inapplicable` with an
+entry-specific `validationError`. A prerequisite approval can make a later rerun's
+proposal applicable. No Markdown or correction is written by running review.
+Provider/timeout/cancelled/format/uncertain outcomes retain B's failure code and
+leave the previous proposals intact.
+
+One human-readable `structure-review.json` is the durable proposal file:
+
+```json
+{
+  "format": "litzio-docling-structure-review",
+  "version": 1,
+  "updatedAt": "2026-11-02T01:00:01.000Z",
+  "task": {
+    "id": "2f922033-366c-4c8f-bcc1-a86186da5bfd",
+    "owner": "ea939d29-f215-4eb4-9d23-930adf38dd2e",
+    "baseline": { "sourceSha256": "<64 hex>", "correctionsSha256": "<64 hex>" },
+    "startedAt": "2026-11-02T01:00:00.000Z",
+    "finishedAt": "2026-11-02T01:00:01.000Z",
+    "status": "success"
+  },
+  "proposals": [{
+    "id": "ca3cf50c-d95a-4509-a82b-79aa74efed55",
+    "taskId": "2f922033-366c-4c8f-bcc1-a86186da5bfd",
+    "baseline": { "sourceSha256": "<64 hex>", "correctionsSha256": "<64 hex>" },
+    "createdAt": "2026-11-02T01:00:01.000Z",
+    "suggestion": {
+      "self_ref": "#/texts/1", "operation": "heading", "value": { "level": 2 },
+      "reason": "This subsection belongs below the preceding chapter.",
+      "evidence": [{ "page": 1, "text": "Subsection" }]
+    },
+    "state": "pending", "history": []
+  }]
+}
+```
+
+States are `pending`, `approved`, `rejected`, `inapplicable`. Approval/rejection/undo
+append timestamped history; undo returns the proposal to `pending` while retaining
+its approval history. On a successful rerun only pending proposals with no review
+history are replaced. Approved/rejected records, previously reviewed pending
+records and inapplicable outcomes remain. Failed/cancelled reruns replace nothing.
+The latest task is stored at the root; every proposal retains its task ID and
+baseline, so retained decisions remain attributable across reruns.
+
+Each read hashes the current original bytes and adds `stale: true` to **all**
+proposals with a different source hash, including approved/rejected ones. A missing
+or non-UTF-8 replacement is also stale. Stored decision states and evidence are
+retained. Ledger-only drift is not stale: approval always revalidates against the
+current ledger. Changed originals require a new conversion before another review.
+
+Approval rejects stale/nonpending proposals, dry-runs the current ledger, then uses
+the same `addDoclingCorrection` path as `add-correction`. The correction ID is
+`review-<proposal UUID>`; reason is copied to `reason`, evidence is JSON-encoded
+into A's string `aiEvidence`, and approval time is recorded. Undo uses the same
+`removeDoclingCorrection` path as `remove-correction`, including refusal of a
+removal that invalidates another correction. Rejection changes only the proposal
+file. Approval/undo publish Markdown, map, corrections and proposal state in **one**
+A-style locked complete-folder replacement; failure does not publish a mixed
+state. Rejection/result publication use that same lock and replacement. Concurrent
+proposal edits are revision-checked. A's existing source preservation, rollback,
+cleanup diagnostics and concept-stage crash limitations still apply.
+
+If cleanup throws after a terminal result/failure/cancellation or a decision was
+published, that terminal state or complete decision remains authoritative. The
+caller receives the cleanup diagnostics; the next observation reads the saved
+state without consuming results or applying the decision again. Terminal
+publication removes inputs and releases the consumer's service reference even
+when its sibling cleanup reports failure. Leftover backups remain at the reported
+paths for inspection under A's existing contract; they are not silently removed
+or replayed on a later request.
+
+The installed Host operations use the existing `/api/plugin-operation` transport:
+
+| Operation | Arguments | Behavior |
+| --- | --- | --- |
+| `review-start` | `{folder, id: UUID}` | Explicit admission; same latest UUID only observes, another UUID is refused while work runs. |
+| `review-status`, `review-proposals` | `{folder}` | Read current task/proposals, consume a completed receipt, return availability and owning-Host `canCancel`. |
+| `review-cancel` | `{folder}` | Await B's actual cancellation/uncertain outcome. |
+| `review-approve`, `review-reject`, `review-undo` | `{folder, id: proposalUUID}` | Explicit human decision paths above. |
+
+Start/decisions require the existing conversion feature; Host registration gates
+new operations. Status/list/cancel drain after Docling disable. An accepted service
+handle is retained only in the Host session so agent disable does not prevent its
+accepted work from completing or being cancelled. On restart with the agent off,
+availability is false and B observation waits for the service to become available.
+B retains UUID deduplication, complete-result publication, dead-owner `uncertain`,
+owning-Host-only cancellation, no automatic retry/replay and cleanup. Docling
+polling never admits another task. There is no detached C background runner.
+Terminal proposals are read from their saved file without consulting B's old
+material locators, including after moving the completed conversion folder.
+
+No CLI is added: AI execution is not a document semantic operation (the same
+reason as B); approved record replay already has A's `apply-corrections` command.
+The Host transport is the headless surface. Dashboard/review panel (C2), block
+confirmation states, manual correction authoring, page ranges, image-dependent
+errors, automatic runs/retries, dedicated Codex home and AI accuracy assessment
+are outside #884. Core and the AI agent plugin are unchanged.
+
+Fake-service tests use a synthetic document with all three error kinds. Installed
+Host/HTTP tests replace only B's worker result, using its real service/runtime.
+They establish execution, schema/domain validation, persistence, decisions, rerun,
+staleness, disable, failures and byte preservation; they do not establish AI
+correctness. Actual Codex/IEEE checks remain in the
+[owner manual checklist](../test/README.md#docling-structure-review-884).
+
+On 2026-11-02 one authenticated Codex call (`gpt-6.1-sol`) used the installed
+Host/service/worker with the same synthetic fixture. The complete flow took
+17.248 seconds and returned three schema-valid suggestions; all three passed A's
+dry-run and were stored as pending. No suggestion was approved. Source SHA-256
+remained `835820cce1b0e2f68d544ba23ec7323638fc6402ec4719ba014aea2ca2a9fdfe`,
+the correction ledger stayed empty, and both B temporary folders and the three
+Docling material copies were removed. The Host closed successfully. This proves
+only return/validation/storage flow with that account, not suggestion accuracy,
+real-provider cancellation, or IEEE fidelity.
 
 ## External PDF service and source bundle
 
@@ -454,8 +639,9 @@ display numbers are not a new Core feature in this issue. Conversion never
 silently treats an unrelated occurrence of the same number as an endnote call.
 
 Read-only comparison is defined by [Docling comparison](docling-compare-v1.md).
-Confirmation state, AI proposals and post-edit relinking remain outside
-this contract; approved correction replay is defined above. Public fixture provenance, licenses and reproduction
+Confirmation state, proposal screens and post-edit relinking remain outside
+this contract; headless structure proposals and approved correction replay are
+defined above. Public fixture provenance, licenses and reproduction
 commands are in the [fixture README](../../plugins/docling/test/fixtures/README.md).
 
 ## App verification on 2026-10-30

@@ -59,6 +59,8 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
         readText: file => decodeUtf8(readFileSync(accessPath(file, access))),
         validateDocument: source => { readModel(source); },
         session: sessions.get(id) ?? sessions.set(id, new Map()).get(id)!,
+        requestOwner: () => getRuntime().store.requestOwner(),
+        isRequestOwnerAlive: owner => getRuntime().store.isRequestOwnerAlive(owner),
         executor: { start: request => getRuntime().start({ ...request, plugin: id }), current: id => getRuntime().current(id),
           cancel: id => getRuntime().cancel(id), close: () => close(),
           history: () => getRuntime().requestHistory(id), forget: request => getRuntime().forgetRequest(request, id) },

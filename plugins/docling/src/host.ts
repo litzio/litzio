@@ -12,6 +12,7 @@ import type { ConversionJob } from "@litzio/plugin-api/worker";
 import { statSync } from "node:fs";
 import { inspectDoclingMap } from "./shared/map.ts";
 import type { Features, ConversionResult } from "./shared/dashboard.ts";
+import { StructureReviewer } from "./structure-review.ts";
 
 export function activate(host: PluginHostContext): HostPlugin {
   const session = (host.session.get("conversion") ?? { admitting: false }) as ConversionSession;
@@ -19,6 +20,7 @@ export function activate(host: PluginHostContext): HostPlugin {
   const conversion = new DoclingHost(host.settingsFile, host.resolvePath, host.executor, session);
   const features = (): Features => ({ conversion: host.features().conversion !== false, comparison: host.features().comparison !== false });
   const requireFeature = (name: keyof Features) => { if (!features()[name]) throw new Error("This Docling feature is disabled."); };
+  const review = new StructureReviewer(host, () => requireFeature("conversion"));
   const history = () => {
     if (!host.executor.history) throw new Error("Plugin request history is unavailable.");
     return host.executor.history().filter(({ job }) => {
@@ -44,7 +46,7 @@ export function activate(host: PluginHostContext): HostPlugin {
     return { output: folder, documentSha256: result.map.document.sha256 };
   };
   return {
-    drainingOperations: ["current", "cancel", "start", "stop"],
+    drainingOperations: ["current", "cancel", "start", "stop", "review-status", "review-proposals", "review-cancel"],
     routes: {
       "/api/docling-settings": { GET: "settings", PUT: "configure" },
       "/api/docling-check": { POST: "check" },
@@ -55,6 +57,13 @@ export function activate(host: PluginHostContext): HostPlugin {
       "/api/docling-history": { POST: "stop", DELETE: "forget" },
     },
     operations: {
+      "review-start": args => review.start(args.folder, args.id),
+      "review-status": args => review.list(args.folder),
+      "review-proposals": args => review.list(args.folder),
+      "review-cancel": args => review.cancel(args.folder),
+      "review-approve": args => review.decide(args.folder, args.id, "approve"),
+      "review-reject": args => review.decide(args.folder, args.id, "reject"),
+      "review-undo": args => review.decide(args.folder, args.id, "undo"),
       "apply-corrections": args => correct(args, "apply"),
       "add-correction": args => correct(args, "add"),
       "remove-correction": args => correct(args, "remove"),

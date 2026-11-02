@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { ConversionJob } from "@litzio/plugin-api/worker";
@@ -147,10 +147,13 @@ export class PluginStore {
     lease.exec("CREATE TABLE owner (id TEXT); BEGIN IMMEDIATE");
     this.lease = lease;
   }
+  requestOwner(): string { this.holdOwnership(); return this.owner; }
+  isRequestOwnerAlive(owner: string): boolean { return this.ownerAlive(owner); }
   private ownerAlive(owner: string): boolean {
     if (owner === this.owner && this.lease) return true;
     const file = path.join(this.directory, "owners", `${requestUuid(owner)}.sqlite`);
-    if (!existsSync(file)) return false;
+    try { statSync(file); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
     const probe = new DatabaseSync(file);
     try { probe.exec("BEGIN IMMEDIATE; ROLLBACK"); return false; }
     catch (error) {
