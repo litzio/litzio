@@ -1,3 +1,4 @@
+import { useTableWrapDefault, setTableWrapDefault } from "../table-wrap.ts";
 import type { SettingsSection } from "@litzio/plugin-api/ui";
 import { ContributionBoundary } from "../PluginTab.tsx";
 import { useMessageState } from "../ui-message.ts";
@@ -137,6 +138,8 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
   const [accentProblem, setAccentProblem] = useState(false);
   const [page, setPage] = useState(readPageBackground);
   const [pageProblem, setPageProblem] = useState(false);
+  const tableWrapDefault = useTableWrapDefault();
+  const [tableWrapProblem, setTableWrapProblem] = useState(false);
   const [logBusy, setLogBusy] = useState(false);
   const [logProblem, setLogProblem] = useState(false);
   const state = info?.update;
@@ -221,6 +224,18 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
                     {PAGE_BACKGROUNDS.map(value => <option key={value} value={value}>{i18n.t(PAGE_LABELS[value])}</option>)}
                   </select>
                   {pageProblem ? <p role="alert">{i18n.t("Page style could not be saved. This choice applies until you close this page.")}</p> : null}
+                </section>
+                <section className="settings-section" aria-labelledby="settings-table-wrap">
+                  <div className="settings-label">
+                    <h3 id="settings-table-wrap" className="settings-heading">{i18n.t("Tables in new documents")}</h3>
+                    <p>{i18n.t("Default for documents without a remembered choice on this device.")}</p>
+                  </div>
+                  <select className="form-select h-[var(--size-control)] w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring" aria-labelledby="settings-table-wrap" data-testid="table-wrap-default"
+                    value={String(tableWrapDefault)} onChange={event => setTableWrapProblem(!setTableWrapDefault(event.target.value === "true"))}>
+                    <option value="true">{i18n.t("Wrap long text")}</option>
+                    <option value="false">{i18n.t("Single line")}</option>
+                  </select>
+                  {tableWrapProblem ? <p role="alert">{i18n.t("This choice could not be saved. It applies until you close this page.")}</p> : null}
                 </section>
                 <section className="settings-section" aria-labelledby="settings-language">
                   <div className="settings-label">

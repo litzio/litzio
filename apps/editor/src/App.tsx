@@ -1,3 +1,4 @@
+import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
 import { productName } from "../../../brand.ts";
 import { COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
 import { usePluginUi } from "./plugin-ui.tsx";
@@ -308,6 +309,8 @@ function EditorApp() {
     imageChoice = null, imageReturnFocus = emptyImageRef,
   } = nativeSession ?? {};
   const { openedPath = "", draftActive = false, documentDirty = false, reloadDialog = false } = session ?? {};
+  const tableWrapPath = pluginTab?.path ?? (nativeSession ? openedPath : "");
+  const tableWrap = useTableWrap(tableWrapPath);
   const busy = Boolean(operation || fileOperationPending || session?.busy || continuationPending);
   const switching = Boolean(operation || session?.switching);
   function compareBeforeSave(returnFocus: HTMLElement | null, owner = session): void {
@@ -547,6 +550,7 @@ function EditorApp() {
       try { await recoveryStorage.changePath(entry.path, action === "rename" ? result.path : null); }
       catch { setError({ key: "The file changed, but local recovery could not be updated. Review local recovery in Settings." }); }
       if (action === "rename") {
+        relocateTableWrap(entry.path, result.path);
         owner?.relocate(result.path);
         setTabs(previous => previous.map(tab => {
           if (tab.path !== entry.path) return tab;
@@ -1013,6 +1017,9 @@ function EditorApp() {
     { id: "sidebar", kind: "command", label: i18n.t(sidebarOpen ? "Collapse Explorer" : "Expand Explorer"), icon: PanelLeft,
       keywords: ["sidebar", "사이드바"], takesFocus: true,
       run: () => { sidebarFocus.current = "sidebar"; setSidebarOpen(value => !value); } },
+    { id: "table-wrap", kind: "command", label: i18n.t("This document’s tables: wrap long text"), icon: FileText,
+      detail: i18n.t(tableWrap ? "Wrap long text" : "Single line"), disabled: !tableWrapPath || busy,
+      run: () => { setTableWrap(tableWrapPath, !tableWrap); } },
     { id: "width", kind: "command", label: i18n.t(documentWidth === "wide" ? "Standard document width" : "Wide document"), icon: documentWidth === "wide" ? Columns3 : StretchHorizontal, disabled: session?.kind === "text",
       keywords: ["document width", "문서 너비"], run: toggleDocumentWidth },
     ...pluginActions("commands").map(action => ({ id: action.id, kind: "command" as const, label: i18n.t(action.label as MessageKey), icon: FileText,

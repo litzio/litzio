@@ -219,3 +219,11 @@ padding을 쓴다. 선택하면 interaction-soft fill과 interaction border를 �
 [figure]: ../../apps/editor/src/figure-properties.tsx
 [forms]: ../../apps/editor/src/block-properties.tsx
 [number]: ../../apps/editor/src/numbering-properties.tsx
+
+## Table view preference usage (#902, P10 / P11)
+
+The table block menu uses a checkbox row with current check in a separate View group
+(P10). The command center uses the same document-scoped action label and reports
+the current value. Settings uses a two-option default selector (P11). This is a
+path-scoped device preference shared by Edit, Read and comparison; it is independent
+of document drafts, Save and Undo. See [table contract](table-interaction-v1.md#per-document-table-presentation-902).

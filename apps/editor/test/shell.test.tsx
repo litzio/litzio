@@ -1,3 +1,5 @@
+import { readTableWrapDefault, readTableWrapDocuments, TABLE_WRAP_DEFAULT_KEY, TABLE_WRAP_DOCUMENTS_KEY } from "../src/preferences.ts";
+import { setTableWrap, setTableWrapDefault, relocateTableWrap } from "../src/table-wrap.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { editorGroups, initialEditorGroups, activeAfterClose, allTabsPendingWork, openedTab, tabLabels, tabNames } from "../src/document-tabs.ts";
@@ -832,4 +834,35 @@ test("missing-file notice only claims additions after a successful comparison", 
       assert.equal(render(), "");
     }
   } finally { i18n.changeLanguage(language); }
+});
+
+test("table presentation is path-scoped, removes default choices and relocates device memory", () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  const values = new Map<string, string>();
+  try {
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    } });
+    assert.equal(readTableWrapDefault(), true);
+    setTableWrap("/a.md", false);
+    assert.deepEqual(readTableWrapDocuments(), {"/a.md": false});
+    relocateTableWrap("/a.md", "/renamed.md");
+    assert.deepEqual(readTableWrapDocuments(), {"/renamed.md": false});
+    setTableWrap("/renamed.md", true);
+    assert.deepEqual(readTableWrapDocuments(), {});
+    setTableWrap("/b.md", false);
+    setTableWrapDefault(false);
+    assert.equal(values.get(TABLE_WRAP_DEFAULT_KEY), "false");
+    assert.deepEqual(readTableWrapDocuments(), {});
+    values.set(TABLE_WRAP_DOCUMENTS_KEY, '{"/valid.md":true,"/bad.md":42}');
+    assert.deepEqual(readTableWrapDocuments(), {"/valid.md":true});
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, get() { throw Error("blocked"); } });
+    assert.equal(setTableWrap("/a.md", true), false);
+    assert.equal(readTableWrapDefault(), true);
+    assert.deepEqual(readTableWrapDocuments(), {});
+  } finally {
+    setTableWrapDefault(true);
+    if (descriptor) Object.defineProperty(globalThis, "localStorage", descriptor); else Reflect.deleteProperty(globalThis, "localStorage");
+  }
 });

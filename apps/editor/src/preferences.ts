@@ -195,3 +195,26 @@ export function rememberRecentFolder(folder: string, previous = readRecentFolder
   }
   return recent;
 }
+
+// Path-scoped presentation only. No Markdown, Host writes or editor transactions.
+export const TABLE_WRAP_DEFAULT_KEY = `${brand.storagePrefix}.tableWrapDefault`;
+export const TABLE_WRAP_DOCUMENTS_KEY = `${brand.storagePrefix}.tableWrapDocuments`;
+export function readTableWrapDefault(): boolean {
+  try { return globalThis.localStorage?.getItem(TABLE_WRAP_DEFAULT_KEY) !== "false"; }
+  catch { return true; }
+}
+export function readTableWrapDocuments(): Record<string, boolean> {
+  try {
+    const value: unknown = JSON.parse(globalThis.localStorage?.getItem(TABLE_WRAP_DOCUMENTS_KEY) ?? "{}");
+    return value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).filter(([, v]) => typeof v === "boolean")) : {};
+  } catch { return {}; }
+}
+export function writeTableWrapPreferences(defaultValue: boolean, documents: Record<string, boolean>): boolean {
+  try {
+    if (!globalThis.localStorage) return false;
+    globalThis.localStorage.setItem(TABLE_WRAP_DEFAULT_KEY, String(defaultValue));
+    globalThis.localStorage.setItem(TABLE_WRAP_DOCUMENTS_KEY, JSON.stringify(documents));
+    return true;
+  } catch { return false; }
+}

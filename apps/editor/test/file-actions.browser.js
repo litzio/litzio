@@ -61,6 +61,9 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   const editor = await activeDocument(page).locator(".tiptap").elementHandle();
   let reads = 0;
   const track = request => { if(request.method()==='GET' && request.url().startsWith(origin+'/api/document?')) reads++; };
+  await page.keyboard.press('Control+Slash');
+  await page.getByRole('combobox').fill('> This document’s tables');
+  await page.getByRole('option',{name:'This document’s tables: wrap long text',exact:true}).click();
   page.on('request', track); await context('a.md','Rename…');
   await dialog.getByRole('textbox',{name:'File name',exact:true}).fill('b');
   await dialog.getByRole('button',{name:'Rename',exact:true}).click();
@@ -68,6 +71,10 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   await dialog.getByRole('textbox',{name:'File name',exact:true}).fill('renamed');
   await dialog.getByRole('button',{name:'Rename',exact:true}).click();
   await dialog.waitFor({state:'hidden'}); await row('renamed.md').waitFor();
+  await expect(activeDocument(page).getByTestId('document-editor')).toHaveAttribute('data-table-wrap','false');
+  const rememberedWrap = await page.evaluate(()=>JSON.parse(localStorage.getItem('litzio.tableWrapDocuments')));
+  expect(rememberedWrap[file('a.md')]).toBeUndefined();
+  expect(rememberedWrap[file('renamed.md')]).toBe(false);
   expect(reads).toBe(0); page.off('request',track);
   expect(await editor.evaluate(node => node === document.querySelector('[data-document-tab][data-active="true"] .tiptap'))).toBe(true);
   await expect(page.getByRole('tab',{name:'renamed.md, Unsaved changes',exact:true})).toBeVisible();

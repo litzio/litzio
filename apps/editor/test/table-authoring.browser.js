@@ -5,7 +5,7 @@
 // rows and columns are then moved, realigned and removed from the block menu, and saved again. Finally, the caret
 // leaves the document's final table by ArrowDown and by a click below the document. Scratch files live
 // under the repository's ignored tmp/ directory; the scenario writes tables.md only.
-async (page, { showNotifications, openPath, reloadDocument }) => {
+async (page, { showNotifications, openPath, reloadDocument, expect, screenshots }) => {
   page.setDefaultTimeout(15000);
   // Rendering a caption must not rebuild a schema with duplicated extensions (Tiptap warns).
   const tiptapWarnings = [];
@@ -76,6 +76,78 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
     if (wrapping.length !== 2 || wrapping.some((t, i) => ((width === 1440 || i === 1) && t.overflow > 1) || t.lines < 2 || t.cellOverflow > 1))
       throw Error(`Table prose and identifiers must wrap at ${width}px: ${JSON.stringify(wrapping)}`);
   }
+  // #902: view preferences never touch the editor history or document source.
+  const wrapLabel = 'This document’s tables: wrap long text';
+  const paper = () => page.locator('[data-document-tab][data-active=true] [data-testid=document-editor]');
+  const toggleFromCenter = async () => {
+    await page.keyboard.press('Control+Slash');
+    const center = page.getByRole('dialog', {name:'Command center',exact:true});
+    await center.getByRole('combobox').fill('> ' + wrapLabel);
+    await center.getByRole('option', {name:wrapLabel,exact:true}).click();
+    await center.waitFor({state:'detached'});
+  };
+  await toggleFromCenter();
+  await expect(paper()).toHaveAttribute('data-table-wrap','false');
+  await page.getByTestId('view-visual').click();
+  const sourceBefore = await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file.replace('tables.md','wrapping.md'))}`).then(r=>r.json());
+  await tables.first().locator('td').first().click({button:'right'});
+  let menu = page.getByRole('menu',{name:'Block actions'});
+  await expect(menu.getByRole('menuitemcheckbox',{name:wrapLabel})).toHaveAttribute('aria-checked','false');
+  await expect(menu.getByRole('separator',{name:'View',exact:true})).toBeVisible();
+  if (screenshots) await page.screenshot({path:'tmp/902/menu-640.png'});
+  await menu.getByRole('menuitemcheckbox',{name:wrapLabel}).click();
+  await expect(paper()).toHaveAttribute('data-table-wrap','true');
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('litzio.tableWrapDocuments')))).toEqual({});
+  await tables.first().locator('td').first().click({button:'right'});
+  await expect(menu.getByRole('menuitemcheckbox',{name:wrapLabel})).toHaveAttribute('aria-checked','true');
+  if (screenshots) await page.screenshot({path:'tmp/902/menu-checked-640.png'});
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+z');
+  await expect(paper()).toHaveAttribute('data-table-wrap','true');
+  await toggleFromCenter();
+  await open();
+  await expect(paper()).toHaveAttribute('data-table-wrap','true');
+  await openPath(page,file.replace('tables.md','wrapping.md'));
+  await expect(paper()).toHaveAttribute('data-table-wrap','false');
+  await page.reload();
+  await expect(paper()).toHaveAttribute('data-table-wrap','false');
+  await expect(tables.first().locator('td').first()).toBeVisible();
+  const singleLine = await tables.first().evaluate(block=>{
+    const scroll=block.querySelector('.table-scroll');
+    return {overflow:scroll.scrollWidth-scroll.clientWidth,space:getComputedStyle(block.querySelector('td')).whiteSpace};
+  });
+  expect(singleLine.space).toBe('nowrap'); expect(singleLine.overflow).toBeGreaterThan(1);
+  expect((await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file.replace('tables.md','wrapping.md'))}`).then(r=>r.json())).source).toBe(sourceBefore.source);
+  for (const [width,language,theme] of [[1440,'en','light'],[640,'ko','dark']]) {
+    await page.evaluate(({language,theme})=>{localStorage.setItem('litzio.uiLanguage',language);localStorage.setItem('litzio.theme',theme);},{language,theme});
+    await page.setViewportSize({width,height:900}); await page.reload();
+    await expect(paper()).toHaveAttribute('data-table-wrap','false');
+    await tables.first().locator('td').first().click({button:'right'});
+    menu=page.getByRole('menu',{name:language==='ko'?'블록 작업':'Block actions'});
+    await expect(menu.getByRole('menuitemcheckbox')).toHaveAttribute('aria-checked','false');
+    if (screenshots) await page.screenshot({path:`tmp/902/menu-${width}-${language}.png`});
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Control+Slash');
+    const center=page.getByRole('dialog');
+    await center.getByRole('combobox').fill(language==='ko'?'> 이 문서의 표':'> This document’s tables');
+    if (screenshots) await page.screenshot({path:`tmp/902/center-${width}-${language}.png`});
+    await page.keyboard.press('Escape');
+    await page.getByTestId('sidebar').getByRole('button',{name:language==='ko'?'설정':'Settings',exact:true}).click();
+    await expect(page.getByTestId('table-wrap-default')).toHaveValue('true');
+    if (screenshots) await page.screenshot({path:`tmp/902/settings-${width}-${language}.png`});
+    await page.keyboard.press('Escape');
+  }
+  await page.evaluate(()=>{localStorage.setItem('litzio.uiLanguage','en');localStorage.setItem('litzio.theme','light');});
+  await page.reload(); await toggleFromCenter();
+  await page.getByTestId('sidebar').getByRole('button',{name:'Settings',exact:true}).click();
+  await page.getByTestId('table-wrap-default').selectOption('false');
+  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('litzio.tableWrapDocuments')))).toEqual({});
+  await page.keyboard.press('Escape');
+  await expect(paper()).toHaveAttribute('data-table-wrap','false');
+  await page.getByTestId('sidebar').getByRole('button',{name:'Settings',exact:true}).click();
+  await page.getByTestId('table-wrap-default').selectOption('true');
+  await page.keyboard.press('Escape');
+  await expect(paper()).toHaveAttribute('data-table-wrap','true');
   await page.getByTestId("view-visual").click();
   await page.setViewportSize({width:1280,height:720});
   await open();
