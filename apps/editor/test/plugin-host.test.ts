@@ -30,7 +30,7 @@ test("installed Docling corrections preserve a long conversion folder under a Wi
   const locator = path.join(shortRoot, "LongConversionFolder"), canonical = fs.realpathSync.native(folder);
   const read = (file: string) => fs.readFileSync(path.join(folder, file));
   const original = { source: read("document.json"), document: read("document.md"), map: read("document.docling-map.json") };
-  host = createPluginHost(access, undefined, { directory: path.join(base, "plugins") });
+  host = createPluginHost(access, undefined, { directory: path.join(base, "plugins"), run: { checkoutRoot: base } });
   assert.equal(host.invoke("docling", "compare", { path: path.join(locator, "document.md") }).stale, false);
   assert.equal(host.invoke("docling", "apply-corrections", { folder: locator }).output, canonical);
   const heading = JSON.parse(original.source.toString("utf8")).texts.find((item: any) => item.label === "section_header" && item.content_layer === "body");
@@ -71,7 +71,7 @@ test("headless Host operations use the installed plugin through local and HTTP c
   } });`);
   const description = { id: "echo", version: "1", workerApi: 1, entry: "worker.cjs", host: { api: 1, entry: "host.cjs" }, routes: ["/api/echo"] };
   writeFileSync(manifest, JSON.stringify(description));
-  const host = createPluginHost(undefined, undefined, { directory: path.join(root, "installed"), manifest });
+  const host = createPluginHost(undefined, undefined, { directory: path.join(root, "installed"), manifest, run: { checkoutRoot: root } });
   const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, undefined, 4096, undefined, undefined, host); });
   t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); rmSync(root, { recursive: true, force: true }); });
   await listenForFetch(server);
@@ -89,7 +89,7 @@ test("headless Host operations use the installed plugin through local and HTTP c
   host.plugins().unregister("echo"); assert.throws(() => host.invoke("echo", "increment"), /disabled/u);
   const installed = host.plugins().register(manifest);
   writeFileSync(path.join(installed.directory, "host.cjs"), "tampered");
-  const fresh = createPluginHost(undefined, undefined, { directory: path.join(root, "installed"), manifest });
+  const fresh = createPluginHost(undefined, undefined, { directory: path.join(root, "installed"), manifest, run: { checkoutRoot: root } });
   try { assert.throws(() => fresh.invoke("echo", "echo"), /hash mismatch/u); } finally { await fresh.close(); }
   writeFileSync(manifest, JSON.stringify({ ...description, host: { api: 2, entry: "host.cjs" } }));
   assert.throws(() => host.plugins().register(manifest), /incompatible/iu);

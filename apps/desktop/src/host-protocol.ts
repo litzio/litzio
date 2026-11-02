@@ -1,4 +1,5 @@
 import { brand } from "../../../brand.ts";
+import type { HostRun } from "../../editor/server/host-paths.ts";
 import { createPluginHost } from "../../editor/server/plugin-host.ts";
 // The the configured app origin origin: the Editor's production build and the existing local Host handlers,
 // answered in-process. No TCP port is opened. Host paths, document rules and Save stay in
@@ -54,10 +55,10 @@ export type FirstDocument = { document?: string } & SampleAvailability;
  * started with or, without one, a start without a document that offers the sample. The
  * development server's default file is not part of the app.
  */
-export function createProtocolHandler(editorDir: string, first: FirstDocument, trashItem: (file: string) => Promise<void> = async () => { throw new Error("OS trash is unavailable."); }, onListedRoot?: (root: string) => void) {
+export function createProtocolHandler(editorDir: string, first: FirstDocument, trashItem: (file: string) => Promise<void> = async () => { throw new Error("OS trash is unavailable."); }, onListedRoot?: (root: string) => void, run?: HostRun) {
   // Lives as long as this process, as the development server's key does.
   const assetSigningKey = randomBytes(32);
-  const plugins = createPluginHost();
+  const plugins = createPluginHost(undefined, undefined, { run });
   const sampleAvailability: SampleAvailability = { samples: first.samples, sampleProblem: first.sampleProblem };
   const handle = async (request: Request) => {
     const url = new URL(request.url);

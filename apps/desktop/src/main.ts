@@ -330,7 +330,7 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionCheckHandler(() => false);
     preferences = readPreferences(preferencesFile(), app.getVersion());
     const cliRoot = path.join(app.isPackaged ? process.resourcesPath : path.dirname(appRoot), "cli");
-    documentHost = createProtocolHandler(path.join(cliRoot, "editor"), firstDocument(process.argv.slice(app.isPackaged ? 1 : 2), app.getPath("userData"), appRoot, log), file => shell.trashItem(file), root => explorerFolders.listedRoot(root));
+    documentHost = createProtocolHandler(path.join(cliRoot, "editor"), firstDocument(process.argv.slice(app.isPackaged ? 1 : 2), app.getPath("userData"), appRoot, log), file => shell.trashItem(file), root => explorerFolders.listedRoot(root), { packaged: app.isPackaged, checkoutRoot: path.resolve(appRoot, "../../../..") });
     protocol.handle(SCHEME, documentHost);
     if (app.isPackaged && process.platform === "win32" && process.env.LOCALAPPDATA) {
       cliIntegration = new CliIntegration(process.execPath, process.env.LOCALAPPDATA, windowsEnvironment());
