@@ -169,8 +169,8 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
         })}><strong>{entry.title}</strong><small>{new Date(entry.updatedAt).toLocaleString()} · {entry.folders.join(", ")}</small></Button>)}</div>
         : conversation?.turns.map(turn => <section key={turn.id} className="assistant-turn" data-status={turn.status}>
           {turn.items.filter(item => item.kind === "user").map(item => <p key={item.id} className="assistant-user">{item.text}</p>)}
-          {turn.items.some(item => !["user", "assistant"].includes(item.kind)) ? <details key={`${turn.id}-${turn.status}`} open={turn.status === "inProgress"} className="assistant-steps"><summary>{i18n.t(turn.status === "inProgress" ? "Working…" : "Work details")}</summary>
-            {turn.items.filter(item => !["user", "assistant"].includes(item.kind)).map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}</details> : null}
+          {turn.items.some(isWorkDetail) ? <details key={`${turn.id}-${turn.status}`} open={turn.status === "inProgress"} className="assistant-steps"><summary>{i18n.t(turn.status === "inProgress" ? "Working…" : "Work details")}</summary>
+            {turn.items.filter(isWorkDetail).map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}</details> : null}
           {turn.items.filter(item => item.kind === "assistant").map(item => <AssistantAnswer key={item.id} source={item.text} />)}
           {turn.items.map(item => {
             const result = createdDocument(item);
@@ -240,4 +240,8 @@ function createdDocument(item: import("@litzio/plugin-api/ai").AiConversationIte
     try { const result = JSON.parse(part.text); if (typeof result.path === "string" && typeof result.revision === "string" && /^[a-f0-9]{64}$/.test(result.revision)) return result; } catch { /* Not a creation receipt. */ }
   }
   return null;
+}
+
+function isWorkDetail(item: AiConversation["turns"][number]["items"][number]) {
+  return !["user", "assistant"].includes(item.kind) && (item.kind !== "reasoning" || item.text.trim().length > 0);
 }
