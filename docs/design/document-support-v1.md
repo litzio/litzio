@@ -23,7 +23,11 @@
 
 The owner's [2026-10-31 decision](https://github.com/litzio/litzio/issues/817)
 adds a separate text document kind: existing `.txt` files and `.md` files refused by
-Core's existing native admission open automatically in text mode. `.txt` is always
+Core's existing native admission open automatically as text sessions. Under #939,
+non-native `.md` defaults to view-only Markdown with a Read/Text toggle; `.txt`
+continues directly in Text. Reading reflects the current unsaved source buffer
+without changing admission, saving or recovery. Raw HTML is disabled; the limited
+Markdown display and MyST limitations follow [Plain text mode](editor-ux-shell-v1.md#plain-text-mode-817). `.txt` is always
 text, even with native-looking content. No Editor-side Markdown support rules are added.
 Strict UTF-8 decoding still applies; unreadable/invalid-byte files and other extensions
 are refused. New Document still creates only native `.md` through Core.
