@@ -3391,3 +3391,7 @@ body:has(.app-shell--collapsed) .notification-center { --notification-sidebar-wi
   white-space: nowrap;
   overflow-wrap: normal;
 }
+
+[data-brand-dark] { display: none; }
+html[data-theme="dark"] [data-brand-light] { display: none; }
+html[data-theme="dark"] [data-brand-dark] { display: block; }
