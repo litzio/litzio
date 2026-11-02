@@ -11,6 +11,8 @@ import { splitDocumentPath } from "./shell/document-path.ts";
 import { MessageArea } from "./shell/MessageArea.tsx";
 import type { EditorSession } from "./DocumentTab.tsx";
 
+import { createPortal } from "react-dom";
+import { CopyButton } from "./components/CopyButton.tsx";
 import { renderPlainMarkdown } from "./plain-markdown.ts";
 import { openExternalLink } from "./link-opening.ts";
 
@@ -119,6 +121,9 @@ export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restore
   useTranslation();
   const session = useTextSession(file, restored, recoveryId, replaceFile);
   const html = useMemo(() => session.markdown && session.view === "read" ? renderPlainMarkdown(session.currentText, session.openedPath) : "", [session.currentText, session.openedPath, session.markdown, session.view]);
+  const reading = useRef<HTMLElement>(null);
+  const [blocks, setBlocks] = useState<HTMLElement[]>([]);
+  useLayoutEffect(() => { setBlocks(Array.from(reading.current?.querySelectorAll<HTMLElement>(".code-block") ?? [])); }, [html]);
   useLayoutEffect(() => { report(id, session); });
   useLayoutEffect(() => () => report(id, null), [id, report]);
   return <NotificationScope value={{ name: splitDocumentPath(session.openedPath).name, reveal(action) {
@@ -130,7 +135,7 @@ export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restore
       style={{ "--editor-group-index": groupIndex } as CSSProperties} onFocusCapture={() => onFocus(id)} onPointerDownCapture={() => onFocus(id)}>
       <div className="text-document" data-view={session.view}>
         <p className="text-mode-notice" data-testid="text-mode-notice">{i18n.t(session.view === "read" ? "Markdown · Not a {{product}} document" : "Text mode · Not a {{product}} document")}</p>
-        {session.markdown && session.view === "read" ? <article className="document-editor plain-markdown" data-testid="plain-markdown" onClick={event => {
+        {session.markdown && session.view === "read" ? <article ref={reading} className="document-editor plain-markdown" data-testid="plain-markdown" onClick={event => {
           const anchor = event.target instanceof Element ? event.target.closest("a") : null;
           if (!anchor) return;
           event.preventDefault();
@@ -138,6 +143,7 @@ export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restore
           if (/^#fn(?:ref)?\d+$/.test(href)) event.currentTarget.querySelector(`[id="${href.slice(1)}"]`)?.scrollIntoView({ block: "nearest" });
           else openExternalLink(href);
         }} dangerouslySetInnerHTML={{ __html: html }} /> : null}
+        {blocks.map((block, index) => createPortal(<CopyButton text={block.querySelector("code")?.textContent ?? ""} label={i18n.t("Copy code")} />, block, String(index)))}
         <textarea hidden={session.view === "read"} ref={session.input} className="text-document-input" data-testid="text-editor" aria-label={i18n.t("Text editor")}
           defaultValue={session.initialText} onChange={event => session.change(event.currentTarget.value)} spellCheck={false} wrap="off" />
       </div>

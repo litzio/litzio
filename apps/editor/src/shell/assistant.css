@@ -69,8 +69,6 @@ body:has(.assistant-panel--overlay:not([hidden])) .notification-center { visibil
 .assistant-markdown table { display: block; overflow-x: auto; border-collapse: collapse; }
 .assistant-markdown th, .assistant-markdown td { border: 1px solid var(--id-color-border); padding: var(--space-2); }
 .assistant-markdown .math.block, .assistant-markdown .katex-display { overflow-x: auto; max-width: 100%; }
-.assistant-copy { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.assistant-copy [role="alert"] { color: var(--id-color-danger); }
 .assistant-markdown .math.inline { display: inline-block; max-width: 100%; overflow-x: auto; vertical-align: middle; }
 
 .assistant-question { display: grid; gap: var(--space-3); padding: var(--space-3); border: var(--border-width) solid var(--id-color-border); border-radius: var(--id-radius-md); margin-block: var(--space-3); }

@@ -60,9 +60,13 @@ createInterface({ input: process.stdin }).on("line", line => {
     const user = { type: "userMessage", id: randomUUID(), clientId: null, content: params.input }; turn.items.push(user);
     notify("item/completed", { threadId: thread.id, turnId: turn.id, item: user });
     if (method === "turn/start") {
-      const reasoning = { type: "reasoning", id: randomUUID(), summary: ["Checking the opened document."], content: ["PRIVATE RAW REASONING"] };
+      const reasoning = { type: "reasoning", id: randomUUID(), summary: ["Checking the opened document.", "Checking folders."], content: ["PRIVATE RAW REASONING"] };
       const tool = { type: "commandExecution", id: randomUUID(), command: "Get-Content notes.md", cwd: process.cwd(), status: "completed", aggregatedOutput: "fixture", exitCode: 0, durationMs: 1, commandActions: [] };
-      turn.items.push(reasoning, tool);
+      notify("item/started", { threadId: thread.id, turnId: turn.id, item: { ...reasoning, summary: [] } });
+      for (const delta of ["Checking the opened ", "document."]) notify("item/reasoning/summaryTextDelta", { threadId: thread.id, turnId: turn.id, itemId: reasoning.id, summaryIndex: 0, delta });
+      const empty = { type: "reasoning", id: randomUUID(), summary: [], content: ["PRIVATE RAW REASONING"] };
+      turn.items.push(reasoning, empty, tool);
+      notify("item/completed", { threadId: thread.id, turnId: turn.id, item: empty });
       for (const item of [reasoning, tool]) notify("item/completed", { threadId: thread.id, turnId: turn.id, item });
       const answer = { type: "agentMessage", id: randomUUID(), text: "Partial answer", phase: "final_answer" }; turn.items.push(answer);
       notify("item/started", { threadId: thread.id, turnId: turn.id, item: { ...answer, text: "" } });

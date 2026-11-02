@@ -312,6 +312,15 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   // Assert direct completion state, without a reload or a polling assertion masking it.
   expect(await panel.locator('details').evaluate(element => element.open)).toBe(false);
   expect(await panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false }).isVisible()).toBe(true);
+  const originalItems = selected.turns[0].items;
+  const emptyItems = [{ id: 'empty-summary', kind: 'reasoning', text: ' \n ' },
+    { id: 'empty-answer', kind: 'assistant', text: 'Completed without a reasoning summary.' }];
+  selected.turns[0].items = emptyItems;
+  await expect(panel.getByText('Completed without a reasoning summary.', { exact: true })).toBeVisible();
+  if (screenshots) await page.screenshot({ path: 'tmp/976-evidence/empty-1440.png' });
+  const emptyDisclosureCount = await panel.locator('details').count();
+  selected.turns[0].items = originalItems;
+  await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
   // Inject visibility explicitly: headless tab activation does not reliably hide a page.
   const visibility = async value => page.evaluate(value => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, value });
@@ -499,6 +508,12 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   delete selected.userInput;
   await expect(questionCard).toHaveCount(0);
+  selected.turns[0].items = emptyItems;
+  await expect(panel.getByText('Completed without a reasoning summary.', { exact: true })).toBeVisible();
+  if (screenshots) await page.screenshot({ path: 'tmp/976-evidence/empty-640.png' });
+  expect(emptyDisclosureCount, 'Empty reasoning must not offer a disclosure at 1440px').toBe(0);
+  expect(await panel.locator('details').count(), 'Empty reasoning must not offer a disclosure in restored history at 640px').toBe(0);
+  selected.turns[0].items = originalItems;
 
   await panel.getByRole('button', { name: '비서 닫기' }).click(); await expect(editor).toBeFocused();
   expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(false);
