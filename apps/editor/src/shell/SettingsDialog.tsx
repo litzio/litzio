@@ -1,3 +1,4 @@
+import { PluginSettings } from "../PluginSettings.tsx";
 import { useTableWrapDefault, setTableWrapDefault } from "../table-wrap.ts";
 import { PLUGIN_UI, type UiRegistration } from "@litzio/plugin-api/config";
 import type { SettingsSection } from "@litzio/plugin-api/ui";
@@ -55,7 +56,7 @@ export function updateStatusText(info: DesktopInfo): string {
   }
 }
 
-export type SettingsCategory = "appearance" | "recovery" | "about" | `plugin/${string}`;
+export type SettingsCategory = "appearance" | "recovery" | "plugins" | "about" | `plugin/${string}`;
 
 function CliSettings({ desktop }: { desktop: DesktopBridge }) {
   const [state, setState] = useState<CliIntegrationState | null>(null);
@@ -164,6 +165,7 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
   const categories = [
     { id: "appearance", label: i18n.t("Appearance & language"), icon: Palette },
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
+    { id: "plugins", label: i18n.t("Plugins"), icon: FileText },
     ...sections.map(section => ({ id: section.id as SettingsCategory, label: i18n.t(section.label as any), icon: FileText })),
     ...(desktop ? [{ id: "about" as const, label: i18n.t("About & updates"), icon: Info }] : []),
   ] as const;
@@ -203,9 +205,11 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
                 <h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2>
                 <p>{category === "appearance" ? i18n.t("How {{product}} looks on this device.")
                   : category === "recovery" ? i18n.t("Local recovery keeps applied edits on this device.")
+                  : category === "plugins" ? i18n.t("Installed plugins stay pinned until you register them again.")
                   : contributed ? i18n.t(contributed.description as any)
                   : i18n.t("Version and how {{product}} Desktop receives updates.")}</p>
               </header>
+              {category === "plugins" ? <PluginSettings /> : null}
               {Section ? <ContributionBoundary key={category}><Section /></ContributionBoundary> : null}
               {category === "appearance" ? <>
                 <section className="settings-section" aria-labelledby="settings-theme">

@@ -199,3 +199,25 @@ while the Host still lists that UI registration. A missing contribution alone is
 not proof of removal. Settings confirms absence through the existing registration
 GET before falling back to Appearance; failed reads preserve the selection. Actual
 unregistration/disable still removes the category and selects Appearance (#942).
+
+## Host-owned plugin settings (#947)
+
+Settings includes a built-in Plugins category, independent of contributed
+settings and available even when a plugin is disabled. It lists plugin IDs as
+installation names, version, enabled state, actual installation directory and
+12-character installed/default revisions with full values in tooltips. Each
+installation says Matches app default, Differs from app default, or Not bundled
+with this app. Only mismatches offer Register app default again. One shared
+confirmation dialog explains that registration enables the plugin; Cancel sends
+no request. Confirmation uses the existing Host registration path then rereads
+inventory. Failures remain visible and do not claim successful replacement.
+The existing UI-registration refresh attaches the registered contribution.
+`plugin-settings` verifies cancellation, confirmation and the real Host POST/GET,
+with 1440px English Light and 640px Korean Dark captures including long paths.
+
+Self-reviewed captures: [1440px English Light](assets/plugin-settings-947/plugins-1440.png),
+[640px Korean Dark](assets/plugin-settings-947/plugins-640-dark-ko.png),
+[640px scrolled details](assets/plugin-settings-947/plugins-640-dark-ko-details.png)
+and [confirmation](assets/plugin-settings-947/confirm-640-dark-ko.png).
+Paths use a disposable test store; the mismatching revision is synthetic while
+confirmation and the resulting inventory use the actual Host.
