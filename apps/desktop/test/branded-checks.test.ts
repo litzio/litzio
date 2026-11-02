@@ -43,3 +43,26 @@ for (const channel of ["stable", "beta"] as const) test(`update packaging and in
   assert.deepEqual(copied, [`BrandProof-Setup-${version}.exe`, `BrandProof-Setup-${version}.exe.blockmap`, `proof-${channel}.yml`]);
   assert.equal(helpers.installedEntry(), installed);
 });
+
+// Exercise the real PowerShell query without touching the registry or installing an app.
+// The provider fixture represents the key disappearing after an existence observation.
+test("installed-app lookup accepts a removed key but preserves access failures", { skip: process.platform !== "win32" }, () => {
+  const file = new URL("./packaged/installed-app.ts", import.meta.url);
+  const code = transformSync(readFileSync(file, "utf8"), { loader: "ts", format: "cjs" }).code;
+  const nativeRequire = createRequire(import.meta.url);
+  const { execFileSync } = nativeRequire("node:child_process") as typeof import("node:child_process");
+  const run = (provider: string) => {
+    const module = { exports: {} as { installedUninstallCommand(): string } };
+    runInNewContext(code, { module, exports: module.exports, require(name: string) {
+      if (name.endsWith("/brand.ts")) return { brand };
+      if (name === "node:child_process") return { execFileSync(executable: string, args: string[], options: object) {
+        return execFileSync(executable, [...args.slice(0, -1), `function Test-Path { $true }; function Get-ItemProperty { ${provider} }; ${args.at(-1)}`], { ...options, stdio: ["ignore", "pipe", "pipe"] });
+      } };
+      return nativeRequire(name);
+    } });
+    return module.exports.installedUninstallCommand();
+  };
+  assert.equal(run("throw [System.Management.Automation.ItemNotFoundException]::new('fixture removed key')"), "");
+  assert.equal(run("[pscustomobject]@{ UninstallString = 'fixture uninstall command' }"), "fixture uninstall command");
+  assert.throws(() => run("throw [System.UnauthorizedAccessException]::new('fixture access denied')"), /fixture access denied/);
+});

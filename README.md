@@ -1,4 +1,11 @@
-# Litzio
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="apps/desktop/assets/litzio-E-dark.svg">
+    <img src="apps/desktop/assets/litzio-E.svg" width="128" height="128" alt="Litzio logo">
+  </picture>
+  <h1>Litzio</h1>
+  <p>A visual editor for structured technical documents.</p>
+</div>
 
 > Document first. Semantics in Core. Interfaces replaceable.
 

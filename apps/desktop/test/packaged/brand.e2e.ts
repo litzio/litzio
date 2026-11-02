@@ -1,3 +1,4 @@
+import { faviconSvg } from "../../../../scripts/brand-icons.ts";
 // Kept separate from normal packaged tests: the CI driver rebuilds using only brand.ts.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -72,14 +73,18 @@ test("one brand setting produces independently installed identities and the unch
       const cli = spawnSync(process.env.ComSpec ?? "cmd.exe", windowsCommand(shim, ["--version"]), { windowsVerbatimArguments: true, windowsHide: true, encoding: "utf8", timeout: 20_000 });
       assert.equal(cli.status, 0, cli.stderr); assert.ok(cli.stdout.startsWith(`${value.cliCommand} ${version} (desktop, `));
       if (index === 0) continue;
-      const icon = await page.locator(".document-start-mark").getAttribute("src");
+      const icon = await page.locator(".document-start-mark[data-brand-light]").getAttribute("src");
       assert.ok(icon);
       const png = await page.evaluate(async url => Array.from(new Uint8Array(await (await fetch(url)).arrayBuffer())), icon);
-      assert.deepEqual(Buffer.from(png), readFileSync(path.join(repo, value.icons.png)), "Editor must load the configured PNG as well as Desktop's ICO");
-      const favicon = await page.locator('link[rel="icon"]').getAttribute("href");
+      assert.deepEqual(Buffer.from(png), readFileSync(path.join(repo, value.icons.svg)), "Editor must load the configured SVG as well as Desktop's ICO");
+      const favicon = await page.locator('link[type="image/svg+xml"]').getAttribute("href");
       assert.ok(favicon);
       const smallPng = await page.evaluate(async url => Array.from(new Uint8Array(await (await fetch(url)).arrayBuffer())), favicon);
-      assert.deepEqual(Buffer.from(smallPng), readFileSync(path.join(repo, value.icons.smallPng)), "Favicon must load the configured small PNG");
+      assert.deepEqual(Buffer.from(smallPng), Buffer.from(faviconSvg()), "Favicon must load the configured small SVG variants");
+      const fallback = await page.locator('link[rel="icon"][sizes="any"]').getAttribute("href");
+      assert.ok(fallback);
+      const ico = await page.evaluate(async url => Array.from(new Uint8Array(await (await fetch(url)).arrayBuffer())), fallback);
+      assert.deepEqual(Buffer.from(ico), readFileSync(path.join(repo, value.icons.ico)), "Favicon fallback must use the configured ICO");
       // Both installed apps remain alive: neither the single-instance lock nor origin/data collide.
       assert.equal(apps[0]!.process().exitCode, null);
       await page.evaluate(prefix => { localStorage.setItem(`${prefix}.uiLanguage`, "ko"); localStorage.setItem(`${prefix}.theme`, "dark"); }, value.storagePrefix);

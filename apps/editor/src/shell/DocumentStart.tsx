@@ -9,6 +9,7 @@ import { splitDocumentPath } from "./document-path.ts";
 type DocumentStartProps = {
   /** The product mark's URL; the start is the app's, not a document's. */
   mark?: string;
+  darkMark?: string;
   recovery?: ReactNode;
   /** Folders opened in this browser, newest first. */
   recent: string[];
@@ -26,12 +27,12 @@ type DocumentStartProps = {
  * canvas with the product mark rather than on a document's paper, so it never reads as an open
  * document (#298). The sample is a separate choice, never opened for them.
  */
-export function DocumentStart({ mark, recovery, recent, sample, busy, onNewDocument, onOpenFolder, onOpenRecent, onOpenSample }: DocumentStartProps) {
+export function DocumentStart({ mark, darkMark, recovery, recent, sample, busy, onNewDocument, onOpenFolder, onOpenRecent, onOpenSample }: DocumentStartProps) {
   useTranslation();
   return (
     <section className="document-start" aria-labelledby="document-start-title" data-testid="document-start">
       <p className="document-start-product">
-        {mark ? <img className="document-start-mark" src={mark} alt="" /> : null}
+        {mark ? <><img data-brand-light="" className="document-start-mark" src={mark} alt="" />{darkMark ? <img data-brand-dark="" className="document-start-mark" src={darkMark} alt="" /> : null}</> : null}
         {productName(i18n.language)}
       </p>
       <h1 id="document-start-title" className="document-start-title">{i18n.t("Start a {{product}} document")}</h1>

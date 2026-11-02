@@ -42,6 +42,7 @@ import { childPath, documentLocation, splitDocumentPath, unquotePath } from "./s
 import { DocumentActions } from "./shell/DocumentActions.tsx";
 import { TopBar } from "./shell/TopBar.tsx";
 import appIcon from "@brand-icon";
+import darkIcon from "@brand-dark-icon";
 import { CommandCenter } from "./shell/CommandCenter.tsx";
 import { KeyboardShortcutsDialog } from "./shell/KeyboardShortcutsDialog.tsx";
 import type { CommandCenterItem } from "./shell/command-center.ts";
@@ -1120,7 +1121,7 @@ function EditorApp() {
       />
       <div className="app-titlebar" ref={titlebar}>
         <div className="app-brand">
-          <img src={appIcon} alt={productName(i18n.language)} />
+          <img data-brand-light="" src={appIcon} alt={productName(i18n.language)} /><img data-brand-dark="" src={darkIcon} alt={productName(i18n.language)} />
           {sidebarOpen ? <span aria-hidden="true">{productName(i18n.language)}</span> : null}
         </div>
         <div className="top-bar-container">
@@ -1192,7 +1193,7 @@ function EditorApp() {
         }}>
           {tabs.length === 0 && pluginTabs.length === 0 && start ? (
             <div className="document-scroll" data-active="true"><div className="document-column"><DocumentStart
-              mark={productMark}
+              mark={productMark} darkMark={darkIcon}
               recovery={<RecoveryList records={recoveryRecords.filter(record => !tabs.some(tab => tab.recoveryId === record.id))} unavailable={Boolean(recoveryProblem)} onReview={reviewRecovery} />}
               recent={visibleRecent}
               sample={samplePath}
