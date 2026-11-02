@@ -1201,7 +1201,7 @@ function EditorApp() {
           <DocumentTabs allTabs={allTabs} tabs={group.tabs.flatMap(id => allTabs.filter(tab => tab.id === id)).map(tab => ({ ...tab,
             dirty: Boolean(sessions.current.get(tab.id)?.documentDirty || sessions.current.get(tab.id)?.draftActive),
           }))} active={group.active} disabled={groupBusy || Boolean(continuation)} onActivate={activateTab} onClose={closeTab}
-            onOpenRight={id => moveTab(id, true)} onMove={id => moveTab(id)} openRightDisabled={!canSplit || groupBusy} moveDisabled={!split || groupBusy} actions={owner ?
+            onOpenRight={id => moveTab(id, true)} onMove={id => moveTab(id)} openRightDisabled={!canSplit || groupBusy} moveDisabled={!split || groupBusy} actions={tabs.some(tab => tab.id === group.active) ?
             <DocumentActions
               documentPath={owner?.openedPath ?? ""}
               wide={documentWidth === "wide"}

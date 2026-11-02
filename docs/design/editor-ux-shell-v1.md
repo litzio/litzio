@@ -282,7 +282,7 @@ status, Save and File actions stay fixed at the right of that row. At viewport w
 up to 1024px the less frequent Wide document toggle moves into ⋯ as a checked menu
 item. Outline remains a direct button so its overlay Escape/focus-return path remains
 stable. Document actions (including Save, views, split/layout controls and File actions)
-are hidden when the group has no active document session, including the empty start
+are hidden when the group has no active document tab, including the empty start
 screen and plugin tabs (#973). Text document tabs retain their existing subset of
 actions. Pending document work retains its disabled guards. No special tab is added.
 
@@ -2900,3 +2900,6 @@ Same-state manual review (1440px English Light / 640px Korean Dark):
 | empty 640 | [Before](assets/document-actions-973/before/empty-640.png) | [After](assets/document-actions-973/after/empty-640.png) |
 | plugin 1440 | [Before](assets/document-actions-973/before/plugin-1440.png) | [After](assets/document-actions-973/after/plugin-1440.png) |
 | plugin 640 | [Before](assets/document-actions-973/before/plugin-640.png) | [After](assets/document-actions-973/after/plugin-640.png) |
+
+#973 visibility follows document tab identity, including newly created, restored and
+still-loading document tabs. Session readiness disables actions; it does not hide them.

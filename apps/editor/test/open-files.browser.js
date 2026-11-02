@@ -79,14 +79,14 @@ async (page, { showNotifications, openDocument, openPath, screenshots = false })
     if (await page.getByRole('button', {name:'Open file…', exact:true}).count() || await page.getByTestId('file-path').count()) {
       throw new Error('A direct file-path entry remains');
     }
-    await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+    await page.getByTestId('document-start').waitFor();
     if (await page.getByTestId('current-file').innerText() !== 'No file opened' || await page.locator('[data-document-tab][data-active=true] .ProseMirror').count() ||
-      !await page.getByTestId('save').isDisabled() || await page.getByTestId('error').count()) {
+      await page.locator('.top-bar-actions').count() !== 0 || await page.getByTestId('error').count()) {
       throw new Error('The start opened a document or reported an error');
     }
     if (!(await page.getByRole('button', {name:'Document settings', exact:true}).count() === 0) ||
-      !await page.getByRole('button', {name:'Wide document', exact:true}).isEnabled() ||
-      !await page.getByRole('button', {name:'File actions', exact:true}).isDisabled()) {
+      await page.getByRole('button', {name:'Wide document', exact:true}).count() !== 0 ||
+      await page.getByRole('button', {name:'File actions', exact:true}).count() !== 0) {
       throw new Error('Document settings or File actions ignore the no-document state');
     }
     if (screenshots) {
@@ -117,6 +117,10 @@ async (page, { showNotifications, openDocument, openPath, screenshots = false })
     await page.reload();
     await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     if (await page.getByTestId('current-file').getAttribute('title') !== pathA) throw new Error('Reload did not restore the chosen document');
+    if (!await page.getByRole('button', {name:'Wide document', exact:true}).isEnabled() ||
+        !await page.getByRole('button', {name:'File actions', exact:true}).isEnabled()) {
+      throw new Error('Document layout and file actions are unavailable on the restored document');
+    }
     await page.getByRole('button',{name:'Close litzio-a.md',exact:true}).click();
     await start.waitFor();
     await start.getByRole('button', {name:'Open sample document', exact:true}).click();
