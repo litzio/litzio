@@ -253,3 +253,37 @@ The device's per-document single-line choice removes the cell intrinsic maximum 
 uses nowrap, with the existing local scroller, edge fades and measured handles.
 It introduces no new document gutters or control sizes. Settings uses the existing
 select row; the table block menu separates its View checkbox from mutation groups.
+
+## Notification placement beside right panels (#970)
+
+The window notification center uses the right panel’s left edge as its trailing
+boundary while Outline (docked or overlay) or the nonmodal assistant is open.
+Its existing 32px trailing inset and bottom inset remain; the expanded list is
+limited to the space between the sidebar and that boundary. Closing the panel
+restores the window-right placement. The narrow assistant remains modal, with
+the notification center hidden and inert. The composer needs no notification
+clearance. Existing `notification-center` and `ai-agent` browser scenarios cover
+panel toggling, list bounds and the modal boundary at 1440px/1024px/640px.
+
+Visual review (2026-11-03): shared notification colors, radius and control sizes
+follow Visual Language; only placement and obsolete composer clearance change.
+The existing Outline surface is the matching right-panel pattern. Captures from
+`pnpm browser:test notification-center --screenshots` and `ai-agent --screenshots`
+were inspected for panel overlap, list clipping, control alignment and Korean wrapping.
+Before is `f38eb600`; Outline pairs use the same 1440/1024 × 900 state.
+Assistant before/after uses 1440 × 1000, English Light; the expanded-list capture
+also exercises the remembered resized width. Narrow assistant remains modal.
+
+| Surface | Before | After / retained behavior |
+| --- | --- | --- |
+| Outline 1440, expanded list | [Before](assets/notification-panel-970/before-outline-1440.png) | [After](assets/notification-panel-970/after-outline-1440.png) |
+| Outline 1024, expanded list | [Before](assets/notification-panel-970/before-outline-1024.png) | [After](assets/notification-panel-970/after-outline-1024.png) |
+| Assistant 1440 | [Before](assets/notification-panel-970/before-assistant-1440.png) | [After](assets/notification-panel-970/after-assistant-1440.png), [list](assets/notification-panel-970/after-assistant-1440-list.png), [closed](assets/notification-panel-970/closed-assistant-1440.png) |
+| Assistant 1024 | Modal unchanged | [Open](assets/notification-panel-970/assistant-1024.png), [closed](assets/notification-panel-970/closed-assistant-1024.png) |
+| Assistant 640 Korean Dark | Modal unchanged | [Open](assets/notification-panel-970/assistant-640-dark-ko.png) |
+
+The targeted default notification regression, assistant regression, layout-rules
+and quiet-document checks pass. The optional notification screenshot traversal
+reaches its unrelated Docling comparison branch and fails its empty-center assertion:
+the comparison currently publishes five applied-number warnings. Its assertion was
+not weakened; the new panel geometry and captures complete before that branch.

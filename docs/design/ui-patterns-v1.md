@@ -115,7 +115,10 @@ Docling·AI 설정과 같은 콘텐츠 정렬을 따르며 경로·version은 �
 Windows Chrome의 checkout별 persistent profile, Vite `http://127.0.0.1:5281`,
 DPR 1·100% 확대, Pretendard 로드 후 같은 `fixed.md`의 알림 없는 상태다.
 Before는 시작 HEAD `1b4cff58d5ac7f432ac74b4ed886ddc814d14dbc`에서 빈 센터 표시 단언이 실패한 상태이며, After는 #837 구현이다.
-기존 오른쪽 32px 간격과 문서 끝 여백을 유지한다. `notification-center` 시나리오에서
+오른쪽 패널이 없으면 기존 창 오른쪽 32px 간격과 문서 끝 여백을 유지한다.
+#970부터 Outline(도킹·오버레이)과 비모달 비서가 열리면 패널 왼쪽을 기준으로
+같은 간격을 두며 목록 폭도 남은 영역 안으로 제한한다. 비서의 좁은 창 모달에서는
+기존 알림 숨김·inert 경계를 유지한다. `notification-center` 시나리오에서
 빈 안내·중립색·초기 접힘·focus 유지·문서 끝 caret와 선택 도구 여유를 확인하고,
 같은 창 센터가 [Docling 대조 화면](assets/notification-center-837/docling-1440.png)에도 나타나는지 함께 확인했다.
 

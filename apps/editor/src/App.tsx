@@ -8,7 +8,7 @@ import { usePluginUi } from "./plugin-ui.tsx";
 import { contributionNotices } from "./plugin-ui-registry.ts";
 import { ContributionBoundary, PluginTab, type ContributedTab } from "./PluginTab.tsx";
 import type { UiHost } from "@litzio/plugin-api/ui";
-import { NotificationProvider, NotificationSource } from "./components/ui/notification-center.tsx";
+import { NotificationProvider, NotificationSource, ShellNotificationCenter } from "./components/ui/notification-center.tsx";
 import { UiError } from "./ui-message.ts";
 import { useMessageState } from "./ui-message.ts";
 import { useTranslation } from "react-i18next";
@@ -1293,6 +1293,7 @@ function EditorApp() {
           }}
         />
       ) : null}
+      <ShellNotificationCenter />
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}

@@ -17,6 +17,7 @@ export type Notification = {
 };
 type Register = (source: string, items?: Notification[]) => void;
 const Registry = createContext<Register>(() => {});
+const Items = createContext<Notification[]>([]);
 export const NotificationScope = createContext<{ name: string; reveal(action: () => void): void } | null>(null);
 
 /** In-memory UI state owned by this App instance; never part of document/recovery state. */
@@ -28,8 +29,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     else delete next[source];
     return next;
   }), []);
-  return <Registry value={register}>{children}<NotificationCenter items={Object.values(sources).flat()} /></Registry>;
+  return <Registry value={register}><Items value={Object.values(sources).flat()}>{children}</Items></Registry>;
 }
+
+/** Render inside the shell so its geometry follows the document and right panels. */
+export function ShellNotificationCenter() { return <NotificationCenter items={useContext(Items)} />; }
 
 /** Callbacks read the latest source render, while registry updates follow observable content. */
 export function useNotifications(items: Notification[]) {
