@@ -11,10 +11,25 @@ const threads = existsSync(threadFile) ? JSON.parse(readFileSync(threadFile, "ut
 const persist = () => writeFileSync(threadFile, JSON.stringify(threads));
 const notify = (method, params) => send({ method, params });
 const model = (name, efforts) => ({ id: name, model: name, displayName: name, description: "한국어 모델", defaultReasoningEffort: efforts[0], supportedReasoningEfforts: efforts.map(reasoningEffort => ({ reasoningEffort, description: reasoningEffort })) });
+const toolPending = new Map();
 createInterface({ input: process.stdin }).on("line", line => {
   const message = JSON.parse(line); record(message);
   const { id, method, params } = message;
   if (!id) return;
+  if (toolPending.has(id)) {
+    const pending = toolPending.get(id); toolPending.delete(id);
+    if (message.result && pending.params.method !== "unsupported") {
+      const thread = threads[pending.params.threadId], turn = thread.turns.at(-1);
+      const item = { type: "dynamicToolCall", id, namespace: null, tool: pending.params.tool, arguments: pending.params.arguments, status: "completed", ...message.result };
+      turn.items.push(item); persist(); notify("item/completed", { threadId: thread.id, turnId: turn.id, item });
+    }
+    send({ id: pending.id, result: message }); return;
+  }
+  if (method === "fixture/tool") {
+    const callId = randomUUID(), turn = threads[params.threadId].turns.at(-1);
+    toolPending.set(callId, { id, params });
+    send({ id: callId, method: params.method === "unsupported" ? "item/commandExecution/requestApproval" : "item/tool/call", params: { ...params, namespace: null, turnId: params.turnId ?? turn.id, callId } }); return;
+  }
   if (method === "hang") return;
   if (method === "exit") process.exit(3);
   if (method === "malformed") { process.stdout.write("not json\n"); return; }

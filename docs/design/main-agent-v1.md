@@ -264,6 +264,67 @@ plain-text responses supply the real controls/content. No example file links,
 future providers or new-document actions are fabricated.
 
 AI execution is not a semantic document operation, so this work adds no CLI
-command. New-document creation results/undo, the usage-guide skill, applying
+command. New-document result cards/undo, the usage-guide skill, applying
 existing-document changes, Docling orchestration and other providers remain
 outside this PR.
+
+
+## Document tools (#931 implementation 2, PR 1)
+
+The Host registers three function specs in `thread/start.dynamicTools` and handles
+only server-originated `item/tool/call`; other requests still return `-32601`.
+The small `agent-document-tools.ts` module validates input and invokes Core and
+existing Host file reads/listing, independently of the Codex wire format. There
+is no tool registry, plugin registration API, MCP server or provider abstraction.
+
+| Tool | Input | JSON result |
+| --- | --- | --- |
+| `create_document` | `{path, title, blocks}`; absolute new `.md` path, title string, ordered `{type:"paragraph", text}` or `{type:"heading", level:1..6, text}` blocks; empty array allowed | `{path, revision}` |
+| `read_document` | `{path}`; absolute existing document path | `{path, source, revision}` from the existing Host read path |
+| `list_documents` | `{path}`; absolute folder path | Existing one-level folder listing, retaining document and child-folder entries |
+
+Creation calls `createDocument`, `updateDocumentTitle`, existing insertions,
+`validateStructure` and final `serialize`, followed by exclusive `wx` publication.
+Text is literal Core input, not a separate Markdown assembler. Unsupported fields
+or blocks fail with Core's `invalid-operation` diagnostic; Core insertion and
+canonical-write errors are returned without publishing a file. No new semantic
+operation or CLI command is needed: this is an AI interface to existing semantics.
+
+| Permission | Host enforcement |
+| --- | --- |
+| `writeAccess` | Captured at turn start; `read-only` refuses creation |
+| Opened folders | Pinned `RootAccess` for that turn; no folders means no file tools |
+| Host operator Roots | Existing `accessPath` checks, in addition to the turn boundary |
+| Symlink escape/root replacement | Existing pinned Root identity and real-path checks |
+| Existing file | Exclusive create, never overwrite |
+| Steering/stale calls | Steering retains scope; thread/active turn IDs must match; completion and disconnect revoke scope |
+
+The reply is `{contentItems:[{type:"inputText",text:JSON.stringify(result)}],success}`.
+Failures return the same shape with `success:false` and `{error}` JSON text.
+Codex stores the dynamic item. The Host snapshot retains `toolResult.success` and
+`toolResult.contentItems`, including the JSON path/revision, on live notifications
+and history hydration. The existing progress view shows tool name and completion
+or failure. Result cards, open/undo controls and their protection are PR 2.
+
+Codex **0.166.0** generated `ThreadResumeParams` has no `dynamicTools` field.
+Litzio never sends it on resume. A real local test created `Hello.md` using
+`create_document`, closed the owned app-server, resumed from a new process,
+recovered the identical creation receipt and successfully invoked `read_document`
+in a subsequent turn without re-registration. Thus tools registered at thread
+creation persist for that thread in this version. Old threads created without
+these tools are not retrofitted; start a new conversation to acquire them.
+Terminal Codex CLI does not provide a Litzio tool handler. The owner chose CLI
+usage guidance through a Litzio skill instead; that skill is PR 2.
+
+Local evidence (2026-11-02): Codex 0.166.0, `gpt-6.1-sol`/`medium`, temporary
+Host cwd and document folder, inherited user login. Creation and resumed reading
+both completed using only the named dynamic tool, without shell/MCP calls.
+`litzio check Hello.md` reported `structure valid` and `writeability ok`;
+creation and read revision were
+`0eb1d90f95a8a0f17517fe0aaca08d8217c082a333da01dc4f7b0172a79ca2dc`.
+Both owned processes closed. User Codex configuration and the shared installation
+folder were not modified by Litzio. Codex itself persists ordinary thread history.
+Fixture tests cover success, read-only/outside/overwrite/symlink/unsupported-block
+refusal, stale turn rejection, steering scope, unsupported server requests and
+receipt recovery after a fresh process. Browser mocks verify tool progress only;
+they are not proof of real execution.

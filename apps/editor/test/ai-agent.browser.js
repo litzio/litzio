@@ -172,7 +172,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
         if (!turn) { turn = { id: 'turn-' + sent.length, status: 'inProgress', items: [] }; selected.turns.push(turn); }
         turn.items.push({ id: 'user-' + sent.length, kind: 'user', text: body.message });
         if (turn.items.length === 1) turn.items.push({ id: 'summary-' + sent.length, kind: 'reasoning', text: 'Checking the document and opened folders.' },
-          { id: 'tool-' + sent.length, kind: 'tool', text: 'Get-Content notes.md', status: 'completed' },
+          { id: 'tool-' + sent.length, kind: 'tool', text: 'create_document', status: 'completed', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ path: pluginFixture.document, revision: 'fixture-created-revision' }) }] } },
           { id: 'answer-' + sent.length, kind: 'assistant', text: 'Partial answer' });
         else turn.items.push({ id: 'steer-' + sent.length, kind: 'plan', text: 'Direction updated: focus on the unsaved paragraph.' });
         selected.responseLanguage = body.responseLanguage;
@@ -220,6 +220,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   expect(wide).toBe(Math.min(560, initialWidth + 20));
   await message.fill('What changed in the current document?'); await panel.getByRole('button', { name: 'Send message', exact: true }).click();
   await expect(panel.getByText('Partial answer', { exact: true })).toBeVisible();
+  await expect(panel.locator('[data-kind=tool]').filter({ hasText: 'create_document' })).toContainText('Completed');
   expect(sent[0].document.source).toContain('preserved AI-off draft');
   expect(sent[0].document.source).toContain('still editable');
   expect(sent[0].document.path).toBe(pluginFixture.document);

@@ -15,7 +15,7 @@ export const AI_AGENT = {
   conversationsRoute: "/api/ai-agent-conversations",
 } as const;
 export type AiConversationInfo = { id: string; title: string; folders: string[]; createdAt: number; updatedAt: number };
-export type AiConversationItem = { id: string; kind: "user" | "assistant" | "reasoning" | "tool" | "plan"; text: string; status?: string };
+export type AiConversationItem = { id: string; kind: "user" | "assistant" | "reasoning" | "tool" | "plan"; text: string; status?: string; toolResult?: { success: boolean | null; contentItems: { type: string; text?: string }[] } };
 export type AiConversationTurn = { id: string; status: string; items: AiConversationItem[]; error?: string };
 export type AiConversation = AiConversationInfo & { turns: AiConversationTurn[]; model: string; reasoningEffort: string; responseLanguage: AiResponseLanguage;
   tokenUsage?: { used: number; limit: number | null } };

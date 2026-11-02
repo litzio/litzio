@@ -3,17 +3,27 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { AiAgentSettings, AiConversation, AiConversationInfo, AiConversationInput, AiConversationItem, AiConversationTurn } from "@litzio/plugin-api/ai";
 import type { AiAgentConnection } from "./ai-agent-connection.ts";
-import { accessPath, type FileAccess } from "./file-access.ts";
+import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
+
+import { documentTools, executeDocumentTool, type DocumentToolScope } from "./agent-document-tools.ts";
 
 /** Litzio persists only its history index. Codex owns all conversation content. */
 export class AiAgentConversations {
   private conversations = new Map<string, AiConversation>();
   private pending = new Set<string>();
+  private scopes = new Map<string, DocumentToolScope & { turnId?: string }>();
   private loaded = new Set<string>();
   constructor(private connection: AiAgentConnection, private access: FileAccess) {
+    connection.client.toolCall = params => {
+      const scope = this.scopes.get(params?.threadId);
+      const active = this.conversations.get(params?.threadId)?.turns.find(turn => turn.id === params.turnId && turn.status === "inProgress");
+      if (!scope || !active || scope.turnId !== params.turnId || params.namespace != null) throw new Error("No authorized active turn for this tool call.");
+      const result = executeDocumentTool(params.tool, params.arguments, scope);
+      return { contentItems: [{ type: "inputText", text: JSON.stringify(result) }], success: true };
+    };
     connection.client.on("notification", (method, params) => this.notification(method, params));
     connection.client.on("disconnected", (message: string) => {
-      this.loaded.clear();
+      this.loaded.clear(); this.scopes.clear();
       for (const conversation of this.conversations.values()) for (const turn of conversation.turns) {
         if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; }
       }
@@ -94,7 +104,7 @@ export class AiAgentConversations {
       }
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
-          approvalPolicy: "never", sandbox: "read-only", ephemeral: false });
+          approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: documentTools });
         conversation = { id: result.thread.id, title: input.message.trim().slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
           turns: [], model: input.model, reasoningEffort: input.reasoningEffort, responseLanguage: input.responseLanguage };
         this.conversations.set(conversation.id, conversation);
@@ -107,10 +117,12 @@ export class AiAgentConversations {
         await this.connection.client.request("turn/steer", { threadId: conversation.id, expectedTurnId: active.id, input: messages });
       } else {
         conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort;
+        this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, writeAccess: settings.writeAccess, access: this.access });
         const result = await this.connection.client.request("turn/start", { threadId: conversation.id, input: messages,
           cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: "never",
           sandboxPolicy: settings.writeAccess === "opened-folders" ? { type: "workspaceWrite", writableRoots: folders,
             networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true } : { type: "readOnly", networkAccess: false } });
+        const scope = this.scopes.get(conversation.id); if (scope) scope.turnId = result.turn.id;
         if (!conversation.turns.some(turn => turn.id === result.turn.id)) conversation.turns.push(turnFrom(result.turn));
       }
       conversation.responseLanguage = input.responseLanguage; conversation.folders = folders; conversation.updatedAt = Date.now();
@@ -135,6 +147,8 @@ export class AiAgentConversations {
     if (!turn) { turn = { id: turnId, status: "inProgress", items: [] }; conversation.turns.push(turn); }
     if (method === "turn/started" || method === "turn/completed") {
       turn.status = params.turn.status;
+      if (method === "turn/started") { const scope = this.scopes.get(params.threadId); if (scope) scope.turnId = turnId; }
+      else this.scopes.delete(params.threadId);
       if (params.turn.error) turn.error = params.turn.error.message;
     } else if (method === "item/started" || method === "item/completed") {
       const item = itemFrom(params.item);
@@ -158,7 +172,8 @@ function itemFrom(item: any): AiConversationItem | null {
   if (item.type === "plan") return { id: item.id, kind: "plan", text: item.text };
   if (item.type === "commandExecution") return { id: item.id, kind: "tool", text: item.command, status: item.status };
   if (item.type === "mcpToolCall") return { id: item.id, kind: "tool", text: `${item.server} · ${item.tool}`, status: item.status };
-  if (item.type === "dynamicToolCall") return { id: item.id, kind: "tool", text: [item.namespace, item.tool].filter(Boolean).join(" · "), status: item.status };
+  if (item.type === "dynamicToolCall") return { id: item.id, kind: "tool", text: [item.namespace, item.tool].filter(Boolean).join(" · "), status: item.success === false ? "failed" : item.status,
+    toolResult: { success: item.success ?? null, contentItems: item.contentItems ?? [] } };
   if (item.type === "webSearch") return { id: item.id, kind: "tool", text: item.query };
   if (item.type === "fileChange") return { id: item.id, kind: "tool", text: item.changes.map((change: any) => change.path).join("\n"), status: item.status };
   return null;
