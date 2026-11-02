@@ -1185,10 +1185,11 @@ function EditorApp() {
               unsaved={owner?.documentDirty || owner?.draftActive}
               draftNotice={owner?.draftNotice}
               textMode={owner?.kind === "text"}
+              markdownText={owner?.kind === "text" && owner.markdown}
               hideViewControls={pluginTabs.some(tab => tab.id === group.active)}
-              view={owner?.kind === "native" ? owner.view : "visual"}
+              view={owner?.view ?? "visual"}
               viewDisabled={!owner || groupBusy}
-              onViewChange={(next) => { if (owner?.kind === "native") { if (next === "source") void owner.showSource(); else owner.setView(next); } }}
+              onViewChange={(next) => { if (owner?.kind === "text" && next !== "source") owner.setView(next); if (owner?.kind === "native") { if (next === "source") void owner.showSource(); else owner.setView(next); } }}
               saveDisabled={!owner || groupBusy || owner.kind === "native" && owner.view === "read"}
               onSave={() => void owner?.save()}
               onCompare={owner?.kind === "text" ? undefined : () => compareBeforeSave(fileActionsToggle.current, owner)}

@@ -7,14 +7,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "test": "tsx ../../packages/cli/scripts/build-docling-worker.ts && tsx --test test/plugin-ui.test.ts test/plugin-runtime.test.ts test/plugin-host.test.ts test/ai-task.test.ts test/ai-agent-connection.test.ts test/docling-server.test.ts test/file-operations.test.ts test/http-host.test.ts test/bibliography.test.ts test/editor.test.ts test/recovery-diff.test.ts test/block-commands.test.ts test/figure-authoring.test.ts test/image-assets.test.ts test/shell.test.tsx test/table-editing.test.ts test/table-authoring.test.ts test/link-authoring.test.ts test/inline-math.test.ts test/admonition-authoring.test.ts test/structural-authoring.test.ts test/label-authoring.test.ts test/cross-reference.test.ts test/browser-fixtures.test.ts test/visual-tokens.test.ts test/list-authoring.test.ts test/code-authoring.test.ts test/footnote-authoring.test.ts test/outline.test.ts test/folder-tree.test.ts",
+    "test": "tsx ../../packages/cli/scripts/build-docling-worker.ts && tsx --test test/plugin-ui.test.ts test/plugin-runtime.test.ts test/plugin-host.test.ts test/ai-task.test.ts test/ai-agent-connection.test.ts test/docling-server.test.ts test/file-operations.test.ts test/http-host.test.ts test/bibliography.test.ts test/editor.test.ts test/plain-markdown.test.ts test/recovery-diff.test.ts test/block-commands.test.ts test/figure-authoring.test.ts test/image-assets.test.ts test/shell.test.tsx test/table-editing.test.ts test/table-authoring.test.ts test/link-authoring.test.ts test/inline-math.test.ts test/admonition-authoring.test.ts test/structural-authoring.test.ts test/label-authoring.test.ts test/cross-reference.test.ts test/browser-fixtures.test.ts test/visual-tokens.test.ts test/list-authoring.test.ts test/code-authoring.test.ts test/footnote-authoring.test.ts test/outline.test.ts test/folder-tree.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@litzio/plugin-api": "workspace:*",
     "@base-ui/react": "^1.8.0",
     "@litzio/core": "workspace:*",
     "@litzio/file-commit": "workspace:*",
+    "@litzio/plugin-api": "workspace:*",
     "@tiptap/core": "3.31.3",
     "@tiptap/extension-code": "3.31.3",
     "@tiptap/extension-code-block-lowlight": "3.31.3",
@@ -32,6 +32,10 @@
     "katex": "0.18.7",
     "lowlight": "^3.3.0",
     "lucide-react": "^1.47.0",
+    "markdown-it": "13.0.2",
+    "markdown-it-dollarmath": "0.5.0",
+    "markdown-it-footnote": "4.0.0",
+    "markdown-it-task-lists": "2.1.1",
     "mermaid": "12.2.0",
     "pretendard": "1.3.9",
     "react": "^19.1.1",
@@ -40,6 +44,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "@types/markdown-it": "13.0.9",
     "@types/node": "^24.5.2",
     "@types/react": "^19.1.13",
     "@types/react-dom": "^19.1.9",

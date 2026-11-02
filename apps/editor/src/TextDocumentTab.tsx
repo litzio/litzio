@@ -1,4 +1,4 @@
-import { memo, useLayoutEffect, useEffect, useRef, useState, type CSSProperties } from "react";
+import { memo, useMemo, useLayoutEffect, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { EditorFileResponse, TextFileResponse } from "../shared/document-protocol.ts";
 import { createDocumentSessionLifetime, messageOf, requestDocument, requestSave, SaveConflictError } from "./document-session.ts";
@@ -11,12 +11,17 @@ import { splitDocumentPath } from "./shell/document-path.ts";
 import { MessageArea } from "./shell/MessageArea.tsx";
 import type { EditorSession } from "./DocumentTab.tsx";
 
+import { renderPlainMarkdown } from "./plain-markdown.ts";
+import { openExternalLink } from "./link-opening.ts";
+
 export type TextSessionSnapshot = { kind: "text"; file: TextFileResponse; text: string; savedSource: string };
 
 function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot | undefined, recoveryId: string, replaceFile: (file: EditorFileResponse) => void) {
   const [openedPath, setOpenedPath] = useState(initial.path);
   const pathRef = useRef(openedPath); pathRef.current = openedPath;
   const input = useRef<HTMLTextAreaElement>(null);
+  const markdown = /\.md$/i.test(openedPath);
+  const [view, setView] = useState<"read" | "visual">(() => markdown ? "read" : "visual");
   const text = useRef(restored?.text ?? initial.source);
   const saved = useRef(restored?.savedSource ?? initial.source);
   const revision = useRef(initial.revision);
@@ -92,7 +97,7 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
     } finally { if (current()) { busyRef.current = false; setReloadDialog(false); } }
   }
   return {
-    kind: "text" as const, editorRef, input, initialText: restored?.text ?? initial.source, change, getSnapshot,
+    kind: "text" as const, markdown, view: markdown ? view : "visual" as const, setView, currentText: text.current, editorRef, input, initialText: restored?.text ?? initial.source, change, getSnapshot,
     openedPath, documentDirty, draftActive: false, draftNotice: "", assetPending: false,
     isCurrent: () => Boolean(input.current?.isConnected),
     busy, busyRef, setStatus, switching: status === "opening", status, save, load,
@@ -113,6 +118,7 @@ export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restore
 }) {
   useTranslation();
   const session = useTextSession(file, restored, recoveryId, replaceFile);
+  const html = useMemo(() => session.markdown && session.view === "read" ? renderPlainMarkdown(session.currentText, session.openedPath) : "", [session.currentText, session.openedPath, session.markdown, session.view]);
   useLayoutEffect(() => { report(id, session); });
   useLayoutEffect(() => () => report(id, null), [id, report]);
   return <NotificationScope value={{ name: splitDocumentPath(session.openedPath).name, reveal(action) {
@@ -122,9 +128,17 @@ export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restore
     <div className="document-scroll text-document-scroll" role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`} hidden={!active} inert={!active}
       data-document-tab={id} data-active={focused ? "true" : "false"} data-visible={active ? "true" : "false"} data-group-index={groupIndex}
       style={{ "--editor-group-index": groupIndex } as CSSProperties} onFocusCapture={() => onFocus(id)} onPointerDownCapture={() => onFocus(id)}>
-      <div className="text-document">
-        <p className="text-mode-notice" data-testid="text-mode-notice">{i18n.t("Text mode · Not a {{product}} document")}</p>
-        <textarea ref={session.input} className="text-document-input" data-testid="text-editor" aria-label={i18n.t("Text editor")}
+      <div className="text-document" data-view={session.view}>
+        <p className="text-mode-notice" data-testid="text-mode-notice">{i18n.t(session.view === "read" ? "Markdown · Not a {{product}} document" : "Text mode · Not a {{product}} document")}</p>
+        {session.markdown && session.view === "read" ? <article className="document-editor plain-markdown" data-testid="plain-markdown" onClick={event => {
+          const anchor = event.target instanceof Element ? event.target.closest("a") : null;
+          if (!anchor) return;
+          event.preventDefault();
+          const href = anchor.getAttribute("href") ?? "";
+          if (/^#fn(?:ref)?\d+$/.test(href)) event.currentTarget.querySelector(`[id="${href.slice(1)}"]`)?.scrollIntoView({ block: "nearest" });
+          else openExternalLink(href);
+        }} dangerouslySetInnerHTML={{ __html: html }} /> : null}
+        <textarea hidden={session.view === "read"} ref={session.input} className="text-document-input" data-testid="text-editor" aria-label={i18n.t("Text editor")}
           defaultValue={session.initialText} onChange={event => session.change(event.currentTarget.value)} spellCheck={false} wrap="off" />
       </div>
     </div>

@@ -339,8 +339,9 @@ async (page, { openPath, waitForActivePath, activeDocument, screenshots = false 
   check((await foreign.innerText()).includes('Not a Litzio document'), 'Non-native file has no explanation');
   check(await foreign.evaluate(n => getComputedStyle(n).color) === await folder.getByRole('treeitem',{name:'foreign.md',exact:true,includeHidden:true}).evaluate(n => getComputedStyle(n).color), 'Non-native result differs from sidebar muted treatment');
   await page.keyboard.press('Enter'); await center().waitFor({state:'detached'});
-  await page.getByTestId('text-editor').waitFor();
-  check(await page.getByTestId('current-file').textContent() === 'foreign.md', 'Non-native selection did not open in text mode');
+  await page.getByTestId('plain-markdown').waitFor();
+  check(await page.getByTestId('view-read').getAttribute('aria-pressed') === 'true', 'Non-native Markdown did not default to Read');
+  check(await page.getByTestId('current-file').textContent() === 'foreign.md', 'Non-native selection did not open its text session');
   await open('technical-1.md'); await page.keyboard.press('Enter'); await center().waitFor({state:'detached'});
   await waitForActivePath(page, file('technical-1.md'));
   result.sidebarListedDocuments = true;

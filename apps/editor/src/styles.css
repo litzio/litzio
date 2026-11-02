@@ -3402,3 +3402,10 @@ body:has(.app-shell--collapsed) .notification-center { --notification-sidebar-wi
 [data-brand-dark] { display: none; }
 html[data-theme="dark"] [data-brand-light] { display: none; }
 html[data-theme="dark"] [data-brand-dark] { display: block; }
+
+/* Ordinary Markdown shares reading typography, table and code tokens. */
+.text-document[data-view="read"] { height: auto; min-height: 100%; }
+.plain-markdown { width: 100%; max-width: var(--layout-content-width); margin-inline: auto; padding: var(--space-4); }
+.plain-markdown img { max-width: 100%; height: auto; }
+.plain-markdown .table { display: block; overflow-x: auto; }
+.plain-markdown .katex-display { overflow-x: auto; overflow-y: hidden; }
