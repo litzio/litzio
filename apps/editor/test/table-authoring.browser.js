@@ -49,7 +49,7 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
     return items;
   };
   const result = {};
-  // Real NIST Table 1 and unbreakable input fit before resorting to local scrolling.
+  // Ordinary words retain intrinsic width; a long identifier alone must not force scrolling.
   await openPath(page, file.replace('tables.md', 'wrapping.md'));
   for (const [width, mode] of [[1440, "view-visual"], [640, "view-visual"], [640, "view-read"]]) {
     await page.getByTestId(mode).click();
@@ -62,7 +62,18 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
       return {overflow:scroll.scrollWidth-scroll.clientWidth, lines:range.getClientRects().length,
         cellOverflow:longest.scrollWidth-longest.clientWidth};
     }));
-    if (wrapping.length !== 2 || wrapping.some(t => t.overflow > 1 || t.lines < 2 || t.cellOverflow > 1))
+    const brokenWords = await tables.first().locator('td:nth-child(2)').evaluateAll(cells => cells.flatMap(cell => {
+      const text = cell.firstChild;
+      return [...text.textContent.matchAll(/[A-Za-z]+/g)].filter(match => {
+        const range = document.createRange(); range.setStart(text, match.index); range.setEnd(text, match.index + match[0].length);
+        return range.getClientRects().length !== 1;
+      }).map(match => match[0]);
+    }));
+    if (brokenWords.length) throw Error(`Ordinary domain words split at ${width}px: ${brokenWords.join(', ')}`);
+    // At 640px the three intrinsic word widths plus cell minima cannot fit.
+    // Require local scrolling rather than permitting a word to split to pass a fit check.
+    if (width === 640 && wrapping[0].overflow <= 1) throw Error('Narrow Table 1 must preserve word widths with local scrolling');
+    if (wrapping.length !== 2 || wrapping.some((t, i) => ((width === 1440 || i === 1) && t.overflow > 1) || t.lines < 2 || t.cellOverflow > 1))
       throw Error(`Table prose and identifiers must wrap at ${width}px: ${JSON.stringify(wrapping)}`);
   }
   await page.getByTestId("view-visual").click();

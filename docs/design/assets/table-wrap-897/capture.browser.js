@@ -1,5 +1,14 @@
 // Manual visual review; copy to apps/editor/test/manual-table-wrap.browser.js and run with pnpm browser:test.
 async (page, {openPath}) => {
+  const captures = [];
+  const capture = async path => {
+    await page.evaluate(()=>document.fonts.ready);
+    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+    await page.screenshot({path});
+    captures.push({path, ...await page.evaluate(()=>({width:innerWidth,height:innerHeight,dpr:devicePixelRatio,
+      theme:document.documentElement.dataset.theme,language:document.documentElement.lang,userAgent:navigator.userAgent,
+      tables:[...document.querySelectorAll('[data-document-tab][data-active=true] .table-scroll,.docling-tab[data-active=true] .table-scroll')].map(n=>({width:n.clientWidth,scrollWidth:n.scrollWidth,scrollLeft:n.scrollLeft}))}))});
+  };
   const initial = await (await page.request.get(page.url().split('/').slice(0,3).join('/') + '/api/document')).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const root = initial.path.split(sep).slice(0,-4).join(sep);
@@ -7,6 +16,7 @@ async (page, {openPath}) => {
   await openPath(page,file);
   const phase = 'after';
   const table = page.locator('[data-document-tab][data-active=true] [data-block=table]').first();
+  const second = page.locator('[data-document-tab][data-active=true] [data-block=table]').nth(1);
   for (const [width,theme,lang] of [[1440,'light','en'],[640,'dark','ko']]) {
     await page.setViewportSize({width,height:1000});
     await page.evaluate(async ({theme,lang}) => {
@@ -16,16 +26,20 @@ async (page, {openPath}) => {
     },{theme,lang});
     await table.locator('td').first().click();
     await table.evaluate(el=>el.scrollIntoView({block:'start'}));
-    await page.screenshot({path:`docs/design/assets/table-wrap-897/${phase}-${width}.png`});
+    await capture(`docs/design/assets/table-wrap-897/${phase}-${width}.png`);
+    if (phase === 'after') {
+      await second.locator('td').first().click();
+      await second.scrollIntoViewIfNeeded();
+      await capture(`docs/design/assets/table-wrap-897/after-${width}-korean.png`);
+    }
   }
   if (phase === 'after') {
-    const second = page.locator('[data-document-tab][data-active=true] [data-block=table]').nth(1);
     await second.scrollIntoViewIfNeeded();
     await second.locator('td').first().click();
-    await page.screenshot({path:`docs/design/assets/table-wrap-897/after-640-korean.png`});
+    await capture(`docs/design/assets/table-wrap-897/after-640-korean.png`);
     await page.getByTestId('view-read').click();
     await table.evaluate(el=>el.scrollIntoView({block:'start'}));
-    await page.screenshot({path:`docs/design/assets/table-wrap-897/after-640-read.png`});
+    await capture(`docs/design/assets/table-wrap-897/after-640-read.png`);
     await page.getByTestId('view-visual').click();
     await page.evaluate(async () => { await (await import('/src/i18n.ts')).i18n.changeLanguage('en'); });
     await openPath(page,file.replace('wrapping.md','tables.md'));
@@ -39,7 +53,7 @@ async (page, {openPath}) => {
         await wide.locator('.table-scroll').evaluate((el,edge)=>el.scrollLeft=edge==='end'?el.scrollWidth:0,edge);
         await wide.hover({position:{x:8,y:8}});
         await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
-        await page.screenshot({path:`docs/design/assets/table-wrap-897/after-${width}-wide-${edge}.png`});
+        await capture(`docs/design/assets/table-wrap-897/after-${width}-wide-${edge}.png`);
       }
     }
     await page.setViewportSize({width:1440,height:1000});
@@ -52,7 +66,7 @@ async (page, {openPath}) => {
     await page.locator('.docling-tab[data-active=true] .docling-source img').first().waitFor({state:'visible'});
     await page.waitForFunction(()=>[...document.querySelectorAll('.docling-tab[data-active=true] .docling-source img')].every(img=>img.complete));
     await page.evaluate(()=>document.fonts.ready);
-    await page.screenshot({path:'docs/design/assets/table-wrap-897/after-1440-compare.png'});
+    await capture('docs/design/assets/table-wrap-897/after-1440-compare.png');
   }
-  return {phase, environment:await page.evaluate(()=>({userAgent:navigator.userAgent,dpr:devicePixelRatio}))};
+  return {phase, captures, environment:await page.evaluate(()=>({userAgent:navigator.userAgent,dpr:devicePixelRatio}))};
 }

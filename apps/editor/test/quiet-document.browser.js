@@ -167,7 +167,7 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
   check(['.heading','.paragraph','.list','.quote-body','.admonition-body','.caption','[data-table-cell]','pre','.footnote-definition-body']
     .every(context=>wrapping.some(n=>n.kind==='code'&&n.contexts.includes(context)))&&
     ['code','math'].every(kind=>[true,false].every(heading=>wrapping.some(n=>n.kind===kind&&n.heading===heading)))&&
-    wrapping.every(n=>n.wordBreak===(n.heading?'keep-all':'normal')&&n.overflowWrap===(n.contexts.includes('[data-table-cell]')?'anywhere':'break-word')),
+    wrapping.every(n=>n.wordBreak===(n.heading?'keep-all':'normal')&&n.overflowWrap==='break-word'),
     `Code/math lost contextual wrapping: ${JSON.stringify(wrapping)}`);
   // Callout content follows body prose even when the document font/size is customized.
   const calloutType = await page.evaluate(() => {
