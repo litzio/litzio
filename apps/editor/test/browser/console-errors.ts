@@ -12,6 +12,7 @@ type ExpectedConsoleErrorRule = {
 };
 
 const EXPECTED_CONSOLE_ERRORS: Record<string, ExpectedConsoleErrorRule[]> = {
+  "ai-agent": [{ status: 404, pathname: "/api/ai-agent-conversations", minimum: 1, description: "a deliberately unavailable last conversation falls back to a fresh composer" }],
   "docling-review-retry": [
     { status: 500, pathname: "/api/docling-compare", minimum: 1, description: "persistent comparison failures exercise the automatic read limit and manual recovery" },
   ],
