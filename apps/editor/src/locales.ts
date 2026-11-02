@@ -1,6 +1,20 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Approved changes": "Approved changes",
+  "Other content": "Other content",
+  "Page footer": "Page footer",
+  "Page header": "Page header",
+  "Body text": "Body text",
+  "Original source unavailable": "Original source unavailable",
+  "Stale": "Stale",
+  "Cannot apply": "Cannot apply",
+  "Rejected": "Rejected",
+  "Approved": "Approved",
+  "Pending": "Pending",
+  "Header/footer classification": "Header/footer classification",
+  "Merge paragraphs": "Merge paragraphs",
+  "Heading depth": "Heading depth",
   "Target source": "Target source",
   "Login required": "Login required",
   "Off": "Off",
@@ -873,6 +887,20 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Approved changes": "승인한 변경",
+  "Other content": "기타 내용",
+  "Page footer": "바닥글",
+  "Page header": "머리글",
+  "Body text": "본문",
+  "Original source unavailable": "원문을 확인할 수 없습니다.",
+  "Stale": "낡음",
+  "Cannot apply": "적용 불가",
+  "Rejected": "거절",
+  "Approved": "승인",
+  "Pending": "대기",
+  "Header/footer classification": "머리글·바닥글 분류",
+  "Merge paragraphs": "문단 합치기",
+  "Heading depth": "제목 깊이",
   "Target source": "대상 원문",
   "Login required": "로그인 필요",
   "Off": "꺼짐",

@@ -41,6 +41,17 @@ export function ReviewPanel({ host, folder, summary = false, agentReady = true, 
   };
   const reason = !enabled ? "Review is disabled." : !review?.available || !agentReady ? "AI agent is disabled or unavailable." : host.features?.conversion === false ? "Enable PDF conversion to apply review corrections." : "";
   const task = review?.task, proposal = review?.proposals.find(p => p.id === selected);
+  type Proposal = Review["proposals"][number];
+  const kind = (operation: Proposal["suggestion"]["operation"]) => text({ heading: "Heading depth", "merge-paragraphs": "Merge paragraphs", furniture: "Header/footer classification" }[operation]);
+  const state = (p: Proposal) => text(p.stale ? "Stale" : { pending: "Pending", approved: "Approved", rejected: "Rejected", inapplicable: "Cannot apply" }[p.state]);
+  const source = (p: Proposal) => p.before.text || p.suggestion.evidence[0]?.text || text("Original source unavailable");
+  const excerpt = (value: string) => { const chars = Array.from(value.replace(/\s+/gu, " ").trim()); return chars.slice(0, 100).join("") + (chars.length > 100 ? "…" : ""); };
+  const heading = (level?: number | null) => level ? text("Heading {{level}}", { level }) : text("Body text");
+  const classification = (label?: string, level?: number) => label === "section_header" || label === "title"
+    ? (level ? heading(level) : text("Heading"))
+    : text(label === "text" ? "Body text" : label === "page_header" ? "Page header" : label === "page_footer" ? "Page footer" : "Other content");
+  const changeValue = (change: Proposal["suggestion"] | Proposal["before"]["corrections"][number]) => "level" in change.value
+    ? heading(change.value.level) : "label" in change.value ? classification(change.value.label) : text("Merge paragraphs");
   return <section className="docling-review" aria-label={text("Structure review")} aria-busy={busy}>
     <div className="docling-review-actions"><strong>{text("Structure review")}</strong>
       <span>{text("Pending proposals")}: {review?.proposals.filter(p => p.state === "pending" && !p.stale).length ?? "…"}</span>
@@ -55,22 +66,35 @@ export function ReviewPanel({ host, folder, summary = false, agentReady = true, 
         {!review.proposals.length ? <p>{text("No review proposals yet.")}</p> : null}
         {review.proposals.map(p => <button type="button" key={p.id} aria-pressed={selected === p.id} onClick={() => {
           setSelected(p.id); onSelect?.([p.suggestion.self_ref, ...(p.suggestion.operation === "merge-paragraphs" ? [p.suggestion.value.next] : [])]);
-        }}>{text(p.suggestion.operation)} · {p.suggestion.self_ref} · {text(p.stale ? "Stale proposal" : p.state)}</button>)}
+        }}>
+          <span className="docling-review-source">{excerpt(source(p))}</span>
+          <span className="docling-review-item-labels"><span>{kind(p.suggestion.operation)}</span><span className="docling-review-state">{state(p)}</span></span>
+          <span className="docling-review-meta">{p.suggestion.self_ref}</span>
+        </button>)}
       </div>
       {proposal ? <div className="docling-review-proposal">
-        <strong>{text(proposal.suggestion.operation)} · {proposal.suggestion.self_ref}</strong>
+        <strong>{kind(proposal.suggestion.operation)}</strong>
+        <span className="docling-review-meta">{proposal.suggestion.self_ref}</span>
         <p>{text("Target source")}: {proposal.before.text}{proposal.before.nextText ? ` · ${proposal.before.nextText}` : ""}</p>
         {proposal.suggestion.evidence.map((e, i) => <p key={i}>{text("Source page")} {e.page}: {e.text}</p>)}
         <p>{proposal.suggestion.reason}</p>
-        <div className="docling-review-values"><div><strong>{text("Before")}</strong><pre>{proposal.before.label}{proposal.before.level ? ` H${proposal.before.level}` : ""}{proposal.before.corrections.length ? ` · ${JSON.stringify(proposal.before.corrections)}` : ""}</pre></div><div><strong>{text("After")}</strong><pre>{JSON.stringify(proposal.suggestion.value)}</pre></div></div>
-        <p>{text(proposal.stale ? "Stale proposal" : proposal.state)}{proposal.validationError ? ` · ${proposal.validationError}` : ""}</p>
+        <div className="docling-review-values">
+          <div><strong>{text("Before")}</strong>{proposal.suggestion.operation === "merge-paragraphs" ? <>
+            <p>{proposal.before.text || text("Original source unavailable")}</p><p>{proposal.before.nextText || text("Original source unavailable")}</p>
+          </> : <p>{classification(proposal.before.label, proposal.before.level)}</p>}</div>
+          <div><strong>{text("After")}</strong><p>{proposal.suggestion.operation === "merge-paragraphs"
+            ? (proposal.before.text && proposal.before.nextText ? `${proposal.before.text} ${proposal.before.nextText}` : text("Original source unavailable"))
+            : changeValue(proposal.suggestion)}</p></div>
+        </div>
+        {proposal.before.corrections.length ? <div><strong>{text("Approved changes")}</strong><ul>{proposal.before.corrections.map((change, index) => <li key={index}>{kind(change.operation)}: {changeValue(change)}</li>)}</ul></div> : null}
+        <p className="docling-review-status">{state(proposal)}{proposal.validationError ? ` · ${proposal.validationError}` : ""}</p>
 
       </div> : null}
     </div> : null}
     {!summary && enabled && review?.available ? <div className="docling-review-actions">
-          {proposal?.state === "pending" ? <Button disabled={busy || !!reason || proposal?.stale} onClick={() => void act("approve")}>{text("Approve proposal")}</Button> : null}
-          {["pending", "inapplicable"].includes(proposal?.state ?? "") ? <Button disabled={busy || !!reason} onClick={() => void act("reject")}>{text("Reject proposal")}</Button> : null}
-          {proposal?.state === "approved" ? <Button disabled={busy || !!reason || proposal?.stale} onClick={() => void act("undo")}>{text("Undo approval")}</Button> : null}
+          {proposal?.state === "pending" ? <Button variant="default" disabled={busy || !!reason || proposal?.stale} onClick={() => void act("approve")}>{text("Approve proposal")}</Button> : null}
+          {["pending", "inapplicable"].includes(proposal?.state ?? "") ? <Button variant="secondary" disabled={busy || !!reason} onClick={() => void act("reject")}>{text("Reject proposal")}</Button> : null}
+          {proposal?.state === "approved" ? <Button variant="secondary" disabled={busy || !!reason || proposal?.stale} onClick={() => void act("undo")}>{text("Undo approval")}</Button> : null}
         </div> : null}
   </section>;
 }

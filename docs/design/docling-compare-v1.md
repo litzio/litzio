@@ -46,8 +46,14 @@ Selecting a proposal reveals its original refs using the existing source selecti
 and connector style and highlights measured right-hand blocks, without accessing
 Editor DOM or importing its internals. Merge proposals select both original refs.
 The details show kind, the actual original target text (both refs for a merge),
-AI-provided page/text evidence separately, reason, Before (original label/level
-and current approved changes), After (proposed values), and validation failures.
+AI-provided page/text evidence separately, reason, and validation failures.
+The list leads with an original text excerpt and human-readable correction kind;
+short localized status badges are separate, with original refs only in muted metadata.
+Before/After use localized heading depth, body/header/footer names and paragraph
+text/merged preview, never operation values or JSON. Approved changes use the same
+wording. Approval is the primary action; rejection and approval undo use secondary
+buttons, matching P04's explicit apply/cancel hierarchy. Host operations, stored
+proposal/correction formats and approval behavior are unchanged.
 Approval/rejection are explicit; approved entries offer Undo approval. Stale and
 inapplicable entries cannot be approved. Host C1 validation remains authoritative.
 Approval and undo load a fresh document/map before clearing the panel's busy state;
