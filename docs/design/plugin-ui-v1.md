@@ -100,7 +100,9 @@ Detachment closes them, discards selected paths and pending picker callbacks,
 and returns focus to a connected opener or the existing sidebar toggle. A late
 picker completion cannot invoke a detached activation. This does not cancel
 accepted worker requests or close retained contributed tabs.
-Docling filters its conversion commands, PDF actions, settings/dialog and comparison
+Docling keeps its Settings contribution reachable for feature selection (#932),
+including when conversion is off. It filters conversion commands, PDF actions,
+server controls/dialog and comparison
 tab kind by those flags, retaining the dashboard. A comparison is disabled while
 its tab kind is absent and restores its original snapshot on re-enabling.
 

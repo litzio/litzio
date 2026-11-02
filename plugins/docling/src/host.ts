@@ -28,13 +28,15 @@ export function activate(host: PluginHostContext): HostPlugin {
     });
   };
   const results = (): ConversionResult[] => history().filter(record => record.status === "success").map(({ job }) => {
-    const result: ConversionResult = { id: job.id, folder: job.output, path: path.join(job.output, "document.md"), convertedAt: job.finishedAt ?? job.startedAt };
+    const result: ConversionResult = { id: job.id, folder: job.output, path: path.join(job.output, "document.md"), name: path.basename(job.input), convertedAt: job.finishedAt ?? job.startedAt };
     try {
       const folder = host.resolvePath(job.output, true);
       try { statSync(folder); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return { ...result, missing: true }; throw error; }
       const document = host.documentPath(result.path);
       const { map, stale } = inspectDoclingMap(host.readText(host.mediaPath("document.docling-map.json", document)), host.readText(document));
-      return { ...result, name: map.source.name, pages: Object.keys(map.pages).length, stale };
+      let pendingProposals: number | undefined;
+      try { pendingProposals = review.list(folder).proposals.filter(p => p.state === "pending" && !p.stale).length; } catch { /* Unreadable does not mean empty. */ }
+      return { ...result, pages: Object.keys(map.pages).length, stale, pendingProposals };
     } catch { return { ...result, problem: "Could not read the conversion result." }; }
   });
   const correct = (args: any, change: "apply" | "add" | "remove") => {

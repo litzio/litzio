@@ -1,16 +1,30 @@
 import { useEffect, useRef, useState, type ComponentType, type InputHTMLAttributes, type ReactNode } from "react";
+import type { Features } from "../shared/dashboard.ts";
 import { DEFAULT_DOCLING_SERVER, type ConversionJob, type ServerCheck } from "./server-types.ts";
 
 export type Request = <T>(endpoint: string, method?: string, body?: unknown) => Promise<T>;
 type Text = (key: string) => string;
 type Props = {
-  request: Request; text: Text;
+  request: Request; text: Text; serverEnabled?: boolean;
   GuideLink: ComponentType<{ children?: ReactNode }>;
   Input: ComponentType<InputHTMLAttributes<HTMLInputElement>>;
   Button: ComponentType<{ children?: ReactNode; onClick(): void; disabled?: boolean }>;
 };
 
-export function DoclingServerSettings({ request, text, Input, Button, GuideLink }: Props) {
+export function DoclingServerSettings({ request, text, Input, Button, GuideLink, serverEnabled = true }: Props) {
+  const [features, setFeatures] = useState<Features>();
+  const featurePending = useRef(false);
+  const [featureBusy, setFeatureBusy] = useState(false);
+  useEffect(() => { let active = true; void request<{ features: Features }>("dashboard").then(value => { if (active) setFeatures(value.features); }).catch(error => { if (active) setProblem(String(error)); }); return () => { active = false; }; }, [request]);
+  const changeFeature = async (name: keyof Features, enabled: boolean) => {
+    if (featurePending.current) return;
+    featurePending.current = true; setFeatureBusy(true);
+    const previous = features;
+    setFeatures(value => value ? { ...value, [name]: enabled } : value);
+    try { setFeatures(await request<Features>("features", "PUT", { [name]: enabled })); }
+    catch (error) { setFeatures(previous); setProblem(String(error)); }
+    finally { featurePending.current = false; setFeatureBusy(false); }
+  };
   const [server, setServer] = useState(DEFAULT_DOCLING_SERVER);
   const [loaded, setLoaded] = useState(false), [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
@@ -20,11 +34,12 @@ export function DoclingServerSettings({ request, text, Input, Button, GuideLink 
   const editVersion = useRef(0), checking = useRef(false);
   useEffect(() => {
     let active = true;
+    if (!serverEnabled) return;
     void request<{ server: string }>("settings").then(value => {
       if (active) { setServer(value.server); saved.current = value.server; setLoaded(true); }
     }).catch(error => { if (active) { setProblem(String(error)); setLoaded(true); } });
     return () => { active = false; };
-  }, [request]);
+  }, [request, serverEnabled]);
   const persist = () => {
     const value = server;
     saving.current = saving.current.catch(() => {}).then(async () => {
@@ -43,7 +58,15 @@ export function DoclingServerSettings({ request, text, Input, Button, GuideLink 
     catch (error) { setProblem(error instanceof Error ? error.message : String(error)); }
     finally { checking.current = false; setBusy(false); }
   };
-  return <section className="settings-section settings-section--stacked" aria-labelledby="docling-server-title" aria-busy={busy}>
+  return <>
+    <section className="settings-section settings-section--stacked"><h3 className="settings-heading">{text("Features")}</h3>
+      {(["conversion", "comparison", "review"] as const).map(name => <label key={name} className="flex items-center gap-2">
+        <input type="checkbox" disabled={!features || featureBusy} checked={features?.[name] ?? false} onChange={event => void changeFeature(name, event.target.checked)} />
+        {text(name === "conversion" ? "PDF conversion" : name === "comparison" ? "Docling comparison" : "Structure review")}</label>)}
+      <p className="settings-label">{text("Disabling a feature hides its controls. Accepted jobs keep running; open comparison tabs are retained in a disabled state.")}</p>
+      {!serverEnabled && problem ? <p role="alert">{problem}</p> : null}
+    </section>
+    {serverEnabled ? <section className="settings-section settings-section--stacked" aria-labelledby="docling-server-title" aria-busy={busy}>
     <div className="settings-label">
       <h3 className="settings-heading" id="docling-server-title">{text("Docling server")}</h3>
       <p>{text("Saved on the Host device. HTTP Host clients share this server setting.")}</p>
@@ -77,7 +100,7 @@ export function DoclingServerSettings({ request, text, Input, Button, GuideLink 
       </> : null}
     </div>
     <GuideLink>{text("Server setup guide")}</GuideLink>
-  </section>;
+  </section> : null}</>;
 }
 
 /** Polls only the Host, never the external Docling server. A failed read keeps the job cancellable. */
