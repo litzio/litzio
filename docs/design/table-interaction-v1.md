@@ -36,14 +36,14 @@ writes a `{table}` directive even when both are absent (#584; [format contract](
 Tables first fit the document width, wrapping prose within cells. Cells use
 `overflow-wrap: break-word` to preserve ordinary word widths in intrinsic sizing.
 The scroller is an inline-size container; a cell's intrinsic maximum is capped at
-half that width (`--size-table-cell-intrinsic-max: 50cqi`), never below the adjustable 2rem cell content minimum (#901). This
+half that width (`--size-table-cell-intrinsic-max: 50cqi`), never below the adjustable 2rem cell minimum (#901). This
 bounds a long URL/identifier's claim while auto table layout still distributes
 spare space. The two-column Korean/URL fixture fits at 1440/640px. Tables whose
 word widths and cell minima cannot fit scroll locally with the existing fades.
 Short number/name columns shrink to their word widths, leaving space for prose.
 Table 1 fits at 640px with Explorer expanded while Transmission, Distribution and
 each word of Generation Including DER stay intact. Empty cells retain a 2rem
-content target plus the existing cell padding. Several columns containing
+cell minimum with the existing cell padding. Several columns containing
 very long unbroken strings can still require local scrolling; CSS cannot identify
 which strings are natural words. No per-content classification is introduced. Editing,
 Read and Docling comparison share this presentation. Row/column handles follow
@@ -465,7 +465,7 @@ added choices rather than claiming a change to that default geometry.
 
 ## Narrow prose columns (#901)
 
-The shared minimum content width is 2rem; cell padding is unchanged. This is a
+The shared minimum cell width is 2rem; cell padding is unchanged. This is a
 view-only adjustment across Edit, Read and comparison. Single-line mode retains
 nowrap and local scrolling. Many columns or long identifiers may still scroll.
 No document format, Core operation or CLI surface changes.
