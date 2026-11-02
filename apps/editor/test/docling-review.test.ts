@@ -23,7 +23,7 @@ for (const ownerEnds of [false, true]) test(ownerEnds
   const root = mkdtempSync(path.join(tmpdir(), "shared-docling-admission-")), directory = path.join(root, "plugins"), facade = path.join(root, "fake-agent");
   mkdirSync(facade);
   writeFileSync(path.join(facade, "host.cjs"), readFileSync(path.join(path.dirname(bundledAiManifest()), "host.cjs")));
-  writeFileSync(path.join(facade, "worker.cjs"), `process.once("message", () => process.send({type:"complete",result:${JSON.stringify({ proposals: structureReviewSuggestions })}}, () => process.exit(0)));`);
+  writeFileSync(path.join(facade, "worker.cjs"), `process.once("message", () => process.send({type:"complete",result:${JSON.stringify({ summary: "Checked the synthetic document structure.", proposals: structureReviewSuggestions })}}, () => process.exit(0)));`);
   writeFileSync(path.join(facade, "manifest.json"), JSON.stringify({ id: "ai-agent", version: "shared-review-fixture", workerApi: 1, entry: "worker.cjs", services: ["ai-task"], tasks: ["ai-task"], host: { api: 1, entry: "host.cjs" } }));
   const options = { directory, aiManifest: path.join(facade, "manifest.json") };
   const owner = createPluginHost(new RootAccess([root]), undefined, options), observer = createPluginHost(new RootAccess([root]), undefined, options);
@@ -86,7 +86,7 @@ test("installed Docling review uses the mediated service through HTTP operations
   // Only execution is replaced. The installed B service, receipt store, process
   // lifetime and Docling consumer are real; no model or Docling server is called.
   writeFileSync(path.join(facade, "host.cjs"), readFileSync(path.join(path.dirname(bundledAiManifest()), "host.cjs")));
-  writeFileSync(path.join(facade, "worker.cjs"), `process.once("message", () => process.send({type:"complete",result:${JSON.stringify({ proposals: structureReviewSuggestions })}}, () => process.exit(0)));`);
+  writeFileSync(path.join(facade, "worker.cjs"), `process.once("message", () => process.send({type:"complete",result:${JSON.stringify({ summary: "Checked the synthetic document structure.", proposals: structureReviewSuggestions })}}, () => process.exit(0)));`);
   writeFileSync(path.join(facade, "manifest.json"), JSON.stringify({ id: "ai-agent", version: "review-fixture", workerApi: 1, entry: "worker.cjs", services: ["ai-task"], tasks: ["ai-task"], host: { api: 1, entry: "host.cjs" } }));
   const host = createPluginHost(new RootAccess([root]), undefined, { directory, aiManifest: path.join(facade, "manifest.json") });
   const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, new RootAccess([root]), 1_000_000, undefined, undefined, host); });

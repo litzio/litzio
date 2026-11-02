@@ -29,6 +29,7 @@ export function comparisonFiles() {
     const images = record.images.map(image => image.path);
     const result = convertDoclingDocument(JSON.stringify(source), { images: new Map(images.map(file => [file, file])) });
     const files = [
+      { name: `${name}/conversion-record.json`, bytes: readFileSync(new URL("conversion-record.json", root)) },
       { name: `${name}/document.json`, bytes: Buffer.from(JSON.stringify(source)) },
       { name: `${name}/document.md`, bytes: Buffer.from(result.markdown) },
       { name: `${name}/document.docling-map.json`, bytes: Buffer.from(JSON.stringify(result.map)) },

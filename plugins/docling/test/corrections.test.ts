@@ -384,3 +384,41 @@ test("JSON conversion and correction replay record the current converter, Core a
   applyDoclingCorrections(f.folder);
   assert.deepEqual(JSON.parse(readFileSync(recordPath, "utf8")), { ...initial, source: { preserved: true } });
 });
+
+const exclusion = (pages: number[], id = "exclude"): DoclingCorrection => ({ id, operation: "exclude-pages", value: { pages }, reason: "Front matter", approvedAt: "2026-11-02T01:00:00Z" });
+test("page exclusion replays, preserves original regions and undoes byte-identically", t => {
+  const f = setup(t), before = snapshot(f.folder);
+  const result = addDoclingCorrection(f.folder, exclusion([1]));
+  assert.doesNotMatch(result.markdown, /False heading|Heading|Para/);
+  assert.match(result.markdown, /graph/);
+  assert.equal(result.map.pages["1"].exclusion?.id, "exclude");
+  assert.equal(result.map.items.find(x => x.self_ref === "#/texts/0")!.reason, "Approved page exclusion");
+  assert.deepEqual(result.map.items.find(x => x.self_ref === "#/texts/0")!.provenance, f.baseline.map.items.find(x => x.self_ref === "#/texts/0")!.provenance);
+  assert.equal(applyDoclingCorrections(f.folder).markdown, result.markdown);
+  assert.equal(readFileSync(f.input, "utf8"), f.original);
+  removeDoclingCorrection(f.folder, "exclude"); assert.deepEqual(snapshot(f.folder), before);
+});
+test("page exclusions reject conflicts in either order and invalid pages without publication", t => {
+  const f = setup(t), before = snapshot(f.folder), ledger = emptyCorrections(f.input, f.original);
+  const heading = approval("heading", 0, { operation: "heading", value: { level: 2 } });
+  for (const entries of [[exclusion([1]), heading], [heading, exclusion([1])],
+    [approval("merge", 2, { operation: "merge-paragraphs", value: { next: "#/texts/3" } }), exclusion([2])],
+    [exclusion([1]), approval("furniture", 0, { operation: "furniture", value: { label: "page_header" } })]])
+    assert.throws(() => convertWithDoclingCorrections(f.original, { ...ledger, entries }), /conflicts with excluded pages/);
+  for (const pages of [[], [0], [1, 1], [99], [1.5]]) assert.throws(() => addDoclingCorrection(f.folder, exclusion(pages)), /Invalid correction|Missing page/);
+  assert.throws(() => convertWithDoclingCorrections(f.original, { ...ledger, entries: [exclusion([1]), exclusion([1], "other")] }), /conflicts/);
+  assert.deepEqual(snapshot(f.folder), before);
+});
+test("page exclusions retain multipage items and refuse splitting caption relationships", () => {
+  const doc = source(); doc.texts[0].prov.push({ ...doc.texts[0].prov[0], page_no: 2 });
+  const input = JSON.stringify(doc), ledger = emptyCorrections("source.json", input);
+  const result = convertWithDoclingCorrections(input, { ...ledger, entries: [exclusion([1])] });
+  assert.match(result.markdown, /Heading/);
+  assert.equal(result.map.items.find(x => x.self_ref === "#/texts/0")!.status, "converted");
+  const associated = JSON.parse(readFileSync(new URL("./fixtures/synthetic/document.json", import.meta.url), "utf8"));
+  associated.pages["2"] = { ...associated.pages["1"], page_no: 2 };
+  associated.tables[0].captions = [ref("#/texts/2")];
+  associated.tables[0].prov.forEach((p: any) => p.page_no = 2);
+  const related = JSON.stringify(associated);
+  assert.throws(() => convertWithDoclingCorrections(related, { ...emptyCorrections("source.json", related), entries: [exclusion([1])] }), /splits related structure/);
+});

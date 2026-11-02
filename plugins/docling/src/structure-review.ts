@@ -5,7 +5,7 @@ import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from "n
 import path from "node:path";
 import type { AiExecutionSettings, AiFailure, AiTaskRecord, AiTaskService, JsonValue } from "@litzio/plugin-api/ai";
 import type { PluginHostContext } from "@litzio/plugin-api/host";
-import { checkDoclingCorrection, type DoclingCorrection, type DoclingCorrections } from "./conversion/corrections.ts";
+import { checkDoclingCorrection, type ItemCorrection, type DoclingCorrection, type DoclingCorrections } from "./conversion/corrections.ts";
 import { addDoclingCorrection, PublishedCorrectionCleanupError, readFolderCorrections, removeDoclingCorrection, updateConversionFolder } from "./conversion/correction-files.ts";
 import { loadDoclingImages } from "./conversion/files.ts";
 import { sha256 } from "./shared/map.ts";
@@ -18,7 +18,7 @@ const json = (value: unknown) => JSON.stringify(value, null, 2) + "\n";
 const read = (file: string) => new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(readFileSync(file));
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
-type Change = DoclingCorrection extends infer C ? C extends DoclingCorrection ? Pick<C, "self_ref" | "operation" | "value" | "reason"> : never : never;
+type Change = ItemCorrection extends infer C ? C extends ItemCorrection ? Pick<C, "self_ref" | "operation" | "value" | "reason"> : never : never;
 export type ReviewSuggestion = Change & { evidence: { page: number; text: string }[] };
 type Baseline = { sourceSha256: string; correctionsSha256: string };
 type ProposalState = "pending" | "approved" | "rejected" | "inapplicable";
@@ -203,7 +203,7 @@ export class StructureReviewer {
           before: { text: originalItem?.text as string | undefined,
             nextText: original.texts?.find((item: { self_ref: string }) => item.self_ref === nextRef)?.text as string | undefined,
             label: originalItem?.label as string | undefined, level: originalItem?.level as number | undefined,
-            corrections: ledger.entries.filter(entry => entry.self_ref === p.suggestion.self_ref).map(({ operation, value }) => ({ operation, value })) } };
+            corrections: ledger.entries.filter((entry): entry is ItemCorrection => entry.operation !== "exclude-pages" && entry.self_ref === p.suggestion.self_ref).map(({ operation, value }) => ({ operation, value })) } };
       }) };
   }
   async start(value: string, requestId: string) {

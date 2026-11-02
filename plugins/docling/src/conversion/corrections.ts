@@ -3,12 +3,13 @@ import { collections, readSource, type SourceDocument, type SourceItem } from ".
 import { parseJsonPreservingIntegers } from "./bundle.ts";
 import { readDoclingMap, sha256 } from "../shared/map.ts";
 
-type Approval = { id: string; self_ref: string; reason: string; aiEvidence?: string; approvedAt: string };
-export type DoclingCorrection = Approval & (
+type Approval = { id: string; reason: string; aiEvidence?: string; approvedAt: string };
+export type ItemCorrection = Approval & { self_ref: string } & (
   | { operation: "heading"; value: { level: number | null } }
   | { operation: "merge-paragraphs"; value: { next: string } }
   | { operation: "furniture"; value: { label: "text" | "page_header" | "page_footer" } }
 );
+export type DoclingCorrection = ItemCorrection | (Approval & { self_ref?: never; operation: "exclude-pages"; value: { pages: number[] } });
 export type DoclingCorrections = {
   format: "litzio-docling-corrections"; version: 1;
   source: { file: string; sha256: string }; entries: DoclingCorrection[];
@@ -36,11 +37,14 @@ export function readDoclingCorrections(input: string): DoclingCorrections {
   for (const [index, e] of record.entries.entries()) {
     const fail = () => { throw new Error(`Invalid correction at index ${index}${typeof e?.id === "string" ? ` (${e.id})` : ""}`); };
     if (!keys(e, ["id", "self_ref", "operation", "value", "reason", "aiEvidence", "approvedAt"]) ||
-        typeof e.id !== "string" || !e.id.trim() || ids.has(e.id) || !ref(e.self_ref) ||
+        typeof e.id !== "string" || !e.id.trim() || ids.has(e.id) || (e.operation === "exclude-pages" ? "self_ref" in e : !ref(e.self_ref)) ||
         typeof e.reason !== "string" || !e.reason.trim() || (e.aiEvidence !== undefined && typeof e.aiEvidence !== "string") ||
         typeof e.approvedAt !== "string" || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/u.test(e.approvedAt) || !Number.isFinite(Date.parse(e.approvedAt))) fail();
     ids.add(e.id);
-    if (e.operation === "heading") {
+    if (e.operation === "exclude-pages") {
+      if (!keys(e.value, ["pages"]) || !Array.isArray(e.value.pages) || !e.value.pages.length ||
+          !e.value.pages.every((p: unknown) => Number.isSafeInteger(p) && (p as number) > 0) || new Set(e.value.pages).size !== e.value.pages.length) fail();
+    } else if (e.operation === "heading") {
       if (!keys(e.value, ["level"]) || !(e.value.level === null || (Number.isInteger(e.value.level) && e.value.level >= 1 && e.value.level <= 6))) fail();
     } else if (e.operation === "merge-paragraphs") {
       if (!keys(e.value, ["next"]) || !ref(e.value.next) || e.value.next === e.self_ref) fail();
@@ -75,7 +79,40 @@ export function convertWithDoclingCorrections(input: string, ledger: DoclingCorr
     if (copy.furniture) for (const r of copy.furniture.children ?? []) visit(nodes.get(r.$ref)!);
     return result;
   }
+  // Resolve exclusions from original provenance before any ordered text changes.
+  const excludedPages = new Set<number>(), excluded = new Set<string>();
+  for (const e of ledger.entries) if (e.operation === "exclude-pages") {
+    for (const page of e.value.pages) {
+      if (!copy.pages?.[String(page)]) throw new Error(`Correction ${e.id}: Missing page ${page}`);
+      if (excludedPages.has(page)) throw new Error(`Correction ${e.id}: Page ${page} conflicts with an earlier exclusion`);
+      excludedPages.add(page);
+    }
+  }
+  for (const x of nodes.values()) if (x.prov?.length && x.prov.every(p => excludedPages.has(p.page_no))) excluded.add(x.self_ref);
+  // Provenance-free reading containers follow their wholly excluded children.
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const x of copy.groups ?? []) if (!excluded.has(x.self_ref) && !x.prov?.length && !x.text && x.children?.length && x.children.every(r => excluded.has(r.$ref))) {
+      excluded.add(x.self_ref); changed = true;
+    }
+  }
+  // Atomic owners and their relationships must not be partially removed.
+  for (const x of nodes.values()) {
+    const relations = [...(x.captions ?? []), ...(x.footnotes ?? []), ...(x.references ?? []),
+      ...(["table", "picture"].includes(label(x)) || excluded.has(x.self_ref) ? x.children ?? [] : [])];
+    for (const r of relations) if (excluded.has(x.self_ref) !== excluded.has(r.$ref))
+      throw new Error(`Correction ${ledger.entries.filter(e => e.operation === "exclude-pages").map(e => e.id).join(", ")}: Page exclusion splits related structure ${x.self_ref} and ${r.$ref}; exclude all related pages together`);
+  }
+  for (const e of ledger.entries) if (e.operation !== "exclude-pages" &&
+      (excluded.has(e.self_ref) || (e.operation === "merge-paragraphs" && excluded.has(e.value.next))))
+    throw new Error(`Correction ${e.id}: Target conflicts with excluded pages`);
+  for (const x of nodes.values()) {
+    if (x.children) x.children = x.children.filter(r => !excluded.has(r.$ref));
+    if (excluded.has(x.self_ref)) x.parent = null;
+  }
   for (const e of ledger.entries) {
+    if (e.operation === "exclude-pages") continue;
     try {
       const x = nodes.get(e.self_ref);
       if (!x) throw new Error(`Target does not exist: ${e.self_ref}`);
@@ -114,6 +151,7 @@ export function convertWithDoclingCorrections(input: string, ledger: DoclingCorr
   const result = convertDoclingDocument(ledger.entries.length ? JSON.stringify(copy) : input, options);
   const converted = new Map(result.map.items.map(x => [x.self_ref, x]));
   for (const e of ledger.entries) {
+    if (e.operation === "exclude-pages") continue;
     const item = converted.get(aliases.get(e.self_ref) ?? e.self_ref)!;
     if (e.operation !== "furniture" || e.value.label === "text") {
       const expected = e.operation === "heading" && e.value.level !== null ? "heading" : "paragraph";
@@ -121,11 +159,19 @@ export function convertWithDoclingCorrections(input: string, ledger: DoclingCorr
     }
   }
   result.map.source.sha256 = sha256(input);
+  for (const e of ledger.entries) if (e.operation === "exclude-pages") for (const page of e.value.pages)
+    result.map.pages[String(page)].exclusion = { id: e.id, reason: e.reason, pages: e.value.pages };
+
   for (const item of result.map.items) {
     const source = original.nodes.get(item.self_ref)!;
     // Source inspection and boxes always describe the untouched original.
     item.label = source.label; item.content_layer = source.content_layer ?? "body"; item.parent = source.parent?.$ref ?? null;
     item.provenance = (source.prov ?? []).map(p => ({ ...structuredClone(p), bbox: { ...p.bbox, coord_origin: p.bbox.coord_origin ?? "TOPLEFT" } }));
+    if (excluded.has(item.self_ref)) {
+      item.status = "decoration"; item.targets = []; item.reason = "Approved page exclusion";
+      for (const e of ledger.entries) if (e.operation === "exclude-pages" && source.prov?.some(p => e.value.pages.includes(p.page_no)))
+        item.notes.push(`Approved correction ${e.id}: exclude-pages. ${e.reason}`);
+    }
     const survivor = aliases.get(item.self_ref);
     if (survivor) {
       const target = converted.get(survivor)!;

@@ -77,6 +77,17 @@ test("docling convert delegates whole-document conversion and refuses overwrite 
     assert.equal(readFileSync(path.join(output, "document.md"), "utf8"), updated);
     assert.deepEqual(JSON.parse(readFileSync(path.join(output, "document.docling-map.json"), "utf8")), correspondence);
   }
+  assert.equal(run(["docling", "remove-correction", output, "cli-heading"]).status, 0);
+  const pageEntry = { id: "cli-pages", operation: "exclude-pages", value: { pages: [1] }, reason: "CLI page exclusion", approvedAt: "2026-11-02T01:00:00Z" };
+  const entryFile = path.join(fixtures, "page-entry.json"); writeFileSync(entryFile, JSON.stringify(pageEntry));
+  for (const entry of [JSON.stringify(pageEntry), entryFile]) {
+    const added = run(["docling", "add-correction", output, "--entry", entry]); assert.equal(added.status, 0, added.stderr);
+    assert.equal(JSON.parse(readFileSync(path.join(output, "document.docling-map.json"), "utf8")).pages["1"].exclusion.id, "cli-pages");
+    assert.equal(run(["docling", "apply-corrections", output]).status, 0);
+    assert.equal(run(["docling", "remove-correction", output, "cli-pages"]).status, 0);
+  }
+  assert.deepEqual(readFileSync(input), before);
+  assert.equal(run(["docling", "add-correction", output, "--entry", JSON.stringify(record.entries[0])]).status, 0);
   record.entries[0].self_ref = "#/texts/99999";
   writeFileSync(recordFile, JSON.stringify(record));
   const rejected = run(["docling", "apply-corrections", output]);

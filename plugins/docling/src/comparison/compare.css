@@ -50,3 +50,14 @@
 .docling-review-state { background: var(--id-color-surface-muted); padding: 0 var(--space-1); border-radius: var(--id-radius-sm); }
 .docling-review-meta { display: block; color: var(--id-color-text-muted); font-size: var(--font-size-xs); font-weight: 400; margin-top: var(--space-1); }
 .docling-review-item-labels { font-size: var(--font-size-xs); }
+
+.docling-page-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); background: var(--id-color-surface); border-bottom: var(--border-width) solid var(--id-color-border-subtle); }
+.docling-page-actions input { flex: 1 1 120px; min-width: 0; }
+.docling-page-actions p { flex-basis: 100%; margin: 0; }
+.docling-page-number { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); max-width: calc(100% - var(--space-2)); }
+.docling-page-number label { display: inline-flex; align-items: center; gap: var(--space-1); }
+.docling-page[data-excluded=true] > img, .docling-page[data-excluded=true] > .docling-region { opacity: .35; }
+
+.docling-page-wrapper { margin-bottom: var(--space-4); }
+.docling-page-wrapper > .docling-page { margin-bottom: 0; }
+.docling-page-wrapper > .docling-page-number { position: static; height: 48px; max-width: none; align-content: center; padding: 0 var(--space-1); overflow: auto; }
