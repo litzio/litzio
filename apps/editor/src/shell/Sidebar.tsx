@@ -7,7 +7,7 @@ import { FilePreviewDialog } from "./FilePreviewDialog.tsx";
 import { useTranslation } from "react-i18next";
 import { i18n, type MessageKey } from "../i18n.ts";
 import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
-import { Check, Monitor, Pencil, Trash2, ChevronRight, Ellipsis, File, Files as FilesIcon, Image as ImageIcon, FileText, FileX, Folder, FolderOpen, FolderPlus, PanelLeftClose, PanelRightOpen, Plus, RotateCw, Settings, X } from "lucide-react";
+import { Check, SunMoon, Pencil, Trash2, ChevronRight, Ellipsis, File, Files as FilesIcon, Image as ImageIcon, FileText, FileX, Folder, FolderOpen, FolderPlus, PanelLeftClose, PanelRightOpen, Plus, RotateCw, Settings, X } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
 import { MENU_ITEM_CLASS, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
 import { splitDocumentPath } from "./document-path.ts";
@@ -129,14 +129,14 @@ export function Sidebar({
           </section>
         )}
       </div>
-      {onSettings || contributions.length ? (
+      {onSettings || onThemeChange || contributions.length ? (
         <div className="sidebar-footer">
           {open ? contributions.map(item => <Button key={item.id} size="sm" variant="ghost" className="min-w-0 justify-start" disabled={fileActionsDisabled}
             onClick={event => item.run(event.currentTarget)}><FileText aria-hidden="true" />{i18n.t(item.label as MessageKey)}</Button>) : null}
           <div className="sidebar-preferences">
             {onSettings ? <SettingsEntry iconOnly={!open} onOpen={onSettings} updateVersion={updateVersion} /> : null}
             {onThemeChange ? <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={i18n.t("Color mode")} title={i18n.t("Color mode")} />}><Monitor aria-hidden="true" /></DropdownMenuTrigger>
+              <DropdownMenuTrigger render={<Button variant="ghost" size={open ? "sm" : "icon-sm"} className={open ? "min-w-0 justify-start" : undefined} aria-label={i18n.t("Color mode")} title={i18n.t("Color mode")} />}><SunMoon aria-hidden="true" />{open ? <>{i18n.t("Color mode")}<span className="sidebar-theme-value">{i18n.t(THEME_LABELS[theme])}</span></> : null}</DropdownMenuTrigger>
               <DropdownMenuContent side="top" aria-label={i18n.t("Color mode")}>
                 <Menu.RadioGroup value={theme} onValueChange={value => onThemeChange(value as ThemePreference)}>
                   {THEMES.map(value => <Menu.RadioItem key={value} value={value} closeOnClick className={MENU_ITEM_CLASS}>

@@ -2757,8 +2757,11 @@ Appearance/recovery settings and ordinary document actions retain their contract
 
 ## Color mode entry (#798)
 
-Expanded Explorer places a compact Color mode button beside Settings; the 48px rail
-stacks it immediately above Settings without moving the Settings update dot. It opens
+Expanded Explorer places a separate Color mode row immediately below Settings (#912),
+using the same height, icon size and typography as Settings and plugin rows. A fixed
+SunMoon icon identifies the function; muted trailing text shows System / Light / Dark.
+The 48px rail shows only the icon with the Color mode tooltip and accessible name,
+below Settings without moving its update dot. It opens
 the shared nonmodal menu with System / Light / Dark radio choices and a current check.
 Enter/Space opens it, arrows move focus, Enter selects and Escape cancels; closing
 returns focus to the trigger. Command Center offers the same three choices with
@@ -2821,3 +2824,13 @@ label and current value in Edit, Read and plugin comparison tabs. These actions
 change only device preferences, never editor history or document files. Default-valued
 overrides are removed. Successful Rename transfers the path preference with the tab
 and session locator. Reopening restores it. See [table presentation](table-interaction-v1.md#per-document-table-presentation-902).
+
+#912 visual evidence: [1440px rows](assets/color-mode-912/after-1440-rows.png),
+[640px Korean Dark rows](assets/color-mode-912/after-640-rows.png),
+[1440px menu](assets/color-mode-912/after-1440-expanded.png),
+[640px menu](assets/color-mode-912/after-640-expanded.png),
+[1440px rail](assets/color-mode-912/after-1440-rail.png),
+[640px rail](assets/color-mode-912/after-640-rail.png).
+Before: [1440px](assets/color-mode-912/before-1440-expanded.png),
+[640px](assets/color-mode-912/before-640-expanded.png). Same scratch document,
+900px height, persistent Chrome profile and bundled fonts; captures are manual evidence.
