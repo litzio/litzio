@@ -114,6 +114,21 @@ async page => {
     live = snapshot('dirty after acknowledged clean'); recorder.edit(); await wait();
     check((await list())[0]?.recoveryText === 'dirty after acknowledged clean', 'A new applied edit remained hidden behind clean acknowledgement');
 
+    // Save/discard acknowledges only its own generation before asynchronous deletion.
+    await record('other-discard-window');
+    const deleteRecord = store.delete;
+    let finishDelete;
+    store.delete = id => id === 'a' ? new Promise(resolve => { finishDelete = resolve; }) : deleteRecord(id);
+    try {
+      live = null;
+      const discarded = recorder.discard();
+      check((await list()).map(record => record.id).join() === 'other-discard-window', 'Pending discard hid another session or retained saved work');
+      finishDelete(); await discarded;
+    } finally { store.delete = deleteRecord; }
+    await store.delete('other-discard-window');
+    live = snapshot('new edit after pending discard'); recorder.edit(); await wait();
+    check((await list())[0]?.recoveryText === 'new edit after pending discard', 'Discard acknowledgement hid newer dirty work');
+
     // A process crash may persist IndexedDB but revert localStorage independently.
     // Reappearing old clean metadata must never erase a newer committed dirty record.
     live = null; recorder.edit(false);

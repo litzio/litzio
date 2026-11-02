@@ -575,3 +575,14 @@ renderer changes):
 Reproduce with `pnpm browser:test ai-agent --screenshots`. The question form
 scrolls inside the transcript above the composer; controls, padding, Korean
 wrapping and viewport bounds were visually inspected. Runtime traces are omitted.
+
+
+#994 CI follow-up: `ai-agent` now holds its own recovery deletion through the
+post-Save page reload after confirming both the committed dirty record and saved
+disk text. This reproduced the CI failure before any question card or conversation
+polling starts: the old recovery record excluded the remembered document from
+startup restoration. Clean Save cleanup now uses the existing synchronous,
+generation-bound acknowledgement ([Save contract](editing-session-save-v1.md#local-recovery-records-296-pr2)).
+Question RPC arguments, focus and input handling are unchanged. The browser scenario
+retains its original text assertion and also checks that no obsolete recovery prompt
+appears; the storage scenario checks other-session and newer-edit preservation.

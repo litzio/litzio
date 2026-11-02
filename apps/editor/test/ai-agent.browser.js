@@ -149,10 +149,26 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
   await page.getByTestId('settings-back').click();
   await page.setViewportSize({ width: 1440, height: 1000 });
+  // A committed dirty recovery record can outlive Save's asynchronous cleanup.
+  // Hold only this session's deletion through reload: Saved must be sufficient
+  // to reopen the disk document without presenting its obsolete recovery work.
+  await expect.poll(() => page.evaluate(async path => {
+    const { recoveryStorage } = await import('/src/recovery-storage.ts');
+    return (await recoveryStorage.list()).some(record => record.path === path && record.recoveryText.includes('still editable'));
+  }, pluginFixture.document)).toBe(true);
+  await page.evaluate(async path => {
+    const { recoveryStorage } = await import('/src/recovery-storage.ts');
+    const record = (await recoveryStorage.list()).find(record => record.path === path);
+    const remove = recoveryStorage.delete;
+    recoveryStorage.delete = id => id === record.id ? new Promise(() => {}) : remove(id);
+  }, pluginFixture.document);
   await page.getByTestId('save').click();
   await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'saved');
+  const savedDocument = await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(pluginFixture.document))).json();
+  expect(savedDocument.source).toContain('still editable');
   await page.reload();
   await expect(editor).toContainText('still editable');
+  await expect(page.getByTestId('recovery-prompt')).toHaveCount(0);
   await editor.locator('p').first().click(); await page.keyboard.press('End');
   await page.keyboard.type(' fresh assistant draft');
   const submittedAnswers = [];

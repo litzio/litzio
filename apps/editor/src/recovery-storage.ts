@@ -331,6 +331,10 @@ export function createRecoveryRecorder(id: string, documentPath: () => string, c
       // A never-edited recorder owns neither a ticket nor a record. Restores call edit().
       if (!edited) return Promise.resolve(true);
       const current = epoch, priorFailures = failures;
+      // A clean Save can be followed by reload before IndexedDB deletes the record.
+      // Dirty explicit discard still needs successful deletion before hiding work.
+      try { if (capture() === null) { localStorage.setItem(CLEAN_PREFIX + id, String(recordingGeneration)); acknowledgedClean = true; } }
+      catch (error) { reportFailure(error); }
       return recoveryStorage.delete(id).then(() => {
         if (current === epoch && priorFailures === failures) succeeded();
         return true;
