@@ -228,7 +228,11 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await panel.getByRole('button', { name: 'Response language', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'Model', exact: true })).toBeDisabled();
   await expect(page.getByRole('combobox', { name: 'Reasoning effort', exact: true })).toBeDisabled();
+  // Escape can arrive while focus is still on the language chip, before popup autofocus.
+  await panel.getByRole('button', { name: 'Response language', exact: true }).focus();
   await page.keyboard.press('Escape');
+  expect(await panel.isVisible(), 'Escape dismisses choices before the assistant').toBe(true);
+  await expect(page.getByRole('combobox', { name: 'Reasoning effort', exact: true })).toBeHidden();
   selected.turns[0].items.find(item => item.kind === 'assistant').text = 'The unsaved paragraph adds a clear qualification. Check the stated conditions before using the conclusion.';
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
   await message.fill('Focus on the unsaved paragraph.'); await panel.getByRole('button', { name: 'Steer conversation' }).click();

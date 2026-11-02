@@ -170,7 +170,9 @@ centered in the title strip with space reserved for the Assistant button; in a
 narrow native-caption region the button keeps its accessible name and shows
 only its icon. `Ctrl+Shift+A` is deliberately avoided because Chrome owns it. The assistant
 and Outline share the right-side space: opening Outline replaces the assistant;
-closing the assistant restores the prior Outline choice. The assistant starts
+closing the assistant restores the prior Outline choice. Escape dismisses an open
+model/language chooser first, including while focus remains on its chip before
+popup autofocus; a subsequent Escape closes the assistant. The assistant starts
 at `--layout-assistant-width` (392px) and can be resized from 340 to 560px by
 pointer or the focused separator's arrow keys. An explicit width is remembered
 in origin-local preferences. Below 1100px it fills the space below the title
