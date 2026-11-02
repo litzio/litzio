@@ -18,8 +18,12 @@ closes the connection; that Host must restart before reconnecting.
 
 The user's environment, including any existing `CODEX_HOME`, is inherited.
 No credential/configuration file is copied or written. The cwd is the branded
-OS user-data directory plus `assistant`; Linux uses XDG data home and macOS uses
-Application Support. `LITZIO_AI_AGENT_CWD` explicitly overrides this directory
+OS user-data directory plus `assistant` for packaged Desktop and distributed CLI;
+Linux uses XDG data home and macOS uses Application Support. Source execution
+(Vite, tsx CLI and development Electron) instead uses
+`<checkout>/.litzio-dev/assistant`, alongside its isolated plugin/settings defaults
+([runtime paths](plugin-runtime-v1.md#installation-and-api)). Built checkout
+`packages/cli/dist/cli.mjs` retains distributed defaults. `LITZIO_AI_AGENT_CWD` explicitly overrides this directory
 for local integration/testing. Litzio regenerates its product-owned `AGENTS.md`
 there and lists folders containing `.agents/skills/<name>/SKILL.md`. The file
 instructs the agent to leave existing documents intact and propose edits in text.

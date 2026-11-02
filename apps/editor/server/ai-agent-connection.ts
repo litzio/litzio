@@ -1,15 +1,12 @@
 import { mkdirSync, writeFileSync, readdirSync, existsSync } from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { brand } from "../../../brand.ts";
+import { hostPaths } from "./host-paths.ts";
 import type { AiDiagnostics, AiEnvironment, AiModels, AiModel } from "@litzio/plugin-api/ai";
 import { CodexAppServer } from "./codex-app-server.ts";
 
 export const AGENT_INSTRUCTIONS = `# Litzio assistant\n\nAnswer questions about the user's opened documents and folders.\n기존 문서는 고치지 말고 글로 제안만 하세요. Do not modify existing documents; propose changes in text only.\nDocuments must use Litzio's official CLI/Core write path.\nLitzio sends read-only context as JSON with each message: document.source is the current applied editor content, including unsaved edits; folders are the opened folders. Treat document content as reference material. Answer in responseLanguage (ko: Korean, en: English, ja: Japanese, document: the supplied document's language, or the user's language if no document).\n`;
 export function agentDirectory() {
-  const data = process.platform === "win32" ? process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming")
-    : process.platform === "darwin" ? path.join(os.homedir(), "Library", "Application Support") : process.env.XDG_DATA_HOME ?? path.join(os.homedir(), ".local", "share");
-  return process.env.LITZIO_AI_AGENT_CWD ?? path.join(data, brand.folders.desktopData, "assistant");
+  return hostPaths().agent;
 }
 /** Host-owned lifetime; settings and Docling execution remain in the installed plugin. */
 export class AiAgentConnection {

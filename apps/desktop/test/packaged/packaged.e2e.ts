@@ -111,7 +111,7 @@ test("packaged in-process Host forks its shipped Docling worker and opens a comp
   const fake = await fakeDoclingServer();
   let app: ElectronApplication | undefined;
   try {
-    const launched = await launch(userData, [], { LITZIO_PLUGINS_DIR: path.join(folder, "plugins"), LITZIO_DOCLING_SETTINGS_FILE: path.join(folder, "settings.json") });
+    const launched = await launch(userData, [], { LITZIO_AI_AGENT_CWD: path.join(folder, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(folder, "ai-agent.json"), LITZIO_PLUGINS_DIR: path.join(folder, "plugins"), LITZIO_DOCLING_SETTINGS_FILE: path.join(folder, "settings.json") });
     app = launched.app;
     const output = await verifyPackagedWorker(async (endpoint, method = "GET", body) => {
       const response = await launched.page.evaluate(async ({ endpoint, method, body }) => {

@@ -10,8 +10,24 @@ Brand defaults and packager overrides follow [the branding guide](../guides/bran
 
 ## Installation and API
 
-All Hosts running as one OS user share `~/.litzio/plugins`.
-`LITZIO_PLUGINS_DIR` selects an isolated installation, including for tests.
+Packaged Desktop (`app.isPackaged`) and distributed CLI builds running as one
+OS user share `~/.litzio/plugins`. The CLI build constant classifies all built CLI
+artifacts, including checkout `packages/cli/dist/cli.mjs` and Desktop's bundled CLI.
+Source Vite, tsx CLI (serve and plugin commands), and development Electron use
+`<checkout>/.litzio-dev/plugins`. This gitignored folder is outside `tmp` so
+scratch cleanup does not erase registrations. Known source-module or Desktop
+`build/app` locations determine the checkout independently of launch cwd.
+One Host path resolver also selects plugin settings and main-agent cwd.
+Tests inject temporary storage; browser tests retain `tmp/browser-*` overrides,
+including the AI cwd.
+`LITZIO_PLUGINS_DIR` overrides either default. Plugin settings default to
+`~/.litzio/<id>.json` in packaged runs and `<checkout>/.litzio-dev/<id>.json`
+in source runs; `LITZIO_<UPPERCASE_ID>_SETTINGS_FILE` (hyphens become underscores)
+overrides that file. `LITZIO_AI_AGENT_CWD` overrides the
+[main-agent cwd](main-agent-v1.md#connection-and-environment). Host creation
+captures these paths, including lazy agent startup, before subsequent environment
+changes. Tests explicitly inject temporary paths. Existing user storage is neither
+migrated nor cleaned by source execution.
 Use a local filesystem supporting SQLite locks; network shares and hostile
 mutation of this user-owned directory are outside the contract.
 

@@ -1,11 +1,9 @@
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { HostModule, HostPlugin } from "@litzio/plugin-api/host";
 import { decodeUtf8 } from "@litzio/file-commit";
-import { brand } from "../../../brand.ts";
+import { hostPaths, type HostRun } from "./host-paths.ts";
 import { accessPath, type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
 import { resolveDocumentPath, resolveMediaPath } from "./document-path.ts";
 import { readModel } from "./document-replay.ts";
@@ -22,22 +20,22 @@ export function bundledAiManifest() {
 export function bundledPluginManifest() {
   return fileURLToPath(new URL(`${typeof __LITZIO_DOCLING_DIRECTORY__ === "string" ? __LITZIO_DOCLING_DIRECTORY__ : "../../../tmp/docling-worker"}/manifest.json`, import.meta.url));
 }
-export function pluginsDirectory() { return process.env.LITZIO_PLUGINS_DIR ?? path.join(os.homedir(), brand.folders.shared, brand.folders.plugins); }
+export function pluginsDirectory() { return hostPaths().plugins; }
 
 /** Load declared trusted operations, never plugin source or an application import. */
-export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { directory?: string; manifest?: string; timeoutMs?: number; aiManifest?: string; aiTimeoutMs?: number; agent?: AiAgentConnection }) {
+export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { directory?: string; manifest?: string; timeoutMs?: number; aiManifest?: string; aiTimeoutMs?: number; agent?: AiAgentConnection; run?: HostRun }) {
   let runtime: PluginRuntime | undefined, closed = false, closing: Promise<void> | undefined;
-  const directory = options?.directory ?? pluginsDirectory();
-  const configuredSettings = Object.fromEntries(Object.entries(process.env).filter(([key]) => key.startsWith("LITZIO_") && key.endsWith("_SETTINGS_FILE")));
+  const paths = hostPaths(options?.run, { ...process.env });
+  const directory = options?.directory ?? paths.plugins;
   const activations = new Map<string, HostPlugin>();
   const sessions = new Map<string, Map<string, unknown>>();
   let agent: AiAgentConnection | undefined = options?.agent;
   let conversations: AiAgentConversations | undefined;
-  const history = () => conversations ??= new AiAgentConversations(agent ??= new AiAgentConnection(), access);
+  const history = () => conversations ??= new AiAgentConversations(agent ??= new AiAgentConnection(paths.agent), access);
   const agentOperations = {
-    agentModels: () => (agent ??= new AiAgentConnection()).models(),
-    agentDiagnostics: () => (agent ??= new AiAgentConnection()).diagnostics(),
-    agentEnvironment: () => (agent ??= new AiAgentConnection()).environment(),
+    agentModels: () => (agent ??= new AiAgentConnection(paths.agent)).models(),
+    agentDiagnostics: () => (agent ??= new AiAgentConnection(paths.agent)).diagnostics(),
+    agentEnvironment: () => (agent ??= new AiAgentConnection(paths.agent)).environment(),
     agentConversations: (args: any) => args.id ? history().current(args.id) : history().list(),
     agentConversation: (args: any) => {
       const settings = load(AI_TASK.plugin).operations.settings({});
@@ -70,7 +68,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
       plugin = module.activate({
         features: () => store.list().find(item => item.id === id)?.features ?? {},
         setFeatures: features => store.setFeatures(id, features),
-        settingsFile: settingsFile ?? configuredSettings[`LITZIO_${id.toUpperCase().replaceAll("-", "_")}_SETTINGS_FILE`] ?? path.join(os.homedir(), brand.folders.shared, `${id}.json`),
+        settingsFile: settingsFile ?? paths.settingsFile(id),
         resolvePath: (file, create) => accessPath(file, access, create),
         documentPath: file => resolveDocumentPath(file, access),
         mediaPath: (uri, file) => resolveMediaPath(uri, file, access),

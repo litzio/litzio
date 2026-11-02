@@ -20,15 +20,15 @@ export function readBibliographySources(documentPath: string, declarations: read
       const target = boundary.resolve(path.resolve(path.dirname(documentPath), source));
       const real = fs.realpathSync(target);
       fd = fs.openSync(target, "r");
-      const before = fs.fstatSync(fd);
+      const before = fs.fstatSync(fd, { bigint: true });
       if (!before.isFile()) return error("bibliography-unreadable");
-      if (before.size > BIBLIOGRAPHY_LIMITS.fileBytes || total + before.size > BIBLIOGRAPHY_LIMITS.totalBytes) return error("bibliography-limit");
-      const buffer = Buffer.alloc(before.size + 1);
+      if (before.size > BIBLIOGRAPHY_LIMITS.fileBytes || BigInt(total) + before.size > BIBLIOGRAPHY_LIMITS.totalBytes) return error("bibliography-limit");
+      const buffer = Buffer.alloc(Number(before.size) + 1);
       let length = 0;
       while (length < buffer.length) { const n = fs.readSync(fd, buffer, length, buffer.length - length, null); if (!n) break; length += n; }
-      const after = fs.fstatSync(fd);
-      const current = fs.statSync(boundary.resolve(target));
-      if (length !== before.size || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs ||
+      const after = fs.fstatSync(fd, { bigint: true });
+      const current = fs.statSync(boundary.resolve(target), { bigint: true });
+      if (BigInt(length) !== before.size || before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs ||
           current.dev !== before.dev || current.ino !== before.ino || current.size !== after.size || current.mtimeMs !== after.mtimeMs || current.ctimeMs !== after.ctimeMs || fs.realpathSync(target) !== real) return error("bibliography-changed");
       total += length;
       let text: string;

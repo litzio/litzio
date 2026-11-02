@@ -35,7 +35,7 @@ test("the packed CLI installs offline outside the checkout and serves both roots
   const install = path.join(scratch, "install"), cwd = path.join(scratch, "unrelated cwd");
   const a = path.join(scratch, "문서 A"), b = path.join(scratch, "documents B");
   for (const folder of [install, cwd, a, b]) mkdirSync(folder);
-  const env: NodeJS.ProcessEnv = { ...process.env, LITZIO_PLUGINS_DIR: path.join(scratch, "plugins"), LITZIO_DOCLING_SETTINGS_FILE: path.join(scratch, "docling.json") };
+  const env: NodeJS.ProcessEnv = { ...process.env, LITZIO_AI_AGENT_CWD: path.join(scratch, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(scratch, "ai-agent.json"), LITZIO_PLUGINS_DIR: path.join(scratch, "plugins"), LITZIO_DOCLING_SETTINGS_FILE: path.join(scratch, "docling.json") };
   delete env.NODE_PATH; delete env.NODE_OPTIONS;
   let child: ChildProcess | undefined;
   const fake = await fakeDoclingServer();

@@ -49,14 +49,14 @@ function assetDirectory(root: string, create: boolean, access: FileAccess): stri
   return directory;
 }
 
-function inspectAsset(file: string, expectedOwner: fs.Stats | undefined, access: FileAccess): { identity: string; owner: fs.Stats; hash: string } {
+function inspectAsset(file: string, expectedOwner: fs.BigIntStats | undefined, access: FileAccess): { identity: string; owner: fs.BigIntStats; hash: string } {
   accessPath(file, access);
-  const stat = fs.lstatSync(file);
+  const stat = fs.lstatSync(file, { bigint: true });
   if (!stat.isFile() || stat.isSymbolicLink()) throw new AssetError("Asset file changed; rollback refused.");
   if (expectedOwner) assertOwnedFile(file, expectedOwner, access);
   const fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
   try {
-    const opened = fs.fstatSync(fd);
+    const opened = fs.fstatSync(fd, { bigint: true });
     if (opened.dev !== stat.dev || opened.ino !== stat.ino || opened.birthtimeMs !== stat.birthtimeMs) throw new AssetError("Asset file changed during validation.");
     const hash = createHash("sha256").update(fs.readFileSync(fd)).digest("hex");
     assertOwnedFile(file, opened, access);
@@ -64,17 +64,17 @@ function inspectAsset(file: string, expectedOwner: fs.Stats | undefined, access:
   } finally { fs.closeSync(fd); }
 }
 
-function assertOwnedFile(file: string, owner: fs.Stats, access: FileAccess, unchanged = false): void {
+function assertOwnedFile(file: string, owner: fs.BigIntStats, access: FileAccess, unchanged = false): void {
   accessPath(file, access);
-  const current = fs.lstatSync(file);
+  const current = fs.lstatSync(file, { bigint: true });
   if (!current.isFile() || current.isSymbolicLink() || current.dev !== owner.dev || current.ino !== owner.ino || current.birthtimeMs !== owner.birthtimeMs ||
       (unchanged && (current.size !== owner.size || current.mtimeMs !== owner.mtimeMs || current.ctimeMs !== owner.ctimeMs))) {
     throw new AssetError("Asset file ownership changed; cleanup refused.");
   }
 }
 
-function unlinkOwnedFile(file: string, owner: fs.Stats, root: string, directoryId: fs.Stats, access: FileAccess, unchanged = false): void {
-  const current = fs.statSync(assetDirectory(root, false, access));
+function unlinkOwnedFile(file: string, owner: fs.BigIntStats, root: string, directoryId: fs.BigIntStats, access: FileAccess, unchanged = false): void {
+  const current = fs.statSync(assetDirectory(root, false, access), { bigint: true });
   if (current.dev !== directoryId.dev || current.ino !== directoryId.ino) throw new AssetError("Asset directory changed; cleanup refused.");
   try { assertOwnedFile(file, owner, access, unchanged); fs.unlinkSync(file); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
@@ -126,17 +126,17 @@ export function createImageAsset(locator: string, mime: string, bytes: Buffer, k
     const match = /^(\d+)\.[^.]+$/.exec(name.slice(stem.length + 1));
     if (match && Number.isSafeInteger(Number(match[1]))) sequence = Math.max(sequence, Number(match[1]) + 1);
   }
-  const directoryId = fs.statSync(directory);
+  const directoryId = fs.statSync(directory, { bigint: true });
   const temporary = path.join(directory, `.image-${randomUUID()}.tmp`);
-  let fd: number | undefined, owner: fs.Stats | undefined, ownsTemporary = false, published: string | undefined;
+  let fd: number | undefined, owner: fs.BigIntStats | undefined, ownsTemporary = false, published: string | undefined;
   try {
     fd = fs.openSync(accessPath(temporary, access, true), "wx", 0o600);
     ownsTemporary = true;
-    owner = fs.fstatSync(fd);
+    owner = fs.fstatSync(fd, { bigint: true });
     fs.writeFileSync(fd, bytes);
     fs.fsyncSync(fd);
     fs.closeSync(fd); fd = undefined;
-    const current = fs.statSync(assetDirectory(scope.root, false, access));
+    const current = fs.statSync(assetDirectory(scope.root, false, access), { bigint: true });
     if (current.dev !== directoryId.dev || current.ino !== directoryId.ino) throw new AssetError("Asset directory changed during write.");
     assertOwnedFile(temporary, owner, access);
     // A hard link publishes the completed bytes atomically and fails on EEXIST.
@@ -151,7 +151,7 @@ export function createImageAsset(locator: string, mime: string, bytes: Buffer, k
     unlinkOwnedFile(temporary, owner, scope.root, directoryId, access); ownsTemporary = false;
     const relative = `./assets/${path.basename(published)}`;
     const verified = inspectAsset(published, owner, access);
-    if (verified.owner.size !== bytes.length || verified.hash !== createHash("sha256").update(bytes).digest("hex")) throw new AssetError("Asset content changed during publication.");
+    if (verified.owner.size !== BigInt(bytes.length) || verified.hash !== createHash("sha256").update(bytes).digest("hex")) throw new AssetError("Asset content changed during publication.");
     return { path: relative, rollbackToken: signReceipt({ document: scope.document, path: relative, identity: verified.identity }, key) };
   } catch (error) {
     if (published && owner) {
@@ -227,7 +227,7 @@ export function rollbackImageAsset(request: AssetRollbackRequest, key: Buffer, a
   // original between validation and rename, retain and exclusively restore it.
   // The quarantine name is unguessable and never created beforehand: on Windows,
   // renaming over a just-created placeholder fails with EPERM while a scanner holds it.
-  const directoryId = fs.statSync(assetDirectory(scope.root, false, access));
+  const directoryId = fs.statSync(assetDirectory(scope.root, false, access), { bigint: true });
   const quarantine = path.join(scope.root, "assets", `.rollback-${randomUUID()}.tmp`);
   let moved = false;
   try {
@@ -240,7 +240,7 @@ export function rollbackImageAsset(request: AssetRollbackRequest, key: Buffer, a
   } catch (error) {
     if (moved) {
       try {
-        const owner = fs.lstatSync(accessPath(quarantine, access));
+        const owner = fs.lstatSync(accessPath(quarantine, access), { bigint: true });
         assetDirectory(scope.root, false, access);
         fs.linkSync(accessPath(quarantine, access), accessPath(file, access, true)); // Exclusive: never overwrite a later file at the original path.
         unlinkOwnedFile(quarantine, owner, scope.root, directoryId, access);
