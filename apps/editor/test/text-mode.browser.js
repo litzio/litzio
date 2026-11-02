@@ -58,7 +58,7 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   await commandCenter.getByRole('combobox').fill('> View:');
   await expect(commandCenter.getByRole('option', {name:/^View: (Read|Edit|Source)$/})).toHaveCount(0);
   await page.keyboard.press('Escape');
-  expect(await input().inputValue()).toContain('# 일반 Markdown');
+  await expect(input()).toHaveValue('# 일반 Markdown\n\n**서식이 아닌 텍스트**와 <kbd>Ctrl</kbd>\n\n| Header |\n| --- |\n| Cell |\n\n![Diagram](diagram.svg)\n\n- [x] Done\n\n$x+1$ and note[^a].\n\n[^a]: Footnote.\n');
   await expect(activeDocument(page).locator('.document-editor')).toHaveCount(0);
   await expect(activeDocument(page).locator('.heading-level')).toHaveCount(0);
   await expect(page.getByTestId('view-source')).toHaveCount(0);
