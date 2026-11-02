@@ -11,13 +11,32 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await request('settings', 'PUT', { server: fixture.url });
   const dashboard = page.getByTestId('docling-dashboard');
   const show = async () => { await page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true }).click(); await expect(dashboard).toBeVisible(); };
+  const settings = page.getByTestId('settings-dialog');
+  // Isolate Settings removal before opening polling comparison views.
+  // Actual unregistration still leaves the missing category for Appearance.
+  await page.getByTestId('sidebar').getByRole('button', { name: 'Settings', exact: true }).click();
+  await settings.getByRole('button', { name: 'Docling', exact: true }).click();
+  await expect(settings.getByRole('checkbox', { name: 'Docling comparison', exact: true })).toBeEnabled();
+  const plugins = await (await page.request.get(`${origin}/api/worker-plugins`)).json();
+  expect(plugins.some(plugin => plugin.id === 'docling' && plugin.enabled)).toBe(true);
+  const manifest = fixture.input.replace(/[\\/]docling-dashboard[\\/]completed\.pdf$/u, '/docling-worker/manifest.json');
+  try {
+    const disabled = await page.request.delete(`${origin}/api/worker-plugins`, { data: { id: 'docling' } });
+    expect(disabled.ok()).toBe(true);
+    await expect(settings.getByRole('button', { name: 'Docling', exact: true })).toHaveCount(0);
+    await expect(settings.getByRole('main', { name: 'Appearance & language' })).toBeVisible();
+  } finally {
+    const restored = await page.request.post(`${origin}/api/worker-plugins`, { data: { manifest } });
+    expect(restored.ok()).toBe(true);
+  }
+  await expect(settings.getByRole('button', { name: 'Docling', exact: true })).toBeVisible();
+  await settings.press('Escape');
   await show();
   await expect(page.getByRole('tab', { selected: true })).toHaveAccessibleName('Docling dashboard');
   await expect(dashboard.getByText('Connected', { exact: true })).toBeVisible();
   await dashboard.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Server address' })).toHaveValue(fixture.url);
   await page.getByTestId('settings-dialog').press('Escape');
-  const settings = page.getByTestId('settings-dialog');
   const feature = async (name, enabled) => {
     await dashboard.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(settings.getByRole('checkbox', { name, exact: true })).toBeEnabled();
@@ -184,20 +203,6 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   expect(stored).toBeGreaterThan(initial);
   expect((await request('dashboard')).requests.length).toBe(stored);
   for (const id of seeded) await request('history', 'DELETE', { id });
-  // Actual unregistration still leaves the missing category for Appearance.
-  await dashboard.locator('header').getByRole('button', { name: 'Settings', exact: true }).click();
-  await expect(settings.getByRole('checkbox', { name: 'Docling comparison', exact: true })).toBeVisible();
-  const plugins = await (await page.request.get(`${origin}/api/worker-plugins`)).json();
-  expect(plugins.some(plugin => plugin.id === 'docling' && plugin.enabled)).toBe(true);
-  const manifest = fixture.input.replace(/[\\/]docling-dashboard[\\/]completed\.pdf$/u, '/docling-worker/manifest.json');
-  try {
-    const disabled = await page.request.delete(`${origin}/api/worker-plugins`, { data: { id: 'docling' } });
-    expect(disabled.ok()).toBe(true);
-    await expect(settings.getByRole('button', { name: 'Docling', exact: true })).toHaveCount(0);
-    await expect(settings.getByRole('main', { name: 'Appearance & language' })).toBeVisible();
-  } finally {
-    const restored = await page.request.post(`${origin}/api/worker-plugins`, { data: { manifest } });
-    expect(restored.ok()).toBe(true);
-  }
+
 
 }
