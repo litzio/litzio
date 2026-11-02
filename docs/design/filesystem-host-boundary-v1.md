@@ -477,12 +477,19 @@ distinct existing entries (including hard links to the same inode) remain confli
 Ownership checks bound accidental replacement; as with existing file commit, validation/use
 steps are separate and do not sandbox a hostile concurrent filesystem administrator.
 
-Vite/HTTP deletion is permanent, after the Editor names the file and confirms. Desktop supplies
+Explorer Vite/HTTP deletion is permanent, after the Editor names the file and confirms. Desktop supplies
 `shell.trashItem` to the same checked handler; failure never falls back to permanent deletion.
 Successful operations return `{path, updatedDocuments?, skippedDocuments?}` and the Editor
 refreshes already-loaded parent listings. Updated document locators are absolute; skipped
 unreadable/non-native `.md` names are relative to the requested root and shown in a notice.
 Asset rollback keeps its signed-receipt API and is not broadened by this user-confirmed file API.
+
+Creation-result undo additionally accepts `checkOnly: true` on `DELETE /api/file`:
+it performs the same scope checks and returns `{path, revision}` without deletion.
+The final request may carry `expectedRevision`; a mismatch immediately before removal
+refuses deletion. Existing callers without these fields are unchanged. The assistant
+confirms only changed disk content or unsaved tabs, then rechecks before deleting;
+see [result-card rules](main-agent-v1.md#created-document-results-and-undo-931-implementation-2-pr-2).
 
 Deletion/rename recovery barriers match path strings. Until [#372](https://github.com/litzio/litzio/issues/372)
 decides Windows locator identity, case-only aliases (for example, a different spelling in URL

@@ -1,7 +1,7 @@
 # Main agent connection, settings and conversations
 
 - Status: Implemented
-- Last verified: 2026-11-02 (#931 PR 2: fake stdio/Host tests, the `ai-agent` browser scenario, one real folder/document Q&A with steering and a separate history read).
+- Last verified: 2026-11-02 (#931 implementation 2, PR 2: 408 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
 - Scope: main-agent connection, Settings, shell-owned assistant panel and Codex conversations. Includes new-document result cards, guarded creation undo and the product-owned usage-guide skill.
 - Authority: [ADR-0014](../adr/0014-main-agent-app-server.md), [#931](https://github.com/litzio/litzio/issues/931) owner decisions and approved v3.1 settings mockup.
 
