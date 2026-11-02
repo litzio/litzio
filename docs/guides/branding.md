@@ -63,12 +63,6 @@ manifest 필드·route·bridge는 제품 브랜드로 바꾸지 않는다. 문�
 사용자 진단도 제품명을 요구하지 않는 중립 문구를 사용한다. 문서 의미는 패키저 설정의 영향을 받지 않는다.
 같은 공식 Docling worker/UI 번들이 다른 브랜드에도 설치·등록되어 실행된다.
 
-필수 CI의 별도 Windows `brand` job은 [경로 정책](../../CONTRIBUTING.md#verification-matrix)에 따라 브랜드·Desktop·의존성·CI 정책 관련 변경과 전체 실행 fallback에서 선택되며 Desktop job과 병렬 실행한다. Editor/Core/CLI/Docling 소스만 바뀌면 생략한다. job 자체에서 공식 기본 package를 먼저 만든 뒤 `scripts/check-brand-build.ts`로 **brand.ts만** 대체한 테스트 제품을 빌드한다.
-공식판과 대체판을 기본 경로에 실제로 함께 설치하고 두 프로세스를 동시에 실행하여 origin·데이터
-분리, 한국어/영어 이름·CLI 명령, 아이콘·업데이트 설정과 공식 플러그인의 worker/UI 실행을 검사한다.
-대체 설정에서도 기존 Stable/Beta 설치·업데이트, 전체 packaged 검사와 제거 회귀를 그대로 실행한다. 등록 조회는 표시 이름 prefix 대신 설정의 앱 ID에서 도출한 NSIS key를 사용한다. 두 설치를 제거하고 시작한 프로세스를 종료한다. `brand-config` artifact에는 작은 검증 JSON과 한국어
-640px 캡처만 남긴다. 공개 GitHub 업데이트·서명 인증·사용자 PC의 수동 Windows 수용 검증을 대신하지 않는다.
-
-수동 릴리스는 모든 모드에서 검증된 tag commit의 별도 Windows `brand` job을 항상 실행하고, 성공해야 게시한다. 자체 공식 package와 대체 브랜드 빌드는 별도 러너에서 생성하므로 게시용 서명·자산을 바꾸지 않는다.
+다른 브랜드 빌드와 공식판·대체판의 동시 설치는 CI로 검증하지 않는다(#1000). 공식 Litzio의 패키징·설치·Stable/Beta 업데이트·제거 검사는 유지한다.
 
 릴리스 artifact는 최종 해시·버전·서명 검증을 마친 `verify-release.ts`의 파일 목록을 그대로 전달한다. 설치 프로그램·blockmap·설정된 현재 채널 manifest와 `win-unpacked/`만 포함하며 `latest.yml`/`beta.yml` 고정 glob을 쓰지 않는다.
