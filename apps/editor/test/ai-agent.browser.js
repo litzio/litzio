@@ -311,6 +311,72 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await panel.getByRole('button', { name: /What changed in the current document/ }).click();
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
   await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveText('English');
+  const markdownSource = '# 답변 요약\n\n**중요한 조건**과 $x^2$를 확인합니다.[^n]\n\n- 첫 번째 항목\n- 두 번째 항목\n\n```js\nconst answer = "' + 'long-code-'.repeat(30) + '";\n```\n\n| 항목 | 설명 |\n| --- | --- |\n| 표 | ' + '긴내용'.repeat(70) + ' |\n\n$$\na+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z\n$$\n\n[공식 안내](https://example.com/docs)\n\n[^n]: 답변 각주';
+  selected.turns[0].status = 'inProgress';
+  const streamingAnswer = selected.turns[0].items.find(item => item.kind === 'assistant');
+  streamingAnswer.text = '```js\nconst partial = 1';
+  await expect(panel.locator('.assistant-answer pre code')).toHaveText('const partial = 1');
+  streamingAnswer.text += ';\n```\n\n$x';
+  await expect(panel.locator('.assistant-answer')).toContainText('$x');
+  streamingAnswer.text += '^2$';
+  await expect(panel.locator('.assistant-answer .katex')).toBeVisible();
+  selected.turns[0].status = 'completed';
+  selected.turns[0].items.find(item => item.kind === 'assistant').text = markdownSource;
+  const answer = panel.locator('.assistant-answer');
+  await expect(answer.getByRole('heading', { name: '답변 요약' })).toBeVisible();
+  await expect(answer.locator('.katex').first()).toBeVisible();
+  // Windows clipboard normalizes LF to CRLF; compare logical text after OS readback.
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await answer.getByRole('button', { name: 'Copy answer', exact: true }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText().then(text => text.replace(/\r\n/g, '\n')))).toBe(markdownSource);
+  await expect(answer.getByRole('button', { name: 'Copy answer', exact: true })).toHaveText('Copied');
+  await answer.getByRole('button', { name: 'Copy code', exact: true }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText().then(text => text.replace(/\r\n/g, '\n')))).toBe('const answer = "' + 'long-code-'.repeat(30) + '";\n');
+  await page.evaluate(() => {
+    globalThis.__assistantOpened = [];
+    globalThis.__assistantOpen = window.open;
+    window.open = (...args) => { globalThis.__assistantOpened.push(args); return null; };
+  });
+  try {
+    await answer.getByRole('link', { name: '공식 안내' }).click();
+    expect(await page.evaluate(() => globalThis.__assistantOpened)).toEqual([['https://example.com/docs', '_blank', 'noopener']]);
+  } finally { await page.evaluate(() => { window.open = globalThis.__assistantOpen; }); }
+  const renderedText = await answer.locator('.assistant-markdown').innerText();
+  await panel.getByRole('button', { name: 'New conversation' }).click();
+  await panel.getByRole('button', { name: 'Conversation history' }).click();
+  await panel.getByRole('button', { name: /What changed in the current document/ }).click();
+  await expect(answer.getByRole('heading', { name: '답변 요약' })).toBeVisible();
+  expect(await answer.locator('.assistant-markdown').innerText()).toBe(renderedText.replace(/Copied/g, 'Copy code'));
+  await answer.getByRole('button', { name: 'Copy answer', exact: true }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText().then(text => text.replace(/\r\n/g, '\n')))).toBe(markdownSource);
+
+  if (screenshots) {
+    for (const theme of ['light', 'dark']) {
+      await panel.getByRole('button', { name: 'Close assistant' }).click();
+      await page.getByRole('button', { name: 'Settings', exact: true }).click();
+      await page.getByTestId('theme').selectOption(theme);
+      await page.getByTestId('ui-language').selectOption('ko');
+      await page.getByTestId('settings-back').click();
+      await page.keyboard.press('Control+Shift+Y');
+      for (const width of [1440, 640]) {
+        await page.setViewportSize({ width, height: 1000 });
+        await panel.locator('.assistant-transcript').evaluate(element => { element.scrollTop = 0; });
+        expect(await panel.locator('.assistant-transcript').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+        await page.screenshot({ path: `tmp/982-evidence/${width}-${theme}.png` });
+        await answer.getByRole('button', { name: '답변 복사', exact: true }).scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `tmp/982-evidence/${width}-${theme}-bottom.png` });
+      }
+      await panel.getByRole('button', { name: '비서 닫기' }).click();
+      await page.getByRole('button', { name: '설정', exact: true }).click();
+      await page.getByTestId('ui-language').selectOption('en');
+      await page.getByTestId('settings-back').click();
+      await page.keyboard.press('Control+Shift+Y');
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await panel.getByRole('button', { name: 'Close assistant' }).click();
+    await editor.click();
+    await page.keyboard.press('Control+Shift+Y');
+  }
   await panel.getByRole('button', { name: 'Close assistant' }).click();
   await expect(editor).toBeFocused();
   await page.keyboard.type(' after assistant'); await expect(editor).toContainText('after assistant');
