@@ -14,7 +14,7 @@
 - Separator verification: 2026-10-28 (#635: persistent Windows Chrome, light/dark, 1440/1424/1423/640px, Outline/sidebar open and closed, representative 138px/zero caption reservations; four 1440/640px before/after PNG pairs differ only in the missing 138×1px line. Actual native geometry remains Windows packaged CI; native visual acceptance is separate).
 - File operations verification: 2026-10-27 (#505 / #504 PR A: Editor/Host/Desktop unit tests, workspace typecheck, production Editor build and targeted persistent-Chrome browser checks; packaged Desktop is CI-only).
 - Documentation verification: 2026-10-26 (Host startup response versus Editor tab restoration compared with first-document.ts, host-protocol.ts, App.tsx and the session contract; no new Desktop execution).
-- Last verified: 2026-10-29 (public 0.0.2-beta.4, release workflow attempt 1 success, tag/commit, public Korean body and asset sizes/SHA-256 checked; orchestrator anonymous downloads and installer SHA-512 results recorded; actual GitHub installation/update unverified; [record](../releases/v0.0.2-beta.4.md)).
+- Last verified: 2026-11-03 (public 0.0.2-beta.5, third release run succeeded after two unpublished failures; tag/commit, Korean Release body and asset metadata checked; orchestrator anonymous download and SHA-512 evidence recorded; actual installation/update unverified; [record](../releases/v0.0.2-beta.5.md)).
 - Previous verification: 2026-10-26 (public 0.1.0-beta.1, release CI, anonymous assets, real GitHub 0.0.1-beta.4→0.1.0-beta.1 update and Korean Windows packaged regression with #450; see the release record).
 - Previous verification: 2026-10-16 (#296 PR3: actual packaged Windows process crash/normal close, same-profile recovery, pending Figure, Save/Reload and external conflict. Native close answer is stubbed; no install/update/release performed).
 - Previous verification: 2026-10-16 (#296 PR2: native Close without saving wording; Desktop tests/typecheck and mock-bridge browser guards).
@@ -368,11 +368,11 @@ logging. No alternate userData location or speculative filesystem repair is intr
 
 ## Channels and versions
 
-The source candidate is `0.0.2-beta.5`, **not published**; see the [#926 preparation record](../releases/v0.0.2-beta.5.md). The public beta.4 was shipped as IeumDoc. The IeumDoc → Litzio rename changes app ID, installation and data paths: IeumDoc beta.4 cannot automatically update to Litzio. A fresh installation is required; old data, settings and recovery records are not migrated, per the [branding guide](../guides/branding.md).
+The current public distribution is `0.0.2-beta.5`; see the [#926 release record](../releases/v0.0.2-beta.5.md). The public beta.4 was shipped as IeumDoc. The IeumDoc → Litzio rename changes app ID, installation and data paths: IeumDoc beta.4 cannot automatically update to Litzio. A fresh installation is required; old data, settings and recovery records are not migrated, per the [branding guide](../guides/branding.md).
 
 The opt-in real GitHub harness now targets the future same-brand Litzio `0.0.2-beta.5 → 0.0.2-beta.6` pair. Both must be public before it can run. Actual GitHub installation/update remains **not run and unverified** because this PC’s installed state must remain unchanged. This is separate from CI local-feed evidence.
 
-The public distribution is `0.0.2-beta.4`; Stable publication is deferred. See the [#758 release record](../releases/v0.0.2-beta.4.md) for the successful first release-workflow attempt, public assets and Korean Release body. Actual GitHub `0.0.2-beta.3 → 0.0.2-beta.4` installation/update is **not run and unverified** because this PC’s installed state must remain unchanged. Local-feed CI is separate evidence.
+The preceding public distribution was `0.0.2-beta.4`; Stable publication is deferred. See the [#758 release record](../releases/v0.0.2-beta.4.md) for the successful first release-workflow attempt, public assets and Korean Release body. Actual GitHub `0.0.2-beta.3 → 0.0.2-beta.4` installation/update is **not run and unverified** because this PC’s installed state must remain unchanged. Local-feed CI is separate evidence.
 
 The preceding public distribution was `0.0.2-beta.3`. See the [#690 release record](../releases/v0.0.2-beta.3.md) for the successful first release-workflow attempt, public assets and Korean Release body. Actual GitHub `0.0.2-beta.2 → 0.0.2-beta.3` installation/update is **not run and unverified** because this PC’s installed state must remain unchanged. Local-feed CI is separate evidence.
 
