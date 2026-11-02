@@ -70,10 +70,11 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
       }).map(match => match[0]);
     }));
     if (brokenWords.length) throw Error(`Ordinary domain words split at ${width}px: ${brokenWords.join(', ')}`);
-    // At 640px the three intrinsic word widths plus cell minima cannot fit.
-    // Require local scrolling rather than permitting a word to split to pass a fit check.
-    if (width === 640 && wrapping[0].overflow <= 1) throw Error('Narrow Table 1 must preserve word widths with local scrolling');
-    if (wrapping.length !== 2 || wrapping.some((t, i) => ((width === 1440 || i === 1) && t.overflow > 1) || t.lines < 2 || t.cellOverflow > 1))
+    if (screenshots) {
+      await tables.first().scrollIntoViewIfNeeded();
+      await page.screenshot({path:`tmp/901/wrap-${width}-${mode}.png`});
+    }
+    if (wrapping.length !== 2 || wrapping.some(t => t.overflow > 1 || t.lines < 2 || t.cellOverflow > 1))
       throw Error(`Table prose and identifiers must wrap at ${width}px: ${JSON.stringify(wrapping)}`);
   }
   // #902: view preferences never touch the editor history or document source.
