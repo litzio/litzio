@@ -220,11 +220,22 @@ by these checks.
 
 The strict draft-07 result Schema is the exported `structureReviewSchema` in
 [structure-review.ts](../../plugins/docling/src/structure-review.ts). The root is
-`{summary: "nonempty execution summary", proposals: [...]}`; each array item is an `anyOf` of the three A operation/value
+`{inspected: boolean, summary: "nonempty execution summary", proposals: [...]}`; each array item is an `anyOf` of the three A operation/value
 objects with the shared fields above. All object properties are required and extra
 properties are refused. `heading.level` is an integer 1–6 or null; merge `next`
 is a string; furniture labels are `text`, `page_header`, `page_footer`.
 This is the actual schema passed to B, including Codex structured output.
+`inspected` is required: true means the AI actually read the required materials and
+performed the review; false means it could not. The prompt requires false, a blocker
+summary and no proposals if required materials could not be read/reviewed. A valid
+false result becomes Docling task status `not-inspected`, even if B executed
+successfully; its summary and execution details remain visible, no proposal counts
+or new proposals are published, and prior proposals/decisions remain unchanged.
+Dashboard and comparison show “Review could not be performed” (“검수하지 못함”),
+not completion or a successful zero-proposal count. Status never depends on matching
+summary text. A true result with no proposals remains a completed review. Missing
+or non-boolean `inspected` is a format failure. File access, sandbox settings and
+B's execution lifecycle are unchanged (#993 display fix).
 
 The opaque task baseline is JSON containing the original `sourceSha256` and
 `correctionsSha256`, the SHA-256 of `JSON.stringify` of A's parsed ledger, including
@@ -305,7 +316,7 @@ States are `pending`, `approved`, `rejected`, `inapplicable`. Approval/rejection
 append timestamped history; undo returns the proposal to `pending` while retaining
 its approval history. On a successful rerun only pending proposals with no review
 history are replaced. Approved/rejected records, previously reviewed pending
-records and inapplicable outcomes remain. Failed/cancelled reruns replace nothing.
+records and inapplicable outcomes remain. Failed/cancelled/not-inspected reruns replace nothing.
 The latest task is stored at the root; every proposal retains its task ID and
 baseline, so retained decisions remain attributable across reruns.
 

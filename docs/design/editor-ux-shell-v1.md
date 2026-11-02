@@ -281,9 +281,10 @@ no document. Only the tablist scrolls horizontally; Read/Edit/Source, layout tog
 status, Save and File actions stay fixed at the right of that row. At viewport widths
 up to 1024px the less frequent Wide document toggle moves into ⋯ as a checked menu
 item. Outline remains a direct button so its overlay Escape/focus-return path remains
-stable. The compact menu stays available without a document and during pending work
-for the width preference; document-specific commands retain their disabled guards.
-Read/Edit/Source and Save are disabled on the empty start screen. No special tab is added.
+stable. Document actions (including Save, views, split/layout controls and File actions)
+are hidden when the group has no active document tab, including the empty start
+screen and plugin tabs (#973). Text document tabs retain their existing subset of
+actions. Pending document work retains its disabled guards. No special tab is added.
 
 Each row receives the actions and status of its own active document. #488 phase 1
 adds the groups described above. Existing independent tab sessions, Save/shortcut,
@@ -1173,7 +1174,11 @@ Automatic refresh keeps cached rows mounted without loading indicators, errors i
 user, disclosure changes, preference writes or focus/scroll commands. Surviving rows retain selection
 and keyboard focus; open rename inputs and editor/tab state are untouched. Never-loaded folders stay
 lazy, including collapsed folders. Manual refresh continues to expose Host errors. Open document
-content and external-write conflicts retain their existing behavior. Core and CLI parity do not
+content stays mounted. #969 adds open-document byte revision checks to these same requests;
+outside opened folders, checks occur only on window focus/visibility return. External-change
+and Save-conflict notifications offer the existing explicit Reload (with unsaved-work confirmation)
+and #655 comparison. Save-time 409 remains the final guard; no overwrite or automatic merge is offered.
+Core and CLI parity do not
 apply to this Editor display operation.
 
 When Litzio creates a file/folder or creates/rolls back an image asset (paste/drop or Choose…),
@@ -2883,3 +2888,22 @@ wrap within the content width; revision tooltips expose the full hash. Inventory
 and the explicit app-default re-registration contract are defined in
 [Plugin UI contributions](plugin-ui-v1.md#host-owned-plugin-settings-947) and
 [Host worker plugins](plugin-runtime-v1.md#plugin-inventory-and-explicit-default-registration-947).
+
+## Document action visibility (#973)
+
+The `plugin-ui` browser scenario checks the empty screen, active plugin tab,
+Ctrl+S without a document, and the native document's retained unsaved work.
+Startup harness readiness accepts the actual start screen as well as a ready
+document; it no longer requires an empty screen's hidden document status.
+
+Same-state manual review (1440px English Light / 640px Korean Dark):
+
+| State | Before | After |
+| --- | --- | --- |
+| empty 1440 | [Before](assets/document-actions-973/before/empty-1440.png) | [After](assets/document-actions-973/after/empty-1440.png) |
+| empty 640 | [Before](assets/document-actions-973/before/empty-640.png) | [After](assets/document-actions-973/after/empty-640.png) |
+| plugin 1440 | [Before](assets/document-actions-973/before/plugin-1440.png) | [After](assets/document-actions-973/after/plugin-1440.png) |
+| plugin 640 | [Before](assets/document-actions-973/before/plugin-640.png) | [After](assets/document-actions-973/after/plugin-640.png) |
+
+#973 visibility follows document tab identity, including newly created, restored and
+still-loading document tabs. Session readiness disables actions; it does not hide them.

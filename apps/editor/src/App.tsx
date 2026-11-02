@@ -308,7 +308,11 @@ function EditorApp() {
   const operationRef = useRef(true);
   const [error, setError, errorCause] = useMessageState("");
   // Restore folder context before opening tabs, including their bibliography resources.
-  const folders = useFolderTrees(requestFolder, setError);
+  const revisionChecks = () => [...sessions.current.values()].filter(owner => !owner.busyRef.current).map(owner => {
+    const path = owner.openedPath, expected = owner.acknowledgedRevision;
+    return { path, accept: (revision: string | null) => owner.observeRevision(revision, expected) };
+  });
+  const folders = useFolderTrees(requestFolder, setError, revisionChecks);
   const openedFolderPaths = folders.trees.map(tree => tree.root);
   useEffect(() => {
     if (desktop?.setOpenedFolders) void desktop.setOpenedFolders(openedFolderPaths).catch(cause => setError(messageOf(cause)));
@@ -316,6 +320,38 @@ function EditorApp() {
 
   const foldersRef = useRef(folders);
   foldersRef.current = folders;
+  const revisionChecksRef = useRef(revisionChecks);
+  revisionChecksRef.current = revisionChecks;
+  useEffect(() => {
+    const controller = new AbortController();
+    let pending = false, lastCheck = -Infinity;
+    const resume = async () => {
+      if (globalThis.document.visibilityState !== "visible" || pending || Date.now() - lastCheck < 2000) return;
+      // Opened-folder checks already ride the Explorer request, including on focus.
+      const checks = revisionChecksRef.current().filter(check => !foldersRef.current.rootOf(check.path));
+      if (!checks.length) return;
+      pending = true; lastCheck = Date.now();
+      try {
+        const query = new URLSearchParams();
+        query.set("paths", JSON.stringify(checks.map(check => check.path)));
+        const response = await fetch(`${import.meta.env.BASE_URL}api/folder-version?${query}`, { signal: controller.signal });
+        if (!response.ok) return;
+        const { revisions } = await response.json() as { revisions?: { path: string; revision: string | null }[] };
+        if (!controller.signal.aborted) for (const check of checks) {
+          const result = revisions?.find(item => item.path === check.path);
+          if (result) check.accept(result.revision);
+        }
+      } catch { /* Save's revision check remains the final protection. */ }
+      finally { pending = false; }
+    };
+    window.addEventListener("focus", resume);
+    globalThis.document.addEventListener("visibilitychange", resume);
+    return () => {
+      controller.abort();
+      window.removeEventListener("focus", resume);
+      globalThis.document.removeEventListener("visibilitychange", resume);
+    };
+  }, []);
   // Tab reporting rerenders the shell; keep this memoized tab prop stable and read live trees.
   const onAssetChange = useCallback((documentPath: string, assetPath: string) => {
     const { directory } = splitDocumentPath(documentPath);
@@ -344,9 +380,14 @@ function EditorApp() {
   const tableWrap = useTableWrap(tableWrapPath);
   const busy = Boolean(operation || fileOperationPending || session?.busy || continuationPending);
   const switching = Boolean(operation || session?.switching);
-  function compareBeforeSave(returnFocus: HTMLElement | null, owner = session): void {
-    if (!owner || owner.kind !== "native" || operationRef.current || owner.busy || !(owner.documentDirty || owner.draftActive)) return;
+  function compareBeforeSave(returnFocus: HTMLElement | null, owner = session, external = false): void {
+    if (!owner || operationRef.current || owner.busy || (!external && !(owner.documentDirty || owner.draftActive))) return;
     saveComparisonReturnFocus.current = returnFocus;
+    if (owner.kind === "text") {
+      const snapshot = owner.getSnapshot();
+      setSaveComparison({ path: snapshot.file.path, revision: snapshot.file.revision, text: snapshot.text });
+      return;
+    }
     const submitted = owner.editorRef.current?.getDocument();
     try { setSaveComparison({ path: owner.openedPath, revision: owner.acknowledgedRevision, submitted, request: owner.savePreviewRequest() }); }
     catch (cause) {
@@ -355,6 +396,9 @@ function EditorApp() {
     }
   }
   const save = () => session?.save();
+  const compareExternal = useCallback((owner: EditorSession) => {
+    compareBeforeSave(globalThis.document.activeElement as HTMLElement, owner, true);
+  }, []);
   const showSource = () => nativeSession?.showSource();
   const setView = (next: "read" | "visual" | "source") => nativeSession?.setView(next);
   const reload = () => session?.reload();
@@ -1201,7 +1245,7 @@ function EditorApp() {
           <DocumentTabs allTabs={allTabs} tabs={group.tabs.flatMap(id => allTabs.filter(tab => tab.id === id)).map(tab => ({ ...tab,
             dirty: Boolean(sessions.current.get(tab.id)?.documentDirty || sessions.current.get(tab.id)?.draftActive),
           }))} active={group.active} disabled={groupBusy || Boolean(continuation)} onActivate={activateTab} onClose={closeTab}
-            onOpenRight={id => moveTab(id, true)} onMove={id => moveTab(id)} openRightDisabled={!canSplit || groupBusy} moveDisabled={!split || groupBusy} actions={
+            onOpenRight={id => moveTab(id, true)} onMove={id => moveTab(id)} openRightDisabled={!canSplit || groupBusy} moveDisabled={!split || groupBusy} actions={tabs.some(tab => tab.id === group.active) ?
             <DocumentActions
               documentPath={owner?.openedPath ?? ""}
               wide={documentWidth === "wide"}
@@ -1212,7 +1256,6 @@ function EditorApp() {
               draftNotice={owner?.draftNotice}
               textMode={owner?.kind === "text"}
               markdownText={owner?.kind === "text" && owner.markdown}
-              hideViewControls={pluginTabs.some(tab => tab.id === group.active)}
               view={owner?.view ?? "visual"}
               viewDisabled={!owner || groupBusy}
               onViewChange={(next) => { if (owner?.kind === "text" && next !== "source") owner.setView(next); if (owner?.kind === "native") { if (next === "source") void owner.showSource(); else owner.setView(next); } }}
@@ -1231,7 +1274,7 @@ function EditorApp() {
               outline={panelOpen && !assistantOpen}
               onToggleOutline={owner?.kind === "text" ? undefined : toggleOutline}
               outlineToggleRef={group.id === navigation.focused ? outlineToggle : undefined}
-            />
+            /> : null
           } />
           </section>;
           })}
@@ -1272,7 +1315,8 @@ function EditorApp() {
             const group = navigation.groups[groupIndex];
             return <DocumentTab settingsDisabled={Boolean(operation || fileOperationPending || continuationPending)} key={tab.id} id={tab.id} file={tab.file} restored={tab.restored} recoveryId={tab.recoveryId}
               active={group?.active === tab.id} focused={tab.id === activeId} groupIndex={groupIndex} onFocus={focusDocument}
-              report={reportSession} onAssetChange={onAssetChange} renameImage={renameImage} onReveal={revealDocument} />;
+              report={reportSession} onAssetChange={onAssetChange} renameImage={renameImage} onReveal={revealDocument}
+              onCompare={compareExternal} />;
           })}
           {pluginTabs.map(tab => {
             const groupIndex = navigation.groups.findIndex(group => group.tabs.includes(tab.id));

@@ -82,7 +82,7 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
       });
       const initial = await context.newPage();
       await initial.goto(url);
-      await initial.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: "attached" });
+      await initial.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({ state: "attached" });
       await initial.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
       const rejected = await initial.evaluate(async file => {
         const response = await fetch("/api/document", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: file, revision: "invalid-guard-probe" }) });
@@ -148,7 +148,7 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
         request.onerror = () => reject(request.error);
       }));
       await page.reload();
-      await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: "attached" });
+      await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({ state: "attached" });
       await page.mouse.move(0, 0);
       await page.evaluate(() => { document.querySelector<HTMLElement>('.document-scroll[data-active="true"]')?.scrollTo(0, 0); document.activeElement instanceof HTMLElement && document.activeElement.blur(); });
       await use(page);
@@ -175,7 +175,7 @@ for (const name of scenarios) {
     if (liveDocling) test.setTimeout(900_000);
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", ...(liveDocling ? ["manual", "docling-live.js"] : [`${name}.browser.js`])), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { brand: typeof brand; pluginFixture: ReturnType<typeof uiPluginFixture>; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: () => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown; doclingFixture: { url: string; mode?: (value: import("../helpers/docling-server.ts").DoclingMode) => void; input: string; captures: string; uncertain(): string; submissions?: () => number; changeResult(folder: string, remove: boolean): void; result(folder: string): unknown } }) => Promise<unknown>;
+    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { brand: typeof brand; pluginFixture: ReturnType<typeof uiPluginFixture>; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown; doclingFixture: { url: string; mode?: (value: import("../helpers/docling-server.ts").DoclingMode) => void; input: string; captures: string; uncertain(): string; submissions?: () => number; changeResult(folder: string, remove: boolean): void; result(folder: string): unknown } }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
@@ -235,7 +235,7 @@ for (const name of scenarios) {
       },
       textFixture: { replaceNative: source => writeFileSync(path.join(REPOSITORY_ROOT, "tmp/text-mode/native.md"), source) },
       // Simulate an external deletion of this one disposable file. The fixture resets it afterward.
-      removeTabFixture: () => unlinkSync(path.join(REPOSITORY_ROOT, "tmp/document-tabs/technical-1.md")),
+      removeTabFixture: source => { const file = path.join(REPOSITORY_ROOT, "tmp/document-tabs/technical-1.md"); if (source === undefined) unlinkSync(file); else writeFileSync(file, source); },
     });
     } finally {
       if (fake) {

@@ -665,7 +665,24 @@ after the last successful recovery record may be lost. This differs from the sin
 and its explicit record deletion. Update restart checks aggregate every session's pending work
 without adding a dialog to the timed handshake.
 
-External changes retain the existing revision conflict check. The user can copy applied content from Source, keep editing, or explicitly reload from disk. This does not add automatic merging or an OS-level atomic compare-and-swap to the development adapter.
+External changes (#969) are detected in two ways: opened-folder version requests batch
+byte revisions for open documents inside that root, without additional periodic requests;
+documents outside opened folders are checked once on window focus/visibility return.
+Paired return events share one in-flight request and a two-second cooldown. No periodic
+loop is added for standalone documents. Unreadable checks leave Save-time protection active.
+Late checks cannot replace a newer acknowledged revision or a replaced session.
+Own Save, Reload and Host-acknowledged Figure image rename retire the prior observed
+revision when accepting their checkpoint; these writes are not external changes.
+
+A notification offers Reload from disk and Compare with disk. Native comparison reuses
+the #655 applied-content Save preview and source diff; text comparison uses current input
+against disk text, captured from the live session when Compare is clicked (including input
+typed after the notification). Comparison is read-only and excludes unapplied native property drafts.
+Reload uses the existing explicit Reload path, including confirmation before discarding
+unsaved content or drafts. No automatic reload, overwrite action or merge is introduced.
+The existing Save-time revision check remains the final defense for missed changes: a 409
+keeps local work and disk bytes, and offers the same Reload/Compare actions directly.
+This adds no Core semantic operation or CLI command and no OS-level atomic compare-and-swap.
 
 Historical switching, dismissal and retained-error evidence: [Save, switching and property interaction evidence](#save-switching-and-property-interaction-evidence).
 

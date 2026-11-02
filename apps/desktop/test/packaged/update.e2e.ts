@@ -180,7 +180,7 @@ test("installs per user, then updates from Settings only after the open document
     let page = await app.firstWindow();
     page.on("dialog", () => {});
     // Public beta.4 uses "Ready"; current builds use the stable lowercase operation ID.
-    await page.locator('[data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached", timeout: 30_000 });
+    await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached", timeout: 30_000 });
     // The installer relaunches without arguments. Persist the test's language for that launch too;
     // public beta.4 is English-only, but shares this origin/profile with the updated app.
     await page.evaluate(prefix => localStorage.setItem(`${prefix}.uiLanguage`, "en"), brand.storagePrefix);
@@ -206,7 +206,7 @@ test("installs per user, then updates from Settings only after the open document
       // A damaged ownership record disables Repair, but Turn off must still unregister PATH.
       writeFileSync(path.join(cliBin, "owner.json"), "damaged owner");
       await page.reload();
-      await page.locator('[data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached" });
+      await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached" });
       await page.getByRole("button", { name: /^Settings/ }).click();
       await page.getByRole("button", { name: "About & updates", exact: true }).click();
       await cli.getByText("Broken path", { exact: true }).waitFor();
@@ -247,7 +247,7 @@ test("installs per user, then updates from Settings only after the open document
     app = await electron.launch({ executablePath: exe, args: ["--lang=en-US", documentFile], timeout: 60_000 });
     page = await app.firstWindow();
     page.on("dialog", () => {});
-    await page.locator('[data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached" });
+    await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached" });
     await page.getByRole("button", { name: /^Settings/ }).click();
     if (await page.getByRole("button", { name: "About & updates", exact: true }).count())
       await page.getByRole("button", { name: "About & updates", exact: true }).click();
@@ -282,7 +282,7 @@ test("installs per user, then updates from Settings only after the open document
     await page.getByTestId("update-problem").waitFor();
     assert.equal(await page.getByTestId("update-problem").innerText(), "Could not confirm that your work is saved.");
     await page.reload();
-    await page.locator('[data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached" });
+    await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached" });
 
     // Unsaved work refuses the restart and stays.
     await page.getByText("Alpha.", { exact: true }).click();

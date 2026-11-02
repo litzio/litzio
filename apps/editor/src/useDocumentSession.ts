@@ -48,6 +48,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     () => setRecoveryError("")) : undefined);
   const [document, setDocument] = useState<EditableDocument>(initial.document);
   const sourceRevision = useRef(initial.revision);
+  const [externalRevision, setExternalRevision] = useState<string | null>();
   const [bibliography, setBibliography] = useState(initial.bibliography);
   const [bibliographyRoot] = useState(initial.bibliographyRoot);
   const [initialBase] = useState<SaveRequest["base"]>(() => ({
@@ -158,6 +159,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     sessionBase.current = { source: next.source };
     setEndnotesMove(!next.endnotesInPlace);
     sourceRevision.current = next.revision;
+    setExternalRevision(undefined);
     setOpenedPath(next.path);
     openedPathRef.current = next.path;
     setDraftActive(false);
@@ -209,6 +211,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       const next = await requestSave({ path: openedPath, revision: sourceRevision.current, base, ...payload });
       if (!isCurrent()) return false;
       sourceRevision.current = next.revision;
+      setExternalRevision(undefined);
       setEndnotesMove(false);
       base.savedEdits = payload;
       editor.finishSave(true);
@@ -357,6 +360,10 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
         ...collectSupportedEdits(document, editorRef.current.getSnapshot().editorDocument) });
     },
     acknowledgedRevision: sourceRevision.current,
+    externalRevision, externalChanged: externalRevision !== undefined && externalRevision !== sourceRevision.current,
+    observeRevision(revision: string | null, expected: string) {
+      if (isCurrent() && openedPathRef.current === openedPath && sourceRevision.current === expected && !busyRef.current) setExternalRevision(revision);
+    },
     savePreviewRequest(): SaveRequest {
       if (!isCurrent() || !editorRef.current || !document || busy) throw new Error("Editor is not ready");
       return structuredClone({ path: openedPathRef.current, revision: sourceRevision.current, base: sessionBase.current,
@@ -371,6 +378,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       editor.renameImagePaths(result.replacements);
       if (sourceRevision.current !== result.revision) sessionBase.current.savedEdits = collectSupportedEdits(document, editor.getSnapshot().savedDocument);
       sourceRevision.current = result.revision;
+      setExternalRevision(undefined);
       if (editor.hasDocumentChanges()) recorder?.edit();
       else recorder?.discard();
     },

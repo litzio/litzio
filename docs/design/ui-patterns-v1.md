@@ -131,6 +131,11 @@ Before는 시작 HEAD `1b4cff58d5ac7f432ac74b4ed886ddc814d14dbc`에서 빈 센�
 | 1440 | [PNG](assets/notification-center-837/before-1440-dark-ko.png) | [PNG](assets/notification-center-837/after-1440-dark-ko-closed.png) | [PNG](assets/notification-center-837/after-1440-dark-ko-open.png) | [PNG](assets/notification-center-837/after-1440-light-en-open.png) |
 | 640 | [PNG](assets/notification-center-837/before-640-dark-ko.png) | [PNG](assets/notification-center-837/after-640-dark-ko-closed.png) | [PNG](assets/notification-center-837/after-640-dark-ko-open.png) | [PNG](assets/notification-center-837/after-640-light-en-open.png) |
 
+#969의 바깥 변경·저장 충돌도 같은 센터에 모으며, 기존 Button의 보조·ghost 동작으로
+디스크에서 다시 불러오기와 읽기 전용 비교를 제공한다. Reload의 작업 유실 확인과
+#655 비교 화면을 재사용한다. `external-change` 브라우저 검사는 실제 외부 쓰기,
+409·비교·Reload 확인, 창 복귀 확인과 1440/640px 한국어 다크 테마를 검증한다.
+
 <a id="notification-center-792"></a>
 
 ### 알림 센터 시각 근거 (#792)
@@ -288,3 +293,6 @@ The table block menu uses a checkbox row with current check in a separate View g
 the current value. Settings uses a two-option default selector (P11). This is a
 path-scoped device preference shared by Edit, Read and comparison; it is independent
 of document drafts, Save and Undo. See [table contract](table-interaction-v1.md#per-document-table-presentation-902).
+
+#973: 문서가 없는 시작 화면과 플러그인 탭에서는 탭 줄의 문서 동작 묶음을 숨긴다.
+일반 텍스트 문서의 지원 동작은 유지한다([현재 계약](editor-ux-shell-v1.md#title-strip-and-tab-row-actions-695)).

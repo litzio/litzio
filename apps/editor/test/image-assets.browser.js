@@ -427,8 +427,18 @@ async (page, { openFolderPicker, openPath, openDocument, screenshots, recoveryRe
     await page.getByTestId('figure-label').inputValue() === 'renamed-652', 'Rename refusal retains all form fields');
   assert(JSON.stringify(await documentJSON()) === priorRename, 'Rename refusal applies no properties');
   await page.unroute('**/api/file');
+  // Observe the current checkpoint before our own rename, then prevent a later
+  // poll from masking a stale external-change notice after acknowledgement.
+  const checkpointCheck = page.waitForResponse(response => response.url().includes('/api/folder-version?') && response.url().includes('paths='));
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await checkpointCheck;
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const pauseChecks = route => route.fulfill({ json: { version: 'rename-checkpoint-test' } });
+  await page.route('**/api/folder-version?*', pauseChecks);
   await page.getByTestId('figure-rename').click();
   await page.getByTestId('figure-editor').waitFor({state:'detached'});
+  assert(await page.getByTestId('external-change').count() === 0, 'Our acknowledged image rename must not appear as an external change');
+  await page.unroute('**/api/folder-version?*', pauseChecks);
   const renamed = (await documentJSON()).content.find(node => node.type === 'figure').attrs;
   assert(renamed.imageUrl === './assets/회로도-final.png' && renamed.imageAlt === 'Renamed alt' && renamed.label === 'renamed-652', 'Rename and properties Apply succeed');
   assert((await page.request.get(media(renamed.imageUrl))).status() === 200 && (await page.request.get(media(oldUrl))).status() === 404, 'Only renamed file exists');

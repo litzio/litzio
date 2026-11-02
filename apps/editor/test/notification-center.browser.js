@@ -33,6 +33,10 @@ async (page, { openPath, expect, screenshots }) => {
   const panelGeometry = [];
   for (const width of [1440, 1024]) {
     await page.setViewportSize({ width, height: 900 });
+    // Resizing crosses the docked/overlay boundary. Wait for that state transition
+    // before deciding whether the user's Outline toggle needs to be clicked.
+    if (width === 1440) await expect(page.locator('.document-panel')).toBeVisible();
+    else await expect(page.locator('.document-panel')).toHaveCount(0);
     for (const open of [true, false]) {
       const panel = page.locator('.document-panel');
       if (await panel.isVisible() !== open) await page.getByRole('button', { name: 'Outline', exact: true }).click();
