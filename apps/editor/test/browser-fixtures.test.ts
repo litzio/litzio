@@ -5,7 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { parse, serialize, getEditableDocument, validateStructure, unresolvedReferences, citationReport, type InlineContent, type ListContent } from "@litzio/core";
 import { prepareBrowserFixtures, REPOSITORY_ROOT, SCRATCH_DIRS, SOURCE_DIRS } from "./browser/fixtures.ts";
-import { HTTP_SCENARIOS, selectBrowserScenarios, STABLE_SCENARIOS } from "./browser/scenarios.ts";
+import { NOTIFICATION_SCENARIOS, HTTP_SCENARIOS, selectBrowserScenarios, STABLE_SCENARIOS } from "./browser/scenarios.ts";
 import { classifyConsoleErrors } from "./browser/console-errors.ts";
 
 test("fault injection permits only its expected network failures and caught plugin render error", () => {
@@ -210,4 +210,15 @@ test("localized sample folders retain the supported feature set and canonical Co
     assert.ok(report.references?.length);
   }
   assert.deepEqual(structures[0], structures[1], "both languages offer the same document structure");
+});
+
+test("notification opt-ins name existing scenarios while unrelated interactions stay isolated", () => {
+  assert.equal(new Set(NOTIFICATION_SCENARIOS).size, NOTIFICATION_SCENARIOS.length);
+  for (const name of NOTIFICATION_SCENARIOS) assert.ok([...STABLE_SCENARIOS, ...HTTP_SCENARIOS].includes(name), name);
+  // A scenario using the shared notification opener must explicitly opt in.
+  for (const name of [...STABLE_SCENARIOS, ...HTTP_SCENARIOS]) {
+    const source = readFileSync(path.join(testDir, `${name}.browser.js`), "utf8");
+    if (/await showNotifications\(page\)/.test(source)) assert.ok(NOTIFICATION_SCENARIOS.includes(name), name);
+  }
+  assert.ok(!NOTIFICATION_SCENARIOS.includes("selection-toolbar"));
 });

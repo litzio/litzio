@@ -29,8 +29,7 @@ async (page, { openPath, expect, screenshots }) => {
     })).toBe(true);
     await expect(target.locator('li[data-severity]')).toHaveCount(0);
   };
-  // The global center belongs beside right panels, including the narrow Outline overlay.
-  const panelGeometry = [];
+  // Opening/closing Outline preserves notification controls; overlap is allowed.
   for (const width of [1440, 1024]) {
     await page.setViewportSize({ width, height: 900 });
     // Resizing crosses the docked/overlay boundary. Wait for that state transition
@@ -43,19 +42,16 @@ async (page, { openPath, expect, screenshots }) => {
       for (const expanded of [false, true]) {
         if (await toggle().getAttribute('aria-expanded') !== String(expanded)) await toggle().click();
         await expect(center).toBeVisible();
+        await expect(toggle()).toHaveAttribute('aria-expanded', String(expanded));
+        await expect(center.locator('ul')).toBeVisible({ visible: expanded });
         const bounds = await center.boundingBox();
-        const sidebar = await page.getByTestId('sidebar').boundingBox();
-        const right = open ? (await panel.boundingBox()).x : width;
-        panelGeometry.push({ bounds, left: sidebar.x + sidebar.width, right });
+        expect(bounds.x).toBeGreaterThanOrEqual(0);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+        expect(bounds.y).toBeGreaterThanOrEqual(0);
+        expect(bounds.y + bounds.height).toBeLessThanOrEqual(900);
         if (screenshots) await page.screenshot({ path: `tmp/970-outline-${width}-${open ? 'panel' : 'closed'}-${expanded ? 'list' : 'bell'}.png` });
       }
     }
-  }
-  for (const { bounds, left, right } of panelGeometry) {
-    expect(bounds.x).toBeGreaterThanOrEqual(left);
-    expect(bounds.x + bounds.width).toBeLessThanOrEqual(right - 16);
-    expect(bounds.y).toBeGreaterThanOrEqual(0);
-    expect(bounds.y + bounds.height).toBeLessThanOrEqual(900);
   }
   await toggle().click();
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -99,11 +95,8 @@ async (page, { openPath, expect, screenshots }) => {
           await page.screenshot({path:`tmp/notification-837-after-${width}-${theme}-${language}-${state}.png`});
         }
         await toggle().click();
-        // Document end spacing keeps the last caret above the persistent button.
+        // End-of-document selection still opens its toolbar. Notifications may overlap.
         await engine.evaluate(el => el.editor.commands.focus('end'));
-        const caret = await engine.evaluate(el => el.editor.view.coordsAtPos(el.editor.state.selection.to));
-        const button = await toggle().boundingBox();
-        expect(caret.bottom).toBeLessThanOrEqual(button.y);
         await engine.evaluate(el => {
           const e = el.editor;
           let range;
@@ -114,8 +107,6 @@ async (page, { openPath, expect, screenshots }) => {
         });
         const toolbar = page.locator('.selection-toolbar');
         await expect(toolbar).toBeVisible();
-        const tools = await toolbar.boundingBox();
-        expect(tools.y + tools.height <= button.y || tools.x + tools.width <= button.x).toBe(true);
         await engine.evaluate(el => el.editor.commands.setTextSelection(el.editor.state.selection.to));
       }
     }

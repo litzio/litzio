@@ -100,6 +100,40 @@ export const STABLE_SCENARIOS = [
   "draft-notice-layout",
 ];
 
+/** These scenarios inspect notification content, actions, history or stacking.
+ * All others assume the floating center is absent (#1003 owner decision).
+ */
+export const NOTIFICATION_SCENARIOS = [
+  "notification-center",
+  "ai-agent",
+  "numbering-mode",
+  "continuous-editing",
+  "cross-reference",
+  "docling-server",
+  "docling-compare",
+  "docling-dashboard",
+  "document-tabs",
+  "editor-shell",
+  "equation-node-selection-typing",
+  "external-change",
+  "external-html-paste",
+  "file-actions",
+  "folder-navigation",
+  "footnotes",
+  "mermaid-authoring",
+  "open-files",
+  "read-view",
+  "reference-save-reload",
+  "save-error",
+  "save-session",
+  "recovery",
+  "source-view-pending",
+  "structural-block-authoring",
+  "table-authoring",
+  "text-mode",
+  "ui-language",
+];
+
 /** Production HTTP has a different startup and filesystem policy; run it against its own Host. */
 export const HTTP_SCENARIOS = ["http-host"];
 

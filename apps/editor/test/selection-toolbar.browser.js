@@ -3,6 +3,8 @@ async (page, { openPath, activeDocument, expect, screenshots }) => {
   await page.evaluate(() => localStorage.setItem('litzio.uiLanguage', 'en'));
   await page.reload();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: 'attached' });
+  // Common harness isolation must survive the scenario's reload.
+  await expect(page.locator('.notification-center')).toBeHidden();
   const origin = page.url().split('/').slice(0, 3).join('/');
   const loaded = await (await page.request.get(`${origin}/api/document`)).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';

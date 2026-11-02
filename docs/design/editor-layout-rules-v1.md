@@ -256,6 +256,11 @@ select row; the table block menu separates its View checkbox from mutation group
 
 ## Notification placement beside right panels (#970)
 
+The floating notification center may overlap document content or other controls;
+users can collapse it or work around it. Non-overlap is not guaranteed (#1003).
+Browser scenarios that do not inspect notifications hide the center through the
+shared test harness. Product placement remains unchanged.
+
 The window notification center uses the right panel’s left edge as its trailing
 boundary while Outline (docked or overlay) or the nonmodal assistant is open.
 Its existing 32px trailing inset and bottom inset remain; the expanded list is
@@ -263,7 +268,7 @@ limited to the space between the sidebar and that boundary. Closing the panel
 restores the window-right placement. The narrow assistant remains modal, with
 the notification center hidden and inert. The composer needs no notification
 clearance. Existing `notification-center` and `ai-agent` browser scenarios cover
-panel toggling, list bounds and the modal boundary at 1440px/1024px/640px.
+panel toggling, list visibility and the modal boundary at 1440px/1024px/640px.
 
 Visual review (2026-11-03): shared notification colors, radius and control sizes
 follow Visual Language; only placement and obsolete composer clearance change.

@@ -237,10 +237,8 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
     const bell = notification.locator(':scope > button');
     if (await bell.getAttribute('aria-expanded') !== String(expanded)) await bell.click();
     if (screenshots) await page.screenshot({ path: `tmp/970-assistant-1440-${expanded ? 'list' : 'bell'}.png` });
-    const bounds = await notification.boundingBox();
-    expect(bounds.x + bounds.width).toBeLessThanOrEqual((await panel.boundingBox()).x - 16);
-    expect(bounds.x).toBeGreaterThanOrEqual(0);
-    expect(bounds.y).toBeGreaterThanOrEqual(0);
+    await expect(bell).toHaveAttribute('aria-expanded', String(expanded));
+    await expect(notification.locator('ul')).toBeVisible({ visible: expanded });
   }
   await notification.locator(':scope > button').click();
   await message.fill('What changed in the current document?'); await panel.getByRole('button', { name: 'Send message', exact: true }).click();
