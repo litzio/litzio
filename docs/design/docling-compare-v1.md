@@ -1,6 +1,7 @@
 # Docling comparison v1
 
 - Status: Implemented
+- Review UI verified: 2026-11-02 (#900; fake adapter, real C1 Host operations, persistent Chrome).
 - Plugin-folder verification: 2026-11-01 (#869; unchanged comparison scenario on Windows persistent Chrome, 1440/640px capture path).
 - Last verified: 2026-10-31 (#815 fixed Read surface/reverse correspondence; #857 dynamic UI contribution with unchanged comparison behavior).
 - Authority: owner decisions in [#766](https://github.com/litzio/litzio/discussions/766), [#767](https://github.com/litzio/litzio/discussions/767), [#769](https://github.com/litzio/litzio/issues/769), under [ADR-0011](../adr/0011-code-module-boundary.md).
@@ -56,6 +57,14 @@ Disabled review or absent AI service shows a reason and hides proposal controls.
 Cancel, proposal selection, approval/rejection/undo and immediate refreshed heading
 DOM after busy completion. 1440px English Light and 640px Korean Dark captures
 cover wrapping and panel/pane geometry. Real AI suggestion accuracy remains manual.
+Self-reviewed captures: [1440px panel](assets/docling-review-900/review-1440-light-en.png),
+[640px panel](assets/docling-review-900/review-640-dark-ko.png),
+[1440px dashboard](assets/docling-review-900/dashboard-1440-light-en.png),
+[640px dashboard](assets/docling-review-900/dashboard-640-dark-ko.png).
+[Capture metadata](assets/docling-review-900/capture-metadata.json) records the source,
+hashes, review and the intermittent Windows C1 directory-publication EPERM seen
+in earlier local attempts. Those attempts rolled back with visible errors;
+no automatic retry or weaker assertion was added. Later complete runs passed.
 
 The left pane displays original page images with source bboxes using the map v1
 page sizes and each bbox's TOPLEFT/BOTTOMLEFT origin. Categories have token colors

@@ -1,0 +1,18 @@
+{
+  "sourceCommit": "bae2dcd3022ca74a0350b0af4066816098f7716a",
+  "browser": "Windows installed Chrome, persistent checkout profile, pnpm browser:test docling-review --screenshots",
+  "viewportHeight": 1000,
+  "cases": [
+    "1440 Light English",
+    "640 Dark Korean"
+  ],
+  "data": "Synthetic MIT Docling fixture; fake AI adapter, real C1 Host decisions; no real AI/OCR quality assessment",
+  "manualReview": "Panel below panes, visible action footer, source and measured-target highlight, long Korean reason and paths, theme and wrapping reviewed. Source image/text remain narrow at 640px under the existing comparison limitation. Dashboard captured at the current result, keeping prior local test receipts visible.",
+  "observedLimitation": "Earlier Windows browser attempts saw intermittent C1 directory-publication EPERM with rollback and visible error; origin not established. No retries or assertions were weakened; subsequent runs completed approval/rejection/undo.",
+  "sha256": {
+    "dashboard-1440-light-en.png": "0d6e9e2c680f53fbc853bf7e310a99ceff20d3dcdf7f2f62f781034f8b413451",
+    "dashboard-640-dark-ko.png": "6fb846f714ad70b2571f41d2d587077397e964cb49eef53db4f7185011b3d5a1",
+    "review-1440-light-en.png": "2c99a56ff7172e002b4cbb275fd3614f5eeb7635d2625ff806cf246e766dad41",
+    "review-640-dark-ko.png": "951569b02dbc178125dc8e321ffd15e113cfd93c81752a2284cc4bab7bc69809"
+  }
+}
