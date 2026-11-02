@@ -10,6 +10,8 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await call('worker-plugins', 'POST', { manifest: fixture.input.replace(/[/\\]docling-server[/\\][^/\\]+$/, '/docling-worker/manifest.json') });
   await page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true }).click();
   await page.reload();
+  await page.evaluate(() => Object.defineProperty(Crypto.prototype, 'randomUUID', { value: undefined, configurable: true }));
+  expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe('undefined');
   await call('docling-features', 'PUT', { conversion: true, comparison: true, review: true });
   await call('docling-settings', 'PUT', { server: fixture.url });
   fixture.mode('success');
@@ -21,7 +23,9 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await show();
   const result = dashboard.locator(`[data-result-id="${job.id}"]`);
   await expect(result.getByRole('button', { name: 'Run review', exact: true })).toBeEnabled();
+  const started = page.waitForRequest(request => request.url().endsWith('/api/docling-review') && request.method() === 'POST');
   await result.getByRole('button', { name: 'Run review', exact: true }).click();
+  expect((await started).postDataJSON().id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   await expect(result).toContainText('Review in progress');
   await result.getByRole('button', { name: 'Cancel review', exact: true }).click();
   await expect(result).toContainText('Review cancelled');

@@ -2,6 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import type { UiHost } from "@litzio/plugin-api/ui";
 import type { StructureReviewer } from "./structure-review.ts";
 type Review = ReturnType<StructureReviewer["list"]> & { problem?: string };
+function newReviewId(): string {
+  // getRandomValues is available on remote HTTP Hosts too. Preserve UUID v4.
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6]! & 0x0f) | 0x40;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 export function ReviewPanel({ host, folder, summary = false, agentReady = true, documentReady = true, documentLoading = false, onSelect, onChanged }: {
   host: UiHost; folder: string; summary?: boolean; agentReady?: boolean; documentReady?: boolean; documentLoading?: boolean; onSelect?(refs: string[]): void; onChanged?(): Promise<void>;
 }) {
@@ -43,7 +51,7 @@ export function ReviewPanel({ host, folder, summary = false, agentReady = true, 
     const errors: string[] = [];
     try {
       const value = await host.requestJson<Review & { error?: string }>(`api/docling-review${["approve", "reject", "undo"].includes(action) ? `-${action}` : ""}`,
-        action === "cancel" ? "DELETE" : "POST", { folder, id: action === "start" ? crypto.randomUUID() : selected });
+        action === "cancel" ? "DELETE" : "POST", { folder, id: action === "start" ? newReviewId() : selected });
       if (value.error) throw new Error(value.error);
       if (alive.current) setReview(value);
     } catch (error) { errors.push(error instanceof Error ? error.message : String(error)); }
