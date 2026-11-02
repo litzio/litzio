@@ -87,7 +87,8 @@ test("dashboard reads published folders, reports stale/missing results and filte
   await until(() => host.current(job.id), value => value?.state === "success");
   const dashboard = () => host.invoke("docling", "dashboard");
   let snapshot = dashboard();
-  assert.equal(snapshot.results[0].name, "Fixture PDF");
+  assert.equal(snapshot.results[0].name, "paper.pdf");
+  assert.equal(snapshot.results[0].pendingProposals, 0);
   assert.equal(snapshot.results[0].pages, 1);
   assert.equal(snapshot.results[0].stale, false);
   assert.ok(snapshot.results[0].convertedAt >= job.startedAt);

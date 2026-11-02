@@ -4,7 +4,10 @@ import { readCollapsedFolderSections, readOpenFolders, writeCollapsedFolderSecti
 
 // The sidebar's view of the folders the user opened: one tree of one-level Host listings per
 // folder, loaded when a folder is expanded. Opened roots and collapsed sections are remembered
-// (preferences.ts); listings and subfolder expansion are never stored, watched or scanned.
+// (preferences.ts); listings and subfolder expansion are never stored or recursively scanned.
+
+// Adjustable timings for Explorer notification checks and the missed-event safety net.
+export const FOLDER_REFRESH = { pollMs: 2_000, fallbackMs: 60_000 } as const;
 
 export type FolderTreeState = {
   /** The chosen folder; every listed folder is inside it. */
@@ -186,7 +189,7 @@ export function treeKey(items: TreeItem[], index: number, key: string, expanded:
 }
 
 /** Opened folders with their Host requests. `request` lists one level of a folder inside an opened one. */
-export function useFolderTrees(request: (root: string, path?: string) => Promise<FolderResponse>, onError: (message: string) => void) {
+export function useFolderTrees(request: (root: string, path?: string, background?: boolean) => Promise<FolderResponse>, onError: (message: string) => void) {
   const [trees, reduce] = useReducer(folderTreesReducer, []);
   const latest = useRef(trees);
   latest.current = trees;
@@ -242,14 +245,14 @@ export function useFolderTrees(request: (root: string, path?: string) => Promise
     writeCollapsedFolderSections(JSON.parse(serializedCollapsed) as string[]);
   }, [serializedCollapsed, restored, sectionVersion]);
 
-  const load = (root: string, path: string, preserveExpansion = false) => {
+  const load = (root: string, path: string, preserveExpansion = false, quiet = false) => {
     const id = ++requests.current;
     dispatch({ type: "loadStart", root, path, request: id });
-    request(root, path).then(
+    request(root, path, quiet).then(
       listing => dispatch({ type: "loadSuccess", root, path, request: id, listing }),
       (cause: unknown) => {
         dispatch({ type: "loadFailure", root, path, request: id, preserveExpansion });
-        if (latest.current.some(tree => tree.root === root)) onError(cause instanceof Error ? cause.message : String(cause));
+        if (!quiet && latest.current.some(tree => tree.root === root)) onError(cause instanceof Error ? cause.message : String(cause));
       },
     );
   };
@@ -269,6 +272,60 @@ export function useFolderTrees(request: (root: string, path?: string) => Promise
       if (folder !== root || listRoot) load(root, folder);
     }
   };
+
+  const refreshRoot = (root: string, quiet = false) => {
+    const tree = latest.current.find(item => item.root === root);
+    let complete = true;
+    if (tree) for (const path of knownFolders(tree)) {
+      if (!tree.nodes.has(path)) continue;
+      if (quiet && tree.pending.has(path)) complete = false;
+      else load(root, path, true, quiet);
+    }
+    return complete;
+  };
+
+  useEffect(() => {
+    if (!roots.length) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    const versions = new Map<string, string>();
+    let checking = false;
+    const refreshAll = () => {
+      if (document.visibilityState === "visible") for (const root of roots) refreshRoot(root, true);
+    };
+    const check = async () => {
+      if (checking || document.visibilityState !== "visible") return;
+      checking = true;
+      try {
+        await Promise.all(roots.map(async root => {
+          try {
+            const response = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/folder-version?${new URLSearchParams({ root })}`, { signal: controller.signal });
+            if (!response.ok) return;
+            const { version } = await response.json() as { version?: string };
+            if (!version) return;
+            if (cancelled) return;
+            // A busy listing may predate this change; keep the version pending for the next check.
+            if (versions.get(root) !== version && !refreshRoot(root, true)) return;
+            versions.set(root, version);
+          } catch { /* Failed checks leave the periodic/focus safety net active. */ }
+        }));
+      } finally { checking = false; }
+    };
+    const resume = () => { refreshAll(); void check(); };
+    void check();
+    const poll = window.setInterval(() => { void check(); }, FOLDER_REFRESH.pollMs);
+    const fallback = window.setInterval(refreshAll, FOLDER_REFRESH.fallbackMs);
+    window.addEventListener("focus", resume);
+    document.addEventListener("visibilitychange", resume);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      clearInterval(poll);
+      clearInterval(fallback);
+      window.removeEventListener("focus", resume);
+      document.removeEventListener("visibilitychange", resume);
+    };
+  }, [serializedRoots]);
 
   return {
     trees,
@@ -330,10 +387,7 @@ export function useFolderTrees(request: (root: string, path?: string) => Promise
       if (contained) rememberSections();
     },
     /** Re-read only reachable, already loaded listings, retaining all disclosure state. */
-    refreshRoot(root: string) {
-      const tree = latest.current.find(item => item.root === root);
-      if (tree) for (const path of knownFolders(tree)) if (tree.nodes.has(path)) load(root, path, true);
-    },
+    refreshRoot,
     /** Refresh loaded parents of a file/folder created by Litzio, without discovering children. */
     refreshParents(itemPath: string) {
       for (const tree of latest.current) for (const path of folderChain(tree.root, itemPath)) {

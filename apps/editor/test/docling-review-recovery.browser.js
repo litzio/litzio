@@ -15,8 +15,12 @@ async (page, { expect, doclingFixture: fixture }) => {
   const showDashboard = async () => { await page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true }).click(); await expect(dashboard).toBeVisible(); };
   await expect(page.locator('.docling-tab[data-active=true]')).toBeVisible(); await showDashboard();
   const result = dashboard.locator(`[data-result-id="${job.id}"]`);
+  await result.locator("summary").click();
   await result.getByRole('button', { name: 'Run review', exact: true }).click();
   await expect(result).toContainText('Pending proposals: 2');
+  await expect(result.locator('td').nth(3)).toHaveText('2');
+  const attention = dashboard.locator('.docling-dashboard-count').filter({ hasText: 'Needs attention' });
+  await attention.click(); await expect(result).toBeVisible(); await attention.click();
   const open = async () => { await showDashboard(); await result.getByRole('button', { name: 'Open comparison', exact: true }).click(); };
   await open();
   const tab = page.locator('.docling-tab[data-active=true]'), panel = tab.locator('.docling-review');
@@ -30,9 +34,23 @@ async (page, { expect, doclingFixture: fixture }) => {
   const comparisonTab = page.getByRole('tab', { name: /paper.*Docling comparison/ });
   const tabId = await comparisonTab.getAttribute('id');
   await showDashboard();
-  await dashboard.getByRole('checkbox', { name: 'Structure review', exact: true }).uncheck();
+  const feature = async enabled => {
+    await dashboard.getByRole('button', { name: 'Settings', exact: true }).click();
+    const settings = page.getByTestId('settings-dialog');
+    await expect(settings.getByRole('checkbox', { name: 'Structure review', exact: true })).toBeEnabled();
+    const saved = page.waitForResponse(r => r.url().endsWith('/api/docling-features') && r.request().method() === 'PUT');
+    await settings.getByRole('checkbox', { name: 'Structure review', exact: true }).setChecked(enabled);
+    expect((await saved).ok()).toBe(true);
+    await expect(settings.getByRole('checkbox', { name: 'Structure review', exact: true })).toBeChecked({ checked: enabled });
+    await settings.press('Escape');
+    await expect(result).toBeVisible();
+    if (enabled) await expect(result.getByRole('button', { name: 'Run review', exact: true, includeHidden: true })).toBeEnabled();
+    else await expect(result).toContainText('Review is disabled.');
+    if (!(await result.locator('details').evaluate(e => e.open))) await result.locator('summary').click();
+  };
+  await feature(false);
   await expect(result).toContainText('Review is disabled.');
-  await dashboard.getByRole('checkbox', { name: 'Structure review', exact: true }).check();
+  await feature(true);
   await expect(result.getByRole('button', { name: 'Run review', exact: true })).toBeEnabled();
   await comparisonTab.click();
   await expect(comparisonTab).toHaveAttribute('id', tabId);

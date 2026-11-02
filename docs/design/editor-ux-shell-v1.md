@@ -1157,8 +1157,24 @@ including cached collapsed children. Never-loaded folders are not read. The comm
 one Refresh folder command per opened root, identified by its full path and using the same handler.
 Refresh keeps section/child expansion, current document selection, tabs, editor state and preferences.
 Removed entries disappear and new entries appear in the refreshed listings; existing Host errors
-remain explicit and late responses retain the newest-request guard. No watcher, periodic refresh,
-Host API or Core/CLI semantic operation is added.
+remain explicit and late responses retain the newest-request guard.
+
+### Automatic folder refresh (#927)
+
+External file/folder additions, deletions and renames update the reachable, already loaded
+listings through the same refresh path. The Host uses recursive `fs.watch` with a 150ms debounce;
+the visible browser checks a small change version every 2 seconds over the existing HTTP transport.
+This avoids adding a persistent connection protocol. Watches are transient 15-second leases renewed
+by checks; closing a root, hiding the page or disconnecting stops renewal and releases the watcher.
+Unsupported or missed watch events are covered by refreshing every 60 seconds while visible and
+on window focus/visibility return. Browser timings are adjustable together in `FOLDER_REFRESH`.
+
+Automatic refresh keeps cached rows mounted without loading indicators, errors interrupting the
+user, disclosure changes, preference writes or focus/scroll commands. Surviving rows retain selection
+and keyboard focus; open rename inputs and editor/tab state are untouched. Never-loaded folders stay
+lazy, including collapsed folders. Manual refresh continues to expose Host errors. Open document
+content and external-write conflicts retain their existing behavior. Core and CLI parity do not
+apply to this Editor display operation.
 
 When Litzio creates a file/folder or creates/rolls back an image asset (paste/drop or Choose…),
 its already loaded parent listings are refreshed through the same loader without expanding folders.

@@ -6,7 +6,7 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { createServer } from "node:http";
 import { before, test } from "node:test";
-import { AI_TASK, type AiTaskRequest, type AiTaskRecord } from "@litzio/plugin-api/ai";
+import { AI_TASK, AI_AGENT, type AiTaskRequest, type AiTaskRecord } from "@litzio/plugin-api/ai";
 import { listenForFetch } from "@litzio/plugin-api/testing";
 import { buildAiAgent } from "../../../packages/cli/scripts/build-ai-agent.ts";
 import { createPluginHost, bundledAiManifest } from "../server/plugin-host.ts";
@@ -14,6 +14,8 @@ import { handleDocumentRequest } from "../server/document-api.ts";
 import { PluginStore } from "../server/plugin-store.ts";
 import { AiTaskRuntime } from "../server/ai-task-runtime.ts";
 import { RootAccess } from "../server/file-access.ts";
+import { AiAgentConnection } from "../server/ai-agent-connection.ts";
+import { fileURLToPath } from "node:url";
 import { brand } from "../../../brand.ts";
 
 before(() => buildAiAgent(path.dirname(bundledAiManifest())));
@@ -33,8 +35,10 @@ test("installed caller uses Host-mediated service, HTTP observes completion, UUI
   const root = mkdtempSync(path.join(tmpdir(), "ai-host-test-")), plugins = path.join(root, "plugins"), input = path.join(root, "material.txt");
   writeFileSync(input, "original material");
   const previous = process.env.LITZIO_AI_TEST_ADAPTER; process.env.LITZIO_AI_TEST_ADAPTER = "success";
-  const host = createPluginHost(new RootAccess([root]), undefined, { directory: plugins });
-  const observer = createPluginHost(new RootAccess([root]), undefined, { directory: plugins });
+  const log = path.join(root, "app-server.jsonl"), settingsFile = path.join(root, "ai-settings.json");
+  const agent = new AiAgentConnection(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url)), log] });
+  const host = createPluginHost(new RootAccess([root]), settingsFile, { directory: plugins, agent });
+  const observer = createPluginHost(new RootAccess([root]), settingsFile, { directory: plugins });
   const facade = path.join(root, "consumer"); mkdirSync(facade);
   writeFileSync(path.join(facade, "ui.mjs"), "export function activate() {}");
   writeFileSync(path.join(facade, "host.cjs"), `exports.activate = host => ({ routes: {}, operations: {
@@ -69,7 +73,13 @@ test("installed caller uses Host-mediated service, HTTP observes completion, UUI
   assert.throws(() => host.invoke(AI_TASK.plugin, "start", { ...message(input), materials: [{ path: input, name: "../outside.txt" }] }), /material/);
   process.env.LITZIO_AI_TEST_ADAPTER = "hang";
   const hanging = message(input); await host.aiTasks()!.start(hanging);
-  host.plugins().unregister(AI_TASK.plugin);
+  assert.equal((await (await fetch(url + AI_AGENT.modelsRoute)).json()).models.length, 3);
+  const { pid } = JSON.parse(readFileSync(log, "utf8").split("\n")[0]!);
+  process.kill(pid, 0);
+  const disabled = await fetch(url + "/api/worker-plugins", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: AI_TASK.plugin }) });
+  assert.equal(disabled.status, 200);
+  assert.throws(() => process.kill(pid, 0), "plugin disable must await its app-server exit");
+  assert.equal(host.invoke<AiTaskRecord>(AI_TASK.plugin, "current", { id: hanging.id }).status, "running", "accepted exec work still drains independently");
   assert.equal(host.aiTasks(), undefined); assert.equal(host.invoke("feature", "available"), false);
   assert.deepEqual(await (await fetch(url + AI_TASK.discoveryRoute)).json(), { available: false });
   await assert.rejects(() => host.invoke<Promise<AiTaskRecord>>(AI_TASK.plugin, "start", message(input)), /not registered/);
@@ -137,16 +147,23 @@ test("agent-owned settings persist, reach the worker, and remain pinned in seria
   const root = mkdtempSync(path.join(tmpdir(), "ai-settings-test-")), input = path.join(root, "material.txt");
   writeFileSync(input, "data");
   const previous = process.env.LITZIO_AI_TEST_ADAPTER; process.env.LITZIO_AI_TEST_ADAPTER = "execution";
-  const host = createPluginHost(new RootAccess([root]), path.join(root, "ai-settings.json"), { directory: path.join(root, "plugins") });
+  const agent = new AiAgentConnection(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
+  const host = createPluginHost(new RootAccess([root]), path.join(root, "ai-settings.json"), { directory: path.join(root, "plugins"), agent });
   t.after(async () => { await host.close(); if (previous === undefined) delete process.env.LITZIO_AI_TEST_ADAPTER; else process.env.LITZIO_AI_TEST_ADAPTER = previous; rmSync(root, { recursive: true, force: true }); });
   host.aiTasks();
-  assert.deepEqual(host.invoke(AI_TASK.plugin, "settings"), { model: "gpt-6.1-sol", reasoningEffort: "medium" });
+  const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, new RootAccess([root]), 1_000_000, undefined, undefined, host); });
+  await listenForFetch(server); const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
+  assert.equal((await (await fetch(url + AI_AGENT.modelsRoute)).json()).models.length, 3);
+  assert.equal((await (await fetch(url + AI_AGENT.diagnosticsRoute)).json()).connected, true);
+  assert.equal((await (await fetch(url + AI_AGENT.environmentRoute)).json()).cwd, path.join(root, "assistant"));
+  assert.deepEqual(host.invoke(AI_TASK.plugin, "settings"), { provider: "codex", enabled: true, writeAccess: "opened-folders", model: "gpt-6.1-sol", reasoningEffort: "medium" });
   const execution = { model: "chosen-model", reasoningEffort: "xhigh" };
-  host.invoke(AI_TASK.plugin, "configure", execution);
-  assert.throws(() => host.invoke(AI_TASK.plugin, "configure", { ...execution, reasoningEffort: "invalid" }), /Invalid AI/);
+  await host.invoke(AI_TASK.plugin, "configure", execution);
+  await assert.rejects(() => host.invoke(AI_TASK.plugin, "configure", { ...execution, reasoningEffort: "invalid" }), /Invalid AI/);
   const request = { ...message(input), caller: AI_TASK.plugin, schema: { type: "object", properties: { execution: { type: "object" } }, required: ["execution"], additionalProperties: false } };
   await host.aiTasks()!.start(request);
-  host.invoke(AI_TASK.plugin, "configure", { model: "next-model", reasoningEffort: "low" });
+  await host.invoke(AI_TASK.plugin, "configure", { model: "next-model", reasoningEffort: "low" });
   const done = await finished(() => host.aiTasks()!.current(request.id));
   assert.equal(done.status, "success");
   assert.deepEqual(done.job.result, { execution }); assert.deepEqual(done.job.execution, execution);
@@ -154,7 +171,14 @@ test("agent-owned settings persist, reach the worker, and remain pinned in seria
   assert.ok(done.job.durationMs! >= 0);
   assert.deepEqual(JSON.parse(JSON.stringify(done)).job.execution, execution);
   assert.deepEqual((await host.aiTasks()!.start(request)).job.execution, execution);
+  await agent.close(); // An enablement-only write must work without a live catalog connection.
+  const disable = await fetch(url + AI_TASK.settingsRoute, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "next-model", reasoningEffort: "low", provider: "codex", enabled: false, writeAccess: "read-only" }) });
+  assert.equal(disable.status, 200);
+  assert.throws(() => host.invoke(AI_TASK.plugin, "start", { ...request, id: randomUUID() }), /disabled/);
+  assert.deepEqual((await host.invoke(AI_TASK.plugin, "start", request)).job.execution, execution, "disabling does not erase or rerun accepted work");
+  assert.throws(() => host.invoke(AI_TASK.plugin, "agentModels"), /disabled/);
+  await host.invoke(AI_TASK.plugin, "configure", { model: "next-model", reasoningEffort: "low", provider: "codex", enabled: true, writeAccess: "opened-folders" });
   const observer = createPluginHost(new RootAccess([root]), path.join(root, "ai-settings.json"), { directory: path.join(root, "plugins") });
-  try { observer.aiTasks(); assert.deepEqual(observer.invoke(AI_TASK.plugin, "settings"), { model: "next-model", reasoningEffort: "low" }); }
+  try { observer.aiTasks(); assert.deepEqual(observer.invoke(AI_TASK.plugin, "settings"), { provider: "codex", enabled: true, writeAccess: "opened-folders", model: "next-model", reasoningEffort: "low" }); }
   finally { await observer.close(); }
 });

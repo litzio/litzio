@@ -15,6 +15,7 @@ async (page, { expect, doclingFixture: fixture }) => {
   const showDashboard = async () => { await page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true }).click(); await expect(dashboard).toBeVisible(); };
   await expect(page.locator('.docling-tab[data-active=true]')).toBeVisible(); await showDashboard();
   const result = dashboard.locator(`[data-result-id="${job.id}"]`);
+  await result.locator("summary").click();
   await result.getByRole('button', { name: 'Run review', exact: true }).click();
   await expect(result).toContainText('Pending proposals: 2');
   const open = async () => { await showDashboard(); await result.getByRole('button', { name: 'Open comparison', exact: true }).click(); };
@@ -35,15 +36,29 @@ async (page, { expect, doclingFixture: fixture }) => {
   });
   const retry = tab.getByRole('button', { name: 'Reload comparison', exact: true });
   const warning = tab.getByText('The comparison may not be current. Automatic reload stopped. Reload it to continue.', { exact: true });
+  const feature = async enabled => {
+    await dashboard.getByRole('button', { name: 'Settings', exact: true }).click();
+    const settings = page.getByTestId('settings-dialog');
+    await expect(settings.getByRole('checkbox', { name: 'Structure review', exact: true })).toBeEnabled();
+    const saved = page.waitForResponse(r => r.url().endsWith('/api/docling-features') && r.request().method() === 'PUT');
+    await settings.getByRole('checkbox', { name: 'Structure review', exact: true }).setChecked(enabled);
+    expect((await saved).ok()).toBe(true);
+    await expect(settings.getByRole('checkbox', { name: 'Structure review', exact: true })).toBeChecked({ checked: enabled });
+    await settings.press('Escape');
+    await expect(result).toBeVisible();
+    if (enabled) await expect(result.getByRole('button', { name: 'Run review', exact: true, includeHidden: true })).toBeEnabled();
+    else await expect(result).toContainText('Review is disabled.');
+    if (!(await result.locator('details').evaluate(e => e.open))) await result.locator('summary').click();
+  };
   const reactivate = async () => {
     // Both off and on recreate views. Isolate the on activation's read budget.
     failReads = false;
     await showDashboard();
-    await dashboard.getByRole('checkbox', { name: 'Structure review', exact: true }).uncheck();
+    await feature(false);
     await expect(result).toContainText('Review is disabled.');
     await expect(page.locator('.docling-tab').getByTestId('comparison-document')).toHaveCount(1);
     reads = 0; failReads = true;
-    await dashboard.getByRole('checkbox', { name: 'Structure review', exact: true }).check();
+    await feature(true);
     await expect(result.getByRole('button', { name: 'Run review', exact: true })).toBeEnabled();
     await page.getByRole('tab', { name: /paper.*Docling comparison/ }).click();
   };

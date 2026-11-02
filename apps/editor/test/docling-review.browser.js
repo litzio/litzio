@@ -22,6 +22,21 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await expect(page.locator('.docling-tab[data-active=true]')).toBeVisible();
   await show();
   const result = dashboard.locator(`[data-result-id="${job.id}"]`);
+  const feature = async enabled => {
+    await dashboard.getByRole('button', { name: 'Settings', exact: true }).click();
+    const settings = page.getByTestId('settings-dialog');
+    await expect(settings.getByRole('checkbox', { name: 'Structure review', exact: true })).toBeEnabled();
+    const saved = page.waitForResponse(r => r.url().endsWith('/api/docling-features') && r.request().method() === 'PUT');
+    await settings.getByRole('checkbox', { name: 'Structure review', exact: true }).setChecked(enabled);
+    expect((await saved).ok()).toBe(true);
+    await expect(settings.getByRole('checkbox', { name: 'Structure review', exact: true })).toBeChecked({ checked: enabled });
+    await settings.press('Escape');
+    await expect(result).toBeVisible();
+    if (enabled) await expect(result.getByRole('button', { name: 'Run review', exact: true, includeHidden: true })).toBeEnabled();
+    else await expect(result).toContainText('Review is disabled.');
+    if (!(await result.locator('details').evaluate(e => e.open))) await result.locator('summary').click();
+  };
+  await result.locator("summary").click();
   await expect(result.getByRole('button', { name: 'Run review', exact: true })).toBeEnabled();
   const started = page.waitForRequest(request => request.url().endsWith('/api/docling-review') && request.method() === 'POST');
   await result.getByRole('button', { name: 'Run review', exact: true }).click();
@@ -135,10 +150,10 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
     await page.screenshot({ path: 'tmp/900-captures/dashboard-640-dark-ko.png' });
     await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); }); await page.reload(); await show();
   }
-  await dashboard.getByRole('checkbox' , { name: 'Structure review', exact: true }).uncheck();
+  await feature(false);
   await expect(result.getByRole('button', { name: 'Run review', exact: true })).toBeDisabled();
   await expect(result).toContainText('Review is disabled.');
-  await dashboard.getByRole('checkbox', { name: 'Structure review', exact: true }).check();
+  await feature(true);
   // Simulate unavailable status only; review decisions above all used the real Host.
   await page.route('**/api/docling-review-agent', route => route.fulfill({ json: null }));
   await expect(dashboard).toContainText('AI agent: Off');

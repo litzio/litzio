@@ -1,3 +1,5 @@
+import { EventEmitter } from "node:events";
+import { folderVersion } from "../server/folder-watch.ts";
 import { listenForFetch, startFetchServer } from "../../../test/helpers/fetch-server.ts";
 import { nativeSource } from "./helpers/document.ts";
 import assert from "node:assert/strict";
@@ -281,6 +283,7 @@ test("every file endpoint denies outside paths without exposing or modifying the
     [documentQuery(`${a}${path.sep}..${path.sep}${path.basename(outside)}${path.sep}document.md`), "GET"],
     ["/api/document", "PUT", { path: path.join(outside, "new.md") }],
     ["/api/document", "POST", body], ["/api/document-source", "POST", body],
+    [`/api/folder-version?${new URLSearchParams({ root: outside })}`, "GET"],
     [`/api/folder?${new URLSearchParams({ root: outside })}`, "GET"],
     [`/api/folder?${new URLSearchParams({ root: a, path: outside })}`, "GET"],
     [`/api/folder-browse?${new URLSearchParams({ path: base })}`, "GET"],
@@ -321,6 +324,7 @@ test("symlink/junction escapes and replaced roots cannot grant file or asset acc
     ["/api/document", "PUT", { path: path.join(link, "new.md") }],
     // A missing name behind the link must look the same as an existing one.
     [documentQuery(path.join(link, "missing.md")), "GET"], ["/api/document", "PUT", { path: path.join(link, "missing", "new.md") }],
+    [`/api/folder-version?${new URLSearchParams({ root: link })}`, "GET"],
     [`/api/folder-browse?${new URLSearchParams({ path: link })}`, "GET"],
     ["/api/folder", "POST", { parent: link, name: "new-folder" }],
     [`/document/image.png?${new URLSearchParams({ path: escaped })}`, "GET"],
@@ -468,4 +472,69 @@ test("HTTP bibliography route reads only admitted declarations within fixed Root
   assert.equal((await (await send(`/api/bibliography?${query}`)).json()).sources[0].text, bib);
   assert.equal(fs.readFileSync(path.join(a, "refs.bib"), "utf8"), bib);
   assert.equal(fs.readFileSync(path.join(b, "refs.bib"), "utf8"), bib);
+});
+
+test("folder notifications distinguish identities that collide as numbers", t => {
+  const root = fs.mkdtempSync(path.join(tmpdir(), "litzio-watch-precision-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const original = fs.statSync(root, { bigint: true });
+  let ino = 2n ** 54n;
+  assert.equal(Number(ino), Number(ino + 1n), "the replacement identities collide as numbers");
+  t.mock.method(fs, "statSync", (_root: fs.PathLike, options?: fs.StatOptions) => ({
+    ...original, dev: options?.bigint ? original.dev : Number(original.dev),
+    ino: options?.bigint ? ino : Number(ino), isDirectory: () => true,
+  }));
+  let closed = 0;
+  t.mock.method(fs, "watch", () => Object.assign(new EventEmitter(), { close() { closed++; } }));
+  const first = folderVersion(root, null).version;
+  assert.equal(folderVersion(root, null).version, first, "the same identity retains its watch");
+  ino++;
+  const replacement = folderVersion(root, null).version;
+  assert.equal(closed, 1, "a distinct bigint identity releases the old watch");
+  assert.notEqual(replacement, first);
+  t.mock.timers.tick(15_000);
+  assert.equal(closed, 2, "the replacement watch expires too");
+});
+
+test("folder notifications debounce versions, renew leases and release watchers", t => {
+  const root = fs.mkdtempSync(path.join(tmpdir(), "litzio-watch-"));
+  t.after(() => { fs.rmSync(root, { recursive: true, force: true }); fs.rmSync(root + "-old", { recursive: true, force: true }); });
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let notify: () => void = () => {};
+  let closed = 0;
+  t.mock.method(fs, "watch", (_root: string, options: fs.WatchOptions, callback: () => void) => {
+    assert.equal(options.recursive, true);
+    assert.equal(options.persistent, false);
+    notify = callback;
+    return Object.assign(new EventEmitter(), { close() { closed++; } });
+  });
+  const first = folderVersion(root, null).version;
+  notify(); t.mock.timers.tick(100); notify(); t.mock.timers.tick(100);
+  assert.equal(folderVersion(root, null).version, first, "a burst remains debounced");
+  t.mock.timers.tick(50);
+  assert.notEqual(folderVersion(root, null).version, first);
+  fs.renameSync(root, root + "-old"); fs.mkdirSync(root);
+  const replacement = folderVersion(root, null).version;
+  assert.notEqual(replacement, first);
+  assert.equal(closed, 1, "replacing the directory releases the watch of its old identity");
+  t.mock.timers.tick(14_999);
+  assert.equal(closed, 1, "checks renew the watch lease");
+  t.mock.timers.tick(1);
+  assert.equal(closed, 2, "an unused watch is closed");
+});
+
+
+test("background folder disappearance is an availability result; manual errors and access denial stay explicit", async t => {
+  const { a, outside, send } = await fixture(t);
+  const missing = path.join(a, "removed");
+  const query = new URLSearchParams({ root: missing, background: "1" });
+  const background = await send(`/api/folder?${query}`);
+  assert.equal(background.status, 200);
+  assert.equal((await background.json()).unavailable, true);
+  assert.equal((await send(`/api/folder?${new URLSearchParams({ root: missing })}`)).status, 400);
+  const version = await send(`/api/folder-version?${query}`);
+  assert.equal(version.status, 200);
+  assert.deepEqual(await version.json(), { unavailable: true });
+  assert.equal((await send(`/api/folder?${new URLSearchParams({ root: outside, background: "1" })}`)).status, 403);
 });

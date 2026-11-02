@@ -6,7 +6,7 @@ import { uiPluginFixture } from "../helpers/ui-plugin.ts";
 import { citationReport, parse } from "@litzio/core";
 import { test as base, expect, chromium, type BrowserContext, type ConsoleMessage, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, statSync, renameSync, unlinkSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { runInNewContext } from "node:vm";
@@ -175,7 +175,7 @@ for (const name of scenarios) {
     if (liveDocling) test.setTimeout(900_000);
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", ...(liveDocling ? ["manual", "docling-live.js"] : [`${name}.browser.js`])), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { brand: typeof brand; pluginFixture: ReturnType<typeof uiPluginFixture>; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: () => void; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown; doclingFixture: { url: string; mode?: (value: import("../helpers/docling-server.ts").DoclingMode) => void; input: string; captures: string; uncertain(): string; submissions?: () => number; changeResult(folder: string, remove: boolean): void; result(folder: string): unknown } }) => Promise<unknown>;
+    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { brand: typeof brand; pluginFixture: ReturnType<typeof uiPluginFixture>; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: () => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown; doclingFixture: { url: string; mode?: (value: import("../helpers/docling-server.ts").DoclingMode) => void; input: string; captures: string; uncertain(): string; submissions?: () => number; changeResult(folder: string, remove: boolean): void; result(folder: string): unknown } }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
@@ -218,6 +218,20 @@ for (const name of scenarios) {
           else { const file = path.join(resolved, "document.md"); writeFileSync(file, readFileSync(file, "utf8") + "\nExternally changed fixture.\n"); }
         },
         result: (folder: string) => JSON.parse(readFileSync(path.join(folder, "conversion-record.json"), "utf8")),
+      },
+      folderFixture: {
+        change: (mode: string) => {
+          const dir = path.join(REPOSITORY_ROOT, "tmp/folder-navigation/guides");
+          const file = path.join(dir, "external.txt");
+          if (mode === "add") {
+            writeFileSync(file, "external"); mkdirSync(path.join(dir, "external-folder"), { recursive: true });
+          } else if (mode === "rename") {
+            renameSync(file, path.join(dir, "renamed.txt"));
+            renameSync(path.join(dir, "external-folder"), path.join(dir, "renamed-folder"));
+          } else for (const name of ["external.txt", "renamed.txt", "external-folder", "renamed-folder"]) {
+            rmSync(path.join(dir, name), { force: true, recursive: true });
+          }
+        },
       },
       textFixture: { replaceNative: source => writeFileSync(path.join(REPOSITORY_ROOT, "tmp/text-mode/native.md"), source) },
       // Simulate an external deletion of this one disposable file. The fixture resets it afterward.

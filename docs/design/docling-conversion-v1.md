@@ -574,16 +574,28 @@ that target to explain Before alongside the proposed operation/value After.
 No new CLI: #766 item 6 retains A's `apply-corrections`; AI execution stays in B.
 
 The expanded sidebar footer now opens **Docling**, a plugin-contributed dashboard
-tab. Command Center also offers **Docling dashboard**. Its five areas are connection
-status, conversion jobs, recent conversion results, feature selection and quick
-actions. It reuses shared Settings controls, themed tokens and the 640px desktop
-layout. Review, statistics, multiple servers, notification settings, plugin splitting,
-distribution and security mechanisms remain outside this concept-validation scope.
+tab. Command Center also offers **Docling dashboard**. Under the owner's #932
+first-pass decision, it uses the available desktop width instead of the Settings
+content width. A summary strip shows server/AI connection dots and running,
+failed, needs-attention and completed counts; count controls filter one result
+table. Attention means failed conversion, stale map or pending non-stale proposals.
+Attention and running phases appear before the table. Convert PDF is the header
+primary action and is also present in an empty state. No charts, mobile layout,
+kanban or review decision panel are introduced.
 
-Connection status shows the configured Host address, checking/connected/not
-connected, last check time, Check again and the conversion Settings link. It
-reuses the version/readiness preflight and discloses its model-readiness limit.
-The last check is view-local, not persisted.
+The table shows original PDF filename, map page count, relative time, map state
+and pending proposal badge. Successful conversions appear once in this table,
+not again as terminal job cards. It initially shows the most recent ten matching
+receipts; Show more reveals another ten without truncating stored history.
+Each row offers Open comparison and a disclosure for document/folder opening,
+unchanged review execution and Clear record. Clearing remains limited to uncertain
+receipts by the runtime; other states explain why it is disabled. Missing and
+unreadable results retain disabled-action explanations. Internal task IDs are hidden.
+Stop waiting explains its server-cancellation limit beside the control.
+
+Connection checks reuse version/readiness preflight. Server configuration,
+model-readiness explanation and feature checkboxes live in Settings › Docling.
+The last connection check is view-local, not persisted.
 
 Jobs read existing runtime receipts filtered by this Host's Roots. Running jobs
 show PDF, phase, elapsed time and Stop waiting only on their owning Host. Terminal
@@ -595,7 +607,7 @@ UUID/fingerprint tombstone. It removes neither output nor staging and states tha
 the server task may continue. Admission and duplicate execution protection remain
 runtime-owned; there is no new persistent store.
 
-Recent results read successful receipts' output folders for document name, map
+Recent results read successful receipts' output folders for map
 page count, completion time and current/stale correspondence. The shared map
 reader checks exact Markdown bytes. Missing folders are marked explicitly with
 disabled open actions; other unreadable result files have a separate error.
@@ -606,8 +618,10 @@ does not restore tabs on startup.
 Conversion and comparison default to enabled. Their flags share the runtime's
 plugin registration record, survive Host restart and explicit re-registration,
 and propagate to other Editors through registration polling. Turning conversion
-off removes its command, PDF file action, dialog and Settings section. Turning
-comparison off removes its tab kind, picker and quick/result actions. Open
+off removes its command, PDF file action and dialog; Settings remains reachable
+to re-enable features, while server controls are hidden. Turning
+comparison off removes its tab kind and picker; the table action explains that
+comparison is disabled. Open
 comparison tabs keep their identity and snapshot in the existing disabled state;
 re-enabling restores them. The dashboard remains available with both features
 off. Detach/reactivate never cancels accepted work. Host operations also reject
@@ -623,7 +637,25 @@ published conversion-folder files. Build and boundary tests check runtime, erase
 and dynamic imports. There is no new Core semantic operation. Headless conversion
 and [correction replay](#approved-correction-records-and-replay-876) use installed Host operations.
 
-Visual review pairs: [1440px before](assets/docling-dashboard-871/before-1440-light-en.png)
+Visual review for #932: [1440px Light](assets/docling-dashboard-932/after-1440-light-en.png),
+[640px Korean Light](assets/docling-dashboard-932/after-640-light-ko.png),
+[640px Korean Dark](assets/docling-dashboard-932/after-640-dark-ko.png),
+and empty states at [1440px Light](assets/docling-dashboard-932/empty-1440-light-en.png),
+[640px Light](assets/docling-dashboard-932/empty-640-light-ko.png),
+[640px Dark](assets/docling-dashboard-932/empty-640-dark-ko.png).
+These use the synthetic conversion service and test AI adapter, Chrome persistent
+profile, DPR 1, zoom 100%, Pretendard on Windows; captures follow font readiness
+with the panel at its top. The 640px table has its own horizontal scroll and the
+page has no horizontal overflow. Alignment, padding, Korean wrapping, themed
+status chips and scroll access were reviewed against the existing Settings and
+P10/P11 controls. Fresh base captures from `6bcde2ab` use the unchanged dashboard scenario and the
+same running/failed/completed fixture states: [1440px Before](assets/docling-dashboard-932/before-1440-light-en.png)
+and [640px Dark Before](assets/docling-dashboard-932/before-640-dark-ko.png).
+The #871 images below remain historical evidence. No claim of real OCR or
+real AI quality follows from these fixtures. The owner-requested B detail panel,
+review decisions, charts and mobile layout remain outside this first pass.
+
+Historical #871 visual review pairs: [1440px before](assets/docling-dashboard-871/before-1440-light-en.png)
 / [after](assets/docling-dashboard-871/after-1440-light-en.png),
 [640px before](assets/docling-dashboard-871/before-640-dark-ko.png)
 / [after](assets/docling-dashboard-871/after-640-dark-ko.png).
