@@ -180,8 +180,8 @@
   /* Hover is visible on both the paper and panels. Open/pressed controls stay neutral. */
   --id-color-surface-hover: #eaedf2;
   --id-color-surface-pressed: #e3e7ee;
-  --id-color-surface-selected: #e9f0ff;
-  --id-color-surface-selected-hover: #e1eaff;
+  --id-color-surface-selected: #f6eaf5;
+  --id-color-surface-selected-hover: #f0e2ee;
   --id-color-surface-info: var(--id-color-surface-subtle);
   --id-color-surface-danger: #fff1f0;
   --id-color-surface-warning: #fff8ed;
@@ -193,7 +193,7 @@
   --id-color-text-selected: var(--id-color-accent-hover);
   --id-color-text-readonly: var(--id-color-text-muted);
   --id-color-text-on-accent: #ffffff;
-  /* Adjustable accent values: Blue is the default. The preset scopes below override only
+  /* Adjustable accent values: Plum is the default. The preset scopes below override only
    * these four values. Actions, focus, selection, links and generated numbers share them;
    * informational states stay neutral; danger and warning keep their separate meanings. */
   --id-color-accent-blue: #315fd4;
@@ -202,9 +202,9 @@
   --id-color-accent-teal: #076f65;
   --id-color-accent-green: #346d38;
   --id-color-accent-graphite: #52616b;
-  --id-color-interaction: var(--id-color-accent-blue);
+  --id-color-interaction: var(--id-color-accent-plum);
   --id-color-accent: var(--id-color-interaction);
-  --id-color-accent-hover: #2449a6;
+  --id-color-accent-hover: #6d2c69;
   --id-color-interaction-soft: var(--id-color-surface-selected);
   --id-color-border: #d9dde4;
   --id-color-border-subtle: #e7eaf0;
@@ -286,11 +286,11 @@
   --id-color-surface-selected-hover: #ebe3f7;
 }
 
-:root[data-accent="plum"] {
-  --id-color-interaction: var(--id-color-accent-plum);
-  --id-color-accent-hover: #6d2c69;
-  --id-color-surface-selected: #f6eaf5;
-  --id-color-surface-selected-hover: #f0e2ee;
+:root[data-accent="blue"] {
+  --id-color-interaction: var(--id-color-accent-blue);
+  --id-color-accent-hover: #2449a6;
+  --id-color-surface-selected: #e9f0ff;
+  --id-color-surface-selected-hover: #e1eaff;
 }
 
 :root[data-accent="teal"] {
@@ -334,8 +334,8 @@
   --id-color-surface-muted: #242a33;
   --id-color-surface-hover: #303743;
   --id-color-surface-pressed: #37404d;
-  --id-color-surface-selected: #253954;
-  --id-color-surface-selected-hover: #2d4260;
+  --id-color-surface-selected: #432e40;
+  --id-color-surface-selected-hover: #50384c;
   --id-color-surface-danger: #422b30;
   --id-color-surface-warning: #3e3323;
   --id-color-text: #edf0f5;
@@ -349,8 +349,8 @@
   --id-color-accent-teal: #6dd6c7;
   --id-color-accent-green: #9bce91;
   --id-color-accent-graphite: #b5c6d1;
-  --id-color-interaction: var(--id-color-accent-blue);
-  --id-color-accent-hover: #bdd2ff;
+  --id-color-interaction: var(--id-color-accent-plum);
+  --id-color-accent-hover: #efc3e9;
   --id-color-border: #737f90;
   --id-color-border-subtle: #363e4a;
   --id-color-border-strong: #8491a3;
@@ -369,11 +369,11 @@
   --id-color-surface-selected-hover: #44395e;
 }
 
-:root[data-theme="dark"][data-accent="plum"] {
-  --id-color-interaction: var(--id-color-accent-plum);
-  --id-color-accent-hover: #efc3e9;
-  --id-color-surface-selected: #432e40;
-  --id-color-surface-selected-hover: #50384c;
+:root[data-theme="dark"][data-accent="blue"] {
+  --id-color-interaction: var(--id-color-accent-blue);
+  --id-color-accent-hover: #bdd2ff;
+  --id-color-surface-selected: #253954;
+  --id-color-surface-selected-hover: #2d4260;
 }
 
 :root[data-theme="dark"][data-accent="teal"] {
