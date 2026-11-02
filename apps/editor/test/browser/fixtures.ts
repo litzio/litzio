@@ -96,7 +96,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "ref.md", create: () => nativeSource("# Reference\n\n:::{figure} ./diagram.svg\n:alt: Figure\n\nCaption.\n:::\n") },
     { name: "second-ref.md", create: () => nativeSource("# Another reference\n\n:::{figure} diagram.svg\n:name: second\n:alt: Figure\n\nSecond caption.\n:::\n") },
     { name: "foreign.md", create: () => "# Ordinary Markdown\n\n![Unmanaged](diagram.svg)\n" },
-  ], scenarios: ["file-actions"] },
+  ], scenarios: ["file-actions", "ai-result"] },
   "table-caption": { files: [{ name: "caption.md", create: () => nativeSource(
     "# Table captions\n\nBefore.\n\n:::{figure}\n:name: fig-a\n:::\n\n" +
     ":::{table} **Results** with {numref}`fig-a`, {cite:p}`alpha` and $x^2$\n:name: tbl-a\n\n| Header |\n| --- |\n| Cell |\n:::\n\nAfter.\n") }], scenarios: ["table-caption"] },

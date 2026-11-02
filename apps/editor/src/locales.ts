@@ -1,6 +1,14 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Undo deletes the created file.": "Undo deletes the created file.",
+  "The file changed during the operation. Review it and try again.": "The file changed during the operation. Review it and try again.",
+  "The created file is outside the opened folders.": "The created file is outside the opened folders.",
+  "Undo document creation?": "Undo document creation?",
+  "“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?": "“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?",
+  "Document created": "Document created",
+  "Created file deleted": "Created file deleted",
+  "Undo creation": "Undo creation",
   "Enabled": "Enabled",
   "Plugins": "Plugins",
   "Installed plugins stay pinned until you register them again.": "Installed plugins stay pinned until you register them again.",
@@ -1022,6 +1030,14 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Undo deletes the created file.": "되돌리면 이번에 만든 파일이 삭제됩니다.",
+  "The file changed during the operation. Review it and try again.": "작업 중 파일이 다시 바뀌었습니다. 확인 후 다시 시도하세요.",
+  "The created file is outside the opened folders.": "만든 파일이 현재 열린 폴더 범위 밖에 있습니다.",
+  "Undo document creation?": "만든 문서를 되돌릴까요?",
+  "“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?": "“{{name}}”에 생성 이후 변경 사항이 있습니다. 파일을 삭제하고 저장 전 수정과 복구 기록을 버릴까요?",
+  "Document created": "문서를 만들었습니다",
+  "Created file deleted": "만든 파일을 삭제했습니다",
+  "Undo creation": "되돌리기",
   "Enabled": "켜짐",
   "Plugins": "플러그인",
   "Installed plugins stay pinned until you register them again.": "설치된 플러그인은 다시 등록하기 전까지 고정됩니다.",

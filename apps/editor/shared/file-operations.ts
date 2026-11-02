@@ -1,4 +1,8 @@
-export type FileOperationRequest = { root: string; path: string };
+export type FileIdentity = { dev: string; ino: string; birthtimeMs: string };
+export function fileIdentity(stat: { dev: bigint; ino: bigint; birthtimeMs: bigint }): FileIdentity {
+  return { dev: stat.dev.toString(), ino: stat.ino.toString(), birthtimeMs: stat.birthtimeMs.toString() };
+}
+export type FileOperationRequest = { root: string; path: string; expectedRevision?: string; expectedIdentity?: FileIdentity; checkOnly?: boolean };
 export type RenameFileRequest = FileOperationRequest & {
   /** The stem only. The Host preserves the original extension. */
   name: string;
@@ -18,4 +22,9 @@ export function validFileStem(name: string): boolean {
     !/[<>:"/\\|?*\u0000-\u001f\u007f]/.test(name) && !/[. ]$/.test(name) &&
     !/^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(name) &&
     !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(name);
+}
+
+/** A changed disk or any local draft requires one explicit deletion confirmation. */
+export function creationUndoNeedsConfirmation(created: string, current: string, dirty: boolean): boolean {
+  return created !== current || dirty;
 }
