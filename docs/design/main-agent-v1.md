@@ -172,7 +172,11 @@ pointer or the focused separator's arrow keys. An explicit width is remembered
 in origin-local preferences. Below 1100px it fills the space below the title
 strip as an overlay; at the supported minimum 640px it is full width. Tab stays
 inside the overlay, Escape/Close returns to the previous editing focus, and
-ordinary editor state is retained. Plugin removal hides the entry and panel;
+ordinary editor state is retained. The composer remains disabled until settings,
+diagnostics and any conversation resumption succeed. Initial focus completes at
+that point only while the panel is still open and no later focus move has occurred;
+slow setup does not steal focus from a control the user selected meanwhile.
+Plugin removal hides the entry and panel;
 Codex being off/unavailable or needing login gives an AI Settings entry instead
 of an enabled composer. The same Settings page provides Codex diagnostics.
 
@@ -199,11 +203,15 @@ message and a marked read-only JSON context; the UI hides the context part when
 hydrating history. `document` response language follows the supplied document,
 or the user's language when none is open.
 
-A single nonoverlapping 600ms snapshot poll while the panel is open delivers
+A single nonoverlapping 600ms snapshot poll while the panel is open and the tab
+is visible delivers
 message deltas, tool names/statuses, plans and reasoning **summaries**. Raw
 reasoning content is never included in the UI snapshot. Polling reuses the
 existing JSON transport and adds no streaming infrastructure. It pauses during
-an action and ignores responses after closing/switching. Running work continues
+an action, while the tab is hidden, and while Codex is off or setup is incomplete
+or failed. Visibility restoration schedules one loop; repeated visibility events
+cannot overlap an in-flight snapshot. It ignores responses after closing/switching
+or while hidden. Running work continues
 when the panel closes. Model and effort are locked while running; a submitted
 message uses `turn/steer` with the expected turn ID. Stop uses `turn/interrupt`
 and retains partial results. Finished work details collapse to one line.
@@ -216,7 +224,9 @@ remain text; existing-document changes are suggestions with no Apply action.
 
 The browser scenario uses fake metadata/conversation responses to check settings
 language persistence versus per-conversation overrides, width controls,
-open/close/focus, unsaved Core Source context, deltas, steering, interruption,
+open/close/focus (including first-open keyboard input and delayed setup without
+focus theft), hidden/off/failed-setup polling suspension and nonoverlapping
+visibility restoration, unsaved Core Source context, deltas, steering, interruption,
 collapsed completion, history resumption, token usage, disabled/login/missing
 states and the 640px Korean Dark overlay. Headless tests run real newline RPC
 against the fixture, including scope, persistent metadata, paginated history,

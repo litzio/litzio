@@ -12,7 +12,9 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
     { id: 'luna', model: 'gpt-6-luna', displayName: 'GPT Luna', description: 'Fast model', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }];
   let refreshes = 0, connectionAvailable = true;
   const settingsWrites = [];
-  await page.route('**/api/ai-agent-settings*', route => {
+  let settingsGate;
+  await page.route('**/api/ai-agent-settings*', async route => {
+    if (route.request().method() === 'GET') await settingsGate;
     if (route.request().method() === 'PUT') {
       const next = route.request().postDataJSON(); settingsWrites.push(next);
       if (!connectionAvailable && (next.model !== settings.model || next.reasoningEffort !== settings.reasoningEffort)) return route.fulfill({ status: 503, json: { error: 'Codex is disconnected.' } });
@@ -145,13 +147,19 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
   await page.getByTestId('settings-back').click();
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByTestId('save').click();
+  await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'saved');
+  await page.reload();
+  await expect(editor).toContainText('still editable');
+  await editor.locator('p').first().click(); await page.keyboard.press('End');
+  await page.keyboard.type(' fresh assistant draft');
   const sent = [], conversations = new Map();
-  let selected, sequence = 0, setupMode = 'ready';
+  let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate;
   await page.unroute('**/api/ai-agent-diagnostics*');
   await page.route('**/api/ai-agent-diagnostics*', route => route.fulfill({ json: { provider: 'codex', connected: setupMode !== 'missing',
     error: setupMode === 'missing' ? 'Codex CLI is unavailable on the Host.' : undefined,
     account: setupMode === 'login' ? null : { type: 'chatgpt' } } }));
-  await page.route('**/api/ai-agent-conversations*', route => {
+  await page.route('**/api/ai-agent-conversations*', async route => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
       if (body.action === 'resume') selected = conversations.get(body.id);
@@ -174,6 +182,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
       return route.fulfill({ json: selected });
     }
     const id = route.request().url().split('?id=')[1];
+    if (id) { snapshots++; await snapshotGate; }
     return route.fulfill({ json: id ? conversations.get(decodeURIComponent(id)) : [...conversations.values()].map(({ turns, tokenUsage, ...info }) => info) });
   });
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/closed-1440-light-en.png' });
@@ -182,17 +191,27 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
     key: 'Process', code: 'KeyY', keyCode: 229, ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true,
   })));
   expect(await page.getByTestId('assistant-panel').isVisible()).toBe(false);
-  await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  let releaseSettings;
+  settingsGate = new Promise(resolve => { releaseSettings = resolve; });
+  await page.keyboard.press('Control+Shift+Y');
   const panel = page.getByTestId('assistant-panel');
   await expect(panel).toBeVisible();
   const message = panel.getByRole('textbox', { name: 'Message assistant' });
+  await expect(message).toBeDisabled();
+  releaseSettings(); settingsGate = undefined;
   await expect(message).toBeEnabled();
+  expect(await message.evaluate(element => document.activeElement === element), 'First open focuses the enabled assistant input').toBe(true);
+  await page.keyboard.type('Assistant keyboard input');
+  expect(await message.inputValue(), 'Typing after opening goes to the assistant').toBe('Assistant keyboard input');
+  expect(await editor.textContent()).not.toContain('Assistant keyboard input');
+  await message.fill('');
   await expect(panel.getByRole('button', { name: 'Conversation model and language' })).toContainText('gpt-6.1-sol');
   await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveText('日本語');
   await panel.getByRole('button', { name: 'Response language', exact: true }).click();
   await page.getByRole('combobox', { name: 'Response language', exact: true }).selectOption('en');
   await page.keyboard.press('Escape');
   await expect(panel).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Conversation model and language' })).toBeFocused();
   expect(settings.responseLanguage).toBe('ja');
   const initialWidth = await panel.evaluate(element => element.getBoundingClientRect().width);
   const resize = panel.getByRole('separator'); await resize.focus(); await page.keyboard.press('ArrowLeft');
@@ -224,6 +243,61 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   // Assert direct completion state, without a reload or a polling assertion masking it.
   expect(await panel.locator('details').evaluate(element => element.open)).toBe(false);
   expect(await panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false }).isVisible()).toBe(true);
+  // Inject visibility explicitly: headless tab activation does not reliably hide a page.
+  const visibility = async value => page.evaluate(value => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value });
+    document.dispatchEvent(new Event('visibilitychange'));
+  }, value);
+  await visibility('hidden');
+  // Let any already admitted snapshot settle, then observe two polling intervals.
+  await page.waitForTimeout(700);
+  const hiddenSnapshots = snapshots;
+  await page.waitForTimeout(1300);
+  expect(snapshots, 'Hidden tabs stop snapshot requests').toBe(hiddenSnapshots);
+  let releaseSnapshot;
+  snapshotGate = new Promise(resolve => { releaseSnapshot = resolve; });
+  await visibility('visible');
+  await expect.poll(() => snapshots).toBeGreaterThan(hiddenSnapshots);
+  const resumedSnapshots = snapshots;
+  await visibility('hidden'); await visibility('visible'); await visibility('visible');
+  await page.waitForTimeout(1300);
+  expect(snapshots, 'Visibility changes do not overlap an in-flight snapshot').toBe(resumedSnapshots);
+  releaseSnapshot(); snapshotGate = undefined;
+  await expect.poll(() => snapshots).toBeGreaterThan(resumedSnapshots);
+  await panel.getByRole('button', { name: 'Close assistant' }).click();
+  settings.enabled = false;
+  await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  await expect(panel.getByText('Codex is disabled.', { exact: true })).toBeVisible();
+  const offSnapshots = snapshots;
+  await page.waitForTimeout(1300);
+  expect(snapshots, 'Disabled Codex stops snapshot requests').toBe(offSnapshots);
+  await panel.getByRole('button', { name: 'Close assistant' }).click();
+  settings.enabled = true; setupMode = 'login';
+  await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  await expect(panel.getByText('Sign in to Codex to start a conversation.', { exact: true })).toBeVisible();
+  const setupSnapshots = snapshots;
+  await page.waitForTimeout(1300);
+  expect(snapshots, 'Setup failure stops snapshot requests').toBe(setupSnapshots);
+  await panel.getByRole('button', { name: 'Close assistant' }).click();
+  setupMode = 'ready';
+  settingsGate = new Promise(resolve => { releaseSettings = resolve; });
+  await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  await expect(message).toBeDisabled();
+  await resize.focus();
+  releaseSettings(); settingsGate = undefined;
+  await expect(message).toBeEnabled();
+  expect(await resize.evaluate(element => document.activeElement === element), 'Setup completion preserves a later focus move').toBe(true);
+  await panel.getByRole('button', { name: 'Close assistant' }).click();
+  settingsGate = new Promise(resolve => { releaseSettings = resolve; });
+  await page.keyboard.press('Control+Shift+Y');
+  await expect(message).toBeDisabled();
+  await panel.getByRole('button', { name: 'Close assistant' }).click();
+  await expect(editor).toBeFocused();
+  releaseSettings(); settingsGate = undefined;
+  // A new opening gets its own setup; the earlier response cannot focus a closed panel.
+  await page.keyboard.press('Control+Shift+Y');
+  await expect(message).toBeEnabled();
+  expect(await message.evaluate(element => document.activeElement === element)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/stopped-1440-light-en.png' });
   await panel.getByRole('button', { name: 'New conversation' }).click();
   await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveText('日本語');
@@ -272,6 +346,8 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await editor.locator('p').first().click();
   await page.getByRole('button', { name: '비서', exact: true }).click();
   await expect(panel).toHaveAttribute('aria-modal', 'true');
+  await expect(panel.getByRole('textbox')).toBeEnabled();
+  expect(await panel.getByRole('textbox').evaluate(element => document.activeElement === element)).toBe(true);
   expect(await panel.evaluate(element => ({ width: element.getBoundingClientRect().width, overflow: element.scrollWidth > element.clientWidth }))).toEqual({ width: 640, overflow: false });
   expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/assistant-640-dark-ko.png' });

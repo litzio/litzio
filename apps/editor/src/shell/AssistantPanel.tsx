@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquare, Plus, History, X, ArrowUp, Square } from "lucide-react";
 import { AI_AGENT, AI_TASK, type AiAgentSettings, type AiConversation, type AiConversationInfo, type AiConversationInput, type AiModels, type AiResponseLanguage, type AiDiagnostics } from "@litzio/plugin-api/ai";
@@ -32,16 +32,21 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
   const [message, setMessage] = useState("");
   const [problem, setProblem] = useState("");
   const [setup, setSetup] = useState("");
+  const [ready, setReady] = useState(false);
   const [pending, setPending] = useState(false);
   const [choicesOpen, setChoicesOpen] = useState(false);
   const choicesAnchor = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
+  const initialFocus = useRef(false);
   const current = useRef(conversation); current.current = conversation;
   const active = conversation?.turns.some(turn => turn.status === "inProgress") ?? false;
   const defaults = (value: AiAgentSettings) => { setModel(value.model); setEffort(value.reasoningEffort); setLanguage(value.responseLanguage ?? (i18n.language === "ko" ? "ko" : "en")); };
   useEffect(() => {
     if (!open) return;
-    input.current?.focus();
+    initialFocus.current = true;
+    // A later focus move belongs to the user or another UI, even if setup is slow.
+    const cancelInitialFocus = () => { initialFocus.current = false; };
+    document.addEventListener("focusin", cancelInitialFocus);
     let alive = true;
     setSetup("");
     void request<AiAgentSettings>(AI_TASK.settingsRoute).then(async value => {
@@ -55,29 +60,51 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       const [catalog, diagnostics] = await Promise.all([request<AiModels>(AI_AGENT.modelsRoute), request<AiDiagnostics>(AI_AGENT.diagnosticsRoute)]);
       if (!alive) return;
       setModels(catalog);
-      if (!diagnostics.connected) setSetup(diagnostics.error ?? "Codex CLI is unavailable on the Host.");
-      else if (!diagnostics.account) setSetup("Sign in to Codex to start a conversation.");
-      else if (current.current) {
+      if (!diagnostics.connected) { setSetup(diagnostics.error ?? "Codex CLI is unavailable on the Host."); return; }
+      if (!diagnostics.account) { setSetup("Sign in to Codex to start a conversation."); return; }
+      if (current.current) {
         const id = current.current.id;
         const resumed = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id,
           responseLanguage: current.current.responseLanguage });
         if (alive && current.current?.id === id) setConversation(resumed);
       }
+      if (alive) setReady(true);
     }).catch(error => { if (alive) setSetup(error.message); });
-    return () => { alive = false; };
-  }, [open]);
-  useEffect(() => {
-    if (!open || !conversation?.id || pending) return;
-    let alive = true, timer: ReturnType<typeof setTimeout>;
-    const id = conversation.id;
-    const poll = async () => {
-      try { const next = await request<AiConversation>(`${AI_AGENT.conversationsRoute}?id=${encodeURIComponent(id)}`); if (alive) setConversation(next); }
-      catch (error) { if (alive) setProblem((error as Error).message); }
-      if (alive) timer = setTimeout(poll, 600);
+    return () => {
+      alive = false; initialFocus.current = false; setReady(false);
+      document.removeEventListener("focusin", cancelInitialFocus);
     };
-    timer = setTimeout(poll, 600);
-    return () => { alive = false; clearTimeout(timer); };
-  }, [open, conversation?.id, pending]);
+  }, [open]);
+  useLayoutEffect(() => {
+    if (open && ready && settings?.enabled && !setup && initialFocus.current) {
+      initialFocus.current = false;
+      input.current?.focus();
+    }
+  }, [open, ready, settings?.enabled, setup]);
+  useEffect(() => {
+    if (!open || !conversation?.id || pending || !ready || !settings?.enabled || setup) return;
+    let alive = true, polling = false, timer: ReturnType<typeof setTimeout> | undefined;
+    const id = conversation.id;
+    const schedule = () => {
+      if (alive && document.visibilityState === "visible" && !polling && timer === undefined) timer = setTimeout(poll, 600);
+    };
+    const poll = async () => {
+      timer = undefined;
+      if (!alive || document.visibilityState !== "visible") return;
+      polling = true;
+      try { const next = await request<AiConversation>(`${AI_AGENT.conversationsRoute}?id=${encodeURIComponent(id)}`); if (alive && document.visibilityState === "visible") setConversation(next); }
+      catch (error) { if (alive && document.visibilityState === "visible") setProblem((error as Error).message); }
+      polling = false;
+      schedule();
+    };
+    const visibilityChanged = () => {
+      if (document.visibilityState !== "visible") { clearTimeout(timer); timer = undefined; }
+      else schedule();
+    };
+    document.addEventListener("visibilitychange", visibilityChanged);
+    schedule();
+    return () => { alive = false; clearTimeout(timer); document.removeEventListener("visibilitychange", visibilityChanged); };
+  }, [open, conversation?.id, pending, ready, settings?.enabled, setup]);
   useEffect(() => { const element = transcript.current; if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 180) element.scrollTop = element.scrollHeight; }, [conversation]);
   const run = async (action: () => Promise<void>) => {
     if (pending) return;
@@ -140,7 +167,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
       {models && !catalogModel ? <p role="status">{i18n.t("Choose a model and reasoning effort from the available list.")}</p> : null}
       <textarea ref={input} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => setMessage(event.target.value)}
-        disabled={!settings?.enabled || !!setup} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
+        disabled={!ready || !settings?.enabled || !!setup} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
       <div className="assistant-controls">
         <Button ref={choicesAnchor} type="button" variant="outline" size="sm" disabled={active || pending} aria-label={i18n.t("Conversation model and language")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{model || "Codex"} · {effort}</Button>
         <Button type="button" variant="outline" size="sm" aria-label={i18n.t("Response language")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{language === "ko" ? "한국어" : language === "ja" ? "日本語" : language === "en" ? "English" : i18n.t("Follow document language")}</Button>
@@ -161,7 +188,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
         </TooltipTrigger><TooltipContent>{usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} tokens${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}</TooltipContent></Tooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
         {active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async () => setConversation(await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "interrupt", id: conversation!.id })))}><Square /></Button> : null}
-        <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || !message.trim() || !catalogModel || !settings?.enabled || !!setup}><ArrowUp /></Button>
+        <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || !ready || !message.trim() || !catalogModel || !settings?.enabled || !!setup}><ArrowUp /></Button>
       </div>
     </form>
   </aside>;
