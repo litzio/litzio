@@ -13,7 +13,7 @@ export interface Adapter {
 }
 /** One execution policy. Future broader access belongs here, not in consumers. */
 export const CODEX_POLICY = {
-  model: "gpt-6.1-sol", windowsSandbox: "mxc", viewImage: false,
+  windowsSandbox: "mxc", viewImage: false,
   filesystem: { ":root": "deny", ":minimal": "read", ":workspace_roots": { ".": "read" } },
   network: false,
   features: { shell_tool: true, unified_exec: true, multi_agent: false, apps: false, plugins: false,
@@ -46,9 +46,9 @@ export function codexPermissionArgs(): string[] {
 }
 export function codexArgs(work: AiWorkerRequest): string[] {
   return ["exec", "--ignore-user-config", "--ignore-rules", "--skip-git-repo-check", "--ephemeral", "--json",
-    "--model", CODEX_POLICY.model, "--cd", work.temporary.snapshot,
+    "--model", work.execution.model, "--cd", work.temporary.snapshot,
     "--output-schema", path.join(work.temporary.control, "schema.json"), "--output-last-message", path.join(work.temporary.control, "answer.json"),
-    "-c", 'model_reasoning_effort="low"', "-c", 'approval_policy="never"', ...codexPermissionArgs(),
+    "-c", `model_reasoning_effort=${JSON.stringify(work.execution.reasoningEffort)}`, "-c", 'approval_policy="never"', ...codexPermissionArgs(),
     "-c", "project_doc_max_bytes=0", "-c", 'web_search="disabled"',
     ...Object.entries(CODEX_POLICY.features).flatMap(([name, enabled]) => ["-c", `features.${name}=${enabled}`]),
     "-c", `tools.view_image=${CODEX_POLICY.viewImage}`, "-c", 'shell_environment_policy.inherit="core"', "-c", "shell_environment_policy.use_profile=false",
@@ -103,6 +103,7 @@ export function fakeAdapter(mode: string): Adapter {
   return {
     async status() { return { adapter: "Fake", available: true, loginRequired: false }; },
     async run(work, signal) {
+      if (mode === "execution") return JSON.stringify({ execution: work.execution });
       if (mode === "provider") throw new AdapterError("provider", "Fixture provider failed.");
       if (mode === "hang") await new Promise<void>((_, reject) => {
         const stop = () => reject(new AdapterError("cancelled", "Fixture stopped."));
@@ -116,7 +117,7 @@ export function fakeAdapter(mode: string): Adapter {
           signal.addEventListener("abort", () => { clearTimeout(timer); reject(new AdapterError("cancelled", "Fixture stopped.")); }, { once: true });
         });
         const source = JSON.parse(await readFile(path.join(work.temporary.snapshot, "document.json"), "utf8"));
-        return JSON.stringify({ proposals: [1, 4, 5].map((i) => ({ self_ref: `#/texts/${i}`, operation: "heading", value: { level: 3 },
+        return JSON.stringify({ summary: "Checked headings, page-split paragraphs and header/footer classification. Only supported changes are proposed. 제목, 페이지 간 문단 분리와 머리말·꼬리말을 확인했습니다.", proposals: [1, 4, 5].map((i) => ({ self_ref: `#/texts/${i}`, operation: "heading", value: { level: 3 },
           reason: "Synthetic suggestion for UI verification. 긴 한국어 이유와 원문 조각의 줄바꿈을 확인하는 합성 제안입니다.",
           evidence: [{ page: 1, text: source.texts[i].text }] })) });
       }

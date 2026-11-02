@@ -41,6 +41,16 @@ The empty-state help therefore describes only file browsing, separately from the
 
 ## Structure review panel (#900)
 
+The dashboard summary and comparison panel show the latest execution's model,
+reasoning effort and elapsed seconds, mandatory AI summary and
+“AI proposals N / validation rejected M”. Counts belong to that execution and
+include proposals rejected by domain validation, independently of pending/approved
+state and retained older decisions. Rejected validation reasons reuse Cannot apply.
+The result schema requires nonempty `summary` explaining what was checked and why
+there are no or few proposals. The task in `structure-review.json` retains this
+summary, pinned execution settings, timing and counts; feature code never chooses
+a model. Settings and receipt semantics follow the [AI service](plugin-runtime-v1.md#ai-task-service-880).
+
 Below the two comparison panes, a bounded panel lists pending, approved, rejected
 and inapplicable proposals, with stale source separately marked. The proposal
 list and selected details scroll independently, keeping a lower selection visible.
@@ -275,3 +285,19 @@ preference, shared with ordinary Edit and Read. The command center targets the
 active comparison tab's converted-document path. Toggling changes local device
 preferences and updates the mounted reading surface without a document transaction
 or a plugin import of editor internals. No new plugin UI option is necessary.
+
+
+### Review summary verification (#930)
+
+`docling-review` checks summary, execution settings and 3 proposed / 1 invalid in both
+the dashboard and comparison while preserving approval/undo direct-DOM assertions.
+Manual review checked alignment, wrapping and clipping in the captures below. Before
+captures use the unchanged UI at base 022278d5; after captures use this change. Both
+use the synthetic fake adapter, not an AI quality assessment.
+
+| Surface | 1440px Light English | 640px Dark Korean |
+| --- | --- | --- |
+| Comparison before | [Capture](assets/ai-settings-930/before-review-1440-light-en.png) | [Capture](assets/ai-settings-930/before-review-640-dark-ko.png) |
+| Comparison after | [Capture](assets/ai-settings-930/after-review-1440-light-en.png) | [Capture](assets/ai-settings-930/after-review-640-dark-ko.png) |
+| Dashboard before | [Capture](assets/ai-settings-930/before-dashboard-1440-light-en.png) | [Capture](assets/ai-settings-930/before-dashboard-640-dark-ko.png) |
+| Dashboard after | [Capture](assets/ai-settings-930/after-dashboard-1440-light-en.png) | [Capture](assets/ai-settings-930/after-dashboard-640-dark-ko.png) |

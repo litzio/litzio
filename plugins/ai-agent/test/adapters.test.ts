@@ -15,7 +15,7 @@ test("snapshot contains only requested, hashed files; control files stay separat
   try {
     const source = path.join(root, "source.txt"); writeFileSync(source, "requested material"); writeFileSync(path.join(root, "outside.txt"), "outside sentinel");
     for (const outcome of ["success", "failure", "cancelled"]) {
-      const work: AiWorkerRequest = { type: "ai-task", request: { id: "test", caller: "fixture", task: "inspect", baseline: "opaque", instruction: "Feature instruction", input: { small: true }, schema: { type: "object" }, materials: [{ path: source, name: "data.txt" }] },
+      const work: AiWorkerRequest = { type: "ai-task", execution: { model: "fixture-model", reasoningEffort: "high" }, request: { id: "test", caller: "fixture", task: "inspect", baseline: "opaque", instruction: "Feature instruction", input: { small: true }, schema: { type: "object" }, materials: [{ path: source, name: "data.txt" }] },
         materials: [{ path: source, name: "data.txt", sha256: createHash("sha256").update(readFileSync(source)).digest("hex") }], temporary: { snapshot: path.join(root, `${outcome}-snapshot`), control: path.join(root, `${outcome}-control`) } };
       const controller = new AbortController();
       const run = runInSnapshot(work, { async status() { throw new Error("unused"); }, async run(value, signal) {
@@ -23,6 +23,8 @@ test("snapshot contains only requested, hashed files; control files stay separat
         assert.equal(readFileSync(path.join(value.temporary.snapshot, "data.txt"), "utf8"), "requested material");
         assert.deepEqual(readdirSync(value.temporary.control), ["schema.json"]);
         const args = codexArgs(value);
+        assert.equal(args[args.indexOf("--model") + 1], "fixture-model");
+        assert.ok(args.includes('model_reasoning_effort="high"'));
         assert.equal(args[args.indexOf("--cd") + 1], value.temporary.snapshot);
         for (const flag of ["--output-schema", "--output-last-message"]) assert.equal(path.dirname(args[args.indexOf(flag) + 1]), value.temporary.control);
         const prompt = taskPrompt(value);
@@ -71,7 +73,7 @@ test("Codex's actual exec harness retains the core shell environment and reads t
   await listenForFetch(server);
   let child: ReturnType<typeof spawn> | undefined;
   try {
-    const args = codexArgs({ type: "ai-task", request: {} as any, materials: [], temporary: { snapshot, control } }); args.pop();
+    const args = codexArgs({ type: "ai-task", execution: { model: "fixture-model", reasoningEffort: "high" }, request: {} as any, materials: [], temporary: { snapshot, control } }); args.pop();
     args.push("-c", 'model_provider="fixture"', "-c", 'model_providers.fixture.name="Fixture"', "-c", 'model_providers.fixture.wire_api="responses"',
       "-c", `model_providers.fixture.base_url="http://127.0.0.1:${(server.address() as { port: number }).port}/v1"`, "-c", "model_providers.fixture.request_max_retries=0", "-c", "model_providers.fixture.stream_max_retries=0", "-");
     child = spawn("codex", args, { cwd: snapshot, windowsHide: true, stdio: ["pipe", "ignore", "ignore"] });

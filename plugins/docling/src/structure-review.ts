@@ -3,7 +3,7 @@ import { parseSourceJson, type SourceDocument } from "./conversion/source.ts";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import type { AiFailure, AiTaskRecord, AiTaskService, JsonValue } from "@litzio/plugin-api/ai";
+import type { AiExecutionSettings, AiFailure, AiTaskRecord, AiTaskService, JsonValue } from "@litzio/plugin-api/ai";
 import type { PluginHostContext } from "@litzio/plugin-api/host";
 import { checkDoclingCorrection, type DoclingCorrection, type DoclingCorrections } from "./conversion/corrections.ts";
 import { addDoclingCorrection, PublishedCorrectionCleanupError, readFolderCorrections, removeDoclingCorrection, updateConversionFolder } from "./conversion/correction-files.ts";
@@ -27,6 +27,7 @@ export type ReviewProposal = {
   state: ProposalState; validationError?: string; history: { state: "approved" | "rejected" | "pending"; at: string }[];
 };
 type ReviewTask = {
+  execution?: AiExecutionSettings; durationMs?: number; summary?: string; proposalCount?: number; invalidCount?: number;
   id: string; owner: string; baseline: Baseline; startedAt: string; finishedAt?: string;
   status: "running" | "success" | "error" | "cancelled" | "uncertain"; failure?: AiFailure; error?: string;
 };
@@ -49,8 +50,8 @@ const suggestionSchema = {
     evidence: { type: "array", minItems: 1, items: objectSchema({ page: { type: "integer", minimum: 1 }, text: { type: "string", minLength: 1 } }) },
   })),
 };
-export const structureReviewSchema = objectSchema({ proposals: { type: "array", items: suggestionSchema } });
-const validateResult = new Ajv({ strict: true }).compile<{ proposals: ReviewSuggestion[] }>(structureReviewSchema);
+export const structureReviewSchema = objectSchema({ summary: { type: "string", minLength: 1 }, proposals: { type: "array", items: suggestionSchema } });
+const validateResult = new Ajv({ strict: true }).compile<{ summary: string; proposals: ReviewSuggestion[] }>(structureReviewSchema);
 const validateSuggestion = new Ajv({ strict: true }).compile<ReviewSuggestion>(suggestionSchema);
 export const structureReviewInstruction = `Review the WHOLE original DoclingDocument using the current approved corrections and rejected proposals.
 Read only the needed parts of document.json, corrections.json and rejected-proposals.json; use search or jq rather than dumping the whole document.
@@ -59,6 +60,7 @@ Use original self_ref values. Account for the ordered current corrections and do
 Return proposals with self_ref, operation/value matching the corrections format, a reason, and evidence containing page numbers and literal original text fragments.
 heading {level:1..6} sets a heading; {level:null} makes body text. merge-paragraphs {next:"#/texts/N"} merges consecutive body leaves across consecutive pages. furniture {label:"text"|"page_header"|"page_footer"} changes label/layer.
 Targets must be nonempty unassociated text leaves. A classification conflicts with an earlier classification of that ref. Consumed merge continuations cannot be targeted. Do not assume that label, content_layer and reading-tree placement are the same fact.
+Always return a nonempty summary explaining what you checked and why there are no or few proposals.
 These are suggestions for human approval, never approved corrections. Return an empty proposals array if no supported change is justified.`;
 
 function baseline(ledger: DoclingCorrections): Baseline {
@@ -145,12 +147,17 @@ export class StructureReviewer {
       try { if (this.host.isRequestOwnerAlive(task.owner)) return review; }
       catch { return review; } // Unknown liveness: retain inputs for a later observation.
     }
-    if (receipt?.status === "running") return review;
+    if (receipt?.status === "running") {
+      // Execution settings are pinned by the agent, never chosen by this feature.
+      review.task!.execution = receipt.job.execution;
+      return review;
+    }
     try { updateConversionFolder(folder, () => {
       const current = readReview(folder);
       if (current.task?.id !== task.id || current.task.status !== "running") return () => {};
       const active = current.task;
-      active.status = receipt?.status ?? "uncertain"; active.finishedAt = now();
+      active.status = receipt?.status ?? "uncertain"; active.finishedAt = receipt?.job.finishedAt ? new Date(receipt.job.finishedAt).toISOString() : now();
+      if (receipt) { active.execution = receipt.job.execution; active.startedAt = new Date(receipt.job.startedAt).toISOString(); active.durationMs = receipt.job.durationMs; }
       if (receipt?.job.failure) active.failure = receipt.job.failure;
       if (receipt?.job.error) active.error = receipt.job.error;
       if (!receipt) { active.failure = "uncertain"; active.error = "AI review admission/outcome is uncertain; it will not be replayed automatically."; }
@@ -161,12 +168,14 @@ export class StructureReviewer {
           if (sha256(snapshot) !== task.baseline.sourceSha256) throw new Error("Structure review material SHA-256 mismatch.");
           const input = this.host.resolvePath(path.resolve(folder, ledger.source.file), true);
           const { images } = loadDoclingImages(input, snapshot, path.dirname(input) === folder);
+          active.summary = receipt.job.result.summary;
           const proposals = receipt.job.result.proposals.map(suggestion => {
             const p: ReviewProposal = { id: randomUUID(), taskId: task.id, baseline: task.baseline, createdAt: now(), suggestion, state: "pending", history: [] };
             try { checkDoclingCorrection(snapshot, ledger, correction(p), { images }); }
             catch (error) { p.state = "inapplicable"; p.validationError = message(error); }
             return p;
           });
+          active.proposalCount = proposals.length; active.invalidCount = proposals.filter(p => p.state === "inapplicable").length;
           current.proposals = current.proposals.filter(p => p.state !== "pending" || p.history.length > 0).concat(proposals);
         }
       }

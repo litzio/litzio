@@ -2,13 +2,16 @@
 async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); });
   await page.setViewportSize({ width: 1440, height: 1000 }); await page.reload();
-  await page.evaluate(() => Object.defineProperty(Crypto.prototype, 'randomUUID', { value: undefined, configurable: true }));
-  expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe('undefined');
   const origin = page.url().split('/').slice(0, 3).join('/');
   const call = async (route, method = 'GET', body) => {
     const response = await page.request.fetch(`${origin}/api/${route}`, { method, ...(body ? { data: body } : {}) });
     expect(response.ok(), await response.text()).toBe(true); return response.json();
   };
+  await call('worker-plugins', 'POST', { manifest: fixture.input.replace(/[/\\]docling-server[/\\][^/\\]+$/, '/docling-worker/manifest.json') });
+  await page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true }).click();
+  await page.reload();
+  await page.evaluate(() => Object.defineProperty(Crypto.prototype, 'randomUUID', { value: undefined, configurable: true }));
+  expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe('undefined');
   await call('docling-features', 'PUT', { conversion: true, comparison: true, review: true });
   await call('docling-settings', 'PUT', { server: fixture.url });
   fixture.mode('success');
@@ -28,6 +31,9 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await expect(result).toContainText('Review cancelled');
   await result.getByRole('button', { name: 'Run review', exact: true }).click();
   await expect(result).toContainText('Pending proposals: 2');
+  await expect(result).toContainText('AI proposals 3 / validation rejected 1');
+  await expect(result).toContainText('AI summary: Checked headings');
+  await expect(result).toContainText('Last execution: gpt-6.1-sol · medium');
   await result.getByRole('button', { name: 'Open comparison', exact: true }).click();
   const tab = page.locator('.docling-tab[data-active=true]');
   const panel = tab.locator('.docling-review');
@@ -60,6 +66,8 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await expect(panel).toContainText('Cannot apply');
   await expect(panel.getByRole('button', { name: 'Approve proposal', exact: true })).toHaveCount(0);
   await proposal(1).click();
+  await expect(panel).toContainText('AI proposals 3 / validation rejected 1');
+  await expect(panel).toContainText('AI summary: Checked headings');
   const saved = await call(`docling-review?folder=${encodeURIComponent(job.output)}`);
   for (const [width, theme, language] of [[1440, 'light', 'en'], [640, 'dark', 'ko']]) {
     await page.evaluate(({ theme, language }) => { localStorage.setItem('litzio.theme', theme); localStorage.setItem('litzio.uiLanguage', language); }, { theme, language });
