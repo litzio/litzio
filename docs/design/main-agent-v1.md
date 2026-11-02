@@ -490,3 +490,7 @@ and transcript/composer separation. Code, tables and math remain locally scrolla
 Reproduce after captures with `pnpm browser:test ai-agent --screenshots`; traces and
 runtime fixture files are intentionally not committed.
 
+
+After captures were refreshed after merging #979; its Korean effort labels are
+preserved. Before captures retain the original pre-#979 base. The integrated
+`ai-agent --screenshots` scenario passed with both localization and Markdown checks.
