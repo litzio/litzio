@@ -1,0 +1,25 @@
+{
+  "codexVersion": "0.166.0",
+  "task": {
+    "id": "55dedcbc-0545-47bd-8482-506c89bf6bd0",
+    "owner": "525cbe29-d10a-4b97-9a9a-7a2465c7798b",
+    "baseline": {
+      "sourceSha256": "835820cce1b0e2f68d544ba23ec7323638fc6402ec4719ba014aea2ca2a9fdfe",
+      "correctionsSha256": "b2c6496272fa3e31006e4b46dc7b86deb442a37adb07b874a338d934762cdad9"
+    },
+    "startedAt": "2026-11-02T04:26:52.539Z",
+    "status": "success",
+    "finishedAt": "2026-11-02T04:27:15.259Z",
+    "execution": {
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium"
+    },
+    "durationMs": 22720,
+    "summary": "Reviewed all six text leaves across both pages for heading hierarchy, paragraph continuity, and page furniture. No current corrections or rejected proposals exist. Three changes are supported by the text and structure; the remaining classifications need no change.",
+    "proposalCount": 3,
+    "invalidCount": 0
+  },
+  "sourceSha256": "835820cce1b0e2f68d544ba23ec7323638fc6402ec4719ba014aea2ca2a9fdfe",
+  "materials": "Synthetic two-page, six-text-leaf DoclingDocument from structureReviewSource fixture; no images inspected.",
+  "limitation": "One authenticated smoke run; not a guarantee of review quality. Existing global-instruction limitation remains."
+}

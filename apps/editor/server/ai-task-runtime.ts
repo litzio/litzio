@@ -4,7 +4,7 @@ import { readFile, rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
-import { AI_TASK, type AiTaskJob, type AiTaskRequest, type AiTaskRecord, type AiWorkerRequest, type JsonValue, type AiFailure } from "@litzio/plugin-api/ai";
+import { AI_TASK, DEFAULT_AI_SETTINGS, type AiExecutionSettings, type AiTaskJob, type AiTaskRequest, type AiTaskRecord, type AiWorkerRequest, type JsonValue, type AiFailure } from "@litzio/plugin-api/ai";
 import { brand } from "../../../brand.ts";
 import { digest, PluginStore, requestUuid, type Receipt } from "./plugin-store.ts";
 
@@ -39,7 +39,7 @@ export class AiTaskRuntime {
     for (const file of receipt.inputs ?? []) this.checkPath(file);
     return { job: receipt.job, status: receipt.status, canCancel: this.active.has(id) };
   }
-  async start(request: AiTaskRequest, timeoutMs: number, plugin: string): Promise<AiTaskRecord> {
+  async start(request: AiTaskRequest, timeoutMs: number, plugin: string, execution: AiExecutionSettings = DEFAULT_AI_SETTINGS): Promise<AiTaskRecord> {
     if (this.closed) throw new Error("The AI task runtime is closing.");
     if (this.fault) throw this.fault;
     request = structuredClone(request); request.id = requestUuid(request.id);
@@ -48,7 +48,7 @@ export class AiTaskRuntime {
     }));
     if (this.closed) throw new Error("The AI task runtime is closing.");
     const fingerprint = digest(JSON.stringify({ request, materials }));
-    const job: AiTaskJob = { kind: "ai-task", id: request.id, caller: request.caller, task: request.task, baseline: request.baseline, startedAt: Date.now(), state: "running" };
+    const job: AiTaskJob = { kind: "ai-task", id: request.id, caller: request.caller, task: request.task, baseline: request.baseline, execution: structuredClone(execution), startedAt: Date.now(), state: "running" };
     const { receipt, fresh } = this.store.admit(job, fingerprint, plugin);
     if (fresh) {
       const base = path.join(os.tmpdir(), `${temporaryPrefix}${job.id}-${randomUUID()}`);
@@ -56,7 +56,7 @@ export class AiTaskRuntime {
       this.store.update(receipt);
       const execution: Execution = { done: Promise.resolve(), stop: () => {} };
       this.active.set(job.id, execution);
-      execution.done = this.execute(receipt, { type: "ai-task", request, materials, temporary: receipt.temporary }, execution, timeoutMs).finally(() => this.active.delete(job.id));
+      execution.done = this.execute(receipt, { type: "ai-task", request, execution: job.execution, materials, temporary: receipt.temporary }, execution, timeoutMs).finally(() => this.active.delete(job.id));
       void execution.done.catch(error => { this.fault = error instanceof Error ? error : new Error(String(error)); });
     }
     return this.current(job.id)!;
@@ -131,7 +131,7 @@ export class AiTaskRuntime {
         job.state = "error"; receipt.status = "error"; job.failure = "provider"; delete job.result;
         job.error = `AI temporary cleanup failed: ${error instanceof Error ? error.message : String(error)}`;
       }
-      job.finishedAt = Date.now(); this.store.update(receipt);
+      job.finishedAt = Date.now(); job.durationMs = job.finishedAt - job.startedAt; this.store.update(receipt);
     }
   }
   async cancel(id: string): Promise<AiTaskRecord> {

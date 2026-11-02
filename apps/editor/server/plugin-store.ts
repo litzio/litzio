@@ -184,6 +184,8 @@ export class PluginStore {
         if (isAiJob(receipt.job)) {
           receipt.job.error = "AI task outcome is uncertain after Host interruption; it is never automatically retried.";
           receipt.job.failure = "uncertain"; delete receipt.job.result;
+          // Owner loss is observed now; the actual provider end time is unknown.
+          receipt.job.finishedAt = Date.now(); receipt.job.durationMs = receipt.job.finishedAt - receipt.job.startedAt;
         } else {
           receipt.job.error = "Conversion outcome is uncertain after Host interruption; it is never automatically retried. The server task may continue.";
           receipt.job.failure = { code: "output", taskId: receipt.job.progress.taskId };

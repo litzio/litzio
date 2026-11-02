@@ -254,6 +254,7 @@ refused. UI detachment never cancels accepted work.
 | --- | --- |
 | `GET /api/ai-task-service` | `{ available: boolean }`, including while the agent is off. |
 | `GET /api/ai-agent-status` | `{ adapter, available, loginRequired }`; current Codex status means the executable/login is available, not model or sandbox readiness. |
+| `GET/PUT /api/ai-agent-settings` | Shared `{ model, reasoningEffort }` owned by the AI agent, stored via existing Host plugin settings. |
 | `POST /api/ai-tasks` | Admit the request below and return `{ job, status, canCancel }`. |
 | `GET /api/ai-tasks?id=<UUID>` | Read a scoped receipt; no execution or automatic retry. |
 | `DELETE /api/ai-tasks`, `{ id }` | Await actual local worker/provider termination and cleanup, then return the receipt. |
@@ -271,7 +272,7 @@ refused. UI detachment never cancels accepted work.
 }
 ```
 
-This is a message example, not an implemented Docling review task. Success is a
+This is a generic message example; Docling structure review is a caller. Success is a
 receipt whose job has `state: "success"`, `result` and the unchanged `id`, `caller`,
 `task`, `baseline`. The agent uses AJV's existing JSON Schema draft-07 validation;
 Codex generation additionally requires a schema that Codex's structured-output
@@ -282,7 +283,21 @@ instructions precede feature instructions; there is no user-instruction field.
 
 The existing SQLite requests table, installation pinning, session OS lock and
 UUID conflict checks cover AI receipts too. Fingerprints include the complete
-message and material hashes. Worker execution has a 120-second deadline; teardown
+message and material hashes. Execution settings do not change UUID replay: a duplicate
+keeps its original settings even after settings change. Jobs include `execution: { model, reasoningEffort }`, epoch-ms `startedAt`, terminal `finishedAt` and
+`durationMs`, with existing state/failure/error. Workers receive the exact pinned
+settings, used by Codex `--model` and `model_reasoning_effort`. Running records
+omit end/duration; uncertain dead-owner records use observation time because the
+actual provider exit is unknown. No intermediate reasoning is stored.
+
+The AI agent settings page offers model free input (default `gpt-6.1-sol`) and
+`low`, `medium` (default), `high`, `xhigh`. Explicit Save persists both values;
+errors retain input. All feature tasks share this setting; feature plugins do not
+choose models. Official [Codex CLI reference](https://learn.chatgpt.com/docs/cli/reference)
+marks app-server Experimental; no stable model-list CLI is documented, so #930
+uses the owner-approved free input fallback rather than adding a discovery service.
+
+Worker execution has a 120-second deadline; teardown
 is awaited separately. Only complete IPC plus zero exit can publish a result.
 Cancellation sends an abort, waits for the provider process tree and worker to
 exit, and then removes temporary files. Unconfirmed provider termination is
@@ -375,3 +390,24 @@ disposal conditions are implemented separately by [#857](plugin-ui-v1.md). No ne
 introduced: existing headless `docling convert-pdf` remains the CLI surface;
 registration is available through the shared Host API and adds no semantic CLI
 operation.
+
+
+### Settings and receipt verification (#930)
+
+Targeted fake-worker tests check selected model/effort delivery, settings persistence,
+UUID replay after settings change, terminal timing and JSON serialization. The existing
+failure/timeout/cancel/uncertain lifecycle tests still pass. Browser `ai-agent` checks
+save/re-entry, 1440px Light English and 640px Dark Korean, matching Docling settings'
+content axis and shared Input/select/button styles (P04/P05). Its settings file is
+isolated under the browser scratch directory.
+
+| Settings | 1440px Light English | 640px Dark Korean |
+| --- | --- | --- |
+| Before | [Capture](assets/ai-settings-930/before-ai-1440-light-en.png) | [Capture](assets/ai-settings-930/before-ai-640-dark-ko.png) |
+| After | [Capture](assets/ai-settings-930/after-ai-1440-light-en.png) | [Capture](assets/ai-settings-930/after-ai-640-dark-ko.png) |
+
+An authenticated synthetic document review completed with `gpt-6.1-sol`, `medium`
+in 22,720ms, producing a nonempty summary and three proposals, zero domain-validation
+rejections. [Recorded task and material hash](assets/ai-settings-930/real-smoke.json).
+This is one smoke observation, not a content-quality guarantee. Global-instruction
+and dedicated-home limitations above remain; #931 is outside this change.

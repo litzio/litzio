@@ -1,5 +1,8 @@
 async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
+  const sourceManifest = pluginFixture.document.replace(/[/\\]tmp[/\\]plugin-ui[/\\]document\.md$/, '/tmp/ai-agent-worker/manifest.json');
+  expect((await page.request.post(origin + '/api/worker-plugins', { data: { manifest: sourceManifest } })).ok()).toBe(true);
+  await page.reload();
   // No model or account is used by browser tests; Host lifecycle is covered headlessly.
   await page.route('**/api/ai-agent-status', route => route.fulfill({ json: { adapter: 'Codex', available: true, loginRequired: false } }));
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -13,6 +16,12 @@ async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
   await expect(page.getByRole('heading', { name: 'AI agent', exact: true }).last()).toBeVisible();
   await expect(page.getByText('No additional login is required.', { exact: true })).toBeVisible();
   const measure = () => page.locator('.settings-content-inner').evaluate(element => ({ x: element.getBoundingClientRect().x, width: element.getBoundingClientRect().width }));
+  const originalSettings = await (await page.request.get(origin + '/api/ai-agent-settings')).json();
+  await page.getByLabel('Model', { exact: true }).fill('gpt-6.1-sol');
+  await page.getByLabel('Reasoning effort', { exact: true }).selectOption('high');
+  await page.getByRole('button', { name: 'Save AI settings', exact: true }).click();
+  await expect(page.getByText('AI settings saved.', { exact: true })).toBeVisible();
+  expect(await (await page.request.get(origin + '/api/ai-agent-settings')).json()).toEqual({ model: 'gpt-6.1-sol', reasoningEffort: 'high' });
   const aiGeometry = await measure();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/ai-1440-light-en.png' });
   await categories.getByRole('button', { name: 'Docling', exact: true }).click();
@@ -24,6 +33,9 @@ async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
   await page.setViewportSize({ width: 640, height: 1000 });
   await page.getByRole('button', { name: 'AI 에이전트', exact: true }).click();
   await expect(page.getByText('추가 로그인이 필요하지 않습니다.', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('모델', { exact: true })).toHaveValue('gpt-6.1-sol');
+  await expect(page.getByLabel('추론 강도', { exact: true })).toHaveValue('high');
+  await page.request.put(origin + '/api/ai-agent-settings', { data: originalSettings });
   expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/ai-640-dark-ko.png' });
   await page.getByRole('button', { name: 'Docling', exact: true }).click();

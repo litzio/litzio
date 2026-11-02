@@ -16,7 +16,7 @@ plugins keep working. Already accepted work drains independently of UI lifetime.
 Each task is a serializable request/result message with a caller-created UUID,
 calling plugin, task name, feature instructions, material files, small input,
 result JSON Schema and opaque caller baseline. Messages do not depend on a chat
-tab, a selected model or a global mutable agent. No task registry is introduced.
+tab or a global mutable agent. The AI agent alone selects execution settings; feature messages never select a model. No task registry is introduced.
 
 The agent combines common instructions before feature instructions and validates
 only the result's JSON shape. The caller owns content validation and rejecting
@@ -34,7 +34,13 @@ cleans both folders; the next Host initialization cleans exact recorded
 dead-owner leftovers without replaying work.
 
 Codex and a test-only fake adapter are the initial implementations. Settings
-shows adapter and availability/login status. The current Codex global-instruction
+shows adapter and availability/login status, the shared model (free input, default
+`gpt-6.1-sol`) and reasoning effort (`low`, `medium`, `high`, `xhigh`; default
+`medium`). Owner decision #930 adds these settings for all AI tasks. Values use
+the existing plugin settings file and are snapshotted at admission. Each receipt
+records execution settings, start/end timestamps, duration, status and failure;
+results remain serializable for future conversation UI. An uncertain owner-loss
+end timestamp records observation, not a confirmed provider exit. The current Codex global-instruction
 limitation and verification boundary are explicit in the
 [runtime contract](../design/plugin-runtime-v1.md#ai-task-service-880).
 
@@ -60,7 +66,7 @@ there. Introduce it when the first of these conditions occurs:
 
 Conversation UI, user instructions, provider/credential selection, other
 providers, document-edit proposals, task registration, streaming, automatic
-retry, MCP/ACP/A2A, multi-agent features, Docling review and official plugin
+retry, MCP/ACP/A2A, multi-agent features and official plugin
 distribution remain outside B. CLI parity is intentionally omitted: AI execution
 is not a document semantic operation. Headless execution uses the shared Host
 HTTP surface.

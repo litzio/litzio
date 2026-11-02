@@ -95,6 +95,9 @@ test("fake adapter failures, timeout and actual worker cancellation never expose
     if (failure === "cancelled") await runtime.cancel(request.id.toUpperCase());
     const done = await finished(() => runtime.current(request.id));
     assert.equal(done.job.failure, failure); assert.equal(done.job.result, undefined); assert.equal(done.canCancel, false);
+    assert.deepEqual(done.job.execution, { model: "gpt-6.1-sol", reasoningEffort: "medium" });
+    assert.equal(done.job.durationMs, done.job.finishedAt! - done.job.startedAt);
+    assert.ok(done.job.error);
     const receipt = store.getAi(request.id)!;
     for (const file of Object.values(receipt.temporary!)) assert.equal(existsSync(file), false);
   }
@@ -109,7 +112,7 @@ test("fake adapter failures, timeout and actual worker cancellation never expose
   assert.equal(rejected.status, "error"); assert.equal(rejected.job.result, undefined, "complete IPC without normal exit cannot publish partial output");
   const id = randomUUID(), snapshot = path.join(tmpdir(), `${brand.appName}-ai-task-${id}-${randomUUID()}-snapshot`), control = snapshot.replace(/-snapshot$/, "-control");
   const independent = new PluginStore(directory);
-  const { receipt } = independent.admit({ kind: "ai-task", id, caller: AI_TASK.plugin, task: "restart", baseline: "base", state: "running", startedAt: Date.now() }, "same", AI_TASK.plugin);
+  const { receipt } = independent.admit({ kind: "ai-task", id, caller: AI_TASK.plugin, task: "restart", baseline: "base", execution: { model: "fixture", reasoningEffort: "medium" }, state: "running", startedAt: Date.now() }, "same", AI_TASK.plugin);
   receipt.temporary = { snapshot, control }; independent.update(receipt); mkdirSync(snapshot); mkdirSync(control);
   const liveId = randomUUID(), liveSnapshot = path.join(tmpdir(), `${brand.appName}-ai-task-${liveId}-${randomUUID()}-snapshot`), liveControl = liveSnapshot.replace(/-snapshot$/, "-control");
   const live = independent.admit({ ...receipt.job, id: liveId }, "live", AI_TASK.plugin).receipt;
@@ -127,4 +130,31 @@ test("fake adapter failures, timeout and actual worker cancellation never expose
     assert.equal(recovered.admit(receipt.job, "same", AI_TASK.plugin).fresh, false);
     assert.equal(recovered.getAi(id)!.status, "uncertain");
   } finally { await restarted.close(); recovered.close(); }
+});
+
+
+test("agent-owned settings persist, reach the worker, and remain pinned in serializable receipts after settings change", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "ai-settings-test-")), input = path.join(root, "material.txt");
+  writeFileSync(input, "data");
+  const previous = process.env.LITZIO_AI_TEST_ADAPTER; process.env.LITZIO_AI_TEST_ADAPTER = "execution";
+  const host = createPluginHost(new RootAccess([root]), path.join(root, "ai-settings.json"), { directory: path.join(root, "plugins") });
+  t.after(async () => { await host.close(); if (previous === undefined) delete process.env.LITZIO_AI_TEST_ADAPTER; else process.env.LITZIO_AI_TEST_ADAPTER = previous; rmSync(root, { recursive: true, force: true }); });
+  host.aiTasks();
+  assert.deepEqual(host.invoke(AI_TASK.plugin, "settings"), { model: "gpt-6.1-sol", reasoningEffort: "medium" });
+  const execution = { model: "chosen-model", reasoningEffort: "xhigh" };
+  host.invoke(AI_TASK.plugin, "configure", execution);
+  assert.throws(() => host.invoke(AI_TASK.plugin, "configure", { ...execution, reasoningEffort: "invalid" }), /Invalid AI/);
+  const request = { ...message(input), caller: AI_TASK.plugin, schema: { type: "object", properties: { execution: { type: "object" } }, required: ["execution"], additionalProperties: false } };
+  await host.aiTasks()!.start(request);
+  host.invoke(AI_TASK.plugin, "configure", { model: "next-model", reasoningEffort: "low" });
+  const done = await finished(() => host.aiTasks()!.current(request.id));
+  assert.equal(done.status, "success");
+  assert.deepEqual(done.job.result, { execution }); assert.deepEqual(done.job.execution, execution);
+  assert.equal(done.job.durationMs, done.job.finishedAt! - done.job.startedAt);
+  assert.ok(done.job.durationMs! >= 0);
+  assert.deepEqual(JSON.parse(JSON.stringify(done)).job.execution, execution);
+  assert.deepEqual((await host.aiTasks()!.start(request)).job.execution, execution);
+  const observer = createPluginHost(new RootAccess([root]), path.join(root, "ai-settings.json"), { directory: path.join(root, "plugins") });
+  try { observer.aiTasks(); assert.deepEqual(observer.invoke(AI_TASK.plugin, "settings"), { model: "next-model", reasoningEffort: "low" }); }
+  finally { await observer.close(); }
 });

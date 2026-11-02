@@ -78,6 +78,9 @@ export function ReviewPanel({ host, folder, summary = false, agentReady = true, 
     </div>
     {reason ? <p>{text(reason)}</p> : null}
     {task ? <p role="status">{text(task.status === "running" ? "Review in progress" : task.status === "success" ? "Review completed" : task.status === "cancelled" ? "Review cancelled" : task.status === "uncertain" ? "Review outcome is uncertain. Check before starting again." : "Review failed")}{task.failure ? ` · ${text(task.failure)}` : ""}{task.error ? ` · ${task.error}` : ""}</p> : null}
+    {task?.execution ? <p className="docling-review-meta">{text("Last execution")}: {task.execution.model} · {task.execution.reasoningEffort}{task.durationMs !== undefined ? ` · ${(task.durationMs / 1000).toFixed(1)} ${text("seconds")}` : ""}</p> : null}
+    {task?.summary ? <p>{text("AI summary")}: {task.summary}</p> : null}
+    {task?.proposalCount !== undefined ? <p>{text("AI proposals {{count}} / validation rejected {{invalid}}", { count: task.proposalCount, invalid: task.invalidCount ?? 0 })}</p> : null}
     {problem || readProblem || review?.problem ? <p role="alert">{[problem, readProblem, review?.problem].filter(Boolean).join("; ")}</p> : null}
     {!summary && enabled && review?.available ? <div className="docling-review-content">
       <div className="docling-review-list" aria-label={text("Review proposals")}>

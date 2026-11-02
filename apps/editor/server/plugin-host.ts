@@ -64,7 +64,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
         executor: { start: request => getRuntime().start({ ...request, plugin: id }), current: id => getRuntime().current(id),
           cancel: id => getRuntime().cancel(id), close: () => close(),
           history: () => getRuntime().requestHistory(id), forget: request => getRuntime().forgetRequest(request, id) },
-        aiExecutor: { start: (request, timeoutMs) => getRuntime().ai.start(request, options?.aiTimeoutMs ?? timeoutMs, id),
+        aiExecutor: { start: (request, timeoutMs, execution) => getRuntime().ai.start(request, options?.aiTimeoutMs ?? timeoutMs, id, execution),
           current: request => getRuntime().ai.current(request), cancel: request => getRuntime().ai.cancel(request) },
         aiTasks: () => {
           const service = aiTasks();
