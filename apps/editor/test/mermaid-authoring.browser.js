@@ -48,6 +48,52 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
     await expect(figure.getByTestId('figure-file-name')).toHaveCount(0);
   };
   await rendered(figure.getByTestId('mermaid-preview'), '>A<');
+  // #977: inspect real image output in both themes, at desktop and minimum width.
+  const labelOpening = await model();
+  await editor.evaluate(el => {
+    el.editor.state.doc.forEach((node, pos) => {
+      if (node.type.name === 'figure' && node.attrs.mermaidSource)
+        el.editor.view.dispatch(el.editor.state.tr.setNodeMarkup(pos, undefined, {...node.attrs,
+          mermaidSource: 'graph LR\n A[입력] -->|신호 signal| B[출력]'}));
+    });
+  });
+  const labelStyles = [];
+  for (const width of [1440, 640]) for (const theme of ['light', 'dark']) {
+    await page.setViewportSize({width, height:1000});
+    await page.evaluate(async theme => {
+      await (await import('/src/i18n.ts')).i18n.changeLanguage('ko');
+      (await import('/src/theme.ts')).applyTheme(theme);
+    }, theme);
+    const preview = figure.getByTestId('mermaid-preview');
+    await rendered(preview, '신호 signal');
+    await expect(preview).toHaveAttribute('data-theme', theme);
+    await figure.scrollIntoViewIfNeeded();
+    if (screenshots) await page.screenshot({path:`tmp/mermaid-977-${width}-${theme}.png`, animations:'disabled'});
+    labelStyles.push(await preview.locator('img').evaluate(img => {
+      const svg = new DOMParser().parseFromString(decodeURIComponent(img.src.split(',')[1]), 'image/svg+xml');
+      const host = document.createElement('div');
+      host.style.backgroundColor = 'var(--id-color-paper)';
+      const shadow = host.attachShadow({mode:'open'});
+      shadow.append(document.importNode(svg.documentElement, true));
+      document.body.append(host);
+      try {
+        return {paper: getComputedStyle(host).backgroundColor,
+          backgrounds: [...shadow.querySelectorAll('.edgeLabel, .edgeLabel p, .labelBkg')]
+            .map(el => getComputedStyle(el).backgroundColor)};
+      } finally { host.remove(); }
+    }));
+  }
+  for (const {paper, backgrounds} of labelStyles) {
+    expect(paper).toMatch(/^rgb\(/);
+    expect(backgrounds.length).toBeGreaterThan(0);
+    for (const color of backgrounds) expect(color).toBe(paper);
+  }
+  await editor.evaluate(el => el.editor.commands.undo());
+  expect((await model()).doc).toEqual(labelOpening.doc);
+  await page.evaluate(async () => {
+    await (await import('/src/i18n.ts')).i18n.changeLanguage('en');
+    (await import('/src/theme.ts')).applyTheme('light');
+  });
   // #846/#847: all four metadata patterns share label entry; the always-visible
   // Mermaid cue must stay separate from the preceding selected Equation.
   await openPath(page, file.replace('diagram.md', 'metadata.md'));

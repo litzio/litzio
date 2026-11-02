@@ -97,6 +97,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await expect(page.getByRole('button', { name: 'Codex 모델', exact: true })).toContainText('사용 가능');
   await expect(page.getByLabel('모델', { exact: true })).toHaveValue('gpt-6.1-sol');
   await expect(page.getByLabel('추론 강도', { exact: true })).toHaveValue('high');
+  await expect(page.getByLabel('추론 강도', { exact: true }).locator('option')).toHaveText(['보통', '높음']);
   expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/ai-640-dark-ko.png' });
   await page.getByRole('button', { name: 'Codex 모델', exact: true }).click();
@@ -108,6 +109,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await expect(page.getByRole('button', { name: 'Codex 모델', exact: true })).toBeFocused();
   await page.getByTestId('settings-dialog').getByRole('button', { name: '진단', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Codex 진단', exact: true })).toBeVisible();
+  await expect(page.getByText('docs · 연결됨 · OAuth', { exact: true })).toBeVisible();
   expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-640-dark-ko.png' });
   await page.getByRole('button', { name: '← AI 에이전트', exact: true }).click();
@@ -205,6 +207,18 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   expect(await message.inputValue(), 'Typing after opening goes to the assistant').toBe('Assistant keyboard input');
   expect(await editor.textContent()).not.toContain('Assistant keyboard input');
   await message.fill('');
+  // At intermediate widths the assistant remains modal; closing restores the center.
+  for (const width of [1440, 1024]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
+    await expect(page.locator('.notification-center')).toBeVisible();
+    if (screenshots) await page.screenshot({ path: `tmp/970-assistant-${width}-closed.png` });
+    await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+    await expect(message).toBeEnabled();
+    if (width === 1024) await expect(page.locator('.notification-center')).toBeHidden();
+    if (screenshots) await page.screenshot({ path: `tmp/970-assistant-${width}-open.png` });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(panel.getByRole('button', { name: 'Conversation model and language' })).toContainText('gpt-6.1-sol');
   await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveText('日本語');
   await panel.getByRole('button', { name: 'Response language', exact: true }).click();
@@ -218,6 +232,17 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await expect(resize).toHaveAttribute('aria-valuenow', String(Math.min(560, initialWidth + 20)));
   const wide = await panel.evaluate(element => element.getBoundingClientRect().width);
   expect(wide).toBe(Math.min(560, initialWidth + 20));
+  const notification = page.locator('.notification-center');
+  for (const expanded of [false, true]) {
+    const bell = notification.locator(':scope > button');
+    if (await bell.getAttribute('aria-expanded') !== String(expanded)) await bell.click();
+    if (screenshots) await page.screenshot({ path: `tmp/970-assistant-1440-${expanded ? 'list' : 'bell'}.png` });
+    const bounds = await notification.boundingBox();
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual((await panel.boundingBox()).x - 16);
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.y).toBeGreaterThanOrEqual(0);
+  }
+  await notification.locator(':scope > button').click();
   await message.fill('What changed in the current document?'); await panel.getByRole('button', { name: 'Send message', exact: true }).click();
   await expect(panel.getByText('Partial answer', { exact: true })).toBeVisible();
   await expect(panel.locator('[data-kind=tool]').filter({ hasText: 'create_document' })).toContainText('Completed');
@@ -355,6 +380,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   expect(await panel.getByRole('textbox').evaluate(element => document.activeElement === element)).toBe(true);
   expect(await panel.evaluate(element => ({ width: element.getBoundingClientRect().width, overflow: element.scrollWidth > element.clientWidth }))).toEqual({ width: 640, overflow: false });
   expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(true);
+  await expect(panel.getByRole('button', { name: '대화 모델과 언어' })).toContainText('높음');
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/assistant-640-dark-ko.png' });
   await panel.getByRole('button', { name: '비서 닫기' }).click(); await expect(editor).toBeFocused();
   expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(false);

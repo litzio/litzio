@@ -49,11 +49,7 @@
 .assistant-trigger { position: absolute; right: var(--layout-ui-inset); }
 @container (width < 22rem) { .assistant-trigger > span { display: none; } }
 
-/* Keep composer actions above the existing global notification control. */
-.assistant-composer { padding-bottom: calc(var(--space-3) + var(--size-control-compact) + var(--space-2)); }
-
 body:has(.assistant-panel--overlay:not([hidden])) .notification-center { visibility: hidden; }
-.assistant-panel--overlay .assistant-composer { padding-bottom: var(--space-3); }
 
 .assistant-result { display: grid; gap: var(--space-2); margin-block: var(--space-3); padding: var(--space-3); border: var(--border-width) solid var(--id-color-border); border-radius: var(--id-radius-md); background: var(--id-color-surface); overflow-wrap: anywhere; word-break: keep-all; }
 .assistant-result small { color: var(--id-color-text-muted); }

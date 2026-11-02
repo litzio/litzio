@@ -42,7 +42,7 @@ export function PluginSettings() {
         <h3 className="settings-heading">{item.id}</h3>
         <p>{i18n.t(item.enabled ? "Enabled" : "Off")}</p>
         <dl className="grid gap-2 text-sm [overflow-wrap:anywhere]">
-          <div><dt>{i18n.t("Version")}</dt><dd>{item.version}</dd></div>
+          <div><dt>{i18n.t("Version")}</dt><dd title={item.version}>{/^[a-f0-9]{64}$/i.test(item.version) ? item.version.slice(0, 12) : item.version}</dd></div>
           <div><dt>{i18n.t("Installation revision")}</dt><dd><code title={item.revision}>{item.revision.slice(0, 12)}</code></dd></div>
           <div><dt>{i18n.t("Installation path")}</dt><dd>{item.directory}</dd></div>
           {item.bundledRevision ? <div><dt>{i18n.t("App default revision")}</dt><dd><code title={item.bundledRevision}>{item.bundledRevision.slice(0, 12)}</code></dd></div> : null}
