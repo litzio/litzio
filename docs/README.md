@@ -31,8 +31,8 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Native document support](design/document-support-v1.md) | Implemented | 현재 계약. 표식·지원 의미·Core 진입/생성/쓰기 경계와 LF/fail-closed 보존. #817 별도 텍스트 종류·저장 경계. |
 | [Host worker plugins](design/plugin-runtime-v1.md) | Implemented | #853 공용 설치·worker API·UUID/uncertain·OS 잠금 복구·Host 결과 공개 및 #869 플러그인 Host 작업·폴더 분리 절차. |
 | [Plugin UI contributions](design/plugin-ui-v1.md) | Implemented | #857 중립 UI manifest/API, 같은 origin의 검증된 ESM/CSS, React 주입, 명령·탭·사이드바·설정·변환 화면 기여와 비활성 탭·오류 격리·ESM 수명. |
-| [Docling conversion](design/docling-conversion-v1.md) | Implemented | DoclingDocument 1.10.0 전체 변환, 외부 PDF REST 프로필·원본 묶음·대응표, #871 대시보드·기능 선택과 요청 기록, #876 승인 교정 JSON·재변환·CLI, #884 화면 없는 구조 검수·제안 파일·Host 승인 연산. |
-| [Docling comparison](design/docling-compare-v1.md) | Implemented | 읽기 전용 대조 탭, 원문 bbox·연결선·동기 스크롤, 지연 이미지와 대응표 불일치 경고. |
+| [Docling conversion](design/docling-conversion-v1.md) | Implemented | DoclingDocument 1.10.0 전체 변환, 외부 PDF REST 프로필·원본 묶음·대응표, #871 대시보드·기능 선택과 요청 기록, #876 승인 교정 JSON·재변환·CLI, #884 구조 검수·제안 파일·Host 승인 연산, #900 검수 실행·승인 화면. |
+| [Docling comparison](design/docling-compare-v1.md) | Implemented | 읽기 전용 대조 탭, 원문 bbox·연결선·동기 스크롤, 지연 이미지와 대응표 불일치 경고, #900 제안 선택·승인·거절·되돌리기와 자동 새로 고침. |
 | [Parser security boundary](design/parser-security-v1.md) | Implemented | 공개 parse/참조 진단 도달성, URL·inline HTML backport와 patch 제거 조건. |
 | [Continuous document editing](design/document-editing-v1.md) | Implemented | 현재 계약. 연속 편집, clipboard, table/section 구조 변경의 보존 경계. |
 | [Editing session and Save](design/editing-session-save-v1.md) | Implemented | 현재 계약. opening snapshot, Save acknowledgement, draft/work-loss 보호와 로컬 복구. |

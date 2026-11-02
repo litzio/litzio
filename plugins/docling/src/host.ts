@@ -18,9 +18,9 @@ export function activate(host: PluginHostContext): HostPlugin {
   const session = (host.session.get("conversion") ?? { admitting: false }) as ConversionSession;
   host.session.set("conversion", session);
   const conversion = new DoclingHost(host.settingsFile, host.resolvePath, host.executor, session);
-  const features = (): Features => ({ conversion: host.features().conversion !== false, comparison: host.features().comparison !== false });
+  const features = (): Features => ({ conversion: host.features().conversion !== false, comparison: host.features().comparison !== false, review: host.features().review !== false });
   const requireFeature = (name: keyof Features) => { if (!features()[name]) throw new Error("This Docling feature is disabled."); };
-  const review = new StructureReviewer(host, () => requireFeature("conversion"));
+  const review = new StructureReviewer(host, () => { requireFeature("conversion"); requireFeature("review"); });
   const history = () => {
     if (!host.executor.history) throw new Error("Plugin request history is unavailable.");
     return host.executor.history().filter(({ job }) => {
@@ -54,9 +54,20 @@ export function activate(host: PluginHostContext): HostPlugin {
       "/api/docling-compare": { GET: "compare" },
       "/api/docling-dashboard": { GET: "dashboard", POST: "check" },
       "/api/docling-features": { PUT: "features" },
+      "/api/docling-review-agent": { GET: "review-agent" },
+      "/api/docling-review": { GET: "review-view", POST: "review-start", DELETE: "review-cancel" },
+      "/api/docling-review-approve": { POST: "review-approve" },
+      "/api/docling-review-reject": { POST: "review-reject" },
+      "/api/docling-review-undo": { POST: "review-undo" },
       "/api/docling-history": { POST: "stop", DELETE: "forget" },
     },
     operations: {
+      // A result/source can disappear while the dashboard is open. Keep that
+      // read failure in the panel; C1 operation errors and decision refusals remain errors.
+      "review-view": args => {
+        try { return review.list(args.folder); }
+        catch (error) { return { available: false, task: null, canCancel: false, proposals: [], problem: error instanceof Error ? error.message : String(error) }; }
+      },
       "review-start": args => review.start(args.folder, args.id),
       "review-status": args => review.list(args.folder),
       "review-proposals": args => review.list(args.folder),
@@ -68,8 +79,9 @@ export function activate(host: PluginHostContext): HostPlugin {
       "add-correction": args => correct(args, "add"),
       "remove-correction": args => correct(args, "remove"),
       dashboard: () => ({ ...conversion.settings(), features: features(), requests: history(), results: results() }),
+      "review-agent": () => host.aiTasks()?.status() ?? null,
       features: args => {
-        if (!args || Object.keys(args).some(key => !["conversion", "comparison"].includes(key)) || Object.values(args).some(value => typeof value !== "boolean")) throw new Error("Invalid Docling features.");
+        if (!args || Object.keys(args).some(key => !["conversion", "comparison", "review"].includes(key)) || Object.values(args).some(value => typeof value !== "boolean")) throw new Error("Invalid Docling features.");
         host.setFeatures(args); return features();
       },
       forget: args => {

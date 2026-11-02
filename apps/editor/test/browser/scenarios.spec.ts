@@ -185,9 +185,13 @@ for (const name of scenarios) {
         mode === "updated" ? initialBibliography.replace("Control Study", "Updated Study") : mode === "invalid" ? "@article{broken" : initialBibliography),
       report: (markdown: string, text: string) => citationReport(parse(markdown), [{ source: "../refs.bib", status: "ok", text }]),
     };
-    const fake = ["docling-server", "docling-dashboard"].includes(name) && !liveDocling ? await fakeDoclingServer() : undefined;
+    const fake = ["docling-server", "docling-dashboard", "docling-review", "docling-review-recovery"].includes(name) && !liveDocling ? await fakeDoclingServer(name.startsWith("docling-review") ? (() => {
+      const source = JSON.parse(readFileSync(path.join(REPOSITORY_ROOT, "plugins/docling/test/fixtures/synthetic/document.json"), "utf8"));
+      source.pages["1"].image = { uri: "data:image/png;base64," + readFileSync(path.join(REPOSITORY_ROOT, "plugins/docling/test/fixtures/synthetic/pages/page-001.png")).toString("base64"), mimetype: "image/png", dpi: 72, size: source.pages["1"].size };
+      return source;
+    })() : undefined) : undefined;
     const captureDirectory = path.join(REPOSITORY_ROOT, "tmp", name === "docling-dashboard" ? "871-captures" : "docling-797-captures");
-    if (["docling-server", "docling-dashboard"].includes(name)) mkdirSync(captureDirectory, { recursive: true });
+    if (["docling-server", "docling-dashboard", "docling-review", "docling-review-recovery"].includes(name)) mkdirSync(captureDirectory, { recursive: true });
     const liveInput = path.join(REPOSITORY_ROOT, "tmp", "797-real", "nist-source.pdf");
     if (liveDocling) {
       mkdirSync(path.dirname(liveInput), { recursive: true });

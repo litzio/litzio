@@ -12,6 +12,11 @@ type ExpectedConsoleErrorRule = {
 };
 
 const EXPECTED_CONSOLE_ERRORS: Record<string, ExpectedConsoleErrorRule[]> = {
+  "docling-review-recovery": [
+    { status: 400, pathname: "/api/docling-review-approve", minimum: 1, description: "successful publication is followed by an injected approval cleanup error" },
+    { status: 400, pathname: "/api/docling-review-undo", minimum: 1, description: "successful publication is followed by an injected undo cleanup error" },
+    { status: 500, pathname: "/api/docling-compare", minimum: 1, description: "the comparison refresh read is deliberately unavailable until the recovery assertion" },
+  ],
   "plugin-ui": [{ text: "PLUGIN_UI_RENDER_FIXTURE", pathname: "", minimum: 1, description: "the synthetic plugin throws during render; its tab error boundary retains the native editing session" }],
   "text-mode": [
     {status:400, pathname:"/api/document", minimum:1, description:"a text session cannot raw-save a file that has become native"},

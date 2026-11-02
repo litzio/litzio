@@ -1,10 +1,11 @@
 import type { UiHost, UiContributions } from "@litzio/plugin-api/ui";
 import { DoclingCompareView } from "./comparison/CompareView.tsx";
 import type { ComparisonSnapshot } from "./comparison/compare.ts";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DoclingServerSettings, useDoclingConversion, type Request } from "./conversion/ServerSettings.tsx";
 import { DoclingConversionDialog } from "./conversion/ConversionDialog.tsx";
 import { doclingFailureMessage, type ConversionJob } from "./conversion/server-types.ts";
+import { ReviewPanel } from "./ReviewPanel.tsx";
 import { Dashboard } from "./Dashboard.tsx";
 
 export function activate(host: UiHost): UiContributions {
@@ -48,6 +49,42 @@ export function activate(host: UiHost): UiContributions {
       onStart={() => { attempt.current++; setNotice(null); void converter.start(input).catch(error => setNotice({ id: `start-${Date.now()}`, message: error instanceof Error ? error.message : String(error) })); }}
       onCancel={() => void converter.cancel()} /> : null;
   }
+  function Comparison({ data }: { data: ComparisonSnapshot }) {
+    const [snapshot, setSnapshot] = useState<ComparisonSnapshot>();
+    const [problem, setProblem] = useState("");
+    const [refs, setRefs] = useState<string[]>([]);
+    const alive = useRef(false), generation = useRef(0);
+    const folder = data.path.replace(/[\\/][^\\/]+$/, "");
+    const refresh = useCallback(async () => {
+      const version = ++generation.current;
+      try {
+        const current = await host.readJson<ComparisonSnapshot>("api/docling-compare", { path: data.path });
+        if (alive.current && version === generation.current) { setSnapshot(current); setProblem(""); }
+      } catch (error) {
+        if (alive.current && version === generation.current) {
+          setSnapshot(undefined); setProblem(error instanceof Error ? error.message : String(error));
+        }
+        throw error;
+      }
+    }, [data.path]);
+    useEffect(() => {
+      alive.current = true;
+      let stopped = false, timer: ReturnType<typeof setTimeout>;
+      const load = async () => {
+        try { await refresh(); }
+        catch { if (!stopped) timer = setTimeout(load, 1000); }
+      };
+      void load();
+      return () => { stopped = true; alive.current = false; generation.current++; clearTimeout(timer); };
+    }, [refresh]);
+    return <div className="docling-review-comparison">
+      {snapshot ? <DoclingCompareView snapshot={snapshot} ReadingSurface={host.ReadingSurface} Button={host.Button} text={host.text}
+        selectedRefs={refs} imageUrl={uri => host.imageUrl(snapshot.path, uri)} />
+        : <div className="docling-compare" role="status">{problem || host.text("Loading…")}</div>}
+      <ReviewPanel host={host} folder={folder} documentReady={!!snapshot} onSelect={setRefs} onChanged={refresh} />
+    </div>;
+  }
+
   function GuideLink({ children }: { children?: React.ReactNode }) {
     const href = "https://github.com/litzio/litzio/blob/master/docs/guides/docling-server.md";
     return <a href={href} className="w-fit text-primary underline underline-offset-4" onClick={event => { event.preventDefault(); host.openExternalLink(href); }}>{children}</a>;
@@ -74,8 +111,7 @@ export function activate(host: UiHost): UiContributions {
         const snapshot = await host.readJson<ComparisonSnapshot>("api/docling-compare", { path });
         return { path: snapshot.path, data: snapshot };
       },
-      View: ({ data }: { data: ComparisonSnapshot }) => <DoclingCompareView snapshot={data} ReadingSurface={host.ReadingSurface}
-        Button={host.Button} text={host.text} imageUrl={uri => host.imageUrl(data.path, uri)} />,
+      View: Comparison,
       notices: (snapshot: ComparisonSnapshot) => snapshot.stale ? [{ id: "stale", severity: "warning" as const,
         message: `${snapshot.map.source.name}: ${host.text("The correspondence map does not match this document. Connections and sync scrolling are disabled. Reconvert to compare.")}` }] : [],
     }] : [])],

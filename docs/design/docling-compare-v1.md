@@ -1,6 +1,7 @@
 # Docling comparison v1
 
 - Status: Implemented
+- Review UI verified: 2026-11-02 (#900; fake adapter, real C1 Host operations, persistent Chrome).
 - Plugin-folder verification: 2026-11-01 (#869; unchanged comparison scenario on Windows persistent Chrome, 1440/640px capture path).
 - Last verified: 2026-10-31 (#815 fixed Read surface/reverse correspondence; #857 dynamic UI contribution with unchanged comparison behavior).
 - Authority: owner decisions in [#766](https://github.com/litzio/litzio/discussions/766), [#767](https://github.com/litzio/litzio/discussions/767), [#769](https://github.com/litzio/litzio/issues/769), under [ADR-0011](../adr/0011-code-module-boundary.md).
@@ -23,8 +24,10 @@ selects its existing comparison tab. An ordinary editable tab of the same file
 is independent. Comparison tabs have no Save, draft, recovery or mutation session.
 Closing one needs no unsaved-change decision. They are not restored at startup.
 Disabling the plugin unmounts its content but retains the same shell tab and
-opening snapshot with a disabled message. Re-registration reconstructs the view
-without reloading the window; transient source selection/scroll reset.
+opening context with a disabled message. Re-registration reconstructs the view
+and rereads the current document/map generation before displaying it, without
+reloading the window; transient source selection/scroll reset. A failed read shows
+a loading/error state and retries GET only, never the old content as current.
 The module entry stays outside Explorer's folder navigation and empty-state help.
 It does not interrupt Collapse Explorer → Open folder keyboard order and is hidden
 with the other Explorer navigation when the sidebar collapses.
@@ -32,9 +35,58 @@ The footer's keyboard sequence after file navigation is Docling → Settings.
 Docling opens the [plugin dashboard](docling-conversion-v1.md#plugin-dashboard-and-feature-selection-871);
 its Open conversion folder quick action enters the existing comparison picker.
 Disabling comparison removes that picker/tab kind, retaining open tabs in the
-same disabled state as plugin detachment. Re-enabling restores their snapshots.
+same disabled state as plugin detachment. Re-enabling rereads their current results.
 The empty-state help therefore describes only file browsing, separately from the comparison action
 ([#799](https://github.com/litzio/litzio/issues/799), sidebar item only).
+
+## Structure review panel (#900)
+
+Below the two comparison panes, a bounded panel lists pending, approved, rejected
+and inapplicable proposals, with stale source separately marked. The proposal
+list and selected details scroll independently, keeping a lower selection visible.
+Selecting a proposal reveals its original refs using the existing source selection
+and connector style and highlights measured right-hand blocks, without accessing
+Editor DOM or importing its internals. Merge proposals select both original refs.
+The details show kind, the actual original target text (both refs for a merge),
+AI-provided page/text evidence separately, reason, and validation failures.
+The list leads with an original text excerpt and human-readable correction kind;
+short localized status badges are separate, with original refs only in muted metadata.
+Before/After use localized heading depth, body/header/footer names and paragraph
+text/merged preview, never operation values or JSON. Approved changes use the same
+wording. Approval is the primary action; rejection and approval undo use secondary
+buttons, matching P04's explicit apply/cancel hierarchy. Host operations, stored
+proposal/correction formats and approval behavior are unchanged.
+Approval/rejection are explicit; approved entries offer Undo approval. Stale and
+inapplicable entries cannot be approved. Host C1 validation remains authoritative.
+Approval and undo reconcile the current proposal file and document/map even if
+an operation returns an error: publication may already have succeeded before
+cleanup or response delivery failed. The original operation error remains visible.
+A failed reconciliation hides the unread document and leaves a GET-only retry
+pending in the proposal poll; successful recovery clears the read error without
+repeating the mutation. Normal success loads the fresh pair before clearing busy;
+no tab reopening, automatic AI rerun or document editing session is introduced.
+Disabled review or absent AI service shows a reason and hides proposal controls.
+
+`docling-review` uses synthetic PDF data and the fake AI adapter, exercising Run,
+Cancel, proposal selection, approval/rejection/undo and immediate refreshed heading
+DOM after busy completion. `docling-review-recovery` adds retained-tab feature
+reactivation, real approve/undo saves with injected post-publication response
+errors, and a failed comparison GET that recovers without reload or repeated POST.
+All four browser assertions failed against pre-fix product code at `277e5e8f`
+(after the master merge); the unchanged corrected assertions then passed. The BOM
+unit regression also first failed there, while conversion already accepted the input. 1440px English Light and 640px Korean Dark captures
+cover wrapping and panel/pane geometry. Real AI suggestion accuracy remains manual.
+Self-reviewed captures: [1440px panel](assets/docling-review-900/review-1440-light-en.png),
+[640px panel](assets/docling-review-900/review-640-dark-ko.png),
+[1440px dashboard](assets/docling-review-900/dashboard-1440-light-en.png),
+[640px dashboard](assets/docling-review-900/dashboard-640-dark-ko.png).
+[Capture metadata](assets/docling-review-900/capture-metadata.json) records the source,
+hashes, review and the intermittent Windows C1 directory-publication EPERM seen
+during those earlier local attempts, including capture regeneration. They rolled back
+with visible errors. Windows directory-rename retries were subsequently implemented
+separately in #908 and merged into this branch; see the
+[publication contract](docling-conversion-v1.md#approved-correction-records-and-replay-876).
+This UI reconciliation never retries an approval/undo or weakens a refusal assertion.
 
 The left pane displays original page images with source bboxes using the map v1
 page sizes and each bbox's TOPLEFT/BOTTOMLEFT origin. Categories have token colors

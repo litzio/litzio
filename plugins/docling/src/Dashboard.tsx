@@ -6,6 +6,7 @@ import type { ServerCheck } from "./conversion/server-types.ts";
 import { doclingFailureMessage } from "./conversion/server-types.ts";
 import { phases } from "./conversion/ConversionDialog.tsx";
 import "./dashboard.css";
+import { ReviewPanel } from "./ReviewPanel.tsx";
 
 export function Dashboard({ host, request, convert, compare }: { host: UiHost; request: Request;
   convert(focus: HTMLElement | null, path?: string): void; compare(focus: HTMLElement | null): void }) {
@@ -20,7 +21,8 @@ export function Dashboard({ host, request, convert, compare }: { host: UiHost; r
   const alive = useRef(true);
   const refresh = async (afterAction = false) => {
     const version = generation.current;
-    const value = await request<DashboardSnapshot>("dashboard");
+    const [value, agent] = await Promise.all([request<DashboardSnapshot>("dashboard"), request<DashboardSnapshot["agent"]>("review-agent")]);
+    value.agent = agent;
     if (alive.current && version === generation.current && (!pendingRef.current || afterAction)) { setSnapshot(value); setNow(Date.now()); }
     return value;
   };
@@ -106,6 +108,7 @@ export function Dashboard({ host, request, convert, compare }: { host: UiHost; r
       {running ? <p className="docling-dashboard-meta">{text("Stopping cancels only {{product}} requests and waiting. It does not cancel the Docling server task.")}</p> : null}
     </section>
     <section aria-labelledby="docling-results-title">
+      <p role="status">{text("AI agent")}: {text(!snapshot?.agent ? "Off" : snapshot.agent.loginRequired ? "Login required" : snapshot.agent.available ? "Available" : "Unavailable")}</p>
       <h2 id="docling-results-title">{text("Recent conversion results")}</h2>
       {!snapshot?.results.length ? <p className="docling-dashboard-meta">{text("No conversion results yet.")}</p> : <ul className="docling-dashboard-list">{snapshot.results.map(result => <li key={result.id} data-result-id={result.id}>
         <div className="docling-dashboard-row"><div className="docling-dashboard-details">
@@ -118,13 +121,14 @@ export function Dashboard({ host, request, convert, compare }: { host: UiHost; r
           <Button disabled={pending || !!result.missing || !!result.problem} onClick={() => void act(() => host.openDocument(result.path))}>{text("Open document")}</Button>
           <Button disabled={pending || !!result.missing} onClick={() => void act(async () => { const error = await host.openFolder(result.folder); if (error) throw new Error(error); })}>{text("Open folder")}</Button>
         </div></div>
+        {!result.missing && !result.problem ? <ReviewPanel host={host} folder={result.folder} agentReady={!!snapshot.agent?.available && !snapshot.agent.loginRequired} summary /> : null}
       </li>)}</ul>}
     </section>
     <section aria-labelledby="docling-features-title">
       <h2 id="docling-features-title">{text("Features")}</h2>
-      <div className="docling-dashboard-features">{(["conversion", "comparison"] as const).map(name => <label key={name}>
+      <div className="docling-dashboard-features">{(["conversion", "comparison", "review"] as const).map(name => <label key={name}>
         <input type="checkbox" checked={selectedFeatures?.[name] ?? (host.features?.[name] !== false)} disabled={!selectedFeatures || pending} onChange={event => void changeFeature(name, event.target.checked)} />
-        {text(name === "conversion" ? "PDF conversion" : "Docling comparison")}
+        {text(name === "conversion" ? "PDF conversion" : name === "comparison" ? "Docling comparison" : "Structure review")}
       </label>)}</div>
       <p className="docling-dashboard-meta">{text("Disabling a feature hides its controls. Accepted jobs keep running; open comparison tabs are retained in a disabled state.")}</p>
     </section>
