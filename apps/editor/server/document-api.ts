@@ -726,14 +726,14 @@ export function readFilePreview(requestedRoot: string | undefined, requestedPath
     accessPath(file, access);
   };
   verify();
-  const before = fs.lstatSync(file);
+  const before = fs.lstatSync(file, { bigint: true });
   if (!before.isFile()) throw new FileAccessError("Only regular image files can be previewed.");
   const mime = MEDIA_TYPES[path.extname(file).toLowerCase()];
   if (!mime) throw new Error("Unsupported image format.");
   if (before.size > MAX_ASSET_BYTES) throw new ImageValidationError("Image exceeds the 10 MiB limit.", 413);
   const descriptor = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
   try {
-    const opened = fs.fstatSync(descriptor);
+    const opened = fs.fstatSync(descriptor, { bigint: true });
     if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino) throw new FileAccessError();
     // Bounded even if the file grows after stat; never read an unbounded stream into memory.
     const buffer = Buffer.alloc(MAX_ASSET_BYTES + 1);
@@ -741,7 +741,7 @@ export function readFilePreview(requestedRoot: string | undefined, requestedPath
     while (length < buffer.length && (count = fs.readSync(descriptor, buffer, length, buffer.length - length, null)) > 0) length += count;
     if (length > MAX_ASSET_BYTES) throw new ImageValidationError("Image exceeds the 10 MiB limit.", 413);
     verify();
-    const current = fs.lstatSync(file);
+    const current = fs.lstatSync(file, { bigint: true });
     if (current.dev !== opened.dev || current.ino !== opened.ino || current.size !== opened.size || current.mtimeMs !== opened.mtimeMs) throw new FileAccessError();
     const bytes = buffer.subarray(0, length);
     if (mime === "image/svg+xml") {
