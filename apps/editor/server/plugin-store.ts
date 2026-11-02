@@ -40,6 +40,21 @@ export function requestUuid(value: unknown): string {
   return value.toLowerCase();
 }
 
+/** Read the exact registration identity without installing or changing registration. */
+export function readPluginBuild(manifestFile: string, checkPath: (file: string) => void = () => {}) {
+  const manifest = workerManifest(JSON.parse(readFileSync(manifestFile, "utf8")));
+  const files = new Map<string, Buffer>();
+  for (const name of [manifest.entry, manifest.host?.entry, manifest.ui?.script, manifest.ui?.style]) if (name) {
+    const file = path.join(path.dirname(manifestFile), name); checkPath(file);
+    files.set(name, readFileSync(file));
+  }
+  const sha256 = digest(files.get("worker.cjs") ?? "");
+  const hostHash = manifest.host ? digest(files.get(manifest.host.entry)!) : undefined;
+  const uiHashes = manifest.ui ? Object.fromEntries([...files].filter(([name]) => name === manifest.ui?.script || name === manifest.ui?.style).map(([name, bytes]) => [name, digest(bytes)])) : undefined;
+  const revision = digest(JSON.stringify({ manifest, sha256, hostHash, uiHashes }));
+  return { manifest, files, sha256, hostHash, uiHashes, revision };
+}
+
 /** Only registration and request receipts are durable. SQLite's OS locks release
  * on crash; ownership never depends on a PID, clock, heartbeat or stale timeout.
  * Use a local per-user filesystem, not a network share. */
@@ -59,16 +74,7 @@ export class PluginStore {
   }
   list(): Installation[] { return this.db.prepare("SELECT value FROM plugins ORDER BY id").all().map(row => JSON.parse(row.value as string)); }
   register(manifestFile: string, onlyIfMissing = false, checkPath: (file: string) => void = () => {}): Installation {
-    const manifest = workerManifest(JSON.parse(readFileSync(manifestFile, "utf8")));
-    const files = new Map<string, Buffer>();
-    for (const name of [manifest.entry, manifest.host?.entry, manifest.ui?.script, manifest.ui?.style]) if (name) {
-      const file = path.join(path.dirname(manifestFile), name); checkPath(file);
-      files.set(name, readFileSync(file));
-    }
-    const sha256 = digest(files.get("worker.cjs") ?? "");
-    const hostHash = manifest.host ? digest(files.get(manifest.host.entry)!) : undefined;
-    const uiHashes = manifest.ui ? Object.fromEntries([...files].filter(([name]) => name === manifest.ui?.script || name === manifest.ui?.style).map(([name, bytes]) => [name, digest(bytes)])) : undefined;
-    const revision = digest(JSON.stringify({ manifest, sha256, hostHash, uiHashes }));
+    const { manifest, files, sha256, hostHash, uiHashes, revision } = readPluginBuild(manifestFile, checkPath);
     const directory = path.join(this.directory, "installed", revision);
     mkdirSync(path.dirname(directory), { recursive: true });
     const temporary = `${directory}.${randomUUID()}.tmp`;

@@ -69,6 +69,13 @@ Label 입력칸에 focus를 준다(#847). 이미지/pending Figure·Mermaid·수
 
 ## P05 입력칸·placeholder·위계
 
+#947의 [플러그인 목록](plugin-ui-v1.md#host-owned-plugin-settings-947)은 U22의
+기존 Settings 콘텐츠 폭·stacked section·공용 Button과 확인 Dialog를 재사용한다.
+Docling·AI 설정과 같은 콘텐츠 정렬을 따르며 경로·version은 줄바꿈하고 revision은
+짧게 표시한 뒤 tooltip에 전체 값을 둔다. `plugin-settings`의 1440px English Light·
+640px Korean Dark 캡처로 여백, 긴 경로와 확인 문구를 수동 확인한다.
+
+
 #931의 [AI 설정](main-agent-v1.md)은 Docling 설정과 같은 Settings 콘텐츠·control
 폭과 공용 Input/select/Button을 사용한다. 모델 기본값은 명시적 Save로 저장하고,
 목록 대화상자는 기존 Dialog의 닫기·포커스 복귀를 사용한다. 한국어 시작 후 English

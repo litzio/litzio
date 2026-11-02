@@ -1,6 +1,20 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Enabled": "Enabled",
+  "Plugins": "Plugins",
+  "Installed plugins stay pinned until you register them again.": "Installed plugins stay pinned until you register them again.",
+  "Matches app default": "Matches app default",
+  "Differs from app default": "Differs from app default",
+  "Not bundled with this app": "Not bundled with this app",
+  "Register app default again": "Register app default again",
+  "Register app default again?": "Register app default again?",
+  "Register the bundled revision of {{name}}? This turns the plugin on.": "Register the bundled revision of {{name}}? This turns the plugin on.",
+  "Installation revision": "Installation revision",
+  "Installation path": "Installation path",
+  "App default revision": "App default revision",
+  "No installed plugins.": "No installed plugins.",
+
   "View dashboard": "View dashboard",
   "Open settings": "Open settings",
   "Conversion started.": "Conversion started.",
@@ -969,6 +983,20 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Enabled": "켜짐",
+  "Plugins": "플러그인",
+  "Installed plugins stay pinned until you register them again.": "설치된 플러그인은 다시 등록하기 전까지 고정됩니다.",
+  "Matches app default": "앱 기본 버전과 같음",
+  "Differs from app default": "기본 버전과 다름",
+  "Not bundled with this app": "앱 기본 아님",
+  "Register app default again": "기본 버전으로 다시 등록",
+  "Register app default again?": "기본 버전으로 다시 등록할까요?",
+  "Register the bundled revision of {{name}}? This turns the plugin on.": "앱에 포함된 {{name}}의 기본 revision으로 다시 등록합니다. 플러그인이 켜집니다.",
+  "Installation revision": "설치 revision",
+  "Installation path": "저장소 경로",
+  "App default revision": "앱 기본 revision",
+  "No installed plugins.": "설치된 플러그인이 없습니다.",
+
   "View dashboard": "대시보드에서 보기",
   "Open settings": "설정 열기",
   "Conversion started.": "변환을 시작했습니다",

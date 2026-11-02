@@ -431,3 +431,21 @@ in 22,720ms, producing a nonempty summary and three proposals, zero domain-valid
 rejections. [Recorded task and material hash](assets/ai-settings-930/real-smoke.json).
 This is one smoke observation, not a content-quality guarantee. Global-instruction
 and dedicated-home limitations above remain; #931 is outside this change.
+
+## Plugin inventory and explicit default registration (#947)
+
+`GET /api/worker-plugins` returns each pinned installation with its absolute
+`directory` and `bundledRevision` (null for plugins not included in the app).
+The bundled revision uses the exact manifest/file hashing used for registration;
+reading inventory never replaces an existing revision. Missing bundled plugins
+retain the existing first-use seeding behavior.
+`POST /api/worker-plugins` with `{ "bundled": "<id>" }` resolves only an app-owned
+manifest and calls the existing explicit registration function, enabling that
+revision and preserving feature flags. Unknown IDs are refused. Existing
+manifest registration remains available. Source defaults resolve beneath
+`.litzio-dev`; packaged defaults use the shared user directory (#946).
+
+`litzio plugins list [--json]` uses the same Host inventory, including full
+revision, version, enabled state, installed directory and bundled revision.
+`litzio plugins reregister <id>` calls the same Host default registration.
+There is no automatic replacement, installation/removal UI or marketplace.

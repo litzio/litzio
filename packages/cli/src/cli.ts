@@ -180,6 +180,8 @@ const CODE_NOTE = [
 ];
 const ADMONITION_KIND_NOTE = `Kinds: ${ADMONITION_VARIANTS.join(", ")}.`;
 const COMMANDS: CommandSpec[] = [
+  { name: "plugins", group: "Serve", summary: "List installed plugins or explicitly register the app default again",
+    usage: `${brand.cliCommand} plugins list [--json]`, details: [`${brand.cliCommand} plugins reregister <id>`, "Uses the same Host installation and bundled manifests as the Editor. No automatic replacement."] },
   {
     name: "apply-batch",
     group: "Edit — batch",
@@ -884,6 +886,20 @@ function main(argv: string[]): number {
     process.stdout.write(commandHelp(command));
     return 0;
   }
+  if (command === "plugins") {
+    if (!(rest[0] === "list" && (rest.length === 1 || rest.length === 2 && rest[1] === "--json") ||
+        rest[0] === "reregister" && rest.length === 2 && !rest[1].startsWith("-"))) throw new Error(commandHelp(command));
+    const host = createPluginHost();
+    try {
+      if (rest[0] === "reregister") process.stdout.write(JSON.stringify(host.reregister(rest[1])) + "\n");
+      else {
+        const items = host.inventory();
+        process.stdout.write(rest[1] === "--json" ? JSON.stringify(items) + "\n" : items.map(item =>
+          `${item.id} ${item.version} ${item.revision} ${item.enabled ? "on" : "off"} ${item.bundledRevision === null ? "not bundled" : item.revision === item.bundledRevision ? "matches bundled" : "differs from bundled"}\n  ${item.directory}`).join("\n") + "\n");
+      }
+    } finally { void host.close(); }
+    return 0;
+  }
   if (command === "docling") {
     if (rest.length === 2 && rest[0] === "apply-corrections" && !rest[1].startsWith("-")) {
       const host = createPluginHost();
@@ -1431,7 +1447,7 @@ function topLevelHelp(): string {
 function commandHelp(name: string): string {
   const spec = findCommand(name);
   if (!spec) return topLevelHelp();
-  if (name === "docling") return ["Usage:", `  ${spec.usage}`, "", ...spec.details, ""].join("\n");
+  if (name === "docling" || name === "plugins") return ["Usage:", `  ${spec.usage}`, "", ...spec.details, ""].join("\n");
   const editing = isEditCommand(name);
   const addressed = /--(?:at|path|from) <(?:index|heading index|table)/.test(spec.usage);
   return ["Usage:", `  ${spec.usage}${editing ? " [--if-revision <revision>] [--dry-run [--format <text|json>]]" : ""}`, "", ...spec.details,
