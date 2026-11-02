@@ -224,7 +224,7 @@ P07의 화면 문맥 오류·실패 상태, P11의 등록 상태 checkbox를 사
 패널은 대조 영역 아래 자체 스크롤로 제한해 원문·문서·연결선을 가리지 않는다.
 검수 실행은 새 UUID의 명시적 동작이며 자동 재실행하지 않는다.
 
-Docling 수동 페이지 제외 (#945)는 같은 대조 화면에서 P11의 페이지 checkbox,
+Docling 수동 페이지 제외 (#945, #995 PR 2)는 별도 페이지 검수 탭에서 P11의 페이지 checkbox,
 P04의 primary 제외·secondary 해제, P07의 폼 문맥 오류를 사용한다.
 이유는 기존 공용 Input으로 받으며 원문 조작부는 이미지 바깥 행에 둔다.
 현재 동작과 1440px·640px 한국어 다크 Before/After는 [대조 계약](docling-compare-v1.md#manual-page-exclusion-945)에 있다.

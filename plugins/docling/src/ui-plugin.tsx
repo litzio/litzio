@@ -6,6 +6,7 @@ import { DoclingServerSettings, useDoclingConversion, type Request } from "./con
 import { DoclingConversionDialog } from "./conversion/ConversionDialog.tsx";
 import { doclingFailureMessage, type ConversionJob } from "./conversion/server-types.ts";
 import { ReviewPanel } from "./ReviewPanel.tsx";
+import { PageReviewView } from "./PageReviewView.tsx";
 import { Dashboard } from "./Dashboard.tsx";
 
 export function activate(host: UiHost): UiContributions {
@@ -69,16 +70,16 @@ export function activate(host: UiHost): UiContributions {
         void converter.start(input).catch(error => failureNotice(`failure-${Date.now()}`, error instanceof Error ? error.message : String(error), true));
       }} /> : null;
   }
-  function Comparison({ data }: { data: ComparisonSnapshot }) {
+  const readers = new Map<string, Set<() => Promise<void>>>();
+  const refreshFolder = async (folder: string) => {
+    const results = await Promise.allSettled([...(readers.get(folder) ?? [])].map(read => read()));
+    const failure = results.find(result => result.status === "rejected");
+    if (failure?.status === "rejected") throw failure.reason;
+  };
+  function Comparison({ data, pageReview = false }: { data: ComparisonSnapshot; pageReview?: boolean }) {
     const [snapshot, setSnapshot] = useState<ComparisonSnapshot>();
     const [problem, setProblem] = useState("");
     const [loading, setLoading] = useState(true);
-    const [pageSelection, setPageSelection] = useState<number[]>([]), [reason, setReason] = useState("");
-    const [pageBusy, setPageBusy] = useState(false), [pageProblem, setPageProblem] = useState("");
-    const pagePending = useRef(false);
-    const ko = host.text("Source pages") !== "Source pages";
-    const copy: Record<string, string> = { "Excluded": "제외됨", "Select page": "페이지 선택", "Exclude selected pages": "선택 페이지 제외", "Exclusion reason": "제외 이유", "Undo exclusion": "제외 해제" };
-    const pageText = (key: string) => ko && copy[key] ? copy[key] : host.text(key);
     const [refs, setRefs] = useState<string[]>([]);
     const alive = useRef(false), generation = useRef(0);
     const cancelWait = useRef<(() => void) | undefined>(undefined);
@@ -108,42 +109,25 @@ export function activate(host: UiHost): UiContributions {
     }, [data.path]);
     useEffect(() => {
       alive.current = true;
+      const listeners = readers.get(folder) ?? new Set<() => Promise<void>>();
+      readers.set(folder, listeners); listeners.add(reload);
       let stopped = false;
       // An effect discarded before this microtask (including StrictMode replay)
       // must not issue a document request or consume a new recovery budget.
       queueMicrotask(() => { if (!stopped) void reload().catch(() => {}); });
-      return () => { stopped = true; alive.current = false; generation.current++; cancelWait.current?.(); };
+      return () => { listeners.delete(reload); if (!listeners.size) readers.delete(folder); stopped = true; alive.current = false; generation.current++; cancelWait.current?.(); };
     }, [reload]);
-    async function changePages(id?: string) {
-      if (pagePending.current) return;
-      pagePending.current = true; setPageBusy(true); setPageProblem("");
-      try {
-        await host.requestJson("api/plugin-operation", "POST", { plugin: "docling", operation: id ? "remove-correction" : "add-correction",
-          args: id ? { folder, id } : { folder, entry: { id: `pages-${Date.now()}-${Math.random().toString(16).slice(2)}`, operation: "exclude-pages",
-            value: { pages: pageSelection }, reason: reason.trim(), approvedAt: new Date().toISOString() } } });
-        setPageSelection([]); setReason(""); await reload();
-      } catch (error) { setPageProblem(error instanceof Error ? error.message : String(error)); }
-      finally { pagePending.current = false; setPageBusy(false); }
-    }
-    return <div className="docling-review-comparison">
-      <div className="docling-page-actions">
-        <span>{pageText("Exclude selected pages")} · {pageSelection.join(", ") || "—"}</span>
-        <host.Input aria-label={pageText("Exclusion reason")} placeholder={pageText("Exclusion reason")} value={reason} disabled={pageBusy} onChange={event => setReason(event.target.value)} />
-        <host.Button disabled={pageBusy || loading || !snapshot || !pageSelection.length || !reason.trim() || !conversionEnabled} onClick={() => void changePages()}>{pageText("Exclude selected pages")}</host.Button>
-        {pageProblem ? <p role="alert">{pageProblem}</p> : null}
-      </div>
-      {snapshot ? <DoclingCompareView snapshot={snapshot} ReadingSurface={host.ReadingSurface} Button={host.Button} text={pageText}
-        pageActions={page => page.exclusion
-          ? <host.Button variant="secondary" size="sm" disabled={pageBusy || loading || !conversionEnabled} onClick={() => void changePages(page.exclusion!.id)}>{pageText("Undo exclusion")} ({page.exclusion.pages.join(", ")})</host.Button>
-          : <label><input type="checkbox" aria-label={`${pageText("Select page")} ${page.page_no}`} checked={pageSelection.includes(page.page_no)} disabled={pageBusy || loading || !conversionEnabled}
-            onChange={event => setPageSelection(value => event.target.checked ? [...value, page.page_no].sort((a, b) => a - b) : value.filter(n => n !== page.page_no))} />{pageText("Select page")}</label>}
+    return <div className="docling-review-comparison" aria-busy={loading}>
+      {!pageReview ? <div className="docling-page-actions"><host.Button onClick={() => void host.openTab("page-review", folder)}>{host.text("Page review")}</host.Button></div> : null}
+      {snapshot ? pageReview ? <PageReviewView host={host} snapshot={snapshot} loading={loading} conversionEnabled={conversionEnabled} onChanged={() => refreshFolder(folder)} />
+        : <DoclingCompareView snapshot={snapshot} ReadingSurface={host.ReadingSurface} Button={host.Button} text={host.text}
         selectedRefs={refs} imageUrl={uri => host.imageUrl(snapshot.path, uri)} />
         : <div className="docling-compare" role="status">
           <p>{host.text(loading ? "Loading…" : "The comparison may not be current. Automatic reload stopped. Reload it to continue.")}</p>
           {problem ? <p role="alert">{problem}</p> : null}
           {!loading ? <host.Button variant="secondary" onClick={() => void reload().catch(() => {})}>{host.text("Reload comparison")}</host.Button> : null}
         </div>}
-      <ReviewPanel host={host} folder={folder} documentReady={!!snapshot} documentLoading={loading} onSelect={setRefs} onChanged={reload} />
+      {!pageReview ? <ReviewPanel host={host} folder={folder} documentReady={!!snapshot} documentLoading={loading} onSelect={setRefs} onChanged={() => refreshFolder(folder)} /> : null}
     </div>;
   }
 
@@ -167,16 +151,16 @@ export function activate(host: UiHost): UiContributions {
     sidebar: [{ id: "dashboard", label: "Docling", run: () => host.openTab("dashboard", "Docling").then(() => {}) }],
     tabs: [{ id: "dashboard", label: "Docling dashboard", className: "docling-dashboard-tab", open: async () => ({ path: "Docling", data: null }),
       View: () => <Dashboard host={host} request={request} onStopped={job => stoppedConversion(job)} convert={(focus, path) => openConversion(focus, path)} compare={comparison} /> },
-      ...(comparisonEnabled ? [{ id: "comparison", label: "Docling comparison", className: "docling-tab",
+      ...(comparisonEnabled ? ([false, true].map(pageReview => ({ id: pageReview ? "page-review" : "comparison", label: pageReview ? "Page review" : "Docling comparison", className: pageReview ? "docling-page-review-tab" : "docling-tab",
       open: async (folder: string) => {
         const path = folder.replace(/[\\/]+$/, "") + (folder.includes("\\") ? "\\" : "/") + "document.md";
         const snapshot = await host.readJson<ComparisonSnapshot>("api/docling-compare", { path });
         return { path: snapshot.path, data: snapshot };
       },
-      View: Comparison,
+      View: ({ data }: { data: ComparisonSnapshot }) => <Comparison data={data} pageReview={pageReview} />,
       notices: (snapshot: ComparisonSnapshot) => snapshot.stale ? [{ id: "stale", severity: "warning" as const,
         message: `${snapshot.map.source.name}: ${host.text("The correspondence map does not match this document. Connections and sync scrolling are disabled. Reconvert to compare.")}` }] : [],
-    }] : [])],
+    }))) : [])],
     dispose() {}, // CompareView releases observers/frames in React's unmount cleanup.
   };
 }
