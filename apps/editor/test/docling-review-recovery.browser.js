@@ -13,7 +13,7 @@ async (page, { expect, doclingFixture: fixture }) => {
   await expect.poll(async () => (await call(`docling-conversion?id=${job.id}`)).state).toBe('success');
   const dashboard = page.getByTestId('docling-dashboard');
   const showDashboard = async () => { await page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true }).click(); await expect(dashboard).toBeVisible(); };
-  await expect(page.locator('.docling-tab[data-active=true]')).toBeVisible(); await showDashboard();
+  await expect(page.locator('.docling-tab[data-active=true]')).toHaveCount(0); await showDashboard();
   const result = dashboard.locator(`[data-result-id="${job.id}"]`);
   await result.locator("summary").click();
   await result.getByRole('button', { name: 'Run review', exact: true }).click();

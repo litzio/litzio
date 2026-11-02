@@ -11,13 +11,32 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await request('settings', 'PUT', { server: fixture.url });
   const dashboard = page.getByTestId('docling-dashboard');
   const show = async () => { await page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true }).click(); await expect(dashboard).toBeVisible(); };
+  const settings = page.getByTestId('settings-dialog');
+  // Isolate Settings removal before opening polling comparison views.
+  // Actual unregistration still leaves the missing category for Appearance.
+  await page.getByTestId('sidebar').getByRole('button', { name: 'Settings', exact: true }).click();
+  await settings.getByRole('button', { name: 'Docling', exact: true }).click();
+  await expect(settings.getByRole('checkbox', { name: 'Docling comparison', exact: true })).toBeEnabled();
+  const plugins = await (await page.request.get(`${origin}/api/worker-plugins`)).json();
+  expect(plugins.some(plugin => plugin.id === 'docling' && plugin.enabled)).toBe(true);
+  const manifest = fixture.input.replace(/[\\/]docling-dashboard[\\/]completed\.pdf$/u, '/docling-worker/manifest.json');
+  try {
+    const disabled = await page.request.delete(`${origin}/api/worker-plugins`, { data: { id: 'docling' } });
+    expect(disabled.ok()).toBe(true);
+    await expect(settings.getByRole('button', { name: 'Docling', exact: true })).toHaveCount(0);
+    await expect(settings.getByRole('main', { name: 'Appearance & language' })).toBeVisible();
+  } finally {
+    const restored = await page.request.post(`${origin}/api/worker-plugins`, { data: { manifest } });
+    expect(restored.ok()).toBe(true);
+  }
+  await expect(settings.getByRole('button', { name: 'Docling', exact: true })).toBeVisible();
+  await settings.press('Escape');
   await show();
   await expect(page.getByRole('tab', { selected: true })).toHaveAccessibleName('Docling dashboard');
   await expect(dashboard.getByText('Connected', { exact: true })).toBeVisible();
   await dashboard.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Server address' })).toHaveValue(fixture.url);
   await page.getByTestId('settings-dialog').press('Escape');
-  const settings = page.getByTestId('settings-dialog');
   const feature = async (name, enabled) => {
     await dashboard.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(settings.getByRole('checkbox', { name, exact: true })).toBeEnabled();
@@ -74,6 +93,10 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await expect(dashboard.locator(`[data-request-id="${running.id}"]`)).toContainText('In progress');
   await expect(dashboard.locator(`[data-record-id="${completed.id}"]`)).toContainText('Completed');
   await expect(dashboard.locator(`[data-record-id="${failed.id}"]`)).toContainText('required model is missing');
+  for (const id of [failed.id, running.id]) {
+    await expect(dashboard.locator(`[data-record-id="${id}"]`).getByRole('button', { name: 'Open comparison' })).toHaveCount(0);
+    expect(await dashboard.locator(`[data-record-id="${id}"]`).textContent()).not.toContain('No conversion results yet.');
+  }
   await menu(dashboard.locator(`[data-record-id="${failed.id}"]`));
   await expect(dashboard.locator(`[data-record-id="${failed.id}"]`).getByRole('button', { name: 'Retry…' })).toBeDisabled();
   await dashboard.locator(`[data-record-id="${failed.id}"] summary`).click();
@@ -108,7 +131,8 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   fixture.mode('success');
   await dashboard.locator(`[data-record-id="${failed.id}"]`).getByRole('button', { name: 'Retry…' }).click();
   const dialog = page.getByTestId('docling-conversion'); await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: /^(Start conversion|Convert again)$/ }).click();
+  await dialog.getByRole('button', { name: 'Convert', exact: true }).click();
+  await page.locator('.notification-center').getByRole('button', { name: 'Open comparison', exact: true }).click();
   await expect(page.locator('.docling-tab[data-active=true] .ProseMirror')).toBeVisible();
   const comparisonTab = page.getByRole('tab', { name: /failed.docling.*Docling comparison/ });
   const tabId = await comparisonTab.getAttribute('id');
@@ -150,7 +174,8 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await menu(uncertain);
   await uncertain.getByRole('button', { name: 'Start again…' }).click(); await expect(dialog).toBeVisible();
   expect(fixture.submissions()).toBe(before); // Explicit confirmation is required; opening never submits.
-  await dialog.getByRole('button', { name: 'Start conversion' }).click();
+  await dialog.getByRole('button', { name: 'Convert', exact: true }).click();
+  await page.locator('.notification-center').getByRole('button', { name: 'Open comparison', exact: true }).click();
   await expect(page.locator('.docling-tab[data-active=true] .ProseMirror')).toBeVisible();
   expect(fixture.submissions()).toBe(before + 1);
   await show(); await menu(uncertain); await uncertain.getByRole('button', { name: 'Clear record' }).click(); await expect(uncertain).toHaveCount(0);
@@ -178,4 +203,6 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   expect(stored).toBeGreaterThan(initial);
   expect((await request('dashboard')).requests.length).toBe(stored);
   for (const id of seeded) await request('history', 'DELETE', { id });
+
+
 }

@@ -501,8 +501,9 @@ A → pending B → A stores and checks A. Older field-write errors cannot overr
 the latest edit/check result.
 
 Explorer PDF file menus and Command Center's **Convert with Docling** enter the
-same explicit conversion dialog. Command Center first uses the existing Host
-file picker filtered to PDFs. Results go beside the PDF in `<stem>.docling`,
+same small confirmation dialog showing the PDF filename and proposed result
+folder, with Convert and Cancel. Command Center first uses the existing Host
+file picker filtered to PDFs. Confirming closes the dialog; it never shows progress. Results go beside the PDF in `<stem>.docling`,
 then `<stem>.docling-2`, `-3`, etc. Existing files/folders are never overwritten;
 exclusive module publication also refuses a name claimed after the initial
 choice. PDF read and output checks use the Host's existing Root/real-path policy,
@@ -515,8 +516,10 @@ execution uses a separate installed worker with shared UUID request receipts und
 and are never automatically replayed. The browser polls the Host once a second while work is active;
 the module polls Docling. Progress shows checking/upload/queue/processing/download/
 bundle stages, elapsed seconds, task ID once known and the result folder, without
-invented page percentages. Closing the progress dialog leaves work running;
-Command Center opens it again. **Stop waiting** aborts Litzio requests/waiting,
+invented page percentages in the dashboard In progress section. No progress modal
+is shown. Starting another conversion while one is running shows an Already in
+progress notification with View dashboard; no queue is created. **Stop waiting**
+in the dashboard aborts Litzio requests/waiting,
 waits for local cleanup and explicitly says the server task may continue. There
 is no server API cancellation call, automatic retry, persisted queue or resume service. The CLI
 still has no interactive cancellation UI. Completed jobs/tabs are not restored
@@ -528,14 +531,23 @@ the POST. This can recover a newly accepted job, including one already completed
 while ignoring an older completed snapshot. Reading that same older success
 does not clear the new request's rejection/transport error; read failures and
 action failures have separate lifetimes. A delayed comparison response may
-change tabs/dialogs/notifications only while its conversion is still current;
+change tabs/notifications only while its conversion is still current;
 it cannot clear or replace a newer task's failure.
 
-Success opens the existing Docling comparison tab while comparison is enabled. Failure uses the same single
-window NotificationCenter as stale comparison maps, with Go to problem opening
-the conversion dialog. Retry removes that cause; new failures can appear again.
-This adopts P07 only for Docling; aggregation of existing shell/document errors
-remains [#792](https://github.com/litzio/litzio/issues/792).
+Success never opens a tab automatically. Conversion complete offers Open comparison
+when enabled, otherwise View dashboard. Failures remain in the dashboard Needs
+attention section and the same window NotificationCenter. Connection/readiness/
+configuration failures offer Open settings; other job failures offer View dashboard.
+A rejected/lost start also offers Settings and retains GET-only recovery.
+
+#942 uses the owner's approved notification default because P07's ordinary info
+notifications do not unfold and cannot surface a background completion. Explicitly
+named actions unfold once on arrival, without taking focus, and announce the message
+and action politely. Conversion started and Already in progress expire after five
+seconds (the existing MessageArea lifetime); completion and failure remain until
+dismissed, acted on, or superseded by the next attempt. Action execution consumes
+the notice. There is still one activation-scoped notice and no new notification
+system. Unnamed existing notifications retain their previous P07 behavior.
 
 Public `failure.message`, `error_message` and result `errors[].error_message`
 are interpreted in the module, with short translated cause/action text and task
@@ -587,7 +599,9 @@ The table shows original PDF filename, map page count, relative time, map state
 and pending proposal badge. Successful conversions appear once in this table,
 not again as terminal job cards. It initially shows the most recent ten matching
 receipts; Show more reveals another ten without truncating stored history.
-Each row offers Open comparison and a disclosure for document/folder opening,
+Each row with a result offers Open comparison; rows without results rely on their
+status chip rather than repeating a disabled comparison action/empty-results hint.
+Each row has a disclosure for document/folder opening,
 unchanged review execution and Clear record. Clearing remains limited to uncertain
 receipts by the runtime; other states explain why it is disabled. Missing and
 unreadable results retain disabled-action explanations. Internal task IDs are hidden.
@@ -600,7 +614,7 @@ The last connection check is view-local, not persisted.
 Jobs read existing runtime receipts filtered by this Host's Roots. Running jobs
 show PDF, phase, elapsed time and Stop waiting only on their owning Host. Terminal
 jobs show status/time and failures reuse the public translated cause. Retry and
-Start again open the existing confirmation dialog; only explicit Start admits a
+Start again open the existing confirmation dialog; only explicit Convert admits a
 **new UUID**. Observation, opening a dialog and feature changes never resubmit
 uncertain work. Clear record hides only an uncertain receipt while retaining its
 UUID/fingerprint tombstone. It removes neither output nor staging and states that
@@ -774,10 +788,10 @@ no-overwrite naming, completion, explicit/redacted failures and cancellation wit
 no server cancel request. The Desktop protocol test covers the new routes.
 The `docling-server` persistent-browser scenario exercises Settings, PDF context
 menu and Command Center picker, stopped waiting, failure notification/reveal and
-automatic comparison. It passes against Vite and the built production HTTP Host.
+explicit completion notification navigation. It passes against Vite and the built production HTTP Host.
 The same run verifies address/check-button alignment, delayed A→B→A settings,
 initial GET failure and loss of an accepted POST response with GET-only recovery,
-and a delayed comparison response returning after a newer task fails. Other browser regressions
+and an explicitly opened, delayed comparison response returning after a newer task fails. Other browser regressions
 are left to required CI as requested by the owner.
 
 The real pinned CUDA server required a disposable-container CodeFormulaV2
@@ -800,3 +814,31 @@ Settings and progress were checked for alignment, readable wrapping, clipping,
 occlusion and translation against the existing Appearance/recovery/FolderDialog
 patterns. The comparison's existing 640px usability exception remains; its
 640px capture is observation, not a new support guarantee.
+
+## Background conversion verification (#942)
+
+`docling-server` retains the real Host/worker plus synthetic HTTP service checks:
+confirmation filename/location and Cancel, no progress modal, initial status-read
+failure, lost accepted start response with GET-only recovery, concurrent-attempt
+navigation, dashboard Stop waiting and immediate restart, connection failure to
+Settings, explicit comparison opening and late-response isolation. It checks the
+five-second start expiry and that completion outlives that expiry. `docling-dashboard`
+retains feature/history/result checks and verifies no repeated disabled comparison
+or empty-result hint for running/failed rows. It also checks Settings category
+preservation on feature reactivation and fallback on actual unregistration.
+`notification-center` preserves unnamed Go to problem behavior; named actions are
+exercised by the conversion checks. `layout-rules` and `quiet-document` remain green.
+
+Self-reviewed Windows Chrome persistent-profile captures (Vite port 5287, fonts
+ready, synthetic conversion, 100% zoom) show shared dialog/notification alignment,
+padding, clipping and Korean wrapping. Real Docling/OCR fidelity and packaged
+Desktop remain separate verification scopes. Reproduce with `pnpm browser:test
+docling-server --screenshots` and `pnpm browser:test docling-dashboard --screenshots`,
+using an isolated plugin store and the documented persistent browser profile.
+
+| Surface | 1440px English Light | 640px Korean Dark |
+| --- | --- | --- |
+| Confirmation | [PNG](assets/docling-background-942/confirmation-en-1440.png) | [PNG](assets/docling-background-942/confirmation-dark-ko-640.png) |
+| Start notice | [PNG](assets/docling-background-942/start-notice-en-1440.png) | [PNG](assets/docling-background-942/start-notice-dark-ko-640.png) |
+| Completion notice | [PNG](assets/docling-background-942/completion-notice-en-1440.png) | [PNG](assets/docling-background-942/completion-notice-dark-ko-640.png) |
+| Dashboard | [PNG](assets/docling-background-942/dashboard-1440-light-en.png) | [PNG](assets/docling-background-942/dashboard-640-dark-ko.png) |
