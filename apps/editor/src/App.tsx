@@ -384,7 +384,8 @@ function EditorApp() {
     if (!owner || operationRef.current || owner.busy || (!external && !(owner.documentDirty || owner.draftActive))) return;
     saveComparisonReturnFocus.current = returnFocus;
     if (owner.kind === "text") {
-      setSaveComparison({ path: owner.openedPath, revision: owner.acknowledgedRevision, text: owner.currentText });
+      const snapshot = owner.getSnapshot();
+      setSaveComparison({ path: snapshot.file.path, revision: snapshot.file.revision, text: snapshot.text });
       return;
     }
     const submitted = owner.editorRef.current?.getDocument();

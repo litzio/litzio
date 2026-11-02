@@ -132,7 +132,9 @@ falls back to the browser's periodic/focus refresh. See [Folder refresh](editor-
 
 #969 optionally adds `paths`, a JSON array of open document locators, to the same version
 request. The response includes `{ revisions: [{ path, revision }] }` alongside `version`;
-revisions hash actual bytes without parsing or writing, with `null` for missing files.
+revisions hash actual bytes without parsing or writing, with `null` per item for missing
+files/parents or filesystem read failures. These do not remove the folder version or other
+items' revisions; Root/private-path refusals still reject the request.
 Each locator retains Host Root/private-path checks. Without `paths`, the request and response
 remain unchanged. A `paths`-only request checks standalone documents once on window return
 without creating or renewing a folder watcher. No document revision cache or Host session is retained.

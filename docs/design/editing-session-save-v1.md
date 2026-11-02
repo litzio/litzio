@@ -674,7 +674,8 @@ Late checks cannot replace a newer acknowledged revision or a replaced session.
 
 A notification offers Reload from disk and Compare with disk. Native comparison reuses
 the #655 applied-content Save preview and source diff; text comparison uses current input
-against disk text. Comparison is read-only and excludes unapplied native property drafts.
+against disk text, captured from the live session when Compare is clicked (including input
+typed after the notification). Comparison is read-only and excludes unapplied native property drafts.
 Reload uses the existing explicit Reload path, including confirmation before discarding
 unsaved content or drafts. No automatic reload, overwrite action or merge is introduced.
 The existing Save-time revision check remains the final defense for missed changes: a 409
