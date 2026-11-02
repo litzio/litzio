@@ -47,9 +47,19 @@ The owner selected `litzio` as the internal code name in [Discussion #856](https
 ### 1. Existing Hosts share a user installation without a daemon
 
 Desktop keeps ADR-0004's in-process Host and configured Desktop origin (official default `litzio://app`) without a
-TCP listener. `litzio serve` keeps ADR-0005's independent HTTP Host. Both use a
+TCP listener. `litzio serve` keeps ADR-0005's independent HTTP Host. Packaged Desktop and distributed CLI builds use a
 common per-user plugin installation folder containing installed code, plugin
 registration state and request records.
+
+Under owner decision [#946](https://github.com/litzio/litzio/issues/946), source
+execution (Vite, tsx CLI and unpackaged Electron) instead defaults to the
+checkout-local, gitignored `.litzio-dev/` outside disposable `tmp/`. Known module
+or build output locations determine the checkout, never launch cwd or Git discovery.
+Plugin settings and main-agent cwd follow the same execution classification.
+Environment overrides remain authoritative. The checkout's built
+`packages/cli/dist/cli.mjs` is a distributed artifact and retains shared defaults.
+Tests explicitly inject temporary paths. This changes defaults only, not
+registration pinning or the packaged Desktop/serve sharing contract.
 
 Plugin registration state and request records in that folder are the explicit
 exception to the stateless Host scope in AGENTS.md and ADR-0005. Document file
