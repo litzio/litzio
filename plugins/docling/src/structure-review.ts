@@ -183,8 +183,18 @@ export class StructureReviewer {
     const sourceSha256 = this.sourceHash(folder);
     const service = this.service(review.task?.id);
     const receipt = review.task?.status === "running" && service ? this.receipt(service, review.task) : null;
+    const ledger = readFolderCorrections(folder);
+    const original = sourceSha256 === ledger.source.sha256 ? JSON.parse(this.source(folder, ledger).text) : {};
     return { available: !!this.host.aiTasks(), task: review.task, canCancel: receipt?.canCancel ?? false,
-      proposals: review.proposals.map(p => ({ ...p, stale: sourceSha256 !== p.baseline.sourceSha256 })) };
+      proposals: review.proposals.map(p => {
+        const originalItem = original.texts?.find((item: { self_ref: string }) => item.self_ref === p.suggestion.self_ref);
+        const nextRef = p.suggestion.operation === "merge-paragraphs" ? p.suggestion.value.next : undefined;
+        return { ...p, stale: sourceSha256 !== p.baseline.sourceSha256,
+          before: { text: originalItem?.text as string | undefined,
+            nextText: original.texts?.find((item: { self_ref: string }) => item.self_ref === nextRef)?.text as string | undefined,
+            label: originalItem?.label as string | undefined, level: originalItem?.level as number | undefined,
+            corrections: ledger.entries.filter(entry => entry.self_ref === p.suggestion.self_ref).map(({ operation, value }) => ({ operation, value })) } };
+      }) };
   }
   async start(value: string, requestId: string) {
     this.requireConversion();

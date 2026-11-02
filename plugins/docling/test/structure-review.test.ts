@@ -40,9 +40,9 @@ function setup(t: test.TestContext, original = structureReviewSource()) {
   const root = mkdtempSync(path.join(tmpdir(), "docling-review-")), input = path.join(root, "source.json"), folder = path.join(root, "result");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(input, original); convertDoclingFile(input, folder);
-  const service = new FakeService(); let enabled = true, feature = true, owner = randomUUID();
+  const service = new FakeService(); let enabled = true, feature = true, reviewFeature = true, owner = randomUUID();
   const context = {
-    session: new Map(), settingsFile: path.join(root, "settings.json"), features: () => ({ conversion: feature }),
+    session: new Map(), settingsFile: path.join(root, "settings.json"), features: () => ({ conversion: feature, review: reviewFeature }),
     aiTasks: () => enabled ? service : undefined,
     requestOwner: () => owner, isRequestOwnerAlive: (id: string) => id === owner,
     resolvePath: (file: string) => {
@@ -59,7 +59,7 @@ function setup(t: test.TestContext, original = structureReviewSource()) {
   const markdown = () => readFileSync(path.join(folder, "document.md"), "utf8");
   const blocks = () => getEditableDocument(parse(markdown())).blocks;
   return { root, folder, input, original, service, context, call, start, readReview, ledger, markdown, blocks,
-    enable: (value: boolean) => { enabled = value; }, feature: (value: boolean) => { feature = value; },
+    enable: (value: boolean) => { enabled = value; }, feature: (value: boolean) => { feature = value; }, reviewFeature: (value: boolean) => { reviewFeature = value; },
     reactivate: (restart = false) => { if (restart) { context.session.clear(); owner = randomUUID(); } plugin = activate(context); },
   };
 }
@@ -310,6 +310,11 @@ test("disabled service is explicit; accepted work drains across disable and reac
   assert.equal(f.call("status").canCancel, true);
   const cancelled = await f.call<Promise<View>>("cancel"); assert.equal(cancelled.task!.status, "cancelled"); assert.deepEqual(cancelled.proposals, []);
   assert.ok(f.service.requests[0].materials.every(m => !existsSync(m.path)));
+  f.enable(true); f.reviewFeature(false);
+  await assert.rejects(() => f.start(), /feature is disabled/);
+  assert.equal(f.call("status").available, true);
+  assert.throws(() => f.call("reject", { id: randomUUID() }), /feature is disabled/);
+  f.reviewFeature(true);
   f.enable(true); f.feature(false); await assert.rejects(() => f.start(), /feature is disabled/);
 });
 

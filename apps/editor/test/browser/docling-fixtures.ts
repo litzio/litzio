@@ -29,11 +29,13 @@ export function comparisonFiles() {
     const images = record.images.map(image => image.path);
     const result = convertDoclingDocument(JSON.stringify(source), { images: new Map(images.map(file => [file, file])) });
     const files = [
+      { name: `${name}/document.json`, bytes: Buffer.from(JSON.stringify(source)) },
       { name: `${name}/document.md`, bytes: Buffer.from(result.markdown) },
       { name: `${name}/document.docling-map.json`, bytes: Buffer.from(JSON.stringify(result.map)) },
       ...images.map(file => ({ name: `${name}/${file}`, bytes: readFileSync(new URL(file, root)) })),
     ];
     if (name === "synthetic") files.push(
+      { name: "stale/document.json", bytes: Buffer.from(JSON.stringify(source)) },
       { name: "stale/document.md", bytes: Buffer.from(`${result.markdown}\nExternally changed.\n`) },
       { name: "stale/document.docling-map.json", bytes: Buffer.from(JSON.stringify(result.map)) },
       ...images.map(file => ({ name: `stale/${file}`, bytes: readFileSync(new URL(file, root)) })),

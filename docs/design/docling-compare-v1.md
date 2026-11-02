@@ -36,6 +36,27 @@ same disabled state as plugin detachment. Re-enabling restores their snapshots.
 The empty-state help therefore describes only file browsing, separately from the comparison action
 ([#799](https://github.com/litzio/litzio/issues/799), sidebar item only).
 
+## Structure review panel (#900)
+
+The bounded, scrollable panel below the two comparison panes lists pending,
+approved, rejected and inapplicable proposals, with stale source separately marked.
+Selecting a proposal reveals its original refs using the existing source selection
+and connector style and highlights measured right-hand blocks, without accessing
+Editor DOM or importing its internals. Merge proposals select both original refs.
+The details show kind, the actual original target text (both refs for a merge),
+AI-provided page/text evidence separately, reason, Before (original label/level
+and current approved changes), After (proposed values), and validation failures.
+Approval/rejection are explicit; approved entries offer Undo approval. Stale and
+inapplicable entries cannot be approved. Host C1 validation remains authoritative.
+Approval and undo load a fresh document/map before clearing the panel's busy state;
+no tab reopening, automatic AI rerun or document editing session is introduced.
+Disabled review or absent AI service shows a reason and hides proposal controls.
+
+`docling-review` uses synthetic PDF data and the fake AI adapter, exercising Run,
+Cancel, proposal selection, approval/rejection/undo and immediate refreshed heading
+DOM after busy completion. 1440px English Light and 640px Korean Dark captures
+cover wrapping and panel/pane geometry. Real AI suggestion accuracy remains manual.
+
 The left pane displays original page images with source bboxes using the map v1
 page sizes and each bbox's TOPLEFT/BOTTOMLEFT origin. Categories have token colors
 and a legend; decoration is dashed and unsupported is dotted. Selecting a region

@@ -110,6 +110,16 @@ export function fakeAdapter(mode: string): Adapter {
       });
       if (mode === "format") return '{"wrong":true}';
       if (mode === "malformed") return "not JSON";
+      if (mode === "docling-review") {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, 1800);
+          signal.addEventListener("abort", () => { clearTimeout(timer); reject(new AdapterError("cancelled", "Fixture stopped.")); }, { once: true });
+        });
+        const source = JSON.parse(await readFile(path.join(work.temporary.snapshot, "document.json"), "utf8"));
+        return JSON.stringify({ proposals: [1, 4, 5].map((i) => ({ self_ref: `#/texts/${i}`, operation: "heading", value: { level: 3 },
+          reason: "Synthetic suggestion for UI verification. 긴 한국어 이유와 원문 조각의 줄바꿈을 확인하는 합성 제안입니다.",
+          evidence: [{ page: 1, text: source.texts[i].text }] })) });
+      }
       const content = await Promise.all(work.request.materials.map(file => readFile(path.join(work.temporary.snapshot, file.name), "utf8")));
       return JSON.stringify({ value: content.join("\n") || "fixture", input: work.request.input });
     },
