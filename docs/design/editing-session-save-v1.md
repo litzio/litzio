@@ -671,6 +671,8 @@ documents outside opened folders are checked once on window focus/visibility ret
 Paired return events share one in-flight request and a two-second cooldown. No periodic
 loop is added for standalone documents. Unreadable checks leave Save-time protection active.
 Late checks cannot replace a newer acknowledged revision or a replaced session.
+Own Save, Reload and Host-acknowledged Figure image rename retire the prior observed
+revision when accepting their checkpoint; these writes are not external changes.
 
 A notification offers Reload from disk and Compare with disk. Native comparison reuses
 the #655 applied-content Save preview and source diff; text comparison uses current input

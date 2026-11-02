@@ -378,6 +378,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
       editor.renameImagePaths(result.replacements);
       if (sourceRevision.current !== result.revision) sessionBase.current.savedEdits = collectSupportedEdits(document, editor.getSnapshot().savedDocument);
       sourceRevision.current = result.revision;
+      setExternalRevision(undefined);
       if (editor.hasDocumentChanges()) recorder?.edit();
       else recorder?.discard();
     },
