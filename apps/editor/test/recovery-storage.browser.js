@@ -2,6 +2,20 @@
 async page => {
   // A second window has acquired permission but has never persisted its first record.
   // File operations must invalidate that permission for both deletion and rename.
+  await page.evaluate(async () => {
+    const { recoveryStorage: store } = await import('/src/recovery-storage.ts');
+    const path = '/guarded-undo.md', id = 'guarded-undo';
+    const write = async text => store.write(id, await store.ticket(id, path), () => ({ id, path, version: 1, recordedAt: Date.now(), recoveryText: text, snapshot: { file: { path } } }));
+    await write('checked');
+    const checked = (await store.list()).filter(record => record.path === path);
+    await write('arrived during deletion');
+    let refused = false;
+    try { await store.changePath(path, null, checked); } catch { refused = true; }
+    if (!refused || !(await store.list()).some(record => record.path === path && record.recoveryText === 'arrived during deletion')) throw new Error('Undo cleanup discarded newer recovery work');
+    const latest = (await store.list()).filter(record => record.path === path);
+    await store.changePath(path, null, latest);
+    if ((await store.list()).some(record => record.path === path)) throw new Error('Confirmed recovery cleanup failed');
+  });
   const other = await page.context().newPage();
   const results = [];
   try {

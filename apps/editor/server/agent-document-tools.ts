@@ -1,4 +1,5 @@
-import { writeFileSync } from "node:fs";
+import { fileIdentity } from "../shared/file-operations.ts";
+import { writeFileSync, openSync, fstatSync, closeSync } from "node:fs";
 import path from "node:path";
 import { createDocument, updateDocumentTitle, insertParagraph, insertHeading, bodyEndIndex, serialize, validateStructure, DocumentDiagnosticError } from "@litzio/core";
 import { textRevision } from "@litzio/file-commit";
@@ -48,6 +49,9 @@ export function executeDocumentTool(name: string, input: unknown, scope: Documen
   validateStructure(document);
   const source = serialize(document);
   const target = resolveDocumentPath(scope.folders.resolve(accessPath(file, scope.access, true), true), scope.access, true);
-  writeFileSync(target, source, { encoding: "utf8", flag: "wx" });
-  return { path: target, revision: textRevision(source) };
+  const fd = openSync(target, "wx");
+  try {
+    writeFileSync(fd, source, { encoding: "utf8" });
+    return { path: target, revision: textRevision(source), identity: fileIdentity(fstatSync(fd, { bigint: true })) };
+  } finally { closeSync(fd); }
 }

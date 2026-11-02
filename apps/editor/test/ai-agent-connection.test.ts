@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodexAppServer, LineDecoder } from "../server/codex-app-server.ts";
-import { AiAgentConnection, AGENT_INSTRUCTIONS } from "../server/ai-agent-connection.ts";
+import { AiAgentConnection, AGENT_INSTRUCTIONS, LITZIO_GUIDE } from "../server/ai-agent-connection.ts";
 import { AiAgentConversations } from "../server/ai-agent-conversations.ts";
 import { RootAccess } from "../server/file-access.ts";
 
@@ -72,7 +72,11 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   const connection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log, "account-fail"] });
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   assert.equal(existsSync(log), false);
-  const env = connection.environment(); assert.equal(env.cwd, cwd); assert.deepEqual(env.skills, []);
+  const env = connection.environment(); assert.equal(env.cwd, cwd); assert.deepEqual(env.skills, ["litzio-guide"]);
+  const guide = path.join(cwd, ".agents", "skills", "litzio-guide", "SKILL.md");
+  assert.equal(readFileSync(guide, "utf8"), LITZIO_GUIDE);
+  writeFileSync(guide, "stale"); connection.environment();
+  assert.equal(readFileSync(guide, "utf8"), LITZIO_GUIDE);
   assert.equal(readFileSync(env.instructions, "utf8"), AGENT_INSTRUCTIONS);
   const [models, diagnostics] = await Promise.all([connection.models(), connection.diagnostics()]);
   assert.deepEqual(models.models.map(model => model.model), ["gpt-6.1-sol", "chosen-model", "next-model"]);
@@ -138,7 +142,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   const file = path.join(folder, "Hello.md"), args = { path: file, title: "Hello", blocks: [{ type: "heading", level: 2, text: "Welcome" }, { type: "paragraph", text: "Hello world" }] };
   const created = (await call("create_document", args)).result;
   assert.equal(created.success, true);
-  const receipt = JSON.parse(created.contentItems[0].text); assert.equal(receipt.path, file); assert.ok(receipt.revision);
+  const receipt = JSON.parse(created.contentItems[0].text); assert.equal(receipt.path, file); assert.ok(receipt.revision); assert.match(receipt.identity.ino, /^\d+$/); assert.match(receipt.identity.dev, /^\d+$/);
   const read = (await call("read_document", { path: file })).result;
   assert.equal(read.success, true); assert.equal(JSON.parse(read.contentItems[0].text).revision, receipt.revision);
   assert.match(JSON.parse(read.contentItems[0].text).source, /Hello world/);

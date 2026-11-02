@@ -18,6 +18,9 @@ export class AiAgentConnection {
     // Product-owned instructions; user Codex home/configuration is never written.
     writeFileSync(instructions, AGENT_INSTRUCTIONS);
     const skillsDirectory = path.join(this.cwd, ".agents", "skills");
+    const guideDirectory = path.join(skillsDirectory, "litzio-guide");
+    mkdirSync(guideDirectory, { recursive: true });
+    writeFileSync(path.join(guideDirectory, "SKILL.md"), LITZIO_GUIDE);
     let skills: string[] = [];
     try { skills = readdirSync(skillsDirectory, { withFileTypes: true }).filter(entry => entry.isDirectory() && existsSync(path.join(skillsDirectory, entry.name, "SKILL.md"))).map(entry => entry.name); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
@@ -58,3 +61,26 @@ export class AiAgentConnection {
   }
   close() { return this.client.close(); }
 }
+
+export const LITZIO_GUIDE = `---
+name: litzio-guide
+description: Explain Litzio document opening, editing, Docling conversion, settings and assistant tools; guide terminal CLI continuation.
+---
+# Litzio usage guide
+
+Open a document or folder from the start screen or Files sidebar. Select a file to open it in a tab.
+Use Read for reading, Edit for visual editing, and Source to inspect the document source. Save applied edits explicitly; unapplied property drafts are separate.
+For PDF conversion, use the Docling plugin's conversion flow, choose the PDF and destination, then inspect the converted document. The assistant's three tools do not run Docling.
+Settings controls appearance/language, document preferences and installed plugins. AI agent settings select Codex, model, reasoning effort, response language and write access. Diagnostics reports connection/account status; the common environment lists the working directory, instructions and local skill files.
+
+## Assistant
+- list_documents: list documents and child folders in an opened folder.
+- read_document: read a document's disk source and revision; supplied editor context may include newer unsaved content.
+- create_document: create a new .md document with title and plain-text paragraph/heading blocks inside an opened folder. Never overwrite an existing file.
+Use these tools directly in Litzio. Existing documents must remain unchanged: propose edits in text only.
+The creation result card opens the file or undoes creation by deleting it. Changed disk content or unsaved edits require confirmation. A later change refuses deletion. Never retry creation automatically after interruption or disconnection.
+
+## Continue in terminal Codex CLI
+Resume the conversation by its Codex thread ID. Litzio's dynamic tools have no handler in the terminal; use the installed Litzio CLI instead. Run litzio --help and each command's --help for exact options in the installed version.
+Create a new document with litzio create <new-file>, inspect it with litzio inspect <file>, apply supported operations with litzio apply-batch <file> --operations <json-file> --if-revision <revision>, then validate with litzio check <file>. Use litzio inspect again after structural changes to refresh node paths. Do not assemble Markdown manually or edit existing documents without separate authorization.
+`;

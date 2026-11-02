@@ -29,8 +29,7 @@ task service or decide its other deferred isolation conditions.
 The child cwd is `assistant` below the brand-configured user-data directory
 (`%APPDATA%/<brand.folders.desktopData>/assistant` on Windows). Litzio owns an
 `AGENTS.md` there, including **existing documents must not be edited; propose
-changes in text only** and the official CLI/Core document write path. No guide
-skill is fabricated: installed Litzio skills are listed from this cwd.
+changes in text only** and the official CLI/Core document write path. The product also owns `.agents/skills/litzio-guide/SKILL.md` with usage and terminal CLI guidance; local Litzio skills are listed from this cwd.
 Opened folders are additional access roots for conversation execution.
 The sole main-agent write-scope setting is `writeAccess`, default
 `opened-folders`, with `read-only` as the other value. Each new conversation turn applies that scope through Codex's sandbox policy.
@@ -54,8 +53,7 @@ The shell owns the right docked panel, width and focus without a new plugin
 contribution point. Codex owns thread content; Litzio stores only list metadata.
 The panel uses short snapshot polling for summaries/tools, steering,
 interruption and context usage. Model/effort defaults and response language
-come from AI Settings; per-conversation overrides do not change those defaults. New-document result cards/undo, guide skill content, existing-document
-editing, Docling integration, other providers, assistant tabs and an agent home
+come from AI Settings; per-conversation overrides do not change those defaults. Existing-document editing, Docling integration, other providers, assistant tabs and an agent home
 screen remain outside the current delivery.
 
 CLI parity is intentionally omitted: connection, diagnostics and AI execution
@@ -83,6 +81,6 @@ both the original tool specifications and creation receipt, and a subsequent rea
 call succeeded. Threads originally started without tools require a new conversation;
 Litzio does not claim retroactive registration. Terminal CLI resumption has no
 Litzio tool handler: the owner's chosen alternative is usage guidance via a skill
-(delivered with result cards/undo in PR 2). AI execution adds no semantic operation,
+(delivered with result cards/undo in implementation 2, PR 2). AI execution adds no semantic operation,
 so separate CLI parity is omitted. Exact inputs, permissions and verification are
 in the [implemented contract](../design/main-agent-v1.md#document-tools-931-implementation-2-pr-1).
