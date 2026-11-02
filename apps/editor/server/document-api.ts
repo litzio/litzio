@@ -298,10 +298,13 @@ export async function handleDocumentRequest(
     if (!["GET", "POST", "DELETE"].includes(req.method ?? "")) { res.statusCode = 405; res.end(); return; }
     try {
       const store = plugins.plugins();
-      if (req.method === "GET") sendJson(res, 200, store.list());
+      if (req.method === "GET") sendJson(res, 200, plugins.inventory());
       else {
         const body = JSON.parse(await readBody(req));
         if (req.method === "POST") {
+          if (typeof body.bundled === "string") {
+            sendJson(res, 200, plugins.reregister(body.bundled)); return;
+          }
           const manifest = accessPath(body.manifest, access);
           sendJson(res, 200, store.register(manifest, false, file => { accessPath(file, access); }));
         } else {

@@ -751,7 +751,7 @@ test("litzio help exits successfully", () => {
       "Edit — tables": ["insert-table", "insert-table-row", "insert-table-column", "remove-table-row", "remove-table-column", "move-table-row", "move-table-column", "update-table-alignment", "update-table-caption", "update-table-cell"],
       "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-numbering-mode", "update-reference-templates", "update-title"],
       "Format": ["format"],
-      "Serve": ["serve"],
+      "Serve": ["plugins", "serve"],
     };
     const expectedCommands = Object.values(expectedGroups).flat();
     const listed: string[] = [];
@@ -3012,4 +3012,17 @@ test("CLI build constant selects distributed defaults even for checkout dist art
   const expected = hostPaths({ packaged: true }, {}), actual = bundled.hostPaths({}, {});
   assert.equal(actual.plugins, expected.plugins); assert.equal(actual.settingsFile("docling"), expected.settingsFile("docling"));
   assert.equal(actual.agent, expected.agent);
+});
+
+test("plugins CLI lists Host inventory and explicitly reregisters bundled revisions", () => {
+  const listed = run(["plugins", "list", "--json"]);
+  assert.equal(listed.status, 0, listed.stderr);
+  const plugins = JSON.parse(listed.stdout);
+  const docling = plugins.find((item: any) => item.id === "docling");
+  assert.equal(docling.revision, docling.bundledRevision);
+  assert.ok(path.isAbsolute(docling.directory));
+  assert.match(run(["plugins", "list"]).stdout, /docling/);
+  assert.equal(run(["plugins", "reregister", "docling"]).status, 0);
+  assert.notEqual(run(["plugins", "reregister", "unknown"]).status, 0);
+  assert.notEqual(run(["plugins", "list", "--invalid"]).status, 0);
 });

@@ -126,7 +126,12 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     role={overlay ? "dialog" : undefined} aria-modal={overlay ? true : undefined} data-testid="assistant-panel"
     onKeyDown={event => {
       if (event.defaultPrevented) return;
-      if (event.key === "Escape" && !event.nativeEvent.isComposing) { event.preventDefault(); onClose(); }
+      if (event.key === "Escape" && !event.nativeEvent.isComposing) {
+        event.preventDefault();
+        // Focus can still be on a chip before the portalled popup autofocus runs.
+        if (choicesOpen) { event.stopPropagation(); setChoicesOpen(false); }
+        else onClose();
+      }
       if (event.key === "Tab" && overlay) {
         const controls = Array.from(panel.current!.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')).filter(element => element.getClientRects().length);
         const first = controls[0], last = controls.at(-1);

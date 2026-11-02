@@ -1,3 +1,4 @@
+import path from "node:path";
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -7,6 +8,7 @@ import { hostPaths, type HostRun } from "./host-paths.ts";
 import { accessPath, type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
 import { resolveDocumentPath, resolveMediaPath } from "./document-path.ts";
 import { readModel } from "./document-replay.ts";
+import { readPluginBuild } from "./plugin-store.ts";
 import { PluginRuntime } from "./plugin-runtime.ts";
 import { AI_TASK, AI_AGENT, type AiTaskService } from "@litzio/plugin-api/ai";
 import { AiAgentConnection } from "./ai-agent-connection.ts";
@@ -26,7 +28,7 @@ export function pluginsDirectory() { return hostPaths().plugins; }
 export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { directory?: string; manifest?: string; timeoutMs?: number; aiManifest?: string; aiTimeoutMs?: number; agent?: AiAgentConnection; run?: HostRun }) {
   let runtime: PluginRuntime | undefined, closed = false, closing: Promise<void> | undefined;
   const paths = hostPaths(options?.run, { ...process.env });
-  const directory = options?.directory ?? paths.plugins;
+  const directory = path.resolve(options?.directory ?? paths.plugins);
   const activations = new Map<string, HostPlugin>();
   const sessions = new Map<string, Map<string, unknown>>();
   let agent: AiAgentConnection | undefined = options?.agent;
@@ -56,6 +58,18 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
       if (!value.store.list().some(item => item.id === AI_TASK.plugin)) value.store.register(options?.aiManifest ?? bundledAiManifest(), true);
     }
     return value.store;
+  };
+  const bundled = () => [options?.manifest ?? bundledPluginManifest(), options?.aiManifest ?? bundledAiManifest()]
+    .map(file => ({ file, ...readPluginBuild(file) }));
+  const inventory = () => {
+    const defaults = bundled();
+    return plugins(true).list().map(item => ({ ...item,
+      bundledRevision: defaults.find(build => build.manifest.id === item.id)?.revision ?? null }));
+  };
+  const reregister = (id: string) => {
+    const build = bundled().find(build => build.manifest.id === id);
+    if (!build) throw new Error("Plugin is not bundled with this app.");
+    return plugins().register(build.file);
   };
   const load = (id: string) => {
     const store = plugins(true), installation = store.list().find(item => item.id === id);
@@ -150,5 +164,5 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
       const failed = results.find(result => result.status === "rejected"); if (failed?.status === "rejected") throw failed.reason;
     }).finally(() => { activations.clear(); sessions.clear(); });
   };
-  return { plugins, unregister, invoke, route, aiTasks, close };
+  return { plugins, inventory, reregister, unregister, invoke, route, aiTasks, close };
 }

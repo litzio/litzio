@@ -2873,3 +2873,13 @@ and session locator. Reopening restores it. See [table presentation](table-inter
 Before: [1440px](assets/color-mode-912/before-1440-expanded.png),
 [640px](assets/color-mode-912/before-640-expanded.png). Same scratch document,
 900px height, persistent Chrome profile and bundled fonts; captures are manual evidence.
+
+## Installed plugin inventory (#947)
+
+App Settings adds the Host-owned Plugins category alongside Appearance & language,
+Saving & recovery and contributed plugin settings. It uses the same content
+geometry, section rows, actions and confirmation dialog. Long installation paths
+wrap within the content width; revision tooltips expose the full hash. Inventory
+and the explicit app-default re-registration contract are defined in
+[Plugin UI contributions](plugin-ui-v1.md#host-owned-plugin-settings-947) and
+[Host worker plugins](plugin-runtime-v1.md#plugin-inventory-and-explicit-default-registration-947).
