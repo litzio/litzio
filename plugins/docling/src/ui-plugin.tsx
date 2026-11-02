@@ -73,6 +73,12 @@ export function activate(host: UiHost): UiContributions {
     const [snapshot, setSnapshot] = useState<ComparisonSnapshot>();
     const [problem, setProblem] = useState("");
     const [loading, setLoading] = useState(true);
+    const [pageSelection, setPageSelection] = useState<number[]>([]), [reason, setReason] = useState("");
+    const [pageBusy, setPageBusy] = useState(false), [pageProblem, setPageProblem] = useState("");
+    const pagePending = useRef(false);
+    const ko = host.text("Source pages") !== "Source pages";
+    const copy: Record<string, string> = { "Excluded": "제외됨", "Select page": "페이지 선택", "Exclude selected pages": "선택 페이지 제외", "Exclusion reason": "제외 이유", "Undo exclusion": "제외 해제" };
+    const pageText = (key: string) => ko && copy[key] ? copy[key] : host.text(key);
     const [refs, setRefs] = useState<string[]>([]);
     const alive = useRef(false), generation = useRef(0);
     const cancelWait = useRef<(() => void) | undefined>(undefined);
@@ -108,8 +114,29 @@ export function activate(host: UiHost): UiContributions {
       queueMicrotask(() => { if (!stopped) void reload().catch(() => {}); });
       return () => { stopped = true; alive.current = false; generation.current++; cancelWait.current?.(); };
     }, [reload]);
+    async function changePages(id?: string) {
+      if (pagePending.current) return;
+      pagePending.current = true; setPageBusy(true); setPageProblem("");
+      try {
+        await host.requestJson("api/plugin-operation", "POST", { plugin: "docling", operation: id ? "remove-correction" : "add-correction",
+          args: id ? { folder, id } : { folder, entry: { id: `pages-${Date.now()}-${Math.random().toString(16).slice(2)}`, operation: "exclude-pages",
+            value: { pages: pageSelection }, reason: reason.trim(), approvedAt: new Date().toISOString() } } });
+        setPageSelection([]); setReason(""); await reload();
+      } catch (error) { setPageProblem(error instanceof Error ? error.message : String(error)); }
+      finally { pagePending.current = false; setPageBusy(false); }
+    }
     return <div className="docling-review-comparison">
-      {snapshot ? <DoclingCompareView snapshot={snapshot} ReadingSurface={host.ReadingSurface} Button={host.Button} text={host.text}
+      <div className="docling-page-actions">
+        <span>{pageText("Exclude selected pages")} · {pageSelection.join(", ") || "—"}</span>
+        <host.Input aria-label={pageText("Exclusion reason")} placeholder={pageText("Exclusion reason")} value={reason} disabled={pageBusy} onChange={event => setReason(event.target.value)} />
+        <host.Button disabled={pageBusy || loading || !snapshot || !pageSelection.length || !reason.trim() || !conversionEnabled} onClick={() => void changePages()}>{pageText("Exclude selected pages")}</host.Button>
+        {pageProblem ? <p role="alert">{pageProblem}</p> : null}
+      </div>
+      {snapshot ? <DoclingCompareView snapshot={snapshot} ReadingSurface={host.ReadingSurface} Button={host.Button} text={pageText}
+        pageActions={page => page.exclusion
+          ? <host.Button variant="secondary" size="sm" disabled={pageBusy || loading || !conversionEnabled} onClick={() => void changePages(page.exclusion!.id)}>{pageText("Undo exclusion")} ({page.exclusion.pages.join(", ")})</host.Button>
+          : <label><input type="checkbox" aria-label={`${pageText("Select page")} ${page.page_no}`} checked={pageSelection.includes(page.page_no)} disabled={pageBusy || loading || !conversionEnabled}
+            onChange={event => setPageSelection(value => event.target.checked ? [...value, page.page_no].sort((a, b) => a - b) : value.filter(n => n !== page.page_no))} />{pageText("Select page")}</label>}
         selectedRefs={refs} imageUrl={uri => host.imageUrl(snapshot.path, uri)} />
         : <div className="docling-compare" role="status">
           <p>{host.text(loading ? "Loading…" : "The comparison may not be current. Automatic reload stopped. Reload it to continue.")}</p>

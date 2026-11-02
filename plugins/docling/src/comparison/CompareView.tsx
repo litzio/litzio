@@ -7,6 +7,7 @@ import "./compare.css";
 type Props = {
   snapshot: ComparisonSnapshot;
   selectedRefs?: string[];
+  pageActions?(page: ComparisonSnapshot["map"]["pages"][string]): ReactNode;
   ReadingSurface: ComponentType<ReadingSurfaceProps>;
   Button: ComponentType<{ children?: ReactNode; onClick(): void; disabled?: boolean }>;
   /** All copy is translated by the shell; source labels/notes remain original evidence. */
@@ -22,7 +23,7 @@ function needsReveal(pane: HTMLDivElement, top: number, height: number): boolean
 }
 
 /** Owns only module DOM. Reading positions are supplied by the Editor's read-only surface. */
-export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, imageUrl, selectedRefs }: Props) {
+export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, imageUrl, selectedRefs, pageActions }: Props) {
   const { map, stale } = snapshot;
   const left = useRef<HTMLDivElement>(null), right = useRef<HTMLDivElement>(null), body = useRef<HTMLDivElement>(null);
   const [{ width, inset, gap }, setGeometry] = useState({ width: 400, inset: 16, gap: 16 });
@@ -45,7 +46,7 @@ export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, ima
     let top = inset;
     return Object.values(map.pages).sort((a, b) => a.page_no - b.page_no).map(page => {
       const height = width * page.size.height / page.size.width;
-      const entry = { ...page, top, height }; top += height + gap; return entry;
+      const entry = { ...page, top: top + 48, height }; top += height + gap + 48; return entry;
     });
   }, [map, width, inset, gap]);
   const itemsByPage = useMemo(() => {
@@ -203,8 +204,9 @@ export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, ima
     <div className="docling-column-labels"><span>{text("Source pages")} · {range[0]}–{range[1]} / {pages.length}</span><span>{text("Converted document")}</span></div>
     <div className="docling-body" ref={body}>
       <div className="docling-source" ref={left} onScroll={() => scroll("left")} tabIndex={0} aria-label={text("Source pages")}>
-        {pages.map(page => <div key={page.page_no} className="docling-page" data-page={page.page_no} style={{ height: page.height }}>
-          <span className="docling-page-number">{page.page_no}</span>
+        {pages.map(page => <div key={page.page_no} className="docling-page-wrapper">
+          <div className="docling-page-number" title={page.exclusion?.reason}>{page.page_no} {page.exclusion ? text("Excluded") : null} {pageActions?.(page)}</div>
+          <div className="docling-page" data-page={page.page_no} data-excluded={!!page.exclusion} style={{ height: page.height }}>
           {range[0] <= page.page_no && page.page_no <= range[1] ? <>
             {page.image?.uri ? <img alt={`${text("Source page")} ${page.page_no}`} src={imageUrl(page.image.uri)} /> : <span>{text("Page image unavailable")}</span>}
             {(itemsByPage.get(page.page_no) ?? []).map(({ item, region, key }) => <button key={key} type="button" className="docling-region"
@@ -214,7 +216,7 @@ export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, ima
               style={{ left: `${region.left * 100}%`, top: `${region.top * 100}%`, width: `${region.width * 100}%`, height: `${region.height * 100}%` }}
               onClick={() => reveal(item)} />)}
           </> : null}
-        </div>)}
+        </div></div>)}
       </div>
       <div className="docling-reading" ref={right} onScroll={() => scroll("right")} tabIndex={0} aria-label={text("Converted document")}>
         <ReadingSurface key={map.document.sha256} document={snapshot.document} path={snapshot.path} showHeadingLevels onLayout={onLayout} onSelection={selectTarget} />

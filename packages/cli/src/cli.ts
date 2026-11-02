@@ -230,6 +230,8 @@ const COMMANDS: CommandSpec[] = [
       `${brand.cliCommand} docling convert-pdf <pdf> --server <url> --output <new-folder> [--timeout <seconds>]`,
       "--server defaults to LITZIO_DOCLING_SERVER. Uses the fixed litzio-pdf-en-v1 profile.",
       "PDF conversion creates document.json, readable image files, conversion-record.json and the native document/map.",
+      `${brand.cliCommand} docling add-correction <conversion-folder> --entry <json-or-file>`,
+      `${brand.cliCommand} docling remove-correction <conversion-folder> <id>`,
       "Creates document.md, document.docling-map.json and local image assets.",
       `${brand.cliCommand} docling apply-corrections <conversion-folder>`,
       "Replays corrections.json against the unchanged source; replaces the document/map together. No AI execution.",
@@ -901,6 +903,17 @@ function main(argv: string[]): number {
     return 0;
   }
   if (command === "docling") {
+    if ((rest.length === 4 && rest[0] === "add-correction" && rest[2] === "--entry") ||
+        (rest.length === 3 && rest[0] === "remove-correction")) {
+      const host = createPluginHost();
+      try {
+        const args = rest[0] === "add-correction"
+          ? { folder: rest[1], entry: JSON.parse(rest[3].trimStart().startsWith("{") ? rest[3] : readFile(rest[3])) }
+          : { folder: rest[1], id: rest[2] };
+        process.stdout.write(JSON.stringify(host.invoke("docling", rest[0], args)) + "\n");
+      } finally { void host.close(); }
+      return 0;
+    }
     if (rest.length === 2 && rest[0] === "apply-corrections" && !rest[1].startsWith("-")) {
       const host = createPluginHost();
       try { process.stdout.write(JSON.stringify(host.invoke("docling", "apply-corrections", { folder: rest[1] })) + "\n"); }

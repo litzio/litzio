@@ -39,6 +39,39 @@ same disabled state as plugin detachment. Re-enabling rereads their current resu
 The empty-state help therefore describes only file browsing, separately from the comparison action
 ([#799](https://github.com/litzio/litzio/issues/799), sidebar item only).
 
+## Manual page exclusion (#945)
+
+Source-page controls occupy a separate 48px row above each image; regions and
+scroll correspondence use the image position, so controls never cover source text.
+The comparison is the manual entry point because original page images and their
+converted result are visible together. Page checkboxes select multiple pages;
+a short required reason and Exclude selected pages submit one `exclude-pages`
+approval through the existing `add-correction` Host operation. Human entries omit
+`aiEvidence`. Excluded page images/regions remain in place, dimmed and labelled
+“Excluded” / “제외됨”. Undo exclusion calls `remove-correction` for the entire
+approval (all its page numbers are shown). Both actions regenerate then reread
+the document/map, without a page reload. Errors stay beside the controls; no
+mutation is retried. Conversion-disabled state disables manual changes.
+The [replay contract](docling-conversion-v1.md#approved-correction-records-and-replay-876)
+owns exclusion and relationship/conflict semantics. AI suggestions and source
+requirements diagnostics remain outside this phase.
+
+Windows persistent Chrome at Vite port 5287, DPR 1: baseline `2177ba22` UI and
+this implementation on the same synthetic page. P04 uses explicit primary exclusion
+and secondary undo, P07 retains Host errors in the form, and P11 uses temporary
+page checkboxes. Shared controls and semantic colors match the existing review panel.
+
+| State | 1440px Light English | 640px Dark Korean |
+| --- | --- | --- |
+| Before | [PNG](assets/docling-945/before-1440.png) | [PNG](assets/docling-945/before-640.png) |
+| After, included | [PNG](assets/docling-945/after-1440.png) | [PNG](assets/docling-945/after-640.png) |
+| After, excluded | [PNG](assets/docling-945/excluded-1440.png) | [PNG](assets/docling-945/excluded-640-dark-ko.png) |
+
+These captures were visually checked for spacing, control alignment, clipping,
+source occlusion and Korean wrapping; `docling-compare` checks replay/undo,
+correspondences, stale behavior and the unchanged reading engine. `layout-rules`
+and `quiet-document` pass separately. Real Docling/AI execution is not involved.
+
 ## Structure review panel (#900)
 
 The dashboard summary and comparison panel show the latest execution's model,
