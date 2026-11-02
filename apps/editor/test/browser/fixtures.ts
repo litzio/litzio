@@ -200,8 +200,10 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "untitled-empty.md", create: () => nativeSource("Lead paragraph.\n") }], scenarios: ["document-title"] },
   "table-authoring": { files: [fixture("tables.md"), { name: "wrapping.md", create: () => {
     const nist = readFileSync(path.join(REPOSITORY_ROOT, "plugins/docling/test/fixtures/nist-sp1108r4/document.md"), "utf8");
-    const start = nist.indexOf(":::{table} Table 1 -");
-    const table = nist.slice(start, nist.indexOf("\n:::", start) + 4);
+    const start = nist.indexOf(":::{table} ");
+    const end = nist.indexOf("\n:::", start);
+    if (start < 0 || end < 0) throw new Error("NIST wrapping fixture requires a complete native table");
+    const table = nist.slice(start, end + 4);
     return nativeSource(table + "\n\n| 한국어 | 식별자 |\n| --- | --- |\n| 표 안의 긴 한국어 문장도 본문 너비 안에서 자연스럽게 여러 줄로 표시되어야 합니다. | https://example.com/" + "identifier".repeat(30) + " |\n");
   } }], scenarios: ["table-authoring", "table-caption", "save-error"] },
   "quote-save-reload": { files: [fixture("quotes.md")], scenarios: ["quote-save-reload"] },
