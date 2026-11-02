@@ -36,7 +36,7 @@ No document semantics change; no Core operation or CLI command is needed.
 
 Local checks cover generation and gap pixels at all seven sizes, targeted Desktop tests/types, Editor types/build, docs, and the persistent brand-config browser scenario in both themes, English/Korean and 1440/640px. Captures are review evidence, not semantic or native Windows proof. Browser screenshots show the page; favicon resource rendering/color is checked separately because headless screenshots do not include native tab chrome.
 
-Native packaging/install/update/uninstall and alternate-brand proof run only in required Windows CI. Historical native captures do not prove the new artwork's native appearance. GitHub README appearance can be checked on the PR branch by switching GitHub Settings → Appearance between light and dark, opening README and confirming the picture selects the matching relative SVG. Paseo automatic recognition remains outside verification by owner instruction.
+Native packaging/install/update/uninstall run only in required Windows CI. Alternate-brand proof is no longer run in CI (#1000). Historical native captures do not prove the new artwork's native appearance. GitHub README appearance can be checked on the PR branch by switching GitHub Settings → Appearance between light and dark, opening README and confirming the picture selects the matching relative SVG. Paseo automatic recognition remains outside verification by owner instruction.
 
 Review captures: [640px light](assets/905-icon/editor-640-light.png), [640px dark](assets/905-icon/editor-640-dark.png), [generated ICO frames](assets/905-icon/ico-frames.png). The page captures include a labeled rendering of the actual favicon resource at 16/32px, rather than native browser tab chrome.
 
