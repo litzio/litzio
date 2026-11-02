@@ -186,7 +186,7 @@ padding을 쓴다. 선택하면 interaction-soft fill과 interaction border를 �
 
 - **목적·사용/비사용:** 값의 수와 의미에 맞는 선택 표현을 쓴다. 겉모양이 같아도 문서 값·보기 모드·탐색의 role과 저장 범위를 합치지 않는다.
 - **목표:** 짧은 상호배타 값은 segment, 많은 값은 선택 메뉴, on/off는 checkbox를 기본으로 한다. 번호 field는 32px, shell view track은 28px이다. current와 keyboard focus의 단서는 독립적으로 유지한다.
-- **현재 기준:** [DocumentActions](../../apps/editor/src/shell/DocumentActions.tsx)의 `읽기 | 편집 | 소스` / `Read | Edit | Source` 보기 segment(#849, 28px track, 탭별 일시 상태). 읽기는 기존 편집기의 입력·도구를 막고 초안을 유지하며, 텍스트 모드에는 전환을 보이지 않는다([계약](editor-ux-shell-v1.md#read--edit--source-849)). [DocumentSettings](../../apps/editor/src/shell/DocumentSettings.tsx)의 문서 값, Settings의 기기 설정. 보기·탐색의 toggle/tablist와 문서 draft는 서로 다른 의미다.
+- **현재 기준:** [DocumentActions](../../apps/editor/src/shell/DocumentActions.tsx)의 `읽기 | 편집 | 소스` / `Read | Edit | Source` 보기 segment(#849, 28px track, 탭별 일시 상태). 읽기는 기존 편집기의 입력·도구를 막고 초안을 유지하며, 일반 Markdown 텍스트 탭은 읽기/편집을 제공하고 다른 텍스트 종류에는 전환을 보이지 않는다([계약](editor-ux-shell-v1.md#read--edit--source-849)). [DocumentSettings](../../apps/editor/src/shell/DocumentSettings.tsx)의 문서 값, Settings의 기기 설정. 보기·탐색의 toggle/tablist와 문서 draft는 서로 다른 의미다.
 - **사용처:** U09–U10 인용·참조 값, U13–U14 문서 설정·번호, U19–U22 언어/종류·메뉴·보기/탐색·앱 설정.
 - **추가 사용처:** [Docling 대조](docling-compare-v1.md)의 동기 스크롤 checkbox와 원문 상자 선택은 탭 안의 일시적 보기 상태이며 문서/기기 설정에 저장하지 않는다. 그림 자식 연결은 기본적으로 그림 하나로 묶고, 자식 상자를 선택하면 해당 연결·변환 메모를 강조한다(#799). 오른쪽은 공용 읽기로 고정하고 보기 segment를 숨긴다(#815). 오른쪽 블록 선택·키보드 이동은 대응 원문 상자·연결선·변환 메모를 같은 일시 상태로 갱신하며, 일반 편집기의 읽기 hover·선택 표현을 재사용한다.
 - **결정·불일치:** [소유자 결정 P11][decision]. 번호 세그먼트는 P02의 다섯 폼에 적용했다(#776). 알려진 불일치 없음.
@@ -198,6 +198,12 @@ P07의 화면 문맥 오류·실패 상태, P11의 등록 상태 checkbox를 사
 제안 목록은 선택 button의 pressed 상태로 원문·대상 강조를 연결하며 별도 메뉴는 없다(P10).
 패널은 대조 영역 아래 자체 스크롤로 제한해 원문·문서·연결선을 가리지 않는다.
 검수 실행은 새 UUID의 명시적 동작이며 자동 재실행하지 않는다.
+
+비서 패널(#931)은 U22 AI 설정과 같은 모델·강도·응답 언어 선택을 공유 Popover와
+select로 제공한다. 설정 기본값은 명시적 Save로 저장하고, 패널의 칩은 해당 대화에만
+적용한다. 실행 중 모델·강도는 잠그고 언어와 스티어링 입력은 유지한다.
+`ai-agent` 시나리오가 두 저장 범위와 실행 상태를 검증한다
+([현재 계약·1440px/640px 캡처](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)).
 
 ## P12 모달·파일·복구·설정 범위
 
@@ -211,6 +217,12 @@ P07의 화면 문맥 오류·실패 상태, P11의 등록 상태 checkbox를 사
 - **추가 사용처:** [Docling 대조](docling-compare-v1.md)는 기존 FolderDialog로 변환 폴더를 명시적으로 연다. 문서 쓰기·미저장 확인과 연결하지 않는다. bbox·연결선·변환 메모 띠는 비교 전용 새 표현이며 기존 편집 패턴을 바꾸지 않는다.
 - **추가 사용처 (#817):** 별도 텍스트 문서도 U24의 미저장 확인·복구·삭제·비교 경계를 재사용한다. 텍스트 편집 화면은 Source 읽기 화면과 분리하며, 소유자가 요구한 짧은 종류 표시는 오류/알림 대신 입력 위 문맥 정보로 유지한다. 고정폭 입력은 Source의 기존 서체·색/간격 토큰을 공유하고 탭·Save 줄은 이동하지 않는다. `text-mode`에서 닫기 취소/Save/버리기·지연 응답·종류별 복구/충돌, 1440/640px·한국어·다크를 검증했다. [현재 계약](editing-session-save-v1.md#text-editing-sessions-817).
 - **결정·불일치:** [소유자 결정 P12][decision], [현재 저장·복구 계약](editing-session-save-v1.md#switching-and-recovery). 이 작업·확정 경계의 알려진 불일치 없음. 메시지 표시는 P07/D07에서 별도 추적한다.
+
+비서 패널(#931)의 좁은 창 오버레이는 U24/U25 dialog처럼 Tab 경계·Escape 닫기와
+이전 편집 focus 복귀를 유지한다. 넓은 창에서는 비모달 오른쪽 패널이며 문서 상태를
+유지한다. 처음 사용 안내는 U22의 기존 AI 설정·진단으로 연결한다. `ai-agent`가
+미저장 문서 보존·focus 복귀와 640px 한국어 Dark의 가림/잘림을 검증한다
+([현재 계약·캡처](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)).
 
 ## 알려진 불일치
 
