@@ -1,3 +1,4 @@
+import { conversionVersions } from "./record.ts";
 import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -61,6 +62,7 @@ export function convertDoclingFile(input: string, output: string): Conversion {
     for (const [name, bytes] of assets) writeFileSync(path.join(output, name), bytes, { flag: "wx" });
     writeFileSync(path.join(output, "document.md"), result.markdown, { encoding: "utf8", flag: "wx" });
     writeFileSync(path.join(output, "document.docling-map.json"), JSON.stringify(result.map, null, 2) + "\n", { encoding: "utf8", flag: "wx" });
+    writeFileSync(path.join(output, "conversion-record.json"), JSON.stringify({ format: "litzio-docling-conversion", version: 2, ...conversionVersions() }, null, 2) + "\n", { encoding: "utf8", flag: "wx" });
     writeFileSync(path.join(output, "corrections.json"), JSON.stringify(emptyCorrections(path.resolve(input), text), null, 2) + "\n", { encoding: "utf8", flag: "wx" });
   } catch (error) {
     rmSync(output, { recursive: true, force: true });

@@ -1,3 +1,4 @@
+import { conversionVersions } from "../src/conversion/record.ts";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -79,6 +80,8 @@ test("official REST submits the fixed multipart profile, polls and produces an e
     for (const [key, value] of Object.entries(profile.request)) assert.deepEqual(f.fields().getAll(key), (Array.isArray(value) ? value : [value]).map(v => typeof v === "string" ? v : JSON.stringify(v)), key);
     assert.equal(f.fields().get("page_range"), null, "official default converts the complete PDF");
     assert.deepEqual(Buffer.from(await (f.fields().get("files") as File).arrayBuffer()), before);
+    assert.equal(record.version, 2);
+    assert.deepEqual({ converter: record.converter, coreVersion: record.coreVersion, policyVersion: record.policyVersion }, conversionVersions());
     assert.equal(record.profile.profile_id, "litzio-pdf-en-v1");
     const hash = (s: string | Buffer) => createHash("sha256").update(s).digest("hex");
     assert.deepEqual(record.response, { sha256: hash(f.responseText), bytes: Buffer.byteLength(f.responseText) });

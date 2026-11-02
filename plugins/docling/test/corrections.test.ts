@@ -1,3 +1,4 @@
+import { conversionVersions } from "../src/conversion/record.ts";
 import assert from "node:assert/strict";
 import { syncBuiltinESMExports } from "node:module";
 import { execFileSync } from "node:child_process";
@@ -315,9 +316,11 @@ test("invalid, conflicting or unrepresentable approvals leave every result file 
 test("replay preserves bundled original JSON/assets, initializes an empty ledger, and rejects source drift", t => {
   const f = setup(t), bundle = path.join(f.root, "bundle");
   cpSync(new URL("./fixtures/nist-sp1108r4/", import.meta.url), bundle, { recursive: true });
-  const before = snapshot(bundle);
+  const before = snapshot(bundle).filter(([file]) => file !== "conversion-record.json");
+  const extraction = JSON.parse(readFileSync(path.join(bundle, "conversion-record.json"), "utf8"));
   applyDoclingCorrections(bundle);
-  assert.deepEqual(snapshot(bundle).filter(([file]) => file !== "corrections.json"), before);
+  assert.deepEqual(snapshot(bundle).filter(([file]) => file !== "corrections.json" && file !== "conversion-record.json"), before);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(bundle, "conversion-record.json"), "utf8")), { ...extraction, version: 2, ...conversionVersions() });
   const original = readFileSync(path.join(bundle, "document.json"));
   const data = JSON.parse(original.toString("utf8"));
   const heading = data.texts.find((x: any) => x.label === "section_header" && x.content_layer === "body");
@@ -325,7 +328,8 @@ test("replay preserves bundled original JSON/assets, initializes an empty ledger
   addDoclingCorrection(bundle, entry);
   assert.deepEqual(readFileSync(path.join(bundle, "document.json")), original);
   removeDoclingCorrection(bundle, "nist");
-  assert.deepEqual(snapshot(bundle).filter(([file]) => file !== "corrections.json"), before);
+  assert.deepEqual(snapshot(bundle).filter(([file]) => file !== "corrections.json" && file !== "conversion-record.json"), before);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(bundle, "conversion-record.json"), "utf8")), { ...extraction, version: 2, ...conversionVersions() });
   const saved = snapshot(f.folder); writeFileSync(f.input, f.original + "\n");
   assert.throws(() => applyDoclingCorrections(f.folder), /source SHA-256 mismatch/);
   assert.deepEqual(snapshot(f.folder), saved);
@@ -369,4 +373,14 @@ test("merge conditions refuse formatting/association loss, including a consumed 
     assert.throws(() => convertWithDoclingCorrections(input, ledger), /formatting|consecutive body|cannot be represented/);
     readSource(input);
   }
+});
+
+test("JSON conversion and correction replay record the current converter, Core and policy", t => {
+  const f = setup(t);
+  const recordPath = path.join(f.folder, "conversion-record.json");
+  const initial = JSON.parse(readFileSync(recordPath, "utf8"));
+  assert.deepEqual(initial, { format: "litzio-docling-conversion", version: 2, ...conversionVersions() });
+  writeFileSync(recordPath, JSON.stringify({ ...initial, converter: { pluginVersion: "stale" }, coreVersion: "stale", policyVersion: 0, source: { preserved: true } }));
+  applyDoclingCorrections(f.folder);
+  assert.deepEqual(JSON.parse(readFileSync(recordPath, "utf8")), { ...initial, source: { preserved: true } });
 });
