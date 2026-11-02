@@ -454,3 +454,47 @@ UI-owned reasoning-effort labels, MCP connection/authentication states and token
 - ai-640-dark-ko.png: [Before](assets/ko-text-975/before-ai-640-dark-ko.png) / [After](assets/ko-text-975/after-ai-640-dark-ko.png).
 
 Assistant: [1440px](assets/ko-text-975/after-running-1440-light-en.png), [640px Korean](assets/ko-text-975/after-assistant-640-dark-ko.png). Conversation content and selected response language are preserved.
+
+## Assistant answer display and copy (#982)
+
+Assistant messages use the existing plain Markdown display parser (markdown-it,
+dollar math and KaTeX), without Core admission or serialization. The same renderer
+receives accumulated source during polling, on completion and after history resume.
+Incomplete fences/math remain library input; invalid math exposes its source.
+Raw HTML stays escaped text. Images show their alternative text without fetching;
+Mermaid stays code and syntax highlighting is not enabled. HTTP(S) links use the
+existing external opening path, other destinations do not navigate, and footnote
+anchors are scoped to each mounted answer.
+
+Copy answer writes the original Markdown; Copy code writes only that code block's
+text. Shared compact buttons show Copied after clipboard success and a local error
+if clipboard access fails. Long code, tables and display math scroll within the
+answer. User messages, progress, polling and Codex history ownership are unchanged.
+This is interface display only and adds no semantic operation or CLI command.
+
+Verification: `plain-markdown.test.ts` covers escaped HTML, refused image loads and
+unsafe links, isolated footnote IDs, cumulative incomplete syntax and invalid math.
+The fake `ai-agent` browser scenario covers streaming completion, rendered history,
+original-answer/code clipboard readback (OS newline normalization only), external
+opening and unchanged ordinary-document editing. No real model turn is used.
+`layout-rules` and `quiet-document` also passed. The same fake response supplies
+these Korean Light/Dark captures; scroll position differs with rendered height.
+The bottom captures expose math, links and copy controls below the long table.
+
+| View | Before | After | After, bottom |
+| --- | --- | --- | --- |
+| 1440 Light | [Image](assets/assistant-markdown-982/before-1440-light.png) | [Image](assets/assistant-markdown-982/after-1440-light.png) | [Image](assets/assistant-markdown-982/after-1440-light-bottom.png) |
+| 1440 Dark | [Image](assets/assistant-markdown-982/before-1440-dark.png) | [Image](assets/assistant-markdown-982/after-1440-dark.png) | [Image](assets/assistant-markdown-982/after-1440-dark-bottom.png) |
+| 640 Light | [Image](assets/assistant-markdown-982/before-640-light.png) | [Image](assets/assistant-markdown-982/after-640-light.png) | [Image](assets/assistant-markdown-982/after-640-light-bottom.png) |
+| 640 Dark | [Image](assets/assistant-markdown-982/before-640-dark.png) | [Image](assets/assistant-markdown-982/after-640-dark.png) | [Image](assets/assistant-markdown-982/after-640-dark-bottom.png) |
+
+The shared Recovery copy control supplies the compact-button/Copied feedback pattern.
+Visual inspection checked control padding/centering, Korean wrapping, theme contrast
+and transcript/composer separation. Code, tables and math remain locally scrollable.
+Reproduce after captures with `pnpm browser:test ai-agent --screenshots`; traces and
+runtime fixture files are intentionally not committed.
+
+
+After captures were refreshed after merging #979; its Korean effort labels are
+preserved. Before captures retain the original pre-#979 base. The integrated
+`ai-agent --screenshots` scenario passed with both localization and Markdown checks.
