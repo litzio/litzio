@@ -29,7 +29,9 @@ const work = path.join(repo, "tmp", "desktop-update");
 const HOST = "127.0.0.1:47320";
 const LIVE = process.argv.includes("--github");
 const BETA = LIVE || process.env.LITZIO_TEST_UPDATE_CHANNEL === "beta";
-const [OLD, NEW] = LIVE ? ["0.0.2-beta.3", "0.0.2-beta.4"]
+// Future same-brand pair; IeumDoc beta.4 cannot update to Litzio beta.5.
+// Both Litzio releases must be public before this opt-in harness can run.
+const [OLD, NEW] = LIVE ? ["0.0.2-beta.5", "0.0.2-beta.6"]
   : BETA ? ["0.1.0-beta.1", "0.1.0-beta.2"] : ["0.0.1", "0.0.2"];
 // The public beta.3 predates native documents (#232) and edits leading frontmatter as a body block.
 const NATIVE_PREFIX = LIVE && OLD === "0.0.1-beta.3" ? "" : "---\nlitzio: 1\n---\n\n";
