@@ -474,6 +474,29 @@ test("HTTP bibliography route reads only admitted declarations within fixed Root
   assert.equal(fs.readFileSync(path.join(b, "refs.bib"), "utf8"), bib);
 });
 
+test("folder notifications distinguish identities that collide as numbers", t => {
+  const root = fs.mkdtempSync(path.join(tmpdir(), "litzio-watch-precision-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const original = fs.statSync(root, { bigint: true });
+  let ino = 2n ** 54n;
+  assert.equal(Number(ino), Number(ino + 1n), "the replacement identities collide as numbers");
+  t.mock.method(fs, "statSync", (_root: fs.PathLike, options?: fs.StatOptions) => ({
+    ...original, dev: options?.bigint ? original.dev : Number(original.dev),
+    ino: options?.bigint ? ino : Number(ino), isDirectory: () => true,
+  }));
+  let closed = 0;
+  t.mock.method(fs, "watch", () => Object.assign(new EventEmitter(), { close() { closed++; } }));
+  const first = folderVersion(root, null).version;
+  assert.equal(folderVersion(root, null).version, first, "the same identity retains its watch");
+  ino++;
+  const replacement = folderVersion(root, null).version;
+  assert.equal(closed, 1, "a distinct bigint identity releases the old watch");
+  assert.notEqual(replacement, first);
+  t.mock.timers.tick(15_000);
+  assert.equal(closed, 2, "the replacement watch expires too");
+});
+
 test("folder notifications debounce versions, renew leases and release watchers", t => {
   const root = fs.mkdtempSync(path.join(tmpdir(), "litzio-watch-"));
   t.after(() => { fs.rmSync(root, { recursive: true, force: true }); fs.rmSync(root + "-old", { recursive: true, force: true }); });
