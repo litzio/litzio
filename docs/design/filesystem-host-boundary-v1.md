@@ -130,6 +130,15 @@ cached listing. Manual errors and Root denials retain their error status. Timers
 keep the process alive. No document/listing/session or durable state is retained. Watch failure
 falls back to the browser's periodic/focus refresh. See [Folder refresh](editor-ux-shell-v1.md#automatic-folder-refresh-927).
 
+#969 optionally adds `paths`, a JSON array of open document locators, to the same version
+request. The response includes `{ revisions: [{ path, revision }] }` alongside `version`;
+revisions hash actual bytes without parsing or writing, with `null` per item for missing
+files/parents or filesystem read failures. These do not remove the folder version or other
+items' revisions; Root/private-path refusals still reject the request.
+Each locator retains Host Root/private-path checks. Without `paths`, the request and response
+remain unchanged. A `paths`-only request checks standalone documents once on window return
+without creating or renewing a folder watcher. No document revision cache or Host session is retained.
+
 Host는 요청된 document locator를 실제 filesystem 동작으로 연결한다. Locator는 interface/host layer의 값이며 Core의 semantic document model에 포함하지 않는다.
 
 Host 구현은 교체 가능해야 한다. Vite는 개발 HTTP, Windows Desktop은 `litzio://app` custom protocol, 독립 HTTP Host는 Node listener와 production 정적 파일을 사용하며 같은 stateless document/asset handler를 호출한다. Vite/Desktop은 기존 local 파일 정책을 명시적으로 선택하고 HTTP는 고정 Root allowlist를 반드시 적용한다. [Desktop contract](desktop-distribution-v1.md)와 [HTTP contract](http-host-v1.md)가 각 배포·접근 경계를 정한다. 이 재사용을 장기 persistence/backend 또는 Workspace 결정으로 확대하지 않는다.

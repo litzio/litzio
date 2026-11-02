@@ -251,11 +251,17 @@ async (page, { openPath, screenshots }) => {
       ? route.fulfill({ status: 409, json: { error: 'External revision conflict detail' } }) : route.continue());
     await page.getByTestId('save').click();
     await page.locator('[data-operation="save-conflict"]').waitFor();
-    check((await page.getByTestId('error').innerText()).includes('기술적 세부 정보'), 'Korean conflict guidance is missing');
+    const conflictNotice = page.getByTestId('external-change');
+    check((await conflictNotice.innerText()).includes('기술적 세부 정보'), 'Korean conflict guidance is missing');
+    check(await conflictNotice.getByRole('button', { name: '디스크에서 다시 불러오기', exact: true }).isVisible() &&
+      await conflictNotice.getByRole('button', { name: '디스크 내용과 비교', exact: true }).isVisible(), 'Korean conflict actions are missing');
     await settings('ko');
     await page.getByTestId('ui-language').selectOption('en');
     await closeSettings();
-    check((await page.getByTestId('error').innerText()).startsWith('External change:'), 'Existing conflict did not switch language');
+    check((await conflictNotice.innerText()).includes('The file changed outside the editor. Your changes are kept. Compare them or reload from disk.'), 'Existing conflict did not switch language');
+    check((await conflictNotice.innerText()).includes('Technical details') &&
+      await conflictNotice.getByRole('button', { name: 'Reload from disk', exact: true }).isVisible() &&
+      await conflictNotice.getByRole('button', { name: 'Compare with disk', exact: true }).isVisible(), 'Existing conflict actions did not switch language');
     check((await snapshot()).json === conflictDocument, 'Language change discarded conflicted edits');
     await settings('en');
     await page.getByTestId('ui-language').selectOption('ko');

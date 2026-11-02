@@ -117,7 +117,7 @@ export function fakeAdapter(mode: string): Adapter {
           signal.addEventListener("abort", () => { clearTimeout(timer); reject(new AdapterError("cancelled", "Fixture stopped.")); }, { once: true });
         });
         const source = JSON.parse(await readFile(path.join(work.temporary.snapshot, "document.json"), "utf8"));
-        return JSON.stringify({ summary: "Checked headings, page-split paragraphs and header/footer classification. Only supported changes are proposed. 제목, 페이지 간 문단 분리와 머리말·꼬리말을 확인했습니다.", proposals: [1, 4, 5].map((i) => ({ self_ref: `#/texts/${i}`, operation: "heading", value: { level: 3 },
+        return JSON.stringify({ inspected: true, summary: "Checked headings, page-split paragraphs and header/footer classification. Only supported changes are proposed. 제목, 페이지 간 문단 분리와 머리말·꼬리말을 확인했습니다.", proposals: [1, 4, 5].map((i) => ({ self_ref: `#/texts/${i}`, operation: "heading", value: { level: 3 },
           reason: "Synthetic suggestion for UI verification. 긴 한국어 이유와 원문 조각의 줄바꿈을 확인하는 합성 제안입니다.",
           evidence: [{ page: 1, text: source.texts[i].text }] })) });
       }

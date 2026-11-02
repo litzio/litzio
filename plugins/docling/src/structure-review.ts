@@ -29,7 +29,7 @@ export type ReviewProposal = {
 type ReviewTask = {
   execution?: AiExecutionSettings; durationMs?: number; summary?: string; proposalCount?: number; invalidCount?: number;
   id: string; owner: string; baseline: Baseline; startedAt: string; finishedAt?: string;
-  status: "running" | "success" | "error" | "cancelled" | "uncertain"; failure?: AiFailure; error?: string;
+  status: "running" | "success" | "not-inspected" | "error" | "cancelled" | "uncertain"; failure?: AiFailure; error?: string;
 };
 export type StructureReview = {
   format: "litzio-docling-structure-review"; version: 1; updatedAt: string;
@@ -50,8 +50,8 @@ const suggestionSchema = {
     evidence: { type: "array", minItems: 1, items: objectSchema({ page: { type: "integer", minimum: 1 }, text: { type: "string", minLength: 1 } }) },
   })),
 };
-export const structureReviewSchema = objectSchema({ summary: { type: "string", minLength: 1 }, proposals: { type: "array", items: suggestionSchema } });
-const validateResult = new Ajv({ strict: true }).compile<{ summary: string; proposals: ReviewSuggestion[] }>(structureReviewSchema);
+export const structureReviewSchema = objectSchema({ inspected: { type: "boolean" }, summary: { type: "string", minLength: 1 }, proposals: { type: "array", items: suggestionSchema } });
+const validateResult = new Ajv({ strict: true }).compile<{ inspected: boolean; summary: string; proposals: ReviewSuggestion[] }>(structureReviewSchema);
 const validateSuggestion = new Ajv({ strict: true }).compile<ReviewSuggestion>(suggestionSchema);
 export const structureReviewInstruction = `Review the WHOLE original DoclingDocument using the current approved corrections and rejected proposals.
 Read only the needed parts of document.json, corrections.json and rejected-proposals.json; use search or jq rather than dumping the whole document.
@@ -60,6 +60,7 @@ Use original self_ref values. Account for the ordered current corrections and do
 Return proposals with self_ref, operation/value matching the corrections format, a reason, and evidence containing page numbers and literal original text fragments.
 heading {level:1..6} sets a heading; {level:null} makes body text. merge-paragraphs {next:"#/texts/N"} merges consecutive body leaves across consecutive pages. furniture {label:"text"|"page_header"|"page_footer"} changes label/layer.
 Targets must be nonempty unassociated text leaves. A classification conflicts with an earlier classification of that ref. Consumed merge continuations cannot be targeted. Do not assume that label, content_layer and reading-tree placement are the same fact.
+Set inspected=true only if you actually inspected the required materials and performed this review. If any required material could not be read or reviewed, set inspected=false, explain the blocker in summary, and return proposals=[]. Do not claim completion from an inability to read files.
 Always return a nonempty summary explaining what you checked and why there are no or few proposals.
 These are suggestions for human approval, never approved corrections. Return an empty proposals array if no supported change is justified.`;
 
@@ -77,7 +78,7 @@ function readReview(folder: string): StructureReview {
   const fail = () => { throw new Error("Invalid Docling structure review file/version"); };
   if (!data || data.format !== "litzio-docling-structure-review" || data.version !== 1 || !date(data.updatedAt) || !Array.isArray(data.proposals)) fail();
   if (data.task !== null && (!data.task || !uuid.test(data.task.id) || !uuid.test(data.task.owner) || !validBaseline(data.task.baseline) || !date(data.task.startedAt) ||
-    !["running", "success", "error", "cancelled", "uncertain"].includes(data.task.status))) fail();
+    !["running", "success", "not-inspected", "error", "cancelled", "uncertain"].includes(data.task.status))) fail();
   const ids = new Set<string>();
   for (const p of data.proposals) {
     if (!p || !uuid.test(p.id) || ids.has(p.id) || !uuid.test(p.taskId) || !validBaseline(p.baseline) || !date(p.createdAt) ||
@@ -163,7 +164,9 @@ export class StructureReviewer {
       if (!receipt) { active.failure = "uncertain"; active.error = "AI review admission/outcome is uncertain; it will not be replayed automatically."; }
       if (receipt?.status === "success") {
         if (!validateResult(receipt.job.result)) { active.status = "error"; active.failure = "format"; active.error = "AI structure review result violates its JSON Schema."; }
-        else {
+        else if (!receipt.job.result.inspected) {
+          active.status = "not-inspected"; active.summary = receipt.job.result.summary;
+        } else {
           const ledger = readFolderCorrections(folder), snapshot = read(path.join(folder, materialFile(task.id, "document.json")));
           if (sha256(snapshot) !== task.baseline.sourceSha256) throw new Error("Structure review material SHA-256 mismatch.");
           const input = this.host.resolvePath(path.resolve(folder, ledger.source.file), true);

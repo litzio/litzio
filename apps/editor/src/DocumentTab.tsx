@@ -8,6 +8,7 @@ import type { ImageRenamer } from "./image-rename.ts";
 import { EditorVisibility } from "./editor-visibility.ts";
 import { NotificationScope } from "./components/ui/notification-center.tsx";
 import { MessageArea } from "./shell/MessageArea.tsx";
+import { ExternalChangeNotice } from "./shell/ExternalChangeNotice.tsx";
 import { splitDocumentPath } from "./shell/document-path.ts";
 import { useDocumentSession, type DocumentSession, type DocumentSessionSnapshot } from "./useDocumentSession.ts";
 
@@ -27,6 +28,7 @@ type TabProps = {
   report(id: string, session: EditorSession | null): void;
   onAssetChange(documentPath: string, assetPath: string): void;
   renameImage: ImageRenamer;
+  onCompare(session: EditorSession): void;
 };
 
 /** Reclassification on Reload starts the corresponding editor; Save never swaps editors. */
@@ -40,7 +42,7 @@ export const DocumentTab = memo(function DocumentTab(props: TabProps) {
   return <NativeDocumentTab {...props} key={`native-${replacement?.generation ?? 0}`} file={file} restored={restored?.kind !== "text" ? restored : undefined} replaceFile={replaceFile} />;
 });
 
-const NativeDocumentTab = memo(function NativeDocumentTab({ settingsDisabled, id, file, restored, recoveryId, active, focused, groupIndex, onFocus, report, onAssetChange, renameImage, onReveal, replaceFile }:
+const NativeDocumentTab = memo(function NativeDocumentTab({ settingsDisabled, id, file, restored, recoveryId, active, focused, groupIndex, onFocus, report, onAssetChange, renameImage, onReveal, replaceFile, onCompare }:
   Omit<TabProps, "file" | "restored"> & { file: DocumentFileResponse; restored?: DocumentSessionSnapshot; replaceFile(file: EditorFileResponse): void }) {
   useTranslation();
   const [settingsExpanded, setSettingsExpanded] = useState(false);
@@ -54,7 +56,8 @@ const NativeDocumentTab = memo(function NativeDocumentTab({ settingsDisabled, id
       if (session.view === "source") session.setView("visual");
       requestAnimationFrame(() => { if (session.isCurrent()) action(); });
     } }}>
-    <MessageArea error={session.error} errorCause={session.errorCause} notice={session.notice} noticeCause={session.noticeCause} noticeAction={session.noticeAction}
+    <ExternalChangeNotice session={session} onReveal={() => onReveal(id)} onCompare={onCompare} />
+    <MessageArea error={session.status === "save-conflict" ? "" : session.error} errorCause={session.errorCause} notice={session.notice} noticeCause={session.noticeCause} noticeAction={session.noticeAction}
       warnings={session.recoveryError ? [{ id: "document-recovery", message: session.recoveryError }] : []} documentNotice={session.documentNotice}
       saveError={session.saveFailure ? { failure: session.saveFailure, locations: session.saveLocations,
         onReveal(index) { onReveal(id); requestAnimationFrame(() => session.revealSaveLocation(index)); } } : undefined}
