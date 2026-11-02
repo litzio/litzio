@@ -5,12 +5,12 @@ import { accessPath, type FileAccess } from "./file-access.ts";
 // Short-lived notification leases only: no document, listing or browser session is retained.
 const LEASE_MS = 15_000;
 const DEBOUNCE_MS = 150;
-const watches = new Map<string, { version: string; dev: number; ino: number; dispose(): void; renew(): void }>();
+const watches = new Map<string, { version: string; dev: bigint; ino: bigint; dispose(): void; renew(): void }>();
 
 export function folderVersion(requestedRoot: string | undefined, access: FileAccess): { version: string } {
   if (!requestedRoot?.trim()) throw new Error("folder path is required");
   const root = fs.realpathSync(accessPath(requestedRoot.trim(), access));
-  const stat = fs.statSync(root);
+  const stat = fs.statSync(root, { bigint: true });
   if (!stat.isDirectory()) throw new Error("folder path must point to a directory");
   let entry = watches.get(root);
   if (entry && (entry.dev !== stat.dev || entry.ino !== stat.ino)) { entry.dispose(); entry = undefined; }
