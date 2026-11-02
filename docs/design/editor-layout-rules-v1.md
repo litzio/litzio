@@ -245,3 +245,11 @@ at 640px it extends to x=632 beyond x=384. Section-label properties also cross t
 Sidebar boundary; inline math/table properties can cross the narrow overlay panel.
 After: all five forms' inputs and buttons fit and receive pointer hits in all four
 states. Citation-only behavior was not changed or reworked (ADR-0008 freeze).
+
+## Table display choice (#902)
+
+The default remains the wrapping geometry in [Cell wrapping](table-interaction-v1.md#cell-wrapping-897).
+The device's per-document single-line choice removes the cell intrinsic maximum and
+uses nowrap, with the existing local scroller, edge fades and measured handles.
+It introduces no new document gutters or control sizes. Settings uses the existing
+select row; the table block menu separates its View checkbox from mutation groups.

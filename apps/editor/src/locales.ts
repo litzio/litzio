@@ -1,6 +1,15 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Current: wrap": "Current: wrap",
+  "Current: single line": "Current: single line",
+  "This document’s tables: wrap long text": "This document’s tables: wrap long text",
+  "Tables in new documents": "Tables in new documents",
+  "Default for documents without a remembered choice on this device.": "Default for documents without a remembered choice on this device.",
+  "Wrap long text": "Wrap long text",
+  "Single line": "Single line",
+  "This choice could not be saved. It applies until you close this page.": "This choice could not be saved. It applies until you close this page.",
+
   "AI agent": "AI agent",
   "AI task execution status": "AI task execution status",
   "Runs AI tasks requested by feature plugins. Document review and applying results belong to the requesting feature.": "Runs AI tasks requested by feature plugins. Document review and applying results belong to the requesting feature.",
@@ -844,6 +853,15 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Current: wrap": "현재: 줄바꿈",
+  "Current: single line": "현재: 한 줄로",
+  "This document’s tables: wrap long text": "이 문서의 표: 긴 텍스트 줄바꿈",
+  "Tables in new documents": "새 문서의 표",
+  "Default for documents without a remembered choice on this device.": "이 기기에 선택을 기억하지 않은 문서에 적용하는 기본값입니다.",
+  "Wrap long text": "줄바꿈",
+  "Single line": "한 줄로",
+  "This choice could not be saved. It applies until you close this page.": "선택을 저장하지 못했습니다. 이 페이지를 닫을 때까지 적용됩니다.",
+
   "AI agent": "AI 에이전트",
   "AI task execution status": "AI 작업 실행 상태",
   "Runs AI tasks requested by feature plugins. Document review and applying results belong to the requesting feature.": "기능 플러그인이 요청한 AI 작업을 실행합니다. 문서 검수와 결과 적용은 요청한 기능에서 담당합니다.",

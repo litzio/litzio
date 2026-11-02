@@ -139,6 +139,8 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
         localStorage.removeItem("litzio.accentColor");
         localStorage.removeItem("litzio.theme");
         localStorage.removeItem("litzio.pageBackground");
+        localStorage.removeItem("litzio.tableWrapDefault");
+        localStorage.removeItem("litzio.tableWrapDocuments");
       });
       await page.evaluate(() => new Promise<void>((resolve, reject) => {
         const request = indexedDB.deleteDatabase("litzio-recovery");
