@@ -20,7 +20,13 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
     document: { path: path.join(root, "notes.md"), source: "UNSAVED DOCUMENT TEXT" } };
   writeFileSync(input.document.path, "ON DISK");
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  const streamed: string[] = [];
+  connection.client.on("notification", (method, params) => {
+    if (method === "item/reasoning/summaryTextDelta") streamed.push(conversations.current(params.threadId).turns[0]!.items.find(item => item.kind === "reasoning")!.text);
+  });
   const conversation = await conversations.send(input, settings);
+  assert.deepEqual(streamed, ["Checking the opened ", "Checking the opened document."]);
+  assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "reasoning").map(item => item.text), ["Checking the opened document.\nChecking folders.", ""]);
   assert.equal(conversation.turns[0]!.status, "inProgress");
   assert.equal(conversation.turns[0]!.items.find(item => item.kind === "assistant")!.text, "Partial answer");
   assert.deepEqual(conversation.tokenUsage, { used: 810, limit: 1000 });
@@ -37,6 +43,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.deepEqual(Object.keys(stored[0]).sort(), ["createdAt", "folders", "id", "title", "updatedAt"]);
   const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   const start = rpc.find(item => item.method === "turn/start").params;
+  assert.equal(start.summary, "auto");
   assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root], networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
   assert.ok(start.input[1].text.includes("UNSAVED DOCUMENT TEXT"));
   assert.equal(rpc.find(item => item.method === "thread/start").params.ephemeral, false);
@@ -46,6 +53,8 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   try {
     const resumed = new AiAgentConversations(resumedConnection, new RootAccess([root]));
     const history = await resumed.resume(conversation.id, settings, "en");
+    assert.deepEqual(history.turns[0]!.items.filter(item => item.kind === "reasoning"), conversation.turns[0]!.items.filter(item => item.kind === "reasoning"));
+    assert.equal(JSON.stringify(history).includes("PRIVATE RAW REASONING"), false);
     assert.equal(history.responseLanguage, "ja");
     assert.equal(history.turns[0]!.status, "interrupted");
     await resumed.send({ ...input, id: conversation.id, message: "Read only." }, { ...settings, writeAccess: "read-only" });

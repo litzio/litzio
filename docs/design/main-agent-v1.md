@@ -246,6 +246,31 @@ or while hidden. Running work continues
 when the panel closes. Model and effort are locked while running; a submitted
 message uses `turn/steer` with the expected turn ID. Stop uses `turn/interrupt`
 and retains partial results. Finished work details collapse to one line.
+Reasoning items with an empty or whitespace-only summary are omitted from work
+details, both during streaming and when reopening history. If no other work items
+remain, no disclosure is shown; the running status remains visible. Nonempty
+summaries and tool/plan details retain their existing presentation. Raw reasoning
+is never displayed.
+
+#976 verification (2026-11-03): the fake stdio lifecycle checks summary deltas,
+completion replacement (including multiple summary sections), empty summaries and
+history resumption without raw reasoning. Codex 0.141.0 and 0.166.0 public
+`TurnStartParams` / `ReasoningSummary` schemas accept `summary: "auto"` and
+reasoning items carry `summary: string[]`. The 0.166.0
+[client source](https://github.com/openai/codex/blob/rust-v0.166.0/codex-rs/core/src/client.rs)
+conditionally requests summaries based on provider/model support; `auto` does not
+guarantee returned summary text. A single real 0.166.0 `gpt-6.1-sol` / `medium`
+turn through the source Host classes and this checkout's `.litzio-dev/assistant`,
+with inherited login/configuration, completed with no reasoning summary events
+or reasoning items, including after resumption. This establishes an upstream
+no-summary case, not the original reporter's unspecified model/effort. No dropped
+summary was found in the tested Litzio paths. The fix is limited to the reproduced
+empty disclosure; request policy and answer rendering are unchanged.
+
+Same-state source captures: 1440px English Light [Before](assets/reasoning-976/before-1440.png) /
+[After](assets/reasoning-976/after-1440.png), 640px Korean Dark
+[Before](assets/reasoning-976/before-640.png) / [After](assets/reasoning-976/after-640.png).
+
 
 The composer has model/effort and language chips using the shared Popover and
 select controls. The context ring below the input uses the latest token-usage
