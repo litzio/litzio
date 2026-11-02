@@ -31,7 +31,7 @@ class FakeService implements AiTaskService {
   }
   current = (id: string) => this.records.get(id) ?? null;
   async cancel(id: string) { const record = this.records.get(id)!; record.status = "cancelled"; record.job.state = "cancelled"; record.job.failure = "cancelled"; record.canCancel = false; return record; }
-  complete(result: unknown = { summary: "Checked all supported classifications; only justified changes proposed.", proposals: structureReviewSuggestions }) {
+  complete(result: unknown = { inspected: true, summary: "Checked all supported classifications; only justified changes proposed.", proposals: structureReviewSuggestions }) {
     const record = this.records.get(this.requests.at(-1)!.id)!;
     record.status = "success"; record.canCancel = false; record.job.state = "success"; record.job.result = structuredClone(result) as JsonValue; record.job.finishedAt = record.job.startedAt + 1234; record.job.durationMs = 1234;
   }
@@ -238,7 +238,7 @@ test("whole-document request, dry-run partition, approval/rejection/undo and cur
   assert.match(request.instruction, /WHOLE/); assert.ok(request.schema);
   await f.start(id.toUpperCase()); assert.equal(f.service.requests.length, 1);
   await assert.rejects(() => f.start(), /already running/);
-  f.service.complete({ summary: "Checked all supported classifications; only justified changes proposed.", proposals: [...structureReviewSuggestions, { ...structureReviewSuggestions[0], self_ref: "#/texts/999" }] });
+  f.service.complete({ inspected: true, summary: "Checked all supported classifications; only justified changes proposed.", proposals: [...structureReviewSuggestions, { ...structureReviewSuggestions[0], self_ref: "#/texts/999" }] });
   const done = f.call("status");
   assert.equal(done.task!.status, "success"); assert.equal(f.markdown(), before); assert.deepEqual(f.ledger().entries, []);
   assert.deepEqual(done.proposals.map(p => p.state), ["pending", "pending", "pending", "inapplicable"]);
@@ -266,7 +266,7 @@ test("rerun replaces only unreviewed pending results and sends current correctio
   assert.deepEqual(JSON.parse(f.service.materials[1]["corrections.json"]), f.ledger());
   assert.deepEqual(JSON.parse(f.service.materials[1]["rejected-proposals.json"]), [initial[1].suggestion]);
   assert.equal(f.call("status").proposals.find(p => p.id === initial[2].id)!.state, "pending", "old pending remains until complete success");
-  f.service.complete({ summary: "Checked all supported classifications; only justified changes proposed.", proposals: [structureReviewSuggestions[2]] });
+  f.service.complete({ inspected: true, summary: "Checked all supported classifications; only justified changes proposed.", proposals: [structureReviewSuggestions[2]] });
   const next = f.call("status").proposals;
   assert.equal(next.some(p => p.id === initial[2].id), false);
   assert.deepEqual(next.slice(0, 2).map(p => p.state), ["approved", "rejected"]);
@@ -277,7 +277,7 @@ test("rerun replaces only unreviewed pending results and sends current correctio
 
 test("approval rechecks current corrections and dependent undo fails without changing proposal state", async t => {
   const f = setup(t); await f.start();
-  f.service.complete({ summary: "Checked all supported classifications; only justified changes proposed.", proposals: [...structureReviewSuggestions, { ...structureReviewSuggestions[0], value: { level: 3 } }] });
+  f.service.complete({ inspected: true, summary: "Checked all supported classifications; only justified changes proposed.", proposals: [...structureReviewSuggestions, { ...structureReviewSuggestions[0], value: { level: 3 } }] });
   const proposals = f.call("status").proposals;
   f.call("approve", { id: proposals[0].id });
   const before = files(f.folder);
@@ -292,9 +292,9 @@ test("approval rechecks current corrections and dependent undo fails without cha
 test("undo of an approved merge prerequisite preserves both approval histories on refusal", async t => {
   const source = JSON.parse(structureReviewSource()); source.texts[2].label = "section_header"; source.texts[2].level = 1;
   const f = setup(t, JSON.stringify(source));
-  await f.start(); f.service.complete({ summary: "Checked all supported classifications; only justified changes proposed.", proposals: [{ ...structureReviewSuggestions[0], self_ref: "#/texts/2", value: { level: null } }] });
+  await f.start(); f.service.complete({ inspected: true, summary: "Checked all supported classifications; only justified changes proposed.", proposals: [{ ...structureReviewSuggestions[0], self_ref: "#/texts/2", value: { level: null } }] });
   const prerequisite = f.call("status").proposals[0]; f.call("approve", { id: prerequisite.id });
-  await f.start(); f.service.complete({ summary: "Checked all supported classifications; only justified changes proposed.", proposals: [structureReviewSuggestions[1]] });
+  await f.start(); f.service.complete({ inspected: true, summary: "Checked all supported classifications; only justified changes proposed.", proposals: [structureReviewSuggestions[1]] });
   const merge = f.call("status").proposals.find(p => p.suggestion.operation === "merge-paragraphs")!;
   f.call("approve", { id: merge.id }); const before = files(f.folder);
   assert.throws(() => f.call("undo", { id: prerequisite.id }), /consecutive body/);
@@ -344,12 +344,12 @@ for (const failure of ["provider", "timeout", "format", "uncertain"] as const) t
   const f = setup(t); await f.start(); f.service.complete(); const before = f.call("status").proposals;
   await f.start(); const receipt = f.service.current(f.service.requests.at(-1)!.id)!;
   receipt.status = failure === "uncertain" ? "uncertain" : "error"; receipt.job.state = "error"; receipt.job.failure = failure; receipt.job.error = `Fixture ${failure}`;
-  receipt.job.result = { summary: "Checked all supported classifications; only justified changes proposed.", proposals: structureReviewSuggestions }; receipt.canCancel = false;
+  receipt.job.result = { inspected: true, summary: "Checked all supported classifications; only justified changes proposed.", proposals: structureReviewSuggestions }; receipt.canCancel = false;
   const done = f.call("status"); assert.equal(done.task!.failure, failure); assert.deepEqual(done.proposals, before);
 });
 
 test("schema violations and mismatched receipt identity cannot publish proposals", async t => {
-  const f = setup(t); await f.start(); f.service.complete({ summary: "Checked all supported classifications; only justified changes proposed.", proposals: [{ arbitrary: "partial" }] });
+  const f = setup(t); await f.start(); f.service.complete({ inspected: true, summary: "Checked all supported classifications; only justified changes proposed.", proposals: [{ arbitrary: "partial" }] });
   assert.equal(f.call("status").task!.failure, "format"); assert.deepEqual(f.call("proposals").proposals, []);
   await f.start(); const receipt = f.service.current(f.service.requests.at(-1)!.id)!; receipt.job.baseline = "different";
   assert.throws(() => f.call("status"), /does not match/);
@@ -378,14 +378,40 @@ test("dry-run exposes the exact correction checks without mutating input or ledg
 
 test("review records the summary, execution and original proposal counts even when every proposal fails domain validation", async t => {
   const f = setup(t); await f.start();
-  f.service.complete({ summary: "Checked all headings and page boundaries; only one possible change.", proposals: [{ ...structureReviewSuggestions[0], self_ref: "#/texts/99999" }] });
+  f.service.complete({ inspected: true, summary: "Checked all headings and page boundaries; only one possible change.", proposals: [{ ...structureReviewSuggestions[0], self_ref: "#/texts/99999" }] });
   const view = f.call("status");
   assert.equal(view.task!.summary, "Checked all headings and page boundaries; only one possible change.");
   assert.equal(view.task!.proposalCount, 1); assert.equal(view.task!.invalidCount, 1);
   assert.deepEqual(view.task!.execution, { model: "fixture-model", reasoningEffort: "high" });
   assert.equal(view.task!.durationMs, 1234); assert.ok(view.proposals[0].validationError);
-  await f.start(); f.service.complete({ summary: "Checked all supported cases; no justified changes.", proposals: [] });
+  await f.start(); f.service.complete({ inspected: true, summary: "Checked all supported cases; no justified changes.", proposals: [] });
   assert.equal(f.call("status").task!.proposalCount, 0);
+  assert.equal(f.call("status").task!.status, "success");
   await f.start(); f.service.complete({ proposals: [] });
   assert.equal(f.call("status").task!.failure, "format");
+});
+
+
+test("uninspected result retains its reason and existing proposals without reporting counts or changing documents", async t => {
+  const f = setup(t); await f.start(); f.service.complete();
+  const before = f.call("status").proposals, markdown = f.markdown(), ledger = f.ledger();
+  await f.start();
+  f.service.complete({ inspected: false, summary: "Materials could not be read.", proposals: structureReviewSuggestions });
+  const view = f.call("status");
+  assert.equal(view.task!.status, "not-inspected");
+  assert.equal(view.task!.summary, "Materials could not be read.");
+  assert.equal(view.task!.proposalCount, undefined); assert.equal(view.task!.invalidCount, undefined);
+  assert.deepEqual(view.proposals, before);
+  assert.equal(f.markdown(), markdown); assert.deepEqual(f.ledger(), ledger);
+  assert.equal(readFileSync(f.input, "utf8"), f.original);
+  assert.ok(f.service.requests.at(-1)!.materials.every(m => !existsSync(m.path)));
+  f.reactivate(true); assert.equal(f.call("status").task!.status, "not-inspected");
+});
+
+for (const inspected of [undefined, "false", null]) test(`inspected must be an explicit boolean: ${inspected}`, async t => {
+  const f = setup(t); await f.start();
+  f.service.complete({ ...(inspected === undefined ? {} : { inspected }), summary: "No changes.", proposals: [] });
+  const view = f.call("status");
+  assert.equal(view.task!.status, "error"); assert.equal(view.task!.failure, "format");
+  assert.deepEqual(view.proposals, []);
 });
