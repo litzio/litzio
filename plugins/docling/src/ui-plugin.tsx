@@ -1,4 +1,4 @@
-import type { UiHost, UiContributions } from "@litzio/plugin-api/ui";
+import type { UiHost, UiContributions, UiNotice } from "@litzio/plugin-api/ui";
 import { DoclingCompareView } from "./comparison/CompareView.tsx";
 import type { ComparisonSnapshot } from "./comparison/compare.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -12,42 +12,62 @@ export function activate(host: UiHost): UiContributions {
   const conversionEnabled = host.features?.conversion !== false, comparisonEnabled = host.features?.comparison !== false;
   const request: Request = (endpoint, method = "GET", body) => host.requestJson(`api/docling-${endpoint}`, method, body);
   let openConversion = (_focus: HTMLElement | null, _path?: string) => {};
+  let stoppedConversion = (_job: ConversionJob) => {};
   function Conversion() {
     const converter = useDoclingConversion(request, host.initialJob as ConversionJob | undefined, host.initialJobRead);
+    stoppedConversion = converter.observe;
     const [open, setOpen] = useState(false), [input, setInput] = useState("");
-    const [notice, setNotice] = useState<{ id: string; message: string } | null>(null);
+    const [notice, setNotice] = useState<UiNotice | null>(null);
     const returnFocus = useRef<HTMLElement | null>(null), finished = useRef("");
     const attempt = useRef(0), currentId = useRef(converter.job?.id); currentId.current = converter.job?.id;
+    const dashboardNotice = (message: string) => setNotice({ id: `start-${Date.now()}`, message: host.text(message), severity: "info",
+      actionLabel: host.text("View dashboard"), reveal: () => { setNotice(null); void host.openTab("dashboard", "Docling"); } });
     openConversion = (focus, path) => {
       returnFocus.current = focus;
-      if (path || converter.job?.state === "running") { setInput(path ?? converter.job!.input); setOpen(true); setNotice(null); }
+      if (converter.job?.state === "running") { dashboardNotice("A conversion is already in progress."); return; }
+      if (path) { setInput(path); setOpen(true); }
       else host.pickFile({ choose: "pdf", title: host.text("Convert with Docling"), description: host.text("Choose a PDF on the Host device."),
-        open: async path => { setInput(path); setOpen(true); setNotice(null); return ""; },
+        open: async path => { setInput(path); setOpen(true); return ""; },
       }, focus);
     };
-    useEffect(() => { host.setBusy(converter.pending || converter.job?.state === "running"); }, [converter.pending, converter.job?.state]);
-    useEffect(() => { host.notify(conversionEnabled && notice ? { ...notice, severity: "error", reveal: () => { setInput(converter.job?.input ?? input); setOpen(true); } } : null); }, [notice, converter.job?.input, input]);
+    // Keep the PDF action available so a second attempt can reveal the dashboard.
+    useEffect(() => { host.setBusy(converter.pending); }, [converter.pending]);
+    useEffect(() => { host.notify(conversionEnabled ? notice : null); }, [notice]);
+    useEffect(() => {
+      if (!notice?.id.startsWith("start-")) return;
+      const timer = setTimeout(() => setNotice(value => value?.id === notice.id ? null : value), 5000);
+      return () => clearTimeout(timer);
+    }, [notice]);
+    const failureNotice = (id: string, message: string, settings = false) => setNotice({ id, message, severity: "error",
+      actionLabel: host.text(settings ? "Open settings" : "View dashboard"),
+      reveal: () => { setNotice(null); if (settings) host.openSettings("server", returnFocus.current); else void host.openTab("dashboard", "Docling"); } });
     useEffect(() => {
       const job = converter.job;
-      if (!job) return;
-      if (job.state === "running") { setNotice(null); return; }
-      if (finished.current === job.id) return;
+      if (!job || job.state === "running" || finished.current === job.id) return;
       finished.current = job.id;
-      if (job.state === "success") {
-        if (!comparisonEnabled || !conversionEnabled) { setOpen(false); return; }
+      if (job.state === "success" && conversionEnabled) {
         const version = attempt.current;
         const current = () => version === attempt.current && currentId.current === job.id;
-        void host.openTab("comparison", job.output, current).then(problem => {
-          if (!current()) return;
-          if (problem) setNotice({ id: job.id, message: problem });
-          else { setOpen(false); setNotice(null); }
-        });
-      } else if (job.state === "error") setNotice({ id: job.id, message: `${host.text(doclingFailureMessage(job.failure))}${job.failure?.taskId ? ` (${host.text("Server task")}: ${job.failure.taskId})` : ""}` });
+        setNotice({ id: job.id, message: host.text("Conversion complete."), severity: "info",
+          ...(comparisonEnabled ? { actionLabel: host.text("Open comparison"), reveal: () => {
+            setNotice(null);
+            void host.openTab("comparison", job.output, current).then(problem => {
+              if (current() && problem) failureNotice(job.id, problem);
+            });
+          } } : { actionLabel: host.text("View dashboard"), reveal: () => { setNotice(null); void host.openTab("dashboard", "Docling"); } }) });
+      } else if (job.state === "error") failureNotice(job.id,
+        `${host.text(doclingFailureMessage(job.failure))}${job.failure?.taskId ? ` (${host.text("Server task")}: ${job.failure.taskId})` : ""}`,
+        ["unreachable", "version", "openapi", "not-ready"].includes(job.failure?.code ?? ""));
     }, [converter.job?.id, converter.job?.state]);
-    return conversionEnabled ? <DoclingConversionDialog host={host} open={open} input={input || converter.job?.input || ""} job={converter.job}
-      pending={converter.pending} problem={converter.problem} returnFocus={returnFocus} onClose={() => setOpen(false)}
-      onStart={() => { attempt.current++; setNotice(null); void converter.start(input).catch(error => setNotice({ id: `start-${Date.now()}`, message: error instanceof Error ? error.message : String(error) })); }}
-      onCancel={() => void converter.cancel()} /> : null;
+    return conversionEnabled ? <DoclingConversionDialog host={host} open={open} input={input}
+      pending={converter.pending} returnFocus={returnFocus} onClose={() => setOpen(false)}
+      onStart={() => {
+        if (converter.pending) return;
+        setOpen(false);
+        if (converter.job?.state === "running") { dashboardNotice("A conversion is already in progress."); return; }
+        attempt.current++; dashboardNotice("Conversion started.");
+        void converter.start(input).catch(error => failureNotice(`failure-${Date.now()}`, error instanceof Error ? error.message : String(error), true));
+      }} /> : null;
   }
   function Comparison({ data }: { data: ComparisonSnapshot }) {
     const [snapshot, setSnapshot] = useState<ComparisonSnapshot>();
@@ -119,7 +139,7 @@ export function activate(host: UiHost): UiContributions {
       ...(conversionEnabled ? [{ id: "convert", label: "Convert with Docling", keywords: ["PDF", "Docling", "도클링", "변환"], run: (focus: HTMLElement | null) => openConversion(focus) }] : [])],
     sidebar: [{ id: "dashboard", label: "Docling", run: () => host.openTab("dashboard", "Docling").then(() => {}) }],
     tabs: [{ id: "dashboard", label: "Docling dashboard", className: "docling-dashboard-tab", open: async () => ({ path: "Docling", data: null }),
-      View: () => <Dashboard host={host} request={request} convert={(focus, path) => openConversion(focus, path)} compare={comparison} /> },
+      View: () => <Dashboard host={host} request={request} onStopped={job => stoppedConversion(job)} convert={(focus, path) => openConversion(focus, path)} compare={comparison} /> },
       ...(comparisonEnabled ? [{ id: "comparison", label: "Docling comparison", className: "docling-tab",
       open: async (folder: string) => {
         const path = folder.replace(/[\\/]+$/, "") + (folder.includes("\\") ? "\\" : "/") + "document.md";

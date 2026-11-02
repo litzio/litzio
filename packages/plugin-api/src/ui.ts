@@ -14,7 +14,7 @@ export type TabContent = { path: string; data: unknown };
 export type UiAction = { id: string; label: string; keywords?: string[]; run(returnFocus: HTMLElement | null): void | Promise<void> };
 export type UiFileAction = { id: string; label: string; extensions: string[]; run(path: string, returnFocus: HTMLElement | null): void | Promise<void> };
 export type SettingsSection = { id: string; label: string; description: string; View: React.ComponentType };
-export type UiNotice = { id: string; message: string; severity: "error" | "warning" | "info"; reveal?(): void };
+export type UiNotice = { id: string; message: string; severity: "error" | "warning" | "info"; actionLabel?: string; reveal?(): void };
 export type PluginDialogProps = { open: boolean; onClose(): void; title: string; description: string;
   returnFocus: React.RefObject<HTMLElement | null>; children?: React.ReactNode; footer?: React.ReactNode; testId?: string };
 export type TabKind = {

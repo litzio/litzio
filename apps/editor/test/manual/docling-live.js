@@ -19,14 +19,18 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture }) => {
   await page.screenshot({ path: `${fixture.captures}/real-pdf-menu-en-1440.png` });
   await page.getByRole('menuitem', { name: 'Convert with Docling' }).click();
   const progress = page.getByTestId('docling-conversion');
-  await progress.getByRole('button', { name: 'Start conversion' }).click();
-  await expect(progress).toContainText('Server task');
+  await progress.getByRole('button', { name: 'Convert', exact: true }).click();
+  await expect(progress).toHaveCount(0);
+  await page.locator('.notification-center').getByRole('button', { name: 'View dashboard' }).click();
+  await expect(page.getByTestId('docling-dashboard')).toContainText('Stop waiting');
   await page.screenshot({ path: `${fixture.captures}/real-progress-en-1440.png` });
-  await page.waitForFunction(() => document.querySelector('.docling-tab[data-active=true] .docling-source img') ||
-    document.querySelector('[data-testid=docling-conversion]')?.textContent.includes('Docling conversion failed.'), null, { timeout: 600000 });
+  await page.waitForFunction(() => document.querySelector('.notification-center')?.textContent.includes('Conversion complete.') ||
+    document.querySelector('.notification-center li[data-severity=error]'), null, { timeout: 600000 });
   const current = await (await page.request.get(page.url().split('/').slice(0, 3).join('/') + '/api/docling-conversion')).json();
   expect(current.state).toBe('success');
   const record = fixture.result(current.output);
+  await page.locator('.notification-center').getByRole('button', { name: 'Open comparison', exact: true }).click();
+  await expect(page.locator('.docling-source img')).toBeVisible();
   await page.screenshot({ path: `${fixture.captures}/real-completed-en-1440.png` });
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Appearance & language', exact: true }).click();

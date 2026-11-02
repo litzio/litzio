@@ -1,4 +1,5 @@
 import { useTableWrapDefault, setTableWrapDefault } from "../table-wrap.ts";
+import { PLUGIN_UI, type UiRegistration } from "@litzio/plugin-api/config";
 import type { SettingsSection } from "@litzio/plugin-api/ui";
 import { ContributionBoundary } from "../PluginTab.tsx";
 import { useMessageState } from "../ui-message.ts";
@@ -125,7 +126,17 @@ type SettingsDialogProps = {
 export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChange, open, highlightUpdate = false, category, onCategoryChange, documentName, unsaved, desktop, info, onInfo, onInstall, returnFocus, onClose, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
   useTranslation();
   useEffect(() => {
-    if (category.startsWith("plugin/") && !sections.some(section => section.id === category)) onCategoryChange("appearance");
+    if (!category.startsWith("plugin/") || sections.some(section => section.id === category)) return;
+    // Missing contributions can mean a feature-driven reactivation, not removal.
+    // Confirm actual registration loss before discarding the selected category.
+    const controller = new AbortController();
+    void fetch(`${import.meta.env.BASE_URL}${PLUGIN_UI.route.slice(1)}`, { signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) return;
+        const registrations: UiRegistration[] = await response.json();
+        if (!controller.signal.aborted && !registrations.some(plugin => plugin.id === category.split("/")[1])) onCategoryChange("appearance");
+      }).catch(() => {}); // An unavailable read cannot prove that the plugin was removed.
+    return () => controller.abort();
   }, [category, sections, onCategoryChange]);
   const backButton = useRef<HTMLButtonElement>(null);
   const [clearConfirm, setClearConfirm] = useState(false);

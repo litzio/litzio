@@ -6,6 +6,7 @@ import { i18n } from "../../i18n.ts";
 
 export type Notification = {
   id: string; message: string; severity: "info" | "warning" | "error";
+  actionLabel?: string;
   reveal?(): void;
   render?(): ReactNode;
   /** Changes to details/navigation, without treating them as a new cause. */
@@ -37,8 +38,8 @@ export function useNotifications(items: Notification[]) {
   const source = useId();
   const latest = useRef({ items, scope });
   latest.current = { items, scope };
-  const signature = JSON.stringify([scope?.name, items.map(({ id, message, severity, revision, testId, dismissLabel, reveal }) =>
-    [id, message, severity, revision, testId, dismissLabel, !!reveal])]);
+  const signature = JSON.stringify([scope?.name, items.map(({ id, message, severity, revision, testId, dismissLabel, actionLabel, reveal }) =>
+    [id, message, severity, revision, testId, dismissLabel, actionLabel, !!reveal])]);
   useLayoutEffect(() => {
     register(source, items.map((item, index) => ({ ...item, id: `${source}:${item.id}`,
       context: scope?.name,
@@ -55,11 +56,11 @@ export function useNotifications(items: Notification[]) {
 
 export function NotificationSource({ items }: { items: Notification[] }) { useNotifications(items); return null; }
 
-/** A new warning/error expands without moving focus. Removal and information do not reopen it. */
+/** Warnings/errors and explicitly named actions expand once without moving focus. */
 export function NotificationCenter({ items }: { items: Notification[] }) {
   useTranslation();
   const [hidden, setHidden] = useState<string[]>([]);
-  const [expanded, setExpanded] = useState(() => items.some(item => item.severity !== "info"));
+  const [expanded, setExpanded] = useState(() => items.some(item => (item.severity !== "info" || !!item.actionLabel)));
   const [announcement, setAnnouncement] = useState<{ sequence: number; text: string }>();
   const previous = useRef<string[]>([]);
   const visible = items.filter(item => !hidden.includes(item.id));
@@ -70,9 +71,11 @@ export function NotificationCenter({ items }: { items: Notification[] }) {
   useLayoutEffect(() => {
     const ids = items.map(item => item.id);
     setHidden(value => value.filter(id => ids.includes(id)));
-    if (items.some(item => item.severity !== "info" && !previous.current.includes(item.id))) setExpanded(true);
+    if (items.some(item => (item.severity !== "info" || !!item.actionLabel) && !previous.current.includes(item.id))) setExpanded(true);
     if (visible.some(item => !previous.current.includes(item.id))) {
-      setAnnouncement(value => ({ sequence: (value?.sequence ?? 0) + 1, text: accessibleLabel }));
+      const text = items.filter(item => item.actionLabel && !previous.current.includes(item.id))
+        .map(item => `${item.message} · ${item.actionLabel}`).join(". ") || accessibleLabel;
+      setAnnouncement(value => ({ sequence: (value?.sequence ?? 0) + 1, text }));
     }
     previous.current = ids;
   }, [causes]);
@@ -84,9 +87,9 @@ export function NotificationCenter({ items }: { items: Notification[] }) {
     <ul hidden={!expanded} id="notification-list" aria-label={i18n.t("Notifications")}>{visible.map(item => <li key={item.id} data-severity={item.severity}>
       <div className="notification-content">
         {item.context ? <p className="notification-context">{item.context}</p> : null}
-        <div data-testid={item.testId} role={item.severity === "error" ? "alert" : "status"}>
+        <div data-testid={item.testId} role={item.severity === "error" && !item.actionLabel ? "alert" : "status"}>
         {item.render ? item.render() : <p>{item.message}</p>}
-        {item.reveal ? <Button className="notification-reveal" size="sm" variant="ghost" onClick={item.reveal}>{i18n.t("Go to problem")}</Button> : null}
+        {item.reveal ? <Button className="notification-reveal" size="sm" variant="ghost" onClick={item.reveal}>{item.actionLabel ?? i18n.t("Go to problem")}</Button> : null}
         </div>
       </div>
       <Button size="icon-sm" variant="ghost" aria-label={item.dismissLabel ?? i18n.t("Dismiss notification")}

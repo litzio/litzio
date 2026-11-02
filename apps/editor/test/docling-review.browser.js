@@ -19,7 +19,7 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await expect.poll(async () => (await call(`docling-conversion?id=${job.id}`)).state).toBe('success');
   const dashboard = page.getByTestId('docling-dashboard');
   const show = async () => { await page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true }).click(); await expect(dashboard).toBeVisible(); };
-  await expect(page.locator('.docling-tab[data-active=true]')).toBeVisible();
+  await expect(page.locator('.docling-tab[data-active=true]')).toHaveCount(0);
   await show();
   const result = dashboard.locator(`[data-result-id="${job.id}"]`);
   const feature = async enabled => {
