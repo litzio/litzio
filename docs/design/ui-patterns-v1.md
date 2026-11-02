@@ -137,6 +137,12 @@ After는 #792 작업 소스로 촬영했다. source/disk 쓰기 없이 번호 �
 저장 실패 표식·초안 입력 오류·모달 문맥 정보는 위 분류대로 남긴다.
 
 
+#942의 이름 있는 플러그인 알림 동작은 소유자가 승인한 예외다. 기존 일회성
+정보 안내는 펼치지 않지만, 백그라운드 작업의 이름 있는 동작 알림은 도착 시 한 번
+포커스 이동 없이 펼치고 메시지와 동작을 polite로 알린다. Docling 시작 안내는 기존
+5초 수명을 쓰며 완료·실패는 닫기나 동작 실행까지 남는다. 기존 P07만으로는
+백그라운드 완료를 바로 보여 줄 수 없어 승인된 기본안을 적용했다.
+
 ## P08 읽기 미리보기
 
 - **목적·사용/비사용:** 미주·인용·상대 이미지 링크를 읽는 중 문맥을 보충한다. 편집 폼이나 일반 URL/교차참조 tooltip·이동을 같은 카드로 바꾸지 않는다.
@@ -205,8 +211,8 @@ P07의 화면 문맥 오류·실패 상태, P11의 등록 상태 checkbox를 사
 - **목표·현재 기준:** 기존 [UnsavedChangesDialog](../../apps/editor/src/shell/UnsavedChangesDialog.tsx), [DangerConfirmation](../../apps/editor/src/components/ui/danger-confirmation.tsx), 파일 dialog·비교 화면을 유지한다. 제목→대상→설명/문제→명시적 동사 action, 안전한 취소·focus 복귀, busy 중 중복 실행 방지가 기준이다. 앱 Settings는 즉시 반영하는 별도 화면, file preview·단축키는 읽기 dialog다.
 - **사용처:** U22 앱 설정, U23 파일/폴더 picker·새 이름, U24 미저장·삭제·저장/복구 비교, U25 미리보기·단축키·참고문헌 연결.
 - **키보드 경계 (#831):** 공용 Dialog는 native Undo/Redo가 modal 밖 입력·초안으로 이동하거나 수정하는 것을 차단한다. modal 안 입력의 자체 Undo/Redo는 유지하고, Escape는 활성 modal만 닫아 바깥 미적용 초안을 보존한다. 명령 센터도 같은 경계를 쓰며 비모달 알림 센터의 문서 history는 유지한다. [현재 Undo 계약](document-editing-v1.md#shared-history-and-editing-boundaries).
-- **추가 사용처:** #797 Docling 서버 Settings는 Host 기기 설정·field exit 저장, PDF 선택은 기존 FolderDialog, 실행은 명시적 변환 확인·진행·대기 중단 dialog다. 연결 확인 실패 뒤에도 서버 구성 안내 링크를 유지한다. 같은 Settings/파일 dialog 패턴을 재사용한다.
-- **추가 사용처 (#871):** Docling 대시보드는 #932부터 화면 폭을 쓰는 상태 요약·단일 결과 표와 상태 칩을 쓴다. 행의 주 동작은 대조 열기이며 다른 동작은 펼침 메뉴에 둔다. 기능 선택은 Settings 기여로 옮겨 P11의 on/off checkbox를 쓴다. 기능 선택은 Host 플러그인 등록에 즉시 저장하며 문서 Save에 묶지 않는다. 다시 시도·불확실 작업 다시 시작은 기존 변환 확인 dialog를 열고 명시적 Start 뒤 새 UUID로 접수한다. 기록 지우기는 불확실 기록만 숨기며 실행 취소·결과 삭제로 표현하지 않는다.
+- **추가 사용처:** #797 Docling 서버 Settings는 Host 기기 설정·field exit 저장, PDF 선택은 기존 FolderDialog, 실행은 작은 명시적 변환 확인 dialog다. 진행·대기 중단은 대시보드에, 완료는 이름 있는 동작 알림에 둔다(#942). 연결 확인 실패 뒤에도 서버 구성 안내 링크를 유지한다. 같은 Settings/파일 dialog 패턴을 재사용한다.
+- **추가 사용처 (#871):** Docling 대시보드는 #932부터 화면 폭을 쓰는 상태 요약·단일 결과 표와 상태 칩을 쓴다. 행의 주 동작은 대조 열기이며 다른 동작은 펼침 메뉴에 둔다. 기능 선택은 Settings 기여로 옮겨 P11의 on/off checkbox를 쓴다. 기능 선택은 Host 플러그인 등록에 즉시 저장하며 문서 Save에 묶지 않는다. 다시 시도·불확실 작업 다시 시작은 기존 변환 확인 dialog를 열고 명시적 Convert 뒤 새 UUID로 접수한다. 기록 지우기는 불확실 기록만 숨기며 실행 취소·결과 삭제로 표현하지 않는다.
 - **추가 사용처 (#880):** U22의 AI 에이전트는 같은 Settings 화면·section·설명·상태 표현을 쓰며 어댑터, 사용 가능·로그인 필요 여부만 표시한다. 사용자 지시나 업체·자격 증명 입력은 없다. `ai-agent`가 Docling 설정과 같은 정렬·여백을 확인하고 1440px 영어 Light·640px 한국어 Dark 캡처를 검토했다. 등록 해제 시 범주·서비스가 사라져도 기존 문서 DOM·미저장 입력을 보존한다([현재 계약·캡처](plugin-ui-v1.md#verification)).
 - **추가 사용처:** [Docling 대조](docling-compare-v1.md)는 기존 FolderDialog로 변환 폴더를 명시적으로 연다. 문서 쓰기·미저장 확인과 연결하지 않는다. bbox·연결선·변환 메모 띠는 비교 전용 새 표현이며 기존 편집 패턴을 바꾸지 않는다.
 - **추가 사용처 (#817):** 별도 텍스트 문서도 U24의 미저장 확인·복구·삭제·비교 경계를 재사용한다. 텍스트 편집 화면은 Source 읽기 화면과 분리하며, 소유자가 요구한 짧은 종류 표시는 오류/알림 대신 입력 위 문맥 정보로 유지한다. 고정폭 입력은 Source의 기존 서체·색/간격 토큰을 공유하고 탭·Save 줄은 이동하지 않는다. `text-mode`에서 닫기 취소/Save/버리기·지연 응답·종류별 복구/충돌, 1440/640px·한국어·다크를 검증했다. [현재 계약](editing-session-save-v1.md#text-editing-sessions-817).

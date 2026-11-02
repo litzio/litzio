@@ -2787,10 +2787,11 @@ Final focused folder-tree/shell tests (48), Editor typecheck and production buil
 Settings includes the module's Docling category for Host-owned server configuration,
 connection checking and the Korean administration guide. Explorer PDF context menus
 and Command Center's Convert with Docling share a PDF picker/explicit conversion
-flow, progress and Stop waiting. The shared notification center handles conversion
-failures alongside stale comparison warnings; other alert migration remains #792.
+confirmation flow. Progress and Stop waiting live in the Docling dashboard (#942).
+The shared notification center offers named completion/failure actions alongside
+stale comparison warnings.
 See the [conversion contract](docling-conversion-v1.md#app-pdf-conversion-797) for
-setting lifetime, output naming, limits and automatic comparison tabs. Existing
+setting lifetime, output naming, limits and explicit completion navigation. Existing
 Appearance/recovery settings and ordinary document actions retain their contracts.
 
 ## Color mode entry (#798)

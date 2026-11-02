@@ -167,5 +167,6 @@ export function useDoclingConversion(request: Request, initialJob?: ConversionJo
     catch (error) { setProblem(error instanceof Error ? error.message : String(error)); }
     finally { pendingRef.current = false; setPending(false); }
   };
-  return { job, problem: readProblem || problem, pending: pending || recovering || !observedReady, start, cancel };
+  const observe = (value: ConversionJob) => { generation.current++; observed.current = value; setJob(value); };
+  return { observe, job, problem: readProblem || problem, pending: pending || recovering || !observedReady, start, cancel };
 }
