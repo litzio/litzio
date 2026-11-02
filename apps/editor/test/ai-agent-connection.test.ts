@@ -142,7 +142,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   const file = path.join(folder, "Hello.md"), args = { path: file, title: "Hello", blocks: [{ type: "heading", level: 2, text: "Welcome" }, { type: "paragraph", text: "Hello world" }] };
   const created = (await call("create_document", args)).result;
   assert.equal(created.success, true);
-  const receipt = JSON.parse(created.contentItems[0].text); assert.equal(receipt.path, file); assert.ok(receipt.revision);
+  const receipt = JSON.parse(created.contentItems[0].text); assert.equal(receipt.path, file); assert.ok(receipt.revision); assert.match(receipt.identity.ino, /^\d+$/); assert.match(receipt.identity.dev, /^\d+$/);
   const read = (await call("read_document", { path: file })).result;
   assert.equal(read.success, true); assert.equal(JSON.parse(read.contentItems[0].text).revision, receipt.revision);
   assert.match(JSON.parse(read.contentItems[0].text).source, /Hello world/);

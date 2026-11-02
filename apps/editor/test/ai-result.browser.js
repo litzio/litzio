@@ -1,4 +1,4 @@
-async (page, { expect, openFolderPicker, pluginFixture, fileActionsRoot, screenshots, brand, activeDocument }) => {
+async (page, { expect, openFolderPicker, pluginFixture, fileActionsRoot, screenshots, brand, activeDocument, recoveryRecords }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   const manifest = pluginFixture.document.replace(/[/\\]tmp[/\\]plugin-ui[/\\]document\.md$/, '/tmp/ai-agent-worker/manifest.json');
   expect((await page.request.post(origin + '/api/worker-plugins', { data: { manifest } })).ok()).toBe(true);
@@ -10,9 +10,10 @@ async (page, { expect, openFolderPicker, pluginFixture, fileActionsRoot, screens
   await page.route('**/api/ai-agent-models*', route => route.fulfill({ json: { provider: 'codex', models: [{ id: 'sol', model: settings.model, displayName: 'GPT Sol', defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium' }] }] } }));
   await page.route('**/api/ai-agent-diagnostics*', route => route.fulfill({ json: { provider: 'codex', connected: true, account: { type: 'chatgpt' } } }));
   const files = await Promise.all(paths.map(async path => (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(path))).json()));
+  const identities = await Promise.all(paths.map(async path => (await page.request.delete(origin + '/api/file', { data: { root, path, checkOnly: true } })).json()));
   const conversation = { id: 'created-thread', title: 'Create a document', folders: [root], createdAt: Date.now(), updatedAt: Date.now(), ...settings,
     turns: [{ id: 'created-turn', status: 'completed', items: [{ id: 'answer', kind: 'assistant', text: 'Created documents. A suggestion mentioning /untrusted.md is only text.' },
-      ...files.map((file, i) => ({ id: 'created-' + i, kind: 'tool', text: 'create_document', status: 'completed', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ path: file.path, revision: i === 2 ? '0'.repeat(64) : file.revision }) }] } }))] }] };
+      ...files.map((file, i) => ({ id: 'created-' + i, kind: 'tool', text: 'create_document', status: 'completed', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ path: file.path, identity: identities[i].identity, revision: i === 2 ? '0'.repeat(64) : file.revision }) }] } }))] }] };
   let resumes = 0;
   await page.route('**/api/ai-agent-conversations*', route => {
     if (route.request().method() === 'POST' && route.request().postDataJSON().action === 'resume') resumes++;
@@ -44,14 +45,42 @@ async (page, { expect, openFolderPicker, pluginFixture, fileActionsRoot, screens
   await card('b.md').getByRole('button', { name: 'Undo creation' }).click();
   const confirm = page.getByRole('dialog', { name: 'Undo document creation?' });
   await expect(confirm).toBeVisible(); await expect(confirm.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+  if (screenshots) await page.screenshot({ path: 'tmp/931-result-evidence/confirm-review-1440.png' });
   await confirm.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(confirm).toBeHidden(); await expect(editor).toContainText('unsaved change');
+  await expect.poll(async () => (await recoveryRecords(page)).filter(record => record.path === paths[1]).map(record => record.recoveryText).join('')).toContain('unsaved change');
+  await page.reload();
+  await page.getByRole('button', { name: 'Not now', exact: true }).click();
+  await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  await expect(panel.getByRole('textbox')).toBeEnabled();
+  await panel.getByRole('button', { name: 'Conversation history' }).click();
+  await panel.getByRole('button', { name: /Create a document/ }).click();
+  await expect(cards).toHaveCount(3);
+  const retained = (await recoveryRecords(page)).filter(record => record.path === paths[1]);
+  expect(retained.length).toBeGreaterThan(0);
+  await card('b.md').getByRole('button', { name: 'Undo creation' }).click(); await expect(confirm).toBeVisible();
+  await page.keyboard.press('Escape'); await expect(confirm).toBeHidden();
+  await expect(card('b.md').getByRole('button', { name: 'Undo creation' })).toBeFocused();
+  expect((await recoveryRecords(page)).filter(record => record.path === paths[1])).toEqual(retained);
+  expect((await page.request.get(origin + '/api/document?path=' + encodeURIComponent(paths[1]))).ok()).toBe(true);
+  await card('b.md').getByRole('button', { name: 'Undo creation' }).click(); await expect(confirm).toBeVisible();
+  await page.evaluate(async path => {
+    const { recoveryStorage } = await import('/src/recovery-storage.ts');
+    const record = (await recoveryStorage.list()).find(record => record.path === path);
+    const ticket = await recoveryStorage.ticket(record.id, path);
+    await recoveryStorage.write(record.id, ticket, () => ({ ...record, recoveryText: record.recoveryText + ' newer work', recordedAt: Date.now() }));
+  }, paths[1]);
+  await confirm.getByRole('button', { name: 'Delete and discard changes' }).click();
+  await expect(panel.getByRole('alert')).toContainText('changed during the operation');
+  expect((await page.request.get(origin + '/api/document?path=' + encodeURIComponent(paths[1]))).ok()).toBe(true);
+  expect((await recoveryRecords(page)).find(record => record.path === paths[1]).recoveryText).toContain('newer work');
   await card('b.md').getByRole('button', { name: 'Undo creation' }).click(); await expect(confirm).toBeVisible();
   await confirm.getByRole('button', { name: 'Delete and discard changes' }).click();
   await expect(card('b.md')).toContainText('Created file deleted');
   // Changed disk needs confirmation even with no open tab.
-  await card('race-delete.md').getByRole('button', { name: 'Undo creation' }).click(); await expect(confirm).toBeVisible();
-  await confirm.getByRole('button', { name: 'Cancel', exact: true }).click(); await expect(confirm).toBeHidden();
+  const diskUndo = card('race-delete.md').getByRole('button', { name: 'Undo creation' });
+  await diskUndo.focus(); await diskUndo.press('Enter'); await expect(confirm).toBeVisible();
+  await page.keyboard.press('Escape'); await expect(confirm).toBeHidden(); await expect(diskUndo).toBeFocused();
   await panel.getByRole('button', { name: 'Close assistant' }).click();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark'); await page.getByTestId('settings-back').click();
@@ -60,6 +89,10 @@ async (page, { expect, openFolderPicker, pluginFixture, fileActionsRoot, screens
   await page.setViewportSize({ width: 640, height: 1000 });
   expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/931-result-evidence/result-640-dark-ko.png' });
+  await card('race-delete.md').getByRole('button', { name: '되돌리기' }).click();
+  await expect(page.getByRole('dialog', { name: '만든 문서를 되돌릴까요?' })).toBeVisible();
+  if (screenshots) await page.screenshot({ path: 'tmp/931-result-evidence/confirm-review-640.png' });
+  await page.keyboard.press('Escape');
   await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); }, brand.storagePrefix);
   return { receiptCards: true, resumed: true, cleanUndo: true, dirtyConfirmation: true, diskConfirmation: true };
 }

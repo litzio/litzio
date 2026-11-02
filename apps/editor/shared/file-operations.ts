@@ -1,4 +1,8 @@
-export type FileOperationRequest = { root: string; path: string; expectedRevision?: string; checkOnly?: boolean };
+export type FileIdentity = { dev: string; ino: string; birthtimeMs: string };
+export function fileIdentity(stat: { dev: bigint; ino: bigint; birthtimeMs: bigint }): FileIdentity {
+  return { dev: stat.dev.toString(), ino: stat.ino.toString(), birthtimeMs: stat.birthtimeMs.toString() };
+}
+export type FileOperationRequest = { root: string; path: string; expectedRevision?: string; expectedIdentity?: FileIdentity; checkOnly?: boolean };
 export type RenameFileRequest = FileOperationRequest & {
   /** The stem only. The Host preserves the original extension. */
   name: string;

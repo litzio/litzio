@@ -1,3 +1,4 @@
+import { executeDocumentTool } from "../server/agent-document-tools.ts";
 import { creationUndoNeedsConfirmation } from "../shared/file-operations.ts";
 import { textRevision } from "@litzio/file-commit";
 import assert from "node:assert/strict";
@@ -304,4 +305,18 @@ test("creation undo confirms disk changes and unsaved tabs, including both toget
   assert.equal(creationUndoNeedsConfirmation("created", "changed", false), true);
   assert.equal(creationUndoNeedsConfirmation("created", "created", true), true);
   assert.equal(creationUndoNeedsConfirmation("created", "changed", true), true);
+});
+
+test("creation undo refuses a same-byte replacement before check or final deletion", async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "undo-identity-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const file = path.join(root, "created.md");
+  const created = executeDocumentTool("create_document", { path: file, title: "Created", blocks: [] }, { folders: new RootAccess([root]), access: new RootAccess([root]), writeAccess: "opened-folders" }) as any;
+  const checked = await deleteFile({ root, path: file, checkOnly: true });
+  assert.deepEqual(checked.identity, created.identity);
+  const source = fs.readFileSync(file);
+  fs.renameSync(file, path.join(root, "original.md")); fs.writeFileSync(file, source);
+  await assert.rejects(deleteFile({ root, path: file, expectedRevision: checked.revision, expectedIdentity: created.identity } as any), /replaced|identity/);
+  assert.deepEqual(fs.readFileSync(file), source);
+  await assert.rejects(deleteFile({ root, path: file, checkOnly: true, expectedIdentity: created.identity } as any), /replaced|identity/);
 });

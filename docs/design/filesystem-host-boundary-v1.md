@@ -485,10 +485,14 @@ unreadable/non-native `.md` names are relative to the requested root and shown i
 Asset rollback keeps its signed-receipt API and is not broadened by this user-confirmed file API.
 
 Creation-result undo additionally accepts `checkOnly: true` on `DELETE /api/file`:
-it performs the same scope checks and returns `{path, revision}` without deletion.
+it performs the same scope checks and returns `{path, revision, identity}` without deletion.
 The final request may carry `expectedRevision`; a mismatch immediately before removal
-refuses deletion. Existing callers without these fields are unchanged. The assistant
-confirms only changed disk content or unsaved tabs, then rechecks before deleting;
+refuses deletion. `expectedIdentity` compares bigint dev/ino/birthtimeMs serialized as
+strings against the current file at both check and delete. Creation receipts capture
+that identity from the exclusive creation descriptor; same-byte replacements are refused.
+Existing callers without these fields are unchanged. The assistant confirms changed disk
+content, unsaved tabs or retained recovery records, then rechecks before deleting. Its
+recovery cleanup also refuses to discard records changed during the Host request;
 see [result-card rules](main-agent-v1.md#created-document-results-and-undo-931-implementation-2-pr-2).
 
 Deletion/rename recovery barriers match path strings. Until [#372](https://github.com/litzio/litzio/issues/372)

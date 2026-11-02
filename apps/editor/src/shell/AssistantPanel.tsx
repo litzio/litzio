@@ -1,3 +1,4 @@
+import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquare, Plus, History, X, ArrowUp, Square } from "lucide-react";
@@ -17,7 +18,7 @@ const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
 type Props = { open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void;
-  onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string }): Promise<boolean>;
+  onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
   documentPath: string; folders: string[]; context(): Promise<AiConversationInput["document"]> };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
@@ -108,6 +109,13 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     return () => { alive = false; clearTimeout(timer); document.removeEventListener("visibilitychange", visibilityChanged); };
   }, [open, conversation?.id, pending, ready, settings?.enabled, setup]);
   useEffect(() => { const element = transcript.current; if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 180) element.scrollTop = element.scrollHeight; }, [conversation]);
+  const resultFocus = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (!pending && resultFocus.current) {
+      const target = resultFocus.current; resultFocus.current = null;
+      if (target.isConnected && open) target.focus();
+    }
+  }, [pending, open]);
   const run = async (action: () => Promise<void>) => {
     if (pending) return;
     setPending(true); setProblem("");
@@ -167,12 +175,19 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
             const result = createdDocument(item);
             if (!result) return null;
             const deleted = removed.includes(item.id);
-            return <div key={item.id} className="assistant-result" data-testid="assistant-result">
+            return <div key={item.id} className="assistant-result" tabIndex={-1} data-testid="assistant-result">
               <strong>{i18n.t(deleted ? "Created file deleted" : "Document created")}</strong>
               <span title={result.path}>{result.path.split(/[\\/]/).at(-1)}</span>
               <small>{result.path}</small>
               <div><Button size="sm" disabled={pending || deleted} onClick={() => void run(() => onOpen(result.path))}>{i18n.t("Open")}</Button>
-              <Button size="sm" variant="destructive" disabled={pending || deleted} onClick={() => void run(async () => { if (await onUndo(result)) setRemoved(previous => [...previous, item.id]); })}>{i18n.t("Undo creation")}</Button></div>
+              <Button size="sm" variant="destructive" disabled={pending || deleted} onClick={event => {
+                const trigger = event.currentTarget;
+                const card = trigger.closest<HTMLElement>(".assistant-result");
+                resultFocus.current = trigger;
+                void run(async () => {
+                  if (await onUndo(result)) { setRemoved(previous => [...previous, item.id]); resultFocus.current = card; }
+                });
+              }}>{i18n.t("Undo creation")}</Button></div>
               {!deleted ? <small>{i18n.t("Undo deletes the created file.")}</small> : null}
             </div>;
           })}
@@ -217,7 +232,7 @@ function activityStatus(value: string) {
   return value === "inProgress" ? i18n.t("In progress") : value === "completed" ? i18n.t("Completed") : value === "failed" ? i18n.t("Failed") : value === "declined" ? i18n.t("Declined") : value;
 }
 
-function createdDocument(item: import("@litzio/plugin-api/ai").AiConversationItem): { path: string; revision: string } | null {
+function createdDocument(item: import("@litzio/plugin-api/ai").AiConversationItem): { path: string; revision: string; identity?: FileIdentity } | null {
   if (item.kind !== "tool" || item.text !== "create_document" || item.toolResult?.success !== true) return null;
   for (const part of item.toolResult.contentItems) {
     if (part.type !== "inputText" || !part.text) continue;

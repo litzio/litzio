@@ -86,32 +86,41 @@ function ticket(barriers: IDBObjectStore, id: string, done: (value: Ticket) => v
  * IndexedDB transactions order deletion with writes across windows, without relying on messages. */
 export const recoveryStorage = {
   /** File operations invalidate queued writes and move/discard matching records atomically. */
-  changePath(previous: string, next: string | null): Promise<void> {
+  changePath(previous: string, next: string | null, expected?: RecoveryRecord[]): Promise<void> {
     return transaction((records, barriers, done, fail) => {
-      // Permission exists before the first record. Revoke all sessions registered to this
-      // path, including writers in other windows that have not reached their write turn.
-      const pending = barriers.openCursor();
-      pending.onsuccess = () => {
-        const entry = pending.result;
-        if (!entry) return;
-        try {
-          if (Array.isArray(entry.key) && entry.key[0] === "session" && (entry.value as Barrier).path === previous) entry.delete();
-          entry.continue();
-        } catch (error) { fail(error); }
+      const apply = () => {
+        // Permission exists before the first record. Revoke all sessions registered to this
+        // path, including writers in other windows that have not reached their write turn.
+        const pending = barriers.openCursor();
+        pending.onsuccess = () => {
+          const entry = pending.result;
+          if (!entry) return;
+          try {
+            if (Array.isArray(entry.key) && entry.key[0] === "session" && (entry.value as Barrier).path === previous) entry.delete();
+            entry.continue();
+          } catch (error) { fail(error); }
+        };
+        const cursor = records.openCursor();
+        cursor.onsuccess = () => {
+          const entry = cursor.result;
+          if (!entry) { done(undefined); return; }
+          try {
+            const record = entry.value as RecoveryRecord;
+            if (record.path === previous) {
+              barriers.delete(["session", record.id]);
+              if (next === null) entry.delete();
+              else entry.update({ ...record, path: next, snapshot: { ...record.snapshot, file: { ...record.snapshot.file, path: next } } });
+            }
+            entry.continue();
+          } catch (error) { fail(error); }
+        };
       };
-      const cursor = records.openCursor();
-      cursor.onsuccess = () => {
-        const entry = cursor.result;
-        if (!entry) { done(undefined); return; }
-        try {
-          const record = entry.value as RecoveryRecord;
-          if (record.path === previous) {
-            barriers.delete(["session", record.id]);
-            if (next === null) entry.delete();
-            else entry.update({ ...record, path: next, snapshot: { ...record.snapshot, file: { ...record.snapshot.file, path: next } } });
-          }
-          entry.continue();
-        } catch (error) { fail(error); }
+      if (expected === undefined) { apply(); return; }
+      const read = records.getAll();
+      read.onsuccess = () => {
+        const matching = (read.result as RecoveryRecord[]).filter(record => record.path === previous).sort((a, b) => a.id.localeCompare(b.id));
+        if (JSON.stringify(matching) !== JSON.stringify(expected)) { fail(new Error("Recovery work changed during deletion; the records were preserved.")); return; }
+        apply();
       };
     });
   },

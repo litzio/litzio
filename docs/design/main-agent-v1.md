@@ -1,7 +1,7 @@
 # Main agent connection, settings and conversations
 
 - Status: Implemented
-- Last verified: 2026-11-02 (#931 implementation 2, PR 2: 408 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
+- Last verified: 2026-11-02 (#931 implementation 2, PR 2: 409 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
 - Scope: main-agent connection, Settings, shell-owned assistant panel and Codex conversations. Includes new-document result cards, guarded creation undo and the product-owned usage-guide skill.
 - Authority: [ADR-0014](../adr/0014-main-agent-app-server.md), [#931](https://github.com/litzio/litzio/issues/931) owner decisions and approved v3.1 settings mockup.
 
@@ -279,7 +279,7 @@ is no tool registry, plugin registration API, MCP server or provider abstraction
 
 | Tool | Input | JSON result |
 | --- | --- | --- |
-| `create_document` | `{path, title, blocks}`; absolute new `.md` path, title string, ordered `{type:"paragraph", text}` or `{type:"heading", level:1..6, text}` blocks; empty array allowed | `{path, revision}` |
+| `create_document` | `{path, title, blocks}`; absolute new `.md` path, title string, ordered `{type:"paragraph", text}` or `{type:"heading", level:1..6, text}` blocks; empty array allowed | `{path, revision, identity}` |
 | `read_document` | `{path}`; absolute existing document path | `{path, source, revision}` from the existing Host read path |
 | `list_documents` | `{path}`; absolute folder path | Existing one-level folder listing, retaining document and child-folder entries |
 
@@ -302,7 +302,7 @@ operation or CLI command is needed: this is an AI interface to existing semantic
 The reply is `{contentItems:[{type:"inputText",text:JSON.stringify(result)}],success}`.
 Failures return the same shape with `success:false` and `{error}` JSON text.
 Codex stores the dynamic item. The Host snapshot retains `toolResult.success` and
-`toolResult.contentItems`, including the JSON path/revision, on live notifications
+`toolResult.contentItems`, including the JSON path/revision/identity, on live notifications
 and history hydration. The existing progress view shows tool name and completion
 or failure. The result cards and guarded undo below consume these receipts.
 
@@ -332,25 +332,34 @@ they are not proof of real execution.
 ## Created-document results and undo (#931 implementation 2, PR 2)
 
 Successful structured `create_document` results supply each card's path and creation
-revision. Assistant prose, failed calls and other tools never create actionable cards.
+revision and file identity (bigint dev/ino/birthtimeMs serialized as strings). Assistant prose, failed calls and other tools never create actionable cards.
 Cards remain visible after Codex history resumption. Open uses the existing tab-opening
 flow. Undo deletes the created file, as stated beside its controls; it never reruns
 creation after interruption, disconnection or an ambiguous response.
 
 | Current state | Undo behavior |
 | --- | --- |
-| Disk matches creation revision, no unsaved tab changes | Delete without confirmation |
-| Changed disk revision or unsaved tab changes | Ask once; Cancel preserves file and drafts |
-| Changed again after the check/confirmation | Refuse; user must review and explicitly try again |
-| File missing or outside currently opened folders / Host Roots | Refuse and show the error |
+| Same created file, disk matches creation revision, no unsaved tabs or recovery records | Delete without confirmation |
+| Changed disk revision, unsaved tab changes or retained recovery records | Ask once; Cancel preserves file, drafts and recovery records |
+| Disk, tabs or recovery records changed again after the check/confirmation | Refuse; user must review and explicitly try again |
+| File replaced, missing, identity absent or outside currently opened folders / Host Roots | Refuse and show the error |
 
 Undo reuses `/api/file` and the existing `deleteFile` path. A nonmutating `checkOnly`
-request returns the current revision after the same scope checks. The final delete
-carries that revision as `expectedRevision`, checked immediately before removal.
+request returns the current revision and identity after the same scope checks. Creation
+captures identity from the exclusive creation file descriptor. Both check and final
+delete carry the creation identity as `expectedIdentity`; even an identical-content
+replacement is refused. The final delete also carries the checked revision as
+`expectedRevision`, checked immediately before removal.
 Existing callers without a revision keep their behavior. File identity, symlink and
 Root checks remain in force; Desktop retains its existing Trash callback.
 The shell blocks document input during this operation, compares the open tab snapshot
-again after confirmation, and uses the existing tab/recovery cleanup after deletion.
+and all retained recovery records again after confirmation, immediately before deletion.
+Cancel preserves the records. Cleanup compares the checked recovery records inside its
+existing IndexedDB transaction: records arriving or changing during the Host request
+are preserved and reported, even if disk deletion has already completed. Ordinary
+Explorer deletion retains its existing behavior. No new recovery or undo store is added.
+The card captures its keyboard trigger before disabling it and restores focus after
+pending clears (to the surviving card after deletion).
 There is no undo journal or new persistence layer. A deleted receipt remains historical;
 a fresh page may offer Undo again, which refuses a missing file.
 
@@ -390,3 +399,19 @@ styles, shows the full Host path rather than a sample relative folder, and keeps
 actual dynamic-tool progress rather than fabricated CLI steps. The creation card
 retains file/open/undo/delete explanation. Korean lines and long paths wrap within
 the supported 640px overlay; the transcript scrolls independently of the composer.
+
+Review corrections (PR #960): the original head reproduced both missing confirmation
+for un-restored recovery work after reload/resume and deletion of a same-byte replacement.
+Regression coverage now checks reload/Not now/history/Cancel preservation, changes to
+recovery work while confirming, transactional preservation of late recovery work,
+identity replacement before check and final deletion, and keyboard Escape focus return.
+The previous real-Codex captures above predate these review corrections; identity receipt
+transport is additionally covered by the fake stdio creation/history tests.
+
+The review fix passed 409 Editor tests, workspace typecheck, Editor build and docs checks.
+The `ai-result`, `recovery-storage`, `file-actions` and `ai-agent` browser regressions
+cover the corrected guards. A local HMR module-instance mismatch in the existing
+file-actions test was diagnosed from the timestamped recovery-storage import; a clean
+Vite start retains the original assertions. Confirmation text explicitly names recovery
+records: [1440px English](assets/assistant-results-931/confirm-review-1440.png) and
+[640px Korean Dark](assets/assistant-results-931/confirm-review-640.png).
