@@ -184,6 +184,12 @@ test('workflow consumes event policy outputs and preserves selected-job gates', 
     assert.equal(desktop.steps.find(step => step.run === run).if, undefined);
   }
   assert.equal(desktop.steps.find(step => step.name === 'Validate installer and update metadata').if, undefined);
+  const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
+  assert.equal(desktop['runs-on'], release.jobs.build['runs-on']);
+  const unitTests = desktop.steps.find(step => step.run === 'pnpm test');
+  assert.ok(unitTests, 'Windows PR and merge queue CI must run the release unit-test suite');
+  assert.equal(unitTests.if, undefined);
+  assert.ok(release.jobs.build.steps.some(step => step.run === unitTests.run));
   assert.deepEqual(browser.strategy.matrix.shard, [1, 2, 3, 4]);
   assert.deepEqual(http.strategy.matrix.os, ['ubuntu-latest', 'windows-latest']);
   assert.equal(aggregate.name, 'Core, CLI, Editor, and browser regressions');

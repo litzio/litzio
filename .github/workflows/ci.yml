@@ -282,7 +282,8 @@ jobs:
           run_install: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @litzio/desktop typecheck
-      - run: pnpm --filter @litzio/desktop test
+      - name: Run all unit tests (same as release build)
+        run: pnpm test
       - name: Stable install/update regression before the final package
         if: needs.changes.outputs.update == 'true'
         run: pnpm --filter @litzio/desktop test:update

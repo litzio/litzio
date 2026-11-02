@@ -20,7 +20,8 @@ for (const ownerEnds of [false, true]) test(ownerEnds
   ? "a second Host cleans pre-receipt inputs only after owner loss, without PID reuse or replay"
   : "a second Host preserves another live Host's pending review admission and completes it", async t => {
   await buildDoclingWorker(path.dirname(bundledPluginManifest())); await buildAiAgent(path.dirname(bundledAiManifest()));
-  const root = mkdtempSync(path.join(tmpdir(), "shared-docling-admission-")), directory = path.join(root, "plugins"), facade = path.join(root, "fake-agent");
+  // Match Host native paths even when Windows TEMP uses an 8.3 alias.
+  const root = fs.realpathSync.native(mkdtempSync(path.join(tmpdir(), "shared-docling-admission-"))), directory = path.join(root, "plugins"), facade = path.join(root, "fake-agent");
   mkdirSync(facade);
   writeFileSync(path.join(facade, "host.cjs"), readFileSync(path.join(path.dirname(bundledAiManifest()), "host.cjs")));
   writeFileSync(path.join(facade, "worker.cjs"), `process.once("message", () => process.send({type:"complete",result:${JSON.stringify({ summary: "Checked the synthetic document structure.", proposals: structureReviewSuggestions })}}, () => process.exit(0)));`);
@@ -81,7 +82,8 @@ for (const ownerEnds of [false, true]) test(ownerEnds
 
 test("installed Docling review uses the mediated service through HTTP operations, preserves source and respects Root/disable", async t => {
   await buildDoclingWorker(path.dirname(bundledPluginManifest())); await buildAiAgent(path.dirname(bundledAiManifest()));
-  const root = mkdtempSync(path.join(tmpdir(), "installed-docling-review-")), directory = path.join(root, "plugins"), facade = path.join(root, "fake-agent");
+  // Match Host native paths even when Windows TEMP uses an 8.3 alias.
+  const root = fs.realpathSync.native(mkdtempSync(path.join(tmpdir(), "installed-docling-review-"))), directory = path.join(root, "plugins"), facade = path.join(root, "fake-agent");
   mkdirSync(facade);
   // Only execution is replaced. The installed B service, receipt store, process
   // lifetime and Docling consumer are real; no model or Docling server is called.
