@@ -9,6 +9,7 @@ import type { Operation } from "./operation.ts";
 import { NotificationScope } from "./components/ui/notification-center.tsx";
 import { splitDocumentPath } from "./shell/document-path.ts";
 import { MessageArea } from "./shell/MessageArea.tsx";
+import { ExternalChangeNotice } from "./shell/ExternalChangeNotice.tsx";
 import type { EditorSession } from "./DocumentTab.tsx";
 
 import { renderPlainMarkdown } from "./plain-markdown.ts";
@@ -25,6 +26,7 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
   const text = useRef(restored?.text ?? initial.source);
   const saved = useRef(restored?.savedSource ?? initial.source);
   const revision = useRef(initial.revision);
+  const [externalRevision, setExternalRevision] = useState<string | null>();
   const [documentDirty, setDirty] = useState(text.current !== saved.current);
   const [status, setStatus] = useState<Operation>("ready");
   const [reloadDialog, setReloadDialog] = useState(false);
@@ -67,6 +69,7 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
       const next = await requestSave({ kind: "text", path: pathRef.current, revision: revision.current, source: submitted });
       if (!current()) return false;
       revision.current = next.revision;
+      setExternalRevision(undefined);
       saved.current = submitted;
       const changed = dirty();
       setDirty(changed);
@@ -98,6 +101,11 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
   }
   return {
     kind: "text" as const, markdown, view: markdown ? view : "visual" as const, setView, currentText: text.current, editorRef, input, initialText: restored?.text ?? initial.source, change, getSnapshot,
+    acknowledgedRevision: revision.current,
+    externalRevision, externalChanged: externalRevision !== undefined && externalRevision !== revision.current,
+    observeRevision(next: string | null, expected: string) {
+      if (input.current?.isConnected && pathRef.current === openedPath && revision.current === expected && !busyRef.current) setExternalRevision(next);
+    },
     openedPath, documentDirty, draftActive: false, draftNotice: "", assetPending: false,
     isCurrent: () => Boolean(input.current?.isConnected),
     busy, busyRef, setStatus, switching: status === "opening", status, save, load,
@@ -112,9 +120,10 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
 }
 export type TextSession = ReturnType<typeof useTextSession>;
 
-export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restored, recoveryId, active, focused, groupIndex, onFocus, onReveal, report, replaceFile }: {
+export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restored, recoveryId, active, focused, groupIndex, onFocus, onReveal, report, replaceFile, onCompare }: {
   id: string; file: TextFileResponse; restored?: TextSessionSnapshot; recoveryId: string; active: boolean; focused: boolean; groupIndex: number;
   onFocus(id: string): void; onReveal(id: string): void; report(id: string, session: EditorSession | null): void; replaceFile(file: EditorFileResponse): void;
+  onCompare(session: EditorSession): void;
 }) {
   useTranslation();
   const session = useTextSession(file, restored, recoveryId, replaceFile);
@@ -124,7 +133,8 @@ export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restore
   return <NotificationScope value={{ name: splitDocumentPath(session.openedPath).name, reveal(action) {
     onReveal(id); requestAnimationFrame(action);
   } }}>
-    <MessageArea onReveal={() => session.input.current?.focus()} notice="" onNoticeExpired={() => {}} error={session.error} errorCause={session.errorCause} warnings={session.recoveryError ? [{ id: "text-recovery", message: session.recoveryError }] : []} />
+    <ExternalChangeNotice session={session} onReveal={() => onReveal(id)} onCompare={onCompare} />
+    <MessageArea onReveal={() => session.input.current?.focus()} notice="" onNoticeExpired={() => {}} error={session.status === "save-conflict" ? "" : session.error} errorCause={session.errorCause} warnings={session.recoveryError ? [{ id: "text-recovery", message: session.recoveryError }] : []} />
     <div className="document-scroll text-document-scroll" role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`} hidden={!active} inert={!active}
       data-document-tab={id} data-active={focused ? "true" : "false"} data-visible={active ? "true" : "false"} data-group-index={groupIndex}
       style={{ "--editor-group-index": groupIndex } as CSSProperties} onFocusCapture={() => onFocus(id)} onPointerDownCapture={() => onFocus(id)}>

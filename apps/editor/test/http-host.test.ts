@@ -16,6 +16,23 @@ import { convertDoclingFile } from "../../../plugins/docling/src/index.ts";
 
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
 
+test("revision checks batch opened documents without parsing or writing and retain Root protection", async t => {
+  const { a, outside, send } = await fixture(t);
+  const file = path.join(a, "revision.txt"), missing = path.join(a, "missing.txt");
+  fs.writeFileSync(file, "한글\r\n");
+  const query = new URLSearchParams({ root: a });
+  query.set("paths", JSON.stringify([file, missing]));
+  const first = await (await send(`/api/folder-version?${query}`)).json();
+  assert.equal(typeof first.version, "string");
+  assert.deepEqual(first.revisions, [{ path: file, revision: documentRevision("한글\r\n") }, { path: missing, revision: null }]);
+  fs.writeFileSync(file, "changed");
+  const focus = new URLSearchParams({ paths: JSON.stringify([file]) });
+  assert.deepEqual(await (await send(`/api/folder-version?${focus}`)).json(), { revisions: [{ path: file, revision: documentRevision("changed") }] });
+  assert.deepEqual(Object.keys(await (await send(`/api/folder-version?${new URLSearchParams({ root: a })}`)).json()), ["version"]);
+  assert.equal((await send(`/api/folder-version?${new URLSearchParams({ paths: JSON.stringify([path.join(outside, "secret.md")]) })}`)).status, 403);
+  assert.equal(fs.readFileSync(file, "utf8"), "changed");
+});
+
 test("comparison reads a self-contained bundle through the shared Host, refuses writes and Root/media escapes", async t => {
   const { a, outside, send } = await fixture(t);
   const directory = path.join(a, "comparison");

@@ -165,6 +165,14 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   await expect(page.getByTestId('status')).toHaveAttribute('data-operation','save-conflict');
   await expect(input()).toHaveValue('local recovery after conflict');
   expect((await read(file('notes.txt'))).source).toBe('external writer');
+  await page.getByTestId('external-change').getByRole('button', { name: 'Compare with disk', exact: true }).click();
+  const conflictComparison = page.getByTestId('save-comparison');
+  await conflictComparison.getByRole('region', { name: 'Source differences', exact: true }).waitFor();
+  await expect(conflictComparison).toContainText('local recovery after conflict');
+  await expect(conflictComparison).toContainText('external writer');
+  await page.keyboard.press('Escape');
+  await conflictComparison.waitFor({ state: 'detached' });
+  await expect(input()).toHaveValue('local recovery after conflict');
   expect(await unloadBlocked()).toBe(true);
   expect((await read(file('native.md'))).source).toBe(nativeBefore.source);
   if (screenshots) {

@@ -1173,7 +1173,11 @@ Automatic refresh keeps cached rows mounted without loading indicators, errors i
 user, disclosure changes, preference writes or focus/scroll commands. Surviving rows retain selection
 and keyboard focus; open rename inputs and editor/tab state are untouched. Never-loaded folders stay
 lazy, including collapsed folders. Manual refresh continues to expose Host errors. Open document
-content and external-write conflicts retain their existing behavior. Core and CLI parity do not
+content stays mounted. #969 adds open-document byte revision checks to these same requests;
+outside opened folders, checks occur only on window focus/visibility return. External-change
+and Save-conflict notifications offer the existing explicit Reload (with unsaved-work confirmation)
+and #655 comparison. Save-time 409 remains the final guard; no overwrite or automatic merge is offered.
+Core and CLI parity do not
 apply to this Editor display operation.
 
 When Litzio creates a file/folder or creates/rolls back an image asset (paste/drop or Choose…),

@@ -1,6 +1,11 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "The file changed outside the editor. Your changes are kept. Compare them or reload from disk.": "The file changed outside the editor. Your changes are kept. Compare them or reload from disk.",
+  "The file changed outside the editor. Reload to see the disk version.": "The file changed outside the editor. Reload to see the disk version.",
+  "Reload from disk": "Reload from disk",
+  "Compare with disk": "Compare with disk",
+
   "Undo deletes the created file.": "Undo deletes the created file.",
   "The file changed during the operation. Review it and try again.": "The file changed during the operation. Review it and try again.",
   "The created file is outside the opened folders.": "The created file is outside the opened folders.",
@@ -1030,6 +1035,11 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "The file changed outside the editor. Your changes are kept. Compare them or reload from disk.": "파일이 편집기 밖에서 변경되었습니다. 내 변경은 유지됩니다. 디스크 내용과 비교하거나 다시 불러오세요.",
+  "The file changed outside the editor. Reload to see the disk version.": "파일이 편집기 밖에서 변경되었습니다. 디스크 내용을 보려면 다시 불러오세요.",
+  "Reload from disk": "디스크에서 다시 불러오기",
+  "Compare with disk": "디스크 내용과 비교",
+
   "Undo deletes the created file.": "되돌리면 이번에 만든 파일이 삭제됩니다.",
   "The file changed during the operation. Review it and try again.": "작업 중 파일이 다시 바뀌었습니다. 확인 후 다시 시도하세요.",
   "The created file is outside the opened folders.": "만든 파일이 현재 열린 폴더 범위 밖에 있습니다.",

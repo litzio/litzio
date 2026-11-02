@@ -189,10 +189,13 @@ export function treeKey(items: TreeItem[], index: number, key: string, expanded:
 }
 
 /** Opened folders with their Host requests. `request` lists one level of a folder inside an opened one. */
-export function useFolderTrees(request: (root: string, path?: string, background?: boolean) => Promise<FolderResponse>, onError: (message: string) => void) {
+export function useFolderTrees(request: (root: string, path?: string, background?: boolean) => Promise<FolderResponse>, onError: (message: string) => void,
+  revisionChecks?: () => { path: string; accept(revision: string | null): void }[]) {
   const [trees, reduce] = useReducer(folderTreesReducer, []);
   const latest = useRef(trees);
   latest.current = trees;
+  const revisionChecksRef = useRef(revisionChecks);
+  revisionChecksRef.current = revisionChecks;
   // Async Open completions can share a render. Resolve their containment against every prior action.
   const dispatch = (action: FolderTreesAction) => {
     latest.current = folderTreesReducer(latest.current, action);
@@ -299,11 +302,18 @@ export function useFolderTrees(request: (root: string, path?: string, background
       try {
         await Promise.all(roots.map(async root => {
           try {
-            const response = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/folder-version?${new URLSearchParams({ root })}`, { signal: controller.signal });
+            const checks = (revisionChecksRef.current?.() ?? []).filter(check => containingRoot(roots, check.path) === root);
+            const query = new URLSearchParams({ root });
+            if (checks.length) query.set("paths", JSON.stringify(checks.map(check => check.path)));
+            const response = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/folder-version?${query}`, { signal: controller.signal });
             if (!response.ok) return;
-            const { version } = await response.json() as { version?: string };
+            const { version, revisions } = await response.json() as { version?: string; revisions?: { path: string; revision: string | null }[] };
             if (!version) return;
             if (cancelled) return;
+            for (const check of checks) {
+              const result = revisions?.find(item => item.path === check.path);
+              if (result) check.accept(result.revision);
+            }
             // A busy listing may predate this change; keep the version pending for the next check.
             if (versions.get(root) !== version && !refreshRoot(root, true)) return;
             versions.set(root, version);
