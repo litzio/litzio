@@ -441,3 +441,12 @@ file-actions test was diagnosed from the timestamped recovery-storage import; a 
 Vite start retains the original assertions. Confirmation text explicitly names recovery
 records: [1440px English](assets/assistant-results-931/confirm-review-1440.png) and
 [640px Korean Dark](assets/assistant-results-931/confirm-review-640.png).
+
+UI-owned reasoning-effort labels, MCP connection/authentication states and token units follow the display language, including plugin `host.text` rendering. Provider model names, descriptions, IDs and diagnostic payloads remain provider data. Translated labels retain the original option values and do not change the selected response language.
+
+#975 source captures (1440px Light English / 640px Dark Korean):
+
+- ai-1440-light-en.png: [Before](assets/ko-text-975/before-ai-1440-light-en.png) / [After](assets/ko-text-975/after-ai-1440-light-en.png).
+- ai-640-dark-ko.png: [Before](assets/ko-text-975/before-ai-640-dark-ko.png) / [After](assets/ko-text-975/after-ai-640-dark-ko.png).
+
+Assistant: [1440px](assets/ko-text-975/after-running-1440-light-en.png), [640px Korean](assets/ko-text-975/after-assistant-640-dark-ko.png). Conversation content and selected response language are preserved.

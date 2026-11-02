@@ -449,3 +449,10 @@ manifest registration remains available. Source defaults resolve beneath
 revision, version, enabled state, installed directory and bundled revision.
 `litzio plugins reregister <id>` calls the same Host default registration.
 There is no automatic replacement, installation/removal UI or marketplace.
+
+The Settings inventory displays readable manifest versions unchanged. A 64-character hexadecimal version is abbreviated to 12 characters, with its full value in the title, like installation revisions. Korean revision labels use “식별값”. This presentation does not change manifests, registration or CLI/Host inventory values.
+
+#975 source captures (1440px Light English / 640px Dark Korean):
+
+- plugins-1440.png: [Before](assets/ko-text-975/before-plugins-1440.png) / [After](assets/ko-text-975/after-plugins-1440.png).
+- plugins-640-dark-ko.png: [Before](assets/ko-text-975/before-plugins-640-dark-ko.png) / [After](assets/ko-text-975/after-plugins-640-dark-ko.png).

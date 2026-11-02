@@ -68,7 +68,7 @@ export function activate(host: UiHost) {
           {row("app-server", <>{t(diagnostics?.connected ? "Connected" : "Unavailable")}<p>{diagnostics?.error}</p></>)}
           {row(t("Account"), <>{diagnostics?.accountError ?? (diagnostics?.account ? `${diagnostics.account.email ?? diagnostics.account.type} · ${diagnostics.account.planType ?? ""}` : t("Codex login is required on the Host."))}<code>account/read</code></>)}
           {row(t("Usage and limits"), <>{diagnostics?.rateLimitsError ?? (diagnostics?.rateLimits?.length ? diagnostics.rateLimits.map(bucket => <div key={bucket.name}><strong>{bucket.name}</strong>{bucket.windows.map((window, index) => <p key={index}>{window.windowDurationMins ?? "—"} {t("minutes")} · {window.usedPercent}% {t("used")}{window.resetsAt ? ` · ${t("Resets")}: ${date(window.resetsAt * 1000)}` : ""}</p>)}</div>) : t("Unavailable"))}<code>account/rateLimits/read</code></>)}
-          {row(t("MCP servers"), <>{diagnostics?.mcpError ?? (diagnostics?.mcp?.length ? diagnostics.mcp.map(server => <p key={server.name}>{server.name} · {server.status} · {server.authStatus}</p>) : t("No MCP servers reported."))}<code>mcpServerStatus/list</code></>)}
+          {row(t("MCP servers"), <>{diagnostics?.mcpError ?? (diagnostics?.mcp?.length ? diagnostics.mcp.map(server => <p key={server.name}>{server.name} · {t(server.status)} · {t(server.authStatus)}</p>) : t("No MCP servers reported."))}<code>mcpServerStatus/list</code></>)}
         </div>
         <p className="agent-muted">{t("To sign in, run codex login in a terminal, then run diagnostics again.")}</p>
       </> : <>
@@ -90,7 +90,7 @@ export function activate(host: UiHost) {
           </select>
           <label htmlFor="ai-effort">{t("Reasoning effort")}</label><select id="ai-effort" className="form-select" value={settings?.reasoningEffort ?? ""} disabled={!model || busy || !settings?.enabled} onChange={event => { setSettings({ ...settings!, reasoningEffort: event.target.value }); setSaved(false); }}>
             {!valid ? <option value={settings?.reasoningEffort ?? ""}>{settings?.reasoningEffort ?? "—"}</option> : null}
-            {model?.supportedReasoningEfforts.map(item => <option key={item.reasoningEffort} value={item.reasoningEffort}>{item.reasoningEffort}</option>)}
+            {model?.supportedReasoningEfforts.map(item => <option key={item.reasoningEffort} value={item.reasoningEffort}>{t(item.reasoningEffort)}</option>)}
           </select>
         </div>
         <div className="agent-defaults">
@@ -115,7 +115,7 @@ export function activate(host: UiHost) {
         <div className="agent-models"><Input aria-label={t("Search models")} placeholder={t("Search models")} value={search} onChange={event => setSearch(event.target.value)} />
           <p className="agent-muted">{t("Models")}: {filteredModels?.length ?? "—"}</p>
           <div className="agent-model-list">{!models ? <p>{loading ? t("Checking…") : t("Unavailable")}</p> : filteredModels?.map(item => <article key={item.id}>
-            <div className="agent-model-name"><strong>{item.displayName}</strong><code>{item.model}</code>{item.model === storedSettings?.model ? <small>{t("Default")}</small> : null}</div><p>{item.description}</p><small>{t("Reasoning effort")}: {item.supportedReasoningEfforts.map(effort => effort.reasoningEffort).join(" · ")}</small>
+            <div className="agent-model-name"><strong>{item.displayName}</strong><code>{item.model}</code>{item.model === storedSettings?.model ? <small>{t("Default")}</small> : null}</div><p>{item.description}</p><small>{t("Reasoning effort")}: {item.supportedReasoningEfforts.map(effort => t(effort.reasoningEffort)).join(" · ")}</small>
           </article>)}
           {filteredModels?.length === 0 ? <p>{t("No matching models.")}</p> : null}</div>
         </div>
