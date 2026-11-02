@@ -14,7 +14,7 @@ async (page, { expect, screenshots, brand }) => {
         mismatch = false; return route.fulfill({ response });
       }
       const response = await route.fetch(); const value = await response.json();
-      return route.fulfill({ json: value.map(item => item.id === 'docling' && mismatch ? { ...item, revision: 'f'.repeat(64), directory: original.directory + '/long-path-for-wrapping-check/설치된-플러그인-경로' } : item) });
+      return route.fulfill({ json: value.map(item => item.id === 'docling' && mismatch ? { ...item, version: 'a'.repeat(64), revision: 'f'.repeat(64), directory: original.directory + '/long-path-for-wrapping-check/설치된-플러그인-경로' } : item) });
     });
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByRole('button', { name: /^Settings$/ }).click();
@@ -24,6 +24,8 @@ async (page, { expect, screenshots, brand }) => {
     const row = page.getByTestId('installed-plugin-docling');
     await expect(row.getByText('Differs from app default', { exact: true })).toBeVisible();
     await expect(row.getByText('ffffffffffff', { exact: true })).toHaveAttribute('title', 'f'.repeat(64));
+    await expect(row.locator('dd').first()).toHaveText('aaaaaaaaaaaa');
+    await expect(row.locator('dd').first()).toHaveAttribute('title', 'a'.repeat(64));
     if (screenshots) await page.screenshot({ path: 'tmp/947-evidence/plugins-1440.png' });
     await row.getByRole('button', { name: 'Register app default again', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Register app default again?', exact: true });

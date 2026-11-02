@@ -29,6 +29,32 @@ async (page, { openPath, expect, screenshots }) => {
     })).toBe(true);
     await expect(target.locator('li[data-severity]')).toHaveCount(0);
   };
+  // The global center belongs beside right panels, including the narrow Outline overlay.
+  const panelGeometry = [];
+  for (const width of [1440, 1024]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const open of [true, false]) {
+      const panel = page.locator('.document-panel');
+      if (await panel.isVisible() !== open) await page.getByRole('button', { name: 'Outline', exact: true }).click();
+      for (const expanded of [false, true]) {
+        if (await toggle().getAttribute('aria-expanded') !== String(expanded)) await toggle().click();
+        await expect(center).toBeVisible();
+        const bounds = await center.boundingBox();
+        const sidebar = await page.getByTestId('sidebar').boundingBox();
+        const right = open ? (await panel.boundingBox()).x : width;
+        panelGeometry.push({ bounds, left: sidebar.x + sidebar.width, right });
+        if (screenshots) await page.screenshot({ path: `tmp/970-outline-${width}-${open ? 'panel' : 'closed'}-${expanded ? 'list' : 'bell'}.png` });
+      }
+    }
+  }
+  for (const { bounds, left, right } of panelGeometry) {
+    expect(bounds.x).toBeGreaterThanOrEqual(left);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(right - 16);
+    expect(bounds.y).toBeGreaterThanOrEqual(0);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(900);
+  }
+  await toggle().click();
+  await page.setViewportSize({ width: 1440, height: 900 });
   await expectEmpty();
   await expect(toggle()).toHaveAttribute('aria-expanded','false');
   await expect(page.getByTestId('notification-announcement')).toBeEmpty();
