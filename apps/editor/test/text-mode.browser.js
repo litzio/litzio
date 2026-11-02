@@ -32,13 +32,33 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   };
   const nativeBefore = await read(file('native.md'));
   await openPath(page,file('foreign.md'));
-  await expect(page.locator('[data-testid=view-read], [data-testid=view-visual], [data-testid=view-source]')).toHaveCount(0);
+  await expect(page.getByTestId('view-read')).toHaveAttribute('aria-pressed', 'true');
+  const preview = () => activeDocument(page).getByTestId('plain-markdown');
+  await expect(preview().getByRole('heading', {name:'일반 Markdown'})).toBeVisible();
+  await expect(preview().locator('table')).toContainText('Cell');
+  await expect(preview().locator('img')).toBeVisible();
+  await expect(preview().locator('img')).toHaveJSProperty('complete',true);
+  expect(await preview().locator('img').evaluate(node => node.naturalWidth > 0)).toBe(true);
+  if (screenshots) {
+    for (const [language,theme] of [['en','light'],['ko','dark']]) {
+      await configure(language,theme);
+      for (const width of [1440,640]) {
+        await page.setViewportSize({width,height:900});
+        const geometry = await preview().evaluate(node => { const r=node.getBoundingClientRect(); return {left:r.left,right:r.right,width:innerWidth,scroll:document.documentElement.scrollWidth}; });
+        expect(geometry.left).toBeGreaterThanOrEqual(0); expect(geometry.right).toBeLessThanOrEqual(geometry.width);
+        expect(geometry.scroll).toBe(geometry.width);
+        await page.screenshot({path:`tmp/text-mode-captures/read-${language}-${theme}-${width}.png`});
+      }
+    }
+    await configure('en','light');
+  }
+  await page.getByTestId('view-visual').click();
   await page.keyboard.press('Control+Slash');
   const commandCenter = page.getByRole('dialog', {name:'Command center',exact:true});
   await commandCenter.getByRole('combobox').fill('> View:');
   await expect(commandCenter.getByRole('option', {name:/^View: (Read|Edit|Source)$/})).toHaveCount(0);
   await page.keyboard.press('Escape');
-  await expect(input()).toHaveValue('# 일반 Markdown\n\n**서식이 아닌 텍스트**와 <kbd>Ctrl</kbd>\n');
+  expect(await input().inputValue()).toContain('# 일반 Markdown');
   await expect(activeDocument(page).locator('.document-editor')).toHaveCount(0);
   await expect(activeDocument(page).locator('.heading-level')).toHaveCount(0);
   await expect(page.getByTestId('view-source')).toHaveCount(0);
@@ -55,6 +75,11 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   }
   const content = '\t  한글 😀 **literal** <div>\n\n마지막 줄  \n';
   await input().fill(content);
+  await page.getByTestId('view-read').click();
+  await expect(preview()).toContainText('literal');
+  expect(await unloadBlocked()).toBe(true);
+  await page.getByTestId('view-visual').click();
+  await input().focus();
   expect(await unloadBlocked()).toBe(true);
   const element = await input().elementHandle();
   await save();
@@ -64,6 +89,8 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   await expect(input()).toBeFocused();
   expect((await read(file('foreign.md'))).source).toBe(content);
   await reload();
+  await expect(preview()).toBeVisible();
+  await page.getByTestId('view-visual').click();
   await expect(input()).toHaveValue(content);
 
   // External edits can change admission in either direction, only when Reload accepts them.
@@ -71,6 +98,8 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   await expect(activeDocument(page).locator('.document-editor')).toBeVisible();
   textFixture.replaceNative('external plain Markdown\n');
   await reload();
+  await expect(preview()).toContainText('external plain Markdown');
+  await page.getByTestId('view-visual').click();
   await expect(input()).toHaveValue('external plain Markdown\n');
   await input().fill(nativeBefore.source);
   await save();

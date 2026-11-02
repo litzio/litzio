@@ -116,9 +116,31 @@ record the baseline and source/image hashes; these are visual evidence, not owne
 ## Plain text mode (#817)
 
 Existing `.txt` and Core-incompatible `.md` files open automatically in a separate
-text tab. A short localized notice above a monospace textarea identifies text mode
-and says it is not an Litzio document. It has no formatting/block tools, preview,
-Visual/Source toggle, document settings, Outline or native pre-save comparison.
+text tab. Under #939, non-native `.md` defaults to a view-only Markdown reading
+screen with Read/Text segments in the existing tab row; Text reveals the existing
+monospace textarea. `.txt` still opens directly in Text without a view toggle.
+The reading screen renders the current buffer, including unsaved edits. Switching
+views keeps the textarea mounted and preserves its input and editing session.
+A short localized notice identifies the non-native text kind. There are no
+formatting/block tools, native Visual/Source views, document settings, Outline or
+native pre-save comparison.
+
+The display uses the patched markdown-it 13.0.2 with tables, disabled task-list
+checkboxes, footnotes and dollar math rendered by existing KaTeX (`trust: false`).
+Raw HTML is disabled (`html: false`); HTML is displayed as escaped text rather than
+accepted into the DOM. Relative images use the existing Host media route and its
+Root checks; HTTP(S) images can display. Other image schemes are refused. External
+HTTP(S) links use the existing external opening path; relative document links do
+not navigate. Footnote links navigate only inside the reading surface. Mermaid
+stays a code block. Rejected MyST directives may appear as ordinary text or code
+blocks: this is a generic Markdown display, not a native-document conversion.
+Existing reading typography, table and code tokens apply in light/dark themes.
+`pnpm browser:test text-mode --screenshots` reproduces the display evidence:
+[1440px Light](assets/plain-markdown-939/1440-light.png),
+[640px Light](assets/plain-markdown-939/640-light.png), and
+[640px Korean Dark](assets/plain-markdown-939/640-dark-ko.png). The same scenario
+checks the default Read view, headings/table/Host image rendering, unsaved-buffer
+Read/Text switching and existing Save/recovery/conflict behavior.
 The existing tab row retains Save, status and file actions. Other extensions retain
 their existing preview/information behavior. Explorer and Command Center include
 `.txt` files; native marker hints remain hints, never admission rules.
