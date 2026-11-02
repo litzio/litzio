@@ -43,8 +43,9 @@ async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
   expect(refreshes).toBeGreaterThan(beforeRefresh);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/models-1440-light-en.png' });
   await page.keyboard.press('Escape');
+  await expect(modelDialog).toBeHidden();
   await expect(page.getByRole('button', { name: 'Codex models', exact: true })).toBeFocused();
-  await page.getByRole('button', { name: 'Diagnostics', exact: true }).click();
+  await page.getByTestId('settings-dialog').getByRole('button', { name: 'Diagnostics', exact: true }).click();
   await expect(page.getByText('example@example.invalid · plus')).toBeVisible();
   await expect(page.getByText('docs · connected · oAuth', { exact: true })).toBeVisible();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-1440-light-en.png' });
@@ -84,7 +85,9 @@ async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
   expect(await page.getByRole('dialog', { name: 'Codex 모델', exact: true }).evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/models-640-dark-ko.png' });
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: '진단', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Codex 모델', exact: true })).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Codex 모델', exact: true })).toBeFocused();
+  await page.getByTestId('settings-dialog').getByRole('button', { name: '진단', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Codex 진단', exact: true })).toBeVisible();
   expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-640-dark-ko.png' });
