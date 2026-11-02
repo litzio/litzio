@@ -62,6 +62,16 @@ async (page, { expect, screenshots }) => {
     if (path === snapshot.path && pageImages.has(uri)) requested.add(uri);
   });
   await open('nist-sp1108r4');
+  const wrappedTable = page.locator('.docling-tab[data-active=true] .table-block').first();
+  const wrap = await wrappedTable.evaluate(block => {
+    const scroll = block.querySelector('.table-scroll');
+    const cell = [...block.querySelectorAll('td')].sort((a,b) => b.textContent.length-a.textContent.length)[0];
+    const range = document.createRange(); range.selectNodeContents(cell);
+    return {overflow:scroll.scrollWidth-scroll.clientWidth, lines:range.getClientRects().length};
+  });
+  expect(wrap.overflow).toBeLessThanOrEqual(1);
+  expect(wrap.lines).toBeGreaterThan(1);
+
   await expect(page.getByRole('tab', { selected: true })).toHaveAccessibleName('nist-sp1108r4 · Docling comparison');
   await expect(page.getByRole('tab', { selected: true })).toHaveAttribute('title', 'nist-sp1108r4 · Docling comparison');
   // Empty Explorer help belongs to file navigation, separately from the module entry.

@@ -29,12 +29,16 @@ function accentPalettes(tokens: string): Map<string, Map<string, string>> {
     }
     scopes.set(key, values);
   }
+  for (const scope of [":root", ':root[data-theme="dark"]']) {
+    assert.equal(scopes.get(scope)!.get("--id-color-interaction"), "var(--id-color-accent-plum)",
+      "Before preferences load, both themes must use Plum");
+  }
   const palettes = new Map<string, Map<string, string>>();
   for (const theme of ["light", "dark"]) for (const preset of ACCENT_COLORS) {
     const themeScope = theme === "dark" ? ':root[data-theme="dark"]' : ":root";
     assert.ok(scopes.has(themeScope), `missing ${theme} roles`);
     const accentScope = `${themeScope}[data-accent="${preset}"]`;
-    if (preset !== "blue") assert.ok(scopes.has(accentScope), `missing ${theme}/${preset}`);
+    if (preset !== "plum") assert.ok(scopes.has(accentScope), `missing ${theme}/${preset}`);
     palettes.set(`${theme}-${preset}`, new Map([...scopes.get(":root")!,
       ...(scopes.get(`:root[data-accent="${preset}"]`) ?? []),
       ...scopes.get(themeScope)!, ...(scopes.get(accentScope) ?? [])]));

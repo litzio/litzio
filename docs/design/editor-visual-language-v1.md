@@ -16,6 +16,8 @@ Role: current visual rules for tokens, palette, typography, surfaces, themes and
 
 ## Tokens and palette
 
+#896 verification: default Plum in [1440px Light/English document](assets/accent-896/1440-document.png) and [Settings](assets/accent-896/1440-settings.png), [640px Dark/Korean document](assets/accent-896/640-document.png) and [Settings](assets/accent-896/640-settings.png). [Capture script](assets/accent-896/capture.browser.js) runs through `pnpm browser:test accent-896-capture` after copying it to `apps/editor/test/accent-896-capture.browser.js`; it uses scratch documents and leaves no saved changes. Existing `ui-language` checks first-mounted defaults and alternate choices; `visual-states` checks actual focus/selection/action contrast and all preset roles. Captures are manual visual evidence.
+
 [styles/tokens.css](../../apps/editor/src/styles/tokens.css) is the single source of product values. Consumers use role variables; new UI color literals outside that file are prohibited. [index.css](../../apps/editor/src/index.css) maps product roles one way to shadcn/Tailwind. Product colors/radii use `--id-*` names. No alias cycles, duplicate role definitions or `!important`.
 
 One chosen accent owns primary actions, focus, selection/current/drag indicators, links/references and generated heading/Outline numbers. `accent` aliases `interaction`; `interaction-soft` aliases `surface-selected`; `text-selected` aliases `accent-hover`. Current Outline numbers inherit selected text; heading text retains normal color. Information is neutral; danger and warning keep distinct meanings. shadcn `accent` means neutral hover and `muted` means a quiet background.
@@ -42,7 +44,7 @@ The table lists `--id-color-` roles; selected roles come from the preset tables 
 | `info` / `surface-info` | Alias `text-muted` / `surface-subtle` | Same aliases | Neutral information |
 | `backdrop` | Black 10% | Black 45% | Modal backdrop |
 
-Settings offers six validated presets, default Blue, with no free color picker. Theme-scoped `--id-color-accent-{preset}` supplies each swatch and interaction role once. Scripts set validated IDs, never colors.
+Settings offers six validated presets, default Plum, with no free color picker. Missing, invalid or unreadable choices use Plum, including the CSS fallback before preferences load. Theme-scoped `--id-color-accent-{preset}` supplies each swatch and interaction role once. Scripts set validated IDs, never colors.
 
 | Light preset | Interaction/primary/focus/number | Hover/selected text | Selected | Selected hover |
 | --- | --- | --- | --- | --- |
@@ -199,7 +201,7 @@ Values tuned by hand or changed by taste live under **Adjustable values** in `st
 | File/reading previews/comparison | `--layout-file-preview-width`, `--layout-file-preview-image-max-height`, `--layout-reading-preview-width/height`, `--layout-recovery-compare-width`, `--layout-recovery-diff-max-height` |
 | Other presentation | `--font-feature-sans`, `--layout-start-width`, `--size-start-mark`, `--size-overflow-fade`, `--reference-underline-offset`; start title has independent UI size/line-height tokens |
 
-Preferences select validated scopes/classes, never computed/stored pixel values. [preferences.ts](../../apps/editor/src/preferences.ts) keeps display choices in browser/app-profile storage outside Markdown/frontmatter/Core/Host requests. Missing/invalid/unreadable storage defaults to System theme, Blue accent, Paper and Standard width. Theme/accent/page write failure keeps the live choice and shows the localized Settings alert (or a notification-center error outside Settings). Wide document retains its live choice if storage fails. Startup theme/page/accent applies before first UI; document state/history/drafts survive display changes.
+Preferences select validated scopes/classes, never computed/stored pixel values. [preferences.ts](../../apps/editor/src/preferences.ts) keeps display choices in browser/app-profile storage outside Markdown/frontmatter/Core/Host requests. Missing/invalid/unreadable storage defaults to System theme, Plum accent, Paper and Standard width. Theme/accent/page write failure keeps the live choice and shows the localized Settings alert (or a notification-center error outside Settings). Wide document retains its live choice if storage fails. Startup theme/page/accent applies before first UI; document state/history/drafts survive display changes.
 
 Bibliography, citation chips, shortcut labels and notices reuse existing type/spacing/control roles. Behavior belongs to [Citations](citations-v1.md), [Shortcuts](editor-ux-shell-v1.md#shortcut-contract-381) and [UI patterns](ui-patterns-v1.md). Overlay focus/dismissal stays with feature owners; sizing/collision clearance with [Layout Rules](editor-layout-rules-v1.md). Visual review procedure and same-state Before/After requirements live in [Reviewing a visual change](../test/README.md#reviewing-a-visual-change).
 

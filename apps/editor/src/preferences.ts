@@ -50,8 +50,8 @@ export const ACCENT_COLOR_KEY = `${brand.storagePrefix}.accentColor`;
 export function readAccentColor(): AccentColor {
   try {
     const saved = globalThis.localStorage?.getItem(ACCENT_COLOR_KEY);
-    return ACCENT_COLORS.find(color => color === saved) ?? "blue";
-  } catch { return "blue"; }
+    return ACCENT_COLORS.find(color => color === saved) ?? "plum";
+  } catch { return "plum"; }
 }
 
 /** The live choice still applies when preference persistence is unavailable. */
