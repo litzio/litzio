@@ -1,3 +1,4 @@
+import { useTableWrap, setTableWrap } from "./table-wrap.ts";
 import { DocumentSettings, type DocumentSettingsHandle } from "./shell/DocumentSettings.tsx";
 import { useDocumentReading, type ReadingCallbacks } from "./document-reading.ts";
 import { NumberingNotice } from "./numbering-properties.tsx";
@@ -147,6 +148,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
 ) {
   useTranslation();
   const visible = useEditorVisible();
+  const tableWrap = useTableWrap(documentPath ?? "");
   // Each tab keeps its editor; only Reload remounts it. Save keeps its opening projection.
   const [projection] = useState(() => {
     const projected = toTiptapDocument(document);
@@ -928,7 +930,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         if (readOnly && event.button === 0 && event.target instanceof Element && event.target.closest(".document-editor")) {
           editor.view.dom.focus({ preventScroll: true });
         }
-      }} className={`document${empty ? " document--empty" : ""}`} data-testid="document-editor" ref={host}
+      }} className={`document${empty ? " document--empty" : ""}`} data-testid="document-editor" data-table-wrap={tableWrap} ref={host}
       onMouseDown={(event) => {
         // The paper extends below the editor content, including in a brand-new document.
         if (event.button === 0 && event.target === event.currentTarget && focusEnd(event.clientY)) event.preventDefault();
@@ -1070,11 +1072,19 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
               // Fixed blocks stay fixed; an actionable draft takes priority over a boundary.
               ? blockMoveBlockedHint(editor.state, blockMenu.index) ?? moveBlockedHint(blockMenu.index) ??
                 command.rejection?.(editor.state, blockMenu.index) : undefined,
-          }))]}
+          })), ...(editor.state.doc.child(blockMenu.index).type.name === "table" ? [{
+            id: "table-wrap", label: i18n.t("This document’s tables: wrap long text"),
+            group: i18n.t("View"), checked: tableWrap, checkRole: "checkbox" as const,
+          }] : [])]}
           focusOnOpen
           onReturnFocus={blockMenu.context ? () => editor.view.focus() : undefined}
           style={blockMenuStyle}
-          onSelect={id => runBlockCommand(id, blockMenu.index)}
+          onSelect={id => {
+            if (id === "table-wrap") {
+              setTableWrap(documentPath ?? "", !tableWrap);
+              closeBlockMenu(); editor.view.focus();
+            } else runBlockCommand(id, blockMenu.index);
+          }}
           onClose={closeBlockMenu}
         />
       ) : null}

@@ -71,6 +71,14 @@ async (page, { expect, screenshots }) => {
   });
   expect(wrap.overflow).toBeLessThanOrEqual(1);
   expect(wrap.lines).toBeGreaterThan(1);
+  for (const value of ['false','true']) {
+    await page.keyboard.press('Control+Slash');
+    await page.getByRole('combobox').fill('> This document’s tables');
+    await page.getByRole('option',{name:'This document’s tables: wrap long text',exact:true}).click();
+    await expect(wrappedTable.locator('xpath=ancestor::*[@data-table-wrap]')).toHaveAttribute('data-table-wrap',value);
+    expect(await wrappedTable.locator('td').first().evaluate(n=>getComputedStyle(n).whiteSpace==='nowrap')).toBe(value==='false');
+  }
+
 
   await expect(page.getByRole('tab', { selected: true })).toHaveAccessibleName('nist-sp1108r4 · Docling comparison');
   await expect(page.getByRole('tab', { selected: true })).toHaveAttribute('title', 'nist-sp1108r4 · Docling comparison');

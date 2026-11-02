@@ -426,3 +426,40 @@ Verified on 2026-10-27 with Editor insertion/Save/reopen tests and the table-aut
 Save/Reload regression. Evidence: [Core table tests](../../packages/core/test/table.test.ts),
 [Editor insertion tests](../../apps/editor/test/table-authoring.test.ts) and the insertion versus
 existing-table branches of [Save collection](../../apps/editor/src/tiptap-edits.ts).
+
+## Per-document table presentation (#902)
+
+The table block menu includes the checkbox “This document’s tables: wrap long text”
+(“이 문서의 표: 긴 텍스트 줄바꿈”), separated from document mutations in a View group.
+The command center offers the same toggle with the current display value, including
+Read and comparison tabs. The choice affects all tables at the document path on
+this device; it never changes Markdown, dirty state or Undo history. Wrap is the
+initial default (#897). Single line removes the intrinsic maximum and uses nowrap,
+retaining local horizontal scroll, fades and measured handle positioning.
+
+Settings → Appearance & language chooses the default for paths without remembered
+choices. A choice equal to the default removes that path's override; changing the
+default also removes matching overrides. Explicit overrides for other values stay.
+The browser preference store remembers choices across reopening, and successful
+file Rename moves them to the new path. Storage failure still permits live display
+choices for this page. No Core or CLI surface is needed for Editor-only presentation.
+
+### Verification (#902)
+
+Targeted shell/table-authoring/block-command unit tests (77), browser fixture tests
+(9), workspace typecheck, Editor build, documentation and import-boundary checks
+passed. Persistent Chrome browser scenarios: table-authoring, file-actions,
+docling-compare, layout-rules and quiet-document. The existing scenarios cover
+separate-document isolation, reopen persistence, clearing default-valued overrides,
+Rename, both entry points, Undo independence, Read and comparison display. No test
+assertions were relaxed. No Core/CLI or document-format changes.
+
+Self-reviewed captures: [1440px single-line menu](assets/table-wrap-902/menu-1440-en.png),
+[640px wrapped/checked menu](assets/table-wrap-902/menu-checked-640.png),
+[640px Korean dark menu and scroll fade](assets/table-wrap-902/menu-640-ko.png),
+[English command center](assets/table-wrap-902/center-1440-en.png),
+[Korean command center](assets/table-wrap-902/center-640-ko.png),
+[English Settings](assets/table-wrap-902/settings-1440-en.png) and
+[Korean dark Settings](assets/table-wrap-902/settings-640-ko.png).
+The original #897 default wrapping assertions still pass; these captures show the
+added choices rather than claiming a change to that default geometry.

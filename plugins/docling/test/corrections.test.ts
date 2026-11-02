@@ -78,6 +78,95 @@ test("Windows long and 8.3 correction paths share a lock without releasing anoth
   applyDoclingCorrections(names.folder);
 });
 
+// Exercise the real publication/rollback transaction; only rename failures and
+// sleeping are injected. The existing Windows CI command selects these tests.
+for (const phase of ["backup", "publication", "rollback"] as const) {
+  for (const code of ["EPERM", "EACCES", "EBUSY"]) test(`Windows ${phase} rename recovers from transient ${code}`, { skip: process.platform !== "win32" }, t => {
+    const f = setup(t), before = snapshot(f.folder), waits: number[] = [];
+    const rename = fs.renameSync, publicationError = new Error("injected publication failure");
+    let attempts = 0, checked = 0;
+    t.mock.method(Atomics, "wait", (_array: Int32Array, _index: number, _value: number, ms: number) => {
+      assert.ok(fs.existsSync(path.join(f.root, ".result.corrections.lock")));
+      waits.push(ms); return "timed-out";
+    });
+    fs.renameSync = ((from, to) => {
+      const step = String(to).includes(".previous-") ? "backup" : String(from).includes(".previous-") ? "rollback" : "publication";
+      if (phase === "rollback" && step === "publication") throw publicationError;
+      if (step === phase && ++attempts <= 3) throw Object.assign(new Error(`transient ${code}`), { code });
+      return rename(from, to);
+    }) as typeof rename;
+    syncBuiltinESMExports();
+    try {
+      const change = () => addDoclingCorrection(f.folder, approval("depth", 0, { operation: "heading", value: { level: 2 } }), { beforePublish: () => { checked++; } });
+      if (phase === "rollback") assert.throws(change, error => error === publicationError);
+      else change();
+    } finally { fs.renameSync = rename; syncBuiltinESMExports(); }
+    assert.equal(attempts, 4); assert.deepEqual(waits, [20, 40, 80]);
+    assert.equal(checked, 1, "retry a single rename, never replay preparation or revision checks");
+    if (phase === "rollback") assert.deepEqual(snapshot(f.folder), before);
+    else {
+      const markdown = readFileSync(path.join(f.folder, "document.md"), "utf8");
+      assert.ok(blocks(markdown).some(b => b.block === "heading" && b.level === 2));
+      assert.equal(inspectDoclingMap(readFileSync(path.join(f.folder, "document.docling-map.json"), "utf8"), markdown).stale, false);
+      assert.equal(JSON.parse(readFileSync(path.join(f.folder, "corrections.json"), "utf8")).entries.length, 1);
+    }
+    assert.equal(readFileSync(f.input, "utf8"), f.original);
+    assert.deepEqual(readdirSync(f.root).sort(), ["result", "source.json"]);
+  });
+
+  test(`Windows ${phase} rename exhausts its bounded waits and preserves failure recovery`, { skip: process.platform !== "win32" }, t => {
+    const f = setup(t), before = snapshot(f.folder), waits: number[] = [];
+    const rename = fs.renameSync, problem = Object.assign(new Error("persistent EPERM"), { code: "EPERM" });
+    const publicationError = new Error("injected publication failure");
+    let attempts = 0, previous: string | undefined;
+    t.mock.method(Atomics, "wait", (_array: Int32Array, _index: number, _value: number, ms: number) => {
+      assert.ok(fs.existsSync(path.join(f.root, ".result.corrections.lock")));
+      if (phase !== "backup") assert.equal(fs.existsSync(f.folder), false, "never expose an incomplete generation during backoff");
+      waits.push(ms); return "timed-out";
+    });
+    fs.renameSync = ((from, to) => {
+      const step = String(to).includes(".previous-") ? "backup" : String(from).includes(".previous-") ? "rollback" : "publication";
+      if (step === "backup") previous = String(to);
+      if (phase === "rollback" && step === "publication") throw publicationError;
+      if (step === phase) { attempts++; throw problem; }
+      return rename(from, to);
+    }) as typeof rename;
+    syncBuiltinESMExports();
+    try {
+      assert.throws(() => addDoclingCorrection(f.folder, approval("depth", 0, { operation: "heading", value: { level: 2 } })), error => {
+        if (phase !== "rollback") return error === problem;
+        assert.ok(error instanceof Error); assert.match(error.message, /Could not restore.*rollback failed.*retained at/);
+        assert.ok(previous && error.message.includes(previous));
+        assert.ok(includesError(error, problem)); assert.ok(includesError(error, publicationError)); return true;
+      });
+    } finally { fs.renameSync = rename; syncBuiltinESMExports(); }
+    assert.equal(attempts, 7); assert.deepEqual(waits, [20, 40, 80, 160, 320, 640]);
+    assert.equal(waits.reduce((sum, ms) => sum + ms, 0), 1260);
+    if (phase === "rollback") {
+      assert.ok(previous); assert.equal(fs.existsSync(f.folder), false);
+      assert.deepEqual(snapshot(previous), before);
+      rename(previous, f.folder); // Manual recovery after checking the retained backup.
+    } else assert.deepEqual(snapshot(f.folder), before);
+    assert.equal(readFileSync(f.input, "utf8"), f.original);
+    assert.deepEqual(readdirSync(f.root).sort(), ["result", "source.json"], "release owned lock and clean staging independently");
+  });
+}
+
+test("rename refuses other errors immediately, and sharing errors are not retried outside Windows", t => {
+  const f = setup(t), before = snapshot(f.folder), rename = fs.renameSync;
+  const codes = process.platform === "win32" ? ["ENOSPC", "ENOENT", "EEXIST"] : ["EPERM", "EACCES", "EBUSY", "ENOSPC"];
+  t.mock.method(Atomics, "wait", () => { assert.fail("this error must not wait"); });
+  for (const code of codes) {
+    let attempts = 0;
+    const problem = Object.assign(new Error(`permanent ${code}`), { code });
+    fs.renameSync = (() => { attempts++; throw problem; }) as typeof rename; syncBuiltinESMExports();
+    try { assert.throws(() => applyDoclingCorrections(f.folder), error => error === problem); }
+    finally { fs.renameSync = rename; syncBuiltinESMExports(); }
+    assert.equal(attempts, 1); assert.deepEqual(snapshot(f.folder), before);
+    assert.deepEqual(readdirSync(f.root).sort(), ["result", "source.json"]);
+  }
+});
+
 function includesError(error: unknown, expected: Error): boolean {
   return error === expected || (error instanceof AggregateError && error.errors.some(cause => includesError(cause, expected))) ||
     (error instanceof Error && includesError(error.cause, expected));

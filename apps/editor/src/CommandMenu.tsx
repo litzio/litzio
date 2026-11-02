@@ -20,6 +20,7 @@ export type CommandMenuItem = {
   icon?: LucideIcon;
   /** A single-choice row; false still reserves its radio semantics. */
   checked?: boolean;
+  checkRole?: "checkbox";
 };
 
 type CommandMenuProps = {
@@ -116,7 +117,7 @@ export function CommandMenu({ label, items, style, anchor, activeIndex, focusOnO
               : null}
             <button
               type="button"
-              role={item.checked === undefined ? "menuitem" : "menuitemradio"}
+              role={item.checked === undefined ? "menuitem" : item.checkRole === "checkbox" ? "menuitemcheckbox" : "menuitemradio"}
               aria-checked={item.checked}
               // The hint is secondary text; the item is named by its label alone.
               aria-label={item.label}

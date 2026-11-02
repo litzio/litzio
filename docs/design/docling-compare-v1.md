@@ -237,3 +237,11 @@ containment and Korean wrapping while retaining the wide side-by-side exception 
 P11's existing transient source selection supplies the individual highlight;
 P12's folder picker and the footer's Settings/file-navigation boundary stay intact.
 No new generic control, saved document meaning or CLI operation is introduced.
+
+## Table presentation (#902)
+
+The Host reading adapter uses the converted document's path-scoped table display
+preference, shared with ordinary Edit and Read. The command center targets the
+active comparison tab's converted-document path. Toggling changes local device
+preferences and updates the mounted reading surface without a document transaction
+or a plugin import of editor internals. No new plugin UI option is necessary.

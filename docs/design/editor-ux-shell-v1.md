@@ -2811,3 +2811,13 @@ No product code, timeouts, retries or choice assertions change.
 The adjusted four-scenario sequence passed locally. Removing only the initial
 System-focus wait made the held-focus regression fail with readiness already
 resolved (`Expected false, Received true`); the focus wait was then restored.
+
+## Document table display (#902)
+
+Settings → Appearance & language sets the new-document table default (Wrap long text /
+Single line). Paths without an override follow it. Table block menus have a separate
+View group with a document-scoped checkbox; the command center provides the same
+label and current value in Edit, Read and plugin comparison tabs. These actions
+change only device preferences, never editor history or document files. Default-valued
+overrides are removed. Successful Rename transfers the path preference with the tab
+and session locator. Reopening restores it. See [table presentation](table-interaction-v1.md#per-document-table-presentation-902).

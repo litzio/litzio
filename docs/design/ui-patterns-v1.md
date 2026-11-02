@@ -227,3 +227,11 @@ P07의 화면 문맥 오류·실패 상태, P11의 등록 상태 checkbox를 사
 [figure]: ../../apps/editor/src/figure-properties.tsx
 [forms]: ../../apps/editor/src/block-properties.tsx
 [number]: ../../apps/editor/src/numbering-properties.tsx
+
+## Table view preference usage (#902, P10 / P11)
+
+The table block menu uses a checkbox row with current check in a separate View group
+(P10). The command center uses the same document-scoped action label and reports
+the current value. Settings uses a two-option default selector (P11). This is a
+path-scoped device preference shared by Edit, Read and comparison; it is independent
+of document drafts, Save and Undo. See [table contract](table-interaction-v1.md#per-document-table-presentation-902).
