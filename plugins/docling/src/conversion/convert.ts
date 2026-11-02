@@ -1,7 +1,7 @@
 import {
   bodyEndIndex, createDocument, getEditableDocument, insertCodeBlock, insertEquation,
   insertFigure, insertFootnoteDefinition, insertHeading, insertList, insertParagraph,
-  insertTable, parse, serialize, updateHeadingNumbering, updateTableCaption,
+  insertTable, parse, serialize, updateHeadingNumbering, updateTableCaption, updateEnumerator,
   type Document, type InlineContent, type ListContent, type ListStyle,
 } from "@litzio/core";
 import { createMap, readDoclingMap, type MapItem, type Target, type DoclingMap } from "../shared/map.ts";
@@ -68,8 +68,30 @@ export function convertDoclingDocument(input: string, options: ConversionOptions
     mark(x, [target]);
     return target;
   }
-  function captions(x: SourceItem): InlineContent[] {
-    return related(x, "captions").filter(c => !decoration(c)).flatMap((c, i) => [...(i ? [{ kind: "text" as const, text: " " }] : []), ...inline(c)]);
+  const usedNumbers = { figure: new Set<string>(), table: new Set<string>() };
+  function captions(x: SourceItem, kind: "figure" | "table") {
+    const parts = related(x, "captions").filter(c => !decoration(c));
+    const first = parts.find(c => clean(c.text));
+    const starts = (c: SourceItem) => /^(?:Figure\b|Fig\b|Table\b|그림|표)/iu.test(clean(c.text));
+    let enumerator: string | undefined, remainder: string | undefined, note: string | undefined;
+    if (first && starts(first)) {
+      const match = /^(Figure|Fig\.?|Table|그림|표)\s+(\d+(?:[.-]\d+)*)(?:\s*[:.]\s+|\s*[:.]$|\s+[-–—]\s+|\s+|$)(.*)$/iu.exec(clean(first.text));
+      const sourceKind = match && /^(?:Table|표)$/iu.test(match[1]) ? "table" : "figure";
+      const shared = parts.some(c => [...nodes.values()].filter(n => n.captions?.some(r => r.$ref === c.self_ref)).length > 1);
+      const reason = !match ? "unclear prefix/number format" : sourceKind !== kind ? "caption kind does not match owner" :
+        shared || parts.some(c => c !== first && starts(c)) ? "multiple or shared numbered captions" :
+        usedNumbers[kind].has(match[2]) ? `duplicate ${kind} number ${match[2]}` : undefined;
+      if (reason) note = `Source caption number retained literally: ${reason}.`;
+      else {
+        enumerator = match![2]; remainder = match![3];
+        note = `Moved source caption prefix ${JSON.stringify(clean(first.text).slice(0, clean(first.text).length - remainder.length))} to fixed ${kind} enumerator ${JSON.stringify(enumerator)}; removed prefix from caption text.`;
+      }
+    }
+    const content = parts.flatMap((c, i) => [...(i ? [{ kind: "text" as const, text: " " }] : []), ...inline(c, c === first && remainder !== undefined ? remainder : c.text)]);
+    return { content, enumerator, commit() {
+      if (enumerator) usedNumbers[kind].add(enumerator);
+      if (note) { entry(x).notes.push(note); entry(first!).notes.push(note); }
+    } };
   }
   function descendants(x: SourceItem): SourceItem[] { return children(x).flatMap(c => [c, ...descendants(c)]); }
 
@@ -177,11 +199,14 @@ export function convertDoclingDocument(input: string, options: ConversionOptions
         const rowHeaders = data.table_cells.filter(c => c.row_header).length, rowSections = data.table_cells.filter(c => c.row_section).length;
         if (rowHeaders) notes.push(`Converted ${rowHeaders} row header cells to ordinary cells.`);
         if (rowSections) notes.push(`Converted ${rowSections} row section cells to ordinary cells.`);
-        const caption = [...captions(x), ...noteCalls(x)];
+        const prepared = captions(x, "table");
+        const caption = [...prepared.content, ...noteCalls(x)];
         const target = add(x, "table", (d, at) => {
           const next = insertTable(d, at, rows.map(row => row.map(text => [{ kind: "text", text }])));
-          return caption.length ? updateTableCaption(next, [at], caption) : next;
+          const captioned = caption.length ? updateTableCaption(next, [at], caption) : next;
+          return prepared.enumerator ? updateEnumerator(captioned, [at], prepared.enumerator) : captioned;
         });
+        prepared.commit();
         entry(x).notes.push(...notes);
         for (const c of related(x, "captions")) { emitted.add(c.self_ref); mark(c, [{ ...target, role: "caption" }]); }
         for (const child of children(x)) emit(child);
@@ -192,10 +217,15 @@ export function convertDoclingDocument(input: string, options: ConversionOptions
         const uri = x.image?.uri;
         const imageUrl = uri && (options.images?.has(uri) ? options.images.get(uri) : uri);
         if (!imageUrl) throw new Error("Missing or unavailable picture image");
-        const caption = [...captions(x), ...noteCalls(x)];
+        const prepared = captions(x, "figure");
+        const caption = [...prepared.content, ...noteCalls(x)];
         const inner = descendants(x).filter(c => !(x.captions ?? []).some(r => r.$ref === c.self_ref));
         const alt = inner.filter(c => !decoration(c)).map(c => clean(c.text)).filter(Boolean).join("; ");
-        const target = add(x, "figure", (d, at) => insertFigure(d, at, { imageUrl, imageAlt: alt, caption }));
+        const target = add(x, "figure", (d, at) => {
+          const next = insertFigure(d, at, { imageUrl, imageAlt: alt, caption });
+          return prepared.enumerator ? updateEnumerator(next, [at], prepared.enumerator) : next;
+        });
+        prepared.commit();
         for (const c of related(x, "captions")) { emitted.add(c.self_ref); mark(c, [{ ...target, role: "caption" }]); }
         for (const child of inner) {
           emitted.add(child.self_ref);

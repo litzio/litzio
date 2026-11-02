@@ -24,9 +24,10 @@ Several models have been developed by NIST to describe interoperability concerns
 The NIST Smart Grid Conceptual Model describes the overall composition of electric grid systems and applications. It is meant to provide a high-level view of the system that can be understood by many stakeholders. Originally introduced in 2010 \[74], the Conceptual Model is updated with each Framework revision. The Smart Grid Conceptual Model update in this document (see Figure 4 ) reflects large increases in the number and types of distributed energy resources (DERs) used throughout the grid, the increasing importance and automation of distribution systems, new customer interactions and assets, and the role of service providers in the distribution system.
 
 :::{figure} pictures/picture-000.png
+:enumerator: 4
 :alt: Smart Grid Conceptual Model; 20; Operations; Service; Provider; Markets; Distribution; Transmission; Customer; Secure Communication Flows; Generation including DER; Electrical Flows; Domain; Source: NIST Smart Grid Framework 4.0
 
-Figure 4 - Updated NIST smart grid conceptual model
+Updated NIST smart grid conceptual model
 :::
 
 The key Framework concepts derived from the updated Conceptual Model remain broadly similar to those of previous editions. First, the roles and responsibilities for actors and equipment in the electrical grid are a function of the domain in which they are applied. Through this lens we understand that functions required of grid equipment will likely change depending on the grid context, or domain, in which it is used. 9 Benefits associated with equipment, resource, or action will similarly vary with domain and other context.
@@ -83,7 +84,8 @@ Each domain - and its sub-domains - in the Conceptual Model describe smart grid 
 
 Each of the seven NIST Smart Grid Conceptual Model domains is described in Table 1 .
 
-:::{table} Table 1 - Domains and roles/services in the smart grid conceptual model
+:::{table} Domains and roles/services in the smart grid conceptual model
+:enumerator: 1
 
 |   | Domain                   | Roles/Services in the Domain                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | - | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -130,7 +132,8 @@ These scenarios are not mutually exclusive. Rather, they represent views of the 
 
 Each Communication Pathways Scenario diagram uses a common set of graphical conventions. For each diagram, colored boxes represent Conceptual Model Domains (see Table 2 ), and symbols are used to define actors, gateways, communications paths, and networks (see Table 3 ).
 
-:::{table} Table 2 - Domain descriptions and graphical color representation
+:::{table} Domain descriptions and graphical color representation
+:enumerator: 2
 
 | Domain            | Domain Role/Service                                                                                                                                                                           | Color Code  |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
@@ -143,7 +146,8 @@ Each Communication Pathways Scenario diagram uses a common set of graphical conv
 | Service Providers | Billing, Information Technology (IT), finance, procurement, regulatory and aggregation functions performed for electric grid stakeholders.                                                    | Green       |
 :::
 
-:::{table} Table 3 - Communication pathways diagrams symbol descriptions
+:::{table} Communication pathways diagrams symbol descriptions
+:enumerator: 3
 
 | Symbol Name                      | Description                                                                                                                                | Symbol |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ------ |
@@ -184,9 +188,10 @@ Sub-domains in the Legacy Scenario are shown to identify typical groupings withi
 14 For example: Transmission Operations, Distribution Operations
 
 :::{figure} pictures/picture-006.png
+:enumerator: 5
 :alt: Markets; Operations; Service Providers; Retailer /; RTO/ISO; Transmission; Distribution Ops; Utility; Third-Party; Wholesaler; Ops; Ops; Provider; Provider; DMS; Asset; Aggregator; EMS; EMS; WAMS; Demand; M9gmt; MDMS; CIS; Energy; Retail; CIS; Response; Billing; Provider; Billing; Energy; Service; Service; Service; Home / Building; Market; Integration; Integration; Integration; Manager; Clearinghouse; ISO/RTO; SCADA; RTO; Transmission; SCADA; Metering; System; Distribution; SCADA; Aggregator; Participant; Internet /; Others; Internet /; e-Business; e-Business; Services; Market; Wide Area; Field Area; Energy; Customer; EMS; Interface; Networks; Networks; Services; Interface; Data; Plant Control; Collector; Equipment; Customer; System; Substation; Substation; Field; Meter; Integration; Controller; Device; Premises; Generators; Networks; Distributed; Electric; Generation; Substation; Generation; Storage; Appliances; Device; Domain; Storage; Electric; Electric; Electric; Network; Storage; Vehicle; Thermostat; Roles and Actors; Transmission; Distributed; Gateway Role; Generation; Comms Path; Distribution; Customer; Comms Path Changes Owner / Domain; Distributed Energy Resources; Source: NIST Smart Grid Framework 3.0, 2014
 
-Figure 5 - Legacy communication pathways scenario
+Legacy communication pathways scenario
 :::
 
 ## 2.2.3. High-DER communication pathways scenario
@@ -208,7 +213,8 @@ The colocation of customer-sited resources and loads - including demand response
 15 For example, DERs such as solar photovoltaic or demand response can reduce peak demand during the mid-part of the day while an energy storage asset can supply reactive power.
 
 :::{figure} pictures/picture-007.png
+:enumerator: 6
 :alt: System Operations; Utility Service Providers; & Trans Ops; Generation; Distribution Ops; Ops Services; Business Systems; Management; Energy; Advanced Distribution Management; System; Management; Enterprise; Asset; Planning Tools; Modeling &; System; Service Providers; Third-Party; Info System; Customer; Billing; Enterprise; Resource; Planning; Management; Generation; System; System; Management; Economic and; Outage; Grid Optimization; State Estimation; Distributed; &; Information; Geographic; System; Management; Workforce; System; Aggregated; Systems; Control; System; Automated; Reliability; Energy Resources; Generation; Management; Management Sys.; Business Systems; Control; Gateway; DR Head; 3rd Party Head-; End System; End; Operational Enterprise Service Bus; Admin Enterprise Service Bus; Meter Data; Weather; Service; Advanced; Analytics; Load Profile; Calculation; Advanced Load; Forecasting; System (MDMS); Management; Internet; Internet; Energy; Gateway, Data; Market; Translator, IP SCADA; Source: NIST Smart Grid Framework 4.0; Clearinghouse; Communications; Intelligent; Ancillary; Services; Distributed; Controllers; Electronic; Devices; DLC; &; LAN / WAN; Systems and; Smart; Market; DR; Appliances; Clearinghouse; LAN/WAN; Devices; AMI Telemetry; Clearinghouse; Dispatch; Capacity; Market; Energy; Generator; Control; System; Substation; Devices; Substation; Cap Banks/; Controllers; Advanced; formers; Trans-; Sensors; Circuit; vo; Fault; Meer; Utility; Network; Home Area; Gateway; Control and; Automation; Industrial; Systems; Building; Customer Systems; Account; App; Email; Apps; Service; Order; App; Legend; Ancillary; Services; Dispatch; Generator; Bulk; Bulk; Controller; Distribution; Indicators; Switches; Remote; Sub Meter; Smart; HVAC; Billing; App; Energy; Auditc; Apps; Usage; APdps; Domain; Comm Network; Congestion; Generator; Automation; T-stat; Devices; Outage; Management; Bulk; Transmission; Distribution; Apps; Roles and Actors; Generator; Generation; Co-; Smart; DR; 0; Gateway Role; Markets; S; Generation including DER; Participating; Load; Participating; Generation; DER; Storage; Energy; incling; Inverter; Storage; Energy; DER; Devices; Electric; Vehicle; Customer; Comms Path Changes; Comms Path; Owner / Domain
 
-Figure 6 - High-DER communication pathways scenario
+High-DER communication pathways scenario
 :::

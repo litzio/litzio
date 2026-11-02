@@ -9,7 +9,7 @@
   },
   "document": {
     "file": "document.md",
-    "sha256": "f49c488ce5cf728c76f86165802047a2582590b5c1eeff55b328d371e7921b11"
+    "sha256": "da987baadfce4061f5d8de3392932c865d7eb2b43ef5c69d87f99dfa34fd8e40"
   },
   "pages": {
     "1": {
@@ -1186,7 +1186,9 @@
           "role": "caption"
         }
       ],
-      "notes": []
+      "notes": [
+        "Moved source caption prefix \"Figure 4 - \" to fixed figure enumerator \"4\"; removed prefix from caption text."
+      ]
     },
     {
       "self_ref": "#/texts/13",
@@ -2809,7 +2811,9 @@
           "role": "caption"
         }
       ],
-      "notes": []
+      "notes": [
+        "Moved source caption prefix \"Table 1 - \" to fixed table enumerator \"1\"; removed prefix from caption text."
+      ]
     },
     {
       "self_ref": "#/texts/61",
@@ -3531,7 +3535,9 @@
           "role": "caption"
         }
       ],
-      "notes": []
+      "notes": [
+        "Moved source caption prefix \"Table 2 - \" to fixed table enumerator \"2\"; removed prefix from caption text."
+      ]
     },
     {
       "self_ref": "#/texts/83",
@@ -3564,7 +3570,9 @@
           "role": "caption"
         }
       ],
-      "notes": []
+      "notes": [
+        "Moved source caption prefix \"Table 3 - \" to fixed table enumerator \"3\"; removed prefix from caption text."
+      ]
     },
     {
       "self_ref": "#/texts/84",
@@ -3944,7 +3952,9 @@
           "role": "caption"
         }
       ],
-      "notes": []
+      "notes": [
+        "Moved source caption prefix \"Figure 5 - \" to fixed figure enumerator \"5\"; removed prefix from caption text."
+      ]
     },
     {
       "self_ref": "#/texts/96",
@@ -8353,7 +8363,9 @@
           "role": "caption"
         }
       ],
-      "notes": []
+      "notes": [
+        "Moved source caption prefix \"Figure 6 - \" to fixed figure enumerator \"6\"; removed prefix from caption text."
+      ]
     },
     {
       "self_ref": "#/texts/223",
@@ -15517,7 +15529,9 @@
           "role": "block"
         }
       ],
-      "notes": []
+      "notes": [
+        "Moved source caption prefix \"Table 1 - \" to fixed table enumerator \"1\"; removed prefix from caption text."
+      ]
     },
     {
       "self_ref": "#/tables/1",
@@ -15550,7 +15564,9 @@
           "role": "block"
         }
       ],
-      "notes": []
+      "notes": [
+        "Moved source caption prefix \"Table 2 - \" to fixed table enumerator \"2\"; removed prefix from caption text."
+      ]
     },
     {
       "self_ref": "#/tables/2",
@@ -15583,7 +15599,9 @@
           "role": "block"
         }
       ],
-      "notes": []
+      "notes": [
+        "Moved source caption prefix \"Table 3 - \" to fixed table enumerator \"3\"; removed prefix from caption text."
+      ]
     },
     {
       "self_ref": "#/pictures/0",
@@ -15616,7 +15634,9 @@
           "role": "block"
         }
       ],
-      "notes": []
+      "notes": [
+        "Moved source caption prefix \"Figure 4 - \" to fixed figure enumerator \"4\"; removed prefix from caption text."
+      ]
     },
     {
       "self_ref": "#/pictures/1",
@@ -15814,7 +15834,9 @@
           "role": "block"
         }
       ],
-      "notes": []
+      "notes": [
+        "Moved source caption prefix \"Figure 5 - \" to fixed figure enumerator \"5\"; removed prefix from caption text."
+      ]
     },
     {
       "self_ref": "#/pictures/7",
@@ -15847,7 +15869,9 @@
           "role": "block"
         }
       ],
-      "notes": []
+      "notes": [
+        "Moved source caption prefix \"Figure 6 - \" to fixed figure enumerator \"6\"; removed prefix from caption text."
+      ]
     },
     {
       "self_ref": "#/groups/0",

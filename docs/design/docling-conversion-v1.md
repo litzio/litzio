@@ -37,7 +37,7 @@ successful correction replay record the versions producing the current result:
   exported source trees without Git omit the revision.
 - `coreVersion`: the public Core package version used by the converter.
 - `policyVersion`: integer `CONVERSION_POLICY_VERSION` in
-  `plugins/docling/src/conversion/record.ts`, initially 1. A human increments it
+  `plugins/docling/src/conversion/record.ts`, currently 2 (#893). A human increments it
   when Representation policy changes source-to-native meaning, mapping, loss or
   unsupported handling. Refactoring without policy changes does not increment it.
   It is independent of package versions and record schema version.
@@ -693,6 +693,28 @@ preserve their input semantics. Empty tables, tables exceeding the 100,000-cell
 limit, invalid/out-of-bounds coordinates, inconsistent spans and overlapping
 source cells also remain unsupported with a reason; conversion cannot assign
 their contents to a valid, unambiguous grid.
+
+Figure/Table source caption numbers (#893, policy version 2) are moved to
+Core fixed `:enumerator:` values before native serialization. The first nonempty
+caption must start with `Figure`, `Fig`/`Fig.`, `Table` (case-insensitive), `그림`
+or `표`, whitespace, and decimal digits optionally joined by dots or hyphens.
+The number must end with whitespace, end-of-caption, or a colon/period followed
+by whitespace or end-of-caption. A spaced dash (`-`, `–`, `—`) after the
+number is also removed as a caption separator. The recognized prefix and separator are removed;
+remaining text keeps its inline formatting. For example `Figure 6: Overview`
+becomes `:enumerator: 6` with caption `Overview`; `Table 3-2` becomes an empty
+caption with `:enumerator: 3-2`. The number string is preserved literally.
+
+An unclear format (including alphabetic/Roman numbers), owner-kind mismatch,
+shared caption, additional numbered caption, or exact number already assigned to
+an earlier successfully converted target of the same kind leaves the whole
+caption literal. Figure and Table use separate number namespaces; automatic
+fallback numbers are not reserved. Unnumbered captions remain unchanged. Owner
+and first-caption map `notes` disclose each successful move or ambiguity reason.
+Failed owners preserve their captions independently and reserve no number.
+Source JSON is never changed. Initial conversion and correction replay use the
+same path. Missing-number warnings, numbering semantics and block equation
+number extraction are outside this policy change.
 
 Pictures use their source image and caption, with child text represented by the
 image and noted in the map. Missing images are unsupported. List markers that
