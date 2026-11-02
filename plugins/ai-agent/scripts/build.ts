@@ -19,7 +19,7 @@ export async function buildPlugin(destination: string) {
   writeFileSync(path.join(destination, "manifest.json"), JSON.stringify({ id: AI_TASK.plugin,
     version: createHash("sha256").update("ai-task-v1").digest("hex"), workerApi: 1, entry: "worker.cjs", tasks: [AI_TASK.service],
     services: [AI_TASK.service], host: { api: 1, entry: "host.cjs" }, routes: [AI_TASK.route, AI_TASK.statusRoute, AI_TASK.settingsRoute],
-    ui: { api: PLUGIN_UI.api, reactMajor: PLUGIN_UI.reactMajor, script: PLUGIN_UI.script },
+    ui: { api: PLUGIN_UI.api, reactMajor: PLUGIN_UI.reactMajor, script: PLUGIN_UI.script, style: PLUGIN_UI.style },
   }, null, 2) + "\n");
 }
 if (import.meta.main) await buildPlugin(path.resolve(process.argv[2] ?? "dist"));

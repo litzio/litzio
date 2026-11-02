@@ -254,7 +254,7 @@ refused. UI detachment never cancels accepted work.
 | --- | --- |
 | `GET /api/ai-task-service` | `{ available: boolean }`, including while the agent is off. |
 | `GET /api/ai-agent-status` | `{ adapter, available, loginRequired }`; current Codex status means the executable/login is available, not model or sandbox readiness. |
-| `GET/PUT /api/ai-agent-settings` | Shared `{ model, reasoningEffort }` owned by the AI agent, stored via existing Host plugin settings. |
+| `GET/PUT /api/ai-agent-settings` | Shared model/effort plus provider, enabled and main-agent write scope, stored via existing Host plugin settings; [#931 contract](main-agent-v1.md). |
 | `POST /api/ai-tasks` | Admit the request below and return `{ job, status, canCancel }`. |
 | `GET /api/ai-tasks?id=<UUID>` | Read a scoped receipt; no execution or automatic retry. |
 | `DELETE /api/ai-tasks`, `{ id }` | Await actual local worker/provider termination and cleanup, then return the receipt. |
@@ -290,12 +290,14 @@ settings, used by Codex `--model` and `model_reasoning_effort`. Running records
 omit end/duration; uncertain dead-owner records use observation time because the
 actual provider exit is unknown. No intermediate reasoning is stored.
 
-The AI agent settings page offers model free input (default `gpt-6.1-sol`) and
-`low`, `medium` (default), `high`, `xhigh`. Explicit Save persists both values;
-errors retain input. All feature tasks share this setting; feature plugins do not
-choose models. Official [Codex CLI reference](https://learn.chatgpt.com/docs/cli/reference)
-marks app-server Experimental; no stable model-list CLI is documented, so #930
-uses the owner-approved free input fallback rather than adding a discovery service.
+The AI agent settings page uses the discovered `model/list` models and their
+supported reasoning efforts (#931), replacing #930's free input. Initial defaults
+remain `gpt-6.1-sol` / `medium`; unavailable choices require explicit selection.
+Explicit Save persists both values; errors retain input. All feature tasks share
+these defaults; feature plugins do not choose models. The separate
+[main-agent connection/settings contract](main-agent-v1.md) defines diagnostics,
+provider enablement and working environment. Existing task workers still run
+`exec` with their original snapshot policy; app-server is not their execution path.
 
 Worker execution has a 120-second deadline; teardown
 is awaited separately. Only complete IPC plus zero exit can publish a result.
@@ -337,9 +339,11 @@ instruction isolation is not claimed. The owner deferred a dedicated Codex home
 (`CODEX_HOME` under Litzio's brand-configured user-data directory, requiring an
 initial login). Under [ADR-0013](../adr/0013-ai-agent-task-service.md#limitations-and-follow-up),
 introduce it at the earliest of use by someone other than the owner (no later
-than public distribution with the AI agent), introduction of a resident main
-agent, or an actual result-interference problem from global instructions in the
-owner's environment. The adapter currently reuses the existing home; it does
+than public distribution with the AI agent), or an actual result-interference
+problem from global instructions in the owner's environment. The former resident
+main-agent trigger is superseded by [ADR-0014](../adr/0014-main-agent-app-server.md):
+that agent deliberately reuses the user's Codex environment. The task adapter
+currently reuses the existing home; it does
 not clear instruction files or change credentials.
 
 The initial real model trial reused login and returned schema-valid JSON, but
