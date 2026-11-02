@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "0b7a299b05a300f3d3177119957773d16f947a8d",
+  "sourceCommit": "449f2dece0f3f175a8f05d95d60f1ab295482145",
   "browser": "Windows installed Chrome, persistent checkout profile, pnpm browser:test docling-review --screenshots",
   "viewportHeight": 1000,
   "cases": [
@@ -7,12 +7,23 @@
     "640 Dark Korean"
   ],
   "data": "Synthetic MIT Docling fixture; fake AI adapter, real C1 Host decisions; no real AI/OCR quality assessment",
-  "manualReview": "Panel below panes, visible action footer, source and measured-target highlight, long Korean reason and paths, theme and wrapping reviewed. Source image/text remain narrow at 640px under the existing comparison limitation. Dashboard captured at the current result, keeping prior local test receipts visible. Proposal list and details now scroll independently; an overflowing synthetic list is tested with its final selected reason in viewport. Page images are decoded and fonts ready before panel captures.",
+  "manualReview": "Human-readable original excerpts and correction kinds lead the proposal list; localized short states and muted self_ref metadata are secondary. Before/After use Heading 2/Heading 3 (제목 2/제목 3), body/header/footer names or paragraph previews; no raw JSON values. Primary approval and secondary rejection/undo share the Host Button hierarchy. Independent list/details scrolling, original-page/target highlights, Korean wrapping and both themes reviewed at 1440/640. At 640 the detail scroll is positioned at Before/After for the capture; source excerpts use two lines. Images are decoded and fonts ready before panel captures. Dashboard is captured at the current result, retaining earlier local test receipts.",
   "observedLimitation": "Windows local runs intermittently fail C1 directory-publication with EPERM, including capture regeneration; rollback and visible errors were observed, alongside complete successful runs. Origin remains unestablished. No retry logic or weakened assertions were added. CI on the previous head completed all required jobs.",
   "sha256": {
-    "dashboard-1440-light-en.png": "097f7cde303d63c353d7056ac8e8d1598c9f2b39af22f8f96d59d99abcf0fee4",
-    "dashboard-640-dark-ko.png": "32da15edfc55b94c85e9a9678f1e15ebc26100031a1a4287a86004d3667ce7fc",
-    "review-1440-light-en.png": "8e11a8379e14e97b39fe7d8357458b8826b6a446c375b7dc0dc4b504e961e522",
-    "review-640-dark-ko.png": "178c062c8a37098671f7c86651f27649bfda65f74c64568680d753f7c856f5de"
+    "dashboard-1440-light-en.png": "7284eac306d4fc5380971c62cfeee7fc94353b16b8c015b3913b375398b19ebd",
+    "dashboard-640-dark-ko.png": "b351edea28ff59bf653b8b5915860eff408bc05c106fd79aebc77217ff28d806",
+    "review-1440-light-en.png": "f8ee328530344b1a61593c7eab29d58e53dfd31456f712bef69615ad50985d29",
+    "review-640-dark-ko.png": "58aab91307a2397e2280cd8e4ec66561173ce959680f7618d701490a14ac367b"
+  },
+  "displayVerification": "docling-review: real C1 Run/Cancel/Approve/Reject/Undo and immediate DOM refresh, plus display-only synthetic reads for heading to body, body to heading, body to header, footer to body and paragraph merge in English/Korean. No Host operation or saved format changed.",
+  "epermReproduction": {
+    "environment": "Windows Vite at 5293; synthetic PDF and fake AI adapter; comparison tab open",
+    "observedActions": [
+      "Approve proposal",
+      "Reject proposal"
+    ],
+    "exampleAction": "Reject proposal",
+    "error": "EPERM: operation not permitted, rename 'C:\\Users\\swBaek\\.paseo\\worktrees\\0xvmt5pp\\900-docling-review-ui\\tmp\\docling-server\\.paper.docling.corrections-6Jiibj' -> 'C:\\Users\\swBaek\\.paseo\\worktrees\\0xvmt5pp\\900-docling-review-ui\\tmp\\docling-server\\paper.docling'",
+    "scope": "Observed in earlier local runs. No C1 publication or retry change in this copy revision; separate orchestrator investigation."
   }
 }
