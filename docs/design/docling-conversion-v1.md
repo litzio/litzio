@@ -92,8 +92,8 @@ an inverse patch. Installed Host operations `add-correction`, `remove-correction
 and `apply-corrections` take `{folder, entry}`, `{folder, id}` and `{folder}`;
 conversion must be enabled. They add no UI route or dashboard change. Removing a
 prerequisite that invalidates a remaining entry refuses the removal. Structure-review
-execution and proposal records are defined below; approval screens and block
-confirmation state remain follow-up work.
+execution, proposal records and approval screens are defined below; block
+confirmation state remains outside this version.
 
 Publication builds a complete private sibling copy of the folder, including
 untouched source/assets/user files, then renames the old folder to a private
@@ -151,7 +151,7 @@ inspection evidence. Status/targets describe corrected conversion; notes disclos
 approvals. Merged refs share a result target with their own original page/bbox/
 character spans. Existing readers report the new pair as current and an old map
 with changed Markdown as stale. Open comparison tabs retain opening snapshots;
-close/reopen after replay to read the new generation.
+approvals and undo in the review panel refresh its document/map automatically (#900). External CLI replay still requires close/reopen.
 
 Verification uses synthetic inputs and the saved NIST bundle: all operations,
 original-byte preservation, invalid/conflicting entries, dependent-removal refusal,
@@ -310,7 +310,7 @@ The installed Host operations use the existing `/api/plugin-operation` transport
 | `review-cancel` | `{folder}` | Await B's actual cancellation/uncertain outcome. |
 | `review-approve`, `review-reject`, `review-undo` | `{folder, id: proposalUUID}` | Explicit human decision paths above. |
 
-Start/decisions require the existing conversion feature; Host registration gates
+Start/decisions require conversion and review enabled; Host registration gates
 new operations. Status/list/cancel drain after Docling disable. An accepted service
 handle is retained only in the Host session so agent disable does not prevent its
 accepted work from completing or being cancelled. On restart with the agent off,
@@ -535,6 +535,22 @@ Conversion policy, source preservation, failure reporting and public command res
 
 ## Plugin dashboard and feature selection (#871)
 
+#900 adds the third **Structure review** feature checkbox, persisted through the
+same registration lifecycle. Each available result shows pending proposal count,
+explicit Run/Cancel, running/completed/cancelled/failed/uncertain state and failure
+details. Agent status distinguishes Off, Available, Login required and Unavailable.
+Review-off and unavailable-agent controls explain their disabled state; conversion
+and comparison remain usable. Start and decisions also require conversion enabled.
+The UI routes map directly to C1 operations: GET/POST/DELETE `api/docling-review`,
+and POST `api/docling-review-approve`, `-reject`, `-undo`. GET
+`api/docling-review-agent` reads the Host service status, without importing the AI plugin.
+The GET view wraps C1 read failures as a contextual `problem` (for example a removed result folder);
+direct C1 operations and decision refusals retain their errors.
+The proposal read uses the existing source parser, including UTF-8 BOM handling,
+and includes actual original target/continuation text, label/level and currently approved changes for
+that target to explain Before alongside the proposed operation/value After.
+No new CLI: #766 item 6 retains A's `apply-corrections`; AI execution stays in B.
+
 The expanded sidebar footer now opens **Docling**, a plugin-contributed dashboard
 tab. Command Center also offers **Docling dashboard**. Its five areas are connection
 status, conversion jobs, recent conversion results, feature selection and quick
@@ -670,9 +686,8 @@ display numbers are not a new Core feature in this issue. Conversion never
 silently treats an unrelated occurrence of the same number as an endnote call.
 
 Read-only comparison is defined by [Docling comparison](docling-compare-v1.md).
-Confirmation state, proposal screens and post-edit relinking remain outside
-this contract; headless structure proposals and approved correction replay are
-defined above. Public fixture provenance, licenses and reproduction
+Confirmation state and post-edit relinking remain outside this contract;
+structure proposals, approval screens and correction replay are defined above. Public fixture provenance, licenses and reproduction
 commands are in the [fixture README](../../plugins/docling/test/fixtures/README.md).
 
 ## App verification on 2026-10-30

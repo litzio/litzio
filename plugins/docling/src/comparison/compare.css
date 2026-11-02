@@ -28,3 +28,25 @@
 .docling-wires path { fill: none; stroke: var(--docling-color); stroke-width: 1; opacity: .6; }
 .docling-wires path[data-selected="true"] { stroke-width: 2; opacity: 1; }
 .docling-details { min-height: var(--space-8); max-height: 6rem; overflow: auto; padding: var(--space-2) var(--space-4); background: var(--id-color-surface); border-top: var(--border-width) solid var(--id-color-border-subtle); font-size: var(--font-size-sm); overflow-wrap: anywhere; }
+
+.docling-review-comparison { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.docling-review-comparison > .docling-compare { flex: 1; height: auto; }
+.docling-review { flex: none; padding: var(--space-3) var(--space-4); background: var(--id-color-surface); border-top: var(--border-width) solid var(--id-color-border-subtle); font-size: var(--font-size-sm); overflow-wrap: anywhere; }
+.docling-review p { margin: var(--space-2) 0; }
+.docling-review-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
+.docling-review-content { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr); gap: var(--space-3); max-height: 240px; overflow: hidden; margin-top: var(--space-2); }
+.docling-review-list button { display: block; width: 100%; text-align: start; padding: var(--space-2); }
+.docling-review-list button:hover { background: var(--id-color-surface-hover); }
+.docling-review-list button[aria-pressed=true] { background: var(--id-color-surface-selected); font-weight: 600; }
+.docling-review-list button:focus-visible { outline: 2px solid var(--id-color-interaction); outline-offset: -2px; }
+.docling-review-values { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.docling-review-values > div { min-width: 0; flex: 1 1 140px; }
+.docling-target-highlight { fill: var(--id-color-surface-selected); fill-opacity: .35; stroke: var(--id-color-interaction); stroke-width: 2; }
+
+.docling-review-list, .docling-review-proposal { min-height: 0; min-width: 0; max-height: 240px; overflow: auto; }
+
+.docling-review-source { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-weight: 600; }
+.docling-review-item-labels { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-1); }
+.docling-review-state { background: var(--id-color-surface-muted); padding: 0 var(--space-1); border-radius: var(--id-radius-sm); }
+.docling-review-meta { display: block; color: var(--id-color-text-muted); font-size: var(--font-size-xs); font-weight: 400; margin-top: var(--space-1); }
+.docling-review-item-labels { font-size: var(--font-size-xs); }

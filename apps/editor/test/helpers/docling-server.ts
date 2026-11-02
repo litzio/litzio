@@ -3,7 +3,7 @@ import { listenForFetch } from "../../../../test/helpers/fetch-server.ts";
 
 export type DoclingMode = "success" | "pending" | "partial" | "failure" | "model-missing" | "redacted" | "version" | "not-ready";
 /** Real HTTP/multipart and polling; small valid source bundle keeps UI/Host tests independent of Docker. */
-export async function fakeDoclingServer() {
+export async function fakeDoclingServer(source?: object) {
   let mode: DoclingMode = "success", polls = 0, submissions = 0;
   const requests: string[] = [];
   const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j9ioAAAAASUVORK5CYII=";
@@ -24,7 +24,7 @@ export async function fakeDoclingServer() {
         failure: mode === "model-missing" ? { category: "internal", message: "Model 'docling-project/CodeFormulaV2' not found in artifacts_path.\nTraceback: secret-server-path" } : null }));
     } else if (req.url?.startsWith("/v1/result/")) {
       if (mode === "partial") { res.write('{"status":"success","document":'); return; }
-      res.end(JSON.stringify({ status: "success", errors: [], document: { json_content: {
+      res.end(JSON.stringify({ status: "success", errors: [], document: { json_content: source ?? {
         schema_name: "DoclingDocument", version: "1.10.0", name: "Fixture PDF",
         body: { self_ref: "#/body", children: [{ $ref: "#/texts/0" }] },
         texts: [{ self_ref: "#/texts/0", parent: { $ref: "#/body" }, children: [], label: "text", text: "Converted PDF content.", orig: "Converted PDF content.",

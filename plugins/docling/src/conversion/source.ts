@@ -11,9 +11,12 @@ let validate: ValidateFunction | undefined;
 // checks. Resource confinement is the local file adapter's separate responsibility.
 export const collections = ["texts", "tables", "pictures", "groups", "key_value_items", "form_items", "field_regions", "field_items"] as const;
 
+/** Original JSON decoding shared with read-only consumers of conversion-bound source bytes. */
+export function parseSourceJson(text: string): unknown { return JSON.parse(text.replace(/^\uFEFF/u, "")); }
+
 /** Version-pinned official schema, followed by reference/reading-order integrity. Never mutates input. */
 export function readSource(text: string): { source: SourceDocument; nodes: Map<string, SourceItem> } {
-  const input: unknown = JSON.parse(text.replace(/^\uFEFF/u, ""));
+  const input = parseSourceJson(text);
   validate ??= new Ajv2020({ strict: false, formats: { ...fullFormats, path: { type: "string", validate: () => true } } })
     .compile(JSON.parse(JSON.stringify(schema).replaceAll("(?P<", "(?<")));
   if (!validate(input)) throw new Error(`Invalid DoclingDocument: ${JSON.stringify(validate.errors?.slice(0, 4))}`);

@@ -25,7 +25,7 @@ export async function buildPlugin(destination: string) {
   writeFileSync(path.join(destination, "manifest.json"), JSON.stringify({
     id: "docling", version: createHash("sha256").update(bytes).digest("hex"),
     workerApi: 1, entry: "worker.cjs", host: { api: 1, entry: "host.cjs" },
-    routes: ["/api/docling-settings", "/api/docling-check", "/api/docling-conversion", "/api/docling-compare", "/api/docling-dashboard", "/api/docling-features", "/api/docling-history"],
+    routes: ["/api/docling-settings", "/api/docling-check", "/api/docling-conversion", "/api/docling-compare", "/api/docling-dashboard", "/api/docling-features", "/api/docling-history", "/api/docling-review", "/api/docling-review-agent", "/api/docling-review-approve", "/api/docling-review-reject", "/api/docling-review-undo"],
     ui: { api: PLUGIN_UI.api, reactMajor: PLUGIN_UI.reactMajor, script: PLUGIN_UI.script, style: PLUGIN_UI.style, jobRoute: "api/docling-conversion" },
   }, null, 2) + "\n");
 }
