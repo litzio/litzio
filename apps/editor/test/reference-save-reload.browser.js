@@ -196,7 +196,7 @@ async (page, { openPath, openDocument, reloadDocument, expect }) => {
   // The Core report supplies missing/duplicate warnings; neither disables Save.
   await applyNumber('fixed-table','table','');
   await edit('fixed-table','table');
-  await expect(page.getByTestId('numbering-warning').filter({hasText:'Missing fixed number'})).toHaveCount(1);
+  await expect(page.getByTestId('numbering-warning').filter({hasText:'This target has no fixed number'})).toHaveCount(1);
   await expect(page.getByTestId('numbering-block-warning')).toHaveCount(0);
   await page.getByTestId('table-label').press('Escape');
   await applyNumber('fixed-diagram','mermaid-property','18');
