@@ -3,6 +3,27 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
   await page.getByRole('button', { name: /^(Settings|설정)$/ }).click();
   await page.getByTestId('ui-language').selectOption('en');
   await page.getByTestId('settings-back').click();
+  const captureActions = async state => {
+    if (!screenshots) return;
+    for (const [width, language, theme] of [[1440, 'en', 'light'], [640, 'ko', 'dark']]) {
+      await page.getByRole('button', { name: /^(Settings|설정)$/ }).click();
+      await page.getByTestId('ui-language').selectOption(language);
+      await page.getByTestId('theme').selectOption(theme);
+      await page.setViewportSize({ width, height: 1000 });
+      await page.getByTestId('settings-back').click();
+      await page.screenshot({ path: `tmp/973-evidence/${state}-${width}.png` });
+    }
+    await page.getByRole('button', { name: '설정', exact: true }).click();
+    await page.getByTestId('ui-language').selectOption('en');
+    await page.getByTestId('theme').selectOption('light');
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByTestId('settings-back').click();
+  };
+  while (await page.locator('.document-tab-close').count()) await page.locator('.document-tab-close').first().click();
+  await captureActions('empty');
+  const emptyActions = await page.locator('.top-bar-actions').count();
+  await page.keyboard.press('Control+s');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await openPath(page, pluginFixture.document);
   const nativeTabId = await page.getByRole('tablist', { name: 'Documents', exact: true }).getByRole('tab', { selected: true }).getAttribute('id');
   const native = page.locator('.document-scroll[data-active=true] .ProseMirror');
@@ -30,6 +51,11 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
     await expect(command).toBeVisible(); await command.click();
     await expect(page.getByRole('button', { name: 'Fixture sidebar', exact: true })).toBeVisible();
     const tab = page.getByRole('tab', { name: / · Fixture view$/ });
+    await captureActions('plugin');
+    expect(emptyActions, 'Empty screen has no document actions').toBe(0);
+    await expect(page.locator('.top-bar-actions')).toHaveCount(0);
+    await page.keyboard.press('Control+s');
+    await expect(page.getByRole('dialog')).toHaveCount(0);
     const id = await tab.getAttribute('id');
     await page.getByRole('button', { name: 'Fixture count 0' }).click();
     await expect(page.getByRole('button', { name: 'Fixture count 1' })).toBeVisible();
@@ -80,6 +106,7 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
     await expect(page.getByRole('button', { name: 'Fixture count 0' })).toBeVisible();
     await expect(tab).toHaveAttribute('id', id);
     await page.locator('#' + nativeTabId).click();
+    await expect(page.getByTestId('save')).toHaveAttribute('data-save-state', 'unsaved');
     const preserved = page.locator('.document-scroll[data-active=true] .ProseMirror');
     expect(await preserved.evaluate(element => element === globalThis.__uiOriginalDocument)).toBe(true);
     await expect(preserved).toContainText('retained draft');
