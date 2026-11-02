@@ -23,16 +23,16 @@ test('merge_group payloads apply the same path rules as PRs to the entire group 
     // Multiple PRs in one group: take the union, including a deleted file.
     [['docs/test/README.md', 'apps/editor/src/App.tsx', 'apps/desktop/installer/cli.nsh'], expected(true, true, true, true, true, false, true)],
     [['packages/cli/src/cli.ts'], expected(true, false, true, true, false)],
-    [['plugins/docling/src/convert.ts'], expected(true, false, true, true, false)],
+    [['plugins/docling/src/conversion/convert.ts'], expected(true, true, true, true, false)],
     [['packages/plugin-api/src/ui.ts'], expected(true, true, true, true, false)],
     [['packages/plugin-api/src/ai.ts'], expected(true, true, true, true, false)],
-    [['plugins/ai-agent/src/worker.ts'], expected(true, false, true, true, false)],
+    [['plugins/ai-agent/src/worker.ts'], expected(true, true, true, true, false)],
     [['packages/plugin-api/package.json'], expected(true, true, true, true, false, false, true)],
-    [['plugins/ai-agent/package.json'], expected(true, false, true, true, false, false, true)],
+    [['plugins/ai-agent/package.json'], expected(true, true, true, true, false, false, true)],
     [['.agents/skills/litzio-orchestrator/scripts/pr-gate.mjs'], expected(true, false, false, false, false)],
     [['.agents/skills/litzio-orchestrator/SKILL.md'], expected(true, false, false, false, false)],
     [['.agents/skills/litzio-orchestrator/agents/openai.yaml'], expected(true, false, false, false, false)],
-    [['.agents/skills/litzio-orchestrator/SKILL.md', 'plugins/ai-agent/src/worker.ts'], expected(true, false, true, true, false)],
+    [['.agents/skills/litzio-orchestrator/SKILL.md', 'plugins/ai-agent/src/worker.ts'], expected(true, true, true, true, false)],
     [['packages/plugin-api/src/ui.ts', 'apps/desktop/src/main.ts'], expected(true, true, true, true, true, false, true)],
     [['.agents/other/config.json'], expected(true, true, true, true, true, false, true)],
     [['unknown/config.json'], expected(true, true, true, true, true, false, true)],
@@ -50,6 +50,27 @@ test('merge_group payloads apply the same path rules as PRs to the entire group 
   assert.deepEqual(await executionPolicy('merge_group', event, { git: () => { throw new Error('missing history'); } }), full);
   assert.deepEqual(await executionPolicy('merge_group', { merge_group: { base_sha: '--bad', head_sha: sha } }), full);
   assert.deepEqual(await executionPolicy('merge_group', event, { git: () => '' }), full);
+});
+
+test('plugin package changes select Editor browser consumers without broadening other jobs', () => {
+  const paths = [
+    'plugins/docling/src/Dashboard.tsx',
+    'plugins/docling/src/comparison/CompareView.tsx',
+    'plugins/ai-agent/src/ui.tsx',
+    'plugins/docling/src/host.ts', 'plugins/ai-agent/src/host.ts',
+    'plugins/docling/src/structure-review.ts',
+    'plugins/docling/src/conversion/convert.ts',
+    'plugins/docling/src/dashboard.css',
+    'plugins/docling/test/fixtures/synthetic/source.pdf',
+    'plugins/docling/README.md', 'plugins/ai-agent/README.md',
+  ];
+  const { reused, ...jobs } = expected(true, true, true, true, false);
+  for (const event of ['pull_request', 'merge_group']) {
+    for (const file of paths) {
+      assert.deepEqual(selectJobs(event, [file]),
+        jobs, `${event}: ${file}`);
+    }
+  }
 });
 
 test('actual group diff includes successive PR commits, removed paths and both sides of renames', async () => {
@@ -126,7 +147,7 @@ test('brand proof selects packaging, identity and dependency changes but skips o
     'scripts/ci-quality-mode.mjs', 'tsconfig.json', 'unknown/config.json'];
   const skipped = ['apps/editor/src/App.tsx', 'apps/editor/shared/desktop-bridge.ts',
     'apps/editor/src/shell/SettingsDialog.tsx', 'packages/core/src/index.ts',
-    'packages/cli/src/cli.ts', 'plugins/docling/src/convert.ts', 'docs/guides/branding.md'];
+    'packages/cli/src/cli.ts', 'plugins/docling/src/conversion/convert.ts', 'docs/guides/branding.md'];
   for (const event of ['pull_request', 'merge_group']) {
     for (const file of selected) assert.equal(selectJobs(event, [file]).brand, true, `${event}: ${file}`);
     for (const file of skipped) assert.equal(selectJobs(event, [file]).brand, false, `${event}: ${file}`);
