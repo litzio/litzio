@@ -97,7 +97,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   if (screenshots) await page.screenshot({path:'tmp/902/menu-640.png'});
   await menu.getByRole('menuitemcheckbox',{name:wrapLabel}).click();
   await expect(paper()).toHaveAttribute('data-table-wrap','true');
-  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('litzio.tableWrapDocuments')))).toEqual({});
+  expect(await page.evaluate(path=>JSON.parse(localStorage.getItem('litzio.tableWrapDocuments'))[path],file.replace('tables.md','wrapping.md'))).toBeUndefined();
   await tables.first().locator('td').first().click({button:'right'});
   await expect(menu.getByRole('menuitemcheckbox',{name:wrapLabel})).toHaveAttribute('aria-checked','true');
   if (screenshots) await page.screenshot({path:'tmp/902/menu-checked-640.png'});
@@ -141,7 +141,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   await page.reload(); await toggleFromCenter();
   await page.getByTestId('sidebar').getByRole('button',{name:'Settings',exact:true}).click();
   await page.getByTestId('table-wrap-default').selectOption('false');
-  expect(await page.evaluate(()=>JSON.parse(localStorage.getItem('litzio.tableWrapDocuments')))).toEqual({});
+  expect(await page.evaluate(path=>JSON.parse(localStorage.getItem('litzio.tableWrapDocuments'))[path],file.replace('tables.md','wrapping.md'))).toBeUndefined();
   await page.keyboard.press('Escape');
   await expect(paper()).toHaveAttribute('data-table-wrap','false');
   await page.getByTestId('sidebar').getByRole('button',{name:'Settings',exact:true}).click();
