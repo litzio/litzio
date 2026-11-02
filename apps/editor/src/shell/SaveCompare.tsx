@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 
-export type SaveComparison = { path: string; revision: string; request?: SaveRequest; submitted?: TiptapJSON; failure?: Error };
+export type SaveComparison = { path: string; revision: string; request?: SaveRequest; submitted?: TiptapJSON; failure?: Error; text?: string };
 
 export default function SaveCompare({ comparison, returnFocus, onClose }: {
   comparison: SaveComparison; returnFocus: RefObject<HTMLElement | null>; onClose(): void;
@@ -22,11 +22,11 @@ export default function SaveCompare({ comparison, returnFocus, onClose }: {
     });
     const result: RecoveryPreviewResponse = await response.json();
     if (!response.ok || result.disk === undefined) throw new Error(result.error ?? `HTTP ${response.status}`);
-    if (!comparison.failure && result.markdown === undefined && !result.error) throw new Error("The Host did not return a Save preview.");
+    if (comparison.text === undefined && !comparison.failure && result.markdown === undefined && !result.error) throw new Error("The Host did not return a Save preview.");
     const failure = comparison.failure ?? (result.error ? new SaveDisplayError([
       new SaveContentError(result.error, result.failure?.target, result.failure),
     ], comparison.submitted, comparison.request) : undefined);
-    return { before: result.disk?.source ?? "", after: result.markdown ?? "", failure,
+    return { before: result.disk?.source ?? "", after: comparison.text ?? result.markdown ?? "", failure,
       changed: Boolean(result.disk && result.disk.revision !== comparison.revision), missing: result.disk === null };
   }, [comparison]);
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>

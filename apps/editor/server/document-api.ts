@@ -1,4 +1,5 @@
 import { folderVersion } from "./folder-watch.ts";
+import { documentRevisions } from "./document-revisions.ts";
 import { readBibliographySources } from "./bibliography.ts";
 import { PLUGIN_UI } from "@litzio/plugin-api/config";
 import { AI_TASK } from "@litzio/plugin-api/ai";
@@ -418,7 +419,13 @@ export async function handleDocumentRequest(
   }
   if (url === "/api/folder-version") {
     if (req.method !== "GET") { res.statusCode = 405; res.end(); return; }
-    try { sendJson(res, 200, folderVersion(query.get("root") ?? undefined, access)); }
+    try {
+      const paths: unknown = query.has("paths") ? JSON.parse(query.get("paths")!) : [];
+      if (!Array.isArray(paths) || paths.some(path => typeof path !== "string" || !path.trim())) throw new Error("paths must be an array of file paths");
+      const root = query.get("root");
+      sendJson(res, 200, { ...(root || !paths.length ? folderVersion(root ?? undefined, access) : {}),
+        ...(paths.length ? { revisions: documentRevisions(paths, access) } : {}) });
+    }
     catch (error) {
       if (["ENOENT", "ENOTDIR"].includes((error as NodeJS.ErrnoException).code ?? "")) sendJson(res, 200, { unavailable: true });
       else failure(error);
