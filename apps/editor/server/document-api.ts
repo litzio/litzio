@@ -1,3 +1,4 @@
+import { folderVersion } from "./folder-watch.ts";
 import { readBibliographySources } from "./bibliography.ts";
 import { PLUGIN_UI } from "@litzio/plugin-api/config";
 import { AI_TASK } from "@litzio/plugin-api/ai";
@@ -410,6 +411,12 @@ export async function handleDocumentRequest(
     } catch (error) {
       failure(error);
     }
+    return;
+  }
+  if (url === "/api/folder-version") {
+    if (req.method !== "GET") { res.statusCode = 405; res.end(); return; }
+    try { sendJson(res, 200, folderVersion(query.get("root") ?? undefined, access)); }
+    catch (error) { failure(error); }
     return;
   }
   if (url === "/api/folder") {

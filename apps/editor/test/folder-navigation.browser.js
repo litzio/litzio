@@ -1,5 +1,6 @@
 // Choose a folder, expand it as a tree in the sidebar and open its documents; unsaved work blocks switching.
-async (page, { openFolderPicker, waitForActivePath, screenshots = false } = {}) => {
+async (page, { openFolderPicker, waitForActivePath, folderFixture, screenshots = false } = {}) => {
+  await page.clock.install();
   await page.unrouteAll();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   await page.evaluate(() => localStorage.removeItem('litzio.recentFolders'));
@@ -513,6 +514,45 @@ async (page, { openFolderPicker, waitForActivePath, screenshots = false } = {}) 
   assert(JSON.stringify(await items()) === JSON.stringify(expandedTree), 'Refresh restores actual Host listing');
   assert(JSON.stringify(await page.evaluate(() => [localStorage.getItem('litzio.openFolders'), localStorage.getItem('litzio.collapsedFolderSections')])) === JSON.stringify(preferencesBeforeRefresh), 'Refresh itself must not write preferences');
   result.refreshLoadedFolders = true;
+
+  // #927: a real external write must appear without a manual refresh or focus event.
+  await row('install.md').focus();
+  await folderFixture.change('add');
+  await row('external.txt').waitFor({timeout:8000});
+  assert(await row('guides').getAttribute('aria-expanded') === 'true' &&
+    await row('install.md').getAttribute('aria-current') === 'page' && await focusedRow() === 'install.md',
+    'External changes preserve expansion, selection and keyboard focus');
+  await row('external-folder').waitFor();
+  await folderFixture.change('rename');
+  await row('renamed.txt').waitFor(); await row('renamed-folder').waitFor();
+  assert(await row('external.txt').count() === 0 && await row('external-folder').count() === 0, 'Renamed entries replace their previous names');
+  await folderFixture.change('remove');
+  await row('renamed.txt').waitFor({state:'detached', timeout:8000});
+  await row('renamed-folder').waitFor({state:'detached'});
+  // Keep a rename draft and focus intact during an automatic listing update.
+  await row('install.md').click({button:'right'});
+  await page.getByRole('menuitem', {name:'Rename…', exact:true}).click();
+  const renameInput = dialog.getByRole('textbox', {name:'File name', exact:true});
+  await renameInput.fill('unfinished rename');
+  // Freeze the notification version: only the periodic fallback can find this write.
+  const frozenVersion = async route => route.fulfill({json:{version:'frozen-test-version'}});
+  await page.route('**/api/folder-version?*', frozenVersion);
+  await page.waitForResponse(r => r.url().includes('/api/folder-version?'));
+  await folderFixture.change('add');
+  folderRequests.length = 0;
+  await page.clock.fastForward(60_000);
+  // Modal semantics hide outside rows from the accessibility tree, while their DOM still updates.
+  await section.locator('.sidebar-tree-item').filter({hasText:/^external\.txt$/}).waitFor();
+  assert(await renameInput.inputValue() === 'unfinished rename' && await renameInput.evaluate(n => n === document.activeElement),
+    'Periodic refresh retains the rename draft and its keyboard focus');
+  assert(folderRequests.every(path => path === folder || path === guidesPath), 'Automatic refresh reads only loaded listings');
+  await dialog.getByRole('button', {name:'Cancel', exact:true}).click();
+  await dialog.waitFor({state:'detached'});
+  await folderFixture.change('remove');
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await row('external.txt').waitFor({state:'detached'});
+  await page.unroute('**/api/folder-version?*', frozenVersion);
+  result.autoRefresh = true;
 
   // Keyboard: Left goes to the parent and then collapses; Right expands and then enters;
   // Home, End and the arrows move through visible items; Enter toggles a folder.

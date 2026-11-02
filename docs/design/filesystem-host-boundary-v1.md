@@ -121,7 +121,11 @@ Browser Editor는 Host를 통해 다음을 요청한다.
 - 사용자가 고른 folder의 한 단계 listing (아래 Folder listing v1)
 - 기존 folder 안의 새 folder 하나 생성 (아래 Folder creation v1)
 
-filesystem watch는 현재 제공하지 않으며 향후 검토 대상이다.
+Explorer notifications use read-only `GET /api/folder-version?root=…` (#927), with the same
+path/Root checks as folder access. The Host retains only a transient recursive watcher and opaque
+change version per real folder, leased for 15 seconds after the last check; timers/watchers do not
+keep the process alive. No document/listing/session or durable state is retained. Watch failure
+falls back to the browser's periodic/focus refresh. See [Folder refresh](editor-ux-shell-v1.md#automatic-folder-refresh-927).
 
 Host는 요청된 document locator를 실제 filesystem 동작으로 연결한다. Locator는 interface/host layer의 값이며 Core의 semantic document model에 포함하지 않는다.
 
@@ -145,7 +149,7 @@ Browser -> file upload -> remote service -> edit -> download
 
 - OS filesystem에 대한 read, write, create
 - document locator를 실제 path 또는 native file handle로 해석하는 일
-- 사용자가 고른 folder의 listing (filesystem watch는 미구현)
+- 사용자가 고른 folder의 listing과 일시적인 변경 알림 (#927)
 - filesystem error를 Browser에 전달할 수 있는 host-level 결과와 오류
 - path normalization, traversal 방지, 허용된 filesystem 범위, overwrite protection 등 filesystem security 검증
 - 열린 `.md` 파일 directory를 기준으로 한 상대 media resolution
@@ -276,7 +280,7 @@ Editor Host Save와 CLI의 파일 수정 명령은 기존 Markdown 파일을 같
 보장하지 않는 것:
 
 - 마지막 revision 확인과 rename 사이에 끼어든 외부 write는 감지하지 못한다(TOCTOU). OS 수준의 atomic compare-and-swap이 아니다.
-- Process 간 lock, fsync/전원 차단 시 영속성, 자동 merge, filesystem watch는 없다. 강제 종료된 process는 temporary sibling을 남길 수 있다.
+- Process 간 lock, fsync/전원 차단 시 영속성, 자동 merge는 없다. Explorer 변경 알림은 아래 #927 계약을 따른다. 강제 종료된 process는 temporary sibling을 남길 수 있다.
 - Rename은 새 파일로 교체하므로 owner/group, hard link, Windows의 명시적 ACL과 extended attribute를 유지하지 않는다. 다른 process가 파일을 공유 삭제 없이 열어 두면 Windows에서 rename이 실패할 수 있으며, 이때도 원본은 유지된다.
 
 ### CLI revision precondition (#214)
@@ -359,15 +363,15 @@ Get-Content -Raw -Encoding utf8 "<임시 폴더>/operations.json" | pnpm cli app
 | --- | --- |
 | Hierarchical tree UI | 지원. Sidebar가 펼친 folder들의 listing을 page state에 모아 tree로 그린다. |
 | Lazy one-level Host listing | 지원. folder를 펼칠 때 그 folder 하나만 위 API로 list한다. |
-| Explicit folder refresh (#494) | 기존 API로 열린 root와 도달 가능한 이미 로드된 하위 목록만 다시 읽는다. 접힌 캐시도 포함하며 미로드 폴더는 읽지 않는다. 펼침·문서·탭은 유지한다. Editor가 파일·폴더·asset을 생성하거나 asset을 rollback하면 이미 로드된 부모 목록만 다시 읽는다. Host 상태/API·watcher·주기 작업은 추가하지 않는다. |
+| Explicit folder refresh (#494) | 기존 API로 열린 root와 도달 가능한 이미 로드된 하위 목록만 다시 읽는다. 접힌 캐시도 포함하며 미로드 폴더는 읽지 않는다. 펼침·문서·탭은 유지한다. Editor가 파일·폴더·asset을 생성하거나 asset을 rollback하면 이미 로드된 부모 목록만 다시 읽는다. 자동 반영은 #927의 일시적인 Host 변경 버전과 보이는 창의 60초 안전망으로 같은 갱신 경로를 호출한다. |
 | Recursive scan | 트리 탐색에서는 지원하지 않음. 하위 folder를 미리 읽지 않는다. 이미지 이름 변경의 요청별 참조 안전 검사는 아래 File deletion and rename의 한정된 예외다. |
 | Watch service | 지원하지 않음. 외부 변경은 다시 펼치거나 문서를 열 때, 또는 폴더 새로고침으로 반영된다 (#494). |
 | Opened folder persistence | 경로만. 열어 둔 folder 목록은 시작할 때 Host에 다시 list해 복원하고, 거부되거나 없어진 folder는 조용히 제외한다. 복원 자체는 preference를 다시 쓰지 않는다. 성공한 명시적 사용자 Open/Close는 같은 목록이거나 다른 브라우저 탭이 preference를 바꿨어도 현재 탭의 열린 목록을 기억한다. 복원 중이면 모든 경로의 시도가 끝날 때까지 저장을 미룬다. 같은 Host 정규화 경로의 사용자 Open/Close는 늦은 복원 응답보다 우선한다. 하위 폴더 펼치기·접기·listing 갱신은 preference를 쓰지 않는다. 별도의 섹션 접힘 기억은 origin별 collapsed root 경로만 저장하며, 사용자 Open/Close·섹션 토글·명시적 reveal에서 현재 상태로 쓰고 복원만으로는 쓰지 않는다. Close로 지우며, 유효하지 않은 기록은 다음 사용자 쓰기에서 정리한다. 하위 펼침 상태와 Workspace 파일은 저장하지 않는다. |
 - 일반 directory와 모든 확장자의 일반 파일(확장자 없는 파일 포함)을 넣는다. `.md`는 document, 기존 MEDIA_TYPES의 PNG/JPEG/GIF/WebP/SVG는 image, 나머지는 file이다. 확장자는 대소문자를 구분하지 않는다. 폴더 먼저, 파일 종류와 무관하게 숫자를 인식한 이름순으로 정렬한다. `.`으로 시작하는 항목과 symlink(Windows junction 포함), 비정규 파일은 넣지 않는다. 재귀 scan은 하지 않는다.
-- Host는 `root`와 `path`를 신뢰 경계 밖 입력으로 다룬다. `path`는 lexical로도, symlink를 해석한 real path로도 `root` 안이어야 한다. directory가 아니거나 없거나 읽을 수 없으면 명시적 오류다. Host는 요청 사이에 아무것도 기억하지 않는다.
-- Host가 반환한 정규화 경로로 열린 탭을 식별한다. 요청 경로가 이미 열린 탭 경로와 정확히 같으면 Host GET 없이 그 세션을 활성화하므로, 디스크에서 파일이 사라지거나 읽을 수 없게 되어도 열린 세션을 유지한다. 일치하지 않는 경로·별칭은 기존 `GET /api/document`로 읽고 반환된 정규화 경로를 다시 비교한다. 성공한 새 경로만 탭을 추가하며 기존 경로는 해당 탭을 활성화한다. Open/New는 기존 세션을 버리지 않아 미저장 확인을 하지 않는다. Save / Don't save / Cancel은 단일 탭 닫기에 사용한다([편집 세션 계약](editing-session-save-v1.md#switching-and-recovery)). 진행 중인 Save/Source/asset/Open/New는 전환을 막는다. 문서를 열거나 만들면 그 문서를 담은 각 열린 folder 안의 상위 folder들을 펼치고 다시 list한다. 외부 변경은 watch하지 않는다. 늦은 listing은 더 새 요청을 덮거나 접힌 folder를 다시 펼치지 않는다. Host는 탭이나 영속 세션을 저장하지 않는다.
+- Host는 `root`와 `path`를 신뢰 경계 밖 입력으로 다룬다. `path`는 lexical로도, symlink를 해석한 real path로도 `root` 안이어야 한다. directory가 아니거나 없거나 읽을 수 없으면 명시적 오류다. Listing은 요청 사이에 저장되지 않는다. #927의 변경 알림은 위에서 정의한 일시적인 watcher/version lease만 유지한다.
+- Host가 반환한 정규화 경로로 열린 탭을 식별한다. 요청 경로가 이미 열린 탭 경로와 정확히 같으면 Host GET 없이 그 세션을 활성화하므로, 디스크에서 파일이 사라지거나 읽을 수 없게 되어도 열린 세션을 유지한다. 일치하지 않는 경로·별칭은 기존 `GET /api/document`로 읽고 반환된 정규화 경로를 다시 비교한다. 성공한 새 경로만 탭을 추가하며 기존 경로는 해당 탭을 활성화한다. Open/New는 기존 세션을 버리지 않아 미저장 확인을 하지 않는다. Save / Don't save / Cancel은 단일 탭 닫기에 사용한다([편집 세션 계약](editing-session-save-v1.md#switching-and-recovery)). 진행 중인 Save/Source/asset/Open/New는 전환을 막는다. 문서를 열거나 만들면 그 문서를 담은 각 열린 folder 안의 상위 folder들을 펼치고 다시 list한다. 외부 파일 목록 변경은 #927의 일시적인 감시와 주기 갱신으로 반영한다. 늦은 listing은 더 새 요청을 덮거나 접힌 folder를 다시 펼치지 않는다. Host는 탭이나 영속 세션을 저장하지 않는다.
 - `.md` 파일 open 범위는 넓어지지 않는다. Host는 이전부터 임의 `.md` 경로를 열 수 있고, listing은 이름·종류와 native 표식 여부만 보여 준다. 표식 판정 규칙은 Core가 소유하며 Host는 Markdown이나 frontmatter를 따로 해석하지 않는다.
-- Git 감지, `.litzio/` 설정, index DB, watch service, 검색 인프라는 포함하지 않는다. CLI 명령도 없다. folder listing은 문서 의미를 바꾸는 operation이 아니라 interface/Host 탐색이며, headless 환경에서는 shell의 파일 목록으로 충분하다. native 표식 여부도 읽기 전용 표시이며, headless에서 문서를 실제로 받아들이는지는 기존 CLI 명령이 같은 Core admission으로 판정한다.
+- Git 감지, `.litzio/` 설정, index DB, 별도 watch service, 검색 인프라는 포함하지 않는다. CLI 명령도 없다. folder listing은 문서 의미를 바꾸는 operation이 아니라 interface/Host 탐색이며, headless 환경에서는 shell의 파일 목록으로 충분하다. native 표식 여부도 읽기 전용 표시이며, headless에서 문서를 실제로 받아들이는지는 기존 CLI 명령이 같은 Core admission으로 판정한다.
 
 ### Read-only folder preview (#217)
 
@@ -572,7 +576,7 @@ new Core or CLI operation.
 - browser file upload 또는 Browser File System Access API를 기본 architecture로 채택하는 결정
 - database, remote document service 또는 별도 document storage를 SSOT로 추가하는 결정
 - Host sandbox/permission system의 상세 설계
-- filesystem watch, sync, collaboration 또는 conflict resolution의 상세 설계
+- Explorer 목록 알림을 넘어선 filesystem sync, collaboration 또는 conflict resolution의 상세 설계
 - ADR 추가 또는 기존 ADR 변경
 
 ## Native admission
