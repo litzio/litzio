@@ -1,3 +1,4 @@
+import { conversionVersions } from "./record.ts";
 import { createHash } from "node:crypto";
 import { createReadStream, createWriteStream, existsSync, openAsBlob, readFileSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
@@ -135,7 +136,7 @@ export async function convertDoclingPdf(input: string, output: string, options: 
     const after = await fileDigest(input);
     if (source.sha256 !== after.sha256 || source.bytes !== after.bytes) throw new Error("Source PDF changed during conversion");
     const record = {
-      format: "litzio-docling-conversion", version: 1, status: "success",
+      format: "litzio-docling-conversion", version: 2, ...conversionVersions(), status: "success",
       startedAt: new Date(started).toISOString(), completedAt: new Date().toISOString(), elapsedMs: Date.now() - started,
       source: { path: path.resolve(input), ...source },
       server: { url: base.href, versions, openapiSha256, baselineOpenapiMatches: openapiSha256 === profile.provenance.openapi_sha256 },

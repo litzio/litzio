@@ -1,3 +1,4 @@
+import { sourceConverterVersions } from "../src/conversion/record.ts";
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -12,14 +13,16 @@ export async function buildPlugin(destination: string) {
   checkPluginSources(fileURLToPath(new URL("../", import.meta.url)));
   checkFeatureBoundaries(fileURLToPath(new URL("../src", import.meta.url)));
   mkdirSync(destination, { recursive: true });
+  const define = { __LITZIO_CONVERSION_VERSIONS__: JSON.stringify(sourceConverterVersions()) };
   const result = await build({
+    define,
     entryPoints: [fileURLToPath(new URL("../src/worker.ts", import.meta.url))],
     bundle: true, platform: "node", format: "cjs", target: "node24", write: false,
     legalComments: "inline", logLevel: "warning",
   });
   const bytes = result.outputFiles[0].contents;
   writeFileSync(path.join(destination, "worker.cjs"), bytes);
-  const host = await build({ entryPoints: [fileURLToPath(new URL("../src/host.ts", import.meta.url))], bundle: true, platform: "node", format: "cjs", target: "node24", write: false, logLevel: "warning" });
+  const host = await build({ define, entryPoints: [fileURLToPath(new URL("../src/host.ts", import.meta.url))], bundle: true, platform: "node", format: "cjs", target: "node24", write: false, logLevel: "warning" });
   writeFileSync(path.join(destination, "host.cjs"), host.outputFiles[0].contents);
   await buildPluginUi(fileURLToPath(new URL("../src/ui-plugin.tsx", import.meta.url)), destination);
   writeFileSync(path.join(destination, "manifest.json"), JSON.stringify({

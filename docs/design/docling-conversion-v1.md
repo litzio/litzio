@@ -26,6 +26,27 @@ All output passes Core serialization and byte-stable parse/serialize reopening.
 Failures to preserve an individual source structure are recorded in the map;
 invalid source schema/graph or an invalid final native document refuses output.
 
+## Conversion result versions (#918)
+
+JSON and PDF folders contain `conversion-record.json` (format
+`litzio-docling-conversion`, schema `version: 2`). Initial conversion and
+successful correction replay record the versions producing the current result:
+
+- `converter.pluginVersion`: Docling plugin package version, with optional
+  `converter.buildRevision` from Git. Bundles capture these at build time;
+  exported source trees without Git omit the revision.
+- `coreVersion`: the public Core package version used by the converter.
+- `policyVersion`: integer `CONVERSION_POLICY_VERSION` in
+  `plugins/docling/src/conversion/record.ts`, initially 1. A human increments it
+  when Representation policy changes source-to-native meaning, mapping, loss or
+  unsupported handling. Refactoring without policy changes does not increment it.
+  It is independent of package versions and record schema version.
+
+Replay replaces these values alongside Markdown/map/ledger in complete-folder
+publication, preserving PDF extraction/server evidence. They identify the current
+native result, not a new PDF extraction. Failed replay preserves the previous
+record. Past record compatibility is outside scope.
+
 ## Approved correction records and replay (#876)
 
 `litzio docling apply-corrections <conversion-folder>` replays `corrections.json`

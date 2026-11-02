@@ -1,3 +1,4 @@
+import { conversionVersions } from "./record.ts";
 import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -117,6 +118,10 @@ function regenerate(folder: string, update: (record: DoclingCorrections) => void
       writeFileSync(path.join(staging, "document.md"), result.markdown, "utf8");
       writeFileSync(path.join(staging, "document.docling-map.json"), JSON.stringify(result.map, null, 2) + "\n", "utf8");
       writeFileSync(path.join(staging, "corrections.json"), JSON.stringify(record, null, 2) + "\n", "utf8");
+      const previous = JSON.parse(read(path.join(folder, "conversion-record.json")));
+      writeFileSync(path.join(staging, "conversion-record.json"), JSON.stringify({
+        ...previous, version: 2, ...conversionVersions(),
+      }, null, 2) + "\n", "utf8");
       options.updateFiles?.(staging);
     };
   }, () => {
