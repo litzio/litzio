@@ -507,6 +507,8 @@ calls. The assistant shows a separate question form with radio choices, an expli
 Other field when `isOther` is true, and masked free text for `isSecret`. Ordinary
 answer text is never interpreted as interactive choices. Submission sends the
 original JSON-RPC id and `{answers: {questionId: {answers: [value]}}}`.
+Question IDs are opaque keys, including `constructor` and `__proto__`: UI state
+uses Maps and Host accepts only own question keys and own `answers` fields.
 
 A pending question belongs to one thread, turn and RPC id. It is kept in the live
 conversation snapshot, not the history index, and survives polling and panel
@@ -530,7 +532,9 @@ is introduced.
 Verification: the stdio fixture checks string and zero-valued numeric RPC ids,
 exactly one response, invalid/stale answers and all expiration paths. The existing
 `ai-agent` browser scenario covers selection, Other input, password masking,
-polling, panel reopening and expiry. A real source-run Codex 0.166.0 turn using
+polling, panel reopening and expiry, including `constructor` choice/Other
+submissions and `__proto__` free text. The Host fixture also rejects inherited
+answer keys/values. These regressions failed before the #994 review fix. A real source-run Codex 0.166.0 turn using
 `gpt-6.1-sol` / `medium`, existing user login/config and this checkout's
 `.litzio-dev/assistant` emitted request id `0`; Host replied with the selected
 Blue option and the turn completed with `Blue`. The owned child was closed.

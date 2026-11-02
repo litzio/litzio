@@ -272,8 +272,8 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/running-1440-light-en.png' });
   if (screenshots) await page.screenshot({ path: 'tmp/983-before-1440.png' });
   selected.userInput = { requestId: 'question-983', turnId: selected.turns[0].id, questions: [
-    { id: 'choice', header: 'Scope', question: 'Which part should I explain?', isOther: true, isSecret: false, options: [{ label: 'Summary', description: 'Explain the main points.' }, { label: 'Details', description: 'Explain each step.' }] },
-    { id: 'secret', header: 'Private input', question: 'Enter a private example.', isOther: false, isSecret: true, options: null }
+    { id: 'constructor', header: 'Scope', question: 'Which part should I explain?', isOther: true, isSecret: false, options: [{ label: 'Summary', description: 'Explain the main points.' }, { label: 'Details', description: 'Explain each step.' }] },
+    { id: '__proto__', header: 'Private input', question: 'Enter a private example.', isOther: false, isSecret: true, options: null }
   ] };
   const questionCard = panel.getByTestId('assistant-question');
   await expect(questionCard).toBeVisible();
@@ -293,14 +293,14 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await expect.poll(() => submittedAnswers.length).toBe(1);
   releaseAnswer(); answerGate = undefined;
   await expect(questionCard).toHaveCount(0);
-  expect(submittedAnswers).toEqual([{ action: 'answer', id: selected.id, turnId: selected.turns[0].id, requestId: 'question-983', answers: { choice: { answers: ['Summary'] }, secret: { answers: ['private example'] } } }]);
-  selected.userInput = { requestId: 'other-983', turnId: selected.turns[0].id, questions: [{ id: 'other', header: 'Scope', question: 'Choose or describe.', isOther: true, isSecret: false, options: [{ label: 'Summary', description: 'Main points' }] }] };
+  expect(submittedAnswers).toEqual([{ action: 'answer', id: selected.id, turnId: selected.turns[0].id, requestId: 'question-983', answers: { constructor: { answers: ['Summary'] }, ['__proto__']: { answers: ['private example'] } } }]);
+  selected.userInput = { requestId: 'other-983', turnId: selected.turns[0].id, questions: [{ id: 'constructor', header: 'Scope', question: 'Choose or describe.', isOther: true, isSecret: false, options: [{ label: 'Summary', description: 'Main points' }] }] };
   await expect(questionCard).toBeVisible();
   await questionCard.getByRole('radio', { name: 'Write another answer' }).check();
   await questionCard.getByLabel('Your answer').fill('Explain the assumptions');
   await questionCard.getByRole('button', { name: 'Submit answers' }).click();
   await expect(questionCard).toHaveCount(0);
-  expect(submittedAnswers.at(-1).answers).toEqual({ other: { answers: ['Explain the assumptions'] } });
+  expect(submittedAnswers.at(-1).answers).toEqual({ constructor: { answers: ['Explain the assumptions'] } });
   selected.userInput = { requestId: 'expired-983', turnId: selected.turns[0].id, questions: [{ id: 'expired', header: 'Expiry', question: 'Pending question', isOther: false, isSecret: false, options: null }] };
   await expect(questionCard).toBeVisible();
   delete selected.userInput;

@@ -151,7 +151,9 @@ export class AiAgentConversations {
     if (!question || !respond || question.requestId !== requestId || question.turnId !== turnId ||
       !conversation.turns.some(turn => turn.id === turnId && turn.status === "inProgress")) throw new Error("Question expired.");
     if (!answers || Object.keys(answers).length !== question.questions.length || question.questions.some(q => {
-      const values = answers[q.id]?.answers;
+      if (!Object.hasOwn(answers, q.id)) return true;
+      const answer = answers[q.id];
+      const values = answer && Object.hasOwn(answer, "answers") ? answer.answers : undefined;
       return !Array.isArray(values) || values.length !== 1 || typeof values[0] !== "string" || !values[0].trim() ||
         q.options?.length && !q.isOther && !q.options.some(option => option.label === values[0]);
     })) throw new Error("Invalid question answers.");

@@ -187,21 +187,30 @@ test("user questions reply once with exact RPC id and expire on resolution, comp
   const settings = { provider: "codex" as const, enabled: true, writeAccess: "read-only" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "Ask", folders: [root], model: settings.model, reasoningEffort: "medium", responseLanguage: "en" as const };
   const c = await conversations.send(input, settings);
-  const questions = [{ id: "choice", header: "Choice", question: "Which?", isOther: false, isSecret: false, options: [{ label: "A", description: "First" }] },
-    { id: "secret", header: "Secret", question: "Text?", isOther: true, isSecret: true, options: null }];
-  const answers = { choice: { answers: ["A"] }, secret: { answers: ["custom"] } };
+  const questions = [{ id: "constructor", header: "Choice", question: "Which?", isOther: false, isSecret: false, options: [{ label: "A", description: "First" }] },
+    { id: "__proto__", header: "Secret", question: "Text?", isOther: true, isSecret: true, options: null }];
+  const answers = { constructor: { answers: ["A"] }, ["__proto__"]: { answers: ["custom"] } };
   const ask = (requestId: string | number) => connection.client.request("fixture/question", { threadId: c.id, requestId, questions });
   const answer = (requestId: string | number) => conversations.answer(c.id, c.turns.at(-1)!.id, requestId, answers);
   for (const requestId of ["request-1", 0]) {
     await ask(requestId);
     assert.deepEqual((await conversations.resume(c.id, settings, "en")).userInput?.questions, questions);
     assert.throws(() => conversations.answer(c.id, "stale", requestId, answers), /expired/);
-    assert.throws(() => conversations.answer(c.id, c.turns.at(-1)!.id, requestId, { ...answers, choice: { answers: ["invalid"] } }), /Invalid/);
+    assert.throws(() => conversations.answer(c.id, c.turns.at(-1)!.id, requestId, { ...answers, constructor: { answers: ["invalid"] } }), /Invalid/);
+    const inherited = Object.setPrototypeOf({ ["__proto__"]: answers["__proto__"], extra: { answers: ["unused"] } }, { constructor: answers.constructor });
+    assert.throws(() => conversations.answer(c.id, c.turns.at(-1)!.id, requestId, inherited), /Invalid/, "inherited answers cannot fill a missing question key");
+    assert.throws(() => conversations.answer(c.id, c.turns.at(-1)!.id, requestId, { ...answers, constructor: Object.create({ answers: ["A"] }) }), /Invalid/, "answer values must also be own properties");
     answer(requestId); assert.throws(() => answer(requestId), /expired/);
     await connection.client.request("notify");
     const replies = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(value => value.id === requestId && value.result);
     assert.deepEqual(replies, [{ id: requestId, result: { answers } }]);
   }
+  questions[0]!.isOther = true;
+  await ask("custom-constructor");
+  const custom = { ...answers, constructor: { answers: ["Explain the assumptions"] } };
+  conversations.answer(c.id, c.turns.at(-1)!.id, "custom-constructor", custom);
+  await connection.client.request("notify");
+  assert.deepEqual(JSON.parse(readFileSync(log, "utf8").trim().split("\n").find(line => JSON.parse(line).id === "custom-constructor")!).result, { answers: custom });
   await ask("resolved");
   await connection.client.request("fixture/resolved", { threadId: c.id, requestId: "unrelated" });
   assert.ok(c.userInput);
