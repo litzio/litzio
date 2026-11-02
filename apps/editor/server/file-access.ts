@@ -40,7 +40,7 @@ function realParent(target: string): string {
   }
 }
 
-type RootEntry = { path: string; real: string; dev: number; ino: number };
+type RootEntry = { path: string; real: string; dev: bigint; ino: bigint };
 
 /**
  * `target` is `root` or beneath it, and the prefix matching `root` is the pinned root directory.
@@ -52,7 +52,7 @@ function within(entry: RootEntry, root: string, target: string): boolean {
   let folder = target;
   while (path.relative(root, folder) && path.dirname(folder) !== folder) folder = path.dirname(folder);
   try {
-    const stat = fs.statSync(folder);
+    const stat = fs.statSync(folder, { bigint: true });
     return stat.dev === entry.dev && stat.ino === entry.ino;
   } catch { return false; } // A missing look-alike prefix is outside, not a file error.
 }
@@ -68,7 +68,7 @@ export class RootAccess {
     for (const value of roots) {
       const folder = locator(value);
       const real = realPath(folder);
-      const stat = fs.statSync(real);
+      const stat = fs.statSync(real, { bigint: true });
       if (!stat.isDirectory()) throw new Error(`Root must be an existing directory: ${folder}`);
       if (!entries.some(entry => inside(real, entry.real) && within(entry, entry.real, real))) {
         entries.push({ path: folder, real, dev: stat.dev, ino: stat.ino });
@@ -83,7 +83,7 @@ export class RootAccess {
     for (const entry of this.entries) {
       try {
         const real = realPath(entry.path);
-        const stat = fs.statSync(real);
+        const stat = fs.statSync(real, { bigint: true });
         if (real !== entry.real || stat.dev !== entry.dev || stat.ino !== entry.ino || !stat.isDirectory()) throw new Error();
       } catch { throw new FileAccessError("An allowed folder changed or is unavailable. Restart the Host after checking its roots."); }
     }
@@ -104,7 +104,7 @@ export class RootAccess {
       // lstat distinguishes a dangling symlink from a genuinely absent new leaf.
       fs.lstatSync(target);
       real = realPath(target);
-      const stat = fs.statSync(real);
+      const stat = fs.statSync(real, { bigint: true });
       if (!stat.isFile() && !stat.isDirectory()) throw new FileAccessError("Only regular files and directories are supported.");
     } catch (error) {
       // Even whether a name exists behind an outside link is not revealed.

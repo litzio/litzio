@@ -28,3 +28,6 @@ tmp/
 temp/
 .cache/
 .playwright-cli/
+
+# Source Host runtime state (outside disposable tmp/)
+/.litzio-dev/

@@ -407,6 +407,7 @@ Get-Content -Raw -Encoding utf8 "<임시 폴더>/operations.json" | pnpm cli app
 
 - `apps/editor/server/document-api.ts`가 요청된 `.md` path를 resolve하고 Node filesystem API로 read/create한다. 기존 파일 교체는 CLI와 공유하는 [File commit v1](#file-commit-v1)을 사용한다.
 - `/api/document` 등의 동일 route를 Vite HTTP, Desktop custom protocol, 독립 HTTP가 연결한다.
+- Host의 Root·파일·자원 교체 검사는 bigint stat의 `dev`/`ino`를 비교하여 큰 Windows inode의 정밀도를 보존한다. 자원 rollback receipt의 identity 문자열도 bigint stat 값으로 생성하고 같은 방식으로 재검증한다. receipt는 Host 프로세스 수명에 한정되며 문서에 저장하지 않는다.
 - `file-access.ts`의 HTTP Root 정책은 모든 파일 helper에 전달한다. 기존 대상은 lexical/real path, 새 대상은 기존 parent의 real path를 검사한다. Root의 경로·identity가 바뀌면 거부한다. 정적 Editor 자산은 `editor-static.ts`가 별도 고정 build directory에서 제공한다.
 - `apps/editor/shared/document-protocol.ts`가 Browser와 Host의 저장 요청·응답 타입을 공유한다. 이 파일은 Core 공개 타입을 사용하는 데이터 계약이며, 파일 접근·검증·저장 실행은 포함하지 않는다.
 - adapter는 Core의 parse, semantic save operation, validation 및 serialization을 호출하고, 파일 I/O 자체는 adapter가 수행한다.

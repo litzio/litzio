@@ -34,6 +34,9 @@ const cliRoot = fileURLToPath(new URL("..", import.meta.url));
 const nativeSource = (body: string): string => `---\nlitzio: 1\n---\n\n${body}`;
 const fixtures = mkdtempSync(path.join(tmpdir(), "litzio-cli-native-fixtures-"));
 process.env.LITZIO_PLUGINS_DIR = path.join(fixtures, "plugins");
+process.env.LITZIO_DOCLING_SETTINGS_FILE = path.join(fixtures, "docling.json");
+process.env.LITZIO_AI_AGENT_SETTINGS_FILE = path.join(fixtures, "ai-agent.json");
+process.env.LITZIO_AI_AGENT_CWD = path.join(fixtures, "assistant");
 
 test("docling convert delegates whole-document conversion and refuses overwrite and range options", () => {
   const input = fileURLToPath(new URL("../../../plugins/docling/test/fixtures/synthetic/document.json", import.meta.url));
@@ -2996,4 +2999,17 @@ test("CLI title settings support inspect, revision-safe writes, removal, batches
     assert.equal(run(["update-title", file, "--remove"]).status, 0);
     assert.equal(getEditableDocument(parse(readFileSync(file, "utf8"))).title, undefined);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+
+test("CLI build constant selects distributed defaults even for checkout dist artifacts", async () => {
+  const { build } = await import("esbuild");
+  const { hostPaths } = await import("../../../apps/editor/server/host-paths.ts");
+  const result = await build({ entryPoints: [fileURLToPath(new URL("../../../apps/editor/server/host-paths.ts", import.meta.url))],
+    bundle: true, write: false, platform: "node", format: "esm", logLevel: "silent",
+    define: { __LITZIO_CLI_BUILD__: JSON.stringify({ version: "test", desktop: false, commit: "test" }) } });
+  const bundled = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`);
+  const expected = hostPaths({ packaged: true }, {}), actual = bundled.hostPaths({}, {});
+  assert.equal(actual.plugins, expected.plugins); assert.equal(actual.settingsFile("docling"), expected.settingsFile("docling"));
+  assert.equal(actual.agent, expected.agent);
 });
