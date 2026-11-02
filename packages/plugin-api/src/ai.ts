@@ -16,8 +16,13 @@ export const AI_AGENT = {
 } as const;
 export type AiConversationInfo = { id: string; title: string; folders: string[]; createdAt: number; updatedAt: number };
 export type AiConversationItem = { id: string; kind: "user" | "assistant" | "reasoning" | "tool" | "plan"; text: string; status?: string; toolResult?: { success: boolean | null; contentItems: { type: string; text?: string }[] } };
+export type AiUserInput = { requestId: string | number; turnId: string; questions: {
+  id: string; header: string; question: string; isOther: boolean; isSecret: boolean;
+  options: { label: string; description: string }[] | null;
+}[] };
+export type AiUserInputAnswers = Record<string, { answers: string[] }>;
 export type AiConversationTurn = { id: string; status: string; items: AiConversationItem[]; error?: string };
-export type AiConversation = AiConversationInfo & { turns: AiConversationTurn[]; model: string; reasoningEffort: string; responseLanguage: AiResponseLanguage;
+export type AiConversation = AiConversationInfo & { turns: AiConversationTurn[]; userInput?: AiUserInput; model: string; reasoningEffort: string; responseLanguage: AiResponseLanguage;
   tokenUsage?: { used: number; limit: number | null } };
 export type AiConversationInput = AiExecutionSettings & { id?: string; message: string; responseLanguage: AiResponseLanguage;
   folders: string[]; document?: { path: string; source: string } };

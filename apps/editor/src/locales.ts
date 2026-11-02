@@ -1,6 +1,9 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Write another answer": "Write another answer",
+  "Your answer": "Your answer",
+  "Submit answers": "Submit answers",
   "none": "none",
   "minimal": "minimal",
   "low": "low",
@@ -1047,6 +1050,9 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Write another answer": "직접 입력",
+  "Your answer": "답변",
+  "Submit answers": "답변 제출",
   "none": "없음",
   "minimal": "최소",
   "low": "낮음",

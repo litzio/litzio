@@ -1,3 +1,4 @@
+import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -58,7 +59,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       setSettings(value); if (!current.current) defaults(value);
       if (!value.enabled) {
         setSetup("Codex is disabled.");
-        setConversation(current => current ? { ...current, turns: current.turns.map(turn => turn.status === "inProgress" ? { ...turn, status: "interrupted" } : turn) } : current);
+        setConversation(current => current ? { ...current, userInput: undefined, turns: current.turns.map(turn => turn.status === "inProgress" ? { ...turn, status: "interrupted" } : turn) } : current);
         return;
       }
       const [catalog, diagnostics] = await Promise.all([request<AiModels>(AI_AGENT.modelsRoute), request<AiDiagnostics>(AI_AGENT.diagnosticsRoute)]);
@@ -142,7 +143,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
         else onClose();
       }
       if (event.key === "Tab" && overlay) {
-        const controls = Array.from(panel.current!.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')).filter(element => element.getClientRects().length);
+        const controls = Array.from(panel.current!.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), select:not(:disabled), input:not(:disabled), textarea:not(:disabled), [tabindex="0"]')).filter(element => element.getClientRects().length);
         const first = controls[0], last = controls.at(-1);
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -195,6 +196,11 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
           {turn.status === "inProgress" ? <p role="status">{i18n.t("Working…")}</p> : turn.status === "interrupted" ? <p>{i18n.t("Stopped")}</p> : null}
           {turn.error ? <p role="alert">{turn.error}</p> : null}
         </section>)}
+      {!history && conversation?.userInput ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !settings?.enabled || !!setup}
+        submit={answers => run(async () => {
+          const question = conversation.userInput!;
+          setConversation(await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "answer", id: conversation.id, turnId: question.turnId, requestId: question.requestId, answers }));
+        })} /> : null}
       {!history && !conversation ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Changes to existing documents are suggested in text.")}</p></div> : null}
       {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" onClick={onSettings}>{i18n.t("Open AI settings")}</Button></div> : null}
       {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}

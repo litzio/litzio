@@ -302,7 +302,7 @@ outside this PR.
 ## Document tools (#931 implementation 2, PR 1)
 
 The Host registers three function specs in `thread/start.dynamicTools` and handles
-only server-originated `item/tool/call`; other requests still return `-32601`.
+server-originated `item/tool/call` and the [structured questions](#structured-user-questions-983) added in #983; other requests still return `-32601`.
 The small `agent-document-tools.ts` module validates input and invokes Core and
 existing Host file reads/listing, independently of the Codex wire format. There
 is no tool registry, plugin registration API, MCP server or provider abstraction.
@@ -498,3 +498,51 @@ runtime fixture files are intentionally not committed.
 After captures were refreshed after merging #979; its Korean effort labels are
 preserved. Before captures retain the original pre-#979 base. The integrated
 `ai-agent --screenshots` scenario passed with both localization and Markdown checks.
+
+
+## Structured user questions (#983)
+
+Host supports `item/tool/requestUserInput` alongside the existing document tool
+calls. The assistant shows a separate question form with radio choices, an explicit
+Other field when `isOther` is true, and masked free text for `isSecret`. Ordinary
+answer text is never interpreted as interactive choices. Submission sends the
+original JSON-RPC id and `{answers: {questionId: {answers: [value]}}}`.
+
+A pending question belongs to one thread, turn and RPC id. It is kept in the live
+conversation snapshot, not the history index, and survives polling and panel
+closure. Host consumes it before replying, rejects duplicate/stale submissions,
+and expires it on `serverRequest/resolved`, turn completion/failure, interruption,
+or disconnection. The form locks while submitting. Approval requests and MCP
+elicitation remain unsupported (-32601); `approvalPolicy: never` is unchanged.
+
+The child starts with `app-server -c features.default_mode_request_user_input=true`.
+This is a process-only config override and does not write the user's Codex config.
+Official [config overrides](https://developers.openai.com/codex/config-advanced/)
+and the pinned [0.166.0 feature definition](https://github.com/openai/codex/blob/rust-v0.166.0/codex-rs/features/src/lib.rs)
+confirm the flag and its false default. The same flag exists in
+[0.141.0](https://github.com/openai/codex/blob/rust-v0.141.0/codex-rs/features/src/lib.rs);
+question execution on that version is unverified and questions may not arrive.
+This is conversation interaction, not a document semantic operation; CLI parity
+is intentionally omitted. No approval queue, provider interface or request registry
+is introduced.
+
+
+Verification: the stdio fixture checks string and zero-valued numeric RPC ids,
+exactly one response, invalid/stale answers and all expiration paths. The existing
+`ai-agent` browser scenario covers selection, Other input, password masking,
+polling, panel reopening and expiry. A real source-run Codex 0.166.0 turn using
+`gpt-6.1-sol` / `medium`, existing user login/config and this checkout's
+`.litzio-dev/assistant` emitted request id `0`; Host replied with the selected
+Blue option and the turn completed with `Blue`. The owned child was closed.
+
+Visual evidence (shared Button and settings input patterns; no answer/progress
+renderer changes):
+
+| View | Before | After |
+| --- | --- | --- |
+| 1440px Light English | [Before](assets/assistant-questions-983/before-1440.png) | [After](assets/assistant-questions-983/after-1440.png) |
+| 640px Dark Korean | [Before](assets/assistant-questions-983/before-640.png) | [After](assets/assistant-questions-983/after-640.png) |
+
+Reproduce with `pnpm browser:test ai-agent --screenshots`. The question form
+scrolls inside the transcript above the composer; controls, padding, Korean
+wrapping and viewport bounds were visually inspected. Runtime traces are omitted.

@@ -15,7 +15,7 @@ const toolPending = new Map();
 createInterface({ input: process.stdin }).on("line", line => {
   const message = JSON.parse(line); record(message);
   const { id, method, params } = message;
-  if (!id) return;
+  if (id === undefined) return;
   if (toolPending.has(id)) {
     const pending = toolPending.get(id); toolPending.delete(id);
     if (message.result && pending.params.method !== "unsupported") {
@@ -30,6 +30,15 @@ createInterface({ input: process.stdin }).on("line", line => {
     toolPending.set(callId, { id, params });
     send({ id: callId, method: params.method === "unsupported" ? "item/commandExecution/requestApproval" : "item/tool/call", params: { ...params, namespace: null, turnId: params.turnId ?? turn.id, callId } }); return;
   }
+  if (method === "fixture/question") {
+    const turn = threads[params.threadId].turns.at(-1);
+    send({ id: params.requestId, method: "item/tool/requestUserInput", params: { threadId: params.threadId, turnId: turn.id, questions: params.questions } });
+    send({ id, result: {} }); return;
+  }
+  if (method === "fixture/resolved") {
+    notify("serverRequest/resolved", params); send({ id, result: {} }); return;
+  }
+  if (!method) return;
   if (method === "hang") return;
   if (method === "exit") process.exit(3);
   if (method === "malformed") { process.stdout.write("not json\n"); return; }
