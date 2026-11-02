@@ -120,6 +120,28 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
       await page.unroute('**/api/docling-review?*');
     }
   }
+  // Unread materials must remain visibly distinct from a completed zero-proposal review.
+  const blocked = { ...saved, task: { ...saved.task, status: 'not-inspected', summary: 'Could not inspect document.json, corrections.json or rejected-proposals.json. 파일을 읽지 못해 검수하지 못했습니다.', proposalCount: 0, invalidCount: 0 }, proposals: [] };
+  await page.route('**/api/docling-review?*', route => route.fulfill({ json: blocked }));
+  for (const [width, language, theme] of [[1440, 'en', 'light'], [640, 'ko', 'dark']]) {
+    await page.evaluate(({ language, theme }) => { localStorage.setItem('litzio.uiLanguage', language); localStorage.setItem('litzio.theme', theme); }, { language, theme });
+    await page.setViewportSize({ width, height: 1000 }); await page.reload(); await show();
+    await result.locator('details > summary').click();
+    await result.locator('.docling-review').scrollIntoViewIfNeeded();
+    await expect(result).toContainText(blocked.task.summary);
+    const statusText = language === 'ko' ? '검수하지 못함' : 'Review could not be performed';
+    await expect(result.locator('.docling-review [role="status"]')).toHaveText(statusText);
+    await expect(result).not.toContainText(language === 'ko' ? 'AI 제안 0개' : 'AI proposals 0');
+    expect(await result.evaluate(e => e.scrollWidth <= e.clientWidth)).toBe(true);
+    if (screenshots) { await result.scrollIntoViewIfNeeded(); await page.screenshot({ path: `tmp/900-captures/uninspected-dashboard-${width}.png` }); }
+    await result.getByRole('button', { name: language === 'ko' ? '대조 열기' : 'Open comparison', exact: true }).click();
+    await expect(panel).toContainText(blocked.task.summary);
+    await expect(panel.locator('[role="status"]')).toHaveText(statusText);
+    await expect(panel).not.toContainText(language === 'ko' ? 'AI 제안 0개' : 'AI proposals 0');
+    expect(await panel.evaluate(e => e.scrollWidth <= e.clientWidth)).toBe(true);
+    if (screenshots) await page.screenshot({ path: `tmp/900-captures/uninspected-review-${width}.png` });
+  }
+  await page.unroute('**/api/docling-review?*');
   // Fault/staleness presentation uses a fake job-service read; no real AI is called.
   const longList = Array.from({ length: 40 }, (_, index) => ({ ...saved.proposals[0], id: `synthetic-list-${index}`, suggestion: { ...saved.proposals[0].suggestion, reason: `Long list detail ${index}` } }));
   await page.route('**/api/docling-review?*', route => route.fulfill({ json: { ...saved, proposals: longList } }));

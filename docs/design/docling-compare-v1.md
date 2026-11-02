@@ -343,3 +343,26 @@ use the synthetic fake adapter, not an AI quality assessment.
 | Comparison after | [Capture](assets/ai-settings-930/after-review-1440-light-en.png) | [Capture](assets/ai-settings-930/after-review-640-dark-ko.png) |
 | Dashboard before | [Capture](assets/ai-settings-930/before-dashboard-1440-light-en.png) | [Capture](assets/ai-settings-930/before-dashboard-640-dark-ko.png) |
 | Dashboard after | [Capture](assets/ai-settings-930/after-dashboard-1440-light-en.png) | [Capture](assets/ai-settings-930/after-dashboard-640-dark-ko.png) |
+
+### Uninspected review results (#993)
+
+Dashboard and comparison reuse the same ReviewPanel: a valid `inspected: false`
+result displays “Review could not be performed” / “검수하지 못함” and the AI summary,
+without proposal/validation counts. Existing proposals remain available; the
+required field and task-state mapping follow the [review result contract](docling-conversion-v1.md).
+This does not change sandbox/file access or the AI task service.
+
+`docling-review` checks both surfaces at 1440px English Light and 640px Korean Dark,
+including count suppression even if a synthetic read includes zero count fields.
+The captures below use Windows persistent Chrome, DPR 1, 100% zoom and bundled
+fonts. Before reproduces the original incorrect `success` status and zero counts
+with an unread-materials summary through the existing fake read; after supplies
+`not-inspected` with the same summary and counts. No real model was called.
+Alignment, control padding, Korean wrapping and scroll access were inspected.
+The existing dashboard horizontal table scroll and comparison's narrow document
+column remain unchanged.
+
+| Surface | 1440px before / after | 640px before / after |
+| --- | --- | --- |
+| Dashboard | [Before](assets/docling-review-993/before-dashboard-1440.png) / [After](assets/docling-review-993/after-dashboard-1440.png) | [Before](assets/docling-review-993/before-dashboard-640.png) / [After](assets/docling-review-993/after-dashboard-640.png) |
+| Comparison | [Before](assets/docling-review-993/before-review-1440.png) / [After](assets/docling-review-993/after-review-1440.png) | [Before](assets/docling-review-993/before-review-640.png) / [After](assets/docling-review-993/after-review-640.png) |
