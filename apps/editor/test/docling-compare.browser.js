@@ -272,6 +272,8 @@ async (page, { expect, screenshots }) => {
     const block = synthetic.locator(`[data-block=${kind}]`);
     await block.click({ position: { x: 8, y: 16 } });
     await expect(synthetic.locator(`[data-source-ref="${ref}"]`)).toHaveAttribute('aria-pressed', 'true');
+    // Sync scrolling can move the clicked block away from the pointer. Hover its current position.
+    await block.hover();
     await expect(synthetic.getByTestId('block-hover-outline')).toBeVisible();
     await page.keyboard.press('Enter');
     await expect(synthetic.locator('[data-testid$="-source"] textarea, [data-testid$="-properties"]')).toHaveCount(0);
@@ -287,6 +289,19 @@ async (page, { expect, screenshots }) => {
   await synthetic.getByRole('button', { name: 'Endnotes', exact: true }).click();
   await expect(synthetic.getByText('1 Synthetic explicit table endnote.')).toBeInViewport();
   // Repeat entry selects the existing tab rather than mounting another reading engine.
+  await synthetic.getByRole('checkbox', { name: 'Select page 1', exact: true }).check();
+  await synthetic.getByRole('textbox', { name: 'Exclusion reason' }).fill('Manual source page exclusion');
+  await synthetic.getByRole('button', { name: 'Exclude selected pages', exact: true }).click();
+  await expect(synthetic.getByRole('button', { name: 'Exclude selected pages', exact: true })).toBeDisabled();
+  await expect(synthetic.getByRole('button', { name: 'Undo exclusion (1)', exact: true })).toBeEnabled();
+  expect(await synthetic.locator('[data-page="1"]').getAttribute('data-excluded')).toBe('true');
+  expect(await synthetic.locator('.docling-reading .ProseMirror').textContent()).toBe('');
+  await expect(synthetic.locator('[data-page="1"]').locator('..')).toContainText('Excluded');
+  if (screenshots) await page.screenshot({ path: 'tmp/945-excluded-1440.png' });
+  await synthetic.getByRole('button', { name: 'Undo exclusion (1)', exact: true }).click();
+  await expect(synthetic.getByRole('checkbox', { name: 'Select page 1', exact: true })).toBeEnabled();
+  expect(await synthetic.locator('[data-page="1"]').getAttribute('data-excluded')).toBe('false');
+  expect(await synthetic.locator('.ProseMirror').textContent()).toBe(docBefore);
   await open('synthetic');
   await expect(page.getByRole('tab', { name: / · Docling comparison$/ })).toHaveCount(2);
   await page.getByRole('tab', { selected: true }).click({ button: 'right' });
@@ -409,13 +424,15 @@ async (page, { expect, screenshots }) => {
         const prefix = range.getBoundingClientRect(), box = element.getBoundingClientRect();
         return prefix.left >= box.left && prefix.right <= box.right;
       })).toBe(true);
-      await comparison.getByRole('checkbox').uncheck();
+      await comparison.getByRole('checkbox', { name: language === 'ko' ? '동기 스크롤' : 'Sync scrolling' }).uncheck();
       await comparison.locator('.docling-source').evaluate(element => {
         element.scrollTop = element.querySelector('[data-page="9"]').offsetTop - element.offsetTop;
       });
       const picture = comparison.locator('[data-source-ref="#/pictures/6"]');
       await expect(picture).toBeAttached();
       await picture.focus(); await page.keyboard.press('Enter');
+      const notifications = page.locator('.notification-center > button');
+      if (await notifications.getAttribute('aria-expanded') === 'true') await notifications.click();
       await comparison.locator(`[data-source-path="${targetPath}"]`).getByTestId('figure-image').click();
       await expect(comparison.locator('.docling-region[aria-pressed=true]')).toHaveAttribute('data-source-ref', '#/pictures/6');
       await comparison.locator('.docling-source').evaluate(element => {
@@ -426,6 +443,15 @@ async (page, { expect, screenshots }) => {
       await page.mouse.move(0, 0);
       await page.screenshot({ path: `tmp/815-evidence/after-${width}-${theme}-${language}.png` });
     }
+    await comparisonPicker(true); await page.getByTestId('folder-path').fill(folder('synthetic')); await page.getByTestId('folder-open').click();
+    await synthetic.getByRole('checkbox', { name: '페이지 선택 1', exact: true }).check();
+    await synthetic.getByRole('textbox', { name: '제외 이유' }).fill('앞부분 제외');
+    await synthetic.getByRole('button', { name: '선택 페이지 제외', exact: true }).click();
+    await expect(synthetic.getByRole('button', { name: '제외 해제 (1)', exact: true })).toBeEnabled();
+    await expect(synthetic.locator('[data-page="1"]').locator('..')).toContainText('제외됨');
+    await page.screenshot({ path: 'tmp/945-excluded-640-dark-ko.png' });
+    await synthetic.getByRole('button', { name: '제외 해제 (1)', exact: true }).click();
+    await expect(synthetic.getByRole('checkbox', { name: '페이지 선택 1', exact: true })).toBeEnabled();
     await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); });
   }
   return { initialImages, totalPages: Object.keys(snapshot.map.pages).length, visiblePages, correspondenceCounts, firstRegion,

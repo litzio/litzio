@@ -16,7 +16,7 @@ export type DoclingMap = {
   format: "litzio-docling-map"; version: 1;
   source: { schema_name: string; version: string; name: string; sha256: string };
   document: { file: "document.md"; sha256: string };
-  pages: Record<string, { page_no: number; size: { width: number; height: number }; image?: ImageRef | null }>;
+  pages: Record<string, { page_no: number; size: { width: number; height: number }; image?: ImageRef | null; exclusion?: { id: string; reason: string; pages: number[] } }>;
   items: MapItem[];
 };
 export const sha256 = (text: string | Uint8Array): string => createHash("sha256").update(text).digest("hex");
@@ -47,6 +47,12 @@ export function inspectDoclingMap(json: string, markdown: string, allowStale = t
         !page.size || !Number.isFinite(page.size.width) || !Number.isFinite(page.size.height) ||
         page.size.width <= 0 || page.size.height <= 0 ||
         (page.image != null && (typeof page.image !== "object" || typeof page.image.uri !== "string"))) throw new Error("Invalid mapping page");
+  }
+  for (const page of Object.values(map.pages)) if (page.exclusion !== undefined) {
+    const e = page.exclusion;
+    if (!e || typeof e.id !== "string" || !e.id.trim() || typeof e.reason !== "string" || !e.reason.trim() ||
+        !Array.isArray(e.pages) || !e.pages.includes(page.page_no) || new Set(e.pages).size !== e.pages.length ||
+        !e.pages.every(n => Number.isSafeInteger(n) && !!map.pages[String(n)])) throw new Error("Invalid page exclusion");
   }
   const blocks = getEditableDocument(parse(markdown)).blocks;
   const byPath = new Map(blocks.map(block => [JSON.stringify(block.path), block]));

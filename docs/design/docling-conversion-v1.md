@@ -75,8 +75,8 @@ The single human-readable JSON ledger has this versioned shape:
 }
 ```
 
-`id` is unique and identifies an approval for removal; `self_ref` always names
-an original text-array item. Reason and approval timestamp with timezone are
+`id` is unique and identifies an approval for removal; `self_ref` names an original text-array item for text operations and is absent
+for `exclude-pages`. Reason and approval timestamp with timezone are
 required. `aiEvidence` is an optional string and may be empty in this phase.
 Unknown fields, versions, operations, duplicate IDs and invalid values refuse
 the entire request. There is no SQLite store or native-document metadata.
@@ -89,15 +89,16 @@ starts with an empty one pointing there and saves it on success. Relative source
 paths resolve from the conversion folder. The source hash must match both the
 original bytes and the map's source hash. Source paths pass Host Root checks.
 
-The three operations act on a private, schema/graph-validated copy:
+The operations act on a private, schema/graph-validated copy:
 
 | Operation and value | Source-copy change and conditions |
 | --- | --- |
+| `exclude-pages`, `{ "pages": [1, 2] }` | Nonempty, unique positive integer page numbers must exist. Exclude items whose nonempty original provenance lies entirely on selected pages; retain multipage items with any provenance outside the selection and items without provenance. Provenance-free reading groups follow their nonempty, wholly excluded child sets recursively. Detach excluded reading edges and null their parents on the private copy. Preserve arrays, `self_ref`, original fields and page images. Reject partial exclusion across owner/child (table/picture or excluded parent), caption, footnote or reference relationships; select all related pages together. Map entries retain original provenance with decoration status, no targets and an explicit exclusion reason. |
 | `heading`, `{ "level": 1 }` through `6`, or `{ "level": null }` | Reachable body `text`, `title` or `section_header` becomes `section_header` with that level, or `text` with `level` removed. Text, `orig`, provenance, layer, parent and order stay unchanged. Covers depth changes and both heading/body decisions. |
 | `merge-paragraphs`, `{ "next": "#/texts/3" }` | Target and continuation must be consecutive body `text` leaves in reading order, ignoring furniture and traversing containers (including distinct parents). Target's final provenance page and continuation's first page must be consecutive. Formatting/hyperlinks must match. Append one space plus continuation `text`/`orig` to the target; concatenate provenance, shifting continuation character spans by preceding text's Unicode character count plus one. Remove the continuation's child edge and set its parent to null; retain its array slot, original text and `self_ref`. Never compact arrays or renumber refs. The surviving target can consume further consecutive-page continuations. |
 | `furniture`, `{ "label": "text" }`, `"page_header"` or `"page_footer"` | A body text/heading/header/footer becomes that label and respectively `content_layer: body` or `furniture`; remove heading `level`. Text, `orig`, provenance, parent and order stay unchanged. Label/layer and tree placement are independent Docling facts; conversion already visits both roots and recognizes furniture in either tree. |
 
-All operations require nonempty, unassociated leaf text, preserving picture,
+Text operations require nonempty, unassociated leaf text, preserving picture,
 table, list, footnote and caption relationships. Each ref may receive one heading/
 furniture classification; another classification, including one after a merge, conflicts. Classification can
 precede a merge when it satisfies its conditions. Consumed continuations cannot
@@ -106,12 +107,25 @@ Missing targets, unsatisfied conditions, conflicts and corrections the existing
 converter cannot represent return an entry-specific reason before any write.
 No entry is skipped. uint64 and fields outside the stated changes stay intact.
 
+Page exclusions are resolved together from original provenance before text replay.
+Duplicate excluded pages and text operations targeting excluded items (including
+merge continuations), in either order, refuse the complete ledger before writing.
+The ledger remains version 1: this is an additive tagged operation with no new
+root shape or migration; older strict readers refuse the unknown operation.
+`aiEvidence` uses the same optional string for human and future AI entries.
+Map pages carry optional `exclusion: {id, reason, pages}` for display and removal
+of the entire approval. Map version remains 1; ordinary targets/statuses are unchanged.
+
+CLI `docling add-correction <folder> --entry <json-or-file>` and
+`docling remove-correction <folder> <id>` call those same installed Host operations.
+They do not interpret source semantics or start AI.
+
 Internal functions `addDoclingCorrection(folder, entry)`,
 `removeDoclingCorrection(folder, id)` and `applyDoclingCorrections(folder)` replay
 the complete resulting ledger from the original. Removal is approval undo, not
 an inverse patch. Installed Host operations `add-correction`, `remove-correction`
 and `apply-corrections` take `{folder, entry}`, `{folder, id}` and `{folder}`;
-conversion must be enabled. They add no UI route or dashboard change. Removing a
+conversion must be enabled. The comparison offers manual page exclusion and undo (#945); dashboard behavior is unchanged. Removing a
 prerequisite that invalidates a remaining entry refuses the removal. Structure-review
 execution, proposal records and approval screens are defined below; block
 confirmation state remains outside this version.
@@ -206,7 +220,7 @@ by these checks.
 
 The strict draft-07 result Schema is the exported `structureReviewSchema` in
 [structure-review.ts](../../plugins/docling/src/structure-review.ts). The root is
-`{proposals: [...]}`; each array item is an `anyOf` of the three A operation/value
+`{summary: "nonempty execution summary", proposals: [...]}`; each array item is an `anyOf` of the three A operation/value
 objects with the shared fields above. All object properties are required and extra
 properties are refused. `heading.level` is an integer 1–6 or null; merge `next`
 is a string; furniture labels are `text`, `page_header`, `page_footer`.
