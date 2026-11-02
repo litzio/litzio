@@ -37,7 +37,8 @@ class FakeService implements AiTaskService {
   }
 }
 function setup(t: test.TestContext, original = structureReviewSource()) {
-  const root = mkdtempSync(path.join(tmpdir(), "docling-review-")), input = path.join(root, "source.json"), folder = path.join(root, "result");
+  // Root checks and fault injection must use the same native spelling as publication.
+  const root = fs.realpathSync.native(mkdtempSync(path.join(tmpdir(), "docling-review-"))), input = path.join(root, "source.json"), folder = path.join(root, "result");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(input, original); convertDoclingFile(input, folder);
   const service = new FakeService(); let enabled = true, feature = true, reviewFeature = true, owner = randomUUID();
@@ -189,7 +190,9 @@ test("status during delayed admission preserves live request materials through s
     return admit(value); // Like B, material reads precede receipt creation.
   };
   const starting = f.start(id).then(value => ({ value, error: null }), error => ({ value: null, error }));
-  await reached;
+  await Promise.race([reached, starting.then(outcome => {
+    throw outcome.error ?? new Error("Review finished before AI admission");
+  })]);
   let during: View, materialsPresent: boolean;
   try {
     assert.equal(f.service.current(id), null);

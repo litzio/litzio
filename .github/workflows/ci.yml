@@ -228,9 +228,9 @@ jobs:
         run: |
           pnpm exec tsx packages/cli/scripts/build-docling-worker.ts
           pnpm --filter @litzio/editor exec tsx --test test/http-host.test.ts test/plugin-ui.test.ts test/plugin-runtime.test.ts test/plugin-host.test.ts test/file-operations.test.ts
-      - name: Check Windows Docling correction path aliases
+      - name: Check Windows Docling unit tests
         if: runner.os == 'Windows'
-        run: pnpm --filter @litzio/docling exec tsx --test --test-name-pattern=Windows test/corrections.test.ts
+        run: pnpm --filter @litzio/docling test
       - name: Check Windows Docling CLI integration
         if: runner.os == 'Windows'
         run: pnpm --filter @litzio/cli exec tsx --test --test-name-pattern="docling convert delegates" test/cli.test.ts

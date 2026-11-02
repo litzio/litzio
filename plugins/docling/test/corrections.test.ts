@@ -31,7 +31,8 @@ function approval(id: string, target: number, change: Pick<DoclingCorrection, "o
   return { id, self_ref: `#/texts/${target}`, reason: "Approved from source pages", approvedAt: "2026-11-02T01:00:00Z", ...change } as DoclingCorrection;
 }
 function setup(t: test.TestContext) {
-  const root = mkdtempSync(path.join(tmpdir(), "docling-corrections-"));
+  // Match the native paths used by generation publication, even under an 8.3 TEMP.
+  const root = fs.realpathSync.native(mkdtempSync(path.join(tmpdir(), "docling-corrections-")));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const input = path.join(root, "source.json"), folder = path.join(root, "result");
   const original = inputText(); writeFileSync(input, original);
