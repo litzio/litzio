@@ -14,7 +14,7 @@ async (page, { openPath, reloadDocument, assertSavedSource, expect }) => {
   const code = page.locator('[data-document-tab][data-active=true] [data-block="code"]');
   const snapshot = () => page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(element => {
     const {doc,selection} = element.editor.state;
-    return JSON.stringify({doc:doc.toJSON(),selection:selection.toJSON(),undo:element.editor.can().undo()});
+    return JSON.stringify({doc:doc.toJSON(),selection:selection.toJSON(),undo:element.editor.can().undo(),redo:element.editor.can().redo()});
   });
   let release;
   const gate = new Promise(resolve => { release=resolve; });
@@ -30,6 +30,16 @@ async (page, { openPath, reloadDocument, assertSavedSource, expect }) => {
     await page.reload(); await ready();
     check(requested === 0, 'Code-free document requested grammars');
     await open();
+    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+    const beforeCopy = await snapshot();
+    const copy = code.getByRole('button', {name:'Copy code', exact:true});
+    const body = await code.locator('code').textContent();
+    await copy.click();
+    expect((await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n')).toBe(body);
+    await expect(copy).toHaveText('Copied');
+    expect(await snapshot()).toBe(beforeCopy);
+    await copy.focus(); await page.keyboard.press('Enter');
+    expect(await snapshot()).toBe(beforeCopy);
     await code.locator('pre').click();
     await page.keyboard.press('End'); await page.keyboard.type(' + 2');
     await page.locator('[data-document-tab][data-active=true] .document-editor p', {hasText:'After.'}).click();
@@ -191,5 +201,8 @@ async (page, { openPath, reloadDocument, assertSavedSource, expect }) => {
   await expect(picker).toBeDisabled();
   await picker.focus(); await page.keyboard.press('Enter');
   check(await menu.count() === 0, 'Read-only code opened the language menu');
+  const readSnapshot = await snapshot();
+  await code.getByRole('button', {name:'Copy code',exact:true}).click();
+  expect(await snapshot()).toBe(readSnapshot);
   return {deferred:true,languageSet:true,unknownFallback:true,failedFallback:true,history:true,languageMenu:true,unlistedLanguage:true,readOnly:true,bodyCompositionUndoRedo:true,languageSaveReload:true};
 }

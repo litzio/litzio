@@ -3409,3 +3409,8 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .plain-markdown img { max-width: 100%; height: auto; }
 .plain-markdown .table { display: block; overflow-x: auto; }
 .plain-markdown .katex-display { overflow-x: auto; overflow-y: hidden; }
+
+.code-block-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); }
+.code-block-controls .code-language-control { margin: 0; }
+.code-copy { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-family: var(--font-family-sans); font-size: var(--font-size-sm); }
+.code-copy [role="alert"] { color: var(--id-color-danger); overflow-wrap: anywhere; }

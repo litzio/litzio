@@ -792,3 +792,23 @@ this preserves explicit user intent rather than silently selecting another file.
 ## History
 
 The implemented slices were tracked in #41 (continuous editing), #54 (block conversion), #58 (rich headings/cells/captions), #75 (table structure), #76 (sections), and #60 (external clipboard). These issue references record provenance; the behavior above is the current contract.
+
+### Code body copy (#991)
+
+Edit and Read views offer a keyboard-accessible Copy code button beside the language
+control. It copies only the current body text, excluding language, fences and captions,
+and reports Copied or the existing clipboard failure message. It dispatches no document
+operation and preserves selection, history and dirty state. Plain Markdown reading also
+offers this action for fenced (including Mermaid) and indented code. Native Mermaid
+Figures remain diagrams with their existing source form, rather than code-block controls.
+This is an Editor clipboard interaction; Core operations and CLI parity are unnecessary.
+
+Verification: Editor tests (409), workspace typecheck, Editor production build, docs and
+whitespace checks; `code-highlighting` verifies real clipboard text, pointer/keyboard
+copy and unchanged engine selection/Undo/Redo in editable and read-only states.
+`text-mode` verifies fenced Mermaid and indented code clipboard bodies and unchanged input.
+Manual visual evidence uses the same code fixture, Chrome persistent profile, 900px height:
+[1440px English Light before](assets/code-copy-991/before-en-1440.png) /
+[after](assets/code-copy-991/after-en-1440.png),
+[640px Korean Dark before](assets/code-copy-991/before-ko-640.png) /
+[after](assets/code-copy-991/after-ko-640.png).

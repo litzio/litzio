@@ -73,6 +73,18 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
     }
     await configure('en','light');
   }
+  await input().fill('```mermaid\ngraph LR\n  A --> B\n```\n\n    indented\n');
+  await page.getByTestId('view-read').click();
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  const copies = preview().getByRole('button', {name:'Copy code',exact:true});
+  await expect(copies).toHaveCount(2);
+  for (const [index, body] of ['graph LR\n  A --> B\n', 'indented\n'].entries()) {
+    await copies.nth(index).click();
+    expect((await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g,'\n')).toBe(body);
+    await expect(copies.nth(index)).toHaveText('Copied');
+  }
+  await page.getByTestId('view-visual').click();
+  await expect(input()).toHaveValue('```mermaid\ngraph LR\n  A --> B\n```\n\n    indented\n');
   const content = '\t  한글 😀 **literal** <div>\n\n마지막 줄  \n';
   await input().fill(content);
   await page.getByTestId('view-read').click();
