@@ -19,17 +19,25 @@ async (page, { expect, screenshots = false }) => {
   for (const [width, language, theme] of [[1440,'en','light'],[640,'ko','dark']]) {
     await page.setViewportSize({width,height:900});
     await configure(language,theme);
+    await capture(`after-${width}-rows`);
     await mode().click(); await menu().waitFor();
     await expect(menu().getByRole('menuitemradio',{checked:true})).toHaveCount(1);
     const bounds = await menu().boundingBox();
     expect(bounds.x >= 0 && bounds.y >= 0 && bounds.x+bounds.width <= width && bounds.y+bounds.height <= 900).toBe(true);
     const settingsBounds = await settings().boundingBox(), modeBounds = await mode().boundingBox();
-    expect(Math.abs(settingsBounds.y+settingsBounds.height/2-modeBounds.y-modeBounds.height/2)).toBeLessThan(1);
+    expect(modeBounds.y).toBe(settingsBounds.y + settingsBounds.height);
+    expect(modeBounds.height).toBe(settingsBounds.height);
+    expect(modeBounds.x).toBe(settingsBounds.x);
+    expect(modeBounds.width).toBe(settingsBounds.width);
+    await expect(mode().locator(".sidebar-theme-value")).toHaveText(theme === "light" ? "Light" : "다크");
+    await expect(mode().locator("svg")).toHaveClass(/lucide-sun-moon/);
     await capture(`after-${width}-expanded`);
     await page.keyboard.press('Escape');
     await page.getByRole('button',{name:/^(Collapse Explorer|탐색기 접기)$/}).click();
     await mode().click(); await menu().waitFor();
     await expect(menu().getByRole('menuitemradio',{checked:true})).toHaveCount(1);
+    await expect(mode().locator(".sidebar-theme-value")).toHaveCount(0);
+    await expect(mode()).toHaveAttribute("title", language === "en" ? "Color mode" : "색상 모드");
     await capture(`after-${width}-rail`);
     await page.keyboard.press('Escape');
     await page.getByRole('button',{name:/^(Expand Explorer|탐색기 펼치기)$/}).click();
