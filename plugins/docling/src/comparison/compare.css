@@ -34,7 +34,7 @@
 .docling-review { flex: none; padding: var(--space-3) var(--space-4); background: var(--id-color-surface); border-top: var(--border-width) solid var(--id-color-border-subtle); font-size: var(--font-size-sm); overflow-wrap: anywhere; }
 .docling-review p { margin: var(--space-2) 0; }
 .docling-review-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
-.docling-review-content { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr); gap: var(--space-3); max-height: 240px; overflow: auto; margin-top: var(--space-2); }
+.docling-review-content { display: grid; grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr); gap: var(--space-3); max-height: 240px; overflow: hidden; margin-top: var(--space-2); }
 .docling-review-list button { display: block; width: 100%; text-align: start; padding: var(--space-2); }
 .docling-review-list button:hover { background: var(--id-color-surface-hover); }
 .docling-review-list button[aria-pressed=true] { background: var(--id-color-surface-selected); font-weight: 600; }
@@ -43,3 +43,5 @@
 .docling-review-values > div { min-width: 0; flex: 1 1 140px; }
 .docling-review pre { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--id-color-surface-muted); padding: var(--space-2); }
 .docling-target-highlight { fill: var(--id-color-surface-selected); fill-opacity: .35; stroke: var(--id-color-interaction); stroke-width: 2; }
+
+.docling-review-list, .docling-review-proposal { min-height: 0; min-width: 0; max-height: 240px; overflow: auto; }

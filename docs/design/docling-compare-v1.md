@@ -39,7 +39,7 @@ The empty-state help therefore describes only file browsing, separately from the
 
 ## Structure review panel (#900)
 
-The bounded, scrollable panel below the two comparison panes lists pending,
+The bounded panel has independently scrolling proposal list and details below the two comparison panes lists pending,
 approved, rejected and inapplicable proposals, with stale source separately marked.
 Selecting a proposal reveals its original refs using the existing source selection
 and connector style and highlights measured right-hand blocks, without accessing

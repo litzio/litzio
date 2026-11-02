@@ -54,10 +54,22 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
     if (language === 'ko') { await page.reload(); await show(); await result.getByRole('button', { name: '대조 열기', exact: true }).click(); await panel.getByRole('button', { name: /#\/texts\/1/ }).click(); }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     expect(await panel.evaluate(e => e.scrollWidth <= e.clientWidth)).toBe(true);
-    if (screenshots) await page.screenshot({ path: `tmp/900-captures/review-${width}-${theme}-${language}.png` });
+    if (screenshots) {
+      await tab.locator('.docling-source img').first().evaluate(image => image.decode());
+      await page.evaluate(() => document.fonts.ready);
+      await page.screenshot({ path: `tmp/900-captures/review-${width}-${theme}-${language}.png` });
+    }
   }
   // Fault/staleness presentation uses a fake job-service read; no real AI is called.
   const saved = await call(`docling-review?folder=${encodeURIComponent(job.output)}`);
+  const longList = Array.from({ length: 40 }, (_, index) => ({ ...saved.proposals[0], id: `synthetic-list-${index}`, suggestion: { ...saved.proposals[0].suggestion, reason: `Long list detail ${index}` } }));
+  await page.route('**/api/docling-review?*', route => route.fulfill({ json: { ...saved, proposals: longList } }));
+  await expect(panel.locator('.docling-review-list button')).toHaveCount(longList.length);
+  await panel.locator('.docling-review-list button').last().click();
+  await expect(panel.getByText(longList.at(-1).suggestion.reason, { exact: true })).toBeInViewport();
+  expect(await panel.locator('.docling-review-proposal').evaluate(element => element.scrollTop)).toBe(0);
+  await page.unroute('**/api/docling-review?*');
+
   for (const status of ['error', 'uncertain']) {
     await page.route('**/api/docling-review?*', route => route.fulfill({ json: { ...saved, task: { ...saved.task, status, error: 'Synthetic task failure' }, proposals: saved.proposals.map(p => ({ ...p, stale: true })) } }));
     await expect(panel).toContainText(status === 'error' ? '검수 실패' : '검수 결과가 불확실합니다.');
