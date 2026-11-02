@@ -6,6 +6,7 @@ import "./settings.css";
 export function activate(host: UiHost) {
   function Settings() {
     const [settings, setSettings] = useState<AiAgentSettings>();
+    const [storedSettings, setStoredSettings] = useState<AiAgentSettings>();
     const [models, setModels] = useState<AiModels>();
     const [diagnostics, setDiagnostics] = useState<AiDiagnostics>();
     const [environment, setEnvironment] = useState<AiEnvironment>();
@@ -28,17 +29,19 @@ export function activate(host: UiHost) {
       alive.current = true;
       void Promise.all([get<AiAgentSettings>(AI_TASK.settingsRoute), get<AiEnvironment>(AI_AGENT.environmentRoute)]).then(([next, env]) => {
         if (!alive.current) return;
-        setSettings(next); setEnvironment(env); if (next.enabled) void refresh();
+        setSettings(next); setStoredSettings(next); setEnvironment(env); if (next.enabled) void refresh();
       }).catch(error => { if (alive.current) setProblem(error.message); });
       return () => { alive.current = false; };
     }, []);
-    const save = async (next = settings) => {
+    const save = async (next = settings, enablementOnly = false) => {
       if (!next || busy) return;
       setBusy(true); setProblem(""); setSaved(false);
       try {
         const stored = await host.requestJson<AiAgentSettings>(AI_TASK.settingsRoute.slice(1), "PUT", next);
         if (!alive.current) return;
-        setSettings(stored); setSaved(true);
+        setStoredSettings(stored);
+        setSettings(current => enablementOnly && current ? { ...stored, model: current.model, reasoningEffort: current.reasoningEffort } : stored);
+        setSaved(!enablementOnly);
         if (!next.enabled) { setModels(undefined); setDiagnostics(undefined); }
         else if (!settings?.enabled) void refresh();
       } catch (error) { if (alive.current) setProblem(`${t("Could not save AI settings.")} ${(error as Error).message}`); }
@@ -75,7 +78,7 @@ export function activate(host: UiHost) {
             <span aria-hidden="true">›</span><strong>Codex</strong><span className="agent-provider-summary"><i className={diagnostics?.connected && diagnostics.account && settings?.enabled ? "agent-dot available" : "agent-dot"} />{status}{models ? ` · ${t("Models")}: ${models.models.length}` : ""}</span>
           </button>
           <Button variant="ghost" onClick={() => setView("diagnostics")}>{t("Diagnostics")}</Button>
-          <button className="agent-switch" role="switch" aria-label={t("Use Codex")} aria-checked={settings?.enabled ?? false} disabled={!settings || busy || loading} onClick={() => void save({ ...settings!, enabled: !settings!.enabled })}><span /></button>
+          <button className="agent-switch" role="switch" aria-label={t("Use Codex")} aria-checked={settings?.enabled ?? false} disabled={!storedSettings || busy || loading} onClick={() => void save({ ...storedSettings!, enabled: !storedSettings!.enabled }, true)}><span /></button>
         </div>
         <h4>{t("Defaults")}</h4>
         <p className="agent-muted">{t("Shared by all AI tasks. Changes apply to the next task.")}</p>
@@ -106,7 +109,7 @@ export function activate(host: UiHost) {
         <div className="agent-models"><Input aria-label={t("Search models")} placeholder={t("Search models")} value={search} onChange={event => setSearch(event.target.value)} />
           <p className="agent-muted">{t("Models")}: {filteredModels?.length ?? "—"}</p>
           <div className="agent-model-list">{!models ? <p>{loading ? t("Checking…") : t("Unavailable")}</p> : filteredModels?.map(item => <article key={item.id}>
-            <div className="agent-model-name"><strong>{item.displayName}</strong><code>{item.model}</code>{item.model === settings?.model ? <small>{t("Default")}</small> : null}</div><p>{item.description}</p><small>{t("Reasoning effort")}: {item.supportedReasoningEfforts.map(effort => effort.reasoningEffort).join(" · ")}</small>
+            <div className="agent-model-name"><strong>{item.displayName}</strong><code>{item.model}</code>{item.model === storedSettings?.model ? <small>{t("Default")}</small> : null}</div><p>{item.description}</p><small>{t("Reasoning effort")}: {item.supportedReasoningEfforts.map(effort => effort.reasoningEffort).join(" · ")}</small>
           </article>)}
           {filteredModels?.length === 0 ? <p>{t("No matching models.")}</p> : null}</div>
         </div>

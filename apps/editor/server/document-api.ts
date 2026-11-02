@@ -305,7 +305,7 @@ export async function handleDocumentRequest(
           sendJson(res, 200, store.register(manifest, false, file => { accessPath(file, access); }));
         } else {
           if (typeof body.id !== "string") throw new Error("Plugin id is required.");
-          store.unregister(body.id); sendJson(res, 200, store.list());
+          await plugins.unregister(body.id); sendJson(res, 200, store.list());
         }
       }
     } catch (error) { failure(error); }

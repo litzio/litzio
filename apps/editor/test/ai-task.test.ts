@@ -35,8 +35,10 @@ test("installed caller uses Host-mediated service, HTTP observes completion, UUI
   const root = mkdtempSync(path.join(tmpdir(), "ai-host-test-")), plugins = path.join(root, "plugins"), input = path.join(root, "material.txt");
   writeFileSync(input, "original material");
   const previous = process.env.LITZIO_AI_TEST_ADAPTER; process.env.LITZIO_AI_TEST_ADAPTER = "success";
-  const host = createPluginHost(new RootAccess([root]), undefined, { directory: plugins });
-  const observer = createPluginHost(new RootAccess([root]), undefined, { directory: plugins });
+  const log = path.join(root, "app-server.jsonl"), settingsFile = path.join(root, "ai-settings.json");
+  const agent = new AiAgentConnection(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url)), log] });
+  const host = createPluginHost(new RootAccess([root]), settingsFile, { directory: plugins, agent });
+  const observer = createPluginHost(new RootAccess([root]), settingsFile, { directory: plugins });
   const facade = path.join(root, "consumer"); mkdirSync(facade);
   writeFileSync(path.join(facade, "ui.mjs"), "export function activate() {}");
   writeFileSync(path.join(facade, "host.cjs"), `exports.activate = host => ({ routes: {}, operations: {
@@ -71,7 +73,13 @@ test("installed caller uses Host-mediated service, HTTP observes completion, UUI
   assert.throws(() => host.invoke(AI_TASK.plugin, "start", { ...message(input), materials: [{ path: input, name: "../outside.txt" }] }), /material/);
   process.env.LITZIO_AI_TEST_ADAPTER = "hang";
   const hanging = message(input); await host.aiTasks()!.start(hanging);
-  host.plugins().unregister(AI_TASK.plugin);
+  assert.equal((await (await fetch(url + AI_AGENT.modelsRoute)).json()).models.length, 3);
+  const { pid } = JSON.parse(readFileSync(log, "utf8").split("\n")[0]!);
+  process.kill(pid, 0);
+  const disabled = await fetch(url + "/api/worker-plugins", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: AI_TASK.plugin }) });
+  assert.equal(disabled.status, 200);
+  assert.throws(() => process.kill(pid, 0), "plugin disable must await its app-server exit");
+  assert.equal(host.invoke<AiTaskRecord>(AI_TASK.plugin, "current", { id: hanging.id }).status, "running", "accepted exec work still drains independently");
   assert.equal(host.aiTasks(), undefined); assert.equal(host.invoke("feature", "available"), false);
   assert.deepEqual(await (await fetch(url + AI_TASK.discoveryRoute)).json(), { available: false });
   await assert.rejects(() => host.invoke<Promise<AiTaskRecord>>(AI_TASK.plugin, "start", message(input)), /not registered/);
@@ -139,7 +147,8 @@ test("agent-owned settings persist, reach the worker, and remain pinned in seria
   const root = mkdtempSync(path.join(tmpdir(), "ai-settings-test-")), input = path.join(root, "material.txt");
   writeFileSync(input, "data");
   const previous = process.env.LITZIO_AI_TEST_ADAPTER; process.env.LITZIO_AI_TEST_ADAPTER = "execution";
-  const host = createPluginHost(new RootAccess([root]), path.join(root, "ai-settings.json"), { directory: path.join(root, "plugins"), agent: new AiAgentConnection(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] }) });
+  const agent = new AiAgentConnection(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
+  const host = createPluginHost(new RootAccess([root]), path.join(root, "ai-settings.json"), { directory: path.join(root, "plugins"), agent });
   t.after(async () => { await host.close(); if (previous === undefined) delete process.env.LITZIO_AI_TEST_ADAPTER; else process.env.LITZIO_AI_TEST_ADAPTER = previous; rmSync(root, { recursive: true, force: true }); });
   host.aiTasks();
   const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, new RootAccess([root]), 1_000_000, undefined, undefined, host); });
@@ -162,6 +171,7 @@ test("agent-owned settings persist, reach the worker, and remain pinned in seria
   assert.ok(done.job.durationMs! >= 0);
   assert.deepEqual(JSON.parse(JSON.stringify(done)).job.execution, execution);
   assert.deepEqual((await host.aiTasks()!.start(request)).job.execution, execution);
+  await agent.close(); // An enablement-only write must work without a live catalog connection.
   const disable = await fetch(url + AI_TASK.settingsRoute, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "next-model", reasoningEffort: "low", provider: "codex", enabled: false, writeAccess: "read-only" }) });
   assert.equal(disable.status, 200);
   assert.throws(() => host.invoke(AI_TASK.plugin, "start", { ...request, id: randomUUID() }), /disabled/);

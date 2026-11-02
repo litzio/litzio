@@ -10,9 +10,14 @@ async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
   let settings = { provider: 'codex', enabled: true, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium' };
   const models = [{ id: 'sol', model: 'gpt-6.1-sol', displayName: 'GPT Sol', description: 'General model', defaultReasoningEffort: 'medium', supportedReasoningEfforts: ['medium', 'high'].map(reasoningEffort => ({ reasoningEffort })) },
     { id: 'luna', model: 'gpt-6-luna', displayName: 'GPT Luna', description: 'Fast model', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }];
-  let refreshes = 0;
+  let refreshes = 0, connectionAvailable = true;
+  const settingsWrites = [];
   await page.route('**/api/ai-agent-settings*', route => {
-    if (route.request().method() === 'PUT') settings = route.request().postDataJSON();
+    if (route.request().method() === 'PUT') {
+      const next = route.request().postDataJSON(); settingsWrites.push(next);
+      if (!connectionAvailable && (next.model !== settings.model || next.reasoningEffort !== settings.reasoningEffort)) return route.fulfill({ status: 503, json: { error: 'Codex is disconnected.' } });
+      settings = next;
+    }
     return route.fulfill({ json: settings });
   });
   await page.route('**/api/ai-agent-models*', route => { refreshes++; return route.fulfill({ json: { provider: 'codex', models, updatedAt: 1793590000000 } }); });
@@ -50,12 +55,22 @@ async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
   await expect(page.getByText('docs · connected · oAuth', { exact: true })).toBeVisible();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-1440-light-en.png' });
   await page.getByRole('button', { name: '← AI agent', exact: true }).click();
+  await page.getByLabel('Model', { exact: true }).selectOption('gpt-6-luna');
+  await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('low');
+  connectionAvailable = false;
   await page.getByRole('switch', { name: 'Use Codex', exact: true }).click();
+  await expect.poll(() => settingsWrites.length).toBe(1);
+  expect(settingsWrites[0]).toEqual({ provider: 'codex', enabled: false, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium' });
   await expect(page.getByRole('switch', { name: 'Use Codex', exact: true })).not.toBeChecked();
+  await expect(page.getByLabel('Model', { exact: true })).toHaveValue('gpt-6-luna');
   await expect(page.getByRole('button', { name: 'Save AI settings', exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Codex models', exact: true })).toContainText('Off');
+  connectionAvailable = true;
   await page.getByRole('switch', { name: 'Use Codex', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Codex models', exact: true })).toContainText('Available');
+  expect(settingsWrites[1]).toEqual({ provider: 'codex', enabled: true, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium' });
+  await expect(page.getByLabel('Model', { exact: true })).toHaveValue('gpt-6-luna');
+  await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('low');
   const measure = () => page.locator('.settings-content-inner').evaluate(element => ({ x: element.getBoundingClientRect().x, width: element.getBoundingClientRect().width }));
   await page.getByLabel('Model', { exact: true }).selectOption('gpt-6-luna');
   await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('low');
@@ -102,7 +117,7 @@ async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
   const list = await (await page.request.get(origin + '/api/worker-plugins')).json();
   const ai = list.find(item => item.id === 'ai-agent');
   try {
-    const disabled = await page.request.delete(origin + '/api/worker-plugins', { data: { id: ai.id } }); expect(disabled.ok()).toBe(true);
+    const disabled = await page.request.delete(origin + '/api/worker-plugins', { data: { id: ai.id } }); expect(disabled.ok(), await disabled.text()).toBe(true);
     await expect.poll(async () => (await (await page.request.get(origin + '/api/ai-task-service')).json()).available).toBe(false);
     await page.getByRole('button', { name: '설정', exact: true }).click();
     await expect(page.getByRole('button', { name: 'AI 에이전트', exact: true })).toHaveCount(0);

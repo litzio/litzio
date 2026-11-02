@@ -48,10 +48,17 @@ Changed model/effort pairs must occur in the current `model/list` response; no
 hard-coded effort list or model fallback is used. Save failures retain the UI
 draft. The persisted model may be shown as unavailable until a valid catalog
 selection is saved. Turning the provider off/on does not require a catalog read
-when the model/effort are unchanged. Off refuses new feature tasks and model or
+when the model/effort are unchanged. The switch writes only enablement against
+the last stored settings; unsaved model/effort drafts remain in the form until
+explicit Save. A disconnected catalog therefore does not prevent switching off.
+The model dialog's default marker reflects the stored model. Off refuses new
+feature tasks and model or
 diagnostic queries, while retained UUID receipts stay readable/replayable and
 running tasks retain their existing cancellation path. This Host's app-server
-closes when its settings request disables Codex; ordinary editing is unaffected.
+closes when its settings request disables Codex or `DELETE /api/worker-plugins`
+unregisters `ai-agent`. The Host awaits process exit before acknowledging that
+unregistration; accepted exec work retains its drain/cancellation path.
+Ordinary editing is unaffected.
 
 `writeAccess` is the single main-agent write-scope value (`opened-folders` or
 `read-only`). This phase stores it but exposes no thread execution endpoint.
@@ -105,9 +112,13 @@ one process/initialization, UTF-8 splits, notifications, catalog pagination,
 partial diagnostics, errors/timeouts/process loss and confirmed shutdown.
 `ai-task.test.ts` checks real Host routes with that child, shared defaults reaching
 the old worker, persistent settings and preserved receipts across changes/off.
+The Host test starts the fake app-server before unregistering through HTTP and
+asserts process exit while accepted exec work remains running and cancellable.
+It also disables Codex with its catalog connection already closed.
 The `ai-agent` browser scenario mocks metadata/settings responses, checks
 language-switch regression, model filtering/efforts, refresh, diagnostics,
-provider toggle, re-entry, 640px layout and ordinary document preservation.
+provider toggle payloads with unsaved model/effort drafts and a disconnected
+catalog, explicit Save, re-entry, 640px layout and ordinary document preservation.
 Browser mocks do not prove account readiness or Host persistence.
 
 Representative captures from that same local browser run (four PNGs, about

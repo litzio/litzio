@@ -96,6 +96,13 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
     const installation = plugins(true).list().find(item => item.enabled && item.services?.includes(AI_TASK.service));
     return installation ? load(installation.id).aiTaskService : undefined;
   };
+  const closeAgent = async () => {
+    if (agent) { await agent.close(); agent = undefined; }
+  };
+  const unregister = async (id: string) => {
+    plugins().unregister(id);
+    if (id === AI_TASK.plugin) await closeAgent();
+  };
   const invoke = <T = any>(id: string, operation: string, args: unknown = {}): T => {
     const plugin = load(id);
     if (id === AI_TASK.plugin && Object.hasOwn(agentOperations, operation)) {
@@ -114,7 +121,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
       }
       if (!plugins().list().find(item => item.id === id)?.enabled) throw new Error("Plugin is disabled.");
       const stored = plugin.operations.configure(args);
-      if (!stored.enabled && agent) { await agent.close(); agent = undefined; }
+      if (!stored.enabled) await closeAgent();
       return stored;
     })() as T;
     return plugin.operations[operation](args);
@@ -133,5 +140,5 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
       const failed = results.find(result => result.status === "rejected"); if (failed?.status === "rejected") throw failed.reason;
     }).finally(() => { activations.clear(); sessions.clear(); });
   };
-  return { plugins, invoke, route, aiTasks, close };
+  return { plugins, unregister, invoke, route, aiTasks, close };
 }
