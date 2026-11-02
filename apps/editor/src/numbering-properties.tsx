@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 import { useEditorState } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
-import { numberingReport } from "@litzio/core/numbering";
+import { closeHistory } from "@tiptap/pm/history";
+import { numberingReport, planNumberingChange } from "@litzio/core/numbering";
 import { Input } from "@/components/ui/input.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { FieldError } from "./ui/primitives.tsx";
@@ -17,6 +18,22 @@ export function editorNumberingReport(doc: Node, automaticIndex?: number) {
   doc.forEach((node, _pos, index) => blocks.push({ block: node.type.name, path: [index],
     ...(index !== automaticIndex && typeof node.attrs.enumerator === "string" ? { enumerator: node.attrs.enumerator } : {}) }));
   return numberingReport(blocks);
+}
+
+export function changeEditorNumbering(editor: Editor, mode: "automatic" | "fixed", onlyIndex?: number) {
+  if (!editor.isEditable) return;
+  const blocks: Parameters<typeof numberingReport>[0][number][] = [];
+  editor.state.doc.forEach((node, _pos, index) => blocks.push({ block: node.type.name, path: [index],
+    ...(typeof node.attrs.enumerator === "string" ? { enumerator: node.attrs.enumerator } : {}) }));
+  const changes = planNumberingChange(blocks, mode).filter(item => onlyIndex === undefined || item.path[0] === onlyIndex);
+  if (!changes.length) return;
+  const tr = closeHistory(editor.state.tr);
+  editor.state.doc.forEach((node, pos, index) => {
+    const change = changes.find(item => item.path[0] === index);
+    if (change) tr.setNodeMarkup(pos, undefined, { ...node.attrs, enumerator: change.enumerator || null });
+  });
+  editor.view.dispatch(tr);
+  editor.view.dispatch(closeHistory(editor.state.tr));
 }
 
 /** UI mode stays explicit even while its fixed value is empty; only Automatic clears it. */
@@ -73,7 +90,7 @@ export function NumberField({ editor, getPos, draft, onChange, testId, disabled 
     </div>;
 }
 
-export function NumberingNotice({ editor, onReveal }: { editor: Editor; onReveal(index: number, type: string): void }) {
+export function NumberingNotice({ editor, onReveal, disabled = false }: { editor: Editor; onReveal(index: number, type: string): void; disabled?: boolean }) {
   useTranslation();
   const warnings = useEditorState({ editor, selector: ({ editor: current }) =>
     editorNumberingReport(current.state.doc).diagnostics.map(item => {
@@ -81,12 +98,15 @@ export function NumberingNotice({ editor, onReveal }: { editor: Editor; onReveal
       const node = current.state.doc.child(index);
       return { ...item, locator: node.attrs.sourcePath as string, type: node.type.name };
     }) }) ?? [];
+  const message = (item: typeof warnings[number]) => `${i18n.t("Applied document")}: ${item.code === "numbering-missing"
+    ? i18n.t("This target has no fixed number. Saving is allowed.") + " " + i18n.t("Automatic and fixed numbers may be mixed intentionally, for example in appendices.")
+    : i18n.t("Fixed number {{number}} is duplicated for this kind. Saving is allowed.", { number: item.enumerator ?? "" })}`;
   useNotifications(warnings.map(item => ({
     id: `${item.locator}:${item.code}:${item.enumerator ?? ""}`,
     severity: "warning", testId: "numbering-warning",
-    message: `${i18n.t("Applied document")}: ${item.code === "numbering-missing"
-      ? i18n.t("Missing fixed number in a fixed-number document. Saving is allowed.")
-      : i18n.t("Fixed number {{number}} is duplicated for this kind. Saving is allowed.", { number: item.enumerator ?? "" })}`,
+    message: message(item),
+    render: () => <><p>{message(item)}</p>{item.code === "numbering-missing" && editor.isEditable ? <Button size="sm" variant="ghost" disabled={disabled}
+      onClick={() => changeEditorNumbering(editor, "fixed", item.path[0])}>{i18n.t("Fix current number")}</Button> : null}</>,
     revision: String(item.path[0]), reveal: () => onReveal(item.path[0]!, item.type),
   })));
   return null;

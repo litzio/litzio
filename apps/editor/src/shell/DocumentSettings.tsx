@@ -16,6 +16,8 @@ type Props = {
   readOnly: boolean;
   disabled: boolean;
   headingNumbering: boolean;
+  numberingMode: "automatic" | "fixed" | "mixed";
+  onNumberingModeChange(mode: "automatic" | "fixed"): void;
   referenceTemplates: ReferenceTemplates | null;
   bibliography: string[];
   onToggleHeadingNumbering(): void;
@@ -49,6 +51,13 @@ export const DocumentSettings = forwardRef<DocumentSettingsHandle, Props>(functi
   const groups: SettingsGroup[] = [{ label: i18n.t("Saved in this document"), fields: [
     { id: "numbering", label: i18n.t("Number headings"), summary: i18n.t("Numbers H1–H6 body sections. Save to keep changes."),
       control: { kind: "checkbox", checked: headingNumbering, onChange: props.onToggleHeadingNumbering } },
+    { id: "caption-numbering", label: i18n.t("Caption numbering"),
+      summary: i18n.t("Automatic and fixed numbers may be mixed intentionally, for example in appendices."),
+      control: { kind: "custom", render: descriptionId => <div aria-describedby={descriptionId}>
+        <p data-testid="numbering-mode">{i18n.t(props.numberingMode === "mixed" ? "Mixed" : props.numberingMode === "fixed" ? "Fixed" : "Automatic")}</p>
+        <div className="caption-numbering-actions">{(["automatic", "fixed"] as const).map(mode => <Button key={mode} variant="outline" size="sm" disabled={disabled || props.numberingMode === mode}
+          onClick={() => props.onNumberingModeChange(mode)}>{i18n.t(mode === "automatic" ? "Make all automatic" : "Make all fixed")}</Button>)}</div>
+      </div> } },
     { id: "references", label: i18n.t("Reference style"), summary: preview(referenceTemplates ?? {}),
       control: { kind: "custom", render: descriptionId => <DropdownMenu>
         <DropdownMenuTrigger render={<Button variant="outline" size="sm" disabled={disabled} aria-label={i18n.t("Reference style")}

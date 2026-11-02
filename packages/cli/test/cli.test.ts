@@ -153,7 +153,7 @@ test("fixed-number CLI edits share revision/dry-run/batch writes and expose nonb
   const preview = run([...args, "--dry-run", "--format", "json"]);
   assert.equal(preview.status, 0, preview.stderr);
   assert.equal(readFileSync(file, "utf8"), source);
-  assert.equal(JSON.parse(preview.stdout).numbering.mode, "fixed");
+  assert.equal(JSON.parse(preview.stdout).numbering.mode, "mixed");
   assert.equal(run([...args, "--if-revision", textRevision(source)]).status, 0);
   const saved = readFileSync(file, "utf8");
   assert.match(saved, /:enumerator: A\.3/);
@@ -179,6 +179,16 @@ test("fixed-number CLI edits share revision/dry-run/batch writes and expose nonb
   const clear = run(["update-enumerator", file, "--path", "1", "--enumerator", ""]);
   assert.equal(clear.status, 0, clear.stderr);
   assert.ok(JSON.parse(run(["check", file, "--format", "json"]).stdout).numbering.diagnostics.some((d: { code: string }) => d.code === "numbering-missing"));
+  const mixedSource = readFileSync(file, "utf8");
+  assert.equal(run(["update-numbering-mode", file, "--mode", "fixed", "--dry-run"]).status, 0);
+  assert.equal(readFileSync(file, "utf8"), mixedSource);
+  assert.equal(run(["update-numbering-mode", file, "--mode", "fixed"]).status, 0);
+  assert.equal(JSON.parse(run(["check", file, "--format", "json"]).stdout).numbering.mode, "fixed");
+  assert.equal(run(["update-numbering-mode", file, "--mode", "automatic"]).status, 0);
+  assert.doesNotMatch(readFileSync(file, "utf8"), /:enumerator:/);
+  const automaticSource = readFileSync(file, "utf8");
+  assert.equal(run(["update-numbering-mode", file, "--mode", "mixed"]).status, 1);
+  assert.equal(readFileSync(file, "utf8"), automaticSource);
   const emptyFile = path.join(fixtures, "fixed-empty-guidance.md");
   const emptySource = nativeSource("$$\n$$\n");
   writeFileSync(emptyFile, emptySource);
@@ -725,7 +735,7 @@ test("litzio help exits successfully", () => {
       "Edit — text and content": ["insert-hard-break", "replace-text", "update-heading", "update-admonition-variant", "update-quote", "update-figure", "update-media-references", "update-list", "update-code-block", "update-node-text", "update-equation-latex"],
       "Edit — structure": ["split-paragraph", "merge-paragraph", "update-heading-level", "convert-block", "remove-block", "move-block", "move-section", "remove-section"],
       "Edit — tables": ["insert-table", "insert-table-row", "insert-table-column", "remove-table-row", "remove-table-column", "move-table-row", "move-table-column", "update-table-alignment", "update-table-caption", "update-table-cell"],
-      "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-reference-templates", "update-title"],
+      "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-numbering-mode", "update-reference-templates", "update-title"],
       "Format": ["format"],
       "Serve": ["serve"],
     };

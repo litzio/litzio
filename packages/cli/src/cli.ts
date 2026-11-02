@@ -63,6 +63,7 @@ import {
   updateMediaReferences,
   updateLabel,
   updateEnumerator,
+  updateNumberingMode,
   updateTableCell,
   updateTableCaption,
   updateHeadingNumbering,
@@ -809,6 +810,13 @@ const COMMANDS: CommandSpec[] = [
     ],
   },
   {
+    name: "update-numbering-mode",
+    group: "Edit — labels, footnotes and numbering",
+    summary: "Clear fixed numbers or fix current display numbers for all caption targets",
+    usage: `${brand.cliCommand} update-numbering-mode <file> --mode automatic|fixed`,
+    details: ["Fixed preserves existing numbers and fills missing numbers from the current display. No document option is stored."],
+  },
+  {
     name: "update-enumerator",
     group: "Edit — labels, footnotes and numbering",
     summary: "Set or clear a fixed Equation, Figure or Table number through Core",
@@ -1266,6 +1274,11 @@ function changeFor(command: string, flags: string[], deferEndnotes = false): Cha
         flag(flags, "--to"),
       );
     }
+    case "update-numbering-mode": {
+      const mode = flag(flags, "--mode");
+      if (mode !== "automatic" && mode !== "fixed") throw new Error("--mode must be automatic or fixed");
+      return document => updateNumberingMode(document, mode);
+    }
     case "update-enumerator": {
       return document => updateEnumerator(document, pathFlag(flags), flag(flags, "--enumerator"));
     }
@@ -1488,6 +1501,7 @@ const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   "update-node-text": ["--path", "--from", "--to"],
   "update-equation-latex": ["--path", "--from", "--to"],
   "update-label": ["--path", "--label", "--update-references"],
+  "update-numbering-mode": ["--mode"],
   "update-enumerator": ["--path", "--enumerator"],
 };
 

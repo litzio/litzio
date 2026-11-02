@@ -71,13 +71,46 @@ The complete semantic fingerprint includes enumerator, and canonical writing/reo
 preserves it. The Core writer adds the option to its existing table/Mermaid/pending writers
 and the upstream image/math directive output; no dependency patch is needed.
 
-`numberingReport(blocks)` infers `mode: "fixed"` if any numbered target has an enumerator,
-otherwise `"automatic"`. It returns numbered `targets` and warning `diagnostics` with stable
-codes, `severity: "warning"`, kind and snapshot path. In fixed mode, each missing enumerator
+`numberingReport(blocks)` infers `mode: "fixed"` when all numbered targets have enumerators,
+`"mixed"` when only some do, otherwise `"automatic"` (including no targets). It returns numbered `targets` and warning `diagnostics` with stable
+codes, `severity: "warning"`, kind and snapshot path. In mixed mode, each missing enumerator
 reports `numbering-missing`; every target sharing an exact string within its own kind reports
 `numbering-duplicate`. Different kinds have separate namespaces. Missing targets retain
 MyST's automatic fallback display until authored. These warnings identify a document that
 mixes modes or duplicates numbers; they never prevent Save, format or CLI edits.
+
+### Document-wide conversion (#892)
+
+Verification: Core 350 tests, CLI 83 tests, Editor 384 tests, typecheck/build and
+`numbering-mode` browser scenario (batch Undo, individual fix and Save/Reload).
+Manual captures use base `5e43b4c58e2de9f187e003d4a297ef013f0818b8`, the same
+scratch `fixed.md`, checkout-owned persistent Chrome, Vite port 5892, DPR 1 and
+loaded Pretendard fonts. English/light and Korean/dark at 1440×1000 / 640×1000:
+[before wide](assets/numbering-mode-892/numbering-mode-before-1440-en.png) /
+[after wide](assets/numbering-mode-892/numbering-mode-after-1440-en.png),
+[before narrow](assets/numbering-mode-892/numbering-mode-before-640-ko.png) /
+[after narrow](assets/numbering-mode-892/numbering-mode-after-640-ko.png).
+The existing settings rows and reference-style controls provide the comparison
+pattern. Vertical alignment, padding, Korean wrapping and viewport fit were
+visually reviewed; captures are manual evidence, separate from behavior assertions.
+
+
+Document settings show Core's inferred Automatic / Fixed / Mixed caption numbering mode.
+No frontmatter option is added. Mixed numbering remains intentional and savable, for
+example for appendices; missing-number notifications explain this and offer **Fix current
+number**, which fills that target from its current applied display number.
+
+`planNumberingChange(blocks, mode)` computes a simultaneous editor-neutral change plan.
+`updateNumberingMode(document, "automatic" | "fixed")` applies it as one Core operation:
+automatic removes all enumerators; fixed preserves existing strings and fills every missing
+target with its number from the pre-conversion display. It does not renumber later targets
+after each insertion or repair duplicates. Empty fixed equations retain the existing
+intermediate/final-write refusal. Editor applies the same Core plan in one engine history
+step, including newly inserted targets, and Save uses existing Core enumerator replay.
+One Undo restores the entire conversion. Unapplied property drafts remain separate.
+
+CLI: `litzio update-numbering-mode <file> --mode automatic|fixed`, including revision,
+dry-run, batch and atomic replacement behavior. Heading numbering is outside this operation.
 
 `updateEnumerator(document, [index], string)` sets or changes a fixed number; `""` clears it.
 The operation returns a new snapshot and preserves the input. Core operations allow an empty
@@ -86,7 +119,7 @@ copy of that empty equation without its enumerator, keeping the actual result un
 Final canonical write refuses the state with `fixed-number-unrepresentable` and guidance to
 enter equation content or clear the fixed number. MyST 1.7.4 requires a non-empty `{math}`
 body and `$$` cannot carry options; no dummy content or parser extension is used. An empty
-equation without a fixed number is savable and merely warns in fixed mode.
+equation without a fixed number is savable and merely warns when other targets have fixed numbers.
 
 CLI: `litzio update-enumerator <file> --path <index> --enumerator "A.3"`; an empty value
 clears it. Existing revision, dry-run and atomic file replacement rules apply. `inspect`

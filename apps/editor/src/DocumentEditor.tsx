@@ -1,7 +1,7 @@
 import { useTableWrap, setTableWrap } from "./table-wrap.ts";
 import { DocumentSettings, type DocumentSettingsHandle } from "./shell/DocumentSettings.tsx";
 import { useDocumentReading, type ReadingCallbacks } from "./document-reading.ts";
-import { NumberingNotice } from "./numbering-properties.tsx";
+import { NumberingNotice, editorNumberingReport, changeEditorNumbering } from "./numbering-properties.tsx";
 import { documentScrollContainer } from "./document-scroll.ts";
 import type { OverlayAnchor } from "./ui/use-overlay-bounds.ts";
 import { handleLinkClick, handleLinkMouseDown } from "./link-opening.ts";
@@ -412,6 +412,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     setBlockMenu(null);
   }, [editor, readOnly]);
   const settings = useEditorState({ editor, selector: ({ editor: current }) => current ? {
+    numberingMode: editorNumberingReport(current.state.doc).mode,
     headingNumbering: Boolean(current.state.doc.attrs.headingNumbering),
     referenceTemplates: current.state.doc.attrs.referenceTemplates as ReferenceTemplates | null,
     bibliography: (current.state.doc.attrs.bibliography ?? []) as string[],
@@ -937,9 +938,10 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       }}>
       {settings && !readOnly ? <DocumentSettings ref={documentSettings} {...settings} expanded={settingsExpanded}
         onExpandedChange={value => onSettingsExpandedChange?.(value)} disabled={settingsDisabled}
+        onNumberingModeChange={mode => changeEditorNumbering(editor, mode)}
         onToggleHeadingNumbering={toggleHeadingNumbering} onReferenceStyleChange={setReferenceStyle}
         onConnectBibliography={target => bibliographyControls.current?.connect(target)} /> : null}
-      <NumberingNotice editor={editor} onReveal={revealBlock} />
+      <NumberingNotice editor={editor} onReveal={revealBlock} disabled={settingsDisabled} />
       <DocumentTitle editor={editor} />
       <DocumentPathContext.Provider value={documentPath}><ImageRenameContext.Provider value={renameImage}>
         <BibliographyContent ref={bibliographyControls} editor={editor} bibliography={bibliography} documentPath={documentPath}>
