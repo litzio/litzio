@@ -54,3 +54,21 @@ body:has(.assistant-panel--overlay:not([hidden])) .notification-center { visibil
 .assistant-result { display: grid; gap: var(--space-2); margin-block: var(--space-3); padding: var(--space-3); border: var(--border-width) solid var(--id-color-border); border-radius: var(--id-radius-md); background: var(--id-color-surface); overflow-wrap: anywhere; word-break: keep-all; }
 .assistant-result small { color: var(--id-color-text-muted); }
 .assistant-result > div { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+.assistant-answer { white-space: normal; min-width: 0; }
+.assistant-markdown { overflow-wrap: anywhere; word-break: keep-all; }
+.assistant-markdown > :first-child { margin-top: 0; }
+.assistant-answer .assistant-markdown :is(h1, h2, h3, h4, h5, h6) { font-size: var(--font-size-md); line-height: 1.5; }
+.assistant-markdown p, .assistant-markdown ul, .assistant-markdown ol { margin-block: var(--space-2); }
+.assistant-markdown ul, .assistant-markdown ol { padding-left: var(--space-6); }
+.assistant-markdown a { color: var(--id-color-accent); text-decoration: underline; }
+.assistant-markdown blockquote { margin-inline: 0; padding-left: var(--space-3); border-left: 2px solid var(--id-color-border); }
+.assistant-markdown .code-block { margin-block: var(--space-3); padding: var(--space-2); background: var(--id-color-surface-subtle); border-radius: var(--id-radius-md); }
+.assistant-markdown pre { margin: 0; overflow-x: auto; white-space: pre; }
+.assistant-markdown code { font-family: var(--font-family-mono); font-size: var(--font-size-xs); }
+.assistant-markdown table { display: block; overflow-x: auto; border-collapse: collapse; }
+.assistant-markdown th, .assistant-markdown td { border: 1px solid var(--id-color-border); padding: var(--space-2); }
+.assistant-markdown .math.block, .assistant-markdown .katex-display { overflow-x: auto; max-width: 100%; }
+.assistant-copy { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.assistant-copy [role="alert"] { color: var(--id-color-danger); }
+.assistant-markdown .math.inline { display: inline-block; max-width: 100%; overflow-x: auto; vertical-align: middle; }

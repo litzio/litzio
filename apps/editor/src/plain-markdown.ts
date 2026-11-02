@@ -7,13 +7,7 @@ import { figureMediaPath } from "../shared/figure-media-path.ts";
 
 /** Display only. No Core admission, rewriting or serialization. Raw HTML stays text. */
 export function renderPlainMarkdown(source: string, path: string): string {
-  const md = new MarkdownIt({ html: false, linkify: false, typographer: false })
-    .use(footnote).use(taskLists).use(dollarmath, {
-      allow_labels: false,
-      renderer: (text: string, options: { displayMode: boolean }) => katex.renderToString(text, {
-        displayMode: options.displayMode, throwOnError: false, trust: false, maxExpand: 1000,
-      }),
-    });
+  const md = markdownRenderer();
   const image = md.renderer.rules.image!;
   md.renderer.rules.image = (tokens, index, options, env, renderer) => {
     const token = tokens[index];
@@ -23,6 +17,25 @@ export function renderPlainMarkdown(source: string, path: string): string {
     else if (!/^https?:\/\//i.test(src)) return md.utils.escapeHtml(token.content);
     return image(tokens, index, options, env, renderer);
   };
+  return md.render(source);
+}
+
+/** Assistant display has no document path or automatic image requests. */
+export function renderAssistantMarkdown(source: string, scope: string): string {
+  const md = markdownRenderer();
+  md.renderer.rules.image = (tokens, index) => md.utils.escapeHtml(tokens[index].content);
+  md.renderer.rules.footnote_anchor_name = (tokens, index) => `${scope}-${tokens[index].meta.id + 1}`;
+  return md.render(source);
+}
+
+function markdownRenderer() {
+  const md = new MarkdownIt({ html: false, linkify: false, typographer: false })
+    .use(footnote).use(taskLists).use(dollarmath, {
+      allow_labels: false,
+      renderer: (text: string, options: { displayMode: boolean }) => katex.renderToString(text, {
+        displayMode: options.displayMode, throwOnError: false, trust: false, maxExpand: 1000,
+      }),
+    });
   const link = md.renderer.rules.link_open ?? ((tokens, index, options, _env, renderer) => renderer.renderToken(tokens, index, options));
   md.renderer.rules.link_open = (tokens, index, options, env, renderer) => {
     const token = tokens[index], href = token.attrGet("href") ?? "";
@@ -39,5 +52,5 @@ export function renderPlainMarkdown(source: string, path: string): string {
   md.renderer.rules.fence = (...args) => `<div class="code-block">${fence(...args)}</div>`;
   const code = md.renderer.rules.code_block!;
   md.renderer.rules.code_block = (...args) => `<div class="code-block">${code(...args)}</div>`;
-  return md.render(source);
+  return md;
 }

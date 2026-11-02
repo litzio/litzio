@@ -9,6 +9,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { i18n, type MessageKey } from "../i18n.ts";
 import { brand } from "../../../../brand.ts";
 import "./assistant.css";
+import { AssistantAnswer } from "./AssistantAnswer.tsx";
 
 async function request<T>(url: string, body?: unknown): Promise<T> {
   const response = await fetch(import.meta.env.BASE_URL + url.replace(/^\//, ""), body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined);
@@ -141,7 +142,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
         else onClose();
       }
       if (event.key === "Tab" && overlay) {
-        const controls = Array.from(panel.current!.querySelectorAll<HTMLElement>('button:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')).filter(element => element.getClientRects().length);
+        const controls = Array.from(panel.current!.querySelectorAll<HTMLElement>('a[href], button:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')).filter(element => element.getClientRects().length);
         const first = controls[0], last = controls.at(-1);
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -170,7 +171,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
           {turn.items.filter(item => item.kind === "user").map(item => <p key={item.id} className="assistant-user">{item.text}</p>)}
           {turn.items.some(item => !["user", "assistant"].includes(item.kind)) ? <details key={`${turn.id}-${turn.status}`} open={turn.status === "inProgress"} className="assistant-steps"><summary>{i18n.t(turn.status === "inProgress" ? "Working…" : "Work details")}</summary>
             {turn.items.filter(item => !["user", "assistant"].includes(item.kind)).map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}</details> : null}
-          {turn.items.filter(item => item.kind === "assistant").map(item => <div key={item.id} className="assistant-answer">{item.text}</div>)}
+          {turn.items.filter(item => item.kind === "assistant").map(item => <AssistantAnswer key={item.id} source={item.text} />)}
           {turn.items.map(item => {
             const result = createdDocument(item);
             if (!result) return null;
