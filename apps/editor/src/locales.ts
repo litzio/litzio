@@ -1,6 +1,21 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "none": "none",
+  "minimal": "minimal",
+  "low": "low",
+  "medium": "medium",
+  "high": "high",
+  "xhigh": "xhigh",
+  "connected": "connected",
+  "connecting": "connecting",
+  "disconnected": "disconnected",
+  "failed": "failed",
+  "notLoggedIn": "notLoggedIn",
+  "bearerToken": "bearerToken",
+  "oAuth": "oAuth",
+  "tokens": "tokens",
+
   "Undo deletes the created file.": "Undo deletes the created file.",
   "The file changed during the operation. Review it and try again.": "The file changed during the operation. Review it and try again.",
   "The created file is outside the opened folders.": "The created file is outside the opened folders.",
@@ -1032,6 +1047,21 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "none": "없음",
+  "minimal": "최소",
+  "low": "낮음",
+  "medium": "보통",
+  "high": "높음",
+  "xhigh": "매우 높음",
+  "connected": "연결됨",
+  "connecting": "연결 중",
+  "disconnected": "연결 끊김",
+  "failed": "실패",
+  "notLoggedIn": "로그인 필요",
+  "bearerToken": "인증 토큰",
+  "oAuth": "OAuth",
+  "tokens": "토큰",
+
   "Undo deletes the created file.": "되돌리면 이번에 만든 파일이 삭제됩니다.",
   "The file changed during the operation. Review it and try again.": "작업 중 파일이 다시 바뀌었습니다. 확인 후 다시 시도하세요.",
   "The created file is outside the opened folders.": "만든 파일이 현재 열린 폴더 범위 밖에 있습니다.",
@@ -1048,10 +1078,10 @@ export const ko: Record<keyof typeof en, string> = {
   "Not bundled with this app": "앱 기본 아님",
   "Register app default again": "기본 버전으로 다시 등록",
   "Register app default again?": "기본 버전으로 다시 등록할까요?",
-  "Register the bundled revision of {{name}}? This turns the plugin on.": "앱에 포함된 {{name}}의 기본 revision으로 다시 등록합니다. 플러그인이 켜집니다.",
-  "Installation revision": "설치 revision",
+  "Register the bundled revision of {{name}}? This turns the plugin on.": "앱에 포함된 {{name}}의 기본 버전으로 다시 등록합니다. 플러그인이 켜집니다.",
+  "Installation revision": "설치 식별값",
   "Installation path": "저장소 경로",
-  "App default revision": "앱 기본 revision",
+  "App default revision": "앱 기본 식별값",
   "No installed plugins.": "설치된 플러그인이 없습니다.",
 
   "Declined": "거절됨",

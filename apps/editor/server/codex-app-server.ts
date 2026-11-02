@@ -56,7 +56,7 @@ export class CodexAppServer extends EventEmitter {
     const version = await this.version();
     if (!version) throw new Error("Codex CLI could not be executed on the Host.");
     const match = version?.match(/(\d+)\.(\d+)\.(\d+)/);
-    if (!match || Number(match[1]) === 0 && Number(match[2]) < 166) throw new Error("Codex 0.166.0 or later is required.");
+    if (!match || Number(match[1]) === 0 && Number(match[2]) < 141) throw new Error("Codex 0.141.0 or later is required.");
     if (this.closed) throw new Error("Codex app-server is closed.");
     const cmd = command(bin);
     const child = spawn(cmd.bin, this.options.args ?? ["app-server"], { cwd: this.cwd, shell: cmd.shell,

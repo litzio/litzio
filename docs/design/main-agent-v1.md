@@ -1,6 +1,7 @@
 # Main agent connection, settings and conversations
 
 - Status: Implemented
+- Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
 - Last verified: 2026-11-02 (#931 implementation 2, PR 2: 409 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
 - Scope: main-agent connection, Settings, shell-owned assistant panel and Codex conversations. Includes new-document result cards, guarded creation undo and the product-owned usage-guide skill.
 - Authority: [ADR-0014](../adr/0014-main-agent-app-server.md), [#931](https://github.com/litzio/litzio/issues/931) owner decisions and approved v3.1 settings mockup.
@@ -8,13 +9,18 @@
 ## Connection and environment
 
 The existing Host composition owns a lazy `CodexAppServer`. It resolves Codex
-from PATH, checks version >= 0.166.0, spawns one stdio child, sends `initialize`
+from PATH, checks version >= 0.141.0, spawns one stdio child, sends `initialize`
 then `initialized`, and matches newline JSON-RPC responses by ID. Concurrent
 requests share initialization. UTF-8 chunks may split characters. Provider
 errors, malformed messages, process exit and request deadlines reject pending
 work; no request is replayed automatically. A later explicit request can
 initialize after a failed launch or an exited process. Malformed protocol output
 closes the connection; that Host must restart before reconnecting.
+
+The minimum is the first version providing all app-server contracts Litzio uses,
+including the current function dynamic-tool registration format (#967). It is
+raised only when a required contract changes, independently of the versions used
+for actual verification recorded below. Older versions report an update requirement.
 
 The user's environment, including any existing `CODEX_HOME`, is inherited.
 No credential/configuration file is copied or written. The cwd is the branded
@@ -125,6 +131,26 @@ Korean then selecting English no longer freezes the AI menu or description in
 Korean; Docling uses the same metadata convention.
 
 ## Verification and remaining scope
+
+### Minimum-version check (#967, 2026-11-03)
+
+The 0.141.0 floor is based on the required app-server contracts, not a claim
+of full-flow model execution on that version. A temporary local Codex 0.141.0
+installation with an auth-only temporary `CODEX_HOME` confirmed connection,
+model listing and settings save using `gpt-5.5` / `low`. Its catalog did not
+include `gpt-6.1-sol`; recent models can only be selected in Codex versions whose
+catalog knows them. The ChatGPT account rejected the listed `gpt-5.5` with
+`model_not_found`, so successful conversation execution, document tools, steering
+and continuation could not be verified on 0.141.0. The first immediate steer
+attempt returned `no active turn to steer`; a later instrumented attempt
+recorded model rejection and failed `turn/completed` before any tool or answer
+progress, so no steer-contract difference was established. A restarted Host
+restored that failed conversation, but there was no tool-result card to restore.
+Actual full-flow verification remains on 0.166.0, as recorded below. An older
+Codex may offer no model usable by the account; the owner accepts this limitation
+and defers handling until it causes a real user problem. No model workaround or
+additional test scenario is introduced. Original and temporary auth-file hashes
+were identical after both version checks; temporary auth files were deleted.
 
 `ai-agent-connection.test.ts` runs a fake Node child speaking newline JSON-RPC:
 one process/initialization, UTF-8 splits, notifications, catalog pagination,
@@ -416,6 +442,15 @@ Vite start retains the original assertions. Confirmation text explicitly names r
 records: [1440px English](assets/assistant-results-931/confirm-review-1440.png) and
 [640px Korean Dark](assets/assistant-results-931/confirm-review-640.png).
 
+UI-owned reasoning-effort labels, MCP connection/authentication states and token units follow the display language, including plugin `host.text` rendering. Provider model names, descriptions, IDs and diagnostic payloads remain provider data. Translated labels retain the original option values and do not change the selected response language.
+
+#975 source captures (1440px Light English / 640px Dark Korean):
+
+- ai-1440-light-en.png: [Before](assets/ko-text-975/before-ai-1440-light-en.png) / [After](assets/ko-text-975/after-ai-1440-light-en.png).
+- ai-640-dark-ko.png: [Before](assets/ko-text-975/before-ai-640-dark-ko.png) / [After](assets/ko-text-975/after-ai-640-dark-ko.png).
+
+Assistant: [1440px](assets/ko-text-975/after-running-1440-light-en.png), [640px Korean](assets/ko-text-975/after-assistant-640-dark-ko.png). Conversation content and selected response language are preserved.
+
 ## Assistant answer display and copy (#982)
 
 Assistant messages use the existing plain Markdown display parser (markdown-it,
@@ -454,3 +489,4 @@ Visual inspection checked control padding/centering, Korean wrapping, theme cont
 and transcript/composer separation. Code, tables and math remain locally scrollable.
 Reproduce after captures with `pnpm browser:test ai-agent --screenshots`; traces and
 runtime fixture files are intentionally not committed.
+

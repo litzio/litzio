@@ -97,6 +97,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await expect(page.getByRole('button', { name: 'Codex 모델', exact: true })).toContainText('사용 가능');
   await expect(page.getByLabel('모델', { exact: true })).toHaveValue('gpt-6.1-sol');
   await expect(page.getByLabel('추론 강도', { exact: true })).toHaveValue('high');
+  await expect(page.getByLabel('추론 강도', { exact: true }).locator('option')).toHaveText(['보통', '높음']);
   expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/ai-640-dark-ko.png' });
   await page.getByRole('button', { name: 'Codex 모델', exact: true }).click();
@@ -108,6 +109,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await expect(page.getByRole('button', { name: 'Codex 모델', exact: true })).toBeFocused();
   await page.getByTestId('settings-dialog').getByRole('button', { name: '진단', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Codex 진단', exact: true })).toBeVisible();
+  await expect(page.getByText('docs · 연결됨 · OAuth', { exact: true })).toBeVisible();
   expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-640-dark-ko.png' });
   await page.getByRole('button', { name: '← AI 에이전트', exact: true }).click();
@@ -421,6 +423,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   expect(await panel.getByRole('textbox').evaluate(element => document.activeElement === element)).toBe(true);
   expect(await panel.evaluate(element => ({ width: element.getBoundingClientRect().width, overflow: element.scrollWidth > element.clientWidth }))).toEqual({ width: 640, overflow: false });
   expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(true);
+  await expect(panel.getByRole('button', { name: '대화 모델과 언어' })).toContainText('높음');
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/assistant-640-dark-ko.png' });
   await panel.getByRole('button', { name: '비서 닫기' }).click(); await expect(editor).toBeFocused();
   expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(false);

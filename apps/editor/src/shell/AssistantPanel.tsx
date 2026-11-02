@@ -6,7 +6,7 @@ import { AI_AGENT, AI_TASK, type AiAgentSettings, type AiConversation, type AiCo
 import { Button } from "@/components/ui/button.tsx";
 import { Popover, PopoverContent } from "@/components/ui/popover.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
-import { i18n } from "../i18n.ts";
+import { i18n, type MessageKey } from "../i18n.ts";
 import { brand } from "../../../../brand.ts";
 import "./assistant.css";
 import { AssistantAnswer } from "./AssistantAnswer.tsx";
@@ -205,7 +205,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       <textarea ref={input} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => setMessage(event.target.value)}
         disabled={!ready || !settings?.enabled || !!setup} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
       <div className="assistant-controls">
-        <Button ref={choicesAnchor} type="button" variant="outline" size="sm" disabled={active || pending} aria-label={i18n.t("Conversation model and language")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{model || "Codex"} · {effort}</Button>
+        <Button ref={choicesAnchor} type="button" variant="outline" size="sm" disabled={active || pending} aria-label={i18n.t("Conversation model and language")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{model || "Codex"} · {i18n.t(effort as MessageKey)}</Button>
         <Button type="button" variant="outline" size="sm" aria-label={i18n.t("Response language")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{language === "ko" ? "한국어" : language === "ja" ? "日本語" : language === "en" ? "English" : i18n.t("Follow document language")}</Button>
         <Popover open={choicesOpen && open} onOpenChange={setChoicesOpen}><PopoverContent anchor={choicesAnchor} side="top" align="start" className="assistant-choices" finalFocus={choicesAnchor}>
         <label htmlFor="assistant-model">{i18n.t("Model")}</label>
@@ -213,7 +213,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
           {!catalogModel ? <option value={model}>{model}</option> : null}{models?.models.map(value => <option key={value.id} value={value.model}>{value.displayName}</option>)}
         </select>
         <label htmlFor="assistant-effort">{i18n.t("Reasoning effort")}</label>
-        <select id="assistant-effort" className="form-select" aria-label={i18n.t("Reasoning effort")} value={effort} disabled={active || pending || !catalogModel} onChange={event => setEffort(event.target.value)}>{catalogModel?.supportedReasoningEfforts.map(value => <option key={value.reasoningEffort}>{value.reasoningEffort}</option>)}</select>
+        <select id="assistant-effort" className="form-select" aria-label={i18n.t("Reasoning effort")} value={effort} disabled={active || pending || !catalogModel} onChange={event => setEffort(event.target.value)}>{catalogModel?.supportedReasoningEfforts.map(value => <option key={value.reasoningEffort} value={value.reasoningEffort}>{i18n.t(value.reasoningEffort as MessageKey)}</option>)}</select>
         <label htmlFor="assistant-language">{i18n.t("Response language")}</label>
         <select id="assistant-language" className="form-select" aria-label={i18n.t("Response language")} value={language} disabled={pending} onChange={event => setLanguage(event.target.value as AiResponseLanguage)}><option value="ko">한국어</option><option value="en">English</option><option value="ja">日本語</option><option value="document">{i18n.t("Follow document language")}</option></select>
         <small>{i18n.t("These choices apply only to this conversation. Defaults are in AI settings.")}</small>
@@ -222,7 +222,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       <div className="assistant-footer">
         <Tooltip><TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
-        </TooltipTrigger><TooltipContent>{usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} tokens${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}</TooltipContent></Tooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
+        </TooltipTrigger><TooltipContent>{usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}</TooltipContent></Tooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
         {active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async () => setConversation(await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "interrupt", id: conversation!.id })))}><Square /></Button> : null}
         <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || !ready || !message.trim() || !catalogModel || !settings?.enabled || !!setup}><ArrowUp /></Button>
       </div>
