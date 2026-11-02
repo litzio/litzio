@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Decision date: 2026-11-02
+- Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
 - Last verified: 2026-11-02 (connection/settings and conversation implementation, fake stdio/Host and browser tests, one real Q&A turn with steering and read-only history resumption).
 - Authority: [#931 owner decisions](https://github.com/litzio/litzio/issues/931), including the approved split into connection/settings and subsequent conversation PRs, under [ADR-0012](0012-plugin-runtime-and-ui-contributions.md).
 - Partially supersedes: dedicated `CODEX_HOME` trigger 2 in [ADR-0013](0013-ai-agent-task-service.md).
@@ -13,10 +14,21 @@ starts one `codex app-server` child lazily, initializes it once and reuses newli
 JSON-RPC over stdio. The browser calls the existing same-origin Host transport;
 it never starts Codex or connects to another daemon. The implementation starts
 from the 10-28 spike's small transport, without a provider interface, adapter
-factory, event bus, retry layer or registry. Codex 0.166.0 is the minimum version.
+factory, event bus, retry layer or registry. Codex 0.141.0 is the minimum version (#967 owner decision, 2026-11-03).
+The floor is the first version with every app-server contract Litzio uses,
+including the current `{type: "function", name, description, inputSchema}`
+dynamic-tool registration format. Raise it only when a required contract changes.
 The owner accepts the experimental protocol risk at this concept stage. The
 [official app-server protocol](https://learn.chatgpt.com/docs/app-server) and
-locally generated 0.166.0 schemas were checked for the implemented RPCs.
+locally generated 0.166.0 schemas were originally checked for the implemented RPCs.
+
+The 2026-11-03 Codex 0.141.0 check confirmed connection, model listing and
+settings save with `gpt-5.5` / `low`. Its catalog omitted `gpt-6.1-sol`; the
+ChatGPT account rejected the listed `gpt-5.5` with `model_not_found`. Successful
+conversation execution, document tools, steering and continuation could therefore
+not be verified on 0.141.0. The actual full-flow verification version remains
+0.166.0. An older Codex may offer no model usable by the account; the owner
+accepts this limitation and defers handling until it causes a real user problem.
 
 Codex uses the user's existing login, configuration, instructions and sessions.
 Litzio does not create or override `CODEX_HOME`, and does not apply the task

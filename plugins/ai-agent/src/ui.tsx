@@ -53,7 +53,7 @@ export function activate(host: UiHost) {
       const selected = models?.models.find(item => item.model === name); if (!settings || !selected) return;
       setSettings({ ...settings, model: name, reasoningEffort: selected.supportedReasoningEfforts.some(item => item.reasoningEffort === settings.reasoningEffort) ? settings.reasoningEffort : selected.defaultReasoningEffort }); setSaved(false);
     };
-    const status = !settings || loading ? t("Checking…") : !settings.enabled ? t("Off") : diagnostics?.error?.includes("0.166.0") ? t("Update required") : diagnostics?.error ? t("Unavailable")
+    const status = !settings || loading ? t("Checking…") : !settings.enabled ? t("Off") : /Codex .+ or later is required\./.test(diagnostics?.error ?? "") ? t("Update required") : diagnostics?.error ? t("Unavailable")
       : diagnostics?.account === null ? t("Login required") : diagnostics?.connected && diagnostics.account ? t("Available") : t("Unavailable");
     const date = (value?: number) => value ? new Date(value).toLocaleString() : t("Not checked");
     const filteredModels = models?.models.filter(item => `${item.displayName} ${item.model}`.toLowerCase().includes(search.toLowerCase()));
