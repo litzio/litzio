@@ -70,10 +70,11 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
       }).map(match => match[0]);
     }));
     if (brokenWords.length) throw Error(`Ordinary domain words split at ${width}px: ${brokenWords.join(', ')}`);
-    // At 640px the three intrinsic word widths plus cell minima cannot fit.
-    // Require local scrolling rather than permitting a word to split to pass a fit check.
-    if (width === 640 && wrapping[0].overflow <= 1) throw Error('Narrow Table 1 must preserve word widths with local scrolling');
-    if (wrapping.length !== 2 || wrapping.some((t, i) => ((width === 1440 || i === 1) && t.overflow > 1) || t.lines < 2 || t.cellOverflow > 1))
+    if (screenshots) {
+      await tables.first().scrollIntoViewIfNeeded();
+      await page.screenshot({path:`tmp/901/wrap-${width}-${mode}.png`});
+    }
+    if (wrapping.length !== 2 || wrapping.some(t => t.overflow > 1 || t.lines < 2 || t.cellOverflow > 1))
       throw Error(`Table prose and identifiers must wrap at ${width}px: ${JSON.stringify(wrapping)}`);
   }
   // #902: view preferences never touch the editor history or document source.
@@ -429,12 +430,12 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   await page.keyboard.press('Escape');
   await page.setViewportSize({width:640, height:720});
   await initial.hover();
-  for (let i = 0; i < 5; i++) await initial.getByRole('button', {name:'Append column', exact:true}).click();
+  for (let i = 0; i < 10; i++) await initial.getByRole('button', {name:'Append column', exact:true}).click();
   await initial.locator('.table-scroll').evaluate(scroll => { scroll.scrollLeft = 0; });
   await assertTopActions(initial);
   await initial.locator('.table-scroll').evaluate(scroll => { scroll.scrollLeft = scroll.scrollWidth; });
   await assertTopActions(initial);
-  const last = initial.getByRole('button', {name:'Column G actions', exact:true});
+  const last = initial.getByRole('button', {name:'Column L actions', exact:true});
   await last.click();
   result.narrowGeometry = await initial.evaluate(block => {
     const table = block.querySelector('table');
@@ -452,13 +453,13 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
       }) &&
       document.documentElement.scrollWidth <= innerWidth;
   });
-  result.menuWithinViewport = await page.getByRole('menu', {name:'Column G actions', exact:true}).evaluate(menu => {
+  result.menuWithinViewport = await page.getByRole('menu', {name:'Column L actions', exact:true}).evaluate(menu => {
     const r = menu.getBoundingClientRect();
     return r.left >= 0 && r.right <= innerWidth && r.top >= document.querySelector('.app-header').getBoundingClientRect().bottom && r.bottom <= innerHeight;
   });
   await page.keyboard.press('Escape');
   await initial.locator('td').first().click();
-  for (let i = 0; i < 5; i++) await page.keyboard.press('Control+z');
+  for (let i = 0; i < 10; i++) await page.keyboard.press('Control+z');
   await page.setViewportSize({width:1280, height:720});
   result.toolsNeverPersist = !JSON.stringify(await page.evaluate(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.getJSON())).includes('data-current-cell');
 
