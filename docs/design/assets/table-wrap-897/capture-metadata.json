@@ -1,0 +1,229 @@
+{
+  "capturedAtUtc": "2026-11-02T00:09:15.610050+00:00",
+  "sourceParentCommit": "f38f48ed54903f36da8ed60dc320db37e6e48511",
+  "sourceState": "worktree correction; exact bytes identified by sourceSha256",
+  "sourceSha256": {
+    "apps/editor/src/styles.css": "7b4be9c67b95cf32bf1f39bb7fb6fd86ddc8bb16dc84d5aab02e853deccd6241",
+    "apps/editor/src/styles/tokens.css": "faa3218ffdf589234866323ef633a33634d4df41c706818f5e5fd593f383564b",
+    "docs/design/assets/table-wrap-897/capture.browser.js": "20ac6649fbff9f728b261823ca61ae2032888e2d0298eeafe1cedc0c133a34c9",
+    "plugins/docling/test/fixtures/nist-sp1108r4/document.md": "f49c488ce5cf728c76f86165802047a2582590b5c1eeff55b328d371e7921b11",
+    "tmp/table-authoring/wrapping.md": "7da36645ba24b5857c3bcf9f64240d11650019dc4dd1e92d3ae2516efa3b4dd0",
+    "tmp/table-authoring/tables.md": "9704d64f72a06572c71f362f0a0acf712c76a1b2ac8b2926c298ce231a930e0c"
+  },
+  "before": {
+    "productCommit": "73b9364921c4d39c0c749caf49ac14695caff093",
+    "note": "Preserved initial captures; not recaptured in this correction."
+  },
+  "captures": [
+    {
+      "path": "docs/design/assets/table-wrap-897/after-1440.png",
+      "width": 1440,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "light",
+      "language": "en",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "tables": [
+        {
+          "width": 736,
+          "scrollWidth": 736,
+          "scrollLeft": 0
+        },
+        {
+          "width": 736,
+          "scrollWidth": 736,
+          "scrollLeft": 0
+        }
+      ]
+    },
+    {
+      "path": "docs/design/assets/table-wrap-897/after-1440-korean.png",
+      "width": 1440,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "light",
+      "language": "en",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "tables": [
+        {
+          "width": 736,
+          "scrollWidth": 736,
+          "scrollLeft": 0
+        },
+        {
+          "width": 736,
+          "scrollWidth": 736,
+          "scrollLeft": 0
+        }
+      ]
+    },
+    {
+      "path": "docs/design/assets/table-wrap-897/after-640.png",
+      "width": 640,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "language": "ko",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "tables": [
+        {
+          "width": 312,
+          "scrollWidth": 363,
+          "scrollLeft": 0
+        },
+        {
+          "width": 312,
+          "scrollWidth": 312,
+          "scrollLeft": 0
+        }
+      ]
+    },
+    {
+      "path": "docs/design/assets/table-wrap-897/after-640-korean.png",
+      "width": 640,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "language": "ko",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "tables": [
+        {
+          "width": 312,
+          "scrollWidth": 363,
+          "scrollLeft": 0
+        },
+        {
+          "width": 312,
+          "scrollWidth": 312,
+          "scrollLeft": 0
+        }
+      ]
+    },
+    {
+      "path": "docs/design/assets/table-wrap-897/after-640-read.png",
+      "width": 640,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "language": "ko",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "tables": [
+        {
+          "width": 312,
+          "scrollWidth": 331,
+          "scrollLeft": 0
+        },
+        {
+          "width": 312,
+          "scrollWidth": 312,
+          "scrollLeft": 0
+        }
+      ]
+    },
+    {
+      "path": "docs/design/assets/table-wrap-897/after-1440-wide-start.png",
+      "width": 1440,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "language": "en",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "tables": [
+        {
+          "width": 736,
+          "scrollWidth": 825,
+          "scrollLeft": 0
+        }
+      ]
+    },
+    {
+      "path": "docs/design/assets/table-wrap-897/after-1440-wide-end.png",
+      "width": 1440,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "language": "en",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "tables": [
+        {
+          "width": 736,
+          "scrollWidth": 825,
+          "scrollLeft": 89
+        }
+      ]
+    },
+    {
+      "path": "docs/design/assets/table-wrap-897/after-640-wide-start.png",
+      "width": 640,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "language": "en",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "tables": [
+        {
+          "width": 312,
+          "scrollWidth": 825,
+          "scrollLeft": 0
+        }
+      ]
+    },
+    {
+      "path": "docs/design/assets/table-wrap-897/after-640-wide-end.png",
+      "width": 640,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "language": "en",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "tables": [
+        {
+          "width": 312,
+          "scrollWidth": 825,
+          "scrollLeft": 513
+        }
+      ]
+    },
+    {
+      "path": "docs/design/assets/table-wrap-897/after-1440-compare.png",
+      "width": 1440,
+      "height": 1000,
+      "dpr": 1,
+      "theme": "dark",
+      "language": "en",
+      "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "tables": [
+        {
+          "width": 505,
+          "scrollWidth": 505,
+          "scrollLeft": 0
+        },
+        {
+          "width": 505,
+          "scrollWidth": 505,
+          "scrollLeft": 0
+        },
+        {
+          "width": 505,
+          "scrollWidth": 505,
+          "scrollLeft": 0
+        }
+      ]
+    }
+  ],
+  "pngSha256": {
+    "after-1440-compare.png": "fcde3805b07cc99265f809d35c81df8d5f2668c2612093aea5b8d72b6e999096",
+    "after-1440-korean.png": "54cd3ac71eeb6dc24cfa9208ac30e3815bdf4b2b9805cf39ca5b249c50a3eb38",
+    "after-1440-wide-end.png": "2acd29c59689c19f781e32f5fbeca5ca054f8b107703ee16107f2ce7b213767a",
+    "after-1440-wide-start.png": "1abbc9114571f3aabf1f6ddc70943f497c1ee2d46dfe133024713e5a1a3f9dd9",
+    "after-1440.png": "02acc50114288183acbef9a7b219fa92c5ad870bae80cf9f163169245c316794",
+    "after-640-korean.png": "f38636b8562216c7fc37a04d0dbc68e7f052fe06e7dd2c119e83162595da1682",
+    "after-640-read.png": "9357a5ec5d1fe073d8e0a1404aae2a499547f6f8e049ac6a354212ef0fb737c3",
+    "after-640-wide-end.png": "f555409801307b74990462bb480a5e6db528b0e867e588945cc32a3a6feda5f4",
+    "after-640-wide-start.png": "380c5c10b895d4808932ca7c1650125de0d12a8947e347c23d0a26a8d6a43007",
+    "after-640.png": "61c5d34e783cc2e47ee93367d408258afa38d6c30acf80d4c980d4821b07820f",
+    "before-1440.png": "bd8efd1df157f7e72c2dd92bc66157abd1ccca89ecbdfd12510e18333326f2de",
+    "before-640.png": "84cd09b0f8374bde7310ddccb3a8ad37ebf099ab348bb61c757b9e40c97a7d87"
+  },
+  "review": "Manual visual evidence, not automated source-fidelity proof. Table 1 scrolls locally at 640px to preserve words; Korean/URL table fits both widths."
+}

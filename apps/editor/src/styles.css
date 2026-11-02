@@ -1643,7 +1643,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
   font-family: var(--font-family-sans);
 }
 
-.table-scroll { overflow-x: auto; }
+.table-scroll { overflow-x: auto; container-type: inline-size; }
 
 /* Wide tables and formulas scroll inside their block. A thin scrollbar stays visible (overlay
  * scrollbars would hide it until hovered), and the edge with more content fades out. The fade
@@ -1671,7 +1671,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 }
 /* The table starts on the text axis. Rows never scroll sideways, so their handles and Append row
  * live in a layer outside the scroller, left of the axis; column handles scroll with the columns. */
-.table-grid { position: relative; min-width: 100%; width: max-content; padding: calc(var(--size-control-compact) + var(--size-table-handle-gutter)) var(--size-table-handle-gutter) calc(var(--size-control-compact) + 2 * var(--space-2)) 0; box-sizing: border-box; }
+.table-grid { position: relative; width: 100%; padding: calc(var(--size-control-compact) + var(--size-table-handle-gutter)) var(--size-table-handle-gutter) calc(var(--size-control-compact) + 2 * var(--space-2)) 0; box-sizing: border-box; }
 .table-row-layer {
   position: absolute;
   top: 0;
@@ -1737,7 +1737,11 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 
 .table th,
 .table td {
-  min-width: 7rem;
+  min-width: var(--size-table-cell-min-width);
+  /* Preserve word-based intrinsic sizing, but cap an unbroken identifier's claim.
+   * Auto table layout can still distribute spare space beyond this intrinsic cap. */
+  max-width: max(var(--size-table-cell-min-width), var(--size-table-cell-intrinsic-max));
+  overflow-wrap: break-word;
   padding: var(--space-document-table-cell-block) var(--space-document-table-cell-inline);
   border: var(--border-width) solid var(--id-color-border);
   text-align: left;

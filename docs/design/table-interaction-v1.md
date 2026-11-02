@@ -31,6 +31,67 @@ writes a `{table}` directive even when both are absent (#584; [format contract](
 - Verification: existing table command/unit tests, extended table-authoring browser regression, typecheck, production build and required CI.
 - CLI: no new semantic operation; existing Core/CLI table commands already cover these actions. Handles and focus are Editor-only.
 
+## Cell wrapping (#897)
+
+Tables first fit the document width, wrapping prose within cells. Cells use
+`overflow-wrap: break-word` to preserve ordinary word widths in intrinsic sizing.
+The scroller is an inline-size container; a cell's intrinsic maximum is capped at
+half that width (`--size-table-cell-intrinsic-max: 50cqi`), never below the adjustable 5.5rem cell minimum. This
+bounds a long URL/identifier's claim while auto table layout still distributes
+spare space. The two-column Korean/URL fixture fits at 1440/640px. Tables whose
+word widths and cell minima cannot fit scroll locally with the existing fades.
+This includes Table 1 at 640px with Explorer expanded: keeping Transmission,
+Distribution and each word of Generation Including DER intact takes priority over
+forcing the three columns into that narrow text area. Several columns containing
+very long unbroken strings can still require local scrolling; CSS cannot identify
+which strings are natural words. No per-content classification is introduced. Editing,
+Read and Docling comparison share this presentation. Row/column handles follow
+measured cells, upper Edit/More and metadata remain outside horizontal scrolling,
+and Append row remains after the caption. No Core, CLI or serialization changes.
+
+### Verification and captures
+
+Before product edits, the extended `table-authoring` assertion failed at 1440px:
+NIST Table 1 overflowed by 3710px with a single text line; the URL fixture overflowed
+by 1749px. Review then caught Transmission/Distribution splitting under `anywhere`;
+the added glyph-range assertion failed at 1440px before this correction. Both tables
+now fit at 1440px; Korean/URL still fits at 640px, while narrow Table 1 explicitly
+requires local scrolling and intact domain words in Edit and Read. The former
+narrow fit assertion is replaced by these stronger word-preservation requirements;
+the URL fit/cell-containment checks remain unchanged. Existing
+many-column scrolling, handle alignment, keyboard commands and Save/Reload checks
+remain active. `docling-compare` also checks the actual NIST Table 1 wraps.
+`quiet-document` again requires `break-word` in all inline code/math contexts.
+
+Local checks: 33 targeted unit/fixture/token tests; Editor typecheck/build;
+`table-authoring`, `table-cell-editing`, `layout-rules`, `quiet-document`,
+`docling-compare`; docs and whitespace checks. Platform/packaging checks belong to CI.
+
+Manual captures use the existing persistent Chrome runner at 127.0.0.1:5292,
+DPR 1, bundled Pretendard, 1440×1000 Light/English and 640×1000 Dark/Korean.
+The [capture script](assets/table-wrap-897/capture.browser.js) uses an exact copy
+of NIST Table 1 plus a separate Korean/URL supplement; wide captures use the
+small authoring fixture with seven appended columns. Self-review covered cell
+padding/vertical centering, current-cell outline, table hover boundary, measured
+handles, upper controls, caption/Append row, local scrolling and directional fades.
+The renewed After captures and [capture metadata](assets/table-wrap-897/capture-metadata.json)
+record viewport, theme, browser, scroll geometry and SHA-256 hashes of sources,
+fixtures, capture script and PNGs. At 640px the expanded-Explorer Table 1 scrolls
+slightly to preserve intrinsic word widths. Comparison captures show
+converted text layout; their source-page placeholders are not source-fidelity proof.
+Capture traversal is manual evidence, not an extra automated regression pass.
+
+| State | Before | After |
+| --- | --- | --- |
+| Table 1, 1440px | [PNG](assets/table-wrap-897/before-1440.png) | [PNG](assets/table-wrap-897/after-1440.png) |
+| Table 1, 640px Dark/Korean | [PNG](assets/table-wrap-897/before-640.png) | [PNG](assets/table-wrap-897/after-640.png) |
+| Korean/URL, 1440px | — | [PNG](assets/table-wrap-897/after-1440-korean.png) |
+| Korean/URL, 640px | — | [PNG](assets/table-wrap-897/after-640-korean.png) |
+| Read, 640px | — | [PNG](assets/table-wrap-897/after-640-read.png) |
+| Wide table, 1440px | — | [Start](assets/table-wrap-897/after-1440-wide-start.png) · [End](assets/table-wrap-897/after-1440-wide-end.png) |
+| Wide table, 640px | — | [Start](assets/table-wrap-897/after-640-wide-start.png) · [End](assets/table-wrap-897/after-640-wide-end.png) |
+| Docling comparison, 1440px | — | [PNG](assets/table-wrap-897/after-1440-compare.png) |
+
 ## Property entry (#557)
 
 The number area of the metadata line selects the whole Table on single click, opens its
