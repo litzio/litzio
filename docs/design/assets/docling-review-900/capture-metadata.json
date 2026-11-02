@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "bae2dcd3022ca74a0350b0af4066816098f7716a",
+  "sourceCommit": "0b7a299b05a300f3d3177119957773d16f947a8d",
   "browser": "Windows installed Chrome, persistent checkout profile, pnpm browser:test docling-review --screenshots",
   "viewportHeight": 1000,
   "cases": [
@@ -7,12 +7,12 @@
     "640 Dark Korean"
   ],
   "data": "Synthetic MIT Docling fixture; fake AI adapter, real C1 Host decisions; no real AI/OCR quality assessment",
-  "manualReview": "Panel below panes, visible action footer, source and measured-target highlight, long Korean reason and paths, theme and wrapping reviewed. Source image/text remain narrow at 640px under the existing comparison limitation. Dashboard captured at the current result, keeping prior local test receipts visible.",
-  "observedLimitation": "Earlier Windows browser attempts saw intermittent C1 directory-publication EPERM with rollback and visible error; origin not established. No retries or assertions were weakened; subsequent runs completed approval/rejection/undo.",
+  "manualReview": "Panel below panes, visible action footer, source and measured-target highlight, long Korean reason and paths, theme and wrapping reviewed. Source image/text remain narrow at 640px under the existing comparison limitation. Dashboard captured at the current result, keeping prior local test receipts visible. Proposal list and details now scroll independently; an overflowing synthetic list is tested with its final selected reason in viewport. Page images are decoded and fonts ready before panel captures.",
+  "observedLimitation": "Windows local runs intermittently fail C1 directory-publication with EPERM, including capture regeneration; rollback and visible errors were observed, alongside complete successful runs. Origin remains unestablished. No retry logic or weakened assertions were added. CI on the previous head completed all required jobs.",
   "sha256": {
-    "dashboard-1440-light-en.png": "0d6e9e2c680f53fbc853bf7e310a99ceff20d3dcdf7f2f62f781034f8b413451",
-    "dashboard-640-dark-ko.png": "6fb846f714ad70b2571f41d2d587077397e964cb49eef53db4f7185011b3d5a1",
-    "review-1440-light-en.png": "2c99a56ff7172e002b4cbb275fd3614f5eeb7635d2625ff806cf246e766dad41",
-    "review-640-dark-ko.png": "951569b02dbc178125dc8e321ffd15e113cfd93c81752a2284cc4bab7bc69809"
+    "dashboard-1440-light-en.png": "097f7cde303d63c353d7056ac8e8d1598c9f2b39af22f8f96d59d99abcf0fee4",
+    "dashboard-640-dark-ko.png": "32da15edfc55b94c85e9a9678f1e15ebc26100031a1a4287a86004d3667ce7fc",
+    "review-1440-light-en.png": "8e11a8379e14e97b39fe7d8357458b8826b6a446c375b7dc0dc4b504e961e522",
+    "review-640-dark-ko.png": "178c062c8a37098671f7c86651f27649bfda65f74c64568680d753f7c856f5de"
   }
 }

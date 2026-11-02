@@ -39,8 +39,9 @@ The empty-state help therefore describes only file browsing, separately from the
 
 ## Structure review panel (#900)
 
-The bounded panel has independently scrolling proposal list and details below the two comparison panes lists pending,
-approved, rejected and inapplicable proposals, with stale source separately marked.
+Below the two comparison panes, a bounded panel lists pending, approved, rejected
+and inapplicable proposals, with stale source separately marked. The proposal
+list and selected details scroll independently, keeping a lower selection visible.
 Selecting a proposal reveals its original refs using the existing source selection
 and connector style and highlights measured right-hand blocks, without accessing
 Editor DOM or importing its internals. Merge proposals select both original refs.
@@ -63,8 +64,8 @@ Self-reviewed captures: [1440px panel](assets/docling-review-900/review-1440-lig
 [640px dashboard](assets/docling-review-900/dashboard-640-dark-ko.png).
 [Capture metadata](assets/docling-review-900/capture-metadata.json) records the source,
 hashes, review and the intermittent Windows C1 directory-publication EPERM seen
-in earlier local attempts. Those attempts rolled back with visible errors;
-no automatic retry or weaker assertion was added. Later complete runs passed.
+during local attempts, including capture regeneration. Those attempts rolled back with visible errors;
+no automatic retry or weaker assertion was added. Complete successful runs were also observed; the Windows intermittency remains unresolved.
 
 The left pane displays original page images with source bboxes using the map v1
 page sizes and each bbox's TOPLEFT/BOTTOMLEFT origin. Categories have token colors
