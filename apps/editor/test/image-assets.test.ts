@@ -623,3 +623,25 @@ test("destroyed Editor rolls back delayed upload; internal rich and text-only in
   assert.equal(e.view.state.doc.childCount, 2);
   assert.match(errors.join(" "), /closed|cancel|insert/i);
 });
+
+for (const field of ["dev", "ino"] as const) {
+  test(`asset rollback distinguishes large ${field} identities`, t => {
+    const { root, doc } = fixture(t);
+    let identity = 2n ** 54n;
+    assert.equal(Number(identity), Number(identity + 1n));
+    for (const method of ["lstatSync", "fstatSync"] as const) {
+      const original = fs[method].bind(fs);
+      t.mock.method(fs, method, (file: any, options?: fs.StatOptions) => {
+        const stat = original(file, options as any);
+        return Object.assign(stat, { [field]: options?.bigint ? identity : Number(identity) });
+      });
+    }
+    const created = createImageAsset(doc, "image/png", PNG, key);
+    identity++;
+    assert.throws(() => rollbackImageAsset({ documentPath: doc, ...created }, key), /Asset file changed; rollback refused/);
+    assert.deepEqual(fs.readFileSync(path.join(root, created.path)), PNG);
+    identity--;
+    rollbackImageAsset({ documentPath: doc, ...created }, key);
+    assert.equal(fs.existsSync(path.join(root, created.path)), false);
+  });
+}

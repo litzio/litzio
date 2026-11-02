@@ -32,12 +32,12 @@ function scope(request: FileOperationRequest, access: FileAccess) {
     if (path.relative(root, current) === "") break;
   }
   if (!inside(fs.realpathSync(root), fs.realpathSync(file))) throw new FileAccessError();
-  const owner = fs.lstatSync(file);
+  const owner = fs.lstatSync(file, { bigint: true });
   if (!owner.isFile()) throw new FileAccessError("Only regular files can be changed.");
   return { root, file, owner };
 }
 
-function assertOwner(request: FileOperationRequest, owner: fs.Stats, access: FileAccess) {
+function assertOwner(request: FileOperationRequest, owner: fs.BigIntStats, access: FileAccess) {
   const current = scope(request, access);
   if (current.owner.dev !== owner.dev || current.owner.ino !== owner.ino || current.owner.birthtimeMs !== owner.birthtimeMs) throw new Error("The file changed during the operation.");
   return current.file;
@@ -53,12 +53,12 @@ export async function deleteFile(request: FileOperationRequest, access: FileAcce
 function imageReferences(root: string, file: string, destination: string, openDocuments: RenameFileRequest["openDocuments"], access: FileAccess, figureDocument?: RenameFileRequest["figureDocument"]) {
   const documents: { loaded: ReturnType<typeof loadDocumentFile>; sources: Set<string> }[] = [];
   const references = new Set<string>(), skipped: string[] = [];
-  const image = fs.statSync(file);
+  const image = fs.statSync(file, { bigint: true });
   const matches = (documentPath: string, source: string) => {
     try {
       const encoded = figureMediaPath(source);
       if (!encoded) return false;
-      const referenced = fs.statSync(resolveMediaPath(encoded, documentPath, access));
+      const referenced = fs.statSync(resolveMediaPath(encoded, documentPath, access), { bigint: true });
       return referenced.dev === image.dev && referenced.ino === image.ino;
     } catch { return false; } // Remote, missing and out-of-scope media are not this image.
   };
