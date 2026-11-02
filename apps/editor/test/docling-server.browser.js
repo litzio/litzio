@@ -106,6 +106,7 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
       return job?.id === (await admitted).id && job.state !== 'running';
     }).then(response => response.json());
   };
+  let checkedCompletionLifetime = false;
   const expectComparison = async (completion, label = 'Docling comparison') => {
     const completed = await completion;
     expect(completed.state).toBe('success');
@@ -113,20 +114,47 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     const job = await (await page.request.get(page.url().split('/').slice(0, 3).join('/') + '/api/docling-conversion')).json();
     expect(job.state).toBe('success');
     expect(job.id).toBe(completed.id);
+    expect(await page.getByRole('tab', { name: / · Docling comparison$/ }).count()).toBe(0);
+    await expect(center.getByRole('button', { name: /^(Open comparison|대조 열기)$/ })).toBeVisible();
+    if (!checkedCompletionLifetime) {
+      // Lifetime check: completion must survive the start notice's five-second expiry.
+      await page.waitForTimeout(5100);
+      expect(await center.getByRole('button', { name: 'Open comparison', exact: true }).isVisible()).toBe(true);
+      checkedCompletionLifetime = true;
+    }
+    await capture(label === 'Docling comparison' ? 'completion-notice-en-1440' : 'completion-notice-ko-640');
+    await center.getByRole('button', { name: /^(Open comparison|대조 열기)$/ }).click();
     const bundle = job.output.split(/[\\/]/).at(-1);
     await expect(page.getByRole('tab', { name: `${bundle} · ${label}`, exact: true })).toBeVisible();
   };
-  await progress.getByRole('button', { name: /Start conversion|Convert again/ }).click();
-  await expect(progress).toContainText('Server task');
+  await expect(progress).toContainText('paper.pdf');
+  await expect(progress).toContainText('paper.docling');
+  await capture('confirmation-en-1440');
+  await progress.getByRole('button', { name: 'Cancel', exact: true }).click();
+  expect(conversionPosts).toBe(0);
+  await pdf.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Convert with Docling' }).click();
+  await progress.getByRole('button', { name: 'Convert', exact: true }).click();
+  await expect(progress).toHaveCount(0);
+  const center = page.locator('.notification-center');
+  // The lost POST response is recovered with GET only; the failure remains actionable.
+  await center.getByRole('button', { name: 'Open settings', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Server address' })).toBeVisible();
+  await page.getByTestId('settings-back').click();
+  await page.keyboard.press('Control+Slash');
+  await page.getByRole('dialog', { name: 'Command center' }).getByRole('combobox').fill('> Convert with Docling');
+  await page.getByRole('option', { name: 'Convert with Docling', exact: true }).click();
+  await expect(center).toContainText('already in progress');
+  await center.getByRole('button', { name: 'View dashboard' }).click();
+  const dashboard = page.getByTestId('docling-dashboard');
+  await expect(dashboard).toContainText('Stop waiting');
   expect(conversionPosts).toBe(1);
-  const observed = await (await page.request.get(page.url().split('/').slice(0, 3).join('/') + '/api/docling-conversion')).json();
+  const observed = await (await page.request.get(endpoint)).json();
   expect(observed.id).toBe(acceptedId);
   await capture('progress-en-1440');
-  await progress.getByRole('button', { name: 'Stop waiting' }).click();
-  await expect(progress.getByRole('button', { name: 'Convert again' })).toBeEnabled();
-  expect(await progress.textContent()).toContain('server task may continue');
-  await progress.getByRole('button', { name: 'Close', exact: true }).last().click();
-  await expect(progress).toHaveCount(0); // The existing shortcut guard rejects a closing modal.
+  expect(await dashboard.textContent()).toContain('does not cancel the Docling server task');
+  await dashboard.getByRole('button', { name: 'Stop waiting' }).click();
+  await expect(dashboard).toContainText('Waiting stopped');
   // Command Center hands its PDF picker to the same explicit conversion dialog.
   await page.keyboard.press('Control+Slash');
   await page.getByRole('dialog', { name: 'Command center' }).getByRole('combobox').fill('> Convert with Docling');
@@ -136,18 +164,45 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
   await expect(progress).toBeVisible();
   fixture.mode('model-missing');
   const missingModel = nextCompletion();
-  await progress.getByRole('button', { name: /Start conversion|Convert again/ }).click();
+  await progress.getByRole('button', { name: 'Convert', exact: true }).click();
   expect((await missingModel).state).toBe('error');
-  await expect(progress).toContainText('Docling conversion failed.');
-  await progress.getByRole('button', { name: 'Close', exact: true }).last().click();
-  // A modal can make the retained window center inert; its cause must still be stored/rendered.
-  const center = page.getByRole('complementary', { name: 'Notifications', includeHidden: true });
+  await expect(progress).toHaveCount(0);
   await expect(center).toContainText('required model is missing');
   expect(await center.textContent()).not.toContain('secret-server-path');
   await expect(center).toContainText('Server task');
-  await center.getByRole('button', { name: 'Go to problem' }).click();
-  await expect(progress).toBeVisible();
-  // A's delayed automatic comparison must not dismiss/overwrite B's newer failure.
+  const reopen = async () => {
+    await page.keyboard.press('Control+Slash');
+    await page.getByRole('dialog', { name: 'Command center' }).getByRole('combobox').fill('> Convert with Docling');
+    await page.getByRole('option', { name: 'Convert with Docling', exact: true }).click();
+    await page.getByRole('combobox', { name: 'PDF path' }).fill(fixture.input);
+    await page.getByTestId('folder-open').click();
+    await expect(progress).toBeVisible();
+  };
+  await center.getByRole('button', { name: 'View dashboard' }).click();
+  // A genuine connection failure reveals Settings and remains in Needs attention.
+  await page.request.put(endpoint.replace('conversion', 'settings'), { data: { server: 'http://127.0.0.1:1' } });
+  await reopen();
+  const unreachable = nextCompletion();
+  await progress.getByRole('button', { name: 'Convert', exact: true }).click();
+  expect((await unreachable).state).toBe('error');
+  await center.getByRole('button', { name: 'Open settings', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Server address' })).toHaveValue('http://127.0.0.1:1');
+  await page.getByTestId('settings-back').click();
+  await expect(dashboard).toContainText('Could not connect to the Docling server');
+  await page.request.put(endpoint.replace('conversion', 'settings'), { data: { server: fixture.url } });
+  fixture.mode('pending');
+  await reopen();
+  await progress.getByRole('button', { name: 'Convert', exact: true }).click();
+  await expect(center.getByRole('button', { name: 'View dashboard', exact: true })).toBeVisible();
+  await expect(center).toContainText('Conversion started.');
+  expect(await progress.count()).toBe(0);
+  expect(await center.getByRole('button', { name: 'View dashboard' }).evaluate(el => el === document.activeElement)).toBe(false);
+  await expect(page.getByTestId('notification-announcement')).toContainText('Conversion started.');
+  await capture('start-notice-en-1440');
+  await expect(center.getByRole('button', { name: 'View dashboard' })).toHaveCount(0, { timeout: 7000 });
+  await dashboard.getByRole('button', { name: 'Stop waiting' }).click();
+  await expect(dashboard.getByRole('button', { name: 'Stop waiting' })).toHaveCount(0);
+  // A's delayed explicitly opened comparison must not dismiss/overwrite B's newer failure.
   fixture.mode('success');
   let releaseComparison, comparisonStarted;
   const comparisonGate = new Promise(resolve => { releaseComparison = resolve; });
@@ -155,24 +210,30 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
   const delayedComparison = async route => { comparisonStarted(); await comparisonGate; return route.continue(); };
   await page.route('**/api/docling-compare?*', delayedComparison);
   try {
-    await progress.getByRole('button', { name: 'Convert again' }).click();
+    await reopen();
+    const completedA = nextCompletion();
+    await progress.getByRole('button', { name: 'Convert', exact: true }).click();
+    await completedA;
+    await center.getByRole('button', { name: 'Open comparison', exact: true }).click();
     await openingA;
     fixture.mode('failure');
     const failedNewer = nextCompletion();
-    await progress.getByRole('button', { name: 'Convert again' }).click();
+    await reopen();
+    await progress.getByRole('button', { name: 'Convert', exact: true }).click();
     expect((await failedNewer).state).toBe('error');
-    await expect(progress).toContainText('Docling conversion failed.');
+    await expect(progress).toHaveCount(0);
     const newer = await (await page.request.get(page.url().split('/').slice(0, 3).join('/') + '/api/docling-conversion')).json();
     await expect(center).toContainText(newer.failure.taskId);
     const oldResponse = page.waitForResponse('**/api/docling-compare?*');
     releaseComparison(); await (await oldResponse).finished();
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    expect(await progress.count()).toBe(1);
+    expect(await progress.count()).toBe(0);
     expect(await center.textContent()).toContain(newer.failure.taskId);
   } finally { releaseComparison(); await page.unroute('**/api/docling-compare?*', delayedComparison); }
   fixture.mode('success');
   const retriedCompletion = nextCompletion();
-  await progress.getByRole('button', { name: 'Convert again' }).click();
+  await reopen();
+  await progress.getByRole('button', { name: 'Convert', exact: true }).click();
   await expectComparison(retriedCompletion);
   await expect(page.locator('.docling-source img')).toBeVisible();
   await expect(center).toBeVisible();
@@ -203,27 +264,28 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     await page.getByRole('option', { name: 'Convert with Docling', exact: true }).click();
     await page.getByRole('combobox', { name: 'PDF path' }).fill(fixture.input);
     await page.getByTestId('folder-open').click();
-    await expect(progress.getByRole('button', { name: 'Start conversion' })).toBeDisabled();
+    await expect(progress.getByRole('button', { name: 'Convert', exact: true })).toBeDisabled();
     expect(refusedPosts).toBe(0);
     releaseInitial();
-    await expect(progress.getByRole('button', { name: 'Start conversion' })).toBeEnabled();
+    await expect(progress.getByRole('button', { name: 'Convert', exact: true })).toBeEnabled();
     expect(await page.getByRole('tab', { name: / · Docling comparison$/ }).count()).toBe(0);
     for (const mode of ['reject', 'lost']) {
       refuse = mode;
       const readBack = page.waitForResponse(response => response.url() === endpoint && response.request().method() === 'GET' && response.ok());
-      await progress.getByRole('button', { name: 'Start conversion' }).click();
+      await progress.getByRole('button', { name: 'Convert', exact: true }).click();
       await (await readBack).finished();
-      await expect(progress.getByRole('button', { name: 'Start conversion' })).toBeEnabled();
+      await expect(center.getByRole('button', { name: 'Open settings', exact: true })).toBeVisible();
       const reason = mode === 'reject' ? 'Rejected new conversion' : 'Failed to fetch';
-      expect(await progress.textContent()).toContain(reason);
+      expect(await progress.count()).toBe(0);
       expect(await center.textContent()).toContain(reason);
       expect(await page.getByRole('tab', { name: / · Docling comparison$/ }).count()).toBe(0);
       expect((await (await page.request.get(endpoint)).json()).id).toBe(oldSuccess.id);
+      await reopen();
     }
     expect(refusedPosts).toBe(2); // Exactly the two explicit user attempts; no automatic POST retry.
     refuse = '';
     const acceptedRetry = nextCompletion();
-    await progress.getByRole('button', { name: 'Start conversion' }).click();
+    await progress.getByRole('button', { name: 'Convert', exact: true }).click();
     await expectComparison(acceptedRetry);
     await expect(center).toBeVisible();
     await expect(center.locator(':scope > button')).toHaveAccessibleName('Notifications: none');
@@ -273,8 +335,11 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     await page.getByRole('menuitem', { name: 'Docling으로 변환' }).click();
     fixture.mode('pending');
     const koreanCompletion = nextCompletion();
-    await progress.getByRole('button', { name: /변환 시작|다시 변환/ }).click();
-    await expect(progress).toContainText('서버 작업'); await capture('progress-ko-640');
+    await capture('confirmation-ko-640');
+    await progress.getByRole('button', { name: '변환', exact: true }).click();
+    await expect(center).toContainText('변환을 시작했습니다');
+    await center.getByRole('button', { name: '대시보드에서 보기' }).click();
+    await capture('progress-ko-640');
     fixture.mode('success');
     await expectComparison(koreanCompletion, 'Docling 대조');
     await expect(progress).toHaveCount(0); await capture('completed-ko-640');
@@ -285,6 +350,24 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     await page.getByRole('button', { name: '연결 확인', exact: true }).click();
     await expect(page.locator('#docling-server-result')).toContainText('호환됩니다');
     await capture('settings-dark-ko-640');
+    await page.getByTestId('settings-back').click();
+    await pdf.click({ button: 'right' });
+    await page.getByRole('menuitem', { name: 'Docling으로 변환' }).click();
+    await capture('confirmation-dark-ko-640');
+    fixture.mode('pending');
+    const darkCompletion = nextCompletion();
+    await progress.getByRole('button', { name: '변환', exact: true }).click();
+    await expect(center).toContainText('변환을 시작했습니다');
+    await capture('start-notice-dark-ko-640');
+    await center.getByRole('button', { name: '대시보드에서 보기' }).click();
+    await capture('progress-dark-ko-640');
+    fixture.mode('success');
+    expect((await darkCompletion).state).toBe('success');
+    await expect(center.getByRole('button', { name: '대조 열기' })).toBeVisible();
+    await expect(dashboard.getByRole('button', { name: '대기 중단' })).toHaveCount(0);
+    await capture('completion-notice-dark-ko-640');
+    await center.getByRole('button', { name: '알림 닫기' }).click();
+    await expect(center.locator('li[data-severity]')).toHaveCount(0);
   }
   return { connection: ['ready', 'not-ready', 'version', 'unreachable'], entry: ['PDF menu', 'Command Center'], conversion: ['cancelled', 'failed', 'success'] };
 }

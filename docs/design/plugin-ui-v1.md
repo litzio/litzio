@@ -63,7 +63,7 @@ actual plugin hooks and the production renderer, not just a version string.
 | `Input`, `Dialog`, button variant | Existing shell controls and modal focus/portal behavior, with plugin-owned content. |
 | `pickFile`, `openExternalLink` | Existing Host PDF picker and external-link opener. The plugin supplies labels and completion action. |
 | `requestJson` | Same-origin Host method/body transport; shares Root checks and abort/rejection on detach. |
-| `setBusy`, `notify` | Activation-scoped file-action busy state and shared notifications, including reveal action. |
+| `setBusy`, `notify` | Activation-scoped file-action busy state and shared notifications, including reveal action and optional translated `actionLabel`. |
 | `initialJob`, `initialJobRead` | Handoff from the manifest-declared `jobRoute` observation while assets load. |
 | `features` | Registration feature snapshot; changes use existing detach/reactivate handling. |
 | `openSettings`, `openDocument`, `openFolder` | Plugin-scoped Settings navigation, ordinary editor and Explorer opening. No editor state is exposed. |
@@ -182,3 +182,20 @@ late-load detachment, independent activations and runtime/type import boundaries
 Packaged Desktop's Docling smoke also opens the dynamically loaded comparison
 and exercises disable/re-register under its real CSP. Real Docling service fidelity
 remains the separate [manual check](../test/README.md#docling-worker-runtime-853).
+
+## Named notification actions (#942)
+
+`UiNotice.actionLabel?: string` names the single existing `reveal` action. Plugins
+pass a `host.text`-translated label. Omission retains Go to problem and existing
+notification behavior. This additive optional field does not change the UI API
+version. There are no multiple actions or plugin-provided notification renderers.
+A named action unfolds once when its notice arrives, without moving focus, and
+announces its message/action politely, including errors. Existing unnamed errors
+retain their alert semantics. Docling owns its five-second start/concurrency timer
+and persistent completion/failure notices; see [conversion lifecycle](docling-conversion-v1.md#app-pdf-conversion-797).
+
+During feature-driven UI reactivation, Settings retains its selected plugin category
+while the Host still lists that UI registration. A missing contribution alone is
+not proof of removal. Settings confirms absence through the existing registration
+GET before falling back to Appearance; failed reads preserve the selection. Actual
+unregistration/disable still removes the category and selects Appearance (#942).

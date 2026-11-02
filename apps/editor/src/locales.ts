@@ -1,6 +1,11 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "View dashboard": "View dashboard",
+  "Open settings": "Open settings",
+  "Conversion started.": "Conversion started.",
+  "Convert": "Convert",
+  "Existing names get -2, -3, and so on. Existing folders are never overwritten.": "Existing names get -2, -3, and so on. Existing folders are never overwritten.",
   "Not checked": "Not checked",
   "Codex diagnostics": "Codex diagnostics",
   "Run diagnostics": "Run diagnostics",
@@ -963,6 +968,11 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "View dashboard": "대시보드에서 보기",
+  "Open settings": "설정 열기",
+  "Conversion started.": "변환을 시작했습니다",
+  "Convert": "변환",
+  "Existing names get -2, -3, and so on. Existing folders are never overwritten.": "같은 이름이 있으면 -2, -3 순서로 만듭니다. 기존 폴더는 덮어쓰지 않습니다.",
   "Not checked": "확인 전",
   "Codex diagnostics": "Codex 진단",
   "Run diagnostics": "다시 진단",
