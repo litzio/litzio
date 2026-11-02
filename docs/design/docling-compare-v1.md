@@ -155,6 +155,15 @@ same document block again restores its source selection. A text range or a targe
 without a matching source clears the previous source highlight. Stale maps never
 follow right-side selections. The map v1 format remains unchanged.
 
+In both directions, including source selection restored by review proposals,
+selection leaves the opposite pane's scroll position unchanged when the target
+is fully visible. A partially visible or offscreen target is revealed with the
+existing 24px top margin. If the target is taller than the pane, its top edge
+being inside the viewport is sufficient to leave scrolling unchanged. Highlights
+and visible connections still update. Existing block and source-page geometry
+owns this decision; synchronized-scroll suppression is applied only when scrolling.
+The Endnotes action is unchanged (#907).
+
 Visible regions connect to visible document targets. Scroll synchronization is on
 by default. Picture descendants mapped as `image-content` share the picture's
 connection at rest. Selecting an individual descendant's source box reveals its

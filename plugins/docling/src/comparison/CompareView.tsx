@@ -15,6 +15,12 @@ type Props = {
 };
 type Wire = { key: string; d: string; category: string; selected: boolean };
 
+function needsReveal(pane: HTMLDivElement, top: number, height: number): boolean {
+  const bottom = pane.scrollTop + pane.clientHeight;
+  return top < pane.scrollTop || top >= bottom ||
+    (height <= pane.clientHeight && top + height > bottom);
+}
+
 /** Owns only module DOM. Reading positions are supplied by the Editor's read-only surface. */
 export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, imageUrl, selectedRefs }: Props) {
   const { map, stale } = snapshot;
@@ -142,7 +148,7 @@ export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, ima
     if (stale) return;
     const target = item.targets[0];
     const block = target && position.current.blocks.find(block => block.key === targetKey(target));
-    if (block && right.current) {
+    if (block && right.current && needsReveal(right.current, block.top, block.height)) {
       right.current.scrollTop = Math.max(0, block.top - 24);
       suppressed.current.right = right.current.scrollTop;
       schedule.current();
@@ -155,10 +161,13 @@ export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, ima
     const page = prov && pages.find(page => page.page_no === prov.page_no);
     if (page && prov && left.current) {
       const region = pageRegion(prov.bbox, page.size);
-      left.current.scrollTop = Math.max(0, page.top + region.top * page.height - 24);
-      // Engine navigation may have scrolled the right pane before reporting the
-      // selection. Neither that event nor this source reveal should sync back.
-      suppressed.current = { left: left.current.scrollTop, right: right.current?.scrollTop };
+      const top = page.top + region.top * page.height;
+      if (needsReveal(left.current, top, region.height * page.height)) {
+        left.current.scrollTop = Math.max(0, top - 24);
+        // Engine navigation may have scrolled the right pane before reporting the
+        // selection. Neither that event nor this source reveal should sync back.
+        suppressed.current = { left: left.current.scrollTop, right: right.current?.scrollTop };
+      }
     }
     schedule.current();
   }, [map, pages, stale]);
@@ -170,8 +179,12 @@ export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, ima
     if (first) reveal(first);
     setSelected(items);
     if (page && prov && left.current) {
-      left.current.scrollTop = Math.max(0, page.top + pageRegion(prov.bbox, page.size).top * page.height - 24);
-      suppressed.current.left = left.current.scrollTop;
+      const region = pageRegion(prov.bbox, page.size);
+      const top = page.top + region.top * page.height;
+      if (needsReveal(left.current, top, region.height * page.height)) {
+        left.current.scrollTop = Math.max(0, top - 24);
+        suppressed.current.left = left.current.scrollTop;
+      }
     }
   }, [selectedRefs, map, pages]);
   function endnotes() {
