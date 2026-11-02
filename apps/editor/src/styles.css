@@ -1748,6 +1748,11 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
   text-align: left;
 }
 
+/* Keep word widths intact when the document column is narrow, including comparison panes. */
+@container (max-width: 30rem) {
+  .table { --space-document-table-cell-inline: var(--space-2); }
+}
+
 .table th {
   background: var(--id-color-surface-subtle);
   font-weight: var(--font-weight-semibold);

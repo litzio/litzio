@@ -43,7 +43,7 @@ word widths and cell minima cannot fit scroll locally with the existing fades.
 Short number/name columns shrink to their word widths, leaving space for prose.
 Table 1 fits at 640px with Explorer expanded while Transmission, Distribution and
 each word of Generation Including DER stay intact. Empty cells retain a 28px
-cell minimum with the existing cell padding. Several columns containing
+cell minimum with clickable padding. Several columns containing
 very long unbroken strings can still require local scrolling; CSS cannot identify
 which strings are natural words. No per-content classification is introduced. Editing,
 Read and Docling comparison share this presentation. Row/column handles follow
@@ -465,7 +465,7 @@ added choices rather than claiming a change to that default geometry.
 
 ## Narrow prose columns (#901)
 
-The shared minimum cell width is 28px; cell padding is unchanged. This is a
+The shared minimum cell width is 28px; cell padding is 12px inline, reduced to the existing 8px spacing token when the table scroller is at most 30rem wide. This is a
 view-only adjustment across Edit, Read and comparison. Single-line mode retains
 nowrap and local scrolling. Many columns or long identifiers may still scroll.
 No document format, Core operation or CLI surface changes.
@@ -487,3 +487,8 @@ checks use persistent Chrome.
 Linux CI initially exposed 2px remaining overflow with a 32px minimum. The final
 minimum reuses the 28px compact-control token, retaining a clickable empty cell
 without weakening the fit assertion.
+
+A second Linux run showed the same 2px overflow despite the smaller minimum: the
+remaining bound is the sum of intact word widths and padding. Narrow scrollers
+(at most 30rem) therefore use 8px inline cell padding; wide tables retain 12px.
+The empty-cell minimum stays 28px and ordinary words remain intact.
