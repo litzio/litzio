@@ -562,6 +562,7 @@ explicit Run/Cancel, running/completed/cancelled/failed/uncertain state and fail
 details. Agent status distinguishes Off, Available, Login required and Unavailable.
 Review-off and unavailable-agent controls explain their disabled state; conversion
 and comparison remain usable. Start and decisions also require conversion enabled.
+Review start creates a caller-owned UUID v4 with `crypto.getRandomValues`, so remote HTTP clients do not require a secure browser context (#928). AI execution remains on the Host.
 The UI routes map directly to C1 operations: GET/POST/DELETE `api/docling-review`,
 and POST `api/docling-review-approve`, `-reject`, `-undo`. GET
 `api/docling-review-agent` reads the Host service status, without importing the AI plugin.

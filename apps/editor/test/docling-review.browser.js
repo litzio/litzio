@@ -2,6 +2,8 @@
 async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); });
   await page.setViewportSize({ width: 1440, height: 1000 }); await page.reload();
+  await page.evaluate(() => Object.defineProperty(Crypto.prototype, 'randomUUID', { value: undefined, configurable: true }));
+  expect(await page.evaluate(() => typeof crypto.randomUUID)).toBe('undefined');
   const origin = page.url().split('/').slice(0, 3).join('/');
   const call = async (route, method = 'GET', body) => {
     const response = await page.request.fetch(`${origin}/api/${route}`, { method, ...(body ? { data: body } : {}) });
@@ -18,7 +20,9 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await show();
   const result = dashboard.locator(`[data-result-id="${job.id}"]`);
   await expect(result.getByRole('button', { name: 'Run review', exact: true })).toBeEnabled();
+  const started = page.waitForRequest(request => request.url().endsWith('/api/docling-review') && request.method() === 'POST');
   await result.getByRole('button', { name: 'Run review', exact: true }).click();
+  expect((await started).postDataJSON().id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   await expect(result).toContainText('Review in progress');
   await result.getByRole('button', { name: 'Cancel review', exact: true }).click();
   await expect(result).toContainText('Review cancelled');
