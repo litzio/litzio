@@ -33,7 +33,8 @@ async (page, { openDocument }) => {
   for (const name of ['blocked-markdown.md', 'unsupported-syntax.md']) {
     const file = rejectedPath.replace('blocked-markdown.md', name);
     await openDocument(page, file);
-    await page.getByTestId('text-editor').filter({visible:true}).waitFor();
+    await page.getByTestId('plain-markdown').filter({visible:true}).waitFor();
+    assert(await page.getByTestId('view-read').getAttribute('aria-pressed') === 'true', 'Non-native Markdown did not default to Read');
     assert(await alert.count() === 0, 'Text admission asked for confirmation');
     assert(await page.getByTestId('text-mode-notice').filter({visible:true}).count() === 1, 'Text mode has no explanation');
     await page.getByRole('tab', {name, exact:true}).locator('..').getByRole('button').click();

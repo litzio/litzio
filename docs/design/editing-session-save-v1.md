@@ -19,8 +19,10 @@ Brand defaults and packager overrides follow [the branding guide](../guides/bran
 
 [Text documents](document-support-v1.md#text-files-in-the-editor-817) share tab identity,
 explicit Save/shortcut, dirty indication, Save/Don't save/Cancel on close, all-tab
-beforeunload and Desktop restart protection with native documents. A plain textarea
-uses browser editing/selection/history. There is no formatting, block UI, preview,
+beforeunload and Desktop restart protection with native documents. #939 adds a
+view-only current-buffer Markdown display for non-native `.md`, defaulting to Read;
+Read/Text switching does not save, discard, or replace the text session. A plain textarea
+uses browser editing/selection/history. There is no formatting, block UI, native Visual/
 Source toggle or native pre-save comparison. A short permanent text-mode explanation
 sits above the input, below the shared tab/Save row. Text has no unapplied properties.
 
