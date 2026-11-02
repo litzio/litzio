@@ -6,6 +6,7 @@
 // leaves the document's final table by ArrowDown and by a click below the document. Scratch files live
 // under the repository's ignored tmp/ directory; the scenario writes tables.md only.
 async (page, { showNotifications, openPath, reloadDocument, expect, screenshots }) => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   page.setDefaultTimeout(15000);
   // Rendering a caption must not rebuild a schema with duplicated extensions (Tiptap warns).
   const tiptapWarnings = [];

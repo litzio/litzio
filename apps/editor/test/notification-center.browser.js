@@ -1,5 +1,6 @@
 // Window-scoped notifications: applied Core numbering, render failures, lifecycle and navigation.
 async (page, { openPath, expect, screenshots }) => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await page.evaluate(() => localStorage.setItem('litzio.uiLanguage','en'));
   await page.reload();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor();
