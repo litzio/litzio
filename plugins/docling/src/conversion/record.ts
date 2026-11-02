@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 
 /** Bump manually when Representation policy changes. */
-export const CONVERSION_POLICY_VERSION = 1;
+export const CONVERSION_POLICY_VERSION = 2;
 type Versions = { converter: { pluginVersion: string; buildRevision?: string }; coreVersion: string };
 declare const __LITZIO_CONVERSION_VERSIONS__: Versions;
 

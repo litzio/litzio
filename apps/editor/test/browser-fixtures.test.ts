@@ -125,6 +125,15 @@ test("prepared scratch files start as copies of their sources, with the derived 
   assert.notEqual(v2, readFileSync(path.join(documentDir, "diagram.svg"), "utf8"));
   assert.equal(readFileSync(path.join(tmp, "source-view", "expected.md"), "utf8"),
     serialize(parse(technical.toString("utf8"))));
+  // Wrapping needs the real prose table before the separate long-identifier table.
+  const wrapping = getEditableDocument(parse(readFileSync(path.join(tmp, "table-authoring", "wrapping.md"), "utf8"))).blocks
+    .filter(block => block.block === "table");
+  const nistTable = getEditableDocument(parse(readFileSync(path.join(REPOSITORY_ROOT, "plugins/docling/test/fixtures/nist-sp1108r4/document.md"), "utf8"))).blocks
+    .find(block => block.block === "table");
+  assert.ok(nistTable?.block === "table");
+  assert.equal(wrapping.length, 2, "prose and identifier tables must both be prepared");
+  assert.deepEqual(wrapping[0].rows.map(row => row.cells.map(cell => cell.text)),
+    nistTable.rows.map(row => row.cells.map(cell => cell.text)));
   // The fixtures are what the scenarios' freshness checks expect.
   assert.ok(readFileSync(path.join(tmp, "admonition-authoring", "authoring.md"), "utf8").replaceAll("\r\n", "\n").startsWith("---\nlitzio: 1\n---\n\n# Admonition authoring"));
   assert.ok(readFileSync(path.join(tmp, "structural-block-authoring", "structural-block-authoring.md"), "utf8").replaceAll("\r\n", "\n").startsWith("---\nlitzio: 1\n---\n\n# Structural authoring"));

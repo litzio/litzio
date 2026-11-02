@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
-import { getEditableDocument, parse, serialize, type EditableBlock } from "@litzio/core";
+import { getEditableDocument, inlineContentText, parse, serialize, type EditableBlock } from "@litzio/core";
 import { convertDoclingDocument, readDoclingMap } from "../src/index.ts";
 import type { Cell, SourceDocument, SourceItem } from "../src/conversion/source.ts";
+import { convertWithDoclingCorrections, emptyCorrections } from "../src/conversion/corrections.ts";
 import profile from "../profiles/litzio-pdf-en-v1.json" with { type: "json" };
 
 const fixture = (name: string): string => readFileSync(new URL(`./fixtures/${name}/document.json`, import.meta.url), "utf8");
@@ -260,4 +261,71 @@ test("module imports only public Core API; Core never imports a module", () => {
   const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.resolve("@litzio/core")), "utf8"));
   assert.equal(Object.hasOwn(manifest.dependencies, "@litzio/docling"), false);
   // Core's existing public-api test additionally checks every Core source import.
+});
+
+function captionSource(values: string[], kind: "figure" | "table" = "figure"): SourceDocument {
+  const s = source(values.map((value, i) => text(i, value, { label: "caption" })));
+  const owners = values.map((_, i): SourceItem => ({ self_ref: `#/${kind === "figure" ? "pictures" : "tables"}/${i}`,
+    label: kind === "figure" ? "picture" : "table", parent: ref("#/body"), children: [], captions: [ref(`#/texts/${i}`)],
+    ...(kind === "figure" ? { image: { uri: "image.png", mimetype: "image/png", dpi: 72, size: { width: 1, height: 1 } } } :
+      { data: { num_rows: 1, num_cols: 1, table_cells: [cell("Header", 0, 0, { column_header: true })] } }),
+  } as SourceItem));
+  if (kind === "figure") s.pictures = owners; else s.tables = owners;
+  s.body!.children = owners.map(x => ref(x.self_ref));
+  return s;
+}
+
+test("source caption prefixes become fixed numbers once, preserving formatting, map evidence and replay", () => {
+  for (const [kind, values, numbers, captions] of [
+    ["figure", ["Figure 6: Overview", "Fig. 7. Detail", "그림 8 제목", "FIGURE 3.2: Nested", "Figure 09"], ["6", "7", "8", "3.2", "09"], ["Overview", "Detail", "제목", "Nested", ""]],
+    ["table", ["Table 3-2 - Data", "표 4: 값", "Table 5"], ["3-2", "4", "5"], ["Data", "값", ""]],
+  ] as const) {
+    const s = captionSource([...values], kind);
+    s.texts![0].formatting = { bold: true };
+    const heading = text(s.texts!.length, "Heading");
+    s.texts!.push(heading); s.body!.children!.push(ref(heading.self_ref));
+    const input = JSON.stringify(s), r = convertDoclingDocument(input);
+    const targets = blocks(r.markdown).filter(b => b.block === "figure" || b.block === "table").filter(b => b.block === kind);
+    assert.deepEqual(targets.map(b => b.enumerator), numbers);
+    assert.deepEqual(targets.map(b => b.block === "table" ? inlineContentText(b.caption ?? []) : b.block === "figure" ? b.caption?.text ?? "" : ""), captions);
+    assert.match(r.markdown, /\*\*(Overview|Data)\*\*/);
+    for (const x of r.map.items.filter(x => x.label === "caption" || x.label === (kind === "figure" ? "picture" : "table"))) {
+      assert.match(x.notes.join(" "), /Moved source caption prefix/);
+    }
+    assert.equal(JSON.stringify(s), input);
+    const ledger = emptyCorrections("source.json", input);
+    assert.deepEqual(convertWithDoclingCorrections(input, ledger), r);
+    ledger.entries.push({ id: "heading", self_ref: heading.self_ref, operation: "heading", value: { level: 2 },
+      reason: "Approved heading", approvedAt: "2026-11-02T01:00:00Z" });
+    const replay = convertWithDoclingCorrections(input, ledger);
+    assert.deepEqual(blocks(replay.markdown).filter(b => b.block === kind), targets);
+    for (const item of r.map.items.filter(x => x.label === "caption")) {
+      assert.deepEqual(replay.map.items.find(x => x.self_ref === item.self_ref), item);
+    }
+    assert.equal(serialize(parse(r.markdown)), r.markdown);
+  }
+});
+
+test("ambiguous, mismatched and duplicate source numbers stay literal with reasons", () => {
+  const values = ["Figure 6: First", "Fig. 6. Duplicate", "Table 7: Wrong kind", "Figure IV: Roman", "Figure 6.. unclear", "Ordinary caption"];
+  const r = convert(captionSource(values));
+  const targets = blocks(r.markdown).filter(b => b.block === "figure");
+  assert.deepEqual(targets.map(b => b.enumerator), ["6", undefined, undefined, undefined, undefined, undefined]);
+  assert.deepEqual(targets.slice(1).map(b => b.caption?.text ?? ""), values.slice(1));
+  for (const [i, reason] of [[1, /duplicate/], [2, /kind does not match/], [3, /unclear/], [4, /unclear/]] as const) {
+    assert.match(r.map.items.find(x => x.self_ref === `#/texts/${i}`)!.notes.join(" "), reason);
+  }
+  assert.deepEqual(r.map.items.find(x => x.self_ref === "#/texts/5")!.notes, []);
+});
+
+test("failed owners do not strip or reserve numbers; multiple numbered captions stay literal", () => {
+  const s = captionSource(["Figure 6: Missing image", "Figure 6: Valid"]);
+  delete s.pictures![0].image;
+  let r = convert(s);
+  assert.ok(blocks(r.markdown).some(b => b.block === "paragraph" && b.text === "Figure 6: Missing image"));
+  assert.equal(blocks(r.markdown).find(b => b.block === "figure")!.enumerator, "6");
+  s.pictures![1].captions!.unshift(ref("#/texts/0"));
+  r = convert(s);
+  assert.equal(blocks(r.markdown).find(b => b.block === "figure")!.enumerator, undefined);
+  assert.match(r.map.items.find(x => x.self_ref === "#/pictures/1")!.notes.join(" "), /multiple or shared/);
 });
