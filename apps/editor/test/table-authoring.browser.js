@@ -83,6 +83,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
     await page.keyboard.press('Control+Slash');
     const center = page.getByRole('dialog', {name:'Command center',exact:true});
     await center.getByRole('combobox').fill('> ' + wrapLabel);
+    await expect(center.getByText(await paper().getAttribute('data-table-wrap') === 'true' ? 'Current: wrap' : 'Current: single line',{exact:true})).toBeVisible();
     await center.getByRole('option', {name:wrapLabel,exact:true}).click();
     await center.waitFor({state:'detached'});
   };
@@ -130,8 +131,15 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
     await page.keyboard.press('Control+Slash');
     const center=page.getByRole('dialog');
     await center.getByRole('combobox').fill(language==='ko'?'> 이 문서의 표':'> This document’s tables');
+    await expect(center.getByText(language==='ko'?'현재: 한 줄로':'Current: single line',{exact:true})).toBeVisible();
     if (screenshots) await page.screenshot({path:`tmp/902/center-${width}-${language}.png`});
-    await page.keyboard.press('Escape');
+    await center.getByRole('option').click();
+    await expect(paper()).toHaveAttribute('data-table-wrap','true');
+    await page.keyboard.press('Control+Slash');
+    await center.getByRole('combobox').fill(language==='ko'?'> 이 문서의 표':'> This document’s tables');
+    await expect(center.getByText(language==='ko'?'현재: 줄바꿈':'Current: wrap',{exact:true})).toBeVisible();
+    await center.getByRole('option').click();
+    await expect(paper()).toHaveAttribute('data-table-wrap','false');
     await page.getByTestId('sidebar').getByRole('button',{name:language==='ko'?'설정':'Settings',exact:true}).click();
     await expect(page.getByTestId('table-wrap-default')).toHaveValue('true');
     if (screenshots) await page.screenshot({path:`tmp/902/settings-${width}-${language}.png`});

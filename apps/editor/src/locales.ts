@@ -1,6 +1,8 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Current: wrap": "Current: wrap",
+  "Current: single line": "Current: single line",
   "This document’s tables: wrap long text": "This document’s tables: wrap long text",
   "Tables in new documents": "Tables in new documents",
   "Default for documents without a remembered choice on this device.": "Default for documents without a remembered choice on this device.",
@@ -851,6 +853,8 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Current: wrap": "현재: 줄바꿈",
+  "Current: single line": "현재: 한 줄로",
   "This document’s tables: wrap long text": "이 문서의 표: 긴 텍스트 줄바꿈",
   "Tables in new documents": "새 문서의 표",
   "Default for documents without a remembered choice on this device.": "이 기기에 선택을 기억하지 않은 문서에 적용하는 기본값입니다.",

@@ -1018,7 +1018,7 @@ function EditorApp() {
       keywords: ["sidebar", "사이드바"], takesFocus: true,
       run: () => { sidebarFocus.current = "sidebar"; setSidebarOpen(value => !value); } },
     { id: "table-wrap", kind: "command", label: i18n.t("This document’s tables: wrap long text"), icon: FileText,
-      detail: i18n.t(tableWrap ? "Wrap long text" : "Single line"), disabled: !tableWrapPath || busy,
+      detail: i18n.t(tableWrap ? "Current: wrap" : "Current: single line"), disabled: !tableWrapPath || busy,
       run: () => { setTableWrap(tableWrapPath, !tableWrap); } },
     { id: "width", kind: "command", label: i18n.t(documentWidth === "wide" ? "Standard document width" : "Wide document"), icon: documentWidth === "wide" ? Columns3 : StretchHorizontal, disabled: session?.kind === "text",
       keywords: ["document width", "문서 너비"], run: toggleDocumentWidth },
