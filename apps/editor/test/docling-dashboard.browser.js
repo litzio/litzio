@@ -183,6 +183,9 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   const attention = dashboard.locator('.docling-dashboard-count').filter({ hasText: 'Needs attention' });
   await attention.click(); await expect(result).toBeVisible();
   await attention.click();
+  await menu(result); await result.getByRole('button', { name: 'Page review', exact: true }).click();
+  await expect(page.locator('.docling-page-review-tab[data-active=true] .docling-page-card').first()).toBeVisible();
+  await show();
   await result.getByRole('button', { name: 'Open comparison', exact: true }).click();
   await expect(page.locator('.docling-tab[data-active=true]').getByRole('checkbox', { name: 'Sync scrolling' })).toBeDisabled();
   await show(); await menu(result); await result.getByRole('button', { name: 'Open document', exact: true }).click();

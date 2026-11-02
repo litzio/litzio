@@ -185,8 +185,9 @@ Original refs, labels, layers, parents and individual provenance regions remain
 inspection evidence. Status/targets describe corrected conversion; notes disclose
 approvals. Merged refs share a result target with their own original page/bbox/
 character spans. Existing readers report the new pair as current and an old map
-with changed Markdown as stale. Open comparison tabs retain opening snapshots;
-approvals and undo in the review panel refresh its document/map automatically (#900). External CLI replay still requires close/reopen.
+with changed Markdown as stale. UI approvals and undo refresh every mounted
+comparison/page review view for the folder before completion (#995 PR 2).
+External CLI replay still requires close/reopen.
 
 Verification uses synthetic inputs and the saved NIST bundle: all operations,
 original-byte preservation, invalid/conflicting entries, dependent-removal refusal,
@@ -615,7 +616,7 @@ not again as terminal job cards. It initially shows the most recent ten matching
 receipts; Show more reveals another ten without truncating stored history.
 Each row with a result offers Open comparison; rows without results rely on their
 status chip rather than repeating a disabled comparison action/empty-results hint.
-Each row has a disclosure for document/folder opening,
+Each row has a disclosure for [Page review](docling-compare-v1.md#manual-page-exclusion-945) (#995 PR 2), document/folder opening,
 unchanged review execution and Clear record. Clearing remains limited to uncertain
 receipts by the runtime; other states explain why it is disabled. Missing and
 unreadable results retain disabled-action explanations. Internal task IDs are hidden.

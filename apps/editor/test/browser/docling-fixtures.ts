@@ -41,6 +41,18 @@ export function comparisonFiles() {
       { name: "stale/document.docling-map.json", bytes: Buffer.from(JSON.stringify(result.map)) },
       ...images.map(file => ({ name: `stale/${file}`, bytes: readFileSync(new URL(file, root)) })),
     );
+    if (name === "synthetic") {
+      source.pages!["2"] = { ...structuredClone(source.pages!["1"]!), page_no: 2 };
+      source.pages!["3"] = { page_no: 3, size: { width: 612, height: 792 } };
+      const additional = convertDoclingDocument(JSON.stringify(source), { images: new Map(images.map(file => [file, file])) });
+      files.push(
+        { name: "page-review/conversion-record.json", bytes: readFileSync(new URL("conversion-record.json", root)) },
+        { name: "page-review/document.json", bytes: Buffer.from(JSON.stringify(source)) },
+        { name: "page-review/document.md", bytes: Buffer.from(additional.markdown) },
+        { name: "page-review/document.docling-map.json", bytes: Buffer.from(JSON.stringify(additional.map)) },
+        ...images.map(file => ({ name: `page-review/${file}`, bytes: readFileSync(new URL(file, root)) })),
+      );
+    }
     return files;
   });
 }

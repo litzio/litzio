@@ -226,7 +226,10 @@ function EditorApp() {
   const focusedGroup = navigation.groups.find(group => group.id === navigation.focused)!;
   const activeId = focusedGroup.active;
   const pluginTab = pluginTabs.find(tab => tab.id === activeId);
-  const pluginTabLabels = tabLabels(pluginTabs);
+  const pluginTabLabels = pluginTabs.map(tab => {
+    const peers = pluginTabs.filter(other => other.plugin === tab.plugin && other.kind === tab.kind);
+    return tabLabels(peers)[peers.indexOf(tab)]!;
+  });
   const allTabs = [...tabs, ...pluginTabs.map((tab, index) => ({ ...tab,
     title: [pluginTabLabels[index]!.folder ?? documentLocation(tab.path)[0], i18n.t(tab.label as MessageKey)].filter(Boolean).join(" · ") }))];
   const split = navigation.groups.length === 2;

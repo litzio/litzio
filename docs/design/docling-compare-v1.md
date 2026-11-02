@@ -41,20 +41,33 @@ The empty-state help therefore describes only file browsing, separately from the
 
 ## Manual page exclusion (#945)
 
-Source-page controls occupy a separate 48px row above each image; regions and
-scroll correspondence use the image position, so controls never cover source text.
-The comparison is the manual entry point because original page images and their
-converted result are visible together. Page checkboxes select multiple pages;
-a short required reason and Exclude selected pages submit one `exclude-pages`
-approval through the existing `add-correction` Host operation. Human entries omit
-`aiEvidence`. Excluded page images/regions remain in place, dimmed and labelled
-“Excluded” / “제외됨”. Undo exclusion calls `remove-correction` for the entire
-approval (all its page numbers are shown). Both actions regenerate then reread
-the document/map, without a page reload. Errors stay beside the controls; no
-mutation is retried. Conversion-disabled state disables manual changes.
+Manual page selection and exclusion live in the separate **Page review** tab
+(#995 PR 2), opened from the comparison toolbar or a dashboard result's Actions
+menu. The existing plugin tab contribution API deduplicates each folder and kind;
+comparison and page review remain independent tabs with no editing session.
+
+Page review shows complete source page images in a responsive grid, preserving
+aspect ratio and using lazy image loading. Pages without an image retain their
+number and an unavailable notice. Page checkboxes allow multiple selection; a
+required reason and explicit primary Exclude selected pages submit one
+`exclude-pages` approval via the existing `add-correction` operation. Human entries
+omit `aiEvidence`. Approved exclusions show their full page set and reason;
+secondary Undo exclusion removes the entire approval via `remove-correction`.
+Conversion-disabled state disables changes. Errors remain beside the form and
+mutations are never retried. Original PDF/JSON and images are preserved.
+
+After a successful change, all mounted comparison/page review views for that
+folder reread the document/map before the action finishes. This also applies to
+structure approvals in comparison. Failed reads remove the old snapshot and show
+the existing bounded-recovery error and explicit reload action. Comparison retains
+full source images, excluded labels, regions and correspondence, but has no page
+selection or exclusion controls. Its separate 48px page-number row remains outside
+the image/region coordinate space. AI page recommendations are deferred to PR 3.
+
 The [replay contract](docling-conversion-v1.md#approved-correction-records-and-replay-876)
-owns exclusion and relationship/conflict semantics. AI suggestions and source
-requirements diagnostics remain outside this phase.
+owns exclusion and relationship/conflict semantics; this UI adds no correction
+format or conflict rules. The following #945 captures describe the historical
+in-comparison controls before the #995 separation.
 
 Windows persistent Chrome at Vite port 5287, DPR 1: baseline `2177ba22` UI and
 this implementation on the same synthetic page. P04 uses explicit primary exclusion
@@ -71,6 +84,28 @@ These captures were visually checked for spacing, control alignment, clipping,
 source occlusion and Korean wrapping; `docling-compare` checks replay/undo,
 correspondences, stale behavior and the unchanged reading engine. `layout-rules`
 and `quiet-document` pass separately. Real Docling/AI execution is not involved.
+
+### Page review separation (#995 PR 2)
+
+Windows persistent Chrome, DPR 1. Baseline Docling UI from `c3d26f31` was built
+separately and registered in the checkout-local test store on Vite 5296; the
+changed UI used 5295. Same synthetic page, approved exclusion and viewport/theme/
+language states are paired below. The grid uses the saved public NIST bundle.
+P04 keeps explicit primary exclusion/secondary undo, P07 keeps local errors and
+P11 keeps temporary checkboxes. Cards retain column width even for one page.
+
+| State | 1440px Light English | 640px Dark Korean |
+| --- | --- | --- |
+| Before, excluded in comparison | [PNG](assets/docling-995/before-1440.png) | [PNG](assets/docling-995/before-640.png) |
+| After, excluded in page review | [PNG](assets/docling-995/after-1440.png) | [PNG](assets/docling-995/after-640.png) |
+| After, multiple complete pages | [PNG](assets/docling-995/grid-1440-light-en.png) | [PNG](assets/docling-995/grid-640-dark-ko.png) |
+
+`docling-compare --screenshots` captures all eight width/language/theme combinations;
+representative pairs are retained here. The browser scenario verifies multi-page
+exclusion/whole-approval undo, missing-image pages and the inactive comparison's
+DOM immediately when mutation busy ends, without reload or a polling refresh.
+`docling-dashboard`, `layout-rules` and `quiet-document` pass separately. Real AI,
+real Docling service and packaged Desktop are not part of this local verification.
 
 ## Structure review panel (#900)
 
