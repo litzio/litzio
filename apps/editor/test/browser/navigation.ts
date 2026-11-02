@@ -34,7 +34,10 @@ export async function reloadDocument(page: Page): Promise<void> {
   await page.getByRole("menuitem", { name: "Reload", exact: true }).click();
   await page.getByRole("menu").waitFor({ state: "detached" });
   await page.waitForFunction(() => {
-    const dialog = document.querySelector('[role="dialog"]');
+    // Stateful panels may retain a hidden dialog between openings. Only a visible
+    // modal participates in Reload's loading/discard and focus-return lifecycle.
+    const dialog = Array.from(document.querySelectorAll('[role="dialog"]'))
+      .find(element => element.getClientRects().length > 0);
     if (dialog) {
       // A loading modal must finish, but an interactive discard prompt belongs to the caller.
       // Closing popups remain mounted with enabled buttons until final focus is handed back.

@@ -8,10 +8,19 @@ export const AI_TASK = {
 export type AiExecutionSettings = { model: string; reasoningEffort: string };
 export const DEFAULT_AI_SETTINGS: AiExecutionSettings = { model: "gpt-6.1-sol", reasoningEffort: "medium" };
 /** Main-agent settings share the execution defaults with feature tasks. */
-export type AiAgentSettings = AiExecutionSettings & { provider: "codex"; enabled: boolean; writeAccess: "opened-folders" | "read-only" };
+export type AiResponseLanguage = "ko" | "en" | "ja" | "document";
+export type AiAgentSettings = AiExecutionSettings & { provider: "codex"; enabled: boolean; writeAccess: "opened-folders" | "read-only"; responseLanguage?: AiResponseLanguage };
 export const AI_AGENT = {
   modelsRoute: "/api/ai-agent-models", diagnosticsRoute: "/api/ai-agent-diagnostics", environmentRoute: "/api/ai-agent-environment",
+  conversationsRoute: "/api/ai-agent-conversations",
 } as const;
+export type AiConversationInfo = { id: string; title: string; folders: string[]; createdAt: number; updatedAt: number };
+export type AiConversationItem = { id: string; kind: "user" | "assistant" | "reasoning" | "tool" | "plan"; text: string; status?: string };
+export type AiConversationTurn = { id: string; status: string; items: AiConversationItem[]; error?: string };
+export type AiConversation = AiConversationInfo & { turns: AiConversationTurn[]; model: string; reasoningEffort: string; responseLanguage: AiResponseLanguage;
+  tokenUsage?: { used: number; limit: number | null } };
+export type AiConversationInput = AiExecutionSettings & { id?: string; message: string; responseLanguage: AiResponseLanguage;
+  folders: string[]; document?: { path: string; source: string } };
 export type AiModel = { id: string; model: string; displayName: string; description: string;
   supportedReasoningEfforts: { reasoningEffort: string; description: string }[]; defaultReasoningEffort: string };
 export type AiModels = { provider: "codex"; models: AiModel[]; updatedAt: number };
