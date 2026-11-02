@@ -43,7 +43,11 @@
 .assistant-choices select { width: 100%; }
 .assistant-choices small { color: var(--id-color-text-muted); }
 .assistant-controls button { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: var(--font-size-xs); }
-.assistant-trigger { margin-left: auto; }
+/* Preserve the title-strip search center while reserving equal room for the action. */
+.top-bar:has(.assistant-trigger) { position: relative; }
+.top-bar:has(.assistant-trigger) .command-center-trigger[data-slot="button"] { max-width: min(var(--layout-command-center-width), calc(100% - 2 * (var(--assistant-trigger-width, 0px) + var(--space-2)))); }
+.assistant-trigger { position: absolute; right: var(--layout-ui-inset); }
+@container (width < 22rem) { .assistant-trigger > span { display: none; } }
 
 /* Keep composer actions above the existing global notification control. */
 .assistant-composer { padding-bottom: calc(var(--space-3) + var(--size-control-compact) + var(--space-2)); }

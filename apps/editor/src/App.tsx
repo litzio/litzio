@@ -836,7 +836,7 @@ function EditorApp() {
   // never applies. Modal dialogs cover the Save button, so the shortcut waits for them too.
   const saveShortcut = useRef<(event: KeyboardEvent) => void>(() => {});
   saveShortcut.current = (event) => {
-    if (ASSISTANT_SHORTCUT.matches(event) && assistantAvailable) {
+    if (ASSISTANT_SHORTCUT.matches(event) && event.key !== "Process" && event.keyCode !== 229 && assistantAvailable) {
       if (settingsOpen || globalThis.document.querySelector('[data-slot="dialog-content"]')) return;
       event.preventDefault(); toggleAssistant(); return;
     }

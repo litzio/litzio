@@ -1,4 +1,4 @@
-async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
+async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, brand }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   const sourceManifest = pluginFixture.document.replace(/[/\\]tmp[/\\]plugin-ui[/\\]document\.md$/, '/tmp/ai-agent-worker/manifest.json');
   expect((await page.request.post(origin + '/api/worker-plugins', { data: { manifest: sourceManifest } })).ok()).toBe(true);
@@ -178,6 +178,10 @@ async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
   });
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/closed-1440-light-en.png' });
   await editor.locator('p').first().click(); await page.keyboard.press('End');
+  await editor.evaluate(element => element.dispatchEvent(new KeyboardEvent('keydown', {
+    key: 'Process', code: 'KeyY', keyCode: 229, ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true,
+  })));
+  expect(await page.getByTestId('assistant-panel').isVisible()).toBe(false);
   await page.getByRole('button', { name: 'Assistant', exact: true }).click();
   const panel = page.getByTestId('assistant-panel');
   await expect(panel).toBeVisible();
@@ -238,6 +242,28 @@ async (page, { expect, openPath, pluginFixture, screenshots, brand }) => {
   await page.getByRole('combobox').fill('> Assistant');
   await page.getByRole('option', { name: /Assistant/ }).click(); await expect(panel).toBeVisible();
   await panel.getByRole('button', { name: 'Close assistant' }).click();
+  // A closed narrow-window assistant stays mounted to retain its conversation.
+  // Reload must observe the real discard prompt, not that hidden dialog.
+  await page.setViewportSize({ width: 640, height: 1000 });
+  const expandExplorer = page.getByRole('button', { name: 'Expand Explorer', exact: true });
+  if (await expandExplorer.isVisible()) await expandExplorer.click();
+  await expect.poll(() => page.evaluate(() => {
+    const header = document.querySelector('.top-bar').getBoundingClientRect();
+    const search = document.querySelector('.command-center-trigger').getBoundingClientRect();
+    const assistant = document.querySelector('.assistant-trigger').getBoundingClientRect();
+    return document.documentElement.scrollWidth <= innerWidth && assistant.right <= innerWidth &&
+      search.right <= assistant.left && Math.abs(search.left + search.width / 2 - header.left - header.width / 2) < 1;
+  }), { message: 'Search stays centered and Assistant fits with Explorer expanded at 640px' }).toBe(true);
+  await reloadDocument(page);
+  await expect(page.getByRole('dialog', { name: 'Discard local changes?' })).toBeVisible();
+  await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Discard local changes?' })).toHaveCount(0);
+  await expect(editor).toContainText('after assistant');
+  await page.getByTestId('save').click();
+  await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'saved');
+  await reloadDocument(page);
+  await expect(page.getByRole('button', { name: 'File actions', exact: true })).toBeFocused();
+  await expect(editor).toContainText('after assistant');
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Appearance & language', exact: true }).click();
   await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');

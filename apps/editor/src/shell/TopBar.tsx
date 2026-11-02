@@ -37,16 +37,20 @@ export function TopBar({ onOpenCommandCenter, documentPath, location = [], onAss
       const action = commandName.current?.scrollWidth ?? 0;
       const shortcut = commandShortcut.current?.scrollWidth ?? 0;
       const icon = button.querySelector("svg")?.getBoundingClientRect().width ?? 0;
+      const assistant = button.parentElement?.querySelector(".assistant-trigger");
+      button.parentElement?.style.setProperty("--assistant-trigger-width", `${assistant?.getBoundingClientRect().width ?? 0}px`);
       const withShortcut = icon + action + shortcut + gap * 2;
       // The secondary location yields first, then the shortcut; the action ellipsizes last.
       setCommandDetail(available >= withShortcut + 70 ? "path" : available >= withShortcut ? "shortcut" : "name");
     };
     const observer = new ResizeObserver(measure);
     observer.observe(button);
+    const assistant = button.parentElement?.querySelector(".assistant-trigger");
+    if (assistant) observer.observe(assistant);
     measure();
     void document.fonts.ready.then(measure);
     return () => { active = false; observer.disconnect(); };
-  }, [documentPath, name, location.join("/"), i18n.resolvedLanguage]);
+  }, [documentPath, name, location.join("/"), i18n.resolvedLanguage, Boolean(onAssistant)]);
   return (
     <header className="top-bar">
       <Button ref={commandButton} type="button" variant="outline" className="command-center-trigger" data-detail={commandDetail}
@@ -67,7 +71,7 @@ export function TopBar({ onOpenCommandCenter, documentPath, location = [], onAss
       </Button>
       {onAssistant ? <Button variant="ghost" size="sm" className="assistant-trigger" aria-label={i18n.t("Assistant")} aria-expanded={assistantOpen}
         aria-keyshortcuts={ASSISTANT_SHORTCUT.aria} title={`${i18n.t("Assistant")} (${ASSISTANT_SHORTCUT.label})`}
-        onMouseDown={event => { if (event.button === 0) event.preventDefault(); }} onClick={onAssistant}><MessageSquare />{i18n.t("Assistant")}</Button> : null}
+        onMouseDown={event => { if (event.button === 0) event.preventDefault(); }} onClick={onAssistant}><MessageSquare /><span>{i18n.t("Assistant")}</span></Button> : null}
     </header>
   );
 }

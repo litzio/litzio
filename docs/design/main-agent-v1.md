@@ -161,7 +161,10 @@ document-writing verification; it is the earlier connection/settings evidence.
 
 The shell owns the right panel, its width and focus. The title-strip Assistant
 button, command center and `Ctrl+Shift+Y` (`Cmd+Shift+Y` on macOS) open it.
-`Ctrl+Shift+A` is deliberately avoided because Chrome owns it. The assistant
+IME composing/Process/229 events do not open the panel. The search remains
+centered in the title strip with space reserved for the Assistant button; in a
+narrow native-caption region the button keeps its accessible name and shows
+only its icon. `Ctrl+Shift+A` is deliberately avoided because Chrome owns it. The assistant
 and Outline share the right-side space: opening Outline replaces the assistant;
 closing the assistant restores the prior Outline choice. The assistant starts
 at `--layout-assistant-width` (392px) and can be resized from 340 to 560px by
