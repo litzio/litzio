@@ -1,6 +1,6 @@
 {
   "name": "@litzio/desktop",
-  "version": "0.0.2-beta.5",
+  "version": "0.0.2-beta.6",
   "private": true,
   "license": "MIT",
   "description": "Desktop editor and local file Host",

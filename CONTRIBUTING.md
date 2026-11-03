@@ -2,7 +2,7 @@
 
 ## Project status
 
-Litzio는 **초기 Beta** 단계다. Windows x64 unsigned [v0.0.2-beta.5](https://github.com/litzio/litzio/releases/tag/v0.0.2-beta.5)가 공개되었고 Stable은 아직 없다. 공개 결과와 검증 범위는 [#926 배포 기록](docs/releases/v0.0.2-beta.5.md)을 따른다. 직전 IeumDoc beta.4의 [기록](docs/releases/v0.0.2-beta.4.md)은 보존한다. 이전 공개 결과는 [v0.0.2-beta.3 기록](docs/releases/v0.0.2-beta.3.md)에 보존한다. 일반 사용자 설치는 [README](README.md#windows-desktop), 개발자 빌드와 릴리즈는 아래 절차를 따른다. Visual Editor의 Vite 개발 실행도 유지한다. 공개 API와 문서 지원 범위는 바뀔 수 있다.
+Litzio는 **초기 Beta** 단계다. 다음 소스 후보는 `0.0.2-beta.6`이며 아직 공개 전이다([#1088 준비 기록](docs/releases/v0.0.2-beta.6.md)). Windows x64 unsigned [v0.0.2-beta.5](https://github.com/litzio/litzio/releases/tag/v0.0.2-beta.5)가 공개되었고 Stable은 아직 없다. 공개 결과와 검증 범위는 [#926 배포 기록](docs/releases/v0.0.2-beta.5.md)을 따른다. 직전 IeumDoc beta.4의 [기록](docs/releases/v0.0.2-beta.4.md)은 보존한다. 이전 공개 결과는 [v0.0.2-beta.3 기록](docs/releases/v0.0.2-beta.3.md)에 보존한다. 일반 사용자 설치는 [README](README.md#windows-desktop), 개발자 빌드와 릴리즈는 아래 절차를 따른다. Visual Editor의 Vite 개발 실행도 유지한다. 공개 API와 문서 지원 범위는 바뀔 수 있다.
 
 제품 브랜드·아이콘·배포 식별자는 [패키저용 안내](docs/guides/branding.md)와 `brand.ts`를 따른다. 공식 기본값은 Litzio이며 이전 공개 Beta의 데이터/업데이트 경로를 이전하지 않는다.
 
@@ -179,11 +179,11 @@ Windows에서 아래 명령으로 로컬 개발용 installer를 만든다. 패�
 
 ```bash
 pnpm --filter @litzio/desktop package
-pnpm --filter @litzio/desktop exec tsx scripts/verify-release.ts --tag v0.0.2-beta.5
+pnpm --filter @litzio/desktop exec tsx scripts/verify-release.ts --tag v0.0.2-beta.6
 pnpm --filter @litzio/desktop test:packaged
 ```
 
-`--tag`에는 `apps/desktop/package.json`의 실제 버전을 사용한다. 현재 소스·공개 버전은 Litzio `0.0.2-beta.5`다([#926 배포 기록](docs/releases/v0.0.2-beta.5.md)). 직전 공개 버전은 IeumDoc `0.0.2-beta.4`다([#758 배포 기록](docs/releases/v0.0.2-beta.4.md)). 이전 `0.0.2-beta.3`는 [#690 배포 기록](docs/releases/v0.0.2-beta.3.md)에, 이전 `0.0.2-beta.2`는 [#659 배포 기록](docs/releases/v0.0.2-beta.2.md)에, `0.0.2-beta.1`의 근거는 [#632 배포·철회 기록](docs/releases/v0.0.2-beta.1.md)에 보존한다. 앞선 #632에서는 기존 사용자가 없다는 소유자 확인에 따라 버전만 정정했으며 다운그레이드 허용·migration은 추가하지 않았다. 새 공개 자산 검증 후 기존 `v0.1.0-beta.1`·`v0.1.0-beta.2` Release·자산·원격 tag를 철회했고 소스 commit과 과거 검증 기록은 보존했다. `pnpm --filter @litzio/desktop start`는 먼저 `build`한 staging app을 실행한다. 설치·업데이트 E2E는 [검증 안내](docs/test/README.md#windows-desktop-regression)의 사용 조건을 먼저 확인한다.
+`--tag`에는 `apps/desktop/package.json`의 실제 버전을 사용한다. 현재 소스 후보는 Litzio `0.0.2-beta.6`이며 [#1088 준비 기록](docs/releases/v0.0.2-beta.6.md)을 따른다. 아직 공개 전이다. 현재 공개 버전은 Litzio `0.0.2-beta.5`다([#926 배포 기록](docs/releases/v0.0.2-beta.5.md)). 직전 공개 버전은 IeumDoc `0.0.2-beta.4`다([#758 배포 기록](docs/releases/v0.0.2-beta.4.md)). 이전 `0.0.2-beta.3`는 [#690 배포 기록](docs/releases/v0.0.2-beta.3.md)에, 이전 `0.0.2-beta.2`는 [#659 배포 기록](docs/releases/v0.0.2-beta.2.md)에, `0.0.2-beta.1`의 근거는 [#632 배포·철회 기록](docs/releases/v0.0.2-beta.1.md)에 보존한다. 앞선 #632에서는 기존 사용자가 없다는 소유자 확인에 따라 버전만 정정했으며 다운그레이드 허용·migration은 추가하지 않았다. 새 공개 자산 검증 후 기존 `v0.1.0-beta.1`·`v0.1.0-beta.2` Release·자산·원격 tag를 철회했고 소스 commit과 과거 검증 기록은 보존했다. `pnpm --filter @litzio/desktop start`는 먼저 `build`한 staging app을 실행한다. 설치·업데이트 E2E는 [검증 안내](docs/test/README.md#windows-desktop-regression)의 사용 조건을 먼저 확인한다.
 
 공개 버전은 `0.0.2-beta.5`이며 Stable 공개는 보류한다. Beta 설치본의 최초 실행 기본 채널은 Beta, Stable 설치본은 Stable이다. 유효하게 저장된 사용자 선택은 버전이 바뀌어도 유지한다. Beta는 제한된 unsigned 게시 모드를 사용할 수 있으며 Stable은 서명된 릴리즈 절차만 허용한다.
 
