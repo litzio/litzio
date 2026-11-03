@@ -9,7 +9,9 @@ import { execFileSync, spawn } from "node:child_process";
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { test } from "node:test";
+import { after, test } from "node:test";
+import { CliIntegration } from "../../src/cli-integration.ts";
+import { windowsEnvironment } from "../../src/windows-environment.ts";
 import { _electron as electron, expect, type ElectronApplication, type Page } from "@playwright/test";
 import { openDocument, openFolderPicker, reloadDocument } from "../../../editor/test/browser/navigation.ts";
 import { recoveryRecords, resetRecovery } from "../../../editor/test/browser/recovery-records.ts";
@@ -26,6 +28,15 @@ const origin = `${brand.protocol}://app`;
 const resetProfiles = new Set<string>();
 if (process.platform !== "win32") throw new Error("The packaged app tests run on Windows.");
 if (!existsSync(exe)) throw new Error(`Package the app first: ${exe} is missing.`);
+
+// Startup now registers CLI automatically. This suite requires a disposable Windows account,
+// and must release its own registration before the following NSIS uninstall suite starts.
+const integration = new CliIntegration(exe, process.env.LOCALAPPDATA!, windowsEnvironment());
+assert.equal(existsSync(integration.bin), false, "existing CLI integration must not be changed; use a disposable Windows account");
+after(async () => {
+  const state = await integration.setEnabled(false, true);
+  assert.equal(state.conflict, undefined, "packaged suite CLI cleanup must succeed");
+});
 
 /** Preserve Chromium's profile across runs; reset only the app's own test state. */
 function profile(name: string): string {
