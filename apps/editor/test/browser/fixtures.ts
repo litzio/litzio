@@ -366,3 +366,14 @@ export function prepareBrowserFixtures(tmpRoot = path.join(REPOSITORY_ROOT, "tmp
     return dir;
   });
 }
+
+/** Installed with page.addInitScript so scenario reloads keep the same isolation. */
+export function hideFloatingNotifications(): void {
+  const hide = () => {
+    const style = globalThis.document.createElement("style");
+    style.textContent = ".notification-center { display: none !important; }";
+    globalThis.document.head.append(style);
+  };
+  if (globalThis.document.readyState === "loading") globalThis.document.addEventListener("DOMContentLoaded", hide, { once: true });
+  else hide();
+}

@@ -12,8 +12,8 @@ import path from "node:path";
 import { runInNewContext } from "node:vm";
 import { classifyConsoleErrors } from "./console-errors.ts";
 import { finishScenarioDiagnostics, savedSourceAssertion } from "./diagnostics.ts";
-import { FILE_ACTIONS_ROOT, prepareBrowserFixtures, REPOSITORY_ROOT, SOURCE_DIRS } from "./fixtures.ts";
-import { STABLE_SCENARIOS } from "./scenarios.ts";
+import { hideFloatingNotifications, FILE_ACTIONS_ROOT, prepareBrowserFixtures, REPOSITORY_ROOT, SOURCE_DIRS } from "./fixtures.ts";
+import { NOTIFICATION_SCENARIOS, STABLE_SCENARIOS } from "./scenarios.ts";
 import { showNotifications, activeDocument, openFolderPicker, openDocument, openPath, reloadDocument, waitForActivePath, waitForEditorFocus } from "./navigation.ts";
 import { withBlockHover } from "./hover.ts";
 import { recoveryRecords } from "./recovery-records.ts";
@@ -114,6 +114,7 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
     await session.tracing.start({ screenshots: false, snapshots: false, sources: true });
     const page = await session.newPage();
     await page.addInitScript({ content: inputEvents });
+    if (!NOTIFICATION_SCENARIOS.includes(testInfo.title)) await page.addInitScript(hideFloatingNotifications);
     const errors: string[] = [];
     const consoleListener = (message: ConsoleMessage) => {
       if (message.type() === "error") {
