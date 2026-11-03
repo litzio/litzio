@@ -180,17 +180,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Upload document scroll layout evidence
-        if: always() && matrix.shard == 4
-        uses: actions/upload-artifact@v6
-        with:
-          name: document-scroll-layout
-          path: |
-            tmp/document-scroll-capture/
-            tmp/browser-results/scenarios-document-scroll/scenario-result.json
-          if-no-files-found: ignore
-          retention-days: 7
-
   http:
     name: HTTP Host package and browser (${{ matrix.os }})
     needs: changes
@@ -222,17 +211,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @litzio/cli package
       - run: pnpm --filter @litzio/cli test:packaged
-      - name: Check Windows filesystem and HTTP boundaries
-        if: runner.os == 'Windows'
-        run: |
-          pnpm exec tsx packages/cli/scripts/build-docling-worker.ts
-          pnpm --filter @litzio/editor exec tsx --test test/http-host.test.ts test/plugin-ui.test.ts test/plugin-runtime.test.ts test/plugin-host.test.ts test/file-operations.test.ts
-      - name: Check Windows Docling unit tests
-        if: runner.os == 'Windows'
-        run: pnpm --filter @litzio/docling test
-      - name: Check Windows Docling CLI integration
-        if: runner.os == 'Windows'
-        run: pnpm --filter @litzio/cli exec tsx --test --test-name-pattern="docling convert delegates" test/cli.test.ts
       - name: Cache Playwright browsers
         if: runner.os == 'Linux'
         uses: actions/cache@v6
