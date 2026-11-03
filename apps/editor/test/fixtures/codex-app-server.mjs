@@ -50,7 +50,10 @@ createInterface({ input: process.stdin }).on("line", line => {
   if (method === "thread/resume") { send({ id, result: { thread: threads[params.threadId], model: "gpt-6.1-sol", reasoningEffort: "medium", turnsBackwardsCursor: null, itemsBackwardsCursor: null } }); return; }
   if (method === "thread/turns/list") {
     const turns = threads[params.threadId].turns, offset = Number(params.cursor ?? 0);
-    send({ id, result: { data: turns.slice(offset, offset + 1), nextCursor: offset + 1 < turns.length ? String(offset + 1) : null, backwardsCursor: null } }); return;
+    send({ id, result: { data: turns.slice(offset, offset + 1).map(turn => ({ ...turn, items: turn.items.map(item => item.type === "userMessage" ? { ...item, content: [
+      { type: "text", text: item.content.filter(part => part.type === "text").map(part => part.text).join(""), text_elements: [] },
+      ...item.content.filter(part => part.type !== "text"),
+    ] } : item) })), nextCursor: offset + 1 < turns.length ? String(offset + 1) : null, backwardsCursor: null } }); return;
   }
   if (method === "turn/start" || method === "turn/steer") {
     const thread = threads[params.threadId];

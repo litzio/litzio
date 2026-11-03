@@ -404,20 +404,25 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     check(JSON.stringify(fixedBefore) === JSON.stringify(fixedAfter), 'Scrolling tabs moved the active document actions');
     if(width===640)check(overflow, 'Narrow tablist did not own its horizontal overflow');
     if (width === 640) {
+      // Start with a different active tab so selection cannot pass without activation.
+      await activate('technical-2.md');
+      const selected = page.locator('.document-tab[data-selected="true"]');
+      await expect(selected).toHaveAttribute('title', b);
       const trigger = page.getByRole('button', {name:/^Hidden tabs:/});
       await trigger.focus();
+      await expect(trigger).toBeFocused();
       await page.keyboard.press('Enter');
-      const choice = page.getByRole('menuitem').first();
-      const target = await choice.getAttribute('title');
-      await page.keyboard.press('ArrowDown');
-      await page.keyboard.press('Home');
-      await page.keyboard.press('Enter');
-      await expect(page.locator('.document-tab[data-selected="true"]')).toHaveAttribute('title', target);
-      check(await page.locator('.document-tab[data-selected="true"]').evaluate(n => {
-        const r=n.getBoundingClientRect(), b=n.parentElement.getBoundingClientRect();
-        return r.left >= b.left - 1 && r.right <= b.right + 1;
-      }), 'Choosing a hidden tab did not reveal it');
-      await tabA.press('Enter');
+      const menu = page.getByRole('menu');
+      const choice = menu.getByRole('menuitem', {name:'technical-1.md', exact:true});
+      await expect(choice).toHaveAttribute('title', a);
+      // Base UI owns menu navigation; exercise Litzio's selection/reveal callback.
+      await choice.click();
+      await expect(menu).toBeHidden();
+      await expect(selected).toHaveAttribute('title', a);
+      await expect.poll(() => selected.evaluate(n => {
+        const r=n.getBoundingClientRect(), bounds=n.parentElement.getBoundingClientRect();
+        return r.left >= bounds.left - 1 && r.right <= bounds.right + 1;
+      }), {message:'Choosing a hidden tab did not reveal it'}).toBe(true);
     }
 
     await tabA.focus();

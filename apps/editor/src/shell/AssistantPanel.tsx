@@ -3,7 +3,7 @@ import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquare, Plus, History, X, ArrowUp, Square } from "lucide-react";
-import { AI_AGENT, AI_TASK, type AiAgentSettings, type AiConversation, type AiConversationInfo, type AiConversationInput, type AiModels, type AiResponseLanguage, type AiDiagnostics } from "@litzio/plugin-api/ai";
+import { AI_AGENT, AI_TASK, type AiAgentSettings, type AiConversation, type AiConversationInfo, type AiConversationInput, type AiModels, type AiFileReference, type AiDiagnostics } from "@litzio/plugin-api/ai";
 import { Button } from "@/components/ui/button.tsx";
 import { Popover, PopoverContent } from "@/components/ui/popover.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
@@ -26,10 +26,11 @@ export function assistantWidth() { try { const value = Number(localStorage.getIt
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
 type Props = { open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
+  referenceRequest?: { path: string };
   documentPath: string; folders: string[]; context(): Promise<AiConversationInput["document"]> };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, context, onOpen, onUndo }: Props) {
+export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, context, onOpen, onUndo, referenceRequest }: Props) {
   useTranslation();
   const [removed, setRemoved] = useState<string[]>([]);
   const [settings, setSettings] = useState<AiAgentSettings>();
@@ -38,7 +39,10 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
   const [history, setHistory] = useState<AiConversationInfo[] | null>(null);
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("");
-  const [language, setLanguage] = useState<AiResponseLanguage>(i18n.language === "ko" ? "ko" : "en");
+  const [references, setReferences] = useState<AiFileReference[]>([]);
+  const [candidates, setCandidates] = useState<AiFileReference[]>([]);
+  const [mention, setMention] = useState<{ start: number; end: number; query: string } | null>(null);
+  const [candidateIndex, setCandidateIndex] = useState(0);
   const [message, setMessage] = useState("");
   const [problem, setProblem] = useState("");
   const [setup, setSetup] = useState("");
@@ -50,7 +54,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
   const initialFocus = useRef(false);
   const current = useRef(conversation); current.current = conversation;
   const active = conversation?.turns.some(turn => turn.status === "inProgress") ?? false;
-  const defaults = (value: AiAgentSettings) => { setModel(value.model); setEffort(value.reasoningEffort); setLanguage(value.responseLanguage ?? (i18n.language === "ko" ? "ko" : "en")); };
+  const defaults = (value: AiAgentSettings) => { setModel(value.model); setEffort(value.reasoningEffort); };
   useEffect(() => {
     if (!open) return;
     initialFocus.current = true;
@@ -75,10 +79,9 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       const id = current.current?.id ?? lastConversation();
       if (id) {
         try {
-          const resumed = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id,
-            responseLanguage: current.current?.responseLanguage ?? value.responseLanguage ?? (i18n.language === "ko" ? "ko" : "en") });
+          const resumed = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id });
           if (alive) {
-            if (!current.current) { setModel(resumed.model); setEffort(resumed.reasoningEffort); setLanguage(resumed.responseLanguage); }
+            if (!current.current) { setModel(resumed.model); setEffort(resumed.reasoningEffort); }
             setConversation(resumed); rememberConversation(resumed.id);
           }
         } catch {
@@ -137,12 +140,44 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     try { await action(); } catch (error) { setProblem((error as Error).message); } finally { setPending(false); }
   };
   const send = () => run(async () => {
-    const value = message.trim(); if (!value) return;
+    const value = message.trim(); if (!value && !references.length) return;
     const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "send", id: conversation?.id, message: value,
-      model, reasoningEffort: effort, responseLanguage: language, folders, document: await context() });
-    setConversation(next); rememberConversation(next.id); setMessage(""); setHistory(null); input.current?.focus();
+      model, reasoningEffort: effort, references: references.map(file => file.path), folders, document: await context() });
+    setConversation(next); rememberConversation(next.id); setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
   });
+  const addReference = (file: AiFileReference) => {
+    setReferences(previous => {
+      if (previous.some(value => samePath(value.path, file.path))) return previous;
+      if (previous.length >= 10) { setProblem(i18n.t("At most 10 file references are allowed.")); return previous; }
+      return [...previous, file];
+    });
+  };
+  useEffect(() => {
+    if (referenceRequest) { addReference({ path: referenceRequest.path, name: pathName(referenceRequest.path), kind: "file" }); setHistory(null); }
+  }, [referenceRequest]);
+  const mentionOpen = mention !== null;
+  useEffect(() => {
+    if (!mentionOpen || !open) return;
+    let alive = true;
+    setCandidates([]);
+    const walk = async (root: string, folder: string): Promise<void> => {
+      if (!alive) return;
+      const listing = await request<{ entries: AiFileReference[] }>(`/api/folder?${new URLSearchParams({ root, path: folder })}`);
+      if (!alive) return;
+      setCandidates(previous => [...previous, ...listing.entries.filter(file => file.kind !== "folder")].filter((file, index, all) => all.findIndex(other => samePath(other.path, file.path)) === index));
+      for (const entry of listing.entries) if (entry.kind === "folder") await walk(root, entry.path);
+    };
+    void (async () => { for (const root of folders) await walk(root, root); })().catch(error => { if (alive) setProblem(error.message); });
+    return () => { alive = false; };
+  }, [mentionOpen, open, folders]);
+  const matches = mention ? candidates.filter(file => file.path.toLocaleLowerCase().includes(mention.query.toLocaleLowerCase())) : [];
+  useEffect(() => { if (mention) document.getElementById(`assistant-reference-${candidateIndex}`)?.scrollIntoView({ block: "nearest" }); }, [candidateIndex, mention?.query]);
+  const chooseReference = (file: AiFileReference) => {
+    addReference(file);
+    if (mention) { const next = message.slice(0, mention.start) + message.slice(mention.end); setMessage(next); requestAnimationFrame(() => input.current?.setSelectionRange(mention.start, mention.start)); }
+    setMention(null); input.current?.focus();
+  };
   const catalogModel = models?.models.find(value => value.model === model);
   const resultPaths = [...new Set(conversation?.turns.flatMap(turn => turn.items.flatMap(item => {
     const result = createdDocument(item); return result ? [result.path] : [];
@@ -190,7 +225,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) onWidth(Math.max(340, Math.min(560, window.innerWidth - event.clientX))); }} /> : null}
     <div className="assistant-header">
       <h2><MessageSquare aria-hidden="true" />{i18n.t("Assistant")}</h2>
-      <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={!ready || pending || active} onClick={() => { setConversation(undefined); rememberConversation(); setHistory(null); setProblem(""); setMessage(""); if (settings) defaults(settings); input.current?.focus(); }}><Plus /></Button>
+      <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={!ready || pending || active} onClick={() => { setConversation(undefined); rememberConversation(); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null); if (settings) defaults(settings); input.current?.focus(); }}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending || active} onClick={() => void run(async () => setHistory(history ? null : await request<AiConversationInfo[]>(AI_AGENT.conversationsRoute)))}><History /></Button>
       <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
     </div>
@@ -200,12 +235,12 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")}>
       {history ? <div className="assistant-history"><h3>{i18n.t("Conversation history")}</h3><p>{i18n.t("Continue the same Codex conversation here or in the CLI.")}</p>
         {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async () => {
-          const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id: entry.id, responseLanguage: settings?.responseLanguage ?? (i18n.language === "ko" ? "ko" : "en") });
-          setConversation(next); rememberConversation(next.id); setModel(next.model); setEffort(next.reasoningEffort); setLanguage(next.responseLanguage); setHistory(null); input.current?.focus();
+          const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id: entry.id });
+          setConversation(next); rememberConversation(next.id); setModel(next.model); setEffort(next.reasoningEffort); setHistory(null); input.current?.focus();
         })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
           {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
         : conversation?.turns.map(turn => <section key={turn.id} className="assistant-turn" data-status={turn.status}>
-          {turn.items.filter(item => item.kind === "user").map(item => <p key={item.id} className="assistant-user" role="group" aria-label={i18n.t("Your message")}>{item.text}</p>)}
+          {turn.items.filter(item => item.kind === "user").map(item => <p key={item.id} className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips references={item.references ?? []} /></p>)}
           {turn.items.some(isWorkDetail) ? <details key={`${turn.id}-${turn.status}`} open={turn.status === "inProgress"} className="assistant-steps"><summary>{i18n.t(turn.status === "inProgress" ? "Working…" : "Work details")}</summary>
             {turn.items.filter(isWorkDetail).map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}</details> : null}
           <div role="group" aria-label={i18n.t("Assistant response")}>
@@ -250,11 +285,25 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     <form className="assistant-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
       {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
       {models && !catalogModel ? <p role="status">{i18n.t("Choose a model and reasoning effort from the available list.")}</p> : null}
-      <textarea ref={input} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => setMessage(event.target.value)}
-        disabled={!ready || !settings?.enabled || !!setup} onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
+      <ReferenceChips references={references} remove={path => setReferences(previous => previous.filter(file => file.path !== path))} />
+      {mention ? <div className="assistant-reference-options" role="listbox" id="assistant-reference-options" aria-label={i18n.t("File references")}>
+        {matches.map((file, index) => <Button variant="ghost" size="sm" type="button" role="option" id={`assistant-reference-${index}`} aria-selected={candidateIndex === index} key={file.path} title={file.path} onMouseDown={event => event.preventDefault()} onClick={() => chooseReference(file)}>{file.name}<small>{file.path}</small></Button>)}
+        {!matches.length ? <p>{i18n.t("No matching files.")}</p> : null}
+      </div> : null}
+      <textarea ref={input} aria-controls={mention ? "assistant-reference-options" : undefined} aria-expanded={mention ? true : undefined} aria-activedescendant={mention && matches[candidateIndex] ? `assistant-reference-${candidateIndex}` : undefined} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => {
+        const value = event.target.value, end = event.target.selectionStart;
+        setMessage(value); const match = /(?:^|\s)@([^\s@]*)$/.exec(value.slice(0, end));
+        setMention(match ? { start: end - match[1].length - 1, end, query: match[1] } : null); setCandidateIndex(0);
+      }}
+        disabled={!ready || !settings?.enabled || !!setup} onKeyDown={event => {
+          if (mention && !event.nativeEvent.isComposing) {
+            if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setMention(null); return; }
+            if (["ArrowDown", "ArrowUp"].includes(event.key)) { event.preventDefault(); setCandidateIndex(index => matches.length ? (index + (event.key === "ArrowDown" ? 1 : -1) + matches.length) % matches.length : 0); return; }
+            if (event.key === "Enter" && matches[candidateIndex]) { event.preventDefault(); chooseReference(matches[candidateIndex]); return; }
+          }
+          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
       <div className="assistant-controls">
-        <Button ref={choicesAnchor} type="button" variant="outline" size="sm" disabled={active || pending} aria-label={i18n.t("Conversation model and language")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{model || "Codex"} · {i18n.t(effort as MessageKey)}</Button>
-        <Button type="button" variant="outline" size="sm" aria-label={i18n.t("Response language")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{language === "ko" ? "한국어" : language === "ja" ? "日本語" : language === "en" ? "English" : i18n.t("Follow document language")}</Button>
+        <Button ref={choicesAnchor} type="button" variant="outline" size="sm" disabled={active || pending} aria-label={i18n.t("Conversation model and effort")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{model || "Codex"} · {i18n.t(effort as MessageKey)}</Button>
         <Popover open={choicesOpen && open} onOpenChange={setChoicesOpen}><PopoverContent anchor={choicesAnchor} side="top" align="start" className="assistant-choices" finalFocus={choicesAnchor}>
         <label htmlFor="assistant-model">{i18n.t("Model")}</label>
         <select id="assistant-model" className="form-select" aria-label={i18n.t("Model")} value={model} disabled={active || pending || !models} onChange={event => { const value = models!.models.find(model => model.model === event.target.value)!; setModel(value.model); setEffort(value.defaultReasoningEffort); }}>
@@ -262,8 +311,6 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
         </select>
         <label htmlFor="assistant-effort">{i18n.t("Reasoning effort")}</label>
         <select id="assistant-effort" className="form-select" aria-label={i18n.t("Reasoning effort")} value={effort} disabled={active || pending || !catalogModel} onChange={event => setEffort(event.target.value)}>{catalogModel?.supportedReasoningEfforts.map(value => <option key={value.reasoningEffort} value={value.reasoningEffort}>{i18n.t(value.reasoningEffort as MessageKey)}</option>)}</select>
-        <label htmlFor="assistant-language">{i18n.t("Response language")}</label>
-        <select id="assistant-language" className="form-select" aria-label={i18n.t("Response language")} value={language} disabled={pending} onChange={event => setLanguage(event.target.value as AiResponseLanguage)}><option value="ko">한국어</option><option value="en">English</option><option value="ja">日本語</option><option value="document">{i18n.t("Follow document language")}</option></select>
         <small>{i18n.t("These choices apply only to this conversation. Defaults are in AI settings.")}</small>
         </PopoverContent></Popover>
       </div>
@@ -272,7 +319,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
         </TooltipTrigger><TooltipContent>{usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}</TooltipContent></Tooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
         {active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async () => setConversation(await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "interrupt", id: conversation!.id })))}><Square /></Button> : null}
-        <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || !ready || !message.trim() || !catalogModel || !settings?.enabled || !!setup}><ArrowUp /></Button>
+        <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || !ready || (!message.trim() && !references.length) || !catalogModel || !settings?.enabled || !!setup}><ArrowUp /></Button>
       </div>
     </form>
   </aside>;
@@ -292,4 +339,16 @@ function createdDocument(item: import("@litzio/plugin-api/ai").AiConversationIte
 
 function isWorkDetail(item: AiConversation["turns"][number]["items"][number]) {
   return !["user", "assistant"].includes(item.kind) && (item.kind !== "reasoning" || item.text.trim().length > 0);
+}
+
+function samePath(a: string, b: string) {
+  const normalize = (value: string) => /^[a-z]:|^\\\\/i.test(value) ? value.replaceAll("\\", "/").toLowerCase() : value;
+  return normalize(a) === normalize(b);
+}
+function ReferenceChips({ references, remove }: { references: AiFileReference[]; remove?(path: string): void }) {
+  if (!references.length) return null;
+  return <span className="assistant-references">{references.map(file => <span className="assistant-reference" key={file.path}>
+    <Tooltip><TooltipTrigger render={<span tabIndex={0} />} >{file.name}</TooltipTrigger><TooltipContent className="break-all">{file.path}</TooltipContent></Tooltip>
+    {remove ? <Button type="button" variant="ghost" size="icon-sm" aria-label={i18n.t("Remove reference: {{name}}", { name: file.name })} onClick={() => remove(file.path)}><X /></Button> : null}
+  </span>)}</span>;
 }

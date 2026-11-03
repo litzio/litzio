@@ -84,6 +84,7 @@ export function App() {
 
 function EditorApp() {
   useTranslation();
+  const [referenceRequest, setReferenceRequest] = useState<{ path: string }>();
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantSize, setAssistantSize] = useState(assistantWidth);
   const [assistantOverlay, setAssistantOverlay] = useState(() => matchMedia("(width < 1100px)").matches);
@@ -1197,6 +1198,7 @@ function EditorApp() {
   return (<>
     <div ref={shell} style={assistantSize ? { "--assistant-width": `${assistantSize}px` } as React.CSSProperties : undefined} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
       <Sidebar
+        onAddToChat={assistantAvailable ? (path, returnFocus) => { assistantReturn.current = returnFocus; setReferenceRequest({ path }); setAssistantOpen(true); } : undefined}
         theme={theme} onThemeChange={changeTheme}
         pluginFileActions={ui.plugins.flatMap(plugin => (plugin.contributions?.fileActions ?? []).map(action => ({ ...action,
           id: `${plugin.id}/${action.id}`, disabled: ui.busy[plugin.id],
@@ -1398,7 +1400,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable ? <AssistantPanel settingsDisabled={settingsDisabled} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable ? <AssistantPanel settingsDisabled={settingsDisabled} referenceRequest={referenceRequest} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { await openFolderDocument(path); }}
         onUndo={async result => {

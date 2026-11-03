@@ -1,4 +1,4 @@
-async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, brand }) => {
+async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, screenshots, brand }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   const sourceManifest = pluginFixture.document.replace(/[/\\]tmp[/\\]plugin-ui[/\\]document\.md$/, '/tmp/ai-agent-worker/manifest.json');
   expect((await page.request.post(origin + '/api/worker-plugins', { data: { manifest: sourceManifest } })).ok()).toBe(true);
@@ -57,8 +57,8 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await expect(page.getByText('docs · connected · oAuth', { exact: true })).toBeVisible();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-1440-light-en.png' });
   await page.getByRole('button', { name: '← AI agent', exact: true }).click();
-  await expect(page.getByRole('combobox', { name: 'Response language', exact: true })).toHaveValue('en');
-  await page.getByRole('combobox', { name: 'Response language', exact: true }).selectOption('ja');
+  await expect(page.getByRole('combobox', { name: 'AI default language', exact: true })).toHaveValue('en');
+  await page.getByRole('combobox', { name: 'AI default language', exact: true }).selectOption('ja');
   await page.getByLabel('Model', { exact: true }).selectOption('gpt-6-luna');
   await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('low');
   connectionAvailable = false;
@@ -196,16 +196,15 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
       if (body.action === 'send') {
         sent.push(body);
         if (!body.id) { selected = { id: 'thread-' + (++sequence), title: body.message, folders: body.folders, createdAt: 1793590000000,
-          updatedAt: 1793590000000, model: body.model, reasoningEffort: body.reasoningEffort, responseLanguage: body.responseLanguage, turns: [] }; conversations.set(selected.id, selected); }
+          updatedAt: 1793590000000, model: body.model, reasoningEffort: body.reasoningEffort, turns: [] }; conversations.set(selected.id, selected); }
         else selected = conversations.get(body.id);
         let turn = selected.turns.find(turn => turn.status === 'inProgress');
         if (!turn) { turn = { id: 'turn-' + sent.length, status: 'inProgress', items: [] }; selected.turns.push(turn); }
-        turn.items.push({ id: 'user-' + sent.length, kind: 'user', text: body.message });
+        turn.items.push({ id: 'user-' + sent.length, kind: 'user', text: body.message, references: (body.references ?? []).map(path => ({ path, name: path.split(/[\\/]/).pop(), kind: 'file' })) });
         if (turn.items.length === 1) turn.items.push({ id: 'summary-' + sent.length, kind: 'reasoning', text: 'Checking the document and opened folders.' },
           { id: 'tool-' + sent.length, kind: 'tool', text: 'create_document', status: 'completed', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ path: pluginFixture.document, revision: 'fixture-created-revision' }) }] } },
           { id: 'answer-' + sent.length, kind: 'assistant', text: 'Partial answer' });
-        else turn.items.push({ id: 'steer-' + sent.length, kind: 'plan', text: 'Direction updated: focus on the unsaved paragraph.' });
-        selected.responseLanguage = body.responseLanguage;
+        else turn.items.push({ id: 'steer-' + sent.length, kind: 'plan', text: body.message ? 'Direction updated: focus on the unsaved paragraph.' : 'File reference received.' });
         selected.tokenUsage = { used: 810, limit: 1000 };
       }
       if (body.action === 'answer') { submittedAnswers.push(body); await answerGate; delete selected.userInput; }
@@ -248,14 +247,11 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
     if (screenshots) await page.screenshot({ path: `tmp/970-assistant-${width}-open.png` });
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await expect(panel.getByRole('button', { name: 'Conversation model and language' })).toContainText('gpt-6.1-sol');
-  await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveText('日本語');
-  await panel.getByRole('button', { name: 'Response language', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Response language', exact: true }).selectOption('en');
+  await expect(panel.getByRole('button', { name: 'Conversation model and effort' })).toContainText('gpt-6.1-sol');
+  await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveCount(0);
+  await panel.getByRole('button', { name: 'Conversation model and effort' }).click();
   await page.keyboard.press('Escape');
-  await expect(panel).toBeVisible();
-  await expect(panel.getByRole('button', { name: 'Conversation model and language' })).toBeFocused();
-  expect(settings.responseLanguage).toBe('ja');
+  await expect(panel.getByRole('button', { name: 'Conversation model and effort' })).toBeFocused();
   const initialWidth = await panel.evaluate(element => element.getBoundingClientRect().width);
   const resize = panel.getByRole('separator'); await resize.focus(); await page.keyboard.press('ArrowLeft');
   await expect(resize).toHaveAttribute('aria-valuenow', String(Math.min(560, initialWidth + 20)));
@@ -270,24 +266,50 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
     await expect(notification.locator('ul')).toBeVisible({ visible: expanded });
   }
   await notification.locator(':scope > button').click();
+  await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
+  await openDocument(page, pluginFixture.document);
+  const referenceRow = page.getByTestId('sidebar').getByRole('treeitem').filter({ hasText: 'document.md' });
+  await referenceRow.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Add to chat', exact: true }).click();
+  const draftChips = panel.locator('.assistant-composer .assistant-reference');
+  await expect(draftChips).toHaveCount(1);
+  await message.fill('@document');
+  await expect(panel.getByRole('option').filter({ hasText: 'document.md' })).toHaveCount(1);
+  await message.press('Enter');
+  await expect(draftChips).toHaveCount(1);
+  await draftChips.getByRole('button').click();
+  await expect(draftChips).toHaveCount(0);
+  await message.fill('@document');
+  await expect(panel.getByRole('option').filter({ hasText: 'document.md' })).toHaveCount(1);
+  await message.press('Enter');
+  await expect(message).toHaveValue('');
+  await expect(panel.getByRole('button', { name: 'Send message', exact: true })).toBeEnabled();
+  await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
+  await expect(referenceRow).toBeFocused();
+  await editor.locator('p').first().click();
+  await page.keyboard.press('Control+Shift+Y');
+  await expect(message).toBeEnabled();
+
   await message.fill('What changed in the current document?'); await panel.getByRole('button', { name: 'Send message', exact: true }).click();
   await expect(panel.getByText('Partial answer', { exact: true })).toBeVisible();
   await expect(panel.locator('[data-kind=tool]').filter({ hasText: 'create_document' })).toContainText('Completed');
   expect(sent[0].document.source).toContain('preserved AI-off draft');
   expect(sent[0].document.source).toContain('still editable');
   expect(sent[0].document.path).toBe(pluginFixture.document);
-  expect(sent[0].responseLanguage).toBe('en');
-  await expect(panel.getByRole('button', { name: 'Conversation model and language' })).toBeDisabled();
-  await panel.getByRole('button', { name: 'Response language', exact: true }).click();
-  await expect(page.getByRole('combobox', { name: 'Model', exact: true })).toBeDisabled();
-  await expect(page.getByRole('combobox', { name: 'Reasoning effort', exact: true })).toBeDisabled();
-  // Escape can arrive while focus is still on the language chip, before popup autofocus.
-  await panel.getByRole('button', { name: 'Response language', exact: true }).focus();
-  await page.keyboard.press('Escape');
-  expect(await panel.isVisible(), 'Escape dismisses choices before the assistant').toBe(true);
-  await expect(page.getByRole('combobox', { name: 'Reasoning effort', exact: true })).toBeHidden();
+  expect(sent[0].responseLanguage).toBeUndefined();
+  expect(sent[0].references).toEqual([pluginFixture.document]);
+  await expect(panel.locator('.assistant-user .assistant-reference')).toHaveCount(1);
+  await expect(draftChips).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'Conversation model and effort' })).toBeDisabled();
   selected.turns[0].items.find(item => item.kind === 'assistant').text = 'The unsaved paragraph adds a clear qualification. Check the stated conditions before using the conclusion.';
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
+  await message.fill('@document');
+  await expect(panel.getByRole('option').filter({ hasText: 'document.md' })).toHaveCount(1);
+  await message.press('Enter');
+  await panel.getByRole('button', { name: 'Steer conversation', exact: true }).click();
+  await expect(draftChips).toHaveCount(0);
+  expect(sent.at(-1).message).toBe('');
+  expect(sent.at(-1).references).toEqual([pluginFixture.document]);
   await message.fill('Focus on the unsaved paragraph.'); await panel.getByRole('button', { name: 'Steer conversation' }).click();
   await expect(panel.getByText('Direction updated: focus on the unsaved paragraph.', { exact: true })).toBeVisible();
   expect(sent[1].id).toBe('thread-1');
@@ -333,7 +355,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   expect(submittedAnswers.length).toBe(2);
 
   await panel.getByRole('button', { name: 'Stop response' }).click();
-  await expect(panel.getByRole('button', { name: 'Conversation model and language' })).toBeEnabled();
+  await expect(panel.getByRole('button', { name: 'Conversation model and effort' })).toBeEnabled();
   // Assert direct completion state, without a reload or a polling assertion masking it.
   expect(await panel.locator('details').evaluate(element => element.open)).toBe(false);
   expect(await panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false }).isVisible()).toBe(true);
@@ -403,12 +425,10 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   expect(await message.evaluate(element => document.activeElement === element)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/stopped-1440-light-en.png' });
   await panel.getByRole('button', { name: 'New conversation' }).click();
-  await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveText('日本語');
   await panel.getByRole('button', { name: 'Conversation history' }).click();
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/history-1440-light-en.png' });
   await panel.getByRole('button', { name: /What changed in the current document/ }).click();
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
-  await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveText('English');
   const markdownSource = '# 답변 요약\n\n**중요한 조건**과 $x^2$를 확인합니다.[^n]\n\n- 첫 번째 항목\n- 두 번째 항목\n\n```js\nconst answer = "' + 'long-code-'.repeat(30) + '";\n```\n\n| 항목 | 설명 |\n| --- | --- |\n| 표 | ' + '긴내용'.repeat(70) + ' |\n\n$$\na+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z\n$$\n\n[공식 안내](https://example.com/docs)\n\n[^n]: 답변 각주';
   selected.turns[0].status = 'inProgress';
   const streamingAnswer = selected.turns[0].items.find(item => item.kind === 'assistant');
@@ -540,7 +560,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   expect(await panel.getByRole('textbox').evaluate(element => document.activeElement === element)).toBe(true);
   expect(await panel.evaluate(element => ({ width: element.getBoundingClientRect().width, overflow: element.scrollWidth > element.clientWidth }))).toEqual({ width: 640, overflow: false });
   expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(true);
-  await expect(panel.getByRole('button', { name: '대화 모델과 언어' })).toContainText('높음');
+  await expect(panel.getByRole('button', { name: '대화 모델과 추론 강도' })).toContainText('높음');
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/assistant-640-dark-ko.png' });
   if (screenshots) await page.screenshot({ path: 'tmp/983-before-640.png' });
   selected.userInput = { requestId: 'ko-983', turnId: selected.turns.at(-1).id, questions: [{ id: 'ko', header: '설명 범위', question: '문서에서 어떤 내용을 자세히 설명할까요?', isOther: true, isSecret: false, options: [{ label: '핵심 내용', description: '문서의 핵심 내용과 주요 조건을 함께 설명합니다.' }, { label: '단계별 설명', description: '각 단계의 근거와 가정을 자세히 설명합니다.' }] }] };
@@ -614,6 +634,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await expect(panel.getByRole('textbox')).toBeEnabled();
   expect(selected.id).toBe('history-older');
   await expect(panel.getByText('What changed in the current document?', { exact: true })).toBeVisible();
+  await expect(panel.locator('.assistant-user .assistant-reference').first()).toHaveText('document.md');
   // A stored thread that cannot resume falls back quietly, with usable defaults.
   await panel.getByRole('button', { name: '비서 닫기' }).click();
   resumeFailure = true;

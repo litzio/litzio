@@ -15,6 +15,7 @@ import { treeKey, visibleTreeItems, type FolderTreeState, type TreeItem } from "
 
 type SidebarProps = {
   contributions?: { id: string; label: string; run(returnFocus: HTMLElement): void }[];
+  onAddToChat?(path: string, returnFocus: HTMLElement): void;
   pluginFileActions?: (UiFileAction & { disabled?: boolean })[];
   onFileAction: FileActionHandler;
   fileActionsDisabled: boolean;
@@ -57,7 +58,7 @@ type SidebarProps = {
 export function Sidebar({
   onFileAction, fileActionsDisabled, isFileDirty, open, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
   folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, settingsDisabled, updateVersion,
-  theme = "system", onThemeChange, contributions = [], pluginFileActions = [],
+  theme = "system", onThemeChange, contributions = [], pluginFileActions = [], onAddToChat,
 }: SidebarProps) {
   useTranslation();
   return (
@@ -85,7 +86,7 @@ export function Sidebar({
         {folders.length > 0 ? folders.map(tree => (
           <FolderTree
             key={tree.root}
-            pluginFileActions={pluginFileActions}
+            onAddToChat={onAddToChat} pluginFileActions={pluginFileActions}
             onFileAction={onFileAction} fileActionsDisabled={fileActionsDisabled} isFileDirty={isFileDirty}
             tree={tree}
             focusFolder={focusFolder}
@@ -168,6 +169,7 @@ function SettingsEntry({ iconOnly, onOpen, updateVersion, disabled }: { disabled
 }
 
 type FolderTreeProps = {
+  onAddToChat?(path: string, returnFocus: HTMLElement): void;
   pluginFileActions?: (UiFileAction & { disabled?: boolean })[];
   onFileAction: FileActionHandler;
   fileActionsDisabled: boolean;
@@ -190,7 +192,7 @@ type FolderTreeProps = {
 };
 
 /** One opened folder as a tree: folders expand in place, documents open. */
-function FolderTree({ pluginFileActions = [], onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
+function FolderTree({ pluginFileActions = [], onAddToChat, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
   useTranslation();
   const treeId = useId();
   const section = useRef<HTMLElement>(null);
@@ -327,6 +329,7 @@ function FolderTree({ pluginFileActions = [], onFileAction, fileActionsDisabled,
             setFileAction({ action, item });
           };
           const actions: ContextMenuAction[] = [
+            ...(onAddToChat ? [{ id: "add-to-chat", label: i18n.t("Add to chat"), icon: <FileText aria-hidden="true" />, run: () => onAddToChat(entry.path, rows.current.get(entry.path)!) }] : []),
             ...pluginFileActions.filter(action => action.extensions.some(extension => entry.name.toLowerCase().endsWith(extension))).map(action => ({
               id: action.id, label: i18n.t(action.label as MessageKey), icon: <FileText aria-hidden="true" />, disabled: action.disabled,
               run: () => action.run(entry.path, rows.current.get(entry.path)!),
