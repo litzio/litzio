@@ -1052,12 +1052,11 @@ function EditorApp() {
   const inlineInsertionDisabled = !document || busy || view !== "visual" ||
     !editorRef.current?.canInsertInline() || commandReturnFocus.current !== editorRef.current?.getFocusTarget();
   const historyDisabled = !document || busy || view !== "visual";
-  const sampleWarning = start?.sampleProblem === "conflict"
-    ? i18n.t("Sample documents are unavailable because the sample folder could not be replaced safely. The existing folder was kept.")
-    : start?.sampleProblem ? i18n.t("Sample documents could not be prepared. You can still open your documents.") : "";
+  const sampleWarning = start?.sampleProblem
+    ? i18n.t("Sample documents could not be prepared. You can still open your documents.") : "";
   const samplePath = start?.samples?.[i18n.language === "ko" ? "ko" : "en"];
   const openSample = () => {
-    if (samplePath) void openFile(samplePath, i18n.t("This is a writable sample copy. Changes are kept until the bundled sample version changes.")).then(message => {
+    if (samplePath) void openFile(samplePath, i18n.t("This is a writable sample copy. Changes are reset the next time the app starts.")).then(message => {
       if (message) setError(message);
       else if (message === "") setCommandFileFocus(samplePath);
     });

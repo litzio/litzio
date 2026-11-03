@@ -41,35 +41,20 @@ test("start-up skips malformed paths before I/O and accepts valid Unicode names"
   }
 });
 
-test("sample version replaces edited old copies once and preserves same-version edits in both languages", () => {
-  const dir = fs.mkdtempSync(path.join(tmpdir(), "litzio-sample-"));
-  try {
-    fs.cpSync(fileURLToPath(new URL("../../editor/samples", import.meta.url)), path.join(dir, "sample"), { recursive: true });
-    const copy = path.join(dir, "sample-native-v1");
-    fs.mkdirSync(copy);
-    fs.writeFileSync(path.join(copy, "technical-document.md"), "edited old sample");
-    fs.writeFileSync(path.join(copy, "diagram.svg"), "edited diagram");
-    const first = firstDocument([], dir, dir);
-    assert.ok(first.samples);
-    assert.equal(fs.readFileSync(path.join(copy, ".litzio-sample"), "utf8"), "litzio managed sample 1\n");
-    assert.equal(fs.existsSync(path.join(copy, "technical-document.md")), false);
-    for (const language of ["ko", "en"] as const) {
-      const file: string = first.samples[language];
-      const bundled = path.join(dir, "sample", language);
-      for (const relative of fs.readdirSync(bundled, { recursive: true, encoding: "utf8" })) {
-        const source = path.join(bundled, relative);
-        if (fs.statSync(source).isFile()) assert.deepEqual(fs.readFileSync(path.join(path.dirname(file), relative)), fs.readFileSync(source), `copied ${language}/${relative}`);
-      }
-      fs.writeFileSync(file, `edited ${language}`);
-    }
-    assert.deepEqual(firstDocument([], dir, dir), first);
-    for (const language of ["ko", "en"] as const) assert.equal(fs.readFileSync(first.samples[language], "utf8"), `edited ${language}`);
-    fs.writeFileSync(path.join(dir, "sample/version"), "next-version");
-    const next = firstDocument([], dir, dir);
-    assert.deepEqual(next.samples, first.samples);
-    for (const language of ["ko", "en"] as const) assert.equal(fs.readFileSync(first.samples[language], "utf8"), fs.readFileSync(path.join(dir, "sample", language, "converter-control.md"), "utf8"));
-  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
-});
+test("each startup replaces sample edits and added files with the bundled originals", () => sampleFixture(({dir,copy,source,warning,warnings}) => {
+  // No ownership or historical layout is required for this disposable sample directory.
+  fs.mkdirSync(copy);
+  fs.writeFileSync(path.join(copy, "personal.md"), "added file");
+  const first = firstDocument([], dir, dir, warning);
+  assert.ok(first.samples);
+  for (const language of ["ko", "en"] as const) fs.writeFileSync(first.samples[language], `edited ${language}`);
+  fs.mkdirSync(path.join(copy, "extra"));
+  fs.writeFileSync(path.join(copy, "extra", "notes.md"), "added notes");
+  assert.deepEqual(firstDocument([], dir, dir, warning), first);
+  assert.deepEqual(snapshot(copy), snapshot(source), "all bundled files restored, extra entries removed");
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(fs.readdirSync(dir).sort(), ["document.md", "sample", "sample-native-v1"], "no staging or backup leftovers");
+}));
 
 function sampleFixture(run: (fixture: { dir: string; copy: string; source: string; valid: string; warning: (message: string) => void; warnings: string[] }) => void): void {
   const dir = fs.mkdtempSync(path.join(tmpdir(), "litzio-sample-safety-"));
@@ -89,35 +74,7 @@ function snapshot(folder: string): [string, string][] {
   });
 }
 
-test("unowned, incomplete legacy and mixed sample folders are preserved and reported as conflicts", () => {
-  for (const layout of ["personal", "incomplete-legacy", "mixed-legacy", "mixed-owned", "wrong-type", "unmarked-v2"]) sampleFixture(({dir,copy,source,valid,warning,warnings}) => {
-    if (["mixed-owned", "wrong-type", "unmarked-v2"].includes(layout)) {
-      assert.ok(firstDocument([], dir, dir, warning).samples);
-      fs.writeFileSync(path.join(source, "version"), "new version");
-      if (layout === "mixed-owned") fs.writeFileSync(path.join(copy, "personal.md"), "personal work");
-      if (layout === "wrong-type") {
-        fs.unlinkSync(path.join(copy, "ko/converter-control.md"));
-        fs.mkdirSync(path.join(copy, "ko/converter-control.md"));
-      }
-      if (layout === "unmarked-v2") fs.unlinkSync(path.join(copy, ".litzio-sample"));
-    } else {
-      fs.mkdirSync(copy);
-      fs.writeFileSync(path.join(copy, layout === "personal" ? "personal.md" : "technical-document.md"), "personal work");
-      if (layout === "mixed-legacy") {
-        fs.writeFileSync(path.join(copy, "diagram.svg"), "diagram");
-        fs.mkdirSync(path.join(copy, "personal-folder"));
-      }
-    }
-    const before = snapshot(copy);
-    assert.deepEqual(firstDocument([valid], dir, dir, warning), {document:valid,sampleProblem:"conflict"}, layout);
-    assert.deepEqual(snapshot(copy), before, layout);
-    assert.ok(warnings.at(-1)?.includes(copy));
-    assert.ok(warnings.at(-1)?.includes("Sample documents unavailable"));
-    assert.deepEqual(fs.readdirSync(dir).sort(), ["document.md","sample","sample-native-v1"], "no staging or backup leftovers");
-  });
-});
-
-test("destination, ancestor and owned nested junctions stay intact without touching their targets", () => {
+test("destination, ancestor and nested junctions stay intact without touching their targets", () => {
   for (const location of ["destination", "ancestor", "nested"]) sampleFixture(({dir,copy,source,valid,warning}) => {
     // Every destructive fixture is under this test's OS temporary root, outside the repository.
     const outside = path.join(dir, "outside");
@@ -135,11 +92,10 @@ test("destination, ancestor and owned nested junctions stay intact without touch
       assert.ok(firstDocument([], dir, dir, warning).samples);
       link = path.join(copy, "ko", "assets");
       fs.rmSync(link, {recursive:true});
-      fs.writeFileSync(path.join(source, "version"), "next version");
     }
     fs.symlinkSync(outside, link, process.platform === "win32" ? "junction" : "dir");
     const before = snapshot(outside);
-    assert.deepEqual(firstDocument([valid], userData, dir, warning), {document:valid,sampleProblem:"conflict"});
+    assert.deepEqual(firstDocument([valid], userData, dir, warning), {document:valid,sampleProblem:"unavailable"});
     assert.equal(fs.lstatSync(link).isSymbolicLink(), true, "the junction itself is preserved");
     assert.deepEqual(snapshot(outside), before, "the external target is preserved");
   });
@@ -151,7 +107,6 @@ test("failed sample copies leave argument documents usable, old edits intact and
       const initial = firstDocument([], dir, dir, warning);
       assert.ok(initial.samples);
       fs.writeFileSync(initial.samples.ko, "edited sample");
-      fs.writeFileSync(path.join(source, "version"), "next version");
     }
     const before = existing ? snapshot(copy) : undefined;
     fs.unlinkSync(path.join(source, "en/references.bib"));
@@ -164,10 +119,9 @@ test("failed sample copies leave argument documents usable, old edits intact and
   });
 });
 
-test("failed staged installation restores the old sample and never advertises the failed version", (t) => sampleFixture(({dir,copy,source,valid,warning}) => {
+test("failed staged installation restores the old sample and never advertises a failed installation", (t) => sampleFixture(({dir,copy,source,valid,warning}) => {
   assert.ok(firstDocument([], dir, dir, warning).samples);
   const before = snapshot(copy);
-  fs.writeFileSync(path.join(source, "version"), "next version");
   const rename = fs.renameSync;
   const mocked = t.mock.method(fs, "renameSync", (...[from, to]: Parameters<typeof fs.renameSync>) => {
     if (String(from).includes(".litzio-sample-stage-") && !String(from).endsWith("-previous") && to === copy) throw new Error("injected installation failure");

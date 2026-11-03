@@ -1293,7 +1293,7 @@ a document is chosen in the sidebar. Choosing a folder never discards current ed
 choosing another file or New preserves existing sessions under the
 [session protection contract](editing-session-save-v1.md#switching-and-recovery). Open sample document
 opens the Host's writable sample for the current UI language through Open and its checks. Its
-temporary notice explains that edits persist until the bundled sample version changes. The sample is opened only on request. Without a document the TopBar keeps its Find documents and commands action, with `No file opened` only as optional secondary information; Save, File actions and the views
+temporary notice explains that edits reset to the bundled original on the next app start. The sample is opened only on request. Without a document the TopBar keeps its Find documents and commands action, with `No file opened` only as optional secondary information; Save, File actions and the views
 stay unavailable. Document settings is absent; the TopBar local-width toggle remains available. No error is shown. With nothing to lose, the Desktop app's
 update restart check allows the restart unless a document is opening. Closing the last document tab returns here while keeping the folder tree and preferences. Host start
 information is retained, including localized sample paths supplied alongside a Desktop launch file

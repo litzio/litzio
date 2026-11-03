@@ -281,10 +281,10 @@ async (page, { openPath, expect, screenshots }) => {
   const warningWindow = await page.context().newPage();
   try {
     await warningWindow.addInitScript(() => { localStorage.removeItem('litzio.openTabs'); localStorage.setItem('litzio.uiLanguage','en'); });
-    await warningWindow.route('**/api/document', route => route.fulfill({json:{start:true,sampleProblem:'conflict'}}));
+    await warningWindow.route('**/api/document', route => route.fulfill({json:{start:true,sampleProblem:'unavailable'}}));
     await warningWindow.goto(origin);
     const warnings = warningWindow.locator('.notification-center');
-    await expect(warnings.getByTestId('writeability-warning')).toContainText('Sample documents are unavailable');
+    await expect(warnings.getByTestId('writeability-warning')).toContainText('Sample documents could not be prepared');
     await warnings.getByRole('button', {name:'Dismiss notification',exact:true}).click();
     await expectEmpty(warnings);
     const settings = warningWindow.getByRole('button', {name:'Settings',exact:true});
