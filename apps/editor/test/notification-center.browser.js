@@ -308,5 +308,39 @@ async (page, { openPath, expect, screenshots }) => {
     });
     await expectEmpty(warnings);
   } finally { await warningWindow.close(); }
+  // #1005/#986: load real applied warnings, then operate only visible controls.
+  await openPath(page, [root, 'tmp', 'reference-save-reload', 'groups.md'].join(sep));
+  const group = center.getByRole('button', {name:'Numbering warnings · 2', exact:true});
+  await expect(group).toHaveAttribute('aria-expanded','false');
+  await expect(center.getByTestId('numbering-warning').first()).toBeHidden();
+  await group.click();
+  await expect(center.getByTestId('numbering-warning').first()).toBeVisible();
+  await expect(center.locator('.notification-context')).toHaveText(['groups.md']);
+  await page.keyboard.press('Space');
+  await expect(group).toHaveAttribute('aria-expanded','false');
+  await expect(group).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(group).toHaveAttribute('aria-expanded','true');
+  await center.getByRole('button', {name:'Go to problem',exact:true}).last().click();
+  await expect(engine).toBeFocused();
+  expect(await engine.evaluate(el => el.editor.state.selection.node?.attrs.label)).toBe('group-two');
+  await center.getByRole('button', {name:'Dismiss notification',exact:true}).first().click();
+  await expect(group).toHaveCount(0); // A singleton uses the original row.
+  await expect(center.getByTestId('numbering-warning')).toBeVisible();
+  await expect(center.locator('.notification-context')).toHaveText(['groups.md']);
+  expect(await center.evaluate(el => el.contains(document.activeElement))).toBe(true);
+  await center.getByRole('button', {name:'Dismiss notification',exact:true}).click();
+  await expect(toggle()).toHaveAttribute('aria-expanded','false');
+  await expect(toggle()).toBeFocused();
+  await toggle().click();
+  await expect(center.locator(':scope > ul')).toHaveText('No notifications');
+  // Reload clears window memory; dismiss the earlier fixture's unsaved-work prompt.
+  await page.reload();
+  await page.getByRole('dialog', {name:'Restore unsaved work?',exact:true}).getByRole('button', {name:'Not now',exact:true}).click();
+  await expect(page.getByRole('dialog', {name:'Restore unsaved work?',exact:true})).toHaveCount(0);
+  await expect(group).toHaveAttribute('aria-expanded','false');
+  await center.getByRole('button', {name:'Dismiss group: Numbering warnings · 2',exact:true}).click();
+  await expect(toggle()).toHaveAttribute('aria-expanded','false');
+  await expect(toggle()).toBeFocused();
   return { lifecycle:true, focusPreserved:true, inactiveNavigation:true, windowIsolation:true };
 }

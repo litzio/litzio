@@ -46,7 +46,7 @@
 | ContextMenu / `MenuExamples` | 대상의 우클릭·Shift+F10 작업 / 주 동작의 유일한 진입점으로 사용하지 않음 | `import { ContextMenu } from "@/components/ui/context-menu"` | 미제공 | [DocumentTabs](../../apps/editor/src/shell/DocumentTabs.tsx), [P10](ui-patterns-v1.md#p10-메뉴와-선택-도구) |
 | Tooltip / `ControlExamples`, `MenuExamples` | hover·keyboard focus 도움말 / label·필수 안내·오류문 대체 아님 | `import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"` | 미제공 | [main의 TooltipProvider](../../apps/editor/src/main.tsx), [상태 규칙](editor-visual-language-v1.md#state-rules) |
 | DangerConfirmation / `SurfaceExamples` | 파괴적 동작, Cancel 초기 focus·복귀 / 일반 정보 팝업 대체 아님 | `import { DangerConfirmation } from "@/components/ui/danger-confirmation"` | 미제공; `host.Dialog`와 동일 API가 아님 | [공통 구현](../../apps/editor/src/components/ui/danger-confirmation.tsx), [P12](ui-patterns-v1.md#p12-모달파일복구설정-범위) |
-| NotificationCenter / `NotificationExample` | 창 단위 작업·문서 알림 / 입력 오류 대체나 화면마다 center 추가 금지 | 제품에서는 `import { useNotifications } from "@/components/ui/notification-center"`; 직접 center 렌더링은 격리된 갤러리 예제용 | `host.notify(notice)` / `host.notify(null)` | [MessageArea](../../apps/editor/src/shell/MessageArea.tsx), [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터) |
+| NotificationCenter / `NotificationExample` | 창 단위 작업·문서 알림·같은 종류 묶음 / 입력 오류 대체나 화면마다 center 추가 금지 | 제품에서는 `import { useNotifications } from "@/components/ui/notification-center"`; 직접 center 렌더링은 격리된 갤러리 예제용 | `host.notify(notice)` / `host.notify(null)` | [MessageArea](../../apps/editor/src/shell/MessageArea.tsx), [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터) |
 | 아이콘 / `ControlExamples` | 기존 동작의 Lucide 아이콘과 접근성 이름 / 새 SVG 체계·장식 의미 추가 아님 | `import { FileText, FolderOpen, Pencil, Plus, Settings, Trash2, MoreHorizontal } from "lucide-react"` | Host 아이콘 API 미제공 | [Sidebar](../../apps/editor/src/shell/Sidebar.tsx), [Controls and spacing](editor-layout-rules-v1.md#controls-and-spacing) |
 
 플러그인 실행 예제는 [ConversionDialog](../../plugins/docling/src/conversion/ConversionDialog.tsx)와 [ServerSettings](../../plugins/docling/src/conversion/ServerSettings.tsx)를 사용한다. 공개 API 밖의 메뉴·토글은 제공된 것으로 안내하지 않는다. native 탭·행 버튼은 [기존 예외](editor-layout-rules-v1.md#deliberate-control-exceptions)를 확인한다.
@@ -87,6 +87,15 @@
 | 갤러리 | [Before](assets/choice-group-1034/before-gallery-light.png) / [After](assets/choice-group-1034/after-gallery-light.png) | [Before](assets/choice-group-1034/before-gallery-dark.png) / [After](assets/choice-group-1034/after-gallery-dark.png) |
 
 시각 점검: 문서 보기와 번호 세그먼트는 전후 동일한 정렬·높이·대비를 유지했다. 갤러리는 같은 토큰의 quiet track과 선택 면으로 통일했으며 control 높이와 글자 대비·잘림을 점검했다. 문서 Light Before 하단의 Mermaid는 비동기 렌더 중이며 변경 대상 세그먼트 밖의 차이다.
+
+## 알림 묶음 (#1005, #986)
+
+기존 NotificationCenter와 ghost/sm·icon-sm Button, Lucide chevron/X 및 제품 토큰을
+재사용한다. 묶음은 내부 목록의 disclosure이며 새 표면·Plugin API는 추가하지 않는다.
+원인별 숨김·재발과 위치 이동은 기존 등록 경로를 유지한다. 등록 출처·문맥·심각도·
+기존 유형 값으로 묶으며, singleton과 유형 불명 메시지의 보수적 묶음 기준은
+[P07 계약과 전후 캡처](ui-patterns-v1.md#같은-종류-묶음과-마지막-닫기-1005-986)를 따른다.
+기존 native 행/폼 예외를 확장하지 않으며 새 공통 구현 예외는 없다.
 
 ## 범위 밖
 
