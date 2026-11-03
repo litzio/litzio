@@ -208,3 +208,17 @@ Bibliography, citation chips, shortcut labels and notices reuse existing type/sp
 ## Product mark (#864)
 
 The product mark uses the owner-approved E soft-knot [SVG originals](app-icon-v1.md): #A50034 on light surfaces and #E0244F on dark surfaces, without a background tile or added shadow. Existing header/start-screen geometry remains in force. Marks resolve `brand.icons.svg` / `darkSvg` according to the Editor theme; the adaptive favicon uses `smallSvg` / `smallDarkSvg` according to system color scheme, with ICO fallback. Plum remains the interaction accent. About explains the Litz wire/I/O name origin. Decorative artwork is separate from control/state contrast.
+
+## Plugin color inspection (#1035)
+
+The existing Editor `visual-tokens` unit check also scans TSX and CSS in
+`plugins/docling/src` and `plugins/ai-agent/src` with the same literal-color
+judgment. Plugin layout dimensions and native controls are deliberately excluded:
+the Host API does not replace every plugin interaction owner. No plugin color
+exceptions are currently needed. Existing Editor mask-alpha and transparent-ring
+exceptions remain limited to their original CSS mechanisms.
+
+Control heights in `styles.css` already consume `--size-control` or
+`--size-control-compact`. The remaining `2rem` equation-display minimum and
+`8rem` recovery-text minimum are content geometry, not control heights.
+This inspection changes no rendered appearance.
