@@ -37,7 +37,8 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     await expect(entry).toBeEnabled();
     await entry.click();
     await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
-    await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
+    await expect(page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling settings', exact: true })).toBeEnabled();
+    await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling settings', exact: true }).click();
   };
   await settings();
   await page.unroute('**/api/document**', holdStartup);
@@ -339,7 +340,8 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     await page.setViewportSize({ width: 640, height: 1000 });
     await page.getByRole('button', { name: '설정', exact: true }).click();
     await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
-    await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
+    await expect(page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling settings', exact: true })).toBeEnabled();
+    await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling settings', exact: true }).click();
     await page.getByRole('button', { name: '연결 확인', exact: true }).click();
     await page.getByRole('button', { name: '연결 확인', exact: true }).waitFor();
     await addressRow();
@@ -367,7 +369,8 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     await page.getByRole('button', { name: '표시·언어', exact: true }).click();
     await page.getByTestId('theme').selectOption('dark');
     await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
-    await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
+    await expect(page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling settings', exact: true })).toBeEnabled();
+    await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling settings', exact: true }).click();
     await page.getByRole('button', { name: '연결 확인', exact: true }).click();
     await expect(page.locator('#docling-server-result')).toContainText('호환됩니다');
     await capture('settings-dark-ko-640');

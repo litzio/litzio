@@ -370,3 +370,9 @@ Settings 탭·진입의 pointer 이동은 metadata 바깥 적용 대신 탐색�
 행 높이만 맞춘다. Explorer·문서 탐색·비서는 같은 내부 separator 손잡이를 공유한다.
 독립 localStorage 너비는 문서 초안·Save와 분리하며 Settings 범주 열은 바꾸지 않는다.
 [너비 제한과 배치](editor-layout-rules-v1.md#alignment-and-ownership)를 따른다.
+
+#1007/#1090: U22 플러그인 목록은 같은 Host SettingsSwitch 행의 오른쪽에 ghost
+톱니와 스위치를 두고, 정보·기본 버전 재등록은 플러그인 상세로 모은다.
+AI·Docling 설정은 기존 Host 행 정렬을 유지한다. UI 기여 로딩 중에는 상태를
+표시하고 톱니를 비활성화하며 완료 뒤 진입한다. 설정 없는 플러그인도 정보에
+진입한다. [현재 계약과 전후 캡처](plugin-ui-v1.md#plugin-row-and-version-follow-up-1007-1090).

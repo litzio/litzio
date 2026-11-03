@@ -450,7 +450,16 @@ revision, version, enabled state, installed directory and bundled revision.
 `litzio plugins reregister <id>` calls the same Host default registration.
 There is no automatic replacement, installation/removal UI or marketplace.
 
-The Settings inventory displays readable manifest versions unchanged. A 64-character hexadecimal version is abbreviated to 12 characters, with its full value in the title, like installation revisions. Korean revision labels use “식별값”. This presentation does not change manifests, registration or CLI/Host inventory values.
+Manifest `version` must be semver, including prerelease/build metadata; hashes,
+short numeric versions and arbitrary names are refused. No past-data migration is
+provided. Bundled Docling and AI agent builds read `apps/desktop/package.json` and
+use that app version. This is the human-readable release value, not a content ID.
+Host-calculated `revision` still hashes manifest/files, determines installation
+folders and compares pinned versus app-default content. Changing content with the
+same version still changes revision and permits explicit default re-registration.
+Settings displays version unchanged and abbreviates revision only in details;
+full revision/path/default match remain accessible through hover/keyboard focus.
+Independent plugin version/compatibility/update rules remain #867.
 
 #975 source captures (1440px Light English / 640px Dark Korean):
 

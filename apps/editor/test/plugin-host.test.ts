@@ -69,7 +69,7 @@ test("headless Host operations use the installed plugin through local and HTTP c
     echo: args => ({ ...args, count: host.session.get('count') || 0 }),
     increment: () => { host.session.set('count', (host.session.get('count') || 0) + 1); return host.session.get('count'); }
   } });`);
-  const description = { id: "echo", version: "1", workerApi: 1, entry: "worker.cjs", host: { api: 1, entry: "host.cjs" }, routes: ["/api/echo"] };
+  const description = { id: "echo", version: "1.0.0", workerApi: 1, entry: "worker.cjs", host: { api: 1, entry: "host.cjs" }, routes: ["/api/echo"] };
   writeFileSync(manifest, JSON.stringify(description));
   const host = createPluginHost(undefined, undefined, { directory: path.join(root, "installed"), manifest, run: { checkoutRoot: root } });
   const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, undefined, 4096, undefined, undefined, host); });
@@ -81,7 +81,7 @@ test("headless Host operations use the installed plugin through local and HTTP c
   assert.equal(response.status, 200); assert.equal(await response.json(), 1);
   assert.deepEqual(await (await fetch(url + "/api/echo?message=http")).json(), { message: "http", count: 1 });
   assert.throws(() => host.invoke("echo", "toString"), /Unknown/u);
-  writeFileSync(manifest, JSON.stringify({ ...description, version: "2" })); host.plugins().register(manifest);
+  writeFileSync(manifest, JSON.stringify({ ...description, version: "2.0.0" })); host.plugins().register(manifest);
   assert.equal(host.invoke("echo", "echo").count, 1, "plugin transient state survives a new activation");
   const job = { id: randomUUID(), input: "input.pdf", output: "output", startedAt: Date.now(), state: "running" as const, progress: { phase: "checking" as const } };
   host.plugins().admit(job, "same-input", "echo");

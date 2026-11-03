@@ -12,7 +12,7 @@ test("plugin inventory compares pinned and bundled revisions without replacing, 
   const root = mkdtempSync(path.join(tmpdir(), "plugin-inventory-"));
   const manifest = path.join(root, "manifest.json");
   const write = (version: string) => writeFileSync(manifest, JSON.stringify({ id: "example", version, workerApi: 1, entry: "worker.cjs" }));
-  writeFileSync(path.join(root, "worker.cjs"), "process.exit(0)"); write("1");
+  writeFileSync(path.join(root, "worker.cjs"), "process.exit(0)"); write("1.0.0");
   const host = createPluginHost(undefined, undefined, { directory: path.join(root, "store"), manifest, run: { checkoutRoot: root } });
   t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
   const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => res.end(), undefined, 4096, undefined, undefined, host); });
@@ -22,8 +22,9 @@ test("plugin inventory compares pinned and bundled revisions without replacing, 
   const list = async () => (await (await fetch(url)).json()) as ReturnType<typeof host.inventory>;
   const original = host.plugins(true).list().find(item => item.id === "example")!;
   assert.equal(host.inventory().find(item => item.id === "example")!.bundledRevision, original.revision);
-  write("2");
+  writeFileSync(path.join(root, "worker.cjs"), "process.exit(1)");
   const changed = (await list()).find(item => item.id === "example")!;
+  assert.equal(changed.version, original.version);
   assert.equal(changed.revision, original.revision);
   assert.notEqual(changed.bundledRevision, original.revision);
   assert.equal(changed.directory, original.directory);
@@ -32,9 +33,9 @@ test("plugin inventory compares pinned and bundled revisions without replacing, 
   assert.equal(response.status, 200);
   const restored = (await list()).find(item => item.id === "example")!;
   assert.equal(restored.revision, restored.bundledRevision);
-  writeFileSync(manifest, JSON.stringify({ id: "external", version: "1", workerApi: 1, entry: "worker.cjs" }));
+  writeFileSync(manifest, JSON.stringify({ id: "external", version: "1.0.0", workerApi: 1, entry: "worker.cjs" }));
   host.plugins().register(manifest);
-  write("2");
+  write("2.0.0");
   assert.equal(host.inventory().find(item => item.id === "external")!.bundledRevision, null);
   assert.throws(() => host.reregister("external"), /bundled/);
 });

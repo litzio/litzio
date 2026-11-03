@@ -13,7 +13,7 @@ if (mode === "produce") {
   writeFileSync(path.join(worker, "worker.cjs"), `const fs = require('node:fs'), path = require('node:path');
     process.once('message', request => { fs.mkdirSync(request.output); fs.writeFileSync(path.join(request.output, 'partial.txt'), 'unpublished'); process.send({type:'complete'}, () => process.exit(0)); });`);
   const manifest = path.join(worker, "manifest.json");
-  writeFileSync(manifest, JSON.stringify({ id: "docling", version: "cross-brand", workerApi: 1, entry: "worker.cjs" }));
+  writeFileSync(manifest, JSON.stringify({ id: "docling", version: "1.0.0-cross-brand", workerApi: 1, entry: "worker.cjs" }));
   const runtime = new PluginRuntime(path.join(root, `installation-${appName}`), manifest);
   const input = path.join(root, `${appName}.pdf`), output = path.join(root, `${appName}-output`), id = randomUUID();
   writeFileSync(input, "%PDF-1.7\ncross-brand");

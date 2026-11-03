@@ -1,9 +1,7 @@
 import { useNativeHistoryBoundary } from "../ui/use-native-history-boundary.ts";
 import { PluginSettings } from "../PluginSettings.tsx";
 import { useTableWrapDefault, setTableWrapDefault } from "../table-wrap.ts";
-import { PLUGIN_UI, type UiRegistration } from "@litzio/plugin-api/config";
 import type { SettingsSection } from "@litzio/plugin-api/ui";
-import { ContributionBoundary } from "../PluginTab.tsx";
 import { useMessageState } from "../ui-message.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
@@ -102,6 +100,8 @@ function CliSettings({ desktop }: { desktop: DesktopBridge }) {
 
 type SettingsDialogProps = {
   sections?: SettingsSection[];
+  pluginStateKey?: string;
+  readyPlugins?: string[];
   pluginErrors?: Record<string, string>;
   theme: ThemePreference;
   themeProblem: boolean;
@@ -120,22 +120,20 @@ type SettingsDialogProps = {
 };
 
 /** Shared local recovery settings; About and update controls require the Desktop bridge. */
-export function SettingsDialog({ sections = [], pluginErrors = {}, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
+export function SettingsDialog({ sections = [], pluginStateKey = "", readyPlugins = [], pluginErrors = {}, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
   useTranslation();
   const lastPluginSection = useRef<string | undefined>(undefined);
   const [screen, setScreen] = useState<HTMLDivElement | null>(null);
   useNativeHistoryBoundary(screen);
   useEffect(() => {
-    if (!category.startsWith("plugin/") || sections.some(section => section.id === category)) return;
-    // Missing contributions can mean a feature-driven reactivation, not removal.
-    // Confirm actual registration loss before discarding the selected category.
+    if (!category.startsWith("plugin/")) return;
     const controller = new AbortController();
-    void fetch(`${import.meta.env.BASE_URL}${PLUGIN_UI.route.slice(1)}`, { signal: controller.signal })
+    void fetch(`${import.meta.env.BASE_URL}api/worker-plugins`, { signal: controller.signal })
       .then(async response => {
         if (!response.ok) return;
-        const registrations: UiRegistration[] = await response.json();
-        if (!controller.signal.aborted && !registrations.some(plugin => plugin.id === category.split("/")[1])) onCategoryChange("plugins");
-      }).catch(() => {}); // An unavailable read cannot prove that the plugin was removed.
+        const items: { id: string; enabled: boolean }[] = await response.json();
+        if (!controller.signal.aborted && !items.some(item => item.id === category.split("/")[1] && item.enabled)) onCategoryChange("plugins");
+      }).catch(() => {});
     return () => controller.abort();
   }, [category, sections, onCategoryChange]);
   const [clearConfirm, setClearConfirm] = useState(false);
@@ -166,8 +164,6 @@ export function SettingsDialog({ sections = [], pluginErrors = {}, theme, themeP
     ...(desktop ? [{ id: "about" as const, label: i18n.t("About & updates"), icon: Info }] : []),
   ] as const;
 
-  const contributed = sections.find(section => section.id === category);
-  const Section = contributed?.View;
   return (
     <div ref={setScreen} className="settings-screen" data-testid="settings-dialog">
         <div className="settings-body">
@@ -180,14 +176,10 @@ export function SettingsDialog({ sections = [], pluginErrors = {}, theme, themeP
               </Button>)}
             </nav>
           </aside>
-          <main className="settings-content" aria-labelledby={`settings-category-${category}`}>
+          <main className="settings-content" aria-labelledby={`settings-category-${category.startsWith("plugin/") ? category.split("/").slice(0, 2).join("/") : category}`}>
             <div className="settings-content-inner">
-              <header className="settings-category-header">
-                <h2 id={`settings-category-${category}`}>{contributed ? i18n.t(contributed.label as any) : category.startsWith("plugin/") ? i18n.t("Plugins") : categories.find(item => item.id === category)?.label}</h2>
-              </header>
-              {category.startsWith("plugin/") ? <Button size="sm" variant="ghost" onClick={() => onCategoryChange("plugins")}>{i18n.t("Back to plugins")}</Button> : null}
-              {category === "plugins" ? <PluginSettings sections={sections} errors={pluginErrors} focusSection={lastPluginSection.current} onOpen={id => { lastPluginSection.current = id; onCategoryChange(id as SettingsCategory); }} /> : null}
-              {Section ? <ContributionBoundary key={category}><Section /></ContributionBoundary> : null}
+              {!category.startsWith("plugin/") ? <header className="settings-category-header"><h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2></header> : null}
+              {category === "plugins" || category.startsWith("plugin/") ? <PluginSettings pluginStateKey={pluginStateKey} readyPlugins={readyPlugins} selectedId={category.startsWith("plugin/") ? category.split("/")[1] : undefined} onBack={() => onCategoryChange("plugins")} sections={sections} errors={pluginErrors} focusSection={lastPluginSection.current} onOpen={id => { lastPluginSection.current = id; onCategoryChange(id as SettingsCategory); }} /> : null}
               {category === "appearance" ? <>
                 <SettingsSelect label={i18n.t("Theme")} description={i18n.t("Choose a light or dark appearance.")} testId="theme"
                   value={theme} onChange={value => {

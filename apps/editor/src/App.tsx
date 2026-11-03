@@ -1373,6 +1373,8 @@ function EditorApp() {
             data-group-index={navigation.groups.indexOf(settingsGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(settingsGroup) } as React.CSSProperties}
             onFocusCapture={() => focusDocument("settings")} onPointerDownCapture={() => focusDocument("settings")}>
             <SettingsDialog
+                pluginStateKey={JSON.stringify([settingsOpen, ui.plugins.map(plugin => [plugin.id, plugin.revision, plugin.features, !!plugin.contributions, plugin.error])])}
+                readyPlugins={ui.plugins.filter(plugin => plugin.contributions).map(plugin => plugin.id)}
                 pluginErrors={Object.fromEntries(ui.plugins.filter(plugin => plugin.error).map(plugin => [plugin.id, plugin.error!]))}
                 sections={ui.plugins.flatMap(plugin => (plugin.contributions?.settings ?? []).map(section => ({ ...section, id: `plugin/${plugin.id}/${section.id}` })))}
                 theme={theme} themeProblem={themeProblem} onThemeChange={changeTheme}
