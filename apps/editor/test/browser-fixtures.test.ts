@@ -215,10 +215,10 @@ test("localized sample folders retain the supported feature set and canonical Co
 test("notification opt-ins name existing scenarios while unrelated interactions stay isolated", () => {
   assert.equal(new Set(NOTIFICATION_SCENARIOS).size, NOTIFICATION_SCENARIOS.length);
   for (const name of NOTIFICATION_SCENARIOS) assert.ok([...STABLE_SCENARIOS, ...HTTP_SCENARIOS].includes(name), name);
-  // A scenario using the shared notification opener must explicitly opt in.
+  // Shared notification opening and error dismissal both require the real center.
   for (const name of [...STABLE_SCENARIOS, ...HTTP_SCENARIOS]) {
     const source = readFileSync(path.join(testDir, `${name}.browser.js`), "utf8");
-    if (/await showNotifications\(page\)/.test(source)) assert.ok(NOTIFICATION_SCENARIOS.includes(name), name);
+    if (/await showNotifications\(page\)|name:\s*['"]Dismiss error['"]/.test(source)) assert.ok(NOTIFICATION_SCENARIOS.includes(name), name);
   }
   assert.ok(!NOTIFICATION_SCENARIOS.includes("selection-toolbar"));
 });

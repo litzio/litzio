@@ -104,6 +104,11 @@ export const STABLE_SCENARIOS = [
  * All others assume the floating center is absent (#1003 owner decision).
  */
 export const NOTIFICATION_SCENARIOS = [
+  "plugin-ui",
+  "color-mode",
+  "image-assets",
+  "pending-figure",
+  "writeability-preflight",
   "notification-center",
   "ai-agent",
   "numbering-mode",
