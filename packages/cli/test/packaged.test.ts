@@ -73,7 +73,7 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     assert.equal(notices.status, 200);
     assert.match(notices.headers.get("content-type") ?? "", /text\/plain/);
     assert.match(await notices.text(), /Tiptap GmbH/);
-    assert.match(readFileSync(path.join(dist, "docling-worker/Docling-schema-LICENSE.txt"), "utf8"), /International Business Machines/);
+    assert.match(readFileSync(path.join(path.dirname(entry), "docling-worker/Docling-schema-LICENSE.txt"), "utf8"), /International Business Machines/);
     assert.deepEqual((await (await fetch(url + "/api/document")).json()).allowedRoots, [a, b]);
     await verifyPackagedWorker((endpoint, method = "GET", body) => fetch(`${url}/api/${endpoint}`, { method,
       ...(body === undefined ? {} : { headers: { Origin: url, "Content-Type": "application/json" }, body: JSON.stringify(body) }) }), a, fake.url);

@@ -315,6 +315,8 @@ test('lifecycle scope keeps representative Beta and removal but selects full for
     'packages/cli/scripts/build-ai-agent.ts', 'plugins/docling/scripts/build.ts',
     'plugins/docling/scripts/check-boundaries.ts', 'plugins/ai-agent/scripts/build.ts',
     'packages/plugin-api/src/build.ts', 'packages/plugin-api/src/config.ts', 'apps/editor/vite.config.ts',
+    'plugins/docling/schema/LICENSE', 'apps/editor/public/licenses/Shadcn-copied-source.txt',
+    'apps/editor/public/licenses/index.html',
     ...['packages/cli', 'packages/core', 'packages/file-commit', 'packages/plugin-api',
       'plugins/docling', 'plugins/ai-agent', 'apps/editor'].map(path => `${path}/tsconfig.json`)];
   for (const file of buildInputs) {
@@ -379,7 +381,8 @@ test('layout scope promotes shell/native/style and unknown inputs independently 
     assert.equal(selectJobs(event, [representative[0], 'unknown/new-input.ts']).fullLayout, true);
     // Shared UI and transitive build inputs must promote an otherwise representative diff.
     for (const input of ['apps/editor/src/components/ui/button.tsx', 'apps/editor/src/locales.ts',
-      'packages/cli/scripts/build.ts', 'apps/editor/tsconfig.json']) {
+      'packages/cli/scripts/build.ts', 'apps/editor/tsconfig.json',
+      'plugins/docling/schema/LICENSE', 'apps/editor/public/licenses/Shadcn-copied-source.txt']) {
       assert.equal(selectJobs(event, [representative[0], input]).fullLayout, true, input);
     }
     assert.equal(selectJobs(event, [sensitive[0]]).fullLifecycle, false);
