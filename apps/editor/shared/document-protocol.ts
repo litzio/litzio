@@ -165,7 +165,7 @@ export type SaveRequest = SupportedEdits & {
 
 export type SampleDocuments = { ko: string; en: string };
 
-export type SampleAvailability = { samples?: SampleDocuments; sampleProblem?: "conflict" | "unavailable" };
+export type SampleAvailability = { samples?: SampleDocuments; sampleProblem?: "unavailable" };
 
 export type DocumentFileResponse = SampleAvailability & {
   kind?: "native";

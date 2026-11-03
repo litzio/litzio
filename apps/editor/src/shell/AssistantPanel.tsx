@@ -3,7 +3,7 @@ import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquare, Plus, History, X, ArrowUp, Square } from "lucide-react";
-import { AI_AGENT, AI_TASK, type AiAgentSettings, type AiConversation, type AiConversationInfo, type AiConversationInput, type AiModels, type AiFileReference, type AiDiagnostics } from "@litzio/plugin-api/ai";
+import { AI_AGENT, AI_TASK, type AiAgentSettings, type AiConversation, type AiConversationInfo, type AiConversationInput, type AiModels, type AiFileReference, type AiSkills, type AiDiagnostics } from "@litzio/plugin-api/ai";
 import { Button } from "@/components/ui/button.tsx";
 import { Popover, PopoverContent } from "@/components/ui/popover.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
@@ -41,7 +41,9 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
   const [effort, setEffort] = useState("");
   const [references, setReferences] = useState<AiFileReference[]>([]);
   const [candidates, setCandidates] = useState<AiFileReference[]>([]);
-  const [mention, setMention] = useState<{ start: number; end: number; query: string } | null>(null);
+  const [mention, setMention] = useState<{ start: number; end: number; query: string; skill: boolean } | null>(null);
+  const [skillCatalog, setSkillCatalog] = useState<AiSkills>();
+  const [skillProblem, setSkillProblem] = useState("");
   const [candidateIndex, setCandidateIndex] = useState(0);
   const [message, setMessage] = useState("");
   const [problem, setProblem] = useState("");
@@ -142,14 +144,14 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
   const send = () => run(async () => {
     const value = message.trim(); if (!value && !references.length) return;
     const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "send", id: conversation?.id, message: value,
-      model, reasoningEffort: effort, references: references.map(file => file.path), folders, document: await context() });
+      model, reasoningEffort: effort, references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document: await context() });
     setConversation(next); rememberConversation(next.id); setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
   });
   const addReference = (file: AiFileReference) => {
     setReferences(previous => {
       if (previous.some(value => samePath(value.path, file.path))) return previous;
-      if (previous.length >= 10) { setProblem(i18n.t("At most 10 file references are allowed.")); return previous; }
+      if (file.kind !== "skill" && previous.filter(value => value.kind !== "skill").length >= 10) { setProblem(i18n.t("At most 10 file references are allowed.")); return previous; }
       return [...previous, file];
     });
   };
@@ -157,10 +159,16 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     if (referenceRequest) { addReference({ path: referenceRequest.path, name: pathName(referenceRequest.path), kind: "file" }); setHistory(null); }
   }, [referenceRequest]);
   const mentionOpen = mention !== null;
+  const skillOpen = mention?.skill ?? false;
   useEffect(() => {
     if (!mentionOpen || !open) return;
     let alive = true;
     setCandidates([]);
+    if (skillOpen) {
+      setSkillCatalog(undefined); setSkillProblem("");
+      void request<AiSkills>(AI_AGENT.skillsRoute).then(value => { if (alive) setSkillCatalog(value); }).catch(error => { if (alive) setSkillProblem(error.message); });
+      return () => { alive = false; };
+    }
     const walk = async (root: string, folder: string): Promise<void> => {
       if (!alive) return;
       const listing = await request<{ entries: AiFileReference[] }>(`/api/folder?${new URLSearchParams({ root, path: folder })}`);
@@ -170,13 +178,18 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     };
     void (async () => { for (const root of folders) await walk(root, root); })().catch(error => { if (alive) setProblem(error.message); });
     return () => { alive = false; };
-  }, [mentionOpen, open, folders]);
-  const matches = mention ? candidates.filter(file => file.path.toLocaleLowerCase().includes(mention.query.toLocaleLowerCase())) : [];
+  }, [mentionOpen, skillOpen, open, folders]);
+  const matches = mention ? (mention.skill ? (skillCatalog?.skills ?? []).map(skill => ({ ...skill, kind: "skill" })) : candidates).filter(file => `${file.name} ${file.kind === "skill" ? skillCatalog?.skills.find(skill => skill.path === file.path)?.description : file.path}`.toLocaleLowerCase().includes(mention.query.toLocaleLowerCase())) : [];
   useEffect(() => { if (mention) document.getElementById(`assistant-reference-${candidateIndex}`)?.scrollIntoView({ block: "nearest" }); }, [candidateIndex, mention?.query]);
   const chooseReference = (file: AiFileReference) => {
     addReference(file);
-    if (mention) { const next = message.slice(0, mention.start) + message.slice(mention.end); setMessage(next); requestAnimationFrame(() => input.current?.setSelectionRange(mention.start, mention.start)); }
+    if (mention) { const next = message.slice(0, mention.start) + (file.kind === "skill" ? `$${file.name} ` : "") + message.slice(mention.end); setMessage(next); requestAnimationFrame(() => input.current?.setSelectionRange(mention.start + (file.kind === "skill" ? file.name.length + 2 : 0), mention.start + (file.kind === "skill" ? file.name.length + 2 : 0))); }
     setMention(null); input.current?.focus();
+  };
+  const removeReference = (path: string) => {
+    const skill = references.find(file => file.path === path && file.kind === "skill");
+    if (skill) setMessage(value => value.split(/(\s+)/).filter(part => part !== `$${skill.name}`).join(""));
+    setReferences(previous => previous.filter(file => file.path !== path && !(skill && file.kind === "skill" && file.name === skill.name)));
   };
   const catalogModel = models?.models.find(value => value.model === model);
   const resultPaths = [...new Set(conversation?.turns.flatMap(turn => turn.items.flatMap(item => {
@@ -285,21 +298,25 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     <form className="assistant-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
       {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
       {models && !catalogModel ? <p role="status">{i18n.t("Choose a model and reasoning effort from the available list.")}</p> : null}
-      <ReferenceChips references={references} remove={path => setReferences(previous => previous.filter(file => file.path !== path))} />
-      {mention ? <div className="assistant-reference-options" role="listbox" id="assistant-reference-options" aria-label={i18n.t("File references")}>
-        {matches.map((file, index) => <Button variant="ghost" size="sm" type="button" role="option" id={`assistant-reference-${index}`} aria-selected={candidateIndex === index} key={file.path} title={file.path} onMouseDown={event => event.preventDefault()} onClick={() => chooseReference(file)}>{file.name}<small>{file.path}</small></Button>)}
-        {!matches.length ? <p>{i18n.t("No matching files.")}</p> : null}
+      <ReferenceChips references={references} remove={removeReference} />
+      {mention ? <div className="assistant-reference-options" role="listbox" id="assistant-reference-options" aria-label={i18n.t(mention.skill ? "Codex skills" : "File references")}>
+        {matches.map((file, index) => <Button variant="ghost" size="sm" type="button" role="option" id={`assistant-reference-${index}`} aria-selected={candidateIndex === index} key={file.path} title={file.path} onMouseDown={event => event.preventDefault()} onClick={() => chooseReference(file)}>{file.name}<small>{file.kind === "skill" ? skillCatalog?.skills.find(skill => skill.path === file.path)?.description : file.path}</small></Button>)}
+        {mention.skill && !skillCatalog && !skillProblem ? <p role="status">{i18n.t("Loading skills…")}</p> : null}
+        {mention.skill && (skillProblem || skillCatalog?.errors.length) ? <p role="alert">{i18n.t("Could not load some skills.")} {skillProblem || skillCatalog?.errors.map(error => `${error.path}: ${error.message}`).join("; ")}</p> : null}
+        {!matches.length && (!mention.skill || skillCatalog) ? <p>{i18n.t(mention.skill ? "No matching skills." : "No matching files.")}</p> : null}
       </div> : null}
       <textarea ref={input} aria-controls={mention ? "assistant-reference-options" : undefined} aria-expanded={mention ? true : undefined} aria-activedescendant={mention && matches[candidateIndex] ? `assistant-reference-${candidateIndex}` : undefined} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => {
         const value = event.target.value, end = event.target.selectionStart;
-        setMessage(value); const match = /(?:^|\s)@([^\s@]*)$/.exec(value.slice(0, end));
-        setMention(match ? { start: end - match[1].length - 1, end, query: match[1] } : null); setCandidateIndex(0);
+        setReferences(previous => previous.filter(file => file.kind !== "skill" || hasSkillToken(value, file.name)));
+        setMessage(value); const match = /(?:^|\s)([@/])([^\s@]*)$/.exec(value.slice(0, end));
+        if (match?.[1] === "/" && !skillOpen) { setSkillCatalog(undefined); setSkillProblem(""); }
+        setMention(match ? { start: end - match[2].length - 1, end, query: match[2], skill: match[1] === "/" } : null); setCandidateIndex(0);
       }}
         disabled={!ready || !settings?.enabled || !!setup} onKeyDown={event => {
           if (mention && !event.nativeEvent.isComposing) {
             if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setMention(null); return; }
             if (["ArrowDown", "ArrowUp"].includes(event.key)) { event.preventDefault(); setCandidateIndex(index => matches.length ? (index + (event.key === "ArrowDown" ? 1 : -1) + matches.length) % matches.length : 0); return; }
-            if (event.key === "Enter" && matches[candidateIndex]) { event.preventDefault(); chooseReference(matches[candidateIndex]); return; }
+            if (event.key === "Enter") { event.preventDefault(); if (matches[candidateIndex]) chooseReference(matches[candidateIndex]); return; }
           }
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
       <div className="assistant-controls">
@@ -348,7 +365,9 @@ function samePath(a: string, b: string) {
 function ReferenceChips({ references, remove }: { references: AiFileReference[]; remove?(path: string): void }) {
   if (!references.length) return null;
   return <span className="assistant-references">{references.map(file => <span className="assistant-reference" key={file.path}>
-    <Tooltip><TooltipTrigger render={<span tabIndex={0} />} >{file.name}</TooltipTrigger><TooltipContent className="break-all">{file.path}</TooltipContent></Tooltip>
+    <Tooltip><TooltipTrigger render={<span tabIndex={0} />} >{file.kind === "skill" ? `$${file.name}` : file.name}</TooltipTrigger><TooltipContent className="break-all">{file.path}</TooltipContent></Tooltip>
     {remove ? <Button type="button" variant="ghost" size="icon-sm" aria-label={i18n.t("Remove reference: {{name}}", { name: file.name })} onClick={() => remove(file.path)}><X /></Button> : null}
   </span>)}</span>;
 }
+
+function hasSkillToken(text: string, name: string) { return text.split(/\s+/).includes(`$${name}`); }

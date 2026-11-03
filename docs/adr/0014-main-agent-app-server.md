@@ -3,7 +3,7 @@
 - Status: Accepted
 - Decision date: 2026-11-02
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
-- Last verified: 2026-11-03 (#952 / #1047 PR A, user-message language versus task-only fallback; fake Host/worker/browser checks, no real model turn).
+- Last verified: 2026-11-03 (#952 / #1047 PR A/B, user-message language versus task-only fallback; fake Host/worker/browser checks, no real model turn).
 - Previous verification: 2026-11-02 (connection/settings and conversation implementation, fake stdio/Host and browser tests, one real Q&A turn with steering and read-only history resumption).
 - Authority: [#931 owner decisions](https://github.com/litzio/litzio/issues/931), including the approved split into connection/settings and subsequent conversation PRs, under [ADR-0012](0012-plugin-runtime-and-ui-contributions.md).
 - Partially supersedes: dedicated `CODEX_HOME` trigger 2 in [ADR-0013](0013-ai-agent-task-service.md).
@@ -43,6 +43,11 @@ The child cwd is `assistant` below the brand-configured user-data directory
 (`%APPDATA%/<brand.folders.desktopData>/assistant` on Windows). Litzio owns an
 `AGENTS.md` there, including **existing documents must not be edited; propose
 changes in text only** and the official CLI/Core document write path. The product also owns `.agents/skills/litzio-guide/SKILL.md` with usage and terminal CLI guidance; local Litzio skills are listed from this cwd.
+The assistant's `/` picker lists enabled skills from Codex `skills/list` for
+this cwd alone, using the 0.141.0 `cwds` and `forceReload` parameters. Selection
+sends explicit skill inputs alongside `$name` text; context JSON references
+preserve skill name/path for history chips. RPC and loader errors are visible.
+This adds no Litzio command palette or global skill/configuration writes.
 Opened folders are additional access roots for conversation execution.
 The sole main-agent write-scope setting is `writeAccess`, default
 `opened-folders`, with `read-only` as the other value. Each new conversation turn applies that scope through Codex's sandbox policy.

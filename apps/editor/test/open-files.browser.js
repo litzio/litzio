@@ -127,7 +127,7 @@ async (page, { showNotifications, openDocument, openPath, screenshots = false })
     await start.waitFor({state:'detached'});
     if (!(await page.getByTestId('current-file').getAttribute('title')).includes(pathB)) throw new Error('The sample did not open');
     await showNotifications(page);
-    await page.getByText("This is a writable sample copy. Changes are kept until the bundled sample version changes.", {exact:true}).filter({visible:true}).waitFor();
+    await page.getByText("This is a writable sample copy. Changes are reset the next time the app starts.", {exact:true}).filter({visible:true}).waitFor();
     await page.getByRole('button', {name:'Close litzio-b.md',exact:true}).click();
     await start.waitFor();
     if (!await start.getByRole('button', {name:'Open sample document',exact:true}).isVisible()) throw new Error('Last close lost the Host sample information');
