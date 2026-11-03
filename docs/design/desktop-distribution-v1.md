@@ -159,25 +159,17 @@ ship as Korean and English folders, each containing a canonical native `.md`, `a
 document** on the start screen or in Command center, including when an argument document is open.
 Changing UI language does not translate or replace an already open document.
 
-On startup, Desktop offers samples only after safe preparation succeeds. A new copy carries
-`.litzio-sample` ownership text and `version`. Replacement requires a real directory (no
-junction/symlink in its ancestry or contents), the expected ownership marker and exact known
-file/directory set. Added files, extra empty directories, changed entry types or unconfirmed
-ownership cause a conflict: the existing folder is preserved and no sample paths are offered.
+On every startup, Desktop replaces the writable sample folder with the bundled originals.
+Samples are for trying features; edits and added files are discarded on the next app start.
+No ownership marker, version comparison, exact file-set check or historical-folder recognition
+is used. The destination, its ancestors and contents must not contain junctions/symlinks;
+linked or unsupported paths fail preparation without touching their targets.
 
-The original v1 copy is recognized only by its exact two regular files, `technical-document.md`
-and `diagram.svg`, with no other entries. Their contents may have been edited; replacing those
-recognized sample edits remains authorized. A missing version alone never proves ownership.
-Unmarked copies of the unreleased bilingual layout are preserved as unconfirmed folders.
-
-A differing bundled `samples/version` replaces a confirmed copy once. The same version preserves
-edits. Copying finishes in a generated sibling directory, including version and ownership markers,
-before rename installs it. A confirmed old copy is moved aside only after staging succeeds; a
-failed installation rename restores it. Unknown or linked paths are never recursively removed.
-Sample preparation errors are logged and carried to the Editor as a standing sample-unavailable
-warning, while an argument document or empty startup remains usable. Both start screen and
-Command center omit unavailable sample paths. Version `2` replaces the recognized original
-sample; bump the bundled marker when sample contents change.
+Copying finishes in a generated sibling directory before rename installs it. An existing sample
+is moved aside only after staging succeeds; a failed installation rename restores it. Recursive
+cleanup checks paths and contents for links first. Actual preparation failures are logged and
+carried to the Editor as a standing sample-unavailable warning, while an argument document or
+empty startup remains usable. Both start screen and Command center omit unavailable sample paths.
 Runtime copies use explicit `copyFileSync` reads for the document, bibliography and image in each
 language folder. Electron 44.7's ASAR wrapper extracts a file for `cpSync`, so it cannot copy the
 bundled language directories as directories. The first PR CI hit an installed-start timeout on that
@@ -190,9 +182,9 @@ The samples use only [Native document support](document-support-v1.md). There is
 operation or CLI command: CLI `check` and `format` use the existing Core contract. The original
 `apps/editor/document/technical-document.md` remains a regression fixture, not the distributed sample.
 Core read-model feature coverage and canonical round-trip live in the existing Editor browser-fixture
-tests. Desktop first-document unit tests use OS temporary folders outside the repository for legacy
-recognition, foreign-file preservation, destination/ancestor/nested junctions, same-version edits,
-copy failure and rename rollback; Host/client tests check that sample problems do not block startup.
+tests. Desktop first-document unit tests use OS temporary folders outside the repository for
+replacement of edits and added files, destination/ancestor/nested junction safety, copy failure
+and rename rollback; Host/client tests check that sample problems do not block startup.
 Existing browser Command center checks
 cover the UI entry and live language selection. See [sample capture evidence](editor-ux-shell-v1.md#localized-feature-samples-528).
 
@@ -215,7 +207,7 @@ The native window enforces a minimum width of **640px** (minimum height 480px), 
 
 - App/product name: `Litzio`; App ID: `io.github.litzio.litzio`; updater cache: `%LOCALAPPDATA%\litzio-updater`; preferences/sample/logs: `%APPDATA%\litzio`. These official defaults come from [brand.ts](../../brand.ts); #859 intentionally starts new identities without migrating previous Beta data.
 - Windows EXE, NSIS installer/uninstaller, shortcuts and runtime window use the [Litzio wing/document icon](app-icon-v1.md). Its SVG source and generated ICO are tracked together; this does not replace previously published Beta assets.
-- The per-user one-click NSIS installer requires no separate Node.js/pnpm/browser installation. Uninstall keeps user data. The Host supplies the first valid existing `.md` command-line file, or start information with writable samples copied into user data once per bundled sample version. Without an accepted argument it supplies no default document; the Editor may still restore tabs. Startup priority and session protection follow [Editing session and Save](editing-session-save-v1.md#tab-navigation-memory-383); if no tabs open, the Editor shows its [start](editor-ux-shell-v1.md#start-without-a-document-174). The sample opens only when chosen, through the same Open path as any file. Opening another argument into an already running instance and OS file association are not implemented.
+- The per-user one-click NSIS installer requires no separate Node.js/pnpm/browser installation. Uninstall keeps user data. The Host supplies the first valid existing `.md` command-line file, or start information with writable samples copied into user data on every app start. Without an accepted argument it supplies no default document; the Editor may still restore tabs. Startup priority and session protection follow [Editing session and Save](editing-session-save-v1.md#tab-navigation-memory-383); if no tabs open, the Editor shows its [start](editor-ux-shell-v1.md#start-without-a-document-174). The sample opens only when chosen, through the same Open path as any file. Opening another argument into an already running instance and OS file association are not implemented.
 - Electron main owns window lifecycle, protocol, preferences and updater. The sandboxed, isolated renderer has no Node integration; its typed preload exposes only update/settings calls and a restart check. Host/Markdown/file writes never pass through this bridge.
 - IPC accepts only the app's main frame. External navigation/new windows are denied; http(s) links open in the system browser. Static paths are confined to the production build, including symlinks. CSP permits own scripts, own/inline styles needed by the editor/KaTeX, and local/data/blob images; no remote code or frames.
 

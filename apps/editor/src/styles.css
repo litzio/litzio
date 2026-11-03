@@ -3406,3 +3406,8 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .document-tab-row:has(.document-tabs-overflow) .document-tabs { padding-inline: 0 var(--border-width); }
 
 /* Keep tab widths independent of overflow-menu visibility to prevent resize oscillation. */
+
+.notification-group-heading { display: flex; align-items: flex-start; gap: var(--space-2); }
+.notification-group-heading > .notification-content { flex: 1; min-width: 0; }
+.notification-group-heading .notification-content > button { padding-inline: 0; }
+.notification-center .notification-group > div > ul { padding: var(--space-3) 0 0 var(--space-3); border: 0; border-radius: 0; box-shadow: none; }

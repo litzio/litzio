@@ -9,7 +9,12 @@ import { windowsCommand } from "./windows-command.ts";
 
 async function fixture(run: (f: Awaited<ReturnType<typeof setup>>) => Promise<void>) {
   const f = await setup();
-  try { await run(f); } finally { await rm(f.root, { recursive: true, force: true }); }
+  try { await run(f); } finally {
+    // The shim waits for its child (including exit status 37), but Windows can still
+    // briefly lock the copied executable after exit (#1072). Retry only disposal,
+    // never the shim invocation or its argument/stream/exit-status assertions.
+    await rm(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+  }
 }
 async function setup() {
   const root = await mkdtemp(path.join(os.tmpdir(), "litzio-cli-integration-"));

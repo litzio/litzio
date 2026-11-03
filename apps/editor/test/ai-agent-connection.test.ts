@@ -259,3 +259,33 @@ test("user questions reply once with exact RPC id and expire on resolution, comp
   await ask("disconnected"); await connection.close();
   assert.equal(c.userInput, undefined); assert.throws(() => answer("disconnected"), /expired/);
 });
+
+
+test("skills use only assistant cwd, enabled catalog, explicit input and context history", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "ai-skills-")), log = path.join(root, "rpc.jsonl");
+  const connection = new AiAgentConnection(root, { bin: process.execPath, args: [fakeServer, log] });
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  const catalog = await connection.skills();
+  assert.deepEqual(catalog.skills.map(skill => skill.name), ["litzio-guide"]);
+  assert.match(catalog.errors[0]!.message, /frontmatter/);
+  const skill = catalog.skills[0]!;
+  const conversations = new AiAgentConversations(connection, new RootAccess([root]));
+  const settings = { provider: "codex" as const, enabled: true, writeAccess: "read-only" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const input = { message: "$litzio-guide Help", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort, skills: [{ name: skill.name, path: skill.path }] };
+  const conversation = await conversations.send(input, settings);
+  await conversations.send({ ...input, id: conversation.id, message: "Steer" }, settings);
+  await conversations.interrupt(conversation.id);
+  const resumed = await conversations.resume(conversation.id, settings);
+  assert.deepEqual(resumed.turns[0]!.items.filter(item => item.kind === "user").map(item => item.references), [[{ name: skill.name, path: skill.path, kind: "skill" }], []]);
+  const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  assert.deepEqual(rpc.find(item => item.method === "skills/list").params, { cwds: [root], forceReload: true });
+  for (const method of ["turn/start", "turn/steer"]) {
+    const messages = rpc.find(item => item.method === method).params.input;
+    if (method === "turn/start") assert.deepEqual(messages[2], { type: "skill", name: skill.name, path: skill.path });
+    assert.equal(messages[0].text, method === "turn/start" ? input.message : "Steer");
+    if (method === "turn/steer") assert.equal(messages.some((part: any) => part.type === "skill"), false);
+  }
+  await assert.rejects(conversations.send({ ...input, message: "$disabled Help", skills: [{ name: "disabled", path: "/disabled/SKILL.md" }] }, settings), /no longer active/);
+  const failing = new AiAgentConnection(root, { bin: process.execPath, args: [fakeServer, log, "skills-fail"] });
+  try { await assert.rejects(failing.skills(), /skills unavailable/); } finally { await failing.close(); }
+});

@@ -412,12 +412,15 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
   // One user path protects the cursor indicator independently of pointer hover.
   const editingBar = page.getByTestId('editing-block-bar');
   await prose.click();
-  await expect(editingBar).toBeVisible();
+  // Focus can reveal the previous selection's bar before the click selection is applied.
+  // Wait for the clicked paragraph, not merely any visible cursor bar (#1071).
+  const clickedBlock = await prose.evaluate(n => String([...n.parentElement.children].indexOf(n)));
+  await expect(editingBar).toHaveAttribute('data-block-index', clickedBlock);
   const firstCursorBlock = await editingBar.getAttribute('data-block-index');
-  await page.keyboard.press('End');
-  await page.keyboard.press('Enter');
-  await page.keyboard.type('cursor bar');
-  await expect(editingBar).not.toHaveAttribute('data-block-index', firstCursorBlock);
+  await page.keyboard.press('End', {delay:100});
+  await page.keyboard.press('Enter', {delay:100});
+  await page.keyboard.type('cursor bar', {delay:60});
+  await expect(editingBar).toHaveAttribute('data-block-index', String(Number(firstCursorBlock) + 1));
   await page.getByRole('button', {name:'Settings', exact:true}).click();
   await expect(editingBar).toHaveCount(0);
   await page.keyboard.press('Escape');

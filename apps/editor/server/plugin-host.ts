@@ -35,6 +35,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
   let conversations: AiAgentConversations | undefined;
   const history = () => conversations ??= new AiAgentConversations(agent ??= new AiAgentConnection(paths.agent), access);
   const agentOperations = {
+    agentSkills: () => (agent ??= new AiAgentConnection(paths.agent)).skills(),
     agentModels: () => (agent ??= new AiAgentConnection(paths.agent)).models(),
     agentDiagnostics: () => (agent ??= new AiAgentConnection(paths.agent)).diagnostics(),
     agentEnvironment: () => (agent ??= new AiAgentConnection(paths.agent)).environment(),
@@ -153,7 +154,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
   };
   const route = (url: string) => {
     if (url === AI_AGENT.conversationsRoute) { plugins(true); return { id: AI_TASK.plugin, methods: { GET: "agentConversations", POST: "agentConversation" } }; }
-    const operation = { [AI_AGENT.modelsRoute]: "agentModels", [AI_AGENT.diagnosticsRoute]: "agentDiagnostics", [AI_AGENT.environmentRoute]: "agentEnvironment" }[url];
+    const operation = { [AI_AGENT.skillsRoute]: "agentSkills", [AI_AGENT.modelsRoute]: "agentModels", [AI_AGENT.diagnosticsRoute]: "agentDiagnostics", [AI_AGENT.environmentRoute]: "agentEnvironment" }[url];
     if (operation) { plugins(true); return { id: AI_TASK.plugin, methods: { GET: operation } }; }
     for (const installation of plugins(true).list()) if (installation.host && installation.routes?.includes(url)) {
       const methods = load(installation.id).routes[url];

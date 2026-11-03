@@ -43,6 +43,13 @@ createInterface({ input: process.stdin }).on("line", line => {
   if (method === "exit") process.exit(3);
   if (method === "malformed") { process.stdout.write("not json\n"); return; }
   if (method === "fail" || mode === "account-fail" && method === "account/read") { send({ id, error: { message: "fixture error" } }); return; }
+  if (method === "skills/list") {
+    if (mode === "skills-fail") { send({ id, error: { message: "skills unavailable" } }); return; }
+    send({ id, result: { data: [{ cwd: process.cwd(), skills: [
+      { name: "litzio-guide", description: "Explain Litzio", path: path.join(process.cwd(), ".agents/skills/litzio-guide/SKILL.md"), enabled: true },
+      { name: "disabled", description: "Disabled skill", path: "/disabled/SKILL.md", enabled: false }
+    ], errors: [{ path: "/broken/SKILL.md", message: "invalid frontmatter" }] }] } }); return;
+  }
   if (method === "thread/start") {
     const thread = { id: randomUUID(), turns: [], createdAt: Math.floor(Date.now() / 1000), updatedAt: Math.floor(Date.now() / 1000), cwd: process.cwd(), preview: "", status: { type: "idle" } };
     threads[thread.id] = thread; persist(); send({ id, result: { thread, model: params.model, reasoningEffort: "medium" } }); return;
@@ -52,7 +59,7 @@ createInterface({ input: process.stdin }).on("line", line => {
     const turns = threads[params.threadId].turns, offset = Number(params.cursor ?? 0);
     send({ id, result: { data: turns.slice(offset, offset + 1).map(turn => ({ ...turn, items: turn.items.map(item => item.type === "userMessage" ? { ...item, content: [
       { type: "text", text: item.content.filter(part => part.type === "text").map(part => part.text).join(""), text_elements: [] },
-      ...item.content.filter(part => part.type !== "text"),
+      ...item.content.filter(part => part.type === "localImage" || part.type === "image"),
     ] } : item) })), nextCursor: offset + 1 < turns.length ? String(offset + 1) : null, backwardsCursor: null } }); return;
   }
   if (method === "turn/start" || method === "turn/steer") {
