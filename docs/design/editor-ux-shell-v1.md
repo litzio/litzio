@@ -2920,7 +2920,8 @@ still-loading document tabs. Session readiness disables actions; it does not hid
 ## Hidden tab navigation (#972)
 
 The fixed count button reuses the shared file/action DropdownMenu. Its 28px target
-leaves room for tab identity at 640px; overflow lists yield their horizontal inset
+leaves room for tab identity at 640px; overflowing tabs use 4px internal padding
+and gaps, and their lists yield the horizontal inset
 while retaining a 1px end gutter for rounded browser scroll extents. Active-tab
 reveal uses actual fractional bounds and scrolls only its own tablist. Same-name
 labels, dirty state, close, move and open-right operations remain unchanged.

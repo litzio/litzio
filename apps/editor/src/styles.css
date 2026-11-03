@@ -3420,3 +3420,5 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 
 /* Yield the scroller inset to the overflow control at narrow widths. */
 .document-tab-row:has(.document-tabs-overflow) .document-tabs { padding-inline: 0 var(--border-width); }
+
+.document-tab-row:has(.document-tabs-overflow) .document-tab > [role="tab"] { gap: var(--space-1); padding-inline: var(--space-1); }
