@@ -1188,7 +1188,7 @@ export const ko: Record<keyof typeof en, string> = {
   "Register app default again?": "기본 버전으로 다시 등록할까요?",
   "Register the bundled revision of {{name}}? This turns the plugin on.": "앱에 포함된 {{name}}의 기본 버전으로 다시 등록합니다. 플러그인이 켜집니다.",
   "Installation revision": "설치 식별값",
-  "Installation path": "저장소 경로",
+  "Installation path": "설치 경로",
   "App default revision": "앱 기본 식별값",
   "No installed plugins.": "설치된 플러그인이 없습니다.",
 
