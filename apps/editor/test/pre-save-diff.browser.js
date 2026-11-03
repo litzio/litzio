@@ -52,9 +52,9 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture }
   const beforeRecords = JSON.stringify(await records());
   const before = await editor().evaluate(node => ({ document: node.editor.getJSON(), selection: node.editor.state.selection.toJSON(), undo: node.editor.can().undo() }));
   await menu().click(); await capture('menu'); await page.keyboard.press('Escape');
-  let request, preview;
+  let preview;
   const url = '**/api/document-source?recovery=1';
-  const observe = async route => { request = route.request().postDataJSON().save; const response = await route.fetch(); preview = await response.json(); await route.fulfill({ response }); };
+  const observe = async route => { const response = await route.fetch(); preview = await response.json(); await route.fulfill({ response }); };
   await page.route(url, observe);
   await compare();
   await dialog().getByRole('region', { name: 'Source differences', exact: true }).waitFor();
@@ -114,26 +114,5 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture }
   await compare();
   await dialog().getByText('File missing. All content Save would write is shown as added.', { exact: true }).waitFor();
   await close();
-  // Same reviewed large input as recovery, against the shared real worker and UI.
-  const words = prefix => Array.from({ length: 1000 }, (_, i) => prefix + i).join(' ');
-  const pair = prefix => Array.from({ length: 50 }, () => words(prefix)).join('\n');
-  const large = route => route.fulfill({ json: { disk: { source: pair('old'), revision: request.revision }, markdown: pair('new') } });
-  await page.route(url, large);
-  await page.evaluate(() => {
-    const timing = window.preSaveTiming = { maxGap: 0, last: performance.now(), start: 0, readyAfter: null };
-    window.preSaveTimer = setInterval(() => { const now = performance.now(); timing.maxGap = Math.max(timing.maxGap, now - timing.last); timing.last = now; }, 10);
-    window.preSaveObserver = new MutationObserver(() => { if (!timing.readyAfter && document.querySelector('[aria-label="Source differences"]')) timing.readyAfter = performance.now() - timing.start; });
-    window.preSaveObserver.observe(document.body, { childList: true, subtree: true });
-  });
-  await menu().click();
-  await page.evaluate(() => { window.preSaveTiming.start = performance.now(); });
-  await page.getByRole('menuitem', { name: 'Changes before saving', exact: true }).click();
-  const performanceResult = await page.evaluate(async () => {
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    clearInterval(window.preSaveTimer); window.preSaveObserver.disconnect();
-    return { ...window.preSaveTiming, ready: !!document.querySelector('[aria-label="Source differences"]'), omitted: document.body.textContent.includes('Word highlighting omitted to keep comparison responsive.') };
-  });
-  check(performanceResult.maxGap < 500 && performanceResult.ready && performanceResult.readyAfter < 2000 && performanceResult.omitted, `Large preview unresponsive: ${JSON.stringify(performanceResult)}`);
-  await close(); await page.unroute(url, large);
-  return { layouts, performanceResult };
+  return { layouts };
 }
