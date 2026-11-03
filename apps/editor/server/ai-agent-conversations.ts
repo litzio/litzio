@@ -86,7 +86,7 @@ export class AiAgentConversations {
     return conversation;
   }
   async send(input: AiConversationInput, settings: AiAgentSettings) {
-    if (!input || typeof input.message !== "string" || (!input.message.trim() && !input.references?.length && !input.skills?.length) ||
+    if (!input || typeof input.message !== "string" || (!input.message.trim() && !input.references?.length) ||
       typeof input.model !== "string" || typeof input.reasoningEffort !== "string" || !Array.isArray(input.folders)) throw new Error("Invalid conversation input.");
     const folders = [...new Set(input.folders.map(folder => {
       if (typeof folder !== "string" || !path.isAbsolute(folder)) throw new Error("Invalid opened folder.");
@@ -114,7 +114,7 @@ export class AiAgentConversations {
       }
       const selected = input.skills ?? [];
       if (!Array.isArray(selected) || selected.some(skill => !skill || typeof skill.name !== "string" || typeof skill.path !== "string")) throw new Error("Invalid skills.");
-      const skills = selected.filter((skill, index) => selected.findIndex(other => other.path === skill.path) === index).map(({ name, path }) => ({ name, path }));
+      const skills = selected.filter(skill => input.message.split(/\s+/).includes(`$${skill.name}`)).filter((skill, index, all) => all.findIndex(other => other.path === skill.path) === index).map(({ name, path }) => ({ name, path }));
       if (skills.length) {
         const catalog = await this.connection.skills();
         if (skills.some(skill => !catalog.skills.some(active => active.name === skill.name && active.path === skill.path))) throw new Error("Selected skill is no longer active. Choose it again.");
@@ -130,7 +130,7 @@ export class AiAgentConversations {
       }
       references = checkedReferences(input.references ?? [], folders, this.access);
       const context = { folders, document: input.document ?? null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
-      const messages: object[] = [{ type: "text", text: [input.message, ...skills.filter(skill => !input.message.split(/\s+/).includes(`$${skill.name}`)).map(skill => `$${skill.name}`)].filter(Boolean).join(" "), text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
+      const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
       if (active) {

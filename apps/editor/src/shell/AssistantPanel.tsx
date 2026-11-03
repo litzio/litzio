@@ -144,7 +144,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
   const send = () => run(async () => {
     const value = message.trim(); if (!value && !references.length) return;
     const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "send", id: conversation?.id, message: value,
-      model, reasoningEffort: effort, references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: references.filter(file => file.kind === "skill").map(({ name, path }) => ({ name, path })), folders, document: await context() });
+      model, reasoningEffort: effort, references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document: await context() });
     setConversation(next); rememberConversation(next.id); setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
   });
@@ -185,6 +185,11 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     addReference(file);
     if (mention) { const next = message.slice(0, mention.start) + (file.kind === "skill" ? `$${file.name} ` : "") + message.slice(mention.end); setMessage(next); requestAnimationFrame(() => input.current?.setSelectionRange(mention.start + (file.kind === "skill" ? file.name.length + 2 : 0), mention.start + (file.kind === "skill" ? file.name.length + 2 : 0))); }
     setMention(null); input.current?.focus();
+  };
+  const removeReference = (path: string) => {
+    const skill = references.find(file => file.path === path && file.kind === "skill");
+    if (skill) setMessage(value => value.split(/(\s+)/).filter(part => part !== `$${skill.name}`).join(""));
+    setReferences(previous => previous.filter(file => file.path !== path && !(skill && file.kind === "skill" && file.name === skill.name)));
   };
   const catalogModel = models?.models.find(value => value.model === model);
   const resultPaths = [...new Set(conversation?.turns.flatMap(turn => turn.items.flatMap(item => {
@@ -293,7 +298,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     <form className="assistant-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
       {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
       {models && !catalogModel ? <p role="status">{i18n.t("Choose a model and reasoning effort from the available list.")}</p> : null}
-      <ReferenceChips references={references} remove={path => setReferences(previous => previous.filter(file => file.path !== path))} />
+      <ReferenceChips references={references} remove={removeReference} />
       {mention ? <div className="assistant-reference-options" role="listbox" id="assistant-reference-options" aria-label={i18n.t(mention.skill ? "Codex skills" : "File references")}>
         {matches.map((file, index) => <Button variant="ghost" size="sm" type="button" role="option" id={`assistant-reference-${index}`} aria-selected={candidateIndex === index} key={file.path} title={file.path} onMouseDown={event => event.preventDefault()} onClick={() => chooseReference(file)}>{file.name}<small>{file.kind === "skill" ? skillCatalog?.skills.find(skill => skill.path === file.path)?.description : file.path}</small></Button>)}
         {mention.skill && !skillCatalog && !skillProblem ? <p role="status">{i18n.t("Loading skills…")}</p> : null}
@@ -302,6 +307,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       </div> : null}
       <textarea ref={input} aria-controls={mention ? "assistant-reference-options" : undefined} aria-expanded={mention ? true : undefined} aria-activedescendant={mention && matches[candidateIndex] ? `assistant-reference-${candidateIndex}` : undefined} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => {
         const value = event.target.value, end = event.target.selectionStart;
+        setReferences(previous => previous.filter(file => file.kind !== "skill" || hasSkillToken(value, file.name)));
         setMessage(value); const match = /(?:^|\s)([@/])([^\s@]*)$/.exec(value.slice(0, end));
         if (match?.[1] === "/" && !skillOpen) { setSkillCatalog(undefined); setSkillProblem(""); }
         setMention(match ? { start: end - match[2].length - 1, end, query: match[2], skill: match[1] === "/" } : null); setCandidateIndex(0);
@@ -363,3 +369,5 @@ function ReferenceChips({ references, remove }: { references: AiFileReference[];
     {remove ? <Button type="button" variant="ghost" size="icon-sm" aria-label={i18n.t("Remove reference: {{name}}", { name: file.name })} onClick={() => remove(file.path)}><X /></Button> : null}
   </span>)}</span>;
 }
+
+function hasSkillToken(text: string, name: string) { return text.split(/\s+/).includes(`$${name}`); }

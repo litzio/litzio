@@ -752,8 +752,12 @@ Selection inserts `$<name>` in text and adds a removable path-tooltip chip using
 the file-reference Button/Tooltip implementation. `/` is only selection syntax.
 The public conversation input adds `skills?: {name,path}[]`. Host validates each
 selection against the enabled catalog and sends `{type:"skill",name,path}` with
-`$<name>` text on start and steer. Removed chips stop explicit skill inputs;
-ordinary text remains editable, including any `$name` the user keeps.
+`$<name>` text on start and steer. Selection follows whitespace-delimited
+`$name` tokens in the current input text: deleting a selected token removes its
+chip and explicit input; clicking a chip's X removes all corresponding tokens
+as well. Only selected skills whose tokens remain at send time are sent. Host
+also filters selections by those tokens and never appends a missing token;
+retained name/path pairs are still checked against the enabled catalog.
 
 Skills persist as `{name,path,kind:"skill"}` in the existing context JSON
 `references` array. Live and paginated history therefore restore chips without
@@ -766,7 +770,8 @@ Verification: the existing fake app-server covers enabled filtering, exact cwd
 and request fields, start/steer input, missing/disabled selection rejection,
 RPC and per-skill errors, and flattened history with skill items omitted. The
 existing assistant browser scenario covers ordinary paced typing and clicking,
-description display, chip removal, send metadata, history chips and visible list
+description display, chip/token removal in both directions, deleted-token
+start/steer payloads, send metadata, history chips and visible list
 failure. Host tests own protocol assertions; browser assertions own interaction.
 No real model turn or exhaustive combination matrix is added. The 640px skill
 candidate/chip sequence runs only with `--screenshots` for manual review.

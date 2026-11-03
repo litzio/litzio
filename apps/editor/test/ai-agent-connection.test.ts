@@ -276,15 +276,16 @@ test("skills use only assistant cwd, enabled catalog, explicit input and context
   await conversations.send({ ...input, id: conversation.id, message: "Steer" }, settings);
   await conversations.interrupt(conversation.id);
   const resumed = await conversations.resume(conversation.id, settings);
-  assert.deepEqual(resumed.turns[0]!.items.filter(item => item.kind === "user").map(item => item.references), [[{ name: skill.name, path: skill.path, kind: "skill" }], [{ name: skill.name, path: skill.path, kind: "skill" }]]);
+  assert.deepEqual(resumed.turns[0]!.items.filter(item => item.kind === "user").map(item => item.references), [[{ name: skill.name, path: skill.path, kind: "skill" }], []]);
   const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   assert.deepEqual(rpc.find(item => item.method === "skills/list").params, { cwds: [root], forceReload: true });
   for (const method of ["turn/start", "turn/steer"]) {
     const messages = rpc.find(item => item.method === method).params.input;
-    assert.deepEqual(messages[2], { type: "skill", name: skill.name, path: skill.path });
-    assert.equal(messages[0].text.split("$litzio-guide").length, 2);
+    if (method === "turn/start") assert.deepEqual(messages[2], { type: "skill", name: skill.name, path: skill.path });
+    assert.equal(messages[0].text, method === "turn/start" ? input.message : "Steer");
+    if (method === "turn/steer") assert.equal(messages.some((part: any) => part.type === "skill"), false);
   }
-  await assert.rejects(conversations.send({ ...input, skills: [{ name: "disabled", path: "/disabled/SKILL.md" }] }, settings), /no longer active/);
+  await assert.rejects(conversations.send({ ...input, message: "$disabled Help", skills: [{ name: "disabled", path: "/disabled/SKILL.md" }] }, settings), /no longer active/);
   const failing = new AiAgentConnection(root, { bin: process.execPath, args: [fakeServer, log, "skills-fail"] });
   try { await assert.rejects(failing.skills(), /skills unavailable/); } finally { await failing.close(); }
 });
