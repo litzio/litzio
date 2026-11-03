@@ -1,6 +1,6 @@
 import { brand } from "../../../../brand.ts";
 import { test, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -47,13 +47,18 @@ test("HTTP recovery survives an owned browser process crash, then Save/Reload an
     const owned = context!;
     const stopped = owned.waitForEvent("close");
     // PID came from this launched browser's CDP session, never a process-name/port search.
-    if (process.platform === "win32") execFileSync("taskkill", ["/PID", String(processes.at(-1)), "/T", "/F"]);
+    let termination = "SIGKILL";
+    if (process.platform === "win32") {
+      const result = spawnSync("taskkill", ["/PID", String(processes.at(-1)), "/T", "/F"], { encoding: "utf8" });
+      termination = `taskkill status=${result.status}, signal=${result.signal}, stderr=${result.stderr}, error=${result.error?.message ?? "none"}`;
+      console.log(termination);
+    }
     else process.kill(processes.at(-1)!, "SIGKILL");
-    await stopped;
     await expect.poll(() => {
       try { process.kill(processes.at(-1)!, 0); return false; }
       catch (error) { if ((error as NodeJS.ErrnoException).code === "ESRCH") return true; throw error; }
-    }).toBe(true);
+    }, { message: `Owned browser PID ${processes.at(-1)} must exit after ${termination}` }).toBe(true);
+    await stopped;
     context = undefined;
   };
   try {
