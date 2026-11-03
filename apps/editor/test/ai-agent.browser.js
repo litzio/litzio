@@ -371,8 +371,10 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
     await expect(list.getByRole('option')).toHaveCount(24);
     for (let index = 0; index < 8; index++) await message.press('ArrowDown', { delay: 60 });
     const activeOption = await message.getAttribute('aria-activedescendant');
-    await list.hover(); await page.mouse.wheel(0, 180);
-    await expect.poll(() => list.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+    await list.hover();
+    const beforeWheel = await list.evaluate(element => element.scrollTop);
+    await page.mouse.wheel(0, 180);
+    await expect.poll(() => list.evaluate(element => element.scrollTop)).toBeGreaterThan(beforeWheel);
     const scrollTop = await list.evaluate(element => element.scrollTop);
     const lookups = skillLookups, before = snapshots;
     // A real dock resize causes an unrelated parent render while the query stays unchanged.
