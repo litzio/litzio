@@ -62,6 +62,7 @@ export function Sidebar({
 }: SidebarProps) {
   useTranslation();
   const content = useRef<HTMLDivElement>(null);
+  const blankTrigger = useRef<HTMLDivElement>(null);
   const only = folders.length === 1 ? folders[0] : undefined;
   const blankActions = only ? folderActions({
     onNew: button => onNew?.(only.root, button),
@@ -91,7 +92,13 @@ export function Sidebar({
         </div>
       </div>
       {/* Keep the tree mounted: collapse retains scroll and keyboard position. */}
-      <ContextMenu actions={blankActions} trigger={<div ref={content} id="sidebar-files" className="sidebar-content" hidden={!open}>
+      <div ref={content} id="sidebar-files" className="sidebar-content" hidden={!open}
+        onContextMenu={event => {
+          if (!event.currentTarget.contains(event.target as Node) || (event.target as Element).closest(".sidebar-folder-header, .sidebar-tree-item")) return;
+          event.preventDefault(); event.stopPropagation();
+          // Keep this menu's provider beside the tree: file dialogs must not inherit a closed menu's focus scope.
+          blankTrigger.current?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: event.clientX, clientY: event.clientY }));
+        }}>
         {folders.length > 0 ? folders.map(tree => (
           <FolderTree
             key={tree.root}
@@ -139,7 +146,8 @@ export function Sidebar({
             ) : null}
           </section>
         )}
-      </div>} />
+      </div>
+      <ContextMenu actions={blankActions} trigger={<div ref={blankTrigger} className="contents" />} />
       {onSettings || onThemeChange || contributions.length ? (
         <div className="sidebar-footer">
           {open ? contributions.map(item => <Button key={item.id} size="sm" variant="ghost" className="min-w-0 justify-start" disabled={fileActionsDisabled}
@@ -269,7 +277,7 @@ function FolderTree({ pluginFileActions = [], onAddToChat, onFileAction, fileAct
   };
 
   return (
-    <section onContextMenu={event => { if ((event.target as Element).closest(".sidebar-folder-header, .sidebar-tree-item")) event.stopPropagation(); }} ref={section} className="sidebar-folder" aria-label={folderName} data-testid="folder" data-root={tree.root}>
+    <section ref={section} className="sidebar-folder" aria-label={folderName} data-testid="folder" data-root={tree.root}>
       <ContextMenu actions={actions} trigger={<div className="sidebar-folder-header">
         <p className="sidebar-folder-name" title={tree.root}>
           <span className="sidebar-tree-chevron">
