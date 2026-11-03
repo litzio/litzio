@@ -47,8 +47,52 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, screenshots =
   const headerPositions = new Map();
   const captureMetadata = [];
   const checkSidebarEntry = async state => {
+    const content = sidebar.locator('#sidebar-files');
+    const box = await content.boundingBox();
+    await content.click({button:'right', position:{x:box.width / 2, y:box.height - 8}});
+    const context = page.locator('[data-slot="context-menu-content"]');
+    await context.waitFor();
+    const labels = await context.getByRole('menuitem').allTextContents();
+    assert(labels.includes('Open folder…'), 'Blank area offers Open folder');
+    assert(state === 'one' ? labels.includes('New document…') && labels.includes('Close folder') : labels.length === 1,
+      `Blank area actions match folder count: ${state}: ${labels}`);
+    await page.keyboard.press('Escape');
+    if (state !== 'empty') {
+      await section.first().locator('.sidebar-folder-name').click({button:'right'});
+      await context.waitFor();
+      assert((await context.getByRole('menuitem').allTextContents()).includes('New document…'), 'Root header offers creation');
+      await context.getByRole('menuitem', {name:'New folder…', exact:true}).click();
+      await page.getByRole('dialog').waitFor();
+      await page.getByRole('dialog').getByRole('button', {name:'Cancel', exact:true}).click();
+    }
     for (const width of [1440, 1024, 640]) {
       await page.setViewportSize({width, height:812});
+      if (screenshots && width !== 1024) {
+        await page.evaluate(async width => {
+          const { i18n } = await import('/src/i18n.ts');
+          const { applyTheme } = await import('/src/theme.ts');
+          await i18n.changeLanguage(width === 640 ? 'ko' : 'en');
+          await applyTheme(width === 640 ? 'dark' : 'light');
+          await document.fonts.ready;
+        }, width);
+        const blank = sidebar.locator('#sidebar-files');
+        const rect = await blank.boundingBox();
+        await blank.click({button:'right', position:{x:rect.width / 2, y:rect.height - 8}});
+        await context.waitFor();
+        await page.screenshot({path:`tmp/picker-capture/context-blank-${state}-${width}.png`});
+        await page.keyboard.press('Escape');
+        if (state !== 'empty') {
+          await section.first().locator('.sidebar-folder-name').click({button:'right'});
+          await context.waitFor();
+          await page.screenshot({path:`tmp/picker-capture/context-header-${state}-${width}.png`});
+          await page.keyboard.press('Escape');
+        }
+      }
+      if (screenshots && width !== 1024) await page.evaluate(async () => {
+        const { i18n } = await import('/src/i18n.ts');
+        const { applyTheme } = await import('/src/theme.ts');
+        await i18n.changeLanguage('en'); await applyTheme('light');
+      });
       const expand = page.getByRole('button', {name:'Expand Explorer', exact:true});
       if (await expand.isVisible()) await expand.click();
       await sidebar.getByRole('button', {name:'Collapse Explorer', exact:true}).waitFor();
