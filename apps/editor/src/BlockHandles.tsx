@@ -6,8 +6,15 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { blockDropTarget, reorderBlock } from "./block-reorder.ts";
 import { endnoteLabel } from "./endnotes.ts";
 import { Button } from "@/components/ui/button.tsx";
-import { GripVertical, Plus } from "lucide-react";
+import { AlignLeft, Heading1, Heading2, Heading3, Heading4, Heading5, Heading6, List, ListOrdered, Quote, TriangleAlert, Code, Sigma, Table, Image, GripVertical, Plus } from "lucide-react";
 import { saveErrorBadge, type SaveErrorLocation } from "./save-error.ts";
+
+// Owner comparison only: URL opt-in is deliberately absent from production builds.
+const spike1022 = import.meta.env.DEV ? new URLSearchParams(window.location.search).get("spike1022") : null;
+const spikeIcons: Partial<Record<string, typeof AlignLeft>> = { paragraph: AlignLeft, bulletlist: List, orderedlist: ListOrdered,
+  quote: Quote, blockquote: Quote, admonition: TriangleAlert, code: Code, codeblock: Code,
+  equation: Sigma, table: Table, figure: Image };
+const spikeHeadingIcons = [Heading1, Heading2, Heading3, Heading4, Heading5, Heading6];
 
 type BlockHandlesProps = {
   readOnly?: boolean;
@@ -65,6 +72,8 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
   // Event handlers read the latest measured geometry, not the controls' last render.
   const geometry = useRef(blocks);
   geometry.current = blocks;
+  const [cursorBlock, setCursorBlock] = useState(-1);
+  const [cursorFocused, setCursorFocused] = useState(false);
   const [active, setActive] = useState(-1);
   const [hovered, setHovered] = useState(-1);
   const [dropTop, setDropTop] = useState<number | null>(null);
@@ -161,6 +170,7 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
       if (handlingKey && event?.transaction.docChanged) input();
       update();
       setActive(editor.state.selection.$from.index(0));
+      if (spike1022) setCursorBlock(editor.state.selection.$from.index(0));
     };
     const hover = (event: MouseEvent) => {
       if (!event.isTrusted || (lastPointer?.x === event.clientX && lastPointer.y === event.clientY)) return;
@@ -201,6 +211,12 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
       if (dropped) editor.view.focus();
       dropped = false;
     };
+    const focusIn = () => setCursorFocused(true);
+    const focusOut = (event: FocusEvent) => setCursorFocused(editor.view.dom.contains(event.relatedTarget as Node | null));
+    if (spike1022) {
+      editor.view.dom.addEventListener("focusin", focusIn);
+      editor.view.dom.addEventListener("focusout", focusOut);
+    }
     editor.on("transaction", transaction);
     // Layout changes must not replace the hovered block with the selected one.
     const resize = new ResizeObserver(update);
@@ -226,6 +242,8 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
     transaction();
     return () => {
       editor.off("transaction", transaction);
+      editor.view.dom.removeEventListener("focusin", focusIn);
+      editor.view.dom.removeEventListener("focusout", focusOut);
       resize.disconnect();
       window.removeEventListener("mousemove", hover);
       editor.view.dom.removeEventListener("beforeinput", input, true);
@@ -258,7 +276,17 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
     event.dataTransfer.setData("text/plain", i18n.t("Move block"));
     setMoving({top: block.top, height: block.height});
   }, [editor]);
+  const cursor = !readOnly && cursorFocused && !moving ? blocks[cursorBlock] : undefined;
+  const SpikeIcon = cursor?.heading ? spikeHeadingIcons[cursor.heading.level - 1]
+    : spikeIcons[cursor?.name as keyof typeof spikeIcons];
+  const showSpike = cursor && SpikeIcon && (spike1022 === "frame" || spike1022 === "gutter" ||
+    (spike1022 === "containers" && !["paragraph", "heading", "figure"].includes(cursor.name)));
   return <div className="block-gutter" ref={gutter}>
+    {showSpike && (spike1022 === "frame" ? <div className="spike1022-frame" aria-hidden="true"
+      style={{top: `calc(${cursor.top}px - var(--space-block-hover-block))`,
+        height: `calc(${cursor.height}px + 2 * var(--space-block-hover-block))`}} />
+      : <div className="spike1022-gutter" aria-hidden="true" data-kind={cursor.name}
+        style={{top: cursor.top, height: cursor.height}}><SpikeIcon /></div>)}
     {(!readOnly || showHeadingLevels) && blocks.map((block, index) => {
       const blocked = block.endnote ? i18n.t(ENDNOTE_HINT)
         : moveBlockedHint?.(index);

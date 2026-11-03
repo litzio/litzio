@@ -3422,3 +3422,31 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .document-tab-row:has(.document-tabs-overflow) .document-tabs { padding-inline: 0 var(--border-width); }
 
 .document-tab-row:has(.document-tabs-overflow) .document-tab > [role="tab"] { gap: var(--space-1); padding-inline: var(--space-1); }
+
+/* #1022 unmerged visual spike; rendered only with the development URL opt-in. */
+.spike1022-frame {
+  position: absolute;
+  left: calc(var(--layout-document-gutter) - var(--space-block-hover-inline));
+  right: calc(var(--layout-document-inline-padding) - var(--space-block-hover-inline));
+  border-radius: var(--id-radius-block-hover);
+  box-shadow: inset 0 0 0 var(--size-block-hover-outline) var(--id-color-block-hover-outline);
+  pointer-events: none;
+}
+.spike1022-gutter {
+  position: absolute;
+  left: calc(var(--layout-document-gutter) - var(--space-block-hover-inline) - var(--space-1));
+  border-left: calc(2 * var(--size-block-hover-outline)) solid var(--id-color-block-hover-outline);
+  color: var(--id-color-text-subtle);
+  pointer-events: none;
+}
+.spike1022-gutter > svg {
+  position: absolute;
+  right: calc(-0.5 * var(--size-icon-slot));
+  top: var(--space-1);
+  width: var(--size-icon-slot);
+  height: var(--size-icon-slot);
+  background: var(--id-color-paper);
+}
+@media print {
+  .spike1022-frame, .spike1022-gutter { display: none; }
+}

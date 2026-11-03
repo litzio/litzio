@@ -1,0 +1,145 @@
+{
+  "captures": [
+    "docs/design/assets/spike-1022/frame-paragraph-light.png",
+    "docs/design/assets/spike-1022/frame-nested-list-light.png",
+    "docs/design/assets/spike-1022/frame-admonition-light.png",
+    "docs/design/assets/spike-1022/gutter-paragraph-light.png",
+    "docs/design/assets/spike-1022/gutter-nested-list-light.png",
+    "docs/design/assets/spike-1022/gutter-admonition-light.png",
+    "docs/design/assets/spike-1022/gutter-nested-list-dark.png",
+    "docs/design/assets/spike-1022/containers-paragraph-light.png",
+    "docs/design/assets/spike-1022/containers-nested-list-light.png",
+    "docs/design/assets/spike-1022/containers-admonition-light.png"
+  ],
+  "observations": [
+    {
+      "action": "typing+Enter",
+      "kind": "paragraph",
+      "indicator": true,
+      "hover": false
+    },
+    {
+      "action": "capture",
+      "kind": "paragraph",
+      "indicator": true,
+      "hover": false
+    },
+    {
+      "action": "typing+Enter",
+      "kind": "bulletList",
+      "indicator": true,
+      "hover": false
+    },
+    {
+      "action": "capture",
+      "kind": "bulletList",
+      "indicator": true,
+      "hover": false
+    },
+    {
+      "action": "typing+Enter",
+      "kind": "paragraph",
+      "indicator": true,
+      "hover": false
+    },
+    {
+      "action": "capture",
+      "kind": "admonition",
+      "indicator": true,
+      "hover": false
+    },
+    {
+      "action": "typing+Enter",
+      "kind": "paragraph",
+      "indicator": true,
+      "hover": false
+    },
+    {
+      "action": "capture",
+      "kind": "paragraph",
+      "indicator": true,
+      "hover": false
+    },
+    {
+      "action": "typing+Enter",
+      "kind": "bulletList",
+      "indicator": true,
+      "hover": false
+    },
+    {
+      "action": "capture",
+      "kind": "bulletList",
+      "indicator": true,
+      "hover": false
+    },
+    {
+      "action": "typing+Enter",
+      "kind": "paragraph",
+      "indicator": true,
+      "hover": false
+    },
+    {
+      "action": "capture",
+      "kind": "admonition",
+      "indicator": true,
+      "hover": false
+    },
+    {
+      "action": "typing+Enter",
+      "kind": "paragraph",
+      "indicator": false,
+      "hover": false
+    },
+    {
+      "action": "capture",
+      "kind": "paragraph",
+      "indicator": false,
+      "hover": false
+    },
+    {
+      "action": "typing+Enter",
+      "kind": "bulletList",
+      "indicator": true,
+      "hover": false
+    },
+    {
+      "action": "capture",
+      "kind": "bulletList",
+      "indicator": true,
+      "hover": false
+    },
+    {
+      "action": "typing+Enter",
+      "kind": "paragraph",
+      "indicator": false,
+      "hover": false
+    },
+    {
+      "action": "capture",
+      "kind": "admonition",
+      "indicator": true,
+      "hover": false
+    }
+  ],
+  "viewport": "1440x1000",
+  "fixture": "apps/editor/samples/en/converter-control.md (scratch copy)",
+  "saved": false,
+  "sha256": {
+    "containers-admonition-light.png": "a295a9130ea5a175fcbd71f63860573619661061f152c356a7fc2886d6176419",
+    "containers-nested-list-light.png": "18c9f1c2849b84638b6ab31c906e4b296b031270308020fe5f5ec2eab42e03c9",
+    "containers-paragraph-light.png": "ffe6363f3ad55311619b335a932c62c4cf49106ea17989f780d856a9786a0794",
+    "frame-admonition-light.png": "78800324730ac973e7dfb417c36e5c7b1b3d9fb69b3d0ffe27e65d81d0e2f5b7",
+    "frame-nested-list-light.png": "f90ea7f7a0768a5fb48df03799d1ae100b17ac75febc41977a9227c84da3463e",
+    "frame-paragraph-light.png": "21a9039dfbc930f7e9b3a77f120e0f70ed9c4b718b826cc153e8911c2db3fdb3",
+    "gutter-admonition-light.png": "a295a9130ea5a175fcbd71f63860573619661061f152c356a7fc2886d6176419",
+    "gutter-nested-list-dark.png": "25699879197f6757b520dca4c75a0265f7d223cab809d67d6e97d33a81432f69",
+    "gutter-nested-list-light.png": "18c9f1c2849b84638b6ab31c906e4b296b031270308020fe5f5ec2eab42e03c9",
+    "gutter-paragraph-light.png": "667b7031eb3c746b34a259957c729b17af0041f4aa5f2352c8b6819a5b053554"
+  },
+  "sourceSha256": "9e8f7c4493007828917bf3e1de04f76ea5e0daeb8d428e6ab1890cd34370a287",
+  "notes": [
+    "Manual visual review, not automated pixel assertions.",
+    "Enter in the flat admonition exits to a paragraph using existing editor behavior; captures return to the admonition body.",
+    "Playwright caret: initial retains the caret for manual review."
+  ]
+}

@@ -85,6 +85,8 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 ## Historical reviews and spikes
 
+- [Editing block indicator #1022](reviews/editing-block-indicator-1022.md) — Historical, unmerged development-only frame/gutter/containers comparison and manual captures; no adoption decision.
+
 [#204 document tabs implementation and review](reviews/document-tabs-204-2026-10-16.md) records the final tab step's scope, visual evidence, measurements and verification.
 
 - [Block source editing](design/block-source-editing-v1.md) — Superseded by Native document support; former contract retained as history.
