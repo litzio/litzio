@@ -52,6 +52,29 @@ test('merge_group payloads apply the same path rules as PRs to the entire group 
   assert.deepEqual(await executionPolicy('merge_group', event, { git: () => '' }), full);
 });
 
+test('HTTP selection always retains Windows unit coverage in Desktop', () => {
+  // Every tracked path exercises the current classifications, including unknown fallback.
+  const paths = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
+  for (const event of ['pull_request', 'merge_group', 'push']) {
+    for (const file of [...paths, 'unknown/new-file']) {
+      const jobs = selectJobs(event, [file]);
+      assert.ok(!jobs.http || jobs.desktop, `${event}: ${file}`);
+    }
+    const jobs = selectJobs(event, paths);
+    assert.ok(!jobs.http || jobs.desktop, `${event}: mixed diff`);
+  }
+  const { jobs } = workflow();
+  assert.ok(jobs.desktop.steps.some(step => step.run === 'pnpm test' && !step.if));
+  for (const run of ['pnpm --filter @litzio/cli package', 'pnpm --filter @litzio/cli test:packaged']) {
+    assert.ok(jobs.http.steps.some(step => step.run === run && !step.if));
+  }
+  assert.ok(jobs.http.steps.some(step => step.run?.startsWith('pnpm browser:test http-host') && !step.if));
+  assert.ok(!jobs.http.steps.some(step => /tsx --test|@litzio\/(?:editor|docling) .*test/.test(step.run ?? '')),
+    'HTTP owns packaged/production checks; Desktop owns Windows unit/integration checks');
+  const editor = JSON.parse(readFileSync(new URL('../apps/editor/package.json', import.meta.url), 'utf8'));
+  assert.ok(editor.scripts.test.split(/\s+/).includes('test/file-identity.test.ts'));
+});
+
 test('plugin package changes select Editor browser consumers without broadening other jobs', () => {
   const paths = [
     'plugins/docling/src/Dashboard.tsx',
@@ -173,7 +196,7 @@ test('cache-only master runs preserve pnpm OS stores and the exact Linux browser
 
 test('aggregate accepts unselected skips but rejects failed, cancelled or skipped selected jobs', () => {
   const aggregate = workflow().jobs['quality-and-browser'];
-  const script = aggregate.steps.find(step => step.name === 'Require all checks to pass').run;
+  const script = aggregate.steps.find(step => step.env?.CHANGES_RESULT && step.env?.HTTP_SELECTED).run;
   const bash = process.platform === 'win32' ? path.join(process.env.ProgramFiles, 'Git/bin/bash.exe') : 'bash';
   const defaults = { CHANGES_RESULT: 'success', QUALITY_RESULT: 'success', BROWSER_SELECTED: 'false', BROWSER_RESULT: 'skipped',
     HTTP_SELECTED: 'false', HTTP_RESULT: 'skipped', DESKTOP_SELECTED: 'false', DESKTOP_RESULT: 'skipped',
