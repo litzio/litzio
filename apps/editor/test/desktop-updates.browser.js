@@ -206,7 +206,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
               if (theme === 'light') await page.locator('[data-tab-id="settings"] .document-tab-close').click();
               else await page.keyboard.press('Escape');
               await page.getByTestId('settings-dialog').waitFor({state:'detached'});
-              check(await settings.evaluate(node => node === document.activeElement), 'Desktop Settings did not return focus to rail');
+              check(await (theme === 'light' ? page.getByRole('tab',{selected:true}) : settings).evaluate(node => node === document.activeElement), 'Settings close focus did not follow tab/Escape ownership');
             }
             separatorGeometry.push({width, theme, reserved, panelOpen, collapsed, ...geometry});
             if (!geometry.aligned || !geometry.branded || !geometry.continuous || !geometry.singleLine || geometry.blocked.length || geometry.tabsTop - geometry.barBottom > 1 || geometry.drag !== 'drag' ||

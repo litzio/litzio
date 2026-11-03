@@ -698,12 +698,23 @@ function EditorApp() {
     } else removeTab(id);
   }
   const [desktopInfo, setDesktopInfo] = useState<DesktopInfo | null>(null);
+  const settingsFocusRequested = useRef(false);
   function openSettingsTab(): void {
     if (operationRef.current || continuation) return;
-    if (settingsGroup) navigate({ type: "select", id: "settings" });
-    else placeTab("settings");
-    requestAnimationFrame(() => globalThis.document.getElementById("tab-settings")?.focus());
+    if (assistantOverlay) setAssistantOpen(false);
+    settingsFocusRequested.current = true;
+    if (settingsGroup) {
+      settingsFocusRequested.current = false;
+      navigate({ type: "select", id: "settings" });
+      globalThis.document.getElementById("tab-settings")?.focus();
+    } else placeTab("settings");
   }
+  useLayoutEffect(() => {
+    if (settingsFocusRequested.current) {
+      settingsFocusRequested.current = false;
+      globalThis.document.getElementById("tab-settings")?.focus();
+    }
+  }, [navigation]);
   const settingsReturnFocus = useRef<HTMLElement | null>(null);
   function closeSettingsTab(): void {
     closeTab("settings");
@@ -923,8 +934,9 @@ function EditorApp() {
   const saveShortcut = useRef<(event: KeyboardEvent) => void>(() => {});
   saveShortcut.current = (event) => {
     if (event.key === "Escape" && !event.isComposing && activeId === "settings" &&
-        globalThis.document.activeElement?.id === "tab-settings") {
-      event.preventDefault(); closeSettingsTab(); return;
+        !(event.target instanceof Element && event.target.closest('.assistant-panel, .notification-center')) &&
+        !globalThis.document.querySelector('[data-slot="dialog-content"], [role="menu"], [data-slot="popover-content"]')) {
+      event.preventDefault(); event.stopPropagation(); closeSettingsTab(); return;
     }
     if (ASSISTANT_SHORTCUT.matches(event) && event.key !== "Process" && event.keyCode !== 229 && assistantAvailable) {
       if (globalThis.document.querySelector('[data-slot="dialog-content"]')) return;

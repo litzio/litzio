@@ -2960,6 +2960,8 @@ Settings and documents; Tab enters its close control and category navigation.
 Delete or the close button closes the tab and focuses the neighboring tab.
 Escape from Settings content or its tab closes it and returns focus to the connected
 opener (or Explorer toggle). Nested dialogs retain their own Escape boundary.
+Opening Settings dismisses the narrow Assistant overlay so the task tab is
+reachable; the wide docked Assistant remains available and keeps its own Escape.
 Settings does not trap focus or own document Save/Undo. Ctrl+S while Settings owns
 focus does not save a hidden document; a visible document in the other group keeps
 its own Save and editing operations.
@@ -2973,7 +2975,9 @@ editing sessions and are never saved by opening or closing Settings.
 
 The Host owns heading, category navigation, scroll and bounded content column;
 built-in and contributed categories supply content inside that frame. Existing
-Button, select, Input and settings styles are reused. No public Plugin API or
+Button, select, Input and settings styles are reused. The tab row keeps label widths independent of the overflow button's visibility;
+otherwise adding the short Korean Settings label could repeatedly toggle overflow
+and move its close target. No public Plugin API or
 common settings-row blocks are added (#1033 owns those). Container width, including
 split groups, selects the stacked layout. Redundant return-document and category
 explanation prose is removed; document identity/dirty state remains in its tab.
