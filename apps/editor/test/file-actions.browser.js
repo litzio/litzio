@@ -17,7 +17,7 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   await page.getByTestId('folder-path').fill(root + sep);
   await page.getByTestId('folder-open').click(); await row('a.md').waitFor();
   const nativeMenu = locator => locator.evaluate(node => node.dispatchEvent(new MouseEvent('contextmenu', {bubbles:true,cancelable:true})));
-  expect(await nativeMenu(row('nested'))).toBe(true);
+  // Child-folder product menus are covered by folder-navigation (#1064).
   expect(await nativeMenu(activeDocument(page))).toBe(true);
   await row('a.md').focus(); await row('a.md').press('Shift+F10'); await expect(rename()).toBeVisible();
   await menu.and(page.locator(':focus-within')).waitFor();

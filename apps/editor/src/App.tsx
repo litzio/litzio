@@ -102,7 +102,7 @@ function EditorApp() {
     media.addEventListener("change", change); return () => media.removeEventListener("change", change);
   }, []);
   const newFileButton = useRef<HTMLElement | null>(null);
-  const newFolderButton = useRef<HTMLButtonElement>(null);
+  const newFolderButton = useRef<HTMLElement>(null);
   // Open folder… returns focus to the control that opened it.
   const dialogReturnFocus = useRef<HTMLElement | null>(null);
   // Retain Host start information when the last tab closes.
@@ -845,9 +845,9 @@ function EditorApp() {
   function newDirectoryIn(root: string): string {
     return folderChain(root, openedPath).at(-1) ?? root;
   }
-  function newFile(root: string): void {
+  function newFile(root: string, exact = false): void {
     if (busy || continuation) { setError({ key: "Wait for the current operation to finish." }); return; }
-    setNewDirectory(newDirectoryIn(root));
+    setNewDirectory(exact ? root : newDirectoryIn(root));
     setNewDialog(true);
   }
   function newDocument(returnFocus: HTMLElement | null): void {
@@ -1226,13 +1226,13 @@ function EditorApp() {
         recent={visibleRecent}
         onNewDocument={newDocument}
         onOpenRecent={(folder) => void openFolder(folder).then((message) => { if (message) setError(message); })}
-        onNew={(root, button) => {
+        onNew={(root, button, exact) => {
           newFileButton.current = button;
-          newFile(root);
+          newFile(root, exact);
         }}
-        onNewFolder={(root, button) => {
+        onNewFolder={(root, button, exact) => {
           newFolderButton.current = button;
-          setNewDirectory(newDirectoryIn(root));
+          setNewDirectory(exact ? root : newDirectoryIn(root));
           setNewFolderDialog(true);
         }}
         folders={folders.trees}
