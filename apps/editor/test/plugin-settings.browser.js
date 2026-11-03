@@ -1,5 +1,6 @@
 async (page, { expect, screenshots, brand, stalePluginRegistration }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
+  let staleRegistration = false;
   try {
     const items = await (await page.request.get(origin + '/api/worker-plugins')).json();
     const original = items.find(item => item.id === 'docling');
@@ -118,6 +119,9 @@ async (page, { expect, screenshots, brand, stalePluginRegistration }) => {
     // A real old registration, not a mocked HTTP failure: Host must stop UI admission.
     await page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true }).click();
     await expect(page.getByTestId('docling-dashboard')).toBeVisible();
+    // Inject only after the dashboard initial reads and connection check finish.
+    await expect(page.getByTestId('docling-dashboard').getByRole('button', { name: '다시 확인', exact: true })).toBeEnabled();
+    staleRegistration = true;
     stalePluginRegistration();
     const cause = '저장된 플러그인의 버전이 지원하는 semver 형식이 아닙니다.';
     await expect(page.locator('.plugin-tab-message')).toContainText(cause);
@@ -144,10 +148,17 @@ async (page, { expect, screenshots, brand, stalePluginRegistration }) => {
     await expect(page.getByRole('heading', { name: 'Docling 서버', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: '다시 등록', exact: true })).toBeDisabled();
   } finally {
-    // Preferences survive page teardown; restore the next scenario's starting language.
-    await page.evaluate(prefix => {
-      localStorage.setItem(prefix + '.uiLanguage', 'en');
-      localStorage.setItem(prefix + '.theme', 'light');
-    }, brand.storagePrefix);
+    try {
+      if (staleRegistration) {
+        await page.unroute('**/api/worker-plugins');
+        expect((await page.request.post(origin + '/api/worker-plugins', { data: { bundled: 'docling' } })).ok()).toBe(true);
+      }
+    } finally {
+      // Preferences survive page teardown; restore the next scenario's starting language.
+      await page.evaluate(prefix => {
+        localStorage.setItem(prefix + '.uiLanguage', 'en');
+        localStorage.setItem(prefix + '.theme', 'light');
+      }, brand.storagePrefix);
+    }
   }
 }

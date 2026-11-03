@@ -382,7 +382,9 @@ re-registered row to be checked, its gear enabled, and contributed settings usab
 
 UI discovery carries the Host's stored-manifest `registrationError`. The Renderer
 refuses activation before loading assets or observing the declared job route;
-existing plugin views unmount and polling stops. This is Host/Renderer discovery
+existing plugin views unmount and polling stops. The Host also validates the
+current stored manifest before returning UI asset bytes, including direct asset
+requests. This is Host/Renderer discovery
 metadata, not a new plugin contribution API. Other plugins remain active.
 The existing sidebar/command entry opens plugin information in Settings for an
 invalid registration. Existing plugin tabs show a localized cause and an action
@@ -402,7 +404,10 @@ Verification extends the existing inventory test (invalid bundled/external
 registrations, no rewrite and explicit recovery), UI registry test (refusal
 before loader invocation), and plugin-settings browser scenario (real temporary
 SQLite hash-version registration, existing tab error, Korean recovery and form
-return). No new subprocess or exhaustive combination is added.
+return). Existing Host/asset tests also cover refusal after activation-cache population
+and direct Desktop/HTTP asset requests. Browser fixture cleanup explicitly
+re-registers the temporary bundled plugin even when a later assertion fails.
+No new browser scenario, subprocess or exhaustive combination is added.
 
 Manual Windows persistent-Chrome review, same rejected registration information
 surface in Korean Dark at 1440px and 640px:

@@ -141,6 +141,7 @@ export class PluginStore {
   uiAsset(id: string, revision: string, name: string): Buffer {
     const item = this.list().find(item => item.id === id && item.enabled && item.revision === revision);
     if (!item?.ui || (name !== item.ui.script && name !== item.ui.style) || !item.uiHashes?.[name]) throw new Error("UI plugin asset is unavailable.");
+    workerManifest(item);
     const bytes = readFileSync(path.join(item.directory, name));
     if (digest(bytes) !== item.uiHashes[name]) throw new Error("Installed UI asset hash mismatch.");
     return bytes;

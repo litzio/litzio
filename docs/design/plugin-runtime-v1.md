@@ -102,7 +102,10 @@ and `remove-correction` regenerate the approved ledger and complete folder throu
 the [correction replay contract](docling-conversion-v1.md#approved-correction-records-and-replay-876).
 They do not admit a PDF worker job or add an AI/approval UI.
 
-Host facade activations follow installation revisions. Plugin-owned transient
+Host facade activations follow installation revisions. Every Host facade entry
+validates the current stored manifest, including activation cache hits. This does
+not change pinned accepted worker execution, receipt reads or the existing
+disable/draining-operation rules. Plugin-owned transient
 session data preserves the current job/admission gate across re-registration;
 it is not durable state or startup restoration. Disable refuses new operations,
 except declared draining operations: Docling status/cancel and UUID replay. A new

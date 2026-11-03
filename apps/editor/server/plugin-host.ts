@@ -90,6 +90,8 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
   const load = (id: string) => {
     const store = plugins(true), installation = store.list().find(item => item.id === id);
     if (!installation?.host) throw new Error("Plugin Host operations are unavailable.");
+    const problem = registrationError(installation);
+    if (problem) throw new Error(problem);
     const key = `${id}/${installation.revision}`;
     let plugin = activations.get(key);
     if (!plugin) {
