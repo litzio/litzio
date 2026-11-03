@@ -38,11 +38,11 @@ export function MetadataProperties({ anchor, target, initialFocus, kind, testId,
     const inMenu = details.event.composedPath().some(target => target instanceof Element && target.getAttribute("role") === "menu");
     if (details.reason === "escape-key" && !inMenu) onCancel();
     // Keyboard activation of Save, Source or a tab retains its draft contract. Only a
-    // pointer click completes metadata; focus/keyboard navigation alone does not.
+    // pointer click completes metadata; Settings navigation and keyboard focus do not.
     // Other dialogs own their clicks, including Cancel/Back that unmount the
     // dialog during this event. Its composed path still records that owner.
     const switchingView = details.event.composedPath().some(target => target instanceof Element &&
-      target.matches('[data-testid="view-read"], .command-center-trigger'));
+      target.matches('[data-testid="view-read"], .command-center-trigger, [data-tab-id="settings"], [data-open-settings]'));
     const inDialog = details.event.composedPath().some(target => target instanceof Element && target.getAttribute("role") === "dialog");
     if (details.reason === "outside-press" && !inDialog && !switchingView && !busy && details.event instanceof MouseEvent && details.event.detail > 0 && outsideCompletion.current === undefined) {
       // Let the engine read the native pointer selection before a synchronous

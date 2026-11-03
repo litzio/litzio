@@ -10,7 +10,7 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture }) => {
   await page.getByRole('button', { name: 'Check connection', exact: true }).click();
   await expect(page.locator('#docling-server-result')).toContainText('ready and compatible');
   await page.screenshot({ path: `${fixture.captures}/real-settings-en-1440.png` });
-  await page.getByTestId('settings-back').click();
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   const separator = fixture.input.includes('\\') ? '\\' : '/';
   await openFolderPicker(page);
   await page.getByTestId('folder-path').fill(fixture.input.split(separator).slice(0, -1).join(separator));
@@ -36,7 +36,7 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture }) => {
   await page.getByRole('button', { name: 'Appearance & language', exact: true }).click();
   await page.getByTestId('theme').selectOption('dark');
   await page.getByTestId('ui-language').selectOption('ko');
-  await page.getByTestId('settings-back').click();
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await page.screenshot({ path: `${fixture.captures}/real-completed-dark-ko-1440.png` });
   await page.setViewportSize({ width: 640, height: 1000 });
   await page.screenshot({ path: `${fixture.captures}/real-completed-dark-ko-640.png` });

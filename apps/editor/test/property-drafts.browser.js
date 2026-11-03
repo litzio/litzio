@@ -110,6 +110,7 @@ async (page, { openPath, expect }) => {
       await openPath(page, focusFile);
       const active = page.locator('[data-document-tab][data-active=true]');
       const target = active.locator(`[data-block="${kind === 'equation-property' ? 'equation' : kind}"]`);
+      const ownerId = await active.getAttribute('data-document-tab');
       const before = await json();
       if (kind === 'label-target') {
         await editor.locator('h2').hover();
@@ -122,7 +123,7 @@ async (page, { openPath, expect }) => {
       const draft = `${kind}-dialog-draft`;
       await page.getByTestId(field).fill(draft);
       const retained = async action => {
-        expect(await json(), `${kind}/${action}: dialog click changed applied content or references`).toBe(before);
+        expect(await page.locator(`[data-document-tab="${ownerId}"] .document-editor`).evaluate(element => JSON.stringify(element.editor.getJSON())), `${kind}/${action}: dialog click changed applied content or references`).toBe(before);
         expect(await page.getByTestId(`${kind}-editor`).count(), `${kind}/${action}: dialog click closed metadata`).toBe(1);
         expect(await page.getByTestId(field).inputValue(), `${kind}/${action}: dialog click lost the draft`).toBe(draft);
       };
@@ -143,15 +144,17 @@ async (page, { openPath, expect }) => {
       await fileActions.and(page.locator(':focus')).waitFor();
       await retained('Reload Keep editing');
 
-      await activate(page.getByRole('button',{name:'Settings',exact:true}));
+      const settingsEntry = page.getByRole('button',{name:'Settings',exact:true});
+      if (kind === 'table') await settingsEntry.click();
+      else await activate(settingsEntry);
       const settings = page.getByTestId('settings-dialog');
-      await page.getByTestId('settings-back').and(page.locator(':focus')).waitFor();
+      await page.getByRole('tab',{name:'Settings',exact:true}).and(page.locator(':focus')).waitFor();
       await settings.getByRole('button',{name:'Saving & recovery',exact:true}).click();
-      await retained('Settings category');
-      await settings.getByTestId('settings-back').click();
+      expect(await page.locator(`[data-document-tab="${ownerId}"] .document-editor`).evaluate(element => JSON.stringify(element.editor.getJSON()))).toBe(before);
+      await page.getByRole('tab',{name:'Settings',exact:true}).press('Escape');
       await settings.waitFor({state:'detached'});
       await page.getByRole('button',{name:'Settings',exact:true}).and(page.locator(':focus')).waitFor();
-      await retained('Settings Back to document');
+      await retained('Settings Escape');
 
       await page.getByTestId(field).press('Escape');
       await page.getByTestId(`${kind}-editor`).waitFor({state:'detached'});

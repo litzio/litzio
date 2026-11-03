@@ -102,7 +102,7 @@ async (page, { openDocument, screenshots }) => {
   await dialog().getByRole('alert').waitFor();
   await page.keyboard.press('Escape'); await dialog().waitFor({state:'detached'});
   await page.unroute('**/api/file-preview?*', damaged);
-  await activate(page.getByRole('button',{name:'Settings',exact:true})); await dialogFocus();
+  await activate(page.getByRole('button',{name:'Settings',exact:true})); await page.getByRole('tab',{name:'Settings',exact:true}).and(page.locator(':focus')).waitFor();
   await page.getByTestId('ui-language').selectOption('ko');
   await page.keyboard.press('Escape'); await dialog().waitFor({state:'detached'});
   await activateRow('diagram.svg');
@@ -112,7 +112,7 @@ async (page, { openDocument, screenshots }) => {
   await activateRow('README');
   await dialog().getByText('이 파일은 Litzio에서 편집할 수 없습니다.',{exact:true}).waitFor();
   await page.keyboard.press('Escape'); await dialog().waitFor({state:'detached'});
-  await activate(page.getByRole('button',{name:'설정',exact:true})); await dialogFocus();
+  await activate(page.getByRole('button',{name:'설정',exact:true})); await page.getByRole('tab',{name:'설정',exact:true}).and(page.locator(':focus')).waitFor();
   await page.getByTestId('ui-language').selectOption('en');
   await page.keyboard.press('Escape'); await dialog().waitFor({state:'detached'});
   check(JSON.stringify(await snapshot()) === JSON.stringify(before) && await draft.inputValue() === 'section-draft', 'Late/error or translated preview lost editor state');

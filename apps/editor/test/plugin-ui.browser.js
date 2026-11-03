@@ -2,7 +2,7 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: /^(Settings|설정)$/ }).click();
   await page.getByTestId('ui-language').selectOption('en');
-  await page.getByTestId('settings-back').click();
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   const captureActions = async state => {
     if (!screenshots) return;
     for (const [width, language, theme] of [[1440, 'en', 'light'], [640, 'ko', 'dark']]) {
@@ -10,14 +10,14 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
       await page.getByTestId('ui-language').selectOption(language);
       await page.getByTestId('theme').selectOption(theme);
       await page.setViewportSize({ width, height: 1000 });
-      await page.getByTestId('settings-back').click();
+      await page.locator('[data-tab-id="settings"] .document-tab-close').click();
       await page.screenshot({ path: `tmp/973-evidence/${state}-${width}.png` });
     }
     await page.getByRole('button', { name: '설정', exact: true }).click();
     await page.getByTestId('ui-language').selectOption('en');
     await page.getByTestId('theme').selectOption('light');
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.getByTestId('settings-back').click();
+    await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   };
   while (await page.locator('.document-tab-close').count()) await page.locator('.document-tab-close').first().click();
   await captureActions('empty');
@@ -72,12 +72,12 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
       await page.screenshot({ path: 'tmp/857-evidence/disabled-1440-light-en.png' });
       await page.getByRole('button', { name: 'Settings', exact: true }).click();
       await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
-      await page.setViewportSize({ width: 640, height: 1000 }); await page.getByTestId('settings-back').click();
+      await page.setViewportSize({ width: 640, height: 1000 }); await page.locator('[data-tab-id="settings"] .document-tab-close').click();
       await expect(page.getByText('플러그인이 꺼져 있습니다.', { exact: true })).toBeVisible();
       await page.screenshot({ path: 'tmp/857-evidence/disabled-640-dark-ko.png' });
       await page.getByRole('button', { name: '설정', exact: true }).click();
       await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
-      await page.setViewportSize({ width: 1440, height: 1000 }); await page.getByTestId('settings-back').click();
+      await page.setViewportSize({ width: 1440, height: 1000 }); await page.locator('[data-tab-id="settings"] .document-tab-close').click();
     }
     // Same installed bytes/module URL; activation is new and local view state resets.
     await register(manifest);

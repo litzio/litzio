@@ -17,15 +17,29 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
   await page.route('**/api/docling-conversion', transport);
   await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); });
   const initialRecovery = page.waitForResponse(response => response.url().endsWith('/api/docling-conversion') && response.request().method() === 'GET' && response.ok());
-  await page.reload();
+  let releaseStartup, startupReached;
+  const startupGate = new Promise(resolve => { releaseStartup = resolve; });
+  const startupRequest = new Promise(resolve => { startupReached = resolve; });
+  const holdStartup = async route => {
+    if (route.request().method() === 'GET') { startupReached(); await startupGate; }
+    await route.continue();
+  };
+  await page.route('**/api/document**', holdStartup);
+  try {
+    await page.reload(); await startupRequest;
+    await expect(page.getByTestId('sidebar').getByRole('button',{name:'Settings',exact:true})).toBeDisabled();
+  } finally { releaseStartup(); }
   await initialRecovery;
   await page.setViewportSize({ width: 1440, height: 1000 });
   const capture = async name => { if (screenshots) { await page.evaluate(() => document.fonts.ready); await page.screenshot({ path: `${fixture.captures}/${name}.png` }); } };
   const settings = async () => {
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await page.getByRole('button', { name: 'Docling', exact: true }).click();
+    const entry = page.getByTestId('sidebar').getByRole('button', { name: 'Settings', exact: true });
+    await expect(entry).toBeEnabled();
+    await entry.click();
+    await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
   };
   await settings();
+  await page.unroute('**/api/document**', holdStartup);
   const field = page.getByRole('textbox', { name: 'Server address' });
   const addressRow = async () => {
     const a = await page.locator('#docling-server').boundingBox();
@@ -77,11 +91,11 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
   await expect(page.getByRole('link', { name: 'Server setup guide' })).toBeVisible();
   await capture('settings-failure-en-1440');
   await field.fill(fixture.url); fixture.mode('pending'); await check();
-  await page.getByTestId('settings-back').click();
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await page.reload();
   await settings();
   await expect(field).toHaveValue(fixture.url);
-  await page.getByTestId('settings-back').click();
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   const separator = fixture.input.includes('\\') ? '\\' : '/';
   const parent = fixture.input.split(separator).slice(0, -1).join(separator);
   await openFolderPicker(page);
@@ -140,7 +154,7 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
   // The lost POST response is recovered with GET only; the failure remains actionable.
   await center.getByRole('button', { name: 'Open settings', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Server address' })).toBeVisible();
-  await page.getByTestId('settings-back').click();
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await page.keyboard.press('Control+Slash');
   await page.getByRole('dialog', { name: 'Command center' }).getByRole('combobox').fill('> Convert with Docling');
   await page.getByRole('option', { name: 'Convert with Docling', exact: true }).click();
@@ -187,7 +201,7 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
   expect((await unreachable).state).toBe('error');
   await center.getByRole('button', { name: 'Open settings', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Server address' })).toHaveValue('http://127.0.0.1:1');
-  await page.getByTestId('settings-back').click();
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await expect(dashboard).toContainText('Could not connect to the Docling server');
   await page.request.put(endpoint.replace('conversion', 'settings'), { data: { server: fixture.url } });
   fixture.mode('pending');
@@ -319,7 +333,7 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     await page.reload();
     await page.setViewportSize({ width: 640, height: 1000 });
     await page.getByRole('button', { name: '설정', exact: true }).click();
-    await page.getByRole('button', { name: 'Docling', exact: true }).click();
+    await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
     await page.getByRole('button', { name: '연결 확인', exact: true }).click();
     await page.getByRole('button', { name: '연결 확인', exact: true }).waitFor();
     await addressRow();
@@ -330,7 +344,7 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     await capture('settings-failure-ko-640');
     await page.getByRole('textbox', { name: '서버 주소' }).fill(fixture.url);
     await page.getByRole('button', { name: '연결 확인', exact: true }).click();
-    await page.getByTestId('settings-back').click();
+    await page.locator('[data-tab-id="settings"] .document-tab-close').click();
     await pdf.click({ button: 'right' }); await capture('pdf-menu-ko-640');
     await page.getByRole('menuitem', { name: 'Docling으로 변환' }).click();
     fixture.mode('pending');
@@ -346,11 +360,11 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     await page.getByRole('button', { name: '설정', exact: true }).click();
     await page.getByRole('button', { name: '표시·언어', exact: true }).click();
     await page.getByTestId('theme').selectOption('dark');
-    await page.getByRole('button', { name: 'Docling', exact: true }).click();
+    await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
     await page.getByRole('button', { name: '연결 확인', exact: true }).click();
     await expect(page.locator('#docling-server-result')).toContainText('호환됩니다');
     await capture('settings-dark-ko-640');
-    await page.getByTestId('settings-back').click();
+    await page.locator('[data-tab-id="settings"] .document-tab-close').click();
     await pdf.click({ button: 'right' });
     await page.getByRole('menuitem', { name: 'Docling으로 변환' }).click();
     await capture('confirmation-dark-ko-640');

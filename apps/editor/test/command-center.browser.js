@@ -451,13 +451,15 @@ async (page, { openPath, waitForActivePath, activeDocument, screenshots = false 
   await page.keyboard.press('Escape'); await center().waitFor({state:'detached'});
   result.shortcutAndImeOwnership = true;
 
-  // A command opening another modal hands focus to it; shortcuts cannot open a second modal.
+  // Settings is a task tab; Command Center can reopen over it without duplicating it.
   const settingsMatches = await run('Settings');
   check(settingsMatches.includes('Refresh folder'), 'Settings search did not exercise a matching folder path');
   await page.getByTestId('settings-dialog').waitFor();
-  await page.waitForFunction(() => document.querySelector('[data-testid="settings-dialog"]')?.contains(document.activeElement), null, {timeout:5000});
+  await page.getByRole('tab',{name:'Settings',exact:true}).and(page.locator(':focus')).waitFor();
   await page.keyboard.press('Control+Slash');
-  check(await center().count()===0 && await page.getByRole('dialog').count()===1, 'Center opened over Settings');
+  await center().waitFor();
+  check(await page.getByRole('tab',{name:'Settings',exact:true,includeHidden:true}).count()===1, 'Settings was duplicated');
+  await page.keyboard.press('Escape'); await center().waitFor({state:'detached'});
   await page.keyboard.press('Control+Quote');
   check(await page.getByTestId('link-form').count()===0, 'Link form opened over Settings');
   await page.keyboard.press('Escape');

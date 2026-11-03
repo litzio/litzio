@@ -674,7 +674,7 @@ button {
   font-size: var(--font-size-sm);
   cursor: pointer;
 }
-.document-tab > [role="tab"] { align-self: stretch; padding-inline: var(--space-2); padding-block: 0; }
+.document-tab > [role="tab"] { align-self: stretch; gap: var(--space-1); padding-inline: var(--space-1); padding-block: 0; }
 .document-tab > button:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring-inset);
@@ -906,51 +906,16 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar, .settings-topbar
   app-region: no-drag;
 }
 
-/* Settings retains the mounted document shell behind an opaque full-screen modal boundary. */
-.settings-screen[data-slot="dialog-content"] {
-  inset: 0;
-  width: 100%;
-  height: 100dvh;
-  max-width: none;
-  max-height: none;
-  translate: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: var(--id-color-surface);
-  box-shadow: none;
-  overflow: hidden;
-}
-
-.settings-topbar {
-  app-region: drag;
-  user-select: none;
-  background: var(--id-color-surface-subtle);
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  gap: var(--space-3);
-  min-height: var(--layout-header-row);
-  padding: 0 var(--layout-ui-inset);
-  padding-right: calc(var(--layout-ui-inset) + var(--window-controls-width));
-  border-bottom: var(--border-width) solid var(--id-color-border);
-}
-.settings-topbar > button { flex-shrink: 0; }
-.settings-document { display: flex; align-items: center; gap: var(--space-2); min-width: 0; color: var(--id-color-text-muted); }
-.settings-document svg { width: var(--size-icon-slot); height: var(--size-icon-slot); flex-shrink: 0; }
-.settings-document-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Host-owned task content uses ordinary two-group shell geometry. */
+.settings-tab { container-type: inline-size; }
+.settings-screen { app-region: no-drag; display: flex; height: 100%; min-width: 0; background: var(--id-color-surface); overflow: hidden; }
 .settings-body { app-region: no-drag; display: grid; grid-template-columns: var(--layout-sidebar-width) minmax(0, 1fr); flex: 1; min-height: 0; overflow-y: auto; }
 .settings-navigation { display: flex; flex-direction: column; gap: var(--space-5); padding: var(--space-6) var(--space-3) var(--space-4); border-right: var(--border-width) solid var(--id-color-border); }
-.settings-navigation [data-slot="dialog-title"] { padding-inline: var(--space-3); }
+.settings-navigation h1 { margin: 0; padding-inline: var(--space-3); font-size: var(--font-size-start-title); font-weight: var(--font-weight-semibold); }
 .settings-navigation nav { display: grid; gap: var(--space-1); }
 .settings-navigation nav button { justify-content: start; width: 100%; }
 .settings-navigation nav button[aria-current="page"] { background: var(--id-color-surface-selected); color: var(--id-color-text-selected); font-weight: var(--font-weight-semibold); }
 .settings-navigation nav button[aria-current="page"]:hover { background: var(--id-color-surface-selected-hover); }
-.settings-document-note { margin-top: auto; padding: var(--space-3); border-top: var(--border-width) solid var(--id-color-border-subtle); font-size: var(--font-size-xs); line-height: var(--line-height-meta); color: var(--id-color-text-muted); }
-.settings-document-note p { margin: 0; }
 .settings-content { min-width: 0; padding: var(--space-8) var(--space-16); }
 .settings-content-inner { max-width: var(--layout-settings-content-width); }
 .settings-category-header { margin-bottom: var(--space-6); }
@@ -990,11 +955,9 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar, .settings-topbar
 .settings-group-heading { margin: var(--space-6) 0 0; padding-bottom: var(--space-3); border-bottom: var(--border-width) solid var(--id-color-border-subtle); font-size: var(--font-size-xs); font-weight: var(--font-weight-semibold); color: var(--id-color-text-muted); }
 .settings-recovery-details { display: grid; gap: var(--space-2); margin: 0; padding-left: var(--space-5); list-style: disc; font-size: var(--font-size-xs); color: var(--id-color-text-muted); }
 
-@media (width < 48rem) {
-  .settings-topbar { padding-left: var(--space-3); padding-right: calc(var(--space-3) + var(--window-controls-width)); gap: var(--space-2); }
+@container (width < 48rem) {
   .settings-body { grid-template-columns: minmax(0, 1fr); align-content: start; }
   .settings-navigation { gap: var(--space-3); border-right: 0; border-bottom: var(--border-width) solid var(--id-color-border); padding-block: var(--space-4); }
-  .settings-document-note { margin-top: 0; padding-bottom: 0; }
   .settings-content { padding: var(--space-6); }
   .settings-section { grid-template-columns: minmax(0, 1fr); }
 }
@@ -3429,4 +3392,4 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 /* Yield the scroller inset to the overflow control at narrow widths. */
 .document-tab-row:has(.document-tabs-overflow) .document-tabs { padding-inline: 0 var(--border-width); }
 
-.document-tab-row:has(.document-tabs-overflow) .document-tab > [role="tab"] { gap: var(--space-1); padding-inline: var(--space-1); }
+/* Keep tab widths independent of overflow-menu visibility to prevent resize oscillation. */

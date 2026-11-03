@@ -29,7 +29,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: /^(Settings|설정)$/ }).click();
   await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
-  await page.getByTestId('settings-back').click();
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await openPath(page, pluginFixture.document);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const categories = page.getByRole('navigation', { name: 'Settings categories' });
@@ -81,12 +81,19 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(page.getByLabel('Reasoning effort', { exact: true }).locator('option')).toHaveText(['low']);
   await page.getByLabel('Model', { exact: true }).selectOption('gpt-6.1-sol');
   await page.getByLabel('Reasoning effort', { exact: true }).selectOption('high');
+  const writesBeforeSwitch = settingsWrites.length;
+  const documentTab = page.getByRole('tab').filter({hasNotText:'Settings'}).first();
+  await documentTab.click();
+  await page.getByRole('tab',{name:'Settings',exact:true}).click();
+  await expect(page.getByLabel('Reasoning effort',{exact:true})).toHaveValue('high');
+  expect(settingsWrites.length).toBe(writesBeforeSwitch);
+
   await page.getByRole('button', { name: 'Save AI settings', exact: true }).click();
   await expect(page.getByText('AI settings saved.', { exact: true })).toBeVisible();
   expect(settings).toEqual({ provider: 'codex', enabled: true, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'high', responseLanguage: 'ja' });
   const aiGeometry = await measure();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/ai-1440-light-en.png' });
-  await categories.getByRole('button', { name: 'Docling', exact: true }).click();
+  await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Docling server', exact: true })).toBeVisible();
   expect(await measure()).toEqual(aiGeometry);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/docling-1440-light-en.png' });
@@ -113,10 +120,10 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-640-dark-ko.png' });
   await page.getByRole('button', { name: '← AI 에이전트', exact: true }).click();
-  await page.getByRole('button', { name: 'Docling', exact: true }).click();
+  await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Docling 서버', exact: true })).toBeVisible();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/docling-640-dark-ko.png' });
-  await page.getByTestId('settings-back').click();
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   const editor = page.locator('.document-scroll[data-active=true] .ProseMirror');
   await editor.locator('p').first().click(); await page.keyboard.press('End'); await page.keyboard.type(' preserved AI-off draft');
   await editor.evaluate(element => { globalThis.__aiOrdinaryDocument = element; });
@@ -127,7 +134,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
     await expect.poll(async () => (await (await page.request.get(origin + '/api/ai-task-service')).json()).available).toBe(false);
     await page.getByRole('button', { name: '설정', exact: true }).click();
     await expect(page.getByRole('button', { name: 'AI 에이전트', exact: true })).toHaveCount(0);
-    await page.getByTestId('settings-back').click();
+    await page.locator('[data-tab-id="settings"] .document-tab-close').click();
     expect(await editor.evaluate(element => element === globalThis.__aiOrdinaryDocument)).toBe(true);
     await expect(editor).toContainText('preserved AI-off draft');
     await editor.locator('p').first().click(); await page.keyboard.press('End'); await page.keyboard.type(' still editable');
@@ -147,7 +154,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByRole('button', { name: '설정', exact: true }).click();
   await page.getByRole('button', { name: '표시·언어', exact: true }).click();
   await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
-  await page.getByTestId('settings-back').click();
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await page.setViewportSize({ width: 1440, height: 1000 });
   // A committed dirty recovery record can outlive Save's asynchronous cleanup.
   // Hold only this session's deletion through reload: Saved must be sufficient
@@ -488,7 +495,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
       await page.getByRole('button', { name: 'Settings', exact: true }).click();
       await page.getByTestId('theme').selectOption(theme);
       await page.getByTestId('ui-language').selectOption('ko');
-      await page.getByTestId('settings-back').click();
+      await page.locator('[data-tab-id="settings"] .document-tab-close').click();
       await page.keyboard.press('Control+Shift+Y');
       for (const width of [1440, 640]) {
         await page.setViewportSize({ width, height: 1000 });
@@ -501,7 +508,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
       await panel.getByRole('button', { name: '비서 닫기' }).click();
       await page.getByRole('button', { name: '설정', exact: true }).click();
       await page.getByTestId('ui-language').selectOption('en');
-      await page.getByTestId('settings-back').click();
+      await page.locator('[data-tab-id="settings"] .document-tab-close').click();
       await page.keyboard.press('Control+Shift+Y');
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -544,7 +551,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await page.getByRole('button', { name: 'Appearance & language', exact: true }).click();
   await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
-  await page.getByTestId('settings-back').click();
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await page.setViewportSize({ width: 640, height: 1000 });
   await editor.locator('p').first().click();
   await page.getByRole('button', { name: '비서', exact: true }).click();
@@ -586,8 +593,9 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/setup-640-dark-ko.png' });
   await panel.getByRole('button', { name: 'AI 설정 열기' }).click();
   await expect(page.getByRole('heading', { name: 'AI 에이전트', exact: true }).last()).toBeVisible();
-  await page.getByTestId('settings-back').click();
-  await panel.getByRole('button', { name: '비서 닫기' }).click();
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+  await expect(panel).toBeHidden();
+  expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(false);
   setupMode = 'missing'; await page.getByRole('button', { name: '비서', exact: true }).click();
   await expect(panel.getByText('이 컴퓨터에서 Codex CLI를 찾을 수 없습니다. 설치 후 설정에서 진단을 실행하세요.', { exact: true })).toBeVisible();
   await panel.getByRole('button', { name: '비서 닫기' }).click();

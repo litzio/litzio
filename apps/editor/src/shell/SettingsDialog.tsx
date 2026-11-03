@@ -1,3 +1,4 @@
+import { useNativeHistoryBoundary } from "../ui/use-native-history-boundary.ts";
 import { PluginSettings } from "../PluginSettings.tsx";
 import { useTableWrapDefault, setTableWrapDefault } from "../table-wrap.ts";
 import { PLUGIN_UI, type UiRegistration } from "@litzio/plugin-api/config";
@@ -7,9 +8,8 @@ import { useMessageState } from "../ui-message.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, FileText, Info, Palette, History } from "lucide-react";
+import { FileText, Info, Palette, History } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.tsx";
 import type { CliIntegrationState, DesktopBridge, DesktopInfo, OfferedUpdate, ReleaseChannel, UpdateState } from "../../shared/desktop-bridge.ts";
 import { RecoveryDeleteDialog } from "./Recovery.tsx";
 import { Notice } from "../ui/primitives.tsx";
@@ -101,15 +101,12 @@ function CliSettings({ desktop }: { desktop: DesktopBridge }) {
 
 type SettingsDialogProps = {
   sections?: SettingsSection[];
-  open: boolean;
   theme: ThemePreference;
   themeProblem: boolean;
   onThemeChange(theme: ThemePreference): void;
   highlightUpdate?: boolean;
   category: SettingsCategory;
   onCategoryChange(category: SettingsCategory): void;
-  documentName: string;
-  unsaved: boolean;
   desktop?: DesktopBridge;
   recoveryCount?: number;
   recoveryProblem?: string;
@@ -118,14 +115,13 @@ type SettingsDialogProps = {
   onInfo(info: DesktopInfo): void;
   /** Restart to install; resolves to why not, or "" when the app is restarting. */
   onInstall(): Promise<string>;
-  /** Resolve the opener or its current visible replacement when Settings closes. */
-  returnFocus(): HTMLElement | true;
-  onClose(): void;
 };
 
 /** Shared local recovery settings; About and update controls require the Desktop bridge. */
-export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChange, open, highlightUpdate = false, category, onCategoryChange, documentName, unsaved, desktop, info, onInfo, onInstall, returnFocus, onClose, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
+export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
   useTranslation();
+  const [screen, setScreen] = useState<HTMLDivElement | null>(null);
+  useNativeHistoryBoundary(screen);
   useEffect(() => {
     if (!category.startsWith("plugin/") || sections.some(section => section.id === category)) return;
     // Missing contributions can mean a feature-driven reactivation, not removal.
@@ -139,16 +135,15 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
       }).catch(() => {}); // An unavailable read cannot prove that the plugin was removed.
     return () => controller.abort();
   }, [category, sections, onCategoryChange]);
-  const backButton = useRef<HTMLButtonElement>(null);
   const [clearConfirm, setClearConfirm] = useState(false);
   const clearButton = useRef<HTMLButtonElement>(null);
   const [clearing, setClearing] = useState(false);
   const [recoveryProblem, setRecoveryProblem] = useMessageState("");
   const [problem, setProblem] = useMessageState("");
   const [languageProblem, setLanguageProblem] = useState(false);
-  const [accent, setAccent] = useState(readAccentColor);
+  const [accent, setAccent] = useState(() => ACCENT_COLORS.find(color => color === document.documentElement.dataset.accent) ?? readAccentColor());
   const [accentProblem, setAccentProblem] = useState(false);
-  const [page, setPage] = useState(readPageBackground);
+  const [page, setPage] = useState(() => PAGE_BACKGROUNDS.find(page => page === document.documentElement.dataset.page) ?? readPageBackground());
   const [pageProblem, setPageProblem] = useState(false);
   const tableWrapDefault = useTableWrapDefault();
   const [tableWrapProblem, setTableWrapProblem] = useState(false);
@@ -161,7 +156,6 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
     setProblem("");
     void action().catch((error: unknown) => setProblem(error instanceof Error ? error.message : String(error)));
   };
-  const close = () => { setProblem(""); onClose(); };
   const categories = [
     { id: "appearance", label: i18n.t("Appearance & language"), icon: Palette },
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
@@ -173,41 +167,21 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
   const contributed = sections.find(section => section.id === category);
   const Section = contributed?.View;
   return (
-    <Dialog open={open} onOpenChange={(next) => { if (!next) close(); }}>
-      <DialogContent className="settings-screen" data-testid="settings-dialog" showCloseButton={false}
-        initialFocus={backButton} finalFocus={returnFocus}>
-        <header className="settings-topbar">
-          <Button ref={backButton} data-testid="settings-back" variant="ghost" size="sm" onClick={close}>
-            <ArrowLeft aria-hidden="true" />{i18n.t(documentName ? "Back to document" : "Back to start")}
-          </Button>
-          {documentName ? <span className="settings-document" title={documentName}>
-            <FileText aria-hidden="true" /><span className="settings-document-name">{documentName}</span>
-            {unsaved ? <span role="img" aria-label={i18n.t("Unsaved changes")}>●</span> : null}
-          </span> : null}
-        </header>
-        <DialogDescription className="sr-only">{i18n.t("Appearance, local recovery and application information.")}</DialogDescription>
+    <div ref={setScreen} className="settings-screen" data-testid="settings-dialog">
         <div className="settings-body">
           <aside className="settings-navigation">
-            <DialogTitle>{i18n.t("Settings")}</DialogTitle>
+            <h1>{i18n.t("Settings")}</h1>
             <nav aria-label={i18n.t("Settings categories")}>
               {categories.map(({ id, label, icon: Icon }) => <Button key={id} variant="ghost"
                 aria-current={category === id ? "page" : undefined} onClick={() => onCategoryChange(id)}>
                 <Icon aria-hidden="true" />{label}
               </Button>)}
             </nav>
-            <div className="settings-document-note">
-              <p>{i18n.t("Heading numbers, reference style and bibliography are saved in each document.")}</p>
-            </div>
           </aside>
           <main className="settings-content" aria-labelledby={`settings-category-${category}`}>
             <div className="settings-content-inner">
               <header className="settings-category-header">
                 <h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2>
-                <p>{category === "appearance" ? i18n.t("How {{product}} looks on this device.")
-                  : category === "recovery" ? i18n.t("Local recovery keeps applied edits on this device.")
-                  : category === "plugins" ? i18n.t("Installed plugins stay pinned until you register them again.")
-                  : contributed ? i18n.t(contributed.description as any)
-                  : i18n.t("Version and how {{product}} Desktop receives updates.")}</p>
               </header>
               {category === "plugins" ? <PluginSettings /> : null}
               {Section ? <ContributionBoundary key={category}><Section /></ContributionBoundary> : null}
@@ -380,7 +354,6 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
             </div>
           </main>
         </div>
-      </DialogContent>
-    </Dialog>
+    </div>
   );
 }
