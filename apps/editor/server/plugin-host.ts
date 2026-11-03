@@ -41,7 +41,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
     agentConversations: (args: any) => args.id ? history().current(args.id) : history().list(),
     agentConversation: (args: any) => {
       const settings = load(AI_TASK.plugin).operations.settings({});
-      if (args.action === "resume") return history().resume(args.id, settings, args.responseLanguage ?? settings.responseLanguage ?? "en");
+      if (args.action === "resume") return history().resume(args.id, settings);
       if (args.action === "send") return history().send(args, settings);
       if (args.action === "answer") return history().answer(args.id, args.turnId, args.requestId, args.answers);
       if (args.action === "interrupt") return history().interrupt(args.id);

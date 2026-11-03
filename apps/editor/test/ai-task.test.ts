@@ -157,8 +157,8 @@ test("agent-owned settings persist, reach the worker, and remain pinned in seria
   assert.equal((await (await fetch(url + AI_AGENT.modelsRoute)).json()).models.length, 3);
   assert.equal((await (await fetch(url + AI_AGENT.diagnosticsRoute)).json()).connected, true);
   assert.equal((await (await fetch(url + AI_AGENT.environmentRoute)).json()).cwd, path.join(root, "assistant"));
-  assert.deepEqual(host.invoke(AI_TASK.plugin, "settings"), { provider: "codex", enabled: true, writeAccess: "opened-folders", model: "gpt-6.1-sol", reasoningEffort: "medium" });
-  const execution = { model: "chosen-model", reasoningEffort: "xhigh" };
+  assert.deepEqual(host.invoke(AI_TASK.plugin, "settings"), { responseLanguage: ["ko", "ja"].includes(Intl.DateTimeFormat().resolvedOptions().locale.split("-")[0]!) ? Intl.DateTimeFormat().resolvedOptions().locale.split("-")[0] : "en", provider: "codex", enabled: true, writeAccess: "opened-folders", model: "gpt-6.1-sol", reasoningEffort: "medium" });
+  const execution = { model: "chosen-model", reasoningEffort: "xhigh", responseLanguage: "ja" as const };
   await host.invoke(AI_TASK.plugin, "configure", { ...execution, responseLanguage: "ja" });
   assert.equal(host.invoke(AI_TASK.plugin, "settings").responseLanguage, "ja");
   await assert.rejects(() => host.invoke(AI_TASK.plugin, "configure", { ...execution, responseLanguage: "invalid" }), /Invalid AI/);
@@ -174,7 +174,7 @@ test("agent-owned settings persist, reach the worker, and remain pinned in seria
   assert.deepEqual(JSON.parse(JSON.stringify(done)).job.execution, execution);
   assert.deepEqual((await host.aiTasks()!.start(request)).job.execution, execution);
   const conversationResponse = await fetch(url + AI_AGENT.conversationsRoute, { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "send", message: "Inspect this folder.", folders: [root], model: "next-model", reasoningEffort: "low", responseLanguage: "ko" }) });
+    body: JSON.stringify({ action: "send", message: "Inspect this folder.", folders: [root], model: "next-model", reasoningEffort: "low" }) });
   assert.equal(conversationResponse.status, 200);
   const conversation = await conversationResponse.json();
   assert.equal((await (await fetch(url + AI_AGENT.conversationsRoute + "?id=" + conversation.id)).json()).turns[0].status, "inProgress");
