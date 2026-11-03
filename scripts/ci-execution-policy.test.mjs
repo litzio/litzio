@@ -11,7 +11,7 @@ const sha = 'a'.repeat(40);
 const base = 'b'.repeat(40);
 const event = { merge_group: { base_sha: base, head_sha: sha } };
 const expected = (quality, browser, http, desktop, update, smartquotes = false) =>
-  ({ quality, browser, http, desktop, update, smartquotes, reused: false });
+  ({ quality, browser, http, desktop, update, fullLifecycle: update, smartquotes, reused: false });
 const full = expected(true, true, true, true, true, true);
 
 test('merge_group payloads apply the same path rules as PRs to the entire group diff', async () => {
@@ -37,7 +37,7 @@ test('merge_group payloads apply the same path rules as PRs to the entire group 
     [['.agents/other/config.json'], expected(true, true, true, true, true, false)],
     [['unknown/config.json'], expected(true, true, true, true, true, false)],
     [['apps/editor/document/fixture.md'], expected(true, true, true, true, false)],
-    [['apps/editor/shared/desktop-bridge.ts'], expected(true, true, true, true, true)],
+    [['apps/editor/shared/desktop-bridge.ts'], { ...expected(true, true, true, true, true), fullLifecycle: false }],
   ];
   for (const [paths, jobs] of cases) {
     const git = args => {
@@ -202,7 +202,7 @@ const response = runs => async (url, options) => {
 test('only a successful same-SHA merge_group run in this workflow permits master push reuse', async () => {
   assert.deepEqual(await successfulQueueRun({ ...apiInputs, fetchRuns: response([successful]) }), successful);
   const result = await executionPolicy('push', { ref: 'refs/heads/master' }, { ...apiInputs, fetchRuns: response([successful]) });
-  assert.deepEqual(result, { quality: false, browser: false, http: false, desktop: false, update: false, smartquotes: false, reused: true });
+  assert.deepEqual(result, { quality: false, browser: false, http: false, desktop: false, update: false, fullLifecycle: false, smartquotes: false, reused: true });
   for (const candidate of [null, { ...successful, event: 'pull_request' }, { ...successful, head_sha: base },
     { ...successful, conclusion: 'failure' }, { ...successful, conclusion: 'cancelled' },
     { ...successful, status: 'in_progress' }, { ...successful, html_url: undefined }]) {
@@ -285,4 +285,70 @@ test('alternate brand jobs are absent from CI and release gates', () => {
   assert.ok(!ci.jobs['quality-and-browser'].needs.includes('brand'));
   assert.equal(release.jobs.brand, undefined);
   assert.ok(!release.jobs.publish.needs.includes('brand'));
+});
+
+
+test('lifecycle scope keeps representative Beta and removal but selects full for sensitive or unknown inputs', () => {
+  const representative = ['apps/editor/shared/desktop-bridge.ts',
+    'apps/editor/src/shell/SettingsDialog.tsx', 'apps/editor/src/shell/MessageArea.tsx',
+    'apps/desktop/src/host-protocol.ts', 'apps/desktop/test/host-protocol.test.ts',
+    'apps/desktop/src/explorer.ts', 'apps/desktop/test/explorer.test.ts',
+    'apps/desktop/src/first-document.ts', 'apps/desktop/test/first-document.test.ts'];
+  const sensitive = ['apps/desktop/installer/cli.nsh', 'apps/desktop/scripts/package.ts',
+    'apps/desktop/src/cli-integration.ts', 'apps/desktop/src/uninstall-cli.ts',
+    'apps/desktop/src/windows-environment.ts', 'apps/desktop/src/updates.ts',
+    'apps/desktop/src/update-policy.ts', 'apps/desktop/src/github-provider.ts',
+    'apps/desktop/src/signatures.ts', 'apps/desktop/src/main.ts',
+    'apps/desktop/src/preferences.ts', 'apps/desktop/src/preload.ts',
+    'apps/desktop/package.json', 'apps/desktop/test/packaged/update.e2e.ts',
+    'apps/desktop/test/packaged/uninstall.e2e.ts', 'apps/desktop/new-input.ts',
+    'brand.ts', 'pnpm-lock.yaml', 'patches/new.patch', 'unknown/config.json',
+    '.github/workflows/ci.yml', 'scripts/new-build.mjs'];
+  for (const file of representative) {
+    const jobs = selectJobs('pull_request', [file]);
+    assert.equal(jobs.update, true, file);
+    assert.equal(jobs.fullLifecycle, false, file);
+  }
+  for (const file of sensitive) assert.equal(selectJobs('pull_request', [file]).fullLifecycle, true, file);
+  // These packaging inputs alone retain update=false, but must promote an update-target diff.
+  const buildInputs = ['packages/cli/scripts/build.ts', 'packages/cli/scripts/build-docling-worker.ts',
+    'packages/cli/scripts/build-ai-agent.ts', 'plugins/docling/scripts/build.ts',
+    'plugins/docling/scripts/check-boundaries.ts', 'plugins/ai-agent/scripts/build.ts',
+    'packages/plugin-api/src/build.ts', 'packages/plugin-api/src/config.ts', 'apps/editor/vite.config.ts',
+    ...['packages/cli', 'packages/core', 'packages/file-commit', 'packages/plugin-api',
+      'plugins/docling', 'plugins/ai-agent', 'apps/editor'].map(path => `${path}/tsconfig.json`)];
+  for (const file of buildInputs) {
+    assert.equal(selectJobs('pull_request', [file]).update, false, file);
+    assert.equal(selectJobs('pull_request', [representative[0], file]).fullLifecycle, true, file);
+  }
+  // Only representative union/fallback boundaries need both event entry points.
+  for (const event of ['pull_request', 'merge_group']) {
+    for (const paths of [
+      ['apps/desktop/src/host-protocol.ts', 'packages/cli/scripts/build.ts'],
+      [representative[0], 'apps/desktop/src/updates.ts'],
+      [representative[0], 'unknown/config.json'],
+    ]) assert.equal(selectJobs(event, paths).fullLifecycle, true, paths.join(' + '));
+    assert.equal(selectJobs(event, ['apps/editor/src/App.tsx']).update, false);
+  }
+  const ci = workflow();
+  assert.equal(ci.jobs.changes.outputs.fullLifecycle, '${{ steps.policy.outputs.fullLifecycle }}');
+  const steps = ci.jobs.desktop.steps;
+  const updates = steps.filter(step => step.run === 'pnpm --filter @litzio/desktop test:update');
+  assert.equal(updates[0].if, "needs.changes.outputs.fullLifecycle == 'true'");
+  assert.equal(updates[1].if, "needs.changes.outputs.update == 'true'");
+  assert.equal(updates[1].env.LITZIO_TEST_UPDATE_CHANNEL, 'beta');
+  const removal = steps.find(step => step.run === 'pnpm --filter @litzio/desktop test:uninstall');
+  assert.equal(removal.if, "needs.changes.outputs.update == 'true'");
+  assert.equal(removal.env.LITZIO_TEST_LIFECYCLE_SCOPE,
+    "${{ needs.changes.outputs.fullLifecycle == 'true' && 'full' || 'representative' }}");
+  const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
+  const releaseSteps = Object.values(release.jobs).flatMap(job => job.steps ?? []);
+  const fullUpdates = releaseSteps.filter(step => step.run === 'pnpm --filter @litzio/desktop test:update');
+  assert.equal(fullUpdates.length, 2);
+  assert.ok(fullUpdates.every(step => !step.if));
+  assert.equal(fullUpdates[0].env?.LITZIO_TEST_UPDATE_CHANNEL, undefined);
+  assert.equal(fullUpdates[1].env.LITZIO_TEST_UPDATE_CHANNEL, 'beta');
+  const fullRemoval = releaseSteps.find(step => step.run === 'pnpm --filter @litzio/desktop test:uninstall');
+  assert.ok(!fullRemoval.if);
+  assert.equal(fullRemoval.env?.LITZIO_TEST_LIFECYCLE_SCOPE, undefined);
 });

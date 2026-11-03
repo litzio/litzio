@@ -1,6 +1,7 @@
 # Desktop distribution and updates v1
 
 - Status: Implemented
+- Lifecycle CI scope verification: 2026-11-03 (#1009 P6; policy/workflow and unit contracts; actual package/install/update/uninstall execution is CI-only).
 - Brand CI policy verification: 2026-11-02 (#888; path/aggregate/release workflow regressions and docs checks; package/install execution remains PR Windows CI).
 - CI artifact policy verification: 2026-10-30 (#808; generated evidence paths compared with packaged/update/uninstall tests, workflow policy regressions and docs check; package/install execution remains required CI).
 - Log-folder access: 2026-10-29 (#712; [Host-only diagnostics](#log-folder-and-process-diagnostics-712)).
@@ -139,11 +140,8 @@ failure and raw PATH preservation without changing the developer's registry. Per
 bridge mocks exercise the actual Settings UI at 1440px and 640px. Disposable Windows CI checks
 the packaged Electron Node engines range, Desktop version identity, shim help/check JSON and exit-code parity with Node,
 argument/pipe forwarding, `serve`, real enable/disable, update preservation and uninstall cleanup.
-CI also injects damaged ownership, foreign files, missing helpers and environment access failures
-into interactive and silent actual removal, and checks long raw registry values round-trip.
-Empty-bin removal and nonempty-bin preservation are checked for disable and uninstall. PR CI
-and release verification run Stable then Beta install/update regressions on the same Windows
-runner, retaining the precondition that no CLI bin directory exists before either run.
+General update-target CI runs silent normal removal, user-file preservation and foreign-command failure, including long raw registry PATH preservation. Sensitive and unclassified changes run the full ten interactive/silent combinations, including damaged ownership, missing helper and environment failures. Isolated CLI integration and Windows environment tests retain state/conflict/raw PATH coverage on every product quality run.
+Empty-bin removal and nonempty-bin preservation are checked for disable and uninstall. General update-target PR CI runs Beta install/update; sensitive or unclassified changes and release verification run Stable then Beta on the same Windows runner, retaining the precondition that no CLI bin directory exists before either run. Beta reports CLI ownership, IPC timeout and renderer callback faults as separate subtests sharing the installed fixture, followed by the dirty-document/Save/install preservation subtest. Full execution paths and conservative fallback are defined in the [CI path policy](../../CONTRIBUTING.md#verification-matrix) and `scripts/ci-execution-policy.mjs`; direct invocation defaults to full removal.
 Manual acceptance still includes enabling in an installed app, running from a new terminal,
 disabling, running after update and checking cleanup after removal. Local tests must not modify
 the real user's PATH or registry; packaged Desktop/install tests run in CI for this work.
