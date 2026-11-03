@@ -368,3 +368,12 @@ Manual 1440px English Light and 640px Korean Dark review:
 
 [1440 information](assets/plugin-settings-1007/row-information-1440.png) /
 [640 information](assets/plugin-settings-1007/row-information-640.png).
+
+Inventory refresh correction (#1081, #1093): an open Plugins list previously kept
+its initial installation snapshot after external API/CLI re-registration. The
+existing UI registry's registration/activation changes now invalidate that snapshot.
+Settings tab re-entry, window focus and returning to a visible browser tab also
+reread inventory, including plugins without UI contributions. Local switches and
+registration retain their immediate refresh. Superseded reads are aborted; no new
+polling loop is added. The existing docling-dashboard path requires the externally
+re-registered row to be checked, its gear enabled, and contributed settings usable.

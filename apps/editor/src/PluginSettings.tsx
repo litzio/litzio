@@ -19,7 +19,7 @@ async function request<T>(options?: RequestInit): Promise<T> {
   return value;
 }
 
-export function PluginSettings({ sections, errors, onOpen, focusSection, selectedId, onBack, readyPlugins }: { readyPlugins: string[]; selectedId?: string; onBack(): void; focusSection?: string; sections: SettingsSection[]; errors: Record<string, string>; onOpen(id: string): void }) {
+export function PluginSettings({ sections, errors, onOpen, focusSection, selectedId, onBack, readyPlugins, pluginStateKey }: { pluginStateKey: string; readyPlugins: string[]; selectedId?: string; onBack(): void; focusSection?: string; sections: SettingsSection[]; errors: Record<string, string>; onOpen(id: string): void }) {
   useTranslation();
   const [items, setItems] = useState<Plugin[] | null>(null);
   const focusTarget = useRef<HTMLButtonElement | null>(null);
@@ -28,12 +28,27 @@ export function PluginSettings({ sections, errors, onOpen, focusSection, selecte
   const [problem, setProblem] = useState("");
   const [confirm, setConfirm] = useState<Plugin | null>(null);
   const [busy, setBusy] = useState(false);
+  const inventoryRead = useRef<AbortController | null>(null);
   const opener = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
-    const controller = new AbortController();
-    void request<Plugin[]>({ signal: controller.signal }).then(setItems).catch(error => { if (!controller.signal.aborted) setProblem(String(error)); });
-    return () => controller.abort();
-  }, [selectedId]);
+    const refresh = () => {
+      inventoryRead.current?.abort();
+      const controller = new AbortController();
+      inventoryRead.current = controller;
+      void request<Plugin[]>({ signal: controller.signal, cache: "no-store" }).then(value => {
+        if (!controller.signal.aborted) setItems(value);
+      }).catch(error => { if (!controller.signal.aborted) setProblem(String(error)); });
+    };
+    const visible = () => { if (document.visibilityState === "visible") refresh(); };
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      inventoryRead.current?.abort();
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", visible);
+    };
+  }, [selectedId, pluginStateKey]);
   useEffect(() => {
     if (selectedId) { focusRestored.current = false; return; }
     if (items && focusSection && focusTarget.current && !focusRestored.current) {
@@ -41,6 +56,7 @@ export function PluginSettings({ sections, errors, onOpen, focusSection, selecte
     }
   }, [items, sections, focusSection, selectedId]);
   const register = async () => {
+    inventoryRead.current?.abort();
     setBusy(true); setProblem("");
     try {
       await request({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bundled: confirm!.id }) });
@@ -51,6 +67,7 @@ export function PluginSettings({ sections, errors, onOpen, focusSection, selecte
     finally { setBusy(false); }
   };
   const toggle = async (item: Plugin, enabled: boolean) => {
+    inventoryRead.current?.abort();
     setBusy(true); setProblem("");
     setActionErrors(previous => { const next = { ...previous }; delete next[item.id]; return next; });
     try {

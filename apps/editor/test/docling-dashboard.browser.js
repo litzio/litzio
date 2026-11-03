@@ -31,7 +31,10 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
     const restored = await page.request.post(`${origin}/api/worker-plugins`, { data: { manifest } });
     expect(restored.ok()).toBe(true);
   }
-  await expect(settings.getByRole('button', { name: 'Docling settings', exact: true })).toBeVisible();
+  await expect(page.getByTestId('installed-plugin-docling').getByRole('switch', { name: 'Docling', exact: true })).toBeChecked();
+  await expect(settings.getByRole('button', { name: 'Docling settings', exact: true })).toBeEnabled();
+  await settings.getByRole('button', { name: 'Docling settings', exact: true }).click();
+  await expect(settings.getByRole('switch', { name: 'Docling comparison', exact: true })).toBeEnabled();
   await settings.press('Escape');
   await show();
   await expect(page.getByRole('tab', { selected: true })).toHaveAccessibleName('Docling dashboard');
