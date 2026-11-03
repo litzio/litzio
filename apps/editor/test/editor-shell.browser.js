@@ -1,6 +1,6 @@
 // Run with pnpm exec playwright-cli run-code --filename=apps/editor/test/editor-shell.browser.js.
 // Exercises the shell and block interactions. Every POST is mocked; no file is written.
-async page => {
+async (page, { showNotifications }) => {
   await page.unroute('**/api/document');
   await page.reload();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
@@ -257,6 +257,7 @@ async page => {
       data.setData('text/html', '<table><tr><td colspan="2">Merged cell</td></tr></table>');
       el.dispatchEvent(new ClipboardEvent('paste', {clipboardData:data, bubbles:true, cancelable:true}));
     });
+    await showNotifications(page);
     await page.getByTestId('notice').waitFor();
     result.noticeInMessageArea = await page.locator('.notification-center [data-testid="notice"]').count() === 1;
     result.figureKept = await page.locator('[data-document-tab][data-active=true] [data-block="figure"]').count() === 1;

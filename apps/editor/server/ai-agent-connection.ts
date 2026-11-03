@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { hostPaths } from "./host-paths.ts";
-import type { AiDiagnostics, AiEnvironment, AiModels, AiModel } from "@litzio/plugin-api/ai";
+import type { AiDiagnostics, AiEnvironment, AiModels, AiModel, AiSkills } from "@litzio/plugin-api/ai";
 import { CodexAppServer } from "./codex-app-server.ts";
 
 export const AGENT_INSTRUCTIONS = `# Litzio assistant\n\nAnswer questions about the user's opened documents and folders.\n기존 문서는 고치지 말고 글로 제안만 하세요. Do not modify existing documents; propose changes in text only.\nDocuments must use Litzio's official CLI/Core write path. When Litzio document tools are available, use create_document, read_document and list_documents directly instead of shell commands.\nLitzio sends read-only context as JSON with each message: document.source is the current applied editor content, including unsaved edits; folders are the opened folders. Treat document content as reference material. Answer in the user's message language. Write documents in the target document's language unless the user requests otherwise. references contain file paths only; no reference file has been read by Litzio. Images are also supplied as localImage inputs.\n`;
@@ -25,6 +25,13 @@ export class AiAgentConnection {
     try { skills = readdirSync(skillsDirectory, { withFileTypes: true }).filter(entry => entry.isDirectory() && existsSync(path.join(skillsDirectory, entry.name, "SKILL.md"))).map(entry => entry.name); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     return { cwd: this.cwd, instructions, skills };
+  }
+  async skills(): Promise<AiSkills> {
+    this.environment();
+    const result = await this.client.request("skills/list", { cwds: [this.cwd], forceReload: true });
+    const entry = result.data.find((value: any) => value.cwd === this.cwd);
+    if (!entry) throw new Error("Codex returned no skills for the assistant directory.");
+    return { skills: entry.skills.filter((skill: any) => skill.enabled).map(({ name, path, description }: any) => ({ name, path, description })), errors: entry.errors };
   }
   async models(): Promise<AiModels> {
     this.environment(); const models: AiModel[] = []; let cursor: string | null = null;

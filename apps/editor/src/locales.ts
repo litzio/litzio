@@ -1,6 +1,11 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Codex skills": "Codex skills",
+  "Loading skills…": "Loading skills…",
+  "Could not load some skills.": "Could not load some skills.",
+  "No matching skills.": "No matching skills.",
+
   "Write another answer": "Write another answer",
   "Your answer": "Your answer",
   "Submit answers": "Submit answers",
@@ -275,6 +280,10 @@ export const en = {
   "Label target changed.": "Label target changed.",
   "Notifications: {{severity}}, {{count}}": "Notifications: {{severity}}, {{count}}",
   "Notifications: none": "Notifications: none",
+  "Numbering warnings": "Numbering warnings",
+  "Mermaid errors": "Mermaid errors",
+  "{{kind}} · {{count}}": "{{kind}} · {{count}}",
+  "Dismiss group: {{summary}}": "Dismiss group: {{summary}}",
   "No notifications": "No notifications",
   "Information": "Information",
   "Applied document": "Applied document",
@@ -382,11 +391,10 @@ export const en = {
   "Move to other group": "Move to other group",
   "Editor group {{number}}": "Editor group {{number}}",
   "Already inside the opened folder {{name}}.": "Already inside the opened folder {{name}}.",
-  "Sample documents are unavailable because the sample folder could not be replaced safely. The existing folder was kept.": "Sample documents are unavailable because the sample folder could not be replaced safely. The existing folder was kept.",
   "Sample documents could not be prepared. You can still open your documents.": "Sample documents could not be prepared. You can still open your documents.",
 
-  "A converter control design note you can edit. Changes are kept until the bundled sample version changes.": "A converter control design note you can edit. Changes are kept until the bundled sample version changes.",
-  "This is a writable sample copy. Changes are kept until the bundled sample version changes.": "This is a writable sample copy. Changes are kept until the bundled sample version changes.",
+  "A converter control design note you can edit. Changes are reset the next time the app starts.": "A converter control design note you can edit. Changes are reset the next time the app starts.",
+  "This is a writable sample copy. Changes are reset the next time the app starts.": "This is a writable sample copy. Changes are reset the next time the app starts.",
   "Endnote text is empty → Enter text or remove its references and definition together.": "Endnote text is empty → Enter text or remove its references and definition together.",
   "Empty endnote → Enter text or remove references + definition": "Empty endnote → Enter text or remove references + definition",
 
@@ -1065,6 +1073,11 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Codex skills": "Codex 스킬",
+  "Loading skills…": "스킬 불러오는 중…",
+  "Could not load some skills.": "일부 스킬을 불러오지 못했습니다.",
+  "No matching skills.": "일치하는 스킬이 없습니다.",
+
   "Write another answer": "직접 입력",
   "Your answer": "답변",
   "Submit answers": "답변 제출",
@@ -1339,6 +1352,10 @@ export const ko: Record<keyof typeof en, string> = {
   "Label target changed.": "레이블 대상이 변경되었습니다.",
   "Notifications: {{severity}}, {{count}}": "알림: {{severity}} {{count}}개",
   "Notifications: none": "알림: 없음",
+  "Numbering warnings": "번호 경고",
+  "Mermaid errors": "Mermaid 오류",
+  "{{kind}} · {{count}}": "{{kind}} {{count}}개",
+  "Dismiss group: {{summary}}": "묶음 닫기: {{summary}}",
   "No notifications": "알림 없음",
   "Information": "안내",
   "Applied document": "적용된 문서 기준",
@@ -1446,7 +1463,6 @@ export const ko: Record<keyof typeof en, string> = {
   "Move to other group": "다른 그룹으로 이동",
   "Editor group {{number}}": "에디터 그룹 {{number}}",
   "Already inside the opened folder {{name}}.": "이미 열린 폴더 {{name}} 안에 있습니다",
-  "Sample documents are unavailable because the sample folder could not be replaced safely. The existing folder was kept.": "샘플 폴더를 안전하게 교체할 수 없어 샘플 문서를 제공하지 않습니다. 기존 폴더는 보존했습니다.",
   "Sample documents could not be prepared. You can still open your documents.": "샘플 문서를 준비하지 못했습니다. 다른 문서는 계속 열 수 있습니다.",
   "Endnote text is empty → Enter text or remove its references and definition together.": "미주 내용이 비어 있습니다 → 내용을 입력하거나 참조와 정의를 함께 제거하세요.",
   "Empty endnote → Enter text or remove references + definition": "빈 미주 → 내용 입력 또는 참조·정의 함께 제거",
@@ -1776,8 +1792,8 @@ export const ko: Record<keyof typeof en, string> = {
   "Create a document, or open a folder to continue working on a {{product}} document.": `새 문서를 만들거나 폴더를 열어 ${brand.name.ko} 문서 작업을 이어가세요.`,
   "Sample": "샘플",
   "Open sample document": "샘플 문서 열기",
-  "A converter control design note you can edit. Changes are kept until the bundled sample version changes.": "직접 편집할 수 있는 전력 변환기 제어 설계 노트입니다. 수정 내용은 앱에 포함된 샘플 버전이 바뀔 때까지 유지됩니다.",
-  "This is a writable sample copy. Changes are kept until the bundled sample version changes.": "편집할 수 있는 샘플 사본입니다. 수정 내용은 앱에 포함된 샘플 버전이 바뀔 때까지 유지됩니다.",
+  "A converter control design note you can edit. Changes are reset the next time the app starts.": "직접 편집할 수 있는 전력 변환기 제어 설계 노트입니다. 수정 내용은 다음 앱 시작 시 원본으로 돌아갑니다.",
+  "This is a writable sample copy. Changes are reset the next time the app starts.": "편집할 수 있는 샘플 사본입니다. 수정 내용은 다음 앱 시작 시 원본으로 돌아갑니다.",
   "Documents": "문서",
   "New document": "새 문서",
   "New document…": "새 문서…",
