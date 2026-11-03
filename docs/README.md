@@ -85,6 +85,8 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 ## Historical reviews and spikes
 
+- [Template gallery screen spike #936](reviews/template-gallery-936.md) — Historical. mock 기반 A/B 개발 시안, 1440 Light·640 Korean Dark, 저장 위치·빈 상태 비교와 추천. 비병합 브랜치 전용.
+
 [#204 document tabs implementation and review](reviews/document-tabs-204-2026-10-16.md) records the final tab step's scope, visual evidence, measurements and verification.
 
 - [Block source editing](design/block-source-editing-v1.md) — Superseded by Native document support; former contract retained as history.

@@ -14,7 +14,9 @@ if (!root) {
 
 void themeReady.then(async () => {
   const Surface = import.meta.env.DEV && window.location.pathname === "/ui-gallery"
-    ? (await import("./dev/ui-gallery.tsx")).UiGallery : App;
+    ? (await import("./dev/ui-gallery.tsx")).UiGallery
+    : import.meta.env.DEV && window.location.pathname === "/template-gallery"
+      ? (await import("./dev/template-gallery.tsx")).TemplateGallery : App;
   createRoot(root).render(
     <StrictMode>
       <TooltipProvider>
