@@ -15,7 +15,7 @@ test("snapshot contains only requested, hashed files; control files stay separat
   try {
     const source = path.join(root, "source.txt"); writeFileSync(source, "requested material"); writeFileSync(path.join(root, "outside.txt"), "outside sentinel");
     for (const outcome of ["success", "failure", "cancelled"]) {
-      const work: AiWorkerRequest = { type: "ai-task", execution: { model: "fixture-model", reasoningEffort: "high" }, request: { id: "test", caller: "fixture", task: "inspect", baseline: "opaque", instruction: "Feature instruction", input: { small: true }, schema: { type: "object" }, materials: [{ path: source, name: "data.txt" }] },
+      const work: AiWorkerRequest = { type: "ai-task", execution: { model: "fixture-model", reasoningEffort: "high", responseLanguage: "ja" }, request: { id: "test", caller: "fixture", task: "inspect", baseline: "opaque", instruction: "Feature instruction", input: { small: true }, schema: { type: "object" }, materials: [{ path: source, name: "data.txt" }] },
         materials: [{ path: source, name: "data.txt", sha256: createHash("sha256").update(readFileSync(source)).digest("hex") }], temporary: { snapshot: path.join(root, `${outcome}-snapshot`), control: path.join(root, `${outcome}-control`) } };
       const controller = new AbortController();
       const run = runInSnapshot(work, { async status() { throw new Error("unused"); }, async run(value, signal) {
@@ -29,6 +29,7 @@ test("snapshot contains only requested, hashed files; control files stay separat
         for (const flag of ["--output-schema", "--output-last-message"]) assert.equal(path.dirname(args[args.indexOf(flag) + 1]), value.temporary.control);
         const prompt = taskPrompt(value);
         assert.ok(prompt.indexOf("Feature instructions:") > prompt.indexOf("caller owns domain validation"));
+        assert.ok(prompt.includes("Use ja for natural-language output"));
         assert.ok(!prompt.includes(source)); assert.ok(!prompt.includes("opaque"));
         if (outcome === "failure") throw new Error("fixture failure");
         if (outcome === "cancelled") { controller.abort(); signal.throwIfAborted(); }

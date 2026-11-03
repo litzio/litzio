@@ -22,7 +22,7 @@ function request(value: AiTaskRequest, host: PluginHostContext): AiTaskRequest {
 }
 export function activate(host: PluginHostContext): HostPlugin {
   const settings = (): AiAgentSettings => existsSync(host.settingsFile)
-    ? checkedSettings(JSON.parse(readFileSync(host.settingsFile, "utf8"))) : { ...(host.aiDefaults ?? DEFAULT_AI_SETTINGS), provider: "codex", enabled: true, writeAccess: "opened-folders" };
+    ? checkedSettings(JSON.parse(readFileSync(host.settingsFile, "utf8"))) : { ...(host.aiDefaults ?? DEFAULT_AI_SETTINGS), provider: "codex", enabled: true, writeAccess: "opened-folders", responseLanguage: defaultLanguage() };
   const configure = (value: unknown) => {
     const next = checkedSettings(value);
     mkdirSync(path.dirname(host.settingsFile), { recursive: true });
@@ -35,7 +35,7 @@ export function activate(host: PluginHostContext): HostPlugin {
     status: () => settings().enabled ? selectedAdapter().status() : Promise.resolve({ adapter: "Codex", available: false, loginRequired: false, message: "Codex is disabled." }),
     start: value => {
       const current = settings(); if (!current.enabled && !host.aiExecutor.current(value.id)) throw new Error("Codex is disabled.");
-      return host.aiExecutor.start(request(value, host), 120_000, { model: current.model, reasoningEffort: current.reasoningEffort });
+      return host.aiExecutor.start(request(value, host), 120_000, { model: current.model, reasoningEffort: current.reasoningEffort, responseLanguage: current.responseLanguage ?? defaultLanguage() });
     },
     current: id => host.aiExecutor.current(id), cancel: id => host.aiExecutor.cancel(id),
   };
@@ -52,7 +52,9 @@ function checkedSettings(value: unknown): AiAgentSettings {
     typeof v.reasoningEffort !== "string" || !/^[a-z][a-z0-9-]{0,63}$/.test(v.reasoningEffort) ||
     v.provider !== undefined && v.provider !== "codex" || v.enabled !== undefined && typeof v.enabled !== "boolean" ||
     v.writeAccess !== undefined && !["opened-folders", "read-only"].includes(v.writeAccess) ||
-    v.responseLanguage !== undefined && !["ko", "en", "ja", "document"].includes(v.responseLanguage)) throw new Error("Invalid AI execution settings.");
+    v.responseLanguage !== undefined && !["ko", "en", "ja"].includes(v.responseLanguage)) throw new Error("Invalid AI execution settings.");
   return { model: v.model.trim(), reasoningEffort: v.reasoningEffort, provider: "codex", enabled: v.enabled ?? true, writeAccess: v.writeAccess ?? "opened-folders",
     ...(v.responseLanguage !== undefined ? { responseLanguage: v.responseLanguage } : {}) };
 }
+
+function defaultLanguage(): "ko" | "en" | "ja" { const language = Intl.DateTimeFormat().resolvedOptions().locale.split("-")[0]; return language === "ko" || language === "ja" ? language : "en"; }

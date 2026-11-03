@@ -3,7 +3,8 @@
 - Status: Accepted
 - Decision date: 2026-11-02
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
-- Last verified: 2026-11-02 (connection/settings and conversation implementation, fake stdio/Host and browser tests, one real Q&A turn with steering and read-only history resumption).
+- Last verified: 2026-11-03 (#952 / #1047 PR A, user-message language versus task-only fallback; fake Host/worker/browser checks, no real model turn).
+- Previous verification: 2026-11-02 (connection/settings and conversation implementation, fake stdio/Host and browser tests, one real Q&A turn with steering and read-only history resumption).
 - Authority: [#931 owner decisions](https://github.com/litzio/litzio/issues/931), including the approved split into connection/settings and subsequent conversation PRs, under [ADR-0012](0012-plugin-runtime-and-ui-contributions.md).
 - Partially supersedes: dedicated `CODEX_HOME` trigger 2 in [ADR-0013](0013-ai-agent-task-service.md).
 
@@ -64,8 +65,11 @@ owned process termination; a failure to establish termination is an error.
 The shell owns the right docked panel, width and focus without a new plugin
 contribution point. Codex owns thread content; Litzio stores only list metadata.
 The panel uses short snapshot polling for summaries/tools, steering,
-interruption and context usage. Model/effort defaults and response language
-come from AI Settings; per-conversation overrides do not change those defaults. Existing-document editing, Docling integration, other providers, assistant tabs and an agent home
+interruption and context usage. Model/effort defaults come from AI Settings;
+per-conversation overrides do not change those defaults. Conversations follow the
+user message language; document writing follows the target document language
+unless explicitly requested otherwise. AI default language is used only for tasks
+started without a conversation; no conversation-language selector is exposed. Existing-document editing, Docling integration, other providers, assistant tabs and an agent home
 screen remain outside the current delivery.
 
 CLI parity is intentionally omitted: connection, diagnostics and AI execution

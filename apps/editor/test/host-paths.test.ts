@@ -71,7 +71,9 @@ test("source Host registers and writes defaults only under its injected checkout
   host.plugins(true);
   host.invoke("docling", "configure", { server: "http://127.0.0.1:12346" });
   const state = path.join(root, ".litzio-dev");
-  assert.deepEqual(host.invoke("ai-agent", "settings"), { provider: "codex", enabled: true, writeAccess: "opened-folders", model: "gpt-6-luna", reasoningEffort: "low" });
+  const { responseLanguage, ...executionSettings } = host.invoke("ai-agent", "settings");
+  assert.ok(["ko", "en", "ja"].includes(responseLanguage));
+  assert.deepEqual(executionSettings, { provider: "codex", enabled: true, writeAccess: "opened-folders", model: "gpt-6-luna", reasoningEffort: "low" });
   assert.equal(existsSync(path.join(state, "ai-agent.json")), false);
   const saved = { provider: "codex", enabled: true, writeAccess: "read-only", model: "saved-model", reasoningEffort: "high" };
   const serialized = JSON.stringify(saved);
