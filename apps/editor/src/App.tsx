@@ -385,6 +385,8 @@ function EditorApp() {
   const tableWrapPath = pluginTab?.path ?? (nativeSession ? openedPath : "");
   const tableWrap = useTableWrap(tableWrapPath);
   const busy = Boolean(operation || fileOperationPending || session?.busy || continuationPending);
+  // Match the window-level navigation guard; a tab-owned Save still permits Settings diagnostics.
+  const settingsDisabled = Boolean(operation || fileOperationPending || continuation);
   const switching = Boolean(operation || session?.switching);
   function compareBeforeSave(returnFocus: HTMLElement | null, owner = session, external = false): void {
     if (!owner || operationRef.current || owner.busy || (!external && !(owner.documentDirty || owner.draftActive))) return;
@@ -701,7 +703,7 @@ function EditorApp() {
   const settingsFocusRequested = useRef(false);
   const settingsReturnTab = useRef<string | null>(null);
   function openSettingsTab(): void {
-    if (operationRef.current || continuation) return;
+    if (operationRef.current || settingsDisabled) return;
     if (activeId !== "settings") settingsReturnTab.current = activeId;
     if (assistantOverlay) setAssistantOpen(false);
     settingsFocusRequested.current = true;
@@ -1166,7 +1168,7 @@ function EditorApp() {
       label: i18n.t(`Color mode: ${THEME_LABELS[value]}`), icon: Monitor,
       keywords: ["color mode", "theme", "색상 모드", "테마", THEME_LABELS[value], { system: "시스템", light: "라이트", dark: "다크" }[value]],
       run: () => changeTheme(value) })),
-    { id: "settings", kind: "command", label: i18n.t("Settings"), icon: Settings2, takesFocus: true,
+    { id: "settings", kind: "command", label: i18n.t("Settings"), icon: Settings2, takesFocus: true, disabled: settingsDisabled,
       keywords: ["settings", "설정"], run: () => { settingsReturnFocus.current = commandReturnFocus.current; setSettingsCategory("appearance"); openSettingsTab(); void refreshRecovery(); } },
     { id: "document-settings", kind: "command", label: i18n.t("Document settings…"), icon: SlidersHorizontal,
       disabled: historyDisabled, takesFocus: true, keywords: ["document settings", "문서 설정"],
@@ -1247,6 +1249,7 @@ function EditorApp() {
         } : undefined}
         onRefreshFolder={folders.refreshRoot}
         onCloseFolder={folders.close}
+        settingsDisabled={settingsDisabled}
         updateVersion={unseenUpdate}
         onSettings={(returnFocus) => {
           settingsReturnFocus.current = returnFocus;
@@ -1395,7 +1398,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable ? <AssistantPanel open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable ? <AssistantPanel settingsDisabled={settingsDisabled} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { await openFolderDocument(path); }}
         onUndo={async result => {

@@ -166,7 +166,11 @@ async (page, { openPath, screenshots }) => {
           ? style.outlineStyle === 'solid' && parseFloat(style.outlineWidth) >= 2 && parseFloat(style.outlineOffset) >= 2
           : style.outlineStyle === 'none';
       })), 'Only the selected accent must show an offset selection ring');
-      accentResults.push(colors);
+      await page.locator(`#tab-${documentTabId}`).click();
+      const saveColor = await page.getByTestId('save').evaluate(button => getComputedStyle(button).backgroundColor);
+      check(saveColor === colors.interaction, `${theme}/${preset}: document Save did not use the accent`);
+      await page.getByRole('tab',{name:'Settings',exact:true}).click();
+      accentResults.push({...colors, save: saveColor});
     }
     check(new Set(accentResults.filter(r => r.theme === theme).map(result => result.interaction)).size === presets.length, 'Presets must produce distinct colors');
     }

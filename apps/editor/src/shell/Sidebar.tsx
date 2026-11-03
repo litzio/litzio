@@ -50,12 +50,13 @@ type SidebarProps = {
   updateVersion?: string;
   /** App Settings, separate from document settings. Names the control focus returns to. */
   onSettings?(returnFocus: HTMLElement): void;
+  settingsDisabled?: boolean;
 };
 
 /** File navigation stays mounted when collapsed. Outline remains independent on the right. */
 export function Sidebar({
   onFileAction, fileActionsDisabled, isFileDirty, open, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
-  folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, updateVersion,
+  folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, settingsDisabled, updateVersion,
   theme = "system", onThemeChange, contributions = [], pluginFileActions = [],
 }: SidebarProps) {
   useTranslation();
@@ -134,7 +135,7 @@ export function Sidebar({
           {open ? contributions.map(item => <Button key={item.id} size="sm" variant="ghost" className="min-w-0 justify-start" disabled={fileActionsDisabled}
             onClick={event => item.run(event.currentTarget)}><FileText aria-hidden="true" />{i18n.t(item.label as MessageKey)}</Button>) : null}
           <div className="sidebar-preferences">
-            {onSettings ? <SettingsEntry iconOnly={!open} onOpen={onSettings} updateVersion={updateVersion} /> : null}
+            {onSettings ? <SettingsEntry disabled={settingsDisabled} iconOnly={!open} onOpen={onSettings} updateVersion={updateVersion} /> : null}
             {onThemeChange ? <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="ghost" size={open ? "sm" : "icon-sm"} className={open ? "min-w-0 justify-start" : undefined} aria-label={i18n.t("Color mode")} title={i18n.t("Color mode")} />}><SunMoon aria-hidden="true" />{open ? <>{i18n.t("Color mode")}<span className="sidebar-theme-value">{i18n.t(THEME_LABELS[theme])}</span></> : null}</DropdownMenuTrigger>
               <DropdownMenuContent side="top" aria-label={i18n.t("Color mode")}>
@@ -154,8 +155,8 @@ export function Sidebar({
 }
 
 /** One Settings entry for both sidebar states, including its focus-return target. */
-function SettingsEntry({ iconOnly, onOpen, updateVersion }: { updateVersion?: string; iconOnly: boolean; onOpen(returnFocus: HTMLElement): void }) {
-  return <Button data-open-settings="" className={iconOnly ? undefined : "min-w-0 justify-start"}
+function SettingsEntry({ iconOnly, onOpen, updateVersion, disabled }: { disabled?: boolean; updateVersion?: string; iconOnly: boolean; onOpen(returnFocus: HTMLElement): void }) {
+  return <Button disabled={disabled} data-open-settings="" className={iconOnly ? undefined : "min-w-0 justify-start"}
     size={iconOnly ? "icon-sm" : "sm"} variant="ghost"
     aria-label={updateVersion ? i18n.t("Settings, new version available") : i18n.t("Settings")}
     title={updateVersion ? i18n.t("New version {{version}} available", { version: updateVersion }) : i18n.t("Settings")}

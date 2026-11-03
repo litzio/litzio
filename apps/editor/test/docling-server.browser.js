@@ -17,15 +17,29 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
   await page.route('**/api/docling-conversion', transport);
   await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); });
   const initialRecovery = page.waitForResponse(response => response.url().endsWith('/api/docling-conversion') && response.request().method() === 'GET' && response.ok());
-  await page.reload();
+  let releaseStartup, startupReached;
+  const startupGate = new Promise(resolve => { releaseStartup = resolve; });
+  const startupRequest = new Promise(resolve => { startupReached = resolve; });
+  const holdStartup = async route => {
+    if (route.request().method() === 'GET') { startupReached(); await startupGate; }
+    await route.continue();
+  };
+  await page.route('**/api/document**', holdStartup);
+  try {
+    await page.reload(); await startupRequest;
+    await expect(page.getByTestId('sidebar').getByRole('button',{name:'Settings',exact:true})).toBeDisabled();
+  } finally { releaseStartup(); }
   await initialRecovery;
   await page.setViewportSize({ width: 1440, height: 1000 });
   const capture = async name => { if (screenshots) { await page.evaluate(() => document.fonts.ready); await page.screenshot({ path: `${fixture.captures}/${name}.png` }); } };
   const settings = async () => {
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    const entry = page.getByTestId('sidebar').getByRole('button', { name: 'Settings', exact: true });
+    await expect(entry).toBeEnabled();
+    await entry.click();
     await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
   };
   await settings();
+  await page.unroute('**/api/document**', holdStartup);
   const field = page.getByRole('textbox', { name: 'Server address' });
   const addressRow = async () => {
     const a = await page.locator('#docling-server').boundingBox();

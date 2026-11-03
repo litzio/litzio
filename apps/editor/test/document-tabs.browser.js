@@ -52,6 +52,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await expect(settingsTab).toHaveCount(1);
   await expect(settingsTab).toHaveAttribute('aria-selected','true');
+  await expect(settingsTab).toBeFocused();
   await settingsTab.press('Delete');
   await expect(settingsTab).toHaveCount(0);
   await expect(docTab).toHaveAttribute('aria-selected','true');

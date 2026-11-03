@@ -1,3 +1,4 @@
+import { useNativeHistoryBoundary } from "../ui/use-native-history-boundary.ts";
 import { PluginSettings } from "../PluginSettings.tsx";
 import { useTableWrapDefault, setTableWrapDefault } from "../table-wrap.ts";
 import { PLUGIN_UI, type UiRegistration } from "@litzio/plugin-api/config";
@@ -120,6 +121,8 @@ type SettingsDialogProps = {
 /** Shared local recovery settings; About and update controls require the Desktop bridge. */
 export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, onClose, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
   useTranslation();
+  const [screen, setScreen] = useState<HTMLDivElement | null>(null);
+  useNativeHistoryBoundary(screen);
   useEffect(() => {
     if (!category.startsWith("plugin/") || sections.some(section => section.id === category)) return;
     // Missing contributions can mean a feature-driven reactivation, not removal.
@@ -166,7 +169,7 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
   const contributed = sections.find(section => section.id === category);
   const Section = contributed?.View;
   return (
-    <div className="settings-screen" data-testid="settings-dialog" onKeyDown={event => {
+    <div ref={setScreen} className="settings-screen" data-testid="settings-dialog" onKeyDown={event => {
       if (event.key === "Escape" && !event.defaultPrevented && !event.nativeEvent.isComposing) {
         event.stopPropagation(); close();
       }

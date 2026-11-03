@@ -2953,7 +2953,12 @@ Back to document screen with a single Host-owned Settings task tab. Explorer,
 title strip and ordinary document tabs remain accessible. Sidebar and Command
 Center open it in the focused group; reopening selects its existing group without
 moving or duplicating it. The ordinary tab context menu moves it to the right or
-the other group. The same narrow-area merge rule applies.
+the other group. The same narrow-area merge rule applies. During window-level document loading,
+file navigation/operations or a pending continuation, Settings entry is disabled in Sidebar,
+Command Center and the Assistant setup action, consistently with other task entries.
+Settings opens only after those controls become available; clicks are not queued.
+Tab-owned Save/Source work retains the existing ability to open Settings diagnostics
+and have restart refused by the live pending-work guard.
 
 Command Center provides keyboard entry. Tab-row arrows/Home/End switch between
 Settings and documents; Tab enters its close control and category navigation.
@@ -2965,7 +2970,10 @@ Opening Settings dismisses the narrow Assistant overlay so the task tab is
 reachable; the wide docked Assistant remains available and keeps its own Escape.
 Settings does not trap focus or own document Save/Undo. Ctrl+S while Settings owns
 focus does not save a hidden document; a visible document in the other group keeps
-its own Save and editing operations.
+its own Save and editing operations. Settings and Dialog reuse the same native
+`beforeinput` history boundary: an Undo/Redo started in Settings may modify its own
+inputs, but cannot transfer focus or history edits into a document draft in the
+other visible group. This does not trap focus or prevent normal document editing.
 
 Like Plugin tabs, Settings has no document session, dirty indicator, recovery
 record or startup restoration. Switching away keeps its mounted category and
@@ -3002,3 +3010,11 @@ was run manually through `pnpm browser:test plugin-settings --screenshots` with 
 temporary replacement of that scenario body, then restored; it is not CI coverage. Existing
 Settings and tab browser scenarios cover navigation, retained document state and
 settings save behavior rather than enumerating all theme/category combinations.
+
+Review correction for PR #1046: `continuous-editing` now keeps a document source
+input and the Docling server address visible in two groups during native Undo/Redo.
+The regression failed before the shared history boundary was applied. `docling-server`
+holds startup document GET to assert disabled Settings entry, then waits for the
+actual enabled control after Reload. `document-tabs` verifies actual focus on
+existing-group reentry; `ui-language` checks Save accent in document context.
+Steady-state layout and the reviewed captures are unchanged.

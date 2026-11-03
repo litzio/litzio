@@ -145,6 +145,16 @@ async (page, { showNotifications, openDocument }) => {
     assert(await snapshot() === beforeSettings && await settings.isVisible(), 'Settings leaked document history');
   }
   await page.keyboard.press('Escape'); await settings.waitFor({state:'detached'});
+  // Keep both native inputs mounted: a hidden single-group source field cannot
+  // expose Chromium's document-wide input history crossing between groups.
+  await page.setViewportSize({width:1440,height:1000});
+  const outline = page.getByRole('button',{name:'Outline',exact:true});
+  if (await outline.getAttribute('aria-pressed') === 'true') await outline.click();
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await page.getByRole('tab',{name:'Settings',exact:true}).click({button:'right'});
+  await page.getByRole('menuitem',{name:'Open to the right',exact:true}).click();
+  await page.locator(`#tab-${documentTabId}`).click();
+  assert(await page.locator('.editor-group-headers > section').count() === 2, 'Native history fixture requires two groups');
   // Native property-field history, retained source drafts and Settings own their keys.
   await historyEditor.evaluate(el => {
     el.editor.state.doc.forEach((node, pos) => { if (node.type.name === 'equation') el.editor.commands.setNodeSelection(pos); });
@@ -173,15 +183,9 @@ async (page, { showNotifications, openDocument }) => {
   // #831: browser history must not escape a modal into an unapplied source form.
   await page.getByRole('button', {name:'Settings',exact:true}).click();
   await settings.waitFor();
+  assert(await page.getByTestId('equation-latex').isVisible(), 'The outside source draft must remain visible beside Settings');
   await settings.locator('nav button[aria-current=page]').focus();
-  const modalHistory = [];
-  for (const key of ['Control+z', 'Control+y', 'Control+Shift+z']) {
-    await page.keyboard.press(key);
-    modalHistory.push({key, inside:await settings.evaluate(el => el.contains(document.activeElement)),
-      draft:await retainedInput.evaluate(input => input.value)});
-  }
-  assert(modalHistory.every(result => result.inside && result.draft === retainedDraft),
-    `Modal history escaped or changed the draft: ${JSON.stringify(modalHistory)}`);
+  const settingsHistory = [];
   // Native history is document-wide even when the key starts in a modal input.
   // After undoing its own edit, another Undo must not reach the outside textarea.
   await settings.getByRole('button', {name:'Docling',exact:true}).click();
@@ -198,6 +202,7 @@ async (page, { showNotifications, openDocument }) => {
     ['Control+z', originalAddress],
   ]) {
     await page.keyboard.press(key);
+    settingsHistory.push({key,address:await serverAddress.inputValue(),draft:await retainedInput.evaluate(input => input.value),focus:await serverAddress.evaluate(el => el === document.activeElement)});
     assert(await serverAddress.inputValue() === expected && await serverAddress.evaluate(el => el === document.activeElement),
       `Modal input ${key} lost its own native history or focus`);
     assert(await retainedInput.evaluate(input => input.value) === retainedDraft && await snapshot() === beforeDraft,
@@ -205,7 +210,7 @@ async (page, { showNotifications, openDocument }) => {
   }
   await page.keyboard.press('Escape');
   await settings.waitFor({state:'detached'});
-  console.log('Modal native history:', JSON.stringify(modalHistory));
+  console.log('Settings native history:', JSON.stringify(settingsHistory));
   assert(await page.getByTestId('equation-latex').count() === 1, 'Modal Escape cancelled the unapplied source form');
   assert(await page.getByTestId('equation-latex').inputValue() === retainedDraft && await snapshot() === beforeDraft,
     'Modal dismissal applied or discarded the source draft');
