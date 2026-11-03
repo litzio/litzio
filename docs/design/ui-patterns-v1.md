@@ -385,3 +385,10 @@ SettingsRow/Button and confirmation Dialog perform explicit bundled registration
 This follows the same error and confirmation implementations used by Settings
 and FolderDialog; no new shared interaction or Plugin API is introduced.
 The current contract is [Plugin UI rejection handling](plugin-ui-v1.md#rejected-saved-registrations-1097).
+
+
+#1120: 비서 표시 설정 변경은 기존 assistant-result 카드와 공용 outline Button을
+재사용한다. 변경 전후 값과 되돌리기를 카드에 두고, 창·세션 수명 제한은 버튼의
+hover/focus 안내에 둔다. 이후 수동 변경과 충돌하면 덮어쓰지 않고 패널에 이유를
+표시한다. 문서 Undo와 분리된 기기 설정 동작이다.
+[현재 계약·검증](main-agent-v1.md#assistant-display-settings-1120)을 따른다.

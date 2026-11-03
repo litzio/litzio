@@ -1,3 +1,4 @@
+import { displayValues, type DisplayRequest, type DisplayReply, type DisplayReceipt, type DisplaySnapshot, type DisplaySettings } from "../../shared/assistant-display.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
@@ -26,13 +27,19 @@ const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
 type Props = { settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
+  onDisplay(request: DisplayRequest): Promise<DisplayReply>;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
   referenceRequest?: { path: string };
   documentPath: string; folders: string[]; context(): Promise<AiConversationInput["document"]> };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, context, onOpen, onUndo, referenceRequest }: Props) {
+export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, context, onOpen, onUndo, referenceRequest, onDisplay }: Props) {
   useTranslation();
+  const [displayClient] = useState(() => crypto.randomUUID());
+  const displayHandler = useRef(onDisplay); displayHandler.current = onDisplay;
+  const displayReplies = useRef(new Map<string, DisplayReply>());
+  const [displayUndoBusy, setDisplayUndoBusy] = useState(false);
+  const [displayUndone, setDisplayUndone] = useState<string[]>([]);
   const [removed, setRemoved] = useState<string[]>([]);
   const [settings, setSettings] = useState<AiAgentSettings>();
   const [models, setModels] = useState<AiModels>();
@@ -135,7 +142,18 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
       timer = undefined;
       if (!alive || document.visibilityState !== "visible") return;
       polling = true;
-      try { const next = await request<AiConversation>(`${AI_AGENT.conversationsRoute}?id=${encodeURIComponent(id)}`); if (alive && document.visibilityState === "visible") setConversation(next); }
+      try { const next = await request<AiConversation & DisplaySnapshot>(`${AI_AGENT.conversationsRoute}?id=${encodeURIComponent(id)}&displayClient=${encodeURIComponent(displayClient)}`);
+        if (alive && document.visibilityState === "visible") {
+          if (next.displayRequest && Date.now() < next.displayRequest.expiresAt) {
+            const command = next.displayRequest;
+            // An ACK can be lost; retransmit the reply, never apply the request twice.
+            let reply = displayReplies.current.get(command.id);
+            if (!reply) { reply = await displayHandler.current(command); displayReplies.current.set(command.id, reply); }
+            await request(AI_AGENT.conversationsRoute, { action: "display-result", id, displayClient, requestId: command.id, reply });
+          }
+          if (alive && document.visibilityState === "visible") setConversation(next);
+        }
+      }
       catch (error) { if (alive && document.visibilityState === "visible") setProblem((error as Error).message); }
       polling = false;
       schedule();
@@ -147,7 +165,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
     document.addEventListener("visibilitychange", visibilityChanged);
     schedule();
     return () => { alive = false; clearTimeout(timer); document.removeEventListener("visibilitychange", visibilityChanged); };
-  }, [open, conversation?.id, pending, ready, settings?.enabled, setup, settingsRevision]);
+  }, [open, conversation?.id, pending, ready, settings?.enabled, setup, settingsRevision, displayClient]);
   useEffect(() => { const element = transcript.current; if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 180) element.scrollTop = element.scrollHeight; }, [conversation]);
   const resultFocus = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
@@ -166,7 +184,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
     if (active && settings?.provider === "copilot") return;
     const value = message.trim(); if (!value && !references.length) return;
     const document = await context(); if (!isCurrent()) return;
-    const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "send", id: conversation?.id, message: value,
+    const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "send", displayClient, id: conversation?.id, message: value,
       model, reasoningEffort: effort, ...(settings?.provider === "copilot" && mode ? { mode } : {}), references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: settings?.provider !== "codex" ? [] : references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document });
     if (!isCurrent()) return;
     setConversation(next); rememberConversation(next.id); setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
@@ -310,6 +328,22 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
               {!deleted ? <small>{i18n.t("Undo deletes the created file.")}</small> : null}
             </div>;
           })}
+          {turn.items.map(item => {
+            const receipt = displayReceipt(item); if (!receipt) return null;
+            const undone = displayUndone.includes(receipt.requestId);
+            return <div key={item.id} className="assistant-result" data-testid="assistant-display-result">
+              <strong>{i18n.t(undone ? "Display settings restored" : "Display settings changed")}</strong>
+              {receipt.changed.map(key => <span key={key}>{i18n.t(displayLabels[key])}: {i18n.t(displayLabels[receipt.before[key]])} → {i18n.t(displayLabels[receipt.after[key]])}</span>)}
+              {receipt.error ? <small role="alert">{receipt.error}</small> : null}
+              <div><Tooltip><TooltipTrigger render={<Button size="sm" variant="outline" disabled={pending || displayUndoBusy || undone || !ready || !settings?.enabled || !!setup} />}
+                onClick={() => {
+                  setDisplayUndoBusy(true); setProblem("");
+                  void request(AI_AGENT.conversationsRoute, { action: "display-undo", id: conversation!.id, displayClient, requestId: receipt.requestId })
+                    .then(() => setDisplayUndone(previous => [...previous, receipt.requestId]))
+                    .catch(error => setProblem(error.message)).finally(() => setDisplayUndoBusy(false));
+                }}>{i18n.t("Undo display change")}</TooltipTrigger><TooltipContent>{i18n.t("Undo is available in the originating window and Host session while these values are unchanged.")}</TooltipContent></Tooltip></div>
+            </div>;
+          })}
           {turn.status === "inProgress" ? <p role="status">{i18n.t("Working…")}</p> : turn.status === "interrupted" ? <p>{i18n.t("Stopped")}</p> : null}
           {turn.error ? <p role="alert">{turn.error}</p> : null}
           {turn.items.some(item => item.kind === "assistant" && item.text.trim()) ? <div className="assistant-turn-actions">
@@ -408,3 +442,20 @@ function ReferenceChips({ references, remove }: { references: AiFileReference[];
 }
 
 function hasSkillToken(text: string, name: string) { return text.split(/\s+/).includes(`$${name}`); }
+
+const displayLabels = {
+  theme: "Theme", uiLanguage: "Display language", documentWidth: "Document width", pageBackground: "Page style",
+  light: "Light", dark: "Dark", ko: "한국어", en: "English", standard: "Standard document width", wide: "Wide document", paper: "Paper", flat: "Flat",
+} as const;
+function displayReceipt(item: AiConversation["turns"][number]["items"][number]): DisplayReceipt | null {
+  if (item.kind !== "tool" || item.text !== "change_display_settings") return null;
+  for (const part of item.toolResult?.contentItems ?? []) {
+    if (part.type !== "inputText" || !part.text) continue;
+    try {
+      const value = JSON.parse(part.text);
+      displayValues(value.before, true); displayValues(value.after, true);
+      if (typeof value.requestId === "string" && Array.isArray(value.changed) && value.changed.length && value.changed.every((key: keyof DisplaySettings) => Object.hasOwn(displayLabels, key) && Object.hasOwn(value.before, key))) return value;
+    } catch { /* Not a display receipt. */ }
+  }
+  return null;
+}

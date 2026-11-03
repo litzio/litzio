@@ -10,6 +10,7 @@
 - Copilot verification: 2026-11-03 (#1053; fake ACP and task-default boundary, existing ai-agent browser scenario and 1440px Light / 640px Dark Korean captures; no real Copilot session or model call).
 - Last verified: 2026-11-03 (#1047 PR A/B / #984 / #952: fake stdio/Host, worker prompt, browser and manual 1440 Light / 640 Dark Korean captures; no real model turn).
 - Previous verification: 2026-11-02 (#931 implementation 2, PR 2: 409 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
+- Display settings (#1120): 2026-11-04; fixed Host/screen allowlist, fake stdio/HTTP and browser checks; no real model call.
 - Scope: main-agent connection, Settings, shell-owned assistant panel and Codex/Copilot conversations. Includes new-document result cards, guarded creation undo and the product-owned usage-guide skill.
 - Authority: [ADR-0014](../adr/0014-main-agent-app-server.md), [#931](https://github.com/litzio/litzio/issues/931) owner decisions and approved v3.1 settings mockup.
 
@@ -371,7 +372,8 @@ beyond Codex/Copilot remain outside the current delivery. Copilot was added in
 
 ## Document tools (#931 implementation 2, PR 1)
 
-The Host registers three function specs in `thread/start.dynamicTools` and handles
+The Host registers the three document function specs and the two
+[display-setting specs](#assistant-display-settings-1120) in `thread/start.dynamicTools` and handles
 server-originated `item/tool/call` and the [structured questions](#structured-user-questions-983) added in #983; other requests still return `-32601`.
 The small `agent-document-tools.ts` module validates input and invokes Core and
 existing Host file reads/listing, independently of the Codex wire format. There
@@ -428,6 +430,93 @@ Fixture tests cover success, read-only/outside/overwrite/symlink/unsupported-blo
 refusal, stale turn rejection, steering scope, unsupported server requests and
 receipt recovery after a fresh process. Browser mocks verify tool progress only;
 they are not proof of real execution.
+
+
+## Assistant display settings (#1120)
+
+Codex threads created with this version register two additional fixed functions:
+`read_display_settings({})` and `change_display_settings({changes})`. The sole
+allowlist is `shared/assistant-display.ts`: `theme` (light/dark), `uiLanguage`
+(ko/en), `documentWidth` (standard/wide), and `pageBackground` (paper/flat).
+Unknown keys/values and extra tool arguments fail before a screen request is made.
+AI permissions/provider/model, plugins, navigation, document content and front
+matter are excluded. Document write scope is unchanged; these appearance-only
+operations also work in read-only turns and without opened folders. They add no
+Core semantic operation, CLI command, MCP server, registry or public Plugin API.
+Copilot and terminal sessions have no display-tool handler. Start a new Codex
+conversation to acquire the added specs; existing thread registrations are not
+retrofitted.
+
+Generated AGENTS.md and litzio-guide require proposal → permission → application;
+an explicit user change request supplies permission. Consent is an agent
+instruction, rather than a natural-language permission parser. The fixed Host
+allowlist is enforced independently of those instructions.
+
+`AgentDisplayRequests` owns provider-neutral validation, volatile pending requests
+and change receipts. Codex's `item/tool/call` is only its current adapter. The
+Host never reads browser storage or writes a settings file. Each send supplies
+an in-memory window ID; a new turn pins that ID, and steering retains it. The
+existing nonoverlapping visible-panel 600ms snapshot poll supplies this ID and
+receives only its pending `displayRequest`. A `display-result` action returns
+validated live before/after values and any application/storage failure. A
+missing originating ID refuses immediately. A closed/hidden panel, hidden tab,
+lost connection or lost acknowledgement expires after 10 seconds with an
+**unconfirmed** result; it never reports success. The screen checks expiration
+before applying. Interruption, turn completion, disconnection and Host shutdown
+cancel pending work. Application and acknowledgement are not atomic: a timeout
+or cancellation can follow a live change, so the error advises inspecting the
+window before another explicit request. No automatic tool retry occurs. Within
+a mounted screen, repeated snapshots retransmit a cached reply without applying
+the same request again.
+
+Multiple windows/tabs never compete to claim a request: only the window that
+sent the original turn can apply it or undo its receipt. A later turn can use a
+different sending window; steering cannot transfer an in-flight turn. Reload
+creates a new window ID; previous pending work and Undo cannot transfer to it.
+Only the target window's live display changes. Existing origin-localStorage
+sharing remains: other windows can read the saved defaults on their next load,
+but their live React/DOM state is not broadcast or overwritten.
+
+The screen uses existing preference writers, theme/language APIs and shell width
+state, independently of document Save/history. The live choice remains usable
+when storage is unavailable, as with manual Settings, but the tool returns
+`success:false` and the actual before/after values with a persistence error.
+Successful reads return the current four values. Changes return
+`{requestId,before,after,changed,error?}` in the existing dynamic-tool receipt;
+Codex retains it for history. A no-op has no change card. Changed values (including
+partially applied failures) use the existing assistant-result card and shared
+outline Button, with localized before → after labels and Undo. No new surface,
+control variant or destructive styling is needed for a display preference.
+
+`display-undo` looks up the Host's receipt instead of trusting browser-provided
+old values, then sends an inverse request to that same window. It compares only
+the changed keys against their recorded after values; later manual or assistant
+changes to those keys refuse Undo, while unrelated choices remain intact. A
+successful Undo is consumed in Host memory. Receipts/cards survive in Codex
+history, but Undo capability and its UI marker are volatile: after Host restart
+or page reload a retained card's Undo reports unavailable. This action is
+separate from document Undo. Failures leave a retryable action and show the
+reason in the panel.
+
+Verification reuses the existing fake app-server child and HTTP Host tests for
+registration, read/change receipts, denied settings and another window's reply,
+request expiry/cancellation and guarded inverse requests. An existing `ai-agent`
+browser case exercises the actual poll → live settings → acknowledgement path,
+card and Undo, Settings reflection, manual-change conflict, document-draft
+preservation and no AI-settings write. It adds no subprocess, exhaustive matrix,
+real model call, runner retry or timeout override. Captures are opt-in manual
+visual evidence from `pnpm browser:test ai-agent --screenshots` under
+`tmp/1120-evidence` at 1440px and 640px (Korean Dark after application); generated
+large generated artifacts are not committed.
+
+Same-state Korean Dark visual evidence (fixed fake conversation/receipt, no model
+call): 1440px [Before](assets/assistant-display-1120/before-1440.png) /
+[After](assets/assistant-display-1120/after-1440.png), 640px
+[Before](assets/assistant-display-1120/before-640.png) /
+[After](assets/assistant-display-1120/after-640.png). Before uses the pre-change
+AssistantPanel from the branch base; After uses this implementation. Both use
+the same stored display preferences, document and conversation data. The manual
+capture-only fixture was temporary and is not part of CI.
 
 ## Template workflows (#936 phase 3)
 
