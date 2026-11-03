@@ -51,10 +51,14 @@ button {
   word-break: normal;
 }
 
-/* One title strip above file navigation | document | document navigation. */
-.app-shell {
+/* Navigation geometry is also consumed outside the shell history boundary. */
+.app-shell, .shell-notifications {
   --sidebar-effective-width: clamp(var(--layout-sidebar-min-width), var(--sidebar-width, var(--layout-sidebar-width)), min(var(--layout-sidebar-max-width), calc(100vw - 440px)));
   --document-panel-effective-width: clamp(var(--layout-document-panel-min-width), var(--document-panel-width, var(--layout-document-panel-width)), var(--layout-document-panel-max-width));
+}
+
+/* One title strip above file navigation | document | document navigation. */
+.app-shell {
   --shell-sidebar: var(--sidebar-effective-width);
   --shell-panel: var(--document-panel-effective-width);
   display: grid;
@@ -2770,7 +2774,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 
 /* A narrow expanded sidebar stays usable without reserving empty desktop space. */
 @media (max-width: 64rem) {
-  .app-shell { --layout-sidebar-width: var(--layout-sidebar-width-narrow); }
+  .app-shell, .shell-notifications { --layout-sidebar-width: var(--layout-sidebar-width-narrow); }
   .document {
     --layout-document-inline-padding: var(--space-4);
     --layout-document-block-padding: var(--layout-document-block-padding-narrow);

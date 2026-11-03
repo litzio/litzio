@@ -33,8 +33,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 }
 
 /** Keep the nonediting history boundary outside the shell while sharing its panel geometry. */
-export function ShellNotificationCenter({ panelWidth }: { panelWidth: string }) {
-  return <div style={{ "--notification-panel-width": panelWidth } as CSSProperties}><NotificationCenter items={useContext(Items)} /></div>;
+export function ShellNotificationCenter({ panelWidth, sidebarWidth, documentPanelWidth }: { panelWidth: string; sidebarWidth?: number; documentPanelWidth?: number }) {
+  return <div className="shell-notifications" style={{ "--notification-panel-width": panelWidth, "--sidebar-width": sidebarWidth ? `${sidebarWidth}px` : undefined, "--document-panel-width": documentPanelWidth ? `${documentPanelWidth}px` : undefined } as CSSProperties}><NotificationCenter items={useContext(Items)} /></div>;
 }
 
 /** Callbacks read the latest source render, while registry updates follow observable content. */

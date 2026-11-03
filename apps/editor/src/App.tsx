@@ -1569,10 +1569,10 @@ function EditorApp() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    <ShellNotificationCenter panelWidth={assistantOpen
+    </div>
+    <ShellNotificationCenter sidebarWidth={sidebarSize} documentPanelWidth={documentPanelSize} panelWidth={assistantOpen
       ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
       : panelOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? "var(--document-panel-effective-width)" : "0px"} />
-    </div>
   </>);
 }
 
