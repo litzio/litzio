@@ -42,3 +42,23 @@ test("assistant rerenders cumulative incomplete code and math without losing sou
   assert.match(renderAssistantMarkdown('```js\nconst x = 1;\n```\n\n$x^2$', 'a'), /class="katex"/);
   assert.match(renderAssistantMarkdown('$\\notACommand{x}$', 'a'), /\\notACommand/);
 });
+
+test("assistant bracket math shares dollar rendering while code and plain reading stay literal", () => {
+  for (const [bracket, dollar] of [
+    [String.raw`\(x^2\)`, '$x^2$'],
+    [String.raw`\[
+x^2
+\]`, '$$\nx^2\n$$'],
+  ]) {
+    assert.equal(renderAssistantMarkdown(bracket, 'a'), renderAssistantMarkdown(dollar, 'a'));
+    assert.doesNotMatch(renderPlainMarkdown(bracket, '/readme.md'), /class="katex"/);
+  }
+  assert.doesNotMatch(renderAssistantMarkdown(String.raw`\[
+" onmouseover="bad
+\]`, 'a'), /<div[^>]*onmouseover/);
+  const code = String.raw`\(x\) \[y\]`;
+  const html = renderAssistantMarkdown('`' + code + '`\n\n```tex\n' + code + '\n```\n\n    ' + code, 'a');
+  assert.doesNotMatch(html, /class="katex"/);
+  assert.ok(html.includes(code));
+  assert.doesNotMatch(renderAssistantMarkdown(String.raw`\(x`, 'a'), /class="katex"/);
+});

@@ -538,7 +538,10 @@ Assistant: [1440px](assets/ko-text-975/after-running-1440-light-en.png), [640px 
 ## Assistant answer display and copy (#982)
 
 Assistant messages use the existing plain Markdown display parser (markdown-it,
-dollar math and KaTeX), without Core admission or serialization. The same renderer
+dollar math and KaTeX), without Core admission or serialization.
+Assistant-only texmath brackets (#1098) render `\( … \)` inline and `\[ … \]`
+as display math through the same dollar-math KaTeX renderer and styles. Inline,
+fenced and indented code remain literal. Ordinary Markdown reading is unchanged. The same renderer
 receives accumulated source during polling, on completion and after history resume.
 Incomplete fences/math remain library input; invalid math exposes its source.
 Raw HTML stays escaped text. Images show their alternative text without fetching;
@@ -562,6 +565,17 @@ Shared CopyButton also supports browsers without Clipboard API access (for examp
 non-local HTTP) via the temporary-textarea browser copy fallback defined in
 [Code body copy](document-editing-v1.md#code-body-copy-991) (#1049). If both paths
 fail, the existing local manual-copy alert remains.
+
+#1098 visual verification: the fixed `ai-agent` response was captured through
+`pnpm browser:test ai-agent --screenshots` before/after enabling bracket math.
+[1440 Light before](assets/assistant-bracket-math-1098/before-1440-light.png) /
+[after](assets/assistant-bracket-math-1098/after-1440-light.png),
+[640 Korean Dark before](assets/assistant-bracket-math-1098/before-640-dark.png) /
+[after](assets/assistant-bracket-math-1098/after-640-dark.png).
+Existing answer layout, copy controls, wrapping and internal overflow are retained;
+no new surface or control exception is introduced. The renderer unit test owns
+syntax/code/plain-reading boundaries; the existing browser scenario checks rendered
+bracket math, original-source clipboard readback and history with no model call.
 
 Verification: `plain-markdown.test.ts` covers escaped HTML, refused image loads and
 unsafe links, isolated footnote IDs, cumulative incomplete syntax and invalid math.

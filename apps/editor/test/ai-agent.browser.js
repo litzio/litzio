@@ -507,7 +507,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await panel.getByRole('button', { name: /What changed in the current document/ }).click();
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
   await expect(panel.locator('.assistant-user .assistant-reference').filter({ hasText: '$litzio-guide' })).toHaveCount(1);
-  const markdownSource = '# 답변 요약\n\n**중요한 조건**과 $x^2$를 확인합니다.[^n]\n\n- 첫 번째 항목\n- 두 번째 항목\n\n```js\nconst answer = "' + 'long-code-'.repeat(30) + '";\n```\n\n| 항목 | 설명 |\n| --- | --- |\n| 표 | ' + '긴내용'.repeat(70) + ' |\n\n$$\na+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z\n$$\n\n[공식 안내](https://example.com/docs)\n\n[^n]: 답변 각주';
+  const markdownSource = '# 답변 요약\n\n**중요한 조건**과 $x^2$, \\(x^2\\)를 확인합니다.[^n]\n\n- 첫 번째 항목\n- 두 번째 항목\n\n```js\nconst answer = "' + 'long-code-'.repeat(30) + '";\n```\n\n| 항목 | 설명 |\n| --- | --- |\n| 표 | ' + '긴내용'.repeat(70) + ' |\n\n\\[\na+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z\n\\]\n\n[공식 안내](https://example.com/docs)\n\n[^n]: 답변 각주';
   selected.turns[0].status = 'inProgress';
   const streamingAnswer = selected.turns[0].items.find(item => item.kind === 'assistant');
   streamingAnswer.text = '```js\nconst partial = 1';
@@ -520,7 +520,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   selected.turns[0].items.find(item => item.kind === 'assistant').text = markdownSource;
   const answer = panel.locator('.assistant-answer');
   await expect(answer.getByRole('heading', { name: '답변 요약' })).toBeVisible();
-  await expect(answer.locator('.katex').first()).toBeVisible();
+  await expect(answer.locator('.math.inline .katex')).toHaveCount(2);
+  await expect(answer.locator('.math.block .katex-display')).toHaveCount(1);
   // Windows clipboard normalizes LF to CRLF; compare logical text after OS readback.
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await panel.getByRole('button', { name: 'Copy answer', exact: true }).click();
