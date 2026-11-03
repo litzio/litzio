@@ -300,6 +300,8 @@ test("command center searches document paths and translated commands, with an ex
 });
 
 test("bundled languages cover keys and interpolation parameters without relying on fallback", () => {
+  assert.equal(i18n.getResource("en", "translation", "ultra"), "ultra");
+  assert.equal(i18n.getResource("ko", "translation", "ultra"), "극히 높음");
   assert.deepEqual(Object.keys(ko).sort(), Object.keys(en).sort());
   const parameters = (text: string) => [...new Set([...text.matchAll(/{{([^}]+)}}/g)].map(match => match[1]))].sort();
   for (const key of Object.keys(en) as (keyof typeof en)[]) {
