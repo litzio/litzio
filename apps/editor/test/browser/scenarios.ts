@@ -98,6 +98,7 @@ export const STABLE_SCENARIOS = [
   "color-mode",
   "selection-toolbar",
   "draft-notice-layout",
+  "ui-gallery",
 ];
 
 /** These scenarios inspect notification content, actions, history or stacking.
