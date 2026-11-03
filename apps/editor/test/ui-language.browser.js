@@ -296,7 +296,7 @@ async (page, { openPath, screenshots }) => {
     check(!disk.source.includes('pageBackground') && !disk.source.includes('uiLanguage') && !disk.source.includes('accentColor') && !disk.source.includes('litzio.theme'), 'Display preference leaked into document');
     await settings('ko');
     check(await page.getByRole('combobox',{name:'테마',exact:true}).inputValue() === 'dark' &&
-      await page.getByRole('option',{name:'시스템',exact:true}).count() === 1, 'Korean theme labels are missing');
+      await page.getByRole('option',{name:'다크',exact:true}).count() === 1 && await page.getByRole('option',{name:'라이트',exact:true}).count() === 1, 'Korean theme labels are missing');
     check(await page.getByRole('combobox',{name:'페이지 모양',exact:true}).inputValue() === 'flat' && await page.getByRole('option',{name:'종이',exact:true}).count() === 1 && await page.getByRole('option',{name:'평면',exact:true}).count() === 1, 'Korean page labels are missing');
     check(await page.getByRole('radiogroup',{name:'포인트 색',exact:true}).getByRole('radio',{name:'청록',exact:true}).isChecked(), 'Korean radio labels and selected state are missing');
     if (screenshots) {
@@ -313,7 +313,7 @@ async (page, { openPath, screenshots }) => {
     await page.evaluate(() => { localStorage.setItem('litzio.accentColor', 'unknown'); localStorage.setItem('litzio.theme', 'unknown'); localStorage.setItem('litzio.pageBackground', 'unknown'); });
     await page.reload(); await ready();
     check(await page.evaluate(() => window.accentAtFirstUi === 'plum'), 'Invalid accent must fall back to plum before mounting');
-    check(await page.evaluate(() => window.themeAtFirstUi === 'light'), 'Invalid theme must fall back to System before mounting');
+    check(await page.evaluate(() => window.themeAtFirstUi === 'light'), 'Invalid theme must fall back to Light before mounting');
     check(await page.evaluate(() => window.pageAtFirstUi === 'paper'), 'Invalid page background must default to paper');
     await page.addInitScript(() => {
       const get = Storage.prototype.getItem, set = Storage.prototype.setItem;
@@ -323,7 +323,7 @@ async (page, { openPath, screenshots }) => {
     await page.reload(); await ready();
     check(await page.evaluate(() => window.accentAtFirstUi === 'plum'), 'Unavailable accent store must not block startup');
     await settings('en');
-    check(await page.getByTestId('theme').inputValue() === 'system', 'Unavailable theme storage must fall back to System');
+    check(await page.getByTestId('theme').inputValue() === 'light', 'Unavailable theme storage must use the initial light OS choice');
     check(await page.getByTestId('page-background').inputValue() === 'paper', 'Unavailable page store must default to paper');
     await page.getByTestId('page-background').selectOption('flat');
     check(await page.locator('html').getAttribute('data-page') === 'flat', 'Live page background must work without storage');
@@ -341,7 +341,7 @@ async (page, { openPath, screenshots }) => {
     check(await page.getByTestId('theme').inputValue() === 'dark', 'Reopening Settings lost the live theme choice');
     await page.getByTestId('theme').selectOption('light');
     await page.emulateMedia({colorScheme:'dark'});
-    await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    check(await page.locator('html').getAttribute('data-theme') === 'light', 'Live choice must ignore OS changes even when storage is unavailable');
     await page.emulateMedia({colorScheme:'light'});
     await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
     await closeSettings();
