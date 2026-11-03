@@ -1,6 +1,7 @@
 # Native document support v1
 
 - Status: Implemented
+- Paragraph tail normalization: 2026-11-04 (#1107; shared Core writes, CLI file workflow and Editor Save/Reload/assistant-send regressions).
 - Template update: 2026-11-04 (#936 owner-approved optional `template: { name, description }`; [template contract](document-templates-v1.md)).
 - Title update: 2026-10-29 (#722; optional single-line plain frontmatter title, no leading-H1 title inference; marker stays `litzio: 1`).
 - Fixed numbering: 2026-10-29 (#720 Core/CLI; [numbering contract](heading-numbering-v1.md#fixed-numbers-720)).
@@ -101,6 +102,28 @@ Ordinary Markdown images, task lists, unsupported roles/directives, attributes o
 
 Bare `@name` (including `@kim` and `@param`) is literal text, as is already escaped `\@name`. Core disables MyST's shorthand citation extension at the parse boundary while keeping explicit roles parsed. In accordance with [ADR-0008 decision 3](../adr/0008-citations-and-bibliography.md#3-지원할-인용-형태), unescaped citation-like brackets such as `[@key]`, `[@a; @b]` and `[@key, p. 3]` are refused with `native-content` and guidance to use an explicit citation role or escape the opening bracket or the `@` for literal text. This applies to supported text surfaces including endnote definitions; actual links, code and math retain their syntax. Code or math inside such brackets, as in ``[`@param`]`` or `[$@key$]`, is still refused because default MyST reads the bracket as a citation; `\[` keeps it literal. Explicit `{cite}`, `{cite:t}` and `{cite:p}` roles follow [Citations](citations-v1.md), preserving exact keys, group order and narrative/parenthetical meaning. Prefix/suffix/partial and other unsupported attributes are refused.
 
+## Paragraph blank-line tails (#1107)
+
+Core semantic writes remove a paragraph's trailing hard breaks or text line
+separators and the whitespace-only suffix around them before applying the existing
+lossless-write checks. The suffix must contain a line break; spaces without a line
+break retain their existing rules. Interior breaks, actual text and formatting are
+preserved. Data-bearing atoms, including code, math, references, citations and links
+(even whitespace-only link labels), are not blank tails. No padding or invisible
+placeholder is inserted. Canonical serialization and semantic fingerprints remain
+strict; parsed documents are not repaired or normalized on admission.
+
+This rule covers paragraph insert/update, split/merge/hard-break and generic text
+edits, quote/admonition bodies, list items at every depth, Figure captions and
+footnote/endnote definitions. If normalization empties the paragraph, its existing
+owner's empty-content rule applies. Table cells and Table captions have a separate
+single-line contract and continue to reject line breaks; headings do too.
+Editor Save uses the same Core operations as CLI writes. Existing CLI commands
+expose the rule; no new operation or command is needed. Assistant sending supplies
+only the active document path and excludes unsaved body content under the
+[#1106 context contract](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2); it does not
+serialize the editor's unsaved content or depend on Save normalization.
+
 ## Empty structural elements (#574)
 
 Core admission and existing insert/update operations accept an empty body as an authored
@@ -125,8 +148,8 @@ The pinned writer round-trips space/tab/newline/break link labels with destinati
 If link formatting cannot round-trip (for example a bold whitespace-only label becomes
 literal `** **`), the existing lossless-write guard refuses with a reason and corrective
 action; file writes leave the original unchanged. If any meaningful content remains, the
-existing content normalization and lossless-write rules apply unchanged, including leading
-and trailing whitespace handling. Editor and CLI share these operations; neither applies
+[paragraph blank-line tail rule](#paragraph-blank-line-tails-1107) applies before the
+existing content normalization and lossless-write checks. Editor and CLI share these operations; neither applies
 its own whitespace rule. Heading, footnote and endnote empty-content restrictions are
 unchanged. Native structural shape rules and the full canonical round-trip guard are unchanged.
 

@@ -1854,17 +1854,21 @@ test("break adapter rejects unsupported marks and malformed break content", () =
   ]) assert.throws(() => fromTiptapContent({type: "doc", content: [{type: "paragraph", content: [node]}]}));
 });
 
-test("transient trailing break is editable but fails Core save without writing", () => {
+test("transient trailing break saves through Core without replacing the editing state", () => {
   const source = nativeSource("AB");
   const editable = loadEditableDocument(source);
   const projected = toTiptapDocument(editable);
   projected.content![0].content!.push({type: "hardBreak"});
   assert.equal(isSupportedDocumentChange(toTiptapDocument(editable), projected), true);
-  let written = false;
-  assert.throws(() => commitDocumentSave(() => source, () => { written = true; }, {
+  const before = structuredClone(projected);
+  let written = "";
+  const saved = commitDocumentSave(() => source, markdown => { written = markdown; }, {
     revision: documentRevision(source), ...collectSupportedEdits(editable, projected),
-  }), /round-trip/);
-  assert.equal(written, false);
+  });
+  assert.equal(written, serialize(parse(source)));
+  assert.equal(saved.markdown, written);
+  assert.equal(serialize(parse(written)), written);
+  assert.deepEqual(projected, before);
 });
 
 

@@ -217,7 +217,10 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(page.getByTestId('recovery-prompt')).toHaveCount(0);
   await editor.locator('p').first().click(); await page.keyboard.press('End');
   await page.keyboard.type(' fresh assistant draft');
+  // #1107/#1106: leave a real trailing hard break in the unsaved editor.
+  // Assistant context remains path-only, independently of Core Save normalization.
   await page.keyboard.press('Shift+Enter');
+  expect(await editor.evaluate(el => el.editor.getJSON().content.find(node => node.type === 'paragraph').content.at(-1).type)).toBe('hardBreak');
   const submittedAnswers = [];
   const sent = [], conversations = new Map();
   let resumeFailure = false;
@@ -359,7 +362,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   expect(sent[0].document).toEqual({ path: pluginFixture.document });
   await expect(panel.getByRole('status').filter({ hasText: 'Using saved version' })).toBeVisible();
   await expect(panel).not.toContainText('paragraph edit cannot round-trip');
-  // Undo the refusal fixture before later Save checks; native End/Backspace differs by browser.
+  // Undo the trailing-break input before later Save checks; native End/Backspace differs by browser.
   await editor.focus(); await page.keyboard.press('ControlOrMeta+z');
   await message.focus();
   expect(sent[0].responseLanguage).toBeUndefined();
