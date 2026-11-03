@@ -3,7 +3,7 @@ import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
 import { fork, spawnSync, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer, request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -16,7 +16,7 @@ import { buildDoclingWorker } from "../../../packages/cli/scripts/build-docling-
 import { createProtocolHandler, ORIGIN } from "../../desktop/src/host-protocol.ts";
 import { createDoclingHost } from "./helpers/docling-host.ts";
 import { accessPath, RootAccess } from "../server/file-access.ts";
-import { PluginStore } from "../server/plugin-store.ts";
+import { PluginStore, readPluginBuild } from "../server/plugin-store.ts";
 import { INCOMPLETE } from "../server/plugin-output.ts";
 import { fakeDoclingServer } from "./helpers/docling-server.ts";
 import { handleDocumentRequest } from "../server/document-api.ts";
@@ -43,6 +43,50 @@ async function until<T>(read: () => T | Promise<T>, accept: (value: T) => boolea
   }
 }
 function directory(name: string) { const root = path.join(fixture, name); mkdirSync(root); return root; }
+
+test("readable installations retain full identity, pinned receipts and legacy paths", t => {
+  const root = directory("readable-installation"), plugins = path.join(root, "plugins");
+  const manifest = path.join(root, "manifest.json");
+  const version = "1.2.3-beta.6+build.1";
+  writeFileSync(manifest, JSON.stringify({ id: "example", version, workerApi: 1, entry: "worker.cjs" }));
+  writeFileSync(path.join(root, "worker.cjs"), "original worker");
+  const store = new PluginStore(plugins); t.after(() => store.close());
+  const first = store.register(manifest);
+  assert.equal(first.directory, path.join(plugins, "installed", "example", `${encodeURIComponent(version)}-${first.revision.slice(0, 12)}`));
+  assert.equal(store.register(manifest).directory, first.directory);
+  const job = { id: randomUUID(), input: "input.pdf", output: "output", startedAt: Date.now(), state: "running" as const, progress: { phase: "started" as const } };
+  store.admit(job, "first", "example");
+  writeFileSync(path.join(root, "worker.cjs"), "replacement worker");
+  const second = store.register(manifest);
+  assert.notEqual(second.directory, first.directory);
+  assert.equal(store.get(job.id)!.installation.directory, first.directory);
+  assert.equal(readFileSync(path.join(first.directory, "worker.cjs"), "utf8"), "original worker");
+  assert.equal(store.admit({ ...job, id: randomUUID() }, "second", "example").receipt.installation.directory, second.directory);
+
+  // Simulate a short-hash collision without a hash search: the occupied name
+  // belongs to a different full revision. Registration must not overwrite it.
+  writeFileSync(path.join(root, "worker.cjs"), "third worker");
+  const { revision } = readPluginBuild(manifest);
+  const occupied = path.join(plugins, "installed", "example", `${encodeURIComponent(version)}-${revision.slice(0, 12)}`);
+  mkdirSync(occupied);
+  writeFileSync(path.join(occupied, ".revision"), "f".repeat(64));
+  writeFileSync(path.join(occupied, "worker.cjs"), "third worker");
+  assert.throws(() => store.register(manifest), /revision mismatch/);
+  assert.equal(readFileSync(path.join(occupied, ".revision"), "utf8"), "f".repeat(64));
+  assert.equal(store.list()[0].directory, second.directory);
+  rmSync(occupied, { recursive: true }); mkdirSync(occupied);
+  assert.throws(() => store.register(manifest), /ENOENT/);
+  assert.deepEqual(readdirSync(occupied), [], "even an empty occupied folder is never replaced");
+
+  // Existing registrations are used as stored, without moving or rewriting.
+  const legacy = path.join(plugins, "installed", second.revision);
+  renameSync(second.directory, legacy);
+  rmSync(path.join(legacy, ".revision"));
+  const db = new DatabaseSync(path.join(plugins, "runtime.sqlite"));
+  db.prepare("UPDATE plugins SET value=? WHERE id=?").run(JSON.stringify({ ...second, directory: legacy }), "example"); db.close();
+  assert.equal(store.admit({ ...job, id: randomUUID() }, "legacy", "example").receipt.installation.directory, legacy);
+  assert.equal(existsSync(second.directory), false);
+});
 
 test("dashboard shares registration flags and receipts; clearing uncertain history retains UUID deduplication", async t => {
   const root = directory("dashboard-receipts"), input = path.join(root, "paper.pdf"), output = path.join(root, "paper.docling");

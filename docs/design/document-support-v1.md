@@ -1,7 +1,7 @@
 # Native document support v1
 
 - Status: Implemented
-- Paragraph tail normalization: 2026-11-04 (#1107; shared Core writes, CLI file workflow and Editor Save/Reload/assistant-context regressions).
+- Paragraph tail normalization: 2026-11-04 (#1107; shared Core writes, CLI file workflow and Editor Save/Reload/assistant-send regressions).
 - Template update: 2026-11-04 (#936 owner-approved optional `template: { name, description }`; [template contract](document-templates-v1.md)).
 - Title update: 2026-10-29 (#722; optional single-line plain frontmatter title, no leading-H1 title inference; marker stays `litzio: 1`).
 - Fixed numbering: 2026-10-29 (#720 Core/CLI; [numbering contract](heading-numbering-v1.md#fixed-numbers-720)).
@@ -118,8 +118,11 @@ edits, quote/admonition bodies, list items at every depth, Figure captions and
 footnote/endnote definitions. If normalization empties the paragraph, its existing
 owner's empty-content rule applies. Table cells and Table captions have a separate
 single-line contract and continue to reject line breaks; headings do too.
-Editor Save and unsaved assistant context use the same Core operations as CLI
-writes. Existing CLI commands expose the rule; no new operation or command is needed.
+Editor Save uses the same Core operations as CLI writes. Existing CLI commands
+expose the rule; no new operation or command is needed. Assistant sending supplies
+only the active document path and excludes unsaved body content under the
+[#1106 context contract](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2); it does not
+serialize the editor's unsaved content or depend on Save normalization.
 
 ## Empty structural elements (#574)
 

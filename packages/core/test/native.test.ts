@@ -594,11 +594,13 @@ test("template metadata round-trips and creation removes only template semantics
   const template = core.updateTemplateMetadata(original, meta);
   const saved = serialize(template);
   assert.deepEqual(core.getTemplateMetadata(parse(saved)), meta);
+  assert.match(saved, /litzio: 1 # marker/);
   assert.equal(serialize(parse(saved)), saved);
   const edited = core.updateDocumentTitle(template, "Changed");
   assert.deepEqual(core.getTemplateMetadata(parse(serialize(edited))), meta);
   const created = core.createDocumentFromTemplate(parse(saved));
   assert.equal(core.getTemplateMetadata(created), undefined);
+  assert.match(serialize(created), /litzio: 1 # marker/);
   const before = original as unknown as MystDocument, after = created as unknown as MystDocument;
   assert.deepEqual(parseYaml(String(after.children[0].value)), parseYaml(String(before.children[0].value)));
   assert.deepEqual(after.children.slice(1).map(semanticFingerprint), before.children.slice(1).map(semanticFingerprint));
