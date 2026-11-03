@@ -40,8 +40,9 @@
 @media (width < 1100px) { .app-shell.app-shell--assistant { --shell-panel: 0px; } }
 @media print { .assistant-panel, .assistant-trigger { display: none; } }
 
-.assistant-choices { gap: var(--space-2); }
+.assistant-choices { gap: var(--space-2); border-color: var(--id-color-border-control); }
 .assistant-choices select { width: 100%; }
+.assistant-controls > span { min-width: 0; max-width: 100%; display: inline-flex; }
 .assistant-choices small { color: var(--id-color-text-muted); }
 .assistant-controls button { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: var(--font-size-xs); }
 /* Preserve the title-strip search center while reserving equal room for the action. */
@@ -93,3 +94,6 @@ body:has(.assistant-panel--overlay:not([hidden])) .notification-center { visibil
 .assistant-reference-options button { display: block; height: auto; white-space: normal; width: 100%; padding: var(--space-2); text-align: start; overflow-wrap: anywhere; }
 .assistant-reference-options button[aria-selected="true"], .assistant-reference-options button:hover { background: var(--id-color-surface-hover); }
 .assistant-reference-options small { display: block; color: var(--id-color-text-muted); }
+
+/* Explanations must not block adjacent composer choices or native-select clicks. */
+.ui-portal:has(.assistant-choice-help) { pointer-events: none; }

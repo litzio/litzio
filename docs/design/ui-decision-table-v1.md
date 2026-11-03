@@ -110,3 +110,9 @@ SettingsRow와 기존 Button으로 해당 플러그인의 설정에 진입한다
 설치 revision·경로·기본 버전 일치 여부는 기존 Tooltip과 공통 정보 버튼으로
 hover·keyboard focus에서 확인한다. 기본 버전 재등록은 기존 확인 Dialog를 유지한다.
 새 공통 컴포넌트·공개 Plugin API 예외는 없다.
+
+
+#1110/#1124: 비서 대화 선택은 기존 outline Button·Tooltip·Popover와
+`.settings-select`를 재사용한다. 라벨은 기존 settings-description, 경계는
+border-control, 목록은 surface/text 토큰을 따른다. 새 공통 상호작용 예외는 없다.
+프로바이더 고정·다음 turn 권한·기록 복원은 [비서 계약](main-agent-v1.md#conversation-choices-1110--1124)을 따른다.

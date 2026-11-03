@@ -38,6 +38,8 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
   const [models, setModels] = useState<AiModels>();
   const [conversation, setConversation] = useState<AiConversation>();
   const [history, setHistory] = useState<AiConversationInfo[] | null>(null);
+  const [provider, setProvider] = useState<"codex" | "copilot">("codex");
+  const [writeAccess, setWriteAccess] = useState<AiAgentSettings["writeAccess"]>("opened-folders");
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("");
   const [mode, setMode] = useState("");
@@ -52,8 +54,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
   const [setup, setSetup] = useState("");
   const [ready, setReady] = useState(false);
   const [pending, setPending] = useState(false);
-  const [choicesOpen, setChoicesOpen] = useState(false);
-  const choicesAnchor = useRef<HTMLButtonElement>(null);
+  const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
   const referenceCaret = useRef<number | null>(null);
   useLayoutEffect(() => {
@@ -66,7 +67,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
   const current = useRef(conversation); current.current = conversation;
   const initializedSettings = useRef(settingsRevision), providerVersion = useRef(0);
   const active = conversation?.turns.some(turn => turn.status === "inProgress") ?? false;
-  const defaults = (value: AiAgentSettings) => { setModel(value.model); setEffort(value.reasoningEffort); setMode(models?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); };
+  const defaults = (value: AiAgentSettings) => { setProvider(value.provider); setWriteAccess(value.writeAccess); setModel(value.model); setEffort(value.reasoningEffort); setMode(models?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); };
   useEffect(() => {
     const refreshingSettings = initializedSettings.current !== settingsRevision;
     initializedSettings.current = settingsRevision;
@@ -83,34 +84,35 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
         // Host disposed the old connection and conversations. Retire its UI requests too.
         providerVersion.current++;
         current.current = undefined; setConversation(undefined); rememberConversation();
-        setPending(false); setProblem(""); setHistory(null); setMessage(""); setReferences([]); setMention(null); setChoicesOpen(false);
+        setPending(false); setProblem(""); setHistory(null); setMessage(""); setReferences([]); setMention(null); setChoicesOpen(null);
         setRemoved([]); setSkillCatalog(undefined); setSkillProblem("");
       }
-      setSettings(value); if (value.provider === "copilot") setReferences(previous => previous.filter(file => file.kind !== "skill")); if (!current.current) defaults(value);
+      setSettings(value); if (value.provider === "copilot") setReferences(previous => previous.filter(file => file.kind !== "skill")); if (!current.current && (!settings || refreshingSettings)) defaults(value);
       if (!value.enabled) {
         setSetup(value.provider === "copilot" ? "AI agent is disabled." : "Codex is disabled.");
         setConversation(current => current ? { ...current, userInput: undefined, turns: current.turns.map(turn => turn.status === "inProgress" ? { ...turn, status: "interrupted" } : turn) } : current);
         return;
       }
-      const [catalog, diagnostics] = await Promise.all([request<AiModels>(AI_AGENT.modelsRoute), request<AiDiagnostics>(AI_AGENT.diagnosticsRoute)]);
-      if (!alive) return;
-      setModels(catalog);
-      if (!current.current) setMode(catalog.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
-      if (!diagnostics.connected) { setSetup(diagnostics.error ?? "Codex CLI is unavailable on the Host."); return; }
-      if (value.provider === "codex" && !diagnostics.account) { setSetup("Sign in to Codex to start a conversation."); return; }
       const id = current.current?.id ?? lastConversation();
+      let resumed: AiConversation | undefined;
       if (id) {
-        try {
-          const resumed = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id });
-          if (alive) {
-            if (!current.current) { setModel(resumed.model); setEffort(resumed.reasoningEffort); setMode(resumed.copilot?.currentMode ?? ""); }
-            setConversation(resumed); rememberConversation(resumed.id);
-          }
-        } catch {
+        try { resumed = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id }); }
+        catch {
           // A missing or unavailable last thread must not block a fresh conversation.
           if (alive) { setConversation(undefined); rememberConversation(); setMessage(""); setProblem(""); defaults(value); }
         }
       }
+      if (!alive) return;
+      const selectedProvider = resumed?.provider ?? current.current?.provider ?? (!settings || refreshingSettings ? value.provider : provider);
+      const [catalog, diagnostics] = await Promise.all([request<AiModels>(`${AI_AGENT.modelsRoute}?provider=${selectedProvider}`), request<AiDiagnostics>(`${AI_AGENT.diagnosticsRoute}?provider=${selectedProvider}`)]);
+      if (!alive) return;
+      setModels(catalog);
+      if (resumed) {
+        if (!current.current) { setModel(resumed.model); setEffort(resumed.reasoningEffort); setMode(resumed.copilot?.currentMode ?? ""); setProvider(selectedProvider); setWriteAccess(resumed.writeAccess ?? value.writeAccess); }
+        setConversation(resumed); rememberConversation(resumed.id);
+      } else setMode(catalog.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
+      if (!diagnostics.connected) { setSetup(diagnostics.error ?? "Codex CLI is unavailable on the Host."); return; }
+      if (selectedProvider === "codex" && !diagnostics.account) { setSetup("Sign in to Codex to start a conversation."); return; }
       if (alive) setReady(true);
     }).catch(error => { if (alive) setSetup(error.message); });
     return () => {
@@ -163,11 +165,11 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
     try { await action(isCurrent); } catch (error) { if (isCurrent()) setProblem((error as Error).message); } finally { if (isCurrent()) setPending(false); }
   };
   const send = () => run(async isCurrent => {
-    if (active && settings?.provider === "copilot") return;
+    if (active && provider === "copilot") return;
     const value = message.trim(); if (!value && !references.length) return;
     const document = documentPath ? { path: documentPath } : undefined;
     const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "send", id: conversation?.id, message: value,
-      model, reasoningEffort: effort, ...(settings?.provider === "copilot" && mode ? { mode } : {}), references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: settings?.provider !== "codex" ? [] : references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document });
+      provider, writeAccess, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: provider !== "codex" ? [] : references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document });
     if (!isCurrent()) return;
     setConversation(next); rememberConversation(next.id); setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
@@ -192,7 +194,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
     setCandidates([]);
     if (skillOpen) {
       setSkillCatalog(undefined); setSkillProblem("");
-      void request<AiSkills>(AI_AGENT.skillsRoute).then(value => { if (alive) setSkillCatalog(value); }).catch(error => { if (alive) setSkillProblem(error.message); });
+      void request<AiSkills>(`${AI_AGENT.skillsRoute}?provider=${provider}`).then(value => { if (alive) setSkillCatalog(value); }).catch(error => { if (alive) setSkillProblem(error.message); });
       return () => { alive = false; };
     }
     const walk = async (root: string, folder: string): Promise<void> => {
@@ -256,7 +258,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
       if (event.key === "Escape" && !event.nativeEvent.isComposing) {
         event.preventDefault();
         // Focus can still be on a chip before the portalled popup autofocus runs.
-        if (choicesOpen) { event.stopPropagation(); setChoicesOpen(false); }
+        if (choicesOpen) { event.stopPropagation(); setChoicesOpen(null); }
         else onClose();
       }
       if (event.key === "Tab" && overlay) {
@@ -270,7 +272,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
     <div className="assistant-header">
       <h2><MessageSquare aria-hidden="true" />{i18n.t("Assistant")}</h2>
       <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={!ready || pending || active} onClick={() => { setConversation(undefined); rememberConversation(); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null); if (settings) defaults(settings); input.current?.focus(); }}><Plus /></Button>
-      <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending || active} onClick={() => void run(async isCurrent => { const next = history ? null : await request<AiConversationInfo[]>(AI_AGENT.conversationsRoute); if (isCurrent()) setHistory(next); })}><History /></Button>
+      <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending || active} onClick={() => void run(async isCurrent => { const next = history ? null : await request<AiConversationInfo[]>(`${AI_AGENT.conversationsRoute}?provider=${provider}`); if (isCurrent()) setHistory(next); })}><History /></Button>
       <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
     </div>
     <div className="assistant-context" title={[documentPath, ...folders].filter(Boolean).join("\n")}>
@@ -280,11 +282,11 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
         : <span>{documentPath.split(/[\\/]/).at(-1) || i18n.t("No file opened")}</span>}<span>{i18n.t("Opened folders: {{count}}", { count: folders.length })}</span>
     </div>
     <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")}>
-      {history ? <div className="assistant-history"><h3>{i18n.t("Conversation history")}</h3><p>{i18n.t(settings?.provider === "copilot" ? "Continue a Copilot conversation." : "Continue the same Codex conversation here or in the CLI.")}</p>
+      {history ? <div className="assistant-history"><h3>{i18n.t("Conversation history")}</h3><p>{i18n.t(provider === "copilot" ? "Continue a Copilot conversation." : "Continue the same Codex conversation here or in the CLI.")}</p>
         {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async isCurrent => {
           const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id: entry.id });
           if (!isCurrent()) return;
-          setConversation(next); rememberConversation(next.id); setModel(next.model); setEffort(next.reasoningEffort); setMode(next.copilot?.currentMode ?? ""); setHistory(null); input.current?.focus();
+          setConversation(next); rememberConversation(next.id); setProvider(next.provider ?? provider); setWriteAccess(next.writeAccess ?? settings!.writeAccess); setModel(next.model); setEffort(next.reasoningEffort); setMode(next.copilot?.currentMode ?? ""); setHistory(null); input.current?.focus();
         })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
           {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
         : conversation?.turns.map(turn => <section key={turn.id} className="assistant-turn" data-status={turn.status}>
@@ -348,7 +350,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
         // Retired results must not appear selectable before the new lookup starts.
         if (match?.[1] === "@" && (!mention || mention.skill)) setCandidates([]);
         if (match?.[1] === "/" && !skillOpen) { setSkillCatalog(undefined); setSkillProblem(""); }
-        setMention(match && (match[1] !== "/" || settings?.provider === "codex") ? { start: end - match[2].length - 1, end, query: match[2], skill: match[1] === "/" } : null); setCandidateIndex(0);
+        setMention(match && (match[1] !== "/" || provider === "codex") ? { start: end - match[2].length - 1, end, query: match[2], skill: match[1] === "/" } : null); setCandidateIndex(0);
       }}
         disabled={!ready || !settings?.enabled || !!setup} onKeyDown={event => {
           if (mention && !event.nativeEvent.isComposing) {
@@ -358,27 +360,48 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
           }
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
       <div className="assistant-controls">
-        <Button ref={choicesAnchor} type="button" variant="outline" size="sm" disabled={active || pending} title={i18n.t(effortHelp)} aria-label={i18n.t("Conversation model and effort")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{model || (settings?.provider === "copilot" ? "Copilot" : "Codex")}{` · ${i18n.t(effort as MessageKey)}`}{settings?.provider === "copilot" && mode ? ` · ${copilot?.modes.find(value => value.id === mode)?.name ?? ""}` : ""}</Button>
-        <Popover open={choicesOpen && open} onOpenChange={setChoicesOpen}><PopoverContent anchor={choicesAnchor} side="top" align="start" className="assistant-choices" finalFocus={choicesAnchor}>
-        <label htmlFor="assistant-model">{i18n.t("Model")}</label>
-        <select id="assistant-model" className="form-select" aria-label={i18n.t("Model")} value={model} disabled={active || pending || !models} onChange={event => { const value = models!.models.find(model => model.model === event.target.value)!; setModel(value.model); if (!conversation || copilot?.reasoningEffortSource !== "cli") setEffort(value.defaultReasoningEffort); }}>
-          {!catalogModel ? <option value={model}>{model}</option> : null}{models?.models.map(value => <option key={value.id} value={value.model}>{value.displayName}</option>)}
-        </select>
-        <label htmlFor="assistant-effort" title={i18n.t(effortHelp)}>{i18n.t("Reasoning effort")}</label>
-        <select id="assistant-effort" className="form-select" aria-label={i18n.t("Reasoning effort")} value={effort} title={i18n.t(effortHelp)} disabled={active || pending || !catalogModel || !!conversation && copilot?.reasoningEffortSource === "cli"} onChange={event => setEffort(event.target.value)}>{(copilot?.reasoningEfforts ?? catalogModel?.supportedReasoningEfforts)?.map(value => <option key={value.reasoningEffort} value={value.reasoningEffort}>{i18n.t(value.reasoningEffort as MessageKey)}</option>)}</select>
-        {settings?.provider === "copilot" && copilot?.modes.length ? <><label htmlFor="assistant-mode">{i18n.t("Session mode")}</label>
-        <select id="assistant-mode" className="form-select" aria-label={i18n.t("Session mode")} title={i18n.t("Model, reasoning effort and mode changes apply to the next message.")} value={mode} disabled={active || pending} onChange={event => setMode(event.target.value)}>
-          {copilot.modes.map(value => <option key={value.id} value={value.id}>{value.name}</option>)}
-        </select></> : null}
-        <small>{i18n.t("These choices apply only to this conversation. Defaults are in AI settings.")}</small>
-        </PopoverContent></Popover>
+        <AssistantChoice label={i18n.t("Provider")} value={provider === "copilot" ? "GitHub Copilot" : "Codex"}
+          help={i18n.t(conversation ? "Provider is fixed after a conversation starts. Start a new conversation to change it." : "These choices apply only to this conversation. Defaults are in AI settings.")}
+          disabled={!!conversation || active || pending || !settings?.enabled || !models && !setup} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open}>
+          <select id="assistant-provider" className="form-select settings-select" aria-label={i18n.t("Provider")} value={provider} onChange={event => {
+            const selected = event.target.value as "codex" | "copilot";
+            void run(async isCurrent => {
+              setReady(false);
+              try {
+                const [catalog, diagnostics] = await Promise.all([request<AiModels>(`${AI_AGENT.modelsRoute}?provider=${selected}`), request<AiDiagnostics>(`${AI_AGENT.diagnosticsRoute}?provider=${selected}`)]);
+                if (!isCurrent()) return;
+                setProvider(selected); setModels(catalog); setSetup(!diagnostics.connected ? diagnostics.error ?? "Codex CLI is unavailable on the Host." : selected === "codex" && !diagnostics.account ? "Sign in to Codex to start a conversation." : "");
+                const first = catalog.models.find(model => selected === settings?.provider && model.model === settings.model) ?? catalog.models[0]; setModel(first?.model ?? ""); setEffort(selected === settings?.provider ? settings.reasoningEffort : first?.defaultReasoningEffort ?? "");
+                setMode(catalog.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
+                setReferences(previous => previous.filter(file => file.kind !== "skill")); setMention(null); setHistory(null);
+              } finally { if (isCurrent()) setReady(true); }
+            });
+          }}><option value="codex">Codex</option><option value="copilot">GitHub Copilot</option></select>
+        </AssistantChoice>
+        <AssistantChoice label={i18n.t("Model")} value={catalogModel?.displayName ?? model} help={catalogModel?.description || i18n.t(effortHelp)} disabled={active || pending || !models} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open}>
+          <select id="assistant-model" className="form-select settings-select" aria-label={i18n.t("Model")} value={model} onChange={event => { const value = models!.models.find(model => model.model === event.target.value)!; setModel(value.model); if (!conversation || copilot?.reasoningEffortSource !== "cli") setEffort(value.defaultReasoningEffort); }}>
+            {!catalogModel ? <option value={model}>{model}</option> : null}{models?.models.map(value => <option key={value.id} value={value.model}>{value.displayName}</option>)}
+          </select>
+        </AssistantChoice>
+        <AssistantChoice label={i18n.t("Reasoning effort")} value={i18n.t(effort as MessageKey)} help={i18n.t(effortHelp)} disabled={active || pending || !catalogModel || !!conversation && copilot?.reasoningEffortSource === "cli"} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open}>
+          <select id="assistant-effort" className="form-select settings-select" aria-label={i18n.t("Reasoning effort")} value={effort} onChange={event => setEffort(event.target.value)}>{(copilot?.reasoningEfforts ?? catalogModel?.supportedReasoningEfforts)?.map(value => <option key={value.reasoningEffort} value={value.reasoningEffort}>{i18n.t(value.reasoningEffort as MessageKey)}</option>)}</select>
+        </AssistantChoice>
+        <AssistantChoice label={i18n.t("Write access")} value={i18n.t(writeAccess === "full-access" ? "Full access" : writeAccess === "read-only" ? "Read-only" : "Opened folders")}
+          help={i18n.t(writeAccess === "full-access" ? "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text." : "Write access applies to the next turn in this conversation. Global defaults stay unchanged.")} disabled={active || pending || !settings} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open}>
+          <select id="assistant-access" className="form-select settings-select" aria-label={i18n.t("Write access")} value={writeAccess} onChange={event => setWriteAccess(event.target.value as AiAgentSettings["writeAccess"])}>
+            <option value="opened-folders">{i18n.t("Opened folders")}</option><option value="read-only">{i18n.t("Read-only")}</option><option value="full-access">{i18n.t("Full access")}</option>
+          </select>
+        </AssistantChoice>
+        {provider === "copilot" && copilot?.modes.length ? <AssistantChoice label={i18n.t("Session mode")} value={copilot.modes.find(value => value.id === mode)?.name ?? mode} help={i18n.t("Model, reasoning effort and mode changes apply to the next message.")} disabled={active || pending} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open}>
+          <select id="assistant-mode" className="form-select settings-select" aria-label={i18n.t("Session mode")} value={mode} onChange={event => setMode(event.target.value)}>{copilot.modes.map(value => <option key={value.id} value={value.id}>{value.name}</option>)}</select>
+        </AssistantChoice> : null}
       </div>
       <div className="assistant-footer">
         <Tooltip><TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
         </TooltipTrigger><TooltipContent>{usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}</TooltipContent></Tooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
         {active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async isCurrent => { const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); })}><Square /></Button> : null}
-        <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || active && settings?.provider === "copilot" || !ready || (!message.trim() && !references.length) || !catalogModel || !settings?.enabled || !!setup}><ArrowUp /></Button>
+        <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || active && provider === "copilot" || !ready || (!message.trim() && !references.length) || !catalogModel || !settings?.enabled || !!setup}><ArrowUp /></Button>
       </div>
     </form>
   </aside>;
@@ -413,3 +436,17 @@ function ReferenceChips({ references, remove }: { references: AiFileReference[];
 }
 
 function hasSkillToken(text: string, name: string) { return text.split(/\s+/).includes(`$${name}`); }
+
+/** Each setting owns the same small Button/Popover editing surface. */
+function AssistantChoice({ label, value, help, disabled, visible, choiceOpen, onOpenChange, children }: { label: string; value: string; help: string; disabled: boolean; visible: boolean; choiceOpen: string | null; onOpenChange(open: string | null): void; children: React.ReactNode }) {
+  const anchor = useRef<HTMLButtonElement>(null);
+  const open = choiceOpen === label;
+  const change = (value: boolean) => onOpenChange(value ? label : null);
+  useEffect(() => { if (!visible) change(false); }, [visible]);
+  return <><Tooltip disabled={open}><TooltipTrigger render={<span tabIndex={disabled ? 0 : undefined} />}>
+    <Button ref={anchor} type="button" variant="outline" size="sm" disabled={disabled} aria-label={i18n.t("{{name}} settings", { name: label })} aria-expanded={open} onKeyDown={event => { if (open && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); change(false); } }} onClick={() => change(!open)}>{value || label}</Button>
+  </TooltipTrigger><TooltipContent className="assistant-choice-help pointer-events-none">{label}: {help}</TooltipContent></Tooltip>
+    <Popover open={open && visible && !disabled} onOpenChange={change}><PopoverContent anchor={anchor} side="top" align="start" className="assistant-choices" finalFocus={anchor}>
+      <label className="settings-description">{label}</label>{children}
+    </PopoverContent></Popover></>;
+}

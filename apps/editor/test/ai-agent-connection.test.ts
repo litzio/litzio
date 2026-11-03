@@ -22,8 +22,8 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   assert.deepEqual(catalog.copilot?.modes.map(mode => mode.id), ["agent", "plan"]);
   assert.equal((await connection.diagnostics("copilot")).connected, true);
   assert.equal(readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.method === "initialize").length, 1);
-  const settings = { provider: "copilot" as const, enabled: true, writeAccess: "read-only" as const, model: "auto", reasoningEffort: "high" };
-  const input = { message: "Question", folders: [root], model: settings.model, reasoningEffort: "high", mode: "plan" };
+  const settings = { provider: "codex" as const, enabled: true, writeAccess: "read-only" as const, model: "auto", reasoningEffort: "high" };
+  const input = { provider: "copilot" as const, message: "Question", folders: [root], model: settings.model, reasoningEffort: "high", mode: "plan" };
   await assert.rejects(conversations.send({ ...input, skills: [{ name: "codex-only", path: path.join(root, "SKILL.md") }] }, settings), /only with Codex/);
   const conversation = await conversations.send(input, settings);
   assert.equal(conversation.turns.length, 1, "ACP selector updates must not create transcript turns");
@@ -43,7 +43,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     // A protocol barrier ensures prompt completion is processed, without a timing assumption.
     await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
     assert.equal(turn.status, "interrupted");
-    await conversations.send({ ...input, id: conversation.id }, { ...settings, writeAccess: "opened-folders" });
+    await conversations.send({ ...input, id: conversation.id, writeAccess: "opened-folders" }, settings);
     assert.deepEqual(connection.copilot.permission!(request), { outcome: { outcome: "selected", optionId: "once" } });
     assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { ...request.toolCall, locations: [{ path: path.join(root, "..", "outside.txt") }] } }), { outcome: { outcome: "cancelled" } });
     await conversations.interrupt(conversation.id);
@@ -54,7 +54,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     assert.match(conversation.turns.at(-1)!.error!, /quota fixture/);
   });
   assert.equal(conversations.list()[0]!.provider, "copilot");
-  await assert.rejects(conversations.resume(conversation.id, { ...settings, provider: "codex" }), /provider/);
+  assert.equal((await conversations.resume(conversation.id, { ...settings, provider: "codex" })).provider, "copilot");
   const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   assert.ok(rpc.some(message => message.args?.includes("high")), "CLI fallback receives the selected effort at startup");
   assert.ok(rpc.some(message => message.method === "session/set_mode" && message.params.modeId === "plan"));
@@ -72,7 +72,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   assert.ok(launch.args.includes("--disable-builtin-mcps"));
   assert.ok(fullRpc.some(message => message.method === "session/set_config_option" && message.params.configId === "allow_all" && message.params.value === "on"));
   await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: full.id, modelId: input.model }));
-  const restricted = await conversations.send({ ...input, id: full.id }, settings);
+  const restricted = await conversations.send({ ...input, id: full.id, writeAccess: "read-only" }, settings);
   assert.deepEqual(connection.copilot.permission!({ ...execution, sessionId: restricted.id }), { outcome: { outcome: "cancelled" } });
   await conversations.interrupt(restricted.id);
   const restrictedRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
@@ -148,14 +148,17 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.equal(JSON.stringify(conversation).includes("PRIVATE RAW REASONING"), false);
   assert.equal(JSON.stringify(conversation).includes("UNSAVED DOCUMENT TEXT"), false, "unsaved content is not displayed as a user message");
   await assert.rejects(conversations.send({ ...input, id: conversation.id, reasoningEffort: "high" }, settings), /locked/);
-  await conversations.send({ ...input, id: conversation.id, message: "Only summarize." }, settings);
+  await conversations.send({ ...input, id: conversation.id, message: "Only summarize.", writeAccess: "full-access" }, settings);
   assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "user").map(item => item.text), ["What changed?", "Only summarize."]);
+  assert.equal(conversation.writeAccess, "opened-folders", "steering cannot change the captured scope");
+  await assert.rejects(conversations.send({ ...input, id: conversation.id, provider: "copilot" }, settings), /Provider is locked/);
+  await assert.rejects(conversations.send({ ...input, writeAccess: "invalid" as any }, settings), /Invalid write access/);
   await conversations.interrupt(conversation.id);
   assert.equal(conversation.turns[0]!.status, "interrupted");
   assert.equal(conversation.turns[0]!.items.find(item => item.kind === "assistant")!.text, "Partial answer");
   assert.equal(readFileSync(input.document.path, "utf8"), "ON DISK");
   const stored = JSON.parse(readFileSync(path.join(cwd, "conversations.json"), "utf8"));
-  assert.deepEqual(Object.keys(stored[0]).sort(), ["createdAt", "folders", "id", "title", "updatedAt"]);
+  assert.deepEqual(Object.keys(stored[0]).sort(), ["createdAt", "folders", "id", "provider", "title", "updatedAt", "writeAccess"]);
   const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   const start = rpc.find(item => item.method === "turn/start").params;
   assert.equal(start.summary, "auto");
@@ -175,7 +178,8 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   const resumedConnection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
   try {
     const resumed = new AiAgentConversations(resumedConnection, new RootAccess([root]));
-    const history = await resumed.resume(conversation.id, settings);
+    const history = await resumed.resume(conversation.id, { ...settings, provider: "copilot", writeAccess: "read-only" });
+    assert.equal(history.provider, "codex"); assert.equal(history.writeAccess, "opened-folders");
     assert.deepEqual(history.turns[0]!.items.filter(item => item.kind === "reasoning"), conversation.turns[0]!.items.filter(item => item.kind === "reasoning"));
     assert.equal(JSON.stringify(history).includes("PRIVATE RAW REASONING"), false);
     assert.equal("responseLanguage" in history, false);
@@ -196,7 +200,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
     const deleted = many[0]!; rmSync(deleted);
     await assert.rejects(resumed.send({ ...input, references: [deleted] }, settings));
     assert.equal(history.turns[0]!.status, "interrupted");
-    await resumed.send({ ...input, id: conversation.id, message: "" }, { ...settings, writeAccess: "read-only" });
+    await resumed.send({ ...input, id: conversation.id, message: "", writeAccess: "read-only" }, settings);
     const requests = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
     assert.deepEqual(requests.filter(item => item.method === "turn/start").at(-1).params.sandboxPolicy, { type: "readOnly", networkAccess: false });
     await resumedConnection.client.request("fixture/finish", { threadId: conversation.id });
@@ -206,7 +210,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
     await assert.rejects(resumed.send({ ...input, folders: [path.dirname(root)] }, settings), /outside/);
     await assert.rejects(resumed.resume("unknown-thread", settings), /not found/);
     await resumed.interrupt(conversation.id);
-    await resumed.send({ ...input, id: conversation.id }, { ...settings, writeAccess: "full-access" });
+    await resumed.send({ ...input, id: conversation.id, writeAccess: "full-access" }, settings);
     const fullRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
     const fullStart = fullRpc.filter(item => item.method === "turn/start").at(-1).params;
     assert.deepEqual(fullStart.sandboxPolicy, { type: "dangerFullAccess" });
@@ -336,7 +340,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     const history = new AiAgentConversations(next, new RootAccess([root]));
     const resumed = await history.resume(conversation.id, settings);
     assert.deepEqual(resumed.turns[0]!.items.find(item => item.toolResult?.success === true)!.toolResult, created);
-    await history.send({ ...input, id: conversation.id }, { ...settings, writeAccess: "read-only" });
+    await history.send({ ...input, id: conversation.id, writeAccess: "read-only" }, settings);
     const denied = await next.client.request("fixture/tool", { threadId: conversation.id, tool: "create_document", arguments: { ...args, path: path.join(folder, "readonly.md") } });
     assert.equal(denied.result.success, false); assert.equal(existsSync(path.join(folder, "readonly.md")), false);
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));

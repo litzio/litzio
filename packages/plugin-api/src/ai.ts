@@ -17,7 +17,7 @@ export const AI_AGENT = {
   skillsRoute: "/api/ai-agent-skills", modelsRoute: "/api/ai-agent-models", diagnosticsRoute: "/api/ai-agent-diagnostics", environmentRoute: "/api/ai-agent-environment",
   conversationsRoute: "/api/ai-agent-conversations",
 } as const;
-export type AiConversationInfo = { id: string; provider?: AiProvider; title: string; folders: string[]; createdAt: number; updatedAt: number };
+export type AiConversationInfo = { id: string; provider?: AiProvider; writeAccess?: AiAgentSettings["writeAccess"]; title: string; folders: string[]; createdAt: number; updatedAt: number };
 export type AiSkill = { name: string; path: string; description: string };
 export type AiSkills = { skills: AiSkill[]; errors: { path: string; message: string }[] };
 export type AiFileReference = { path: string; name: string; kind: string };
@@ -32,6 +32,8 @@ export type AiConversation = AiConversationInfo & { turns: AiConversationTurn[];
   copilot?: AiCopilotOptions;
   tokenUsage?: { used: number; limit: number | null } };
 export type AiConversationInput = Pick<AiExecutionSettings, "model" | "reasoningEffort"> & { id?: string; message: string; references?: string[]; skills?: { name: string; path: string }[];
+  /** User-selected conversation overrides; never persisted as global defaults. */
+  provider?: AiProvider; writeAccess?: AiAgentSettings["writeAccess"];
   mode?: string;
   folders: string[]; document?: { path: string } };
 export type AiModel = { id: string; model: string; displayName: string; description: string;

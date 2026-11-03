@@ -239,7 +239,7 @@ of an enabled composer. The same Settings page provides Codex diagnostics.
 
 One conversation is one persistent Codex thread. A new thread is created on its
 first message with `ephemeral: false`, so it can also be resumed by ID in the
-user's ordinary Codex CLI. Litzio atomically writes only ID, title, folders and
+user's ordinary Codex CLI. Litzio atomically writes ID, title, folders, provider, write access and
 created/updated times to `assistant/conversations.json`. Messages, results and
 progress are owned by Codex. Choosing history calls `thread/resume` and pages
 `thread/turns/list` with full items. Current snapshots are held only in Host
@@ -918,8 +918,11 @@ Manual owner checks: Host login, available model selection, conversation and
 history, Stop, and read-only/opened-folder writes with the user's configuration.
 ### Copilot choices and application timing (#1091)
 
-The existing compact composer Button/Popover and native labeled selects show model,
-reasoning effort and (Copilot only) advertised Agent/Plan. No new common interaction,
+The composer uses separate compact outline Buttons/Popovers with native labeled
+`settings-select` controls for provider, model, reasoning effort, write access and
+(Copilot only) advertised Agent/Plan. Model buttons use the catalog display name.
+Labels use the existing secondary description typography; fields, popup boundaries
+and native option faces use the existing control/surface/text tokens (#1110/#1124). No new common interaction,
 Plugin UI contribution or mode default setting is added. Only exact Agent/Plan short
 or protocol IDs are accepted by Host; Autopilot, Allow All and Auto Accept are absent.
 Full access is controlled exclusively by writeAccess. UI controls are locked during
@@ -1029,3 +1032,46 @@ surface and persistent Chrome profile: [1440 Light list](assets/assistant-skills
 [640 Dark Korean list](assets/assistant-skills-1047/list-640-dark-ko.png),
 [640 Dark Korean chip](assets/assistant-skills-1047/chip-640-dark-ko.png).
 The existing file-reference captures above provide the preceding composer state.
+
+### Conversation choices (#1110 / #1124)
+
+Owner decision (2026-11-04): `AiConversationInput` accepts optional `provider` and
+`writeAccess` overrides from the user's composer selections. These never write
+AI settings or change global defaults. Only enabled providers may be selected;
+the provider is pinned when the first message creates a session. Both UI and Host
+reject changing an existing session's provider. Its disabled button remains
+explainable through the common Tooltip on hover or keyboard focus.
+
+Write access is captured at each new turn. Steering preserves the running turn's
+scope; an explicit later selection takes effect on the next turn. The history
+index stores the last applied write access and provider, and resume restores them
+independently of current global defaults. The existing permission checks and
+Copilot launch rules still apply. No assistant tool can change these choices:
+the concrete user-facing send route owns overrides, while model tool dispatch
+remains restricted to the existing document tools. No language selector or Core
+semantic operation is added; this is Host conversation state, with no CLI document
+operation parity requirement.
+
+Shared implementation: outline Button, Tooltip, Popover and `settings-select`;
+no new common interaction or style system. NewDialog's existing `form-select`
+already supplies the shared control border and opaque surface, so it needs no
+parallel visual patch. Browser checks protect composer wiring and real computed
+contrast; Host protocol checks protect scope, provider pinning and resume. No real
+model call is required.
+
+
+Manual visual evidence: Windows persistent Chrome, same fake catalog and unsaved
+document, 1440×900 Light/English and 640×900 Dark/Korean. The existing
+`pnpm browser:test ai-agent` runner used a temporary capture-only block (removed
+from the automatic scenario) to open Model, then Alt+Down for the native list.
+No screenshots-only loop was added to CI. Alignment, padding, viewport bounds,
+Korean wrapping and native list readability were reviewed directly.
+
+| View | Before | After |
+| --- | --- | --- |
+| 1440 Light | [Combined popup](assets/assistant-choices-1110/before-1440.png) | [Separate choices](assets/assistant-choices-1110/after-1440-closed.png), [Model popup](assets/assistant-choices-1110/after-1440.png) |
+| 640 Korean Dark | [White-on-white native list](assets/assistant-choices-1110/before-640-list.png) | [Separate choices](assets/assistant-choices-1110/after-640-closed.png), [Readable native list](assets/assistant-choices-1110/after-640-list.png) |
+
+The shared expanded-button CSS incorrectly removed outline borders as well as
+ghost borders. Removing that redundant reset lets each existing Button variant
+own its border; ghost remains transparent. No NewDialog styling is changed.
