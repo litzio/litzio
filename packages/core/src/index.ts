@@ -4,6 +4,7 @@
  * the Core implementation itself, typed with the opaque `Document` (no copy, no
  * wrapper at runtime). MyST types and raw tree access are never exported here.
  */
+import * as templates from "./myst/template.ts";
 import type { Document } from "./document.ts";
 import { inspectDocument as inspectTree } from "./document.ts";
 import { getEditableDocument as editableTree } from "./editable.ts";
@@ -140,3 +141,8 @@ export const insertTarget = fence(operations.insertTarget);
 export const validateFigure = operations.validateFigure;
 export { evaluateBibliography, BIBLIOGRAPHY_LIMITS } from "./bibliography.ts";
 export type { BibliographySource, BibliographyDiagnostic, BibliographyPart, BibliographyReference, BibliographyEntry, BibliographyEvaluation } from "./bibliography.ts";
+
+export type { TemplateMetadata } from "./myst/template.ts";
+export const getTemplateMetadata = fence(templates.getTemplateMetadata);
+export const updateTemplateMetadata = fence(templates.updateTemplateMetadata);
+export const createDocumentFromTemplate = fence(templates.createDocumentFromTemplate);

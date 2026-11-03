@@ -742,7 +742,7 @@ test("litzio help exits successfully", () => {
     }
     const help = args.length === 0 ? result.stderr : result.stdout;
     const expectedGroups: Record<string, string[]> = {
-      "Create and inspect": ["create", "inspect", "docling"],
+      "Create and inspect": ["create", "inspect", "docling", "templates"],
       "Check": ["check"],
       "Edit — batch": ["apply-batch"],
       "Edit — insert blocks": ["insert-block", "insert-heading", "insert-admonition", "insert-quote", "insert-divider", "insert-equation", "insert-figure", "insert-list", "insert-code-block"],
@@ -3034,4 +3034,36 @@ test("plugins CLI lists Host inventory and explicitly reregisters bundled revisi
   assert.equal(run(["plugins", "reregister", "docling"]).status, 0);
   assert.notEqual(run(["plugins", "reregister", "unknown"]).status, 0);
   assert.notEqual(run(["plugins", "list", "--invalid"]).status, 0);
+});
+
+
+test("templates CLI lists, previews, saves and exclusively creates through the shared store", t => {
+  const directory = fileURLToPath(new URL("../../../.litzio-dev/templates/", import.meta.url));
+  const name = `cli-template-${process.pid}`;
+  const stored = path.join(directory, `${name}.md`);
+  const hadDirectory = fs.existsSync(directory);
+  t.after(() => { fs.rmSync(stored, { force: true }); if (!hadDirectory && fs.existsSync(directory) && !fs.readdirSync(directory).length) fs.rmdirSync(directory); });
+  const listed = run(["templates", "list", "--json", "--language", "ko"]);
+  assert.equal(listed.status, 0, listed.stderr);
+  assert.ok(JSON.parse(listed.stdout).templates.some((item: any) => item.name === "AI 작업 보고서" && item.kind === "builtin"));
+  const output = path.join(fixtures, "template-created.md");
+  const created = run(["create", output, "--template", "builtin:ai-report", "--language", "ko"]);
+  assert.equal(created.status, 0, created.stderr);
+  const source = readFileSync(output, "utf8");
+  assert.ok(source.includes("작업 목적"));
+  assert.equal(run(["create", output, "--template", "builtin:technical-document"]).status, 1);
+  assert.equal(readFileSync(output, "utf8"), source);
+  const saved = run(["templates", "save", name, "--from", output, "--description", "CLI report"]);
+  assert.equal(saved.status, 0, saved.stderr);
+  assert.equal(run(["templates", "save", name, "--from", output]).status, 1);
+  assert.equal(run(["templates", "save", "기술 문서", "--from", output]).status, 1);
+  const preview = run(["templates", "read", `user:${name}`, "--json"]);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.equal(JSON.parse(preview.stdout).description, "CLI report");
+  const reused = path.join(fixtures, "user-template-created.md");
+  assert.equal(run(["create", reused, "--template", name]).status, 0);
+  assert.equal(readFileSync(reused, "utf8"), source);
+  assert.equal(run(["check", reused]).status, 0);
+  assert.equal(run(["templates", "list", "--language", "invalid"]).status, 1);
+  assert.equal(run(["templates", "read", name, "--json", "--json"]).status, 1);
 });

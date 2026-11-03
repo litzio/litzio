@@ -1,5 +1,5 @@
 import { brand } from "../../../brand.ts";
-import type { HostRun } from "../../editor/server/host-paths.ts";
+import { hostPaths, type HostRun } from "../../editor/server/host-paths.ts";
 import { createPluginHost } from "../../editor/server/plugin-host.ts";
 // The the configured app origin origin: the Editor's production build and the existing local Host handlers,
 // answered in-process. No TCP port is opened. Host paths, document rules and Save stay in
@@ -59,6 +59,7 @@ export function createProtocolHandler(editorDir: string, first: FirstDocument, t
   // Lives as long as this process, as the development server's key does.
   const assetSigningKey = randomBytes(32);
   const plugins = createPluginHost(undefined, undefined, { run });
+  const templatesDirectory = hostPaths(run).templates;
   const sampleAvailability: SampleAvailability = { samples: first.samples, sampleProblem: first.sampleProblem };
   const handle = async (request: Request) => {
     const url = new URL(request.url);
@@ -77,7 +78,7 @@ export function createProtocolHandler(editorDir: string, first: FirstDocument, t
         }
         url.searchParams.set("path", first.document);
       }
-      const response = await callNodeHandler(request, url, (req, res, next) => handleDocumentRequest(req, res, next, LOCAL_FILE_ACCESS, Infinity, trashItem, sampleAvailability, plugins));
+      const response = await callNodeHandler(request, url, (req, res, next) => handleDocumentRequest(req, res, next, LOCAL_FILE_ACCESS, Infinity, trashItem, sampleAvailability, plugins, templatesDirectory));
       if (onListedRoot && url.pathname === "/api/folder" && request.method === "GET" && response.ok) {
         const folder = await response.clone().json() as { root: string; path: string };
         if (folder.root === folder.path) {

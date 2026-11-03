@@ -1,3 +1,5 @@
+import { listTemplates, readTemplate, saveTemplate, templateDocumentSource, templateLanguage } from "./document-templates.ts";
+import { hostPaths } from "./host-paths.ts";
 import { folderVersion } from "./folder-watch.ts";
 import { documentRevisions } from "./document-revisions.ts";
 import { readBibliographySources } from "./bibliography.ts";
@@ -10,7 +12,7 @@ import fs, { readFileSync, statSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { createDocument, hasNativeMarker, serialize, NativeDocumentError, writeIssueOf } from "@litzio/core";
+import { createDocument, parse, hasNativeMarker, serialize, NativeDocumentError, writeIssueOf } from "@litzio/core";
 import { assertUnicode, commitFile, decodeUtf8, FileChangedError, textRevision } from "@litzio/file-commit";
 import { accessPath, FileAccessError, fileErrorMessage, fileErrorStatus, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 import { readRequestBody, RequestBodyError } from "./request-body.ts";
@@ -126,7 +128,9 @@ export function saveTextFile(request: TextSaveRequest, access: FileAccess = LOCA
   return { revision: documentRevision(request.source) };
 }
 
-export function createDocumentFile(requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS): DocumentFileResponse {
+export function createDocumentFile(requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS, source = EMPTY_DOCUMENT_MARKDOWN): DocumentFileResponse {
+  // Admission and canonical serialization happen before exclusive creation.
+  source = serialize(parse(source));
   if (!requestedPath?.trim()) {
     throw new Error("document path is required");
   }
@@ -141,7 +145,7 @@ export function createDocumentFile(requestedPath?: string, access: FileAccess = 
     throw new Error("parent directory does not exist");
   }
   try {
-    writeFileSync(accessPath(filePath, access, true), EMPTY_DOCUMENT_MARKDOWN, { encoding: "utf8", flag: "wx" });
+    writeFileSync(accessPath(filePath, access, true), source, { encoding: "utf8", flag: "wx" });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EEXIST") {
       throw new Error("file already exists");
@@ -263,6 +267,7 @@ export async function handleDocumentRequest(
   removeFile?: (file: string) => void | Promise<void>,
   sampleAvailability?: SampleAvailability,
   plugins?: ReturnType<typeof createPluginHost>,
+  templatesDirectory = hostPaths().templates,
 ): Promise<void> {
   const readBody = async (request: IncomingMessage) => decodeUtf8(await readRequestBody(request, bodyLimit));
   const failure = (error: unknown) => sendJson(res,
@@ -273,6 +278,22 @@ export async function handleDocumentRequest(
   try { query = requestQuery(req.url ?? ""); }
   catch (error) { failure(error); return; }
   const url = new URL(req.url ?? "", "http://localhost").pathname;
+  if (url === "/api/templates" || url === "/api/template") {
+    try {
+      if (req.method === "GET") {
+        const language = templateLanguage(query.get("language") ?? "en");
+        sendJson(res, 200, url === "/api/templates" ? listTemplates(language, templatesDirectory)
+          : readTemplate(query.get("id") ?? "", language, templatesDirectory));
+      } else if (req.method === "POST" && url === "/api/templates") {
+        const body = JSON.parse(await readBody(req));
+        if (!isObject(body) || typeof body.name !== "string" || typeof body.from !== "string" ||
+            body.description !== undefined && typeof body.description !== "string" ||
+            Object.keys(body).some(key => !["name", "description", "from"].includes(key))) throw new Error("Invalid template save request.");
+        sendJson(res, 201, saveTemplate(body as { name: string; from: string; description?: string }, access, templatesDirectory));
+      } else { res.statusCode = 405; res.end(); }
+    } catch (error) { failure(error); }
+    return;
+  }
   if (url === AI_TASK.discoveryRoute) {
     if (req.method !== "GET") { res.statusCode = 405; res.end(); return; }
     try { sendJson(res, 200, { available: !!plugins?.aiTasks() }); } catch (error) { failure(error); }
@@ -483,8 +504,10 @@ export async function handleDocumentRequest(
       return;
     }
     if (req.method === "PUT") {
-      const body = JSON.parse(await readBody(req)) as { path?: unknown };
-      const created = createDocumentFile(typeof body.path === "string" ? body.path : undefined, access);
+      const body = JSON.parse(await readBody(req)) as { path?: unknown; template?: unknown; language?: unknown };
+      if (body.template !== undefined && typeof body.template !== "string") throw new Error("Invalid template id.");
+      const source = body.template === undefined ? undefined : templateDocumentSource(body.template, templateLanguage(body.language), templatesDirectory);
+      const created = createDocumentFile(typeof body.path === "string" ? body.path : undefined, access, source);
       sendJson(res, 201, created);
       return;
     }

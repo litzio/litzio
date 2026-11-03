@@ -1,3 +1,4 @@
+import { listTemplates, readTemplate, saveTemplate, templateDocumentSource, templateLanguage } from "../../../apps/editor/server/document-templates.ts";
 import { brand } from "../../../brand.ts";
 import { readBibliographySources } from "../../../apps/editor/server/bibliography.ts";
 import { versionText } from "./version.ts";
@@ -180,6 +181,11 @@ const CODE_NOTE = [
 ];
 const ADMONITION_KIND_NOTE = `Kinds: ${ADMONITION_VARIANTS.join(", ")}.`;
 const COMMANDS: CommandSpec[] = [
+  { name: "templates", group: "Create and inspect", summary: "List, read or save document templates",
+    usage: `${brand.cliCommand} templates list [--json] [--language <ko|en>]`,
+    details: [`${brand.cliCommand} templates read <name|id> [--json] [--language <ko|en>]`,
+      `${brand.cliCommand} templates save <name> --from <file> [--description <text>]`,
+      "Save never overwrites. Names of app defaults in both languages are reserved."] },
   { name: "plugins", group: "Serve", summary: "List installed plugins or explicitly register the app default again",
     usage: `${brand.cliCommand} plugins list [--json]`, details: [`${brand.cliCommand} plugins reregister <id>`, "Uses the same Host installation and bundled manifests as the Editor. No automatic replacement."] },
   {
@@ -217,8 +223,8 @@ const COMMANDS: CommandSpec[] = [
   {
     name: "create",
     group: "Create and inspect",
-    summary: `Create an empty ${brand.name.en} native document`,
-    usage: `${brand.cliCommand} create <file>`,
+    summary: `Create a ${brand.name.en} native document, optionally from a template`,
+    usage: `${brand.cliCommand} create <file> [--template <name|id>] [--language <ko|en>]`,
     details: ["Create a new .md file in an existing directory. Existing files are never overwritten."],
   },
   {
@@ -888,6 +894,32 @@ function main(argv: string[]): number {
     process.stdout.write(commandHelp(command));
     return 0;
   }
+  if (command === "templates") {
+    const [operation, ...args] = rest;
+    const tokens = operation === "list" ? args : args.slice(1);
+    const name = args[0];
+    const allowed = operation === "save" ? ["--from", "--description"] : ["--json", "--language"];
+    const seen = new Set<string>();
+    for (let index = 0; index < tokens.length; index++) {
+      const token = tokens[index];
+      if (!allowed.includes(token) || seen.has(token)) throw new Error(commandHelp(command));
+      seen.add(token);
+      if (token !== "--json" && (tokens[++index] === undefined || tokens[index].startsWith("--"))) throw new Error(`missing ${token}`);
+    }
+    const language = templateLanguage(optionalFlag(tokens, "--language"));
+    let result: unknown;
+    if (operation === "list") result = listTemplates(language);
+    else if (operation === "read" && name) result = readTemplate(name, language);
+    else if (operation === "save" && name) result = saveTemplate({ name, from: flag(tokens, "--from"), description: optionalFlag(tokens, "--description") });
+    else throw new Error(commandHelp(command));
+    if (operation === "read" && !seen.has("--json")) process.stdout.write((result as { source: string }).source);
+    else if (operation === "list" && !seen.has("--json")) {
+      const inventory = result as ReturnType<typeof listTemplates>;
+      process.stdout.write(inventory.templates.map(item => `${item.id} (${item.kind}) ${item.name}\n  ${item.description}`).join("\n") + "\n");
+      for (const problem of inventory.problems) process.stderr.write(`${problem.file}: ${problem.error}\n`);
+    } else process.stdout.write(JSON.stringify(result) + "\n");
+    return 0;
+  }
   if (command === "plugins") {
     if (!(rest[0] === "list" && (rest.length === 1 || rest.length === 2 && rest[1] === "--json") ||
         rest[0] === "reregister" && rest.length === 2 && !rest[1].startsWith("-"))) throw new Error(commandHelp(command));
@@ -960,7 +992,9 @@ function main(argv: string[]): number {
   switch (command) {
     case "create": {
       if (path.extname(file).toLowerCase() !== ".md") throw new Error("document path must point to a .md file");
-      writeFileSync(file, serialize(createDocument()), { encoding: "utf8", flag: "wx" });
+      const template = optionalFlag(flags, "--template");
+      const language = templateLanguage(optionalFlag(flags, "--language"));
+      writeFileSync(file, template === undefined ? serialize(createDocument()) : templateDocumentSource(template, language), { encoding: "utf8", flag: "wx" });
       return 0;
     }
     case "check": {
@@ -1479,7 +1513,7 @@ const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   "insert-hard-break": ["--path", "--offset"],
   "split-paragraph": ["--path", "--offset"],
   "merge-paragraph": ["--path"],
-  create: [],
+  create: ["--template", "--language"],
   check: ["--format"],
   inspect: ["--format"],
   format: [],
