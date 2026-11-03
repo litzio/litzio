@@ -48,7 +48,11 @@ comparison and page review remain independent tabs with no editing session.
 
 Page review shows complete source page images in a responsive grid, preserving
 aspect ratio and using lazy image loading. Pages without an image retain their
-number and an unavailable notice. Page checkboxes allow multiple selection; a
+number and an unavailable notice. Page checkboxes allow multiple selection;
+clicking a page preview toggles the same checkbox selection (#1014). Excluded
+pages retain faded images and show an inset box with a diagonal stroke and the
+English-only label **Excluded**, including in Korean UI. Disabled/excluded pages
+cannot be selected through either the checkbox or preview. A
 required reason and explicit primary Exclude selected pages submit one
 `exclude-pages` approval via the existing `add-correction` operation. Human entries
 omit `aiEvidence`. Approved exclusions show their full page set and reason;
@@ -100,12 +104,37 @@ P11 keeps temporary checkboxes. Cards retain column width even for one page.
 | After, excluded in page review | [PNG](assets/docling-995/after-1440.png) | [PNG](assets/docling-995/after-640.png) |
 | After, multiple complete pages | [PNG](assets/docling-995/grid-1440-light-en.png) | [PNG](assets/docling-995/grid-640-dark-ko.png) |
 
-`docling-compare --screenshots` captures all eight width/language/theme combinations;
-representative pairs are retained here. The browser scenario verifies multi-page
+The original #995 capture run covered eight width/language/theme combinations;
+representative pairs are retained here. Current `docling-compare --screenshots`
+uses 1440px English Light and 640px Korean Dark representative pairs. The browser scenario verifies multi-page
 exclusion/whole-approval undo, missing-image pages and the inactive comparison's
 DOM immediately when mutation busy ends, without reload or a polling refresh.
 `docling-dashboard`, `layout-rules` and `quiet-document` pass separately. Real AI,
 real Docling service and packaged Desktop are not part of this local verification.
+
+### Page preview selection and exclusion mark (#1014)
+
+The existing `docling-compare` scenario first failed after a real image click:
+the page checkbox remained unchecked. The preview was outside its checkbox label,
+with no selection handler; no intervening overlay intercepted the click. A native
+label association now uses the existing P11 checkbox state, keyboard behavior and
+disabled rules. The task tab, Host Button/Input and exclusion operations remain
+unchanged. The box/diagonal is a page-specific status decoration using Host tokens,
+not a new shared control or Plugin API. No Core/CLI semantic operation is needed.
+
+Windows persistent Chrome, Vite 5314, DPR 1, 100% zoom, bundled fonts; synthetic
+fixture, same approved exclusion and 1440×900 / 640×1000 states. Before uses
+`289aaecbd6c05c5c3e036ae8fe97a7ad5c8fdf93` product code. The screenshot-only
+loop uses the two representative pairs rather than the historical eight; no
+regression assertion or timeout is relaxed. Initial picker checks wait for the
+initial document's ready state before starting a new-document action.
+The before/after images were inspected for control alignment, spacing, clipping,
+page-image proportions, diagonal visibility and Korean wrapping in Dark mode.
+
+| State | 1440px English Light | 640px Korean Dark |
+| --- | --- | --- |
+| Before | [PNG](assets/docling-page-review-1014/before-1440.png) | [PNG](assets/docling-page-review-1014/before-640.png) |
+| After | [PNG](assets/docling-page-review-1014/after-1440.png) | [PNG](assets/docling-page-review-1014/after-640.png) |
 
 ## Structure review panel (#900)
 
