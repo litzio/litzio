@@ -101,3 +101,12 @@
 ## 범위 밖
 
 기존 컴포넌트 리디자인·반복 조합 공통화·플러그인 검사 확대는 이 결정표의 제공 기능이 아니다. [Settings 탭](https://github.com/litzio/litzio/issues/1026), [Docling 요약](https://github.com/litzio/litzio/issues/1027), [AI 결과 경로](https://github.com/litzio/litzio/issues/1029)는 별도 작업이다.
+
+## 플러그인 관리 설정 (#1007)
+
+플러그인 목록은 SettingsSwitch로 이름·버전·상태와 켜기·끄기를 표시하고,
+SettingsRow와 기존 Button으로 해당 플러그인의 설정에 진입한다. 최상위 분류에
+플러그인별 항목을 추가하지 않으며, 상세 화면에서 목록으로 돌아간다.
+설치 revision·경로·기본 버전 일치 여부는 기존 Tooltip과 공통 정보 버튼으로
+hover·keyboard focus에서 확인한다. 기본 버전 재등록은 기존 확인 Dialog를 유지한다.
+새 공통 컴포넌트·공개 Plugin API 예외는 없다.

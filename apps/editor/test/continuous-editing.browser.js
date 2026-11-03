@@ -196,6 +196,7 @@ async (page, { showNotifications, openDocument }) => {
   const settingsHistory = [];
   // Native history is document-wide even when the key starts in a modal input.
   // After undoing its own edit, another Undo must not reach the outside textarea.
+  await settings.getByRole('navigation').getByRole('button', {name:'Plugins',exact:true}).click();
   await settings.getByRole('button', {name:'Docling',exact:true}).click();
   const serverAddress = settings.getByRole('textbox', {name:'Server address',exact:true});
   // Capture native history only after the saved Host address replaces the

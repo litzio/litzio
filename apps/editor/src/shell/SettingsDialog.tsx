@@ -102,6 +102,7 @@ function CliSettings({ desktop }: { desktop: DesktopBridge }) {
 
 type SettingsDialogProps = {
   sections?: SettingsSection[];
+  pluginErrors?: Record<string, string>;
   theme: ThemePreference;
   themeProblem: boolean;
   onThemeChange(theme: ThemePreference): void;
@@ -119,8 +120,9 @@ type SettingsDialogProps = {
 };
 
 /** Shared local recovery settings; About and update controls require the Desktop bridge. */
-export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
+export function SettingsDialog({ sections = [], pluginErrors = {}, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
   useTranslation();
+  const lastPluginSection = useRef<string | undefined>(undefined);
   const [screen, setScreen] = useState<HTMLDivElement | null>(null);
   useNativeHistoryBoundary(screen);
   useEffect(() => {
@@ -132,7 +134,7 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
       .then(async response => {
         if (!response.ok) return;
         const registrations: UiRegistration[] = await response.json();
-        if (!controller.signal.aborted && !registrations.some(plugin => plugin.id === category.split("/")[1])) onCategoryChange("appearance");
+        if (!controller.signal.aborted && !registrations.some(plugin => plugin.id === category.split("/")[1])) onCategoryChange("plugins");
       }).catch(() => {}); // An unavailable read cannot prove that the plugin was removed.
     return () => controller.abort();
   }, [category, sections, onCategoryChange]);
@@ -161,7 +163,6 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
     { id: "appearance", label: i18n.t("Appearance & language"), icon: Palette },
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
     { id: "plugins", label: i18n.t("Plugins"), icon: FileText },
-    ...sections.map(section => ({ id: section.id as SettingsCategory, label: i18n.t(section.label as any), icon: FileText })),
     ...(desktop ? [{ id: "about" as const, label: i18n.t("About & updates"), icon: Info }] : []),
   ] as const;
 
@@ -174,7 +175,7 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
             <h1>{i18n.t("Settings")}</h1>
             <nav aria-label={i18n.t("Settings categories")}>
               {categories.map(({ id, label, icon: Icon }) => <Button key={id} variant="ghost"
-                aria-current={category === id ? "page" : undefined} onClick={() => onCategoryChange(id)}>
+                aria-current={category === id || (id === "plugins" && category.startsWith("plugin/")) ? "page" : undefined} onClick={() => onCategoryChange(id)}>
                 <Icon aria-hidden="true" />{label}
               </Button>)}
             </nav>
@@ -182,9 +183,10 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
           <main className="settings-content" aria-labelledby={`settings-category-${category}`}>
             <div className="settings-content-inner">
               <header className="settings-category-header">
-                <h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2>
+                <h2 id={`settings-category-${category}`}>{contributed ? i18n.t(contributed.label as any) : category.startsWith("plugin/") ? i18n.t("Plugins") : categories.find(item => item.id === category)?.label}</h2>
               </header>
-              {category === "plugins" ? <PluginSettings /> : null}
+              {category.startsWith("plugin/") ? <Button size="sm" variant="ghost" onClick={() => onCategoryChange("plugins")}>{i18n.t("Back to plugins")}</Button> : null}
+              {category === "plugins" ? <PluginSettings sections={sections} errors={pluginErrors} focusSection={lastPluginSection.current} onOpen={id => { lastPluginSection.current = id; onCategoryChange(id as SettingsCategory); }} /> : null}
               {Section ? <ContributionBoundary key={category}><Section /></ContributionBoundary> : null}
               {category === "appearance" ? <>
                 <SettingsSelect label={i18n.t("Theme")} description={i18n.t("Choose a light or dark appearance.")} testId="theme"

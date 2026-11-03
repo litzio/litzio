@@ -2824,7 +2824,7 @@ Final focused folder-tree/shell tests (48), Editor typecheck and production buil
 
 ## Docling server and conversion (#797)
 
-Settings includes the module's Docling category for Host-owned server configuration,
+Settings reaches the module's Docling entry through Plugins for Host-owned server configuration,
 connection checking and the Korean administration guide. Explorer PDF context menus
 and Command Center's Convert with Docling share a PDF picker/explicit conversion
 confirmation flow. Progress and Stop waiting live in the Docling dashboard (#942).
@@ -2867,9 +2867,10 @@ Before: [1440px](assets/color-mode-912/before-1440-expanded.png),
 ## Installed plugin inventory (#947)
 
 App Settings adds the Host-owned Plugins category alongside Appearance & language,
-Saving & recovery and contributed plugin settings. It uses the same content
-geometry, section rows, actions and confirmation dialog. Long installation paths
-wrap within the content width; revision tooltips expose the full hash. Inventory
+Saving & recovery. Contributed plugin settings are reached inside this list
+(#1007), with Back to plugins returning there. It uses the same content geometry,
+section rows, actions and confirmation dialog. Full installation paths and
+revisions wrap inside the hover/keyboard-focus information tooltip. Inventory
 and the explicit app-default re-registration contract are defined in
 [Plugin UI contributions](plugin-ui-v1.md#host-owned-plugin-settings-947) and
 [Host worker plugins](plugin-runtime-v1.md#plugin-inventory-and-explicit-default-registration-947).
@@ -2988,3 +2989,15 @@ holds startup document GET to assert disabled Settings entry, then waits for the
 actual enabled control after Reload. `document-tabs` verifies actual focus on
 existing-group reentry; `ui-language` checks Save accent in document context.
 Steady-state layout and the reviewed captures are unchanged.
+
+## Plugin settings navigation (#1007)
+
+The top-level Settings navigation contains Appearance & language, Saving &
+recovery, Plugins and (Desktop) About & updates. Installed plugin settings are
+children reached from the Plugins list, with Back to plugins returning there.
+The Plugins navigation item stays current in a plugin detail view. Direct
+openSettings contributions still select their detail view. A missing contribution
+during feature reactivation does not discard the view; confirmed registration
+loss returns to Plugins. Disabled installations remain in the list with their
+switch off and cannot enter settings. Installation identifiers are accessible on
+hover and keyboard focus; see [plugin management](plugin-ui-v1.md#host-owned-plugin-settings-947).

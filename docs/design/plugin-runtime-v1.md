@@ -456,3 +456,13 @@ The Settings inventory displays readable manifest versions unchanged. A 64-chara
 
 - plugins-1440.png: [Before](assets/ko-text-975/before-plugins-1440.png) / [After](assets/ko-text-975/after-plugins-1440.png).
 - plugins-640-dark-ko.png: [Before](assets/ko-text-975/before-plugins-640-dark-ko.png) / [After](assets/ko-text-975/after-plugins-640-dark-ko.png).
+
+## Re-enable pinned registration (#1007)
+
+`PATCH /api/worker-plugins` with `{ id, enabled: true }` re-enables the existing
+registration. It validates installed worker/Host/UI file hashes, then updates only
+`enabled` in the existing store. Revision, manifest, directory and features remain
+unchanged. Missing IDs, already-enabled registrations, missing or changed installed
+files and invalid requests fail through the existing Host error handling without
+activating the registration. Disable continues to use DELETE, including its AI
+connection cleanup. This is not registration, replacement or a public Plugin API.

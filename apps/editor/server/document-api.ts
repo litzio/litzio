@@ -296,13 +296,16 @@ export async function handleDocumentRequest(
   }
   if (url === "/api/worker-plugins") {
     if (!plugins) { sendJson(res, 503, { error: "Plugins are unavailable on this Host." }); return; }
-    if (!["GET", "POST", "DELETE"].includes(req.method ?? "")) { res.statusCode = 405; res.end(); return; }
+    if (!["GET", "POST", "PATCH", "DELETE"].includes(req.method ?? "")) { res.statusCode = 405; res.end(); return; }
     try {
       const store = plugins.plugins();
       if (req.method === "GET") sendJson(res, 200, plugins.inventory());
       else {
         const body = JSON.parse(await readBody(req));
-        if (req.method === "POST") {
+        if (req.method === "PATCH") {
+          if (typeof body.id !== "string" || body.enabled !== true) throw new Error("Plugin id and enabled=true are required.");
+          sendJson(res, 200, store.enable(body.id));
+        } else if (req.method === "POST") {
           if (typeof body.bundled === "string") {
             sendJson(res, 200, plugins.reregister(body.bundled)); return;
           }
