@@ -1,4 +1,5 @@
 import { brand } from "../../../../brand.ts";
+import { createRequire } from "node:module";
 // The packaged Windows app (release/win-unpacked, or LITZIO_DESKTOP_EXE for an installed copy)
 // under Playwright: the configured in-process origin with real files, no Vite and no TCP port.
 //   pnpm --filter @litzio/desktop package && pnpm --filter @litzio/desktop test:packaged
@@ -113,6 +114,20 @@ test("packaged in-process Host forks its shipped Docling worker and opens a comp
   try {
     const launched = await launch(userData, [], { LITZIO_AI_AGENT_CWD: path.join(folder, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(folder, "ai-agent.json"), LITZIO_PLUGINS_DIR: path.join(folder, "plugins"), LITZIO_DOCLING_SETTINGS_FILE: path.join(folder, "settings.json") });
     app = launched.app;
+    const locations = await app.evaluate(({ app }) => ({ archive: app.getAppPath(), resources: process.resourcesPath }));
+    const require = createRequire(import.meta.url);
+    const builder = createRequire(require.resolve("electron-builder"));
+    const appBuilder = createRequire(builder.resolve("app-builder-lib"));
+    const asar = appBuilder("@electron/asar") as { extractFile(archive: string, file: string): Buffer };
+    const notices = {
+      main: asar.extractFile(locations.archive, "THIRD_PARTY_LICENSES.txt").toString("utf8"),
+      cli: readFileSync(path.join(locations.resources, "cli/THIRD_PARTY_LICENSES.txt"), "utf8"),
+      schema: readFileSync(path.join(locations.resources, "cli/docling-worker/Docling-schema-LICENSE.txt"), "utf8"),
+    };
+    assert.match(notices.main, /electron-updater@6\.8\.9/);
+    assert.match(notices.main, /Copyright \(c\) 2015 Loopline Systems/);
+    assert.match(notices.cli, /Tiptap GmbH/);
+    assert.match(notices.schema, /International Business Machines/);
     const output = await verifyPackagedWorker(async (endpoint, method = "GET", body) => {
       const response = await launched.page.evaluate(async ({ endpoint, method, body }) => {
         const response = await fetch(`/api/${endpoint}`, { method,

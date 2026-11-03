@@ -528,3 +528,7 @@ Desktop, installer/update/uninstall, Edge and fresh-profile probes were not run 
 Alternate-brand builds and simultaneous installation are no longer checked in CI (#1000, owner decision 2026-11-03). Official Litzio packaging, Stable/Beta install/update and uninstall checks remain unchanged.
 
 The release verifier emits its validated installer, blockmap, current configured channel manifest and unpacked application as the workflow artifact paths, after executable/signature/blockmap verification. The publish job downloads that same layout and revalidates it. Custom channel names are retained without collecting unverified YAML files.
+
+## Third-party notices (#1076)
+
+The main esbuild input graph supplies `build/app/THIRD_PARTY_LICENSES.txt`, packaged inside `resources/app.asar`. The existing shared CLI copy carries `resources/cli/THIRD_PARTY_LICENSES.txt`, `editor/licenses/` (including the notice index) and `docling-worker/Docling-schema-LICENSE.txt`. Electron/Chromium and existing font/component notices remain separate. Package verification checks these paths in CI; the HTTP package test reads the schema notice from the installed archive. The schema license and Editor public notices are transitive Desktop build inputs in the existing CI scope policy (alone they retain `update=false`; mixed with an update target they select full lifecycle coverage). No new installation or update behavior is introduced.

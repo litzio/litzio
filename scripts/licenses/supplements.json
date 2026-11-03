@@ -1,0 +1,226 @@
+{
+  "@citation-js/date@0.5.1": {
+    "file": "@citation-js-date@0.5.1.txt",
+    "source": "Existing apps/editor/public/licenses/Bibliography-THIRD-PARTY.txt; npm version manifest and upstream repository contain no separate notice."
+  },
+  "@citation-js/name@0.4.2": {
+    "file": "@citation-js-name@0.4.2.txt",
+    "source": "Existing apps/editor/public/licenses/Bibliography-THIRD-PARTY.txt; npm version manifest and upstream repository contain no separate notice."
+  },
+  "@esbuild/darwin-arm64@0.28.2": {
+    "file": "evanw-esbuild-609683d892977362a0f99026cb74b96263d728a9.txt",
+    "source": "https://github.com/evanw/esbuild/blob/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md"
+  },
+  "@esbuild/darwin-x64@0.28.2": {
+    "file": "evanw-esbuild-609683d892977362a0f99026cb74b96263d728a9.txt",
+    "source": "https://github.com/evanw/esbuild/blob/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md"
+  },
+  "@esbuild/linux-arm64@0.28.2": {
+    "file": "evanw-esbuild-609683d892977362a0f99026cb74b96263d728a9.txt",
+    "source": "https://github.com/evanw/esbuild/blob/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md"
+  },
+  "@esbuild/linux-x64@0.28.2": {
+    "file": "evanw-esbuild-609683d892977362a0f99026cb74b96263d728a9.txt",
+    "source": "https://github.com/evanw/esbuild/blob/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md"
+  },
+  "@esbuild/win32-arm64@0.28.2": {
+    "file": "evanw-esbuild-609683d892977362a0f99026cb74b96263d728a9.txt",
+    "source": "https://github.com/evanw/esbuild/blob/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md"
+  },
+  "@esbuild/win32-x64@0.28.2": {
+    "file": "evanw-esbuild-609683d892977362a0f99026cb74b96263d728a9.txt",
+    "source": "https://github.com/evanw/esbuild/blob/609683d892977362a0f99026cb74b96263d728a9/LICENSE.md"
+  },
+  "boolbase@1.0.0": {
+    "file": "fb55-boolbase-be0bcd8a4e917a0a5895e95b523fbbed05a64871.txt",
+    "source": "https://github.com/fb55/boolbase/blob/be0bcd8a4e917a0a5895e95b523fbbed05a64871/LICENSE"
+  },
+  "data-uri-to-buffer@4.0.1": {
+    "file": "TooTallNate-node-data-uri-to-buffer-85cd8c854aefbf1bb636789d80364cfac8ea1583.txt",
+    "source": "https://github.com/TooTallNate/node-data-uri-to-buffer/blob/85cd8c854aefbf1bb636789d80364cfac8ea1583/README.md"
+  },
+  "eastasianwidth@0.2.0": {
+    "file": "komagata-eastasianwidth-1d41951a59d63fb2d77cda021050fc070cae424a.txt",
+    "source": "https://github.com/komagata/eastasianwidth/blob/1d41951a59d63fb2d77cda021050fc070cae424a/MIT-LICENSE.txt"
+  },
+  "hast-util-is-body-ok-link@2.0.0": {
+    "file": "rehypejs-rehype-minify-857a97f8bb1f229b47e5f3d835741907c008cde2.txt",
+    "source": "https://github.com/rehypejs/rehype-minify/blob/857a97f8bb1f229b47e5f3d835741907c008cde2/license"
+  },
+  "html-whitespace-sensitive-tag-names@2.0.0": {
+    "file": "rehypejs-rehype-minify-857a97f8bb1f229b47e5f3d835741907c008cde2.txt",
+    "source": "https://github.com/rehypejs/rehype-minify/blob/857a97f8bb1f229b47e5f3d835741907c008cde2/license"
+  },
+  "lazy-val@1.0.5": {
+    "file": "lazy-val-1.0.5.txt",
+    "source": "https://github.com/develar/lazy-val/blob/b69ad4119f1b19bdab13c61ee2fcc88d46b89071/package.json"
+  },
+  "markdown-it-myst@1.0.18": {
+    "file": "jupyter-book-mystmd-807672d850695c2863143571f296327b15f203bd.txt",
+    "source": "https://github.com/jupyter-book/mystmd/blob/807672d850695c2863143571f296327b15f203bd/LICENSE"
+  },
+  "micromark-core-commonmark@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-factory-destination@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-factory-label@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-factory-space@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-factory-title@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-factory-whitespace@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-util-character@1.2.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-util-chunked@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-util-classify-character@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-util-combine-extensions@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-util-decode-numeric-character-reference@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-util-decode-string@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-util-encode@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-util-html-tag-name@1.2.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-util-normalize-identifier@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-util-resolve-all@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-util-sanitize-uri@1.2.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-util-subtokenize@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-util-symbol@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark-util-types@1.1.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "micromark@3.2.0": {
+    "file": "micromark-micromark-94b7679646bc0221899bba034f52f4abb3700f81.txt",
+    "source": "https://github.com/micromark/micromark/blob/94b7679646bc0221899bba034f52f4abb3700f81/license"
+  },
+  "myst-cli-utils@2.0.14": {
+    "file": "jupyter-book-mystmd-c744c0df6764dc2309f992015477b22fc578569c.txt",
+    "source": "https://github.com/jupyter-book/mystmd/blob/c744c0df6764dc2309f992015477b22fc578569c/LICENSE"
+  },
+  "myst-common@1.10.1": {
+    "file": "jupyter-book-mystmd-807672d850695c2863143571f296327b15f203bd.txt",
+    "source": "https://github.com/jupyter-book/mystmd/blob/807672d850695c2863143571f296327b15f203bd/LICENSE"
+  },
+  "myst-directives@1.7.4": {
+    "file": "jupyter-book-mystmd-807672d850695c2863143571f296327b15f203bd.txt",
+    "source": "https://github.com/jupyter-book/mystmd/blob/807672d850695c2863143571f296327b15f203bd/LICENSE"
+  },
+  "myst-frontmatter@1.10.1": {
+    "file": "jupyter-book-mystmd-807672d850695c2863143571f296327b15f203bd.txt",
+    "source": "https://github.com/jupyter-book/mystmd/blob/807672d850695c2863143571f296327b15f203bd/LICENSE"
+  },
+  "myst-parser@1.7.4": {
+    "file": "jupyter-book-mystmd-807672d850695c2863143571f296327b15f203bd.txt",
+    "source": "https://github.com/jupyter-book/mystmd/blob/807672d850695c2863143571f296327b15f203bd/LICENSE"
+  },
+  "myst-roles@1.7.4": {
+    "file": "jupyter-book-mystmd-807672d850695c2863143571f296327b15f203bd.txt",
+    "source": "https://github.com/jupyter-book/mystmd/blob/807672d850695c2863143571f296327b15f203bd/LICENSE"
+  },
+  "myst-spec-ext@1.10.1": {
+    "file": "jupyter-book-mystmd-807672d850695c2863143571f296327b15f203bd.txt",
+    "source": "https://github.com/jupyter-book/mystmd/blob/807672d850695c2863143571f296327b15f203bd/LICENSE"
+  },
+  "myst-spec@0.0.6": {
+    "file": "jupyter-book-mystmd-807672d850695c2863143571f296327b15f203bd.txt",
+    "source": "https://github.com/jupyter-book/mystmd/blob/807672d850695c2863143571f296327b15f203bd/LICENSE"
+  },
+  "myst-to-html@1.7.4": {
+    "file": "jupyter-book-mystmd-807672d850695c2863143571f296327b15f203bd.txt",
+    "source": "https://github.com/jupyter-book/mystmd/blob/807672d850695c2863143571f296327b15f203bd/LICENSE"
+  },
+  "myst-to-md@1.0.17": {
+    "file": "jupyter-book-mystmd-807672d850695c2863143571f296327b15f203bd.txt",
+    "source": "https://github.com/jupyter-book/mystmd/blob/807672d850695c2863143571f296327b15f203bd/LICENSE"
+  },
+  "myst-toc@0.1.4": {
+    "file": "jupyter-book-mystmd-8a823b0d9619b56a5930c586b6889a40d18ce89f.txt",
+    "source": "https://github.com/jupyter-book/mystmd/blob/8a823b0d9619b56a5930c586b6889a40d18ce89f/LICENSE"
+  },
+  "myst-transforms@1.3.51": {
+    "file": "jupyter-book-mystmd-807672d850695c2863143571f296327b15f203bd.txt",
+    "source": "https://github.com/jupyter-book/mystmd/blob/807672d850695c2863143571f296327b15f203bd/LICENSE"
+  },
+  "pretendard@1.3.9": {
+    "file": "Pretendard-OFL.txt",
+    "source": "https://github.com/orioncactus/pretendard/tree/v1.3.9"
+  },
+  "rehype-minify-whitespace@5.0.1": {
+    "file": "rehypejs-rehype-minify-857a97f8bb1f229b47e5f3d835741907c008cde2.txt",
+    "source": "https://github.com/rehypejs/rehype-minify/blob/857a97f8bb1f229b47e5f3d835741907c008cde2/license"
+  },
+  "rehype-parse@8.0.5": {
+    "file": "rehypejs-rehype-476d219cdd69f051bd5f64532e1cea237588c5f5.txt",
+    "source": "https://github.com/rehypejs/rehype/blob/476d219cdd69f051bd5f64532e1cea237588c5f5/license"
+  },
+  "rehype-stringify@9.0.4": {
+    "file": "rehypejs-rehype-e97afa10064b47d5861ae1c5d3e09dc68a043302.txt",
+    "source": "https://github.com/rehypejs/rehype/blob/e97afa10064b47d5861ae1c5d3e09dc68a043302/license"
+  },
+  "shadcn@4.21.0": {
+    "file": "shadcn-ui-ui-7c9eaba1c0a6404c990c144a654792e3313c650d.txt",
+    "source": "https://github.com/shadcn-ui/ui/blob/7c9eaba1c0a6404c990c144a654792e3313c650d/LICENSE.md"
+  },
+  "simple-validators@1.2.0": {
+    "file": "jupyter-book-mystmd-51d8800a81e5aabd8b2c835f0d8141cdeed8b845.txt",
+    "source": "https://github.com/jupyter-book/mystmd/blob/51d8800a81e5aabd8b2c835f0d8141cdeed8b845/LICENSE"
+  },
+  "spdx-exceptions@2.5.0": {
+    "file": "kemitchell-spdx-exceptions.json-3aa64bec339abc6a3eca00c3436aaa7e154b8799.txt",
+    "source": "https://github.com/kemitchell/spdx-exceptions.json/blob/3aa64bec339abc6a3eca00c3436aaa7e154b8799/README.md"
+  },
+  "spdx-license-ids@3.0.24": {
+    "file": "jslicense-spdx-license-ids-dc0dd99cfb7b38c9159f3baa2804a4d3fd2632e1.txt",
+    "source": "https://github.com/jslicense/spdx-license-ids/blob/dc0dd99cfb7b38c9159f3baa2804a4d3fd2632e1/README.md"
+  }
+}
