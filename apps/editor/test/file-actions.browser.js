@@ -165,6 +165,29 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   expect(rewritten.source).toContain('./updated.svg'); expect(rewritten.source).toContain('After rename.');
   await row('renamed.md').click(); await expect(page.getByTestId('current-file')).toHaveText('renamed.md');
   await context('unused.svg','Rename…');
+  // #999: deliver the real listing and recovery read together. The new row can mount in
+  // the same commit that closes Rename, before passive effects remove the operation's inert.
+  // Keep the actual pointer action and focus assertion; only control the two I/O completions.
+  await page.evaluate(async () => {
+    const { recoveryStorage } = await import('/src/recovery-storage.ts');
+    const fetch = window.fetch, list = recoveryStorage.list;
+    let requested = false, releaseFolder, releaseRecords;
+    const release = () => { if (releaseFolder && releaseRecords) { releaseFolder(); releaseRecords(); } };
+    window.fetch = async (...args) => {
+      const folder = !requested && String(args[0]).includes('api/folder?');
+      if (folder) requested = true;
+      const response = await fetch(...args);
+      if (!folder) return response;
+      const data = await response.clone().json();
+      response.json = async () => data;
+      return new Promise(resolve => { releaseFolder = () => { window.fetch = fetch; resolve(response); }; release(); });
+    };
+    recoveryStorage.list = async (...args) => {
+      const records = await list(...args);
+      if (!requested) return records;
+      return new Promise(resolve => { releaseRecords = () => { recoveryStorage.list = list; resolve(records); }; release(); });
+    };
+  });
   await dialog.getByRole('textbox',{name:'File name',exact:true}).fill('free');
   await dialog.getByRole('button',{name:'Rename',exact:true}).click(); await dialog.waitFor({state:'hidden'});
   await expect(row('free.svg')).toBeFocused();

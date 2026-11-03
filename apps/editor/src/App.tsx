@@ -213,7 +213,8 @@ function EditorApp() {
   const currentPlugins = useRef(ui.plugins); currentPlugins.current = ui.plugins;
   const assistantAvailable = ui.plugins.some(plugin => plugin.id === "ai-agent" && plugin.contributions);
   useEffect(() => { if (!assistantAvailable) setAssistantOpen(false); }, [assistantAvailable]);
-  useEffect(() => {
+  // Remove the operation guard before newly mounted Explorer rows restore focus in layout.
+  useLayoutEffect(() => {
     if (!(assistantOpen && assistantOverlay) && !fileOperationPending) return;
     const elements = globalThis.document.querySelectorAll<HTMLElement>(".sidebar, .app-main, .app-titlebar, .document-panel, .notification-center");
     elements?.forEach(element => { element.inert = true; });

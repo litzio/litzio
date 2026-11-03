@@ -547,6 +547,9 @@ Rename updates open tab paths, session locators and matching recovery record/sna
 without rereading the file or replacing its Tiptap editor. Unsaved content, property drafts, selection
 and Undo/Redo remain. Existing Figure NodeViews, future image uploads and asset callbacks read
 the new locator. Both operations update remembered tab navigation and loaded parent listings.
+After Rename, focus returns to the renamed row, including when it first appears as the dialog
+closes. The file-operation inert guard is removed in the same DOM commit, before the Explorer's
+layout focus restoration (#999).
 Recovery storage failure after a completed disk operation is reported explicitly for manual review.
 
 ### File action verification and captures
