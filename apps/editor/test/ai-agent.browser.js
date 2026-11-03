@@ -553,7 +553,8 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await panel.getByRole('button', { name: 'AI 설정 열기' }).click();
   await expect(page.getByRole('heading', { name: 'AI 에이전트', exact: true }).last()).toBeVisible();
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
-  await panel.getByRole('button', { name: '비서 닫기' }).click();
+  await expect(panel).toBeHidden();
+  expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(false);
   setupMode = 'missing'; await page.getByRole('button', { name: '비서', exact: true }).click();
   await expect(panel.getByText('이 컴퓨터에서 Codex CLI를 찾을 수 없습니다. 설치 후 설정에서 진단을 실행하세요.', { exact: true })).toBeVisible();
   await panel.getByRole('button', { name: '비서 닫기' }).click();

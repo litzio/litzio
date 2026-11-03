@@ -155,7 +155,7 @@ export function Sidebar({
 
 /** One Settings entry for both sidebar states, including its focus-return target. */
 function SettingsEntry({ iconOnly, onOpen, updateVersion }: { updateVersion?: string; iconOnly: boolean; onOpen(returnFocus: HTMLElement): void }) {
-  return <Button className={iconOnly ? undefined : "min-w-0 justify-start"}
+  return <Button data-open-settings="" className={iconOnly ? undefined : "min-w-0 justify-start"}
     size={iconOnly ? "icon-sm" : "sm"} variant="ghost"
     aria-label={updateVersion ? i18n.t("Settings, new version available") : i18n.t("Settings")}
     title={updateVersion ? i18n.t("New version {{version}} available", { version: updateVersion }) : i18n.t("Settings")}
