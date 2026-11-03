@@ -251,6 +251,7 @@ with `pnpm browser:test quiet-document --screenshots`, then restore the regressi
 Copy the sample and its `assets` into `tmp/editing-block-bar-1022/` first.
 
 Theme toggle #1042 manual evidence (Windows persistent Chrome, 900px height, DPR 1):
+After captures were refreshed after merging #1068 and #1070, retaining the Host settings rows and resizable navigation panels.
 
 | View | Before | After |
 | --- | --- | --- |

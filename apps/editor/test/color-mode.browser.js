@@ -111,4 +111,7 @@ async (page, { expect, screenshots = false }) => {
   expect(reducedCalls).toBe(0);
   await page.emulateMedia({reducedMotion:'no-preference'});
 
+  // Leave shared-context scenarios with their ordinary English/Light setup.
+  await configure('en','light');
+
 }
