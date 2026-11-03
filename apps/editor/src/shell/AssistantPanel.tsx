@@ -339,7 +339,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
             const undone = displayUndone.includes(receipt.requestId);
             return <div key={item.id} className="assistant-result" data-testid="assistant-display-result">
               <strong>{i18n.t(undone ? "Display settings restored" : "Display settings changed")}</strong>
-              {receipt.changed.map(key => <span key={key}>{i18n.t(displayLabels[key])}: {i18n.t(displayLabels[receipt.before[key]])} → {i18n.t(displayLabels[receipt.after[key]])}</span>)}
+              {receipt.changed.map(key => <span key={key}>{i18n.t(displayLabels[key])}: {displayValueLabel(receipt.before[key])} → {displayValueLabel(receipt.after[key])}</span>)}
               {receipt.error ? <small role="alert">{receipt.error}</small> : null}
               <div><Tooltip><TooltipTrigger render={<Button size="sm" variant="outline" disabled={pending || displayUndoBusy || undone || !ready || !settings?.enabled || !!setup} />}
                 onClick={() => {
@@ -451,7 +451,7 @@ function hasSkillToken(text: string, name: string) { return text.split(/\s+/).in
 
 const displayLabels = {
   theme: "Theme", uiLanguage: "Display language", documentWidth: "Document width", pageBackground: "Page style",
-  light: "Light", dark: "Dark", ko: "한국어", en: "English", standard: "Standard document width", wide: "Wide document", paper: "Paper", flat: "Flat",
+  light: "Light", dark: "Dark", standard: "Standard document width", wide: "Wide document", paper: "Paper", flat: "Flat",
 } as const;
 function displayReceipt(item: AiConversation["turns"][number]["items"][number]): DisplayReceipt | null {
   if (item.kind !== "tool" || item.text !== "change_display_settings") return null;
@@ -464,4 +464,10 @@ function displayReceipt(item: AiConversation["turns"][number]["items"][number]):
     } catch { /* Not a display receipt. */ }
   }
   return null;
+}
+
+function displayValueLabel(value: DisplaySettings[keyof DisplaySettings]) {
+  if (value === "ko") return "한국어";
+  if (value === "en") return "English";
+  return i18n.t(displayLabels[value]);
 }

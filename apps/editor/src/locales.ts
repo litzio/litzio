@@ -2,8 +2,6 @@ import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
   "Document width": "Document width",
-  "English": "English",
-  "한국어": "한국어",
 
   "Display settings restored": "Display settings restored",
   "Display settings changed": "Display settings changed",
@@ -1124,8 +1122,6 @@ export const en = {
 
 export const ko: Record<keyof typeof en, string> = {
   "Document width": "문서 너비",
-  "English": "영어",
-  "한국어": "한국어",
 
   "Display settings restored": "표시 설정 복원됨",
   "Display settings changed": "표시 설정 변경됨",

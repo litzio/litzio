@@ -512,7 +512,8 @@ Successful reads return the current four values. Changes return
 `{requestId,before,after,changed,error?}` in the existing dynamic-tool receipt;
 Codex retains it for history. A no-op has no change card. Changed values (including
 partially applied failures) use the existing assistant-result card and shared
-outline Button, with localized before → after labels and Undo. No new surface,
+outline Button, with localized before → after labels and Undo. UI language
+names use the same native 한국어 / English labels as Settings. No new surface,
 control variant or destructive styling is needed for a display preference.
 
 `display-undo` looks up the Host's receipt instead of trusting browser-provided
