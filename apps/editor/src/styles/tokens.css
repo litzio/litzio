@@ -64,6 +64,10 @@
   /* Read-only file preview: preferred dialog width and image height cap within the viewport. */
   --layout-file-preview-width: 48rem;
   --layout-file-preview-image-max-height: 60dvh;
+  /* Template gallery: minimum card width and preferred whole-document preview size. */
+  --layout-template-card-min-width: 16.25rem;
+  --layout-template-preview-width: 35rem;
+  --layout-template-preview-height: 47.5rem;
   /* Shared reading overlays for image links, endnotes and citations. */
   --layout-reading-preview-width: 20rem;
   --layout-reading-preview-height: 15rem;

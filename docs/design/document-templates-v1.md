@@ -1,8 +1,8 @@
 # Document templates v1
 
 - Status: Implemented
-- Last verified: 2026-11-04 — Phase 1 Core/CLI/Host/Desktop adapter tests; phase 3 generated guidance, CLI template path and Core YAML-comment preservation checks. No real model call, packaged Desktop or gallery UI verification.
-- Scope: #936 phases 1 and 3, Core semantics, thin CLI/Host interfaces and assistant guidance. Gallery integration is a separate phase.
+- Last verified: 2026-11-04 — Phase 1 Core/CLI/Host/Desktop adapter tests; phase 2 gallery, retained reading preview, naming feedback and 1440/640px review; phase 3 generated guidance, CLI path and YAML-comment preservation checks. No real model call; packaged Desktop verification is CI-only.
+- Scope: #936 phases 1–3: Core semantics, thin CLI/Host interfaces, Editor gallery and assistant guidance.
 - Authority: [#936 owner decisions](https://github.com/litzio/litzio/issues/936), including the 2026-11-04 approval of optional `template: { name, description }`; [native support](document-support-v1.md), [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md) and [ADR-0006](../adr/0006-native-document-boundary.md).
 
 ## Native document semantics
@@ -99,8 +99,50 @@ valid templates available while reporting individual broken user files.
 
 The protocol types live in `apps/editor/shared/template-protocol.ts`. Listing,
 preview and saving do not apply a template to an existing document. The gallery
-and assistant use the same ID and source contract. Gallery UI is delivered separately;
-assistant guidance uses the existing CLI without changing these routes.
+and assistant use the same ID and source contract. The gallery uses these routes;
+assistant guidance uses the existing CLI without changing them.
+
+## Editor gallery (phase 2)
+
+The sidebar and command center open one **Template gallery** task tab, using the
+existing shell/group/tab lifetime. It has no document Save or recovery session.
+New document… remains the empty-document entry. The gallery groups built-in and
+user cards; only the Built-in badge is persistent. Descriptions are available on
+hover and in the keyboard-accessible preview.
+
+The approved C interaction uses one common Popover and one retained read-only
+DocumentEditor. Hover and keyboard focus open it after a short 300ms delay;
+leaving closes after 150ms. Selecting another card swaps the Core-parsed editable
+read model into the same reading editor state. This isolated preview state has no
+writable draft/history; normal document sessions retain their existing lifecycle.
+Preview content is cached during a catalog visit and invalidated on refresh,
+language change or gallery reentry. Escape closes and returns focus to the card.
+The preview uses viewport collision placement and an internally scrollable region;
+640px prefers vertical placement. No essential action exists only inside it.
+
+**New document from template** on the card reuses the existing folder/name flow.
+When no folder is open it first opens the folder picker. Creation passes the
+stable template ID and current UI language to the existing document PUT, then
+opens/focuses the returned native document. Cancel never writes a destination.
+
+**Save as template…** in the command center accepts a current native document.
+Unsaved applied content or drafts require document Save first: the Host POST reads
+the acknowledged disk path, not UI source text. A Dialog collects name and optional
+description. Reserved/duplicate/invalid names show localized field feedback and
+retain the form. Success refreshes the gallery on its next visit. User originals
+and built-in resources are not overwritten.
+
+Catalog loading errors use Notice with Refresh; each broken user file is reported
+while valid cards remain usable. Empty groups have an explicit empty state.
+**Open template folder** uses the existing in-app folder-opening path (including
+Host Root checks and missing-directory errors), with the full path on hover.
+It does not extend the Desktop OS-folder capability or create a directory on read.
+
+Shared implementation: Button secondary/ghost, Input, Dialog/FieldError, Notice,
+common Popover, Lucide FileText/FolderOpen/RotateCcw and existing role tokens.
+The approved gallery preview is the sole surface exception: a larger reading
+popover rather than a metadata editing form. Core, Host API and Plugin API are
+unchanged; this is an Editor interaction, so no new CLI operation is needed.
 
 ## CLI
 
@@ -150,11 +192,60 @@ no new subprocess is added. Existing Editor Host tests own localized default
 previews, HTTP transport, filesystem collision/no-overwrite, Root refusal and
 broken-file reporting, with one temporary listener closed by test cleanup.
 Host path tests cover source/packaged location calculation without writing the
-shared user folder. The existing Desktop protocol test verifies forwarding its injected Host run directory and using the shared save/create routes, without packaging or a new listener. This adds no browser scenario or visual surface.
+shared user folder. The existing Desktop protocol test verifies forwarding its injected Host run
+directory and using the shared save/create routes, without packaging or a new listener.
+Phase 2 adds one `pnpm browser:test template-gallery` scenario: browser-specific
+preview lifetime/keyboard focus, native PageDown scrolling in the existing long
+preview, real template PUT/open and localized POST feedback. Focus is asserted
+directly and scrolling waits for actual scrollTop movement, without a fixed sleep.
+Host write/collision semantics are not repeated: POST failures/success and broken
+catalogs are injected at transport, while creation uses a real scratch file.
+This representative flow adds no subprocess or theme/content cross product.
+Measured final local scenario time is about 12 seconds; the gallery, representative
+layout and quiet-document run takes about 1.2 minutes including runner setup.
+The existing `layout-rules` and `quiet-document` cover the shared shell.
+`desktop-updates` keeps its real Tab route through the new gallery entry, Docling
+and Settings. The original fixed Explorer-to-Docling assertion failed in CI;
+the updated check asserts each stop rather than skipping focus/order validation. Manual
+captures are separate from automatic assertions; see [gallery visual review](#gallery-visual-review).
 
-Placeholder substitution, folder templates, Docling result formatting (#1103),
-gallery UI are outside this change. Phase 3 extends the existing generated-environment
+Placeholder substitution, folder templates and Docling result formatting (#1103)
+remain outside this contract. Phase 3 extends the existing generated-environment
 test with consent, live catalog and CLI command guidance assertions. Existing CLI
 template tests verify list/read/save/create and refusal paths; no duplicate write
 harness, subprocess or real model call is added. Core preservation assertions also
 check the YAML marker comment before and after template creation.
+
+## Gallery visual review
+
+Windows persistent Chrome, Korean, Plum, 100% zoom, 1000px height; 1440px Light
+and 640px Dark. The ordinary document view demonstrates the new sidebar entry;
+the gallery is a new surface with no previous product counterpart. Manual review
+checked row centers, control padding, Korean wrapping, internal scrolling,
+viewport clipping, dark contrast and the Settings/Docling task-tab conventions.
+The reading preview removes the unused empty title slot and table authoring-tool
+gutters locally (the regression first failed with a 76px heading-to-table gap); normal document rendering remains unchanged. At the Ratings
+heading, the table keeps the ordinary block gap instead of the extra 60px gutter.
+
+| State | 1440px Light | 640px Dark |
+| --- | --- | --- |
+| Before document shell | [Before](assets/template-gallery-936/before-document-1440.png) | [Before](assets/template-gallery-936/before-document-640.png) |
+| After document shell | [After](assets/template-gallery-936/after-document-1440.png) | [After](assets/template-gallery-936/after-document-640.png) |
+| Gallery | [Cards](assets/template-gallery-936/after-gallery-1440.png) | [Cards](assets/template-gallery-936/after-gallery-640.png) |
+| Preview open | [Preview](assets/template-gallery-936/after-preview-1440.png) | [Preview](assets/template-gallery-936/after-preview-640.png) |
+| Preview scrolled to table/equation | [Scrolled](assets/template-gallery-936/after-preview-scrolled-1440.png) | [Scrolled](assets/template-gallery-936/after-preview-scrolled-640.png) |
+
+[Capture body](assets/template-gallery-936/capture.browser.js) runs manually as a
+temporary replacement of `quiet-document.browser.js` through `pnpm browser:test
+quiet-document --screenshots`, then restores the original. It saves the existing
+technical sample as a named checkout-local user template through the real POST UI.
+Seed its `diagram.svg` beside the template first: relative assets are not copied
+by the phase-1 contract. Delete only those two owned fixtures after capture.
+The shared user directory is never used. Captures and their body are manual
+review evidence, not automatic success checks. Large traces/build output remain
+ignored under `tmp`.
+
+The new gallery strings use a bundled i18next `templates` namespace. Adding all
+20 strings to the existing default namespace alone reproduced TypeScript 7.0.2
+`TS2859` on an otherwise unchanged baseline; separating the resource-key types
+preserves typed keys/interpolation without changing compiler checks or dependencies.

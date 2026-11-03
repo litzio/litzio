@@ -59,7 +59,7 @@ import { appliedDocument, freshBlockPath, toTiptapDocument, type TiptapJSON } fr
 import { MARKDOWN_INPUT_RULES } from "./markdown-input-rules.ts";
 import { currentOutlineItem, documentOutline, documentTargets, sameOutline, type DocumentOutline, type NavigationList, type OutlineItem } from "./outline.ts";
 import { documentEnd, runHistoryShortcut } from "./document-interaction.ts";
-import { NodeSelection, Plugin, Selection, TextSelection } from "@tiptap/pm/state";
+import { EditorState, NodeSelection, Plugin, Selection, TextSelection } from "@tiptap/pm/state";
 import type { SaveErrorLocation } from "./save-error.ts";
 
 type BlockMenu = { kind: "insert" | "block" | "list-format"; index: number; top: number; left?: number; context?: boolean };
@@ -112,6 +112,8 @@ function caretRoom(paper: RefObject<HTMLElement | null>, side: number) {
 type DocumentEditorProps = ReadingCallbacks & {
   /** Reuse rendering/navigation while keeping forms and history alive. */
   readOnly?: boolean;
+  /** Isolated read-only preview: replace the displayed model without recreating the editor. Never used by document sessions. */
+  preview?: boolean;
   showHeadingLevels?: boolean;
   settingsExpanded?: boolean;
   onSettingsExpandedChange?(expanded: boolean): void;
@@ -143,7 +145,7 @@ type DocumentEditorProps = ReadingCallbacks & {
 };
 
 export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorProps>(function DocumentEditor(
-  { readOnly = false, showHeadingLevels = !readOnly, onReadingLayout, onReadingSelection, settingsExpanded = false, onSettingsExpandedChange, settingsDisabled = false, document, bibliography, initialSnapshot, documentPath, onStructuralReject, onNotice, onDraftChange, onAssetPendingChange, onAssetError, onAssetChange, onDirtyChange, onAppliedEdit, onSaveLocationsChange, onHeadingNumberingChange, onReferenceTemplatesChange, validateFigure, chooseImage, renameImage, onOutlineChange },
+  { readOnly = false, preview = false, showHeadingLevels = !readOnly, onReadingLayout, onReadingSelection, settingsExpanded = false, onSettingsExpandedChange, settingsDisabled = false, document, bibliography, initialSnapshot, documentPath, onStructuralReject, onNotice, onDraftChange, onAssetPendingChange, onAssetError, onAssetChange, onDirtyChange, onAppliedEdit, onSaveLocationsChange, onHeadingNumberingChange, onReferenceTemplatesChange, validateFigure, chooseImage, renameImage, onOutlineChange },
   ref,
 ) {
   useTranslation();
@@ -403,6 +405,24 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
     };
   });
   const editor = useEditor(editorOptions);
+  // A gallery owns one disposable reading state, with no drafts, saving or history to retain.
+  // Replace state directly rather than authoring a transaction through the document write guard.
+  const previewModel = useRef(document);
+  useLayoutEffect(() => {
+    if (!editor || !preview || !readOnly || previewModel.current === document) return;
+    let current = true;
+    // React NodeViews may flush synchronously. Run after this commit, before paint,
+    // rather than asking them to mount inside React's layout lifecycle.
+    queueMicrotask(() => {
+      if (!current || editor.isDestroyed) return;
+      const doc = editor.schema.nodeFromJSON(toTiptapDocument(document));
+      editor.view.updateState(EditorState.create({ schema: editor.schema, doc, plugins: editor.state.plugins }));
+      saved.current = editorDocumentJSON(editor.state);
+      previewModel.current = document;
+      editor.emit("transaction", { editor, transaction: editor.state.tr, appendedTransactions: [] });
+    });
+    return () => { current = false; };
+  }, [editor, preview, readOnly, document]);
   useDocumentReading(editor, host, { onReadingLayout, onReadingSelection });
   useLayoutEffect(() => {
     if (!editor || editor.isEditable === !readOnly) return;
@@ -942,7 +962,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         onToggleHeadingNumbering={toggleHeadingNumbering} onReferenceStyleChange={setReferenceStyle}
         onConnectBibliography={target => bibliographyControls.current?.connect(target)} /> : null}
       <NumberingNotice editor={editor} onReveal={revealBlock} disabled={settingsDisabled} />
-      <DocumentTitle editor={editor} />
+      {!preview || editor.state.doc.attrs.title ? <DocumentTitle editor={editor} /> : null}
       <DocumentPathContext.Provider value={documentPath}><ImageRenameContext.Provider value={renameImage}>
         <BibliographyContent ref={bibliographyControls} editor={editor} bibliography={bibliography} documentPath={documentPath}>
           <EditorContent editor={editor} />
