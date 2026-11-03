@@ -292,6 +292,14 @@ Source, Reload/discard, Compare, Copy path, Command center and error/conflict
 MessageArea paths are retained. Explorer → search → document tabs → document actions →
 content follows DOM keyboard order. Tabs retain roving navigation, close and dirty dots.
 
+When tabs are partially or fully outside the scrolling list, a fixed compact
+button shows their count (#972). Its localized accessible name and tooltip explain
+that these tabs are hidden. The shared dropdown lists their names (including
+same-name folder disambiguation) and dirty dots; pointer or keyboard selection
+activates and reveals the chosen tab. Each split group owns its list. Resizing and
+activation reveal the active tab without scrolling document content. Existing
+close/move/open-right and #973 action visibility remain unchanged.
+
 A fixed 16px status slot next to Save shows a small filled dot for unsaved work,
 a check for saved, a progress glyph during operations, or a warning glyph on failure.
 The complete localized status stays in the polite live region and native tooltip.
@@ -2907,3 +2915,26 @@ Same-state manual review (1440px English Light / 640px Korean Dark):
 
 #973 visibility follows document tab identity, including newly created, restored and
 still-loading document tabs. Session readiness disables actions; it does not hide them.
+
+
+## Hidden tab navigation (#972)
+
+The fixed count button reuses the shared file/action DropdownMenu. Its 28px target
+leaves room for tab identity at 640px; overflowing tabs use 4px internal padding
+and gaps, and their lists yield the horizontal inset
+while retaining a 1px end gutter for rounded browser scroll extents. Active-tab
+reveal uses actual fractional bounds and scrolls only its own tablist. Same-name
+labels, dirty state, close, move and open-right operations remain unchanged.
+At 640px the existing minimum-group-width rule merges groups; overflow is also
+verified independently in two groups at 1280px, without changing that rule.
+
+| View | Before | After |
+| --- | --- | --- |
+| 1440px | [Before](assets/tab-overflow-972/before-1440.png) | [After](assets/tab-overflow-972/after-1440.png) |
+| 640px | [Before](assets/tab-overflow-972/before-640.png) | [After](assets/tab-overflow-972/after-640.png) |
+| Korean Dark 640px | [Before](assets/tab-overflow-972/before-640-dark-ko.png) | [Menu](assets/tab-overflow-972/after-640-dark-ko-menu.png) |
+
+Captures use the same startup document plus eight scratch technical documents,
+900px height, an expanded Explorer, and the final technical document active.
+They are manual visual evidence, separate from the document-tabs keyboard and
+editor-groups pointer regressions and the layout-rules/quiet-document assertions.

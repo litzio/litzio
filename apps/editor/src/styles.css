@@ -3414,3 +3414,11 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .code-block-controls .code-language-control { margin: 0; }
 .code-copy { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-family: var(--font-family-sans); font-size: var(--font-size-sm); }
 .code-copy [role="alert"] { color: var(--id-color-danger); overflow-wrap: anywhere; }
+
+.document-tabs-overflow { flex: 0 0 auto; gap: 0; margin-inline: 0; }
+.document-tabs-menu-name { overflow-wrap: anywhere; min-width: 0; }
+
+/* Yield the scroller inset to the overflow control at narrow widths. */
+.document-tab-row:has(.document-tabs-overflow) .document-tabs { padding-inline: 0 var(--border-width); }
+
+.document-tab-row:has(.document-tabs-overflow) .document-tab > [role="tab"] { gap: var(--space-1); padding-inline: var(--space-1); }

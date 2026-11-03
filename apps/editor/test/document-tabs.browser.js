@@ -372,6 +372,23 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     const fixedAfter = await page.getByTestId('save').boundingBox();
     check(JSON.stringify(fixedBefore) === JSON.stringify(fixedAfter), 'Scrolling tabs moved the active document actions');
     if(width===640)check(overflow, 'Narrow tablist did not own its horizontal overflow');
+    if (width === 640) {
+      const trigger = page.getByRole('button', {name:/^Hidden tabs:/});
+      await trigger.focus();
+      await page.keyboard.press('Enter');
+      const choice = page.getByRole('menuitem').first();
+      const target = await choice.getAttribute('title');
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('Home');
+      await page.keyboard.press('Enter');
+      await expect(page.locator('.document-tab[data-selected="true"]')).toHaveAttribute('title', target);
+      check(await page.locator('.document-tab[data-selected="true"]').evaluate(n => {
+        const r=n.getBoundingClientRect(), b=n.parentElement.getBoundingClientRect();
+        return r.left >= b.left - 1 && r.right <= b.right + 1;
+      }), 'Choosing a hidden tab did not reveal it');
+      await tabA.press('Enter');
+    }
+
     await tabA.focus();
     const current = page.locator('.document-tab[data-selected="true"]');
     await current.hover();

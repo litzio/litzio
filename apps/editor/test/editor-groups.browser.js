@@ -1,5 +1,5 @@
 // Two independent visible documents; moving changes navigation, never editor identity.
-async (page, { openPath, activeDocument, expect, screenshots = false }) => {
+async (page, { openPath, openDocument, waitForActivePath, activeDocument, expect, screenshots = false }) => {
   const check = (value, message) => { if (!value) throw new Error(message); };
   const origin = page.url().split('/').slice(0,3).join('/');
   const loaded = await (await page.request.get(`${origin}/api/document`)).json();
@@ -276,5 +276,25 @@ async (page, { openPath, activeDocument, expect, screenshots = false }) => {
   check(await groups().count() === 1 && await page.getByRole('tablist',{name:'Documents',exact:true}).getByRole('tab').count() === 2,
     'Reload changed tab memory or restored an empty group');
   check((await activeDocument(page).locator('.document-editor').innerText()).includes('Shortcut B Group B '), 'Reload did not reopen the explicitly saved file');
+  // Overflow belongs to each group independently of the other visible group.
+  await page.setViewportSize({width:1280,height:900});
+  const currentId = await activeDocument(page).getAttribute('data-document-tab');
+  await context(currentId, 'Open to the right');
+  for (let i=4;i<=6;i++) {
+    const path=file(`technical-${i}.md`);
+    await openDocument(page,path);
+    await waitForActivePath(page,path);
+    await expect(groups().last().getByTestId('status')).toHaveAttribute('data-operation','ready');
+  }
+  const owner = groups().last();
+  await owner.getByRole('button',{name:/^Hidden tabs:/}).click();
+  const choice=page.getByRole('menuitem').first();
+  const chosen=await choice.getAttribute('title');
+  await choice.click();
+  await expect(owner.locator('.document-tab[data-selected="true"]')).toHaveAttribute('title',chosen);
+  check(await owner.locator('.document-tab[data-selected="true"]').evaluate(n=>{
+    const r=n.getBoundingClientRect(), b=n.parentElement.getBoundingClientRect();
+    return r.left>=b.left-1 && r.right<=b.right+1;
+  }), 'Split overflow selection did not reveal its active tab');
   return {geometry, toolbarGeometry, retainedEditors:true, independentSaveSourceOutline:true, narrowMerge:true};
 }

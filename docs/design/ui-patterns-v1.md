@@ -207,6 +207,9 @@ padding을 쓴다. 선택하면 interaction-soft fill과 interaction border를 �
 - **#838 검증·시각 근거:** `selection-toolbar`가 상단 선택 가림, 스크롤 밖 숨김·복귀, 링크 Esc 뒤 실제 제목 클릭·URL 보존, 하단 읽기 미리보기·기존 참조/인용 폼·slash 메뉴의 위치를 검사한다. [1440px Before](assets/selection-toolbar-838/before-1440.png) / [After](assets/selection-toolbar-838/after-1440.png), [640px Before](assets/selection-toolbar-838/before-640.png) / [After](assets/selection-toolbar-838/after-640.png), [640px 한국어 Dark](assets/selection-toolbar-838/after-640-dark-ko.png)에서 정렬·패딩·선택 가림·경계 잘림을 자체 점검했다. [촬영 조건·해시](assets/selection-toolbar-838/capture-metadata.json)는 수동 시각 근거이며 소유자 승인을 대신하지 않는다.
 - **결정·불일치:** [소유자 결정 P10][decision]. 메뉴 역할 자체의 알려진 불일치 없음. 표 Delete는 #793에서 상단 More의 기존 공용 danger 메뉴 항목으로 통합했다. 행·열의 명시적 대상, disabled 제한, 삭제·Undo 의미와 키보드 Enter/화살표/Esc 동작은 유지한다(P09/D08).
 
+탭 줄의 숨은 탭 목록(#972)은 파일·탭 메뉴와 같은 공용 DropdownMenu를 사용한다.
+가려진 탭 수와 이름·미저장 표시를 제공하고 키보드 선택으로 해당 탭을 드러낸다.
+
 ## P11 선택값·보기·탐색
 
 - **목적·사용/비사용:** 값의 수와 의미에 맞는 선택 표현을 쓴다. 겉모양이 같아도 문서 값·보기 모드·탐색의 role과 저장 범위를 합치지 않는다.
