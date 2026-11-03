@@ -572,6 +572,7 @@ async (page, { showNotifications, openDocument }) => {
   const beforeDuplicate = semantic(await doc());
   await page.keyboard.press('Control+v');
   assert(semantic(await doc()) === beforeDuplicate, 'Duplicate label paste must preserve the existing document');
+  await showNotifications(page);
   assert((await page.locator('body').innerText()).includes('duplicate a Figure or Equation label'), 'Duplicate label needs an explicit restriction');
   await selectEquation();
   await page.keyboard.press('Control+x');
@@ -614,6 +615,7 @@ async (page, { showNotifications, openDocument }) => {
     el.dispatchEvent(new ClipboardEvent('paste', {clipboardData:data, bubbles:true, cancelable:true}));
   });
   assert(semantic(await doc()) === beforeBreak, 'A heading with a line break must not be pasted');
+  await showNotifications(page);
   assert((await page.locator('body').innerText()).includes('unsupported structure or formatting'), 'A refused heading line break needs a visible reason');
 
   // #436: use the authoring UI at the document end, without repairing focus or selection after Apply.
