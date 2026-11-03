@@ -298,10 +298,14 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
     document.querySelector('[data-testid="update-status"]')?.textContent === text, expected, {timeout:5000});
   const notice = page.getByTestId('update-notice');
 
+  // The Host gallery entry precedes plugin actions; retain the real keyboard route to Settings.
+  await page.keyboard.press('Tab');
+  const gallery = page.getByTestId('sidebar').getByRole('button', {name:'Template gallery', exact:true});
+  check(await gallery.evaluate(node => node === document.activeElement), 'Tab from the Explorer document did not reach Template gallery');
   // Settings → About, by keyboard: version, the Stable default, a channel change, and focus back.
   await page.keyboard.press('Tab');
   const comparison = page.getByTestId('sidebar').getByRole('button', {name:'Docling', exact:true});
-  check(await comparison.evaluate(node => node === document.activeElement), 'Tab from the Explorer document did not reach Docling');
+  check(await comparison.evaluate(node => node === document.activeElement), 'Tab from Template gallery did not reach Docling');
   await page.keyboard.press('Tab');
   check(await settings.evaluate(node => node === document.activeElement), 'Tab from Docling did not reach Settings');
   await page.keyboard.press('Enter');

@@ -1,6 +1,11 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Template gallery": "Template gallery",
+  "Save as template…": "Save as template…",
+  "Template saved.": "Template saved.",
+  "Save the document before saving it as a template.": "Save the document before saving it as a template.",
+
   "max": "max",
   "Write access": "Write access",
   "Read-only": "Read-only",
@@ -1111,6 +1116,11 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Template gallery": "템플릿 갤러리",
+  "Save as template…": "템플릿으로 저장…",
+  "Template saved.": "템플릿을 저장했습니다.",
+  "Save the document before saving it as a template.": "템플릿으로 저장하려면 먼저 문서를 저장하세요.",
+
   "max": "최대",
   "Write access": "쓰기 범위",
   "Read-only": "읽기 전용",
