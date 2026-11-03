@@ -360,6 +360,8 @@ logging. No alternate userData location or speculative filesystem repair is intr
 
 ## Channels and versions
 
+The source candidate is `0.0.2-beta.6`, not yet public; see the [#1088 preparation record](../releases/v0.0.2-beta.6.md). Local package/install/update/uninstall and real GitHub update verification are not run for this preparation; required platform checks remain CI responsibilities.
+
 The current public distribution is `0.0.2-beta.5`; see the [#926 release record](../releases/v0.0.2-beta.5.md). The public beta.4 was shipped as IeumDoc. The IeumDoc → Litzio rename changes app ID, installation and data paths: IeumDoc beta.4 cannot automatically update to Litzio. A fresh installation is required; old data, settings and recovery records are not migrated, per the [branding guide](../guides/branding.md).
 
 The opt-in real GitHub harness now targets the future same-brand Litzio `0.0.2-beta.5 → 0.0.2-beta.6` pair. Both must be public before it can run. Actual GitHub installation/update remains **not run and unverified** because this PC’s installed state must remain unchanged. This is separate from CI local-feed evidence.
