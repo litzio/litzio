@@ -217,6 +217,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(page.getByTestId('recovery-prompt')).toHaveCount(0);
   await editor.locator('p').first().click(); await page.keyboard.press('End');
   await page.keyboard.type(' fresh assistant draft');
+  await page.keyboard.press('Shift+Enter');
   const submittedAnswers = [];
   const sent = [], conversations = new Map();
   let resumeFailure = false;
@@ -355,9 +356,11 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(panel.locator('[data-kind=tool]').filter({ hasText: 'create_document' })).toContainText('Completed');
   expect(sent[0].skills).toEqual([]);
   expect(sent[0].message).toBe('What changed in the current document?');
-  expect(sent[0].document.source).toContain('preserved AI-off draft');
-  expect(sent[0].document.source).toContain('still editable');
-  expect(sent[0].document.path).toBe(pluginFixture.document);
+  expect(sent[0].document).toEqual({ path: pluginFixture.document });
+  await expect(panel.getByRole('status').filter({ hasText: 'Using saved version' })).toBeVisible();
+  await expect(panel).not.toContainText('paragraph edit cannot round-trip');
+  await editor.locator('p').first().click(); await page.keyboard.press('ControlOrMeta+End'); await page.keyboard.press('Backspace');
+  await message.focus();
   expect(sent[0].responseLanguage).toBeUndefined();
   expect(sent[0].references).toEqual([pluginFixture.document]);
   await expect(panel.locator('.assistant-user .assistant-reference')).toHaveCount(1);

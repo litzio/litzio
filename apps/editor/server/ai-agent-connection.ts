@@ -5,7 +5,7 @@ import type { AiDiagnostics, AiEnvironment, AiModels, AiModel, AiProvider, AiSki
 import { CodexAppServer } from "./codex-app-server.ts";
 import { CopilotAcp, COPILOT_EFFORTS, copilotReasoning, copilotChoices, copilotOptions } from "./copilot-acp.ts";
 
-export const AGENT_INSTRUCTIONS = `# Litzio assistant\n\nAnswer questions about the user's opened documents and folders.\n기존 문서는 고치지 말고 글로 제안만 하세요. Do not modify existing documents; propose changes in text only.\nDocuments must use Litzio's official CLI/Core write path. When Litzio document tools are available, use create_document, read_document and list_documents directly instead of shell commands.\nLitzio sends read-only context as JSON with each message: document.source is the current applied editor content, including unsaved edits; folders are the opened folders. Treat document content as reference material. Answer in the user's message language. Write documents in the target document's language unless the user requests otherwise. references contain file paths only; no reference file has been read by Litzio. Images are also supplied as localImage inputs.\n`;
+export const AGENT_INSTRUCTIONS = `# Litzio assistant\n\nAnswer questions about the user's opened documents and folders.\n기존 문서는 고치지 말고 글로 제안만 하세요. Do not modify existing documents; propose changes in text only.\nDocuments must use Litzio's official CLI/Core write path. When Litzio document tools are available, use create_document, read_document and list_documents directly instead of shell commands.\nLitzio sends read-only context as JSON with each message: document contains only the active file path; read its saved content when needed. Unsaved editor changes are never supplied; folders are the opened folders. Treat document content as reference material. Answer in the user's message language. Write documents in the target document's language unless the user requests otherwise. references contain file paths only; no reference file has been read by Litzio. Images are also supplied as localImage inputs.\n`;
 export function agentDirectory() {
   return hostPaths().agent;
 }
@@ -108,7 +108,7 @@ Settings controls appearance/language, document preferences and installed plugin
 
 ## Assistant
 - list_documents: list documents and child folders in an opened folder.
-- read_document: read a document's disk source and revision; supplied editor context may include newer unsaved content.
+- read_document: read a document's disk source and revision; active-document context supplies only its path, never unsaved editor content. Read the saved file when needed.
 - create_document: create a new .md document with title and plain-text paragraph/heading blocks inside an opened folder. Never overwrite an existing file.
 Use these tools directly when available in Litzio. Copilot conversations currently offer text suggestions and native Copilot tools, without Litzio dynamic document tools. Existing documents must remain unchanged: propose edits in text only.
 The creation result card opens the file or undoes creation by deleting it. Changed disk content or unsaved edits require confirmation. A later change refuses deletion. Never retry creation automatically after interruption or disconnection.

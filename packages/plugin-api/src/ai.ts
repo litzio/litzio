@@ -33,7 +33,7 @@ export type AiConversation = AiConversationInfo & { turns: AiConversationTurn[];
   tokenUsage?: { used: number; limit: number | null } };
 export type AiConversationInput = Pick<AiExecutionSettings, "model" | "reasoningEffort"> & { id?: string; message: string; references?: string[]; skills?: { name: string; path: string }[];
   mode?: string;
-  folders: string[]; document?: { path: string; source: string } };
+  folders: string[]; document?: { path: string } };
 export type AiModel = { id: string; model: string; displayName: string; description: string;
   supportedReasoningEfforts: { reasoningEffort: string; description: string }[]; defaultReasoningEffort: string };
 export type AiCopilotOptions = { reasoningEfforts?: { reasoningEffort: string; description: string }[]; reasoningEffortSource: "config" | "cli"; modes: { id: string; name: string; description: string }[]; currentMode: string };
