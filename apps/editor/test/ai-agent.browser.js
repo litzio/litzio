@@ -305,13 +305,13 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByRole('menuitem', { name: 'Add to chat', exact: true }).click();
   const draftChips = panel.locator('.assistant-composer .assistant-reference');
   await expect(draftChips).toHaveCount(1);
-  await message.fill('@document');
+  await message.click(); await page.keyboard.type('@document', { delay: 60 });
   await expect(panel.getByRole('option').filter({ hasText: 'document.md' })).toHaveCount(1);
   await message.press('Enter');
   await expect(draftChips).toHaveCount(1);
   await draftChips.getByRole('button').click();
   await expect(draftChips).toHaveCount(0);
-  await message.fill('@document');
+  await message.click(); await page.keyboard.type('@document', { delay: 60 });
   await expect(panel.getByRole('option').filter({ hasText: 'document.md' })).toHaveCount(1);
   await message.press('Enter');
   await expect(message).toHaveValue('');
@@ -358,7 +358,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(panel.getByRole('button', { name: 'Conversation model and effort' })).toBeDisabled();
   selected.turns[0].items.find(item => item.kind === 'assistant').text = 'The unsaved paragraph adds a clear qualification. Check the stated conditions before using the conclusion.';
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
-  await message.fill('@document');
+  await message.click(); await page.keyboard.type('@document', { delay: 60 });
   await expect(panel.getByRole('option').filter({ hasText: 'document.md' })).toHaveCount(1);
   await message.press('Enter');
   await message.click(); await page.keyboard.type('/lit', { delay: 60 });
