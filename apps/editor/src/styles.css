@@ -934,7 +934,7 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar, .settings-topbar
 .settings-row { align-items: center; }
 .settings-row-control { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); min-width: 0; }
 .settings-description { margin-top: var(--space-1); font-size: var(--font-size-xs); color: var(--id-color-text-muted); }
-.settings-select { width: 100%; min-width: 0; height: var(--size-control); padding-inline-start: var(--space-3); color: var(--id-color-text); background-color: var(--id-color-surface); border: 1px solid var(--id-color-border-control); border-radius: var(--id-radius-md); }
+.settings-select { font-size: var(--font-size-sm); line-height: var(--line-height-label); width: 100%; min-width: 0; height: var(--size-control); padding-inline-start: var(--space-3); color: var(--id-color-text); background-color: var(--id-color-surface); border: 1px solid var(--id-color-border-control); border-radius: var(--id-radius-md); }
 .settings-select:focus-visible, .settings-switch:focus-visible { outline: 2px solid var(--id-color-interaction); outline-offset: 2px; }
 .settings-switch { appearance: none; width: var(--size-control); height: var(--line-height-label); padding: var(--space-1); margin: 0; flex-shrink: 0; border-radius: var(--id-radius-lg); background: var(--id-color-surface-pressed); border: 1px solid var(--id-color-border-control); cursor: pointer; }
 .settings-switch::before { content: ""; display: block; height: 100%; aspect-ratio: 1; border-radius: 50%; background: var(--id-color-text-muted); }

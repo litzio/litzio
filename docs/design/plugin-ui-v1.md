@@ -310,3 +310,11 @@ Korean word wrapping and scroll reachability against the built-in Settings patte
 Accent swatches retain custom content in SettingsRow; task-specific model cards,
 diagnostics and review state are caller-owned. No generic Toggle/Popover, theme
 state/persistence or AI service API is added.
+
+
+Review follow-up (#1070): SettingsSelect explicitly uses the existing 14px/20px
+UI control tokens. The AI plugin's native provider-button disabled/focus styles
+are scoped to that button and do not override Host Button/SettingsAction states.
+The 1440px English Light and 640px Korean Dark Appearance captures above were
+refreshed after confirming that selected-value text matches the row labels.
+No public props or permanent tests were added.
