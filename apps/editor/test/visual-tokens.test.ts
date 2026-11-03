@@ -169,13 +169,17 @@ const nativeButtons = new Map([
 ]);
 
 test("UI consumers use shared colors, control geometry and reasoned native-button exceptions", () => {
-  const root = new URL("../src/", import.meta.url);
+  const roots = [
+    { root: new URL("../src/", import.meta.url), prefix: "", plugin: false },
+    { root: new URL("../../../plugins/docling/src/", import.meta.url), prefix: "plugins/docling/src/", plugin: true },
+    { root: new URL("../../../plugins/ai-agent/src/", import.meta.url), prefix: "plugins/ai-agent/src/", plugin: true },
+  ];
   const failures: string[] = [];
   const seenNative = new Set<string>();
   const controlClasses = new Set<string>();
   const api = new API();
   try {
-    using snapshot = api.updateSnapshot({ openProjects: [fileURLToPath(new URL("../tsconfig.json", import.meta.url))] });
+    using snapshot = api.updateSnapshot({ openProjects: roots.map(({ root }) => fileURLToPath(new URL("../tsconfig.json", root))) });
     const project = snapshot.getProjects().find(p => p.configFileName.endsWith("/editor/tsconfig.json"));
     assert.ok(project, "Editor TypeScript project is required for JSX inspection");
     const color = /#[\da-f]{3,8}\b|%23[\da-f]{6}\b|\b(?:rgba?|hsla?|hwb|oklch|oklab|color)\([^)]*\)|\b(?:bg|text|border|ring)-(?:blue|red|gray|slate|zinc|neutral|stone|green|amber)-\d+/gi;
@@ -194,63 +198,67 @@ test("UI consumers use shared colors, control geometry and reasoned native-butto
       [".message-dismiss|min-height|1.5rem", "Existing 24px floor beneath the shared Button's actual 28px target."],
     ]);
     // Gather actual JSX control classes before scanning CSS, including names without "button".
-    const files = readdirSync(root, { recursive: true, encoding: "utf8" }).sort((a, b) =>
-      Number(a.endsWith(".css")) - Number(b.endsWith(".css")) || a.localeCompare(b));
-    for (const name of files) {
-      const file = name.replaceAll("\\", "/");
-      if (!/\.(css|tsx?)$/.test(file) || file === "styles/tokens.css") continue;
-      const source = readFileSync(new URL(file, root), "utf8");
-      if (file.endsWith(".css")) {
-        const css = source.replace(/\/\*[\s\S]*?\*\//g, "");
-        for (const [, selectorText, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-          const selector = selectorText.trim().replace(/\s+/g, " ");
-          for (const [, property, raw] of body.matchAll(/(?:^|;)\s*([\w-]+)\s*:\s*([^;]+)/g)) {
-            const value = raw.trim();
-            checkColors(file, value, property);
-            // Only control consumers; document/layout dimensions and multiline surfaces have other contracts.
-            const hasControlClass = [...selector.matchAll(/\.([\w-]+)/g)].some(([, name]) => controlClasses.has(name));
-            if ((!hasControlClass && !/button|input|select|\.form-|\.folder-picker-field/.test(selector)) ||
-              !/^(?:(?:min-|max-)?(?:height|width)|border-radius)$/.test(property)) continue;
-            if (/(?<![\w-])(?:[1-9]\d*(?:\.\d+)?|0?\.\d+)(?:px|rem)\b/.test(value) &&
-              !cssExceptions.has(`${selector}|${property}|${value}`)) failures.push(`${file}: literal control size ${selector} { ${property}: ${value} }`);
-          }
-        }
-        continue;
-      }
-      const ast = project.program.getSourceFile(fileURLToPath(new URL(file, root)));
-      assert.ok(ast, `TypeScript did not inspect ${file}`);
-      const visit = (node: ts.Node): void => {
-        if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) checkColors(file, node.text);
-        if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
-          const tag = node.tagName.getText(ast);
-          const attribute = (key: string) => {
-            const attr = node.attributes.properties.find(p => ts.isJsxAttribute(p) && p.name.getText(ast) === key);
-            if (!attr || !ts.isJsxAttribute(attr)) return "";
-            const init = attr.initializer;
-            if (init && ts.isStringLiteral(init)) return init.text;
-            if (init && ts.isJsxExpression(init) && init.expression && ts.isTemplateExpression(init.expression)) return init.expression.head.text;
-            return "";
-          };
-          if (tag === "button") {
-            const identity = attribute("className").split(/\s/)[0] || `role=${attribute("role")}`;
-            const key = `${file}:${identity}`;
-            if (!nativeButtons.has(key)) failures.push(`${file}: native action button outside allowlist (${identity})`);
-            seenNative.add(key);
-          }
-          if (["button", "Button", "input", "Input", "select"].includes(tag)) {
-            for (const name of attribute("className").split(/\s+/)) if (/^[\w-]+$/.test(name)) controlClasses.add(name);
-            // Check inline numeric geometry as well as arbitrary/fixed Tailwind control dimensions.
-            for (const attr of node.attributes.properties) {
-              if (!ts.isJsxAttribute(attr)) continue;
-              const key = attr.name.getText(ast), text = attr.initializer?.getText(ast) ?? "";
-              if (key === "style" && /\b(?:height|minHeight|maxHeight|width|minWidth|maxWidth|borderRadius)\s*:\s*(?:\d|["'`]\d+(?:px|rem))/.test(text)) failures.push(`${file}: literal inline control size ${text}`);
-              if (key === "className" && /\b(?:h|min-h|max-h|size|rounded)-(?:\d+(?:\.\d+)?\b|\[[^\]]*\d+(?:px|rem)\b)/.test(text)) failures.push(`${file}: literal Tailwind control size ${text}`);
+    for (const { root, prefix, plugin } of roots) {
+      const files = readdirSync(root, { recursive: true, encoding: "utf8" }).sort((a, b) =>
+        Number(a.endsWith(".css")) - Number(b.endsWith(".css")) || a.localeCompare(b));
+      for (const name of files) {
+        const relative = name.replaceAll("\\", "/");
+        const file = prefix + relative;
+        if (!(plugin ? /\.(css|tsx)$/ : /\.(css|tsx?)$/).test(file) || file === "styles/tokens.css") continue;
+        const source = readFileSync(new URL(relative, root), "utf8");
+        if (file.endsWith(".css")) {
+          const css = source.replace(/\/\*[\s\S]*?\*\//g, "");
+          for (const [, selectorText, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+            const selector = selectorText.trim().replace(/\s+/g, " ");
+            for (const [, property, raw] of body.matchAll(/(?:^|;)\s*([\w-]+)\s*:\s*([^;]+)/g)) {
+              const value = raw.trim();
+              checkColors(file, value, property);
+              if (plugin) continue; // Plugin layout/native controls are outside the color contract.
+              // Only control consumers; document/layout dimensions and multiline surfaces have other contracts.
+              const hasControlClass = [...selector.matchAll(/\.([\w-]+)/g)].some(([, name]) => controlClasses.has(name));
+              if ((!hasControlClass && !/button|input|select|\.form-|\.folder-picker-field/.test(selector)) ||
+                !/^(?:(?:min-|max-)?(?:height|width)|border-radius)$/.test(property)) continue;
+              if (/(?<![\w-])(?:[1-9]\d*(?:\.\d+)?|0?\.\d+)(?:px|rem)\b/.test(value) &&
+                !cssExceptions.has(`${selector}|${property}|${value}`)) failures.push(`${file}: literal control size ${selector} { ${property}: ${value} }`);
             }
           }
+          continue;
         }
-        node.forEachChild(visit);
-      };
-      visit(ast);
+        const ast = snapshot.getProjects().map(p => p.program.getSourceFile(fileURLToPath(new URL(relative, root)))).find(Boolean);
+        assert.ok(ast, `TypeScript did not inspect ${file}`);
+        const visit = (node: ts.Node): void => {
+          if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) checkColors(file, node.text);
+          if (!plugin && (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node))) {
+            const tag = node.tagName.getText(ast);
+            const attribute = (key: string) => {
+              const attr = node.attributes.properties.find(p => ts.isJsxAttribute(p) && p.name.getText(ast) === key);
+              if (!attr || !ts.isJsxAttribute(attr)) return "";
+              const init = attr.initializer;
+              if (init && ts.isStringLiteral(init)) return init.text;
+              if (init && ts.isJsxExpression(init) && init.expression && ts.isTemplateExpression(init.expression)) return init.expression.head.text;
+              return "";
+            };
+            if (tag === "button") {
+              const identity = attribute("className").split(/\s/)[0] || `role=${attribute("role")}`;
+              const key = `${file}:${identity}`;
+              if (!nativeButtons.has(key)) failures.push(`${file}: native action button outside allowlist (${identity})`);
+              seenNative.add(key);
+            }
+            if (["button", "Button", "input", "Input", "select"].includes(tag)) {
+              for (const name of attribute("className").split(/\s+/)) if (/^[\w-]+$/.test(name)) controlClasses.add(name);
+              // Check inline numeric geometry as well as arbitrary/fixed Tailwind control dimensions.
+              for (const attr of node.attributes.properties) {
+                if (!ts.isJsxAttribute(attr)) continue;
+                const key = attr.name.getText(ast), text = attr.initializer?.getText(ast) ?? "";
+                if (key === "style" && /\b(?:height|minHeight|maxHeight|width|minWidth|maxWidth|borderRadius)\s*:\s*(?:\d|["'`]\d+(?:px|rem))/.test(text)) failures.push(`${file}: literal inline control size ${text}`);
+                if (key === "className" && /\b(?:h|min-h|max-h|size|rounded)-(?:\d+(?:\.\d+)?\b|\[[^\]]*\d+(?:px|rem)\b)/.test(text)) failures.push(`${file}: literal Tailwind control size ${text}`);
+              }
+            }
+          }
+          node.forEachChild(visit);
+        };
+        visit(ast);
+      }
     }
     for (const key of nativeButtons.keys()) assert.ok(seenNative.has(key), `remove stale native-button exception ${key}`);
     assert.deepEqual(failures, []);

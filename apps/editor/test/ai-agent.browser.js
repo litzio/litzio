@@ -425,9 +425,9 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await expect(answer.locator('.katex').first()).toBeVisible();
   // Windows clipboard normalizes LF to CRLF; compare logical text after OS readback.
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-  await answer.getByRole('button', { name: 'Copy answer', exact: true }).click();
+  await panel.getByRole('button', { name: 'Copy answer', exact: true }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText().then(text => text.replace(/\r\n/g, '\n')))).toBe(markdownSource);
-  await expect(answer.getByRole('button', { name: 'Copy answer', exact: true })).toHaveText('Copied');
+  await expect(panel.locator('.assistant-turn-actions [role=status]')).toHaveText('Copied');
   await answer.getByRole('button', { name: 'Copy code', exact: true }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText().then(text => text.replace(/\r\n/g, '\n')))).toBe('const answer = "' + 'long-code-'.repeat(30) + '";\n');
   await page.evaluate(() => {
@@ -445,8 +445,29 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await panel.getByRole('button', { name: /What changed in the current document/ }).click();
   await expect(answer.getByRole('heading', { name: '답변 요약' })).toBeVisible();
   expect(await answer.locator('.assistant-markdown').innerText()).toBe(renderedText.replace(/Copied/g, 'Copy code'));
-  await answer.getByRole('button', { name: 'Copy answer', exact: true }).click();
+  await panel.getByRole('button', { name: 'Copy answer', exact: true }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText().then(text => text.replace(/\r\n/g, '\n')))).toBe(markdownSource);
+
+  // One turn can contain commentary followed by a separate final answer.
+  const finalSource = '**마지막 답변**\n\n조건을 확인하세요.';
+  selected.turns[0].items.push({ id: 'final-1051', kind: 'assistant', text: finalSource });
+  await expect(panel.getByText('마지막 답변', { exact: true })).toBeVisible();
+  const turn = panel.locator('.assistant-turn').first();
+  await expect(turn.getByRole('group', { name: 'Your message', exact: true }).first()).toContainText('What changed');
+  await expect(turn.getByRole('group', { name: 'Assistant response', exact: true })).toContainText('마지막 답변');
+  const copyAnswer = turn.getByRole('button', { name: 'Copy answer', exact: true });
+  expect(await copyAnswer.count(), 'One answer action per turn').toBe(1);
+  expect(await turn.evaluate(element => element.lastElementChild.contains(element.querySelector('button[aria-label="Copy answer"]'))), 'Answer action follows all turn content').toBe(true);
+  await copyAnswer.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(copyAnswer).toBeFocused();
+  await expect(page.locator('[data-slot=tooltip-content]')).toHaveText('Copy answer');
+  expect(await copyAnswer.evaluate(element => element.matches(':focus-visible'))).toBe(true);
+  await page.keyboard.press('Enter');
+  expect(await page.evaluate(() => navigator.clipboard.readText().then(text => text.replace(/\r\n/g, '\n')))).toBe(markdownSource + '\n\n' + finalSource);
+  selected.turns[0].items.pop();
+  await expect(panel.getByText('마지막 답변', { exact: true })).toHaveCount(0);
 
   if (screenshots) {
     for (const theme of ['light', 'dark']) {
@@ -461,7 +482,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
         await panel.locator('.assistant-transcript').evaluate(element => { element.scrollTop = 0; });
         expect(await panel.locator('.assistant-transcript').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
         await page.screenshot({ path: `tmp/982-evidence/${width}-${theme}.png` });
-        await answer.getByRole('button', { name: '답변 복사', exact: true }).scrollIntoViewIfNeeded();
+        await panel.getByRole('button', { name: '답변 복사', exact: true }).scrollIntoViewIfNeeded();
         await page.screenshot({ path: `tmp/982-evidence/${width}-${theme}-bottom.png` });
       }
       await panel.getByRole('button', { name: '비서 닫기' }).click();
