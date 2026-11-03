@@ -22,6 +22,5 @@ export function AssistantAnswer({ source }: { source: string }) {
       else openExternalLink(href);
     }} />
     {blocks.map((block, index) => createPortal(<CopyButton text={block.querySelector("code")?.textContent ?? ""} label={t("Copy code")} />, block, String(index)))}
-    <CopyButton text={source} label={t("Copy answer")} />
   </div>;
 }

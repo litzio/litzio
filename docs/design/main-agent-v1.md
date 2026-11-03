@@ -2,6 +2,7 @@
 
 - Status: Implemented
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
+- Message roles verified: 2026-11-03 (#1048/#1051; fixture captures and turn-copy browser checks below).
 - Last verified: 2026-11-02 (#931 implementation 2, PR 2: 409 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
 - Scope: main-agent connection, Settings, shell-owned assistant panel and Codex conversations. Includes new-document result cards, guarded creation undo and the product-owned usage-guide skill.
 - Authority: [ADR-0014](../adr/0014-main-agent-app-server.md), [#931](https://github.com/litzio/litzio/issues/931) owner decisions and approved v3.1 settings mockup.
@@ -525,10 +526,17 @@ Mermaid stays code and syntax highlighting is not enabled. HTTP(S) links use the
 existing external opening path, other destinations do not navigate, and footnote
 anchors are scoped to each mounted answer.
 
-Copy answer writes the original Markdown; Copy code writes only that code block's
-text. Shared compact buttons show Copied after clipboard success and a local error
-if clipboard access fails. Long code, tables and display math scroll within the
-answer. User messages, progress, polling and Codex history ownership are unchanged.
+Copy answer writes the original Markdown of all assistant messages in that turn,
+in their existing order, joined with two LF characters between messages (#1048,
+#1051). It excludes user messages, work details and result receipts. The single
+turn action follows answers, result cards and status/error text; while streaming
+it copies the accumulated answer so far. Turns without nonblank answer text offer
+no answer action. Copy code still writes only that code block's text. Shared
+CopyButton uses the existing ghost/icon-sm Button and Tooltip for the turn action;
+code blocks retain their text button. The action is always visible, has an
+accessible name, keyboard focus ring and hover/focus tooltip. Success changes the
+icon to Check and announces Copied; clipboard failures remain local alerts. Long
+code, tables and display math scroll within the answer. Progress, polling and Codex history ownership are unchanged.
 This is interface display only and adds no semantic operation or CLI command.
 
 Verification: `plain-markdown.test.ts` covers escaped HTML, refused image loads and
@@ -558,6 +566,35 @@ After captures were refreshed after merging #979; its Korean effort labels are
 preserved. Before captures retain the original pre-#979 base. The integrated
 `ai-agent --screenshots` scenario passed with both localization and Markdown checks.
 
+
+### Message roles and turn actions (#1048, #1051)
+
+User messages are right-aligned, content-sized bubbles capped at 85% of the
+transcript width, using surface-subtle, radius-md and existing spacing tokens.
+Assistant answers remain left-aligned Markdown prose without a bubble. Named
+`Your message` / `Assistant response` groups expose the distinction to assistive
+technology. Work disclosure, plan content, result cards (#1029) and code copy
+(#991) retain their own actions; the turn copy sits after the complete turn.
+This remains interface display only, with no Core operation or CLI addition.
+
+Manual review: Windows persistent Chrome, Korean, 100% zoom, same fixture and
+1000px height. Each view includes a user message, two assistant messages, collapsed
+work/plan details and a creation result. The manual capture body was removed from
+the automatic scenario. Checked bubble alignment/width, prose/action distinction,
+card controls, contrast and clipping at both widths.
+
+| View | Before | After |
+| --- | --- | --- |
+| 1440px Light Korean | [Before](assets/assistant-roles-1051/before-1440-light-ko.png) | [After](assets/assistant-roles-1051/after-1440-light-ko.png) |
+| 640px Dark Korean | [Before](assets/assistant-roles-1051/before-640-dark-ko.png) | [After](assets/assistant-roles-1051/after-640-dark-ko.png) |
+
+Test design: extend the existing `ai-agent` fixture scenario, without real Codex
+calls or a new scenario/matrix. Its original single-answer/code clipboard and
+history checks remain. The added split-answer case protects named role groups,
+one action after all turn content, keyboard Tab/Enter and focus tooltip, and the
+joined original Markdown clipboard value. CSS geometry is visually reviewed rather
+than asserting fixed pixel positions. Shared Editor tests/typecheck/build and
+layout-rules/quiet-document protect integration and existing visual constraints.
 
 ## Structured user questions (#983)
 

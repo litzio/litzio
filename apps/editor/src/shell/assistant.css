@@ -12,7 +12,7 @@
 .assistant-welcome h3, .assistant-history h3 { color: var(--id-color-text); font-size: var(--font-size-sm); }
 .assistant-welcome p, .assistant-history p { line-height: 1.6; }
 .assistant-turn { margin-bottom: var(--space-6); }
-.assistant-user { margin: 0 0 var(--space-3); padding: var(--space-3); background: var(--id-color-surface-subtle); border-radius: var(--id-radius-md); white-space: pre-wrap; overflow-wrap: anywhere; }
+.assistant-user { width: fit-content; max-width: 85%; margin: 0 0 var(--space-3) auto; padding: var(--space-2) var(--space-3); background: var(--id-color-surface-subtle); border-radius: var(--id-radius-md); white-space: pre-wrap; overflow-wrap: anywhere; }
 .assistant-answer { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
 .assistant-steps { margin-block: var(--space-3); color: var(--id-color-text-muted); font-size: var(--font-size-xs); }
 .assistant-steps summary { cursor: pointer; padding-block: var(--space-2); }
@@ -84,3 +84,6 @@ body:has(.assistant-panel--overlay:not([hidden])) .notification-center { visibil
 .assistant-question-option small { display: block; color: var(--id-color-text-muted); }
 .assistant-question-input { display: block; width: 100%; margin-top: var(--space-1); }
 .assistant-question > button { justify-self: start; }
+
+.assistant-turn-actions { margin-top: var(--space-2); color: var(--id-color-text-muted); }
+.assistant-answer + .assistant-answer { margin-top: var(--space-2); }
