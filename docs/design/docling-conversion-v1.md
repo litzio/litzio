@@ -617,7 +617,17 @@ first-pass decision, it uses the available desktop width instead of the Settings
 content width. A summary strip shows server/AI connection dots and running,
 failed, needs-attention and completed counts; count controls filter one result
 table. Attention means failed conversion, stale map or pending non-stale proposals.
-Attention and running phases appear before the table. Convert PDF is the header
+Under #1027, the four counts are compact inline filter chips rather than large
+number cards. Connection status wraps on its own compact line. The chips are
+the only status filters; there is no second priority strip. Needs attention
+explains its scope on chip hover or focus. Running phase, elapsed time, progress,
+Host ownership and Stop waiting appear in that request's table row.
+Failure/uncertain details, unavailable-result/disabled-action reasons, the priority category explanation and Stop waiting's
+server-cancellation limit appear on hover or keyboard focus, with an aria-describedby
+connection. Failed/uncertain state and the action remain visible. The repeated
+header description and already-running banner are omitted; disabled Convert retains
+its reason. The empty-state message occurs once beside Convert, retaining context
+when conversion is disabled. Convert PDF is the header
 primary action and is also present in an empty state. No charts, mobile layout,
 kanban or review decision panel are introduced.
 
@@ -625,8 +635,13 @@ The table shows original PDF filename, map page count, relative time, map state
 and pending proposal badge. Successful conversions appear once in this table,
 not again as terminal job cards. It initially shows the most recent ten matching
 receipts; Show more reveals another ten without truncating stored history.
-Each row with a result offers Open comparison; rows without results rely on their
-status chip rather than repeating a disabled comparison action/empty-results hint.
+Each row with a result offers Open comparison. Failed and uncertain rows without
+results expose Retry / Start again in the Actions column; these open the existing
+conversion confirmation dialog and never submit without explicit Convert. Other
+result-less rows retain their status without a redundant disabled comparison action.
+Stop waiting stays beside running progress in the first column so it remains
+visible at 640px without horizontal scrolling. Secondary actions retain the existing
+disclosure menu; Retry / Start again are moved out rather than repeated in it.
 Each row has a disclosure for [Page review](docling-compare-v1.md#manual-page-exclusion-945) (#995 PR 2), document/folder opening,
 unchanged review execution and Clear record. Clearing remains limited to uncertain
 receipts by the runtime; other states explain why it is disabled. Missing and
@@ -676,6 +691,48 @@ correspondence format/readers are the data boundary; the features meet through
 published conversion-folder files. Build and boundary tests check runtime, erased
 and dynamic imports. There is no new Core semantic operation. Headless conversion
 and [correction replay](#approved-correction-records-and-replay-876) use installed Host operations.
+
+### Dashboard density review (#1027)
+
+The existing Plugin TabKind, Host Button variants, state chips and role/spacing
+tokens are reused. Count filters remain native buttons with aria-pressed, an
+existing dashboard exception; the row disclosure menu is unchanged (#1033).
+UiHost does not expose Tooltip or Button ARIA props. A local descriptive group
+therefore reveals its linked text beside the target on hover/focus-within, rather than adding
+a public API or importing Editor internals. Failure and uncertain chips have a
+keyboard focus stop; action groups reveal the same description when their button
+receives focus. The explanation uses a bounded width and overlays rows without shifting click targets.
+This uses the existing text-muted, gap and focus tokens; it introduces no global
+interaction primitive.
+No Core operation or CLI surface is added because this changes only presentation.
+
+Same-state synthetic mixed running/failed/completed and empty captures:
+
+| State | 1440px English Light | 640px Korean Dark |
+| --- | --- | --- |
+| Mixed before | [Before](assets/docling-dashboard-1027/before-mixed-1440-light-en.png) | [Before](assets/docling-dashboard-1027/before-mixed-640-dark-ko.png) |
+| Mixed after | [After](assets/docling-dashboard-1027/after-mixed-1440-light-en.png) | [After](assets/docling-dashboard-1027/after-mixed-640-dark-ko.png) |
+| Empty before | [Before](assets/docling-dashboard-1027/before-empty-1440-light-en.png) | [Before](assets/docling-dashboard-1027/before-empty-640-dark-ko.png) |
+| Empty after | [After](assets/docling-dashboard-1027/after-empty-1440-light-en.png) | [After](assets/docling-dashboard-1027/after-empty-640-dark-ko.png) |
+
+The mixed-state result heading moves from approximately y=620 to y=281 at
+1440px (339px up), and y=932 to y=342 at 640px (590px up), measured from
+viewport captures. At 640px all three record states now appear in the first
+1100px-high viewport. No state has a duplicate priority strip. Alignment,
+spacing, Korean wrapping, themed text contrast and table-only horizontal scrolling
+were visually reviewed; comparison actions remain accessible by table scrolling.
+
+[Keyboard-focused failure detail](assets/docling-dashboard-1027/focus-failure-640-dark-ko.png)
+confirms the same Korean explanation stays within the viewport.
+[640px Actions column](assets/docling-dashboard-1027/actions-640-dark-ko.png)
+shows the directly visible Retry button using the existing table horizontal scroll.
+[Capture conditions](assets/docling-dashboard-1027/capture-metadata.json).
+The dashboard scenario retains filtering, Stop waiting, failure cause and comparison
+coverage. It checks unique filename exposure, a single attention filter with
+keyboard guidance, directly visible Retry / Start again actions, and keyboard-visible/accessible
+failure and Stop waiting descriptions. Manual empty-state capture tours run only with
+`pnpm browser:test docling-dashboard --screenshots`; normal CI retains the two
+width/theme overflow checks without taking success screenshots.
 
 Visual review for #932: [1440px Light](assets/docling-dashboard-932/after-1440-light-en.png),
 [640px Korean Light](assets/docling-dashboard-932/after-640-light-ko.png),
