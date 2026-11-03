@@ -13,6 +13,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   let skillsFail = false;
   const skill = { name: 'litzio-guide', path: 'C:/assistant/.agents/skills/litzio-guide/SKILL.md', description: 'Explain Litzio documents and assistant tools' };
   await page.route('**/api/ai-agent-skills', route => route.fulfill(skillsFail ? { status: 503, json: { error: 'Skills unavailable' } } : { json: { skills: [skill], errors: [] } }));
+  const copilotOptions = { reasoningEffortSource: 'cli', currentMode: 'agent', modes: [{ id: 'agent', name: 'Agent', description: '' }, { id: 'plan', name: 'Plan', description: '' }] };
+  const copilotModels = ['auto', 'copilot-model'].map(id => ({ id, model: id, displayName: id === 'auto' ? 'Auto' : 'Copilot fixture model', description: '', supportedReasoningEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].map(reasoningEffort => ({ reasoningEffort })), defaultReasoningEffort: 'medium' }));
   let refreshes = 0, connectionAvailable = true;
   const settingsWrites = [];
   let settingsGate;
@@ -25,7 +27,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
     }
     return route.fulfill({ json: settings });
   });
-  await page.route('**/api/ai-agent-models*', route => { refreshes++; const copilot = route.request().url().includes('provider=copilot') || !route.request().url().includes('provider=') && settings.provider === 'copilot'; return route.fulfill({ json: { provider: copilot ? 'copilot' : 'codex', models: copilot ? [{ id: 'copilot-model', model: 'copilot-model', displayName: 'Copilot fixture model', description: '', supportedReasoningEfforts: [], defaultReasoningEffort: '' }] : models, updatedAt: 1793590000000 } }); });
+  await page.route('**/api/ai-agent-models*', route => { refreshes++; const copilot = route.request().url().includes('provider=copilot') || !route.request().url().includes('provider=') && settings.provider === 'copilot'; return route.fulfill({ json: { provider: copilot ? 'copilot' : 'codex', ...(copilot ? { copilot: copilotOptions } : {}), models: copilot ? copilotModels : models, updatedAt: 1793590000000 } }); });
   await page.route('**/api/ai-agent-environment*', route => route.fulfill({ json: { cwd: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant', instructions: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant\\AGENTS.md', skills: [] } }));
   await page.route('**/api/ai-agent-diagnostics*', route => route.fulfill({ json: { provider: 'codex', checkedAt: 1793590000000, path: 'C:\\Codex\\codex.exe', version: 'codex-cli 0.166.0', connected: true,
     account: { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' }, rateLimits: [{ name: 'Codex', windows: [{ usedPercent: 28, windowDurationMins: 300, resetsAt: 1793600000 }] }], mcp: [{ name: 'docs', status: 'connected', authStatus: 'oAuth' }] } }));
@@ -745,24 +747,28 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByTestId('plugin-settings').getByRole('button', { name: 'AI agent', exact: true }).click();
   const writesBeforeProvider = settingsWrites.length;
   await page.getByLabel('Default provider', { exact: true }).selectOption('copilot');
-  await expect(page.getByLabel('Model', { exact: true })).toHaveValue('copilot-model');
-  await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Model', { exact: true })).toHaveValue('auto');
+  await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('medium');
   await expect(page.getByText('Litzio skills', { exact: true })).toHaveCount(0);
   expect(settingsWrites.length).toBe(writesBeforeProvider);
   // Keep the dock open: Save must retire the active old-provider conversation.
   await expect(panel).not.toHaveAttribute('role', 'dialog');
   await page.getByRole('button', { name: 'Save AI settings', exact: true }).click();
   await expect(page.getByText('AI settings saved.', { exact: true })).toBeVisible();
-  await expect(panel.getByRole('button', { name: 'Conversation model and effort' })).toHaveText('copilot-model');
+  await expect(panel.getByRole('button', { name: 'Conversation model and effort' })).toHaveText('auto · medium · Agent');
   await expect(panel.getByRole('textbox')).not.toBeFocused();
   await expect(panel.locator('.assistant-turn')).toHaveCount(0);
   await expect(panel.getByRole('button', { name: 'Stop response' })).toHaveCount(0);
   await expect(panel.getByRole('button', { name: 'New conversation' })).toBeEnabled();
+  await panel.getByRole('button', { name: 'Conversation model and effort' }).click();
+  await page.getByLabel('Session mode', { exact: true }).selectOption('plan');
+  await page.keyboard.press('Escape');
   await panel.getByRole('textbox').fill('After provider switch');
   await panel.getByRole('textbox').press('Enter');
   await expect(panel.getByText('After provider switch', { exact: true })).toBeVisible();
-  expect(sent.at(-1).model).toBe('copilot-model');
-  expect(sent.at(-1).reasoningEffort).toBe('');
+  expect(sent.at(-1).model).toBe('auto');
+  expect(sent.at(-1).mode).toBe('plan');
+  expect(sent.at(-1).reasoningEffort).toBe('medium');
   expect(sent.at(-1).id).toBeUndefined();
   expect(sent.at(-1).skills).toEqual([]);
   await expect(panel.getByRole('alert')).toHaveCount(0);
@@ -777,11 +783,23 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
     await expect(page.getByLabel('기본 프로바이더', { exact: true })).toHaveValue('copilot');
     await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-dark-ko.png' });
     await page.setViewportSize({ width: 640, height: 1000 });
-    await expect(page.getByLabel('모델', { exact: true })).toHaveValue('copilot-model');
+    await expect(page.getByLabel('모델', { exact: true })).toHaveValue('auto');
     expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/copilot-640-dark-ko.png' });
     await page.getByRole('button', { name: 'AI 설정 저장', exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: 'tmp/880-evidence/copilot-640-dark-ko-scrolled.png' });
+    await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+    await page.getByRole('button', { name: '비서', exact: true }).click();
+    await panel.getByRole('button', { name: '응답 중단' }).click();
+    await panel.getByRole('button', { name: '새 대화', exact: true }).click();
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await panel.getByRole('button', { name: '대화 모델과 추론 강도' }).click();
+      await page.screenshot({ path: `tmp/880-evidence/copilot-options-${width}-dark-ko.png` });
+      await page.keyboard.press('Escape');
+    }
+    await panel.getByRole('button', { name: '비서 닫기' }).click();
+    await page.getByRole('button', { name: '설정', exact: true }).click();
   }
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   // Restore preferences for the other stable scenarios.

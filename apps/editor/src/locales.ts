@@ -1,6 +1,16 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "max": "max",
+  "Write access": "Write access",
+  "Read-only": "Read-only",
+  "Opened folders": "Opened folders",
+  "Full access": "Full access",
+  "Session mode": "Session mode",
+  "Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.": "Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.",
+  "Model, reasoning effort and mode changes apply to the next message.": "Model, reasoning effort and mode changes apply to the next message.",
+  "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.": "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.",
+
   "Installation details": "Installation details",
   "Back to plugins": "Back to plugins",
   "Copilot diagnostics": "Copilot diagnostics",
@@ -1086,6 +1096,16 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "max": "최대",
+  "Write access": "쓰기 범위",
+  "Read-only": "읽기 전용",
+  "Opened folders": "열린 폴더",
+  "Full access": "전체 권한",
+  "Session mode": "세션 모드",
+  "Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.": "Copilot CLI 추론 강도는 대화마다 고정됩니다. 강도를 바꾸려면 새 대화를 시작하세요.",
+  "Model, reasoning effort and mode changes apply to the next message.": "모델·추론 강도·모드 변경은 다음 메시지에 적용됩니다.",
+  "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.": "전체 권한은 sandbox를 해제하고 도구·경로·네트워크 접근을 자동 승인합니다. 기존 문서 변경은 계속 텍스트로만 제안해야 합니다.",
+
   "Installation details": "설치 정보",
   "Back to plugins": "플러그인 목록으로",
   "Copilot diagnostics": "Copilot 진단",

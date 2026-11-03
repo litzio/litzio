@@ -50,9 +50,9 @@ export function activate(host: PluginHostContext): HostPlugin {
 function checkedSettings(value: unknown): AiAgentSettings {
   const v = value as AiAgentSettings;
   if (!v || typeof v.model !== "string" || !v.model.trim() || /[\r\n\x00]/u.test(v.model) ||
-    typeof v.reasoningEffort !== "string" || (v.provider === "copilot" ? v.reasoningEffort !== "" : !/^[a-z][a-z0-9-]{0,63}$/.test(v.reasoningEffort)) ||
+    typeof v.reasoningEffort !== "string" || !/^[a-z][a-z0-9-]{0,63}$/.test(v.reasoningEffort) ||
     v.provider !== undefined && !["codex", "copilot"].includes(v.provider) || v.enabled !== undefined && typeof v.enabled !== "boolean" ||
-    v.writeAccess !== undefined && !["opened-folders", "read-only"].includes(v.writeAccess) ||
+    v.writeAccess !== undefined && !["opened-folders", "read-only", "full-access"].includes(v.writeAccess) ||
     v.responseLanguage !== undefined && !["ko", "en", "ja"].includes(v.responseLanguage)) throw new Error("Invalid AI execution settings.");
   if (v.provider === "copilot" && (!v.codexTaskSettings || typeof v.codexTaskSettings.model !== "string" || !v.codexTaskSettings.model.trim() || /[\r\n\x00]/u.test(v.codexTaskSettings.model) ||
     !/^[a-z][a-z0-9-]{0,63}$/.test(v.codexTaskSettings.reasoningEffort))) throw new Error("Invalid Codex task defaults.");

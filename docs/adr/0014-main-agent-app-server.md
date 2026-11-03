@@ -3,6 +3,7 @@
 - Status: Accepted
 - Decision date: 2026-11-02
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
+- Copilot options (#1091): 2026-11-03; one real initialize/catalog session (no prompt), fake protocol tests; actual model/permission behavior remains owner verification.
 - Copilot verification: 2026-11-03 (#1053; fake ACP/permission checks only, no real Copilot session or model call).
 - Last verified: 2026-11-03 (#952 / #1047 PR A/B, user-message language versus task-only fallback; fake Host/worker/browser checks, no real model turn).
 - Previous verification: 2026-11-02 (connection/settings and conversation implementation, fake stdio/Host and browser tests, one real Q&A turn with steering and read-only history resumption).
@@ -51,7 +52,7 @@ preserve skill name/path for history chips. RPC and loader errors are visible.
 This adds no Litzio command palette or global skill/configuration writes.
 Opened folders are additional access roots for conversation execution.
 The sole main-agent write-scope setting is `writeAccess`, default
-`opened-folders`, with `read-only` as the other value. Each new conversation turn applies that scope through Codex's sandbox policy.
+`opened-folders`, with `read-only` and owner-approved `full-access` as the other values (#1091). Full access uses Codex `dangerFullAccess` with approval policy `never`; steering retains the active turn scope. Each new conversation turn applies that scope through Codex's sandbox policy.
 Steering retains the active turn's scope. This never changes Docling's snapshot policy.
 
 The #1053 owner decision (2026-11-03) adds `provider: "copilot"` beside
@@ -61,6 +62,26 @@ branches are sufficient; no provider registry, plugin API or adapter framework
 is introduced. Codex model/effort defaults come from `model/list` and its
 supported efforts. Existing feature tasks retain those Codex defaults through
 the unchanged worker execution path when the assistant uses an ACP catalog model.
+
+The #1091 owner decision adds Copilot Auto, reasoning effort and advertised Agent/Plan
+selection. Like Paseo, a `thought_level` select config uses `session/set_config_option`.
+Without one, CLI `--reasoning-effort` is fixed for each conversation; changing it
+requires a new conversation and lazily restarts the process before that conversation.
+The CLI's seven accepted values remain available without model support metadata.
+Model/mode and ACP-config effort changes apply before the next message; active
+turns lock these controls. Auto is inserted first only when absent; duplicate
+provider model IDs are collapsed, retaining the first name/description.
+
+The additional #1091 owner decision enables full access for both providers through
+`writeAccess` alone. Copilot follows Paseo's Allow All config (`allow_all=on` after
+selecting Agent/Plan), approves all ACP tool/path/URL permission requests and removes
+`--deny-tool=shell`. `--disable-builtin-mcps` remains. Returning to restricted access
+restarts with shell denial and sends `allow_all=off`. Autopilot/Allow All/Auto Accept
+are not separate mode choices. No new CLI launch policy interrupts active turns;
+a conflicting launch change is rejected until they stop. Existing-document text-only
+instructions and feature-task snapshot policy remain unchanged. The setting's risk
+is described on hover, without a persistent warning. Actual full-access execution
+is reserved for owner verification; local checks use fake providers.
 
 ## Ownership and delivery boundary
 
@@ -121,11 +142,12 @@ selected. No Copilot model call was made during implementation.
 Copilot has no Codex sandbox-policy equivalent. Host answers ACP permissions
 with `allow_once` only for read/edit requests with absolute locations in the
 captured opened folders and operator Roots; edits also require `opened-folders`.
-Everything else is cancelled. CLI denies shell tools and disables built-in
-MCP servers. This is permission mediation, not an OS filesystem/network sandbox:
+Restricted access cancels everything else and denies shell tools. #1091 full access
+instead enables allow_all, approves all ACP requests and permits shell tools. Both
+access levels disable built-in MCP servers. This is permission mediation, not an OS filesystem/network sandbox:
 Copilot's inherited settings, preauthorized tools and native execution remain
 provider-controlled. The existing-document AGENTS.md rule remains an instruction.
-Reasoning effort, Codex skills, account/usage diagnostics, live steering,
+Codex skills, account/usage diagnostics, live steering,
 context usage and Litzio dynamic document tools are not emulated for Copilot.
 See the [implemented Copilot contract](../design/main-agent-v1.md#copilot-conversations-1053)
 for these differences and manual verification.

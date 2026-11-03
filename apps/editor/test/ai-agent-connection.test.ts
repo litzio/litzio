@@ -17,12 +17,16 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   const conversations = new AiAgentConversations(connection, new RootAccess([root]));
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const catalog = await connection.models("copilot");
-  assert.deepEqual(catalog.models.map(model => [model.model, model.supportedReasoningEfforts]), [["copilot-model", []]]);
+  assert.deepEqual(catalog.models.map(model => model.model), ["auto", "copilot-model"]);
+  assert.deepEqual(catalog.models[0]!.supportedReasoningEfforts.map(value => value.reasoningEffort), ["none", "minimal", "low", "medium", "high", "xhigh", "max"]);
+  assert.deepEqual(catalog.copilot?.modes.map(mode => mode.id), ["agent", "plan"]);
   assert.equal((await connection.diagnostics("copilot")).connected, true);
-  const settings = { provider: "copilot" as const, enabled: true, writeAccess: "read-only" as const, model: "copilot-model", reasoningEffort: "" };
-  const input = { message: "Question", folders: [root], model: settings.model, reasoningEffort: "" };
+  assert.equal(readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.method === "initialize").length, 1);
+  const settings = { provider: "copilot" as const, enabled: true, writeAccess: "read-only" as const, model: "auto", reasoningEffort: "high" };
+  const input = { message: "Question", folders: [root], model: settings.model, reasoningEffort: "high", mode: "plan" };
   await assert.rejects(conversations.send({ ...input, skills: [{ name: "codex-only", path: path.join(root, "SKILL.md") }] }, settings), /only with Codex/);
   const conversation = await conversations.send(input, settings);
+  assert.equal(conversation.turns.length, 1, "ACP selector updates must not create transcript turns");
   const turn = conversation.turns[0]!;
   await t.test("response and permission arrive over the child stdio", async () => {
     await new Promise<void>((resolve, reject) => {
@@ -31,6 +35,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
       connection.copilot.on("update", inspect); t.after(() => connection.copilot.off("update", inspect)); inspect();
     });
     assert.equal(turn.status, "inProgress");
+    await assert.rejects(conversations.send({ ...input, reasoningEffort: "low" }, settings), /Stop/);
     await assert.rejects(conversations.send({ ...input, id: conversation.id }, settings), /Stop/);
     const request = { sessionId: conversation.id, toolCall: { toolCallId: "write", kind: "edit" as const, locations: [{ path: path.join(root, "new.txt") }] }, options: [{ optionId: "once", name: "Allow once", kind: "allow_once" as const }] };
     assert.deepEqual(connection.copilot.permission!(request), { outcome: { outcome: "cancelled" } });
@@ -51,7 +56,38 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   assert.equal(conversations.list()[0]!.provider, "copilot");
   await assert.rejects(conversations.resume(conversation.id, { ...settings, provider: "codex" }), /provider/);
   const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-  assert.equal(rpc.filter(message => message.method === "initialize").length, 1);
+  assert.ok(rpc.some(message => message.args?.includes("high")), "CLI fallback receives the selected effort at startup");
+  assert.ok(rpc.some(message => message.method === "session/set_mode" && message.params.modeId === "plan"));
+  await assert.rejects(conversations.send({ ...input, id: conversation.id, reasoningEffort: "low" }, settings), /new conversation/);
+  await assert.rejects(conversations.send({ ...input, mode: "autopilot" }, settings), /mode/);
+  const full = await conversations.send(input, { ...settings, writeAccess: "full-access" });
+  const execution = { sessionId: full.id, toolCall: { toolCallId: "shell", kind: "execute" as const }, options: [{ optionId: "once", name: "Allow once", kind: "allow_once" as const }] };
+  assert.deepEqual(connection.copilot.permission!(execution), { outcome: { outcome: "selected", optionId: "once" } });
+  assert.deepEqual(connection.copilot.permission!({ ...execution, toolCall: { toolCallId: "outside", kind: "edit", locations: [{ path: path.join(root, "..", "outside.txt") }] } }), { outcome: { outcome: "selected", optionId: "once" } });
+  assert.deepEqual(connection.copilot.permission!({ ...execution, toolCall: { toolCallId: "url", kind: "fetch" } }), { outcome: { outcome: "selected", optionId: "once" } });
+  await conversations.interrupt(full.id);
+  const fullRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  const launch = fullRpc.filter(message => message.args).at(-1);
+  assert.ok(!launch.args.includes("--deny-tool=shell"));
+  assert.ok(launch.args.includes("--disable-builtin-mcps"));
+  assert.ok(fullRpc.some(message => message.method === "session/set_config_option" && message.params.configId === "allow_all" && message.params.value === "on"));
+  await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: full.id, modelId: input.model }));
+  const restricted = await conversations.send({ ...input, id: full.id }, settings);
+  assert.deepEqual(connection.copilot.permission!({ ...execution, sessionId: restricted.id }), { outcome: { outcome: "cancelled" } });
+  await conversations.interrupt(restricted.id);
+  const restrictedRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  assert.ok(restrictedRpc.filter(message => message.args).at(-1).args.includes("--deny-tool=shell"));
+  assert.equal(restrictedRpc.filter(message => message.method === "session/set_config_option" && message.params.configId === "allow_all").at(-1).params.value, "off");
+  // One config-capable fixture session exercises the alternative to CLI fallback.
+  const configConnection = new AiAgentConnection(path.join(root, "config-assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-config"] });
+  try {
+    const configConversations = new AiAgentConversations(configConnection, new RootAccess([root]));
+    const configConversation = await configConversations.send(input, settings);
+    assert.deepEqual(configConversation.copilot?.reasoningEfforts?.map(value => value.reasoningEffort), ["low", "high"]);
+    await configConversations.interrupt(configConversation.id);
+    const configRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+    assert.ok(configRpc.some(message => message.method === "session/set_config_option" && message.params.configId === "reasoning" && message.params.value === "high"));
+  } finally { await configConnection.close(); }
   assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("Do not modify existing documents"));
   await connection.close();
 });
@@ -136,8 +172,14 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
     await resumed.send({ ...input, id: conversation.id, message: "Check disconnect." }, settings);
     await assert.rejects(resumed.send({ ...input, folders: [path.dirname(root)] }, settings), /outside/);
     await assert.rejects(resumed.resume("unknown-thread", settings), /not found/);
-    const active = paged.turns.at(-1)!;
-    await resumedConnection.close(); assert.equal(active.status, "failed"); assert.match(active.error!, /exited/);
+    await resumed.interrupt(conversation.id);
+    await resumed.send({ ...input, id: conversation.id }, { ...settings, writeAccess: "full-access" });
+    const fullRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+    const fullStart = fullRpc.filter(item => item.method === "turn/start").at(-1).params;
+    assert.deepEqual(fullStart.sandboxPolicy, { type: "dangerFullAccess" });
+    assert.equal(fullStart.approvalPolicy, "never");
+    const lastActive = paged.turns.at(-1)!;
+    await resumedConnection.close(); assert.equal(lastActive.status, "failed"); assert.match(lastActive.error!, /exited/);
   } finally { await resumedConnection.close(); }
 });
 test("stdio splits UTF-8 safely", () => {

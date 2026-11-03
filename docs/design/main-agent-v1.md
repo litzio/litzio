@@ -1,6 +1,7 @@
 # Main agent connection, settings and conversations
 
 - Status: Implemented
+- Copilot options/full access (#1091): 2026-11-03; fake ACP/Codex/Host checks, existing ai-agent browser and 1440px/640px Korean Dark captures; one real no-prompt catalog session only.
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
 - Message roles verified: 2026-11-03 (#1048/#1051; fixture captures and turn-copy browser checks below).
 - Host settings integration: 2026-11-03 (#1070 merge; target unit/type checks and existing fake ai-agent browser case, 1440px/640px Korean Dark captures; no real Copilot call).
@@ -86,12 +87,13 @@ unregisters `ai-agent`. The Host awaits process exit before acknowledging that
 unregistration; accepted exec work retains its drain/cancellation path.
 Ordinary editing is unaffected.
 
-`writeAccess` is the single main-agent write-scope value (`opened-folders` or
-`read-only`). Each new turn supplies the current opened-folder paths as
-`workspaceWrite.writableRoots`, or uses `readOnly`. Host path checks run before
+`writeAccess` is the single main-agent write-scope value (`opened-folders`,
+`read-only` or `full-access`). Each new turn supplies the current opened-folder paths
+as `workspaceWrite.writableRoots`, uses `readOnly`, or disables the sandbox with
+`dangerFullAccess`. Host path checks run before
 passing folder/document context to Codex. The dedicated cwd remains Codex's
 workspace; OS temporary write exceptions and network access are disabled in
-this turn policy. Approval policy is `never`; unsupported client requests are
+the restricted turn policies. Approval policy is `never`; unsupported client requests are
 rejected, rather than opening an unimplemented approval dialog. User Codex
 configuration, MCP servers and login remain inherited. The existing-document
 rule is an agent instruction, not a new document-edit enforcement system.
@@ -759,12 +761,18 @@ Protocol evidence: [0.141.0 UserMessageItem::message](https://github.com/openai/
 - Authority: owner-approved #1053 addition to ADR-0014, 2026-11-03.
 - Verification: fake ACP child covers initialize, model catalog, streamed turn,
   cancellation, read-only/opened-folder permission responses and failed prompt.
-  No real Copilot initialize/session/model call was made; only CLI help was read.
+  #1091 additionally checks Auto, CLI/config effort, Agent/Plan, full access and
+  preserved restricted permission paths. One real Copilot 1.0.105 initialize/catalog
+  session returned duplicate Auto models, Agent/Plan/Autopilot and allow_all=off,
+  without a thought-level config. No prompt/model call was made. Actual model
+  execution and permissions remain owner checks.
 
 The existing Default provider select offers Codex and GitHub Copilot. Changing
 the draft fetches that provider's catalog without saving. Save validates the
 selected model against the provider's current response. Copilot's catalog is
-`session/new.models.availableModels`; no model IDs are invented. One no-prompt
+`session/new.models.availableModels`, deduplicated by ID retaining the first entry.
+If absent, `auto` is prepended as **Auto**, **Let Copilot pick the best model**, matching
+Copilot/Paseo's returned catalog. One no-prompt
 catalog session is reused per connection. Connected means transport/session
 readiness only, not confirmed login, model entitlement or available quota.
 Login stays in the user's Copilot CLI. Account/rate-limit/MCP diagnostics are
@@ -797,15 +805,18 @@ applied document source and validated reference paths. Copilot receives image
 references as paths, without Codex localImage inputs. Native Copilot tools may
 read references. Litzio dynamic document tools/result cards and Codex skill
 selection are not exposed. Existing-document editing remains text suggestions
-only. The settings/panel hide reasoning effort; the settings hide Codex skills
-and diagnostics. No context limit is inferred when ACP does not report one.
+only. The settings hide Codex skills and diagnostics. No context limit is inferred when ACP does not report one.
 
 ACP permission mediation captures each turn's `writeAccess` and opened folders.
 Only read/edit requests carrying absolute paths inside those folders and Host
 Roots can receive the returned `allow_once` option. Edits additionally require
 `opened-folders`; `read-only` denies them. Missing paths, execution, network and
-unknown requests are cancelled. CLI flags deny shell tools and disable
-built-in MCP servers. Unlike Codex, this does not install an OS sandbox or
+unknown requests are cancelled in restricted access. The owner-approved `full-access`
+value instead selects an allow_once (or allow_always) response for every active-turn
+request, including tool execution, paths outside opened folders and URLs. Like Paseo,
+Host sends `allow_all=on` when advertised; Agent/Plan remains the selected session
+mode. Restricted turns send `allow_all=off`. CLI flags deny shell tools in restricted
+access and permit them in full access; built-in MCP servers remain disabled. Unlike Codex, this does not install an OS sandbox or
 override every inherited Copilot permission/MCP configuration. Preauthorized
 provider actions may not ask Host for permission. Users must verify their CLI
 configuration; these settings are not represented as equivalent containment.
@@ -813,15 +824,65 @@ configuration; these settings are not represented as equivalent containment.
 Docling and other feature tasks still use the unchanged Codex exec adapter.
 When selecting Copilot, Host preserves the last saved Codex model/effort in
 `codexTaskSettings`; feature tasks use those values and the existing AI default
-language. Copilot settings store empty `reasoningEffort`, without a fabricated
-effort list. Returning to Codex explicitly saves its selected model/effort.
+language. Copilot settings store the selected `reasoningEffort`. Returning to Codex
+explicitly saves its selected model/effort. `checkedSettings` accepts full-access;
+no migration of earlier saved settings is included.
 
-UI uses #1070 Host SettingsSelect for provider/model/language, SettingsSwitch
-for enablement and SettingsAction for Save. Copilot hides the Host reasoning row
-and Codex-only skills/diagnostics. The existing model Dialog/provider summary
+UI uses #1070 Host SettingsSelect for provider/model/effort/language/write access,
+SettingsSwitch for enablement and SettingsAction for Save. Write access defaults to
+opened-folders and also offers read-only and Full access. A native hover description
+explains that Full access removes the sandbox and automatically approves tools,
+paths and network access; no permanent warning is shown. Codex full-access turns use
+`sandboxPolicy: {type:"dangerFullAccess"}` and `approvalPolicy:"never"`; steering keeps
+the captured active-turn scope. Document tools still use their existing opened-folder,
+Host Root and exclusive-new-file boundaries. These are not general shell tools.
+Copilot hides only Codex-specific skills/diagnostics. The existing model Dialog/provider summary
 remain; Docling and AI share Host row widths (P05/P12), with no additional UI API.
 Manual owner checks: Host login, available model selection, conversation and
 history, Stop, and read-only/opened-folder writes with the user's configuration.
+### Copilot choices and application timing (#1091)
+
+The existing compact composer Button/Popover and native labeled selects show model,
+reasoning effort and (Copilot only) advertised Agent/Plan. No new common interaction,
+Plugin UI contribution or mode default setting is added. Only exact Agent/Plan short
+or protocol IDs are accepted by Host; Autopilot, Allow All and Auto Accept are absent.
+Full access is controlled exclusively by writeAccess. UI controls are locked during
+an active turn. Model/mode changes apply at the next message, with `session/set_mode`
+for the selected mode. Each new conversation starts with Agent when advertised.
+
+A `thought_level` select (or reasoning/thought-level config ID) supplies values and
+current default, flattened from ACP option groups as in Paseo. Host applies it with
+`session/set_config_option` before the prompt. Without one, the catalog uses CLI
+`none|minimal|low|medium|high|xhigh|max`, default medium, without guessing model support.
+The CLI fallback locks effort after a conversation starts; the hover explains that a
+new conversation is required. New-conversation effort or full-access launch changes
+restart the owned process lazily, never while any Copilot turn is active. Prior
+sessions require advertised loadSession to continue after a restart. No model work
+is replayed. Settings defaults affect new conversations; active conversations retain
+their effort selection. ACP config updates are retained for subsequent validation.
+
+Manual review uses the existing SettingsSelect and composer Button/Popover with no
+new common implementation or UI exception. Korean Dark, 1440×1000 and 640×1000,
+same fixture state: Before uses master `080f7bc1` UI and a rebuilt plugin; After
+uses #1091 UI. Captures are manual review only, not pixel assertions.
+
+| Surface | 1440px Before / After | 640px Before / After |
+| --- | --- | --- |
+| Settings | [Before](assets/copilot-options-1091/before/copilot-1440-dark-ko.png) / [After](assets/copilot-options-1091/after/copilot-1440-dark-ko.png) | [Before](assets/copilot-options-1091/before/copilot-640-dark-ko.png) / [After](assets/copilot-options-1091/after/copilot-640-dark-ko.png) |
+| Composer choices | [Before](assets/copilot-options-1091/before/copilot-options-1440-dark-ko.png) / [After](assets/copilot-options-1091/after/copilot-options-1440-dark-ko.png) | [Before](assets/copilot-options-1091/before/copilot-options-640-dark-ko.png) / [After](assets/copilot-options-1091/after/copilot-options-640-dark-ko.png) |
+
+Alignment, spacing, legibility and clipping were reviewed in both widths. The
+640px settings content scrolls vertically; the composer popup remains in view.
+Reproduce After with `pnpm browser:test ai-agent --screenshots`. Before uses the
+same screenshot-only popup traversal against the original UI; no extra scenario
+is retained. The initial baseline attempt retained a newer built plugin; rebuilding
+the original source produced the reviewed Before captures.
+
+Owner checks include every effort value/model combination, Auto routing, Agent/Plan
+switches, next-message versus new-conversation timing, history after launch changes,
+and full-access shell/path/URL execution for both providers. Fake tests do not prove
+model entitlement, usage, actual sandbox enforcement or inherited CLI permissions.
+
 Implementation reference: [Paseo Copilot ACP](https://github.com/getpaseo/paseo/blob/main/packages/server/src/server/agent/providers/copilot-acp-agent.ts),
 [Paseo transport](https://github.com/getpaseo/paseo/blob/main/packages/server/src/server/agent/providers/acp-agent.ts),
 [providers](https://paseo.sh/docs/supported-providers),

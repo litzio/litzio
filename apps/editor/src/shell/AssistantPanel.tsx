@@ -40,6 +40,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
   const [history, setHistory] = useState<AiConversationInfo[] | null>(null);
   const [model, setModel] = useState("");
   const [effort, setEffort] = useState("");
+  const [mode, setMode] = useState("");
   const [references, setReferences] = useState<AiFileReference[]>([]);
   const [candidates, setCandidates] = useState<AiFileReference[]>([]);
   const [mention, setMention] = useState<{ start: number; end: number; query: string; skill: boolean } | null>(null);
@@ -58,7 +59,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
   const current = useRef(conversation); current.current = conversation;
   const initializedSettings = useRef(settingsRevision), providerVersion = useRef(0);
   const active = conversation?.turns.some(turn => turn.status === "inProgress") ?? false;
-  const defaults = (value: AiAgentSettings) => { setModel(value.model); setEffort(value.reasoningEffort); };
+  const defaults = (value: AiAgentSettings) => { setModel(value.model); setEffort(value.reasoningEffort); setMode(models?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); };
   useEffect(() => {
     const refreshingSettings = initializedSettings.current !== settingsRevision;
     initializedSettings.current = settingsRevision;
@@ -87,6 +88,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
       const [catalog, diagnostics] = await Promise.all([request<AiModels>(AI_AGENT.modelsRoute), request<AiDiagnostics>(AI_AGENT.diagnosticsRoute)]);
       if (!alive) return;
       setModels(catalog);
+      if (!current.current) setMode(catalog.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
       if (!diagnostics.connected) { setSetup(diagnostics.error ?? "Codex CLI is unavailable on the Host."); return; }
       if (value.provider === "codex" && !diagnostics.account) { setSetup("Sign in to Codex to start a conversation."); return; }
       const id = current.current?.id ?? lastConversation();
@@ -94,7 +96,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
         try {
           const resumed = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id });
           if (alive) {
-            if (!current.current) { setModel(resumed.model); setEffort(resumed.reasoningEffort); }
+            if (!current.current) { setModel(resumed.model); setEffort(resumed.reasoningEffort); setMode(resumed.copilot?.currentMode ?? ""); }
             setConversation(resumed); rememberConversation(resumed.id);
           }
         } catch {
@@ -158,7 +160,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
     const value = message.trim(); if (!value && !references.length) return;
     const document = await context(); if (!isCurrent()) return;
     const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "send", id: conversation?.id, message: value,
-      model, reasoningEffort: effort, references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: settings?.provider !== "codex" ? [] : references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document });
+      model, reasoningEffort: effort, ...(settings?.provider === "copilot" && mode ? { mode } : {}), references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: settings?.provider !== "codex" ? [] : references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document });
     if (!isCurrent()) return;
     setConversation(next); rememberConversation(next.id); setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
@@ -206,6 +208,10 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
     if (skill) setMessage(value => value.split(/(\s+)/).filter(part => part !== `$${skill.name}`).join(""));
     setReferences(previous => previous.filter(file => file.path !== path && !(skill && file.kind === "skill" && file.name === skill.name)));
   };
+  const copilot = conversation?.copilot ?? models?.copilot;
+  const effortHelp = copilot?.reasoningEffortSource === "cli"
+    ? "Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it."
+    : "Model, reasoning effort and mode changes apply to the next message.";
   const catalogModel = models?.models.find(value => value.model === model);
   const resultPaths = [...new Set(conversation?.turns.flatMap(turn => turn.items.flatMap(item => {
     const result = createdDocument(item); return result ? [result.path] : [];
@@ -262,7 +268,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
         {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async isCurrent => {
           const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id: entry.id });
           if (!isCurrent()) return;
-          setConversation(next); rememberConversation(next.id); setModel(next.model); setEffort(next.reasoningEffort); setHistory(null); input.current?.focus();
+          setConversation(next); rememberConversation(next.id); setModel(next.model); setEffort(next.reasoningEffort); setMode(next.copilot?.currentMode ?? ""); setHistory(null); input.current?.focus();
         })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
           {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
         : conversation?.turns.map(turn => <section key={turn.id} className="assistant-turn" data-status={turn.status}>
@@ -334,14 +340,18 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
           }
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
       <div className="assistant-controls">
-        <Button ref={choicesAnchor} type="button" variant="outline" size="sm" disabled={active || pending} aria-label={i18n.t("Conversation model and effort")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{model || (settings?.provider === "copilot" ? "Copilot" : "Codex")}{settings?.provider !== "copilot" ? ` · ${i18n.t(effort as MessageKey)}` : ""}</Button>
+        <Button ref={choicesAnchor} type="button" variant="outline" size="sm" disabled={active || pending} title={i18n.t(effortHelp)} aria-label={i18n.t("Conversation model and effort")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{model || (settings?.provider === "copilot" ? "Copilot" : "Codex")}{` · ${i18n.t(effort as MessageKey)}`}{settings?.provider === "copilot" && mode ? ` · ${copilot?.modes.find(value => value.id === mode)?.name ?? ""}` : ""}</Button>
         <Popover open={choicesOpen && open} onOpenChange={setChoicesOpen}><PopoverContent anchor={choicesAnchor} side="top" align="start" className="assistant-choices" finalFocus={choicesAnchor}>
         <label htmlFor="assistant-model">{i18n.t("Model")}</label>
-        <select id="assistant-model" className="form-select" aria-label={i18n.t("Model")} value={model} disabled={active || pending || !models} onChange={event => { const value = models!.models.find(model => model.model === event.target.value)!; setModel(value.model); setEffort(value.defaultReasoningEffort); }}>
+        <select id="assistant-model" className="form-select" aria-label={i18n.t("Model")} value={model} disabled={active || pending || !models} onChange={event => { const value = models!.models.find(model => model.model === event.target.value)!; setModel(value.model); if (!conversation || copilot?.reasoningEffortSource !== "cli") setEffort(value.defaultReasoningEffort); }}>
           {!catalogModel ? <option value={model}>{model}</option> : null}{models?.models.map(value => <option key={value.id} value={value.model}>{value.displayName}</option>)}
         </select>
-        {settings?.provider !== "copilot" ? <><label htmlFor="assistant-effort">{i18n.t("Reasoning effort")}</label>
-        <select id="assistant-effort" className="form-select" aria-label={i18n.t("Reasoning effort")} value={effort} disabled={active || pending || !catalogModel} onChange={event => setEffort(event.target.value)}>{catalogModel?.supportedReasoningEfforts.map(value => <option key={value.reasoningEffort} value={value.reasoningEffort}>{i18n.t(value.reasoningEffort as MessageKey)}</option>)}</select></> : null}
+        <label htmlFor="assistant-effort" title={i18n.t(effortHelp)}>{i18n.t("Reasoning effort")}</label>
+        <select id="assistant-effort" className="form-select" aria-label={i18n.t("Reasoning effort")} value={effort} title={i18n.t(effortHelp)} disabled={active || pending || !catalogModel || !!conversation && copilot?.reasoningEffortSource === "cli"} onChange={event => setEffort(event.target.value)}>{(copilot?.reasoningEfforts ?? catalogModel?.supportedReasoningEfforts)?.map(value => <option key={value.reasoningEffort} value={value.reasoningEffort}>{i18n.t(value.reasoningEffort as MessageKey)}</option>)}</select>
+        {settings?.provider === "copilot" && copilot?.modes.length ? <><label htmlFor="assistant-mode">{i18n.t("Session mode")}</label>
+        <select id="assistant-mode" className="form-select" aria-label={i18n.t("Session mode")} title={i18n.t("Model, reasoning effort and mode changes apply to the next message.")} value={mode} disabled={active || pending} onChange={event => setMode(event.target.value)}>
+          {copilot.modes.map(value => <option key={value.id} value={value.id}>{value.name}</option>)}
+        </select></> : null}
         <small>{i18n.t("These choices apply only to this conversation. Defaults are in AI settings.")}</small>
         </PopoverContent></Popover>
       </div>
