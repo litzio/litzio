@@ -1,6 +1,7 @@
 # Main agent connection, settings and conversations
 
 - Status: Implemented
+- Saved-file context (#1106): 2026-11-04 owner decision; fake Host/protocol, existing ai-agent browser and Korean 1440px/640px Light/Dark capture checks, no real model turn.
 - Copilot options/full access (#1091): 2026-11-03; fake ACP/Codex/Host checks, existing ai-agent browser and 1440px/640px Korean Dark captures; one real no-prompt catalog session only.
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
 - Message roles verified: 2026-11-03 (#1048/#1051; fixture captures and turn-copy browser checks below).
@@ -274,13 +275,38 @@ Reproduce with `pnpm browser:test ai-agent --screenshots` (history captures in
 AI-plugin Host routes, not an arbitrary JSON-RPC proxy or a new UI contribution
 point. The installed/enabled provider gates all new conversation calls.
 
-Each send captures the current opened folders and active document. Native
-unsaved applied content uses the existing Core-backed `appliedSource()` path;
-unapplied node-view drafts are excluded, just as in Source. A text tab supplies
-its current text. Neither editor-engine objects nor a second Markdown
-implementation cross the Host boundary. The two user-input text parts carry the
-message and a marked read-only JSON context; the UI hides the context part when
-hydrating history. References are restored from the same JSON context.
+Each send captures the current opened folders and active document path only,
+for both native and text tabs. The assistant reads saved content from disk when
+needed; unsaved applied content and unapplied drafts are never injected and no
+`appliedSource()` preparation runs for a conversation. This owner decision
+(2026-11-04, #1106) reduces token usage and keeps document save refusal independent
+of message sending. Litzio neither forces nor automatically performs Save.
+When the active document has unsaved changes, the existing context row shows
+“Using saved version”; its shared Tooltip explains on hover/keyboard focus that
+unsaved changes are excluded. The document path remains available there.
+Neither editor-engine objects nor a second Markdown implementation cross the Host
+boundary. The two user-input text parts carry the message and a marked read-only
+JSON context; the UI hides the context part when hydrating history. References
+are restored from the same JSON context, including existing conversation history.
+
+#1106 reproduced a real trailing Shift+Enter canonical-source refusal before the
+change, then verified path-only sending in the existing fake assistant scenario.
+Host protocol tests check that source fields are not forwarded; existing reference,
+image and history tests remain. Small manual capture evidence (generated traces
+are excluded):
+
+| Korean view | Before | After |
+| --- | --- | --- |
+| 1440px Light | [Image](assets/assistant-saved-context-1106/1106-before-1440.png) | [Image](assets/assistant-saved-context-1106/1106-after-1440-light.png) |
+| 640px Light | [Image](assets/assistant-saved-context-1106/1106-before-640.png) | [Image](assets/assistant-saved-context-1106/1106-after-640-light.png) |
+
+Dark: [1440px](assets/assistant-saved-context-1106/1106-after-1440-dark.png),
+[640px](assets/assistant-saved-context-1106/1106-after-640-dark.png),
+[keyboard-focused explanation](assets/assistant-saved-context-1106/1106-tooltip-640-dark.png).
+The context row retains its alignment and height; the 640px overlay and explanation
+fit inside the viewport. The before reproduction used a longer unsaved paragraph;
+after captures use a minimal trailing-hard-break fixture and fake answer.
+
 
 A single nonoverlapping 600ms snapshot poll while the panel is open and the tab
 is visible delivers
@@ -330,7 +356,7 @@ The browser scenario uses fake metadata/conversation responses to check settings
 default-language persistence and absence of per-conversation language overrides, width controls,
 open/close/focus (including first-open keyboard input and delayed setup without
 focus theft), hidden/off/failed-setup polling suspension and nonoverlapping
-visibility restoration, unsaved Core Source context, deltas, steering, interruption,
+visibility restoration, saved-document path context, deltas, steering, interruption,
 collapsed completion, history resumption, token usage, disabled/login/missing
 states and the 640px Korean Dark overlay. Headless tests run real newline RPC
 against the fixture, including scope, persistent metadata, paginated history,
@@ -439,7 +465,9 @@ explicitly named template counting as consent. It reads the chosen structure and
 uses `create --template`, then existing inspect/apply-batch/check operations to
 fill the new document. It also documents new-template authoring and saving an
 existing document through `templates save` after confirmation of name, description
-and source, with unsaved-content and no-overwrite boundaries.
+and source, with unsaved-content and no-overwrite boundaries. Template saving
+always reads the saved disk version; the assistant has only the active path and
+asks the user to save first if current unsaved changes should be included (#1106).
 
 This is generated guidance, not a new model tool or enforcement mechanism.
 The existing skill inventory and Codex selection surface are reused. Template
@@ -772,7 +800,7 @@ Checks run again immediately before submission. All files, including `.md` and
 `.txt`, are **paths only** in `references:[{path,name,kind}]` in the existing
 `Litzio read-only context (JSON)` text. PNG/JPEG/WebP/GIF additionally send
 `{type:"localImage",path}`. No file content conversion or upload store is added.
-The supplied current-document applied source, including unsaved edits, is unchanged.
+The active document is likewise supplied only as a path; the assistant reads its saved file when needed (#1106).
 References do not extend document-editing permissions or a running turn's scope.
 
 The public conversation input takes `references?: string[]`; user items expose
@@ -847,8 +875,9 @@ query that catalog or send Codex skill inputs.
 `session/load`, when advertised, replays provider-owned history; otherwise
 resumption reports an explicit error and a new conversation remains available.
 
-The user message includes product instructions, opened-folder paths, current
-applied document source and validated reference paths. Copilot receives image
+The user message includes product instructions, opened-folder paths, the active
+document path and validated reference paths. It reads saved file content on demand;
+unsaved native/text editor content is excluded (#1106). Copilot receives image
 references as paths, without Codex localImage inputs. Native Copilot tools may
 read references. Litzio dynamic document tools/result cards and Codex skill
 selection are not exposed. Existing-document editing remains text suggestions

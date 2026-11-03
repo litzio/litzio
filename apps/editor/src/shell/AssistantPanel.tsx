@@ -4,7 +4,7 @@ import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquare, Plus, History, X, ArrowUp, Square } from "lucide-react";
-import { AI_AGENT, AI_TASK, type AiAgentSettings, type AiConversation, type AiConversationInfo, type AiConversationInput, type AiModels, type AiFileReference, type AiSkills, type AiDiagnostics } from "@litzio/plugin-api/ai";
+import { AI_AGENT, AI_TASK, type AiAgentSettings, type AiConversation, type AiConversationInfo, type AiModels, type AiFileReference, type AiSkills, type AiDiagnostics } from "@litzio/plugin-api/ai";
 import { Button } from "@/components/ui/button.tsx";
 import { Popover, PopoverContent } from "@/components/ui/popover.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
@@ -28,10 +28,10 @@ export function rememberAssistantWidth(value: number) { try { localStorage.setIt
 type Props = { settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
   referenceRequest?: { path: string };
-  documentPath: string; folders: string[]; context(): Promise<AiConversationInput["document"]> };
+  documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, context, onOpen, onUndo, referenceRequest }: Props) {
+export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest }: Props) {
   useTranslation();
   const [removed, setRemoved] = useState<string[]>([]);
   const [settings, setSettings] = useState<AiAgentSettings>();
@@ -165,7 +165,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
   const send = () => run(async isCurrent => {
     if (active && settings?.provider === "copilot") return;
     const value = message.trim(); if (!value && !references.length) return;
-    const document = await context(); if (!isCurrent()) return;
+    const document = documentPath ? { path: documentPath } : undefined;
     const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "send", id: conversation?.id, message: value,
       model, reasoningEffort: effort, ...(settings?.provider === "copilot" && mode ? { mode } : {}), references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: settings?.provider !== "codex" ? [] : references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document });
     if (!isCurrent()) return;
@@ -274,7 +274,10 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
       <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
     </div>
     <div className="assistant-context" title={[documentPath, ...folders].filter(Boolean).join("\n")}>
-      <span>{documentPath.split(/[\\/]/).at(-1) || i18n.t("No file opened")}</span><span>{i18n.t("Opened folders: {{count}}", { count: folders.length })}</span>
+      {documentPath && documentDirty ? <Tooltip><TooltipTrigger render={<span tabIndex={0} role="status" />}>
+        {i18n.t("Using saved version")}
+      </TooltipTrigger><TooltipContent><span><span className="break-all">{documentPath}</span><br />{i18n.t("The assistant reads the saved file. Unsaved changes are not included.")}</span></TooltipContent></Tooltip>
+        : <span>{documentPath.split(/[\\/]/).at(-1) || i18n.t("No file opened")}</span>}<span>{i18n.t("Opened folders: {{count}}", { count: folders.length })}</span>
     </div>
     <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")}>
       {history ? <div className="assistant-history"><h3>{i18n.t("Conversation history")}</h3><p>{i18n.t(settings?.provider === "copilot" ? "Continue a Copilot conversation." : "Continue the same Codex conversation here or in the CLI.")}</p>
