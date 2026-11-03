@@ -21,8 +21,13 @@ function request(value: AiTaskRequest, host: PluginHostContext): AiTaskRequest {
     input: value.input, schema: value.schema, baseline: value.baseline }));
 }
 export function activate(host: PluginHostContext): HostPlugin {
-  const settings = (): AiAgentSettings => existsSync(host.settingsFile)
-    ? checkedSettings(JSON.parse(readFileSync(host.settingsFile, "utf8"))) : { ...(host.aiDefaults ?? DEFAULT_AI_SETTINGS), provider: "codex", enabled: true, writeAccess: "opened-folders", responseLanguage: defaultLanguage() };
+  const defaults = (): AiAgentSettings => ({ ...(host.aiDefaults ?? DEFAULT_AI_SETTINGS), provider: "codex", providers: { codex: true, copilot: false }, writeAccess: "opened-folders", responseLanguage: defaultLanguage() });
+  const settings = (): AiAgentSettings => {
+    if (!existsSync(host.settingsFile)) return defaults();
+    const value = JSON.parse(readFileSync(host.settingsFile, "utf8"));
+    // Old settings are not migrated or rewritten. Start from current defaults.
+    return value?.providers ? checkedSettings(value) : defaults();
+  };
   const configure = (value: unknown) => {
     const next = checkedSettings(value);
     mkdirSync(path.dirname(host.settingsFile), { recursive: true });
@@ -32,9 +37,9 @@ export function activate(host: PluginHostContext): HostPlugin {
     return next;
   };
   const service: AiTaskService = {
-    status: () => settings().enabled ? selectedAdapter().status() : Promise.resolve({ adapter: "Codex", available: false, loginRequired: false, message: "Codex is disabled." }),
+    status: () => settings().providers.codex ? selectedAdapter().status() : Promise.resolve({ adapter: "Codex", available: false, loginRequired: false, message: "Codex is disabled." }),
     start: value => {
-      const current = settings(); if (!current.enabled && !host.aiExecutor.current(value.id)) throw new Error("Codex is disabled.");
+      const current = settings(); if (!current.providers.codex && !host.aiExecutor.current(value.id)) throw new Error("Codex is disabled.");
       const execution = current.provider === "copilot" ? current.codexTaskSettings! : current;
       return host.aiExecutor.start(request(value, host), 120_000, { model: execution.model, reasoningEffort: execution.reasoningEffort, responseLanguage: current.responseLanguage ?? defaultLanguage() });
     },
@@ -51,12 +56,13 @@ function checkedSettings(value: unknown): AiAgentSettings {
   const v = value as AiAgentSettings;
   if (!v || typeof v.model !== "string" || !v.model.trim() || /[\r\n\x00]/u.test(v.model) ||
     typeof v.reasoningEffort !== "string" || !/^[a-z][a-z0-9-]{0,63}$/.test(v.reasoningEffort) ||
-    v.provider !== undefined && !["codex", "copilot"].includes(v.provider) || v.enabled !== undefined && typeof v.enabled !== "boolean" ||
+    !["codex", "copilot"].includes(v.provider) || (!v.providers || typeof v.providers.codex !== "boolean" || typeof v.providers.copilot !== "boolean") ||
     v.writeAccess !== undefined && !["opened-folders", "read-only", "full-access"].includes(v.writeAccess) ||
     v.responseLanguage !== undefined && !["ko", "en", "ja"].includes(v.responseLanguage)) throw new Error("Invalid AI execution settings.");
+  if (Object.values(v.providers).some(Boolean) && !v.providers[v.provider]) throw new Error("Default AI provider must be enabled.");
   if (v.provider === "copilot" && (!v.codexTaskSettings || typeof v.codexTaskSettings.model !== "string" || !v.codexTaskSettings.model.trim() || /[\r\n\x00]/u.test(v.codexTaskSettings.model) ||
     !/^[a-z][a-z0-9-]{0,63}$/.test(v.codexTaskSettings.reasoningEffort))) throw new Error("Invalid Codex task defaults.");
-  return { model: v.model.trim(), reasoningEffort: v.reasoningEffort, provider: v.provider ?? "codex", enabled: v.enabled ?? true, writeAccess: v.writeAccess ?? "opened-folders",
+  return { model: v.model.trim(), reasoningEffort: v.reasoningEffort, provider: v.provider ?? "codex", providers: { codex: v.providers.codex, copilot: v.providers.copilot }, writeAccess: v.writeAccess ?? "opened-folders",
     ...(v.provider === "copilot" ? { codexTaskSettings: { model: v.codexTaskSettings!.model, reasoningEffort: v.codexTaskSettings!.reasoningEffort } } : {}),
     ...(v.responseLanguage !== undefined ? { responseLanguage: v.responseLanguage } : {}) };
 }

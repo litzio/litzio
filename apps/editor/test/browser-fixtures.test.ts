@@ -21,9 +21,10 @@ test("fault injection permits only its expected network failures and caught plug
   assert.deepEqual(classifyConsoleErrors("plugin-ui", ["Error: PLUGIN_UI_RENDER_FIXTURE"]).unexpected, []);
   const missingThread = "Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:5173/api/ai-agent-conversations";
   const missingSkills = "Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://127.0.0.1:5173/api/ai-agent-skills";
-  assert.deepEqual(classifyConsoleErrors("ai-agent", [missingThread, missingSkills]).unexpected, []);
-  assert.deepEqual(classifyConsoleErrors("ai-agent", [missingThread, missingSkills]).missing, []);
-  assert.equal(classifyConsoleErrors("ai-agent", []).missing.length, 2);
+  const failedSettings = "Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://127.0.0.1:5173/api/ai-agent-settings";
+  assert.deepEqual(classifyConsoleErrors("ai-agent", [missingThread, missingSkills, failedSettings]).unexpected, []);
+  assert.deepEqual(classifyConsoleErrors("ai-agent", [missingThread, missingSkills, failedSettings]).missing, []);
+  assert.equal(classifyConsoleErrors("ai-agent", []).missing.length, 3);
   const unexpectedThreadFailure = missingThread.replace("404 (Not Found)", "500 (Internal Server Error)");
   assert.deepEqual(classifyConsoleErrors("ai-agent", [unexpectedThreadFailure]).unexpected, [unexpectedThreadFailure]);
   const uncaught = "Uncaught page error: PLUGIN_UI_RENDER_FIXTURE";
