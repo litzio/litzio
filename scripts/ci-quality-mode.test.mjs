@@ -200,8 +200,13 @@ test('workflow consumes event policy outputs and preserves selected-job gates', 
 test('ordinary CI retains small diagnostics and screen evidence without distribution binaries', () => {
   const ci = load(readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8'));
   const uploads = job => job.steps.filter(step => step.uses?.startsWith('actions/upload-artifact@'));
+  const browser = uploads(ci.jobs.browser);
+  const browserDiagnostics = browser.find(step => step.with.path.includes('tmp/browser-results/'));
+  assert.equal(browserDiagnostics.if, 'failure()');
+  assert.ok(!browser.some(step => step.with.path.includes('tmp/document-scroll-capture/')),
+    'manual-only layout captures must not have a dedicated CI upload');
   const http = uploads(ci.jobs.http);
-  const captures = http.find(step => step.with.name === 'http-host-${{ runner.os }}');
+  const captures = http.find(step => step.with.path.trim() === 'tmp/http-host-capture/');
   assert.equal(captures.if, 'always()', 'captures produced before a failure must still be retained');
   assert.equal(captures.with.path.trim(), 'tmp/http-host-capture/');
   assert.equal(captures.with['if-no-files-found'], 'ignore', 'early failures may produce no captures');

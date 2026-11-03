@@ -1,5 +1,5 @@
 // Container-specific boundaries; existing navigation/authoring scenarios keep their assertions.
-async (page, { openPath, expect }) => {
+async (page, { openPath, expect, screenshots }) => {
   await page.setViewportSize({width:1440, height:900});
   const origin = page.url().split('/').slice(0, 3).join('/');
   const loaded = await (await page.request.get(`${origin}/api/document`)).json();
@@ -128,7 +128,7 @@ async (page, { openPath, expect }) => {
             expect(measured.rootHeight).toBeLessThanOrEqual(measured.height);
             const name = `after-${theme}-${width}-${sidebar}-${panel}-${position}`;
             const path = `tmp/document-scroll-capture/${name}.png`;
-            await page.screenshot({path}); captures.push(path);
+            if (screenshots) { await page.screenshot({path}); captures.push(path); }
             geometry.push({name, ...measured});
           }
         }

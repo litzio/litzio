@@ -1,4 +1,4 @@
-async (page, { openPath, reloadDocument, expect }) => {
+async (page, { openPath, reloadDocument, expect, screenshots }) => {
   const origin = page.url().split('/').slice(0,3).join('/');
   const initial = await (await page.request.get(`${origin}/api/document`)).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
@@ -8,25 +8,27 @@ async (page, { openPath, reloadDocument, expect }) => {
   await openPath(page, file);
   await settings.click();
   await expect(page.locator('[data-document-tab][data-active=true]').getByTestId('numbering-mode')).toHaveText('Fixed');
-  for (const language of ['en','ko']) {
-    if (language === 'ko') {
-      await page.getByRole('button', {name:'Settings',exact:true}).click();
-      await page.getByTestId('ui-language').selectOption('ko');
-      await page.keyboard.press('Escape');
-      await page.getByTestId('settings-dialog').waitFor({state:'detached'});
-      await page.emulateMedia({colorScheme:'dark'});
+  if (screenshots) {
+    for (const language of ['en','ko']) {
+      if (language === 'ko') {
+        await page.getByRole('button', {name:'Settings',exact:true}).click();
+        await page.getByTestId('ui-language').selectOption('ko');
+        await page.keyboard.press('Escape');
+        await page.getByTestId('settings-dialog').waitFor({state:'detached'});
+        await page.emulateMedia({colorScheme:'dark'});
+      }
+      for (const width of [1440,640]) {
+        await page.setViewportSize({width,height:1000});
+        await page.evaluate(async () => {await document.fonts.ready; document.querySelector('.document-scroll[data-active=true]').scrollTo(0,0);});
+        await page.mouse.move(0,0);
+        await page.screenshot({path:`tmp/numbering-mode-after-${width}-${language}.png`});
+      }
     }
-    for (const width of [1440,640]) {
-      await page.setViewportSize({width,height:1000});
-      await page.evaluate(async () => {await document.fonts.ready; document.querySelector('.document-scroll[data-active=true]').scrollTo(0,0);});
-      await page.mouse.move(0,0);
-      await page.screenshot({path:`tmp/numbering-mode-after-${width}-${language}.png`});
-    }
+    await page.getByRole('button', {name:'설정',exact:true}).click();
+    await page.getByTestId('ui-language').selectOption('en');
+    await page.keyboard.press('Escape');
+    await page.getByTestId('settings-dialog').waitFor({state:'detached'});
   }
-  await page.getByRole('button', {name:'설정',exact:true}).click();
-  await page.getByTestId('ui-language').selectOption('en');
-  await page.keyboard.press('Escape');
-  await page.getByTestId('settings-dialog').waitFor({state:'detached'});
   await page.setViewportSize({width:1440,height:1000});
   const enumerators = () => engine.evaluate(el => {const values=[];el.editor.state.doc.forEach(n=>{if(['figure','equation','table'].includes(n.type.name))values.push(n.attrs.enumerator)});return values;});
   const undo = () => engine.evaluate(el => el.editor.commands.undo());

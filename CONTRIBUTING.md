@@ -108,6 +108,7 @@ CLI/Desktop `package`, `test:packaged`, release/artifact 검증, 설치·업데�
 | Issue forms / registration tooling | `pnpm issues:forms --check`, `pnpm issues:test`, `pnpm docs:check`, `git diff --check` |
 | Commit provenance tooling / policy | `node --test scripts/commit-provenance.test.mjs`, `pnpm docs:check`, `git diff --check`; 실제 commit의 Git parsed trailers 확인 |
 | CI 실행 정책 / workflow 설정 | `node --test scripts/ci-quality-mode.test.mjs scripts/ci-execution-policy.test.mjs`, workflow 문법 검사, `pnpm docs:check`, `git diff --check`; 변경한 job의 PR CI 결과·단계 시간 확인. 패키징·설치/업데이트 검사는 CI에서 실행 |
+| Browser 시나리오 / 캡처 변경 | 관련 `pnpm browser:test <scenario>`, `pnpm typecheck`, `pnpm docs:check`, `git diff --check`; 자동 판정에 쓰이지 않는 성공 캡처·촬영 전용 순회는 `--screenshots` 수동 실행으로 분리 |
 | Browser shard / fixture 설정 | `node --test scripts/ci-quality-mode.test.mjs scripts/ci-execution-policy.test.mjs`, `pnpm --filter @litzio/editor exec tsx --test test/browser-fixtures.test.ts`, `pnpm docs:check`, `git diff --check`; PR의 실제 shard CI 결과 확인 |
 | Core semantics | Core tests, `pnpm typecheck`, 관련 canonical round-trip/거부 regression |
 | CLI | Core/CLI tests, `pnpm typecheck`, 실제 파일 write 및 실패 시 원본 보존 |
@@ -156,7 +157,7 @@ Linux Editor 4개 shard와 HTTP browser job은 공식 `mcr.microsoft.com/playwri
 
 `pnpm --filter @litzio/cli package`는 Node CLI 번들과 production Editor를 `packages/cli/dist/*.tgz`로 만든다. `pnpm --filter @litzio/cli test:packaged`는 checkout 밖에 offline 설치해 Node만으로 실행·저장·종료를 검사한다. 이어 `pnpm browser:test http-host`가 production Host를 직접 시작하고 정리한다. Vite 시나리오와 한 호출에 섞지 않는다.
 
-Windows/Linux CI는 이 세 검사를 수행하되 tarball은 Artifact로 보관하지 않는다. Windows HTTP job은 Docling 플러그인의 전체 단위 테스트도 실행해 native 경로, 실패 주입, 구조 검수 admission과 정리 회귀를 PR 단계에서 확인한다. 생성된 화면 근거는 성공·실패 모두 7일 보관하고, 실패 시 browser diagnostics도 7일 보관한다. 앞선 단계가 실패해 아직 생성되지 않은 화면 근거는 업로드하지 않는다. 로컬에서는 관련 boundary tests와 HTTP browser 회귀를 실행한다 (`pnpm --filter @litzio/cli build` 선행). `package`·`test:packaged`는 CLI 패키징·배포 경계를 변경할 때 실행한다. 공개 registry 게시·버전 release는 수행하지 않는다. 설치/실행과 원격 프록시 전제는 [HTTP Host contract](docs/design/http-host-v1.md)를 따른다.
+Windows/Linux CI는 이 세 검사를 수행하되 tarball은 Artifact로 보관하지 않는다. Windows의 Editor·Docling·CLI 단위/통합 검사는 Desktop job의 전체 `pnpm test`에서 실행한다. 경로 정책은 `http ⇒ desktop`을 보장하므로 HTTP job의 중복 실행 없이 Windows 보호를 유지한다. 생성된 화면 근거는 성공·실패 모두 7일 보관하고, 실패 시 browser diagnostics도 7일 보관한다. 앞선 단계가 실패해 아직 생성되지 않은 화면 근거는 업로드하지 않는다. 로컬에서는 관련 boundary tests와 HTTP browser 회귀를 실행한다 (`pnpm --filter @litzio/cli build` 선행). `package`·`test:packaged`는 CLI 패키징·배포 경계를 변경할 때 실행한다. 공개 registry 게시·버전 release는 수행하지 않는다. 설치/실행과 원격 프록시 전제는 [HTTP Host contract](docs/design/http-host-v1.md)를 따른다.
 
 ## Windows Desktop builds and releases
 
