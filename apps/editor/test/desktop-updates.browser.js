@@ -2,7 +2,7 @@
 // update notifications and the restart check the Desktop app asks before installing. The browser
 // Editor without the bridge shows common recovery Settings only. Updater behavior itself is tested in apps/desktop.
 // pnpm browser:test desktop-updates
-async (page, { screenshots = false, openPath, brand }) => {
+async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   page.setDefaultTimeout(15000);
   const check = (value, message) => { if (!value) throw new Error(message); };
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
@@ -141,16 +141,17 @@ async (page, { screenshots = false, openPath, brand }) => {
   const separatorGeometry = [];
   // #635: inspect the painted bottom-border spans, independent of which wrapper owns them.
   // This is representative geometry in Chrome, not a native Windows visual acceptance check.
+  // #552/#635: keep docking boundaries and caption exclusion; full scope crosses themes/reservations.
   for (const width of [1440, 1424, 1423, 640]) {
     await page.setViewportSize({width, height:900});
-    for (const theme of ['light', 'dark']) {
+    for (const theme of (fullLayout ? ['light', 'dark'] : ['light'])) {
       await page.getByRole('button', {name:'Settings', exact:true}).click();
       await page.getByTestId('theme').selectOption(theme);
       await page.keyboard.press('Escape');
       await page.getByTestId('settings-dialog').waitFor({state:'detached'});
-      for (const reserved of [0, 138]) {
+      for (const reserved of (fullLayout ? [0, 138] : [138])) {
         await page.evaluate(value => document.documentElement.style.setProperty('--window-controls-width', `${value}px`), reserved);
-        for (const panelOpen of [false, true]) {
+        for (const panelOpen of (fullLayout || width === 640 ? [false, true] : [false])) {
           const toggle = page.getByRole('button', {name:'Outline', exact:true});
           if (await toggle.getAttribute('aria-pressed') !== String(panelOpen)) await toggle.click();
           let expandedSettingsTop;

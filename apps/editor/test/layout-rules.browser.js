@@ -1,5 +1,5 @@
 // Real Core-backed scratch fixture; run with pnpm browser:test layout-rules.
-async (page, { openFolderPicker, openPath, withBlockHover, expect }) => {
+async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, expect }) => {
   page.setDefaultTimeout(15000);
   await page.unrouteAll();
   const origin = page.url().split('/').slice(0,3).join('/');
@@ -153,10 +153,11 @@ async (page, { openFolderPicker, openPath, withBlockHover, expect }) => {
   await page.setViewportSize({width:1440,height:1000});
   await page.getByRole('button',{name:'Collapse Explorer',exact:true}).waitFor();
   await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate((element,original)=>element.editor.commands.setContent(original),isolationDocument);
+  // Keep historical breakpoint pairs; repeat collapsed geometry only at the minimum and wide viewport.
   await withBlockHover(page, async () => {
-    for(const width of [1440,1424,1423,1280,1279,1025,1024,768,705,704,640]) {
+    for(const width of (fullLayout ? [1440,1424,1423,1280,1279,1025,1024,768,705,704,640] : [1440,1424,1423,1280,1279,1025,1024,705,704,640])) {
       await page.setViewportSize({width,height:1000});
-      for(const collapsed of [false,true]) {
+      for(const collapsed of (fullLayout || width===1440 || width===640 ? [false,true] : [false])) {
         if(collapsed) await page.getByRole('button',{name:'Collapse Explorer',exact:true}).click();
         await page.mouse.move(width-2,2);
         await page.evaluate(()=>{document.querySelector('.document-scroll[data-active="true"]').scrollTo(0,0);document.activeElement?.blur();});
@@ -324,7 +325,7 @@ async (page, { openFolderPicker, openPath, withBlockHover, expect }) => {
     return {main:rect('.app-main').width,column:rect('.document-scroll[data-active="true"] .document-column').width,panelLeft:panel?.left??null,panelRight:panel?.right??null,panelTop:panel?.top??null,panelBottom:panel?.bottom??null,headerBottom:rect('.app-header').bottom,uncovered,token,overflow:document.documentElement.scrollWidth>innerWidth};
     });
   };
-  for(const width of [1423,1280,1279,1024,768,704]) {
+  for(const width of (fullLayout ? [1423,1280,1279,1024,768,704] : [1423,1024,704])) {
     await page.setViewportSize({width,height:1000});
     await page.locator('.document-panel').waitFor({state:'detached'});
     const closed=await shell();
@@ -442,7 +443,7 @@ async (page, { openFolderPicker, openPath, withBlockHover, expect }) => {
   if(!remembered||await page.locator('.app-shell--wide').count()!==0)throw Error('Wide document preference was not remembered or cleared');
   results.push({wide:{standard:standard.width,wide:wide.width}});
   // Inline settings fits the document at supported widths independently of Sidebar state.
-  for(const width of [1920,1440,1280,1024,768,640]) {
+  for(const width of (fullLayout ? [1920,1440,1280,1024,768,640] : [1440,640])) {
     await page.setViewportSize({width,height:800});
     await page.getByTestId('document-panel').waitFor({state:width>=1424?'visible':'detached'});
     const opener=page.getByRole('button',{name:'Document settings',exact:true});
@@ -463,7 +464,7 @@ async (page, { openFolderPicker, openPath, withBlockHover, expect }) => {
   // Preserve #552's one-row shell while the centered command button yields to the new toggle.
   const headerMatrix=[];
   await page.setViewportSize({width:1920,height:900});
-  for(const lang of ['en','ko']) {
+  for(const lang of (fullLayout ? ['en','ko'] : ['ko'])) {
     await language(lang);
     for(const width of [1440,1424,1423,1280]) {
       await page.setViewportSize({width,height:900});

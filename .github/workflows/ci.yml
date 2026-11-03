@@ -30,6 +30,7 @@ jobs:
       desktop: ${{ steps.policy.outputs.desktop }}
       update: ${{ steps.policy.outputs.update }}
       fullLifecycle: ${{ steps.policy.outputs.fullLifecycle }}
+      fullLayout: ${{ steps.policy.outputs.fullLayout }}
       smartquotes: ${{ steps.policy.outputs.smartquotes }}
       reused: ${{ steps.policy.outputs.reused }}
     steps:
@@ -167,6 +168,7 @@ jobs:
 
       - name: Run Editor browser regressions
         env:
+          LITZIO_TEST_LAYOUT_SCOPE: ${{ needs.changes.outputs.fullLayout == 'true' && 'full' || 'representative' }}
           LITZIO_BROWSER_SERVER_LOG: ${{ runner.temp }}/editor-vite.log
         run: pnpm browser:test --shard="$LITZIO_BROWSER_SHARD"
 
@@ -279,6 +281,8 @@ jobs:
           pnpm --filter @litzio/desktop exec tsx scripts/verify-release.ts --tag "v$version"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - run: pnpm --filter @litzio/desktop test:packaged
+        env:
+          LITZIO_TEST_LAYOUT_SCOPE: ${{ needs.changes.outputs.fullLayout == 'true' && 'full' || 'representative' }}
       - name: Upload native caption screen pixels
         if: always()
         uses: actions/upload-artifact@v6

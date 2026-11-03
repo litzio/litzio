@@ -128,7 +128,11 @@ test('release browser shards match CI while preserving trusted checkout and publ
   const run = browser.steps.find(step => step.run?.startsWith('pnpm browser:test'));
   const ciRun = ci.jobs.browser.steps.find(step => step.run?.startsWith('pnpm browser:test'));
   assert.equal(run.run, ciRun.run);
-  assert.deepEqual(run.env, ciRun.env);
+  // Release keeps the full default; ordinary CI alone selects the layout scope.
+  const { LITZIO_TEST_LAYOUT_SCOPE: scope, ...commonEnv } = ciRun.env;
+  assert.equal(scope, "${{ needs.changes.outputs.fullLayout == 'true' && 'full' || 'representative' }}");
+  assert.deepEqual(run.env, commonEnv);
+  assert.equal(run.env.LITZIO_TEST_LAYOUT_SCOPE, undefined);
   assert.equal(browser.needs, 'preflight');
   assert.deepEqual(browser.steps.find(step => step.uses?.startsWith('actions/checkout@')).with,
     { ref: '${{ needs.preflight.outputs.commit }}', 'persist-credentials': false });
