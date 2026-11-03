@@ -11,6 +11,51 @@ import { RootAccess } from "../server/file-access.ts";
 
 export const fakeServer = fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url));
 
+test("Copilot ACP lists its models, streams one turn, applies permission scope, cancels and reports a failed turn", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "copilot-connection-")), log = path.join(root, "acp.jsonl");
+  const connection = new AiAgentConnection(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] });
+  const conversations = new AiAgentConversations(connection, new RootAccess([root]));
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  const catalog = await connection.models("copilot");
+  assert.deepEqual(catalog.models.map(model => [model.model, model.supportedReasoningEfforts]), [["copilot-model", []]]);
+  assert.equal((await connection.diagnostics("copilot")).connected, true);
+  const settings = { provider: "copilot" as const, enabled: true, writeAccess: "read-only" as const, model: "copilot-model", reasoningEffort: "" };
+  const input = { message: "Question", folders: [root], model: settings.model, reasoningEffort: "" };
+  await assert.rejects(conversations.send({ ...input, skills: [{ name: "codex-only", path: path.join(root, "SKILL.md") }] }, settings), /only with Codex/);
+  const conversation = await conversations.send(input, settings);
+  const turn = conversation.turns[0]!;
+  await t.test("response and permission arrive over the child stdio", async () => {
+    await new Promise<void>((resolve, reject) => {
+      const deadline = setTimeout(() => reject(new Error("Missing ACP update")), 5000);
+      const inspect = () => { if (turn.items.some(item => item.text === "한글 ACP answer")) { clearTimeout(deadline); resolve(); } };
+      connection.copilot.on("update", inspect); t.after(() => connection.copilot.off("update", inspect)); inspect();
+    });
+    assert.equal(turn.status, "inProgress");
+    await assert.rejects(conversations.send({ ...input, id: conversation.id }, settings), /Stop/);
+    const request = { sessionId: conversation.id, toolCall: { toolCallId: "write", kind: "edit" as const, locations: [{ path: path.join(root, "new.txt") }] }, options: [{ optionId: "once", name: "Allow once", kind: "allow_once" as const }] };
+    assert.deepEqual(connection.copilot.permission!(request), { outcome: { outcome: "cancelled" } });
+    await conversations.interrupt(conversation.id);
+    // A protocol barrier ensures prompt completion is processed, without a timing assumption.
+    await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
+    assert.equal(turn.status, "interrupted");
+    await conversations.send({ ...input, id: conversation.id }, { ...settings, writeAccess: "opened-folders" });
+    assert.deepEqual(connection.copilot.permission!(request), { outcome: { outcome: "selected", optionId: "once" } });
+    assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { ...request.toolCall, locations: [{ path: path.join(root, "..", "outside.txt") }] } }), { outcome: { outcome: "cancelled" } });
+    await conversations.interrupt(conversation.id);
+    await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
+    await conversations.send({ ...input, id: conversation.id, message: "FAIL THIS TURN" }, settings);
+    await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
+    assert.equal(conversation.turns.at(-1)!.status, "failed");
+    assert.match(conversation.turns.at(-1)!.error!, /quota fixture/);
+  });
+  assert.equal(conversations.list()[0]!.provider, "copilot");
+  await assert.rejects(conversations.resume(conversation.id, { ...settings, provider: "codex" }), /provider/);
+  const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  assert.equal(rpc.filter(message => message.method === "initialize").length, 1);
+  assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("Do not modify existing documents"));
+  await connection.close();
+});
+
 test("conversation streams summaries, steers and interrupts one Codex thread; only its index is stored by Litzio", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-conversation-")), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");
   const connection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });

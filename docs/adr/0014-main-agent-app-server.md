@@ -1,8 +1,9 @@
-# ADR-0014: Main agent through Codex app-server
+# ADR-0014: Main agent through Host-owned CLI connections
 
 - Status: Accepted
 - Decision date: 2026-11-02
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
+- Copilot verification: 2026-11-03 (#1053; fake ACP/permission checks only, no real Copilot session or model call).
 - Last verified: 2026-11-03 (#952 / #1047 PR A/B, user-message language versus task-only fallback; fake Host/worker/browser checks, no real model turn).
 - Previous verification: 2026-11-02 (connection/settings and conversation implementation, fake stdio/Host and browser tests, one real Q&A turn with steering and read-only history resumption).
 - Authority: [#931 owner decisions](https://github.com/litzio/litzio/issues/931), including the approved split into connection/settings and subsequent conversation PRs, under [ADR-0012](0012-plugin-runtime-and-ui-contributions.md).
@@ -53,11 +54,13 @@ The sole main-agent write-scope setting is `writeAccess`, default
 `opened-folders`, with `read-only` as the other value. Each new conversation turn applies that scope through Codex's sandbox policy.
 Steering retains the active turn's scope. This never changes Docling's snapshot policy.
 
-Names and serialized settings include `provider: "codex"`; the UI renders a
-provider row. Other providers and a generalized provider architecture are not
-implemented. The agent owns shared model/effort defaults, selected from
-`model/list` and its supported efforts. Existing feature tasks continue to use
-those defaults through the unchanged worker execution path.
+The #1053 owner decision (2026-11-03) adds `provider: "copilot"` beside
+`codex` in the existing provider row. Host starts `copilot --acp` over stdio,
+using the official ACP TypeScript SDK as Paseo does. Concrete Codex and Copilot
+branches are sufficient; no provider registry, plugin API or adapter framework
+is introduced. Codex model/effort defaults come from `model/list` and its
+supported efforts. Existing feature tasks retain those Codex defaults through
+the unchanged worker execution path when the assistant uses an ACP catalog model.
 
 ## Ownership and delivery boundary
 
@@ -74,7 +77,7 @@ interruption and context usage. Model/effort defaults come from AI Settings;
 per-conversation overrides do not change those defaults. Conversations follow the
 user message language; document writing follows the target document language
 unless explicitly requested otherwise. AI default language is used only for tasks
-started without a conversation; no conversation-language selector is exposed. Existing-document editing, Docling integration, other providers, assistant tabs and an agent home
+started without a conversation; no conversation-language selector is exposed. Existing-document editing, Docling integration, further providers, assistant tabs and an agent home
 screen remain outside the current delivery.
 
 CLI parity is intentionally omitted: connection, diagnostics and AI execution
@@ -105,3 +108,24 @@ Litzio tool handler: the owner's chosen alternative is usage guidance via a skil
 (delivered with result cards/undo in implementation 2, PR 2). AI execution adds no semantic operation,
 so separate CLI parity is omitted. Exact inputs, permissions and verification are
 in the [implemented contract](../design/main-agent-v1.md#document-tools-931-implementation-2-pr-1).
+
+## Copilot addition (#1053, 2026-11-03)
+
+The owner authorizes Copilot for assistant conversations only. Models come from
+ACP `session/new`; turns use `session/prompt`, streaming `session/update` and
+`session/cancel`. Session history is provider-owned and reloaded only when
+`loadSession` is advertised. Litzio keeps provider-tagged list metadata.
+Codex feature tasks retain their saved model/effort defaults while Copilot is
+selected. No Copilot model call was made during implementation.
+
+Copilot has no Codex sandbox-policy equivalent. Host answers ACP permissions
+with `allow_once` only for read/edit requests with absolute locations in the
+captured opened folders and operator Roots; edits also require `opened-folders`.
+Everything else is cancelled. CLI denies shell tools and disables built-in
+MCP servers. This is permission mediation, not an OS filesystem/network sandbox:
+Copilot's inherited settings, preauthorized tools and native execution remain
+provider-controlled. The existing-document AGENTS.md rule remains an instruction.
+Reasoning effort, Codex skills, account/usage diagnostics, live steering,
+context usage and Litzio dynamic document tools are not emulated for Copilot.
+See the [implemented Copilot contract](../design/main-agent-v1.md#copilot-conversations-1053)
+for these differences and manual verification.

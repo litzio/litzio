@@ -25,7 +25,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
     }
     return route.fulfill({ json: settings });
   });
-  await page.route('**/api/ai-agent-models*', route => { refreshes++; return route.fulfill({ json: { provider: 'codex', models, updatedAt: 1793590000000 } }); });
+  await page.route('**/api/ai-agent-models*', route => { refreshes++; const copilot = route.request().url().includes('provider=copilot') || !route.request().url().includes('provider=') && settings.provider === 'copilot'; return route.fulfill({ json: { provider: copilot ? 'copilot' : 'codex', models: copilot ? [{ id: 'copilot-model', model: 'copilot-model', displayName: 'Copilot fixture model', description: '', supportedReasoningEfforts: [], defaultReasoningEffort: '' }] : models, updatedAt: 1793590000000 } }); });
   await page.route('**/api/ai-agent-environment*', route => route.fulfill({ json: { cwd: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant', instructions: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant\\AGENTS.md', skills: [] } }));
   await page.route('**/api/ai-agent-diagnostics*', route => route.fulfill({ json: { provider: 'codex', checkedAt: 1793590000000, path: 'C:\\Codex\\codex.exe', version: 'codex-cli 0.166.0', connected: true,
     account: { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' }, rateLimits: [{ name: 'Codex', windows: [{ usedPercent: 28, windowDurationMins: 300, resetsAt: 1793600000 }] }], mcp: [{ name: 'docs', status: 'connected', authStatus: 'oAuth' }] } }));
@@ -728,6 +728,56 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(panel.getByRole('textbox')).toBeEnabled();
   expect(await panel.locator('.assistant-turn').count(), 'Explicit New conversation survives reload').toBe(0);
   await panel.getByRole('button', { name: '비서 닫기' }).click();
+  // The existing provider select previews Copilot without a paid model call or settings write.
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: '비서', exact: true }).click();
+  await expect(panel.getByRole('textbox')).toBeEnabled();
+  await panel.getByRole('textbox').fill('Before provider switch');
+  await panel.getByRole('textbox').press('Enter');
+  await expect(panel.locator('.assistant-turn[data-status="inProgress"]')).toBeVisible();
+  await page.getByRole('button', { name: '설정', exact: true }).click();
+  await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
+  await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'AI agent', exact: true }).click();
+  const writesBeforeProvider = settingsWrites.length;
+  await page.getByLabel('Default provider', { exact: true }).selectOption('copilot');
+  await expect(page.getByLabel('Model', { exact: true })).toHaveValue('copilot-model');
+  await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Litzio skills', { exact: true })).toHaveCount(0);
+  expect(settingsWrites.length).toBe(writesBeforeProvider);
+  // Keep the dock open: Save must retire the active old-provider conversation.
+  await expect(panel).not.toHaveAttribute('role', 'dialog');
+  await page.getByRole('button', { name: 'Save AI settings', exact: true }).click();
+  await expect(page.getByText('AI settings saved.', { exact: true })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Conversation model and effort' })).toHaveText('copilot-model');
+  await expect(panel.getByRole('textbox')).not.toBeFocused();
+  await expect(panel.locator('.assistant-turn')).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'Stop response' })).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'New conversation' })).toBeEnabled();
+  await panel.getByRole('textbox').fill('After provider switch');
+  await panel.getByRole('textbox').press('Enter');
+  await expect(panel.getByText('After provider switch', { exact: true })).toBeVisible();
+  expect(sent.at(-1).model).toBe('copilot-model');
+  expect(sent.at(-1).reasoningEffort).toBe('');
+  expect(sent.at(-1).id).toBeUndefined();
+  expect(sent.at(-1).skills).toEqual([]);
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
+
+  if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-light-en.png' });
+  if (screenshots) {
+    await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Appearance & language', exact: true }).click();
+    await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
+    await page.getByRole('button', { name: 'AI 에이전트', exact: true }).click();
+    await expect(page.getByLabel('기본 프로바이더', { exact: true })).toHaveValue('copilot');
+    await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-dark-ko.png' });
+    await page.setViewportSize({ width: 640, height: 1000 });
+    await expect(page.getByLabel('모델', { exact: true })).toHaveValue('copilot-model');
+    expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/copilot-640-dark-ko.png' });
+    await page.getByRole('button', { name: 'AI 설정 저장', exact: true }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: 'tmp/880-evidence/copilot-640-dark-ko-scrolled.png' });
+  }
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   // Restore preferences for the other stable scenarios.
   await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantWidth'); localStorage.removeItem(prefix + '.assistantConversation'); }, brand.storagePrefix);
   return { settings: true, minimumViewport: true, nativeDocumentPreserved: true, conversations: true };
