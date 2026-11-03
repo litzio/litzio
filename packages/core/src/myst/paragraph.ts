@@ -5,8 +5,8 @@ import type { MystNode } from "./tree.ts";
 import { DocumentDiagnosticError, DocumentWriteError } from "../write-error.ts";
 
 /** Fail closed when Markdown cannot persist the requested inline semantics.
- * In particular, trailing breaks and whitespace-only split results are not
- * persistent paragraphs. Never insert padding or invisible placeholders. */
+ * Operations remove blank-line tails before this guard; empty split results
+ * still are not persistent paragraphs. Never insert padding or placeholders. */
 export function assertPersistentParagraph(node: MystNode): void {
   const content = projectInlineContent(node);
   if (!content || !hasParagraphContent(content)) {

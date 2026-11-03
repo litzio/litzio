@@ -217,6 +217,10 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(page.getByTestId('recovery-prompt')).toHaveCount(0);
   await editor.locator('p').first().click(); await page.keyboard.press('End');
   await page.keyboard.type(' fresh assistant draft');
+  // #1107/#1106: leave a real trailing hard break before gathering unsaved
+  // context. The document-source Host is real; only the provider is mocked.
+  await page.keyboard.press('Shift+Enter');
+  expect(await editor.evaluate(el => el.editor.getJSON().content.find(node => node.type === 'paragraph').content.at(-1).type)).toBe('hardBreak');
   const submittedAnswers = [];
   const sent = [], conversations = new Map();
   let resumeFailure = false;
@@ -357,6 +361,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   expect(sent[0].message).toBe('What changed in the current document?');
   expect(sent[0].document.source).toContain('preserved AI-off draft');
   expect(sent[0].document.source).toContain('still editable');
+  expect(sent[0].document.source).toContain('fresh assistant draft\n');
   expect(sent[0].document.path).toBe(pluginFixture.document);
   expect(sent[0].responseLanguage).toBeUndefined();
   expect(sent[0].references).toEqual([pluginFixture.document]);

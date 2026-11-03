@@ -1,6 +1,7 @@
 # Continuous document editing v1
 
 - Status: Implemented
+- Paragraph tail normalization: 2026-11-04 (#1107; native Shift+Enter → Save/Reload and unsaved assistant-context browser regressions).
 - Select-all verification: 2026-10-29 (#751: Editor tests, typecheck/build, docs and targeted persistent Windows Chrome continuous-editing, footnotes, figure-authoring and image-assets regressions; Cmd+A uses Apple platform emulation).
 - Title contract update: 2026-10-29 (#722; frontmatter-only title and H1–H6 body sections replace the #255/#472 leading-H1 policy).
 - Empty-title entry: 2026-10-30 (#786; small bilingual optional-title hint, preserved slot height and immediate title typography; document-title browser regression and [captures](figure-authoring-v1.md#empty-authoring-entry-786)).
@@ -27,6 +28,12 @@
 - Scope: Supported continuous editing and Core-backed persistence; [ADR-0001](../adr/0001-single-document-editor-architecture.md).
 
 ## Empty structural elements (#574)
+
+Core removes paragraph blank-line tails on Save and when serializing unsaved
+assistant context ([#1107 contract](document-support-v1.md#paragraph-blank-line-tails-1107)).
+For example, Shift+Enter at the end of a non-empty paragraph no longer blocks Save
+or assistant context collection. Interior hard breaks remain content. Save retains
+the live Editor state, selection and history; reopening shows the normalized file.
 
 New and existing empty admonitions, quotes, list items and display equations are authored
 structure and save by the same [Core rules](document-support-v1.md#empty-structural-elements-574).
