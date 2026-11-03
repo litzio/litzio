@@ -22,33 +22,47 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await expect(page.locator('.docling-tab[data-active=true]')).toHaveCount(0);
   await show();
   const result = dashboard.locator(`[data-result-id="${job.id}"]`);
+  const menu = page.getByRole('menu');
+  const openMenu = async () => {
+    const trigger = result.getByRole('button', { name: /^(Actions|동작):/ });
+    if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
+    await expect(menu).toBeVisible();
+  };
   const feature = async enabled => {
     await dashboard.getByRole('button', { name: 'Settings', exact: true }).click();
     const settings = page.getByTestId('settings-dialog');
-    await expect(settings.getByRole('checkbox', { name: 'Structure review', exact: true })).toBeEnabled();
+    await expect(settings.getByRole('switch', { name: 'Structure review', exact: true })).toBeEnabled();
+    const previousControl = await settings.getByRole('switch', { name: 'Structure review', exact: true }).elementHandle();
     const saved = page.waitForResponse(r => r.url().endsWith('/api/docling-features') && r.request().method() === 'PUT');
-    await settings.getByRole('checkbox', { name: 'Structure review', exact: true }).setChecked(enabled);
+    await settings.getByRole('switch', { name: 'Structure review', exact: true }).setChecked(enabled);
     expect((await saved).ok()).toBe(true);
-    await expect(settings.getByRole('checkbox', { name: 'Structure review', exact: true })).toBeChecked({ checked: enabled });
+    // Feature writes detach/reactivate the contribution after Host observation.
+    // Wait for that actual replacement before opening the new contribution's menu.
+    await page.waitForFunction(control => !control.isConnected, previousControl);
+    await expect(settings.getByRole('switch', { name: 'Structure review', exact: true })).toBeChecked({ checked: enabled });
     await settings.press('Escape');
     await expect(result).toBeVisible();
-    if (enabled) await expect(result.getByRole('button', { name: 'Run review', exact: true, includeHidden: true })).toBeEnabled();
-    else await expect(result).toContainText('Review is disabled.');
-    if (!(await result.locator('details').evaluate(e => e.open))) await result.locator('summary').click();
+    await openMenu();
+    if (enabled) await expect(menu.getByRole('menuitem', { name: 'Run review', exact: true })).toBeEnabled();
+    else await expect(menu).toContainText('Review is disabled.');
   };
-  await result.locator("summary").click();
-  await expect(result.getByRole('button', { name: 'Run review', exact: true })).toBeEnabled();
+  await openMenu();
+  await expect(menu.getByRole('menuitem', { name: 'Run review', exact: true })).toBeEnabled();
   const started = page.waitForRequest(request => request.url().endsWith('/api/docling-review') && request.method() === 'POST');
-  await result.getByRole('button', { name: 'Run review', exact: true }).click();
+  await menu.getByRole('menuitem', { name: 'Run review', exact: true }).click();
   expect((await started).postDataJSON().id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-  await expect(result).toContainText('Review in progress');
-  await result.getByRole('button', { name: 'Cancel review', exact: true }).click();
-  await expect(result).toContainText('Review cancelled');
-  await result.getByRole('button', { name: 'Run review', exact: true }).click();
-  await expect(result).toContainText('Pending proposals: 2');
-  await expect(result).toContainText('AI proposals 3 / validation rejected 1');
-  await expect(result).toContainText('AI summary: Checked headings');
-  await expect(result).toContainText('Last execution: gpt-6-luna · low');
+  await openMenu();
+  await expect(menu).toContainText('Review in progress');
+  await menu.getByRole('menuitem', { name: 'Cancel review', exact: true }).click();
+  await openMenu();
+  await expect(menu).toContainText('Review cancelled');
+  await menu.getByRole('menuitem', { name: 'Run review', exact: true }).click();
+  await openMenu();
+  await expect(menu).toContainText('Pending proposals: 2');
+  await expect(menu).toContainText('AI proposals 3 / validation rejected 1');
+  await expect(menu).toContainText('AI summary: Checked headings');
+  await expect(menu).toContainText('Last execution: gpt-6-luna · low');
+  await menu.press('Escape');
   await result.getByRole('button', { name: 'Open comparison', exact: true }).click();
   const tab = page.locator('.docling-tab[data-active=true]');
   const panel = tab.locator('.docling-review');
@@ -126,14 +140,14 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   for (const [width, language, theme] of [[1440, 'en', 'light'], [640, 'ko', 'dark']]) {
     await page.evaluate(({ language, theme }) => { localStorage.setItem('litzio.uiLanguage', language); localStorage.setItem('litzio.theme', theme); }, { language, theme });
     await page.setViewportSize({ width, height: 1000 }); await page.reload(); await show();
-    await result.locator('details > summary').click();
-    await result.locator('.docling-review').scrollIntoViewIfNeeded();
-    await expect(result).toContainText(blocked.task.summary);
+    await openMenu();
+    await expect(menu).toContainText(blocked.task.summary);
     const statusText = language === 'ko' ? '검수하지 못함' : 'Review could not be performed';
-    await expect(result.locator('.docling-review [role="status"]')).toHaveText(statusText);
-    await expect(result).not.toContainText(language === 'ko' ? 'AI 제안 0개' : 'AI proposals 0');
+    await expect(menu).toContainText(statusText);
+    await expect(menu).not.toContainText(language === 'ko' ? 'AI 제안 0개' : 'AI proposals 0');
     expect(await result.evaluate(e => e.scrollWidth <= e.clientWidth)).toBe(true);
     if (screenshots) { await result.scrollIntoViewIfNeeded(); await page.screenshot({ path: `tmp/900-captures/uninspected-dashboard-${width}.png` }); }
+    await menu.press('Escape');
     await result.getByRole('button', { name: language === 'ko' ? '대조 열기' : 'Open comparison', exact: true }).click();
     await expect(panel).toContainText(blocked.task.summary);
     await expect(panel.locator('[role="status"]')).toHaveText(statusText);
@@ -173,16 +187,16 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
     await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); }); await page.reload(); await show();
   }
   await feature(false);
-  await expect(result.getByRole('button', { name: 'Run review', exact: true })).toBeDisabled();
-  await expect(result).toContainText('Review is disabled.');
+  await expect(menu.getByRole('menuitem', { name: 'Run review', exact: true })).toBeDisabled();
+  await expect(menu).toContainText('Review is disabled.');
   await feature(true);
   // Simulate unavailable status only; review decisions above all used the real Host.
   await page.route('**/api/docling-review-agent', route => route.fulfill({ json: null }));
   await expect(dashboard).toContainText('AI agent: Off');
-  await expect(result.getByRole('button', { name: 'Run review', exact: true })).toBeDisabled();
+  await expect(menu.getByRole('menuitem', { name: 'Run review', exact: true })).toBeDisabled();
   await page.unroute('**/api/docling-review-agent');
   await page.route('**/api/docling-review-agent', route => route.fulfill({ json: { adapter: 'Fake', available: false, loginRequired: true } }));
   await expect(dashboard).toContainText('AI agent: Login required');
-  await expect(result.getByRole('button', { name: 'Run review', exact: true })).toBeDisabled();
+  await expect(menu.getByRole('menuitem', { name: 'Run review', exact: true })).toBeDisabled();
   await page.unroute('**/api/docling-review-agent');
 }

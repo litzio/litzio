@@ -3,6 +3,7 @@
 - Status: Implemented
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
 - Message roles verified: 2026-11-03 (#1048/#1051; fixture captures and turn-copy browser checks below).
+- Host settings integration: 2026-11-03 (#1070 merge; target unit/type checks and existing fake ai-agent browser case, 1440px/640px Korean Dark captures; no real Copilot call).
 - Provider Save verification: 2026-11-03 (#1069 review correction; reproduced stale dock state before the fix, then existing fake browser case passed with Save/new conversation).
 - Copilot verification: 2026-11-03 (#1053; fake ACP and task-default boundary, existing ai-agent browser scenario and 1440px Light / 640px Dark Korean captures; no real Copilot session or model call).
 - Last verified: 2026-11-03 (#1047 PR A/B / #984 / #952: fake stdio/Host, worker prompt, browser and manual 1440 Light / 640 Dark Korean captures; no real model turn).
@@ -811,8 +812,10 @@ When selecting Copilot, Host preserves the last saved Codex model/effort in
 language. Copilot settings store empty `reasoningEffort`, without a fabricated
 effort list. Returning to Codex explicitly saves its selected model/effort.
 
-UI uses the existing Settings select/Button/Dialog and provider row, matching
-Docling Settings widths (P05/P12); no new surface or common Plugin UI API.
+UI uses #1070 Host SettingsSelect for provider/model/language, SettingsSwitch
+for enablement and SettingsAction for Save. Copilot hides the Host reasoning row
+and Codex-only skills/diagnostics. The existing model Dialog/provider summary
+remain; Docling and AI share Host row widths (P05/P12), with no additional UI API.
 Manual owner checks: Host login, available model selection, conversation and
 history, Stop, and read-only/opened-folder writes with the user's configuration.
 Implementation reference: [Paseo Copilot ACP](https://github.com/getpaseo/paseo/blob/main/packages/server/src/server/agent/providers/copilot-acp-agent.ts),

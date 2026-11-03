@@ -143,8 +143,7 @@ export function activate(host: UiHost): UiContributions {
   return {
     View: Conversion,
     settings: [{ id: "server", label: "Docling", description: "PDF conversion on the Host device.",
-      View: () => <DoclingServerSettings request={request} text={host.text} Input={host.Input}
-        Button={props => <host.Button variant="secondary" {...props} />} GuideLink={GuideLink} serverEnabled={conversionEnabled} /> }],
+      View: () => <DoclingServerSettings request={request} text={host.text} host={host} GuideLink={GuideLink} serverEnabled={conversionEnabled} /> }],
     fileActions: conversionEnabled ? [{ id: "convert", label: "Convert with Docling", extensions: [".pdf"], run: (path, focus) => openConversion(focus, path) }] : [],
     commands: [{ id: "dashboard", label: "Docling dashboard", keywords: ["Docling", "도클링"], run: () => host.openTab("dashboard", "Docling").then(() => {}) },
       ...(conversionEnabled ? [{ id: "convert", label: "Convert with Docling", keywords: ["PDF", "Docling", "도클링", "변환"], run: (focus: HTMLElement | null) => openConversion(focus) }] : [])],

@@ -34,6 +34,30 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await openPath(page, pluginFixture.document);
+  // #1025: one shell integration case complements the Assistant separator check below.
+  // Real drag/keyboard input catches edge direction, bounds and independent remembered widths.
+  const sidebarResize = page.getByRole('separator', { name: 'Explorer width', exact: true });
+  const documentResize = page.getByRole('separator', { name: 'Document panel width', exact: true });
+  const drag = async (handle, delta) => {
+    const box = await handle.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + delta, box.y + box.height / 2, { steps: 8 }); await page.mouse.up();
+  };
+  await drag(sidebarResize, 20);
+  await expect(sidebarResize).toHaveAttribute('aria-valuenow', '260');
+  await documentResize.focus(); await page.keyboard.press('ArrowLeft');
+  await expect(documentResize).toHaveAttribute('aria-valuenow', '276');
+  await drag(documentResize, -100);
+  await expect(documentResize).toHaveAttribute('aria-valuenow', '280');
+  await page.reload();
+  await expect(sidebarResize).toHaveAttribute('aria-valuenow', '260');
+  await expect(documentResize).toHaveAttribute('aria-valuenow', '280');
+  await page.setViewportSize({ width: 640, height: 900 });
+  await expect(sidebarResize).toHaveAttribute('aria-valuenow', '200');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(sidebarResize).toHaveAttribute('aria-valuenow', '260');
+  await page.evaluate(prefix => { localStorage.removeItem(prefix + '.sidebarWidth'); localStorage.removeItem(prefix + '.document-panelWidth'); }, brand.storagePrefix);
+  await page.reload();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const categories = page.getByRole('navigation', { name: 'Settings categories' });
   await categories.getByRole('button', { name: 'AI agent', exact: true }).click();
@@ -65,7 +89,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByLabel('Model', { exact: true }).selectOption('gpt-6-luna');
   await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('low');
   connectionAvailable = false;
-  await page.getByRole('switch', { name: 'Use Codex', exact: true }).click();
+  await page.getByRole('switch', { name: 'Use Codex', exact: true }).focus();
+  await page.getByRole('switch', { name: 'Use Codex', exact: true }).press('Space');
   await expect.poll(() => settingsWrites.length).toBe(1);
   expect(settingsWrites[0]).toEqual({ provider: 'codex', enabled: false, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium' });
   await expect(page.getByRole('switch', { name: 'Use Codex', exact: true })).not.toBeChecked();
@@ -742,12 +767,15 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   if (screenshots) {
     await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Appearance & language', exact: true }).click();
     await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
-    await page.setViewportSize({ width: 640, height: 1000 });
     await page.getByRole('button', { name: 'AI 에이전트', exact: true }).click();
     await expect(page.getByLabel('기본 프로바이더', { exact: true })).toHaveValue('copilot');
+    await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-dark-ko.png' });
+    await page.setViewportSize({ width: 640, height: 1000 });
     await expect(page.getByLabel('모델', { exact: true })).toHaveValue('copilot-model');
     expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/copilot-640-dark-ko.png' });
+    await page.getByRole('button', { name: 'AI 설정 저장', exact: true }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: 'tmp/880-evidence/copilot-640-dark-ko-scrolled.png' });
   }
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   // Restore preferences for the other stable scenarios.

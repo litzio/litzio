@@ -15,7 +15,7 @@ export function activate(host: UiHost) {
     const [busy, setBusy] = useState(false), [loading, setLoading] = useState(false), [saved, setSaved] = useState(false);
     const [problem, setProblem] = useState("");
     const focus = useRef<HTMLElement | null>(null), alive = useRef(true);
-    const { Input, Button, Dialog, text: t } = host;
+    const { Input, Button, Dialog, SettingsSwitch, SettingsSelect, SettingsAction, text: t } = host;
     const get = <T,>(route: string, provider?: AiProvider) => host.readJson<T>(route.slice(1), provider ? { provider } : {});
     const refresh = async (provider: AiProvider = settings?.provider ?? "codex", choose = false) => {
       setLoading(true); setProblem("");
@@ -82,34 +82,27 @@ export function activate(host: UiHost) {
             <span aria-hidden="true">›</span><strong>{providerName}</strong><span className="agent-provider-summary"><i className={diagnostics?.connected && (copilot || diagnostics.account) && settings?.enabled ? "agent-dot available" : "agent-dot"} />{status}{models ? ` · ${t("Models")}: ${models.models.length}` : ""}</span>
           </button>
           <Button variant="ghost" onClick={() => setView("diagnostics")}>{t("Diagnostics")}</Button>
-          <button className="agent-switch" role="switch" aria-label={t(copilot ? "Use Copilot" : "Use Codex")} aria-checked={settings?.enabled ?? false} disabled={!storedSettings || busy || loading || settings?.provider !== storedSettings.provider} onClick={() => void save({ ...storedSettings!, enabled: !storedSettings!.enabled }, true)}><span /></button>
         </div>
+        <SettingsSwitch label={t(copilot ? "Use Copilot" : "Use Codex")} checked={settings?.enabled ?? false} disabled={!storedSettings || busy || loading || settings?.provider !== storedSettings.provider} onChange={enabled => void save({ ...storedSettings!, enabled }, true)} />
         <h4>{t("Defaults")}</h4>
         <p className="agent-muted">{t(copilot ? "Copilot is used for assistant conversations. Feature tasks retain their Codex defaults." : "Shared by all AI tasks. Changes apply to the next task.")}</p>
-        <div className="agent-defaults">
-          <label htmlFor="ai-provider">{t("Default provider")}</label><select id="ai-provider" className="form-select" value={settings?.provider ?? "codex"} disabled={!settings?.enabled || busy || loading} onChange={event => {
-            const provider = event.target.value as AiProvider;
+        <SettingsSelect label={t("Default provider")} value={settings?.provider ?? "codex"} disabled={!settings?.enabled || busy || loading}
+          options={[{ value: "codex", label: "Codex" }, { value: "copilot", label: "GitHub Copilot" }]} onChange={value => {
+            const provider = value as AiProvider;
             setSettings({ ...settings!, provider, model: "", reasoningEffort: provider === "copilot" ? "" : settings!.codexTaskSettings?.reasoningEffort ?? "" });
             setModels(undefined); setDiagnostics(undefined); setSaved(false); void refresh(provider, true);
-          }}><option value="codex">Codex</option><option value="copilot">GitHub Copilot</option></select>
-          <label htmlFor="ai-model">{t("Model")}</label><select id="ai-model" className="form-select" value={settings?.model ?? ""} disabled={!models || busy || !settings?.enabled} onChange={event => selectModel(event.target.value)}>
-            {!model ? <option value={settings?.model ?? ""}>{settings?.model ?? t("Checking…")}</option> : null}
-            {models?.models.map(item => <option key={item.id} value={item.model}>{item.displayName}</option>)}
-          </select>
-          {!copilot ? <><label htmlFor="ai-effort">{t("Reasoning effort")}</label><select id="ai-effort" className="form-select" value={settings?.reasoningEffort ?? ""} disabled={!model || busy || !settings?.enabled} onChange={event => { setSettings({ ...settings!, reasoningEffort: event.target.value }); setSaved(false); }}>
-            {!valid ? <option value={settings?.reasoningEffort ?? ""}>{settings?.reasoningEffort ?? "—"}</option> : null}
-            {model?.supportedReasoningEfforts.map(item => <option key={item.reasoningEffort} value={item.reasoningEffort}>{t(item.reasoningEffort)}</option>)}
-          </select></> : null}
-        </div>
-        <div className="agent-defaults">
-          <label htmlFor="ai-language">{t("AI default language")}</label>
-          <select id="ai-language" className="form-select" value={settings?.responseLanguage ?? "en"} disabled={!settings || busy} onChange={event => { setSettings({ ...settings!, responseLanguage: event.target.value as AiAgentSettings["responseLanguage"] }); setSaved(false); }}>
-            <option value="ko">한국어</option><option value="en">English</option><option value="ja">日本語</option>
-          </select>
-        </div>
+          }} />
+        <SettingsSelect label={t("Model")} value={settings?.model ?? ""} disabled={!models || busy || !settings?.enabled} onChange={selectModel}
+          options={[...(!model ? [{ value: settings?.model ?? "", label: settings?.model ?? t("Checking…") }] : []), ...(models?.models.map(item => ({ value: item.model, label: item.displayName })) ?? [])]} />
+        {!copilot ? <SettingsSelect label={t("Reasoning effort")} value={settings?.reasoningEffort ?? ""} disabled={!model || busy || !settings?.enabled}
+          onChange={value => { setSettings({ ...settings!, reasoningEffort: value }); setSaved(false); }}
+          options={[...(!valid ? [{ value: settings?.reasoningEffort ?? "", label: settings?.reasoningEffort ?? "—" }] : []), ...(model?.supportedReasoningEfforts.map(item => ({ value: item.reasoningEffort, label: t(item.reasoningEffort) })) ?? [])]} /> : null}
+        <SettingsSelect label={t("AI default language")} value={settings?.responseLanguage ?? "en"} disabled={!settings || busy}
+          onChange={value => { setSettings({ ...settings!, responseLanguage: value as AiAgentSettings["responseLanguage"] }); setSaved(false); }}
+          options={[{ value: "ko", label: "한국어" }, { value: "en", label: "English" }, { value: "ja", label: "日本語" }]} />
         <p className="agent-muted">{t("Used only for tasks started without a conversation.")}</p>
         {models && !valid ? <p role="status">{t("Choose a model and reasoning effort from the available list.")}</p> : null}
-        <div><Button variant="default" disabled={!valid || busy || !settings?.enabled} onClick={() => void save()}>{t(busy ? "Saving…" : "Save AI settings")}</Button></div>
+        <SettingsAction variant="default" label={t("Defaults")} actionLabel={t(busy ? "Saving…" : "Save AI settings")} disabled={!valid || busy || !settings?.enabled} run={() => void save()} />
         <h4>{t("Common working environment")}</h4>
         <div className="agent-diagnostics">
           {row(t("Working folder"), <code>{environment?.cwd ?? "—"}</code>)}

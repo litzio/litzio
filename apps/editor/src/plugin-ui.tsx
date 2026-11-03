@@ -4,6 +4,8 @@ import { flushSync } from "react-dom";
 import { PLUGIN_UI, type UiRegistration } from "@litzio/plugin-api/config";
 import { AI_TASK } from "@litzio/plugin-api/ai";
 import type { UiHost, UiModule, PluginDialogProps, UiNotice } from "@litzio/plugin-api/ui";
+import { SettingsRow, SettingsSwitch, SettingsSelect, SettingsInput, SettingsAction } from "./components/ui/settings.tsx";
+import { ActionMenu } from "./components/ui/action-menu.tsx";
 import { Input } from "./components/ui/input.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./components/ui/dialog.tsx";
 import { openExternalLink } from "./link-opening.ts";
@@ -91,6 +93,7 @@ export function usePluginUi(shellApi: ShellApi) {
     }), load,
       (registration, guard, signal, initialJob, initialJobRead): UiHost => ({
         api: PLUGIN_UI.api, React, jsx, ReadingSurface: ReadOnlyDocument, Button: PluginButton, Input, Dialog: PluginDialog, initialJob, initialJobRead,
+        SettingsRow, SettingsSwitch, SettingsSelect, SettingsInput, SettingsAction, Menu: ActionMenu,
         features: registration.features,
         openSettings: (section, focus) => { guard(); api.current.openSettings(`plugin/${registration.id}/${section}`, focus); },
         openDocument: path => { guard(); return api.current.openDocument(path); },

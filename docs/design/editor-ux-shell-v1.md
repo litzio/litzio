@@ -481,6 +481,20 @@ a separate capture-only tour. The existing 4-shard CI suite is the full
 regression gate. Local packaged Desktop, install/update/uninstall and Edge/profile probes are
 excluded from this task's validation scope.
 
+## Folder context menus (#1011 / #1012)
+
+Right-clicking an opened root header offers New document, New folder, Open folder,
+Open in File Explorer (when supported), Refresh and Close folder through the shared
+ContextMenu. Its action definitions are shared with the existing header + and More
+menu; the + remains the New document shortcut. Existing More-button keyboard access
+and shared ContextMenu Shift+F10/Menu-key handling remain available.
+
+Right-clicking Explorer blank space uses that root's actions when exactly one root
+is open. With zero or multiple roots it offers only Open folder, avoiding an ambiguous
+creation destination. File menus retain their target-specific actions. Child-folder
+right-click remains native (follow-up #1064). No new command or common interaction
+is introduced; this is the existing U20/P10 action-menu surface without exceptions.
+
 ## Folder Explorer menu (#487)
 
 When the Host exposes `openFolderInExplorer`, every opened root's More actions menu adds
@@ -504,7 +518,8 @@ Each file tree row (native/foreign document, image or other file) offers Renameâ
 in a shared Base UI ContextMenu. Right click and focused-row Shift+F10 / Menu key open the
 same menu in every Host. These file targets suppress the browser context menu;
 the document body follows the [block context-menu boundary](#body-block-context-menu-223),
-while folder rows and Outline retain native behavior. There are no new ellipsis,
+while child-folder rows and Outline retain native behavior; opened root headers and
+Explorer blank space follow the folder context-menu contract above. There are no new ellipsis,
 toolbar, F2 or Delete entries. Target-local data supplies IDs, labels, icons, visibility and execution;
 there is no global registry. Keyboard menu navigation is independent of tree arrows; Escape
 restores the target row. Choosing an action hands focus to its shared dialog.

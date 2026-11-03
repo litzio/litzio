@@ -8,6 +8,17 @@ async (page, { openDocument, expect, screenshots }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openDocument(page, file);
   const panel = page.getByTestId('document-panel');
+  await expect(panel.locator('.document-outline-item').first()).toHaveText('Navigation guide');
+  if (screenshots) {
+    await expect(page.locator('[data-document-tab][data-active=true] .document-editor img').first()).toBeVisible();
+    await page.locator('[data-document-tab][data-active=true] .document-editor img').evaluateAll(images => Promise.all(images.map(image => image.decode())));
+    await page.screenshot({ path: 'tmp/panel-after-1440.png' });
+    await page.setViewportSize({ width: 640, height: 900 });
+    await page.screenshot({ path: 'tmp/panel-after-640.png' });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(panel).toBeVisible();
+  }
+  await expect.poll(() => panel.locator('.document-outline-item').first().evaluate(element => element.getBoundingClientRect().top - document.querySelector('.document-panel-header').getBoundingClientRect().bottom)).toBe(16);
   const tabs = panel.getByRole('tab');
   const tables = panel.getByTestId('tables');
   const figures = panel.getByTestId('figures');
@@ -198,6 +209,17 @@ async (page, { openDocument, expect, screenshots }) => {
     await page.setViewportSize({ width: 640, height: 900 });
     if (!await panel.isVisible()) await page.getByRole('button', { name: '개요', exact: true }).click();
     expect(await tabs.evaluateAll(buttons => buttons.every(button => button.scrollWidth <= button.clientWidth))).toBe(true);
+    await tabs.nth(2).click();
+    await expect.poll(() => figures.locator('.document-outline-empty').evaluate(element => element.getBoundingClientRect().top - document.querySelector('.document-panel-header').getBoundingClientRect().bottom)).toBe(16);
+    if (screenshots) {
+      await page.getByRole('button', { name: '개요', exact: true }).click();
+      await page.getByRole('button', { name: '설정', exact: true }).click();
+      await page.getByTestId('theme').selectOption('dark');
+      await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+      await page.getByRole('button', { name: '개요', exact: true }).click();
+      await page.screenshot({ path: 'tmp/panel-after-640-ko-dark.png' });
+    }
+
     // UI localization changes navigation labels, never the document's caption notation.
     await page.getByRole('button', { name: '개요', exact: true }).click();
     const fileTab = page.getByRole('tab', { name: 'panel-lists.md', exact: true });
