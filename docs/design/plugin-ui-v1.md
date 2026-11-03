@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Complete Docling UI boundary verified: 2026-11-01 (#869: settings/file-action/activation-view migration, unchanged conversion and comparison browser assertions at 1440/640px, English Light/Korean Dark).
-- Last verified: 2026-10-31 (#857; shared Host, boundary, activation and browser checks; packaged Desktop runs in required CI).
+- Last verified: 2026-11-03 (#1033; Host settings/menu integration, targeted browser checks, typecheck/build and captures; packaged Desktop runs in required CI).
 - Authority: [ADR-0012](../adr/0012-plugin-runtime-and-ui-contributions.md), [Discussion #767](https://github.com/litzio/litzio/discussions/767) and [brand-neutral Host API decision #856](https://github.com/litzio/litzio/discussions/856).
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
@@ -60,6 +60,8 @@ actual plugin hooks and the production renderer, not just a version string.
 | `text`, `imageUrl` | Current translation and existing document-relative media route. |
 | `readJson` | GET-only same-origin `/api/<route>` with Host Root checks; aborted/rejected on detach. |
 | `pickFolder`, `openTab` | Shared folder picker and plugin-scoped shell tab navigation. |
+| `SettingsRow`, `SettingsSwitch`, `SettingsSelect`, `SettingsInput`, `SettingsAction` | Complete Host settings rows; label, description and control alignment are shared with built-in Settings. Caller owns values and persistence. |
+| `Menu` | Declarative action items rendered by the existing Host DropdownMenu, including dismissal and focus return. |
 | `Input`, `Dialog`, button variant | Existing shell controls and modal focus/portal behavior, with plugin-owned content. |
 | `pickFile`, `openExternalLink` | Existing Host PDF picker and external-link opener. The plugin supplies labels and completion action. |
 | `requestJson` | Same-origin Host method/body transport; shares Root checks and abort/rejection on detach. |
@@ -131,7 +133,7 @@ Detachment never cancels an accepted worker or deletes its receipts.
 and completion/error handling into its plugin. The shell renders generic settings
 sections and an activation view using the same controls, geometry, focus return
 and notification center. Disable unmounts those views before disposal; settings
-falls back to Appearance when its contributed category disappears. File actions
+returns to the Plugins list when its registration disappears. File actions
 are filtered by declared extension and respect activation busy state.
 
 Optional `jobRoute: "api/<name>"` declares a Host job snapshot to observe before
@@ -141,7 +143,7 @@ status cannot be bypassed by a second read or prematurely enable Start. Polling
 after activation is plugin-owned. Failed reads retry only GET; no automatic POST
 or startup restoration is introduced. Observation stops on detach/failure/handoff.
 
-Settings plugin management, official plugin installation/update/removal, a general
+Official plugin installation/update/removal, a general
 plugin OS sandbox and daemon remain outside these changes. Docling remains bundled until its official installation flow exists.
 No new Core semantics or semantic CLI command is introduced. Existing headless
 conversion and shared Host registration APIs remain available without a view.
@@ -202,21 +204,32 @@ and persistent completion/failure notices; see [conversion lifecycle](docling-co
 During feature-driven UI reactivation, Settings retains its selected plugin category
 while the Host still lists that UI registration. A missing contribution alone is
 not proof of removal. Settings confirms absence through the existing registration
-GET before falling back to Appearance; failed reads preserve the selection. Actual
-unregistration/disable still removes the category and selects Appearance (#942).
+GET before returning to Plugins; failed reads preserve the selection. Actual
+unregistration/disable still removes the category and selects Plugins (#1007).
 
 ## Host-owned plugin settings (#947)
 
 Settings includes a built-in Plugins category, independent of contributed
-settings and available even when a plugin is disabled. It lists plugin IDs as
-installation names, version, enabled state, actual installation directory and
-12-character installed/default revisions with full values in tooltips. Each
-installation says Matches app default, Differs from app default, or Not bundled
-with this app. Only mismatches offer Register app default again. One shared
-confirmation dialog explains that registration enables the plugin; Cancel sends
-no request. Confirmation uses the existing Host registration path then rereads
-inventory. Failures remain visible and do not claim successful replacement.
-The existing UI-registration refresh attaches the registered contribution.
+settings and available even when a plugin is disabled. #1007 shows installation
+name (plugin ID), version and Enabled/Off/Error state. Full version, installed and
+bundled revisions, installation path, default-match status and UI loading errors
+are available from the information button on hover or keyboard focus. Only
+mismatches offer Register app default again. The existing confirmation and Host
+registration path remain unchanged; cancellation sends no request.
+
+Each installation uses the Host SettingsSwitch row. Disabling uses the existing
+DELETE path; enabling uses PATCH on the same worker-plugins route and preserves
+the registered revision, directory and feature flags. Errors stay visible and do
+not claim successful activation. Contributions reattach through the existing UI
+registration refresh. Disabled plugins cannot open settings.
+
+Contributed settings are reached from their installation in this list, with Back
+to plugins returning to the list. They are no longer top-level navigation peers
+of Appearance or Saving. openSettings still supports direct plugin entry.
+Feature-driven reactivation retains the selected settings while its registration
+exists; actual disable returns to the list. This composes existing SettingsRow,
+SettingsSwitch and Button; no public Plugin API is added.
+
 `plugin-settings` verifies cancellation, confirmation and the real Host POST/GET,
 with 1440px English Light and 640px Korean Dark captures including long paths.
 
@@ -234,5 +247,100 @@ heading, category navigation, scroll and content column. `openSettings` keeps th
 same API and selects the existing Settings tab and requested category. Tab switches
 keep the mounted contribution and its local draft; closing unmounts it. Like
 contributed task tabs, Settings is absent from startup restoration and document
-Save/recovery. Registration loss still removes its category and falls back to
-Appearance. [Lifecycle, keyboard and captures](editor-ux-shell-v1.md#settings-task-tab-1032).
+Save/recovery. Registration loss returns to the Plugins list. [Lifecycle, keyboard and captures](editor-ux-shell-v1.md#settings-task-tab-1032).
+
+## Host settings rows and declarative menus (#1033)
+
+The injected components reuse the built-in Settings row, Input, Button and native
+select/checkbox keyboard behavior. Row labels preserve heading navigation as well
+as the native label/control association. `SettingsSwitch` is a labeled native checkbox
+with switch semantics and Host styling; it is only exposed as a complete settings
+row, not a general Toggle. Settings screens compose these rows inside the existing
+Host content column. Custom content (for example accent swatches) uses `SettingsRow`.
+
+- Row: `label`, optional `description`, `children`, `testId`.
+- Switch: row metadata plus `checked`, `onChange(boolean)`, optional `disabled`.
+- Select: row metadata plus `value`, `options: { value, label, lang? }[]` (preserving language-option pronunciation),
+  `onChange(string)`, optional `disabled`.
+- Input: row metadata plus `value`, `onChange(string)`, optional `onBlur`,
+  `onEnter`, `disabled`, `invalid`, `describedBy`. Text remains caller-controlled.
+- Action: row metadata plus `actionLabel`, `run`, optional `disabled`, `variant` (secondary/default).
+  Switch/Select/Input/Action do not accept custom children.
+- Menu: accessible trigger `label` and `items`. Each item has `id`, `label`,
+  `run(returnFocus)` and optional `disabled`, `danger`, `description`.
+  `returnFocus` is the Host trigger, which remains mounted after the menu closes;
+  actions opening a picker/dialog pass it on as their return target. Description preserves
+  unavailable reasons and Docling review status without exposing menu primitives.
+  The Host owns the compact ellipsis trigger, portal, viewport fitting, keyboard
+  dismissal and focus restoration. No custom trigger, Popover or generic Toggle
+  is public. Labels/descriptions are translated by the caller with `host.text`.
+
+AI enablement still saves immediately using stored defaults; model, effort and
+language drafts still require Save. Docling feature switches save immediately,
+and its server address still saves on field exit; Enter/Check connection persist
+before checking. Built-in preferences retain their current device persistence.
+Docling result menus retain page review, document/folder opening, review start /
+cancel, retry and uncertain-record clearing with their existing enablement rules.
+Review status, execution metadata, summary, counts and errors accompany Run review
+as its description; opening the menu observes the existing mounted review state.
+These are UI contributions, with no Core semantics or CLI document operation.
+
+
+Verification: Editor tests (419), workspace typecheck, Editor build, documentation,
+import-boundary and token checks; targeted persistent Chrome scenarios
+`ai-agent`, `docling-server`, `docling-dashboard`, `docling-review`,
+`docling-review-recovery`, `docling-review-retry`, `layout-rules`, `quiet-document`,
+`ui-language` (including the existing Korean settings-heading assertion).
+The menu Retry → Cancel focus loss was reproduced before the trigger handoff fix;
+the same action then returned focus to the mounted trigger. The existing dashboard
+scenario retains this regression. Feature reactivation waits for actual control
+detachment, without retries, longer timeouts or weaker assertions.
+
+Manual captures: Windows persistent Chrome, 100% zoom, 1440×1000 English Light /
+640×1000 Korean Dark. Settings Before uses the base implementation; Menu Before
+rebuilds the base Dashboard/ReviewPanel/CSS against the same Host, then restores
+the implementation. Menus show a completed synthetic result; elapsed times and
+other scratch receipt counts differ between runs. Server addresses reflect each
+scratch fixture, not a live service. Only representative PNGs are
+kept; builds, traces, test stores and generated logs remain uncommitted.
+
+| Surface | 1440px Before / After | 640px Korean Dark Before / After |
+| --- | --- | --- |
+| AI settings | [Before](assets/host-settings-1033/before-ai-1440-light-en.png) / [After](assets/host-settings-1033/after-ai-1440-light-en.png) | [Before](assets/host-settings-1033/before-ai-640-dark-ko.png) / [After](assets/host-settings-1033/after-ai-640-dark-ko.png) |
+| Docling settings | [Before](assets/host-settings-1033/before-docling-1440-light-en.png) / [After](assets/host-settings-1033/after-docling-1440-light-en.png) | [Before](assets/host-settings-1033/before-docling-640-dark-ko.png) / [After](assets/host-settings-1033/after-docling-640-dark-ko.png) |
+| Result menu | [Before](assets/host-settings-1033/before-menu-1440.png) / [After](assets/host-settings-1033/after-menu-1440.png) | [Before](assets/host-settings-1033/before-menu-640.png) / [After](assets/host-settings-1033/after-menu-640.png) |
+
+Built-in settings: [1440px](assets/host-settings-1033/after-appearance-1440.png) /
+[640px](assets/host-settings-1033/after-appearance-640.png).
+Narrow content remains reachable through the Host scroll:
+[AI lower rows](assets/host-settings-1033/after-ai-640-scrolled.png) /
+[Docling address and action](assets/host-settings-1033/after-docling-640-scrolled.png).
+Inspection checked row centers, control text padding, viewport/menu fitting,
+Korean word wrapping and scroll reachability against the built-in Settings pattern.
+Accent swatches retain custom content in SettingsRow; task-specific model cards,
+diagnostics and review state are caller-owned. No generic Toggle/Popover, theme
+state/persistence or AI service API is added.
+
+
+Review follow-up (#1070): SettingsSelect explicitly uses the existing 14px/20px
+UI control tokens. The AI plugin's native provider-button disabled/focus styles
+are scoped to that button and do not override Host Button/SettingsAction states.
+The 1440px English Light and 640px Korean Dark Appearance captures above were
+refreshed after confirming that selected-value text matches the row labels.
+No public props or permanent tests were added.
+
+## Plugin management verification (#1007)
+
+Existing plugin-settings and plugin-ui scenarios cover details on hover/keyboard
+focus, disable/enable with the same pinned installation, restored contributions,
+list → plugin settings → list, and the retained #947 default-registration dialog.
+Host tests extend the existing disable case with same-revision reactivation.
+No new scenario or exhaustive cross-product is added. Other settings callers use
+the same list entry; their feature and draft assertions remain intact.
+
+Manual review uses 1440px English Light and 640px Korean Dark, matching the
+built-in settings rows. Before/After evidence:
+[1440 Before](assets/plugin-settings-1007/before-1440.png) /
+[After](assets/plugin-settings-1007/after-1440.png),
+[640 Before](assets/plugin-settings-1007/before-640-dark-ko.png) /
+[After](assets/plugin-settings-1007/after-640-dark-ko.png).

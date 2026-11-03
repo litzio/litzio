@@ -492,7 +492,10 @@ and shared ContextMenu Shift+F10/Menu-key handling remain available.
 Right-clicking Explorer blank space uses that root's actions when exactly one root
 is open. With zero or multiple roots it offers only Open folder, avoiding an ambiguous
 creation destination. File menus retain their target-specific actions. Child-folder
-right-click remains native (follow-up #1064). No new command or common interaction
+right-click (#1064) reuses the same definitions for New document, New folder and
+Open in File Explorer (when supported), targeting the clicked folder exactly.
+Refresh is omitted because the existing handler refreshes opened roots only; Open
+folder and Close folder remain root-only. No rename, delete or move is added. No new command or common interaction
 is introduced; this is the existing U20/P10 action-menu surface without exceptions.
 
 ## Folder Explorer menu (#487)
@@ -544,6 +547,9 @@ Rename updates open tab paths, session locators and matching recovery record/sna
 without rereading the file or replacing its Tiptap editor. Unsaved content, property drafts, selection
 and Undo/Redo remain. Existing Figure NodeViews, future image uploads and asset callbacks read
 the new locator. Both operations update remembered tab navigation and loaded parent listings.
+After Rename, focus returns to the renamed row, including when it first appears as the dialog
+closes. The file-operation inert guard is removed in the same DOM commit, before the Explorer's
+layout focus restoration (#999).
 Recovery storage failure after a completed disk operation is reported explicitly for manual review.
 
 ### File action verification and captures
@@ -762,8 +768,7 @@ The named navigation uses buttons with `aria-current="page"`: Appearance & langu
 표시·언어, Saving & recovery / 저장·복구, and Desktop-only About & updates / 정보·업데이트.
 Ordinary entry starts at Appearance; an update notice's View opens About. Theme, page style, language and
 accent changes apply immediately, with profile-local preference storage and failure notices.
-Theme offers System / Light / Dark (시스템 / 라이트 / 다크), defaulting to System.
-System follows live OS changes. `litzio.theme` belongs to `preferences.ts` localStorage,
+Theme offers Light / Dark (라이트 / 다크). Startup reads the OS once when no choice is saved; later OS changes do not change the saved choice. `litzio.theme` belongs to `preferences.ts` localStorage,
 never document content or Host preferences. Unavailable storage retains the current-page
 choice and shows the same style of localized persistence alert as accent/language.
 Page style offers Paper / Flat (종이 / 평면), defaulting to Paper.
@@ -2819,7 +2824,7 @@ Final focused folder-tree/shell tests (48), Editor typecheck and production buil
 
 ## Docling server and conversion (#797)
 
-Settings includes the module's Docling category for Host-owned server configuration,
+Settings reaches the module's Docling entry through Plugins for Host-owned server configuration,
 connection checking and the Korean administration guide. Explorer PDF context menus
 and Command Center's Convert with Docling share a PDF picker/explicit conversion
 confirmation flow. Progress and Stop waiting live in the Docling dashboard (#942).
@@ -2831,63 +2836,13 @@ Appearance/recovery settings and ordinary document actions retain their contract
 
 ## Color mode entry (#798)
 
-Expanded Explorer places a separate Color mode row immediately below Settings (#912),
-using the same height, icon size and typography as Settings and plugin rows. A fixed
-SunMoon icon identifies the function; muted trailing text shows System / Light / Dark.
-The 48px rail shows only the icon with the Color mode tooltip and accessible name,
-below Settings without moving its update dot. It opens
-the shared nonmodal menu with System / Light / Dark radio choices and a current check.
-Enter/Space opens it, arrows move focus, Enter selects and Escape cancels; closing
-returns focus to the trigger. Command Center offers the same three choices with
-English and Korean labels/search aliases.
+Expanded Explorer combines Settings (left-aligned gear and label) and a right-aligned icon-only theme toggle on one footer row (#1042). The collapsed rail shows the two icon buttons stacked. The theme button displays the current Light/Sun or Dark/Moon state in its icon, localized accessible name and tooltip. Click, Enter or Space toggles immediately between the two choices and retains button focus. Settings' update dot stays separate. Command Center offers the same two choices with English and Korean search aliases.
 
-All three entry points use one live App choice, existing `writeTheme` storage and
-`applyTheme` application (including the Desktop bridge). Settings remains synchronized
-when closed and reopened. Failed storage retains the live choice and displays the
-existing localized alert in Settings or the notification center outside Settings.
-Accent and page style remain in Settings. No Core operation or CLI parity is needed
-for this device display preference.
+All three entry points share the live App choice, `writeTheme` storage and `applyTheme`, including the Desktop bridge. Settings retains its existing selection markup with two choices. Failed storage retains the live choice and displays the localized Settings alert or notification-center error. Accent/page style remain in Settings. This device display preference has no Core operation or CLI parity requirement.
 
-`pnpm browser:test color-mode --screenshots` verifies keyboard/current/focus behavior,
-Settings and bilingual command parity, reload persistence, live System appearance,
-update-dot separation and viewport containment. Manual captures are written to
-`tmp/color-mode-798/` at 1440px Light/English and 640px Dark/Korean, expanded and rail;
-the PR records the clean-base Before and changed After evidence.
+`pnpm browser:test color-mode` checks first OS resolution, persistence across reload and later OS changes, footer geometry, keyboard toggling, Settings and bilingual command parity, and storage refusal. This replaces the old menu-specific radio/focus checks because that menu is removed. The existing `ui-language` assertions retain explicit theme/native-control synchronization. No exhaustive combinations or subprocess tests are added.
 
-The first CI run (41111712377, shard 3) exposed an obsolete Command Center test
-assumption: the result immediately before Settings for `> s` was hard-coded as
-Collapse Explorer. The new Color mode: System legitimately occupies that position.
-The regression now derives the actual preceding enabled result and retains both
-the active-descendant and single-highlight checks after hover → ArrowUp. No command
-ordering, product keyboard behavior, timeout or retry policy changes.
-
-Shard 1 of the same run also retained the pre-feature Settings → search Tab
-expectation. The shell regression now checks Settings → Color mode → search,
-retaining search → active tab and the existing reverse-navigation checks. The
-color-mode scenario verifies the new sequence in both expanded and rail layouts.
-
-
-### Color mode keyboard readiness (#798)
-
-Merge-group run 41119102438, shard 3 recorded Home/ArrowDown/Enter on the
-Color mode trigger before Base UI's next-animation-frame initial radio focus.
-The final Enter therefore closed the menu with System still selected. The three
-navigation/selection keydowns followed the opening keydown within 22ms (4ms and
-2ms between the final keys); this was automated input before menu readiness,
-not evidence of a persisted theme being reapplied after selection. Console errors
-were empty. The same local preceding sequence (reveal-folder → footnotes →
-document-scroll → color-mode) passed before the adjustment, so order-dependent
-storage contamination was not reproduced.
-
-The scenario now waits for the actual System radio focus before navigation and
-Light focus before Enter. Its rail pass holds the real library focus call and
-asserts keyboard readiness is still pending despite a mounted, checked System
-radio, then releases that call and retains all storage/appearance/focus checks.
-No product code, timeouts, retries or choice assertions change.
-
-The adjusted four-scenario sequence passed locally. Removing only the initial
-System-focus wait made the held-focus regression fail with readiness already
-resolved (`Expected false, Received true`); the focus wait was then restored.
+Manual `--screenshots` writes 1440px Light/English and 640px Dark/Korean expanded, rail and Settings captures to `tmp/theme-1042/`. Same-state Before/After captures are reviewed for vertical alignment, spacing, clipping and localized labels. Existing ghost Button `sm`/`icon-sm` and Lucide icons are reused; the approved whole-screen transition is the only animation exception. Other Settings row structure is unchanged for #1033.
 
 ## Document table display (#902)
 
@@ -2912,9 +2867,10 @@ Before: [1440px](assets/color-mode-912/before-1440-expanded.png),
 ## Installed plugin inventory (#947)
 
 App Settings adds the Host-owned Plugins category alongside Appearance & language,
-Saving & recovery and contributed plugin settings. It uses the same content
-geometry, section rows, actions and confirmation dialog. Long installation paths
-wrap within the content width; revision tooltips expose the full hash. Inventory
+Saving & recovery. Contributed plugin settings are reached inside this list
+(#1007), with Back to plugins returning there. It uses the same content geometry,
+section rows, actions and confirmation dialog. Full installation paths and
+revisions wrap inside the hover/keyboard-focus information tooltip. Inventory
 and the explicit app-default re-registration contract are defined in
 [Plugin UI contributions](plugin-ui-v1.md#host-owned-plugin-settings-947) and
 [Host worker plugins](plugin-runtime-v1.md#plugin-inventory-and-explicit-default-registration-947).
@@ -3033,3 +2989,15 @@ holds startup document GET to assert disabled Settings entry, then waits for the
 actual enabled control after Reload. `document-tabs` verifies actual focus on
 existing-group reentry; `ui-language` checks Save accent in document context.
 Steady-state layout and the reviewed captures are unchanged.
+
+## Plugin settings navigation (#1007)
+
+The top-level Settings navigation contains Appearance & language, Saving &
+recovery, Plugins and (Desktop) About & updates. Installed plugin settings are
+children reached from the Plugins list, with Back to plugins returning there.
+The Plugins navigation item stays current in a plugin detail view. Direct
+openSettings contributions still select their detail view. A missing contribution
+during feature reactivation does not discard the view; confirmed registration
+loss returns to Plugins. Disabled installations remain in the list with their
+switch off and cannot enter settings. Installation identifiers are accessible on
+hover and keyboard focus; see [plugin management](plugin-ui-v1.md#host-owned-plugin-settings-947).

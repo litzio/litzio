@@ -87,10 +87,22 @@ test("headless Host operations use the installed plugin through local and HTTP c
   host.plugins().admit(job, "same-input", "echo");
   assert.throws(() => host.plugins().admit(job, "same-input", "another-plugin"), /conflicts/u, "a UUID cannot alias another plugin's work");
   host.plugins().unregister("echo"); assert.throws(() => host.invoke("echo", "increment"), /disabled/u);
-  const installed = host.plugins().register(manifest);
+  const pinned = host.plugins().list().find(item => item.id === "echo")!;
+  const enabled = await fetch(url + "/api/worker-plugins", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: "echo", enabled: true }) });
+  assert.equal(enabled.status, 200);
+  assert.deepEqual(await enabled.json(), { ...pinned, enabled: true });
+  assert.equal(host.invoke("echo", "echo").count, 1);
+  assert.throws(() => host.plugins().enable("echo"), /already enabled/u);
+  assert.throws(() => host.plugins().enable("missing"), /not registered/u);
+  const installed = host.plugins().list().find(item => item.id === "echo")!;
   writeFileSync(path.join(installed.directory, "host.cjs"), "tampered");
   const fresh = createPluginHost(undefined, undefined, { directory: path.join(root, "installed"), manifest, run: { checkoutRoot: root } });
   try { assert.throws(() => fresh.invoke("echo", "echo"), /hash mismatch/u); } finally { await fresh.close(); }
+  host.plugins().unregister("echo");
+  assert.throws(() => host.plugins().enable("echo"), /hash mismatch/u);
+  fs.unlinkSync(path.join(installed.directory, "host.cjs"));
+  assert.throws(() => host.plugins().enable("echo"), /ENOENT/u);
+  assert.equal(host.plugins().list().find(item => item.id === "echo")!.enabled, false);
   writeFileSync(manifest, JSON.stringify({ ...description, host: { api: 2, entry: "host.cjs" } }));
   assert.throws(() => host.plugins().register(manifest), /incompatible/iu);
   await host.close(); assert.throws(() => host.invoke("echo", "echo"), /closing/u);

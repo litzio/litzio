@@ -3,6 +3,7 @@ import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
 import { productName } from "../../../brand.ts";
 import { ASSISTANT_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
+import { usePanelWidth } from "./shell/panel-width.ts";
 import { AssistantPanel, assistantWidth, rememberAssistantWidth } from "./shell/AssistantPanel.tsx";
 import { usePluginUi } from "./plugin-ui.tsx";
 import { contributionNotices } from "./plugin-ui-registry.ts";
@@ -86,6 +87,8 @@ function EditorApp() {
   useTranslation();
   const [referenceRequest, setReferenceRequest] = useState<{ path: string }>();
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [sidebarSize, setSidebarSize] = usePanelWidth("sidebar");
+  const [documentPanelSize, setDocumentPanelSize] = usePanelWidth("document-panel");
   const [assistantSize, setAssistantSize] = useState(assistantWidth);
   const [assistantOverlay, setAssistantOverlay] = useState(() => matchMedia("(width < 1100px)").matches);
   const assistantReturn = useRef<HTMLElement | null>(null);
@@ -99,7 +102,7 @@ function EditorApp() {
     media.addEventListener("change", change); return () => media.removeEventListener("change", change);
   }, []);
   const newFileButton = useRef<HTMLElement | null>(null);
-  const newFolderButton = useRef<HTMLButtonElement>(null);
+  const newFolderButton = useRef<HTMLElement>(null);
   // Open folder… returns focus to the control that opened it.
   const dialogReturnFocus = useRef<HTMLElement | null>(null);
   // Retain Host start information when the last tab closes.
@@ -210,7 +213,8 @@ function EditorApp() {
   const currentPlugins = useRef(ui.plugins); currentPlugins.current = ui.plugins;
   const assistantAvailable = ui.plugins.some(plugin => plugin.id === "ai-agent" && plugin.contributions);
   useEffect(() => { if (!assistantAvailable) setAssistantOpen(false); }, [assistantAvailable]);
-  useEffect(() => {
+  // Remove the operation guard before newly mounted Explorer rows restore focus in layout.
+  useLayoutEffect(() => {
     if (!(assistantOpen && assistantOverlay) && !fileOperationPending) return;
     const elements = globalThis.document.querySelectorAll<HTMLElement>(".sidebar, .app-main, .app-titlebar, .document-panel, .notification-center");
     elements?.forEach(element => { element.inert = true; });
@@ -842,9 +846,9 @@ function EditorApp() {
   function newDirectoryIn(root: string): string {
     return folderChain(root, openedPath).at(-1) ?? root;
   }
-  function newFile(root: string): void {
+  function newFile(root: string, exact = false): void {
     if (busy || continuation) { setError({ key: "Wait for the current operation to finish." }); return; }
-    setNewDirectory(newDirectoryIn(root));
+    setNewDirectory(exact ? root : newDirectoryIn(root));
     setNewDialog(true);
   }
   function newDocument(returnFocus: HTMLElement | null): void {
@@ -1167,7 +1171,7 @@ function EditorApp() {
       takesFocus: true, disabled: busy || Boolean(continuation), keywords: action.keywords, run: () => action.run(commandReturnFocus.current) })),
     ...THEMES.map(value => ({ id: `theme-${value}`, kind: "command" as const,
       label: i18n.t(`Color mode: ${THEME_LABELS[value]}`), icon: Monitor,
-      keywords: ["color mode", "theme", "색상 모드", "테마", THEME_LABELS[value], { system: "시스템", light: "라이트", dark: "다크" }[value]],
+      keywords: ["color mode", "theme", "색상 모드", "테마", THEME_LABELS[value], { light: "라이트", dark: "다크" }[value]],
       run: () => changeTheme(value) })),
     { id: "settings", kind: "command", label: i18n.t("Settings"), icon: Settings2, takesFocus: true, disabled: settingsDisabled,
       keywords: ["settings", "설정"], run: () => { settingsReturnFocus.current = commandReturnFocus.current; setSettingsCategory("appearance"); openSettingsTab(); void refreshRecovery(); } },
@@ -1195,7 +1199,7 @@ function EditorApp() {
   ];
 
   return (<>
-    <div ref={shell} style={assistantSize ? { "--assistant-width": `${assistantSize}px` } as React.CSSProperties : undefined} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
+    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
       <Sidebar
         onAddToChat={assistantAvailable ? (path, returnFocus) => { assistantReturn.current = returnFocus; setReferenceRequest({ path }); setAssistantOpen(true); } : undefined}
         theme={theme} onThemeChange={changeTheme}
@@ -1209,6 +1213,7 @@ function EditorApp() {
         contributions={pluginActions("sidebar")}
         onFileAction={fileAction} fileActionsDisabled={busy || Boolean(continuation)}
         isFileDirty={path => { const tab = tabs.find(tab => tab.path === path); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
+        onWidth={setSidebarSize}
         open={sidebarOpen}
         documentPath={openedPath}
         toggleRef={sidebarToggle}
@@ -1222,13 +1227,13 @@ function EditorApp() {
         recent={visibleRecent}
         onNewDocument={newDocument}
         onOpenRecent={(folder) => void openFolder(folder).then((message) => { if (message) setError(message); })}
-        onNew={(root, button) => {
+        onNew={(root, button, exact) => {
           newFileButton.current = button;
-          newFile(root);
+          newFile(root, exact);
         }}
-        onNewFolder={(root, button) => {
+        onNewFolder={(root, button, exact) => {
           newFolderButton.current = button;
-          setNewDirectory(newDirectoryIn(root));
+          setNewDirectory(exact ? root : newDirectoryIn(root));
           setNewFolderDialog(true);
         }}
         folders={folders.trees}
@@ -1368,6 +1373,7 @@ function EditorApp() {
             data-group-index={navigation.groups.indexOf(settingsGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(settingsGroup) } as React.CSSProperties}
             onFocusCapture={() => focusDocument("settings")} onPointerDownCapture={() => focusDocument("settings")}>
             <SettingsDialog
+                pluginErrors={Object.fromEntries(ui.plugins.filter(plugin => plugin.error).map(plugin => [plugin.id, plugin.error!]))}
                 sections={ui.plugins.flatMap(plugin => (plugin.contributions?.settings ?? []).map(section => ({ ...section, id: `plugin/${plugin.id}/${section.id}` })))}
                 theme={theme} themeProblem={themeProblem} onThemeChange={changeTheme}
                 category={settingsCategory}
@@ -1386,6 +1392,7 @@ function EditorApp() {
       </div>
       {panelOpen && !assistantOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? (
         <DocumentPanel
+          onWidth={setDocumentPanelSize}
           overlay={panelOverlay}
           outline={document ? outlineStore : undefined}
           onSelectItem={item => nativeSession?.revealItem(item)}
@@ -1399,7 +1406,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable ? <AssistantPanel settingsDisabled={settingsDisabled} referenceRequest={referenceRequest} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable ? <AssistantPanel settingsRevision={ui.aiSettingsRevision} settingsDisabled={settingsDisabled} referenceRequest={referenceRequest} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { await openFolderDocument(path); }}
         onUndo={async result => {
@@ -1564,9 +1571,9 @@ function EditorApp() {
         </DialogContent>
       </Dialog>
     </div>
-    <ShellNotificationCenter panelWidth={assistantOpen
+    <ShellNotificationCenter sidebarWidth={sidebarSize} documentPanelWidth={documentPanelSize} panelWidth={assistantOpen
       ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
-      : panelOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? "var(--layout-document-panel-width)" : "0px"} />
+      : panelOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? "var(--document-panel-effective-width)" : "0px"} />
   </>);
 }
 

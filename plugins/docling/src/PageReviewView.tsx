@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { UiHost } from "@litzio/plugin-api/ui";
 import type { ComparisonSnapshot } from "./comparison/compare.ts";
 import "./page-review.css";
@@ -9,6 +9,7 @@ export function PageReviewView({ host, snapshot, loading, conversionEnabled, onC
   const [selection, setSelection] = useState<number[]>([]), [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false), [problem, setProblem] = useState("");
   const pending = useRef(false);
+  const selectionId = useId();
   const ko = host.text("Source pages") !== "Source pages";
   const copy: Record<string, string> = {
     "Select page": "페이지 선택", "Exclude selected pages": "선택 페이지 제외", "Exclusion reason": "제외 이유 (필수)",
@@ -49,12 +50,15 @@ export function PageReviewView({ host, snapshot, loading, conversionEnabled, onC
           <host.Button variant="secondary" disabled={disabled} onClick={() => void change(entry.id)}>{text("Undo exclusion")} ({entry.pages.join(", ")})</host.Button></div>)}
       </section> : null}
       <div className="docling-page-grid">{pages.map(page => <article key={page.page_no} className="docling-page-card" data-page={page.page_no} data-excluded={!!page.exclusion}>
-        <div className="docling-page-card-heading"><label><input type="checkbox" aria-label={`${text("Select page")} ${page.page_no}`} checked={selection.includes(page.page_no)} disabled={disabled || !!page.exclusion}
+        <div className="docling-page-card-heading"><label><input id={`${selectionId}-${page.page_no}`} type="checkbox" aria-label={`${text("Select page")} ${page.page_no}`} checked={selection.includes(page.page_no)} disabled={disabled || !!page.exclusion}
           onChange={event => setSelection(value => event.target.checked ? [...value, page.page_no].sort((a, b) => a - b) : value.filter(n => n !== page.page_no))} />{text("Source page")} {page.page_no}</label>
-          {page.exclusion ? <span>{text("Excluded")}</span> : null}</div>
-        <div className="docling-page-preview" style={{ aspectRatio: `${page.size.width} / ${page.size.height}` }}>
-          {page.image?.uri ? <img loading="lazy" decoding="async" src={host.imageUrl(snapshot.path, page.image.uri)} alt={`${text("Source page")} ${page.page_no}`} /> : <p>{text("Page image unavailable")}</p>}
-        </div>
+          {page.exclusion ? <span>Excluded</span> : null}</div>
+        <label htmlFor={`${selectionId}-${page.page_no}`} className="docling-page-preview" style={{ aspectRatio: `${page.size.width} / ${page.size.height}` }}>
+          {page.image?.uri ? <img loading="lazy" decoding="async" src={host.imageUrl(snapshot.path, page.image.uri)} alt={`${text("Source page")} ${page.page_no}`} /> : <span>{text("Page image unavailable")}</span>}
+          {page.exclusion ? <svg className="docling-page-exclusion-mark" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 0H100V100H0Z M0 0L100 100" vectorEffect="non-scaling-stroke" />
+          </svg> : null}
+        </label>
       </article>)}</div>
     </div>
   </section>;

@@ -7,8 +7,23 @@ import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import type { AiWorkerRequest } from "@litzio/plugin-api/ai";
+import type { AiWorkerRequest, AiTaskRequest, AiExecutionSettings } from "@litzio/plugin-api/ai";
 import { codexArgs, codexPermissionArgs, runInSnapshot, taskPrompt } from "../src/adapters.ts";
+import { activate } from "../src/host.ts";
+import type { PluginHostContext } from "@litzio/plugin-api/host";
+
+test("Copilot assistant settings preserve Codex feature-task execution defaults", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "ai-provider-settings-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  let execution: unknown;
+  const plugin = activate({ settingsFile: path.join(root, "settings.json"),
+    aiExecutor: { current: () => null, start: async (_request: AiTaskRequest, _timeout: number, settings: AiExecutionSettings) => { execution = settings; return {} as never; } },
+  } as unknown as PluginHostContext);
+  plugin.operations.configure({ provider: "copilot", enabled: true, model: "copilot-model", reasoningEffort: "", responseLanguage: "ko",
+    codexTaskSettings: { model: "saved-codex-model", reasoningEffort: "low" } });
+  await plugin.aiTaskService!.start({ id: "task", caller: "fixture", task: "inspect", instruction: "Inspect input", materials: [], input: null, schema: { type: "null" }, baseline: "opaque" });
+  assert.deepEqual(execution, { model: "saved-codex-model", reasoningEffort: "low", responseLanguage: "ko" });
+});
 
 test("snapshot contains only requested, hashed files; control files stay separate and both directories are cleaned on every outcome", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "ai-adapter-test-"));

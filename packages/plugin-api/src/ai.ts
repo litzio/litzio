@@ -9,12 +9,15 @@ export type AiExecutionSettings = { model: string; reasoningEffort: string; resp
 export const DEFAULT_AI_SETTINGS: AiExecutionSettings = { model: "gpt-6.1-sol", reasoningEffort: "medium" };
 /** Fallback for tasks started without a conversation; never a conversation override. */
 export type AiResponseLanguage = "ko" | "en" | "ja";
-export type AiAgentSettings = AiExecutionSettings & { provider: "codex"; enabled: boolean; writeAccess: "opened-folders" | "read-only" };
+export type AiProvider = "codex" | "copilot";
+export type AiAgentSettings = AiExecutionSettings & { provider: AiProvider; enabled: boolean; writeAccess: "opened-folders" | "read-only";
+  /** Codex feature-task defaults retained while the assistant uses Copilot. */
+  codexTaskSettings?: Pick<AiExecutionSettings, "model" | "reasoningEffort"> };
 export const AI_AGENT = {
   skillsRoute: "/api/ai-agent-skills", modelsRoute: "/api/ai-agent-models", diagnosticsRoute: "/api/ai-agent-diagnostics", environmentRoute: "/api/ai-agent-environment",
   conversationsRoute: "/api/ai-agent-conversations",
 } as const;
-export type AiConversationInfo = { id: string; title: string; folders: string[]; createdAt: number; updatedAt: number };
+export type AiConversationInfo = { id: string; provider?: AiProvider; title: string; folders: string[]; createdAt: number; updatedAt: number };
 export type AiSkill = { name: string; path: string; description: string };
 export type AiSkills = { skills: AiSkill[]; errors: { path: string; message: string }[] };
 export type AiFileReference = { path: string; name: string; kind: string };
@@ -31,10 +34,10 @@ export type AiConversationInput = Pick<AiExecutionSettings, "model" | "reasoning
   folders: string[]; document?: { path: string; source: string } };
 export type AiModel = { id: string; model: string; displayName: string; description: string;
   supportedReasoningEfforts: { reasoningEffort: string; description: string }[]; defaultReasoningEffort: string };
-export type AiModels = { provider: "codex"; models: AiModel[]; updatedAt: number };
+export type AiModels = { provider: AiProvider; models: AiModel[]; updatedAt: number };
 export type AiEnvironment = { cwd: string; instructions: string; skills: string[] };
 export type AiDiagnostics = {
-  provider: "codex"; checkedAt: number; path: string | null; version: string | null; connected: boolean; error?: string;
+  provider: AiProvider; checkedAt: number; path: string | null; version: string | null; connected: boolean; error?: string;
   account?: { type: string; email?: string | null; planType?: string } | null;
   accountError?: string; rateLimitsError?: string; mcpError?: string;
   rateLimits?: { name: string; windows: { usedPercent: number; windowDurationMins: number | null; resetsAt: number | null }[] }[];

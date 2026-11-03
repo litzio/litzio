@@ -17,7 +17,7 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   await page.getByTestId('folder-path').fill(root + sep);
   await page.getByTestId('folder-open').click(); await row('a.md').waitFor();
   const nativeMenu = locator => locator.evaluate(node => node.dispatchEvent(new MouseEvent('contextmenu', {bubbles:true,cancelable:true})));
-  expect(await nativeMenu(row('nested'))).toBe(true);
+  // Child-folder product menus are covered by folder-navigation (#1064).
   expect(await nativeMenu(activeDocument(page))).toBe(true);
   await row('a.md').focus(); await row('a.md').press('Shift+F10'); await expect(rename()).toBeVisible();
   await menu.and(page.locator(':focus-within')).waitFor();
@@ -25,12 +25,17 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   await row('a.md').press('ContextMenu'); await expect(rename()).toBeVisible();
   await menu.and(page.locator(':focus-within')).waitFor();
   await page.keyboard.press('Escape'); await menu.waitFor({state:'hidden'});
+  const chooseTheme = async theme => {
+    if (await page.locator('html').getAttribute('data-theme') !== theme)
+      await page.getByRole('button',{name:/^Color mode:/}).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+  };
   const metadata = [];
   for (const width of [1440, 640]) {
     await page.setViewportSize({width, height:900});
     const expand = page.getByRole('button', {name:'Expand Explorer', exact:true});
     if (await expand.isVisible()) await expand.click();
-    await page.emulateMedia({colorScheme:width === 640 ? 'dark' : 'light'});
+    await chooseTheme(width === 640 ? 'dark' : 'light');
     await expect(page.locator('html')).toHaveAttribute('data-theme',width === 640 ? 'dark' : 'light');
     const target = await row('a.md').boundingBox();
     await row('b.md').click({button:'right'}); await rename().waitFor();
@@ -52,7 +57,7 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
     metadata.push(await page.evaluate(() => ({width:innerWidth,dpr:devicePixelRatio,zoom:visualViewport.scale,dark:matchMedia('(prefers-color-scheme:dark)').matches,font:getComputedStyle(document.body).fontFamily})));
     await cancel();
   }
-  await page.setViewportSize({width:1440,height:900}); await page.emulateMedia({colorScheme:'light'});
+  await page.setViewportSize({width:1440,height:900}); await chooseTheme('light');
   await row('a.md').click(); await expect(page.getByTestId('current-file')).toHaveText('a.md');
   const paragraph = activeDocument(page).locator('.document-editor p').first();
   await paragraph.click(); await page.keyboard.press('End'); await page.keyboard.type(' Changed.');
@@ -160,6 +165,29 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   expect(rewritten.source).toContain('./updated.svg'); expect(rewritten.source).toContain('After rename.');
   await row('renamed.md').click(); await expect(page.getByTestId('current-file')).toHaveText('renamed.md');
   await context('unused.svg','Rename…');
+  // #999: deliver the real listing and recovery read together. The new row can mount in
+  // the same commit that closes Rename, before passive effects remove the operation's inert.
+  // Keep the actual pointer action and focus assertion; only control the two I/O completions.
+  await page.evaluate(async () => {
+    const { recoveryStorage } = await import('/src/recovery-storage.ts');
+    const fetch = window.fetch, list = recoveryStorage.list;
+    let requested = false, releaseFolder, releaseRecords;
+    const release = () => { if (releaseFolder && releaseRecords) { releaseFolder(); releaseRecords(); } };
+    window.fetch = async (...args) => {
+      const folder = !requested && String(args[0]).includes('api/folder?');
+      if (folder) requested = true;
+      const response = await fetch(...args);
+      if (!folder) return response;
+      const data = await response.clone().json();
+      response.json = async () => data;
+      return new Promise(resolve => { releaseFolder = () => { window.fetch = fetch; resolve(response); }; release(); });
+    };
+    recoveryStorage.list = async (...args) => {
+      const records = await list(...args);
+      if (!requested) return records;
+      return new Promise(resolve => { releaseRecords = () => { recoveryStorage.list = list; resolve(records); }; release(); });
+    };
+  });
   await dialog.getByRole('textbox',{name:'File name',exact:true}).fill('free');
   await dialog.getByRole('button',{name:'Rename',exact:true}).click(); await dialog.waitFor({state:'hidden'});
   await expect(row('free.svg')).toBeFocused();

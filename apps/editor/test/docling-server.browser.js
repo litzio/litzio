@@ -36,16 +36,17 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     const entry = page.getByTestId('sidebar').getByRole('button', { name: 'Settings', exact: true });
     await expect(entry).toBeEnabled();
     await entry.click();
+    await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
     await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
   };
   await settings();
   await page.unroute('**/api/document**', holdStartup);
   const field = page.getByRole('textbox', { name: 'Server address' });
   const addressRow = async () => {
-    const a = await page.locator('#docling-server').boundingBox();
+    const a = await field.boundingBox();
     const b = await page.getByRole('button', { name: /^(Check connection|연결 확인)$/ }).boundingBox();
-    expect(b.x).toBeGreaterThanOrEqual(a.x + a.width);
-    expect(Math.abs(a.y + a.height / 2 - b.y - b.height / 2)).toBeLessThan(2);
+    expect(Math.abs(a.x - b.x)).toBeLessThan(2);
+    expect(b.y).toBeGreaterThanOrEqual(a.y + a.height);
   };
   const check = async () => {
     await page.getByRole('button', { name: 'Check connection', exact: true }).click();
@@ -155,6 +156,10 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
   await center.getByRole('button', { name: 'Open settings', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Server address' })).toBeVisible();
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+  // The lost POST must finish UI recovery before testing the running-job command.
+  await pdf.click({ button: 'right' });
+  await expect(page.getByRole('menuitem', { name: 'Convert with Docling', exact: true })).toBeEnabled();
+  await page.keyboard.press('Escape');
   await page.keyboard.press('Control+Slash');
   await page.getByRole('dialog', { name: 'Command center' }).getByRole('combobox').fill('> Convert with Docling');
   await page.getByRole('option', { name: 'Convert with Docling', exact: true }).click();
@@ -333,6 +338,7 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     await page.reload();
     await page.setViewportSize({ width: 640, height: 1000 });
     await page.getByRole('button', { name: '설정', exact: true }).click();
+    await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
     await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
     await page.getByRole('button', { name: '연결 확인', exact: true }).click();
     await page.getByRole('button', { name: '연결 확인', exact: true }).waitFor();
@@ -360,6 +366,7 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
     await page.getByRole('button', { name: '설정', exact: true }).click();
     await page.getByRole('button', { name: '표시·언어', exact: true }).click();
     await page.getByTestId('theme').selectOption('dark');
+    await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
     await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
     await page.getByRole('button', { name: '연결 확인', exact: true }).click();
     await expect(page.locator('#docling-server-result')).toContainText('호환됩니다');

@@ -23,16 +23,19 @@ export function writePageBackground(page: PageBackground): boolean {
   } catch { return false; }
 }
 
-export const THEME_LABELS = { system: "System", light: "Light", dark: "Dark" } as const;
-export const THEMES = ["system", "light", "dark"] as const;
+export const THEME_LABELS = { light: "Light", dark: "Dark" } as const;
+export const THEMES = ["light", "dark"] as const;
 export type ThemePreference = typeof THEMES[number];
 export const THEME_KEY = `${brand.storagePrefix}.theme`;
 
 export function readTheme(): ThemePreference {
   try {
     const saved = globalThis.localStorage?.getItem(THEME_KEY);
-    return THEMES.find(theme => theme === saved) ?? "system";
-  } catch { return "system"; }
+    if (saved === "light" || saved === "dark") return saved;
+    const initial = saved == null && globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    writeTheme(initial);
+    return initial;
+  } catch { return globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
 }
 
 export function writeTheme(theme: ThemePreference): boolean {

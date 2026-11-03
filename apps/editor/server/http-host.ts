@@ -75,7 +75,7 @@ export async function startHttpHost(options: HttpHostOptions) {
     } catch { return json(res, 400, "Invalid request path."); }
     const api = url.pathname.startsWith("/api/");
     const media = url.pathname.startsWith("/document/");
-    const writing = req.method === "POST" || req.method === "PUT" || req.method === "DELETE";
+    const writing = req.method === "POST" || req.method === "PUT" || req.method === "PATCH" || req.method === "DELETE";
     const origin = req.headers.origin;
     if ((origin !== undefined && !origins.has(origin)) || (writing && !origin) ||
         ((api || media || writing) && req.headers["sec-fetch-site"] === "cross-site")) {

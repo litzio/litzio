@@ -80,7 +80,11 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
       await page.setViewportSize({ width: 1440, height: 1000 }); await page.locator('[data-tab-id="settings"] .document-tab-close').click();
     }
     // Same installed bytes/module URL; activation is new and local view state resets.
-    await register(manifest);
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Plugins', exact: true }).click();
+    await page.getByTestId('installed-plugin-fixture').getByRole('switch', { name: 'fixture', exact: true }).click();
+    await expect(page.getByTestId('installed-plugin-fixture').getByRole('switch')).toBeChecked();
+    await tab.click();
     await expect(page.getByRole('button', { name: 'Fixture count 0' })).toBeVisible();
     await expect(tab).toHaveAttribute('id', id);
     expect(await page.evaluate(() => globalThis.__uiFixtureEvaluations)).toBe(1);

@@ -594,7 +594,7 @@ Conversion policy, source preservation, failure reporting and public command res
 
 ## Plugin dashboard and feature selection (#871)
 
-#900 adds the third **Structure review** feature checkbox, persisted through the
+#900 adds the third **Structure review** feature switch, persisted through the
 same registration lifecycle. Each available result shows pending proposal count,
 explicit Run/Cancel, running/completed/cancelled/failed/uncertain state and failure
 details. Agent status distinguishes Off, Available, Login required and Unavailable.
@@ -641,7 +641,7 @@ conversion confirmation dialog and never submit without explicit Convert. Other
 result-less rows retain their status without a redundant disabled comparison action.
 Stop waiting stays beside running progress in the first column so it remains
 visible at 640px without horizontal scrolling. Secondary actions retain the existing
-disclosure menu; Retry / Start again are moved out rather than repeated in it.
+Host declarative action menu (#1033); Retry / Start again are moved out rather than repeated in it.
 Each row has a disclosure for [Page review](docling-compare-v1.md#manual-page-exclusion-945) (#995 PR 2), document/folder opening,
 unchanged review execution and Clear record. Clearing remains limited to uncertain
 receipts by the runtime; other states explain why it is disabled. Missing and
@@ -659,7 +659,7 @@ reads still perform full validation synchronously. Progress, Stop waiting and th
 one-second polling cadence are unchanged.
 
 Connection checks reuse version/readiness preflight. Server configuration,
-model-readiness explanation and feature checkboxes live in Settings › Docling.
+model-readiness explanation and Host feature switch rows live in Settings › Docling.
 The last connection check is view-local, not persisted.
 
 Jobs read existing runtime receipts filtered by this Host's Roots. Running jobs
@@ -706,7 +706,7 @@ and [correction replay](#approved-correction-records-and-replay-876) use install
 
 The existing Plugin TabKind, Host Button variants, state chips and role/spacing
 tokens are reused. Count filters remain native buttons with aria-pressed, an
-existing dashboard exception; the row disclosure menu is unchanged (#1033).
+existing dashboard exception; the row menu uses the shared Host DropdownMenu (#1033; [API](plugin-ui-v1.md#host-settings-rows-and-declarative-menus-1033)).
 UiHost does not expose Tooltip or Button ARIA props. A local descriptive group
 therefore reveals its linked text beside the target on hover/focus-within, rather than adding
 a public API or importing Editor internals. Failure and uncertain chips have a

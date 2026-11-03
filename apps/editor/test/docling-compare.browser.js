@@ -19,6 +19,7 @@ async (page, { expect, screenshots }) => {
     }, { theme, language });
     await page.setViewportSize({ width, height: 1000 });
     await page.reload();
+    await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: 'attached' });
     const korean = language === 'ko';
     const hint = korean ? '문서는 폴더를 연 뒤 사이드바에서 선택합니다.' : 'Choose documents in the sidebar after opening a folder.';
     await page.getByRole('button', { name: korean ? '폴더 열기…' : 'Open folder…', exact: true }).click();
@@ -292,7 +293,8 @@ async (page, { expect, screenshots }) => {
   await synthetic.getByRole('button', { name: 'Page review', exact: true }).click();
   const review = page.locator('.docling-page-review-tab[data-active=true]');
   await expect(page.getByRole('tab', { selected: true })).toHaveAccessibleName('synthetic · Page review');
-  await review.getByRole('checkbox', { name: 'Select page 1', exact: true }).check();
+  await review.getByRole('img', { name: 'Source page 1', exact: true }).click();
+  expect(await review.getByRole('checkbox', { name: 'Select page 1', exact: true }).isChecked()).toBe(true);
   await review.getByRole('textbox', { name: 'Exclusion reason' }).fill('Manual source page exclusion');
   await review.getByRole('button', { name: 'Exclude selected pages', exact: true }).click();
   await expect(review.locator('.docling-page-review')).toHaveAttribute('aria-busy', 'false');
@@ -421,7 +423,7 @@ async (page, { expect, screenshots }) => {
   await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); });
   if (screenshots) {
     // Same page/selection as the original review pairs; captures are manual evidence.
-    for (const [width, theme, language] of [[1440, 'light', 'en'], [1440, 'dark', 'en'], [1440, 'light', 'ko'], [1440, 'dark', 'ko'], [640, 'light', 'en'], [640, 'dark', 'en'], [640, 'light', 'ko'], [640, 'dark', 'ko']]) {
+    for (const [width, theme, language] of [[1440, 'light', 'en'], [640, 'dark', 'ko']]) {
       await page.evaluate(({ theme, language }) => {
         localStorage.setItem('litzio.uiLanguage', language);
         localStorage.setItem('litzio.theme', theme);

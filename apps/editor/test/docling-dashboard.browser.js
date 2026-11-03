@@ -13,10 +13,11 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   const show = async () => { await page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true }).click(); await expect(dashboard).toBeVisible(); };
   const settings = page.getByTestId('settings-dialog');
   // Isolate Settings removal before opening polling comparison views.
-  // Actual unregistration still leaves the missing category for Appearance.
+  // Actual unregistration returns from plugin settings to the Plugins list.
   await page.getByTestId('sidebar').getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
   await settings.getByRole('button', { name: 'Docling', exact: true }).click();
-  await expect(settings.getByRole('checkbox', { name: 'Docling comparison', exact: true })).toBeEnabled();
+  await expect(settings.getByRole('switch', { name: 'Docling comparison', exact: true })).toBeEnabled();
   const plugins = await (await page.request.get(`${origin}/api/worker-plugins`)).json();
   expect(plugins.some(plugin => plugin.id === 'docling' && plugin.enabled)).toBe(true);
   const manifest = fixture.input.replace(/[\\/]docling-dashboard[\\/]completed\.pdf$/u, '/docling-worker/manifest.json');
@@ -24,7 +25,7 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
     const disabled = await page.request.delete(`${origin}/api/worker-plugins`, { data: { id: 'docling' } });
     expect(disabled.ok()).toBe(true);
     await expect(settings.getByRole('button', { name: 'Docling', exact: true })).toHaveCount(0);
-    await expect(settings.getByRole('main', { name: 'Appearance & language' })).toBeVisible();
+    await expect(settings.getByRole('main', { name: 'Plugins', exact: true })).toBeVisible();
   } finally {
     const restored = await page.request.post(`${origin}/api/worker-plugins`, { data: { manifest } });
     expect(restored.ok()).toBe(true);
@@ -39,17 +40,19 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await page.getByTestId('settings-dialog').press('Escape');
   const feature = async (name, enabled) => {
     await dashboard.getByRole('button', { name: 'Settings', exact: true }).click();
-    await expect(settings.getByRole('checkbox', { name, exact: true })).toBeEnabled();
+    await expect(settings.getByRole('switch', { name, exact: true })).toBeEnabled();
     const saved = page.waitForResponse(r => r.url().endsWith('/api/docling-features') && r.request().method() === 'PUT');
-    await settings.getByRole('checkbox', { name, exact: true }).setChecked(enabled);
+    await settings.getByRole('switch', { name, exact: true }).setChecked(enabled);
     expect((await saved).ok()).toBe(true);
-    await expect(settings.getByRole('checkbox', { name, exact: true })).toBeChecked({ checked: enabled });
+    await expect(settings.getByRole('switch', { name, exact: true })).toBeChecked({ checked: enabled });
     await settings.press('Escape');
   };
   const menu = async row => {
     const notifications = page.locator('.notification-center > button[aria-expanded=true]');
     if (await notifications.isVisible()) await notifications.click();
-    if (!(await row.locator('details').evaluate(e => e.open))) await row.locator('summary').click();
+    const trigger = row.getByRole('button', { name: /^Actions:/ });
+    if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
+    await expect(page.getByRole('menu')).toBeVisible();
   };
   const emptyCapture = async (width, theme, language) => {
     await page.evaluate(({ theme, language }) => { localStorage.setItem('litzio.theme', theme); localStorage.setItem('litzio.uiLanguage', language); }, { theme, language });
@@ -137,6 +140,10 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
     await expect(dashboard.locator('tbody tr')).toHaveAttribute('data-state', state); await counter.click();
   }
   await expect(result).toContainText('Correspondence map is current');
+  await menu(result);
+  await page.getByRole('menu').press('Escape');
+  await expect(page.getByRole('menu')).toBeHidden();
+  await expect(result.getByRole('button', { name: /^Actions:/ })).toBeFocused();
   const capture = async (width, theme, language) => {
     await page.evaluate(({ theme, language }) => { localStorage.setItem('litzio.theme', theme); localStorage.setItem('litzio.uiLanguage', language); }, { theme, language });
     await page.setViewportSize({ width, height: 1100 }); await page.reload(); await show();
@@ -163,6 +170,14 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await page.setViewportSize({ width: 1440, height: 1100 }); await page.reload(); await show();
   await dashboard.locator(`[data-request-id="${running.id}"]`).getByRole('button', { name: 'Stop waiting' }).click();
   await expect(dashboard.locator(`[data-record-id="${running.id}"]`)).toContainText('Waiting stopped');
+  const stoppedRow = dashboard.locator(`[data-record-id="${running.id}"]`);
+  await menu(stoppedRow);
+  await page.getByRole('menuitem', { name: 'Retry…', exact: true }).click();
+  const retryDialog = page.getByTestId('docling-conversion');
+  await expect(retryDialog).toBeVisible();
+  await retryDialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(retryDialog).toBeHidden();
+  await expect(stoppedRow.getByRole('button', { name: /^Actions:/ })).toBeFocused();
   fixture.mode('success');
   await dashboard.locator(`[data-record-id="${failed.id}"]`).getByRole('button', { name: 'Retry…' }).click();
   const dialog = page.getByTestId('docling-conversion'); await expect(dialog).toBeVisible();
@@ -189,14 +204,15 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await expect(page.getByRole('option', { name: 'Docling dashboard', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await page.getByTestId('sidebar').getByRole('button', { name: 'Settings', exact: true }).click();
+  await settings.getByRole('navigation').getByRole('button', { name: 'Plugins', exact: true }).click();
   await expect(page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true })).toBeVisible();
   await page.getByTestId('settings-dialog').press('Escape');
   await feature('Docling comparison', false);
   await expect(dashboard.getByRole('button', { name: 'Open conversion folder…' })).toHaveCount(0);
   await page.reload(); await show();
   await dashboard.getByRole('button', { name: 'Settings', exact: true }).click();
-  await expect(settings.getByRole('checkbox', { name: 'PDF conversion', exact: true })).not.toBeChecked();
-  await expect(settings.getByRole('checkbox', { name: 'Docling comparison', exact: true })).not.toBeChecked();
+  await expect(settings.getByRole('switch', { name: 'PDF conversion', exact: true })).not.toBeChecked();
+  await expect(settings.getByRole('switch', { name: 'Docling comparison', exact: true })).not.toBeChecked();
   await settings.press('Escape');
   await feature('Docling comparison', true);
   await expect(dashboard.getByRole('button', { name: 'Open conversion folder…' })).toBeVisible();
@@ -213,25 +229,26 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await page.locator('.notification-center').getByRole('button', { name: 'Open comparison', exact: true }).click();
   await expect(page.locator('.docling-tab[data-active=true] .ProseMirror')).toBeVisible();
   expect(fixture.submissions()).toBe(before + 1);
-  await show(); await menu(uncertain); await uncertain.getByRole('button', { name: 'Clear record' }).click(); await expect(uncertain).toHaveCount(0);
+  await show(); await menu(uncertain); await page.getByRole('menuitem', { name: 'Clear record', exact: true }).click(); await expect(uncertain).toHaveCount(0);
   fixture.changeResult(completed.output, false); await expect(result).toContainText('Correspondence map is stale');
   const attention = dashboard.locator('.docling-dashboard-count').filter({ hasText: 'Needs attention' });
   await attention.click(); await expect(result).toBeVisible();
   await attention.click();
-  await menu(result); await result.getByRole('button', { name: 'Page review', exact: true }).click();
+  await menu(result); await page.getByRole('menuitem', { name: 'Page review', exact: true }).click();
   await expect(page.locator('.docling-page-review-tab[data-active=true] .docling-page-card').first()).toBeVisible();
   await show();
   await result.getByRole('button', { name: 'Open comparison', exact: true }).click();
   await expect(page.locator('.docling-tab[data-active=true]').getByRole('checkbox', { name: 'Sync scrolling' })).toBeDisabled();
-  await show(); await menu(result); await result.getByRole('button', { name: 'Open document', exact: true }).click();
+  await show(); await menu(result); await page.getByRole('menuitem', { name: 'Open document', exact: true }).click();
   await expect(page.locator('.document-scroll[data-active=true] .ProseMirror')).toContainText('Externally changed fixture.');
-  await show(); if (!(await result.locator('details').evaluate(e => e.open))) await menu(result); await result.getByRole('button', { name: 'Open folder', exact: true }).click();
+  await show(); await menu(result); await page.getByRole('menuitem', { name: 'Open folder', exact: true }).click();
   await expect(page.getByTestId('sidebar')).toContainText('completed.docling');
   fixture.changeResult(completed.output, true); await expect(result).toContainText('The result folder no longer exists.');
   await expect(result.getByRole('button', { name: 'Open comparison' })).toBeDisabled();
-  if (!(await result.locator('details').evaluate(e => e.open))) await menu(result);
-  await expect(result.getByRole('button', { name: 'Open document' })).toBeDisabled();
-  await expect(result.getByRole('button', { name: 'Open folder' })).toBeDisabled();
+  await menu(result);
+  await expect(page.getByRole('menuitem', { name: 'Open document' })).toBeDisabled();
+  await expect(page.getByRole('menuitem', { name: 'Open folder' })).toBeDisabled();
+  await page.getByRole('menu').press('Escape');
   const seeded = Array.from({ length: 12 }, () => fixture.uncertain());
   const stored = (await request('dashboard')).requests.length;
   await expect(dashboard.getByRole('button', { name: 'Show more', exact: true })).toBeVisible();

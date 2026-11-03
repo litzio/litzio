@@ -122,19 +122,24 @@ export class CodexAppServer extends EventEmitter {
   private async stop() {
     const child = this.child;
     for (const item of this.pending.values()) { clearTimeout(item.timer); item.reject(new Error("Codex app-server is closing.")); } this.pending.clear();
-    if (!child || child.exitCode !== null || child.signalCode !== null) return;
-    const exited = new Promise<void>(resolve => child.once("close", () => resolve()));
-    // End stdin first, then terminate the exact owned tree if Codex does not exit.
-    child.stdin.end();
-    let killerError: Error | undefined;
-    const timer = setTimeout(() => {
-      if (!child.pid) return;
-      if (process.platform === "win32") {
-        const killer = spawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
-        killer.on("error", error => { killerError = error; });
-      } else { try { process.kill(-child.pid, "SIGKILL"); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") killerError = error as Error; } }
-    }, 1000);
-    try { await Promise.race([exited, new Promise<never>((_, reject) => { const timeout = setTimeout(() => reject(killerError ?? new Error("Could not confirm Codex termination.")), 6000); void exited.then(() => clearTimeout(timeout)); })]); }
-    finally { clearTimeout(timer); }
+    await stopAgentProcess(child);
   }
+}
+
+/** Close only the exact Host-owned stdio process tree and confirm its exit. */
+export async function stopAgentProcess(child?: ChildProcessWithoutNullStreams) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  const exited = new Promise<void>(resolve => child.once("close", () => resolve()));
+  // End stdin first, then terminate the exact owned tree if the child does not exit.
+  child.stdin.end();
+  let killerError: Error | undefined;
+  const timer = setTimeout(() => {
+    if (!child.pid) return;
+    if (process.platform === "win32") {
+      const killer = spawn("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true });
+      killer.on("error", error => { killerError = error; });
+    } else { try { process.kill(-child.pid, "SIGKILL"); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ESRCH") killerError = error as Error; } }
+  }, 1000);
+  try { await Promise.race([exited, new Promise<never>((_, reject) => { const timeout = setTimeout(() => reject(killerError ?? new Error("Could not confirm agent termination.")), 6000); void exited.then(() => clearTimeout(timeout)); })]); }
+  finally { clearTimeout(timer); }
 }

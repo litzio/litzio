@@ -7,8 +7,10 @@ import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
 
 import { listFolder } from "./document-api.ts";
 import { documentTools, executeDocumentTool, type DocumentToolScope } from "./agent-document-tools.ts";
+import { AGENT_INSTRUCTIONS } from "./ai-agent-connection.ts";
+import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
 
-/** Litzio persists only its history index. Codex owns all conversation content. */
+/** Litzio persists only its history index. Each CLI owns its conversation content. */
 export class AiAgentConversations {
   private conversations = new Map<string, AiConversation>();
   private pending = new Set<string>();
@@ -16,6 +18,14 @@ export class AiAgentConversations {
   private answers = new Map<string, (answers: AiUserInputAnswers) => void>();
   private loaded = new Set<string>();
   constructor(private connection: AiAgentConnection, private access: FileAccess) {
+    connection.copilot.on("update", (params: SessionNotification) => this.copilotUpdate(params));
+    connection.copilot.on("disconnected", (message: string) => {
+      for (const conversation of this.conversations.values()) if (conversation.provider === "copilot") {
+        this.loaded.delete(conversation.id); this.scopes.delete(conversation.id);
+        for (const turn of conversation.turns) if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; }
+      }
+    });
+    connection.copilot.permission = request => this.copilotPermission(request);
     connection.client.userInput = (requestId, params, respond) => {
       const conversation = this.conversations.get(params?.threadId);
       if (!conversation?.turns.some(turn => turn.id === params.turnId && turn.status === "inProgress") || conversation.userInput ||
@@ -36,9 +46,9 @@ export class AiAgentConversations {
     };
     connection.client.on("notification", (method, params) => this.notification(method, params));
     connection.client.on("disconnected", (message: string) => {
-      this.loaded.clear(); this.scopes.clear();
-      for (const conversation of this.conversations.values()) this.expireQuestion(conversation);
-      for (const conversation of this.conversations.values()) for (const turn of conversation.turns) {
+      for (const [id, conversation] of this.conversations) if (conversation.provider !== "copilot") { this.loaded.delete(id); this.scopes.delete(id); }
+      for (const conversation of this.conversations.values()) if (conversation.provider !== "copilot") this.expireQuestion(conversation);
+      for (const conversation of this.conversations.values()) if (conversation.provider !== "copilot") for (const turn of conversation.turns) {
         if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; }
       }
     });
@@ -49,11 +59,11 @@ export class AiAgentConversations {
     return existsSync(this.file) ? JSON.parse(readFileSync(this.file, "utf8")) : [];
   }
   private save(conversation: AiConversation) {
-    const { id, title, folders, createdAt, updatedAt } = conversation;
+    const { id, title, folders, createdAt, updatedAt, provider } = conversation;
     const entries = this.list().filter(entry => entry.id !== id);
     const temporary = `${this.file}.${randomUUID()}.tmp`;
     try {
-      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt }, ...entries]) + "\n", { flag: "wx" });
+      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}) }, ...entries]) + "\n", { flag: "wx" });
       renameSync(temporary, this.file);
     } finally { if (existsSync(temporary)) unlinkSync(temporary); }
   }
@@ -64,13 +74,23 @@ export class AiAgentConversations {
   }
   async resume(id: string, settings: AiAgentSettings) {
     if (typeof id !== "string") throw new Error("Invalid conversation selection.");
-    if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
     const info = this.list().find(entry => entry.id === id);
     if (!info) throw new Error("Conversation was not found.");
+    if ((info.provider ?? "codex") !== settings.provider) throw new Error("Select this conversation's provider in AI settings first.");
+    if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
     const conversation: AiConversation = { ...info, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
       tokenUsage: this.conversations.get(id)?.tokenUsage };
     // Install before the RPC so token-usage notifications during resume are retained.
     this.conversations.set(id, conversation);
+    if (info.provider === "copilot") {
+      const client = await this.connection.copilot.connect();
+      if (!this.connection.copilot.loadSession) throw new Error("This Copilot CLI cannot resume sessions. Start a new conversation.");
+      const session = await this.connection.copilot.call(() => client.loadSession({ sessionId: id, cwd: this.connection.cwd, mcpServers: [] }));
+      conversation.model = session.models?.currentModelId ?? settings.model;
+      conversation.reasoningEffort = "";
+      this.loaded.add(id);
+      return conversation;
+    }
     const result = await this.connection.client.request("thread/resume", { threadId: id, cwd: this.connection.cwd,
       approvalPolicy: "never", sandbox: "read-only", excludeTurns: true });
     // Codex uses paginated histories; hydrate full turns rather than only the latest page.
@@ -105,6 +125,11 @@ export class AiAgentConversations {
     this.pending.add(key);
     try {
       this.connection.environment();
+      if (conversation && (conversation.provider ?? "codex") !== settings.provider) throw new Error("Start a conversation with the selected provider.");
+      if (settings.provider === "copilot") {
+        if (input.skills?.length) throw new Error("Skill selection is available only with Codex.");
+        return await this.sendCopilot(input, settings, folders, references, conversation);
+      }
       if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings);
       const active = conversation?.turns.find(turn => turn.status === "inProgress");
       if (active && (input.model !== conversation!.model || input.reasoningEffort !== conversation!.reasoningEffort)) throw new Error("Model and reasoning effort are locked while running.");
@@ -171,8 +196,78 @@ export class AiAgentConversations {
   async interrupt(id: string) {
     const conversation = this.current(id), turn = conversation.turns.find(turn => turn.status === "inProgress");
     this.expireQuestion(conversation);
-    if (turn) await this.connection.client.request("turn/interrupt", { threadId: id, turnId: turn.id });
+    if (turn && conversation.provider === "copilot") {
+      const client = await this.connection.copilot.connect();
+      await this.connection.copilot.call(() => client.cancel({ sessionId: id }));
+    } else if (turn) await this.connection.client.request("turn/interrupt", { threadId: id, turnId: turn.id });
     return conversation;
+  }
+  private async sendCopilot(input: AiConversationInput, settings: AiAgentSettings, folders: string[], references: import("@litzio/plugin-api/ai").AiFileReference[], conversation?: AiConversation) {
+    const acp = this.connection.copilot, client = await acp.connect();
+    if (conversation?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Copilot response before sending another message.");
+    const catalog = await this.connection.models("copilot");
+    if (!catalog.models.some(model => model.model === input.model)) throw new Error("Invalid Copilot model.");
+    if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings);
+    if (!conversation) {
+      const session = await acp.call(() => client.newSession({ cwd: this.connection.cwd, mcpServers: [] }));
+      conversation = { id: session.sessionId, provider: "copilot", title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, 80),
+        folders, createdAt: Date.now(), updatedAt: Date.now(), turns: [], model: input.model, reasoningEffort: "" };
+      this.conversations.set(conversation.id, conversation); this.loaded.add(conversation.id);
+    }
+    const id = conversation.id;
+    await acp.call(() => client.unstable_setSessionModel({ sessionId: id, modelId: input.model }));
+    references = checkedReferences(input.references ?? [], folders, this.access);
+    const context = { folders, document: input.document ?? null, references };
+    const turn: AiConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.message, references }] };
+    conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = "";
+    conversation.folders = folders; conversation.updatedAt = Date.now();
+    this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, writeAccess: settings.writeAccess, turnId: turn.id });
+    this.save(conversation);
+    // ACP prompt resolves at turn completion; return the snapshot immediately for existing panel polling.
+    void client.prompt({ sessionId: id, prompt: [{ type: "text", text: AGENT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] }).then(result => {
+      if (turn.status === "inProgress") {
+        turn.status = result.stopReason === "cancelled" ? "interrupted" : result.stopReason === "end_turn" ? "completed" : "failed";
+        if (turn.status === "failed") turn.error = `Copilot stopped: ${result.stopReason}`;
+      }
+    }, error => { turn.status = "failed"; turn.error = error.message; }).finally(() => { this.scopes.delete(id); });
+    return conversation;
+  }
+  private copilotPermission(request: RequestPermissionRequest): RequestPermissionResponse {
+    const scope = this.scopes.get(request.sessionId), tool = request.toolCall;
+    const active = this.conversations.get(request.sessionId)?.turns.some(turn => turn.id === scope?.turnId && turn.status === "inProgress");
+    let allowed = !!scope && !!active && (tool.kind === "read" || tool.kind === "edit" && scope.writeAccess === "opened-folders");
+    if (!tool.locations?.length) allowed = false;
+    if (allowed) try {
+      for (const location of tool.locations!) {
+        if (!path.isAbsolute(location.path) || !scope!.folders) throw new Error("No opened folder scope.");
+        accessPath(accessPath(location.path, scope!.folders, tool.kind === "edit"), this.access, tool.kind === "edit");
+      }
+    } catch { allowed = false; }
+    const option = allowed ? request.options.find(option => option.kind === "allow_once") : undefined;
+    return option ? { outcome: { outcome: "selected", optionId: option.optionId } } : { outcome: { outcome: "cancelled" } };
+  }
+  private copilotUpdate({ sessionId, update }: SessionNotification) {
+    const conversation = this.conversations.get(sessionId); if (!conversation || conversation.provider !== "copilot") return;
+    let turn = conversation.turns.at(-1);
+    if (update.sessionUpdate === "user_message_chunk" && update.content.type === "text") {
+      if (turn?.status === "inProgress") return;
+      const text = update.content.text, marker = text.indexOf("User message:\n");
+      const item = itemFrom({ type: "userMessage", id: randomUUID(), content: [{ type: "text", text: marker < 0 ? text : text.slice(marker + "User message:\n".length) }] });
+      if (item) conversation.turns.push({ id: randomUUID(), status: "completed", items: [item] });
+      return;
+    }
+    if (!turn) { turn = { id: randomUUID(), status: "completed", items: [] }; conversation.turns.push(turn); }
+    if ((update.sessionUpdate === "agent_message_chunk" || update.sessionUpdate === "agent_thought_chunk") && update.content.type === "text") {
+      const kind = update.sessionUpdate === "agent_message_chunk" ? "assistant" : "reasoning";
+      let item = turn.items.at(-1);
+      if (item?.kind !== kind) { item = { id: randomUUID(), kind, text: "" }; turn.items.push(item); }
+      item.text += update.content.text;
+    } else if (update.sessionUpdate === "tool_call" || update.sessionUpdate === "tool_call_update") {
+      let item = turn.items.find(item => item.id === update.toolCallId);
+      if (!item) { item = { id: update.toolCallId, kind: "tool", text: "" }; turn.items.push(item); }
+      if (update.title) item.text = update.title;
+      if (update.status) item.status = update.status === "in_progress" ? "inProgress" : update.status;
+    }
   }
   private notification(method: string, params: any) {
     const conversation = this.conversations.get(params.threadId);

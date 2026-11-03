@@ -4,6 +4,7 @@ async (page, { expect, screenshots, brand }) => {
     const items = await (await page.request.get(origin + '/api/worker-plugins')).json();
     const original = items.find(item => item.id === 'docling');
     expect(original.bundledRevision).toBeTruthy();
+    if (!original.enabled) expect((await page.request.patch(origin + '/api/worker-plugins', { data: { id: original.id, enabled: true } })).ok()).toBe(true);
     // A synthetic pinned revision exercises UI behavior; the POST and final GET use the real Host.
     let mismatch = true, writes = 0;
     await page.route('**/api/worker-plugins', async route => {
@@ -13,6 +14,7 @@ async (page, { expect, screenshots, brand }) => {
         const response = await route.fetch(); expect(response.ok()).toBe(true);
         mismatch = false; return route.fulfill({ response });
       }
+      if (route.request().method() !== 'GET') return route.continue();
       const response = await route.fetch(); const value = await response.json();
       return route.fulfill({ json: value.map(item => item.id === 'docling' && mismatch ? { ...item, version: 'a'.repeat(64), revision: 'f'.repeat(64), directory: original.directory + '/long-path-for-wrapping-check/설치된-플러그인-경로' } : item) });
     });
@@ -22,10 +24,36 @@ async (page, { expect, screenshots, brand }) => {
     if (screenshots) await page.screenshot({ path: 'tmp/947-evidence/before-1440.png' });
     await nav.getByRole('button', { name: 'Plugins', exact: true }).click();
     const row = page.getByTestId('installed-plugin-docling');
-    await expect(row.getByText('Differs from app default', { exact: true })).toBeVisible();
-    await expect(row.getByText('ffffffffffff', { exact: true })).toHaveAttribute('title', 'f'.repeat(64));
-    await expect(row.locator('dd').first()).toHaveText('aaaaaaaaaaaa');
-    await expect(row.locator('dd').first()).toHaveAttribute('title', 'a'.repeat(64));
+    await expect(row.getByRole('button', { name: 'Docling', exact: true })).toBeEnabled();
+    const details = row.getByRole('button', { name: 'Installation details', exact: true });
+    await expect(row.getByText('Installation path', { exact: true })).toHaveCount(0);
+    await details.hover();
+    const tooltip = page.locator('[data-slot=tooltip-content]');
+    await expect(tooltip).toContainText(original.directory);
+    await expect(tooltip).toContainText('f'.repeat(64));
+    await expect(tooltip).toContainText('a'.repeat(64));
+    await expect(tooltip).toContainText('Differs from app default');
+    await page.mouse.move(0, 0);
+    await expect(tooltip).toBeHidden();
+    await details.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(tooltip).toContainText(original.directory);
+    await page.keyboard.press('Tab');
+    await row.getByRole('switch', { name: 'docling', exact: true }).click();
+    await expect(page.getByTestId('plugin-settings')).toHaveAttribute('aria-busy', 'false');
+    await expect(row.getByRole('switch')).not.toBeChecked();
+    await expect(row.getByText('Off', { exact: false })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Docling', exact: true })).toHaveCount(0);
+    await expect(page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true })).toHaveCount(0);
+    await row.getByRole('switch', { name: 'docling', exact: true }).click();
+    await expect(page.getByTestId('plugin-settings')).toHaveAttribute('aria-busy', 'false');
+    await expect(row.getByRole('switch')).toBeChecked();
+    await row.getByRole('button', { name: 'Docling', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Docling server', exact: true })).toBeVisible();
+    await expect(nav.getByRole('button', { name: 'Docling', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Back to plugins', exact: true }).click();
+    await expect(row.getByRole('switch')).toBeChecked();
+    await expect(row.getByRole('button', { name: 'Docling', exact: true })).toBeFocused();
     if (screenshots) await page.screenshot({ path: 'tmp/947-evidence/plugins-1440.png' });
     await row.getByRole('button', { name: 'Register app default again', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Register app default again?', exact: true });
@@ -37,11 +65,13 @@ async (page, { expect, screenshots, brand }) => {
     await page.setViewportSize({ width: 640, height: 1000 });
     if (screenshots) await page.screenshot({ path: 'tmp/947-evidence/before-640-dark-ko.png' });
     await page.getByRole('button', { name: '플러그인', exact: true }).click();
-    await expect(row.getByText('기본 버전과 다름', { exact: true })).toBeVisible();
+    await row.getByRole('button', { name: '설치 정보', exact: true }).hover();
+    await expect(page.locator('[data-slot=tooltip-content]')).toContainText('기본 버전과 다름');
+    await page.mouse.move(0, 0);
     expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     if (screenshots) {
       await page.screenshot({ path: 'tmp/947-evidence/plugins-640-dark-ko.png' });
-      await row.getByRole('button').scrollIntoViewIfNeeded();
+      await row.getByRole('switch').scrollIntoViewIfNeeded();
       await page.screenshot({ path: 'tmp/947-evidence/plugins-640-dark-ko-details.png' });
     }
     await row.getByRole('button', { name: '기본 버전으로 다시 등록', exact: true }).click();
@@ -50,8 +80,9 @@ async (page, { expect, screenshots, brand }) => {
     await confirmation.getByRole('button', { name: '기본 버전으로 다시 등록', exact: true }).click();
     await expect(confirmation).toBeHidden();
     expect(writes).toBe(1);
-    await expect(row.getByText('앱 기본 버전과 같음', { exact: true })).toBeVisible();
-    await expect(row.getByRole('button')).toHaveCount(0);
+    await row.getByRole('button', { name: '설치 정보', exact: true }).hover();
+    await expect(page.locator('[data-slot=tooltip-content]')).toContainText('앱 기본 버전과 같음');
+    await expect(row.getByRole('button', { name: '기본 버전으로 다시 등록', exact: true })).toHaveCount(0);
   } finally {
     // Preferences survive page teardown; restore the next scenario's starting language.
     await page.evaluate(prefix => {

@@ -25,7 +25,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
     }
     return route.fulfill({ json: settings });
   });
-  await page.route('**/api/ai-agent-models*', route => { refreshes++; return route.fulfill({ json: { provider: 'codex', models, updatedAt: 1793590000000 } }); });
+  await page.route('**/api/ai-agent-models*', route => { refreshes++; const copilot = route.request().url().includes('provider=copilot') || !route.request().url().includes('provider=') && settings.provider === 'copilot'; return route.fulfill({ json: { provider: copilot ? 'copilot' : 'codex', models: copilot ? [{ id: 'copilot-model', model: 'copilot-model', displayName: 'Copilot fixture model', description: '', supportedReasoningEfforts: [], defaultReasoningEffort: '' }] : models, updatedAt: 1793590000000 } }); });
   await page.route('**/api/ai-agent-environment*', route => route.fulfill({ json: { cwd: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant', instructions: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant\\AGENTS.md', skills: [] } }));
   await page.route('**/api/ai-agent-diagnostics*', route => route.fulfill({ json: { provider: 'codex', checkedAt: 1793590000000, path: 'C:\\Codex\\codex.exe', version: 'codex-cli 0.166.0', connected: true,
     account: { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' }, rateLimits: [{ name: 'Codex', windows: [{ usedPercent: 28, windowDurationMins: 300, resetsAt: 1793600000 }] }], mcp: [{ name: 'docs', status: 'connected', authStatus: 'oAuth' }] } }));
@@ -34,9 +34,34 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await openPath(page, pluginFixture.document);
+  // #1025: one shell integration case complements the Assistant separator check below.
+  // Real drag/keyboard input catches edge direction, bounds and independent remembered widths.
+  const sidebarResize = page.getByRole('separator', { name: 'Explorer width', exact: true });
+  const documentResize = page.getByRole('separator', { name: 'Document panel width', exact: true });
+  const drag = async (handle, delta) => {
+    const box = await handle.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + delta, box.y + box.height / 2, { steps: 8 }); await page.mouse.up();
+  };
+  await drag(sidebarResize, 20);
+  await expect(sidebarResize).toHaveAttribute('aria-valuenow', '260');
+  await documentResize.focus(); await page.keyboard.press('ArrowLeft');
+  await expect(documentResize).toHaveAttribute('aria-valuenow', '276');
+  await drag(documentResize, -100);
+  await expect(documentResize).toHaveAttribute('aria-valuenow', '280');
+  await page.reload();
+  await expect(sidebarResize).toHaveAttribute('aria-valuenow', '260');
+  await expect(documentResize).toHaveAttribute('aria-valuenow', '280');
+  await page.setViewportSize({ width: 640, height: 900 });
+  await expect(sidebarResize).toHaveAttribute('aria-valuenow', '200');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(sidebarResize).toHaveAttribute('aria-valuenow', '260');
+  await page.evaluate(prefix => { localStorage.removeItem(prefix + '.sidebarWidth'); localStorage.removeItem(prefix + '.document-panelWidth'); }, brand.storagePrefix);
+  await page.reload();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  const categories = page.getByRole('navigation', { name: 'Settings categories' });
-  await categories.getByRole('button', { name: 'AI agent', exact: true }).click();
+  const categories = page.getByRole('navigation', { name: /^(Settings categories|설정 분류)$/ });
+  await categories.getByRole('button', { name: 'Plugins', exact: true }).click();
+  await page.getByTestId('plugin-settings').getByRole('button', { name: 'AI agent', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'AI agent', exact: true }).last()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Codex models', exact: true })).toContainText('Available');
   await page.getByRole('button', { name: 'Codex models', exact: true }).click();
@@ -65,7 +90,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByLabel('Model', { exact: true }).selectOption('gpt-6-luna');
   await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('low');
   connectionAvailable = false;
-  await page.getByRole('switch', { name: 'Use Codex', exact: true }).click();
+  await page.getByRole('switch', { name: 'Use Codex', exact: true }).focus();
+  await page.getByRole('switch', { name: 'Use Codex', exact: true }).press('Space');
   await expect.poll(() => settingsWrites.length).toBe(1);
   expect(settingsWrites[0]).toEqual({ provider: 'codex', enabled: false, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium' });
   await expect(page.getByRole('switch', { name: 'Use Codex', exact: true })).not.toBeChecked();
@@ -96,6 +122,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   expect(settings).toEqual({ provider: 'codex', enabled: true, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'high', responseLanguage: 'ja' });
   const aiGeometry = await measure();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/ai-1440-light-en.png' });
+    await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
   await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Docling server', exact: true })).toBeVisible();
   expect(await measure()).toEqual(aiGeometry);
@@ -103,6 +130,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await categories.getByRole('button', { name: 'Appearance & language', exact: true }).click();
   await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
   await page.setViewportSize({ width: 640, height: 1000 });
+  await categories.getByRole('button', { name: '플러그인', exact: true }).click();
   await page.getByRole('button', { name: 'AI 에이전트', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Codex 모델', exact: true })).toContainText('사용 가능');
   await expect(page.getByLabel('모델', { exact: true })).toHaveValue('gpt-6.1-sol');
@@ -123,6 +151,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-640-dark-ko.png' });
   await page.getByRole('button', { name: '← AI 에이전트', exact: true }).click();
+    await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
   await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Docling 서버', exact: true })).toBeVisible();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/docling-640-dark-ko.png' });
@@ -703,6 +732,58 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(panel.getByRole('textbox')).toBeEnabled();
   expect(await panel.locator('.assistant-turn').count(), 'Explicit New conversation survives reload').toBe(0);
   await panel.getByRole('button', { name: '비서 닫기' }).click();
+  // The existing provider select previews Copilot without a paid model call or settings write.
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: '비서', exact: true }).click();
+  await expect(panel.getByRole('textbox')).toBeEnabled();
+  await panel.getByRole('textbox').fill('Before provider switch');
+  await panel.getByRole('textbox').press('Enter');
+  await expect(panel.locator('.assistant-turn[data-status="inProgress"]')).toBeVisible();
+  await page.getByRole('button', { name: '설정', exact: true }).click();
+  await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
+  await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Plugins', exact: true }).click();
+  await page.getByTestId('plugin-settings').getByRole('button', { name: 'AI agent', exact: true }).click();
+  const writesBeforeProvider = settingsWrites.length;
+  await page.getByLabel('Default provider', { exact: true }).selectOption('copilot');
+  await expect(page.getByLabel('Model', { exact: true })).toHaveValue('copilot-model');
+  await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Litzio skills', { exact: true })).toHaveCount(0);
+  expect(settingsWrites.length).toBe(writesBeforeProvider);
+  // Keep the dock open: Save must retire the active old-provider conversation.
+  await expect(panel).not.toHaveAttribute('role', 'dialog');
+  await page.getByRole('button', { name: 'Save AI settings', exact: true }).click();
+  await expect(page.getByText('AI settings saved.', { exact: true })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Conversation model and effort' })).toHaveText('copilot-model');
+  await expect(panel.getByRole('textbox')).not.toBeFocused();
+  await expect(panel.locator('.assistant-turn')).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'Stop response' })).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'New conversation' })).toBeEnabled();
+  await panel.getByRole('textbox').fill('After provider switch');
+  await panel.getByRole('textbox').press('Enter');
+  await expect(panel.getByText('After provider switch', { exact: true })).toBeVisible();
+  expect(sent.at(-1).model).toBe('copilot-model');
+  expect(sent.at(-1).reasoningEffort).toBe('');
+  expect(sent.at(-1).id).toBeUndefined();
+  expect(sent.at(-1).skills).toEqual([]);
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
+
+  if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-light-en.png' });
+  if (screenshots) {
+    await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Appearance & language', exact: true }).click();
+    await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
+    await page.getByRole('navigation', { name: '설정 분류' }).getByRole('button', { name: '플러그인', exact: true }).click();
+    await page.getByTestId('plugin-settings').getByRole('button', { name: 'AI 에이전트', exact: true }).click();
+    await expect(page.getByLabel('기본 프로바이더', { exact: true })).toHaveValue('copilot');
+    await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-dark-ko.png' });
+    await page.setViewportSize({ width: 640, height: 1000 });
+    await expect(page.getByLabel('모델', { exact: true })).toHaveValue('copilot-model');
+    expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/copilot-640-dark-ko.png' });
+    await page.getByRole('button', { name: 'AI 설정 저장', exact: true }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: 'tmp/880-evidence/copilot-640-dark-ko-scrolled.png' });
+  }
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   // Restore preferences for the other stable scenarios.
   await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantWidth'); localStorage.removeItem(prefix + '.assistantConversation'); }, brand.storagePrefix);
   return { settings: true, minimumViewport: true, nativeDocumentPreserved: true, conversations: true };

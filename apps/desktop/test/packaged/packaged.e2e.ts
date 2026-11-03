@@ -314,7 +314,7 @@ test("a .md argument opens; edits save to disk and reopen", async () => {
     await saved(page);
     assert.match(readFileSync(file, "utf8"), /DESKTOP /);
     await page.getByRole("button", { name: "Settings", exact: true }).click();
-    for (const theme of ["dark", "light", "system", "dark"] as const) {
+    for (const theme of ["dark", "light", "dark"] as const) {
       await page.getByTestId("theme").selectOption(theme);
       await expect.poll(() => app.evaluate(({ nativeTheme }) => nativeTheme.themeSource)).toBe(theme);
       const dark = await app.evaluate(({ nativeTheme }) => nativeTheme.shouldUseDarkColors);

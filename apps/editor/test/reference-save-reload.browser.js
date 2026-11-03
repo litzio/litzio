@@ -111,7 +111,12 @@ async (page, { openPath, openDocument, reloadDocument, expect }) => {
       editor.view.focus();
     }, label);
     await page.keyboard.press('Enter');
-    if (kind === 'mermaid') await page.getByTestId('mermaid-edit-source').click();
+    if (kind === 'mermaid') {
+      await page.getByTestId('mermaid-edit-source').click();
+      // The opening preview changes form height. Wait for it before targeting controls
+      // so Apply's pointer down/up reach the same button (#1084).
+      await expect(page.getByTestId('mermaid-edit-preview')).toHaveAttribute('aria-busy','false');
+    }
     if (fixed && !await page.getByTestId(`${kind}-enumerator`).isVisible())
       await page.getByTestId(`${kind}-editor`).getByRole('button', {name:'Fixed',exact:true}).click();
     if (fixed) await page.getByTestId(`${kind}-enumerator`).waitFor();

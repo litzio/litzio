@@ -110,7 +110,9 @@ References read like links without box/fill: content-link color, underline on ho
 | Callout | Kind surface and side rule, no full outline |
 | Source editing forms | Equation/Mermaid full-column code-style source and preview; inline math uses its wrapping popover |
 
-Settings → Appearance & language, the Color mode menu beside Settings (above it in the collapsed rail), and three Command Center choices share System / Light / Dark, default System (#798). System follows live OS `prefers-color-scheme`; explicit choices ignore it. Resolved `:root[data-theme]` drives roles, `color-scheme` and Tailwind `dark:` together. Native and Base UI controls share roles without dark-only utility tints. Images retain original pixels without inversion/filter; KaTeX inherits text.
+Settings → Appearance & language, the footer toggle beside Settings, and two Command Center choices share Light / Dark (#1042). With no saved choice, startup resolves the OS theme once and stores that explicit choice. Later OS changes do not change it. Resolved `:root[data-theme]` drives roles, `color-scheme` and Tailwind `dark:` together. Native and Base UI controls share roles. Images retain original pixels; KaTeX inherits text.
+
+User theme changes use a short 160ms whole-screen View Transition crossfade when available. Reduced motion, automated browsers and startup apply immediately; unsupported browsers also apply immediately. Native Desktop caption colors may change immediately. Duration lives in `--duration-theme-transition`; other control state changes retain their immediate behavior.
 
 External blocking [theme-init.js](../../apps/editor/public/theme-init.js) resolves theme/page before styles/app bundle; it temporarily sets native `color-scheme` without duplicating colors. Runtime applies theme/accent before React UI. [Desktop appearance](desktop-distribution-v1.md#appearance-595) owns native resolution/bridge and first-window background; no Host theme persistence is added.
 
@@ -124,7 +126,7 @@ Ghost rest is transparent; neutral hover is visible on panel/paper. Open-menu fa
 
 Destructive Buttons use danger text/border on `surface`, then `surface-danger` on hover. Keyboard focus retains danger text and adds the chosen-accent ring. Native disabled destructive buttons have an opaque muted face, readable secondary text and structural boundary; other native disabled controls retain dimming. Focusable `aria-disabled` keeps its muted face, secondary text, structural boundary, tooltip, focus ring and activation guard.
 
-Controls/overlays change state without decorative transitions, pressed movement or enter/exit animation. Save alone retains its reduced-motion-aware progress spinner. Action menu rows use shared line icons/text/separators; destructive rows use danger text/icons and enabled `surface-danger` hover. Disabled rows have no hover fill. [Menu behavior](editor-ux-shell-v1.md#unified-action-menus-516) and [P10](ui-patterns-v1.md#p10-메뉴와-선택-도구) own roles/navigation.
+Controls/overlays change state without decorative transitions, pressed movement or enter/exit animation. Save retains its reduced-motion-aware progress spinner; theme changes have the whole-screen exception above. Action menu rows use shared line icons/text/separators; destructive rows use danger text/icons and enabled `surface-danger` hover. Disabled rows have no hover fill. [Menu behavior](editor-ux-shell-v1.md#unified-action-menus-516) and [P10](ui-patterns-v1.md#p10-메뉴와-선택-도구) own roles/navigation.
 
 ## State rules
 
@@ -193,7 +195,7 @@ Values tuned by hand or changed by taste live under **Adjustable values** in `st
 | Editing flow-block bar | `--size-editing-block-bar`, `--id-color-editing-block-bar` (pale chosen accent); supplementary range cue alongside the caret, not a replacement for the opaque control focus ring |
 | Block outlines | `--id-color-block-hover-outline`, `--size-block-hover-outline`, `--id-radius-block-hover`, `--space-block-hover-inline/block`; geometry in [Layout Rules](editor-layout-rules-v1.md#alignment-and-ownership) |
 | Document column/padding | `--layout-content-width`, `--layout-content-width-wide`, `--layout-content-gutter`, `--layout-document-block-padding`, `--layout-document-block-padding-narrow`, `--layout-document-end-space`; blank end space also controls caret clearance |
-| Shell/navigation | `--layout-sidebar-width`, `--layout-sidebar-width-narrow`, `--layout-document-panel-width`, `--layout-assistant-width`, `--layout-document-tab-height`, `--layout-document-tab-max-width`, `--space-sidebar-tree-indent`, `--space-outline-indent` |
+| Shell/navigation | `--layout-sidebar-width`, `--layout-sidebar-width-narrow`, `--layout-document-panel-width`, `--layout-assistant-width`, `--layout-sidebar-min-width`, `--layout-sidebar-max-width`, `--layout-document-panel-min-width`, `--layout-document-panel-max-width`, `--layout-document-tab-height`, `--layout-document-tab-max-width`, `--space-sidebar-tree-indent`, `--space-outline-indent` |
 | Command Center | `--layout-command-center-width`, `--layout-command-center-popup-width`, `--layout-command-center-list-height` |
 | Settings | `--layout-settings-content-width`, `--layout-settings-control-width`, `--layout-document-settings-label-width`, `--space-document-settings-after` |
 | Figure metadata | `--layout-figure-popover-width`, `--size-figure-property-thumbnail-max-width/height`, `--space-figure-popover-gap`; preview retains intrinsic ratio |
@@ -202,7 +204,7 @@ Values tuned by hand or changed by taste live under **Adjustable values** in `st
 | File/reading previews/comparison | `--layout-file-preview-width`, `--layout-file-preview-image-max-height`, `--layout-reading-preview-width/height`, `--layout-recovery-compare-width`, `--layout-recovery-diff-max-height` |
 | Other presentation | `--font-feature-sans`, `--layout-start-width`, `--size-start-mark`, `--size-overflow-fade`, `--reference-underline-offset`; start title has independent UI size/line-height tokens |
 
-Theme/page/document-width preferences select validated scopes/classes, never computed/stored pixel values. The [assistant panel](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2) is an explicit resize exception: it remembers a bounded 340–560px width, with its initial width supplied by `--layout-assistant-width`. [preferences.ts](../../apps/editor/src/preferences.ts) keeps display choices in browser/app-profile storage outside Markdown/frontmatter/Core/Host requests. Missing/invalid/unreadable storage defaults to System theme, Plum accent, Paper and Standard width. Theme/accent/page write failure keeps the live choice and shows the localized Settings alert (or a notification-center error outside Settings). Wide document retains its live choice if storage fails. Startup theme/page/accent applies before first UI; document state/history/drafts survive display changes.
+Theme/page/document-width preferences select validated scopes/classes, never computed/stored pixel values. The [assistant panel](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2) and Explorer/Document navigation panels (#1025) are explicit resize exceptions: navigation remembers independently bounded widths ([geometry](editor-layout-rules-v1.md#alignment-and-ownership)); the assistant remembers a bounded 340–560px width, with its initial width supplied by `--layout-assistant-width`. [preferences.ts](../../apps/editor/src/preferences.ts) keeps display choices in browser/app-profile storage outside Markdown/frontmatter/Core/Host requests. Missing/invalid/unreadable storage uses an initial explicit OS theme choice, Plum accent, Paper and Standard width. Theme/accent/page write failure keeps the live choice and shows the localized Settings alert (or a notification-center error outside Settings). Wide document retains its live choice if storage fails. Startup theme/page/accent applies before first UI; document state/history/drafts survive display changes.
 
 Bibliography, citation chips, shortcut labels and notices reuse existing type/spacing/control roles. Behavior belongs to [Citations](citations-v1.md), [Shortcuts](editor-ux-shell-v1.md#shortcut-contract-381) and [UI patterns](ui-patterns-v1.md). Overlay focus/dismissal stays with feature owners; sizing/collision clearance with [Layout Rules](editor-layout-rules-v1.md). Visual review procedure and same-state Before/After requirements live in [Reviewing a visual change](../test/README.md#reviewing-a-visual-change).
 
@@ -247,3 +249,18 @@ covers Chromium composition lifecycle. Capture recipe: temporarily run
 `apps/editor/test/manual/editing-block-bar-1022.js` as `quiet-document.browser.js`
 with `pnpm browser:test quiet-document --screenshots`, then restore the regression.
 Copy the sample and its `assets` into `tmp/editing-block-bar-1022/` first.
+
+Theme toggle #1042 manual evidence (Windows persistent Chrome, 900px height, DPR 1):
+After captures were refreshed after merging #1068 and #1070, retaining the Host settings rows and resizable navigation panels.
+
+| View | Before | After |
+| --- | --- | --- |
+| 1440px Light / English | [Before](assets/theme-toggle-1042/before-1440.png) | [After](assets/theme-toggle-1042/after-1440.png) |
+| 640px Dark / Korean | [Before](assets/theme-toggle-1042/before-640.png) | [After](assets/theme-toggle-1042/after-640.png) |
+
+[640px rail](assets/theme-toggle-1042/after-640-rail.png) and
+[640px Settings](assets/theme-toggle-1042/after-640-settings.png) retain readable
+labels, control padding and reachable controls. Footer centers align without
+clipping or crowding. These captures are manual evidence, not pixel assertions.
+The `color-mode` browser regression exercises the real transition API once and
+checks automated/reduced-motion bypasses; it passed in about 23 seconds locally.
