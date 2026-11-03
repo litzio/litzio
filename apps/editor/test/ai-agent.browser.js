@@ -310,10 +310,9 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(panel.getByRole('button', {name: 'Model settings', exact: true})).toHaveText('Auto');
   await expect(panel.getByRole('button', {name: 'Provider settings', exact: true})).toBeEnabled();
   await page.keyboard.press('Escape');
-  await panel.getByRole('button', {name: 'Provider settings', exact: true}).click();
-  await page.locator('#assistant-provider').selectOption('codex');
+  await panel.getByRole('button', {name: 'New conversation', exact: true}).click();
+  await expect(panel.getByRole('button', {name: 'Provider settings', exact: true})).toHaveText('Codex');
   await expect(panel.getByRole('button', {name: 'Model settings', exact: true})).toHaveText('GPT Sol');
-  await page.keyboard.press('Escape');
 
   await panel.getByRole('button', {name: 'Write access settings', exact: true}).click();
   await page.locator('#assistant-access').selectOption('read-only');

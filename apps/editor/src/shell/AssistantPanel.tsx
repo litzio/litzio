@@ -271,7 +271,14 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
     {!overlay ? <PanelResize label={i18n.t("Assistant width")} onWidth={onWidth} /> : null}
     <div className="assistant-header">
       <h2><MessageSquare aria-hidden="true" />{i18n.t("Assistant")}</h2>
-      <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={!ready || pending || active} onClick={() => { setConversation(undefined); rememberConversation(); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null); if (settings) defaults(settings); input.current?.focus(); }}><Plus /></Button>
+      <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={!ready || pending || active} onClick={() => void run(async isCurrent => {
+        let catalog = models;
+        if (settings && provider !== settings.provider) catalog = await request<AiModels>(`${AI_AGENT.modelsRoute}?provider=${settings.provider}`);
+        if (!isCurrent()) return;
+        setConversation(undefined); rememberConversation(); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null);
+        setModels(catalog); if (settings) defaults(settings);
+        setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); input.current?.focus();
+      })}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending || active} onClick={() => void run(async isCurrent => { const next = history ? null : await request<AiConversationInfo[]>(`${AI_AGENT.conversationsRoute}?provider=${provider}`); if (isCurrent()) setHistory(next); })}><History /></Button>
       <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
     </div>

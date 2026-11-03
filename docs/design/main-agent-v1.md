@@ -1037,7 +1037,9 @@ The existing file-reference captures above provide the preceding composer state.
 
 Owner decision (2026-11-04): `AiConversationInput` accepts optional `provider` and
 `writeAccess` overrides from the user's composer selections. These never write
-AI settings or change global defaults. Only enabled providers may be selected;
+AI settings or change global defaults. New conversation restores the global
+provider/model/effort/access defaults together with that provider's catalog; closing
+and reopening the panel preserves unsent choices. Only enabled providers may be selected;
 the provider is pinned when the first message creates a session. Both UI and Host
 reject changing an existing session's provider. Its disabled button remains
 explainable through the common Tooltip on hover or keyboard focus.
