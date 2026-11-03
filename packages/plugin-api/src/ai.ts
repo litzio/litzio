@@ -10,7 +10,7 @@ export const DEFAULT_AI_SETTINGS: AiExecutionSettings = { model: "gpt-6.1-sol", 
 /** Fallback for tasks started without a conversation; never a conversation override. */
 export type AiResponseLanguage = "ko" | "en" | "ja";
 export type AiProvider = "codex" | "copilot";
-export type AiAgentSettings = AiExecutionSettings & { provider: AiProvider; enabled: boolean; writeAccess: "opened-folders" | "read-only";
+export type AiAgentSettings = AiExecutionSettings & { provider: AiProvider; enabled: boolean; writeAccess: "opened-folders" | "read-only" | "full-access";
   /** Codex feature-task defaults retained while the assistant uses Copilot. */
   codexTaskSettings?: Pick<AiExecutionSettings, "model" | "reasoningEffort"> };
 export const AI_AGENT = {
@@ -29,12 +29,15 @@ export type AiUserInput = { requestId: string | number; turnId: string; question
 export type AiUserInputAnswers = Record<string, { answers: string[] }>;
 export type AiConversationTurn = { id: string; status: string; items: AiConversationItem[]; error?: string };
 export type AiConversation = AiConversationInfo & { turns: AiConversationTurn[]; userInput?: AiUserInput; model: string; reasoningEffort: string;
+  copilot?: AiCopilotOptions;
   tokenUsage?: { used: number; limit: number | null } };
 export type AiConversationInput = Pick<AiExecutionSettings, "model" | "reasoningEffort"> & { id?: string; message: string; references?: string[]; skills?: { name: string; path: string }[];
+  mode?: string;
   folders: string[]; document?: { path: string; source: string } };
 export type AiModel = { id: string; model: string; displayName: string; description: string;
   supportedReasoningEfforts: { reasoningEffort: string; description: string }[]; defaultReasoningEffort: string };
-export type AiModels = { provider: AiProvider; models: AiModel[]; updatedAt: number };
+export type AiCopilotOptions = { reasoningEfforts?: { reasoningEffort: string; description: string }[]; reasoningEffortSource: "config" | "cli"; modes: { id: string; name: string; description: string }[]; currentMode: string };
+export type AiModels = { provider: AiProvider; models: AiModel[]; updatedAt: number; copilot?: AiCopilotOptions };
 export type AiEnvironment = { cwd: string; instructions: string; skills: string[] };
 export type AiDiagnostics = {
   provider: AiProvider; checkedAt: number; path: string | null; version: string | null; connected: boolean; error?: string;

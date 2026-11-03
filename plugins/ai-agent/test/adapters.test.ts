@@ -19,7 +19,7 @@ test("Copilot assistant settings preserve Codex feature-task execution defaults"
   const plugin = activate({ settingsFile: path.join(root, "settings.json"),
     aiExecutor: { current: () => null, start: async (_request: AiTaskRequest, _timeout: number, settings: AiExecutionSettings) => { execution = settings; return {} as never; } },
   } as unknown as PluginHostContext);
-  plugin.operations.configure({ provider: "copilot", enabled: true, model: "copilot-model", reasoningEffort: "", responseLanguage: "ko",
+  plugin.operations.configure({ provider: "copilot", enabled: true, model: "auto", reasoningEffort: "max", writeAccess: "full-access", responseLanguage: "ko",
     codexTaskSettings: { model: "saved-codex-model", reasoningEffort: "low" } });
   await plugin.aiTaskService!.start({ id: "task", caller: "fixture", task: "inspect", instruction: "Inspect input", materials: [], input: null, schema: { type: "null" }, baseline: "opaque" });
   assert.deepEqual(execution, { model: "saved-codex-model", reasoningEffort: "low", responseLanguage: "ko" });
