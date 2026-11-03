@@ -741,7 +741,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(panel.locator('.assistant-turn[data-status="inProgress"]')).toBeVisible();
   await page.getByRole('button', { name: '설정', exact: true }).click();
   await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
-  await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'AI agent', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Plugins', exact: true }).click();
+  await page.getByTestId('plugin-settings').getByRole('button', { name: 'AI agent', exact: true }).click();
   const writesBeforeProvider = settingsWrites.length;
   await page.getByLabel('Default provider', { exact: true }).selectOption('copilot');
   await expect(page.getByLabel('Model', { exact: true })).toHaveValue('copilot-model');
@@ -771,7 +772,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   if (screenshots) {
     await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Appearance & language', exact: true }).click();
     await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
-    await page.getByRole('button', { name: 'AI 에이전트', exact: true }).click();
+    await page.getByRole('navigation', { name: '설정 분류' }).getByRole('button', { name: '플러그인', exact: true }).click();
+    await page.getByTestId('plugin-settings').getByRole('button', { name: 'AI 에이전트', exact: true }).click();
     await expect(page.getByLabel('기본 프로바이더', { exact: true })).toHaveValue('copilot');
     await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-dark-ko.png' });
     await page.setViewportSize({ width: 640, height: 1000 });
