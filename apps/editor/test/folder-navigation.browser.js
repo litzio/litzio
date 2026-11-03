@@ -101,6 +101,9 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, screenshots =
         `Sidebar header contains only Explorer and collapse: ${state}, ${width}px`);
       const entry = state === 'empty' ? openFolder : section.first().getByRole('button', {name:'More actions', exact:true});
       const collapse = header.getByRole('button', {name:'Collapse Explorer', exact:true});
+      // Cancel can finish before the closing modal releases pointer interception.
+      // Judge the same hit geometry only after the user's next click is actionable.
+      await collapse.click({trial:true});
       const geometry = await collapse.evaluate(button => {
         const rect = button.getBoundingClientRect();
         const header = button.closest('.sidebar-header').getBoundingClientRect();
