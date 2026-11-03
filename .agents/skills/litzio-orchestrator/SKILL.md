@@ -28,6 +28,7 @@ description: Orchestrate several Litzio GitHub issues end to end by planning wav
 **보고 형식.**
 - 사용자에게는 한국어로만 보고한다.
 - 질문에는 일반 문장으로 답하고, 응답 끝에 지휘 중인 작업의 현황 표 하나를 둔다. 표 위아래에는 빈 줄을 둔다.
+- 표에는 진행 중인 작업과, 이미 승인돼 순서가 정해진 예정 작업("예정, ○○ 뒤")만 넣는다. 항목 칸에는 번호와 짧은 설명을 함께 쓴다. 보류(`status:deferred`)와 아직 정하지 않은 다음 후보는 넣지 않는다.
 - 바뀐 것이 없는 "대기 중" 보고를 반복하지 않는다.
 - 절차 문서 링크를 의례적으로 붙이지 않는다.
 
@@ -53,13 +54,14 @@ description: Orchestrate several Litzio GitHub issues end to end by planning wav
 2. 이슈마다 고칠 파일을 예상하고, 같은 파일(예: `App.tsx`, `Sidebar.tsx`, `TopBar.tsx`, `styles.css`, `tokens.css`, `editor-schema.tsx`, `editor-ux-shell-v1.md`, 명령센터 테스트)을 고치는 이슈끼리 선후를 정한다. 해결이 다른 이슈에 포함되면(예: 구조 변경이 버그를 함께 고침) 한 작업으로 묶는다.
 3. 결정 없이 시작할 수 있고 서로 겹치지 않는 이슈를 1차로, 나머지를 선행 PR 병합 순서대로 배치한다. 동시에 실행하는 작업자와 리뷰어는 8명 이하로 둔다. 예전 5명 상한은 새 browser profile의 첫 실행마다 Windows 로그온 실패가 쌓이던 계정 잠금 카운터 때문이었다. 잠금 임계값이 `Never`인 PC에서는 그 이유가 없으므로, 실제 제약인 같은 파일 충돌(위 2번)과 PC 자원(동시 브라우저·dev server 실행)으로 판단한다. 잠금 임계값이 켜진 PC에서는 3절의 카운터 규칙을 따르고 5명 이하로 둔다.
 4. 계획을 표로 보고한다(이슈, 설정, 주로 고칠 파일, 선행 조건). 제외한 이슈와 이유도 쓴다.
+5. 시각 방향을 사용자가 골라야 하는 제안은 바로 구현하지 않는다. 병합하지 않는 `spike/<번호>-…` 브랜치에서 개발 전용 스위치나 갤러리로 시안 2–3개를 만들고, 캡처를 이슈 댓글(blob `?raw=true` 이미지)로 올려 고르게 한다. 테스트는 추가하지 않는다.
 
 ## 3. 작업자 실행
 
 - 이슈마다 새 Paseo worktree를 `baseBranch: "origin/master"`에서 branch-off로 만든다(로컬 master는 낡았을 수 있다). 병합 직후의 worktree를 재사용하지 않는다(workspace가 자동 archive되어 작업자가 사라질 수 있다).
 - 작업자는 쓰기와 네트워크가 가능한 모드로 만든다. 프롬프트는 [worker-prompt.md](references/worker-prompt.md)의 공통 규칙을 그대로 붙이고, 이슈별 범위와 승인된 결정만 바꾼다.
 - 만든 뒤 1–2분 지나서 상태가 `running`인지, worktree가 실제로 있는지 직접 확인한다. 알림이 없다는 이유로 "진행 중"이라고 보고하지 않는다.
-- 작업자가 모델 용량 오류로 멈추면 같은 agent에 "`git status`, 최근 커밋, 열린 PR을 확인한 뒤 이어서 진행하라"를 보낸다.
+- 작업자가 모델 용량 오류로 멈추면 같은 agent에 "`git status`, 최근 커밋, 열린 PR을 확인한 뒤 이어서 진행하라"를 보낸다. 횟수와 상관없이 새 agent로 교체하지 않는다(서버 쪽 문제라 교체해도 효과가 없다는 소유자 판단).
 - 작업자가 결정이 필요하다고 멈추면, 승인된 결정 범위에서 답할 수 있으면 근거와 함께 답한다. 범위 밖이면 사용자에게 묻는다.
 
 ### 브라우저 규칙 (Windows)
@@ -83,7 +85,8 @@ description: Orchestrate several Litzio GitHub issues end to end by planning wav
 
 ## 5. 독립 리뷰
 
-- 붙이는 기준은 CONTRIBUTING 2단계의 위험 PR이다. editor schema·직렬화·저장 경로, 미저장 draft·복구, 셸 구조 변경, 성능·상태 경합, 문서 데이터가 바뀌는 연산, 보안·릴리스·CI workflow가 여기에 해당한다. 작은 UI·CSS·문구·테스트만·문서만의 수정은 오케스트레이터 확인으로 대신한다. 시각 변경은 캡처가 나오는 즉시 CI를 기다리지 않고 검토한다.
+- 붙이는 기준은 CONTRIBUTING 2단계의 위험 PR이다. editor schema·직렬화·저장 경로, 미저장 draft·복구, 셸 구조 변경, 성능·상태 경합, 문서 데이터가 바뀌는 연산, 보안·릴리스·CI workflow, 공개 Plugin API와 파일 접근 범위가 여기에 해당한다. CI 경로 정책(`ci-execution-policy.mjs`)의 전체 실행 경로 목록은 손으로 고르는 목록이라 누락이 반복됐으므로 항상 리뷰한다. 작은 UI·CSS·문구·테스트만·문서만의 수정은 오케스트레이터 확인으로 대신한다.
+- 시각 변경은 캡처가 나오는 즉시 CI를 기다리지 않고 직접 본다. `git fetch origin pull/<N>/head:pr-<N>` 뒤 `git show pr-<N>:<캡처 경로> > <scratch>/x.png`로 꺼내 이미지로 확인한다.
 - 리뷰어는 구현에 참여하지 않은 새 agent이고, 프롬프트는 [reviewer-prompt.md](references/reviewer-prompt.md)를 쓴다. 이 PR에서 특히 위험한 지점을 중점 확인 항목으로 구체적으로 적는다.
 - 리뷰 중 구현자가 head를 바꾸면 리뷰어에게 최종 head 기준으로 판정하라고 알린다.
 - `REQUEST_CHANGES`면 지적을 구현자에게 전달하고, 수정 후 같은 리뷰어 또는 새 리뷰어에게 재검토를 맡긴다.
@@ -119,11 +122,13 @@ node <skill>/scripts/queue-watch.mjs --wait 560 561 562    # 병합·이탈 시 
 queue에서 병합 없이 빠지면 원인을 먼저 가른다.
 
 - **충돌(`CONFLICTING`):** 원래 작업자에게 `origin/master` merge와 충돌 해결을 맡긴다. 앞서 병합된 PR이 무엇을 바꿨는지 함께 알려 준다.
+- **이유 확인:** `queue-watch`가 끝났다는 것은 상태가 바뀌었다는 뜻일 뿐이다. 반드시 `gh pr view <N> --json state`로 병합 여부를 확인한다. 빠진 이유는 GraphQL `RemovedFromMergeQueueEvent.reason`(예: `failed_checks`)으로 본다.
+- **같은 무관한 실패가 여러 PR의 queue를 막으면:** 이슈를 등록하고 다른 예정 작업보다 먼저 고친다. 막힌 PR은 원인 기록 댓글과 함께 다시 enqueue한다.
 - **merge_group CI 실패:** `gh run list --event merge_group`에서 실패 run을 찾고 `gh run view <id> --log-failed`로 시나리오를 확인한다. 이 PR의 테스트면 원래 작업자에게 4절 기준으로 판정·수정을 맡긴다. 앞서 병합된 다른 PR이 만든 master 결함이면 새 worktree에서 별도 수정 PR을 만들고, 원래 PR은 head가 그대로이므로 그 사실을 댓글에 남기고 다시 enqueue한다.
 
 ## 7. 정리와 보고
 
-- PR이 병합되면 그 worktree를 archive한다(작업자와 리뷰어 포함). 결과만 남기고 끝난 작업자는 archive한다.
+- PR이 병합된 것을 `state: MERGED`로 확인한 뒤에만 그 worktree를 archive한다(작업자와 리뷰어 포함). queue에서 빠졌을 때 고칠 작업자가 사라지지 않게 하기 위해서다. 결과만 남기고 끝난 조사·스파이크 작업자는 결과를 확인한 뒤 archive한다.
 - 하나의 PR이 병합될 때마다, 병합을 확인한 그 턴에서 맞물린 다음 작업을 시작한다. 선행 조건이 풀린 이슈의 작업자 배정, master 반영이 필요한 PR에 대한 지시가 여기에 해당한다. 그 뒤 사용자에게 다음 할 일을 짧게 보고한다. 병합 보고만 하고 멈추지 않는다.
 - 끝나면 확인한다: 대상 이슈의 상태, 열린 PR, 남은 worktree와 작업자. 직접 시작한 백그라운드 감시도 종료한다.
 - 최종 보고: 병합한 이슈·PR 표(리뷰 여부 포함), 저장소 절차에서 벗어난 점, 남은 일과 확인하지 못한 것(재현·실측·실제 IME 등), 리뷰의 비차단 메모, 처음 나온 간헐 실패, 정리 상태.
