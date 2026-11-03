@@ -10,14 +10,14 @@ import { executionPolicy, selectJobs, successfulQueueRun } from './ci-execution-
 const sha = 'a'.repeat(40);
 const base = 'b'.repeat(40);
 const event = { merge_group: { base_sha: base, head_sha: sha } };
-const expected = (quality, browser, http, desktop, update, smartquotes = false) =>
-  ({ quality, browser, http, desktop, update, fullLifecycle: update, smartquotes, reused: false });
+const expected = (quality, browser, http, desktop, update, smartquotes = false, fullLayout = update) =>
+  ({ quality, browser, http, desktop, update, fullLifecycle: update, fullLayout, smartquotes, reused: false });
 const full = expected(true, true, true, true, true, true);
 
 test('merge_group payloads apply the same path rules as PRs to the entire group diff', async () => {
   const cases = [
     [['docs/test/README.md'], expected(false, false, false, false, false)],
-    [['apps/editor/src/App.tsx'], expected(true, true, true, true, false)],
+    [['apps/editor/src/App.tsx'], expected(true, true, true, true, false, false, true)],
     [['apps/desktop/installer/cli.nsh'], expected(true, false, false, true, true, false)],
     [['pnpm-lock.yaml'], full],
     // Multiple PRs in one group: take the union, including a deleted file.
@@ -27,8 +27,8 @@ test('merge_group payloads apply the same path rules as PRs to the entire group 
     [['packages/plugin-api/src/ui.ts'], expected(true, true, true, true, false)],
     [['packages/plugin-api/src/ai.ts'], expected(true, true, true, true, false)],
     [['plugins/ai-agent/src/worker.ts'], expected(true, true, true, true, false)],
-    [['packages/plugin-api/package.json'], expected(true, true, true, true, false, false)],
-    [['plugins/ai-agent/package.json'], expected(true, true, true, true, false, false)],
+    [['packages/plugin-api/package.json'], expected(true, true, true, true, false, false, true)],
+    [['plugins/ai-agent/package.json'], expected(true, true, true, true, false, false, true)],
     [['.agents/skills/litzio-orchestrator/scripts/pr-gate.mjs'], expected(false, false, false, false, false)],
     [['.agents/skills/litzio-orchestrator/SKILL.md'], expected(false, false, false, false, false)],
     [['.agents/skills/litzio-orchestrator/agents/openai.yaml'], expected(false, false, false, false, false)],
@@ -154,8 +154,8 @@ test('actual group diff includes successive PR commits, removed paths and both s
     assert.deepEqual(await policy(initial, docs), expected(false, false, false, false, false));
     git(['mv', 'apps/editor/src/App.tsx', 'EDITOR.md']);
     const group = commit('second PR renames product file');
-    assert.deepEqual(await policy(initial, group), expected(true, true, true, true, false));
-    assert.deepEqual(await policy(docs, group), expected(true, true, true, true, false));
+    assert.deepEqual(await policy(initial, group), expected(true, true, true, true, false, false, true));
+    assert.deepEqual(await policy(docs, group), expected(true, true, true, true, false, false, true));
     assert.deepEqual(await policy('f'.repeat(40), group), full);
     mkdirSync(path.join(dir, 'scripts'), { recursive: true });
     writeFileSync(path.join(dir, 'scripts/issues.mjs'), 'issue tool\n');
@@ -170,14 +170,14 @@ test('actual group diff includes successive PR commits, removed paths and both s
     assert.deepEqual(await policy(deleted, renamed), expected(false, false, false, false, false));
     git(['mv', 'scripts/issues.mjs', 'apps/editor/src/App.tsx']);
     const product = commit('rename policy tool to product');
-    assert.deepEqual(await policy(renamed, product), expected(true, true, true, true, false));
-    assert.deepEqual(await policy(product, renamed), expected(true, true, true, true, false),
+    assert.deepEqual(await policy(renamed, product), expected(true, true, true, true, false, false, true));
+    assert.deepEqual(await policy(product, renamed), expected(true, true, true, true, false, false, true),
       'reverse rename retains the removed product path');
     git(['mv', 'apps/editor/src/App.tsx', 'scripts/unknown.mjs']);
     const unknown = commit('rename product to unknown script');
     assert.deepEqual(await policy(product, unknown), { ...full, smartquotes: false });
     // Whole group combines the earlier product deletion and later tooling changes.
-    assert.deepEqual(await policy(initial, renamed), expected(true, true, true, true, false));
+    assert.deepEqual(await policy(initial, renamed), expected(true, true, true, true, false, false, true));
     // With divergent trees, base..head includes a removed installer that a
     // merge-base diff would omit. Queue policy must use the supplied base tree.
     git(['checkout', '-qb', 'base-branch', initial]);
@@ -202,7 +202,7 @@ const response = runs => async (url, options) => {
 test('only a successful same-SHA merge_group run in this workflow permits master push reuse', async () => {
   assert.deepEqual(await successfulQueueRun({ ...apiInputs, fetchRuns: response([successful]) }), successful);
   const result = await executionPolicy('push', { ref: 'refs/heads/master' }, { ...apiInputs, fetchRuns: response([successful]) });
-  assert.deepEqual(result, { quality: false, browser: false, http: false, desktop: false, update: false, fullLifecycle: false, smartquotes: false, reused: true });
+  assert.deepEqual(result, { quality: false, browser: false, http: false, desktop: false, update: false, fullLifecycle: false, fullLayout: false, smartquotes: false, reused: true });
   for (const candidate of [null, { ...successful, event: 'pull_request' }, { ...successful, head_sha: base },
     { ...successful, conclusion: 'failure' }, { ...successful, conclusion: 'cancelled' },
     { ...successful, status: 'in_progress' }, { ...successful, html_url: undefined }]) {
@@ -351,4 +351,38 @@ test('lifecycle scope keeps representative Beta and removal but selects full for
   const fullRemoval = releaseSteps.find(step => step.run === 'pnpm --filter @litzio/desktop test:uninstall');
   assert.ok(!fullRemoval.if);
   assert.equal(fullRemoval.env?.LITZIO_TEST_LIFECYCLE_SCOPE, undefined);
+});
+
+
+test('layout scope promotes shell/native/style and unknown inputs independently of lifecycle', () => {
+  const representative = ['packages/core/src/myst/figure.ts', 'apps/editor/src/components/FigureView.tsx',
+    'plugins/docling/src/conversion/convert.ts'];
+  const sensitive = ['apps/editor/src/App.tsx', 'apps/editor/src/shell/TopBar.tsx',
+    'apps/editor/src/shell/new-control.tsx', 'apps/editor/src/styles.css', 'apps/editor/src/tokens.css',
+    'apps/editor/shared/desktop-bridge.ts', 'apps/editor/index.html', 'apps/editor/vite.config.ts',
+    'apps/editor/test/layout-rules.browser.js', 'apps/editor/test/desktop-updates.browser.js',
+    'apps/desktop/src/main.ts', 'apps/desktop/src/preload.ts', 'apps/desktop/package.json',
+    'apps/desktop/test/packaged/caption-pixels.ts', 'pnpm-lock.yaml', 'unknown/new-input.ts'];
+  for (const file of representative) assert.equal(selectJobs('pull_request', [file]).fullLayout, false, file);
+  for (const file of sensitive) assert.equal(selectJobs('pull_request', [file]).fullLayout, true, file);
+  for (const event of ['pull_request', 'merge_group']) {
+    assert.equal(selectJobs(event, [representative[0], sensitive[0]]).fullLayout, true);
+    assert.equal(selectJobs(event, [representative[0], 'unknown/new-input.ts']).fullLayout, true);
+    assert.equal(selectJobs(event, [sensitive[0]]).fullLifecycle, false);
+    assert.equal(selectJobs(event, []).fullLayout, true);
+  }
+  assert.equal(selectJobs('workflow_dispatch', representative).fullLayout, true);
+  const ci = workflow();
+  assert.equal(ci.jobs.changes.outputs.fullLayout, '${{ steps.policy.outputs.fullLayout }}');
+  for (const job of ['browser', 'desktop']) {
+    const step = ci.jobs[job].steps.find(step => job === 'browser'
+      ? step.name === 'Run Editor browser regressions' : step.run === 'pnpm --filter @litzio/desktop test:packaged');
+    assert.equal(step.env.LITZIO_TEST_LAYOUT_SCOPE,
+      "${{ needs.changes.outputs.fullLayout == 'true' && 'full' || 'representative' }}");
+  }
+  const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
+  for (const job of Object.values(release.jobs)) {
+    assert.equal(job.env?.LITZIO_TEST_LAYOUT_SCOPE, undefined);
+    for (const step of job.steps ?? []) assert.equal(step.env?.LITZIO_TEST_LAYOUT_SCOPE, undefined);
+  }
 });

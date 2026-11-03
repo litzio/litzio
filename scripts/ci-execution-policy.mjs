@@ -2,7 +2,7 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { eventDiff, isDocumentationOnly } from './ci-quality-mode.mjs';
 
-const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, update: true, fullLifecycle: true, smartquotes: true });
+const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, update: true, fullLifecycle: true, fullLayout: true, smartquotes: true });
 // Consumers: root issue/docs commands and the always-run CI policy checks.
 // Product builds/tests do not load these files. Keep other scripts conservative.
 const policyFiles = new Set([
@@ -55,6 +55,18 @@ const lifecycleFullPaths = path => shared(path) || !known(path) || desktopBuildI
     'windows-environment.ts'].some(name => path === `apps/desktop/src/${name}`) ||
   (inPackage(path, 'apps/desktop') && !representativeDesktop.has(path));
 
+// Layout and native caption coverage is independent of install/update ownership.
+// New shell/desktop inputs and global styling stay conservative; feature-local
+// document semantics retain representative coverage.
+const layoutFullPaths = path => shared(path) || !known(path) ||
+  path === 'brand.ts' || path.endsWith('/package.json') ||
+  path.startsWith('apps/desktop/') || path.startsWith('apps/editor/src/shell/') ||
+  path.startsWith('apps/editor/shared/') ||
+  ['apps/editor/src/App.tsx', 'apps/editor/src/main.tsx', 'apps/editor/index.html',
+    'apps/editor/vite.config.ts', 'apps/editor/test/desktop-updates.browser.js',
+    'apps/editor/test/layout-rules.browser.js'].includes(path) ||
+  (path.startsWith('apps/editor/') && /\.(css|scss)$/.test(path));
+
 export function selectJobs(eventName, paths) {
   if (!['pull_request', 'merge_group'].includes(eventName) || !paths?.length) return allJobs();
   const full = paths.some(path => !policyOnly(path) && (shared(path) || !known(path)));
@@ -70,6 +82,7 @@ export function selectJobs(eventName, paths) {
     desktop: http || paths.some(path => inPackage(path, 'apps/desktop')),
     update,
     fullLifecycle: update && paths.some(path => !policyOnly(path) && lifecycleFullPaths(path)),
+    fullLayout: paths.some(path => !policyOnly(path) && layoutFullPaths(path)),
     // Package manifests cover MyST/markdown-it version declarations; the lockfile
     // covers transitive updates. Keep the installed patch probe separate from Core.
     smartquotes: paths.some(path => ['package.json', 'packages/core/package.json', 'pnpm-lock.yaml',

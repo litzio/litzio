@@ -214,8 +214,13 @@ test("started without a document, it opens none; the sample opens with its figur
       try { await captionPixels(app, page, path.join(work, "caption-pixels", name), surface, oldHeight); }
       catch (error) { captionFailures.push(new Error(`${name}: ${String(error)}`, { cause: error })); }
     };
-    for (const state of [{ width: 1440, outline: false }, { width: 1440, outline: true },
-      { width: 640, outline: false }, { width: 0, outline: true }]) {
+    // #694 keeps both surfaces, the old-height negative control and live maximize/restore in every scope.
+    const fullLayout = process.env.LITZIO_TEST_LAYOUT_SCOPE !== "representative";
+    const captionStates = fullLayout
+      ? [{ width: 1440, outline: false }, { width: 1440, outline: true },
+        { width: 640, outline: false }, { width: 0, outline: true }]
+      : [{ width: 1440, outline: false }, { width: 640, outline: false }];
+    for (const state of captionStates) {
       await app.evaluate(({ BrowserWindow, screen }, width) => {
         const window = BrowserWindow.getAllWindows()[0]!;
         if (!width) { window.maximize(); return; }
@@ -228,7 +233,7 @@ test("started without a document, it opens none; the sample opens with its figur
       if (state.width) await expect.poll(() => page.evaluate(() => innerWidth)).toBe(state.width);
       const toggle = page.getByRole("button", { name: "Outline", exact: true });
       if (await toggle.getAttribute("aria-pressed") !== String(state.outline)) await toggle.click();
-      for (const theme of ["light", "dark"]) {
+      for (const theme of (fullLayout ? ["light", "dark"] : ["light"])) {
         await page.evaluate(() => {
           const viewport = document.querySelector<HTMLElement>('.document-scroll[data-active="true"]')!;
           viewport.scrollTop = Math.min(200, Math.max(0, viewport.scrollHeight - viewport.clientHeight));

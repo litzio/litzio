@@ -256,6 +256,8 @@ The renderer title is the active filename followed by ` — Litzio`, or `Litzio`
 document, for native taskbar/Alt+Tab identification as well as browser tabs. The existing
 beforeunload/unsaved-work protection remains authoritative for native Close.
 
+Layout test scope (#1009 F08) uses `LITZIO_TEST_LAYOUT_SCOPE`: only `representative` reduces combinations; local/unset and release retain all combinations below. Ordinary PRs retain light document/Settings pixels at 1440px Outline closed and 640px, actual maximize/restore with Settings open, and the old-overlay-height negative control (7 OS samples instead of 19). The native minimum size, Window Controls Overlay geometry, title/drag exclusion, theme propagation and saved-theme restart checks remain unconditional. Shell/global CSS/titlebar/window controls/Desktop/Electron inputs and unclassified paths select the full matrix through the separate `fullLayout` CI output; install/update lifecycle selection is independent. The pixel sampler and its tolerances are unchanged.
+
 Packaged CI checks actual Window Controls Overlay visibility/geometry at 1440px and 640px,
 control exclusion from drag and BrowserWindow title. It also uses Win32 `ClientToScreen` and
 `System.Drawing.Graphics.CopyFromScreen` to sample the OS-composed separator below all three
