@@ -136,7 +136,7 @@ These are independent axes. Visual interactions never write document attributes.
 | Mermaid kind | Editable Visual Editor retains a padded `Mermaid` badge at rest, including failures and pending source drafts; shared metadata typography, normal text contrast, muted surface, structural border, small radius and spacing tokens. Selected blocks add interaction-soft fill and interaction border (#846). Decorative chrome only; [Figure authoring](figure-authoring-v1.md#mermaid-editor) owns scope. |
 | Heading depth (#887/#886) | Edit and the Docling comparison's fixed Read surface retain small, subdued `H1`–`H6` cues in the left gutter. Shared metadata size/line height, monospace as for section labels, and the theme's subtle text role; no badge fill. Center on the first heading line, including numbered/wrapped headings. Hide only while that row's block handles are visible. Decorative `aria-hidden` chrome with localized `Heading 2` / `제목 2` hover text; absent from ordinary Read, Source, text files, copying and saved documents. No setting, Outline or heading-size change. |
 | Hover | Gutter, typed-block Edit and metadata appear without moving text; the route to buttons remains inside the hover area. One top-level block gets a neutral input-transparent extent overlay. Nested lists/cells indicate the whole top-level block. Geometry/clearance belongs to [Layout Rules](editor-layout-rules-v1.md#alignment-and-ownership). |
-| Keyboard focus | Caret/selection shows document focus without a document frame. `:focus-within` reveals tools; controls draw focus only on `:focus-visible`, never after a pointer click. |
+| Keyboard focus | Caret/selection plus a thin, pale chosen-accent gutter bar identify the cursor’s top-level flow block (paragraph, heading, bullet/ordered list; nested lists use the outer list). Only this one flow-block set receives the bar: blocks with their own boundary do not, including quotes with their existing left rule. The bar is absent without document focus and in Read; no frame or kind icon. `:focus-within` reveals tools; controls draw focus only on `:focus-visible`, never after a pointer click. |
 | Current lists | Files, Outline and +/slash use selected surface/text and 600 semibold, no left marker. Hover uses selected-hover while current. Focus never changes current/ARIA state. Command Center retains Base UI highlighting and existing disabled/foreign-text exceptions. |
 | Current segments | Shared view toggles use a pressed track, raised themed `surface`, `text`, 600 semibold and `--shadow-segment`, without control edge/marker. Inactive text is muted, normal text on hover, without a hover face. Hidden semibold labels reserve width. |
 | Current tab/group | Document tabs stay flat with normal current text and an inset bottom accent marker; inactive is muted. Neutral hover preserves the marker; focus is independent. In split groups the focused group's tab-row adds selected-surface fill alongside active tab markers. |
@@ -151,7 +151,7 @@ These are independent axes. Visual interactions never write document attributes.
 | Empty caption | Editable Table/image/pending/Mermaid captions use a muted italic hint only while selection is elsewhere. Number prefix/click surface remain. Generated text has an empty accessibility alternative and is absent from clipboard/Source/Save; read-only omits it. |
 | Accent swatch | Checked native radio uses a 2px interaction-color circle outline with a 2px offset exposing the Settings surface; keyboard focus independently rings the transparent target. Hover subtly brightens the circle. Only the selected translated name is visible, muted metadata; all swatches keep accessible names/tooltips. No option box/background/check icon or per-circle visible name. |
 
-Document input, IME composition and document-changing keydown commands suppress only the neutral hover outline until real pointer movement. Selection, transactions, scrolling, mouseover and resizing do not restore it; blocks passing under a stationary pointer remain suppressed. Mouseleave retains the last movement coordinates. Unsuppressed hover follows the block under the pointer, not selection. It disappears outside the host, between blocks or during block drag, where drag tint/drop line wins. Gutter/Edit/metadata keep independent visibility. Existing no-hover fallbacks may keep tools visible and omit hover extent without creating touch-only support requirements.
+Document input, IME composition and document-changing keydown commands suppress only the neutral hover outline until real pointer movement. Selection, transactions, scrolling, mouseover and resizing do not restore it; blocks passing under a stationary pointer remain suppressed. Mouseleave retains the last movement coordinates. Unsuppressed hover follows the block under the pointer, not selection. It disappears outside the host, between blocks or during block drag, where drag tint/drop line wins. The cursor bar follows selection through typing/IME/Enter independently of hover suppression. Gutter/Edit/metadata keep independent visibility. Existing no-hover fallbacks may keep tools visible and omit hover extent without creating touch-only support requirements.
 
 Buttons use the solid 2px outer `--focus-ring`; list/menu rows, tab-group controls, checkboxes and table tools use `--focus-ring-inset`. Both use opaque `border-focus` (chosen accent). Current/error/pressed faces remain visible alongside focus. Primary controls separate accent face from ring with an inner surface boundary. Figure metadata's quiet filled fields are an explicit exception to always-visible field boundaries; [P05](ui-patterns-v1.md#p05-입력칸placeholder위계) tracks other current form differences.
 
@@ -190,6 +190,7 @@ Values tuned by hand or changed by taste live under **Adjustable values** in `st
 | Captions/table | `--font-size-document-caption`, `--line-height-document-caption`, `--space-document-caption`, `--font-size-document-table`, `--line-height-document-table`, `--space-document-table-cell-block/inline` |
 | Code/math | `--font-size-document-code`, `--line-height-document-code`, `--font-size-document-inline-code`, `--math-inline-size`, `--layout-equation-input-min-height`, `--layout-inline-math-input-min-height`, `--layout-inline-math-popover-width` |
 | Endnotes | `--font-size-document-endnote`, `--line-height-document-endnote`, `--space-document-endnotes`, `--space-document-endnote-gap/indent` |
+| Editing flow-block bar | `--size-editing-block-bar`, `--id-color-editing-block-bar` (pale chosen accent); supplementary range cue alongside the caret, not a replacement for the opaque control focus ring |
 | Block outlines | `--id-color-block-hover-outline`, `--size-block-hover-outline`, `--id-radius-block-hover`, `--space-block-hover-inline/block`; geometry in [Layout Rules](editor-layout-rules-v1.md#alignment-and-ownership) |
 | Document column/padding | `--layout-content-width`, `--layout-content-width-wide`, `--layout-content-gutter`, `--layout-document-block-padding`, `--layout-document-block-padding-narrow`, `--layout-document-end-space`; blank end space also controls caret clearance |
 | Shell/navigation | `--layout-sidebar-width`, `--layout-sidebar-width-narrow`, `--layout-document-panel-width`, `--layout-assistant-width`, `--layout-document-tab-height`, `--layout-document-tab-max-width`, `--space-sidebar-tree-indent`, `--space-outline-indent` |
@@ -222,3 +223,27 @@ Control heights in `styles.css` already consume `--size-control` or
 `--size-control-compact`. The remaining `2rem` equation-display minimum and
 `8rem` recovery-text minimum are content geometry, not control heights.
 This inspection changes no rendered appearance.
+
+## Editing block bar verification (#1022)
+
+Windows persistent Chrome, English, Plum, 100% zoom / DPR 1, 1000px high.
+Before is pre-spike master `6f037b1f60413ff358e6bc729cf759445c23dcae`; same scratch
+`converter-control.md`, cursor paragraph and panel state as After. The existing
+BlockHandles geometry supplies the cursor range; no new control variant or Core/CLI
+operation is needed for this editor-only cue. Quote exclusion follows the existing
+`.document-editor > .quote` left border. Other framed NodeViews retain their own boundary.
+
+| View | Paragraph (bar) | Nested list (bar) | Admonition (no bar) |
+| --- | --- | --- | --- |
+| 1440 Light | [Before](assets/editing-block-bar-1022/before-1440-light-paragraph.png) / [After](assets/editing-block-bar-1022/after-1440-light-paragraph.png) | [After](assets/editing-block-bar-1022/after-1440-light-nested-list.png) | [After](assets/editing-block-bar-1022/after-1440-light-admonition.png) |
+| 1440 Dark | [After](assets/editing-block-bar-1022/after-1440-dark-paragraph.png) | [After](assets/editing-block-bar-1022/after-1440-dark-nested-list.png) | [After](assets/editing-block-bar-1022/after-1440-dark-admonition.png) |
+| 640 Light | [After](assets/editing-block-bar-1022/after-640-light-paragraph.png) | [After](assets/editing-block-bar-1022/after-640-light-nested-list.png) | [After](assets/editing-block-bar-1022/after-640-light-admonition.png) |
+
+Manual review: pale accent remains visible on Light/Dark, spans the outer list,
+clears handles and text, and does not duplicate the admonition rule. No text shift,
+clipping or additional kind icon was visible. These are manual captures, not pixel
+assertions. Native Korean IME remains a manual check; existing continuous-editing
+covers Chromium composition lifecycle. Capture recipe: temporarily run
+`apps/editor/test/manual/editing-block-bar-1022.js` as `quiet-document.browser.js`
+with `pnpm browser:test quiet-document --screenshots`, then restore the regression.
+Copy the sample and its `assets` into `tmp/editing-block-bar-1022/` first.

@@ -2085,6 +2085,14 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 }
 
 /* This sibling of the engine content never enters selection, clipboard or serialization. */
+.editing-block-bar {
+  position: absolute;
+  left: calc(var(--layout-document-gutter) - var(--space-block-hover-inline));
+  width: var(--size-editing-block-bar);
+  background: var(--id-color-editing-block-bar);
+  pointer-events: none;
+}
+
 .heading-level {
   position: absolute;
   right: calc(100% - var(--layout-document-gutter) + var(--space-heading-level-gap));
