@@ -189,7 +189,7 @@ export function SettingsDialog({ sections = [], pluginErrors = {}, theme, themeP
               {category === "plugins" ? <PluginSettings sections={sections} errors={pluginErrors} focusSection={lastPluginSection.current} onOpen={id => { lastPluginSection.current = id; onCategoryChange(id as SettingsCategory); }} /> : null}
               {Section ? <ContributionBoundary key={category}><Section /></ContributionBoundary> : null}
               {category === "appearance" ? <>
-                <SettingsSelect label={i18n.t("Theme")} description={i18n.t("System follows your device’s appearance.")} testId="theme"
+                <SettingsSelect label={i18n.t("Theme")} description={i18n.t("Choose a light or dark appearance.")} testId="theme"
                   value={theme} onChange={value => {
                       onThemeChange(value as ThemePreference);
                     }} options={THEMES.map(value => ({ value, label: i18n.t(THEME_LABELS[value]) }))} />

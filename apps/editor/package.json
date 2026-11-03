@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "0.17.1",
     "@base-ui/react": "^1.8.0",
     "@litzio/core": "workspace:*",
     "@litzio/file-commit": "workspace:*",
@@ -40,7 +41,8 @@
     "pretendard": "1.3.9",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "react-i18next": "^17.1.0"
+    "react-i18next": "^17.1.0",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

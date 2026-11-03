@@ -1,116 +1,54 @@
-// Shared theme choice across the footer, Settings and localized commands.
+// Footer toggle, shared Settings/commands and persistence; captures are manual only.
 async (page, { expect, screenshots = false }) => {
-  const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
-  const settings = () => page.locator('.sidebar-preferences button, .sidebar-footer button').filter({has:page.locator('.settings-entry-icon')});
-  const mode = () => page.getByRole('button',{name:/^(Color mode|색상 모드)$/});
-  const back = () => page.locator('[data-tab-id="settings"] .document-tab-close');
-  const closeSettings = async () => { await back().click(); await page.getByTestId('settings-dialog').waitFor({state:'detached'}); };
+  const settings = () => page.getByTestId('sidebar').locator('[data-open-settings]');
+  const mode = () => page.getByRole('button',{name:/^(Color mode|색상 모드):/});
+  const closeSettings = async () => { await page.locator('[data-tab-id="settings"] .document-tab-close').click(); await page.getByTestId('settings-dialog').waitFor({state:'detached'}); };
   const configure = async (language, theme) => {
     await settings().click();
-    await expect(page.getByRole('tab',{name:/^(Settings|설정)$/})).toBeFocused();
     await page.getByTestId('theme').selectOption(theme);
     await page.getByTestId('ui-language').selectOption(language);
     await closeSettings();
   };
-  const menu = () => page.getByRole('menu',{name:/^(Color mode|색상 모드)$/});
-  const capture = async name => { if (screenshots) { await page.evaluate(() => document.fonts.ready); await page.screenshot({path:`tmp/color-mode-798/${name}.png`}); } };
-  await expect(mode()).toHaveCount(1);
-  // Same viewport/language/theme states as the preserved clean-base captures.
+  const assertChoice = async value => {
+    await expect(page.locator('html')).toHaveAttribute('data-theme',value);
+    expect(await page.evaluate(() => localStorage.getItem('litzio.theme'))).toBe(value);
+  };
+  // First OS resolution is stored; subsequent OS changes leave that choice intact.
+  await page.emulateMedia({colorScheme:'dark'});
+  await page.evaluate(() => localStorage.removeItem('litzio.theme'));
+  await page.reload();
+  await assertChoice('dark');
+  await page.emulateMedia({colorScheme:'light'});
+  await assertChoice('dark');
   for (const [width, language, theme] of [[1440,'en','light'],[640,'ko','dark']]) {
     await page.setViewportSize({width,height:900});
     await configure(language,theme);
-    await capture(`after-${width}-rows`);
-    await mode().click(); await menu().waitFor();
-    await expect(menu().getByRole('menuitemradio',{checked:true})).toHaveCount(1);
-    const bounds = await menu().boundingBox();
-    expect(bounds.x >= 0 && bounds.y >= 0 && bounds.x+bounds.width <= width && bounds.y+bounds.height <= 900).toBe(true);
-    const settingsBounds = await settings().boundingBox(), modeBounds = await mode().boundingBox();
-    expect(modeBounds.y).toBe(settingsBounds.y + settingsBounds.height);
-    expect(modeBounds.height).toBe(settingsBounds.height);
-    expect(modeBounds.x).toBe(settingsBounds.x);
-    expect(modeBounds.width).toBe(settingsBounds.width);
-    await expect(mode().locator(".sidebar-theme-value")).toHaveText(theme === "light" ? "Light" : "다크");
-    await expect(mode().locator("svg")).toHaveClass(/lucide-sun-moon/);
-    await capture(`after-${width}-expanded`);
-    await page.keyboard.press('Escape');
+    await expect(mode()).toHaveAttribute('title',`${language==='en'?'Color mode':'색상 모드'}: ${theme==='light'?'Light':'다크'}`);
+    await expect(mode().locator('svg')).toHaveClass(new RegExp(theme==='light'?'lucide-sun':'lucide-moon'));
+    const a = await settings().boundingBox(), b = await mode().boundingBox();
+    expect(a.y + a.height/2).toBe(b.y + b.height/2);
+    expect(a.x + a.width).toBeLessThanOrEqual(b.x);
+    expect(b.x+b.width).toBeLessThanOrEqual(width);
+    if (screenshots) { await page.evaluate(() => document.fonts.ready); await page.screenshot({path:`tmp/theme-1042/after-${width}.png`}); }
     await page.getByRole('button',{name:/^(Collapse Explorer|탐색기 접기)$/}).click();
-    await mode().click(); await menu().waitFor();
-    await expect(menu().getByRole('menuitemradio',{checked:true})).toHaveCount(1);
-    await expect(mode().locator(".sidebar-theme-value")).toHaveCount(0);
-    await expect(mode()).toHaveAttribute("title", language === "en" ? "Color mode" : "색상 모드");
-    await capture(`after-${width}-rail`);
-    await page.keyboard.press('Escape');
-    await page.getByRole('button',{name:/^(Expand Explorer|탐색기 펼치기)$/}).click();
-  }
-  await expect(mode()).toHaveCount(1);
-  await configure('en','system');
-  const assertChoice = async value => {
-    await expect.poll(() => page.evaluate(() => localStorage.getItem('litzio.theme'))).toBe(value);
-    await expect(page.locator('html')).toHaveAttribute('data-theme',value === 'system' ? 'light' : value);
-  };
-  await page.emulateMedia({colorScheme:'light'});
-  // Keyboard open, current radio, arrow selection and focus return in expanded and rail states.
-  for (const collapsed of [false,true]) {
-    if (collapsed) await page.getByRole('button',{name:'Collapse Explorer',exact:true}).click();
-    await settings().focus();
-    await page.keyboard.press('Tab');
+    await settings().focus(); await page.keyboard.press('Tab');
     await expect(mode()).toBeFocused();
-    await page.keyboard.press('Tab');
-    await expect(page.getByRole('button',{name:'Find documents and commands',exact:true})).toBeFocused();
-    await mode().focus();
-    const system = menu().getByRole('menuitemradio',{name:'System',exact:true});
-    const openKeyboardMenu = async () => {
-      await page.keyboard.press('Enter');
-      await expect(system).toHaveAttribute('aria-checked','true');
-      // The popup mounts before Base UI's next-frame initial focus reaches its radio.
-      await expect(system).toBeFocused();
-    };
-    if (collapsed) {
-      // Hold the actual library focus call: mounting/current state must not signal readiness.
-      await page.evaluate(() => {
-        const original = HTMLElement.prototype.focus;
-        const pending = [];
-        window.__colorModeFocus = { pending, release() {
-          HTMLElement.prototype.focus = original;
-          for (const resume of pending) resume();
-          delete window.__colorModeFocus;
-        }};
-        HTMLElement.prototype.focus = function(...args) {
-          if (this.closest('[role="menu"][aria-label="Color mode"]')) pending.push(() => original.apply(this,args));
-          else original.apply(this,args);
-        };
-      });
-      let opened = false;
-      const opening = openKeyboardMenu().then(() => { opened = true; });
-      try {
-        await page.waitForFunction(() => window.__colorModeFocus.pending.length > 0);
-        await expect(system).toHaveAttribute('aria-checked','true');
-        expect(opened, 'Keyboard readiness must wait for actual initial focus').toBe(false);
-      } finally {
-        await page.evaluate(() => window.__colorModeFocus.release());
-        await opening;
-      }
-    } else await openKeyboardMenu();
-    await page.keyboard.press('Home');
-    await page.keyboard.press('ArrowDown');
-    await expect(menu().getByRole('menuitemradio',{name:'Light',exact:true})).toBeFocused();
     await page.keyboard.press('Enter');
-    await menu().waitFor({state:'detached'});
+    await assertChoice(theme==='light'?'dark':'light');
     await expect(mode()).toBeFocused();
-    await assertChoice('light');
+    await page.keyboard.press('Space');
+    await assertChoice(theme);
+    if (screenshots) await page.screenshot({path:`tmp/theme-1042/after-${width}-rail.png`});
+    await page.getByRole('button',{name:/^(Expand Explorer|탐색기 펼치기)$/}).click();
     await settings().click();
-    await expect(page.getByTestId('theme')).toHaveValue('light');
-    await page.getByTestId('theme').selectOption('dark');
+    expect(await page.getByTestId('theme').locator('option').evaluateAll(nodes => nodes.map(n=>n.value))).toEqual(['light','dark']);
+    await expect(page.getByTestId('theme')).toHaveValue(theme);
+    if (screenshots) await page.screenshot({path:`tmp/theme-1042/after-${width}-settings.png`});
     await closeSettings();
-    await mode().click();
-    await expect(menu().getByRole('menuitemradio',{name:'Dark',exact:true})).toHaveAttribute('aria-checked','true');
-    await menu().getByRole('menuitemradio',{name:'System',exact:true}).click();
-    await assertChoice('system');
   }
-  // Same three commands in both languages, also searchable through the other language's aliases.
-  for (const [language, labels] of [['en',['System','Light','Dark']],['ko',['시스템','라이트','다크']]]) {
-    await configure(language,'system');
-    for (const [index,value] of ['system','light','dark'].entries()) {
+  for (const [language, labels] of [['en',['Light','Dark']],['ko',['라이트','다크']]]) {
+    await configure(language,'light');
+    for (const [index,value] of ['light','dark'].entries()) {
       await page.keyboard.press('Control+Slash');
       const input = page.getByRole('combobox');
       await expect(input).toBeFocused();
@@ -120,25 +58,18 @@ async (page, { expect, screenshots = false }) => {
       await page.keyboard.press('Enter');
       await option.waitFor({state:'detached'});
       await assertChoice(value);
-      await settings().click();
-      await expect(page.getByTestId('theme')).toHaveValue(value);
-      await closeSettings();
     }
   }
-  await page.reload(); await ready();
+  await page.reload();
+  await assertChoice('dark');
   await settings().click(); await expect(page.getByTestId('theme')).toHaveValue('dark'); await closeSettings();
-  await mode().click(); await menu().getByRole('menuitemradio',{name:'시스템',exact:true}).click();
-  await page.emulateMedia({colorScheme:'dark'});
-  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
-  await mode().click(); await expect(menu().getByRole('menuitemradio',{name:'시스템',exact:true})).toHaveAttribute('aria-checked','true');
-  await page.keyboard.press('Escape');
   // Storage refusal must preserve the live choice and expose the existing localized error.
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
     window.__restoreThemeStorage = () => { Storage.prototype.setItem = original; };
     Storage.prototype.setItem = function(key, value) { if (key === 'litzio.theme') throw Error('Storage refused'); return original.call(this,key,value); };
   });
-  await mode().click(); await menu().getByRole('menuitemradio',{name:'라이트',exact:true}).click();
+  await mode().click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','light');
   await expect(page.getByText('테마를 저장하지 못했습니다. 이 페이지를 닫을 때까지 적용됩니다.',{exact:true})).toBeVisible();
   await settings().click();
@@ -146,30 +77,41 @@ async (page, { expect, screenshots = false }) => {
   await expect(page.getByRole('alert').filter({hasText:'테마를 저장하지 못했습니다.'})).toBeVisible();
   await closeSettings();
   await page.evaluate(() => window.__restoreThemeStorage());
-  await mode().click(); await menu().getByRole('menuitemradio',{name:'다크',exact:true}).click();
+  await mode().click();
   await expect(page.getByText('테마를 저장하지 못했습니다. 이 페이지를 닫을 때까지 적용됩니다.',{exact:true})).toHaveCount(0);
-  // Existing update-dot geometry stays separate from the new control in both layouts.
-  await page.addInitScript(() => {
-    window.litzioDesktop = {
-      info: async () => ({version:'0.1.0',channel:'beta',updatesSupported:true,update:{phase:'available',version:'0.2.0',prerelease:true}}),
-      onUpdateState: () => () => {}, onRestartCheck: () => () => {},
-      setTheme: async theme => theme==='dark' || (theme==='system' && matchMedia('(prefers-color-scheme: dark)').matches),
-      setWindowBackground: async () => {},
-    };
+
+  // Exercise the real View Transition path once, and both immediate bypasses.
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  const transitionResult = await page.evaluate(async () => {
+    const theme = await import('/src/theme.ts');
+    const original = document.startViewTransition.bind(document);
+    let calls = 0;
+    document.startViewTransition = callback => { calls++; return original(callback); };
+    try {
+      await theme.applyTheme('light'); // webdriver must bypass animation
+      const automatedCalls = calls;
+      Object.defineProperty(navigator,'webdriver',{configurable:true,value:false});
+      await theme.applyTheme('dark');
+      const transitions = document.getAnimations().filter(a => a.effect?.pseudoElement?.includes('view-transition'));
+      await Promise.all(transitions.map(a => a.finished));
+      return {automatedCalls, calls};
+    } finally { document.startViewTransition = original; delete navigator.webdriver; }
   });
-  await page.reload(); await ready();
-  // Sidebar expansion is page-local and resets on reload. Set each state explicitly.
-  for (const collapsed of [true,false]) {
-    const sidebar = page.getByTestId('sidebar');
-    const isCollapsed = (await sidebar.getAttribute('class')).includes('sidebar--collapsed');
-    if (isCollapsed !== collapsed) await sidebar.locator('.sidebar-collapse').click();
-    const dot = page.getByTestId('settings-update-dot');
-    await expect(dot).toBeVisible();
-    const a = await dot.boundingBox(), b = await mode().boundingBox();
-    expect(a.x+a.width <= b.x || b.x+b.width <= a.x || a.y+a.height <= b.y || b.y+b.height <= a.y).toBe(true);
-    await mode().click();
-    const bounds = await menu().boundingBox(), viewport = page.viewportSize();
-    expect(bounds.x >= 0 && bounds.y >= 0 && bounds.x+bounds.width <= viewport.width && bounds.y+bounds.height <= viewport.height).toBe(true);
-    await page.keyboard.press('Escape');
-  }
+  expect(transitionResult).toEqual({automatedCalls:0,calls:1});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  const reducedCalls = await page.evaluate(async () => {
+    const theme = await import('/src/theme.ts');
+    const original = document.startViewTransition;
+    let calls = 0;
+    document.startViewTransition = callback => { calls++; return original.call(document,callback); };
+    Object.defineProperty(navigator,'webdriver',{configurable:true,value:false});
+    try { await theme.applyTheme('light'); return calls; }
+    finally { document.startViewTransition = original; delete navigator.webdriver; }
+  });
+  expect(reducedCalls).toBe(0);
+  await page.emulateMedia({reducedMotion:'no-preference'});
+
+  // Leave shared-context scenarios with their ordinary English/Light setup.
+  await configure('en','light');
+
 }

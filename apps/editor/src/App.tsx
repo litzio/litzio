@@ -102,7 +102,7 @@ function EditorApp() {
     media.addEventListener("change", change); return () => media.removeEventListener("change", change);
   }, []);
   const newFileButton = useRef<HTMLElement | null>(null);
-  const newFolderButton = useRef<HTMLButtonElement>(null);
+  const newFolderButton = useRef<HTMLElement>(null);
   // Open folder… returns focus to the control that opened it.
   const dialogReturnFocus = useRef<HTMLElement | null>(null);
   // Retain Host start information when the last tab closes.
@@ -845,9 +845,9 @@ function EditorApp() {
   function newDirectoryIn(root: string): string {
     return folderChain(root, openedPath).at(-1) ?? root;
   }
-  function newFile(root: string): void {
+  function newFile(root: string, exact = false): void {
     if (busy || continuation) { setError({ key: "Wait for the current operation to finish." }); return; }
-    setNewDirectory(newDirectoryIn(root));
+    setNewDirectory(exact ? root : newDirectoryIn(root));
     setNewDialog(true);
   }
   function newDocument(returnFocus: HTMLElement | null): void {
@@ -1170,7 +1170,7 @@ function EditorApp() {
       takesFocus: true, disabled: busy || Boolean(continuation), keywords: action.keywords, run: () => action.run(commandReturnFocus.current) })),
     ...THEMES.map(value => ({ id: `theme-${value}`, kind: "command" as const,
       label: i18n.t(`Color mode: ${THEME_LABELS[value]}`), icon: Monitor,
-      keywords: ["color mode", "theme", "색상 모드", "테마", THEME_LABELS[value], { system: "시스템", light: "라이트", dark: "다크" }[value]],
+      keywords: ["color mode", "theme", "색상 모드", "테마", THEME_LABELS[value], { light: "라이트", dark: "다크" }[value]],
       run: () => changeTheme(value) })),
     { id: "settings", kind: "command", label: i18n.t("Settings"), icon: Settings2, takesFocus: true, disabled: settingsDisabled,
       keywords: ["settings", "설정"], run: () => { settingsReturnFocus.current = commandReturnFocus.current; setSettingsCategory("appearance"); openSettingsTab(); void refreshRecovery(); } },
@@ -1226,13 +1226,13 @@ function EditorApp() {
         recent={visibleRecent}
         onNewDocument={newDocument}
         onOpenRecent={(folder) => void openFolder(folder).then((message) => { if (message) setError(message); })}
-        onNew={(root, button) => {
+        onNew={(root, button, exact) => {
           newFileButton.current = button;
-          newFile(root);
+          newFile(root, exact);
         }}
-        onNewFolder={(root, button) => {
+        onNewFolder={(root, button, exact) => {
           newFolderButton.current = button;
-          setNewDirectory(newDirectoryIn(root));
+          setNewDirectory(exact ? root : newDirectoryIn(root));
           setNewFolderDialog(true);
         }}
         folders={folders.trees}
@@ -1405,7 +1405,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable ? <AssistantPanel settingsDisabled={settingsDisabled} referenceRequest={referenceRequest} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable ? <AssistantPanel settingsRevision={ui.aiSettingsRevision} settingsDisabled={settingsDisabled} referenceRequest={referenceRequest} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { await openFolderDocument(path); }}
         onUndo={async result => {

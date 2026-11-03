@@ -29,7 +29,7 @@ async (page, { showNotifications }) => {
     // Brand is not a new tab stop: retain Explorer → TopBar → document navigation order.
     await page.getByRole('button',{name:'Settings',exact:true}).focus();
     await page.keyboard.press('Tab');
-    result.settingsToColorMode = await page.getByRole('button',{name:'Color mode',exact:true}).evaluate(n=>n===document.activeElement);
+    result.settingsToColorMode = await page.getByRole('button',{name:/^Color mode:/}).evaluate(n=>n===document.activeElement);
     await page.keyboard.press('Tab');
     result.filesToTopBar = await page.getByRole('button',{name:'Find documents and commands',exact:true}).evaluate(n=>n===document.activeElement);
 

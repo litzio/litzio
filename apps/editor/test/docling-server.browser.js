@@ -156,6 +156,10 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
   await center.getByRole('button', { name: 'Open settings', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Server address' })).toBeVisible();
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+  // The lost POST must finish UI recovery before testing the running-job command.
+  await pdf.click({ button: 'right' });
+  await expect(page.getByRole('menuitem', { name: 'Convert with Docling', exact: true })).toBeEnabled();
+  await page.keyboard.press('Escape');
   await page.keyboard.press('Control+Slash');
   await page.getByRole('dialog', { name: 'Command center' }).getByRole('combobox').fill('> Convert with Docling');
   await page.getByRole('option', { name: 'Convert with Docling', exact: true }).click();

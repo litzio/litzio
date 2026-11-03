@@ -67,9 +67,9 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   await page.unrouteAll();
   await page.reload();
   await ready();
-  // Browser bridge coverage: resolved roles, explicit/System changes and geometry only.
+  // Browser bridge coverage: resolved roles, explicit Light/Dark changes and geometry only.
   // Real Window Controls Overlay/native window behavior is checked in packaged CI/manual review.
-  for (const theme of ['light', 'dark', 'system']) {
+  for (const theme of ['light', 'dark']) {
     await page.getByRole('button', {name:'Settings', exact:true}).click();
     await page.getByTestId('theme').selectOption(theme);
     await page.waitForFunction(() => {
@@ -154,7 +154,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
         for (const panelOpen of (fullLayout || width === 640 ? [false, true] : [false])) {
           const toggle = page.getByRole('button', {name:'Outline', exact:true});
           if (await toggle.getAttribute('aria-pressed') !== String(panelOpen)) await toggle.click();
-          let expandedSettingsTop;
+
           for (const collapsed of [false, true]) {
             const sidebar = page.getByRole('button', {name:collapsed ? 'Collapse Explorer' : 'Expand Explorer', exact:true});
             if (await sidebar.isVisible()) await sidebar.click();
@@ -191,13 +191,16 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
               const branded = brand.querySelector('img').complete && !!brand.querySelector('span') === !document.querySelector('.sidebar--collapsed');
               const settingsBox = settings.getBoundingClientRect();
               const rail = document.querySelector('.sidebar').getBoundingClientRect();
-              const settingsBounded = settingsBox.left >= rail.left && settingsBox.right <= rail.right && settingsBox.bottom <= innerHeight;
+              const modeBox = document.querySelector('.sidebar-preferences button:last-child').getBoundingClientRect();
+              const collapsed = document.querySelector('.sidebar').classList.contains('sidebar--collapsed');
+              const footerAligned = collapsed ? settingsBox.bottom <= modeBox.top && settingsBox.x === modeBox.x
+                : settingsBox.y + settingsBox.height / 2 === modeBox.y + modeBox.height / 2 && settingsBox.right <= modeBox.left;
+              const settingsBounded = footerAligned && settingsBox.left >= rail.left && settingsBox.right <= rail.right && modeBox.right <= rail.right && modeBox.bottom <= innerHeight;
               return {settingsTop:settingsBox.top, settingsBounded, aligned, branded, continuous, singleLine:lines.every(line => line.bottom === tabs.top && line.thickness === 1), lines, blocked,
                 rowHeight:header.height, usableWidth, barBottom:bar.bottom, tabsTop:tabs.top, headerBottom:document.querySelector('.app-header').getBoundingClientRect().bottom,
                 overlayTop:panel?.getBoundingClientRect().top, drag:getComputedStyle(document.querySelector('.top-bar')).getPropertyValue('app-region')};
             }, reserved);
-            if (!collapsed) expandedSettingsTop = geometry.settingsTop;
-            check(geometry.settingsBounded && geometry.settingsTop === expandedSettingsTop, 'Rail Settings moved vertically or escaped the sidebar');
+            check(geometry.settingsBounded, 'Settings/theme controls must align without overlap and remain inside the sidebar');
             if (collapsed && [1440,640].includes(width) && reserved === 138 && !panelOpen) {
               const settings = page.getByTestId('sidebar').getByRole('button',{name:'Settings',exact:true});
               await settings.click();

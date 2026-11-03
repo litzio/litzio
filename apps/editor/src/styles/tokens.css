@@ -10,6 +10,7 @@
   --id-color-docling-footnote: #95624c;
   color-scheme: light;
 
+  --duration-theme-transition: 160ms; /* Brief whole-screen theme crossfade. */
   /* Adjustable values: tuned by hand or chosen by a user preference. Change them here only;
    * no rule or script repeats these numbers. See Visual Language "Adjustable values". */
   /* Initial assistant dock width; an explicit 340–560px user resize overrides it. */

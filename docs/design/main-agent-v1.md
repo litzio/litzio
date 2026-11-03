@@ -3,10 +3,16 @@
 - Status: Implemented
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
 - Message roles verified: 2026-11-03 (#1048/#1051; fixture captures and turn-copy browser checks below).
+- Host settings integration: 2026-11-03 (#1070 merge; target unit/type checks and existing fake ai-agent browser case, 1440px/640px Korean Dark captures; no real Copilot call).
+- Provider Save verification: 2026-11-03 (#1069 review correction; reproduced stale dock state before the fix, then existing fake browser case passed with Save/new conversation).
+- Copilot verification: 2026-11-03 (#1053; fake ACP and task-default boundary, existing ai-agent browser scenario and 1440px Light / 640px Dark Korean captures; no real Copilot session or model call).
 - Last verified: 2026-11-03 (#1047 PR A/B / #984 / #952: fake stdio/Host, worker prompt, browser and manual 1440 Light / 640 Dark Korean captures; no real model turn).
 - Previous verification: 2026-11-02 (#931 implementation 2, PR 2: 409 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
-- Scope: main-agent connection, Settings, shell-owned assistant panel and Codex conversations. Includes new-document result cards, guarded creation undo and the product-owned usage-guide skill.
+- Scope: main-agent connection, Settings, shell-owned assistant panel and Codex/Copilot conversations. Includes new-document result cards, guarded creation undo and the product-owned usage-guide skill.
 - Authority: [ADR-0014](../adr/0014-main-agent-app-server.md), [#931](https://github.com/litzio/litzio/issues/931) owner decisions and approved v3.1 settings mockup.
+
+The Codex-specific RPCs and policies below apply to Codex. Copilot differences
+are defined in [Copilot conversations](#copilot-conversations-1053).
 
 ## Connection and environment
 
@@ -135,7 +141,7 @@ focus behavior are reused. Model results have a bounded scroll area. Both
 English Light at 1440px and Korean Dark at 640px retain visible controls and
 no horizontal overflow. Relative to the static mockup, the existing product
 Settings shell supplies navigation, and #930's explicit Save remains. Mockup
-example error rows, future providers, disabled model-add decoration are not presented as functioning features. The common skill list includes the generated `litzio-guide`; this filesystem inventory does not itself prove Codex discovery.
+example error rows, further providers, disabled model-add decoration are not presented as functioning features. The common skill list includes the generated `litzio-guide`; this filesystem inventory does not itself prove Codex discovery.
 
 Contribution labels/descriptions are untranslated keys, translated by the shell
 at render time. Plugin view strings use `host.text` during render. Starting in
@@ -355,8 +361,9 @@ plain-text responses supply the real controls/content. No example file links,
 future providers or new-document actions are fabricated.
 
 AI execution is not a semantic document operation, so this work adds no CLI
-command. Applying existing-document changes, Docling orchestration and other providers remain
-outside this PR.
+command. Applying existing-document changes, Docling orchestration and providers
+beyond Codex/Copilot remain outside the current delivery. Copilot was added in
+[#1053](#copilot-conversations-1053).
 
 
 ## Document tools (#931 implementation 2, PR 1)
@@ -746,6 +753,79 @@ listbox keyboard ownership is local to the composer. No new plugin UI surface.
 Visual inspection: file names, remove buttons, text input and model/effort control remain visible at both widths, with no horizontal overflow. Dark/Korean retains legible chip borders and close controls. The 1440 After also includes the extra reference-only steering message used to verify the feature; the document and assistant width are unchanged.
 
 Protocol evidence: [0.141.0 UserMessageItem::message](https://github.com/openai/codex/blob/rust-v0.141.0/codex-rs/protocol/src/items.rs#L269) concatenates input text, and [thread history](https://github.com/openai/codex/blob/rust-v0.141.0/codex-rs/app-server-protocol/src/protocol/thread_history.rs#L1107) returns it as one text input. The fake paginated history models this shape; live notifications retain separate inputs.
+
+## Copilot conversations (#1053)
+
+- Authority: owner-approved #1053 addition to ADR-0014, 2026-11-03.
+- Verification: fake ACP child covers initialize, model catalog, streamed turn,
+  cancellation, read-only/opened-folder permission responses and failed prompt.
+  No real Copilot initialize/session/model call was made; only CLI help was read.
+
+The existing Default provider select offers Codex and GitHub Copilot. Changing
+the draft fetches that provider's catalog without saving. Save validates the
+selected model against the provider's current response. Copilot's catalog is
+`session/new.models.availableModels`; no model IDs are invented. One no-prompt
+catalog session is reused per connection. Connected means transport/session
+readiness only, not confirmed login, model entitlement or available quota.
+Login stays in the user's Copilot CLI. Account/rate-limit/MCP diagnostics are
+Codex-only. Disable/unregister/Host shutdown closes both owned CLI connections.
+Saving a provider switch closes the old connections; active work is disconnected
+and is never replayed. A successful AI-settings PUT also refreshes an already
+open assistant through the existing shell-owned plugin transport. The panel
+rereads settings/catalog/diagnostics; when provider changes it drops the old
+conversation, running/pending state, remembered selection and composer selections,
+then uses the new provider's defaults for a fresh conversation. Late old-provider
+poll/send responses cannot restore discarded state. Refreshing settings does not
+autofocus the assistant input. Same-provider saves refresh configuration without discarding the current conversation or its
+model/effort overrides. Failed saves do not refresh the panel. No public Plugin
+API, event bus or provider framework is added.
+
+Copilot uses `copilot --acp` with the user's environment and the same Litzio-owned
+cwd/AGENTS.md. The official ACP SDK owns NDJSON framing and request dispatch.
+`session/set_model` selects a returned model before `session/prompt`;
+`session/update` text/thought/tool updates feed existing panel snapshots. Prompt
+errors and disconnection mark a turn failed. Stop sends `session/cancel`;
+a second message waits until the current turn ends (no steering emulation).
+Provider-tagged conversation indexes are filtered to the selected provider.
+Codex `/` skill selection and `skills/list` remain Codex-only; Copilot does not
+query that catalog or send Codex skill inputs.
+`session/load`, when advertised, replays provider-owned history; otherwise
+resumption reports an explicit error and a new conversation remains available.
+
+The user message includes product instructions, opened-folder paths, current
+applied document source and validated reference paths. Copilot receives image
+references as paths, without Codex localImage inputs. Native Copilot tools may
+read references. Litzio dynamic document tools/result cards and Codex skill
+selection are not exposed. Existing-document editing remains text suggestions
+only. The settings/panel hide reasoning effort; the settings hide Codex skills
+and diagnostics. No context limit is inferred when ACP does not report one.
+
+ACP permission mediation captures each turn's `writeAccess` and opened folders.
+Only read/edit requests carrying absolute paths inside those folders and Host
+Roots can receive the returned `allow_once` option. Edits additionally require
+`opened-folders`; `read-only` denies them. Missing paths, execution, network and
+unknown requests are cancelled. CLI flags deny shell tools and disable
+built-in MCP servers. Unlike Codex, this does not install an OS sandbox or
+override every inherited Copilot permission/MCP configuration. Preauthorized
+provider actions may not ask Host for permission. Users must verify their CLI
+configuration; these settings are not represented as equivalent containment.
+
+Docling and other feature tasks still use the unchanged Codex exec adapter.
+When selecting Copilot, Host preserves the last saved Codex model/effort in
+`codexTaskSettings`; feature tasks use those values and the existing AI default
+language. Copilot settings store empty `reasoningEffort`, without a fabricated
+effort list. Returning to Codex explicitly saves its selected model/effort.
+
+UI uses #1070 Host SettingsSelect for provider/model/language, SettingsSwitch
+for enablement and SettingsAction for Save. Copilot hides the Host reasoning row
+and Codex-only skills/diagnostics. The existing model Dialog/provider summary
+remain; Docling and AI share Host row widths (P05/P12), with no additional UI API.
+Manual owner checks: Host login, available model selection, conversation and
+history, Stop, and read-only/opened-folder writes with the user's configuration.
+Implementation reference: [Paseo Copilot ACP](https://github.com/getpaseo/paseo/blob/main/packages/server/src/server/agent/providers/copilot-acp-agent.ts),
+[Paseo transport](https://github.com/getpaseo/paseo/blob/main/packages/server/src/server/agent/providers/acp-agent.ts),
+[providers](https://paseo.sh/docs/supported-providers),
+[GitHub ACP](https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server).
 
 
 ## Codex skill selection (#1047 PR B)
