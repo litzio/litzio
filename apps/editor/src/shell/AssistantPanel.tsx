@@ -184,6 +184,8 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
   }, [referenceRequest]);
   const mentionOpen = mention !== null;
   const skillOpen = mention?.skill ?? false;
+  // Parent renders create a fresh folders array; only changed paths invalidate the lookup.
+  const candidateFolders = JSON.stringify(folders);
   useEffect(() => {
     if (!mentionOpen || !open) return;
     let alive = true;
@@ -200,9 +202,9 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
       setCandidates(previous => [...previous, ...listing.entries.filter(file => file.kind !== "folder")].filter((file, index, all) => all.findIndex(other => samePath(other.path, file.path)) === index));
       for (const entry of listing.entries) if (entry.kind === "folder") await walk(root, entry.path);
     };
-    void (async () => { for (const root of folders) await walk(root, root); })().catch(error => { if (alive) setProblem(error.message); });
+    void (async () => { for (const root of JSON.parse(candidateFolders) as string[]) await walk(root, root); })().catch(error => { if (alive) setProblem(error.message); });
     return () => { alive = false; };
-  }, [mentionOpen, skillOpen, open, folders]);
+  }, [mentionOpen, skillOpen, open, candidateFolders]);
   const matches = mention ? (mention.skill ? (skillCatalog?.skills ?? []).map(skill => ({ ...skill, kind: "skill" })) : candidates).filter(file => `${file.name} ${file.kind === "skill" ? skillCatalog?.skills.find(skill => skill.path === file.path)?.description : file.path}`.toLocaleLowerCase().includes(mention.query.toLocaleLowerCase())) : [];
   useEffect(() => { if (mention) document.getElementById(`assistant-reference-${candidateIndex}`)?.scrollIntoView({ block: "nearest" }); }, [candidateIndex, mention?.query]);
   const chooseReference = (file: AiFileReference) => {

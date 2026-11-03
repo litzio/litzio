@@ -751,7 +751,11 @@ new scenario is added. Captures run only with `--screenshots` for manual review.
 
 `@` at a word boundary opens file candidates from the opened folders. The shell
 reuses `/api/folder` enumeration recursively only while the picker is open; there
-is no index, watcher, new search service or PC-wide search. Arrow keys / Enter
+is no index, watcher, new search service or PC-wide search. While either the `@`
+file picker or `/` skill picker is open, unrelated shell renders and conversation
+snapshots retain its candidates, scroll position and highlighted item (#1108).
+Filtering and highlight reset follow composer input changes; catalog lookup is
+not repeated for an unchanged opened-folder path list. Arrow keys / Enter
 select, Escape dismisses, and pointer selection retains composer focus. Explorer's
 file context menu **Add to chat** opens the same composer draft. Folders cannot be
 added. Both entry points deduplicate paths and allow at most 10 references.
