@@ -25,12 +25,17 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   await row('a.md').press('ContextMenu'); await expect(rename()).toBeVisible();
   await menu.and(page.locator(':focus-within')).waitFor();
   await page.keyboard.press('Escape'); await menu.waitFor({state:'hidden'});
+  const chooseTheme = async theme => {
+    if (await page.locator('html').getAttribute('data-theme') !== theme)
+      await page.getByRole('button',{name:/^Color mode:/}).click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+  };
   const metadata = [];
   for (const width of [1440, 640]) {
     await page.setViewportSize({width, height:900});
     const expand = page.getByRole('button', {name:'Expand Explorer', exact:true});
     if (await expand.isVisible()) await expand.click();
-    await page.emulateMedia({colorScheme:width === 640 ? 'dark' : 'light'});
+    await chooseTheme(width === 640 ? 'dark' : 'light');
     await expect(page.locator('html')).toHaveAttribute('data-theme',width === 640 ? 'dark' : 'light');
     const target = await row('a.md').boundingBox();
     await row('b.md').click({button:'right'}); await rename().waitFor();
@@ -52,7 +57,7 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
     metadata.push(await page.evaluate(() => ({width:innerWidth,dpr:devicePixelRatio,zoom:visualViewport.scale,dark:matchMedia('(prefers-color-scheme:dark)').matches,font:getComputedStyle(document.body).fontFamily})));
     await cancel();
   }
-  await page.setViewportSize({width:1440,height:900}); await page.emulateMedia({colorScheme:'light'});
+  await page.setViewportSize({width:1440,height:900}); await chooseTheme('light');
   await row('a.md').click(); await expect(page.getByTestId('current-file')).toHaveText('a.md');
   const paragraph = activeDocument(page).locator('.document-editor p').first();
   await paragraph.click(); await page.keyboard.press('End'); await page.keyboard.type(' Changed.');
