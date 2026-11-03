@@ -107,13 +107,50 @@ Docling·AI 설정과 같은 콘텐츠 정렬을 따르며 경로·version은 �
 - **겹침 허용 (#1003):** 떠 있는 알림 센터는 본문이나 다른 control 위에 겹칠 수 있으며 사용자가 접거나 피한다. 비겹침은 보장하지 않는다. 알림 센터를 검사하지 않는 브라우저 시나리오는 공통 하네스의 테스트 전용 스타일로 센터를 숨긴다.
 - **목표 — 생명주기:** 새 경고·오류가 생기면 포커스를 가져오지 않고 목록을 자동으로 펼치며 사용자가 접을 수 있다. 일회성 안내는 펼치지 않는다. 알림이 없어도 버튼을 항상 표시하고 심각도 색·개수 없이 중립 상태로 둔다. 접근성 이름은 알림이 없음을 말하며, 사용자가 열면 한·영으로 짧은 빈 상태 안내를 보인다. 빈 상태 자체는 focus를 가져가거나 자동으로 펼쳐지지 않는다. 해결된 항목은 자동 제거하고 사용자가 닫은 항목은 같은 원인이 다시 생길 때까지 숨긴다.
 - **현재 기준:** [NotificationCenter](../../apps/editor/src/components/ui/notification-center.tsx)는 창의 App 인스턴스에 하나만 둔다(#792). #837의 소유자 결정(2026-10-31)에 따라 알림이 없어도 중립 버튼이 항상 보이고, 열면 “알림 없음” / “No notifications”를 표시한다. 열린 모든 문서의 적용된 번호 경고·저장 실패·지속 파일/Host 오류·앱 메시지와 적용된 Mermaid 렌더 실패를 [Docling 대조](docling-compare-v1.md)의 낡은 대응표 경고(#769)·[Docling 변환](docling-conversion-v1.md#app-pdf-conversion-797)의 실행 오류(#797), [플러그인 UI](plugin-ui-v1.md)의 로딩·활성화 오류(#857)와 함께 모은다. 문서 이름과 문제 위치 이동을 제공하며 위치 없는 앱 메시지는 이동 없이 표시한다. [MessageArea](../../apps/editor/src/shell/MessageArea.tsx)는 기존 메시지의 등록·일회 안내 만료를 맡는다. 미적용 초안의 Save/Source 범위 설명은 아래 탭 줄 상태 표시로 제공한다(#839 소유자 결정). 문서 상단/번호 폼 경고는 센터로 옮겼으며 저장 실패의 기술적 상세·다중 위치 탐색과 문서 안 빨간 테두리는 유지한다.
-- **현재 생명주기:** 새 경고·오류만 focus 없이 목록을 펼친다. 원인별 안정적인 ID를 쓰며 샘플 준비·복구 저장소 등 독립 원인을 합치지 않는다. 토글의 접근성 이름은 알림이 있으면 최고 심각도·개수, 없으면 “알림: 없음” / “Notifications: none”을 포함하고, 새 항목은 펼침과 독립된 polite live region에서 한 번 알린다. 접은 목록은 항목 제거·안내 추가로 다시 펼쳐지지 않는다. 일회 안내는 기존 5초 수명과 Undo를 유지한다. 원인 제거 시 항목을 없애고, 닫은 원인은 탭 전환·무관한 편집에서 숨김을 유지하다가 제거 후 재발하면 다시 표시한다. 탭을 닫으면 그 탭의 원인도 제거한다. 알림·접힘·숨김은 창 메모리에만 두고 문서·복구 기록에 쓰지 않는다. 저장 실패는 기존 계약대로 다음 성공한 Save가 해소하며, 편집 후 위치가 낡으면 재저장을 안내한다. Core/Host의 저장 허용·거부를 재판정하지 않는다.
+- **현재 생명주기:** 새 경고·오류만 focus 없이 목록을 펼친다. 원인별 안정적인 ID를 쓰며 샘플 준비·복구 저장소 등 독립 원인을 합치지 않는다. 토글의 접근성 이름은 알림이 있으면 최고 심각도·개수, 없으면 “알림: 없음” / “Notifications: none”을 포함하고, 새 항목은 펼침과 독립된 polite live region에서 한 번 알린다. 접은 목록은 항목 제거·안내 추가로 다시 펼쳐지지 않는다. 마지막 알림이 없어지면 자동으로 접으며, 사용자가 마지막 항목을 닫으면 알림 버튼으로 focus를 돌린다(#986). 같은 종류가 둘 이상이면 접힌 묶음으로 모으고 한 항목이면 기존 행을 유지한다(#1005; 아래 기준). 일회 안내는 기존 5초 수명과 Undo를 유지한다. 원인 제거 시 항목을 없애고, 닫은 원인은 탭 전환·무관한 편집에서 숨김을 유지하다가 제거 후 재발하면 다시 표시한다. 탭을 닫으면 그 탭의 원인도 제거한다. 알림·접힘·숨김은 창 메모리에만 두고 문서·복구 기록에 쓰지 않는다. 저장 실패는 기존 계약대로 다음 성공한 Save가 해소하며, 편집 후 위치가 낡으면 재저장을 안내한다. Core/Host의 저장 허용·거부를 재판정하지 않는다.
 - **남기는 문맥 표시:** #839의 2026-10-31 소유자 결정에 따라 미적용 초안은 탭 줄의 저장 버튼 왼쪽에 `미적용 초안` / `Unapplied draft` 상태로 표시한다. 1440px에서는 글자, 640px 및 compact 그룹에서는 아이콘만 보인다. hover·keyboard focus 시 기존 Save/Source 안내 전문을 보여 주며 접근성 이름에도 짧은 이름과 전문을 포함한다. 읽기·편집·소스 모두 같은 문서의 상태를 표시하고 기존 미저장 점과 구분한다. 일회 안내·알림 센터 항목·초안 위치 이동 동작으로 만들지 않는다. 표시·해제 시 문서 좌표와 native scroll이 변하지 않으며 초안이 없는 평소에도 문서 위 빈 공간을 확보하지 않는다. 입력칸 오류·Mermaid **초안** 미리보기 오류는 폼에 유지한다. 파일 picker의 경로/이름 오류·Settings 선택값 저장 오류는 해당 입력 피드백이다. 열린 Source/Recovery 비교 등의 읽기 실패는 그 화면 상태를 설명하는 P12 문맥 정보여서 화면 안에 둔다. 참고문헌 completeness는 ADR-0008 동결 범위를 유지한다. 블록의 짧은 미리보기 불가 표시는 위치 표식이며 상세 실패를 중복 출력하지 않는다. 폼 입력칸 연결은 기존 연결과 D09 범위를 따른다.
 - **검증:** `notification-center`는 항상 보이는 중립 빈 상태·한영 안내·초기 접힘·무음 live region, 심각도·개수, 자동 펼침/접기, focus/selection 유지, 해결·닫기·재발, 비활성 탭 위치 이동, 창 격리와 일회 안내를 검증한다. 1440/640px·light/dark·한국어 [시각 근거](#notification-center-792)를 함께 확인한다.
 - **초안 상태 검증 (#839):** `draft-notice-layout`에서 절 label 한 글자 입력·되돌림·취소의 문서 좌표·scrollTop 불변, 탭 줄 바로 아래의 문서 viewport와 기존 paper 간격, Source 첫 줄의 가림 없음, 전문 tooltip의 hover/focus와 접근성 이름을 검사한다. 수정 전 상단 띠는 1440px에서 47px, 640px에서 67px 문서를 밀었다. 새 상태 표시는 두 폭 모두 이동 0px이며 평소 추가 공간도 0px다. [1440px 평소 Before](assets/draft-notice-839/before-1440-idle.png) / [After](assets/draft-notice-839/after-1440-idle.png), [초안 Before](assets/draft-notice-839/before-1440-draft.png) / [After](assets/draft-notice-839/after-1440-draft.png), [640px 평소 Before](assets/draft-notice-839/before-640-idle.png) / [After](assets/draft-notice-839/after-640-idle.png), [초안 Before](assets/draft-notice-839/before-640-draft.png) / [After](assets/draft-notice-839/after-640-draft.png), [640px 전문](assets/draft-notice-839/after-640-explanation.png), [Source](assets/draft-notice-839/after-640-source.png), [촬영 조건·해시](assets/draft-notice-839/capture-metadata.json). 탭·저장·더보기 간격과 잘림, 정렬, 한국어 어절 줄바꿈·다크는 자기 캡처에서 확인한 수동 근거다.
 - **현재 기준 — 입력칸 (#789):** `FieldError`의 짧은 오류문을 해당 입력 바로 아래에 두고, 입력의 `aria-invalid`와 고유한 `aria-describedby`로 연결하며 거절된 값을 보존한다. 그림의 label·이미지 경로·alt·파일 이름, Mermaid 원문의 빈 값·label, 수식·표·절 label, 인라인 LaTeX·링크 URL과 기존 NumberField 오류가 이 표현을 쓴다. label 중복은 Core 거절을 표시하고 번호 제출 규칙은 #776 그대로다. 특정 입력으로 귀속할 수 없는 폼 내부 Host/검증 실패 Notice는 폼 문맥에 유지하고, 적용 문서 경고는 위 창 단위 센터로 보낸다. 기존 인용 오류 동작은 동결 범위로 유지한다. `short-field-errors`에서 수정 전 오류 연결 검사 실패와 수정 후 통과를 확인했다(2026-10-30).
 - **사용처:** U01–U16 문서 폼·번호·메시지·렌더 실패, U22–U25 설정·파일·복구·참고문헌 알림.
 - **결정·불일치:** [소유자 결정 P07][decision]이 인벤토리의 scope별 요약 추천을 대체한다. 알림이 없으면 숨긴다는 이전 목표는 [#837](https://github.com/litzio/litzio/issues/837)의 소유자 결정으로 대체했다. 알림 센터의 추적은 D07, 입력칸 오류는 D09다.
+
+### 같은 종류 묶음과 마지막 닫기 (#1005, #986)
+
+같은 등록 출처·문서 문맥·심각도·기존 메시지 유형의 알림이 둘 이상이면
+기본 접힌 한 묶음으로 표시한다. `numbering-warning`, `mermaid-error` 등 기존
+`testId`를 생산자가 이미 제공하는 유형 값으로 재사용한다. 유형을 특정하지 않는
+error/notice/writeability-warning 및 유형 없는 메시지는 문구도 같아야 묶는다.
+다른 문서나 등록 출처는 합치지 않는다. 등록 API·원인 ID·문서 의미는 변경하지 않는다.
+
+묶음은 종류와 개수, 문서 대상을 표시한다. 기존 ghost/sm Button과 Lucide chevron으로
+Enter/Space·클릭 펼치기/접기를 제공하고 `aria-expanded`/`aria-controls`로 연결한다.
+펼치면 원래 항목의 위치 이동·개별 닫기를 제공하며, 묶음의 X는 그 묶음만 닫는다.
+한 항목만 남으면 기존 행으로 표시한다. 닫힌 원인의 재발 규칙은 기존과 같고,
+묶음 펼침 상태도 창 메모리에만 둔다. 개별 닫기 뒤에는 남은 목록 동작으로 focus를
+복귀시킨다. 마지막 항목을 닫으면 센터를 접고 알림 버튼으로 focus를 돌린다.
+자연 해소·만료로 비면 센터는 접되, 센터 밖에서 편집 중인 focus는 유지한다.
+빈 센터 버튼을 직접 열면 #837의 빈 상태 안내를 계속 볼 수 있다.
+
+검증은 기존 `notification-center` 끝에 실제 번호 경고 두 개가 있는 scratch 문서를
+여는 경로를 보완했다. 클릭·Space/Enter로 펼치기·접기, 두 번째 위치로 이동,
+개별 닫기 후 singleton 전환·마지막 닫기와 버튼 focus·빈 상태 열기를 확인한다.
+Reload 시 이전 fixture의 복구 안내를 사람이 선택하는 Not now로 닫고, 같은 원인의
+묶음 전체 닫기도 확인한다. 새 경로는 내부 상태 주입·고정 대기·전수 조합을 쓰지 않는다.
+주 검증 계층은 브라우저이며, 기존 Editor token/layout 검사는 공통 UI 규범을 보호한다.
+문서 의미를 변경하지 않아 Core/CLI operation·중복 테스트는 추가하지 않는다.
+
+수동 시각 검토는 자동 성공 검사의 촬영 순회와 분리했다. Windows persistent Chrome,
+한국어, DPR 1·100%, 같은 `groups.md`, Pretendard 로드 후 촬영했다.
+
+| 화면 | Before | After 묶임 | After 펼침 |
+| --- | --- | --- | --- |
+| 1440×900 Light | [PNG](assets/notification-groups-1005/before-1440-light-ko.png) | [PNG](assets/notification-groups-1005/after-1440-light-ko-grouped.png) | [PNG](assets/notification-groups-1005/after-1440-light-ko-expanded.png) |
+| 640×900 Dark | [PNG](assets/notification-groups-1005/before-640-dark-ko.png) | [PNG](assets/notification-groups-1005/after-640-dark-ko-grouped.png) | [PNG](assets/notification-groups-1005/after-640-dark-ko-expanded.png) |
+
+시각 점검: 1440px Light·640px Dark 모두 묶음 제목·닫기·개수와 펼친 위치 이동/닫기
+동작이 잘리지 않음을 확인했다. 펼친 640px 목록은 기존 센터의 스크롤·폭 경계에
+들어가며, 기존 #1003 본문 겹침 허용을 유지한다.
 
 ### 빈 알림 센터 시각 근거 (#837)
 

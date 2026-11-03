@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Bell, X } from "lucide-react";
+import { Bell, ChevronDown, ChevronRight, X } from "lucide-react";
 import { Button } from "./button.tsx";
 import { i18n } from "../../i18n.ts";
 
@@ -15,17 +15,18 @@ export type Notification = {
   context?: string;
   dismissLabel?: string;
 };
+type RegisteredNotification = Notification & { source?: string };
 type Register = (source: string, items?: Notification[]) => void;
 const Registry = createContext<Register>(() => {});
-const Items = createContext<Notification[]>([]);
+const Items = createContext<RegisteredNotification[]>([]);
 export const NotificationScope = createContext<{ name: string; reveal(action: () => void): void } | null>(null);
 
 /** In-memory UI state owned by this App instance; never part of document/recovery state. */
 export function NotificationProvider({ children }: { children: ReactNode }) {
-  const [sources, setSources] = useState<Record<string, Notification[]>>({});
+  const [sources, setSources] = useState<Record<string, RegisteredNotification[]>>({});
   const register = useCallback<Register>((source, items) => setSources(previous => {
     const next = { ...previous };
-    if (items?.length) next[source] = items;
+    if (items?.length) next[source] = items.map(item => ({ ...item, source }));
     else delete next[source];
     return next;
   }), []);
@@ -63,13 +64,41 @@ export function useNotifications(items: Notification[]) {
 export function NotificationSource({ items }: { items: Notification[] }) { useNotifications(items); return null; }
 
 /** Warnings/errors and explicitly named actions expand once without moving focus. */
-export function NotificationCenter({ items }: { items: Notification[] }) {
+export function NotificationCenter({ items }: { items: RegisteredNotification[] }) {
   useTranslation();
+  const toggle = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+  const previousCount = useRef(0);
+  const dismissed = useRef(false);
+  const [openGroups, setOpenGroups] = useState<string[]>([]);
   const [hidden, setHidden] = useState<string[]>([]);
   const [expanded, setExpanded] = useState(() => items.some(item => (item.severity !== "info" || !!item.actionLabel)));
   const [announcement, setAnnouncement] = useState<{ sequence: number; text: string }>();
   const previous = useRef<string[]>([]);
   const visible = items.filter(item => !hidden.includes(item.id));
+  // testId already identifies typed producers. Generic errors/standing warnings
+  // need their message too, so unrelated causes are not presented as one kind.
+  const groups = new Map<string, RegisteredNotification[]>();
+  for (const item of visible) {
+    const kind = item.testId && !["error", "notice", "writeability-warning"].includes(item.testId) ? item.testId : item.message;
+    const key = JSON.stringify([item.source, item.context, item.severity, kind]);
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+  const visibleIds = JSON.stringify(visible.map(item => item.id));
+  useLayoutEffect(() => {
+    if (!visible.length && previousCount.current) {
+      setExpanded(false);
+      if (dismissed.current || list.current?.contains(document.activeElement)) toggle.current?.focus();
+    } else if (dismissed.current) {
+      list.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    }
+    dismissed.current = false;
+    previousCount.current = visible.length;
+  }, [visibleIds]);
+  const dismiss = (entries: Notification[]) => {
+    dismissed.current = true;
+    setHidden(value => [...value, ...entries.map(item => item.id)]);
+  };
   const severity = visible.some(item => item.severity === "error") ? "error" : visible.some(item => item.severity === "warning") ? "warning" : "info";
   const label = i18n.t(severity === "error" ? "Error" : severity === "warning" ? "Warning" : "Information");
   const accessibleLabel = visible.length ? i18n.t("Notifications: {{severity}}, {{count}}", { severity: label, count: visible.length }) : i18n.t("Notifications: none");
@@ -90,7 +119,8 @@ export function NotificationCenter({ items }: { items: Notification[] }) {
       {announcement ? <span key={announcement.sequence}>{announcement.text}</span> : null}
     </div>
     <aside className="notification-center" data-severity={visible.length ? severity : undefined} aria-label={i18n.t("Notifications")}>
-    <ul hidden={!expanded} id="notification-list" aria-label={i18n.t("Notifications")}>{visible.map(item => <li key={item.id} data-severity={item.severity}>
+    <ul ref={list} hidden={!expanded} id="notification-list" aria-label={i18n.t("Notifications")}>{Array.from(groups, ([key, entries]) => {
+      const rows = entries.map(item => <li key={item.id} data-severity={item.severity}>
       <div className="notification-content">
         {item.context ? <p className="notification-context">{item.context}</p> : null}
         <div data-testid={item.testId} role={item.severity === "error" && !item.actionLabel ? "alert" : "status"}>
@@ -99,9 +129,38 @@ export function NotificationCenter({ items }: { items: Notification[] }) {
         </div>
       </div>
       <Button size="icon-sm" variant="ghost" aria-label={item.dismissLabel ?? i18n.t("Dismiss notification")}
-        onClick={() => setHidden(value => [...value, item.id])}><X /></Button>
-    </li>)}{visible.length ? null : <li>{i18n.t("No notifications")}</li>}</ul>
-    <Button size="sm" variant="outline" aria-label={accessibleLabel} aria-expanded={expanded} aria-controls={expanded ? "notification-list" : undefined}
+        onClick={() => dismiss([item])}><X /></Button>
+    </li>);
+      if (entries.length === 1) return rows;
+      const first = entries[0]!;
+      const kind = i18n.t(first.testId === "numbering-warning" ? "Numbering warnings" : first.testId === "mermaid-error" ? "Mermaid errors" : first.severity === "error" ? "Error" : first.severity === "warning" ? "Warning" : "Information");
+      const summary = i18n.t("{{kind}} · {{count}}", { kind, count: entries.length });
+      return <NotificationGroup key={key} summary={summary} context={first.context} severity={first.severity}
+        expanded={openGroups.includes(key)} onToggle={() => setOpenGroups(value => value.includes(key) ? value.filter(entry => entry !== key) : [...value, key])}
+        onDismiss={() => dismiss(entries)}>{rows}</NotificationGroup>;
+    })}{visible.length ? null : <li>{i18n.t("No notifications")}</li>}</ul>
+    <Button ref={toggle} size="sm" variant="outline" aria-label={accessibleLabel} aria-expanded={expanded} aria-controls={expanded ? "notification-list" : undefined}
       onClick={() => setExpanded(value => !value)}><Bell />{visible.length ? <span>{label} · {visible.length}</span> : null}</Button>
   </aside></>;
+}
+
+function NotificationGroup({ summary, context, severity, expanded, onToggle, onDismiss, children }: {
+  summary: string; context?: string; severity: Notification["severity"]; expanded: boolean;
+  onToggle(): void; onDismiss(): void; children: ReactNode;
+}) {
+  const id = useId();
+  return <li className="notification-group" data-severity={severity}>
+    <div>
+      <div className="notification-group-heading">
+        <div className="notification-content">
+          {context ? <p className="notification-context">{context}</p> : null}
+          <Button size="sm" variant="ghost" aria-expanded={expanded} aria-controls={id} onClick={onToggle}>
+            {expanded ? <ChevronDown /> : <ChevronRight />}{summary}
+          </Button>
+        </div>
+        <Button size="icon-sm" variant="ghost" aria-label={i18n.t("Dismiss group: {{summary}}", { summary })} onClick={onDismiss}><X /></Button>
+      </div>
+      <ul id={id} hidden={!expanded} aria-label={summary}>{children}</ul>
+    </div>
+  </li>;
 }
