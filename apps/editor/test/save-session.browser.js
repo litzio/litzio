@@ -1,5 +1,5 @@
 // Real scratch-file saves across engine history, drafts and an external conflict.
-async (page, { openDocument, waitForActivePath, reloadDocument }) => {
+async (page, { expect, openDocument, waitForActivePath, reloadDocument }) => {
   await page.unrouteAll();
   await page.reload();
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
@@ -25,9 +25,34 @@ async (page, { openDocument, waitForActivePath, reloadDocument }) => {
     await ready();
   };
   const paragraph = () => page.locator('[data-document-tab][data-active=true] .document-editor > p[data-block="paragraph"]').first();
+  const paragraphCaret = atEnd => page.waitForFunction(atEnd => {
+    const e = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
+    const selection = e.state.selection, dom = window.getSelection();
+    return e.view.hasFocus() && selection.empty && dom?.isCollapsed && dom.anchorNode &&
+      selection.$from.parent === e.state.doc.child(1) &&
+      e.view.posAtDOM(dom.anchorNode, dom.anchorOffset) === selection.from &&
+      (!atEnd || selection.$from.parentOffset === selection.$from.parent.content.size);
+  }, atEnd);
   const undo = async () => { await paragraph().click(); await page.keyboard.press('Control+z'); };
   const redo = async () => { await paragraph().click(); await page.keyboard.press('Control+Shift+z'); };
   await open(file);
+  // #1107: native input can leave a hard break at the paragraph end. Save
+  // normalizes through Core while retaining the live editing state and history.
+  await paragraph().click();
+  await paragraphCaret(false);
+  await page.keyboard.press('End');
+  await paragraphCaret(true);
+  await page.keyboard.press('Shift+Enter');
+  const withTrailingBreak = await paragraph().innerHTML();
+  check('nativeTrailingBreakCreated', withTrailingBreak.includes('<br'));
+  await page.getByTestId('save').click();
+  await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'saved');
+  check('trailingBreakNotWritten', (await read(file)).source.includes('Alpha.\n\nBeta.') &&
+    !(await read(file)).source.includes('Alpha.\\\n'));
+  check('trailingBreakRetainedInSession', await paragraph().innerHTML() === withTrailingBreak);
+  await reloadDocument(page);
+  await ready();
+  check('trailingBreakReopensCanonical', await paragraph().textContent() === 'Alpha.');
   await paragraph().click();
   await page.keyboard.press('End');
   await page.keyboard.type(' Saved');
@@ -107,14 +132,6 @@ async (page, { openDocument, waitForActivePath, reloadDocument }) => {
     const response = await route.fetch(); arrived(); await gate; await route.fulfill({response});
   });
   await page.getByTestId('save').click(); await received;
-  const paragraphCaret = atEnd => page.waitForFunction(atEnd => {
-    const e = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor;
-    const selection = e.state.selection, dom = window.getSelection();
-    return e.view.hasFocus() && selection.empty && dom?.isCollapsed && dom.anchorNode &&
-      selection.$from.parent === e.state.doc.child(1) &&
-      e.view.posAtDOM(dom.anchorNode, dom.anchorOffset) === selection.from &&
-      (!atEnd || selection.$from.parentOffset === selection.$from.parent.content.size);
-  }, atEnd);
   await paragraph().click();
   // Click completes before Chrome's selectionchange necessarily reaches ProseMirror.
   await paragraphCaret(false);

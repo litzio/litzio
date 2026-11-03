@@ -4,6 +4,10 @@ export const en = {
   "Provider": "Provider",
   "Provider is fixed after a conversation starts. Start a new conversation to change it.": "Provider is fixed after a conversation starts. Start a new conversation to change it.",
   "Write access applies to the next turn in this conversation. Global defaults stay unchanged.": "Write access applies to the next turn in this conversation. Global defaults stay unchanged.",
+  "Template gallery": "Template gallery",
+  "Save as template…": "Save as template…",
+  "Template saved.": "Template saved.",
+  "Save the document before saving it as a template.": "Save the document before saving it as a template.",
 
   "max": "max",
   "Write access": "Write access",
@@ -1118,6 +1122,10 @@ export const ko: Record<keyof typeof en, string> = {
   "Provider": "프로바이더",
   "Provider is fixed after a conversation starts. Start a new conversation to change it.": "대화를 시작한 뒤에는 프로바이더를 바꿀 수 없습니다. 새 대화를 시작해 주세요.",
   "Write access applies to the next turn in this conversation. Global defaults stay unchanged.": "이 대화의 다음 응답부터 적용됩니다. 전역 기본값은 바뀌지 않습니다.",
+  "Template gallery": "템플릿 갤러리",
+  "Save as template…": "템플릿으로 저장…",
+  "Template saved.": "템플릿을 저장했습니다.",
+  "Save the document before saving it as a template.": "템플릿으로 저장하려면 먼저 문서를 저장하세요.",
 
   "max": "최대",
   "Write access": "쓰기 범위",

@@ -1,5 +1,6 @@
 import { createInstance } from "i18next";
 import { initReactI18next } from "react-i18next";
+import { templateEn, templateKo } from "./template-locales.ts";
 import { en, ko } from "./locales.ts";
 import { readUiLanguage } from "./preferences.ts";
 
@@ -7,7 +8,7 @@ export type MessageKey = keyof typeof en;
 declare module "i18next" {
   interface CustomTypeOptions {
     defaultNS: "translation";
-    resources: { translation: typeof en };
+    resources: { translation: typeof en; templates: typeof templateEn };
     returnNull: false;
     keySeparator: false;
     nsSeparator: false;
@@ -17,7 +18,7 @@ declare module "i18next" {
 export const i18n = createInstance();
 // Both languages are bundled. Initialization is synchronous, including in headless UI tests.
 void i18n.use(initReactI18next).init({
-  resources: { en: { translation: en }, ko: { translation: ko } },
+  resources: { en: { translation: en, templates: templateEn }, ko: { translation: ko, templates: templateKo } },
   lng: typeof window === "undefined" ? "en" : readUiLanguage(),
   supportedLngs: ["en", "ko"], fallbackLng: "en",
   keySeparator: false, nsSeparator: false,

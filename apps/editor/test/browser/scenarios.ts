@@ -24,6 +24,7 @@ export const STABLE_SCENARIOS = [
   "quiet-document",
   "visual-states",
   "new-document",
+  "template-gallery",
   "open-files",
   "save-during-edit",
   "save-session",

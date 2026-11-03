@@ -391,3 +391,15 @@ The current contract is [Plugin UI rejection handling](plugin-ui-v1.md#rejected-
 표시한다. 설명·경로는 공용 Tooltip의 hover·keyboard focus로 확인한다. 같은 패널의
 context-usage·참조 경로 안내를 재사용하며 새 표면·공통 상호작용 예외는 없다.
 [현재 계약](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)을 따른다.
+
+## Template gallery application (#936 phase 2)
+
+The [gallery contract](document-templates-v1.md#editor-gallery-phase-2) applies the
+existing task-tab shell, P12 independent Dialog boundary for saving a template and
+P07 field feedback/Notice for naming and catalog errors. Settings and Docling's
+dashboard remain the comparison surfaces for independent tasks. Common Popover
+owns the approved C hover/focus reading preview; it is not a metadata edit form.
+One retained read-only DocumentEditor replaces preview content, with a short open
+delay, keyboard-scroll region and Escape focus return. Cards expose creation
+outside the preview. Descriptions stay on hover/focus; only the Built-in badge is
+persistent. Existing tokens and Button variants apply; no public Plugin API is added.

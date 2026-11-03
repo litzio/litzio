@@ -8,6 +8,7 @@ import {
   inlineContentLength,
   splitInlineContent,
   concatenateInlineContent,
+  paragraphInlineContent,
   structuralInlineContent,
   insertInlineBreak,
   inlineContentText,
@@ -240,7 +241,7 @@ export function insertParagraph(document: MystDocument, index: number, text: str
   assertInlineContent(content);
   const paragraph: MystNode = {
     type: "paragraph",
-    children: inlineContentToNodes(concatenateInlineContent(content)),
+    children: inlineContentToNodes(paragraphInlineContent(content)),
   };
   assertInlineBlockRoundTrip(paragraph);
   return insertBlock(document, index, paragraph);
@@ -502,6 +503,7 @@ export function footnoteDefinitionsMarkdown(definitions: readonly FootnoteDefini
 }
 
 function footnoteContent(content: InlineContent[]): InlineContent[] {
+  content = paragraphInlineContent(content);
   assertInlineContent(content);
   if (inlineContentText(content).trim().length === 0) throw new DocumentWriteError("footnote definition must contain non-empty text", { code: "empty-content", action: "Enter the footnote text or remove its reference and definition." });
   const hasFootnote = (items: InlineContent[]): boolean =>
@@ -679,6 +681,7 @@ export function insertEquation(document: MystDocument, index: number, latex: str
 /** Insert a persistent top-level Figure without a label. */
 export function insertFigure(document: MystDocument, index: number, figure: FigureContent): MystDocument {
   assertFigureContent(figure);
+  figure = { ...figure, caption: paragraphInlineContent(figureCaptionContent(figure.caption)) };
   const next = insertBlock(document, index, createFigureNode(figure));
   assertFigureRoundTrip(next, index, figure, undefined, undefined);
   return next;
@@ -949,6 +952,7 @@ export function updateFigure(document: MystDocument, path: NodePath, changes: Pa
     caption: changes.caption ?? content.caption,
   };
   assertFigureContent(figure);
+  figure.caption = paragraphInlineContent(figureCaptionContent(figure.caption));
   const next = cloneDocument(document);
   setFigureContent(getNode(next, path), figure);
   assertFigureRoundTrip(next, path[0], figure, current.label, current.identifier);
@@ -1187,7 +1191,7 @@ export function convertBlock(document: MystDocument, path: NodePath, to: BlockCo
   }
 
   const next = cloneDocument(document);
-  const children = inlineContentToNodes(content);
+  const children = inlineContentToNodes(to.block === "paragraph" ? paragraphInlineContent(content) : content);
   const converted: MystNode = to.block === "heading"
     ? { type: "heading", depth: to.level, children }
     : { type: "paragraph", children };
@@ -1262,7 +1266,7 @@ export function updateParagraphInlineContent(
   if (!projectInlineContent(node)) {
     throw new DocumentDiagnosticError("unsupported-content", `updateParagraphInlineContent cannot replace unsupported inline content at [${path.join(",")}]`);
   }
-  node.children = inlineContentToNodes(concatenateInlineContent(content));
+  node.children = inlineContentToNodes(paragraphInlineContent(content));
   assertInlineBlockRoundTrip(node);
   return next;
 }
@@ -1355,6 +1359,19 @@ function replaceInTextNodes(node: MystNode, from: string, to: string): boolean {
  * Only structures supported before the edit are eligible; unsupported fields/content must
  * never disappear through this normalization. Text replacement cannot change their shape. */
 function finishTextEdit(document: MystDocument, next: MystDocument, edited: MystNode): MystDocument {
+  // A generic edit can address a body or text leaf. Normalize the owning
+  // paragraphs as well, before structural empty-body handling and write guards.
+  const normalizeTails = (node: MystNode, withinEdit = false): boolean => {
+    const isEdited = withinEdit || node === edited;
+    const children = node.children?.map(child => normalizeTails(child, isEdited)) ?? [];
+    const affected = isEdited || children.some(Boolean);
+    if (affected && node.type === "paragraph") {
+      const content = projectInlineContent(node);
+      if (content) node.children = inlineContentToNodes(paragraphInlineContent(content));
+    }
+    return affected;
+  };
+  next.children.forEach(node => normalizeTails(node));
   let removedEditedParagraph = false;
   const normalizeParagraphs = (node: MystNode): void => {
     if (!node.children) return;
@@ -1383,7 +1400,7 @@ export function insertHardBreak(document: MystDocument, path: NodePath, offset: 
   const content = paragraphContent(document, path);
   assertInteriorOffset(content, offset);
   const next = cloneDocument(document);
-  getNode(next, path).children = inlineContentToNodes(insertInlineBreak(content, offset));
+  getNode(next, path).children = inlineContentToNodes(paragraphInlineContent(insertInlineBreak(content, offset)));
   assertPersistentParagraph(getNode(next, path));
   return next;
 }
@@ -1402,8 +1419,8 @@ export function splitParagraph(document: MystDocument, path: NodePath, offset: n
   const next = cloneDocument(document);
   const original = getNode(next, path);
   next.children.splice(path[0], 1,
-    { ...original, children: inlineContentToNodes(left) },
-    { type: "paragraph", children: inlineContentToNodes(right) });
+    { ...original, children: inlineContentToNodes(paragraphInlineContent(left)) },
+    { type: "paragraph", children: inlineContentToNodes(paragraphInlineContent(right)) });
   assertPersistentParagraph(next.children[path[0]]);
   assertPersistentParagraph(next.children[path[0] + 1]);
   return next;
@@ -1418,7 +1435,7 @@ export function mergeParagraphWithPrevious(document: MystDocument, path: NodePat
   }
   const previous = paragraphContent(document, [path[0] - 1]);
   const next = cloneDocument(document);
-  next.children[path[0] - 1].children = inlineContentToNodes(concatenateInlineContent(previous, current));
+  next.children[path[0] - 1].children = inlineContentToNodes(paragraphInlineContent(concatenateInlineContent(previous, current)));
   assertPersistentParagraph(next.children[path[0] - 1]);
   next.children.splice(path[0], 1);
   return next;
