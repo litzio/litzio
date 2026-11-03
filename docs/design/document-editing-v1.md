@@ -802,6 +802,11 @@ operation and preserves selection, history and dirty state. Plain Markdown readi
 offers this action for fenced (including Mermaid) and indented code. Native Mermaid
 Figures remain diagrams with their existing source form, rather than code-block controls.
 This is an Editor clipboard interaction; Core operations and CLI parity are unnecessary.
+The shared CopyButton first tries the Clipboard API, then a temporary textarea and
+browser copy command if the API is absent or denied (#1049). The fallback restores
+focus and selection; if both paths fail, the existing manual-copy alert remains.
+`code-highlighting` covers real clipboard readback with the API absent and unchanged
+engine selection/history. Remote-PC HTTP access remains an owner manual check.
 
 Verification: Editor tests (409), workspace typecheck, Editor production build, docs and
 whitespace checks; `code-highlighting` verifies real clipboard text, pointer/keyboard
