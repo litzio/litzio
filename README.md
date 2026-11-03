@@ -36,7 +36,7 @@ Desktop 시작 화면이나 Command center의 **샘플 문서 열기**에서 현
 바뀔 때 앱이 소유를 확인한 경우에만 교체됩니다. 개발 Editor에서도 같은 샘플을 제공하며 HTTP Host는 제외합니다.
 [샘플 배포 계약](docs/design/desktop-distribution-v1.md#native-sample)을 따릅니다.
 
-Settings → About에서 버전·업데이트를 확인합니다. 업데이트 다운로드와 설치는 사용자 요청 후 진행합니다([Desktop 계약](docs/design/desktop-distribution-v1.md)). 공개 설치본의 변경 사항과 검증 범위는 각 Release 본문과 [릴리스 기록](docs/README.md#verification)을 확인하세요. 현재 공개 버전은 Litzio `0.0.2-beta.5`이며 [배포·검증 기록](docs/releases/v0.0.2-beta.5.md)을 확인하세요. 직전 IeumDoc beta.4 기록은 보존합니다. 다음 소스 후보는 `0.0.2-beta.6`이며 [준비·검증 기록](docs/releases/v0.0.2-beta.6.md)을 따릅니다. 후보 버전은 아직 공개되지 않았습니다.
+Settings → About에서 버전·업데이트를 확인합니다. 업데이트 다운로드와 설치는 사용자 요청 후 진행합니다([Desktop 계약](docs/design/desktop-distribution-v1.md)). 공개 설치본의 변경 사항과 검증 범위는 각 Release 본문과 [릴리스 기록](docs/README.md#verification)을 확인하세요. 현재 공개 버전은 Litzio `0.0.2-beta.6`이며 [배포·검증 기록](docs/releases/v0.0.2-beta.6.md)을 확인하세요. 직전 Litzio [beta.5 기록](docs/releases/v0.0.2-beta.5.md)과 이전 IeumDoc beta.4 기록은 보존합니다.
 
 **제품 이름 변경(IeumDoc → Litzio)으로 앱 ID·설치·데이터 경로가 바뀌어, IeumDoc beta.4 설치본은 Litzio로 자동 업데이트되지 않습니다. 새로 설치해야 하며 IeumDoc 데이터·설정·복구 기록은 이전되지 않습니다.**
 
