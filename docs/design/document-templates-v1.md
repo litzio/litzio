@@ -195,7 +195,9 @@ Host path tests cover source/packaged location calculation without writing the
 shared user folder. The existing Desktop protocol test verifies forwarding its injected Host run
 directory and using the shared save/create routes, without packaging or a new listener.
 Phase 2 adds one `pnpm browser:test template-gallery` scenario: browser-specific
-preview lifetime/keyboard focus, real template PUT/open and localized POST feedback.
+preview lifetime/keyboard focus, native PageDown scrolling in the existing long
+preview, real template PUT/open and localized POST feedback. Focus is asserted
+directly and scrolling waits for actual scrollTop movement, without a fixed sleep.
 Host write/collision semantics are not repeated: POST failures/success and broken
 catalogs are injected at transport, while creation uses a real scratch file.
 This representative flow adds no subprocess or theme/content cross product.

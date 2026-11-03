@@ -10,9 +10,9 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   let settings = { provider: 'codex', enabled: true, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium' };
   const models = [{ id: 'sol', model: 'gpt-6.1-sol', displayName: 'GPT Sol', description: 'General model', defaultReasoningEffort: 'medium', supportedReasoningEfforts: ['medium', 'high'].map(reasoningEffort => ({ reasoningEffort })) },
     { id: 'luna', model: 'gpt-6-luna', displayName: 'GPT Luna', description: 'Fast model', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }];
-  let skillsFail = false;
+  let skillsFail = false, longSkills = false, skillLookups = 0;
   const skill = { name: 'litzio-guide', path: 'C:/assistant/.agents/skills/litzio-guide/SKILL.md', description: 'Explain Litzio documents and assistant tools' };
-  await page.route('**/api/ai-agent-skills', route => route.fulfill(skillsFail ? { status: 503, json: { error: 'Skills unavailable' } } : { json: { skills: [skill], errors: [] } }));
+  await page.route('**/api/ai-agent-skills', route => { skillLookups++; return route.fulfill(skillsFail ? { status: 503, json: { error: 'Skills unavailable' } } : { json: { skills: longSkills ? Array.from({ length: 24 }, (_, index) => ({ ...skill, name: `scroll-skill-${index}`, path: skill.path + index })) : [skill], errors: [] } }); });
   const copilotOptions = { reasoningEffortSource: 'cli', currentMode: 'agent', modes: [{ id: 'agent', name: 'Agent', description: '' }, { id: 'plan', name: 'Plan', description: '' }] };
   const copilotModels = ['auto', 'copilot-model'].map(id => ({ id, model: id, displayName: id === 'auto' ? 'Auto' : 'Copilot fixture model', description: '', supportedReasoningEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].map(reasoningEffort => ({ reasoningEffort })), defaultReasoningEffort: 'medium' }));
   let refreshes = 0, connectionAvailable = true;
@@ -217,6 +217,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(page.getByTestId('recovery-prompt')).toHaveCount(0);
   await editor.locator('p').first().click(); await page.keyboard.press('End');
   await page.keyboard.type(' fresh assistant draft');
+  await page.keyboard.press('Shift+Enter');
   const submittedAnswers = [];
   const sent = [], conversations = new Map();
   let resumeFailure = false;
@@ -355,9 +356,12 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(panel.locator('[data-kind=tool]').filter({ hasText: 'create_document' })).toContainText('Completed');
   expect(sent[0].skills).toEqual([]);
   expect(sent[0].message).toBe('What changed in the current document?');
-  expect(sent[0].document.source).toContain('preserved AI-off draft');
-  expect(sent[0].document.source).toContain('still editable');
-  expect(sent[0].document.path).toBe(pluginFixture.document);
+  expect(sent[0].document).toEqual({ path: pluginFixture.document });
+  await expect(panel.getByRole('status').filter({ hasText: 'Using saved version' })).toBeVisible();
+  await expect(panel).not.toContainText('paragraph edit cannot round-trip');
+  // Undo the refusal fixture before later Save checks; native End/Backspace differs by browser.
+  await editor.focus(); await page.keyboard.press('ControlOrMeta+z');
+  await message.focus();
   expect(sent[0].responseLanguage).toBeUndefined();
   expect(sent[0].references).toEqual([pluginFixture.document]);
   await expect(panel.locator('.assistant-user .assistant-reference')).toHaveCount(1);
@@ -365,6 +369,37 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(panel.getByRole('button', { name: 'Conversation model and effort' })).toBeDisabled();
   selected.turns[0].items.find(item => item.kind === 'assistant').text = 'The unsaved paragraph adds a clear qualification. Check the stated conditions before using the conclusion.';
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
+  // #1108: long lists expose scroll loss across unrelated shell renders/snapshots.
+  const checkPickerScroll = async (trigger, list) => {
+    await message.click(); await page.keyboard.type(trigger, { delay: 60 });
+    await expect(list.getByRole('option')).toHaveCount(24);
+    for (let index = 0; index < 8; index++) await message.press('ArrowDown', { delay: 60 });
+    const activeOption = await message.getAttribute('aria-activedescendant');
+    await list.hover();
+    const beforeWheel = await list.evaluate(element => element.scrollTop);
+    await page.mouse.wheel(0, 180);
+    await expect.poll(() => list.evaluate(element => element.scrollTop)).toBeGreaterThan(beforeWheel);
+    const scrollTop = await list.evaluate(element => element.scrollTop);
+    const lookups = skillLookups, before = snapshots;
+    // A real dock resize causes an unrelated parent render while the query stays unchanged.
+    await resize.press('ArrowLeft', { delay: 60 });
+    await expect.poll(() => snapshots).toBeGreaterThan(before + 2);
+    expect(await list.evaluate(element => element.scrollTop)).toBe(scrollTop);
+    expect(await message.getAttribute('aria-activedescendant')).toBe(activeOption);
+    if (trigger === '/') expect(skillLookups).toBe(lookups);
+    await message.focus(); await message.press('Escape');
+    await expect(list).toBeHidden();
+    await resize.press('ArrowRight', { delay: 60 });
+    await message.fill('');
+  };
+  longSkills = true;
+  await checkPickerScroll('/', skillOptions);
+  longSkills = false;
+  const fileCandidates = Array.from({ length: 24 }, (_, index) => ({ name: `scroll-file-${index}.md`, path: pluginFixture.document + index, kind: 'file' }));
+  const folderRoute = route => route.fulfill({ json: { entries: fileCandidates } });
+  await page.route('**/api/folder?*', folderRoute);
+  await checkPickerScroll('@scroll-file', panel.getByRole('listbox', { name: 'File references' }));
+  await page.unroute('**/api/folder?*', folderRoute);
   await message.click(); await page.keyboard.type('@document', { delay: 60 });
   await expect(panel.getByRole('option').filter({ hasText: 'document.md' })).toHaveCount(1);
   await message.press('Enter');

@@ -33,7 +33,8 @@ async (page, { expect, waitForEditorFocus }) => {
     await cards.first().focus();
     await expect(preview).toBeVisible();
     await page.keyboard.press('Tab');
-    await expect(page.getByRole('region', { name: '미리보기 내용' })).toBeVisible();
+    const previewScroll = page.getByRole('region', { name: '미리보기 내용' });
+    await expect(previewScroll).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(preview).toBeHidden();
     await expect(cards.first()).toBeFocused();
@@ -84,13 +85,28 @@ async (page, { expect, waitForEditorFocus }) => {
     await expect(gallery.getByText('일부 사용자 템플릿을 불러오지 못했습니다.')).toBeVisible();
     await expect(gallery.getByText('broken.md')).toBeVisible();
     await expect(gallery.locator('.template-card')).toHaveCount(originalCatalog.templates.length + 1);
-    await gallery.getByRole('button', { name: 'technical-document 미리보기', exact: true }).hover();
+    const userCard = gallery.getByRole('button', { name: 'technical-document 미리보기', exact: true });
+    await userCard.hover();
     await expect(preview.locator('.table')).toBeVisible();
     const gap = await preview.locator('.document-editor').evaluate(node => {
       const heading = [...node.querySelectorAll('.heading')].at(-1);
       return node.querySelector('.table').getBoundingClientRect().top - heading.getBoundingClientRect().bottom;
     });
     expect(gap).toBeLessThan(48); // Reading keeps the ordinary block gap, without the 60px authoring gutter.
+    // Close the pointer preview before entering through the keyboard, as above.
+    // The built-in fits without scrolling; this existing long document proves native keyboard reading.
+    await page.mouse.move(0, 0);
+    await expect(preview).toBeHidden();
+    await userCard.focus();
+    await expect(preview).toBeVisible();
+    await page.keyboard.press('Tab');
+    await expect(previewScroll).toBeFocused();
+    const scrollBeforePageDown = await previewScroll.evaluate(node => node.scrollTop);
+    await page.keyboard.press('PageDown');
+    await expect.poll(() => previewScroll.evaluate(node => node.scrollTop)).toBeGreaterThan(scrollBeforePageDown);
+    await page.keyboard.press('Escape');
+    await expect(preview).toBeHidden();
+    await expect(userCard).toBeFocused();
     await page.mouse.move(0, 0);
     await expect(preview).toBeHidden();
   } finally {
