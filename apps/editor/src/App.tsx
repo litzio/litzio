@@ -1422,8 +1422,8 @@ function EditorApp() {
           if (!root) throw new Error(i18n.t("The created file is outside the opened folders."));
           return await fileAction("delete", root, { path: result.path, name: splitDocumentPath(result.path).name, kind: "document" }, undefined, undefined, result) !== "";
         }}
-        documentPath={openedPath} folders={openedFolderPaths}
-        context={async () => session ? { path: session.openedPath, source: session.kind === "native" ? await session.appliedSource() : session.getSnapshot().text } : undefined}
+        documentPath={session?.openedPath ?? ""} folders={openedFolderPaths}
+        documentDirty={Boolean(session?.documentDirty || session?.draftActive)}
         onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("plugin/ai-agent/ai-agent"); openSettingsTab(); }} /> : null}
       {ui.plugins.map(plugin => { const View = plugin.contributions?.View; return View ? <ContributionBoundary key={`${plugin.id}/${plugin.revision}`}><View /></ContributionBoundary> : null; })}
       <FolderDialog open={Boolean(pluginFilePicker)} choose={pluginFilePicker?.choose} title={pluginFilePicker?.title ?? ""}

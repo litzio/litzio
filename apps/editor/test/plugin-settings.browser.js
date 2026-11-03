@@ -113,9 +113,21 @@ async (page, { expect, screenshots, brand, stalePluginRegistration }) => {
     await page.keyboard.press('Tab');
     expect(writes).toBe(1);
     await expect(page.getByRole('region', { name: '정보', exact: true })).toContainText('앱 기본 버전과 같음');
+    const installed = (await (await page.request.get(origin + '/api/worker-plugins')).json()).find(item => item.id === 'docling');
+    expect(installed.directory).toContain('docling');
+    await expect(page.getByRole('region', { name: '정보', exact: true })).toContainText(installed.directory);
+    await expect(page.getByRole('region', { name: '정보', exact: true }).getByText('설치 경로', { exact: true })).toBeVisible();
+    if (screenshots) {
+      await page.getByRole('region', { name: '정보', exact: true }).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: 'tmp/1112-evidence/registered-640.png' });
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.screenshot({ path: 'tmp/1112-evidence/registered-1440.png' });
+      await page.setViewportSize({ width: 640, height: 1000 });
+    }
     await page.getByRole('button', { name: '플러그인 목록으로', exact: true }).click();
     await expect(row.getByRole('button', { name: 'Docling 설정', exact: true })).toBeFocused();
-    await page.unroute('**/api/worker-plugins');
+    // Let in-flight inventory handlers finish before returning requests to Host.
+    await page.unrouteAll({ behavior: 'wait' });
     // A real old registration, not a mocked HTTP failure: Host must stop UI admission.
     await page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true }).click();
     await expect(page.getByTestId('docling-dashboard')).toBeVisible();
@@ -150,7 +162,7 @@ async (page, { expect, screenshots, brand, stalePluginRegistration }) => {
   } finally {
     try {
       if (staleRegistration) {
-        await page.unroute('**/api/worker-plugins');
+        await page.unrouteAll({ behavior: 'wait' });
         expect((await page.request.post(origin + '/api/worker-plugins', { data: { bundled: 'docling' } })).ok()).toBe(true);
       }
     } finally {

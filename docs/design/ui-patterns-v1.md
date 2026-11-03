@@ -386,6 +386,11 @@ This follows the same error and confirmation implementations used by Settings
 and FolderDialog; no new shared interaction or Plugin API is introduced.
 The current contract is [Plugin UI rejection handling](plugin-ui-v1.md#rejected-saved-registrations-1097).
 
+#1106: 비서의 활성 문서에 미저장 변경이 있으면 기존 맥락 행에 짧게 저장된 버전 사용을
+표시한다. 설명·경로는 공용 Tooltip의 hover·keyboard focus로 확인한다. 같은 패널의
+context-usage·참조 경로 안내를 재사용하며 새 표면·공통 상호작용 예외는 없다.
+[현재 계약](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)을 따른다.
+
 
 #1120: 비서 표시 설정 변경은 기존 assistant-result 카드와 공용 outline Button을
 재사용한다. 변경 전후 값과 되돌리기를 카드에 두고, 창·세션 수명 제한은 버튼의

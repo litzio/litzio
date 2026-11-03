@@ -147,7 +147,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.equal(conversation.turns[0]!.items.find(item => item.kind === "assistant")!.text, "Partial answer");
   assert.deepEqual(conversation.tokenUsage, { used: 810, limit: 1000 });
   assert.equal(JSON.stringify(conversation).includes("PRIVATE RAW REASONING"), false);
-  assert.equal(JSON.stringify(conversation).includes("UNSAVED DOCUMENT TEXT"), false, "context is not displayed as a user message");
+  assert.equal(JSON.stringify(conversation).includes("UNSAVED DOCUMENT TEXT"), false, "unsaved content is not displayed as a user message");
   await assert.rejects(conversations.send({ ...input, id: conversation.id, reasoningEffort: "high" }, settings), /locked/);
   await conversations.send({ ...input, id: conversation.id, message: "Only summarize." }, settings);
   assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "user").map(item => item.text), ["What changed?", "Only summarize."]);
@@ -168,7 +168,8 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "user").map(item => item.references), [refs, refs]);
   assert.deepEqual(rpc.find(item => item.method === "turn/steer").params.input.slice(1), start.input.slice(1));
   assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root], networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
-  assert.ok(start.input[1].text.includes("UNSAVED DOCUMENT TEXT"));
+  assert.deepEqual(JSON.parse(start.input[1].text.slice(start.input[1].text.indexOf("{"))).document, { path: input.document.path });
+  assert.equal(start.input[1].text.includes("ON DISK"), false, "document content is read on demand, not injected");
   assert.equal(rpc.find(item => item.method === "thread/start").params.ephemeral, false);
   assert.equal(rpc.find(item => item.method === "turn/steer").params.expectedTurnId, conversation.turns[0]!.id);
   await connection.close();
@@ -243,7 +244,7 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.match(generatedGuide, /create <new-file> --template <id> --language <ko\|en>/);
   assert.match(generatedGuide, /templates save <name> --from <file> --description <text>/);
   assert.match(generatedGuide, /Confirm.*name.*description.*source.*before saving/s);
-  assert.match(generatedGuide, /unsaved.*saved disk version/s);
+  assert.match(generatedGuide, /unsaved editor changes are not supplied.*saved disk version/s);
   assert.match(generatedGuide, /CLI creations do not produce.*result card/);
   const [models, diagnostics] = await Promise.all([connection.models(), connection.diagnostics()]);
   assert.deepEqual(models.models.map(model => model.model), ["gpt-6.1-sol", "chosen-model", "next-model"]);

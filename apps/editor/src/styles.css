@@ -264,6 +264,7 @@ button {
 }
 
 .sidebar-folder-header {
+  border-radius: var(--id-radius-md);
   display: flex;
   align-items: flex-start;
   gap: var(--space-1);
@@ -540,6 +541,7 @@ button {
 
 /* File and heading current add semibold as a non-color cue, independently of hover/focus.
  * Glyph widths may change; row insets and the single-line Outline ellipsis stay unchanged. */
+.sidebar-folder-header:hover,
 .sidebar-tree-item:hover,
 .document-outline-item:hover {
   background: var(--id-color-surface-hover);

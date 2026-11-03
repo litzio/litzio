@@ -132,7 +132,7 @@ export class AiAgentConversations {
     }))];
     let references = checkedReferences(input.references ?? [], folders, this.access);
     if (input.document) {
-      if (typeof input.document.source !== "string" || typeof input.document.path !== "string") throw new Error("Invalid document context.");
+      if (typeof input.document.path !== "string") throw new Error("Invalid document context.");
       accessPath(input.document.path, this.access);
     }
     let conversation = input.id ? this.current(input.id) : undefined;
@@ -170,7 +170,7 @@ export class AiAgentConversations {
         this.save(conversation);
       }
       references = checkedReferences(input.references ?? [], folders, this.access);
-      const context = { folders, document: input.document ?? null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
+      const context = { folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
@@ -266,7 +266,7 @@ export class AiAgentConversations {
     }
     conversation.copilot = options;
     references = checkedReferences(input.references ?? [], folders, this.access);
-    const context = { folders, document: input.document ?? null, references };
+    const context = { folders, document: input.document ? { path: input.document.path } : null, references };
     const turn: AiConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.message, references }] };
     conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort;
     conversation.folders = folders; conversation.updatedAt = Date.now();

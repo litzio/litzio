@@ -847,12 +847,28 @@ Cancel returns to the invoking button; if opening the first folder removed that 
 button, the visible Sidebar toggle receives focus. Menu-originated dialogs return to that
 folder's More actions trigger. Each opened root has the same chevron and name (no folder icon),
 regular typography, 28px row and spacing as child folders, at visual depth zero, without extra
-heading or inter-section gaps. Root actions remain visible without hover. File type icons remain in the leading slot, with
+heading or inter-section gaps. Root actions remain visible without hover. The full opened-root header uses the same
+rounded hover surface (`--id-color-surface-hover`, `--id-radius-md`) as child-folder rows
+(#1113), with no text movement or changes to focus, height, actions or context menus. File type icons remain in the leading slot, with
 file/folder names at the same visual depth aligned; folders use that slot for their chevron. Children start
 one visual step deeper. Root-only actions stay right-aligned on that row; long names ellipsize
 with the full path in `title`. Existing section/disclosure/tree/treeitem semantics, ARIA levels
 and #425 collapse memory remain unchanged. Tab order follows the visual order from disclosure
 through the two actions to the retained tree stop.
+
+Hover verification (#1113): the existing `folder-navigation` scenario compares root and
+child hover backgrounds and checks exactly unchanged name geometry at 1440px and 640px.
+Manual Windows persistent Chrome captures use English/Light at 1440×812 and Korean/Dark
+at 640×812, after fonts load, with the pointer over the root name:
+[1440 before](assets/root-hover-1113/before-1440.png) /
+[after](assets/root-hover-1113/after-1440.png),
+[640 before](assets/root-hover-1113/before-640.png) /
+[after](assets/root-hover-1113/after-640.png).
+Before images replay the prior transparent header background on the same page via a
+temporary CSS override; after images use product CSS. This manual capture override is
+absent from the regression. Row alignment, action spacing and clipping were reviewed;
+existing tree and Outline rows retain their shared hover token. No new component or
+native-row exception is introduced; collapsed rail is outside this change.
 
 The first row is one full-width title strip (#647): the existing Desktop SVG icon and
 **`Litzio`** at the left, shared search in the remaining width, and native caption
