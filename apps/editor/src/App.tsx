@@ -1375,7 +1375,6 @@ function EditorApp() {
             <SettingsDialog
                 pluginErrors={Object.fromEntries(ui.plugins.filter(plugin => plugin.error).map(plugin => [plugin.id, plugin.error!]))}
                 sections={ui.plugins.flatMap(plugin => (plugin.contributions?.settings ?? []).map(section => ({ ...section, id: `plugin/${plugin.id}/${section.id}` })))}
-                pluginRegistrationKey={JSON.stringify(ui.plugins.map(({ id, revision }) => [id, revision]))}
                 theme={theme} themeProblem={themeProblem} onThemeChange={changeTheme}
                 category={settingsCategory}
                 highlightUpdate={highlightUpdate}

@@ -223,12 +223,6 @@ the registered revision, directory and feature flags. Errors stay visible and do
 not claim successful activation. Contributions reattach through the existing UI
 registration refresh. Disabled plugins cannot open settings.
 
-The open Plugins list rereads its installed snapshot when the existing UI
-registration observer reports changed plugin IDs/revisions. External disable or
-re-registration must update the switch/state and settings entry without reopening
-Settings; an older in-flight inventory read cannot overwrite the newer snapshot.
-This reuses the existing observer rather than adding a second polling loop.
-
 Contributed settings are reached from their installation in this list, with Back
 to plugins returning to the list. They are no longer top-level navigation peers
 of Appearance or Saving. openSettings still supports direct plugin entry.

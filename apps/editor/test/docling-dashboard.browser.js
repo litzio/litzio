@@ -26,15 +26,11 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
     expect(disabled.ok()).toBe(true);
     await expect(settings.getByRole('button', { name: 'Docling', exact: true })).toHaveCount(0);
     await expect(settings.getByRole('main', { name: 'Plugins', exact: true })).toBeVisible();
-    // Observe the installed snapshot before restoring externally. Otherwise the
-    // list's first GET can race the POST and hide a stale Off state.
-    await expect(settings.getByRole('switch', { name: 'docling', exact: true })).not.toBeChecked();
   } finally {
     const restored = await page.request.post(`${origin}/api/worker-plugins`, { data: { manifest } });
     expect(restored.ok()).toBe(true);
   }
   await expect(settings.getByRole('button', { name: 'Docling', exact: true })).toBeVisible();
-  await expect(settings.getByRole('switch', { name: 'docling', exact: true })).toBeChecked();
   await settings.press('Escape');
   await show();
   await expect(page.getByRole('tab', { selected: true })).toHaveAccessibleName('Docling dashboard');
