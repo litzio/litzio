@@ -153,7 +153,15 @@ async (page, { showNotifications, openDocument }) => {
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await page.getByRole('tab',{name:'Settings',exact:true}).click({button:'right'});
   await page.getByRole('menuitem',{name:'Open to the right',exact:true}).click();
-  await page.locator(`#tab-${documentTabId}`).click();
+  await page.getByRole('menu').waitFor({state:'detached'});
+  // Enter the intended document through its keyboard path: focusing the other
+  // group can scroll its tab row before a pointer click finishes. Without this
+  // preparation, doc() compares different documents when Settings takes focus.
+  const documentTab = page.locator(`#tab-${documentTabId}`);
+  await documentTab.focus();
+  await documentTab.press('Enter');
+  await documentTab.and(page.locator('[aria-selected=true]')).waitFor();
+  await page.locator(`[data-document-tab="${documentTabId}"][data-active=true] .document-editor`).waitFor();
   assert(await page.locator('.editor-group-headers > section').count() === 2, 'Native history fixture requires two groups');
   // Native property-field history, retained source drafts and Settings own their keys.
   await historyEditor.evaluate(el => {
@@ -194,7 +202,9 @@ async (page, { showNotifications, openDocument }) => {
   // disabled loading value; a preceding conversion can configure another URL.
   await serverAddress.and(page.locator(':enabled')).waitFor();
   const originalAddress = await serverAddress.inputValue();
-  await serverAddress.focus(); await page.keyboard.press('End'); await page.keyboard.type('x');
+  await serverAddress.click();
+  await serverAddress.and(page.locator(':focus')).waitFor();
+  await page.keyboard.press('End'); await page.keyboard.type('x');
   for (const [key, expected] of [
     ['Control+z', originalAddress], ['Control+z', originalAddress],
     ['Control+y', originalAddress + 'x'], ['Control+z', originalAddress],
