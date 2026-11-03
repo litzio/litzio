@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ComponentType, type InputHTMLAttributes, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import type { UiHost } from "@litzio/plugin-api/ui";
 import type { Features } from "../shared/dashboard.ts";
 import { DEFAULT_DOCLING_SERVER, type ConversionJob, type ServerCheck } from "./server-types.ts";
 
@@ -7,11 +8,10 @@ type Text = (key: string) => string;
 type Props = {
   request: Request; text: Text; serverEnabled?: boolean;
   GuideLink: ComponentType<{ children?: ReactNode }>;
-  Input: ComponentType<InputHTMLAttributes<HTMLInputElement>>;
-  Button: ComponentType<{ children?: ReactNode; onClick(): void; disabled?: boolean }>;
+  host: Pick<UiHost, "SettingsSwitch" | "SettingsInput" | "SettingsAction">;
 };
 
-export function DoclingServerSettings({ request, text, Input, Button, GuideLink, serverEnabled = true }: Props) {
+export function DoclingServerSettings({ request, text, host, GuideLink, serverEnabled = true }: Props) {
   const [features, setFeatures] = useState<Features>();
   const featurePending = useRef(false);
   const [featureBusy, setFeatureBusy] = useState(false);
@@ -60,9 +60,9 @@ export function DoclingServerSettings({ request, text, Input, Button, GuideLink,
   };
   return <>
     <section className="settings-section settings-section--stacked"><h3 className="settings-heading">{text("Features")}</h3>
-      {(["conversion", "comparison", "review"] as const).map(name => <label key={name} className="flex items-center gap-2">
-        <input type="checkbox" disabled={!features || featureBusy} checked={features?.[name] ?? false} onChange={event => void changeFeature(name, event.target.checked)} />
-        {text(name === "conversion" ? "PDF conversion" : name === "comparison" ? "Docling comparison" : "Structure review")}</label>)}
+      {(["conversion", "comparison", "review"] as const).map(name => <host.SettingsSwitch key={name}
+        label={text(name === "conversion" ? "PDF conversion" : name === "comparison" ? "Docling comparison" : "Structure review")}
+        disabled={!features || featureBusy} checked={features?.[name] ?? false} onChange={enabled => void changeFeature(name, enabled)} />)}
       <p className="settings-label">{text("Disabling a feature hides its controls. Accepted jobs keep running; open comparison tabs are retained in a disabled state.")}</p>
       {!serverEnabled && problem ? <p role="alert">{problem}</p> : null}
     </section>
@@ -73,20 +73,16 @@ export function DoclingServerSettings({ request, text, Input, Button, GuideLink,
       <p>{text("Profile litzio-pdf-en-v1 requires docling-serve 1.32.0.")}</p>
       <p>{text("Connection checks verify version and readiness, not conversion models. The server operator must prepare the profile models.")}</p>
     </div>
-    <label htmlFor="docling-server">{text("Server address")}</label>
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <Input id="docling-server" className="min-w-0 flex-1" value={server} disabled={!loaded || busy}
-        aria-invalid={!!problem} aria-describedby="docling-server-result"
-        onChange={event => { editVersion.current++; setServer(event.target.value); setProblem(""); setReport(undefined); }}
-        onBlur={() => {
-          if (!loaded || busy) return;
-          const version = editVersion.current;
-          void persist().then(() => { if (version === editVersion.current) setProblem(""); })
-            .catch(error => { if (version === editVersion.current) setProblem(error.message); });
-        }}
-        onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); void check(); } }} />
-      <Button disabled={!loaded || busy} onClick={() => void check()}>{text(busy ? "Checking…" : "Check connection")}</Button>
-    </div>
+    <host.SettingsInput label={text("Server address")} value={server} disabled={!loaded || busy}
+      invalid={!!problem} describedBy="docling-server-result"
+      onChange={value => { editVersion.current++; setServer(value); setProblem(""); setReport(undefined); }}
+      onBlur={() => {
+        if (!loaded || busy) return;
+        const version = editVersion.current;
+        void persist().then(() => { if (version === editVersion.current) setProblem(""); })
+          .catch(error => { if (version === editVersion.current) setProblem(error.message); });
+      }} onEnter={() => void check()} />
+    <host.SettingsAction label={text("Connection status")} disabled={!loaded || busy} actionLabel={text(busy ? "Checking…" : "Check connection")} run={() => void check()} />
     <div id="docling-server-result" role="status" className="settings-label [overflow-wrap:anywhere]">
       {problem ? <p role="alert">{text("Could not save or check the server address.")} {problem}</p> : null}
       {report ? <>

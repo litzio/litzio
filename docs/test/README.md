@@ -691,3 +691,9 @@ Manual acceptance against an operator's existing **real** pinned Docling service
 
 Real-service verification was not run for #853. Required packaged CI establishes
 packaged execution; operator environment and visual/OCR fidelity remain manual.
+
+#1033: 기존 `ai-agent`의 Space 활성화와 저장 초안 분리, `docling-server`의 field exit / Enter / Check 저장,
+`docling-dashboard`의 Host 메뉴 Escape·trigger focus 복귀와 보조 작업, `docling-review*`의 실행·취소·상태·재활성화 단언을 재사용한다.
+기존 native details/checkbox selector는 Host portal menu/switch role로 옮겼다. 기능 변경은 Host 관찰 뒤 기여를 재활성화하므로 이전 컨트롤의 실제 detach를 기다리고 새 메뉴의 상태를 검사한다. 새 결함 보호는 Host 메뉴 연결·Escape 및 Retry 확인창 취소 후 trigger focus 복귀와 설정 스위치의 키보드 활성화이며 주된 검증 계층은 브라우저다.
+Base UI 메뉴 내부 화살표 탐색, Core 의미 조합, 새 subprocess나 전수 조합을 추가하지 않는다.
+설정/메뉴의 전후 외형 캡처는 자동 판정과 분리하여 `--screenshots` 수동 실행으로만 남긴다.
