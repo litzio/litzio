@@ -10,6 +10,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { i18n, type MessageKey } from "../i18n.ts";
 import { brand } from "../../../../brand.ts";
 import "./assistant.css";
+import { CopyButton } from "../components/CopyButton.tsx";
 import { AssistantAnswer } from "./AssistantAnswer.tsx";
 
 async function request<T>(url: string, body?: unknown): Promise<T> {
@@ -204,10 +205,12 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
         })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
           {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
         : conversation?.turns.map(turn => <section key={turn.id} className="assistant-turn" data-status={turn.status}>
-          {turn.items.filter(item => item.kind === "user").map(item => <p key={item.id} className="assistant-user">{item.text}</p>)}
+          {turn.items.filter(item => item.kind === "user").map(item => <p key={item.id} className="assistant-user" role="group" aria-label={i18n.t("Your message")}>{item.text}</p>)}
           {turn.items.some(isWorkDetail) ? <details key={`${turn.id}-${turn.status}`} open={turn.status === "inProgress"} className="assistant-steps"><summary>{i18n.t(turn.status === "inProgress" ? "Working…" : "Work details")}</summary>
             {turn.items.filter(isWorkDetail).map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}</details> : null}
-          {turn.items.filter(item => item.kind === "assistant").map(item => <AssistantAnswer key={item.id} source={item.text} />)}
+          <div role="group" aria-label={i18n.t("Assistant response")}>
+            {turn.items.filter(item => item.kind === "assistant").map(item => <AssistantAnswer key={item.id} source={item.text} />)}
+          </div>
           {turn.items.map(item => {
             const result = createdDocument(item);
             if (!result) return null;
@@ -231,6 +234,9 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
           })}
           {turn.status === "inProgress" ? <p role="status">{i18n.t("Working…")}</p> : turn.status === "interrupted" ? <p>{i18n.t("Stopped")}</p> : null}
           {turn.error ? <p role="alert">{turn.error}</p> : null}
+          {turn.items.some(item => item.kind === "assistant" && item.text.trim()) ? <div className="assistant-turn-actions">
+            <CopyButton iconOnly text={turn.items.filter(item => item.kind === "assistant").map(item => item.text).join("\n\n")} label={i18n.t("Copy answer")} />
+          </div> : null}
         </section>)}
       {!history && conversation?.userInput ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !settings?.enabled || !!setup}
         submit={answers => run(async () => {
