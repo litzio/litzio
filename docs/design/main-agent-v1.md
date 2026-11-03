@@ -455,7 +455,8 @@ allowlist is enforced independently of those instructions.
 `AgentDisplayRequests` owns provider-neutral validation, volatile pending requests
 and change receipts. Codex's `item/tool/call` is only its current adapter. The
 Host never reads browser storage or writes a settings file. Each send supplies
-an in-memory window ID; a new turn pins that ID, and steering retains it. The
+an in-memory window ID generated with `crypto.getRandomValues` (also available
+on non-localhost HTTP); a new turn pins that ID, and steering retains it. The
 existing nonoverlapping visible-panel 600ms snapshot poll supplies this ID and
 receives only its pending `displayRequest`. A `display-result` action returns
 validated live before/after values and any application/storage failure. A
@@ -500,7 +501,9 @@ reason in the panel.
 
 Verification reuses the existing fake app-server child and HTTP Host tests for
 registration, read/change receipts, denied settings and another window's reply,
-request expiry/cancellation and guarded inverse requests. An existing `ai-agent`
+request expiry/cancellation and guarded inverse requests. The existing `recovery`
+browser case disables secure-context-only `randomUUID` and protects application
+startup when that API is absent; its assertions are unchanged. An existing `ai-agent`
 browser case exercises the actual poll → live settings → acknowledgement path,
 card and Undo, Settings reflection, manual-change conflict, document-draft
 preservation and no AI-settings write. It adds no subprocess, exhaustive matrix,

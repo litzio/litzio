@@ -35,7 +35,8 @@ type Props = { settingsRevision: number; open: boolean; overlay: boolean; width:
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
 export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, context, onOpen, onUndo, referenceRequest, onDisplay }: Props) {
   useTranslation();
-  const [displayClient] = useState(() => crypto.randomUUID());
+  // Match existing editor identities: getRandomValues also works on non-localhost HTTP.
+  const [displayClient] = useState(() => crypto.getRandomValues(new Uint32Array(4)).join("-"));
   const displayHandler = useRef(onDisplay); displayHandler.current = onDisplay;
   const displayReplies = useRef(new Map<string, DisplayReply>());
   const [displayUndoBusy, setDisplayUndoBusy] = useState(false);
