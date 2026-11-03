@@ -31,6 +31,8 @@ export type { CitationContent, CitationRole, CitationReport } from "./citation.t
 export { bibliographyError, citationContentError, citationText } from "./citation.ts";
 export type { AdmonitionVariant } from "./myst/admonition.ts";
 export { ADMONITION_VARIANTS, isAdmonitionVariant } from "./myst/admonition.ts";
+/** Shared semantic-write cleanup for paragraph blank-line tails. */
+export { paragraphInlineContent } from "./inline.ts";
 /** Paragraph offset length of inline content, as used by split and hard break offsets. */
 export { inlineContentLength, inlineContentText, sameInlineContent } from "./inline.ts";
 export type { FigureContent } from "./figure.ts";

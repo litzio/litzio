@@ -1,5 +1,5 @@
 // Real scratch-file saves across engine history, drafts and an external conflict.
-async (page, { expect, openDocument, waitForActivePath, reloadDocument }) => {
+async (page, { expect, openDocument, waitForActivePath, reloadDocument, screenshots }) => {
   await page.unrouteAll();
   await page.reload();
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
@@ -50,6 +50,50 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument }) => {
   check('trailingBreakNotWritten', (await read(file)).source.includes('Alpha.\n\nBeta.') &&
     !(await read(file)).source.includes('Alpha.\\\n'));
   check('trailingBreakRetainedInSession', await paragraph().innerHTML() === withTrailingBreak);
+  // #1127: moving off the blank tail lets Save reflect Core cleanup in the live editor.
+  await paragraph().click();
+  await paragraphCaret(false);
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('Home');
+  await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.$from.parentOffset === 0);
+  await paragraphCaret(false);
+  const beforeCleanup = await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(element => {
+    window.cleanupEditor = element.editor;
+    return element.editor.state.selection.toJSON();
+  });
+  const captureCleanup = async phase => {
+    if (!screenshots) return;
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({width, height:900});
+      await page.screenshot({path:`tmp/1127/${phase}-${width}.png`});
+    }
+    await page.getByRole('button', {name:'Settings', exact:true}).click();
+    await page.getByTestId('ui-language').selectOption('ko');
+    await page.keyboard.press('Escape');
+    await page.getByTestId('settings-dialog').waitFor({state:'detached'});
+    await page.evaluate(() => {document.documentElement.dataset.theme = 'dark';});
+    await page.screenshot({path:`tmp/1127/${phase}-640-ko-dark.png`});
+    await page.getByRole('button', {name:'설정', exact:true}).click();
+    await page.getByTestId('ui-language').selectOption('en');
+    await page.keyboard.press('Escape');
+    await page.getByTestId('settings-dialog').waitFor({state:'detached'});
+    await page.evaluate(() => {document.documentElement.dataset.theme = 'light';});
+    await page.setViewportSize({width:1440, height:900});
+    await page.locator('[data-document-tab][data-active=true] .document-editor').focus();
+  };
+  await captureCleanup('before');
+  await page.keyboard.press('Control+s');
+  await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'saved');
+  check('trailingBreakRemovedFromScreen', !(await paragraph().innerHTML()).includes('<br'));
+  await captureCleanup('after');
+  check('cleanupKeepsEditorAndCaret', await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate((element, selection) =>
+    element.editor === window.cleanupEditor && JSON.stringify(element.editor.state.selection.toJSON()) === JSON.stringify(selection), beforeCleanup));
+  await page.keyboard.press('Control+z');
+  check('cleanupUndoRestoresTail', await paragraph().innerHTML() === withTrailingBreak && await page.getByTestId('status').innerText() === 'Unsaved changes');
+  await page.keyboard.press('Control+Shift+z');
+  check('cleanupRedoIsClean', !(await paragraph().innerHTML()).includes('<br') && await page.getByTestId('status').innerText() !== 'Unsaved changes');
+  await save();
+  check('cleanupRepeatSaveIsClean', await page.getByTestId('status').innerText() !== 'Unsaved changes');
   await reloadDocument(page);
   await ready();
   check('trailingBreakReopensCanonical', await paragraph().textContent() === 'Alpha.');
