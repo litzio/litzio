@@ -1,6 +1,5 @@
 import { sourceConverterVersions } from "../src/conversion/record.ts";
-import { createHash } from "node:crypto";
-import { cpSync, mkdirSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
@@ -27,7 +26,7 @@ export async function buildPlugin(destination: string) {
   writeFileSync(path.join(destination, "host.cjs"), host.outputFiles[0].contents);
   await buildPluginUi(fileURLToPath(new URL("../src/ui-plugin.tsx", import.meta.url)), destination);
   writeFileSync(path.join(destination, "manifest.json"), JSON.stringify({
-    id: "docling", version: createHash("sha256").update(bytes).digest("hex"),
+    id: "docling", version: JSON.parse(readFileSync(new URL("../../../apps/desktop/package.json", import.meta.url), "utf8")).version,
     workerApi: 1, entry: "worker.cjs", host: { api: 1, entry: "host.cjs" },
     routes: ["/api/docling-settings", "/api/docling-check", "/api/docling-conversion", "/api/docling-compare", "/api/docling-dashboard", "/api/docling-features", "/api/docling-history", "/api/docling-review", "/api/docling-review-agent", "/api/docling-review-approve", "/api/docling-review-reject", "/api/docling-review-undo"],
     ui: { api: PLUGIN_UI.api, reactMajor: PLUGIN_UI.reactMajor, script: PLUGIN_UI.script, style: PLUGIN_UI.style, jobRoute: "api/docling-conversion" },

@@ -36,7 +36,7 @@ export function uiPluginFixture(root: string) {
       `);
       writeFileSync(path.join(root, PLUGIN_UI.style), "/* fixture styles */");
       const manifest = path.join(root, "manifest.json");
-      writeFileSync(manifest, JSON.stringify({ id: "fixture", version: String(++version), ui: {
+      writeFileSync(manifest, JSON.stringify({ id: "fixture", version: `1.0.${++version}`, ui: {
         api: PLUGIN_UI.api, reactMajor: PLUGIN_UI.reactMajor, script: PLUGIN_UI.script, style: PLUGIN_UI.style,
       } }));
       return manifest;

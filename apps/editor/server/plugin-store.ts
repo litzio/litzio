@@ -1,3 +1,4 @@
+import semver from "semver";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -18,7 +19,7 @@ export const digest = (bytes: Uint8Array | string) => createHash("sha256").updat
 function workerManifest(value: unknown): WorkerManifest {
   const manifest = value as WorkerManifest;
   if (!manifest || typeof manifest.id !== "string" || !/^[a-z][a-z0-9-]{0,63}$/u.test(manifest.id) ||
-      typeof manifest.version !== "string" || !/^[\w.+-]{1,128}$/u.test(manifest.version) ||
+      typeof manifest.version !== "string" || semver.valid(manifest.version) === null ||
       (manifest.entry !== undefined || manifest.workerApi !== undefined ? manifest.workerApi !== 1 || manifest.entry !== "worker.cjs" : !manifest.ui)) {
     throw new Error("Invalid worker manifest or incompatible worker Host API (expected 1).");
   }

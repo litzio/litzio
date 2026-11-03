@@ -47,7 +47,24 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
     await page.keyboard.press('Control+Slash');
     await center.getByRole('combobox').fill('> Fixture command');
     await expect(command).toHaveCount(0);
+    let releaseUi;
+    const uiGate = new Promise(resolve => { releaseUi = resolve; });
+    const assetRoute = '**/api/ui-plugins?*id=fixture*';
+    await page.route(assetRoute, async route => { await uiGate; await route.continue(); });
     await register(manifest);
+    await center.press('Escape');
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Plugins', exact: true }).click();
+    const loadingRow = page.getByTestId('installed-plugin-fixture');
+    try {
+      await expect(loadingRow).toContainText('Loading…');
+      await expect(loadingRow.getByRole('button', { name: 'fixture settings', exact: true })).toBeDisabled();
+    } finally { releaseUi(); }
+    await expect(loadingRow.getByRole('button', { name: 'fixture settings', exact: true })).toBeEnabled();
+    await page.unroute(assetRoute);
+    await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+    await page.keyboard.press('Control+Slash');
+    await center.getByRole('combobox').fill('> Fixture command');
     await expect(command).toBeVisible(); await command.click();
     await expect(page.getByRole('button', { name: 'Fixture sidebar', exact: true })).toBeVisible();
     const tab = page.getByRole('tab', { name: / · Fixture view$/ });
@@ -84,6 +101,10 @@ async (page, { expect, openPath, pluginFixture, screenshots }) => {
     await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Plugins', exact: true }).click();
     await page.getByTestId('installed-plugin-fixture').getByRole('switch', { name: 'fixture', exact: true }).click();
     await expect(page.getByTestId('installed-plugin-fixture').getByRole('switch')).toBeChecked();
+    await expect(page.getByTestId('installed-plugin-fixture').getByRole('button', { name: 'fixture settings', exact: true })).toBeEnabled();
+    await page.getByTestId('installed-plugin-fixture').getByRole('button', { name: 'fixture settings', exact: true }).click();
+    await expect(page.getByRole('region', { name: 'Information', exact: true })).toContainText('Not bundled with this app');
+    await page.getByRole('button', { name: 'Back to plugins', exact: true }).click();
     await tab.click();
     await expect(page.getByRole('button', { name: 'Fixture count 0' })).toBeVisible();
     await expect(tab).toHaveAttribute('id', id);

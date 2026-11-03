@@ -16,7 +16,8 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   // Actual unregistration returns from plugin settings to the Plugins list.
   await page.getByTestId('sidebar').getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
-  await settings.getByRole('button', { name: 'Docling', exact: true }).click();
+  await expect(settings.getByRole('button', { name: 'Docling settings', exact: true })).toBeEnabled();
+  await settings.getByRole('button', { name: 'Docling settings', exact: true }).click();
   await expect(settings.getByRole('switch', { name: 'Docling comparison', exact: true })).toBeEnabled();
   const plugins = await (await page.request.get(`${origin}/api/worker-plugins`)).json();
   expect(plugins.some(plugin => plugin.id === 'docling' && plugin.enabled)).toBe(true);
@@ -24,13 +25,16 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   try {
     const disabled = await page.request.delete(`${origin}/api/worker-plugins`, { data: { id: 'docling' } });
     expect(disabled.ok()).toBe(true);
-    await expect(settings.getByRole('button', { name: 'Docling', exact: true })).toHaveCount(0);
+    await expect(settings.getByRole('button', { name: 'Docling settings', exact: true })).toBeDisabled();
     await expect(settings.getByRole('main', { name: 'Plugins', exact: true })).toBeVisible();
   } finally {
     const restored = await page.request.post(`${origin}/api/worker-plugins`, { data: { manifest } });
     expect(restored.ok()).toBe(true);
   }
-  await expect(settings.getByRole('button', { name: 'Docling', exact: true })).toBeVisible();
+  await expect(page.getByTestId('installed-plugin-docling').getByRole('switch', { name: 'Docling', exact: true })).toBeChecked();
+  await expect(settings.getByRole('button', { name: 'Docling settings', exact: true })).toBeEnabled();
+  await settings.getByRole('button', { name: 'Docling settings', exact: true }).click();
+  await expect(settings.getByRole('switch', { name: 'Docling comparison', exact: true })).toBeEnabled();
   await settings.press('Escape');
   await show();
   await expect(page.getByRole('tab', { selected: true })).toHaveAccessibleName('Docling dashboard');
@@ -205,7 +209,7 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await page.keyboard.press('Escape');
   await page.getByTestId('sidebar').getByRole('button', { name: 'Settings', exact: true }).click();
   await settings.getByRole('navigation').getByRole('button', { name: 'Plugins', exact: true }).click();
-  await expect(page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true })).toBeVisible();
+  await expect(page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling settings', exact: true })).toBeVisible();
   await page.getByTestId('settings-dialog').press('Escape');
   await feature('Docling comparison', false);
   await expect(dashboard.getByRole('button', { name: 'Open conversion folder…' })).toHaveCount(0);
