@@ -492,7 +492,10 @@ and shared ContextMenu Shift+F10/Menu-key handling remain available.
 Right-clicking Explorer blank space uses that root's actions when exactly one root
 is open. With zero or multiple roots it offers only Open folder, avoiding an ambiguous
 creation destination. File menus retain their target-specific actions. Child-folder
-right-click remains native (follow-up #1064). No new command or common interaction
+right-click (#1064) reuses the same definitions for New document, New folder and
+Open in File Explorer (when supported), targeting the clicked folder exactly.
+Refresh is omitted because the existing handler refreshes opened roots only; Open
+folder and Close folder remain root-only. No rename, delete or move is added. No new command or common interaction
 is introduced; this is the existing U20/P10 action-menu surface without exceptions.
 
 ## Folder Explorer menu (#487)

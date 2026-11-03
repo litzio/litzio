@@ -717,6 +717,42 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, screenshots =
   assert(await page.getByTestId('current-file').getAttribute('title') === [folder, 'added.md'].join(sep), 'Omitted extension creates a Markdown file in the chosen folder');
   await page.setViewportSize({width:1280, height:720});
 
+  // A child context action must use that child even while a root document is active.
+  const context = page.locator('[data-slot="context-menu-content"]');
+  if (screenshots) for (const width of [1440, 640]) {
+    await page.setViewportSize({width, height:812});
+    await page.evaluate(async width => {
+      const { i18n } = await import('/src/i18n.ts');
+      const { applyTheme } = await import('/src/theme.ts');
+      await i18n.changeLanguage(width === 640 ? 'ko' : 'en');
+      await applyTheme(width === 640 ? 'dark' : 'light');
+      await document.fonts.ready;
+    }, width);
+    await row('guides').click({button:'right'});
+    await context.waitFor();
+    await page.screenshot({path:`tmp/picker-capture/context-child-${width}.png`});
+    await page.keyboard.press('Escape');
+  }
+  if (screenshots) await page.evaluate(async () => {
+    const { i18n } = await import('/src/i18n.ts');
+    const { applyTheme } = await import('/src/theme.ts');
+    await i18n.changeLanguage('en'); await applyTheme('light');
+  });
+  await page.setViewportSize({width:1280, height:720});
+  await row('guides').click({button:'right'});
+  await context.waitFor();
+  await context.getByRole('menuitem', {name:'New document…', exact:true}).click();
+  await dialog.waitFor();
+  assert(await page.getByTestId('new-file-directory').inputValue() === guidesPath, 'Child context New targets the clicked folder');
+  await filename.fill('context-child');
+  await dialog.getByRole('button', {name:'Create', exact:true}).click();
+  await dialog.waitFor({state:'detached'});
+  await waitForActivePath(page, [guidesPath, 'context-child.md'].join(sep));
+  await row('context-child.md').waitFor();
+  await row('added.md').click();
+  await waitForActivePath(page, [folder, 'added.md'].join(sep));
+  result.childContextCreation = true;
+
   const existingPath = [folder, 'index.md'].join(sep);
   const read = async path => (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(path)}`)).json();
   const beforeExisting = await read(existingPath);

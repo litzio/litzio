@@ -31,9 +31,9 @@ type SidebarProps = {
   recent?: string[];
   onOpenRecent?(folder: string): void;
   /** Opens New in an opened folder; it shows and lets the user choose the destination folder. Names the button. */
-  onNew?(root: string, button: HTMLButtonElement): void;
+  onNew?(root: string, button: HTMLElement, exact?: boolean): void;
   /** Opens New folder, which likewise shows and chooses where the folder is created. */
-  onNewFolder?(root: string, button: HTMLButtonElement): void;
+  onNewFolder?(root: string, button: HTMLElement, exact?: boolean): void;
   /** The opened folders, in order, each a tree of the folders listed so far. */
   folders?: FolderTreeState[];
   focusFolder?: string | null;
@@ -112,8 +112,8 @@ export function Sidebar({
             onToggleSection={() => onToggleSection?.(tree.root)}
             onOpenDocument={path => onOpenDocument?.(path)}
             onOpenRight={onOpenRight} openRightDisabled={openRightDisabled}
-            onNew={button => onNew?.(tree.root, button)}
-            onNewFolder={button => onNewFolder?.(tree.root, button)}
+            onNew={(button, path) => onNew?.(path ?? tree.root, button, !!path)}
+            onNewFolder={(button, path) => onNewFolder?.(path ?? tree.root, button, !!path)}
             onOpenFolder={onOpenFolder}
             onRevealFolder={onRevealFolder}
             onRefresh={() => onRefreshFolder?.(tree.root)}
@@ -200,17 +200,17 @@ type FolderTreeProps = {
   onOpenDocument(path: string): void;
   onOpenRight?(path: string): void;
   openRightDisabled?: boolean;
-  onNew(button: HTMLButtonElement): void;
-  onNewFolder(button: HTMLButtonElement): void;
+  onNew(button: HTMLElement, path?: string): void;
+  onNewFolder(button: HTMLElement, path?: string): void;
   onOpenFolder(returnFocus: HTMLElement | null): void;
   onRevealFolder?(path: string): void;
   onRefresh(): void;
   onClose(): void;
 };
 
-/** Shared definitions for the root header, its More button and single-root blank area. */
+/** Shared folder actions; child rows select only operations supported for their path. */
 function folderActions(props: Pick<FolderTreeProps, "onNew" | "onNewFolder" | "onOpenFolder" | "onRevealFolder" | "onRefresh" | "onClose">,
-  root: string, button: () => HTMLButtonElement | null): ContextMenuAction[] {
+  root: string, button: () => HTMLElement | null): ContextMenuAction[] {
   return [
     { id: "new", label: i18n.t("New document…"), icon: <Plus aria-hidden="true" />, run: () => { const target = button(); if (target) props.onNew(target); } },
     { id: "new-folder", label: i18n.t("New folder…"), icon: <FolderPlus aria-hidden="true" />, run: () => { const target = button(); if (target) props.onNewFolder(target); } },
@@ -346,7 +346,12 @@ function FolderTree({ pluginFileActions = [], onAddToChat, onFileAction, fileAct
               </DropdownMenu> : null}
             </li>
           );
-          if (folder) return row;
+          if (folder) return <ContextMenu key={entry.path} trigger={row} actions={folderActions({
+            onNew: target => onNew(target, entry.path),
+            onNewFolder: target => onNewFolder(target, entry.path),
+            onOpenFolder, onRevealFolder, onRefresh, onClose,
+          }, entry.path, () => rows.current.get(entry.path) ?? null)
+            .filter(action => action.id === "new" || action.id === "new-folder" || action.id === "reveal")} />;
           const choose = (action: FileAction) => {
             actionReturn.current = rows.current.get(entry.path) ?? null;
             setFileAction({ action, item });
