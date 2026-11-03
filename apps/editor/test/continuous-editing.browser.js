@@ -12,7 +12,11 @@ async (page, { showNotifications, openDocument }) => {
   await openDocument(page, file);
   await page.locator('[data-document-tab][data-active=true] .document-editor h2').filter({hasText:'Heading'}).waitFor();
   const documentTabId = await page.locator('[data-document-tab][data-active=true]').getAttribute('data-document-tab');
-  const doc = () => page.locator(`[data-document-tab="${documentTabId}"] .document-editor`).evaluate(el => el.editor.getJSON());
+  const doc = async () => {
+    const active = page.locator('[data-document-tab][data-active=true] .document-editor');
+    const owner = await active.count() ? active : page.locator(`[data-document-tab="${documentTabId}"] .document-editor`);
+    return owner.evaluate(el => el.editor.getJSON());
+  };
   const semantic = value => JSON.stringify(value, (key, item) => ['sourcePath', 'original', 'sourceCell'].includes(key) ? undefined : item);
   const assert = (ok, message) => { if (!ok) throw new Error(message); };
   const select = async (start, end = start) => page.locator('[data-document-tab][data-active=true] .document-editor').evaluate((el, args) => {
