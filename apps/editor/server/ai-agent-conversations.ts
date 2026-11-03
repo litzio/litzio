@@ -9,7 +9,9 @@ import { listFolder } from "./document-api.ts";
 import { documentTools, executeDocumentTool, type DocumentToolScope } from "./agent-document-tools.ts";
 import { AGENT_INSTRUCTIONS } from "./ai-agent-connection.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
-import { copilotOptions, copilotReasoning, copilotChoices } from "./copilot-acp.ts";
+import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices } from "./copilot-acp.ts";
+
+type ConversationIndexEntry = AiConversationInfo & { copilotCliReasoningEffort?: string };
 
 /** Litzio persists only its history index. Each CLI owns its conversation content. */
 export class AiAgentConversations {
@@ -55,7 +57,7 @@ export class AiAgentConversations {
     });
   }
   private get file() { return path.join(this.connection.cwd, "conversations.json"); }
-  list(): AiConversationInfo[] {
+  list(): ConversationIndexEntry[] {
     this.connection.environment();
     return existsSync(this.file) ? JSON.parse(readFileSync(this.file, "utf8")) : [];
   }
@@ -64,7 +66,8 @@ export class AiAgentConversations {
     const entries = this.list().filter(entry => entry.id !== id);
     const temporary = `${this.file}.${randomUUID()}.tmp`;
     try {
-      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}) }, ...entries]) + "\n", { flag: "wx" });
+      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}),
+        ...(provider === "copilot" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
       renameSync(temporary, this.file);
     } finally { if (existsSync(temporary)) unlinkSync(temporary); }
   }
@@ -79,18 +82,22 @@ export class AiAgentConversations {
     if (!info) throw new Error("Conversation was not found.");
     if ((info.provider ?? "codex") !== settings.provider) throw new Error("Select this conversation's provider in AI settings first.");
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
+    if (info.provider === "copilot") await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? this.connection.copilot.reasoningEffort, settings);
     const conversation: AiConversation = { ...info, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
       tokenUsage: this.conversations.get(id)?.tokenUsage };
     // Install before the RPC so token-usage notifications during resume are retained.
     this.conversations.set(id, conversation);
     if (info.provider === "copilot") {
+      this.loaded.delete(id);
       const client = await this.connection.copilot.connect();
       if (!this.connection.copilot.loadSession) throw new Error("This Copilot CLI cannot resume sessions. Start a new conversation.");
       const session = await this.connection.copilot.call(() => client.loadSession({ sessionId: id, cwd: this.connection.cwd, mcpServers: [] }));
       conversation.model = session.models?.currentModelId ?? settings.model;
       this.connection.copilot.remember({ ...session, sessionId: id });
       conversation.copilot = copilotOptions({ ...session, sessionId: id });
-      conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? this.connection.copilot.reasoningEffort;
+      const reasoning = copilotReasoning(session);
+      if (!reasoning && !COPILOT_EFFORTS.includes(info.copilotCliReasoningEffort ?? "")) throw new Error("This Copilot conversation has no saved CLI reasoning effort. Start a new conversation.");
+      conversation.reasoningEffort = reasoning?.currentValue ?? info.copilotCliReasoningEffort!;
       this.loaded.add(id);
       return conversation;
     }
@@ -210,17 +217,17 @@ export class AiAgentConversations {
     if (conversation?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Copilot response before sending another message.");
     const catalog = await this.connection.models("copilot");
     if (!catalog.models.some(model => model.model === input.model)) throw new Error("Invalid Copilot model.");
-    if (!catalog.models.find(model => model.model === input.model)?.supportedReasoningEfforts.some(effort => effort.reasoningEffort === input.reasoningEffort)) throw new Error("Invalid Copilot reasoning effort.");
     if (input.mode !== undefined && !catalog.copilot?.modes.some(mode => mode.id === input.mode)) throw new Error("Invalid Copilot session mode.");
-    if (catalog.copilot?.reasoningEffortSource === "cli") {
+    const source = conversation?.copilot?.reasoningEffortSource ?? catalog.copilot?.reasoningEffortSource;
+    if (source === "cli") {
+      if (!COPILOT_EFFORTS.includes(input.reasoningEffort)) throw new Error("Invalid Copilot reasoning effort.");
       if (conversation && conversation.reasoningEffort !== input.reasoningEffort) throw new Error("Start a new conversation to change Copilot reasoning effort.");
     }
-    const effort = catalog.copilot?.reasoningEffortSource === "cli" ? input.reasoningEffort : acp.reasoningEffort;
+    const effort = source === "cli" ? input.reasoningEffort : acp.reasoningEffort;
     const fullAccess = settings.writeAccess === "full-access";
-    if ((acp.reasoningEffort !== effort || acp.fullAccess !== fullAccess) && [...this.conversations.values()].some(value => value.provider === "copilot" && value.turns.some(turn => turn.status === "inProgress"))) throw new Error("Stop the Copilot response before changing launch settings.");
-    await acp.useLaunchSettings(effort, fullAccess);
-    const client = await acp.connect();
+    await this.prepareCopilotLaunch(effort, settings);
     if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings);
+    const client = await acp.connect();
     if (!conversation) {
       const session = acp.remember(await acp.call(() => client.newSession({ cwd: this.connection.cwd, mcpServers: [] })));
       conversation = { id: session.sessionId, provider: "copilot", title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, 80),
@@ -266,6 +273,11 @@ export class AiAgentConversations {
       }
     }, error => { turn.status = "failed"; turn.error = error.message; }).finally(() => { this.scopes.delete(id); });
     return conversation;
+  }
+  private async prepareCopilotLaunch(effort: string, settings: AiAgentSettings) {
+    const acp = this.connection.copilot, fullAccess = settings.writeAccess === "full-access";
+    if ((acp.reasoningEffort !== effort || acp.fullAccess !== fullAccess) && [...this.conversations.values()].some(value => value.provider === "copilot" && value.turns.some(turn => turn.status === "inProgress"))) throw new Error("Stop the Copilot response before changing launch settings.");
+    await acp.useLaunchSettings(effort, fullAccess);
   }
   private copilotPermission(request: RequestPermissionRequest): RequestPermissionResponse {
     const scope = this.scopes.get(request.sessionId), tool = request.toolCall;

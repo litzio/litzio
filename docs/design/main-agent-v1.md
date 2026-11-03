@@ -858,7 +858,21 @@ The CLI fallback locks effort after a conversation starts; the hover explains th
 new conversation is required. New-conversation effort or full-access launch changes
 restart the owned process lazily, never while any Copilot turn is active. Prior
 sessions require advertised loadSession to continue after a restart. No model work
-is replayed. Settings defaults affect new conversations; active conversations retain
+is replayed. The index stores `copilotCliReasoningEffort` only for CLI-fallback
+conversations, beside the provider/title/folder metadata; Codex's index is unchanged.
+History resume restores that saved effort and the current write-access launch
+settings before `session/load`. If arguments differ, the existing child must exit
+before its replacement starts. A conflicting active Copilot turn rejects resumption
+with a visible error rather than interrupting that turn or adopting its effort.
+Records without a saved CLI effort cannot resume a fallback session and report that
+a new conversation is required; no past-data migration or guessed default is added.
+The saved value is also enforced on subsequent sends, including after Host restart.
+
+ACP-config efforts are validated after model selection against the actual
+conversation session's latest advertised choices. Its config updates may differ
+from the separate catalog session. The catalog supplies initial defaults only;
+its effort list cannot veto a newly advertised conversation value. Only the CLI
+fallback uses the fixed seven-value validation. Settings defaults affect new conversations; active conversations retain
 their effort selection. ACP config updates are retained for subsequent validation.
 
 Manual review uses the existing SettingsSelect and composer Button/Popover with no

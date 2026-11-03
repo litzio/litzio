@@ -68,6 +68,12 @@ selection. Like Paseo, a `thought_level` select config uses `session/set_config_
 Without one, CLI `--reasoning-effort` is fixed for each conversation; changing it
 requires a new conversation and lazily restarts the process before that conversation.
 The CLI's seven accepted values remain available without model support metadata.
+The conversation index retains each fallback session's CLI effort. Resume and
+subsequent sends restore it through a confirmed child-process replacement when
+needed; a conflicting active turn, missing stored effort or unsupported session
+load rejects resume explicitly instead of silently changing the effort. No data
+migration is added. ACP-config validation uses the actual session's updated values,
+not the separate catalog session's initial effort list.
 Model/mode and ACP-config effort changes apply before the next message; active
 turns lock these controls. Auto is inserted first only when absent; duplicate
 provider model IDs are collapsed, retaining the first name/description.

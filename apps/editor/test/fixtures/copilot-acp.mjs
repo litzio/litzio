@@ -18,7 +18,14 @@ createInterface({ input: process.stdin }).on("line", line => {
   else if (method === "session/load") reply(sessionState());
   else if (method === "session/set_mode") { modes.currentModeId = params.modeId; send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "current_mode_update", currentModeId: params.modeId } } }); reply({}); }
   else if (method === "session/set_config_option") { configOptions.find(option => option.id === params.configId).currentValue = params.value; send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "config_option_update", configOptions } } }); reply({ configOptions }); }
-  else if (method === "session/set_model") reply({});
+  else if (method === "session/set_model") {
+    if (process.argv.includes("--fixture-config")) {
+      const reasoning = configOptions.find(option => option.id === "reasoning");
+      reasoning.options = ["low", "max"].map(value => ({ value, name: value }));
+      send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "config_option_update", configOptions } } });
+    }
+    reply({});
+  }
   else if (method === "session/prompt") {
     if (params.prompt[0].text.includes("FAIL THIS TURN")) { send({ id, error: { code: -32000, message: "Copilot quota fixture failure" } }); return; }
     pending = { id, sessionId: params.sessionId };

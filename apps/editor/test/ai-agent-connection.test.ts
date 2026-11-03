@@ -78,18 +78,50 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   const restrictedRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   assert.ok(restrictedRpc.filter(message => message.args).at(-1).args.includes("--deny-tool=shell"));
   assert.equal(restrictedRpc.filter(message => message.method === "session/set_config_option" && message.params.configId === "allow_all").at(-1).params.value, "off");
+  await t.test("CLI history restores A high after B low and after Host restart", async () => {
+    const barrier = () => connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: restricted.id, modelId: input.model }));
+    await barrier();
+    const low = await conversations.send({ ...input, reasoningEffort: "low" }, settings);
+    await assert.rejects(conversations.resume(restricted.id, settings), /Stop the Copilot response/);
+    assert.equal(conversations.current(low.id).turns.at(-1)!.status, "inProgress");
+    await conversations.interrupt(low.id); await barrier();
+    const lowPid = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.pid).at(-1).pid;
+    const resumed = await conversations.resume(restricted.id, settings);
+    assert.equal(resumed.reasoningEffort, "high");
+    assert.equal(connection.copilot.reasoningEffort, "high");
+    assert.throws(() => process.kill(lowPid, 0), "replaced low-effort child must have exited");
+    await conversations.send({ ...input, id: resumed.id }, settings);
+    await conversations.interrupt(resumed.id); await barrier();
+    await connection.close();
+    const next = new AiAgentConnection(connection.cwd, undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] });
+    try {
+      const history = new AiAgentConversations(next, new RootAccess([root]));
+      const loaded = await history.resume(restricted.id, { ...settings, reasoningEffort: "low" });
+      assert.equal(loaded.reasoningEffort, "high");
+      assert.equal(next.copilot.reasoningEffort, "high");
+      await history.send({ ...input, id: loaded.id }, settings);
+      await history.interrupt(loaded.id);
+    } finally { await next.close(); }
+  });
   // One config-capable fixture session exercises the alternative to CLI fallback.
   const configConnection = new AiAgentConnection(path.join(root, "config-assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-config"] });
-  try {
-    const configConversations = new AiAgentConversations(configConnection, new RootAccess([root]));
-    const configConversation = await configConversations.send(input, settings);
-    assert.deepEqual(configConversation.copilot?.reasoningEfforts?.map(value => value.reasoningEffort), ["low", "high"]);
-    await configConversations.interrupt(configConversation.id);
-    const configRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.ok(configRpc.some(message => message.method === "session/set_config_option" && message.params.configId === "reasoning" && message.params.value === "high"));
-  } finally { await configConnection.close(); }
+  await t.test("live config choices override the separate catalog", async () => {
+    try {
+      const configConversations = new AiAgentConversations(configConnection, new RootAccess([root]));
+      const configConversation = await configConversations.send({ ...input, reasoningEffort: "low" }, settings);
+      assert.deepEqual(configConversation.copilot?.reasoningEfforts?.map(value => value.reasoningEffort), ["low", "max"]);
+      assert.deepEqual((await configConnection.models("copilot")).models[0]!.supportedReasoningEfforts.map(value => value.reasoningEffort), ["low", "high"]);
+      await configConversations.interrupt(configConversation.id);
+      await configConnection.copilot.call(async () => (await configConnection.copilot.connect()).setSessionMode({ sessionId: configConversation.id, modeId: "plan" }));
+      await configConversations.send({ ...input, id: configConversation.id, reasoningEffort: "max" }, settings);
+      await configConversations.interrupt(configConversation.id);
+      const configRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+      assert.ok(configRpc.some(message => message.method === "session/set_config_option" && message.params.configId === "reasoning" && message.params.value === "max"));
+    } finally { await configConnection.close(); }
+  });
   assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("Do not modify existing documents"));
   await connection.close();
+  for (const { pid } of readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.pid)) assert.throws(() => process.kill(pid, 0), "every owned fake child must be stopped");
 });
 
 test("conversation streams summaries, steers and interrupts one Codex thread; only its index is stored by Litzio", async t => {
