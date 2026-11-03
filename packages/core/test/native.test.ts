@@ -1,3 +1,4 @@
+import { parse as parseYaml } from "yaml";
 import * as core from "@litzio/core";
 import type { MystDocument } from "../src/myst/tree.ts";
 import { semanticFingerprint } from "../src/myst/fingerprint.ts";
@@ -584,4 +585,43 @@ test("installed MyST title extraction and output normalization do not define Nat
     assert.deepEqual(getEditableDocument(nativeDocument).blocks.map(block => block.block === "heading" && block.level), [1, 2]);
     assert.equal(getEditableDocument(parse(serialize(nativeDocument))).title, title);
   }
+});
+
+
+test("template metadata round-trips and creation removes only template semantics", () => {
+  const original = parse('---\nlitzio: 1 # marker\ntitle: Different document title\nnumbering: {headings: true, title: false}\nbibliography: [refs.bib]\n---\n\n## Goal\n\nBody.\n');
+  const meta = { name: "보고서 🙂", description: "  Plain description **kept literally**  " };
+  const template = core.updateTemplateMetadata(original, meta);
+  const saved = serialize(template);
+  assert.deepEqual(core.getTemplateMetadata(parse(saved)), meta);
+  assert.match(saved, /litzio: 1 # marker/);
+  assert.equal(serialize(parse(saved)), saved);
+  const edited = core.updateDocumentTitle(template, "Changed");
+  assert.deepEqual(core.getTemplateMetadata(parse(serialize(edited))), meta);
+  const created = core.createDocumentFromTemplate(parse(saved));
+  assert.equal(core.getTemplateMetadata(created), undefined);
+  assert.match(serialize(created), /litzio: 1 # marker/);
+  const before = original as unknown as MystDocument, after = created as unknown as MystDocument;
+  assert.deepEqual(parseYaml(String(after.children[0].value)), parseYaml(String(before.children[0].value)));
+  assert.deepEqual(after.children.slice(1).map(semanticFingerprint), before.children.slice(1).map(semanticFingerprint));
+  assert.equal(core.getTemplateMetadata(original), undefined, "operation leaves input intact");
+  assert.throws(() => core.createDocumentFromTemplate(original), /Template metadata/);
+});
+
+test("template malformed metadata refuses at admission, operations and final writes", () => {
+  for (const value of [null, [], "report", {}, { name: "Report" }, { name: "Report", description: "", extra: true },
+    { name: " ", description: "" }, { name: 1, description: "" }, { name: "Report", description: null },
+    { name: "Report", description: "two\nlines" }, { name: "Bad\u2028name", description: "" }]) {
+    const source = `---\nlitzio: 1\ntemplate: ${JSON.stringify(value)}\n---\n`;
+    assert.throws(() => parse(source), error => core.writeIssueOf(error).code === "native-metadata");
+    if (value !== null) assert.throws(() => core.updateTemplateMetadata(createDocument(), value as never));
+    const corrupt = structuredClone(createDocument()) as unknown as MystDocument;
+    corrupt.children[0].value = `litzio: 1\ntemplate: ${JSON.stringify(value)}\n`;
+    assert.throws(() => serialize(corrupt as never), error => core.writeIssueOf(error).code === "native-metadata");
+  }
+  for (const field of ['{name: Report, name: Again, description: ok}', '{name: Report, description: |\n    line\n  }',
+    '\n  name: Report\n  description: >-\n    line']) {
+    assert.throws(() => parse(`---\nlitzio: 1\ntemplate: ${field}\n---\n`), error => core.writeIssueOf(error).code === "native-metadata");
+  }
+  assert.throws(() => core.updateTemplateMetadata(createDocument(), { name: "Bad\uD800", description: "" }), /Unicode/);
 });

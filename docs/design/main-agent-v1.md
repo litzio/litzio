@@ -455,6 +455,36 @@ refusal, stale turn rejection, steering scope, unsupported server requests and
 receipt recovery after a fresh process. Browser mocks verify tool progress only;
 they are not proof of real execution.
 
+## Template workflows (#936 phase 3)
+
+The generated `AGENTS.md` routes document creation to the product-owned
+`litzio-guide` skill and a fresh CLI `templates list --json` lookup. Names and
+descriptions are discovered per request, rather than frozen when the environment
+is generated. The skill requires proposal → user consent → application, with an
+explicitly named template counting as consent. It reads the chosen structure and
+uses `create --template`, then existing inspect/apply-batch/check operations to
+fill the new document. It also documents new-template authoring and saving an
+existing document through `templates save` after confirmation of name, description
+and source, with unsaved-content and no-overwrite boundaries. Template saving
+always reads the saved disk version; the assistant has only the active path and
+asks the user to save first if current unsaved changes should be included (#1106).
+
+This is generated guidance, not a new model tool or enforcement mechanism.
+The existing skill inventory and Codex selection surface are reused. Template
+CLI operations are the explicit exception to preferring dynamic document tools;
+`create_document` does not accept a template. CLI creation reports its actual
+path and check result in prose and does not produce a result card or card Undo.
+The same CLI/Host environment must resolve the catalog; inaccessible CLI or
+restricted shell/filesystem permissions are reported without bypassing them.
+Copilot's restricted shell remains restricted. Existing-document editing stays
+text-only. Details and command syntax are owned by the
+[template contract](document-templates-v1.md#assistant-guidance-phase-3).
+
+Verification (2026-11-04): the existing generated-environment unit test checks
+written/regenerated instructions and skill content, including consent and CLI
+routing. Existing CLI template tests own the real list/read/save/create paths.
+No real model response, new browser scenario or UI change is required or claimed.
+
 ## Created-document results and undo (#931 implementation 2, PR 2)
 
 Successful structured `create_document` results supply each card's path and creation
