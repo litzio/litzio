@@ -1,0 +1,50 @@
+{
+  "beforeCommit": "6f037b1f60413ff358e6bc729cf759445c23dcae",
+  "browser": "Windows Chrome persistent checkout profile",
+  "height": 1000,
+  "accent": "plum",
+  "dpr": 1,
+  "source": "apps/editor/samples/en/converter-control.md + assets (scratch copy, unsaved)",
+  "captures": [
+    {
+      "file": "after-1440-dark-admonition.png",
+      "sha256": "521ca59ec3912e1cc41be54533d71de9b5576eb2e45fb76f8da6b50ffe103bf8"
+    },
+    {
+      "file": "after-1440-dark-nested-list.png",
+      "sha256": "fe4f83979392a62056c847f66a9650d511da9bfda3de2c6448e802bc80209b87"
+    },
+    {
+      "file": "after-1440-dark-paragraph.png",
+      "sha256": "1149c7e02340d265bd6a5a772c390452e3b05f42ecda25c1070868e22024b69e"
+    },
+    {
+      "file": "after-1440-light-admonition.png",
+      "sha256": "21057c72ed59aa8521008bf5697a35138599567346565a5b5532f38fc645f51b"
+    },
+    {
+      "file": "after-1440-light-nested-list.png",
+      "sha256": "4a7ad5a965fb2eaff701acb42f26fbf6e6eb4e779a8292e33e0aa614dd322953"
+    },
+    {
+      "file": "after-1440-light-paragraph.png",
+      "sha256": "97de1731e402b5d57081c999a02acaed69772e37e33d45316975109085e190ef"
+    },
+    {
+      "file": "after-640-light-admonition.png",
+      "sha256": "1573337c484e9b28e85a9ffe405efe42a2807f725c891a19d6cf9a46a70318f7"
+    },
+    {
+      "file": "after-640-light-nested-list.png",
+      "sha256": "365b919eb4210e0a482f6f8dd1e79881dcfeb5e0df3282ebbe37f4d7b24373b6"
+    },
+    {
+      "file": "after-640-light-paragraph.png",
+      "sha256": "f592f9574ba16ac259b71cb63aa744ffe41146ba1aea716e84d873ac3fa92ae3"
+    },
+    {
+      "file": "before-1440-light-paragraph.png",
+      "sha256": "9e310be73af698794b36fc2647baab799b203e0252fe52c973a0a90a7c214e0c"
+    }
+  ]
+}
