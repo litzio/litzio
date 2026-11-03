@@ -396,13 +396,22 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
           return r.left >= b.left - 1 && r.right <= b.right + 1;
         }), {message:'Choosing a hidden tab did not reveal it'}).toBe(true);
       };
-      // Reselecting the active tab must reveal it even without an active-ID change.
-      await expect(selected).toHaveAttribute('title', a);
-      await chooseHiddenA();
-      // Also prove a real activation: the chosen hidden tab differs from the active tab.
+      // Establish overflow through a completed activation, rather than racing the
+      // earlier ArrowRight/ArrowLeft focus handoff with a manual scroll.
       await activate('technical-2.md');
-      await row.evaluate(n => { n.scrollLeft=n.scrollWidth; });
       await expect(selected).toHaveAttribute('title', b);
+      await expect.poll(() => selected.evaluate(n => {
+        const r=n.getBoundingClientRect(), bounds=n.parentElement.getBoundingClientRect();
+        return r.left >= bounds.left - 1 && r.right <= bounds.right + 1;
+      })).toBe(true);
+      await chooseHiddenA();
+      // Reselecting the active tab must reveal it even without an active-ID change.
+      // Finish the menu's focus return before manually hiding that active tab.
+      await expect(page.getByRole('button', {name:/^Hidden tabs:/})).toBeFocused();
+      await row.evaluate(n => { n.scrollLeft=n.scrollWidth; });
+      await expect.poll(() => selected.evaluate(n =>
+        n.getBoundingClientRect().left < n.parentElement.getBoundingClientRect().left - 1
+      )).toBe(true);
       await chooseHiddenA();
     }
 
