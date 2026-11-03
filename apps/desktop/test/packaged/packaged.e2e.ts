@@ -113,6 +113,18 @@ test("packaged in-process Host forks its shipped Docling worker and opens a comp
   try {
     const launched = await launch(userData, [], { LITZIO_AI_AGENT_CWD: path.join(folder, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(folder, "ai-agent.json"), LITZIO_PLUGINS_DIR: path.join(folder, "plugins"), LITZIO_DOCLING_SETTINGS_FILE: path.join(folder, "settings.json") });
     app = launched.app;
+    const notices = await app.evaluate(async ({ app }) => {
+      const { readFileSync } = await import("node:fs");
+      return {
+        main: readFileSync(app.getAppPath() + "/THIRD_PARTY_LICENSES.txt", "utf8"),
+        cli: readFileSync(process.resourcesPath + "/cli/THIRD_PARTY_LICENSES.txt", "utf8"),
+        schema: readFileSync(process.resourcesPath + "/cli/docling-worker/Docling-schema-LICENSE.txt", "utf8"),
+      };
+    });
+    assert.match(notices.main, /electron-updater@6\.8\.9/);
+    assert.match(notices.main, /Copyright \(c\) 2015 Loopline Systems/);
+    assert.match(notices.cli, /Tiptap GmbH/);
+    assert.match(notices.schema, /International Business Machines/);
     const output = await verifyPackagedWorker(async (endpoint, method = "GET", body) => {
       const response = await launched.page.evaluate(async ({ endpoint, method, body }) => {
         const response = await fetch(`/api/${endpoint}`, { method,

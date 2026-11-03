@@ -8,6 +8,7 @@ import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } fr
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { collectPackages, packageNotices } from "../../../scripts/third-party-notices.ts";
 import { brand } from "../../../brand.ts";
 
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -45,7 +46,8 @@ export async function buildDesktop(): Promise<string> {
   writeFileSync(path.join(desktop, "build/cli.nsh"), installer);
 
   const requireSigned = process.env.LITZIO_REQUIRE_SIGNED_UPDATES === "1";
-  await build({
+  const main = await build({
+    absWorkingDir: repo, metafile: true,
     entryPoints: [path.join(desktop, "src", "main.ts")],
     outfile: path.join(stage, "main.mjs"),
     bundle: true,
@@ -59,6 +61,7 @@ export async function buildDesktop(): Promise<string> {
     legalComments: "none",
     logLevel: "warning",
   });
+  writeFileSync(path.join(stage, "THIRD_PARTY_LICENSES.txt"), packageNotices(collectPackages(Object.keys(main.metafile.inputs).map(input => path.resolve(repo, input)))));
   // A sandboxed preload is a CommonJS script that can load only `electron`.
   await build({
     entryPoints: [path.join(desktop, "src", "preload.ts")],

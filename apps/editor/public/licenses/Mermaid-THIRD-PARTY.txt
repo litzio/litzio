@@ -3929,7 +3929,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 ========================================================================
 elkjs@0.9.3
 License: EPL-2.0
-Source: https://github.com/kieler/elkjs/tree/v0.9.3
+Source: https://github.com/kieler/elkjs/tree/0.9.3
 Source package: https://registry.npmjs.org/elkjs/-/elkjs-0.9.3.tgz
 LICENSE.md
 # Eclipse Public License - v 2.0
