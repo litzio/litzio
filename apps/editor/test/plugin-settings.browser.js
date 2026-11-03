@@ -1,4 +1,4 @@
-async (page, { expect, screenshots, brand }) => {
+async (page, { expect, screenshots, brand, stalePluginRegistration }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   try {
     const items = await (await page.request.get(origin + '/api/worker-plugins')).json();
@@ -114,6 +114,35 @@ async (page, { expect, screenshots, brand }) => {
     await expect(page.getByRole('region', { name: '정보', exact: true })).toContainText('앱 기본 버전과 같음');
     await page.getByRole('button', { name: '플러그인 목록으로', exact: true }).click();
     await expect(row.getByRole('button', { name: 'Docling 설정', exact: true })).toBeFocused();
+    await page.unroute('**/api/worker-plugins');
+    // A real old registration, not a mocked HTTP failure: Host must stop UI admission.
+    await page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true }).click();
+    await expect(page.getByTestId('docling-dashboard')).toBeVisible();
+    stalePluginRegistration();
+    const cause = '저장된 플러그인의 버전이 지원하는 semver 형식이 아닙니다.';
+    await expect(page.locator('.plugin-tab-message')).toContainText(cause);
+    let pluginReads = 0;
+    const countPluginReads = request => { if (/\/api\/docling-/.test(request.url())) pluginReads++; };
+    page.on('request', countPluginReads);
+    // Observe two ordinary discovery cycles; rejected plugin reads must stay stopped.
+    await page.waitForResponse(response => response.url().endsWith('/api/ui-plugins'));
+    await page.waitForResponse(response => response.url().endsWith('/api/ui-plugins'));
+    page.off('request', countPluginReads);
+    expect(pluginReads).toBe(0);
+    if (screenshots) await page.screenshot({ path: 'tmp/1097/after-tab-640.png' });
+    await page.locator('.plugin-tab-message').getByRole('button', { name: '플러그인 설정 열기', exact: true }).click();
+    await expect(page.getByTestId('plugin-settings')).toContainText(cause);
+    await expect(page.getByTestId('plugin-settings').getByRole('status')).toHaveCount(0);
+    if (screenshots) {
+      await page.screenshot({ path: 'tmp/1097/after-settings-640.png' });
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.screenshot({ path: 'tmp/1097/after-settings-1440.png' });
+    }
+    await page.getByRole('button', { name: '다시 등록', exact: true }).click();
+    await confirmation.getByRole('button', { name: '기본 버전으로 다시 등록', exact: true }).click();
+    await expect(confirmation).toBeHidden();
+    await expect(page.getByRole('heading', { name: 'Docling 서버', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: '다시 등록', exact: true })).toBeDisabled();
   } finally {
     // Preferences survive page teardown; restore the next scenario's starting language.
     await page.evaluate(prefix => {

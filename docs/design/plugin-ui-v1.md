@@ -377,3 +377,41 @@ reread inventory, including plugins without UI contributions. Local switches and
 registration retain their immediate refresh. Superseded reads are aborted; no new
 polling loop is added. The existing docling-dashboard path requires the externally
 re-registered row to be checked, its gear enabled, and contributed settings usable.
+
+## Rejected saved registrations (#1097)
+
+UI discovery carries the Host's stored-manifest `registrationError`. The Renderer
+refuses activation before loading assets or observing the declared job route;
+existing plugin views unmount and polling stops. This is Host/Renderer discovery
+metadata, not a new plugin contribution API. Other plugins remain active.
+The existing sidebar/command entry opens plugin information in Settings for an
+invalid registration. Existing plugin tabs show a localized cause and an action
+to open that same settings surface. The plugin list reports Error rather than
+Loading, and settings omit contributed forms while registration is rejected.
+Bundled plugins retain the existing explicit default-registration confirmation
+and POST; non-bundled plugins show the cause and have no default-registration
+action. Successful registration restores normal discovery without a reload.
+No automatic replacement or past-data migration is performed.
+
+UI choice: existing Notice, SettingsRow, Button, Tooltip and registration Dialog
+(P07/P12) are reused; there is no new common component or Plugin API exception.
+The default-registration row remains the action surface; full installation
+metadata stays in the existing information view and list tooltip.
+
+Verification extends the existing inventory test (invalid bundled/external
+registrations, no rewrite and explicit recovery), UI registry test (refusal
+before loader invocation), and plugin-settings browser scenario (real temporary
+SQLite hash-version registration, existing tab error, Korean recovery and form
+return). No new subprocess or exhaustive combination is added.
+
+Manual Windows persistent-Chrome review, same rejected registration information
+surface in Korean Dark at 1440px and 640px:
+[1440 Before](assets/plugin-registration-1097/before-detail-1440.png) /
+[After](assets/plugin-registration-1097/after-settings-1440.png),
+[640 Before](assets/plugin-registration-1097/before-detail-640.png) /
+[After](assets/plugin-registration-1097/after-settings-640.png).
+The original [broken dashboard, 1440](assets/plugin-registration-1097/before-1440.png)
+and [existing tab after rejection, 640](assets/plugin-registration-1097/after-tab-640.png)
+show the failure and recovery entry. Control alignment, text padding, Korean
+wrapping, scrolling and clipping were inspected. No geometry or palette change
+is introduced.

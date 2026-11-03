@@ -26,10 +26,11 @@ test("UI activations isolate faults, reject incompatibility before load, preserv
     }, () => ({} as UiHost), () => {});
   const good = registration(), other = registration("other"), broken = registration("broken"), incompatible = registration("incompatible");
   incompatible.ui.api = 99;
-  registry.reconcile([good, other, broken, incompatible]); await settle();
+  registry.reconcile([good, other, broken, incompatible, { ...registration("stale"), registrationError: "Saved manifest is invalid." }]); await settle();
   assert.deepEqual(loads, ["test", "other", "broken"]);
   assert.match(states.find(item => item.id === "broken")!.error!, /evaluation failed/u);
   assert.match(states.find(item => item.id === "incompatible")!.error!, /Incompatible/u);
+  assert.match(states.find(item => item.id === "stale")!.error!, /Saved manifest/);
   const otherActivation = states.find(item => item.id === "other")!.contributions;
   registry.reconcile([other]); await settle();
   assert.deepEqual(disposed, ["test"]);

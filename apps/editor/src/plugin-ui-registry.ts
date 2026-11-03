@@ -1,7 +1,8 @@
 import { PLUGIN_UI, type UiRegistration } from "@litzio/plugin-api/config";
 import type { UiContributions, UiHost, UiModule } from "@litzio/plugin-api/ui";
 
-export type ActiveUi = UiRegistration & { contributions?: UiContributions; error?: string };
+export type HostUiRegistration = UiRegistration & { registrationError?: string | null };
+export type ActiveUi = HostUiRegistration & { contributions?: UiContributions; error?: string };
 export function contributionNotices(plugin: ActiveUi | undefined, kind: string, data: unknown) {
   try {
     const notices = plugin?.contributions?.tabs.find(tab => tab.id === kind)?.notices?.(data) ?? [];
@@ -55,12 +56,12 @@ export class UiRegistry {
     try { entry.state.contributions?.dispose(); } catch (error) { this.report(error); }
     entry.loaded?.release();
   }
-  reconcile(registrations: UiRegistration[]) {
+  reconcile(registrations: HostUiRegistration[]) {
     if (this.closed) return;
     const removed: Entry[] = [], added: Entry[] = [];
     for (const [id, entry] of this.entries) {
       const next = registrations.find(registration => registration.id === id);
-      if (!next || next.revision !== entry.state.revision || JSON.stringify(next.ui) !== JSON.stringify(entry.state.ui) || JSON.stringify(next.features) !== JSON.stringify(entry.state.features)) {
+      if (!next || next.revision !== entry.state.revision || next.registrationError !== entry.state.registrationError || JSON.stringify(next.ui) !== JSON.stringify(entry.state.ui) || JSON.stringify(next.features) !== JSON.stringify(entry.state.features)) {
         entry.alive = false; entry.controller.abort(); this.entries.delete(id); removed.push(entry);
       }
     }
@@ -76,6 +77,7 @@ export class UiRegistry {
   private async activate(entry: Entry) {
     let contributions: UiContributions | undefined;
     try {
+      if (entry.state.registrationError) throw new Error(entry.state.registrationError);
       checkUiCompatibility(entry.state, this.reactVersion);
       const loaded = await this.load(entry.state, entry.controller.signal);
       if (!entry.alive) { loaded.release(); return; }

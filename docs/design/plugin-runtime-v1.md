@@ -437,7 +437,9 @@ and dedicated-home limitations above remain; #931 is outside this change.
 `GET /api/worker-plugins` returns each pinned installation with its absolute
 `directory` and `bundledRevision` (null for plugins not included in the app).
 The bundled revision uses the exact manifest/file hashing used for registration;
-reading inventory never replaces an existing revision. Missing bundled plugins
+reading inventory never replaces an existing revision. Inventory also returns
+`registrationError` (null when the stored manifest meets current rules). This
+validation does not rewrite registrations or change the semver admission rules. Missing bundled plugins
 retain the existing first-use seeding behavior.
 `POST /api/worker-plugins` with `{ "bundled": "<id>" }` resolves only an app-owned
 manifest and calls the existing explicit registration function, enabling that

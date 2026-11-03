@@ -221,7 +221,12 @@ function EditorApp() {
     return () => elements?.forEach(element => { element.inert = false; });
   }, [assistantOpen, assistantOverlay, fileOperationPending]);
   const pluginActions = (surface: "commands" | "sidebar") => ui.plugins.flatMap(plugin =>
-    (plugin.contributions?.[surface] ?? []).map(action => ({ ...action, id: `${plugin.id}/${action.id}`,
+    (plugin.registrationError ? [{
+      id: "registration-error", label: plugin.id === "docling" ? "Docling" : plugin.id === "ai-agent" ? "AI agent" : plugin.id,
+      run: (focus: HTMLElement | null) => {
+        settingsReturnFocus.current = focus; setSettingsCategory(`plugin/${plugin.id}`); openSettingsTab();
+      },
+    }] : plugin.contributions?.[surface] ?? []).map(action => ({ ...action, id: `${plugin.id}/${action.id}`,
       run: (focus: HTMLElement | null) => {
         try { void Promise.resolve(action.run(focus)).catch(error => setPluginActionProblem(String(error))); }
         catch (error) { setPluginActionProblem(String(error)); }
@@ -1365,7 +1370,7 @@ function EditorApp() {
           })}
           {pluginTabs.map(tab => {
             const groupIndex = navigation.groups.findIndex(group => group.tabs.includes(tab.id));
-            return <PluginTab key={tab.id} tab={tab} plugin={ui.plugins.find(plugin => plugin.id === tab.plugin)} groupIndex={groupIndex}
+            return <PluginTab onRecover={id => { setSettingsCategory(`plugin/${id}`); openSettingsTab(); }} key={tab.id} tab={tab} plugin={ui.plugins.find(plugin => plugin.id === tab.plugin)} groupIndex={groupIndex}
               active={navigation.groups[groupIndex]?.active === tab.id} focused={tab.id === activeId} onFocus={focusDocument} />;
           })}
           {settingsGroup ? <div className="plugin-tab settings-tab" role="tabpanel" tabIndex={-1} id="panel-settings" aria-labelledby="tab-settings"
