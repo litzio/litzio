@@ -235,6 +235,11 @@ select로 제공한다. 설정 기본값은 명시적 Save로 저장하고, 패�
 `ai-agent` 시나리오가 두 저장 범위와 실행 상태를 검증한다
 ([현재 계약·1440px/640px 캡처](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)).
 
+#974의 비서 대화 기록은 제목을 semibold 주 문구로, 현지화한 시각과 폴더 이름을
+별도 보조 줄로 표시한다. 전체 경로는 tooltip으로 유지하며 항목은 공용 subtle
+구분선과 목록 여백을 쓴다. 마지막 대화 선택은 origin별 UI 환경설정이며 새 대화는
+기존 버튼으로 시작한다([계약·전후 캡처](main-agent-v1.md#last-conversation-and-history-list-974)).
+
 ## P12 모달·파일·복구·설정 범위
 
 - **목적·사용/비사용:** 파일·복구·파괴 작업은 대상과 결과를 확인한다. metadata의 Done/바깥 적용을 이식하거나 기기 설정을 문서 Save에 묶지 않는다.

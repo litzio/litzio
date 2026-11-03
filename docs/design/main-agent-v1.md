@@ -224,6 +224,30 @@ progress are owned by Codex. Choosing history calls `thread/resume` and pages
 memory. A disconnected process marks active work failed and explicit resumption
 reloads Codex history; no model request is automatically replayed.
 
+### Last conversation and history list (#974)
+
+Opening the panel returns to the last viewed conversation, including after a page
+reload. Its ID is an origin-local UI preference alongside panel width; the Host
+history index and its title/folders/timestamps format are unchanged. Choosing New
+conversation clears that preference. Reopening dismisses the history list and
+shows the conversation. If automatic resumption fails (including a missing
+thread), the panel quietly starts an empty conversation with settings defaults.
+Connection/login failures retain their existing Settings guidance.
+
+History entries use a semibold title, a separate locale-formatted date/time and
+short folder names with full paths in the tooltip. Quiet dividers separate rows,
+as in other shell/settings lists; long titles and names wrap within the panel.
+No rename/delete actions or document-path metadata are added.
+
+The fake `ai-agent` browser scenario checks selected older-thread restoration,
+page reload, New conversation and failed automatic resume without model turns.
+Same-state Korean Dark captures: 1440px [Before](assets/assistant-history-974/before-1440.png) /
+[After](assets/assistant-history-974/after-1440.png), 640px
+[Before](assets/assistant-history-974/before-640.png) /
+[After](assets/assistant-history-974/after-640.png).
+Reproduce with `pnpm browser:test ai-agent --screenshots` (history captures in
+`tmp/974-evidence`). Captures are manual visual evidence.
+
 `GET /api/ai-agent-conversations` lists metadata; `?id=…` reads a loaded snapshot.
 `POST` accepts `send`, `resume` and `interrupt` actions. These are concrete
 AI-plugin Host routes, not an arbitrary JSON-RPC proxy or a new UI contribution
