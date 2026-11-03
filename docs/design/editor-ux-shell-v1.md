@@ -731,6 +731,10 @@ below retain their original date and behavior.
 
 ## Dedicated Settings screen (#594)
 
+Historical surface and verification below: #1032 supersedes the full-screen modal,
+Back action, navigation footer and initial focus described here. Current behavior
+is [Settings task tab](#settings-task-tab-1032). Preference/save contracts remain.
+
 Settings from the Sidebar or command center covers the entire app with an opaque,
 viewport-sized screen. The document shell stays mounted beneath it: tabs, independent
 editor instances, unapplied drafts, selection, Undo history and scroll remain intact.
@@ -2640,6 +2644,9 @@ owns its fixed path, IPC and logging behavior.
 
 ## Settings document entry removal (#669)
 
+The entry-removal decision remains current; full-screen bounds and Back-action
+verification below are historical, superseded by [#1032](#settings-task-tab-1032).
+
 Settings no longer offers Open document settings. Its navigation footer retains the
 per-document explanation without an empty control container. The document's own
 inline disclosure and Command center entry remain available; this shell-only change
@@ -2938,3 +2945,51 @@ Captures use the same startup document plus eight scratch technical documents,
 900px height, an expanded Explorer, and the final technical document active.
 They are manual visual evidence, separate from the document-tabs keyboard and
 editor-groups pointer regressions and the layout-rules/quiet-document assertions.
+
+## Settings task tab (#1032)
+
+Owner decision [#1026](https://github.com/litzio/litzio/issues/1026) replaces the
+Back to document screen with a single Host-owned Settings task tab. Explorer,
+title strip and ordinary document tabs remain accessible. Sidebar and Command
+Center open it in the focused group; reopening selects its existing group without
+moving or duplicating it. The ordinary tab context menu moves it to the right or
+the other group. The same narrow-area merge rule applies.
+
+Command Center provides keyboard entry. Tab-row arrows/Home/End switch between
+Settings and documents; Tab enters its close control and category navigation.
+Delete or the close button closes the tab and focuses the neighboring tab.
+Escape from Settings content or its tab closes it and returns focus to the connected
+opener (or Explorer toggle). Nested dialogs retain their own Escape boundary.
+Settings does not trap focus or own document Save/Undo. Ctrl+S while Settings owns
+focus does not save a hidden document; a visible document in the other group keeps
+its own Save and editing operations.
+
+Like Plugin tabs, Settings has no document session, dirty indicator, recovery
+record or startup restoration. Switching away keeps its mounted category and
+unsaved settings drafts; closing discards view-local drafts. Applied app preferences
+remain stored independently. AI settings retain explicit Save and Docling retains
+field-exit saving. Document input, drafts and Undo history stay with their mounted
+editing sessions and are never saved by opening or closing Settings.
+
+The Host owns heading, category navigation, scroll and bounded content column;
+built-in and contributed categories supply content inside that frame. Existing
+Button, select, Input and settings styles are reused. No public Plugin API or
+common settings-row blocks are added (#1033 owns those). Container width, including
+split groups, selects the stacked layout. Redundant return-document and category
+explanation prose is removed; document identity/dirty state remains in its tab.
+
+Manual visual evidence (English, 1000px height):
+
+| State | 1440px Light | 640px Dark |
+| --- | --- | --- |
+| Before | [Full-screen Settings](assets/settings-tab-1032/before-1440-light.png) | [Full-screen Settings](assets/settings-tab-1032/before-640-dark.png) |
+| After | [Settings tab](assets/settings-tab-1032/after-1440-light.png) | [Settings tab](assets/settings-tab-1032/after-640-dark.png) |
+
+[Two groups: document beside Settings](assets/settings-tab-1032/after-two-groups.png).
+Captures are manual review evidence, separate from automated assertions. Direct
+review found no horizontal clipping at 640px and confirmed the shared shell and
+independently visible document in two groups. The [capture body](assets/settings-tab-1032/capture.browser.js)
+was run manually through `pnpm browser:test plugin-settings --screenshots` with a
+temporary replacement of that scenario body, then restored; it is not CI coverage. Existing
+Settings and tab browser scenarios cover navigation, retained document state and
+settings save behavior rather than enumerating all theme/category combinations.

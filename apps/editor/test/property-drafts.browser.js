@@ -145,7 +145,7 @@ async (page, { openPath, expect }) => {
 
       await activate(page.getByRole('button',{name:'Settings',exact:true}));
       const settings = page.getByTestId('settings-dialog');
-      await page.getByTestId('settings-back').and(page.locator(':focus')).waitFor();
+      await page.locator('[data-tab-id="settings"] .document-tab-close').and(page.locator(':focus')).waitFor();
       await settings.getByRole('button',{name:'Saving & recovery',exact:true}).click();
       await retained('Settings category');
       await settings.getByTestId('settings-back').click();

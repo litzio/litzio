@@ -249,7 +249,7 @@ select로 제공한다. 설정 기본값은 명시적 Save로 저장하고, 패�
 ## P12 모달·파일·복구·설정 범위
 
 - **목적·사용/비사용:** 파일·복구·파괴 작업은 대상과 결과를 확인한다. metadata의 Done/바깥 적용을 이식하거나 기기 설정을 문서 Save에 묶지 않는다.
-- **목표·현재 기준:** 기존 [UnsavedChangesDialog](../../apps/editor/src/shell/UnsavedChangesDialog.tsx), [DangerConfirmation](../../apps/editor/src/components/ui/danger-confirmation.tsx), 파일 dialog·비교 화면을 유지한다. 제목→대상→설명/문제→명시적 동사 action, 안전한 취소·focus 복귀, busy 중 중복 실행 방지가 기준이다. 앱 Settings는 즉시 반영하는 별도 화면, file preview·단축키는 읽기 dialog다.
+- **목표·현재 기준:** 기존 [UnsavedChangesDialog](../../apps/editor/src/shell/UnsavedChangesDialog.tsx), [DangerConfirmation](../../apps/editor/src/components/ui/danger-confirmation.tsx), 파일 dialog·비교 화면을 유지한다. 제목→대상→설명/문제→명시적 동사 action, 안전한 취소·focus 복귀, busy 중 중복 실행 방지가 기준이다. 앱 Settings는 문서와 오가는 단일 작업 탭, file preview·단축키는 읽기 dialog다.
 - **사용처:** U22 앱 설정, U23 파일/폴더 picker·새 이름, U24 미저장·삭제·저장/복구 비교, U25 미리보기·단축키·참고문헌 연결.
 - **키보드 경계 (#831):** 공용 Dialog는 native Undo/Redo가 modal 밖 입력·초안으로 이동하거나 수정하는 것을 차단한다. modal 안 입력의 자체 Undo/Redo는 유지하고, Escape는 활성 modal만 닫아 바깥 미적용 초안을 보존한다. 명령 센터도 같은 경계를 쓰며 비모달 알림 센터의 문서 history는 유지한다. [현재 Undo 계약](document-editing-v1.md#shared-history-and-editing-boundaries).
 - **추가 사용처:** #797 Docling 서버 Settings는 Host 기기 설정·field exit 저장, PDF 선택은 기존 FolderDialog, 실행은 작은 명시적 변환 확인 dialog다. 진행·대기 중단은 대시보드에, 완료는 이름 있는 동작 알림에 둔다(#942). 연결 확인 실패 뒤에도 서버 구성 안내 링크를 유지한다. 같은 Settings/파일 dialog 패턴을 재사용한다.
@@ -302,3 +302,9 @@ of document drafts, Save and Undo. See [table contract](table-interaction-v1.md#
 
 #973: 문서가 없는 시작 화면과 플러그인 탭에서는 탭 줄의 문서 동작 묶음을 숨긴다.
 일반 텍스트 문서의 지원 동작은 유지한다([현재 계약](editor-ux-shell-v1.md#title-strip-and-tab-row-actions-695)).
+
+#1032: Settings는 Host가 머리·범주 탐색·스크롤·콘텐츠 열을 소유하고 각 범주는 내용만
+그린다. 기존 Button·탭·입력 토큰을 재사용하며 공용 설정 행 블록은 #1033 범위다.
+앱 즉시 반영, AI 명시적 Save, Docling field exit 저장은 문서 Save와 분리한다.
+탭 사이 이동은 설정 초안을 유지하며 닫기·재시작은 Plugin 탭처럼 초안을 복원하지 않는다.
+[탭 수명·키보드·전후 캡처](editor-ux-shell-v1.md#settings-task-tab-1032).

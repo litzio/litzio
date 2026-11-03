@@ -31,6 +31,36 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   await expect(page).toHaveTitle('Litzio');
   await expect(page.locator('.top-bar-actions')).toHaveCount(0);
   check(await page.locator('.app-titlebar').evaluate(n=>n.offsetHeight) === 40 && await page.locator('.document-tab-row').evaluate(n=>n.offsetHeight) === 33, 'Empty start lost its two fixed shell rows');
+  // Host task tabs share navigation but never become document recovery/restoration entries.
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  const settingsTab = page.getByRole('tab',{name:'Settings',exact:true});
+  await expect(settingsTab).toBeFocused();
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await expect(settingsTab).toHaveCount(1);
+  await openPath(page, a);
+  const docTab = page.getByRole('tab',{name:'technical-1.md',exact:true});
+  await settingsTab.click();
+  await settingsTab.press('ArrowRight');
+  await expect(docTab).toHaveAttribute('aria-selected','true');
+  await settingsTab.click();
+  await settingsTab.click({button:'right'});
+  await page.getByRole('menuitem',{name:'Open to the right',exact:true}).click();
+  await expect(page.locator('.editor-group-headers > section')).toHaveCount(2);
+  await expect(editor()).toHaveCount(0); // Settings owns keyboard focus, document stays visible.
+  await expect(page.locator('[data-document-tab] .document-editor').filter({visible:true})).toHaveCount(1);
+  await docTab.click();
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await expect(settingsTab).toHaveCount(1);
+  await expect(settingsTab).toHaveAttribute('aria-selected','true');
+  await settingsTab.press('Delete');
+  await expect(settingsTab).toHaveCount(0);
+  await expect(docTab).toHaveAttribute('aria-selected','true');
+  await page.getByRole('button',{name:'Settings',exact:true}).click();
+  await flush();
+  check(!(await memory()).paths.includes('settings'), 'Settings leaked into restored documents');
+  await page.reload(); await ready();
+  await expect(settingsTab).toHaveCount(0);
+  await page.getByRole('button',{name:'Close technical-1.md',exact:true}).click();
   // Navigation memory restores order and active identity, without restoring editor state.
   await openPath(page, a);
   await page.setViewportSize({width:640,height:900});

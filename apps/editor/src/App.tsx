@@ -177,7 +177,7 @@ function EditorApp() {
   const filePickerRequest = useRef<typeof pluginFilePicker>(null);
   const compareReturn = useRef<HTMLElement | null>(null);
   const ui = usePluginUi({
-    openSettings: (section, focus) => { settingsReturnFocus.current = focus; setSettingsCategory(section as SettingsCategory); setSettingsOpen(true); },
+    openSettings: (section, focus) => { settingsReturnFocus.current = focus; setSettingsCategory(section as SettingsCategory); openSettingsTab(); },
     openDocument: async path => { await openFolderDocument(path); },
     openFolder: path => openFolder(path),
     pickFolder: (options, focus, signal) => { compareReturn.current = focus; setPluginPicker({ ...options, signal }); },
@@ -230,7 +230,10 @@ function EditorApp() {
     const peers = pluginTabs.filter(other => other.plugin === tab.plugin && other.kind === tab.kind);
     return tabLabels(peers)[peers.indexOf(tab)]!;
   });
-  const allTabs = [...tabs, ...pluginTabs.map((tab, index) => ({ ...tab,
+  const settingsGroup = navigation.groups.find(group => group.tabs.includes("settings"));
+  const settingsOpen = settingsGroup?.active === "settings";
+  const settingsFocused = activeId === "settings";
+  const allTabs = [...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs, ...pluginTabs.map((tab, index) => ({ ...tab,
     title: [pluginTabLabels[index]!.folder ?? documentLocation(tab.path)[0], i18n.t(tab.label as MessageKey)].filter(Boolean).join(" · ") }))];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
@@ -681,9 +684,10 @@ function EditorApp() {
     return `./${renamed.slice(directory.length).replaceAll("\\", "/")}`;
   };
   function closeTab(id: string): void {
-    if (pluginTabs.some(tab => tab.id === id)) {
+    if (id === "settings" || pluginTabs.some(tab => tab.id === id)) {
       if (busy || continuation) return;
       setPluginTabs(previous => previous.filter(tab => tab.id !== id));
+      if (id === "settings") setHighlightUpdate(false);
       navigate({ type: "close", id }); focusAfterClose.current = true; return;
     }
     const owner = sessions.current.get(id);
@@ -694,8 +698,17 @@ function EditorApp() {
     } else removeTab(id);
   }
   const [desktopInfo, setDesktopInfo] = useState<DesktopInfo | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  function openSettingsTab(): void {
+    if (operationRef.current || continuation) return;
+    if (settingsGroup) navigate({ type: "select", id: "settings" });
+    else placeTab("settings");
+    requestAnimationFrame(() => globalThis.document.getElementById("tab-settings")?.focus());
+  }
   const settingsReturnFocus = useRef<HTMLElement | null>(null);
+  function closeSettingsTab(): void {
+    closeTab("settings");
+    requestAnimationFrame(() => { const target = shellReturnFocus(settingsReturnFocus.current); if (target !== true) target.focus(); });
+  }
 
   // Resolve when an overlay closes: a viewport change can replace its original opener.
   function shellReturnFocus(preferred: HTMLElement | null): HTMLElement | true {
@@ -909,22 +922,26 @@ function EditorApp() {
   // never applies. Modal dialogs cover the Save button, so the shortcut waits for them too.
   const saveShortcut = useRef<(event: KeyboardEvent) => void>(() => {});
   saveShortcut.current = (event) => {
+    if (event.key === "Escape" && !event.isComposing && activeId === "settings" &&
+        globalThis.document.activeElement?.id === "tab-settings") {
+      event.preventDefault(); closeSettingsTab(); return;
+    }
     if (ASSISTANT_SHORTCUT.matches(event) && event.key !== "Process" && event.keyCode !== 229 && assistantAvailable) {
-      if (settingsOpen || globalThis.document.querySelector('[data-slot="dialog-content"]')) return;
+      if (globalThis.document.querySelector('[data-slot="dialog-content"]')) return;
       event.preventDefault(); toggleAssistant(); return;
     }
     if (COMMAND_CENTER_SHORTCUT.matches(event)) {
       event.preventDefault();
       if (globalThis.document.querySelector('[data-slot="dialog-content"]:not(.command-center-dialog)') ||
-          folderDialog || newDialog || newFolderDialog || reloadDialog || openRefusal || continuation || recoveryReview || saveComparison || settingsOpen) return;
+          folderDialog || newDialog || newFolderDialog || reloadDialog || openRefusal || continuation || recoveryReview || saveComparison) return;
       openCommandCenter("");
       return;
     }
     if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey ||
         (event.key.toLowerCase() !== "s" && event.code !== "KeyS")) return;
     event.preventDefault();
-    if (globalThis.document.querySelector('[data-slot="dialog-content"]') || folderDialog || newDialog || newFolderDialog || reloadDialog || openRefusal || continuation || recoveryReview || saveComparison || settingsOpen) return;
-    void save();
+    if (globalThis.document.querySelector('[data-slot="dialog-content"]') || folderDialog || newDialog || newFolderDialog || reloadDialog || openRefusal || continuation || recoveryReview || saveComparison) return;
+    if (!settingsFocused) void save();
   };
   useEffect(() => {
     // Capture, so inputs inside node views (Equation, Figure, code language) cannot swallow it.
@@ -941,7 +958,7 @@ function EditorApp() {
     const target = event.target;
     if (!(target instanceof HTMLElement) || (target !== globalThis.document.body && !shell.current?.contains(target) && !target.closest('.notification-center')) ||
         target.closest('input, textarea, select, .document-editor, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="menu"]') ||
-        globalThis.document.querySelector('[data-slot="dialog-content"], [aria-modal="true"], dialog[open], .settings-screen')) return;
+        target.closest('.settings-screen') || globalThis.document.querySelector('[data-slot="dialog-content"], [aria-modal="true"], dialog[open]')) return;
     const action = EDITOR_SHORTCUTS.undo.matches(event) ? "undo"
       : EDITOR_SHORTCUTS.redo.matches(event) || EDITOR_SHORTCUTS.redoAlternative.matches(event) ? "redo" : undefined;
     const editor = editorRef.current;
@@ -1104,7 +1121,7 @@ function EditorApp() {
       label: i18n.t("Refresh folder"), detail: tree.root, icon: RotateCw,
       keywords: ["refresh folder", "폴더 새로고침"], run: () => folders.refreshRoot(tree.root) })),
     { id: "save", kind: "command", label: i18n.t("Save"), icon: Save, disabled: !session || busy || view === "read",
-      keywords: ["save", "저장"], shortcut: SAVE_SHORTCUT.label, run: () => { void save(); } },
+      keywords: ["save", "저장"], shortcut: SAVE_SHORTCUT.label, run: () => { if (!settingsFocused) void save(); } },
     { id: "save-comparison", kind: "command", label: i18n.t("Changes before saving"), icon: FileDiff,
       disabled: !document || !(documentDirty || draftActive) || busy, takesFocus: true, keywords: ["diff compare save preview", "저장 전 변경 내용 보기"],
       run: () => compareBeforeSave(commandReturnFocus.current) },
@@ -1135,7 +1152,7 @@ function EditorApp() {
       keywords: ["color mode", "theme", "색상 모드", "테마", THEME_LABELS[value], { system: "시스템", light: "라이트", dark: "다크" }[value]],
       run: () => changeTheme(value) })),
     { id: "settings", kind: "command", label: i18n.t("Settings"), icon: Settings2, takesFocus: true,
-      keywords: ["settings", "설정"], run: () => { settingsReturnFocus.current = commandReturnFocus.current; setSettingsCategory("appearance"); setSettingsOpen(true); void refreshRecovery(); } },
+      keywords: ["settings", "설정"], run: () => { settingsReturnFocus.current = commandReturnFocus.current; setSettingsCategory("appearance"); openSettingsTab(); void refreshRecovery(); } },
     { id: "document-settings", kind: "command", label: i18n.t("Document settings…"), icon: SlidersHorizontal,
       disabled: historyDisabled, takesFocus: true, keywords: ["document settings", "문서 설정"],
       run: () => editorRef.current?.openDocumentSettings() },
@@ -1160,7 +1177,7 @@ function EditorApp() {
   ];
 
   return (<>
-    <div ref={shell} style={assistantSize ? { "--assistant-width": `${assistantSize}px` } as React.CSSProperties : undefined} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !pluginTab && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
+    <div ref={shell} style={assistantSize ? { "--assistant-width": `${assistantSize}px` } as React.CSSProperties : undefined} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
       <Sidebar
         theme={theme} onThemeChange={changeTheme}
         pluginFileActions={ui.plugins.flatMap(plugin => (plugin.contributions?.fileActions ?? []).map(action => ({ ...action,
@@ -1220,7 +1237,7 @@ function EditorApp() {
           settingsReturnFocus.current = returnFocus;
           setSettingsCategory(unseenUpdate ? "about" : "appearance");
           setHighlightUpdate(!!unseenUpdate);
-          setSettingsOpen(true);
+          openSettingsTab();
           void refreshRecovery();
         }}
       />
@@ -1297,7 +1314,7 @@ function EditorApp() {
           if (event.button === 0 && event.target instanceof HTMLElement && event.target.classList.contains("document-column") && (owner?.kind === "text" || owner?.view === "visual") &&
             owner.editorRef.current?.focusEnd(event.clientY)) event.preventDefault();
         }}>
-          {tabs.length === 0 && pluginTabs.length === 0 && start ? (
+          {tabs.length === 0 && pluginTabs.length === 0 && !settingsGroup && start ? (
             <div className="document-scroll" data-active="true"><div className="document-column"><DocumentStart
               mark={productMark} darkMark={darkIcon}
               recovery={<RecoveryList records={recoveryRecords.filter(record => !tabs.some(tab => tab.recoveryId === record.id))} unavailable={Boolean(recoveryProblem)} onReview={reviewRecovery} />}
@@ -1326,9 +1343,29 @@ function EditorApp() {
             return <PluginTab key={tab.id} tab={tab} plugin={ui.plugins.find(plugin => plugin.id === tab.plugin)} groupIndex={groupIndex}
               active={navigation.groups[groupIndex]?.active === tab.id} focused={tab.id === activeId} onFocus={focusDocument} />;
           })}
+          {settingsGroup ? <div className="plugin-tab settings-tab" role="tabpanel" tabIndex={-1} id="panel-settings" aria-labelledby="tab-settings"
+            hidden={!settingsOpen} inert={!settingsOpen} data-document-tab="settings" data-active={settingsFocused ? "true" : "false"}
+            data-group-index={navigation.groups.indexOf(settingsGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(settingsGroup) } as React.CSSProperties}
+            onFocusCapture={() => focusDocument("settings")} onPointerDownCapture={() => focusDocument("settings")}>
+            <SettingsDialog
+                sections={ui.plugins.flatMap(plugin => (plugin.contributions?.settings ?? []).map(section => ({ ...section, id: `plugin/${plugin.id}/${section.id}` })))}
+                theme={theme} themeProblem={themeProblem} onThemeChange={changeTheme}
+                category={settingsCategory}
+                highlightUpdate={highlightUpdate}
+                onCategoryChange={(category) => { setSettingsCategory(category); setHighlightUpdate(false); }}
+                recoveryCount={recoveryRecords.length}
+                recoveryProblem={recoveryProblem}
+                onClearRecovery={() => deleteRecovery()}
+                desktop={desktop}
+                info={desktopInfo}
+                onInfo={setDesktopInfo}
+                onInstall={installUpdate}
+                onClose={closeSettingsTab}
+              />
+          </div> : null}
         </main>
       </div>
-      {panelOpen && !assistantOpen && !pluginTab && session?.kind !== "text" ? (
+      {panelOpen && !assistantOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? (
         <DocumentPanel
           overlay={panelOverlay}
           outline={document ? outlineStore : undefined}
@@ -1343,7 +1380,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable ? <AssistantPanel open={assistantOpen && !settingsOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable ? <AssistantPanel open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { await openFolderDocument(path); }}
         onUndo={async result => {
@@ -1353,7 +1390,7 @@ function EditorApp() {
         }}
         documentPath={openedPath} folders={openedFolderPaths}
         context={async () => session ? { path: session.openedPath, source: session.kind === "native" ? await session.appliedSource() : session.getSnapshot().text } : undefined}
-        onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("plugin/ai-agent/ai-agent"); setSettingsOpen(true); }} /> : null}
+        onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("plugin/ai-agent/ai-agent"); openSettingsTab(); }} /> : null}
       {ui.plugins.map(plugin => { const View = plugin.contributions?.View; return View ? <ContributionBoundary key={`${plugin.id}/${plugin.revision}`}><View /></ContributionBoundary> : null; })}
       <FolderDialog open={Boolean(pluginFilePicker)} choose={pluginFilePicker?.choose} title={pluginFilePicker?.title ?? ""}
         description={pluginFilePicker?.description ?? ""}
@@ -1389,25 +1426,6 @@ function EditorApp() {
           catch (error) { return messageOf(error); }
         }}
         returnFocus={compareReturn} finalFocus={() => shellReturnFocus(compareReturn.current)} onClose={() => setPluginPicker(null)} />
-      <SettingsDialog
-          sections={ui.plugins.flatMap(plugin => (plugin.contributions?.settings ?? []).map(section => ({ ...section, id: `plugin/${plugin.id}/${section.id}` })))}
-          open={settingsOpen}
-          theme={theme} themeProblem={themeProblem} onThemeChange={changeTheme}
-          category={settingsCategory}
-          highlightUpdate={highlightUpdate}
-          onCategoryChange={(category) => { setSettingsCategory(category); setHighlightUpdate(false); }}
-          documentName={openedPath ? splitDocumentPath(openedPath).name : ""}
-          unsaved={documentDirty || draftActive}
-          recoveryCount={recoveryRecords.length}
-          recoveryProblem={recoveryProblem}
-          onClearRecovery={() => deleteRecovery()}
-          desktop={desktop}
-          info={desktopInfo}
-          onInfo={setDesktopInfo}
-          onInstall={installUpdate}
-          returnFocus={() => shellReturnFocus(settingsReturnFocus.current)}
-          onClose={() => { setSettingsOpen(false); setHighlightUpdate(false); }}
-        />
       <CommandCenter open={commandQuery !== null} initialQuery={commandQuery ?? ""} items={commandItems}
         returnFocus={commandReturnFocus} onClose={() => setCommandQuery(null)} />
       <KeyboardShortcutsDialog open={shortcutsOpen} returnFocus={shortcutsReturnFocus} onClose={() => setShortcutsOpen(false)} />
@@ -1529,7 +1547,7 @@ function EditorApp() {
     </div>
     <ShellNotificationCenter panelWidth={assistantOpen
       ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
-      : panelOpen && !pluginTab && session?.kind !== "text" ? "var(--layout-document-panel-width)" : "0px"} />
+      : panelOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? "var(--layout-document-panel-width)" : "0px"} />
   </>);
 }
 

@@ -201,9 +201,9 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
             if (collapsed && [1440,640].includes(width) && reserved === 138 && !panelOpen) {
               const settings = page.getByTestId('sidebar').getByRole('button',{name:'Settings',exact:true});
               await settings.click();
-              await page.getByTestId('settings-back').waitFor();
+              await page.locator('[data-tab-id="settings"] .document-tab-close').waitFor();
               check(await page.getByRole('button',{name:'About & updates',exact:true}).isVisible(), 'Rail opened different Desktop Settings');
-              if (theme === 'light') await page.getByTestId('settings-back').click();
+              if (theme === 'light') await page.locator('[data-tab-id="settings"] .document-tab-close').click();
               else await page.keyboard.press('Escape');
               await page.getByTestId('settings-dialog').waitFor({state:'detached'});
               check(await settings.evaluate(node => node === document.activeElement), 'Desktop Settings did not return focus to rail');
@@ -245,19 +245,8 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
     await page.getByRole('button', {name:'Settings', exact:true}).click();
     const settingsScreen = page.getByTestId('settings-dialog');
     await settingsScreen.waitFor();
-    const geometry = await settingsScreen.evaluate(node => {
-      const header = node.querySelector('.settings-topbar');
-      const label = node.querySelector('.settings-document-name');
-      const style = getComputedStyle(header);
-      return {height:header.getBoundingClientRect().height, left:parseFloat(style.paddingLeft), right:parseFloat(style.paddingRight),
-        labelRight:label.getBoundingClientRect().right, labelText:label.textContent,
-        headerRegion:style.getPropertyValue('app-region'), screenRegion:getComputedStyle(node).getPropertyValue('app-region'),
-        bodyRegion:getComputedStyle(node.querySelector('.settings-body')).getPropertyValue('app-region'),
-        backRegion:getComputedStyle(node.querySelector('button')).getPropertyValue('app-region')};
-    });
-    if (geometry.height !== 40 || geometry.right !== geometry.left + 138 || geometry.labelRight > width - 138 || geometry.labelText !== longName ||
-        geometry.headerRegion !== 'drag' || geometry.screenRegion !== 'no-drag' || geometry.bodyRegion !== 'no-drag' || geometry.backRegion !== 'no-drag')
-      captionFailures.push({width, settings:geometry});
+    check(await page.locator('.app-titlebar').isVisible() && await page.getByRole('tab',{name:'Settings',exact:true}).isVisible(), 'Settings must keep the shared titlebar and tab row');
+    check(await settingsScreen.evaluate(node => getComputedStyle(node).getPropertyValue('app-region') === 'no-drag'), 'Settings content must not drag the window');
     await page.keyboard.press('Escape');
     await settingsScreen.waitFor({state:'detached'});
     // A short 640px window retains the single title row and reachable portal search (#695).
@@ -314,7 +303,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   check(await settings.evaluate(node => node === document.activeElement), 'Tab from Docling did not reach Settings');
   await page.keyboard.press('Enter');
   await dialog.waitFor();
-  await page.waitForFunction(() => document.activeElement?.textContent === 'Back to document', undefined, {timeout:5_000});
+  await page.getByRole('tab',{name:'Settings',exact:true}).and(page.locator(':focus')).waitFor();
   await dialog.getByRole('button',{name:'About & updates',exact:true}).click();
   check(await page.getByTestId('app-version').innerText() === '0.2.0', 'About does not show the version');
   check(await dialog.getByText(`${brand.name.en} connects input/output (I/O) with Litz wire.`, {exact:true}).isVisible(), 'About does not explain the product name');
@@ -591,13 +580,13 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
             bounded:content.width <= parseFloat(getComputedStyle(n.querySelector('.settings-content-inner')).maxWidth) + 1,
             stacked:main.top >= nav.bottom, dpr:devicePixelRatio, zoom:visualViewport.scale};
         });
-        check(geometry.x === 0 && geometry.y === 0 && geometry.width === width && geometry.height === 900,
-          `Settings does not cover the app: ${JSON.stringify(geometry)}`);
+        check(geometry.x >= 0 && geometry.y > 0 && geometry.width <= width && geometry.y + geometry.height <= 901,
+          `Settings is outside its shell area: ${JSON.stringify(geometry)}`);
         check(!geometry.overflow && geometry.bounded && (width >= 768 || geometry.stacked),
           `Settings layout failed at ${language}/${width}/${category}: ${JSON.stringify(geometry)}`);
         const scrollState = await dialog.evaluate(n => ({
           scrollers:[n,...n.querySelectorAll('*')].filter(e => e.scrollTop).map(e => ({className:e.className,top:e.scrollTop})),
-          note:n.querySelector('.settings-document-note').getBoundingClientRect().toJSON(),
+
           nav:n.querySelector('.settings-navigation').getBoundingClientRect().toJSON(),
         }));
         screenResults.push({language,width,category,...geometry,scrollState});
@@ -651,9 +640,9 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
     await page.reload();
     await page.getByTestId('document-start').waitFor();
     await page.getByRole('button',{name:'Settings',exact:true}).click();
-    check(await dialog.getByRole('button',{name:'Back to start',exact:true}).isVisible(), 'Settings has no start return');
+    check(await page.getByRole('tab',{name:'Settings',exact:true}).isVisible(), 'Settings must open a task tab from start');
     check(await dialog.getByRole('button',{name:'Open document settings',exact:true}).count() === 0, 'Start offers document settings');
-    await dialog.getByRole('button',{name:'Back to start',exact:true}).click();
+    await page.locator('[data-tab-id="settings"] .document-tab-close').click();
     await dialog.waitFor({state:'detached'});
     await push({phase:'downloaded', version:'0.3.0-beta.2', prerelease:true});
     await dot.waitFor();
