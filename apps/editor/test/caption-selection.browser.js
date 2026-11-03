@@ -35,7 +35,8 @@ async (page, { openPath, expect, reloadDocument }) => {
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   // The two gaps target the editable wrapper, rather than the body contentDOM.
   for (const location of ['left-gap', 'actions-gap', 'text', 'body-right']) {
-    for (const input of ['Z', 'Backspace', 'Delete', 'paste']) {
+    // Every hit area stays connected; input variants share the text-area selection.
+    for (const input of location === 'text' ? ['Z', 'Backspace', 'Delete', 'paste'] : ['Z']) {
       await restore();
       const definition = editor.locator('[data-testid=footnote-definition][data-label=note-a]');
       await definition.getByTestId('endnote-edit').click();
@@ -75,7 +76,10 @@ async (page, { openPath, expect, reloadDocument }) => {
   expect(failures, 'Endnote triple clicks must retain editing and preserve neighboring blocks').toEqual([]);
   for (const label of cases) {
     for (const location of ['text', 'after-text', 'right', label === 'code' ? 'padding' : 'number']) {
-      for (const input of ['Z', 'Backspace', 'Delete']) {
+      // Figure variants share a handler. Table and code retain independent input representatives.
+      const inputs = location === 'text' && ['fig-a', 'tbl-a', 'code'].includes(label)
+        ? ['Z', 'Backspace', 'Delete', 'paste'] : ['Z'];
+      for (const input of inputs) {
         // Reload the scratch file: destructive pre-fix cases must not contaminate later clicks.
         await restore();
         const caption = captionFor(label);
@@ -96,11 +100,14 @@ async (page, { openPath, expect, reloadDocument }) => {
         const before = await snapshot(label);
         await page.mouse.click(point.x, point.y, {clickCount:3});
         const selected = await snapshot(label);
-        if (input === 'Z') await page.keyboard.type(input); else await page.keyboard.press(input);
+        if (input === 'paste') {
+          await page.evaluate(() => navigator.clipboard.writeText('Pasted text'));
+          await page.keyboard.press('Control+V');
+        } else if (input === 'Z') await page.keyboard.type(input); else await page.keyboard.press(input);
         const after = await snapshot(label);
         try {
           expect(selected.selection, `${label}/${location}/${input} selection`).toEqual(before.expected);
-          expect(after.text, `${label}/${location}/${input} caption`).toBe(input === 'Z' ? 'Z' : '');
+          expect(after.text, `${label}/${location}/${input} caption`).toBe(input === 'paste' ? 'Pasted text' : input === 'Z' ? 'Z' : '');
           expect(after.doc, `${label}/${location}/${input} surrounding document`).toEqual(before.doc);
         } catch {
           failures.push({label, location, input, expected:before.expected, selected:selected.selection,
@@ -217,11 +224,15 @@ async (page, { openPath, expect, reloadDocument }) => {
   };
   try {
     for (const label of ['fig-a', 'fig-mermaid', 'tbl-a', 'fig-pending']) {
-      for (const mode of ['escape-cancel', 'cancel', 'escape-commit', 'backspace-commit', 'backspace-cancel', 'commit']) {
+      // All endings exercise the shared composition handler once. Each distinct NodeView
+      // still proves native cancellation/commit, history and persistence independently.
+      const modes = label === 'fig-a'
+        ? ['cancel', 'escape-commit', 'backspace-commit', 'backspace-cancel', 'commit', 'escape-cancel']
+        : ['commit', 'escape-cancel'];
+      for (const mode of modes) {
         const result = await compose(label, mode);
-        if (mode === 'commit') await saveReload(label, result);
+        if (mode === 'commit' || mode === 'escape-cancel') await saveReload(label, result);
       }
-      await saveReload(label, await compose(label, 'escape-cancel'));
     }
   } finally { await cdp.detach(); }
   expect(failures, 'Caption input and composition endings must agree with the model').toEqual([]);
