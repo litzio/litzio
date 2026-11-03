@@ -224,7 +224,7 @@ P07의 화면 문맥 오류·실패 상태, P11의 등록 상태 checkbox를 사
 패널은 대조 영역 아래 자체 스크롤로 제한해 원문·문서·연결선을 가리지 않는다.
 검수 실행은 새 UUID의 명시적 동작이며 자동 재실행하지 않는다.
 
-Docling 수동 페이지 제외 (#945)는 같은 대조 화면에서 P11의 페이지 checkbox,
+Docling 수동 페이지 제외 (#945, #995 PR 2)는 별도 페이지 검수 탭에서 P11의 페이지 checkbox,
 P04의 primary 제외·secondary 해제, P07의 폼 문맥 오류를 사용한다.
 이유는 기존 공용 Input으로 받으며 원문 조작부는 이미지 바깥 행에 둔다.
 현재 동작과 1440px·640px 한국어 다크 Before/After는 [대조 계약](docling-compare-v1.md#manual-page-exclusion-945)에 있다.
@@ -234,6 +234,11 @@ select로 제공한다. 설정 기본값은 명시적 Save로 저장하고, 패�
 적용한다. 실행 중 모델·강도는 잠그고 언어와 스티어링 입력은 유지한다.
 `ai-agent` 시나리오가 두 저장 범위와 실행 상태를 검증한다
 ([현재 계약·1440px/640px 캡처](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)).
+
+#974의 비서 대화 기록은 제목을 semibold 주 문구로, 현지화한 시각과 폴더 이름을
+별도 보조 줄로 표시한다. 전체 경로는 tooltip으로 유지하며 항목은 공용 subtle
+구분선과 목록 여백을 쓴다. 마지막 대화 선택은 origin별 UI 환경설정이며 새 대화는
+기존 버튼으로 시작한다([계약·전후 캡처](main-agent-v1.md#last-conversation-and-history-list-974)).
 
 ## P12 모달·파일·복구·설정 범위
 
@@ -288,3 +293,6 @@ The table block menu uses a checkbox row with current check in a separate View g
 the current value. Settings uses a two-option default selector (P11). This is a
 path-scoped device preference shared by Edit, Read and comparison; it is independent
 of document drafts, Save and Undo. See [table contract](table-interaction-v1.md#per-document-table-presentation-902).
+
+#973: 문서가 없는 시작 화면과 플러그인 탭에서는 탭 줄의 문서 동작 묶음을 숨긴다.
+일반 텍스트 문서의 지원 동작은 유지한다([현재 계약](editor-ux-shell-v1.md#title-strip-and-tab-row-actions-695)).

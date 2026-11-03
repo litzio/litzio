@@ -16,6 +16,10 @@ async function request<T>(url: string, body?: unknown): Promise<T> {
   const response = await fetch(import.meta.env.BASE_URL + url.replace(/^\//, ""), body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined);
   const data = await response.json(); if (!response.ok) throw new Error(data.error ?? response.statusText); return data;
 }
+const conversationKey = `${brand.storagePrefix}.assistantConversation`;
+function lastConversation() { try { return localStorage.getItem(conversationKey) || undefined; } catch { return undefined; } }
+function rememberConversation(id?: string) { try { if (id) localStorage.setItem(conversationKey, id); else localStorage.removeItem(conversationKey); } catch { /* In-page state remains usable. */ } }
+const pathName = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1) || path;
 const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
@@ -53,7 +57,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     const cancelInitialFocus = () => { initialFocus.current = false; };
     document.addEventListener("focusin", cancelInitialFocus);
     let alive = true;
-    setSetup("");
+    setSetup(""); setHistory(null);
     void request<AiAgentSettings>(AI_TASK.settingsRoute).then(async value => {
       if (!alive) return;
       setSettings(value); if (!current.current) defaults(value);
@@ -67,11 +71,19 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       setModels(catalog);
       if (!diagnostics.connected) { setSetup(diagnostics.error ?? "Codex CLI is unavailable on the Host."); return; }
       if (!diagnostics.account) { setSetup("Sign in to Codex to start a conversation."); return; }
-      if (current.current) {
-        const id = current.current.id;
-        const resumed = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id,
-          responseLanguage: current.current.responseLanguage });
-        if (alive && current.current?.id === id) setConversation(resumed);
+      const id = current.current?.id ?? lastConversation();
+      if (id) {
+        try {
+          const resumed = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id,
+            responseLanguage: current.current?.responseLanguage ?? value.responseLanguage ?? (i18n.language === "ko" ? "ko" : "en") });
+          if (alive) {
+            if (!current.current) { setModel(resumed.model); setEffort(resumed.reasoningEffort); setLanguage(resumed.responseLanguage); }
+            setConversation(resumed); rememberConversation(resumed.id);
+          }
+        } catch {
+          // A missing or unavailable last thread must not block a fresh conversation.
+          if (alive) { setConversation(undefined); rememberConversation(); setMessage(""); setProblem(""); defaults(value); }
+        }
       }
       if (alive) setReady(true);
     }).catch(error => { if (alive) setSetup(error.message); });
@@ -127,7 +139,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     const value = message.trim(); if (!value) return;
     const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "send", id: conversation?.id, message: value,
       model, reasoningEffort: effort, responseLanguage: language, folders, document: await context() });
-    setConversation(next); setMessage(""); setHistory(null); input.current?.focus();
+    setConversation(next); rememberConversation(next.id); setMessage(""); setHistory(null); input.current?.focus();
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
   });
   const catalogModel = models?.models.find(value => value.model === model);
@@ -155,8 +167,8 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) onWidth(Math.max(340, Math.min(560, window.innerWidth - event.clientX))); }} /> : null}
     <div className="assistant-header">
       <h2><MessageSquare aria-hidden="true" />{i18n.t("Assistant")}</h2>
-      <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={pending || active} onClick={() => { setConversation(undefined); setHistory(null); setProblem(""); setMessage(""); if (settings) defaults(settings); input.current?.focus(); }}><Plus /></Button>
-      <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={pending || active} onClick={() => void run(async () => setHistory(history ? null : await request<AiConversationInfo[]>(AI_AGENT.conversationsRoute)))}><History /></Button>
+      <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={!ready || pending || active} onClick={() => { setConversation(undefined); rememberConversation(); setHistory(null); setProblem(""); setMessage(""); if (settings) defaults(settings); input.current?.focus(); }}><Plus /></Button>
+      <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending || active} onClick={() => void run(async () => setHistory(history ? null : await request<AiConversationInfo[]>(AI_AGENT.conversationsRoute)))}><History /></Button>
       <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
     </div>
     <div className="assistant-context" title={[documentPath, ...folders].filter(Boolean).join("\n")}>
@@ -166,8 +178,9 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       {history ? <div className="assistant-history"><h3>{i18n.t("Conversation history")}</h3><p>{i18n.t("Continue the same Codex conversation here or in the CLI.")}</p>
         {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async () => {
           const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id: entry.id, responseLanguage: settings?.responseLanguage ?? (i18n.language === "ko" ? "ko" : "en") });
-          setConversation(next); setModel(next.model); setEffort(next.reasoningEffort); setLanguage(next.responseLanguage); setHistory(null); input.current?.focus();
-        })}><strong>{entry.title}</strong><small>{new Date(entry.updatedAt).toLocaleString()} · {entry.folders.join(", ")}</small></Button>)}</div>
+          setConversation(next); rememberConversation(next.id); setModel(next.model); setEffort(next.reasoningEffort); setLanguage(next.responseLanguage); setHistory(null); input.current?.focus();
+        })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
+          {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
         : conversation?.turns.map(turn => <section key={turn.id} className="assistant-turn" data-status={turn.status}>
           {turn.items.filter(item => item.kind === "user").map(item => <p key={item.id} className="assistant-user">{item.text}</p>)}
           {turn.items.some(isWorkDetail) ? <details key={`${turn.id}-${turn.status}`} open={turn.status === "inProgress"} className="assistant-steps"><summary>{i18n.t(turn.status === "inProgress" ? "Working…" : "Work details")}</summary>

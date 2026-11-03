@@ -19,6 +19,12 @@ test("fault injection permits only its expected network failures and caught plug
   const unrelated = message.replace("/api/docling-conversion", "/api/document");
   assert.deepEqual(classifyConsoleErrors("docling-server", [unrelated]).unexpected, [unrelated]);
   assert.deepEqual(classifyConsoleErrors("plugin-ui", ["Error: PLUGIN_UI_RENDER_FIXTURE"]).unexpected, []);
+  const missingThread = "Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:5173/api/ai-agent-conversations";
+  assert.deepEqual(classifyConsoleErrors("ai-agent", [missingThread]).unexpected, []);
+  assert.deepEqual(classifyConsoleErrors("ai-agent", [missingThread]).missing, []);
+  assert.equal(classifyConsoleErrors("ai-agent", []).missing.length, 1);
+  const unexpectedThreadFailure = missingThread.replace("404 (Not Found)", "500 (Internal Server Error)");
+  assert.deepEqual(classifyConsoleErrors("ai-agent", [unexpectedThreadFailure]).unexpected, [unexpectedThreadFailure]);
   const uncaught = "Uncaught page error: PLUGIN_UI_RENDER_FIXTURE";
   assert.deepEqual(classifyConsoleErrors("plugin-ui", [uncaught]).unexpected, [uncaught]);
 });

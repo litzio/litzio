@@ -8,7 +8,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   const file = name => [root, 'tmp', 'document-tabs', name].join(sep);
   const a = file('technical-1.md'), b = file('technical-2.md');
   const editor = () => activeDocument(page).locator('.document-editor');
-  const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+  const ready = () => page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const read = async path => (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(path)}`)).json();
   const activate = async name => {
     await page.getByRole('tab', {name:new RegExp(`^${name.replaceAll('.', '\\.')}(, Unsaved changes)?$`)}).click();
@@ -29,20 +29,21 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   await page.getByRole('button', {name:'Close technical-document.md',exact:true}).click();
   await page.getByTestId('document-start').waitFor();
   await expect(page).toHaveTitle('Litzio');
-  check(await page.getByTestId('save').isDisabled() && await page.getByTestId('view-source').isDisabled(), 'Start screen exposes document actions without a document');
+  await expect(page.locator('.top-bar-actions')).toHaveCount(0);
   check(await page.locator('.app-titlebar').evaluate(n=>n.offsetHeight) === 40 && await page.locator('.document-tab-row').evaluate(n=>n.offsetHeight) === 33, 'Empty start lost its two fixed shell rows');
+  // Navigation memory restores order and active identity, without restoring editor state.
+  await openPath(page, a);
   await page.setViewportSize({width:640,height:900});
   await page.getByRole('button',{name:'File actions',exact:true}).click();
   const widthMenu = page.getByRole('menuitemcheckbox',{name:'Wide document',exact:true});
   const wasWide = await widthMenu.getAttribute('aria-checked') === 'true';
   await widthMenu.click();
-  check(await page.locator('.app-shell--wide').count() === (wasWide?0:1), 'Compact layout menu cannot toggle width on the start screen');
+  check(await page.locator('.app-shell--wide').count() === (wasWide?0:1), 'Compact layout menu cannot toggle width on a document');
   await page.getByRole('button',{name:'File actions',exact:true}).click();
   await expect(widthMenu).toHaveAttribute('aria-checked',String(!wasWide));
   await widthMenu.click();
   await page.setViewportSize({width:1280,height:720});
-  // Navigation memory restores order and active identity, without restoring editor state.
-  await openPath(page, a);
+
   await openPath(page, b);
   await expect(page).toHaveTitle('technical-2.md — Litzio');
   await activate('technical-1.md');
@@ -71,7 +72,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   let closing = await page.context().newPage();
   try {
     await closing.goto(origin);
-    await closing.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+    await closing.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     await activeDocument(closing).locator('.document-editor').evaluate(n => n.editor.commands.insertContentAt(1,'Undo before browser close. '));
     await expect.poll(async () => (await recoveryRecords(closing)).some(record => record.path === a &&
       record.recoveryText.includes('Undo before browser close.'))).toBe(true);
@@ -79,7 +80,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     await closing.close();
     closing = await page.context().newPage();
     await closing.goto(origin);
-    await closing.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+    await closing.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     check(!await closing.getByTestId('recovery-prompt').count() && await closing.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').count() === 2,
       'Clean Undo followed by browser-tab close proposed obsolete recovery');
 
@@ -98,7 +99,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
       location.reload(); return partial;
     });
     await partialNavigation;
-    await closing.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+    await closing.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     check(partial, 'The partial Undo fixture did not leave unsaved content');
     check(await closing.getByTestId('recovery-prompt').isVisible(), 'Partial Undo suppressed real unsaved recovery');
     check((await recoveryRecords(closing)).some(record => record.path === a && record.recoveryText.includes('Remaining unsaved work.')),
@@ -143,7 +144,8 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     }
     // When the default actually is the fallback, its failure must still be visible.
     await page.evaluate(() => localStorage.removeItem('litzio.openTabs'));
-    await page.goto(origin); await ready();
+    await page.goto(origin);
+    await expect(page.getByTestId('error')).toContainText('Default document unavailable');
     check(await page.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').count() === 0 && (await page.getByTestId('error').innerText()).includes('Default document unavailable'), 'A real fallback failure lost its startup error');
   } finally {
     page.off('request',countTarget);
@@ -157,7 +159,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   // alone, while even an explicit same-tab selection remembers this page's current list.
   const other = await page.context().newPage();
   try {
-    await other.goto(origin); await other.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+    await other.goto(origin); await other.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     await other.getByRole('button',{name:'Close technical-1.md',exact:true}).click();
     await other.waitForFunction(path => JSON.parse(localStorage.getItem('litzio.openTabs')).paths.length === 1 && JSON.parse(localStorage.getItem('litzio.openTabs')).activePath === path, b);
     await page.getByTestId('save').click();
@@ -221,23 +223,23 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
       };
     });
     await page.evaluate(saved => localStorage.setItem('litzio.openTabs',JSON.stringify(saved)), {paths:[a,b],activePath:a});
-    await desktopPage.goto(origin); await desktopPage.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+    await desktopPage.goto(origin); await desktopPage.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     check(await desktopPage.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').count() === 1 && await desktopPage.getByRole('tab',{name:'technical-document.md',exact:true}).count() === 1, 'Desktop file argument did not take precedence');
     await desktopPage.route('**/api/document',route => route.fulfill({json:{start:true,samples:{ko:loaded.path,en:loaded.path}}}));
-    await desktopPage.reload(); await desktopPage.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+    await desktopPage.reload(); await desktopPage.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     check(JSON.stringify(await desktopPage.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').allTextContents()) === JSON.stringify(['technical-1.md','technical-2.md']) && await desktopPage.getByRole('tab',{name:'technical-1.md',exact:true}).getAttribute('aria-selected') === 'true', 'Desktop startup without an argument did not restore tabs');
     await desktopPage.goto(`${origin}/?path=${encodeURIComponent(b)}`);
-    await desktopPage.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+    await desktopPage.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     check(await desktopPage.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').count() === 1, 'URL did not override Desktop navigation memory');
     await desktopPage.getByRole('button',{name:'Close technical-2.md',exact:true}).click();
     check(await desktopPage.getByTestId('document-start').getByRole('button',{name:'Open sample document',exact:true}).isVisible(), 'URL startup lost Host sample information after the last close');
     await page.evaluate(saved => localStorage.setItem('litzio.openTabs',JSON.stringify(saved)), {paths:[a,b],activePath:a});
     await desktopPage.route('**/api/document',failedDefault);
     await desktopPage.goto(origin);
-    await desktopPage.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+    await expect(desktopPage.getByTestId('error')).toContainText('Default document unavailable');
     check(await desktopPage.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').count() === 0 && (await desktopPage.getByTestId('error').innerText()).includes('Default document unavailable'), 'A failed Desktop launch file silently fell back to remembered tabs');
     await desktopPage.goto(`${origin}/?path=${encodeURIComponent(b)}`);
-    await desktopPage.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+    await desktopPage.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     check(await desktopPage.getByRole('tab',{name:'technical-2.md',exact:true}).count() === 1 && !await desktopPage.getByTestId('error').count(), 'An explicit URL was blocked by a failed Desktop default');
   } finally { await desktopPage.close(); }
   await page.evaluate(saved => localStorage.setItem('litzio.openTabs',JSON.stringify(saved)), {paths:[a,b],activePath:a});
@@ -405,12 +407,34 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   });
   const beforeRemoval = await editor().evaluate(n => ({json:JSON.stringify(n.editor.getJSON()), selection:n.editor.state.selection.toJSON()}));
   await activate('technical-2.md');
-  removeTabFixture();
-  check((await page.request.get(`${origin}/api/document?path=${encodeURIComponent(a)}`)).status() === 400, 'The scratch file was not removed on disk');
-  switchRequests = 0;
-  page.on('request', countRequest);
+  // This case exercises activation from a stale listing. Hold real listing responses so
+  // automatic refresh cannot remove the deleted target before the pointer reaches it.
+  // Start a refresh before deletion to supersede any listing already in flight.
+  let releaseListings, listingArrived;
+  const listingGate = new Promise(resolve => { releaseListings = resolve; });
+  const listingStarted = new Promise(resolve => { listingArrived = resolve; });
+  const listingResponses = [];
+  const holdListing = route => {
+    const response = deliverListing(route);
+    listingResponses.push(response);
+    return response;
+  };
+  const deliverListing = async route => {
+    const response = await route.fetch();
+    listingArrived();
+    await listingGate;
+    await route.fulfill({response});
+  };
+  await page.route('**/api/folder?*', holdListing);
   try {
-    // The already-listed entry remains; no refresh or file watcher is involved.
+    await page.getByTestId('folder').getByRole('button',{name:'More actions',exact:true}).click();
+    await page.getByRole('menuitem',{name:'Refresh',exact:true}).click();
+    await listingStarted;
+    removeTabFixture();
+    check((await page.request.get(`${origin}/api/document?path=${encodeURIComponent(a)}`)).status() === 400, 'The scratch file was not removed on disk');
+    switchRequests = 0;
+    page.on('request', countRequest);
+    // The retained row opens the existing session even though the Host file is gone.
     await page.getByTestId('folder').getByRole('treeitem',{name:'technical-1.md',exact:true}).click();
     await page.waitForFunction(path => document.querySelector('[data-testid="current-file"]')?.getAttribute('title') === path, a);
     check(switchRequests === 0, 'An exact open path performed a Host request');
@@ -419,7 +443,17 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     check(retained.same && retained.json === beforeRemoval.json && JSON.stringify(retained.selection) === JSON.stringify(beforeRemoval.selection), 'Missing-file activation replaced the retained session');
     await editor().focus(); await page.keyboard.press('Control+z');
     check(!(await editor().innerText()).includes('Retained after disk removal'), 'Missing-file activation lost undo history');
-  } finally { page.off('request', countRequest); }
+  } finally {
+    page.off('request', countRequest);
+    releaseListings();
+    await Promise.all(listingResponses);
+    await page.unroute('**/api/folder?*', holdListing);
+  }
+  // Resume real listings and require the deleted row to disappear, while the tab survives.
+  await page.getByTestId('folder').getByRole('button',{name:'More actions',exact:true}).click();
+  await page.getByRole('menuitem',{name:'Refresh',exact:true}).click();
+  await expect(page.getByTestId('folder').getByRole('treeitem',{name:'technical-1.md',exact:true})).toHaveCount(0);
+  check(await page.getByRole('tab',{name:'technical-1.md',exact:true}).getAttribute('aria-selected') === 'true', 'Listing refresh closed the retained tab');
 
   // Same-name labels and narrow overflow are observable product contracts.
   await openPath(page, file(['alpha','guide.md'].join(sep)));

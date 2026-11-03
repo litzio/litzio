@@ -19,7 +19,10 @@
 .assistant-steps p { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: var(--space-1); }
 .assistant-steps [data-kind="tool"] p { font-family: var(--font-family-mono); }
 .assistant-notice { padding: var(--space-3); background: var(--id-color-surface-subtle); border-radius: var(--id-radius-md); }
-.assistant-history > button { display: flex; align-items: flex-start; flex-direction: column; width: 100%; height: auto; white-space: normal; text-align: left; padding: var(--space-3); }
+.assistant-history > button { display: flex; align-items: flex-start; flex-direction: column; width: 100%; height: auto; white-space: normal; text-align: left; padding: var(--space-3); gap: var(--space-1); border-radius: 0; }
+.assistant-history > button + button { border-top: var(--border-width) solid var(--id-color-border-subtle); }
+.assistant-history strong { font-weight: var(--font-weight-semibold); overflow-wrap: anywhere; }
+.assistant-history time { font-size: var(--font-size-xs); color: var(--id-color-text-muted); }
 .assistant-history small { color: var(--id-color-text-muted); overflow-wrap: anywhere; }
 .assistant-composer { padding: var(--space-3); border-top: var(--border-width) solid var(--id-color-border-subtle); }
 .assistant-composer textarea { width: 100%; min-height: 80px; max-height: 180px; resize: vertical; padding: var(--space-3); color: var(--id-color-text); background: var(--id-color-surface); border: var(--border-width) solid var(--id-color-border-control); border-radius: var(--id-radius-md); font: inherit; }

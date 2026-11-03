@@ -173,6 +173,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await page.keyboard.type(' fresh assistant draft');
   const submittedAnswers = [];
   const sent = [], conversations = new Map();
+  let resumeFailure = false;
   let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate, answerGate;
   await page.unroute('**/api/ai-agent-diagnostics*');
   await page.route('**/api/ai-agent-diagnostics*', route => route.fulfill({ json: { provider: 'codex', connected: setupMode !== 'missing',
@@ -181,7 +182,10 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await page.route('**/api/ai-agent-conversations*', async route => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
-      if (body.action === 'resume') selected = conversations.get(body.id);
+      if (body.action === 'resume') {
+        if (resumeFailure || !conversations.has(body.id)) return route.fulfill({ status: 404, json: { error: 'Conversation was not found.' } });
+        selected = conversations.get(body.id);
+      }
       if (body.action === 'send') {
         sent.push(body);
         if (!body.id) { selected = { id: 'thread-' + (++sequence), title: body.message, folders: body.folders, createdAt: 1793590000000,
@@ -548,7 +552,60 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   setupMode = 'missing'; await page.getByRole('button', { name: '비서', exact: true }).click();
   await expect(panel.getByText('이 컴퓨터에서 Codex CLI를 찾을 수 없습니다. 설치 후 설정에서 진단을 실행하세요.', { exact: true })).toBeVisible();
   await panel.getByRole('button', { name: '비서 닫기' }).click();
+  setupMode = 'ready';
+  const historyEntries = [
+    { ...selected, id: 'history-older', title: '문서 구조와 검토 계획 정리', folders: ['C:\\Projects\\reports\\연구 보고서', '/home/example/work/검토 자료'], updatedAt: 1793590000000 },
+    { ...selected, id: 'history-newer', title: '실험 결과 표와 다음 작업 확인', folders: ['C:\\Projects\\reports\\실험 결과'], updatedAt: 1793593600000 },
+  ];
+  for (const entry of historyEntries) conversations.set(entry.id, entry);
+  await page.getByRole('button', { name: '비서', exact: true }).click();
+  await expect(panel.getByRole('textbox')).toBeEnabled();
+  await panel.getByRole('button', { name: '대화 기록' }).click();
+  await expect(panel.getByRole('button', { name: /문서 구조와 검토 계획 정리/ })).toBeEnabled();
+  if (screenshots) {
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.screenshot({ path: `tmp/974-evidence/history-${width}.png` });
+    }
+  }
+  const older = panel.getByRole('button', { name: /문서 구조와 검토 계획 정리/ });
+  await expect(older.locator('small')).toHaveText('연구 보고서 · 검토 자료');
+  await expect(older.locator('small')).toHaveAttribute('title', historyEntries[0].folders.join('\n'));
+  await expect(older.locator('time')).toHaveAttribute('datetime', new Date(historyEntries[0].updatedAt).toISOString());
+  await older.click();
+  await expect(older).toBeHidden();
+  await expect(panel.getByRole('textbox')).toBeEnabled();
+  expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.assistantConversation'), brand.storagePrefix)).toBe('history-older');
+  await panel.getByRole('button', { name: '대화 기록' }).click();
+  await panel.getByRole('button', { name: '비서 닫기' }).click();
+  await page.getByRole('button', { name: '비서', exact: true }).click();
+  await expect(panel.getByRole('textbox')).toBeEnabled();
+  expect(await panel.locator('.assistant-history').count(), 'Reopening returns to the conversation, not its history list').toBe(0);
+  // A full page reload loses React state but preserves the selected older thread.
+  await page.reload();
+  await page.getByRole('button', { name: '비서', exact: true }).click();
+  await expect(panel.getByRole('textbox')).toBeEnabled();
+  expect(selected.id).toBe('history-older');
+  await expect(panel.getByText('What changed in the current document?', { exact: true })).toBeVisible();
+  // A stored thread that cannot resume falls back quietly, with usable defaults.
+  await panel.getByRole('button', { name: '비서 닫기' }).click();
+  resumeFailure = true;
+  await page.getByRole('button', { name: '비서', exact: true }).click();
+  await expect(panel.getByRole('textbox')).toBeEnabled();
+  expect(await panel.locator('.assistant-turn').count()).toBe(0);
+  expect(await panel.getByRole('alert').count()).toBe(0);
+  expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.assistantConversation'), brand.storagePrefix)).toBe(null);
+  resumeFailure = false;
+  await panel.getByRole('button', { name: '대화 기록' }).click();
+  await panel.getByRole('button', { name: /실험 결과 표와 다음 작업 확인/ }).click();
+  await panel.getByRole('button', { name: '새 대화' }).click();
+  await panel.getByRole('button', { name: '비서 닫기' }).click();
+  await page.reload();
+  await page.getByRole('button', { name: '비서', exact: true }).click();
+  await expect(panel.getByRole('textbox')).toBeEnabled();
+  expect(await panel.locator('.assistant-turn').count(), 'Explicit New conversation survives reload').toBe(0);
+  await panel.getByRole('button', { name: '비서 닫기' }).click();
   // Restore preferences for the other stable scenarios.
-  await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantWidth'); }, brand.storagePrefix);
+  await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantWidth'); localStorage.removeItem(prefix + '.assistantConversation'); }, brand.storagePrefix);
   return { settings: true, minimumViewport: true, nativeDocumentPreserved: true, conversations: true };
 }

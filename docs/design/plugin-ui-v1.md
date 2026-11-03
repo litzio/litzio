@@ -96,7 +96,12 @@ The disabled tab can be moved or closed normally and has no Save/recovery sessio
 Re-registering reconstructs the view in the same tab; view-local selection and
 scroll reset. Snapshot data is retained, not silently reread. Contributed tabs
 are not restored at startup. #871 changes Docling's footer entry to its dashboard,
-keeping the order before Settings. Its comparison picker, titles, stale-map
+keeping the order before Settings. #995 adds the separate Docling Page review
+tab kind using the same openTab/TabKind API. Folder-title disambiguation compares
+peers within the same plugin and kind, so two views of one result do not expand
+both titles to the full absolute path; dashboard result menus and comparison
+toolbars open it. Docling itself rereads all mounted views of the changed folder
+after a correction; no generic cross-plugin event API is added. Its comparison picker, titles, stale-map
 warnings and #815 fixed Read/bidirectional matching remain unchanged.
 
 A UI listing may include registration `features` booleans. Changing them detaches

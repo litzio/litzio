@@ -7,7 +7,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
   const root = loaded.path.split(sep).slice(0,-4).join(sep);
   const file = [root, 'tmp', 'document-tabs', 'technical-1.md'].join(sep);
   const engine = target => activeDocument(target).locator('.document-editor');
-  const ready = target => target.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
+  const ready = target => target.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const records = () => page.evaluate(async () => (await import('/src/recovery-storage.ts')).recoveryStorage.list());
   const count = async expected => {
     for (let attempt = 0; attempt < 100; attempt++) {

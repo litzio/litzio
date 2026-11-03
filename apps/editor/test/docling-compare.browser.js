@@ -289,19 +289,25 @@ async (page, { expect, screenshots }) => {
   await synthetic.getByRole('button', { name: 'Endnotes', exact: true }).click();
   await expect(synthetic.getByText('1 Synthetic explicit table endnote.')).toBeInViewport();
   // Repeat entry selects the existing tab rather than mounting another reading engine.
-  await synthetic.getByRole('checkbox', { name: 'Select page 1', exact: true }).check();
-  await synthetic.getByRole('textbox', { name: 'Exclusion reason' }).fill('Manual source page exclusion');
-  await synthetic.getByRole('button', { name: 'Exclude selected pages', exact: true }).click();
-  await expect(synthetic.getByRole('button', { name: 'Exclude selected pages', exact: true })).toBeDisabled();
-  await expect(synthetic.getByRole('button', { name: 'Undo exclusion (1)', exact: true })).toBeEnabled();
-  expect(await synthetic.locator('[data-page="1"]').getAttribute('data-excluded')).toBe('true');
-  expect(await synthetic.locator('.docling-reading .ProseMirror').textContent()).toBe('');
-  await expect(synthetic.locator('[data-page="1"]').locator('..')).toContainText('Excluded');
-  if (screenshots) await page.screenshot({ path: 'tmp/945-excluded-1440.png' });
-  await synthetic.getByRole('button', { name: 'Undo exclusion (1)', exact: true }).click();
-  await expect(synthetic.getByRole('checkbox', { name: 'Select page 1', exact: true })).toBeEnabled();
-  expect(await synthetic.locator('[data-page="1"]').getAttribute('data-excluded')).toBe('false');
-  expect(await synthetic.locator('.ProseMirror').textContent()).toBe(docBefore);
+  expect(await synthetic.getByRole('checkbox', { name: 'Select page 1', exact: true }).count()).toBe(0);
+  await synthetic.getByRole('button', { name: 'Page review', exact: true }).click();
+  const review = page.locator('.docling-page-review-tab[data-active=true]');
+  await expect(page.getByRole('tab', { selected: true })).toHaveAccessibleName('synthetic · Page review');
+  await review.getByRole('checkbox', { name: 'Select page 1', exact: true }).check();
+  await review.getByRole('textbox', { name: 'Exclusion reason' }).fill('Manual source page exclusion');
+  await review.getByRole('button', { name: 'Exclude selected pages', exact: true }).click();
+  await expect(review.locator('.docling-page-review')).toHaveAttribute('aria-busy', 'false');
+  expect(await review.getByRole('button', { name: 'Undo exclusion (1)', exact: true }).isEnabled()).toBe(true);
+  // Inspect the already mounted, inactive comparison immediately after busy ends.
+  const background = page.locator('.docling-tab').filter({ has: page.locator('[data-page="1"]') }).last();
+  expect(await background.locator('[data-page="1"]').getAttribute('data-excluded')).toBe('true');
+  expect(await background.locator('.docling-reading .ProseMirror').textContent()).toBe('');
+  if (screenshots) await page.screenshot({ path: 'tmp/995-evidence/after-1440.png' });
+  await review.getByRole('button', { name: 'Undo exclusion (1)', exact: true }).click();
+  await expect(review.locator('.docling-page-review')).toHaveAttribute('aria-busy', 'false');
+  expect(await background.locator('[data-page="1"]').getAttribute('data-excluded')).toBe('false');
+  expect(await background.locator('.ProseMirror').textContent()).toBe(docBefore);
+  await page.getByRole('tab', { selected: true }).press('Delete');
   await open('synthetic');
   await expect(page.getByRole('tab', { name: / · Docling comparison$/ })).toHaveCount(2);
   await page.getByRole('tab', { selected: true }).click({ button: 'right' });
@@ -313,6 +319,21 @@ async (page, { expect, screenshots }) => {
   await page.getByRole('tab', { selected: true }).last().click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Move to other group', exact: true }).click();
   await expect(page.locator('.docling-tab[data-visible=true]')).toHaveCount(1);
+  await open('page-review');
+  await page.locator('.docling-tab[data-active=true]').getByRole('button', { name: 'Page review', exact: true }).click();
+  const supplement = page.locator('.docling-page-review-tab[data-active=true]');
+  await expect(supplement.locator('[data-page="3"]')).toContainText('Page image unavailable');
+  await supplement.getByRole('checkbox', { name: 'Select page 2', exact: true }).check();
+  await supplement.getByRole('checkbox', { name: 'Select page 3', exact: true }).check();
+  await supplement.getByRole('textbox', { name: 'Exclusion reason' }).fill('Blank supplemental pages');
+  await supplement.getByRole('button', { name: 'Exclude selected pages', exact: true }).click();
+  await expect(supplement.locator('.docling-page-review')).toHaveAttribute('aria-busy', 'false');
+  expect(await supplement.locator('[data-page="2"]').getAttribute('data-excluded')).toBe('true');
+  expect(await supplement.locator('[data-page="3"]').getAttribute('data-excluded')).toBe('true');
+  await supplement.getByRole('button', { name: 'Undo exclusion (2, 3)', exact: true }).click();
+  await expect(supplement.locator('.docling-page-review')).toHaveAttribute('aria-busy', 'false');
+  expect(await supplement.locator('[data-page="2"]').getAttribute('data-excluded')).toBe('false');
+  expect(await supplement.locator('[data-page="3"]').getAttribute('data-excluded')).toBe('false');
   await open('stale');
   const stale = page.locator('.docling-tab[data-active=true]');
   const center = page.getByRole('complementary', { name: 'Notifications' });
@@ -401,7 +422,7 @@ async (page, { expect, screenshots }) => {
   await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); });
   if (screenshots) {
     // Same page/selection as the original review pairs; captures are manual evidence.
-    for (const [width, theme, language] of [[1440, 'light', 'en'], [640, 'dark', 'ko']]) {
+    for (const [width, theme, language] of [[1440, 'light', 'en'], [1440, 'dark', 'en'], [1440, 'light', 'ko'], [1440, 'dark', 'ko'], [640, 'light', 'en'], [640, 'dark', 'en'], [640, 'light', 'ko'], [640, 'dark', 'ko']]) {
       await page.evaluate(({ theme, language }) => {
         localStorage.setItem('litzio.uiLanguage', language);
         localStorage.setItem('litzio.theme', theme);
@@ -442,16 +463,29 @@ async (page, { expect, screenshots }) => {
       await page.evaluate(async () => { await document.fonts.ready; await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); });
       await page.mouse.move(0, 0);
       await page.screenshot({ path: `tmp/815-evidence/after-${width}-${theme}-${language}.png` });
+      await comparison.getByRole('button', { name: language === 'ko' ? '페이지 검수' : 'Page review', exact: true }).click();
+      const grid = page.locator('.docling-page-review-tab[data-active=true]');
+      await expect(grid.locator('.docling-page-card')).toHaveCount(Object.keys(snapshot.map.pages).length);
+      await grid.locator('img').first().evaluate(image => image.decode());
+      expect(await grid.locator('.docling-page-preview img').first().evaluate(image => Math.abs(image.clientWidth / image.clientHeight - image.naturalWidth / image.naturalHeight))).toBeLessThan(.01);
+      await grid.getByRole('checkbox', { name: `${language === 'ko' ? '페이지 선택' : 'Select page'} 1`, exact: true }).check();
+      await grid.getByRole('checkbox', { name: `${language === 'ko' ? '페이지 선택' : 'Select page'} 2`, exact: true }).check();
+      expect(await grid.locator('input:checked').count()).toBe(2);
+      expect(await grid.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+      await grid.locator('img').evaluateAll(async images => { await Promise.all(images.filter(image => { const r = image.getBoundingClientRect(); return r.top < innerHeight && r.bottom > 0; }).map(image => image.decode())); });
+      await page.screenshot({ path: `tmp/995-evidence/grid-${width}-${theme}-${language}.png` });
     }
     await comparisonPicker(true); await page.getByTestId('folder-path').fill(folder('synthetic')); await page.getByTestId('folder-open').click();
-    await synthetic.getByRole('checkbox', { name: '페이지 선택 1', exact: true }).check();
-    await synthetic.getByRole('textbox', { name: '제외 이유' }).fill('앞부분 제외');
-    await synthetic.getByRole('button', { name: '선택 페이지 제외', exact: true }).click();
-    await expect(synthetic.getByRole('button', { name: '제외 해제 (1)', exact: true })).toBeEnabled();
-    await expect(synthetic.locator('[data-page="1"]').locator('..')).toContainText('제외됨');
-    await page.screenshot({ path: 'tmp/945-excluded-640-dark-ko.png' });
-    await synthetic.getByRole('button', { name: '제외 해제 (1)', exact: true }).click();
-    await expect(synthetic.getByRole('checkbox', { name: '페이지 선택 1', exact: true })).toBeEnabled();
+    await synthetic.getByRole('button', { name: '페이지 검수', exact: true }).click();
+    const review = page.locator('.docling-page-review-tab[data-active=true]');
+    await review.getByRole('checkbox', { name: '페이지 선택 1', exact: true }).check();
+    await review.getByRole('textbox', { name: '제외 이유 (필수)' }).fill('앞부분 제외');
+    await review.getByRole('button', { name: '선택 페이지 제외', exact: true }).click();
+    await expect(review.locator('.docling-page-review')).toHaveAttribute('aria-busy', 'false');
+    expect(await review.locator('[data-page="1"]').getAttribute('data-excluded')).toBe('true');
+    await page.screenshot({ path: 'tmp/995-evidence/after-640.png' });
+    await review.getByRole('button', { name: '제외 해제 (1)', exact: true }).click();
+    await expect(review.locator('.docling-page-review')).toHaveAttribute('aria-busy', 'false');
     await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); });
   }
   return { initialImages, totalPages: Object.keys(snapshot.map.pages).length, visiblePages, correspondenceCounts, firstRegion,

@@ -7,7 +7,6 @@ import "./compare.css";
 type Props = {
   snapshot: ComparisonSnapshot;
   selectedRefs?: string[];
-  pageActions?(page: ComparisonSnapshot["map"]["pages"][string]): ReactNode;
   ReadingSurface: ComponentType<ReadingSurfaceProps>;
   Button: ComponentType<{ children?: ReactNode; onClick(): void; disabled?: boolean }>;
   /** All copy is translated by the shell; source labels/notes remain original evidence. */
@@ -23,7 +22,7 @@ function needsReveal(pane: HTMLDivElement, top: number, height: number): boolean
 }
 
 /** Owns only module DOM. Reading positions are supplied by the Editor's read-only surface. */
-export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, imageUrl, selectedRefs, pageActions }: Props) {
+export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, imageUrl, selectedRefs }: Props) {
   const { map, stale } = snapshot;
   const left = useRef<HTMLDivElement>(null), right = useRef<HTMLDivElement>(null), body = useRef<HTMLDivElement>(null);
   const [{ width, inset, gap }, setGeometry] = useState({ width: 400, inset: 16, gap: 16 });
@@ -205,7 +204,7 @@ export function DoclingCompareView({ snapshot, ReadingSurface, Button, text, ima
     <div className="docling-body" ref={body}>
       <div className="docling-source" ref={left} onScroll={() => scroll("left")} tabIndex={0} aria-label={text("Source pages")}>
         {pages.map(page => <div key={page.page_no} className="docling-page-wrapper">
-          <div className="docling-page-number" title={page.exclusion?.reason}>{page.page_no} {page.exclusion ? text("Excluded") : null} {pageActions?.(page)}</div>
+          <div className="docling-page-number" title={page.exclusion?.reason}>{page.page_no} {page.exclusion ? text("Excluded") : null}</div>
           <div className="docling-page" data-page={page.page_no} data-excluded={!!page.exclusion} style={{ height: page.height }}>
           {range[0] <= page.page_no && page.page_no <= range[1] ? <>
             {page.image?.uri ? <img alt={`${text("Source page")} ${page.page_no}`} src={imageUrl(page.image.uri)} /> : <span>{text("Page image unavailable")}</span>}

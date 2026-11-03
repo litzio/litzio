@@ -66,7 +66,7 @@ async function launch(userData: string, args: string[] = [], environment: Record
   return { app, page, requests };
 }
 
-const ready = (page: Page) => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: "attached", timeout: 30_000 });
+const ready = (page: Page) => page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({ state: "attached", timeout: 30_000 });
 const saved = (page: Page) => page.waitForFunction(() => document.querySelector('[data-testid="status"]')?.textContent === "Saved", null, { timeout: 15_000 });
 const figuresLoaded = (page: Page) => page.waitForFunction(() => {
   const images = [...document.querySelectorAll<HTMLImageElement>('[data-testid="figure-image"]')];
