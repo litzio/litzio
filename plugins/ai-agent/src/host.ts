@@ -35,7 +35,8 @@ export function activate(host: PluginHostContext): HostPlugin {
     status: () => settings().enabled ? selectedAdapter().status() : Promise.resolve({ adapter: "Codex", available: false, loginRequired: false, message: "Codex is disabled." }),
     start: value => {
       const current = settings(); if (!current.enabled && !host.aiExecutor.current(value.id)) throw new Error("Codex is disabled.");
-      return host.aiExecutor.start(request(value, host), 120_000, { model: current.model, reasoningEffort: current.reasoningEffort, responseLanguage: current.responseLanguage ?? defaultLanguage() });
+      const execution = current.provider === "copilot" ? current.codexTaskSettings! : current;
+      return host.aiExecutor.start(request(value, host), 120_000, { model: execution.model, reasoningEffort: execution.reasoningEffort, responseLanguage: current.responseLanguage ?? defaultLanguage() });
     },
     current: id => host.aiExecutor.current(id), cancel: id => host.aiExecutor.cancel(id),
   };
@@ -49,11 +50,14 @@ export function activate(host: PluginHostContext): HostPlugin {
 function checkedSettings(value: unknown): AiAgentSettings {
   const v = value as AiAgentSettings;
   if (!v || typeof v.model !== "string" || !v.model.trim() || /[\r\n\x00]/u.test(v.model) ||
-    typeof v.reasoningEffort !== "string" || !/^[a-z][a-z0-9-]{0,63}$/.test(v.reasoningEffort) ||
-    v.provider !== undefined && v.provider !== "codex" || v.enabled !== undefined && typeof v.enabled !== "boolean" ||
+    typeof v.reasoningEffort !== "string" || (v.provider === "copilot" ? v.reasoningEffort !== "" : !/^[a-z][a-z0-9-]{0,63}$/.test(v.reasoningEffort)) ||
+    v.provider !== undefined && !["codex", "copilot"].includes(v.provider) || v.enabled !== undefined && typeof v.enabled !== "boolean" ||
     v.writeAccess !== undefined && !["opened-folders", "read-only"].includes(v.writeAccess) ||
     v.responseLanguage !== undefined && !["ko", "en", "ja"].includes(v.responseLanguage)) throw new Error("Invalid AI execution settings.");
-  return { model: v.model.trim(), reasoningEffort: v.reasoningEffort, provider: "codex", enabled: v.enabled ?? true, writeAccess: v.writeAccess ?? "opened-folders",
+  if (v.provider === "copilot" && (!v.codexTaskSettings || typeof v.codexTaskSettings.model !== "string" || !v.codexTaskSettings.model.trim() || /[\r\n\x00]/u.test(v.codexTaskSettings.model) ||
+    !/^[a-z][a-z0-9-]{0,63}$/.test(v.codexTaskSettings.reasoningEffort))) throw new Error("Invalid Codex task defaults.");
+  return { model: v.model.trim(), reasoningEffort: v.reasoningEffort, provider: v.provider ?? "codex", enabled: v.enabled ?? true, writeAccess: v.writeAccess ?? "opened-folders",
+    ...(v.provider === "copilot" ? { codexTaskSettings: { model: v.codexTaskSettings!.model, reasoningEffort: v.codexTaskSettings!.reasoningEffort } } : {}),
     ...(v.responseLanguage !== undefined ? { responseLanguage: v.responseLanguage } : {}) };
 }
 

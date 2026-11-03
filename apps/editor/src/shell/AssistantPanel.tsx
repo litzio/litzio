@@ -67,7 +67,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       if (!alive) return;
       setSettings(value); if (!current.current) defaults(value);
       if (!value.enabled) {
-        setSetup("Codex is disabled.");
+        setSetup(value.provider === "copilot" ? "AI agent is disabled." : "Codex is disabled.");
         setConversation(current => current ? { ...current, userInput: undefined, turns: current.turns.map(turn => turn.status === "inProgress" ? { ...turn, status: "interrupted" } : turn) } : current);
         return;
       }
@@ -75,7 +75,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       if (!alive) return;
       setModels(catalog);
       if (!diagnostics.connected) { setSetup(diagnostics.error ?? "Codex CLI is unavailable on the Host."); return; }
-      if (!diagnostics.account) { setSetup("Sign in to Codex to start a conversation."); return; }
+      if (value.provider === "codex" && !diagnostics.account) { setSetup("Sign in to Codex to start a conversation."); return; }
       const id = current.current?.id ?? lastConversation();
       if (id) {
         try {
@@ -140,6 +140,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     try { await action(); } catch (error) { setProblem((error as Error).message); } finally { setPending(false); }
   };
   const send = () => run(async () => {
+    if (active && settings?.provider === "copilot") return;
     const value = message.trim(); if (!value && !references.length) return;
     const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "send", id: conversation?.id, message: value,
       model, reasoningEffort: effort, references: references.map(file => file.path), folders, document: await context() });
@@ -233,7 +234,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       <span>{documentPath.split(/[\\/]/).at(-1) || i18n.t("No file opened")}</span><span>{i18n.t("Opened folders: {{count}}", { count: folders.length })}</span>
     </div>
     <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")}>
-      {history ? <div className="assistant-history"><h3>{i18n.t("Conversation history")}</h3><p>{i18n.t("Continue the same Codex conversation here or in the CLI.")}</p>
+      {history ? <div className="assistant-history"><h3>{i18n.t("Conversation history")}</h3><p>{i18n.t(settings?.provider === "copilot" ? "Continue a Copilot conversation." : "Continue the same Codex conversation here or in the CLI.")}</p>
         {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async () => {
           const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id: entry.id });
           setConversation(next); rememberConversation(next.id); setModel(next.model); setEffort(next.reasoningEffort); setHistory(null); input.current?.focus();
@@ -303,14 +304,14 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
           }
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); void send(); } }} />
       <div className="assistant-controls">
-        <Button ref={choicesAnchor} type="button" variant="outline" size="sm" disabled={active || pending} aria-label={i18n.t("Conversation model and effort")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{model || "Codex"} · {i18n.t(effort as MessageKey)}</Button>
+        <Button ref={choicesAnchor} type="button" variant="outline" size="sm" disabled={active || pending} aria-label={i18n.t("Conversation model and effort")} aria-expanded={choicesOpen} onClick={() => setChoicesOpen(!choicesOpen)}>{model || (settings?.provider === "copilot" ? "Copilot" : "Codex")}{settings?.provider !== "copilot" ? ` · ${i18n.t(effort as MessageKey)}` : ""}</Button>
         <Popover open={choicesOpen && open} onOpenChange={setChoicesOpen}><PopoverContent anchor={choicesAnchor} side="top" align="start" className="assistant-choices" finalFocus={choicesAnchor}>
         <label htmlFor="assistant-model">{i18n.t("Model")}</label>
         <select id="assistant-model" className="form-select" aria-label={i18n.t("Model")} value={model} disabled={active || pending || !models} onChange={event => { const value = models!.models.find(model => model.model === event.target.value)!; setModel(value.model); setEffort(value.defaultReasoningEffort); }}>
           {!catalogModel ? <option value={model}>{model}</option> : null}{models?.models.map(value => <option key={value.id} value={value.model}>{value.displayName}</option>)}
         </select>
-        <label htmlFor="assistant-effort">{i18n.t("Reasoning effort")}</label>
-        <select id="assistant-effort" className="form-select" aria-label={i18n.t("Reasoning effort")} value={effort} disabled={active || pending || !catalogModel} onChange={event => setEffort(event.target.value)}>{catalogModel?.supportedReasoningEfforts.map(value => <option key={value.reasoningEffort} value={value.reasoningEffort}>{i18n.t(value.reasoningEffort as MessageKey)}</option>)}</select>
+        {settings?.provider !== "copilot" ? <><label htmlFor="assistant-effort">{i18n.t("Reasoning effort")}</label>
+        <select id="assistant-effort" className="form-select" aria-label={i18n.t("Reasoning effort")} value={effort} disabled={active || pending || !catalogModel} onChange={event => setEffort(event.target.value)}>{catalogModel?.supportedReasoningEfforts.map(value => <option key={value.reasoningEffort} value={value.reasoningEffort}>{i18n.t(value.reasoningEffort as MessageKey)}</option>)}</select></> : null}
         <small>{i18n.t("These choices apply only to this conversation. Defaults are in AI settings.")}</small>
         </PopoverContent></Popover>
       </div>
@@ -319,7 +320,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
         </TooltipTrigger><TooltipContent>{usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}</TooltipContent></Tooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
         {active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async () => setConversation(await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "interrupt", id: conversation!.id })))}><Square /></Button> : null}
-        <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || !ready || (!message.trim() && !references.length) || !catalogModel || !settings?.enabled || !!setup}><ArrowUp /></Button>
+        <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || active && settings?.provider === "copilot" || !ready || (!message.trim() && !references.length) || !catalogModel || !settings?.enabled || !!setup}><ArrowUp /></Button>
       </div>
     </form>
   </aside>;

@@ -80,6 +80,9 @@ Docling·AI 설정과 같은 콘텐츠 정렬을 따르며 경로·version은 �
 640px Korean Dark 캡처로 여백, 긴 경로와 확인 문구를 수동 확인한다.
 
 
+#1053의 Copilot 선택도 같은 provider select·모델 Dialog를 사용하며 Codex 전용
+추론·skills·진단 항목은 숨긴다([비서 계약](main-agent-v1.md#copilot-conversations-1053)).
+
 #931의 [AI 설정](main-agent-v1.md)은 Docling 설정과 같은 Settings 콘텐츠·control
 폭과 공용 Input/select/Button을 사용한다. 모델 기본값은 명시적 Save로 저장하고,
 목록 대화상자는 기존 Dialog의 닫기·포커스 복귀를 사용한다. 한국어 시작 후 English

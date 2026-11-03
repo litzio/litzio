@@ -1,6 +1,15 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Copilot diagnostics": "Copilot diagnostics",
+  "Copilot models": "Copilot models",
+  "Use Copilot": "Use Copilot",
+  "Sign in with Copilot CLI on the Host. Connection does not verify model access or quota.": "Sign in with Copilot CLI on the Host. Connection does not verify model access or quota.",
+  "Copilot is used for assistant conversations. Feature tasks retain their Codex defaults.": "Copilot is used for assistant conversations. Feature tasks retain their Codex defaults.",
+  "Models reported by Copilot CLI. Account access and quota may vary.": "Models reported by Copilot CLI. Account access and quota may vary.",
+  "Manage provider connections and models. Codex and Copilot are supported.": "Manage provider connections and models. Codex and Copilot are supported.",
+  "Continue a Copilot conversation.": "Continue a Copilot conversation.",
+  "AI agent is disabled.": "AI agent is disabled.",
   "Write another answer": "Write another answer",
   "Your answer": "Your answer",
   "Submit answers": "Submit answers",
@@ -1065,6 +1074,15 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Copilot diagnostics": "Copilot 진단",
+  "Copilot models": "Copilot 모델",
+  "Use Copilot": "Copilot 사용",
+  "Sign in with Copilot CLI on the Host. Connection does not verify model access or quota.": "Host의 Copilot CLI에서 로그인하세요. 연결 여부는 모델 사용 권한이나 한도를 보장하지 않습니다.",
+  "Copilot is used for assistant conversations. Feature tasks retain their Codex defaults.": "비서 대화에 Copilot을 사용합니다. 기능 작업은 기존 Codex 기본값을 유지합니다.",
+  "Models reported by Copilot CLI. Account access and quota may vary.": "Copilot CLI가 제공하는 모델입니다. 계정별 사용 권한과 한도는 다를 수 있습니다.",
+  "Manage provider connections and models. Codex and Copilot are supported.": "프로바이더 연결과 모델을 관리합니다. Codex와 Copilot을 지원합니다.",
+  "Continue a Copilot conversation.": "Copilot 대화를 이어갑니다.",
+  "AI agent is disabled.": "AI 에이전트가 꺼져 있습니다.",
   "Write another answer": "직접 입력",
   "Your answer": "답변",
   "Submit answers": "답변 제출",

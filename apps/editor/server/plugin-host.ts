@@ -10,7 +10,7 @@ import { resolveDocumentPath, resolveMediaPath } from "./document-path.ts";
 import { readModel } from "./document-replay.ts";
 import { readPluginBuild } from "./plugin-store.ts";
 import { PluginRuntime } from "./plugin-runtime.ts";
-import { AI_TASK, AI_AGENT, type AiTaskService } from "@litzio/plugin-api/ai";
+import { AI_TASK, AI_AGENT, type AiTaskService, type AiProvider, type AiAgentSettings } from "@litzio/plugin-api/ai";
 import { AiAgentConnection } from "./ai-agent-connection.ts";
 import { AiAgentConversations } from "./ai-agent-conversations.ts";
 
@@ -34,11 +34,21 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
   let agent: AiAgentConnection | undefined = options?.agent;
   let conversations: AiAgentConversations | undefined;
   const history = () => conversations ??= new AiAgentConversations(agent ??= new AiAgentConnection(paths.agent), access);
+  const provider = (args?: { provider?: AiProvider }): AiProvider => {
+    const value = args?.provider ?? load(AI_TASK.plugin).operations.settings({}).provider;
+    if (value !== "codex" && value !== "copilot") throw new Error("Invalid AI provider.");
+    return value;
+  };
   const agentOperations = {
-    agentModels: () => (agent ??= new AiAgentConnection(paths.agent)).models(),
-    agentDiagnostics: () => (agent ??= new AiAgentConnection(paths.agent)).diagnostics(),
+    agentModels: (args?: { provider?: AiProvider }) => (agent ??= new AiAgentConnection(paths.agent)).models(provider(args)),
+    agentDiagnostics: (args?: { provider?: AiProvider }) => (agent ??= new AiAgentConnection(paths.agent)).diagnostics(provider(args)),
     agentEnvironment: () => (agent ??= new AiAgentConnection(paths.agent)).environment(),
-    agentConversations: (args: any) => args.id ? history().current(args.id) : history().list(),
+    agentConversations: (args: any) => {
+      if (!args.id) return history().list().filter(info => (info.provider ?? "codex") === provider());
+      const conversation = history().current(args.id);
+      if ((conversation.provider ?? "codex") !== provider()) throw new Error("Select this conversation's provider first.");
+      return conversation;
+    },
     agentConversation: (args: any) => {
       const settings = load(AI_TASK.plugin).operations.settings({});
       if (args.action === "resume") return history().resume(args.id, settings);
@@ -138,15 +148,17 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
     if (!Object.hasOwn(plugin.operations, operation)) throw new Error("Unknown plugin operation.");
     if (!plugins().list().find(item => item.id === id)?.enabled && !plugin.drainingOperations?.includes(operation)) throw new Error("Plugin is disabled.");
     if (id === AI_TASK.plugin && operation === "configure") return (async () => {
-      const next = args as { model?: string; reasoningEffort?: string; enabled?: boolean };
+      const next = args as AiAgentSettings;
       const current = plugin.operations.settings({});
-      if (next?.model !== current.model || next?.reasoningEffort !== current.reasoningEffort) {
-        const catalog = await agentOperations.agentModels();
-        if (!catalog.models.some(model => model.model === next?.model && model.supportedReasoningEfforts.some(effort => effort.reasoningEffort === next.reasoningEffort))) throw new Error("Invalid AI model or reasoning effort.");
+      const selected = provider(next);
+      if (selected !== current.provider || next?.model !== current.model || next?.reasoningEffort !== current.reasoningEffort) {
+        const catalog = await agentOperations.agentModels({ provider: selected });
+        if (!catalog.models.some(model => model.model === next?.model && (selected === "copilot" ? next.reasoningEffort === "" : model.supportedReasoningEfforts.some(effort => effort.reasoningEffort === next.reasoningEffort)))) throw new Error("Invalid AI model or reasoning effort.");
       }
       if (!plugins().list().find(item => item.id === id)?.enabled) throw new Error("Plugin is disabled.");
-      const stored = plugin.operations.configure(args);
-      if (!stored.enabled) await closeAgent();
+      const stored = plugin.operations.configure(selected === "copilot" ? { ...next,
+        codexTaskSettings: current.provider === "codex" ? { model: current.model, reasoningEffort: current.reasoningEffort } : current.codexTaskSettings } : next);
+      if (!stored.enabled || stored.provider !== current.provider) await closeAgent();
       return stored;
     })() as T;
     return plugin.operations[operation](args);
