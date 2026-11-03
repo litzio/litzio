@@ -246,7 +246,14 @@ The 500ms interval is scheduling, **not a durability deadline**. The prior final
 measurement (p95 about 2.4s) remains a known limitation, not a guarantee or a new PR3 measurement.
 
 An applied update that returns to the acknowledged saved snapshot, including Undo, synchronously
-acknowledges that session as clean in origin-local `localStorage` (#409). It reuses the editor's
+acknowledges that session as clean in origin-local `localStorage` (#409).
+Discard of an already-clean session after Save also writes this acknowledgement before starting
+asynchronous IndexedDB deletion (#994). A reload immediately after Saved therefore
+cannot treat the just-saved record as dirty and skip reopening its remembered tab.
+The acknowledgement remains session/generation-specific; other sessions and subsequent
+input stay recoverable. Storage failures retain the existing visible warning and do not
+turn successful disk Save into failure. Dirty explicit discard still requires successful
+IndexedDB deletion; failure keeps its recorded work visible. It reuses the editor's
 existing applied-content dirty comparison, including the submitted snapshot acknowledged by Save,
 rather than comparing recovery text with the current disk file. Each `litzio.recoveryClean.v1.<id>`
 entry contains only that session's nonnegative recording generation counter: no path, content, revision, cursor

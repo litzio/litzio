@@ -43,6 +43,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
       const settings = load(AI_TASK.plugin).operations.settings({});
       if (args.action === "resume") return history().resume(args.id, settings, args.responseLanguage ?? settings.responseLanguage ?? "en");
       if (args.action === "send") return history().send(args, settings);
+      if (args.action === "answer") return history().answer(args.id, args.turnId, args.requestId, args.answers);
       if (args.action === "interrupt") return history().interrupt(args.id);
       throw new Error("Unknown conversation action.");
     },

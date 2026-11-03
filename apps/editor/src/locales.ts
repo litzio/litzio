@@ -1,6 +1,9 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Write another answer": "Write another answer",
+  "Your answer": "Your answer",
+  "Submit answers": "Submit answers",
   "The file changed outside the editor. Your changes are kept. Compare them or reload from disk.": "The file changed outside the editor. Your changes are kept. Compare them or reload from disk.",
   "The file changed outside the editor. Reload to see the disk version.": "The file changed outside the editor. Reload to see the disk version.",
   "Reload from disk": "Reload from disk",
@@ -1055,6 +1058,9 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Write another answer": "직접 입력",
+  "Your answer": "답변",
+  "Submit answers": "답변 제출",
   "The file changed outside the editor. Your changes are kept. Compare them or reload from disk.": "파일이 편집기 밖에서 변경되었습니다. 내 변경은 유지됩니다. 디스크 내용과 비교하거나 다시 불러오세요.",
   "The file changed outside the editor. Reload to see the disk version.": "파일이 편집기 밖에서 변경되었습니다. 디스크 내용을 보려면 다시 불러오세요.",
   "Reload from disk": "디스크에서 다시 불러오기",

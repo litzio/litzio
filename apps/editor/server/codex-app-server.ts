@@ -32,6 +32,7 @@ function command(bin: string) {
   return { bin: shell ? `"${bin}"` : bin, shell };
 }
 export class CodexAppServer extends EventEmitter {
+  userInput?: (id: string | number, params: any, respond: (answers: unknown) => void) => void;
   toolCall?: (params: any) => unknown;
   private child?: ChildProcessWithoutNullStreams;
   private ready?: Promise<void>;
@@ -59,7 +60,7 @@ export class CodexAppServer extends EventEmitter {
     if (!match || Number(match[1]) === 0 && Number(match[2]) < 141) throw new Error("Codex 0.141.0 or later is required.");
     if (this.closed) throw new Error("Codex app-server is closed.");
     const cmd = command(bin);
-    const child = spawn(cmd.bin, this.options.args ?? ["app-server"], { cwd: this.cwd, shell: cmd.shell,
+    const child = spawn(cmd.bin, this.options.args ?? ["app-server", "-c", "features.default_mode_request_user_input=true"], { cwd: this.cwd, shell: cmd.shell,
       windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"] });
     this.child = child;
     let initialized = false;
@@ -83,6 +84,16 @@ export class CodexAppServer extends EventEmitter {
         }, error => {
           if (this.child === child) this.write({ id: message.id, result: { success: false, contentItems: [{ type: "inputText", text: JSON.stringify({ error: error.message }) }] } });
         });
+        return;
+      }
+      if (message.method === "item/tool/requestUserInput" && this.userInput) {
+        const child = this.child;
+        try {
+          this.userInput(message.id, message.params, answers => {
+            if (this.child !== child || !child || child.exitCode !== null || child.stdin.destroyed || this.closed) throw new Error("Question expired.");
+            this.write({ id: message.id, result: { answers } });
+          });
+        } catch (error) { this.write({ id: message.id, error: { code: -32602, message: (error as Error).message } }); }
         return;
       }
       // All other server requests (including approvals) remain unsupported.

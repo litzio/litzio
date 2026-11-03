@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { AiAgentSettings, AiConversation, AiConversationInfo, AiConversationInput, AiConversationItem, AiConversationTurn } from "@litzio/plugin-api/ai";
+import type { AiUserInputAnswers, AiAgentSettings, AiConversation, AiConversationInfo, AiConversationInput, AiConversationItem, AiConversationTurn } from "@litzio/plugin-api/ai";
 import type { AiAgentConnection } from "./ai-agent-connection.ts";
 import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
 
@@ -12,8 +12,20 @@ export class AiAgentConversations {
   private conversations = new Map<string, AiConversation>();
   private pending = new Set<string>();
   private scopes = new Map<string, DocumentToolScope & { turnId?: string }>();
+  private answers = new Map<string, (answers: AiUserInputAnswers) => void>();
   private loaded = new Set<string>();
   constructor(private connection: AiAgentConnection, private access: FileAccess) {
+    connection.client.userInput = (requestId, params, respond) => {
+      const conversation = this.conversations.get(params?.threadId);
+      if (!conversation?.turns.some(turn => turn.id === params.turnId && turn.status === "inProgress") || conversation.userInput ||
+        !Array.isArray(params.questions) || !params.questions.length || params.questions.some((q: any) =>
+          typeof q.id !== "string" || typeof q.header !== "string" || typeof q.question !== "string" ||
+          typeof q.isOther !== "boolean" || typeof q.isSecret !== "boolean" ||
+          q.options !== null && (!Array.isArray(q.options) || q.options.some((o: any) => typeof o.label !== "string" || typeof o.description !== "string"))) ||
+        new Set(params.questions.map((q: any) => q.id)).size !== params.questions.length) throw new Error("Invalid or inactive question.");
+      conversation.userInput = { requestId, turnId: params.turnId, questions: params.questions };
+      this.answers.set(conversation.id, respond);
+    };
     connection.client.toolCall = params => {
       const scope = this.scopes.get(params?.threadId);
       const active = this.conversations.get(params?.threadId)?.turns.find(turn => turn.id === params.turnId && turn.status === "inProgress");
@@ -24,6 +36,7 @@ export class AiAgentConversations {
     connection.client.on("notification", (method, params) => this.notification(method, params));
     connection.client.on("disconnected", (message: string) => {
       this.loaded.clear(); this.scopes.clear();
+      for (const conversation of this.conversations.values()) this.expireQuestion(conversation);
       for (const conversation of this.conversations.values()) for (const turn of conversation.turns) {
         if (turn.status === "inProgress") { turn.status = "failed"; turn.error = message; }
       }
@@ -130,14 +143,37 @@ export class AiAgentConversations {
       return conversation;
     } finally { this.pending.delete(key); }
   }
+  private expireQuestion(conversation: AiConversation) {
+    delete conversation.userInput; this.answers.delete(conversation.id);
+  }
+  answer(id: string, turnId: string, requestId: string | number, answers: AiUserInputAnswers) {
+    const conversation = this.current(id), question = conversation.userInput, respond = this.answers.get(id);
+    if (!question || !respond || question.requestId !== requestId || question.turnId !== turnId ||
+      !conversation.turns.some(turn => turn.id === turnId && turn.status === "inProgress")) throw new Error("Question expired.");
+    if (!answers || Object.keys(answers).length !== question.questions.length || question.questions.some(q => {
+      if (!Object.hasOwn(answers, q.id)) return true;
+      const answer = answers[q.id];
+      const values = answer && Object.hasOwn(answer, "answers") ? answer.answers : undefined;
+      return !Array.isArray(values) || values.length !== 1 || typeof values[0] !== "string" || !values[0].trim() ||
+        q.options?.length && !q.isOther && !q.options.some(option => option.label === values[0]);
+    })) throw new Error("Invalid question answers.");
+    this.expireQuestion(conversation); // Consume synchronously before writing; duplicate submissions cannot reply twice.
+    respond(answers);
+    return conversation;
+  }
   async interrupt(id: string) {
     const conversation = this.current(id), turn = conversation.turns.find(turn => turn.status === "inProgress");
+    this.expireQuestion(conversation);
     if (turn) await this.connection.client.request("turn/interrupt", { threadId: id, turnId: turn.id });
     return conversation;
   }
   private notification(method: string, params: any) {
     const conversation = this.conversations.get(params.threadId);
     if (!conversation) return;
+    if (method === "serverRequest/resolved") {
+      if (conversation.userInput?.requestId === params.requestId) this.expireQuestion(conversation);
+      return;
+    }
     if (method === "thread/tokenUsage/updated") {
       conversation.tokenUsage = { used: params.tokenUsage.last.totalTokens, limit: params.tokenUsage.modelContextWindow }; return;
     }
@@ -148,7 +184,7 @@ export class AiAgentConversations {
     if (method === "turn/started" || method === "turn/completed") {
       turn.status = params.turn.status;
       if (method === "turn/started") { const scope = this.scopes.get(params.threadId); if (scope) scope.turnId = turnId; }
-      else this.scopes.delete(params.threadId);
+      else { this.scopes.delete(params.threadId); if (conversation.userInput?.turnId === turnId) this.expireQuestion(conversation); }
       if (params.turn.error) turn.error = params.turn.error.message;
     } else if (method === "item/started" || method === "item/completed") {
       const item = itemFrom(params.item);
@@ -160,7 +196,7 @@ export class AiAgentConversations {
     } else if (method === "turn/plan/updated") {
       const item: AiConversationItem = { id: `${turnId}-plan`, kind: "plan", text: params.plan.map((step: any) => `${step.status}: ${step.step}`).join("\n") };
       const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item;
-    } else if (method === "error" && !params.willRetry) { turn.error = params.error.message; turn.status = "failed"; }
+    } else if (method === "error" && !params.willRetry) { turn.error = params.error.message; turn.status = "failed"; if (conversation.userInput?.turnId === turnId) this.expireQuestion(conversation); }
   }
 }
 const languages = ["ko", "en", "ja", "document"];

@@ -149,15 +149,32 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
   await page.getByTestId('settings-back').click();
   await page.setViewportSize({ width: 1440, height: 1000 });
+  // A committed dirty recovery record can outlive Save's asynchronous cleanup.
+  // Hold only this session's deletion through reload: Saved must be sufficient
+  // to reopen the disk document without presenting its obsolete recovery work.
+  await expect.poll(() => page.evaluate(async path => {
+    const { recoveryStorage } = await import('/src/recovery-storage.ts');
+    return (await recoveryStorage.list()).some(record => record.path === path && record.recoveryText.includes('still editable'));
+  }, pluginFixture.document)).toBe(true);
+  await page.evaluate(async path => {
+    const { recoveryStorage } = await import('/src/recovery-storage.ts');
+    const record = (await recoveryStorage.list()).find(record => record.path === path);
+    const remove = recoveryStorage.delete;
+    recoveryStorage.delete = id => id === record.id ? new Promise(() => {}) : remove(id);
+  }, pluginFixture.document);
   await page.getByTestId('save').click();
   await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'saved');
+  const savedDocument = await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(pluginFixture.document))).json();
+  expect(savedDocument.source).toContain('still editable');
   await page.reload();
   await expect(editor).toContainText('still editable');
+  await expect(page.getByTestId('recovery-prompt')).toHaveCount(0);
   await editor.locator('p').first().click(); await page.keyboard.press('End');
   await page.keyboard.type(' fresh assistant draft');
+  const submittedAnswers = [];
   const sent = [], conversations = new Map();
   let resumeFailure = false;
-  let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate;
+  let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate, answerGate;
   await page.unroute('**/api/ai-agent-diagnostics*');
   await page.route('**/api/ai-agent-diagnostics*', route => route.fulfill({ json: { provider: 'codex', connected: setupMode !== 'missing',
     error: setupMode === 'missing' ? 'Codex CLI is unavailable on the Host.' : undefined,
@@ -184,6 +201,7 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
         selected.responseLanguage = body.responseLanguage;
         selected.tokenUsage = { used: 810, limit: 1000 };
       }
+      if (body.action === 'answer') { submittedAnswers.push(body); await answerGate; delete selected.userInput; }
       if (body.action === 'interrupt') selected.turns.at(-1).status = 'interrupted';
       return route.fulfill({ json: selected });
     }
@@ -270,6 +288,43 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   await panel.getByRole('img', { name: 'Context usage' }).hover();
   await expect(page.locator('[data-slot=tooltip-content]')).toContainText('810 / 1,000 tokens · 81%');
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/running-1440-light-en.png' });
+  if (screenshots) await page.screenshot({ path: 'tmp/983-before-1440.png' });
+  selected.userInput = { requestId: 'question-983', turnId: selected.turns[0].id, questions: [
+    { id: 'constructor', header: 'Scope', question: 'Which part should I explain?', isOther: true, isSecret: false, options: [{ label: 'Summary', description: 'Explain the main points.' }, { label: 'Details', description: 'Explain each step.' }] },
+    { id: '__proto__', header: 'Private input', question: 'Enter a private example.', isOther: false, isSecret: true, options: null }
+  ] };
+  const questionCard = panel.getByTestId('assistant-question');
+  await expect(questionCard).toBeVisible();
+  await questionCard.scrollIntoViewIfNeeded();
+  if (screenshots) await page.screenshot({ path: 'tmp/983-after-1440.png' });
+  await questionCard.getByRole('radio', { name: /Summary/ }).check();
+  await questionCard.getByLabel('Your answer').fill('private example');
+  await expect(questionCard.getByLabel('Your answer')).toHaveAttribute('type', 'password');
+  await panel.getByRole('button', { name: 'Close assistant' }).click();
+  await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  await expect(questionCard.getByRole('radio', { name: /Summary/ })).toBeChecked();
+  await expect(questionCard.getByLabel('Your answer')).toHaveValue('private example');
+  let releaseAnswer;
+  answerGate = new Promise(resolve => { releaseAnswer = resolve; });
+  await questionCard.getByRole('button', { name: 'Submit answers' }).click();
+  await expect(questionCard.getByRole('button', { name: 'Submit answers' })).toBeDisabled();
+  await expect.poll(() => submittedAnswers.length).toBe(1);
+  releaseAnswer(); answerGate = undefined;
+  await expect(questionCard).toHaveCount(0);
+  expect(submittedAnswers).toEqual([{ action: 'answer', id: selected.id, turnId: selected.turns[0].id, requestId: 'question-983', answers: { constructor: { answers: ['Summary'] }, ['__proto__']: { answers: ['private example'] } } }]);
+  selected.userInput = { requestId: 'other-983', turnId: selected.turns[0].id, questions: [{ id: 'constructor', header: 'Scope', question: 'Choose or describe.', isOther: true, isSecret: false, options: [{ label: 'Summary', description: 'Main points' }] }] };
+  await expect(questionCard).toBeVisible();
+  await questionCard.getByRole('radio', { name: 'Write another answer' }).check();
+  await questionCard.getByLabel('Your answer').fill('Explain the assumptions');
+  await questionCard.getByRole('button', { name: 'Submit answers' }).click();
+  await expect(questionCard).toHaveCount(0);
+  expect(submittedAnswers.at(-1).answers).toEqual({ constructor: { answers: ['Explain the assumptions'] } });
+  selected.userInput = { requestId: 'expired-983', turnId: selected.turns[0].id, questions: [{ id: 'expired', header: 'Expiry', question: 'Pending question', isOther: false, isSecret: false, options: null }] };
+  await expect(questionCard).toBeVisible();
+  delete selected.userInput;
+  await expect(questionCard).toHaveCount(0);
+  expect(submittedAnswers.length).toBe(2);
+
   await panel.getByRole('button', { name: 'Stop response' }).click();
   await expect(panel.getByRole('button', { name: 'Conversation model and language' })).toBeEnabled();
   // Assert direct completion state, without a reload or a polling assertion masking it.
@@ -459,6 +514,18 @@ async (page, { expect, openPath, reloadDocument, pluginFixture, screenshots, bra
   expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(true);
   await expect(panel.getByRole('button', { name: '대화 모델과 언어' })).toContainText('높음');
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/assistant-640-dark-ko.png' });
+  if (screenshots) await page.screenshot({ path: 'tmp/983-before-640.png' });
+  selected.userInput = { requestId: 'ko-983', turnId: selected.turns.at(-1).id, questions: [{ id: 'ko', header: '설명 범위', question: '문서에서 어떤 내용을 자세히 설명할까요?', isOther: true, isSecret: false, options: [{ label: '핵심 내용', description: '문서의 핵심 내용과 주요 조건을 함께 설명합니다.' }, { label: '단계별 설명', description: '각 단계의 근거와 가정을 자세히 설명합니다.' }] }] };
+  await expect(questionCard).toBeVisible();
+  await questionCard.scrollIntoViewIfNeeded();
+  await questionCard.getByRole('radio', { name: '직접 입력' }).check();
+  await questionCard.getByLabel('답변', { exact: true }).fill('주요 가정과 예외 조건을 설명해 주세요.');
+  await questionCard.getByRole('button', { name: '답변 제출' }).scrollIntoViewIfNeeded();
+  await expect(questionCard.getByRole('button', { name: '답변 제출' })).toBeInViewport();
+  if (screenshots) await page.screenshot({ path: 'tmp/983-after-640.png' });
+  expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  delete selected.userInput;
+  await expect(questionCard).toHaveCount(0);
   selected.turns[0].items = emptyItems;
   await expect(panel.getByText('Completed without a reasoning summary.', { exact: true })).toBeVisible();
   if (screenshots) await page.screenshot({ path: 'tmp/976-evidence/empty-640.png' });
