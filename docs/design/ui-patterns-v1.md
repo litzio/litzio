@@ -200,6 +200,8 @@ padding을 쓴다. 선택하면 interaction-soft fill과 interaction border를 �
 
 - **목적·사용/비사용:** 동작·값 선택·검색을 구별한다. combobox·tree·toolbar를 모양 때문에 하나의 menu로 합치지 않는다.
 - **목표·현재 기준:** [CommandMenu](../../apps/editor/src/CommandMenu.tsx)와 [공용 메뉴 행](editor-ux-shell-v1.md#unified-action-menus-516)을 유지한다. 같은 action의 icon·문구·disabled 이유를 맞춘다. 값 선택에는 current check, 서식에는 pressed, 실행에는 동사를 쓴다. 검색 active와 선택된 값은 구별한다.
+- **선택지 묶음 (#1034):** 문서 보기·번호 방식·갤러리는 기존 Button 세그먼트를 일반화한 내부 ChoiceGroup을 사용한다. 필수 단일 선택과 Tab/Enter/Space 계약·토큰을 보존한다. U17 독립 서식, U18 표 selection/메뉴, U21 탭 키보드 소유권은 그대로 유지한다([분류·검사·Light/Dark 전후 근거](ui-decision-table-v1.md#선택지-분류와-검증-1034)).
+
 - **추가 사용처 (#798):** Sidebar 하단 설정 바로 아래 별도 색상 모드 행(#912)은 고정 SunMoon 아이콘과 오른쪽의 흐린 현재 값을 표시하며 접히면 색상 모드 이름의 아이콘만 보인다. 메뉴는 공용 menu surface·행과 Base UI radio 선택을 사용한다. 현재 값의 check와 키보드 focus를 구별하며 Settings·명령 센터와 같은 저장·적용 경로를 쓴다([계약·검증](editor-ux-shell-v1.md#color-mode-entry-798)).
 - **메뉴 쌓임 (#223):** 공용 CommandMenu는 고정 문서 viewport의 stacking context 밖 Portal에서 파일·탭 메뉴와 같은 층을 쓰므로 알림 버튼이 행을 가리지 않는다. 원래 문서의 위치·스크롤·그룹 경계와 미주 소유권을 유지하며, 표는 기존 Popover Portal을 유지한다. 알림 버튼의 위치·동작은 바꾸지 않는다.
 - **사용처:** U17 서식 toolbar, U18 블록·표 메뉴, U19 코드 언어/callout, U20 파일·탭 메뉴, U21 검색·탐색, U09–U10 인용·참조 후보.

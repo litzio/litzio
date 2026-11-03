@@ -5,6 +5,7 @@ import type { Editor } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
 import { closeHistory } from "@tiptap/pm/history";
 import { numberingReport, planNumberingChange } from "@litzio/core/numbering";
+import { ChoiceGroup } from "@/components/ui/choice-group.tsx";
 import { Input } from "@/components/ui/input.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { FieldError } from "./ui/primitives.tsx";
@@ -73,14 +74,10 @@ export function NumberField({ editor, getPos, draft, onChange, testId, disabled 
   } });
   return <div className="form-field figure-number-field">
       <span id={`${id}-label`}>{i18n.t("Number")}</span>
-      <div className="view-toggle" role="group" aria-labelledby={`${id}-label`}>
-        {[false, true].map(option => <Button key={String(option)} type="button" size="sm" variant="ghost"
-          className="view-toggle-option" aria-pressed={fixed === option} disabled={disabled}
-          data-segment-label={i18n.t(option ? "Fixed" : "Automatic")}
-          onClick={() => { draft.choose(option); onChange?.(); }}>
-          <span className="view-toggle-label">{i18n.t(option ? "Fixed" : "Automatic")}</span>
-        </Button>)}
-      </div>
+      <ChoiceGroup aria-labelledby={`${id}-label`} disabled={disabled}
+        value={fixed ? "fixed" : "automatic"}
+        options={[{ value: "automatic", label: i18n.t("Automatic") }, { value: "fixed", label: i18n.t("Fixed") }]}
+        onValueChange={value => { draft.choose(value === "fixed"); onChange?.(); }} />
       {fixed ? <Input ref={input} id={id} aria-labelledby={`${id}-label`} data-testid={`${testId}-enumerator`}
         aria-invalid={invalid || undefined} aria-describedby={invalid ? `${id}-error` : undefined}
         placeholder={i18n.t("None")}

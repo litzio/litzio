@@ -29,7 +29,7 @@
 - 새 flex/grid 형제 배치는 `space-x/y-*` 대신 토큰에 맞는 `gap-*`를 쓴다([DialogHeader/Footer](../../apps/editor/src/components/ui/dialog.tsx)).
 - Tailwind로 같은 폭·높이를 지정할 때 `size-*`를 사용한다. 컨트롤 크기는 새 수치 대신 기존 size variant·토큰을 고른다([Button](../../apps/editor/src/components/ui/button.tsx)).
 
-**현재 불일치 / 1B 후보:** 2–7개 선택지에 대한 공통 ToggleGroup은 없다. shadcn ToggleGroup을 Litzio 토큰으로 맞춰 도입하는 것은 후속 후보이며 지금 제공되는 API가 아니다. 현재는 [DocumentPanel](../../apps/editor/src/shell/DocumentPanel.tsx) 등 사용처의 선택·키보드 계약을 따른다. 갤러리 범주·상태 선택도 기존 Button 조합이며 새 공통 구현으로 소개하지 않는다.
+**선택지 묶음:** 한 묶음에서 하나를 고르는 값은 [ChoiceGroup](../../apps/editor/src/components/ui/choice-group.tsx)을 사용한다. 기존 Base UI Button 기반 view-toggle을 일반화해 토큰·28px track과 label 폭 예약을 재사용한다. 필수 단일 선택이며 재선택은 해제하지 않는다. 기존처럼 Tab은 각 버튼을 방문하고 Enter/Space로 선택한다. 화살표 선택이나 다중 선택은 현재 사용처에 없으므로 추가하지 않는다. 독립 서식·폭·Outline 토글, 탭·메뉴·문서 selection은 각 소유자의 계약을 유지한다. Plugin에는 공개하지 않는다(#1028).
 
 ## 공통 구현
 
@@ -38,6 +38,7 @@
 | 구현 / 실행 예제 함수 | 용도 / 비사용 | Editor import | Plugin Host | 대표 사용처 / 권한 문서 |
 | --- | --- | --- | --- | --- |
 | Button / `ControlExamples` | 일반 동작·compact·아이콘 버튼 / 탭·목록의 키보드 소유권 대체 아님 | `import { Button } from "@/components/ui/button"` | `host.Button`: default/secondary/ghost, default/sm만; 모든 Editor props가 공개된 것은 아님 | [Sidebar](../../apps/editor/src/shell/Sidebar.tsx), [공통 컨트롤](editor-visual-language-v1.md#shared-controls), [의도적 예외](editor-layout-rules-v1.md#deliberate-control-exceptions) |
+| ChoiceGroup / `ChoiceGroupExamples` | 이름 있는 필수 단일 선택 / 독립 토글·탭·메뉴 대체 아님 | `import { ChoiceGroup } from "@/components/ui/choice-group"` | 미제공 | [NumberField](../../apps/editor/src/numbering-properties.tsx), [DocumentActions](../../apps/editor/src/shell/DocumentActions.tsx), 갤러리 선택 도구 |
 | Input / `ControlExamples` | 한 줄 입력과 연결된 label·오류문 / multiline editor·select·checkbox 대체 아님 | `import { Input } from "@/components/ui/input"` | `host.Input` | [ServerSettings](../../plugins/docling/src/conversion/ServerSettings.tsx), [P05](ui-patterns-v1.md#p05-입력칸placeholder위계), [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터) |
 | Dialog / `SurfaceExamples` | 독립 입력·focus 경계 / 단순 속성마다 새 모달을 만들지 않음 | `import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"` | `host.Dialog`: open/onClose/title/description/returnFocus/children/footer; primitive API와 다름 | [ConversionDialog](../../plugins/docling/src/conversion/ConversionDialog.tsx), [P12](ui-patterns-v1.md#p12-모달파일복구설정-범위) |
 | Popover / `SurfaceExamples` | anchor 옆의 작은 표면 / 초안·적용 의미를 제공하는 engine 아님 | `import { Popover, PopoverContent } from "@/components/ui/popover"`; 예제 trigger는 `@base-ui/react/popover` | 미제공 | [MetadataProperties](../../apps/editor/src/metadata-properties.tsx), [P01](ui-patterns-v1.md#p01-속성-편집-표면과-위치), [가용 영역](editor-layout-rules-v1.md#form-content-viewport-782) |
@@ -59,6 +60,33 @@
 `main.tsx`의 `import.meta.env.DEV` 분기에서 동적 import하고 Tailwind의 source 검색에서 `src/dev`를 제외한다. `pnpm --filter @litzio/editor build` 후 `apps/editor/dist`의 JS/CSS에 `ui-gallery`, `Litzio UI gallery`, `gallery-dialog-name`이 없는지 확인한다. 개발 연결은 `pnpm browser:test ui-gallery`가 실제 Dialog 열기·닫기·focus 복귀로 검사한다. 외형은 수동 Light/Dark 검토이며 전수 조합·픽셀 CI를 추가하지 않는다([테스트 설계](../contributing/test-design.md)).
 
 수동 검토: Windows persistent Chrome, 1440×1100, English, Plum, 100% zoom. [Light](assets/ui-gallery-1013/gallery-1440-light.png) / [Dark](assets/ui-gallery-1013/gallery-1440-dark.png) / [오류 상태](assets/ui-gallery-1013/gallery-error-dark.png). 버튼 정렬·입력 여백·상태 구별·잘림을 확인했다. 기존 화면 변경이 아닌 새 개발 화면이므로 Before 캡처는 없다.
+
+## 선택지 분류와 검증 (#1034)
+
+`apps/editor/src`의 `aria-pressed`, active/selected 조건과 view-toggle 사용처를 조사했다. 현재 같은 역할의 다중 선택 묶음은 없다.
+
+| 사용처 | 분류 / 처리 | 이유 |
+| --- | --- | --- |
+| NumberField (그림·Mermaid·표·수식) | 필수 단일 선택 → ChoiceGroup | Automatic / Fixed 초안 값과 기존 콜백 유지 |
+| DocumentActions | 필수 단일 선택 → ChoiceGroup | Read / Edit / Source 및 Markdown Text 보기; disabled·접근성 이름 유지 |
+| UiGallery 범주·Theme·Example state | 필수 단일 선택 → ChoiceGroup | 메모리상의 한 값; 제품 공통 토큰 사용 |
+| SelectionToolbar | 독립 서식 토글 유지 | Bold/Italic/Strike/Subscript/Superscript/Code는 editor mark 명령, Link는 편집 진입 |
+| DocumentActions Wide / Outline | 독립 토글 유지 | 각각 별도의 표시 환경설정·패널 열기 |
+| TableTools 행/열 손잡이 | 문서 selection·메뉴 anchor 유지 | 가변 문서 좌표, row/column selection과 메뉴 키보드 소유권 |
+| DocumentPanel / DocumentTabs | 탭 예외 유지 | tablist/tabpanel 연결, roving focus와 Arrow/Home/End 계약 |
+| CommandMenu / FolderDialog / Sidebar | 메뉴·listbox·tree 유지 | active item은 명령 탐색·파일/폴더 탐색이며 선택지 버튼 묶음이 아님 |
+| BlockHandles / NodeView / DocumentTab / PluginTab | 대상·문서 활성 상태 유지 | hover/문서 selection/표시 수명; 선택지 컨트롤이 아님 |
+
+검사 설계: 기존 `read-view`, `text-mode`, `figure-authoring`는 실제 문서 보기와 NumberField의 초안·저장 연결을 보호한다. 기존 `ui-gallery`에 공통 구현의 Tab 이동, Enter/Space, 필수 선택 재선택·disabled를 대표 한 묶음으로 추가한다. Core 의미는 변경하지 않으며 전수 조합·새 subprocess·CI 성공 캡처를 추가하지 않는다. Editor 단위 검사·typecheck/build·문서/토큰 검사를 함께 실행한다. Browser/HTTP/Desktop의 나머지 필수 검사는 PR CI가 담당한다.
+
+수동 캡처는 Windows persistent Chrome, 1440×1000, English, 같은 문서·고정 번호 속성 및 갤러리의 같은 상태다. `pnpm browser:test numbering-mode --screenshots`로 일시적인 촬영용 body를 실행한 뒤 원래 시나리오를 복원했다. 자동 검사에 촬영 순회를 넣지 않았다.
+
+| 화면 | Light Before / After | Dark Before / After |
+| --- | --- | --- |
+| 문서 보기·번호 속성 | [Before](assets/choice-group-1034/before-document-light.png) / [After](assets/choice-group-1034/after-document-light.png) | [Before](assets/choice-group-1034/before-document-dark.png) / [After](assets/choice-group-1034/after-document-dark.png) |
+| 갤러리 | [Before](assets/choice-group-1034/before-gallery-light.png) / [After](assets/choice-group-1034/after-gallery-light.png) | [Before](assets/choice-group-1034/before-gallery-dark.png) / [After](assets/choice-group-1034/after-gallery-dark.png) |
+
+시각 점검: 문서 보기와 번호 세그먼트는 전후 동일한 정렬·높이·대비를 유지했다. 갤러리는 같은 토큰의 quiet track과 선택 면으로 통일했으며 control 높이와 글자 대비·잘림을 점검했다. 문서 Light Before 하단의 Mermaid는 비동기 렌더 중이며 변경 대상 세그먼트 밖의 차이다.
 
 ## 범위 밖
 
