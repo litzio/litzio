@@ -29,6 +29,7 @@ jobs:
       http: ${{ steps.policy.outputs.http }}
       desktop: ${{ steps.policy.outputs.desktop }}
       update: ${{ steps.policy.outputs.update }}
+      fullLifecycle: ${{ steps.policy.outputs.fullLifecycle }}
       smartquotes: ${{ steps.policy.outputs.smartquotes }}
       reused: ${{ steps.policy.outputs.reused }}
     steps:
@@ -262,7 +263,7 @@ jobs:
       - name: Run all unit tests (same as release build)
         run: pnpm test
       - name: Stable install/update regression before the final package
-        if: needs.changes.outputs.update == 'true'
+        if: needs.changes.outputs.fullLifecycle == 'true'
         run: pnpm --filter @litzio/desktop test:update
       - name: Beta install/update regression before the final package
         if: needs.changes.outputs.update == 'true'
@@ -288,6 +289,8 @@ jobs:
           retention-days: 7
       - run: pnpm --filter @litzio/desktop test:uninstall
         if: needs.changes.outputs.update == 'true'
+        env:
+          LITZIO_TEST_LIFECYCLE_SCOPE: ${{ needs.changes.outputs.fullLifecycle == 'true' && 'full' || 'representative' }}
       - name: Upload Desktop diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v6

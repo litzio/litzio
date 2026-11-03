@@ -131,7 +131,7 @@ function requireCleanUser(): void {
   for (const folder of [appData, updaterCache, defaultInstall]) assert.equal(existsSync(folder), false, `${folder} exists; this test would change it`);
 }
 
-test("installs per user, then updates from Settings only after the open document is saved", { timeout: 15 * 60_000 }, async () => {
+test("installs per user, then updates from Settings only after the open document is saved", { timeout: 15 * 60_000 }, async (t) => {
   requireCleanUser();
   const cliEnvironment = windowsEnvironment();
   const originalUserPath = !LIVE ? (await cliEnvironment.read()).user : null;
@@ -203,25 +203,27 @@ test("installs per user, then updates from Settings only after the open document
       assert.equal(existsSync(cliBin), false, "disable must remove an empty owned bin");
       await cli.getByRole("button", { name: "Turn on", exact: true }).click();
       await cli.getByText("Installed", { exact: true }).waitFor();
-      // A damaged ownership record disables Repair, but Turn off must still unregister PATH.
-      writeFileSync(path.join(cliBin, "owner.json"), "damaged owner");
-      await page.reload();
-      await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached" });
-      await page.getByRole("button", { name: /^Settings/ }).click();
-      await page.getByRole("button", { name: "About & updates", exact: true }).click();
-      await cli.getByText("Broken path", { exact: true }).waitFor();
-      assert.equal(await cli.getByRole("button", { name: "Repair", exact: true }).isDisabled(), true);
-      await cli.getByRole("button", { name: "Turn off", exact: true }).click();
-      await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
-      assert.equal(await cli.getByTestId("cli-status").innerText(), "Off");
-      assert.deepEqual((await cliEnvironment.read()).user, originalUserPath);
-      assert.equal(readFileSync(path.join(cliBin, "owner.json"), "utf8"), "damaged owner");
-      // Fixture-only cleanup after verifying preservation, then continue the update with CLI on.
-      for (const name of ["app", `${brand.cliCommand}.cmd`, "owner.json"]) unlinkSync(path.join(cliBin, name));
-      await cli.getByRole("button", { name: "Refresh status", exact: true }).click();
-      await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
-      await cli.getByRole("button", { name: "Turn on", exact: true }).click();
-      await cli.getByText("Installed", { exact: true }).waitFor();
+      await t.test("CLI ownership refusal and recovery", { skip: !BETA }, async () => {
+        // A damaged ownership record disables Repair, but Turn off must still unregister PATH.
+        writeFileSync(path.join(cliBin, "owner.json"), "damaged owner");
+        await page.reload();
+        await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached" });
+        await page.getByRole("button", { name: /^Settings/ }).click();
+        await page.getByRole("button", { name: "About & updates", exact: true }).click();
+        await cli.getByText("Broken path", { exact: true }).waitFor();
+        assert.equal(await cli.getByRole("button", { name: "Repair", exact: true }).isDisabled(), true);
+        await cli.getByRole("button", { name: "Turn off", exact: true }).click();
+        await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
+        assert.equal(await cli.getByTestId("cli-status").innerText(), "Off");
+        assert.deepEqual((await cliEnvironment.read()).user, originalUserPath);
+        assert.equal(readFileSync(path.join(cliBin, "owner.json"), "utf8"), "damaged owner");
+        // Fixture-only cleanup after verifying preservation, then continue the update with CLI on.
+        for (const name of ["app", `${brand.cliCommand}.cmd`, "owner.json"]) unlinkSync(path.join(cliBin, name));
+        await cli.getByRole("button", { name: "Refresh status", exact: true }).click();
+        await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
+        await cli.getByRole("button", { name: "Turn on", exact: true }).click();
+        await cli.getByText("Installed", { exact: true }).waitFor();
+      });
     }
     assert.equal(await page.getByRole("radio", { name: BETA ? /^Beta/ : /^Stable/ }).isChecked(), true, "first install uses its own channel");
     // CLI verification can outlast the scheduled initial check. Wait for its actual offer,
@@ -256,71 +258,82 @@ test("installs per user, then updates from Settings only after the open document
     await page.getByRole("button", { name: "Download update" }).click();
     await page.getByRole("button", { name: "Restart to update" }).waitFor({ timeout: 120_000 });
 
-    // A missing IPC answer refuses after the deadline and re-enables the window. Only the
-    // test removes/restores the listener; the shipped bridge has no such control.
-    await app.evaluate(({ ipcMain }) => {
-      (globalThis as unknown as { restartListeners: Function[] }).restartListeners = ipcMain.listeners("desktop:restart-check-result");
-      ipcMain.removeAllListeners("desktop:restart-check-result");
-    });
-    try {
-      await page.getByRole("button", { name: "Restart to update" }).click();
-      await page.getByTestId("update-problem").waitFor({ timeout: 15_000 });
-      assert.equal(await page.getByTestId("update-problem").innerText(), "Could not confirm that your work is saved.");
-      assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isEnabled()), true);
-      assert.equal(await phase(), "downloaded");
-    } finally {
+    // Fault probes share the fixture but have separate results; Beta runs them once.
+    await t.test("missing restart IPC answer refuses installation", { skip: !BETA }, async () => {
+      // A missing IPC answer refuses after the deadline and re-enables the window. Only the
+      // test removes/restores the listener; the shipped bridge has no such control.
       await app.evaluate(({ ipcMain }) => {
-        const stored = globalThis as unknown as { restartListeners?: ((...args: unknown[]) => void)[] };
-        for (const listener of stored.restartListeners ?? []) ipcMain.on("desktop:restart-check-result", listener);
-        delete stored.restartListeners;
+        (globalThis as unknown as { restartListeners: Function[] }).restartListeners = ipcMain.listeners("desktop:restart-check-result");
+        ipcMain.removeAllListeners("desktop:restart-check-result");
       });
-    }
+      try {
+        await page.getByRole("button", { name: "Restart to update" }).click();
+        await page.getByTestId("update-problem").waitFor({ timeout: 15_000 });
+        assert.equal(await page.getByTestId("update-problem").innerText(), "Could not confirm that your work is saved.");
+        assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.isEnabled()), true);
+        assert.equal(await phase(), "downloaded");
+      } finally {
+        await app.evaluate(({ ipcMain }) => {
+          const stored = globalThis as unknown as { restartListeners?: ((...args: unknown[]) => void)[] };
+          for (const listener of stored.restartListeners ?? []) ipcMain.on("desktop:restart-check-result", listener);
+          delete stored.restartListeners;
+        });
+      }
+    });
+    await t.test("renderer restart callback failure refuses installation", { skip: !BETA }, async () => {
+      // A renderer callback failure is also a refusal, not an implicit permission to install.
+      await page.evaluate(() => window.litzioDesktop!.onRestartCheck(() => { throw new Error("renderer check failed"); }));
+      await page.getByRole("button", { name: "Restart to update" }).click();
+      await page.getByTestId("update-problem").waitFor();
+      assert.equal(await page.getByTestId("update-problem").innerText(), "Could not confirm that your work is saved.");
+      await page.reload();
+      await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached" });
+    });
 
-    // A renderer callback failure is also a refusal, not an implicit permission to install.
-    await page.evaluate(() => window.litzioDesktop!.onRestartCheck(() => { throw new Error("renderer check failed"); }));
-    await page.getByRole("button", { name: "Restart to update" }).click();
-    await page.getByTestId("update-problem").waitFor();
-    assert.equal(await page.getByTestId("update-problem").innerText(), "Could not confirm that your work is saved.");
-    await page.reload();
-    await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached" });
+    await t.test("dirty document blocks update; Save permits install and preserves data", async () => {
+      // Stable skipped the fault probes and still has Settings open.
+      if (await page.getByTestId("settings-dialog").count()) {
+        await page.keyboard.press("Escape");
+        await page.getByTestId("settings-dialog").waitFor({ state: "detached" });
+      }
+      // Unsaved work refuses the restart and stays.
+      await page.getByText("Alpha.", { exact: true }).click();
+      await page.keyboard.press("End");
+      await page.keyboard.type(" Saved before the update.");
+      await page.getByRole("button", { name: /^Settings/ }).click();
+      await page.getByRole("button", { name: "About & updates", exact: true }).click();
+      await page.getByRole("button", { name: "Restart to update" }).click();
+      await page.getByTestId("update-problem").waitFor();
+      assert.match(await page.getByTestId("update-problem").innerText(), /Save your changes, then restart to update/);
+      await page.keyboard.press("Escape");
+      await page.getByTestId("settings-dialog").waitFor({ state: "detached" });
+      assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
 
-    // Unsaved work refuses the restart and stays.
-    await page.getByText("Alpha.", { exact: true }).click();
-    await page.keyboard.press("End");
-    await page.keyboard.type(" Saved before the update.");
-    await page.getByRole("button", { name: /^Settings/ }).click();
-    await page.getByRole("button", { name: "About & updates", exact: true }).click();
-    await page.getByRole("button", { name: "Restart to update" }).click();
-    await page.getByTestId("update-problem").waitFor();
-    assert.match(await page.getByTestId("update-problem").innerText(), /Save your changes, then restart to update/);
-    await page.keyboard.press("Escape");
-    await page.getByTestId("settings-dialog").waitFor({ state: "detached" });
-    assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
-
-    await page.keyboard.press("Control+S");
-    await page.waitForFunction(() => document.querySelector('[data-testid="status"]')?.textContent === "Saved");
-    const savedPreferences = readPreferences(preferencesFile, OLD);
-    if (!LIVE) assert.equal(savedPreferences.seenUpdate, NEW, "viewing About acknowledges the offered update");
-    const closed = new Promise<void>((resolve) => app.once("close", () => resolve()));
-    await page.getByRole("button", { name: /^Settings/ }).click();
-    await page.getByRole("button", { name: "About & updates", exact: true }).click();
-    await page.getByRole("button", { name: "Restart to update" }).click();
-    await closed;
-    const restarted = Date.now();
-    // The installer starts the new version without arguments, so it logs to the default user data.
-    const log = path.join(appData, "logs", "desktop.log");
-    const shown = () => existsSync(log) && new RegExp(`started ${NEW.replaceAll(".", "\\.")} [^\\n]*\\n[^\\n]*window shown`).test(readFileSync(log, "utf8"));
-    while (!shown()) {
-      if (Date.now() - restarted > 180_000) throw new Error(`The updated app did not start: ${existsSync(log) ? readFileSync(log, "utf8") : "no log"}`);
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-    assert.ok(appProcesses(installedAt).some((process) => process.version === NEW), "the new version is running");
-    console.log(`installed ${NEW} and showed its window ${Date.now() - restarted} ms after the restart`);
-    assert.equal(readFileSync(documentFile, "utf8"), `${NATIVE_PREFIX}# Update\n\nAlpha. Saved before the update.\n`);
-    assert.deepEqual(readPreferences(preferencesFile, NEW), savedPreferences, "saved channel and preferences survived installation");
-    assert.equal(readFileSync(canary, "utf8"), "Preserve existing user data.\n");
-    assert.ok(readFileSync(log, "utf8").includes(`started ${NEW} (${prefs.channel})`), "the new app loaded the preserved channel");
-    if (!LIVE) verifyPackagedCli(exe, brand.cliCommand, documents, NEW, await freshTerminalEnvironment());
+      await page.keyboard.press("Control+S");
+      await page.waitForFunction(() => document.querySelector('[data-testid="status"]')?.textContent === "Saved");
+      const savedPreferences = readPreferences(preferencesFile, OLD);
+      if (!LIVE) assert.equal(savedPreferences.seenUpdate, NEW, "viewing About acknowledges the offered update");
+      const closed = new Promise<void>((resolve) => app.once("close", () => resolve()));
+      await page.getByRole("button", { name: /^Settings/ }).click();
+      await page.getByRole("button", { name: "About & updates", exact: true }).click();
+      await page.getByRole("button", { name: "Restart to update" }).click();
+      await closed;
+      const restarted = Date.now();
+      // The installer starts the new version without arguments, so it logs to the default user data.
+      const log = path.join(appData, "logs", "desktop.log");
+      const shown = () => existsSync(log) && new RegExp(`started ${NEW.replaceAll(".", "\\.")} [^\\n]*\\n[^\\n]*window shown`).test(readFileSync(log, "utf8"));
+      while (!shown()) {
+        if (Date.now() - restarted > 180_000) throw new Error(`The updated app did not start: ${existsSync(log) ? readFileSync(log, "utf8") : "no log"}`);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      assert.ok(appProcesses(installedAt).some((process) => process.version === NEW), "the new version is running");
+      console.log(`installed ${NEW} and showed its window ${Date.now() - restarted} ms after the restart`);
+      assert.equal(readFileSync(documentFile, "utf8"), `${NATIVE_PREFIX}# Update\n\nAlpha. Saved before the update.\n`);
+      assert.deepEqual(readPreferences(preferencesFile, NEW), savedPreferences, "saved channel and preferences survived installation");
+      assert.equal(readFileSync(canary, "utf8"), "Preserve existing user data.\n");
+      assert.ok(readFileSync(log, "utf8").includes(`started ${NEW} (${prefs.channel})`), "the new app loaded the preserved channel");
+      if (!LIVE) verifyPackagedCli(exe, brand.cliCommand, documents, NEW, await freshTerminalEnvironment());
+    });
   } finally {
     if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
     for (const process of installedAt ? (() => { try { return appProcesses(installedAt); } catch { return []; } })() : []) {

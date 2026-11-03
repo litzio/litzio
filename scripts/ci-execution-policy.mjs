@@ -2,7 +2,7 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { eventDiff, isDocumentationOnly } from './ci-quality-mode.mjs';
 
-const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, update: true, smartquotes: true });
+const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, update: true, fullLifecycle: true, smartquotes: true });
 // Consumers: root issue/docs commands and the always-run CI policy checks.
 // Product builds/tests do not load these files. Keep other scripts conservative.
 const policyFiles = new Set([
@@ -30,6 +30,20 @@ const known = path => policyOnly(path) || product(path) || shared(path) || path.
 const parserSettings = ['parse.ts', 'serialize.ts', 'footnote.ts', 'literal-syntax.ts']
   .map(name => `packages/core/src/myst/${name}`);
 
+// Full install/update/uninstall coverage: packaging, updater/channel and CLI ownership.
+// Unknown Desktop files remain full; only these audited Host-only files are representative.
+const representativeDesktop = new Set([
+  'src/host-protocol.ts', 'src/explorer.ts', 'src/first-document.ts',
+  'test/host-protocol.test.ts', 'test/explorer.test.ts', 'test/first-document.test.ts',
+].map(path => `apps/desktop/${path}`));
+const lifecycleFullPaths = path => shared(path) || !known(path) ||
+  path === 'brand.ts' || path.endsWith('/package.json') ||
+  path.startsWith('apps/desktop/installer/') || path.startsWith('apps/desktop/scripts/') ||
+  ['main.ts', 'preload.ts', 'preferences.ts', 'updates.ts', 'update-policy.ts',
+    'github-provider.ts', 'signatures.ts', 'cli-integration.ts', 'uninstall-cli.ts',
+    'windows-environment.ts'].some(name => path === `apps/desktop/src/${name}`) ||
+  (inPackage(path, 'apps/desktop') && !representativeDesktop.has(path));
+
 export function selectJobs(eventName, paths) {
   if (!['pull_request', 'merge_group'].includes(eventName) || !paths?.length) return allJobs();
   const full = paths.some(path => !policyOnly(path) && (shared(path) || !known(path)));
@@ -38,11 +52,13 @@ export function selectJobs(eventName, paths) {
   const browser = full || paths.some(path => ['apps/editor', 'packages/core', 'packages/file-commit', 'packages/plugin-api', 'plugins/docling', 'plugins/ai-agent']
     .some(name => inPackage(path, name)));
   const http = browser || paths.some(path => ['packages/cli', 'plugins/docling', 'plugins/ai-agent'].some(name => inPackage(path, name)));
+  const update = full || paths.some(path => inPackage(path, 'apps/desktop') || editorUpdate(path));
   return {
     quality: !paths.every(path => policyOnly(path) || isDocumentationOnly(eventName, [path])),
     browser, http,
     desktop: http || paths.some(path => inPackage(path, 'apps/desktop')),
-    update: full || paths.some(path => inPackage(path, 'apps/desktop') || editorUpdate(path)),
+    update,
+    fullLifecycle: update && paths.some(path => !policyOnly(path) && lifecycleFullPaths(path)),
     // Package manifests cover MyST/markdown-it version declarations; the lockfile
     // covers transitive updates. Keep the installed patch probe separate from Core.
     smartquotes: paths.some(path => ['package.json', 'packages/core/package.json', 'pnpm-lock.yaml',

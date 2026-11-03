@@ -41,6 +41,9 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
     for (const silent of [false, true]) for (const fault of ["empty", "user", "owner", "foreign", "helper", "environment"] as const) {
       const healthy = fault === "empty" || fault === "user";
       if (healthy && !silent) continue;
+      // Full is the default for direct invocation and release verification.
+      if (process.env.LITZIO_TEST_LIFECYCLE_SCOPE === "representative" &&
+        (!silent || !["empty", "user", "foreign"].includes(fault))) continue;
       const label = `${silent ? "silent" : "interactive"}-${fault}`;
       const install = path.join(work, label);
       const setup = spawnSync(installer, ["/S", `/D=${install}`], { timeout: 60_000, encoding: "utf8" });
