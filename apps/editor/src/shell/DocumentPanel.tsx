@@ -1,3 +1,5 @@
+import { PanelResize } from "./PanelResize.tsx";
+import { usePanelWidthBounds } from "./panel-width.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent } from "react";
@@ -5,6 +7,7 @@ import { createOutlineStore, type NavigationList, type OutlineItem, type Outline
 import { Button } from "@/components/ui/button.tsx";
 
 type DocumentPanelProps = {
+  onWidth(value: number): void;
   /** Below the docking width the panel covers the document instead of narrowing it. */
   overlay: boolean;
   /** Document navigation lists and the current item in each. */
@@ -19,8 +22,9 @@ const kinds = ["outline", "tables", "figures"] as const;
 type ListKind = typeof kinds[number];
 
 /** Navigation inside the open document. Choice is local to this mounted panel. */
-export function DocumentPanel({ overlay, outline: store = emptyOutline, onSelectItem, onClose }: DocumentPanelProps) {
+export function DocumentPanel({ onWidth, overlay, outline: store = emptyOutline, onSelectItem, onClose }: DocumentPanelProps) {
   useTranslation();
+  const bounds = usePanelWidthBounds("document-panel");
   const outline = useSyncExternalStore(store.subscribe, store.get, store.get);
   const [kind, setKind] = useState<ListKind>("outline");
   const tabs = useRef<HTMLDivElement>(null);
@@ -47,6 +51,7 @@ export function DocumentPanel({ overlay, outline: store = emptyOutline, onSelect
         onClose();
       }}
     >
+      {bounds ? <PanelResize label={i18n.t("Document panel width")} {...bounds} onWidth={onWidth} /> : null}
       <div className="document-panel-header document-panel-navigation">
         <h2 className="sr-only" id="document-panel-title">{i18n.t("Outline")}</h2>
         <div ref={tabs} className="view-toggle" role="tablist" aria-label={i18n.t("Document navigation")} onKeyDown={switchTab}>

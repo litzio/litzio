@@ -362,3 +362,8 @@ Settings 탭·진입의 pointer 이동은 metadata 바깥 적용 대신 탐색�
 앱 즉시 반영, AI 명시적 Save, Docling field exit 저장은 문서 Save와 분리한다.
 탭 사이 이동은 설정 초안을 유지하며 닫기·재시작은 Plugin 탭처럼 초안을 복원하지 않는다.
 [탭 수명·키보드·전후 캡처](editor-ux-shell-v1.md#settings-task-tab-1032).
+
+#990/#1025: 문서 탐색의 빈 상태는 기존 P06 안내를 유지하고 탭 아래 간격과 label
+행 높이만 맞춘다. Explorer·문서 탐색·비서는 같은 내부 separator 손잡이를 공유한다.
+독립 localStorage 너비는 문서 초안·Save와 분리하며 Settings 범주 열은 바꾸지 않는다.
+[너비 제한과 배치](editor-layout-rules-v1.md#alignment-and-ownership)를 따른다.
