@@ -356,10 +356,19 @@ test('lifecycle scope keeps representative Beta and removal but selects full for
 
 test('layout scope promotes shell/native/style and unknown inputs independently of lifecycle', () => {
   const representative = ['packages/core/src/myst/figure.ts', 'apps/editor/src/components/FigureView.tsx',
-    'plugins/docling/src/conversion/convert.ts'];
+    'plugins/docling/src/conversion/convert.ts', 'apps/editor/src/dev/panel.tsx',
+    'apps/editor/src/dev/panel.css'];
   const sensitive = ['apps/editor/src/App.tsx', 'apps/editor/src/shell/TopBar.tsx',
     'apps/editor/src/shell/new-control.tsx', 'apps/editor/src/styles.css', 'apps/editor/src/tokens.css',
     'apps/editor/shared/desktop-bridge.ts', 'apps/editor/index.html', 'apps/editor/vite.config.ts',
+    'apps/editor/src/components/ui/button.tsx', 'apps/editor/src/components/ui/new-control.tsx',
+    'apps/editor/src/theme.ts', 'apps/editor/public/theme-init.js', 'apps/editor/src/locales.ts',
+    'apps/editor/src/i18n.ts', 'apps/editor/src/preferences.ts', 'apps/editor/src/shortcuts.ts',
+    'apps/editor/src/document-tabs.ts', 'apps/editor/src/lib/utils.ts', 'apps/editor/src/ui/primitives.tsx',
+    'apps/editor/src/ui-message.ts', 'apps/editor/src/PluginSettings.tsx', 'apps/editor/src/PluginTab.tsx',
+    'apps/editor/src/plugin-ui.tsx', 'apps/editor/src/plugin-ui-registry.ts',
+    'apps/editor/src/components/CopyButton.tsx', 'packages/cli/scripts/build.ts',
+    'apps/editor/tsconfig.json',
     'apps/editor/test/layout-rules.browser.js', 'apps/editor/test/desktop-updates.browser.js',
     'apps/desktop/src/main.ts', 'apps/desktop/src/preload.ts', 'apps/desktop/package.json',
     'apps/desktop/test/packaged/caption-pixels.ts', 'pnpm-lock.yaml', 'unknown/new-input.ts'];
@@ -368,6 +377,11 @@ test('layout scope promotes shell/native/style and unknown inputs independently 
   for (const event of ['pull_request', 'merge_group']) {
     assert.equal(selectJobs(event, [representative[0], sensitive[0]]).fullLayout, true);
     assert.equal(selectJobs(event, [representative[0], 'unknown/new-input.ts']).fullLayout, true);
+    // Shared UI and transitive build inputs must promote an otherwise representative diff.
+    for (const input of ['apps/editor/src/components/ui/button.tsx', 'apps/editor/src/locales.ts',
+      'packages/cli/scripts/build.ts', 'apps/editor/tsconfig.json']) {
+      assert.equal(selectJobs(event, [representative[0], input]).fullLayout, true, input);
+    }
     assert.equal(selectJobs(event, [sensitive[0]]).fullLifecycle, false);
     assert.equal(selectJobs(event, []).fullLayout, true);
   }
