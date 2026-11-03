@@ -103,6 +103,7 @@ function CliSettings({ desktop }: { desktop: DesktopBridge }) {
 type SettingsDialogProps = {
   sections?: SettingsSection[];
   pluginErrors?: Record<string, string>;
+  pluginRegistrationKey?: string;
   theme: ThemePreference;
   themeProblem: boolean;
   onThemeChange(theme: ThemePreference): void;
@@ -120,7 +121,7 @@ type SettingsDialogProps = {
 };
 
 /** Shared local recovery settings; About and update controls require the Desktop bridge. */
-export function SettingsDialog({ sections = [], pluginErrors = {}, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
+export function SettingsDialog({ sections = [], pluginErrors = {}, pluginRegistrationKey, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
   useTranslation();
   const lastPluginSection = useRef<string | undefined>(undefined);
   const [screen, setScreen] = useState<HTMLDivElement | null>(null);
@@ -186,7 +187,7 @@ export function SettingsDialog({ sections = [], pluginErrors = {}, theme, themeP
                 <h2 id={`settings-category-${category}`}>{contributed ? i18n.t(contributed.label as any) : category.startsWith("plugin/") ? i18n.t("Plugins") : categories.find(item => item.id === category)?.label}</h2>
               </header>
               {category.startsWith("plugin/") ? <Button size="sm" variant="ghost" onClick={() => onCategoryChange("plugins")}>{i18n.t("Back to plugins")}</Button> : null}
-              {category === "plugins" ? <PluginSettings sections={sections} errors={pluginErrors} focusSection={lastPluginSection.current} onOpen={id => { lastPluginSection.current = id; onCategoryChange(id as SettingsCategory); }} /> : null}
+              {category === "plugins" ? <PluginSettings sections={sections} errors={pluginErrors} registrationKey={pluginRegistrationKey} focusSection={lastPluginSection.current} onOpen={id => { lastPluginSection.current = id; onCategoryChange(id as SettingsCategory); }} /> : null}
               {Section ? <ContributionBoundary key={category}><Section /></ContributionBoundary> : null}
               {category === "appearance" ? <>
                 <SettingsSelect label={i18n.t("Theme")} description={i18n.t("Choose a light or dark appearance.")} testId="theme"

@@ -18,7 +18,7 @@ async function request<T>(options?: RequestInit): Promise<T> {
   return value;
 }
 
-export function PluginSettings({ sections, errors, onOpen, focusSection }: { focusSection?: string; sections: SettingsSection[]; errors: Record<string, string>; onOpen(id: string): void }) {
+export function PluginSettings({ sections, errors, onOpen, focusSection, registrationKey }: { focusSection?: string; registrationKey?: string; sections: SettingsSection[]; errors: Record<string, string>; onOpen(id: string): void }) {
   useTranslation();
   const [items, setItems] = useState<Plugin[] | null>(null);
   const focusTarget = useRef<HTMLButtonElement | null>(null);
@@ -30,9 +30,11 @@ export function PluginSettings({ sections, errors, onOpen, focusSection }: { foc
   const opener = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
     const controller = new AbortController();
-    void request<Plugin[]>({ signal: controller.signal }).then(setItems).catch(error => { if (!controller.signal.aborted) setProblem(String(error)); });
+    void request<Plugin[]>({ signal: controller.signal }).then(value => {
+      if (!controller.signal.aborted) { setItems(value); setProblem(""); }
+    }).catch(error => { if (!controller.signal.aborted) setProblem(String(error)); });
     return () => controller.abort();
-  }, []);
+  }, [registrationKey]);
   useEffect(() => {
     if (items && focusSection && focusTarget.current && !focusRestored.current) {
       focusTarget.current.focus(); focusRestored.current = true;
