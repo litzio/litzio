@@ -89,7 +89,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByLabel('Model', { exact: true }).selectOption('gpt-6-luna');
   await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('low');
   connectionAvailable = false;
-  await page.getByRole('switch', { name: 'Use Codex', exact: true }).click();
+  await page.getByRole('switch', { name: 'Use Codex', exact: true }).focus();
+  await page.getByRole('switch', { name: 'Use Codex', exact: true }).press('Space');
   await expect.poll(() => settingsWrites.length).toBe(1);
   expect(settingsWrites[0]).toEqual({ provider: 'codex', enabled: false, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium' });
   await expect(page.getByRole('switch', { name: 'Use Codex', exact: true })).not.toBeChecked();
