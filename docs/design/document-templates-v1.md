@@ -177,7 +177,10 @@ catalogs are injected at transport, while creation uses a real scratch file.
 This representative flow adds no subprocess or theme/content cross product.
 Measured final local scenario time is about 12 seconds; the gallery, representative
 layout and quiet-document run takes about 1.2 minutes including runner setup.
-The existing `layout-rules` and `quiet-document` cover the shared shell. Manual
+The existing `layout-rules` and `quiet-document` cover the shared shell.
+`desktop-updates` keeps its real Tab route through the new gallery entry, Docling
+and Settings. The original fixed Explorer-to-Docling assertion failed in CI;
+the updated check asserts each stop rather than skipping focus/order validation. Manual
 captures are separate from automatic assertions; see [gallery visual review](#gallery-visual-review).
 
 Placeholder substitution, folder templates, Docling result formatting (#1103),
