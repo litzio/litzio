@@ -3425,3 +3425,10 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .notification-group-heading > .notification-content { flex: 1; min-width: 0; }
 .notification-group-heading .notification-content > button { padding-inline: 0; }
 .notification-center .notification-group > div > ul { padding: var(--space-3) 0 0 var(--space-3); border: 0; border-radius: 0; box-shadow: none; }
+
+.plugin-settings-row { position: relative; }
+.plugin-settings-row .settings-row-control { justify-content: end; }
+.plugin-settings-row .settings-section { grid-template-columns: minmax(0, 1fr) auto; }
+.plugin-settings-row .settings-label { padding-inline-end: calc(var(--size-control) + var(--space-2)); }
+.plugin-settings-gear { position: absolute; inset-inline-end: calc(var(--size-control) + var(--space-2)); top: 50%; transform: translateY(-50%); }
+.plugin-settings-info .settings-description { margin-top: 0; }

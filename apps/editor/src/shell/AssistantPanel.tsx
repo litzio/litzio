@@ -55,6 +55,13 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
   const [choicesOpen, setChoicesOpen] = useState(false);
   const choicesAnchor = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
+  const referenceCaret = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (referenceCaret.current === null) return;
+    // Apply selection with the controlled value, before another input can arrive.
+    const position = referenceCaret.current; referenceCaret.current = null;
+    input.current?.setSelectionRange(position, position);
+  }, [message]);
   const initialFocus = useRef(false);
   const current = useRef(conversation); current.current = conversation;
   const initializedSettings = useRef(settingsRevision), providerVersion = useRef(0);
@@ -200,7 +207,11 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
   useEffect(() => { if (mention) document.getElementById(`assistant-reference-${candidateIndex}`)?.scrollIntoView({ block: "nearest" }); }, [candidateIndex, mention?.query]);
   const chooseReference = (file: AiFileReference) => {
     addReference(file);
-    if (mention) { const next = message.slice(0, mention.start) + (file.kind === "skill" ? `$${file.name} ` : "") + message.slice(mention.end); setMessage(next); requestAnimationFrame(() => input.current?.setSelectionRange(mention.start + (file.kind === "skill" ? file.name.length + 2 : 0), mention.start + (file.kind === "skill" ? file.name.length + 2 : 0))); }
+    if (mention) {
+      const replacement = file.kind === "skill" ? `$${file.name} ` : "";
+      referenceCaret.current = mention.start + replacement.length;
+      setMessage(message.slice(0, mention.start) + replacement + message.slice(mention.end));
+    }
     setMention(null); input.current?.focus();
   };
   const removeReference = (path: string) => {
@@ -329,6 +340,8 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
         const value = event.target.value, end = event.target.selectionStart;
         setReferences(previous => previous.filter(file => file.kind !== "skill" || hasSkillToken(value, file.name)));
         setMessage(value); const match = /(?:^|\s)([@/])([^\s@]*)$/.exec(value.slice(0, end));
+        // Retired results must not appear selectable before the new lookup starts.
+        if (match?.[1] === "@" && (!mention || mention.skill)) setCandidates([]);
         if (match?.[1] === "/" && !skillOpen) { setSkillCatalog(undefined); setSkillProblem(""); }
         setMention(match && (match[1] !== "/" || settings?.provider === "codex") ? { start: end - match[2].length - 1, end, query: match[2], skill: match[1] === "/" } : null); setCandidateIndex(0);
       }}

@@ -6,6 +6,7 @@
 - Message roles verified: 2026-11-03 (#1048/#1051; fixture captures and turn-copy browser checks below).
 - Host settings integration: 2026-11-03 (#1070 merge; target unit/type checks and existing fake ai-agent browser case, 1440px/640px Korean Dark captures; no real Copilot call).
 - Provider Save verification: 2026-11-03 (#1069 review correction; reproduced stale dock state before the fix, then existing fake browser case passed with Save/new conversation).
+- Composer input verification: 2026-11-03 (#1087; delayed-caret ordering reproduced before the fix; existing fixture browser scenario, no real model call).
 - Copilot verification: 2026-11-03 (#1053; fake ACP and task-default boundary, existing ai-agent browser scenario and 1440px Light / 640px Dark Korean captures; no real Copilot session or model call).
 - Last verified: 2026-11-03 (#1047 PR A/B / #984 / #952: fake stdio/Host, worker prompt, browser and manual 1440 Light / 640 Dark Korean captures; no real model turn).
 - Previous verification: 2026-11-02 (#931 implementation 2, PR 2: 409 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
@@ -916,6 +917,11 @@ enablement, global configuration write or Litzio command palette is introduced.
 Click or Arrow/Enter selects a skill; Escape closes candidates before the panel.
 Selection inserts `$<name>` in text and adds a removable path-tooltip chip using
 the file-reference Button/Tooltip implementation. `/` is only selection syntax.
+Both file and skill selection apply the caret together with the updated composer
+text, before subsequent input. A deferred paint callback must not move the caret
+back into text the user has already typed. Reopening file candidates clears the
+previous lookup's results with the new query, so retired options cannot signal
+readiness while the new lookup is starting (#1087).
 The public conversation input adds `skills?: {name,path}[]`. Host validates each
 selection against the enabled catalog and sends `{type:"skill",name,path}` with
 `$<name>` text on start and steer. Selection follows whitespace-delimited

@@ -11,6 +11,11 @@ export const en = {
   "Model, reasoning effort and mode changes apply to the next message.": "Model, reasoning effort and mode changes apply to the next message.",
   "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.": "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.",
 
+  "{{name}} settings": "{{name}} settings",
+  "Turn on {{name}} to open settings": "Turn on {{name}} to open settings",
+  "App default": "App default",
+  "Register again": "Register again",
+  "Plugin information": "Information",
   "Installation details": "Installation details",
   "Back to plugins": "Back to plugins",
   "Copilot diagnostics": "Copilot diagnostics",
@@ -1106,6 +1111,11 @@ export const ko: Record<keyof typeof en, string> = {
   "Model, reasoning effort and mode changes apply to the next message.": "모델·추론 강도·모드 변경은 다음 메시지에 적용됩니다.",
   "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.": "전체 권한은 sandbox를 해제하고 도구·경로·네트워크 접근을 자동 승인합니다. 기존 문서 변경은 계속 텍스트로만 제안해야 합니다.",
 
+  "{{name}} settings": "{{name}} 설정",
+  "Turn on {{name}} to open settings": "{{name}} 플러그인을 켜면 설정을 열 수 있습니다",
+  "App default": "앱 기본 버전",
+  "Register again": "다시 등록",
+  "Plugin information": "정보",
   "Installation details": "설치 정보",
   "Back to plugins": "플러그인 목록으로",
   "Copilot diagnostics": "Copilot 진단",

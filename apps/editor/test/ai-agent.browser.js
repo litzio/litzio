@@ -63,7 +63,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const categories = page.getByRole('navigation', { name: /^(Settings categories|설정 분류)$/ });
   await categories.getByRole('button', { name: 'Plugins', exact: true }).click();
-  await page.getByTestId('plugin-settings').getByRole('button', { name: 'AI agent', exact: true }).click();
+  await expect(page.getByTestId('plugin-settings').getByRole('button', { name: 'AI agent settings', exact: true })).toBeEnabled();
+  await page.getByTestId('plugin-settings').getByRole('button', { name: 'AI agent settings', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'AI agent', exact: true }).last()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Codex models', exact: true })).toContainText('Available');
   await page.getByRole('button', { name: 'Codex models', exact: true }).click();
@@ -125,7 +126,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   const aiGeometry = await measure();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/ai-1440-light-en.png' });
     await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
-  await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
+  await expect(page.getByTestId('settings-dialog').getByRole('button', { name: /^Docling (settings|설정)$/, exact: true })).toBeEnabled();
+  await page.getByTestId('settings-dialog').getByRole('button', { name: /^Docling (settings|설정)$/, exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Docling server', exact: true })).toBeVisible();
   expect(await measure()).toEqual(aiGeometry);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/docling-1440-light-en.png' });
@@ -133,7 +135,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
   await page.setViewportSize({ width: 640, height: 1000 });
   await categories.getByRole('button', { name: '플러그인', exact: true }).click();
-  await page.getByRole('button', { name: 'AI 에이전트', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'AI 에이전트 설정', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'AI 에이전트 설정', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Codex 모델', exact: true })).toContainText('사용 가능');
   await expect(page.getByLabel('모델', { exact: true })).toHaveValue('gpt-6.1-sol');
   await expect(page.getByLabel('추론 강도', { exact: true })).toHaveValue('high');
@@ -154,7 +157,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-640-dark-ko.png' });
   await page.getByRole('button', { name: '← AI 에이전트', exact: true }).click();
     await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
-  await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
+  await expect(page.getByTestId('settings-dialog').getByRole('button', { name: /^Docling (settings|설정)$/, exact: true })).toBeEnabled();
+  await page.getByTestId('settings-dialog').getByRole('button', { name: /^Docling (settings|설정)$/, exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Docling 서버', exact: true })).toBeVisible();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/docling-640-dark-ko.png' });
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
@@ -167,7 +171,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
     const disabled = await page.request.delete(origin + '/api/worker-plugins', { data: { id: ai.id } }); expect(disabled.ok(), await disabled.text()).toBe(true);
     await expect.poll(async () => (await (await page.request.get(origin + '/api/ai-task-service')).json()).available).toBe(false);
     await page.getByRole('button', { name: '설정', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'AI 에이전트', exact: true })).toHaveCount(0);
+    await page.getByRole('navigation', { name: '설정 분류' }).getByRole('button', { name: '플러그인', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'AI 에이전트 설정', exact: true })).toBeDisabled();
     await page.locator('[data-tab-id="settings"] .document-tab-close').click();
     expect(await editor.evaluate(element => element === globalThis.__aiOrdinaryDocument)).toBe(true);
     await expect(editor).toContainText('preserved AI-off draft');
@@ -307,13 +312,13 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByRole('menuitem', { name: 'Add to chat', exact: true }).click();
   const draftChips = panel.locator('.assistant-composer .assistant-reference');
   await expect(draftChips).toHaveCount(1);
-  await message.fill('@document');
+  await message.click(); await page.keyboard.type('@document', { delay: 60 });
   await expect(panel.getByRole('option').filter({ hasText: 'document.md' })).toHaveCount(1);
   await message.press('Enter');
   await expect(draftChips).toHaveCount(1);
   await draftChips.getByRole('button').click();
   await expect(draftChips).toHaveCount(0);
-  await message.fill('@document');
+  await message.click(); await page.keyboard.type('@document', { delay: 60 });
   await expect(panel.getByRole('option').filter({ hasText: 'document.md' })).toHaveCount(1);
   await message.press('Enter');
   await expect(message).toHaveValue('');
@@ -360,7 +365,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(panel.getByRole('button', { name: 'Conversation model and effort' })).toBeDisabled();
   selected.turns[0].items.find(item => item.kind === 'assistant').text = 'The unsaved paragraph adds a clear qualification. Check the stated conditions before using the conclusion.';
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
-  await message.fill('@document');
+  await message.click(); await page.keyboard.type('@document', { delay: 60 });
   await expect(panel.getByRole('option').filter({ hasText: 'document.md' })).toHaveCount(1);
   await message.press('Enter');
   await message.click(); await page.keyboard.type('/lit', { delay: 60 });
@@ -744,7 +749,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByRole('button', { name: '설정', exact: true }).click();
   await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
   await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Plugins', exact: true }).click();
-  await page.getByTestId('plugin-settings').getByRole('button', { name: 'AI agent', exact: true }).click();
+  await expect(page.getByTestId('plugin-settings').getByRole('button', { name: 'AI agent settings', exact: true })).toBeEnabled();
+  await page.getByTestId('plugin-settings').getByRole('button', { name: 'AI agent settings', exact: true }).click();
   const writesBeforeProvider = settingsWrites.length;
   await page.getByLabel('Default provider', { exact: true }).selectOption('copilot');
   await expect(page.getByLabel('Model', { exact: true })).toHaveValue('auto');
@@ -779,7 +785,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
     await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Appearance & language', exact: true }).click();
     await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
     await page.getByRole('navigation', { name: '설정 분류' }).getByRole('button', { name: '플러그인', exact: true }).click();
-    await page.getByTestId('plugin-settings').getByRole('button', { name: 'AI 에이전트', exact: true }).click();
+    await expect(page.getByTestId('plugin-settings').getByRole('button', { name: 'AI 에이전트 설정', exact: true })).toBeEnabled();
+    await page.getByTestId('plugin-settings').getByRole('button', { name: 'AI 에이전트 설정', exact: true }).click();
     await expect(page.getByLabel('기본 프로바이더', { exact: true })).toHaveValue('copilot');
     await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-dark-ko.png' });
     await page.setViewportSize({ width: 640, height: 1000 });
