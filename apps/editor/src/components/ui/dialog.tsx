@@ -3,6 +3,7 @@ import { i18n } from "../../i18n.ts";
 import * as React from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { cn } from "@/lib/utils"
+import { useNativeHistoryBoundary } from "../../ui/use-native-history-boundary.ts"
 
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
@@ -18,21 +19,7 @@ function Dialog({ ...props }: DialogPrimitive.Root.Props) {
 function DialogPortal({ className, ...props }: DialogPrimitive.Portal.Props) {
   const modal = React.useContext(ModalContext)
   const [portal, setPortal] = React.useState<HTMLDivElement | null>(null)
-  React.useLayoutEffect(() => {
-    if (!modal || !portal) return
-    const document = portal.ownerDocument
-    // Chromium shares native input history across the document. beforeinput names
-    // the real history target before the default action edits it and transfers focus.
-    // Include descendant portals (menus/nested dialogs); the inner modal guards its own boundary.
-    const guardHistory = (event: InputEvent) => {
-      if ((event.inputType === "historyUndo" || event.inputType === "historyRedo") &&
-          portal.contains(document.activeElement) && event.target instanceof Node && !portal.contains(event.target)) {
-        event.preventDefault()
-      }
-    }
-    document.addEventListener("beforeinput", guardHistory, true)
-    return () => document.removeEventListener("beforeinput", guardHistory, true)
-  }, [modal, portal])
+  useNativeHistoryBoundary(portal, modal)
   return <DialogPrimitive.Portal data-slot="dialog-portal" className={cn("ui-portal", className)} {...props} ref={setPortal} />
 }
 

@@ -84,6 +84,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
       plugin = module.activate({
         features: () => store.list().find(item => item.id === id)?.features ?? {},
         setFeatures: features => store.setFeatures(id, features),
+        aiDefaults: paths.aiDefaults,
         settingsFile: settingsFile ?? paths.settingsFile(id),
         resolvePath: (file, create) => accessPath(file, access, create),
         documentPath: file => resolveDocumentPath(file, access),

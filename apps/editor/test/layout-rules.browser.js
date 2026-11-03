@@ -37,7 +37,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
     if(delayFocus)await page.evaluate(()=>{
       const focus=HTMLElement.prototype.focus;
       HTMLElement.prototype.focus=function(...args){
-        if(this.matches('[data-testid="settings-back"]')){
+        if(this.matches('#tab-settings')){
           window.releaseSettingsFocus=()=>{HTMLElement.prototype.focus=focus;focus.apply(this,args);};
           return;
         }
@@ -47,7 +47,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
     await page.getByRole('button',{name:current==='ko'?'설정':'Settings',exact:true}).click();
     // selectOption does not focus the select; wait for the dialog's actual focus handoff.
     let focusReady=false;
-    const focused=expect(page.getByTestId('settings-back')).toBeFocused().then(()=>{focusReady=true;});
+    const focused=expect(page.getByRole('tab', {name: /^(Settings|설정)$/})).toBeFocused().then(()=>{focusReady=true;});
     try{
       if(delayFocus){
         await page.waitForFunction(()=>!!window.releaseSettingsFocus);

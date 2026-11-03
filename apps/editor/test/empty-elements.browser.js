@@ -104,7 +104,7 @@ async (page, { openPath, reloadDocument, expect, screenshots }) => {
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   try {
     await page.getByTestId('ui-language').selectOption('ko');
-    await page.getByRole('button',{name:'문서로 돌아가기',exact:true}).click();
+    await page.locator('[data-tab-id="settings"] .document-tab-close').click();
     await prompts('수식을 입력하세요','안내 내용을 입력하세요','인용문을 입력하세요','목록 항목을 입력하세요');
     expect(await snapshot()).toEqual(empty);
     expect(await read()).toBe(stored);

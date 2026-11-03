@@ -27,6 +27,8 @@
   /* Pointer-hovered top-level block extent: neutral stroke with breathing room around content. */
   --id-color-block-hover-outline: var(--id-color-border-strong);
   --size-block-hover-outline: 1px;
+  --size-editing-block-bar: 2px;
+  --id-color-editing-block-bar: color-mix(in srgb, var(--id-color-interaction) 40%, transparent);
   /* Shared painted outer radius for hover and selected/editing block overlays. */
   --id-radius-block-hover: calc(var(--id-radius-sm) + var(--space-1) + var(--border-width));
   /* Expand only the overlay; keep the gutter handles and neighboring blocks clear. */
