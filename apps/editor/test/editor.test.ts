@@ -1,3 +1,5 @@
+import { parse as parseTemplateDocument, getEditableDocument as templateReadModel, referenceNumberText as templateReference, captionNumberText as templateCaption } from "@litzio/core";
+import { listTemplates as listDocumentTemplates } from "../server/document-templates.ts";
 import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 import { allocateBlockPath } from "../src/block-locators.ts";
 import { prepareEditorSnapshot } from "../src/editor-snapshot.ts";
@@ -2519,4 +2521,76 @@ test("text recovery validates its own snapshot and cannot masquerade as native r
     { ...snapshot, file: { ...snapshot.file, kind: "native" } },
   ]) assert.throws(() => prepareRecovery({ ...record, snapshot: broken } as RecoveryRecord), /incomplete/);
   assert.deepEqual(record, before);
+});
+
+
+test("template Host routes expose localized previews, save from authorized files and create exclusively", async t => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-templates-"));
+  const templates = path.join(dir, "templates"), root = path.join(dir, "documents");
+  mkdirSync(root);
+  const policy = new RootAccess([root]);
+  const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, policy, Infinity, undefined, undefined, undefined, templates); });
+  t.after(async () => { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); rmSync(dir, { recursive: true, force: true }); });
+  await listenForFetch(server);
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const send = (route: string, method: string, data: unknown) => fetch(url + route, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(data) });
+  const list = await (await fetch(url + "/api/templates?language=ko")).json();
+  assert.equal(list.directory, templates);
+  assert.ok(list.templates.some((item: any) => item.id === "builtin:ai-report" && item.name === "AI 작업 보고서"));
+  assert.equal(fs.existsSync(templates), false, "listing app resources creates no files");
+  for (const language of ["ko", "en"]) for (const item of list.templates) {
+    const preview = await (await fetch(`${url}/api/template?id=${encodeURIComponent(item.id)}&language=${language}`)).json();
+    assert.ok(preview.source.includes("template:"));
+    assert.ok(!preview.source.includes("bibliography:"), "defaults do not enter citation scope");
+    const styles = templateReadModel(parseTemplateDocument(preview.source)).referenceTemplates;
+    if (language === "ko") {
+      assert.deepEqual(styles, { figure: "그림 %s", table: "표 %s", equation: "식 (%s)" });
+      assert.equal(templateCaption("figure", 1, styles), "그림 1");
+      assert.equal(templateCaption("table", 1, styles), "표 1");
+      assert.equal(templateReference("equation", 1, styles), "식 (1)");
+    } else assert.equal(styles, undefined, "English retains MyST defaults");
+  }
+  const file = path.join(root, "report.md");
+  const created = await send("/api/document", "PUT", { path: file, template: "builtin:ai-report", language: "ko" });
+  assert.equal(created.status, 201);
+  const source = readFileSync(file, "utf8");
+  assert.ok(!source.includes("template:"));
+  assert.deepEqual(templateReadModel(parseTemplateDocument(source)).referenceTemplates, { figure: "그림 %s", table: "표 %s", equation: "식 (%s)" });
+  const duplicate = await send("/api/document", "PUT", { path: file, template: "builtin:technical-document" });
+  assert.equal(duplicate.status, 400);
+  assert.equal(readFileSync(file, "utf8"), source);
+  const saved = await send("/api/templates", "POST", { name: "My report", description: "Reusable report", from: file });
+  assert.equal(saved.status, 201, await saved.text());
+  const templateFile = path.join(templates, "My report.md"), stored = readFileSync(templateFile);
+  assert.equal((await send("/api/templates", "POST", { name: "my REPORT", from: file })).status, 400);
+  assert.deepEqual(readFileSync(templateFile), stored);
+  for (const name of ["기술 문서", "AI work report", "../escape", "CON"]) {
+    assert.equal((await send("/api/templates", "POST", { name, from: file })).status, 400);
+  }
+  const unauthorized = path.join(dir, "outside.md"); writeFileSync(unauthorized, source);
+  assert.equal((await send("/api/templates", "POST", { name: "Outside", from: unauthorized })).status, 403);
+  assert.equal((await send("/api/document", "PUT", { path: path.join(dir, "escape.md"), template: "user:My report" })).status, 403);
+  const reused = path.join(root, "reused.md");
+  assert.equal((await send("/api/document", "PUT", { path: reused, template: "user:My report" })).status, 201);
+  assert.equal(readFileSync(reused, "utf8"), source);
+  const linked = path.join(templates, "linked.md");
+  fs.symlinkSync(root, linked, process.platform === "win32" ? "junction" : "dir");
+  assert.ok((await (await fetch(url + "/api/templates")).json()).problems.some((item: any) => item.file === "linked.md"));
+  fs.unlinkSync(linked);
+  const linkedStore = path.join(dir, "linked-store");
+  fs.symlinkSync(templates, linkedStore, process.platform === "win32" ? "junction" : "dir");
+  assert.throws(() => listDocumentTemplates("en", linkedStore), /real directory/);
+  fs.unlinkSync(linkedStore);
+  assert.equal((await send("/api/templates", "POST", { name: "No source", from: "" })).status, 400);
+  writeFileSync(path.join(templates, "broken.md"), "not native");
+  assert.equal((await send("/api/templates", "POST", { name: "broken", from: file })).status, 400);
+  assert.equal(readFileSync(path.join(templates, "broken.md"), "utf8"), "not native");
+  writeFileSync(path.join(templates, "bad-bytes.md"), Buffer.from([0xff]));
+  const inventory = await (await fetch(url + "/api/templates")).json();
+  assert.ok(inventory.templates.some((item: any) => item.name === "My report" && item.kind === "user"));
+  assert.deepEqual(inventory.problems.map((item: any) => item.file).sort(), ["bad-bytes.md", "broken.md"]);
+  assert.equal((await fetch(url + "/api/template?id=broken")).status, 400);
+  assert.equal((await fetch(url + "/api/templates?language=fr")).status, 400);
+  assert.equal((await send("/api/templates", "POST", { name: "Bad", from: file, description: "line\nbreak" })).status, 400);
+  assert.equal(fs.existsSync(path.join(templates, "Bad.md")), false);
 });

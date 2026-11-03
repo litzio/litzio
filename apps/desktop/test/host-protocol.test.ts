@@ -155,3 +155,21 @@ test("sample failure reaches the Editor without blocking file or empty startup",
     else assert.equal(payload.start,true);
   }
 });
+
+
+test("Desktop template routes retain the Host run paths and shared create/save contract", async t => {
+  const checkoutRoot = path.join(root, "template-checkout");
+  const desktop = createProtocolHandler(editorDir, {}, undefined, undefined, { packaged: false, checkoutRoot });
+  t.after(() => desktop.close());
+  const request = (route: string, method = "GET", body?: unknown) => desktop(new Request(`${ORIGIN}${route}`, {
+    method, ...(body === undefined ? {} : { body: JSON.stringify(body), headers: { "Content-Type": "application/json" } }),
+  }));
+  const catalog = await (await request("/api/templates?language=ko")).json();
+  const directory = path.join(checkoutRoot, ".litzio-dev", "templates");
+  assert.equal(catalog.directory, directory);
+  assert.ok(catalog.templates.some((item: any) => item.id === "builtin:technical-document"));
+  const output = path.join(documents, "desktop-template.md");
+  assert.equal((await request("/api/document", "PUT", { path: output, template: "builtin:technical-document", language: "ko" })).status, 201);
+  assert.equal((await request("/api/templates", "POST", { name: "Desktop copy", from: output })).status, 201);
+  assert.ok(readFileSync(path.join(directory, "Desktop copy.md"), "utf8").includes("template:"));
+});

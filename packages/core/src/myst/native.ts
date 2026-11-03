@@ -17,6 +17,7 @@ import { tableCellContent, tableOf, tableCaptionParagraph, isNativeTableSource }
 import type { MystDocument, MystNode } from "./tree.ts";
 import { NUMBERED_KINDS, referenceTemplatesError, type NumberedKind } from "../numbering.ts";
 import { referenceTemplateValue } from "./reference-templates.ts";
+import { getTemplateMetadata } from "./template.ts";
 import { getDocumentTitle } from "./title.ts";
 import { declaredBibliography } from "./citation.ts";
 
@@ -62,9 +63,9 @@ function metadata(document: MystDocument): void {
   const marker = yaml.get("litzio", true);
   if (!isScalar(marker) || marker.value !== 1) throw new NativeDocumentError("native-marker", "Unsupported native document marker; expected YAML number litzio: 1", [0], 1);
   for (const pair of yaml.contents.items) {
-    if (!isScalar(pair.key) || !["litzio", "title", "numbering", "bibliography"].includes(String(pair.key.value))) throw new NativeDocumentError("native-metadata", "Native frontmatter supports only litzio, title, numbering and bibliography", [0], 1);
+    if (!isScalar(pair.key) || !["litzio", "title", "numbering", "bibliography", "template"].includes(String(pair.key.value))) throw new NativeDocumentError("native-metadata", "Native frontmatter supports only litzio, title, numbering, bibliography and template", [0], 1);
   }
-  try { getDocumentTitle(document); declaredBibliography(document); }
+  try { getDocumentTitle(document); declaredBibliography(document); getTemplateMetadata(document); }
   catch (error) {
     const refusal = new NativeDocumentError("native-metadata", (error as Error).message, [0], 1);
     refusal.location.action = writeIssueOf(error).action;

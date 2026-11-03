@@ -1,6 +1,7 @@
 # Filesystem Host Boundary v1
 
 - Status: Implemented
+- Template verification: 2026-11-04 (#936 Core/CLI and shared Host route tests; [template API](document-templates-v1.md)).
 - Non-overlapping roots verification: 2026-10-29 (#702: Editor 338 unit tests, typecheck/build; persistent Chrome folder-navigation/memory, layout-rules, quiet-document, document-tabs, editor-shell and reveal-folder; [behavior and captures](editor-ux-shell-v1.md#non-overlapping-opened-folders-702)).
 - Post-replacement cleanup verification: 2026-10-27 (PR #609 review P1: four regressions failed before the fix; Host/HTTP 26, Editor 313, shared file-commit 4 passed / 2 platform skips, dedicated-port file-actions browser passed; shared file-commit behavior unchanged).
 - Referenced image rename verification: 2026-10-27 (#504 PR B: Core/CLI/Host tests, file-actions browser dirty/draft protection and clean-tab reload, other-window Save conflict, production HTTP Save/Reload/recovery; rollback failures use real temporary files with injected I/O errors).
@@ -606,3 +607,7 @@ new Core or CLI operation.
 ## Native admission
 
 Open, Reload, Save, Source and asset creation share Core's [native contract](document-support-v1.md). New file serializes `createDocument()`. Rejected Open/Reload returns diagnostics without installing a document model or changing existing editor work. `/api/block-source` and source-replacement replay are removed.
+
+## Document templates (#936)
+
+The shared handler exposes the [template catalog, preview and save routes](document-templates-v1.md#host-api-for-the-gallery-and-assistant). Existing `PUT /api/document` additionally accepts `template` and `language` to create through Core with the same Root and exclusive-write boundaries. The fixed app-owned template directory is a separate capability, not a caller-selected document Root.
