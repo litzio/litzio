@@ -4,6 +4,7 @@ import { i18n } from "../i18n.ts";
 import { operationText, type Operation } from "../operation.ts";
 import { useEffect, useState, type Ref } from "react";
 import { ArrowLeftRight, Check, Circle, Copy, Ellipsis, FileDiff, FilePenLine, LoaderCircle, PanelRight, PanelRightOpen, RotateCcw, StretchHorizontal, TriangleAlert } from "lucide-react";
+import { ChoiceGroup } from "@/components/ui/choice-group.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.tsx";
@@ -64,17 +65,6 @@ export function DocumentActions({
   const displayStatus = idle
     ? (unsaved ? i18n.t("Unsaved changes") : status === "ready" ? "" : operationText("saved"))
     : operationText(status);
-  const sourceProps = {
-    type: "button" as const,
-    variant: "ghost" as const,
-    size: "sm" as const,
-    className: "view-toggle-option",
-    "aria-pressed": view === "source",
-    onClick: () => onViewChange("source"),
-    disabled: viewDisabled,
-    "data-testid": "view-source",
-    "data-segment-label": i18n.t("Source"),
-  };
   const saving = status === "saving";
   const saveState = saving ? "saving" : unsaved ? "unsaved" : "clean";
   const saveVariant = saveState === "unsaved" ? "default" : "ghost";
@@ -87,25 +77,12 @@ export function DocumentActions({
   return (
     <div className="top-bar-actions" data-compact={compact || undefined}>
       {(!textMode || markdownText) && !hideViewControls ? <div className="top-bar-group" role="group" aria-label={i18n.t("View controls")}>
-        <div className="view-toggle" role="group" aria-label={i18n.t("Document view")}>
-          <Button type="button" variant="ghost" size="sm" className="view-toggle-option"
-            aria-pressed={view === "read"} onClick={() => onViewChange("read")} disabled={viewDisabled}
-            data-testid="view-read" data-segment-label={i18n.t("Read")}>
-            <span className="view-toggle-label">{i18n.t("Read")}</span>
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="view-toggle-option"
-            aria-pressed={view === "visual"}
-            onClick={() => onViewChange("visual")}
-            disabled={viewDisabled}
-            data-testid="view-visual"
-            data-segment-label={i18n.t(textMode ? "Text" : "Edit")}
-          ><span className="view-toggle-label">{i18n.t(textMode ? "Text" : "Edit")}</span></Button>
-          {!textMode ? <Button {...sourceProps}><span className="view-toggle-label">{i18n.t("Source")}</span></Button> : null}
-        </div>
+        <ChoiceGroup aria-label={i18n.t("Document view")} value={view} disabled={viewDisabled}
+          onValueChange={onViewChange} options={[
+            { value: "read", label: i18n.t("Read"), testId: "view-read" },
+            { value: "visual", label: i18n.t(textMode ? "Text" : "Edit"), testId: "view-visual" },
+            ...(!textMode ? [{ value: "source" as const, label: i18n.t("Source"), testId: "view-source" }] : []),
+          ]} />
         {onToggleWide && !compact ? <Button type="button" size="icon-sm" variant="ghost" className="top-bar-toggle"
           aria-label={i18n.t("Wide document")} aria-pressed={wide} onClick={onToggleWide}
           title={`${i18n.t("Wide document")} — ${i18n.t("Remembered here; never saved in the document.")}`}>

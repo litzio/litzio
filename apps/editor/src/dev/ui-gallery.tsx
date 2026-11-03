@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { FileText, FolderOpen, MoreHorizontal, Pencil, Plus, Settings, Trash2 } from "lucide-react";
+import { ChoiceGroup } from "../components/ui/choice-group.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { Input } from "../components/ui/input.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog.tsx";
@@ -17,6 +18,16 @@ import "./ui-gallery.css";
 type ExampleState = "default" | "interaction" | "disabled" | "error";
 
 // These examples import production controls. Their local state never writes documents or settings.
+export function ChoiceGroupExamples({ state }: { state: ExampleState }) {
+  const [value, setValue] = useState("automatic");
+  return <section className="ui-gallery-section" aria-labelledby="gallery-choices">
+    <h2 id="gallery-choices">ChoiceGroup</h2>
+    <p>One required choice; Tab visits each button, Enter or Space selects. Selecting again keeps the value.</p>
+    <ChoiceGroup aria-label="Example numbering" value={value} onValueChange={setValue} disabled={state === "disabled"}
+      options={[{ value: "automatic", label: "Automatic" }, { value: "fixed", label: "Fixed" }]} />
+  </section>;
+}
+
 export function ControlExamples({ state }: { state: ExampleState }) {
   const disabled = state === "disabled", invalid = state === "error";
   return <section className="ui-gallery-section" aria-labelledby="gallery-controls">
@@ -104,23 +115,25 @@ export function NotificationExample({ state }: { state: ExampleState }) {
 
 export function UiGallery() {
   const [category, setCategory] = useState("All"), [state, setState] = useState<ExampleState>("default");
-  const [theme, setTheme] = useState(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+  const [theme, setTheme] = useState<"light" | "dark">(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
   const originalTheme = useRef(currentTheme());
   const visible = (name: string) => category === "All" || category === name;
   return <main className="ui-gallery" data-testid="ui-gallery">
     <header><h1>Litzio UI gallery</h1><p>Production components · development only · no document or preference writes</p>
       <a href="/" onClick={() => { void applyTheme(originalTheme.current); }}>Back to editor</a></header>
     <nav className="ui-gallery-section" aria-label="Gallery controls">
-      <div className="ui-gallery-row" aria-label="Category">{["All", "Controls", "Surfaces", "Menus", "Notifications"].map(value =>
-        <Button key={value} size="sm" variant={category === value ? "secondary" : "ghost"} aria-pressed={category === value} onClick={() => setCategory(value)}>{value}</Button>)}</div>
-      <div className="ui-gallery-row" aria-label="Theme">{["light", "dark"].map(value => <Button key={value} size="sm" variant={theme === value ? "default" : "outline"} aria-pressed={theme === value}
-        onClick={() => { setTheme(value); void applyTheme(value as "light" | "dark"); }}>{value === "light" ? "Light" : "Dark"}</Button>)}</div>
-      <div className="ui-gallery-row" aria-label="Example state">{([['default', 'Default'], ['interaction', 'Hover / focus'], ['disabled', 'Disabled'], ['error', 'Error']] as const).map(([value, label]) =>
-        <Button key={value} size="sm" variant={state === value ? "secondary" : "ghost"} aria-pressed={state === value} onClick={() => setState(value)}>{label}</Button>)}</div>
+      <div className="ui-gallery-row"><ChoiceGroup aria-label="Category" value={category} onValueChange={setCategory}
+        options={["All", "Controls", "Surfaces", "Menus", "Notifications"].map(value => ({ value, label: value }))} /></div>
+      <div className="ui-gallery-row"><ChoiceGroup aria-label="Theme" value={theme}
+        options={[{ value: "light", label: "Light" }, { value: "dark", label: "Dark" }]}
+        onValueChange={value => { setTheme(value); void applyTheme(value); }} /></div>
+      <div className="ui-gallery-row"><ChoiceGroup<ExampleState> aria-label="Example state" value={state} onValueChange={setState}
+        options={[{ value: "default", label: "Default" }, { value: "interaction", label: "Hover / focus" },
+          { value: "disabled", label: "Disabled" }, { value: "error", label: "Error" }]} /></div>
       <p>{state === "interaction" ? "Move the pointer over examples or press Tab to inspect real hover and keyboard focus. These states are not painted simulations."
         : "State applies where supported: disabled controls; invalid input, confirmation error and error notification. Navigation remains available."}</p>
     </nav>
-    {visible("Controls") ? <ControlExamples state={state} /> : null}
+    {visible("Controls") ? <><ControlExamples state={state} /><ChoiceGroupExamples state={state} /></> : null}
     {visible("Surfaces") ? <SurfaceExamples state={state} /> : null}
     {visible("Menus") ? <MenuExamples state={state} /> : null}
     {visible("Notifications") ? <NotificationExample state={state} /> : null}
