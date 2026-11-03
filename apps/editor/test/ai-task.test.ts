@@ -148,7 +148,7 @@ test("agent-owned settings persist, reach the worker, and remain pinned in seria
   writeFileSync(input, "data");
   const previous = process.env.LITZIO_AI_TEST_ADAPTER; process.env.LITZIO_AI_TEST_ADAPTER = "execution";
   const agent = new AiAgentConnection(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
-  const host = createPluginHost(new RootAccess([root]), path.join(root, "ai-settings.json"), { directory: path.join(root, "plugins"), agent });
+  const host = createPluginHost(new RootAccess([root]), path.join(root, "ai-settings.json"), { directory: path.join(root, "plugins"), agent, run: { packaged: true } });
   t.after(async () => { await host.close(); if (previous === undefined) delete process.env.LITZIO_AI_TEST_ADAPTER; else process.env.LITZIO_AI_TEST_ADAPTER = previous; rmSync(root, { recursive: true, force: true }); });
   host.aiTasks();
   const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, new RootAccess([root]), 1_000_000, undefined, undefined, host); });
