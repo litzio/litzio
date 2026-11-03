@@ -64,14 +64,13 @@ async (page, { expect, screenshots }) => {
   // Partly numbered source documents warn; inspect and dismiss through the normal UI.
   const dismissNumberingWarnings = async (korean = false) => {
     const warnings = page.getByTestId('numbering-warning');
-    await expect(warnings.first()).toBeVisible();
-    for (let remaining = await warnings.count(); remaining > 0; remaining--) {
-      const warning = warnings.first();
-      await expect(warning).toBeVisible();
-      await expect(warning).toHaveText(/\S/);
-      await warning.locator('xpath=ancestor::li').getByRole('button', { name: korean ? '알림 닫기' : 'Dismiss notification', exact: true }).click();
-      await expect(warnings).toHaveCount(remaining - 1);
+    await warnings.first().waitFor({state:'attached'});
+    if (await warnings.count() > 1) {
+      await page.getByRole('button', {name: korean ? /^묶음 닫기: 번호 경고/ : /^Dismiss group: Numbering warnings/}).click();
+    } else {
+      await warnings.first().locator('xpath=ancestor::li[1]').getByRole('button', {name: korean ? '알림 닫기' : 'Dismiss notification',exact:true}).click();
     }
+    await expect(warnings).toHaveCount(0);
   };
   await open('nist-sp1108r4');
   await dismissNumberingWarnings();
