@@ -45,7 +45,12 @@ The two app defaults are **AI 작업 보고서 / AI work report** (`builtin:ai-r
 and **기술 문서 / Technical document** (`builtin:technical-document`). Like
 [localized samples](desktop-distribution-v1.md#native-sample), content is
 available in `ko` and `en`; callers pass UI language, defaulting to `en`.
-Neither default declares `bibliography`.
+Neither default declares `bibliography`. Per the additional #936 owner instruction
+(2026-11-04), both Korean resources author the existing
+[Korean reference-style preset](heading-numbering-v1.md#reference-templates-445):
+`numbering: { figure: "그림 %s", table: "표 %s", equation: "식 (%s)" }`.
+Their generated documents retain it, so captions/references use 그림 1, 표 1 and
+식 (1). English resources omit numbering overrides and retain MyST defaults.
 
 Defaults are ordinary native Markdown strings embedded as read-only app resources
 in `builtin-templates.ts`, shared by source and bundled Hosts/CLI. They are never

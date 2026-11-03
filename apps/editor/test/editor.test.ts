@@ -1,3 +1,4 @@
+import { parse as parseTemplateDocument, getEditableDocument as templateReadModel, referenceNumberText as templateReference, captionNumberText as templateCaption } from "@litzio/core";
 import { listTemplates as listDocumentTemplates } from "../server/document-templates.ts";
 import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 import { allocateBlockPath } from "../src/block-locators.ts";
@@ -2541,12 +2542,20 @@ test("template Host routes expose localized previews, save from authorized files
     const preview = await (await fetch(`${url}/api/template?id=${encodeURIComponent(item.id)}&language=${language}`)).json();
     assert.ok(preview.source.includes("template:"));
     assert.ok(!preview.source.includes("bibliography:"), "defaults do not enter citation scope");
+    const styles = templateReadModel(parseTemplateDocument(preview.source)).referenceTemplates;
+    if (language === "ko") {
+      assert.deepEqual(styles, { figure: "그림 %s", table: "표 %s", equation: "식 (%s)" });
+      assert.equal(templateCaption("figure", 1, styles), "그림 1");
+      assert.equal(templateCaption("table", 1, styles), "표 1");
+      assert.equal(templateReference("equation", 1, styles), "식 (1)");
+    } else assert.equal(styles, undefined, "English retains MyST defaults");
   }
   const file = path.join(root, "report.md");
   const created = await send("/api/document", "PUT", { path: file, template: "builtin:ai-report", language: "ko" });
   assert.equal(created.status, 201);
   const source = readFileSync(file, "utf8");
   assert.ok(!source.includes("template:"));
+  assert.deepEqual(templateReadModel(parseTemplateDocument(source)).referenceTemplates, { figure: "그림 %s", table: "표 %s", equation: "식 (%s)" });
   const duplicate = await send("/api/document", "PUT", { path: file, template: "builtin:technical-document" });
   assert.equal(duplicate.status, 400);
   assert.equal(readFileSync(file, "utf8"), source);

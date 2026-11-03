@@ -4,6 +4,10 @@ export const BUILTIN_TEMPLATES = {
     ko: `---
 litzio: 1
 title: AI 작업 보고서
+numbering:
+  figure: 그림 %s
+  table: 표 %s
+  equation: 식 (%s)
 template:
   name: AI 작업 보고서
   description: 작업 목적, 변경 내용, 검증 결과와 남은 작업을 기록합니다.
@@ -38,6 +42,10 @@ template:
     ko: `---
 litzio: 1
 title: 기술 문서
+numbering:
+  figure: 그림 %s
+  table: 표 %s
+  equation: 식 (%s)
 template:
   name: 기술 문서
   description: 개요, 요구사항, 설계와 검증 방법을 정리합니다.
