@@ -35,6 +35,9 @@ const hasType = type => Object.hasOwn(types, type);
 export const labelDefinitions = [
   ...Object.entries(types).map(([key, value]) => ({ name: `type:${key}`, color: value.color, description: value.name })),
   ...areas.map(area => ({ name: `area:${area.toLowerCase()}`, color: 'c5def5', description: `${area} 영역` })),
+  { name: 'plugin:docling', color: 'd4c5f9', description: 'Docling 플러그인 관련' },
+  { name: 'plugin:ai-agent', color: 'd4c5f9', description: '메인 에이전트·비서 플러그인 관련' },
+  { name: 'plugin:runtime', color: 'd4c5f9', description: '플러그인 런타임·관리 화면·공통 API 관련' },
   { name: 'status:needs-decision', color: 'fbca04', description: '지원 여부나 범위의 결정 필요; 구현 착수 승인 아님' },
   { name: 'status:deferred', color: 'cfd3d7', description: '향후 검토; 현재 구현 착수 대상 아님' },
   { name: 'status:needs-info', color: 'fef2c0', description: '이슈 작성 규칙에 맞게 정보 보완 필요' },
@@ -124,6 +127,10 @@ export function createIssue(input) {
   if (!hasType(input.type)) throw new Error('type must be bug, enhancement, task or decision');
   if (!areas.includes(input.area)) throw new Error(`area must be ${areas.join(', ')}`);
   if (typeof input.summary !== 'string' || !input.summary.trim() || /[\r\n]/.test(input.summary)) throw new Error('summary must be a non-empty single line');
+  const pluginLabels = input.pluginLabels === undefined ? [] : input.pluginLabels;
+  if (!Array.isArray(pluginLabels) || pluginLabels.some(name => !labelDefinitions.some(label => label.name.startsWith('plugin:') && label.name === name))) {
+    throw new Error('pluginLabels must be an array of defined plugin labels');
+  }
   const definition = types[input.type];
   const fields = input.fields ?? {};
   const known = new Set(definition.fields.map(item => item.id));
@@ -132,7 +139,7 @@ export function createIssue(input) {
   const body = [`## 영역\n\n${input.area}`, ...definition.fields
     .filter(item => item.required || fields[item.id]?.trim())
     .map(item => `## ${item.label}\n\n${fields[item.id]?.trim() ?? ''}`)].join('\n\n');
-  const issue = { title: `${input.area}: ${input.summary.trim()}`, body, labels: [`type:${input.type}`, `area:${input.area.toLowerCase()}`] };
+  const issue = { title: `${input.area}: ${input.summary.trim()}`, body, labels: [`type:${input.type}`, `area:${input.area.toLowerCase()}`, ...new Set(pluginLabels)] };
   const result = validateIssue(issue);
   if (result.errors.length) throw new Error(result.errors.join('\n'));
   if (result.status) issue.labels.push(result.status);

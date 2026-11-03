@@ -49,6 +49,9 @@ test('title and selected area must agree, with exactly one known type and no inv
   assert.match(validateIssue({ ...issue, title: '[UX] 입력란 개선' }).errors.join(), /제목/);
   assert.match(validateIssue({ ...issue, title: 'Desktop: 입력란 개선' }).errors.join(), /서로 다릅니다/);
   for (const labels of [['bug'], ['type:bug', 'type:enhancement'], ['type:constructor'], ['type:toString']]) assert.match(validateIssue({ ...issue, labels }).errors.join(), /type:/);
+  for (const pluginLabels of [['plugin:unknown'], ['area:editor'], 'plugin:docling', null]) {
+    assert.throws(() => createIssue({ ...proposal, pluginLabels }), /pluginLabels/);
+  }
   assert.throws(() => createIssue({ ...proposal, type: 'constructor' }), /type must be/);
   assert.throws(() => createIssue({ ...proposal, fields: { ...proposal.fields, implementation: '추정 구현' } }), /Unknown field/);
   assert.throws(() => createIssue({ ...proposal, summary: '제목\n다른 제목' }), /single line/);
@@ -59,7 +62,7 @@ test('deferred decisions keep their status, without disturbing unrelated labels'
     background: '비개발자의 원격 문서 관리 요구.', questions: '사용 경험을 분석하고 지원 여부를 정한다.', state: '향후 검토',
   } });
   assert.ok(issue.labels.includes('status:deferred'));
-  const prior = { ...issue, labels: ['type:decision', 'area:editor', 'status:needs-decision', 'status:needs-info', 'help wanted'] };
+  const prior = { ...issue, labels: ['type:decision', 'area:editor', 'status:needs-decision', 'status:needs-info', 'help wanted', 'plugin:docling', 'plugin:ai-agent', 'plugin:runtime'] };
   assert.deepEqual(metadataChanges(prior), { add: ['area:product', 'status:deferred'], remove: ['area:editor', 'status:needs-decision', 'status:needs-info'] });
 });
 
@@ -96,10 +99,13 @@ test('CLI previews offline by default and rejects missing fields before a publis
   const directory = mkdtempSync(path.join(os.tmpdir(), 'litzio-issue-cli-'));
   try {
     const file = path.join(directory, 'issue.json'), command = fileURLToPath(new URL('./issues.mjs', import.meta.url));
-    writeFileSync(file, JSON.stringify(proposal));
+    const selected = { ...proposal, pluginLabels: ['plugin:docling', 'plugin:ai-agent', 'plugin:runtime'] };
+    writeFileSync(file, JSON.stringify(selected));
     const preview = spawnSync(process.execPath, [command, 'create', '--input', file], { encoding: 'utf8' });
     assert.equal(preview.status, 0, preview.stderr);
-    assert.deepEqual(JSON.parse(preview.stdout), createIssue(proposal));
+    const output = JSON.parse(preview.stdout);
+    assert.deepEqual(output.labels, ['type:enhancement', 'area:editor', ...selected.pluginLabels]);
+    assert.deepEqual(validateIssue(output).errors, []);
     writeFileSync(file, JSON.stringify({ ...proposal, fields: { problem: '사용자 보고' } }));
     const rejected = spawnSync(process.execPath, [command, 'create', '--input', file, '--publish'], { encoding: 'utf8' });
     assert.equal(rejected.status, 1);
