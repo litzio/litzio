@@ -35,4 +35,3 @@ async (page, { openPath, screenshots }) => {
   }
   return {captures,before};
 }
-
