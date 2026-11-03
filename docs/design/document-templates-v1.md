@@ -1,8 +1,8 @@
 # Document templates v1
 
 - Status: Implemented
-- Last verified: 2026-11-04 — Editor gallery integration, retained read-only preview, localized naming feedback, targeted browser and 1440/640px visual review; packaged Desktop remains CI-only.
-- Scope: #936 phases 1–2, Core semantics, thin CLI/Host interfaces and Editor gallery. Assistant integration remains phase 3.
+- Last verified: 2026-11-04 — Phase 1 Core/CLI/Host/Desktop adapter tests; phase 2 gallery, retained reading preview, naming feedback and 1440/640px review; phase 3 generated guidance, CLI path and YAML-comment preservation checks. No real model call; packaged Desktop verification is CI-only.
+- Scope: #936 phases 1–3: Core semantics, thin CLI/Host interfaces, Editor gallery and assistant guidance.
 - Authority: [#936 owner decisions](https://github.com/litzio/litzio/issues/936), including the 2026-11-04 approval of optional `template: { name, description }`; [native support](document-support-v1.md), [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md) and [ADR-0006](../adr/0006-native-document-boundary.md).
 
 ## Native document semantics
@@ -99,9 +99,8 @@ valid templates available while reporting individual broken user files.
 
 The protocol types live in `apps/editor/shared/template-protocol.ts`. Listing,
 preview and saving do not apply a template to an existing document. The gallery
-and assistant use the same ID and source contract. No generated AGENTS.md/guide
-change or assistant prompt/tool integration is included.
-The assistant's later permission-before-application flow remains phase 3.
+and assistant use the same ID and source contract. The gallery uses these routes;
+assistant guidance uses the existing CLI without changing them.
 
 ## Editor gallery (phase 2)
 
@@ -159,6 +158,31 @@ with `--json`. Save prints the saved content record as JSON. CLI uses the same
 store and Core operations, strict UTF-8 and existing `create` exclusive write;
 it does not implement YAML/AST semantics.
 
+## Assistant guidance (phase 3)
+
+Litzio's generated assistant `AGENTS.md` directs document-creation requests to
+query `templates list --json` and read the product-owned `litzio-guide` skill.
+The skill queries names/descriptions at request time, rather than embedding a
+catalog that becomes stale after user saves. It proposes a suitable template,
+waits for consent, reads its structure and creates through `create --template`.
+An explicitly named template supplies consent for that template; missing entries
+must not silently fall back to another template.
+
+New template authoring uses `create`, supported `apply-batch` operations and
+`check`, followed by `templates save`. Saving an existing document leaves it
+unchanged. The user confirms name, description and source before saving; an
+explicit request containing those details suffices. Save reads disk, so unsaved
+editor context must not be represented as saved template content. Built-ins are
+copied under a new user name; collisions never replace entries. Instructions
+require a read-back and refreshed catalog after saving.
+
+No dynamic-tool template argument, Host route or UI is added. Template workflows
+use the CLI in the same environment/catalog as Litzio. CLI creations have no
+structured `create_document` receipt, result card or card Undo; the assistant
+reports the path and validation result in text. Restricted shell/filesystem
+access or an unavailable CLI is reported as a limitation, without bypassing it.
+See [main-agent guidance](main-agent-v1.md#template-workflows-936-phase-3).
+
 ## Verification scope
 
 Existing Core native tests own valid/malformed metadata, immutable operations,
@@ -183,8 +207,12 @@ and Settings. The original fixed Explorer-to-Docling assertion failed in CI;
 the updated check asserts each stop rather than skipping focus/order validation. Manual
 captures are separate from automatic assertions; see [gallery visual review](#gallery-visual-review).
 
-Placeholder substitution, folder templates, Docling result formatting (#1103),
-assistant integration remain outside phases 1–2.
+Placeholder substitution, folder templates and Docling result formatting (#1103)
+remain outside this contract. Phase 3 extends the existing generated-environment
+test with consent, live catalog and CLI command guidance assertions. Existing CLI
+template tests verify list/read/save/create and refusal paths; no duplicate write
+harness, subprocess or real model call is added. Core preservation assertions also
+check the YAML marker comment before and after template creation.
 
 ## Gallery visual review
 

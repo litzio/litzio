@@ -231,6 +231,19 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   writeFileSync(guide, "stale"); connection.environment();
   assert.equal(readFileSync(guide, "utf8"), LITZIO_GUIDE);
   assert.equal(readFileSync(env.instructions, "utf8"), AGENT_INSTRUCTIONS);
+  // Generated guidance owns consent and CLI routing; CLI tests own actual writes.
+  const instructions = readFileSync(env.instructions, "utf8"), generatedGuide = readFileSync(guide, "utf8");
+  assert.match(instructions, /Read .*litzio-guide.*SKILL\.md.*template/);
+  assert.match(instructions, /templates list --json/);
+  assert.match(generatedGuide, /templates list --json --language <ko\|en>/);
+  assert.match(generatedGuide, /templates read <id> --json --language <ko\|en>/);
+  assert.match(generatedGuide, /Propose.*user agrees.*create/s);
+  assert.match(generatedGuide, /explicitly names a template.*authorization/s);
+  assert.match(generatedGuide, /create <new-file> --template <id> --language <ko\|en>/);
+  assert.match(generatedGuide, /templates save <name> --from <file> --description <text>/);
+  assert.match(generatedGuide, /Confirm.*name.*description.*source.*before saving/s);
+  assert.match(generatedGuide, /unsaved.*saved disk version/s);
+  assert.match(generatedGuide, /CLI creations do not produce.*result card/);
   const [models, diagnostics] = await Promise.all([connection.models(), connection.diagnostics()]);
   assert.deepEqual(models.models.map(model => model.model), ["gpt-6.1-sol", "chosen-model", "next-model"]);
   assert.equal(diagnostics.connected, true); assert.equal(diagnostics.accountError, "fixture error");
