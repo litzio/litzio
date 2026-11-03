@@ -3431,6 +3431,4 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .plugin-settings-row .settings-section { grid-template-columns: minmax(0, 1fr) auto; }
 .plugin-settings-row .settings-label { padding-inline-end: calc(var(--size-control) + var(--space-2)); }
 .plugin-settings-gear { position: absolute; inset-inline-end: calc(var(--size-control) + var(--space-2)); top: 50%; transform: translateY(-50%); }
-
-.plugin-settings-facts { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
-.plugin-settings-facts dd { overflow-wrap: anywhere; text-align: start; }
+.plugin-settings-info .settings-description { margin-top: 0; }

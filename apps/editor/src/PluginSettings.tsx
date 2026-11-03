@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { i18n } from "./i18n.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog.tsx";
-import { Info, Settings } from "lucide-react";
+import { ChevronLeft, Info, Settings } from "lucide-react";
 import type { SettingsSection } from "@litzio/plugin-api/ui";
 import { SettingsRow, SettingsSwitch } from "@/components/ui/settings.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
@@ -69,19 +69,21 @@ export function PluginSettings({ sections, errors, onOpen, focusSection, selecte
     {!items && !problem ? <p role="status">{i18n.t("Loading…")}</p> : null}
     {items?.length === 0 ? <p>{i18n.t("No installed plugins.")}</p> : null}
     {selectedId ? <>
-      <Button size="sm" variant="ghost" onClick={onBack}>{i18n.t("Back to plugins")}</Button>
+      <Button size="sm" variant="ghost" className="px-0 gap-2" onClick={onBack}><ChevronLeft aria-hidden="true" />{i18n.t("Back to plugins")}</Button>
       <header className="settings-category-header"><h2 id={`settings-category-plugin/${selectedId}`}>{selected ? displayName(selected) : selectedId}</h2></header>
       {selected && loading(selected) ? <p role="status">{i18n.t("Loading…")}</p> : null}
       {selected?.enabled ? sections.filter(section => section.id.startsWith(`plugin/${selected.id}/`)).map(section => { const View = section.View; return <ContributionBoundary key={section.id}><View /></ContributionBoundary>; }) : null}
-      {selected ? <section className="settings-group" aria-label={i18n.t("Plugin information")}>
+      {selected ? <section className="settings-group plugin-settings-info" aria-label={i18n.t("Plugin information")}>
         <h3 className="settings-group-heading">{i18n.t("Plugin information")}</h3>
-        <dl className="settings-facts settings-section plugin-settings-facts">
-          <dt>{i18n.t("Version")}</dt><dd>{selected.version}</dd>
-          <dt>{i18n.t("Installation revision")}</dt><dd title={selected.revision}>{selected.revision.slice(0, 12)}</dd>
-          <dt>{i18n.t("Installation path")}</dt><dd>{selected.directory}</dd>
-          <dt>{i18n.t("App default revision")}</dt><dd>{i18n.t(selected.bundledRevision === null ? "Not bundled with this app" : selected.revision === selected.bundledRevision ? "Matches app default" : "Differs from app default")}</dd>
-        </dl>
-        {selected.bundledRevision ? <SettingsRow label={i18n.t("Register app default again")}><Button size="sm" variant="secondary" disabled={busy} onClick={event => { opener.current = event.currentTarget; setProblem(""); setConfirm(selected); }}>{i18n.t("Register app default again")}</Button></SettingsRow> : null}
+        <SettingsRow label={i18n.t("Version")}><span className="settings-description">{selected.version}</span></SettingsRow>
+        <SettingsRow label={i18n.t("Installation revision")}><span className="settings-description" title={selected.revision}>{selected.revision.slice(0, 12)}</span></SettingsRow>
+        <SettingsRow label={i18n.t("Installation path")}><span className="settings-description [overflow-wrap:anywhere]">{selected.directory}</span></SettingsRow>
+        <SettingsRow label={i18n.t("App default revision")}><span className="settings-description">{i18n.t(selected.bundledRevision === null ? "Not bundled with this app" : selected.revision === selected.bundledRevision ? "Matches app default" : "Differs from app default")}</span></SettingsRow>
+        {selected.bundledRevision ? <SettingsRow label={i18n.t("App default")}>
+          <Tooltip><TooltipTrigger render={<Button size="sm" variant="secondary" focusableWhenDisabled disabled={busy || selected.revision === selected.bundledRevision} onClick={event => { opener.current = event.currentTarget; setProblem(""); setConfirm(selected); }} />}>{i18n.t("Register again")}</TooltipTrigger>
+            <TooltipContent>{i18n.t(selected.revision === selected.bundledRevision ? "Matches app default" : "Register app default again")}</TooltipContent>
+          </Tooltip>
+        </SettingsRow> : null}
       </section> : null}
     </> : items?.map(item => <section className="plugin-settings-row" key={item.id} data-testid={`installed-plugin-${item.id}`}>
       <SettingsSwitch label={displayName(item)} checked={item.enabled} disabled={busy} onChange={enabled => void toggle(item, enabled)} description={<>
@@ -99,7 +101,7 @@ export function PluginSettings({ sections, errors, onOpen, focusSection, selecte
           </TooltipContent>
         </Tooltip>
       </>} />
-      <div className="plugin-settings-gear"><Tooltip><TooltipTrigger render={<Button ref={item.id === focusSection?.split("/")[1] ? focusTarget : undefined} size="icon-sm" variant="ghost" aria-label={i18n.t("{{name}} settings", { name: displayName(item) })} focusableWhenDisabled disabled={busy || !item.enabled || loading(item)} onClick={() => onOpen(`plugin/${item.id}`)} />}><Settings aria-hidden="true" /></TooltipTrigger>
+      <div className="plugin-settings-gear"><Tooltip><TooltipTrigger render={<Button ref={item.id === focusSection?.split("/")[1] ? focusTarget : undefined} size="icon-sm" variant="ghost" className="aria-disabled:bg-transparent aria-disabled:border-transparent aria-disabled:opacity-50" aria-label={i18n.t("{{name}} settings", { name: displayName(item) })} focusableWhenDisabled disabled={busy || !item.enabled || loading(item)} onClick={() => onOpen(`plugin/${item.id}`)} />}><Settings aria-hidden="true" /></TooltipTrigger>
         <TooltipContent>{i18n.t(loading(item) ? "Loading…" : item.enabled ? "{{name}} settings" : "Turn on {{name}} to open settings", { name: displayName(item) })}</TooltipContent>
       </Tooltip></div>
     </section>)}

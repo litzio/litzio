@@ -222,7 +222,10 @@ with loaded contributions but no settings can still open its information screen.
 The gear opens one plugin detail screen, including plugins without contributed
 settings. Host owns Back to plugins, the plugin heading, all contributed settings,
 then Information (version, short revision with full title, path and default match)
-and Register app default again for bundled plugins. Cancellation sends no request;
+using Host SettingsRow labels and muted supplementary values. Back uses a left arrow
+ghost button aligned to the title edge. Bundled plugins have an App default row
+with a Register again action; matching revisions disable it with a reason tooltip.
+Disabled gears retain the same borderless ghost appearance. Cancellation sends no request;
 confirmation calls the existing Host registration path. Back restores focus to the gear.
 No separate Settings or registration action rows appear in the inventory.
 
