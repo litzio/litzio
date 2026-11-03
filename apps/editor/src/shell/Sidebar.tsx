@@ -61,6 +61,15 @@ export function Sidebar({
   theme = "system", onThemeChange, contributions = [], pluginFileActions = [], onAddToChat,
 }: SidebarProps) {
   useTranslation();
+  const content = useRef<HTMLDivElement>(null);
+  const only = folders.length === 1 ? folders[0] : undefined;
+  const blankActions = only ? folderActions({
+    onNew: button => onNew?.(only.root, button),
+    onNewFolder: button => onNewFolder?.(only.root, button),
+    onOpenFolder, onRevealFolder,
+    onRefresh: () => onRefreshFolder?.(only.root), onClose: () => onCloseFolder?.(only.root),
+  }, only.root, () => content.current?.querySelector<HTMLButtonElement>('[data-folder-menu]') ?? null)
+    : [{ id: "open", label: i18n.t("Open folder…"), icon: <FolderOpen aria-hidden="true" />, run: () => onOpenFolder(content.current) }];
   return (
     <nav className={`sidebar${open ? "" : " sidebar--collapsed"}`} aria-label={i18n.t("Application")} data-testid="sidebar">
       <div className="sidebar-header">
@@ -82,7 +91,7 @@ export function Sidebar({
         </div>
       </div>
       {/* Keep the tree mounted: collapse retains scroll and keyboard position. */}
-      <div id="sidebar-files" className="sidebar-content" hidden={!open}>
+      <ContextMenu actions={blankActions} trigger={<div ref={content} id="sidebar-files" className="sidebar-content" hidden={!open}>
         {folders.length > 0 ? folders.map(tree => (
           <FolderTree
             key={tree.root}
@@ -130,7 +139,7 @@ export function Sidebar({
             ) : null}
           </section>
         )}
-      </div>
+      </div>} />
       {onSettings || onThemeChange || contributions.length ? (
         <div className="sidebar-footer">
           {open ? contributions.map(item => <Button key={item.id} size="sm" variant="ghost" className="min-w-0 justify-start" disabled={fileActionsDisabled}
@@ -191,12 +200,26 @@ type FolderTreeProps = {
   onClose(): void;
 };
 
+/** Shared definitions for the root header, its More button and single-root blank area. */
+function folderActions(props: Pick<FolderTreeProps, "onNew" | "onNewFolder" | "onOpenFolder" | "onRevealFolder" | "onRefresh" | "onClose">,
+  root: string, button: () => HTMLButtonElement | null): ContextMenuAction[] {
+  return [
+    { id: "new", label: i18n.t("New document…"), icon: <Plus aria-hidden="true" />, run: () => { const target = button(); if (target) props.onNew(target); } },
+    { id: "new-folder", label: i18n.t("New folder…"), icon: <FolderPlus aria-hidden="true" />, run: () => { const target = button(); if (target) props.onNewFolder(target); } },
+    { id: "open", label: i18n.t("Open folder…"), icon: <FolderOpen aria-hidden="true" />, run: () => props.onOpenFolder(button()) },
+    { id: "reveal", label: i18n.t("Open in File Explorer"), icon: <FolderOpen aria-hidden="true" />, visible: !!props.onRevealFolder, run: () => props.onRevealFolder?.(root) },
+    { id: "refresh", label: i18n.t("Refresh"), icon: <RotateCw aria-hidden="true" />, run: props.onRefresh },
+    { id: "close", label: i18n.t("Close folder"), icon: <X aria-hidden="true" />, run: props.onClose },
+  ];
+}
+
 /** One opened folder as a tree: folders expand in place, documents open. */
 function FolderTree({ pluginFileActions = [], onAddToChat, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
   useTranslation();
   const treeId = useId();
   const section = useRef<HTMLElement>(null);
   const moreActions = useRef<HTMLButtonElement>(null);
+  const actions = folderActions({ onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }, tree.root, () => moreActions.current);
   const [fileAction, setFileAction] = useState<{ action: FileAction; item: TreeItem }>();
   const actionReturn = useRef<HTMLElement | null>(null);
   const pendingFocus = useRef<string | null>(null);
@@ -246,8 +269,8 @@ function FolderTree({ pluginFileActions = [], onAddToChat, onFileAction, fileAct
   };
 
   return (
-    <section ref={section} className="sidebar-folder" aria-label={folderName} data-testid="folder" data-root={tree.root}>
-      <div className="sidebar-folder-header">
+    <section onContextMenu={event => { if ((event.target as Element).closest(".sidebar-folder-header, .sidebar-tree-item")) event.stopPropagation(); }} ref={section} className="sidebar-folder" aria-label={folderName} data-testid="folder" data-root={tree.root}>
+      <ContextMenu actions={actions} trigger={<div className="sidebar-folder-header">
         <p className="sidebar-folder-name" title={tree.root}>
           <span className="sidebar-tree-chevron">
             <Button type="button" variant="ghost" size="icon-xs" className="sidebar-folder-toggle"
@@ -261,24 +284,16 @@ function FolderTree({ pluginFileActions = [], onAddToChat, onFileAction, fileAct
             <Plus />
           </Button>
           <DropdownMenu>
-            <DropdownMenuTrigger ref={moreActions} render={<Button variant="ghost" size="icon-xs" aria-label={i18n.t("More actions")} />}>
+            <DropdownMenuTrigger data-folder-menu="" ref={moreActions} render={<Button variant="ghost" size="icon-xs" aria-label={i18n.t("More actions")} />}>
               <Ellipsis />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => { if (moreActions.current) onNewFolder(moreActions.current); }}>
-                <FolderPlus aria-hidden="true" />{i18n.t("New folder…")}</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onOpenFolder(moreActions.current)}>
-                <FolderOpen aria-hidden="true" />{i18n.t("Open folder…")}</DropdownMenuItem>
-              {onRevealFolder ? <DropdownMenuItem onClick={() => onRevealFolder(tree.root)}>
-                <FolderOpen aria-hidden="true" />{i18n.t("Open in File Explorer")}</DropdownMenuItem> : null}
-              <DropdownMenuItem onClick={onRefresh}>
-                <RotateCw aria-hidden="true" />{i18n.t("Refresh")}</DropdownMenuItem>
-              <DropdownMenuItem onClick={onClose}>
-                <X aria-hidden="true" />{i18n.t("Close folder")}</DropdownMenuItem>
+              {actions.filter(action => action.id !== "new" && action.visible !== false).map(action =>
+                <DropdownMenuItem key={action.id} onClick={action.run}>{action.icon}{action.label}</DropdownMenuItem>)}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-      </div>
+      </div>} />
       <ul id={treeId} className="sidebar-tree" role="tree" aria-label={folderName} hidden={!tree.sectionExpanded} onKeyDown={keyDown}>
         {items.map(item => {
           const { entry } = item;
