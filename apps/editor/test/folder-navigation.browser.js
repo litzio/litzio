@@ -167,6 +167,22 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, screenshots =
         }));
         assert(headings.every(heading => heading.sameRow && heading.rightAligned && heading.noHeadingGap && heading.noSectionGap && heading.sameTypography && heading.sameHeight && heading.childIndent && heading.folderIconsAbsent && heading.sameIconSize),
           `Folder identity and actions must share the first row: ${state}/${width}px ${JSON.stringify(headings)}`);
+        if (state === 'one' && width !== 1024) {
+          const header = section.first().locator('.sidebar-folder-header');
+          const name = header.locator('.sidebar-tree-name');
+          const child = section.locator('.sidebar-tree-item[aria-expanded]').first();
+          await page.mouse.move(600, 800);
+          const before = await name.boundingBox();
+          const rest = await header.evaluate(node => getComputedStyle(node).backgroundColor);
+          await child.hover();
+          const childHover = await child.evaluate(node => getComputedStyle(node).backgroundColor);
+          await name.hover();
+          const rootHover = await header.evaluate(node => getComputedStyle(node).backgroundColor);
+          const after = await name.boundingBox();
+          assert(rootHover === childHover && rootHover !== rest,
+            `Root hover must match child folder: ${JSON.stringify({rest, rootHover, childHover})}`);
+          assert(JSON.stringify(before) === JSON.stringify(after), 'Root hover must move text by 0px');
+        }
         if (collapsedForComparison) await disclosure.click();
         assert(await openFolder.count() === 0, 'Opened folders use their menu instead of a second Open entry');
         assert(await section.first().getByRole('button', {name:'New document…', exact:true}).getAttribute('title') === 'New document…', 'New document has one consistent name');
