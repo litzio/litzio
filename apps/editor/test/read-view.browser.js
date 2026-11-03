@@ -9,7 +9,7 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
     await page.getByRole('button', {name:/^(Settings|설정)$/}).click();
     await page.getByTestId('ui-language').selectOption(language);
     await page.getByTestId('theme').selectOption(theme);
-    await page.getByTestId('settings-back').click();
+    await page.locator('[data-tab-id="settings"] .document-tab-close').click();
     await expect(page.getByTestId('settings-dialog')).toHaveCount(0);
     await page.evaluate(() => document.fonts.ready);
   };

@@ -239,7 +239,7 @@ test("started without a document, it opens none; the sample opens with its figur
           viewport.scrollTop = Math.min(200, Math.max(0, viewport.scrollHeight - viewport.clientHeight));
         });
         await page.getByRole("button", { name: "Settings", exact: true }).click();
-        await expect(page.getByTestId("settings-back")).toBeFocused();
+        await expect(page.getByRole("tab", { name: "Settings", exact: true })).toBeFocused();
         await page.getByTestId("theme").selectOption(theme);
         await expect.poll(() => app.evaluate(({ nativeTheme }) => nativeTheme.themeSource)).toBe(theme);
         // Wait for the appearance IPC, including the native color update, before OS sampling.
@@ -252,10 +252,10 @@ test("started without a document, it opens none; the sample opens with its figur
         const name = `${state.width || "maximized"}-${theme}-${state.outline ? "open" : "closed"}`;
         await inspectCaption(`${name}-settings`, "settings",
           state.width === 1440 && theme === "light" && !state.outline);
-        const scrollBeforeWheel = await page.evaluate(() => document.querySelector<HTMLElement>('.document-scroll[data-active="true"]')!.scrollTop);
+        const scrollBeforeWheel = await page.evaluate(() => document.querySelector<HTMLElement>('.document-scroll:not(.settings-tab)')!.scrollTop);
         await page.mouse.wheel(0, 300);
         await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-        assert.equal(await page.evaluate(() => document.querySelector<HTMLElement>('.document-scroll[data-active="true"]')!.scrollTop), scrollBeforeWheel, "Settings wheel input does not scroll the document behind it");
+        assert.equal(await page.evaluate(() => document.querySelector<HTMLElement>('.document-scroll:not(.settings-tab)')!.scrollTop), scrollBeforeWheel, "Settings wheel input does not scroll the document behind it");
         if (state.width === 1440 && theme === "light" && !state.outline) {
           // Exercise the native inset change while the Settings surface stays open.
           await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.maximize());

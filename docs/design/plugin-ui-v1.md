@@ -226,3 +226,13 @@ Self-reviewed captures: [1440px English Light](assets/plugin-settings-947/plugin
 and [confirmation](assets/plugin-settings-947/confirm-640-dark-ko.png).
 Paths use a disposable test store; the mismatching revision is synthetic while
 confirmation and the resulting inventory use the actual Host.
+
+## Settings task host (#1032)
+
+Settings contributions now render inside the Host-owned task tab, sharing its
+heading, category navigation, scroll and content column. `openSettings` keeps the
+same API and selects the existing Settings tab and requested category. Tab switches
+keep the mounted contribution and its local draft; closing unmounts it. Like
+contributed task tabs, Settings is absent from startup restoration and document
+Save/recovery. Registration loss still removes its category and falls back to
+Appearance. [Lifecycle, keyboard and captures](editor-ux-shell-v1.md#settings-task-tab-1032).

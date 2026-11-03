@@ -89,7 +89,7 @@ async (page, { expect, openFolderPicker, pluginFixture, fileActionsRoot, screens
   await page.keyboard.press('Escape'); await expect(confirm).toBeHidden(); await expect(diskUndo).toBeFocused();
   await panel.getByRole('button', { name: 'Close assistant' }).click();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark'); await page.getByTestId('settings-back').click();
+  await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark'); await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await page.getByRole('button', { name: '비서', exact: true }).click(); await expect(panel.getByRole('textbox')).toBeEnabled();
   if (screenshots) await page.screenshot({ path: 'tmp/931-result-evidence/result-1440-dark-ko.png' });
   await page.setViewportSize({ width: 640, height: 1000 });
@@ -102,7 +102,7 @@ async (page, { expect, openFolderPicker, pluginFixture, fileActionsRoot, screens
   if (screenshots) {
     await panel.getByRole('button', { name: '비서 닫기' }).click();
     await page.getByRole('button', { name: '설정', exact: true }).click();
-    await page.getByTestId('theme').selectOption('light'); await page.getByTestId('settings-back').click();
+    await page.getByTestId('theme').selectOption('light'); await page.locator('[data-tab-id="settings"] .document-tab-close').click();
     await page.getByRole('button', { name: '비서', exact: true }).click();
     await expect(panel.getByRole('textbox')).toBeEnabled();
     await page.screenshot({ path: 'tmp/931-result-evidence/result-640-light-ko.png' });
