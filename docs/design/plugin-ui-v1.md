@@ -133,7 +133,7 @@ Detachment never cancels an accepted worker or deletes its receipts.
 and completion/error handling into its plugin. The shell renders generic settings
 sections and an activation view using the same controls, geometry, focus return
 and notification center. Disable unmounts those views before disposal; settings
-falls back to Appearance when its contributed category disappears. File actions
+returns to the Plugins list when its registration disappears. File actions
 are filtered by declared extension and respect activation busy state.
 
 Optional `jobRoute: "api/<name>"` declares a Host job snapshot to observe before
@@ -143,7 +143,7 @@ status cannot be bypassed by a second read or prematurely enable Start. Polling
 after activation is plugin-owned. Failed reads retry only GET; no automatic POST
 or startup restoration is introduced. Observation stops on detach/failure/handoff.
 
-Settings plugin management, official plugin installation/update/removal, a general
+Official plugin installation/update/removal, a general
 plugin OS sandbox and daemon remain outside these changes. Docling remains bundled until its official installation flow exists.
 No new Core semantics or semantic CLI command is introduced. Existing headless
 conversion and shared Host registration APIs remain available without a view.
@@ -204,21 +204,32 @@ and persistent completion/failure notices; see [conversion lifecycle](docling-co
 During feature-driven UI reactivation, Settings retains its selected plugin category
 while the Host still lists that UI registration. A missing contribution alone is
 not proof of removal. Settings confirms absence through the existing registration
-GET before falling back to Appearance; failed reads preserve the selection. Actual
-unregistration/disable still removes the category and selects Appearance (#942).
+GET before returning to Plugins; failed reads preserve the selection. Actual
+unregistration/disable still removes the category and selects Plugins (#1007).
 
 ## Host-owned plugin settings (#947)
 
 Settings includes a built-in Plugins category, independent of contributed
-settings and available even when a plugin is disabled. It lists plugin IDs as
-installation names, version, enabled state, actual installation directory and
-12-character installed/default revisions with full values in tooltips. Each
-installation says Matches app default, Differs from app default, or Not bundled
-with this app. Only mismatches offer Register app default again. One shared
-confirmation dialog explains that registration enables the plugin; Cancel sends
-no request. Confirmation uses the existing Host registration path then rereads
-inventory. Failures remain visible and do not claim successful replacement.
-The existing UI-registration refresh attaches the registered contribution.
+settings and available even when a plugin is disabled. #1007 shows installation
+name (plugin ID), version and Enabled/Off/Error state. Full version, installed and
+bundled revisions, installation path, default-match status and UI loading errors
+are available from the information button on hover or keyboard focus. Only
+mismatches offer Register app default again. The existing confirmation and Host
+registration path remain unchanged; cancellation sends no request.
+
+Each installation uses the Host SettingsSwitch row. Disabling uses the existing
+DELETE path; enabling uses PATCH on the same worker-plugins route and preserves
+the registered revision, directory and feature flags. Errors stay visible and do
+not claim successful activation. Contributions reattach through the existing UI
+registration refresh. Disabled plugins cannot open settings.
+
+Contributed settings are reached from their installation in this list, with Back
+to plugins returning to the list. They are no longer top-level navigation peers
+of Appearance or Saving. openSettings still supports direct plugin entry.
+Feature-driven reactivation retains the selected settings while its registration
+exists; actual disable returns to the list. This composes existing SettingsRow,
+SettingsSwitch and Button; no public Plugin API is added.
+
 `plugin-settings` verifies cancellation, confirmation and the real Host POST/GET,
 with 1440px English Light and 640px Korean Dark captures including long paths.
 
@@ -236,8 +247,7 @@ heading, category navigation, scroll and content column. `openSettings` keeps th
 same API and selects the existing Settings tab and requested category. Tab switches
 keep the mounted contribution and its local draft; closing unmounts it. Like
 contributed task tabs, Settings is absent from startup restoration and document
-Save/recovery. Registration loss still removes its category and falls back to
-Appearance. [Lifecycle, keyboard and captures](editor-ux-shell-v1.md#settings-task-tab-1032).
+Save/recovery. Registration loss returns to the Plugins list. [Lifecycle, keyboard and captures](editor-ux-shell-v1.md#settings-task-tab-1032).
 
 ## Host settings rows and declarative menus (#1033)
 
@@ -318,3 +328,19 @@ are scoped to that button and do not override Host Button/SettingsAction states.
 The 1440px English Light and 640px Korean Dark Appearance captures above were
 refreshed after confirming that selected-value text matches the row labels.
 No public props or permanent tests were added.
+
+## Plugin management verification (#1007)
+
+Existing plugin-settings and plugin-ui scenarios cover details on hover/keyboard
+focus, disable/enable with the same pinned installation, restored contributions,
+list → plugin settings → list, and the retained #947 default-registration dialog.
+Host tests extend the existing disable case with same-revision reactivation.
+No new scenario or exhaustive cross-product is added. Other settings callers use
+the same list entry; their feature and draft assertions remain intact.
+
+Manual review uses 1440px English Light and 640px Korean Dark, matching the
+built-in settings rows. Before/After evidence:
+[1440 Before](assets/plugin-settings-1007/before-1440.png) /
+[After](assets/plugin-settings-1007/after-1440.png),
+[640 Before](assets/plugin-settings-1007/before-640-dark-ko.png) /
+[After](assets/plugin-settings-1007/after-640-dark-ko.png).

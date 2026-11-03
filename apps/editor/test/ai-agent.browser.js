@@ -59,8 +59,9 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.evaluate(prefix => { localStorage.removeItem(prefix + '.sidebarWidth'); localStorage.removeItem(prefix + '.document-panelWidth'); }, brand.storagePrefix);
   await page.reload();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  const categories = page.getByRole('navigation', { name: 'Settings categories' });
-  await categories.getByRole('button', { name: 'AI agent', exact: true }).click();
+  const categories = page.getByRole('navigation', { name: /^(Settings categories|설정 분류)$/ });
+  await categories.getByRole('button', { name: 'Plugins', exact: true }).click();
+  await page.getByTestId('plugin-settings').getByRole('button', { name: 'AI agent', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'AI agent', exact: true }).last()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Codex models', exact: true })).toContainText('Available');
   await page.getByRole('button', { name: 'Codex models', exact: true }).click();
@@ -121,6 +122,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   expect(settings).toEqual({ provider: 'codex', enabled: true, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'high', responseLanguage: 'ja' });
   const aiGeometry = await measure();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/ai-1440-light-en.png' });
+    await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
   await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Docling server', exact: true })).toBeVisible();
   expect(await measure()).toEqual(aiGeometry);
@@ -128,6 +130,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await categories.getByRole('button', { name: 'Appearance & language', exact: true }).click();
   await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
   await page.setViewportSize({ width: 640, height: 1000 });
+  await categories.getByRole('button', { name: '플러그인', exact: true }).click();
   await page.getByRole('button', { name: 'AI 에이전트', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Codex 모델', exact: true })).toContainText('사용 가능');
   await expect(page.getByLabel('모델', { exact: true })).toHaveValue('gpt-6.1-sol');
@@ -148,6 +151,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-640-dark-ko.png' });
   await page.getByRole('button', { name: '← AI 에이전트', exact: true }).click();
+    await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
   await page.getByTestId('settings-dialog').getByRole('button', { name: 'Docling', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Docling 서버', exact: true })).toBeVisible();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/docling-640-dark-ko.png' });

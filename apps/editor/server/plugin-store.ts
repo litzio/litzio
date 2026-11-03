@@ -139,6 +139,22 @@ export class PluginStore {
     if (digest(bytes) !== item.uiHashes[name]) throw new Error("Installed UI asset hash mismatch.");
     return bytes;
   }
+  enable(id: string): Installation {
+    return this.transaction(() => {
+      const item = this.list().find(item => item.id === id);
+      if (!item) throw new Error("Worker plugin is not registered.");
+      if (item.enabled) throw new Error("Plugin is already enabled.");
+      // Validate the pinned installation before admitting new work or UI loads.
+      const hashes = { ...(item.entry ? { [item.entry]: item.sha256 } : {}),
+        ...(item.host && item.hostHash ? { [item.host.entry]: item.hostHash } : {}), ...item.uiHashes };
+      for (const [name, hash] of Object.entries(hashes)) {
+        if (digest(readFileSync(path.join(item.directory, name))) !== hash) throw new Error("Installed plugin hash mismatch.");
+      }
+      item.enabled = true;
+      this.db.prepare("UPDATE plugins SET value=? WHERE id=?").run(JSON.stringify(item), id);
+      return item;
+    });
+  }
   unregister(id: string): void {
     this.transaction(() => {
       const item = this.list().find(item => item.id === id);
