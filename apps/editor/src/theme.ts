@@ -3,7 +3,6 @@ import "./styles/tokens.css";
 
 // Runtime counterpart of theme-init.js: keep roles and native appearance in sync before UI mounts.
 const root = document.documentElement;
-const media = window.matchMedia("(prefers-color-scheme: dark)");
 let preference = readTheme();
 let revision = 0;
 
@@ -35,17 +34,22 @@ function syncBackground(): Promise<void> | undefined {
   });
 }
 
-export async function applyTheme(theme: ThemePreference): Promise<void> {
+export async function applyTheme(theme: ThemePreference, animate = true): Promise<void> {
+  const changed = preference !== theme;
   preference = theme;
   const request = ++revision;
-  render(theme === "dark" || (theme === "system" && media.matches));
-  const desktop = window.litzioDesktop;
-  if (desktop) {
-    // Electron's explicit theme also overrides matchMedia. Reset nativeTheme first when
-    // returning to System, then use its actual answer, not the previous override's match.
-    const dark = await desktop.setTheme(theme);
+  const update = () => { if (request === revision) render(theme === "dark"); };
+  if (animate && changed && document.startViewTransition && !navigator.webdriver &&
+      !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const transition = document.startViewTransition(update);
+    // A skipped snapshot must not reject an otherwise successful theme choice.
+    void transition.finished.catch(() => {});
+    await transition.updateCallbackDone;
+  } else update();
+  if (request !== revision) return;
+  if (window.litzioDesktop) {
+    await window.litzioDesktop.setTheme(theme);
     if (request !== revision) return;
-    render(dark);
     await syncBackground();
   }
 }
@@ -57,11 +61,4 @@ export function applyPageBackground(page: PageBackground): void {
 
 root.dataset.page = readPageBackground();
 root.dataset.accent = readAccentColor();
-export const themeReady = applyTheme(preference);
-const systemChanged = () => {
-  if (preference !== "system") return;
-  render(media.matches);
-  void syncBackground();
-};
-media.addEventListener("change", systemChanged);
-if (import.meta.hot) import.meta.hot.dispose(() => media.removeEventListener("change", systemChanged));
+export const themeReady = applyTheme(preference, false);

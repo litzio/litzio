@@ -1,15 +1,14 @@
 import type { UiFileAction } from "@litzio/plugin-api/ui";
-import { Menu } from "@base-ui/react/menu";
-import { THEME_LABELS, THEMES, type ThemePreference } from "../preferences.ts";
+import { THEME_LABELS, type ThemePreference } from "../preferences.ts";
 import { ContextMenu, type ContextMenuAction } from "@/components/ui/context-menu.tsx";
 import { FileActionDialog, type FileAction, type FileActionHandler } from "./FileActionDialog.tsx";
 import { FilePreviewDialog } from "./FilePreviewDialog.tsx";
 import { useTranslation } from "react-i18next";
 import { i18n, type MessageKey } from "../i18n.ts";
 import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
-import { Check, SunMoon, Pencil, Trash2, ChevronRight, Ellipsis, File, Files as FilesIcon, Image as ImageIcon, FileText, FileX, Folder, FolderOpen, FolderPlus, PanelLeftClose, PanelRightOpen, Plus, RotateCw, Settings, X } from "lucide-react";
+import { Sun, Moon, Pencil, Trash2, ChevronRight, Ellipsis, File, Files as FilesIcon, Image as ImageIcon, FileText, FileX, Folder, FolderOpen, FolderPlus, PanelLeftClose, PanelRightOpen, Plus, RotateCw, Settings, X } from "lucide-react";
 import { Button } from "@/components/ui/button.tsx";
-import { MENU_ITEM_CLASS, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
 import { splitDocumentPath } from "./document-path.ts";
 import { treeKey, visibleTreeItems, type FolderTreeState, type TreeItem } from "./folder-tree.ts";
 
@@ -58,7 +57,7 @@ type SidebarProps = {
 export function Sidebar({
   onFileAction, fileActionsDisabled, isFileDirty, open, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
   folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, settingsDisabled, updateVersion,
-  theme = "system", onThemeChange, contributions = [], pluginFileActions = [], onAddToChat,
+  theme = "light", onThemeChange, contributions = [], pluginFileActions = [], onAddToChat,
 }: SidebarProps) {
   useTranslation();
   return (
@@ -137,17 +136,12 @@ export function Sidebar({
             onClick={event => item.run(event.currentTarget)}><FileText aria-hidden="true" />{i18n.t(item.label as MessageKey)}</Button>) : null}
           <div className="sidebar-preferences">
             {onSettings ? <SettingsEntry disabled={settingsDisabled} iconOnly={!open} onOpen={onSettings} updateVersion={updateVersion} /> : null}
-            {onThemeChange ? <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="ghost" size={open ? "sm" : "icon-sm"} className={open ? "min-w-0 justify-start" : undefined} aria-label={i18n.t("Color mode")} title={i18n.t("Color mode")} />}><SunMoon aria-hidden="true" />{open ? <>{i18n.t("Color mode")}<span className="sidebar-theme-value">{i18n.t(THEME_LABELS[theme])}</span></> : null}</DropdownMenuTrigger>
-              <DropdownMenuContent side="top" aria-label={i18n.t("Color mode")}>
-                <Menu.RadioGroup value={theme} onValueChange={value => onThemeChange(value as ThemePreference)}>
-                  {THEMES.map(value => <Menu.RadioItem key={value} value={value} closeOnClick className={MENU_ITEM_CLASS}>
-                    <span className="size-[var(--size-icon-slot)]">{theme === value ? <Check aria-hidden="true" /> : null}</span>
-                    {i18n.t(THEME_LABELS[value])}
-                  </Menu.RadioItem>)}
-                </Menu.RadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu> : null}
+            {onThemeChange ? <Button variant="ghost" size="icon-sm"
+              aria-label={`${i18n.t("Color mode")}: ${i18n.t(THEME_LABELS[theme])}`}
+              title={`${i18n.t("Color mode")}: ${i18n.t(THEME_LABELS[theme])}`}
+              onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")}>
+              {theme === "dark" ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}
+            </Button> : null}
           </div>
         </div>
       ) : null}
@@ -157,7 +151,7 @@ export function Sidebar({
 
 /** One Settings entry for both sidebar states, including its focus-return target. */
 function SettingsEntry({ iconOnly, onOpen, updateVersion, disabled }: { disabled?: boolean; updateVersion?: string; iconOnly: boolean; onOpen(returnFocus: HTMLElement): void }) {
-  return <Button disabled={disabled} data-open-settings="" className={iconOnly ? undefined : "min-w-0 justify-start"}
+  return <Button disabled={disabled} data-open-settings="" className={iconOnly ? undefined : "min-w-0 flex-1 justify-start"}
     size={iconOnly ? "icon-sm" : "sm"} variant="ghost"
     aria-label={updateVersion ? i18n.t("Settings, new version available") : i18n.t("Settings")}
     title={updateVersion ? i18n.t("New version {{version}} available", { version: updateVersion }) : i18n.t("Settings")}

@@ -1168,7 +1168,7 @@ function EditorApp() {
       takesFocus: true, disabled: busy || Boolean(continuation), keywords: action.keywords, run: () => action.run(commandReturnFocus.current) })),
     ...THEMES.map(value => ({ id: `theme-${value}`, kind: "command" as const,
       label: i18n.t(`Color mode: ${THEME_LABELS[value]}`), icon: Monitor,
-      keywords: ["color mode", "theme", "색상 모드", "테마", THEME_LABELS[value], { system: "시스템", light: "라이트", dark: "다크" }[value]],
+      keywords: ["color mode", "theme", "색상 모드", "테마", THEME_LABELS[value], { light: "라이트", dark: "다크" }[value]],
       run: () => changeTheme(value) })),
     { id: "settings", kind: "command", label: i18n.t("Settings"), icon: Settings2, takesFocus: true, disabled: settingsDisabled,
       keywords: ["settings", "설정"], run: () => { settingsReturnFocus.current = commandReturnFocus.current; setSettingsCategory("appearance"); openSettingsTab(); void refreshRecovery(); } },

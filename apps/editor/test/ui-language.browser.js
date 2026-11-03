@@ -82,18 +82,18 @@ async (page, { openPath, screenshots }) => {
         }
       }
       await page.setViewportSize({width:1280,height:720});
-      await page.getByTestId('theme').selectOption('system');
+      await page.getByTestId('theme').selectOption('light');
     }
     check(await screen.getByRole('radiogroup', {name:'Accent color',exact:true}).count() === 1,
       'Accent color must expose a named radio group with visible swatches');
     const pagePicker = page.getByTestId('page-background');
     check(await pagePicker.inputValue() === 'paper', 'Page style must default to paper');
     const themePicker = page.getByTestId('theme');
-    check(await themePicker.inputValue() === 'system', 'Theme must default to System');
+    check(await themePicker.inputValue() === 'light', 'Theme starts with the initial light OS choice');
     for (const colorScheme of ['dark','light']) {
       await page.emulateMedia({colorScheme});
-      await page.waitForFunction(theme => document.documentElement.dataset.theme === theme, colorScheme);
-      check(await page.locator('html').evaluate(n => getComputedStyle(n).colorScheme) === colorScheme, 'Native controls must follow the resolved theme');
+      await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+      check(await page.locator('html').evaluate(n => getComputedStyle(n).colorScheme) === 'light', 'Native controls retain the chosen theme across OS changes');
     }
     const picker = page.getByRole('radiogroup', { name: 'Accent color', exact: true });
     const presets = await picker.getByRole('radio').evaluateAll(options => options.map(option => option.value));
@@ -339,7 +339,7 @@ async (page, { openPath, screenshots }) => {
     check(await page.getByTestId('accent-color').getByRole('radio', {name:'Teal',exact:true}).isChecked(), 'Reopening Settings lost the live choice');
     check(await page.getByTestId('page-background').inputValue() === 'flat', 'Reopening Settings lost live page choice');
     check(await page.getByTestId('theme').inputValue() === 'dark', 'Reopening Settings lost the live theme choice');
-    await page.getByTestId('theme').selectOption('system');
+    await page.getByTestId('theme').selectOption('light');
     await page.emulateMedia({colorScheme:'dark'});
     await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
     await page.emulateMedia({colorScheme:'light'});

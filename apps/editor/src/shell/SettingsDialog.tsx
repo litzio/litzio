@@ -189,7 +189,7 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
                 <section className="settings-section" aria-labelledby="settings-theme">
                   <div className="settings-label">
                     <h3 id="settings-theme" className="settings-heading">{i18n.t("Theme")}</h3>
-                    <p>{i18n.t("System follows your device’s appearance.")}</p>
+                    <p>{i18n.t("Choose a light or dark appearance.")}</p>
                   </div>
                   <select className="form-select h-[var(--size-control)] w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring" aria-labelledby="settings-theme" data-testid="theme"
                     value={theme} onChange={event => {
