@@ -115,11 +115,10 @@ type SettingsDialogProps = {
   onInfo(info: DesktopInfo): void;
   /** Restart to install; resolves to why not, or "" when the app is restarting. */
   onInstall(): Promise<string>;
-  onClose(): void;
 };
 
 /** Shared local recovery settings; About and update controls require the Desktop bridge. */
-export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, onClose, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
+export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
   useTranslation();
   const [screen, setScreen] = useState<HTMLDivElement | null>(null);
   useNativeHistoryBoundary(screen);
@@ -157,7 +156,6 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
     setProblem("");
     void action().catch((error: unknown) => setProblem(error instanceof Error ? error.message : String(error)));
   };
-  const close = () => { setProblem(""); onClose(); };
   const categories = [
     { id: "appearance", label: i18n.t("Appearance & language"), icon: Palette },
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
@@ -169,11 +167,7 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
   const contributed = sections.find(section => section.id === category);
   const Section = contributed?.View;
   return (
-    <div ref={setScreen} className="settings-screen" data-testid="settings-dialog" onKeyDown={event => {
-      if (event.key === "Escape" && !event.defaultPrevented && !event.nativeEvent.isComposing) {
-        event.stopPropagation(); close();
-      }
-    }}>
+    <div ref={setScreen} className="settings-screen" data-testid="settings-dialog">
         <div className="settings-body">
           <aside className="settings-navigation">
             <h1>{i18n.t("Settings")}</h1>

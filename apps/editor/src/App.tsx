@@ -938,6 +938,7 @@ function EditorApp() {
   // never applies. Modal dialogs cover the Save button, so the shortcut waits for them too.
   const saveShortcut = useRef<(event: KeyboardEvent) => void>(() => {});
   saveShortcut.current = (event) => {
+    // Own Settings Escape here only: child surfaces must receive the same event first.
     if (event.key === "Escape" && !event.isComposing && activeId === "settings" &&
         !(event.target instanceof Element && event.target.closest('.assistant-panel, .notification-center')) &&
         !globalThis.document.querySelector('[data-slot="dialog-content"], [role="menu"], [data-slot="popover-content"]')) {
@@ -1378,7 +1379,6 @@ function EditorApp() {
                 info={desktopInfo}
                 onInfo={setDesktopInfo}
                 onInstall={installUpdate}
-                onClose={closeSettingsTab}
               />
           </div> : null}
         </main>
