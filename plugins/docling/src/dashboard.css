@@ -14,7 +14,6 @@
 .docling-dashboard-count:focus-visible, .docling-dashboard-menu summary:focus-visible { outline: 2px solid var(--id-color-interaction); outline-offset: 2px; }
 .docling-dashboard-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--id-color-danger); margin-inline-end: var(--space-2); }
 .docling-dashboard-dot.is-connected { background: var(--id-color-accent-green); }
-.docling-dashboard-priority { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-block: var(--space-2); }
 .docling-dashboard-running { min-width: 12rem; }
 .docling-dashboard-running p { margin-block: var(--space-2); }
 .docling-dashboard progress { width: 100%; height: 6px; accent-color: var(--id-color-interaction); }

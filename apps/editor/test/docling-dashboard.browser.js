@@ -59,7 +59,7 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
     if (screenshots) await page.screenshot({ path: `${fixture.captures}/empty-${width}-${theme}-${language}.png` });
   };
   await expect(dashboard.locator('.docling-dashboard-empty button')).toBeVisible();
-  await expect(dashboard.locator('.docling-dashboard-priority')).toHaveCount(0);
+
   if (screenshots) { await emptyCapture(1440, 'light', 'en'); await emptyCapture(640, 'dark', 'ko'); }
   await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); });
   await page.setViewportSize({ width: 1440, height: 1100 }); await page.reload(); await show();
@@ -95,13 +95,19 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await expect(dashboard.locator(`[data-record-id="${running.id}"] [data-request-id]`)).toContainText('Stopping cancels only');
   await expect(dashboard.getByText('running.pdf', { exact: true })).toHaveCount(1);
   await expect(dashboard.getByText('failed.pdf', { exact: true })).toHaveCount(1);
-  await dashboard.locator('.docling-dashboard-priority').getByRole('button', { name: /Needs attention/ }).click();
+  const attentionChip = dashboard.locator('.docling-dashboard-count').filter({ hasText: 'Needs attention' });
+  await attentionChip.focus();
+  const attentionHint = attentionChip.locator('..');
+  await expect(attentionHint).toHaveAccessibleDescription('Failed conversions, stale maps and pending proposals.');
+  await expect(attentionHint.locator('.docling-dashboard-hint-text')).toBeVisible();
+  await expect(dashboard.getByRole('button', { name: /Needs attention/ })).toHaveCount(1);
+  await attentionChip.click();
   await expect(dashboard.locator('tbody tr')).toHaveCount(1);
   await expect(dashboard.locator('tbody tr')).toHaveAttribute('data-record-id', failed.id);
   await dashboard.getByRole('button', { name: 'Show all', exact: true }).click();
   await expect(dashboard.locator(`[data-record-id="${completed.id}"]`)).toContainText('Completed');
   await expect(dashboard.locator(`[data-record-id="${failed.id}"]`)).toContainText('required model is missing');
-  const failureHint = dashboard.locator(`[data-record-id="${failed.id}"] .docling-dashboard-hint`);
+  const failureHint = dashboard.locator(`[data-record-id="${failed.id}"] .docling-dashboard-state--error`).locator("..");
   await page.mouse.move(0, 0);
   await expect(failureHint.locator('.docling-dashboard-hint-text')).toBeHidden();
   await failureHint.focus();
@@ -119,9 +125,8 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
     await expect(dashboard.locator(`[data-record-id="${id}"]`).getByRole('button', { name: 'Open comparison' })).toHaveCount(0);
     expect(await dashboard.locator(`[data-record-id="${id}"]`).textContent()).not.toContain('No conversion results yet.');
   }
-  await menu(dashboard.locator(`[data-record-id="${failed.id}"]`));
+  await expect(dashboard.locator(`[data-record-id="${failed.id}"]`).getByRole('button', { name: 'Retry…' })).toBeVisible();
   await expect(dashboard.locator(`[data-record-id="${failed.id}"]`).getByRole('button', { name: 'Retry…' })).toBeDisabled();
-  await dashboard.locator(`[data-record-id="${failed.id}"] summary`).click();
   const result = dashboard.locator(`[data-result-id="${completed.id}"]`);
   await expect(result).toContainText('completed.pdf'); await expect(result.locator('td').first()).toHaveText('1');
   await expect(dashboard.locator(`[data-result-id="${completed.id}"]`)).toHaveCount(1);
@@ -144,6 +149,10 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
     await page.evaluate(() => document.fonts.ready);
     if (screenshots) await page.screenshot({ path: `${fixture.captures}/after-${width}-${theme}-${language}.png` });
     if (screenshots && width === 640) {
+      const table = dashboard.locator('.docling-dashboard-table-scroll');
+      await table.evaluate(element => { element.scrollLeft = element.scrollWidth; });
+      await page.screenshot({ path: `${fixture.captures}/actions-${width}-${theme}-${language}.png` });
+      await table.evaluate(element => { element.scrollLeft = 0; });
       await failureHint.focus();
       await page.screenshot({ path: `${fixture.captures}/focus-failure-${width}-${theme}-${language}.png` });
       await failureHint.blur();
@@ -154,7 +163,6 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await page.setViewportSize({ width: 1440, height: 1100 }); await page.reload(); await show();
   await dashboard.locator(`[data-request-id="${running.id}"]`).getByRole('button', { name: 'Stop waiting' }).click();
   await expect(dashboard.locator(`[data-record-id="${running.id}"]`)).toContainText('Waiting stopped');
-  await menu(dashboard.locator(`[data-record-id="${failed.id}"]`));
   fixture.mode('success');
   await dashboard.locator(`[data-record-id="${failed.id}"]`).getByRole('button', { name: 'Retry…' }).click();
   const dialog = page.getByTestId('docling-conversion'); await expect(dialog).toBeVisible();
@@ -198,7 +206,7 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   const uncertain = dashboard.locator(`[data-record-id="${uncertainId}"]`);
   await expect(uncertain).toContainText('Uncertain');
   expect(fixture.submissions()).toBe(before);
-  await menu(uncertain);
+  await expect(uncertain.getByRole('button', { name: 'Start again…' })).toBeVisible();
   await uncertain.getByRole('button', { name: 'Start again…' }).click(); await expect(dialog).toBeVisible();
   expect(fixture.submissions()).toBe(before); // Explicit confirmation is required; opening never submits.
   await dialog.getByRole('button', { name: 'Convert', exact: true }).click();

@@ -2,7 +2,7 @@
   "issue": 1027,
   "date": "2026-11-03",
   "beforeHead": "bb0e446b7b82bf6a88eed10480a947ef448d128d",
-  "after": "PR implementation of #1027",
+  "after": "PR #1039 revision: sole chip filters and visible Retry / Start again",
   "command": "LITZIO_BROWSER_URL=http://127.0.0.1:5297 pnpm browser:test docling-dashboard --screenshots",
   "environment": {
     "browser": "installed Chrome, checkout-owned persistent profile, Windows",
@@ -11,7 +11,7 @@
     "zoom": "100%",
     "font": "bundled Pretendard after document.fonts.ready",
     "themeAccent": "Plum",
-    "scroll": "dashboard panel at top; table at left",
+    "scroll": "dashboard panel at top; table at left except actions-640-dark-ko.png at right",
     "fixtures": "synthetic Docling HTTP, runtime receipts and test AI adapter; no real Docling/AI execution"
   },
   "states": {
@@ -21,22 +21,23 @@
   "approximateResultHeadingY": {
     "mixed1440": {
       "before": 620,
-      "after": 321
+      "after": 281
     },
     "mixed640": {
       "before": 932,
-      "after": 382
+      "after": 342
     }
   },
   "files": {
+    "actions-640-dark-ko.png": "a9347d5d61e0e885ce85465a43d79ead8d15316a4a465e54aa261914a1450bd2",
     "after-empty-1440-light-en.png": "052061bfdb2cb49057d766e87c405ca806de37d64a0363fb2f4e8d1cf79463be",
     "after-empty-640-dark-ko.png": "9588d8c9ae664fd090917d3428aecfec865862177fe4be1933b7d2dc18f57653",
-    "after-mixed-1440-light-en.png": "af8fd85b623dc57fe1b184932233d9daf170bfead70ebc3a64c10816c9fe2337",
-    "after-mixed-640-dark-ko.png": "e8094f547314dc5c59a3b803f5dda1df342c4b302277c50fdd462f529af097c4",
+    "after-mixed-1440-light-en.png": "44a45f2680633a3720e9ea136eccceb0f3d5e7475b561bc5a3452a657ac09551",
+    "after-mixed-640-dark-ko.png": "ceeba8c095ec68e49153a01be268b3a62d28fa321ef5517d25012258d4417069",
     "before-empty-1440-light-en.png": "b8d16b205e3d5f9627f9d648e00de16941f8e6150e60214041fcf15ba338828d",
     "before-empty-640-dark-ko.png": "b4c7ca4d05af818199e4d4ab7b98d9f6afe7921d863c45c18bf114357c9027dc",
     "before-mixed-1440-light-en.png": "daff76fb626eabe376bd5ddbc8631d462a20a87b96d36f2e802f47ae9f29fe1f",
     "before-mixed-640-dark-ko.png": "4d8ba136addf6c190026a54ba4b85e7092f413eaeddcd7d3571214fbc5d73680",
-    "focus-failure-640-dark-ko.png": "9cda1230a731e1ab5ac10c39ef0d8e14f0f4c9295807e93fc8e317d5b9c9d8eb"
+    "focus-failure-640-dark-ko.png": "c726e23d4ec2a134ac51021ee59af16de54d36d419e0bae781acfb8224666fcb"
   }
 }
