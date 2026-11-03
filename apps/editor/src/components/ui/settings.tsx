@@ -27,7 +27,7 @@ export function SettingsSelect({ value, options, onChange, disabled, testId, ...
   const id = useId();
   return <FieldRow {...row} id={id}><select id={id} className="form-select settings-select" data-testid={testId} value={value} disabled={disabled}
     aria-describedby={row.description ? `${id}-description` : undefined} onChange={event => onChange(event.target.value)}>
-    {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+    {options.map(option => <option key={option.value} value={option.value} lang={option.lang}>{option.label}</option>)}
   </select></FieldRow>;
 }
 

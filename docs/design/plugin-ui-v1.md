@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Complete Docling UI boundary verified: 2026-11-01 (#869: settings/file-action/activation-view migration, unchanged conversion and comparison browser assertions at 1440/640px, English Light/Korean Dark).
-- Last verified: 2026-10-31 (#857; shared Host, boundary, activation and browser checks; packaged Desktop runs in required CI).
+- Last verified: 2026-11-03 (#1033; Host settings/menu integration, targeted browser checks, typecheck/build and captures; packaged Desktop runs in required CI).
 - Authority: [ADR-0012](../adr/0012-plugin-runtime-and-ui-contributions.md), [Discussion #767](https://github.com/litzio/litzio/discussions/767) and [brand-neutral Host API decision #856](https://github.com/litzio/litzio/discussions/856).
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
@@ -249,7 +249,7 @@ Host content column. Custom content (for example accent swatches) uses `Settings
 
 - Row: `label`, optional `description`, `children`, `testId`.
 - Switch: row metadata plus `checked`, `onChange(boolean)`, optional `disabled`.
-- Select: row metadata plus `value`, `options: { value, label }[]`,
+- Select: row metadata plus `value`, `options: { value, label, lang? }[]` (preserving language-option pronunciation),
   `onChange(string)`, optional `disabled`.
 - Input: row metadata plus `value`, `onChange(string)`, optional `onBlur`,
   `onEnter`, `disabled`, `invalid`, `describedBy`. Text remains caller-controlled.

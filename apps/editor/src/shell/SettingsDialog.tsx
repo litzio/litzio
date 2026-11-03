@@ -211,7 +211,7 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
                       const language = value as UiLanguage;
                       void i18n.changeLanguage(language);
                       setLanguageProblem(!writeUiLanguage(language));
-                    }} options={[{ value: "ko", label: "한국어" }, { value: "en", label: "English" }]} />
+                    }} options={[{ value: "ko", label: "한국어", lang: "ko" }, { value: "en", label: "English", lang: "en" }]} />
                   {languageProblem ? <p role="alert">{i18n.t("Language preference could not be saved. This choice applies until you close this page.")}</p> : null}
 
                 <SettingsRow label={i18n.t("Accent color")} description={i18n.t("Remembered here; never saved in the document.")}>
