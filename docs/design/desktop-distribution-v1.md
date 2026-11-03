@@ -151,6 +151,10 @@ Real Settings captures with a Desktop bridge mock: [1440px](../reviews/assets/de
 and [640px](../reviews/assets/desktop-cli-604/settings-640.png). These show the Korean initial Off
 state and existing Settings layout; the mock does not establish native registry/install behavior.
 
+## Document templates (#936)
+
+The Desktop protocol forwards its source/packaged `HostRun` to the shared [template catalog and creation routes](document-templates-v1.md#host-api-for-the-gallery-and-assistant). User templates use `hostPaths(run).templates`; default ko/en templates remain read-only bundled Markdown resources rather than startup copies. The protocol unit test covers an injected source checkout; packaged execution is CI-only.
+
 ## Native sample
 
 The bundled [converter control design notes](../../apps/editor/samples/en/converter-control.md)

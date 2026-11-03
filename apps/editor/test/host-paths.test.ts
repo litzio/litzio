@@ -27,11 +27,13 @@ test("source and packaged paths retain overrides and the packaged user locations
   const root = path.join(os.tmpdir(), "checkout");
   const source = hostPaths({ packaged: false, checkoutRoot: root }, {});
   assert.deepEqual(source.aiDefaults, { model: "gpt-6-luna", reasoningEffort: "low" });
+  assert.equal(source.templates, path.join(root, ".litzio-dev", "templates"));
   assert.equal(source.plugins, path.join(root, ".litzio-dev", brand.folders.plugins));
   assert.equal(source.settingsFile("ai-agent"), path.join(root, ".litzio-dev", "ai-agent.json"));
   assert.equal(source.agent, path.join(root, ".litzio-dev", "assistant"));
   const packaged = hostPaths({ packaged: true }, {});
   assert.deepEqual(packaged.aiDefaults, { model: "gpt-6.1-sol", reasoningEffort: "medium" });
+  assert.equal(packaged.templates, path.join(os.homedir(), brand.folders.shared, "templates"));
   assert.equal(packaged.plugins, path.join(os.homedir(), brand.folders.shared, brand.folders.plugins));
   assert.equal(packaged.settingsFile("docling"), path.join(os.homedir(), brand.folders.shared, "docling.json"));
   const data = process.platform === "win32" ? path.join(os.homedir(), "AppData", "Roaming")
