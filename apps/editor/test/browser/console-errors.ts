@@ -12,6 +12,7 @@ type ExpectedConsoleErrorRule = {
 };
 
 const EXPECTED_CONSOLE_ERRORS: Record<string, ExpectedConsoleErrorRule[]> = {
+  "template-gallery": [{ status: 400, pathname: "/api/templates", minimum: 2, description: "reserved and duplicate template names retain the save form with localized feedback" }],
   "ai-agent": [{ status: 400, pathname: "/api/ai-agent-conversations", minimum: 1, description: "display Undo refuses a subsequent manual preference change" }, { status: 503, pathname: "/api/ai-agent-skills", minimum: 1, description: "skill catalog failure is shown in the candidate list" }, { status: 404, pathname: "/api/ai-agent-conversations", minimum: 1, description: "a deliberately unavailable last conversation falls back to a fresh composer" }],
   "external-change": [{ status: 409, pathname: "/api/document", minimum: 1, description: "a real external write refuses Save and offers comparison and confirmed Reload" }],
   "docling-review-retry": [

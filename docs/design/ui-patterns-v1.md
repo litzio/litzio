@@ -397,3 +397,15 @@ context-usage·참조 경로 안내를 재사용하며 새 표면·공통 상호
 hover/focus 안내에 둔다. 이후 수동 변경과 충돌하면 덮어쓰지 않고 패널에 이유를
 표시한다. 문서 Undo와 분리된 기기 설정 동작이다.
 [현재 계약·검증](main-agent-v1.md#assistant-display-settings-1120)을 따른다.
+
+## Template gallery application (#936 phase 2)
+
+The [gallery contract](document-templates-v1.md#editor-gallery-phase-2) applies the
+existing task-tab shell, P12 independent Dialog boundary for saving a template and
+P07 field feedback/Notice for naming and catalog errors. Settings and Docling's
+dashboard remain the comparison surfaces for independent tasks. Common Popover
+owns the approved C hover/focus reading preview; it is not a metadata edit form.
+One retained read-only DocumentEditor replaces preview content, with a short open
+delay, keyboard-scroll region and Escape focus return. Cards expose creation
+outside the preview. Descriptions stay on hover/focus; only the Built-in badge is
+persistent. Existing tokens and Button variants apply; no public Plugin API is added.

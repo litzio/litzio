@@ -3017,3 +3017,12 @@ during feature reactivation does not discard the view; confirmed registration
 loss returns to Plugins. Disabled installations remain in the list with their
 switch off and cannot enter settings. Installation identifiers are accessible on
 hover and keyboard focus; see [plugin management](plugin-ui-v1.md#host-owned-plugin-settings-947).
+
+## Template gallery task tab (#936 phase 2)
+
+Sidebar and command center open a single Template gallery tab in the existing
+editor groups. It can be closed or moved like Settings, without a document Save,
+recovery record or Outline. Reentry selects its owning group; other document tabs
+retain their draft and scroll state. The command center also provides Save as
+template… for a saved native document. The [template contract](document-templates-v1.md#editor-gallery-phase-2)
+owns card preview, name errors, folder access and creation behavior.

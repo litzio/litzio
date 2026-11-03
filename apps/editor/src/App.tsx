@@ -68,6 +68,10 @@ import type { DesktopInfo, RestartCheck } from "../shared/desktop-bridge.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 
+import { SaveTemplateDialog } from "./shell/SaveTemplateDialog.tsx";
+import type { TemplateSummary } from "../shared/template-protocol.ts";
+import { templateLanguage } from "./template-api.ts";
+const TemplateGallery = lazy(() => import("./shell/TemplateGallery.tsx").then(module => ({ default: module.TemplateGallery })));
 const SaveCompare = lazy(() => import("./shell/SaveCompare.tsx"));
 
 // Below the docking width of styles.css the Document panel starts closed and overlays the
@@ -163,6 +167,9 @@ function EditorApp() {
   const recentFoldersRef = useRef(recentFolders);
   const [allowedRoots, setAllowedRoots] = useState<string[] | undefined>(undefined);
   const visibleRecent = visibleRecentFolders(recentFolders, allowedRoots);
+  const [newTemplate, setNewTemplate] = useState<TemplateSummary>();
+  const [templateRevision, setTemplateRevision] = useState(0);
+  const [saveTemplate, setSaveTemplate] = useState<{ path: string; returnFocus: HTMLElement | null }>();
   const [newDialog, setNewDialog] = useState(false);
   const [newDirectory, setNewDirectory] = useState("");
   const [newFolderDialog, setNewFolderDialog] = useState(false);
@@ -244,7 +251,10 @@ function EditorApp() {
   const settingsGroup = navigation.groups.find(group => group.tabs.includes("settings"));
   const settingsOpen = settingsGroup?.active === "settings";
   const settingsFocused = activeId === "settings";
-  const allTabs = [...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs, ...pluginTabs.map((tab, index) => ({ ...tab,
+  const galleryGroup = navigation.groups.find(group => group.tabs.includes("templates"));
+  const galleryOpen = galleryGroup?.active === "templates";
+  const galleryFocused = activeId === "templates";
+  const allTabs = [...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs, ...pluginTabs.map((tab, index) => ({ ...tab,
     title: [pluginTabLabels[index]!.folder ?? documentLocation(tab.path)[0], i18n.t(tab.label as MessageKey)].filter(Boolean).join(" · ") }))];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
@@ -697,7 +707,7 @@ function EditorApp() {
     return `./${renamed.slice(directory.length).replaceAll("\\", "/")}`;
   };
   function closeTab(id: string): void {
-    if (id === "settings" || pluginTabs.some(tab => tab.id === id)) {
+    if (id === "settings" || id === "templates" || pluginTabs.some(tab => tab.id === id)) {
       if (busy || continuation) return;
       setPluginTabs(previous => previous.filter(tab => tab.id !== id));
       if (id === "settings") setHighlightUpdate(false);
@@ -836,6 +846,12 @@ function EditorApp() {
       placeTab(id); return "";
     } catch (cause) { return messageOf(cause); }
   }
+  function openTemplateGallery(): void {
+    if (busy || continuation) return;
+    if (assistantOverlay) setAssistantOpen(false);
+    focusAfterClose.current = true;
+    placeTab("templates", galleryGroup?.id ?? navigation.focused);
+  }
   async function createFile(path: string): Promise<string> {
     if (operationRef.current || busy || continuation) return i18n.t("Wait for the current operation to finish.");
     operationRef.current = true;
@@ -843,7 +859,7 @@ function EditorApp() {
     setError("");
     setNotice("");
     try {
-      acceptFile(await requestDocument("PUT", path, folders.rootOf(path)));
+      acceptFile(await requestDocument("PUT", path, folders.rootOf(path), newTemplate ? { template: newTemplate.id, language: templateLanguage() } : undefined));
       return "";
     } catch (cause) { const message = messageOf(cause); setError(message); return message; }
     finally { operationRef.current = false; setOperation(""); }
@@ -852,16 +868,18 @@ function EditorApp() {
   function newDirectoryIn(root: string): string {
     return folderChain(root, openedPath).at(-1) ?? root;
   }
-  function newFile(root: string, exact = false): void {
+  function newFile(root: string, exact = false, template?: TemplateSummary): void {
     if (busy || continuation) { setError({ key: "Wait for the current operation to finish." }); return; }
+    setNewTemplate(template);
     setNewDirectory(exact ? root : newDirectoryIn(root));
     setNewDialog(true);
   }
-  function newDocument(returnFocus: HTMLElement | null): void {
+  function newDocument(returnFocus: HTMLElement | null, template?: TemplateSummary): void {
     if (busy || continuation) return;
+    setNewTemplate(template);
     newFileButton.current = returnFocus;
     const root = folders.rootOf(openedPath) ?? folders.roots[0];
-    if (root) newFile(root);
+    if (root) newFile(root, false, template);
     else {
       dialogReturnFocus.current = returnFocus;
       setNewAfterFolder(true);
@@ -1134,6 +1152,15 @@ function EditorApp() {
         void openFolderDocument(entry.path).then(opened => { if (opened) setCommandFileFocus(entry.path); });
       },
     })),
+    { id: "template-gallery", kind: "command", label: i18n.t("Template gallery"), icon: FileText, takesFocus: true,
+      disabled: busy || Boolean(continuation), keywords: ["templates", "템플릿"], run: openTemplateGallery },
+    { id: "save-template", kind: "command", label: i18n.t("Save as template…"), icon: Save, takesFocus: true,
+      disabled: !session || session.kind !== "native" || busy || Boolean(continuation), keywords: ["template", "템플릿 저장"],
+      run: () => {
+        if (!session || session.kind !== "native") return;
+        if (session.editorRef.current?.hasUnsavedChanges()) { setError({ key: "Save the document before saving it as a template." }); return; }
+        setSaveTemplate({ path: session.openedPath, returnFocus: commandReturnFocus.current });
+      } },
     { id: "new-document", kind: "command", label: i18n.t("New document…"), icon: FileText, takesFocus: true,
       disabled: busy || Boolean(continuation), keywords: ["new document", "new file", "새 문서", "새 파일"],
       run: () => newDocument(commandReturnFocus.current) },
@@ -1205,7 +1232,7 @@ function EditorApp() {
   ];
 
   return (<>
-    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
+    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !pluginTab && !settingsFocused && !galleryFocused && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
       <Sidebar
         onAddToChat={assistantAvailable ? (path, returnFocus) => { assistantReturn.current = returnFocus; setReferenceRequest({ path }); setAssistantOpen(true); } : undefined}
         theme={theme} onThemeChange={changeTheme}
@@ -1216,7 +1243,7 @@ function EditorApp() {
             catch (error) { setPluginActionProblem(String(error)); }
           },
         })))}
-        contributions={pluginActions("sidebar")}
+        contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }, ...pluginActions("sidebar")]}
         onFileAction={fileAction} fileActionsDisabled={busy || Boolean(continuation)}
         isFileDirty={path => { const tab = tabs.find(tab => tab.path === path); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
         onWidth={setSidebarSize}
@@ -1345,7 +1372,7 @@ function EditorApp() {
           if (event.button === 0 && event.target instanceof HTMLElement && event.target.classList.contains("document-column") && (owner?.kind === "text" || owner?.view === "visual") &&
             owner.editorRef.current?.focusEnd(event.clientY)) event.preventDefault();
         }}>
-          {tabs.length === 0 && pluginTabs.length === 0 && !settingsGroup && start ? (
+          {tabs.length === 0 && pluginTabs.length === 0 && !settingsGroup && !galleryGroup && start ? (
             <div className="document-scroll" data-active="true"><div className="document-column"><DocumentStart
               mark={productMark} darkMark={darkIcon}
               recovery={<RecoveryList records={recoveryRecords.filter(record => !tabs.some(tab => tab.recoveryId === record.id))} unavailable={Boolean(recoveryProblem)} onReview={reviewRecovery} />}
@@ -1374,6 +1401,13 @@ function EditorApp() {
             return <PluginTab onRecover={id => { setSettingsCategory(`plugin/${id}`); openSettingsTab(); }} key={tab.id} tab={tab} plugin={ui.plugins.find(plugin => plugin.id === tab.plugin)} groupIndex={groupIndex}
               active={navigation.groups[groupIndex]?.active === tab.id} focused={tab.id === activeId} onFocus={focusDocument} />;
           })}
+          {galleryGroup ? <div className="plugin-tab" role="tabpanel" tabIndex={-1} id="panel-templates" aria-labelledby="tab-templates"
+            hidden={!galleryOpen} inert={!galleryOpen} data-document-tab="templates" data-active={galleryFocused ? "true" : "false"}
+            data-group-index={navigation.groups.indexOf(galleryGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(galleryGroup) } as React.CSSProperties}
+            onFocusCapture={() => focusDocument("templates")} onPointerDownCapture={() => focusDocument("templates")}>
+            <Suspense fallback={null}><TemplateGallery active={galleryOpen} revision={templateRevision} disabled={busy || Boolean(continuation)}
+              onCreate={(item, focus) => newDocument(focus, item)} onOpenFolder={path => openFolder(path)} /></Suspense>
+          </div> : null}
           {settingsGroup ? <div className="plugin-tab settings-tab" role="tabpanel" tabIndex={-1} id="panel-settings" aria-labelledby="tab-settings"
             hidden={!settingsOpen} inert={!settingsOpen} data-document-tab="settings" data-active={settingsFocused ? "true" : "false"}
             data-group-index={navigation.groups.indexOf(settingsGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(settingsGroup) } as React.CSSProperties}
@@ -1398,7 +1432,7 @@ function EditorApp() {
           </div> : null}
         </main>
       </div>
-      {panelOpen && !assistantOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? (
+      {panelOpen && !assistantOpen && !pluginTab && !settingsFocused && !galleryFocused && session?.kind !== "text" ? (
         <DocumentPanel
           onWidth={setDocumentPanelSize}
           overlay={panelOverlay}
@@ -1500,6 +1534,8 @@ function EditorApp() {
         returnFocus={imageReturnFocus}
         onClose={closeImageChoice}
       />
+      {saveTemplate ? <SaveTemplateDialog {...saveTemplate} onClose={() => setSaveTemplate(undefined)}
+        onSaved={() => { setSaveTemplate(undefined); setTemplateRevision(value => value + 1); setNotice({ key: "Template saved." }); }} /> : null}
       <NewDialog
         open={newDialog}
         destinations={newDestinations(folders.trees)}
@@ -1509,7 +1545,7 @@ function EditorApp() {
         createdFocusTarget={() => editorRef.current?.getFocusTarget() ?? null}
         finalFocus={() => shellReturnFocus(newFileButton.current)}
         returnFocus={newFileButton}
-        onClose={() => { if (!switching) { setNewDialog(false); folderNewReady.current = false; } }}
+        onClose={() => { if (!switching) { setNewDialog(false); setNewTemplate(undefined); folderNewReady.current = false; } }}
       />
       <Dialog open={figureRenamePending}>
         <DialogContent showCloseButton={false} finalFocus={false}>
@@ -1581,7 +1617,7 @@ function EditorApp() {
     </div>
     <ShellNotificationCenter sidebarWidth={sidebarSize} documentPanelWidth={documentPanelSize} panelWidth={assistantOpen
       ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
-      : panelOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? "var(--document-panel-effective-width)" : "0px"} />
+      : panelOpen && !pluginTab && !settingsFocused && !galleryFocused && session?.kind !== "text" ? "var(--document-panel-effective-width)" : "0px"} />
   </>);
 }
 

@@ -106,7 +106,37 @@ export function inlineContentText(content: InlineContent[]): string {
  * even when their label is whitespace; other data-bearing atoms have readable syntax. */
 export function structuralInlineContent(content: InlineContent[]): InlineContent[] {
   assertInlineContent(content);
-  return hasVisibleContent(content) || containsLink(content) ? concatenateInlineContent(content) : [];
+  return hasVisibleContent(content) || containsLink(content) ? paragraphInlineContent(content) : [];
+}
+
+/** Remove a paragraph's blank-line tail at the semantic write boundary. Interior
+ * breaks, marks and data-bearing inline atoms (including link labels) stay intact.
+ * Space-only tails without a line break keep their existing round-trip rules. */
+export function paragraphInlineContent(content: InlineContent[]): InlineContent[] {
+  assertInlineContent(content);
+  const original = concatenateInlineContent(content);
+  let atEnd = true, hasBreak = false;
+  const trimTail = (items: InlineContent[]): InlineContent[] => {
+    const result: InlineContent[] = [];
+    for (const item of [...items].reverse()) {
+      if (!atEnd) { result.unshift(item); continue; }
+      if (item.kind === "break") { hasBreak = true; continue; }
+      if (item.kind === "text") {
+        const text = item.text.trimEnd();
+        hasBreak ||= /[\r\n]/.test(item.text.slice(text.length));
+        if (text) { result.unshift({ ...item, text }); atEnd = false; }
+      } else if (item.kind !== "link" && "children" in item) {
+        const children = trimTail(item.children);
+        if (children.length) result.unshift({ ...item, children });
+      } else {
+        result.unshift(item);
+        atEnd = false;
+      }
+    }
+    return result;
+  };
+  const trimmed = trimTail(original);
+  return hasBreak ? trimmed : original;
 }
 
 function hasVisibleContent(content: InlineContent[]): boolean {

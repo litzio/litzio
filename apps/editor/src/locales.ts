@@ -11,6 +11,11 @@ export const en = {
   "Display settings changed since this action. Undo was not applied.": "Display settings changed since this action. Undo was not applied.",
   "Display changed in this window but could not be saved.": "Display changed in this window but could not be saved.",
 
+  "Template gallery": "Template gallery",
+  "Save as template…": "Save as template…",
+  "Template saved.": "Template saved.",
+  "Save the document before saving it as a template.": "Save the document before saving it as a template.",
+
   "max": "max",
   "Write access": "Write access",
   "Read-only": "Read-only",
@@ -1130,6 +1135,11 @@ export const ko: Record<keyof typeof en, string> = {
   "Display request expired.": "표시 설정 요청이 만료되었습니다.",
   "Display settings changed since this action. Undo was not applied.": "이 작업 이후 표시 설정이 바뀌어 되돌리지 않았습니다.",
   "Display changed in this window but could not be saved.": "이 창의 표시 설정은 바뀌었지만 저장하지 못했습니다.",
+
+  "Template gallery": "템플릿 갤러리",
+  "Save as template…": "템플릿으로 저장…",
+  "Template saved.": "템플릿을 저장했습니다.",
+  "Save the document before saving it as a template.": "템플릿으로 저장하려면 먼저 문서를 저장하세요.",
 
   "max": "최대",
   "Write access": "쓰기 범위",

@@ -2670,6 +2670,15 @@ test("real-file paragraph workflow matches Core and remains canonical", () => {
       return result.stdout;
     };
     assert.ok(execute(["inspect", file]).includes(`${index} paragraph`));
+    // #1107: the CLI write boundary uses the same paragraph-tail rule as
+    // Editor Save. Core owns the content matrix; this checks real-file wiring.
+    execute(["insert-block", file, "--at", "end", "--content", JSON.stringify([
+      { kind: "text", text: "CLI tail" }, { kind: "break" }, { kind: "text", text: " \t" },
+    ])]);
+    assert.ok(readFileSync(file, "utf8").endsWith("CLI tail\n"));
+    execute(["check", file]);
+    execute(["remove-block", file, "--at", String(getEditableDocument(expected).blocks.at(-1)!.path[0] + 1)]);
+    assert.equal(readFileSync(file, "utf8"), serialize(expected));
     expected = splitParagraph(expected, [index], 2);
     execute(["split-paragraph", file, "--path", String(index), "--offset", "2"]);
     assert.equal(readFileSync(file, "utf8"), serialize(expected));

@@ -16,14 +16,15 @@ function PopoverContent({
   anchor,
   collisionBoundary,
   sticky,
+  keepMounted,
   ...props
-}: PopoverPrimitive.Popup.Props &
+}: PopoverPrimitive.Popup.Props & { keepMounted?: boolean } &
   Pick<
     PopoverPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "anchor" | "collisionBoundary" | "sticky"
   >) {
   return (
-    <PopoverPrimitive.Portal className="ui-portal">
+    <PopoverPrimitive.Portal className="ui-portal" keepMounted={keepMounted}>
       <PopoverPrimitive.Positioner
         align={align}
         alignOffset={alignOffset}
