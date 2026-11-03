@@ -617,7 +617,17 @@ first-pass decision, it uses the available desktop width instead of the Settings
 content width. A summary strip shows server/AI connection dots and running,
 failed, needs-attention and completed counts; count controls filter one result
 table. Attention means failed conversion, stale map or pending non-stale proposals.
-Attention and running phases appear before the table. Convert PDF is the header
+Under #1027, the four counts are compact inline filter chips rather than large
+number cards. Connection status wraps on its own compact line. A priority strip
+only appears for nonzero attention/running counts and filters the same table; it
+does not repeat filenames or result cards. Running phase, elapsed time, progress,
+Host ownership and Stop waiting appear in that request's table row.
+Failure/uncertain details, unavailable-result/disabled-action reasons, the priority category explanation and Stop waiting's
+server-cancellation limit appear on hover or keyboard focus, with an aria-describedby
+connection. Failed/uncertain state and the action remain visible. The repeated
+header description and already-running banner are omitted; disabled Convert retains
+its reason. The empty-state message occurs once beside Convert, retaining context
+when conversion is disabled. Convert PDF is the header
 primary action and is also present in an empty state. No charts, mobile layout,
 kanban or review decision panel are introduced.
 
@@ -676,6 +686,45 @@ correspondence format/readers are the data boundary; the features meet through
 published conversion-folder files. Build and boundary tests check runtime, erased
 and dynamic imports. There is no new Core semantic operation. Headless conversion
 and [correction replay](#approved-correction-records-and-replay-876) use installed Host operations.
+
+### Dashboard density review (#1027)
+
+The existing Plugin TabKind, Host Button variants, state chips and role/spacing
+tokens are reused. Count filters remain native buttons with aria-pressed, an
+existing dashboard exception; the row disclosure menu is unchanged (#1033).
+UiHost does not expose Tooltip or Button ARIA props. A local descriptive group
+therefore reveals its linked text beside the target on hover/focus-within, rather than adding
+a public API or importing Editor internals. Failure and uncertain chips have a
+keyboard focus stop; action groups reveal the same description when their button
+receives focus. The explanation uses a bounded width and overlays rows without shifting click targets.
+This uses the existing text-muted, gap and focus tokens; it introduces no global
+interaction primitive.
+No Core operation or CLI surface is added because this changes only presentation.
+
+Same-state synthetic mixed running/failed/completed and empty captures:
+
+| State | 1440px English Light | 640px Korean Dark |
+| --- | --- | --- |
+| Mixed before | [Before](assets/docling-dashboard-1027/before-mixed-1440-light-en.png) | [Before](assets/docling-dashboard-1027/before-mixed-640-dark-ko.png) |
+| Mixed after | [After](assets/docling-dashboard-1027/after-mixed-1440-light-en.png) | [After](assets/docling-dashboard-1027/after-mixed-640-dark-ko.png) |
+| Empty before | [Before](assets/docling-dashboard-1027/before-empty-1440-light-en.png) | [Before](assets/docling-dashboard-1027/before-empty-640-dark-ko.png) |
+| Empty after | [After](assets/docling-dashboard-1027/after-empty-1440-light-en.png) | [After](assets/docling-dashboard-1027/after-empty-640-dark-ko.png) |
+
+The mixed-state result heading moves from approximately y=620 to y=321 at
+1440px (299px up), and y=932 to y=382 at 640px (550px up), measured from
+viewport captures. At 640px all three record states now appear in the first
+1100px-high viewport. Empty states omit the priority strip entirely. Alignment,
+spacing, Korean wrapping, themed text contrast and table-only horizontal scrolling
+were visually reviewed; comparison actions remain accessible by table scrolling.
+
+[Keyboard-focused failure detail](assets/docling-dashboard-1027/focus-failure-640-dark-ko.png)
+confirms the same Korean explanation stays within the viewport.
+[Capture conditions](assets/docling-dashboard-1027/capture-metadata.json).
+The dashboard scenario retains filtering, Stop waiting, failure cause and comparison
+coverage. It now checks absent empty-state priority UI, unique filename exposure
+priority-to-table filtering, and keyboard-visible/accessible failure and Stop waiting descriptions. Manual empty-state capture tours run only with
+`pnpm browser:test docling-dashboard --screenshots`; normal CI retains the two
+width/theme overflow checks without taking success screenshots.
 
 Visual review for #932: [1440px Light](assets/docling-dashboard-932/after-1440-light-en.png),
 [640px Korean Light](assets/docling-dashboard-932/after-640-light-ko.png),

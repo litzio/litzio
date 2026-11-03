@@ -6,15 +6,17 @@
 .docling-dashboard section { border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); padding: var(--space-4); margin-block: var(--space-3); }
 .docling-dashboard-row, .docling-dashboard-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .docling-dashboard-details { flex: 1 1 16rem; min-width: 0; }
-.docling-dashboard-summary { display: grid; grid-template-columns: minmax(12rem, 2fr) repeat(4, minmax(0, 1fr)); gap: var(--space-3); }
-.docling-dashboard-count { text-align: start; padding: var(--space-3); border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); background: var(--id-color-surface); }
-.docling-dashboard-count strong { display: block; font-size: var(--font-size-start-title); }
+.docling-dashboard-summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.docling-dashboard-connection { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+.docling-dashboard-count { text-align: start; padding: var(--space-1) var(--space-2); border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); background: var(--id-color-surface); display: inline-flex; align-items: center; gap: var(--space-2); }
+.docling-dashboard-count strong { font-weight: 600; }
 .docling-dashboard-count[aria-pressed=true] { border-color: var(--id-color-interaction); background: var(--id-color-surface-hover); }
 .docling-dashboard-count:focus-visible, .docling-dashboard-menu summary:focus-visible { outline: 2px solid var(--id-color-interaction); outline-offset: 2px; }
 .docling-dashboard-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--id-color-danger); margin-inline-end: var(--space-2); }
 .docling-dashboard-dot.is-connected { background: var(--id-color-accent-green); }
-.docling-dashboard-priority { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
-.docling-dashboard-priority p { margin-block: var(--space-2); }
+.docling-dashboard-priority { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-block: var(--space-2); }
+.docling-dashboard-running { min-width: 12rem; }
+.docling-dashboard-running p { margin-block: var(--space-2); }
 .docling-dashboard progress { width: 100%; height: 6px; accent-color: var(--id-color-interaction); }
 .docling-dashboard progress::-webkit-progress-bar { background: var(--id-color-surface-hover); }
 .docling-dashboard progress::-webkit-progress-value { background: var(--id-color-interaction); }
@@ -37,4 +39,9 @@
 .docling-dashboard-menu-content .docling-review { padding: 0; margin: 0; border: 0; }
 .docling-dashboard-empty { text-align: center; padding: var(--space-6); }
 .plugin-tab.docling-dashboard-tab { overflow-y: auto; min-width: 0; }
-@media (max-width: 900px) { .docling-dashboard-summary { grid-template-columns: repeat(4, minmax(0, 1fr)); } .docling-dashboard-summary > div { grid-column: 1 / -1; } .docling-dashboard-priority { grid-template-columns: minmax(0, 1fr); } }
+
+.docling-dashboard-hint { display: inline-block; position: relative; max-width: 100%; }
+.docling-dashboard-hint-text { display: none; }
+.docling-dashboard-hint:hover > .docling-dashboard-hint-text,
+.docling-dashboard-hint:focus-within > .docling-dashboard-hint-text { display: block; position: absolute; top: 100%; left: 0; z-index: 1; width: 16rem; max-width: calc(100vw - 16rem); padding: var(--space-2); border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); background: var(--id-color-surface); color: var(--id-color-text); font-weight: 400; }
+.docling-dashboard-hint:focus-visible { outline: 2px solid var(--id-color-interaction); outline-offset: 2px; }
