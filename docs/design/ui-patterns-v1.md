@@ -241,6 +241,12 @@ padding을 쓴다. 선택하면 interaction-soft fill과 interaction border를 �
 
 ## P10 메뉴와 선택 도구
 
+비서 입력창의 `@` 파일 후보와 `/` Codex 스킬 후보는 같은 inline listbox,
+Button·Tooltip·초안 칩을 사용한다. 스킬은 이름·설명을 표시하고 선택하면
+`$name`과 경로 칩을 추가한다. 설치·활성화 메뉴는 없다.
+[계약·1440 Light/640 Dark 한국어 검증](main-agent-v1.md#codex-skill-selection-1047-pr-b).
+
+
 - **목적·사용/비사용:** 동작·값 선택·검색을 구별한다. combobox·tree·toolbar를 모양 때문에 하나의 menu로 합치지 않는다.
 - **목표·현재 기준:** [CommandMenu](../../apps/editor/src/CommandMenu.tsx)와 [공용 메뉴 행](editor-ux-shell-v1.md#unified-action-menus-516)을 유지한다. 같은 action의 icon·문구·disabled 이유를 맞춘다. 값 선택에는 current check, 서식에는 pressed, 실행에는 동사를 쓴다. 검색 active와 선택된 값은 구별한다.
 - **선택지 묶음 (#1034):** 문서 보기·번호 방식·갤러리는 기존 Button 세그먼트를 일반화한 내부 ChoiceGroup을 사용한다. 필수 단일 선택과 Tab/Enter/Space 계약·토큰을 보존한다. U17 독립 서식, U18 표 selection/메뉴, U21 탭 키보드 소유권은 그대로 유지한다([분류·검사·Light/Dark 전후 근거](ui-decision-table-v1.md#선택지-분류와-검증-1034)).

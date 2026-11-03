@@ -11,10 +11,12 @@ export const DEFAULT_AI_SETTINGS: AiExecutionSettings = { model: "gpt-6.1-sol", 
 export type AiResponseLanguage = "ko" | "en" | "ja";
 export type AiAgentSettings = AiExecutionSettings & { provider: "codex"; enabled: boolean; writeAccess: "opened-folders" | "read-only" };
 export const AI_AGENT = {
-  modelsRoute: "/api/ai-agent-models", diagnosticsRoute: "/api/ai-agent-diagnostics", environmentRoute: "/api/ai-agent-environment",
+  skillsRoute: "/api/ai-agent-skills", modelsRoute: "/api/ai-agent-models", diagnosticsRoute: "/api/ai-agent-diagnostics", environmentRoute: "/api/ai-agent-environment",
   conversationsRoute: "/api/ai-agent-conversations",
 } as const;
 export type AiConversationInfo = { id: string; title: string; folders: string[]; createdAt: number; updatedAt: number };
+export type AiSkill = { name: string; path: string; description: string };
+export type AiSkills = { skills: AiSkill[]; errors: { path: string; message: string }[] };
 export type AiFileReference = { path: string; name: string; kind: string };
 export type AiConversationItem = { id: string; kind: "user" | "assistant" | "reasoning" | "tool" | "plan"; text: string; references?: AiFileReference[]; status?: string; toolResult?: { success: boolean | null; contentItems: { type: string; text?: string }[] } };
 export type AiUserInput = { requestId: string | number; turnId: string; questions: {
@@ -25,7 +27,7 @@ export type AiUserInputAnswers = Record<string, { answers: string[] }>;
 export type AiConversationTurn = { id: string; status: string; items: AiConversationItem[]; error?: string };
 export type AiConversation = AiConversationInfo & { turns: AiConversationTurn[]; userInput?: AiUserInput; model: string; reasoningEffort: string;
   tokenUsage?: { used: number; limit: number | null } };
-export type AiConversationInput = Pick<AiExecutionSettings, "model" | "reasoningEffort"> & { id?: string; message: string; references?: string[];
+export type AiConversationInput = Pick<AiExecutionSettings, "model" | "reasoningEffort"> & { id?: string; message: string; references?: string[]; skills?: { name: string; path: string }[];
   folders: string[]; document?: { path: string; source: string } };
 export type AiModel = { id: string; model: string; displayName: string; description: string;
   supportedReasoningEfforts: { reasoningEffort: string; description: string }[]; defaultReasoningEffort: string };
