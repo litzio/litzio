@@ -1,13 +1,13 @@
 # UI 결정표와 실행 예제
 
-| 상황 | 표면 | 사용할 구현 | 대표 사용처 | 예외 |
-| --- | --- | --- | --- | --- |
-| 문서 내용을 읽고 편집한다 | 문서 본문 | 기존 Tiptap editor / NodeView와 Core operation | [DocumentEditor](../../apps/editor/src/DocumentEditor.tsx) | 별도 editor engine을 만들지 않는다. |
-| 대상의 작은 속성을 고치며 본문 문맥을 유지한다 | 대상에 붙는 작은 편집면 | 기존 속성 폼과 Popover | [MetadataProperties](../../apps/editor/src/metadata-properties.tsx) | [P01](ui-patterns-v1.md#p01-속성-편집-표면과-위치)의 현재 구현·목표를 구별한다. |
-| 독립 작업을 열어 다른 문서와 오간다 | 작업 탭 | 기존 탭 / Plugin `TabKind` | [Docling UI 등록](../../plugins/docling/src/ui-plugin.tsx) | 집계·작업 목록을 문서 본문처럼 꾸미지 않는다. 기존 탭 수명을 따른다. |
-| 문서를 보며 보조 작업을 동시에 한다 | 도킹 패널 | 기존 shell 패널 | [AssistantPanel](../../apps/editor/src/shell/AssistantPanel.tsx) | 좁은 창의 modal 전환은 현재 패널 계약을 따른다. 범용 Plugin 패널 API는 없다. |
-| 현재 작업에서 확인이나 별도 입력 경계가 필요하다 | 모달 | Dialog / DangerConfirmation / 기존 파일 picker | [FolderDialog](../../apps/editor/src/shell/FolderDialog.tsx) | 확인·파일 선택만으로 제한하는 새 규칙은 없다. [P12](ui-patterns-v1.md#p12-모달파일복구설정-범위)를 따른다. |
-| 앱 전체 설정을 바꾼다 | 전역 설정 | SettingsDialog / Plugin settings contribution | [SettingsDialog](../../apps/editor/src/shell/SettingsDialog.tsx) | 현재 Back to document 화면이다. 탭 전환은 [#1026](https://github.com/litzio/litzio/issues/1026)의 별도 결정이다. |
+| 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
+| --- | --- | --- | --- | --- | --- |
+| 문서 내용을 읽고 편집한다 | 문서 본문 | 기존 Tiptap editor / NodeView와 Core operation | 직접 입력은 즉시 적용·Undo · 디스크는 Save · 미저장 닫기는 Save/Don't save/Cancel ([저장 계약](editing-session-save-v1.md#switching-and-recovery), [P04](ui-patterns-v1.md#p04-적용취소완료)) | [DocumentEditor](../../apps/editor/src/DocumentEditor.tsx) | 별도 editor engine을 만들지 않는다. [미적용 초안](editing-session-save-v1.md#applied-content-and-drafts)은 직접 본문 입력과 다르다. |
+| 대상의 작은 속성을 고치며 본문 문맥을 유지한다 | 대상에 붙는 작은 편집면 | 기존 속성 폼과 Popover | Metadata는 Edit로 진입 · Done/유효한 바깥 pointer 적용·Esc 취소 · 오류는 초안 유지 ([P03](ui-patterns-v1.md#p03-편집-진입), [P04](ui-patterns-v1.md#p04-적용취소완료)) | [MetadataProperties](../../apps/editor/src/metadata-properties.tsx) | 바깥 적용은 클릭 위치 focus 유지. 링크·교차참조의 명시적 Apply/Cancel, [미주](footnotes-v1.md#editor), [인용 동결](../adr/0008-citations-and-bibliography.md)은 [P04](ui-patterns-v1.md#p04-적용취소완료)의 별도 경계다. |
+| 독립 작업을 열어 다른 문서와 오간다 | 작업 탭 | 기존 탭 / Plugin `TabKind` | Plugin은 명령·sidebar/openTab으로 진입 · 오류는 탭/알림에 표시 · Plugin 탭에는 Save/복구 세션 없음 ([탭 수명](plugin-ui-v1.md#contributions-lifetime-and-failures)) | [Docling UI 등록](../../plugins/docling/src/ui-plugin.tsx) | 문서 탭은 별도 [편집 세션](editing-session-save-v1.md#editor-ownership)을 갖는다. 집계·작업 목록을 문서 본문처럼 꾸미지 않는다. |
+| 문서를 보며 보조 작업을 동시에 한다 | 도킹 패널 | 기존 shell 패널 | Assistant로 진입 · Esc는 열린 선택 팝업부터 닫음 · 좁은 창 Escape/Close는 이전 편집 focus 복귀 ([비서 계약](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)) | [AssistantPanel](../../apps/editor/src/shell/AssistantPanel.tsx) | 좁은 창의 modal 전환은 [현재 패널 계약](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)을 따른다. 범용 Plugin 패널 API는 없다. |
+| 현재 작업에서 확인이나 별도 입력 경계가 필요하다 | 모달 | Dialog / DangerConfirmation / 기존 파일 picker | 제목→대상→명시적 동작 · 안전한 취소·focus 복귀 · busy 중복 실행 방지 ([P12](ui-patterns-v1.md#p12-모달파일복구설정-범위)) | [FolderDialog](../../apps/editor/src/shell/FolderDialog.tsx) | 확인·파일 선택만으로 제한하는 새 규칙은 없다. 파일·복구에 metadata의 바깥 적용을 이식하지 않는다([P12](ui-patterns-v1.md#p12-모달파일복구설정-범위)). |
+| 앱 전체 설정을 바꾼다 | 전역 설정 | SettingsDialog / Plugin settings contribution | 앱 설정은 즉시 반영 · 문서 Save와 분리 · 선택값 저장 오류는 입력 피드백 ([P12](ui-patterns-v1.md#p12-모달파일복구설정-범위), [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터)) | [SettingsDialog](../../apps/editor/src/shell/SettingsDialog.tsx) | [AI 설정의 명시적 Save](main-agent-v1.md#settings-and-read-routes), [Docling field exit 저장](ui-patterns-v1.md#p12-모달파일복구설정-범위)은 별도다. 현재 Back to document 화면이며 탭 전환은 [#1026](https://github.com/litzio/litzio/issues/1026)의 결정이다. |
 
 - Status: Implemented
 - Last verified: 2026-11-03 — 구현·공개 API 대조, 타입·문서·토큰 검사, production build와 개발 갤러리 연결·Light/Dark 캡처 확인.
