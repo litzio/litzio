@@ -16,9 +16,11 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   const connection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
   const conversations = new AiAgentConversations(connection, new RootAccess([root]));
   const settings = { provider: "codex" as const, enabled: true, writeAccess: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
-  const input = { message: "What changed?", folders: [root], model: settings.model, reasoningEffort: "medium", responseLanguage: "ja" as const,
+  const input = { message: "What changed?", folders: [root], model: settings.model, reasoningEffort: "medium", references: [path.join(root, "notes.md"), path.join(root, "image.png"), path.join(root, "report.pdf"), path.join(root, "notes.md")],
     document: { path: path.join(root, "notes.md"), source: "UNSAVED DOCUMENT TEXT" } };
   writeFileSync(input.document.path, "ON DISK");
+  writeFileSync(path.join(root, "image.png"), "image fixture");
+  writeFileSync(path.join(root, "report.pdf"), "REFERENCE CONTENT MUST NOT BE IN INPUT");
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const streamed: string[] = [];
   connection.client.on("notification", (method, params) => {
@@ -44,6 +46,13 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   const start = rpc.find(item => item.method === "turn/start").params;
   assert.equal(start.summary, "auto");
+  const refs = [{ path: input.document.path, name: "notes.md", kind: "document" }, { path: path.join(root, "image.png"), name: "image.png", kind: "image" }, { path: path.join(root, "report.pdf"), name: "report.pdf", kind: "file" }];
+  assert.deepEqual(JSON.parse(start.input[1].text.split("(JSON):\n")[1]).references, refs);
+  assert.equal(JSON.stringify(start.input).includes("REFERENCE CONTENT MUST NOT BE IN INPUT"), false);
+  assert.equal(start.input.length, 3);
+  assert.deepEqual(start.input[2], { type: "localImage", path: path.join(root, "image.png") });
+  assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "user").map(item => item.references), [refs, refs]);
+  assert.deepEqual(rpc.find(item => item.method === "turn/steer").params.input.slice(1), start.input.slice(1));
   assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root], networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
   assert.ok(start.input[1].text.includes("UNSAVED DOCUMENT TEXT"));
   assert.equal(rpc.find(item => item.method === "thread/start").params.ephemeral, false);
@@ -52,20 +61,33 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   const resumedConnection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
   try {
     const resumed = new AiAgentConversations(resumedConnection, new RootAccess([root]));
-    const history = await resumed.resume(conversation.id, settings, "en");
+    const history = await resumed.resume(conversation.id, settings);
     assert.deepEqual(history.turns[0]!.items.filter(item => item.kind === "reasoning"), conversation.turns[0]!.items.filter(item => item.kind === "reasoning"));
     assert.equal(JSON.stringify(history).includes("PRIVATE RAW REASONING"), false);
-    assert.equal(history.responseLanguage, "ja");
+    assert.equal("responseLanguage" in history, false);
+    assert.deepEqual(history.turns[0]!.items.find(item => item.kind === "user")!.references, refs);
+    await assert.rejects(resumed.send({ ...input, references: [root] }, settings), /outside/);
+    await assert.rejects(resumed.send({ ...input, folders: [cwd], references: [input.document.path] }, settings), /outside/);
+    writeFileSync(path.join(root, ".hidden"), "hidden");
+    await assert.rejects(resumed.send({ ...input, references: [path.join(root, ".hidden")] }, settings), /unavailable/);
+    const real = path.join(root, "real"); mkdirSync(real); writeFileSync(path.join(real, "file.txt"), "reference");
+    const linked = path.join(root, "linked"); symlinkSync(real, linked, process.platform === "win32" ? "junction" : "dir");
+    await assert.rejects(resumed.send({ ...input, references: [path.join(linked, "file.txt")] }, settings), /unavailable/);
+    const many = Array.from({ length: 11 }, (_, i) => path.join(root, `file-${i}.txt`));
+    for (const file of many) writeFileSync(file, "reference");
+    await assert.rejects(resumed.send({ ...input, references: many }, settings), /10/);
+    const deleted = many[0]!; rmSync(deleted);
+    await assert.rejects(resumed.send({ ...input, references: [deleted] }, settings));
     assert.equal(history.turns[0]!.status, "interrupted");
-    await resumed.send({ ...input, id: conversation.id, message: "Read only." }, { ...settings, writeAccess: "read-only" });
+    await resumed.send({ ...input, id: conversation.id, message: "" }, { ...settings, writeAccess: "read-only" });
     const requests = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
     assert.deepEqual(requests.filter(item => item.method === "turn/start").at(-1).params.sandboxPolicy, { type: "readOnly", networkAccess: false });
     await resumedConnection.client.request("fixture/finish", { threadId: conversation.id });
-    const paged = await resumed.resume(conversation.id, settings, "en");
+    const paged = await resumed.resume(conversation.id, settings);
     assert.deepEqual(paged.turns.map(turn => turn.status), ["interrupted", "completed"], "all pages are hydrated oldest first");
     await resumed.send({ ...input, id: conversation.id, message: "Check disconnect." }, settings);
     await assert.rejects(resumed.send({ ...input, folders: [path.dirname(root)] }, settings), /outside/);
-    await assert.rejects(resumed.resume("unknown-thread", settings, "en"), /not found/);
+    await assert.rejects(resumed.resume("unknown-thread", settings), /not found/);
     const active = paged.turns.at(-1)!;
     await resumedConnection.close(); assert.equal(active.status, "failed"); assert.match(active.error!, /exited/);
   } finally { await resumedConnection.close(); }
@@ -144,7 +166,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   const connection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
   const conversations = new AiAgentConversations(connection, new RootAccess([root]));
   const settings = { provider: "codex" as const, enabled: true, writeAccess: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
-  const input = { message: "Create Hello", folders: [folder], model: settings.model, reasoningEffort: "medium", responseLanguage: "en" as const };
+  const input = { message: "Create Hello", folders: [folder], model: settings.model, reasoningEffort: "medium" };
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const conversation = await conversations.send(input, settings);
   const call = async (tool: string, args: unknown, extra = {}) => (await connection.client.request("fixture/tool", { threadId: conversation.id, tool, arguments: args, ...extra }));
@@ -176,7 +198,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   const next = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
   try {
     const history = new AiAgentConversations(next, new RootAccess([root]));
-    const resumed = await history.resume(conversation.id, settings, "en");
+    const resumed = await history.resume(conversation.id, settings);
     assert.deepEqual(resumed.turns[0]!.items.find(item => item.toolResult?.success === true)!.toolResult, created);
     await history.send({ ...input, id: conversation.id }, { ...settings, writeAccess: "read-only" });
     const denied = await next.client.request("fixture/tool", { threadId: conversation.id, tool: "create_document", arguments: { ...args, path: path.join(folder, "readonly.md") } });
@@ -194,7 +216,7 @@ test("user questions reply once with exact RPC id and expire on resolution, comp
   const conversations = new AiAgentConversations(connection, new RootAccess([root]));
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const settings = { provider: "codex" as const, enabled: true, writeAccess: "read-only" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
-  const input = { message: "Ask", folders: [root], model: settings.model, reasoningEffort: "medium", responseLanguage: "en" as const };
+  const input = { message: "Ask", folders: [root], model: settings.model, reasoningEffort: "medium" };
   const c = await conversations.send(input, settings);
   const questions = [{ id: "constructor", header: "Choice", question: "Which?", isOther: false, isSecret: false, options: [{ label: "A", description: "First" }] },
     { id: "__proto__", header: "Secret", question: "Text?", isOther: true, isSecret: true, options: null }];
@@ -203,7 +225,7 @@ test("user questions reply once with exact RPC id and expire on resolution, comp
   const answer = (requestId: string | number) => conversations.answer(c.id, c.turns.at(-1)!.id, requestId, answers);
   for (const requestId of ["request-1", 0]) {
     await ask(requestId);
-    assert.deepEqual((await conversations.resume(c.id, settings, "en")).userInput?.questions, questions);
+    assert.deepEqual((await conversations.resume(c.id, settings)).userInput?.questions, questions);
     assert.throws(() => conversations.answer(c.id, "stale", requestId, answers), /expired/);
     assert.throws(() => conversations.answer(c.id, c.turns.at(-1)!.id, requestId, { ...answers, constructor: { answers: ["invalid"] } }), /Invalid/);
     const inherited = Object.setPrototypeOf({ ["__proto__"]: answers["__proto__"], extra: { answers: ["unused"] } }, { constructor: answers.constructor });

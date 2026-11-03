@@ -5,6 +5,7 @@ import type { AiUserInputAnswers, AiAgentSettings, AiConversation, AiConversatio
 import type { AiAgentConnection } from "./ai-agent-connection.ts";
 import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
 
+import { listFolder } from "./document-api.ts";
 import { documentTools, executeDocumentTool, type DocumentToolScope } from "./agent-document-tools.ts";
 
 /** Litzio persists only its history index. Codex owns all conversation content. */
@@ -61,13 +62,13 @@ export class AiAgentConversations {
     if (!conversation) throw new Error("Resume the conversation first.");
     return conversation;
   }
-  async resume(id: string, settings: AiAgentSettings, language: AiConversation["responseLanguage"]) {
-    if (typeof id !== "string" || !languages.includes(language)) throw new Error("Invalid conversation selection.");
+  async resume(id: string, settings: AiAgentSettings) {
+    if (typeof id !== "string") throw new Error("Invalid conversation selection.");
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
     const info = this.list().find(entry => entry.id === id);
     if (!info) throw new Error("Conversation was not found.");
     const conversation: AiConversation = { ...info, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
-      responseLanguage: language, tokenUsage: this.conversations.get(id)?.tokenUsage };
+      tokenUsage: this.conversations.get(id)?.tokenUsage };
     // Install before the RPC so token-usage notifications during resume are retained.
     this.conversations.set(id, conversation);
     const result = await this.connection.client.request("thread/resume", { threadId: id, cwd: this.connection.cwd,
@@ -80,17 +81,12 @@ export class AiAgentConversations {
     } while (cursor);
     conversation.turns = turns.map(turnFrom); conversation.model = result.model ?? settings.model;
     conversation.reasoningEffort = result.reasoningEffort ?? settings.reasoningEffort;
-    // The language selection is carried in Codex's user input, not a second transcript store.
-    for (const turn of turns) for (const item of turn.items) if (item.type === "userMessage") {
-      const context = item.content?.find((part: any) => part.type === "text" && part.text.startsWith(CONTEXT));
-      if (context) { try { const value = JSON.parse(context.text.slice(CONTEXT.length)); if (languages.includes(value.responseLanguage)) conversation.responseLanguage = value.responseLanguage; } catch { /* Ordinary CLI input has no Litzio context. */ } }
-    }
     this.conversations.set(id, conversation);
     this.loaded.add(id);
     return conversation;
   }
   async send(input: AiConversationInput, settings: AiAgentSettings) {
-    if (!input || typeof input.message !== "string" || !input.message.trim() || !languages.includes(input.responseLanguage) ||
+    if (!input || typeof input.message !== "string" || (!input.message.trim() && !input.references?.length) ||
       typeof input.model !== "string" || typeof input.reasoningEffort !== "string" || !Array.isArray(input.folders)) throw new Error("Invalid conversation input.");
     const folders = [...new Set(input.folders.map(folder => {
       if (typeof folder !== "string" || !path.isAbsolute(folder)) throw new Error("Invalid opened folder.");
@@ -98,6 +94,7 @@ export class AiAgentConversations {
       if (!statSync(resolved).isDirectory()) throw new Error("Opened folder is unavailable.");
       return resolved;
     }))];
+    let references = checkedReferences(input.references ?? [], folders, this.access);
     if (input.document) {
       if (typeof input.document.source !== "string" || typeof input.document.path !== "string") throw new Error("Invalid document context.");
       accessPath(input.document.path, this.access);
@@ -108,7 +105,7 @@ export class AiAgentConversations {
     this.pending.add(key);
     try {
       this.connection.environment();
-      if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings, input.responseLanguage);
+      if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings);
       const active = conversation?.turns.find(turn => turn.status === "inProgress");
       if (active && (input.model !== conversation!.model || input.reasoningEffort !== conversation!.reasoningEffort)) throw new Error("Model and reasoning effort are locked while running.");
       if (!active) {
@@ -118,14 +115,16 @@ export class AiAgentConversations {
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
           approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: documentTools });
-        conversation = { id: result.thread.id, title: input.message.trim().slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
-          turns: [], model: input.model, reasoningEffort: input.reasoningEffort, responseLanguage: input.responseLanguage };
+        conversation = { id: result.thread.id, title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
+          turns: [], model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);
         this.loaded.add(conversation.id);
         this.save(conversation);
       }
-      const context = { responseLanguage: input.responseLanguage, folders, document: input.document ?? null };
-      const messages = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
+      references = checkedReferences(input.references ?? [], folders, this.access);
+      const context = { folders, document: input.document ?? null, references };
+      const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
+      messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
       if (active) {
         await this.connection.client.request("turn/steer", { threadId: conversation.id, expectedTurnId: active.id, input: messages });
       } else {
@@ -138,7 +137,7 @@ export class AiAgentConversations {
         const scope = this.scopes.get(conversation.id); if (scope) scope.turnId = result.turn.id;
         if (!conversation.turns.some(turn => turn.id === result.turn.id)) conversation.turns.push(turnFrom(result.turn));
       }
-      conversation.responseLanguage = input.responseLanguage; conversation.folders = folders; conversation.updatedAt = Date.now();
+      conversation.folders = folders; conversation.updatedAt = Date.now();
       this.save(conversation);
       return conversation;
     } finally { this.pending.delete(key); }
@@ -199,10 +198,18 @@ export class AiAgentConversations {
     } else if (method === "error" && !params.willRetry) { turn.error = params.error.message; turn.status = "failed"; if (conversation.userInput?.turnId === turnId) this.expireQuestion(conversation); }
   }
 }
-const languages = ["ko", "en", "ja", "document"];
 const CONTEXT = "Litzio read-only context (JSON):\n";
 function itemFrom(item: any): AiConversationItem | null {
-  if (item.type === "userMessage") return { id: item.id, kind: "user", text: item.content.filter((part: any) => part.type === "text" && !part.text.startsWith(CONTEXT)).map((part: any) => part.text).join("\n") };
+  if (item.type === "userMessage") {
+    const references: import("@litzio/plugin-api/ai").AiFileReference[] = [];
+    for (const part of item.content ?? []) if (part.type === "text" && part.text.startsWith(CONTEXT)) {
+      try {
+        const value = JSON.parse(part.text.slice(CONTEXT.length));
+        if (Array.isArray(value.references)) references.push(...value.references.filter((file: any) => file && typeof file.path === "string" && typeof file.name === "string" && typeof file.kind === "string"));
+      } catch { /* Non-Litzio CLI text need not contain valid context. */ }
+    }
+    return { id: item.id, kind: "user", text: item.content.filter((part: any) => part.type === "text" && !part.text.startsWith(CONTEXT)).map((part: any) => part.text).join("\n"), references };
+  }
   if (item.type === "agentMessage") return { id: item.id, kind: "assistant", text: item.text };
   if (item.type === "reasoning") return { id: item.id, kind: "reasoning", text: item.summary.join("\n") };
   if (item.type === "plan") return { id: item.id, kind: "plan", text: item.text };
@@ -215,3 +222,27 @@ function itemFrom(item: any): AiConversationItem | null {
   return null;
 }
 function turnFrom(turn: any): AiConversationTurn { return { id: turn.id, status: turn.status, items: (turn.items ?? []).map(itemFrom).filter(Boolean), ...(turn.error ? { error: turn.error.message } : {}) }; }
+
+/** Reuse Explorer visibility at each path segment; never include reference content in input. */
+function checkedReferences(value: string[], folders: string[], access: FileAccess) {
+  if (!Array.isArray(value)) throw new Error("Invalid file references.");
+  const scope = folders.length ? new RootAccess(folders) : null;
+  const references: import("@litzio/plugin-api/ai").AiFileReference[] = [];
+  for (const requested of value) {
+    if (typeof requested !== "string" || !path.isAbsolute(requested) || !scope) throw new Error("File reference is outside opened folders.");
+    const resolved = accessPath(accessPath(requested, scope), access);
+    const root = folders.find(folder => { const relative = path.relative(folder, resolved); return relative && relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative); });
+    if (!root) throw new Error("File reference is outside opened folders.");
+    let folder = root;
+    const segments = path.relative(root, resolved).split(path.sep);
+    let entry;
+    for (const [index, name] of segments.entries()) {
+      entry = listFolder(root, folder, access).entries.find(file => path.relative(file.path, path.join(folder, name)) === "");
+      if (!entry || (index < segments.length - 1 ? entry.kind !== "folder" : entry.kind === "folder")) throw new Error("File reference is unavailable.");
+      folder = entry.path;
+    }
+    if (!references.some(file => path.relative(file.path, resolved) === "")) references.push({ path: resolved, name: entry!.name, kind: entry!.kind });
+    if (references.length > 10) throw new Error("At most 10 file references are allowed.");
+  }
+  return references;
+}

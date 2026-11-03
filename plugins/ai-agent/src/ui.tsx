@@ -29,7 +29,7 @@ export function activate(host: UiHost) {
       alive.current = true;
       void Promise.all([get<AiAgentSettings>(AI_TASK.settingsRoute), get<AiEnvironment>(AI_AGENT.environmentRoute)]).then(([next, env]) => {
         if (!alive.current) return;
-        setSettings({ ...next, responseLanguage: next.responseLanguage ?? (document.documentElement.lang === "ko" ? "ko" : "en") }); setStoredSettings(next); setEnvironment(env); if (next.enabled) void refresh();
+        setSettings({ ...next, responseLanguage: next.responseLanguage ?? (navigator.language.startsWith("ko") ? "ko" : navigator.language.startsWith("ja") ? "ja" : "en") }); setStoredSettings(next); setEnvironment(env); if (next.enabled) void refresh();
       }).catch(error => { if (alive.current) setProblem(error.message); });
       return () => { alive.current = false; };
     }, []);
@@ -94,11 +94,12 @@ export function activate(host: UiHost) {
           </select>
         </div>
         <div className="agent-defaults">
-          <label htmlFor="ai-language">{t("Response language")}</label>
+          <label htmlFor="ai-language">{t("AI default language")}</label>
           <select id="ai-language" className="form-select" value={settings?.responseLanguage ?? "en"} disabled={!settings || busy} onChange={event => { setSettings({ ...settings!, responseLanguage: event.target.value as AiAgentSettings["responseLanguage"] }); setSaved(false); }}>
-            <option value="ko">한국어</option><option value="en">English</option><option value="ja">日本語</option><option value="document">{t("Follow document language")}</option>
+            <option value="ko">한국어</option><option value="en">English</option><option value="ja">日本語</option>
           </select>
         </div>
+        <p className="agent-muted">{t("Used only for tasks started without a conversation.")}</p>
         {models && !valid ? <p role="status">{t("Choose a model and reasoning effort from the available list.")}</p> : null}
         <div><Button variant="default" disabled={!valid || busy || !settings?.enabled} onClick={() => void save()}>{t(busy ? "Saving…" : "Save AI settings")}</Button></div>
         <h4>{t("Common working environment")}</h4>

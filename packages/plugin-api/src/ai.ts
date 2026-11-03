@@ -5,26 +5,27 @@ export const AI_TASK = {
   settingsRoute: "/api/ai-agent-settings",
   statusRoute: "/api/ai-agent-status", discoveryRoute: "/api/ai-task-service",
 } as const;
-export type AiExecutionSettings = { model: string; reasoningEffort: string };
+export type AiExecutionSettings = { model: string; reasoningEffort: string; responseLanguage?: AiResponseLanguage };
 export const DEFAULT_AI_SETTINGS: AiExecutionSettings = { model: "gpt-6.1-sol", reasoningEffort: "medium" };
-/** Main-agent settings share the execution defaults with feature tasks. */
-export type AiResponseLanguage = "ko" | "en" | "ja" | "document";
-export type AiAgentSettings = AiExecutionSettings & { provider: "codex"; enabled: boolean; writeAccess: "opened-folders" | "read-only"; responseLanguage?: AiResponseLanguage };
+/** Fallback for tasks started without a conversation; never a conversation override. */
+export type AiResponseLanguage = "ko" | "en" | "ja";
+export type AiAgentSettings = AiExecutionSettings & { provider: "codex"; enabled: boolean; writeAccess: "opened-folders" | "read-only" };
 export const AI_AGENT = {
   modelsRoute: "/api/ai-agent-models", diagnosticsRoute: "/api/ai-agent-diagnostics", environmentRoute: "/api/ai-agent-environment",
   conversationsRoute: "/api/ai-agent-conversations",
 } as const;
 export type AiConversationInfo = { id: string; title: string; folders: string[]; createdAt: number; updatedAt: number };
-export type AiConversationItem = { id: string; kind: "user" | "assistant" | "reasoning" | "tool" | "plan"; text: string; status?: string; toolResult?: { success: boolean | null; contentItems: { type: string; text?: string }[] } };
+export type AiFileReference = { path: string; name: string; kind: string };
+export type AiConversationItem = { id: string; kind: "user" | "assistant" | "reasoning" | "tool" | "plan"; text: string; references?: AiFileReference[]; status?: string; toolResult?: { success: boolean | null; contentItems: { type: string; text?: string }[] } };
 export type AiUserInput = { requestId: string | number; turnId: string; questions: {
   id: string; header: string; question: string; isOther: boolean; isSecret: boolean;
   options: { label: string; description: string }[] | null;
 }[] };
 export type AiUserInputAnswers = Record<string, { answers: string[] }>;
 export type AiConversationTurn = { id: string; status: string; items: AiConversationItem[]; error?: string };
-export type AiConversation = AiConversationInfo & { turns: AiConversationTurn[]; userInput?: AiUserInput; model: string; reasoningEffort: string; responseLanguage: AiResponseLanguage;
+export type AiConversation = AiConversationInfo & { turns: AiConversationTurn[]; userInput?: AiUserInput; model: string; reasoningEffort: string;
   tokenUsage?: { used: number; limit: number | null } };
-export type AiConversationInput = AiExecutionSettings & { id?: string; message: string; responseLanguage: AiResponseLanguage;
+export type AiConversationInput = Pick<AiExecutionSettings, "model" | "reasoningEffort"> & { id?: string; message: string; references?: string[];
   folders: string[]; document?: { path: string; source: string } };
 export type AiModel = { id: string; model: string; displayName: string; description: string;
   supportedReasoningEfforts: { reasoningEffort: string; description: string }[]; defaultReasoningEffort: string };
