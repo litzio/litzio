@@ -304,14 +304,30 @@ test('lifecycle scope keeps representative Beta and removal but selects full for
     'apps/desktop/test/packaged/uninstall.e2e.ts', 'apps/desktop/new-input.ts',
     'brand.ts', 'pnpm-lock.yaml', 'patches/new.patch', 'unknown/config.json',
     '.github/workflows/ci.yml', 'scripts/new-build.mjs'];
+  for (const file of representative) {
+    const jobs = selectJobs('pull_request', [file]);
+    assert.equal(jobs.update, true, file);
+    assert.equal(jobs.fullLifecycle, false, file);
+  }
+  for (const file of sensitive) assert.equal(selectJobs('pull_request', [file]).fullLifecycle, true, file);
+  // These packaging inputs alone retain update=false, but must promote an update-target diff.
+  const buildInputs = ['packages/cli/scripts/build.ts', 'packages/cli/scripts/build-docling-worker.ts',
+    'packages/cli/scripts/build-ai-agent.ts', 'plugins/docling/scripts/build.ts',
+    'plugins/docling/scripts/check-boundaries.ts', 'plugins/ai-agent/scripts/build.ts',
+    'packages/plugin-api/src/build.ts', 'packages/plugin-api/src/config.ts', 'apps/editor/vite.config.ts',
+    ...['packages/cli', 'packages/core', 'packages/file-commit', 'packages/plugin-api',
+      'plugins/docling', 'plugins/ai-agent', 'apps/editor'].map(path => `${path}/tsconfig.json`)];
+  for (const file of buildInputs) {
+    assert.equal(selectJobs('pull_request', [file]).update, false, file);
+    assert.equal(selectJobs('pull_request', [representative[0], file]).fullLifecycle, true, file);
+  }
+  // Only representative union/fallback boundaries need both event entry points.
   for (const event of ['pull_request', 'merge_group']) {
-    for (const file of representative) {
-      const jobs = selectJobs(event, [file]);
-      assert.equal(jobs.update, true, file);
-      assert.equal(jobs.fullLifecycle, false, file);
-      for (const full of sensitive) assert.equal(selectJobs(event, [file, full]).fullLifecycle, true, full);
-    }
-    for (const file of sensitive) assert.equal(selectJobs(event, [file]).fullLifecycle, true, file);
+    for (const paths of [
+      ['apps/desktop/src/host-protocol.ts', 'packages/cli/scripts/build.ts'],
+      [representative[0], 'apps/desktop/src/updates.ts'],
+      [representative[0], 'unknown/config.json'],
+    ]) assert.equal(selectJobs(event, paths).fullLifecycle, true, paths.join(' + '));
     assert.equal(selectJobs(event, ['apps/editor/src/App.tsx']).update, false);
   }
   const ci = workflow();

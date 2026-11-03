@@ -36,7 +36,18 @@ const representativeDesktop = new Set([
   'src/host-protocol.ts', 'src/explorer.ts', 'src/first-document.ts',
   'test/host-protocol.test.ts', 'test/explorer.test.ts', 'test/first-document.test.ts',
 ].map(path => `apps/desktop/${path}`));
-const lifecycleFullPaths = path => shared(path) || !known(path) ||
+// Desktop copies CLI dist, including plugin workers/UI and the production Editor.
+// Keep transitive build composition/configuration here without broadening update.
+const desktopBuildInputs = new Set([
+  'packages/cli/scripts/build.ts', 'packages/cli/scripts/build-docling-worker.ts',
+  'packages/cli/scripts/build-ai-agent.ts', 'plugins/docling/scripts/build.ts',
+  'plugins/docling/scripts/check-boundaries.ts', 'plugins/ai-agent/scripts/build.ts',
+  'packages/plugin-api/src/build.ts', 'packages/plugin-api/src/config.ts',
+  'apps/editor/vite.config.ts',
+  ...['packages/cli', 'packages/core', 'packages/file-commit', 'packages/plugin-api',
+    'plugins/docling', 'plugins/ai-agent', 'apps/editor'].map(path => `${path}/tsconfig.json`),
+]);
+const lifecycleFullPaths = path => shared(path) || !known(path) || desktopBuildInputs.has(path) ||
   path === 'brand.ts' || path.endsWith('/package.json') ||
   path.startsWith('apps/desktop/installer/') || path.startsWith('apps/desktop/scripts/') ||
   ['main.ts', 'preload.ts', 'preferences.ts', 'updates.ts', 'update-policy.ts',
