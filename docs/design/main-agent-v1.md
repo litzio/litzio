@@ -357,8 +357,9 @@ plain-text responses supply the real controls/content. No example file links,
 future providers or new-document actions are fabricated.
 
 AI execution is not a semantic document operation, so this work adds no CLI
-command. Applying existing-document changes, Docling orchestration and other providers remain
-outside this PR.
+command. Applying existing-document changes, Docling orchestration and providers
+beyond Codex/Copilot remain outside the current delivery. Copilot was added in
+[#1053](#copilot-conversations-1053).
 
 
 ## Document tools (#931 implementation 2, PR 1)

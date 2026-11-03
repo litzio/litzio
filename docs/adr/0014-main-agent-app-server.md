@@ -53,9 +53,9 @@ The #1053 owner decision (2026-11-03) adds `provider: "copilot"` beside
 `codex` in the existing provider row. Host starts `copilot --acp` over stdio,
 using the official ACP TypeScript SDK as Paseo does. Concrete Codex and Copilot
 branches are sufficient; no provider registry, plugin API or adapter framework
-is introduced. The agent owns shared model/effort defaults, selected from
-`model/list` and its supported efforts. Existing feature tasks continue to use
-those defaults through the unchanged worker execution path.
+is introduced. Codex model/effort defaults come from `model/list` and its
+supported efforts. Existing feature tasks retain those Codex defaults through
+the unchanged worker execution path when the assistant uses an ACP catalog model.
 
 ## Ownership and delivery boundary
 

@@ -665,15 +665,17 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(page.getByText('Litzio skills', { exact: true })).toHaveCount(0);
   expect(settingsWrites.length).toBe(writesBeforeProvider);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-light-en.png' });
-  await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Appearance & language', exact: true }).click();
-  await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
-  await page.setViewportSize({ width: 640, height: 1000 });
-  await page.getByRole('button', { name: 'AI 에이전트', exact: true }).click();
-  // Re-entering a category reloads stored settings; select the preview again for the narrow capture.
-  await page.getByLabel('기본 프로바이더', { exact: true }).selectOption('copilot');
-  await expect(page.getByLabel('모델', { exact: true })).toHaveValue('copilot-model');
-  expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
-  if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/copilot-640-dark-ko.png' });
+  if (screenshots) {
+    await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Appearance & language', exact: true }).click();
+    await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
+    await page.setViewportSize({ width: 640, height: 1000 });
+    await page.getByRole('button', { name: 'AI 에이전트', exact: true }).click();
+    // Re-entering a category reloads stored settings; select the preview again for the narrow capture.
+    await page.getByLabel('기본 프로바이더', { exact: true }).selectOption('copilot');
+    await expect(page.getByLabel('모델', { exact: true })).toHaveValue('copilot-model');
+    expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/copilot-640-dark-ko.png' });
+  }
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   // Restore preferences for the other stable scenarios.
   await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantWidth'); localStorage.removeItem(prefix + '.assistantConversation'); }, brand.storagePrefix);
