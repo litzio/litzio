@@ -24,13 +24,13 @@ const pathName = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).at
 const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
-type Props = { open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
+type Props = { settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
   referenceRequest?: { path: string };
   documentPath: string; folders: string[]; context(): Promise<AiConversationInput["document"]> };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, context, onOpen, onUndo, referenceRequest }: Props) {
+export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, context, onOpen, onUndo, referenceRequest }: Props) {
   useTranslation();
   const [removed, setRemoved] = useState<string[]>([]);
   const [settings, setSettings] = useState<AiAgentSettings>();
@@ -55,18 +55,28 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
   const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
   const initialFocus = useRef(false);
   const current = useRef(conversation); current.current = conversation;
+  const initializedSettings = useRef(settingsRevision), providerVersion = useRef(0);
   const active = conversation?.turns.some(turn => turn.status === "inProgress") ?? false;
   const defaults = (value: AiAgentSettings) => { setModel(value.model); setEffort(value.reasoningEffort); };
   useEffect(() => {
+    const refreshingSettings = initializedSettings.current !== settingsRevision;
+    initializedSettings.current = settingsRevision;
     if (!open) return;
-    initialFocus.current = true;
+    initialFocus.current = !refreshingSettings;
     // A later focus move belongs to the user or another UI, even if setup is slow.
     const cancelInitialFocus = () => { initialFocus.current = false; };
     document.addEventListener("focusin", cancelInitialFocus);
     let alive = true;
-    setSetup(""); setHistory(null);
+    setReady(false); setSetup(""); setProblem(""); setHistory(null); setModels(undefined);
     void request<AiAgentSettings>(AI_TASK.settingsRoute).then(async value => {
       if (!alive) return;
+      if (settings && value.provider !== settings.provider) {
+        // Host disposed the old connection and conversations. Retire its UI requests too.
+        providerVersion.current++;
+        current.current = undefined; setConversation(undefined); rememberConversation();
+        setPending(false); setMessage(""); setReferences([]); setMention(null); setChoicesOpen(false);
+        setRemoved([]); setSkillCatalog(undefined); setSkillProblem("");
+      }
       setSettings(value); if (value.provider === "copilot") setReferences(previous => previous.filter(file => file.kind !== "skill")); if (!current.current) defaults(value);
       if (!value.enabled) {
         setSetup(value.provider === "copilot" ? "AI agent is disabled." : "Codex is disabled.");
@@ -97,7 +107,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       alive = false; initialFocus.current = false; setReady(false);
       document.removeEventListener("focusin", cancelInitialFocus);
     };
-  }, [open]);
+  }, [open, settingsRevision]);
   useLayoutEffect(() => {
     if (open && ready && settings?.enabled && !setup && initialFocus.current) {
       initialFocus.current = false;
@@ -127,7 +137,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     document.addEventListener("visibilitychange", visibilityChanged);
     schedule();
     return () => { alive = false; clearTimeout(timer); document.removeEventListener("visibilitychange", visibilityChanged); };
-  }, [open, conversation?.id, pending, ready, settings?.enabled, setup]);
+  }, [open, conversation?.id, pending, ready, settings?.enabled, setup, settingsRevision]);
   useEffect(() => { const element = transcript.current; if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 180) element.scrollTop = element.scrollHeight; }, [conversation]);
   const resultFocus = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {
@@ -136,16 +146,19 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
       if (target.isConnected && open) target.focus();
     }
   }, [pending, open]);
-  const run = async (action: () => Promise<void>) => {
+  const run = async (action: (isCurrent: () => boolean) => Promise<void>) => {
     if (pending) return;
+    const version = providerVersion.current, isCurrent = () => version === providerVersion.current;
     setPending(true); setProblem("");
-    try { await action(); } catch (error) { setProblem((error as Error).message); } finally { setPending(false); }
+    try { await action(isCurrent); } catch (error) { if (isCurrent()) setProblem((error as Error).message); } finally { if (isCurrent()) setPending(false); }
   };
-  const send = () => run(async () => {
+  const send = () => run(async isCurrent => {
     if (active && settings?.provider === "copilot") return;
     const value = message.trim(); if (!value && !references.length) return;
+    const document = await context(); if (!isCurrent()) return;
     const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "send", id: conversation?.id, message: value,
-      model, reasoningEffort: effort, references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: settings?.provider !== "codex" ? [] : references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document: await context() });
+      model, reasoningEffort: effort, references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: settings?.provider !== "codex" ? [] : references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document });
+    if (!isCurrent()) return;
     setConversation(next); rememberConversation(next.id); setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
   });
@@ -240,7 +253,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     <div className="assistant-header">
       <h2><MessageSquare aria-hidden="true" />{i18n.t("Assistant")}</h2>
       <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={!ready || pending || active} onClick={() => { setConversation(undefined); rememberConversation(); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null); if (settings) defaults(settings); input.current?.focus(); }}><Plus /></Button>
-      <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending || active} onClick={() => void run(async () => setHistory(history ? null : await request<AiConversationInfo[]>(AI_AGENT.conversationsRoute)))}><History /></Button>
+      <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending || active} onClick={() => void run(async isCurrent => { const next = history ? null : await request<AiConversationInfo[]>(AI_AGENT.conversationsRoute); if (isCurrent()) setHistory(next); })}><History /></Button>
       <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
     </div>
     <div className="assistant-context" title={[documentPath, ...folders].filter(Boolean).join("\n")}>
@@ -248,8 +261,9 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     </div>
     <div ref={transcript} className="assistant-transcript" aria-label={i18n.t("Conversation")}>
       {history ? <div className="assistant-history"><h3>{i18n.t("Conversation history")}</h3><p>{i18n.t(settings?.provider === "copilot" ? "Continue a Copilot conversation." : "Continue the same Codex conversation here or in the CLI.")}</p>
-        {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async () => {
+        {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async isCurrent => {
           const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "resume", id: entry.id });
+          if (!isCurrent()) return;
           setConversation(next); rememberConversation(next.id); setModel(next.model); setEffort(next.reasoningEffort); setHistory(null); input.current?.focus();
         })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
           {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
@@ -274,8 +288,8 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
                 const trigger = event.currentTarget;
                 const card = trigger.closest<HTMLElement>(".assistant-result");
                 resultFocus.current = trigger;
-                void run(async () => {
-                  if (await onUndo(result)) { setRemoved(previous => [...previous, item.id]); resultFocus.current = card; }
+                void run(async isCurrent => {
+                  if (await onUndo(result) && isCurrent()) { setRemoved(previous => [...previous, item.id]); resultFocus.current = card; }
                 });
               }}>{i18n.t("Undo creation")}</Button></div>
               {!deleted ? <small>{i18n.t("Undo deletes the created file.")}</small> : null}
@@ -288,9 +302,10 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
           </div> : null}
         </section>)}
       {!history && conversation?.userInput ? <AssistantQuestion key={`${conversation.id}:${conversation.userInput.turnId}:${typeof conversation.userInput.requestId}:${conversation.userInput.requestId}`} question={conversation.userInput} disabled={pending || !ready || !settings?.enabled || !!setup}
-        submit={answers => run(async () => {
+        submit={answers => run(async isCurrent => {
           const question = conversation.userInput!;
-          setConversation(await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "answer", id: conversation.id, turnId: question.turnId, requestId: question.requestId, answers }));
+          const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "answer", id: conversation.id, turnId: question.turnId, requestId: question.requestId, answers });
+          if (isCurrent()) setConversation(next);
         })} /> : null}
       {!history && !conversation ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Changes to existing documents are suggested in text.")}</p></div> : null}
       {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open AI settings")}</Button></div> : null}
@@ -336,7 +351,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
         <Tooltip><TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
         </TooltipTrigger><TooltipContent>{usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}</TooltipContent></Tooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
-        {active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async () => setConversation(await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "interrupt", id: conversation!.id })))}><Square /></Button> : null}
+        {active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async isCurrent => { const next = await request<AiConversation>(AI_AGENT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); })}><Square /></Button> : null}
         <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || active && settings?.provider === "copilot" || !ready || (!message.trim() && !references.length) || !catalogModel || !settings?.enabled || !!setup}><ArrowUp /></Button>
       </div>
     </form>

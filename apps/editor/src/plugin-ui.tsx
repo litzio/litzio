@@ -2,6 +2,7 @@ import * as React from "react";
 import * as jsx from "react/jsx-runtime";
 import { flushSync } from "react-dom";
 import { PLUGIN_UI, type UiRegistration } from "@litzio/plugin-api/config";
+import { AI_TASK } from "@litzio/plugin-api/ai";
 import type { UiHost, UiModule, PluginDialogProps, UiNotice } from "@litzio/plugin-api/ui";
 import { Input } from "./components/ui/input.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./components/ui/dialog.tsx";
@@ -78,6 +79,7 @@ export function usePluginUi(shellApi: ShellApi) {
   const [plugins, setPlugins] = React.useState<ActiveUi[]>([]);
   const [observed, setObserved] = React.useState(false);
   const [problem, setProblem] = React.useState("");
+  const [aiSettingsRevision, setAiSettingsRevision] = React.useState(0);
   React.useEffect(() => {
     let stopped = false, timer: ReturnType<typeof setTimeout>;
     const controller = new AbortController();
@@ -112,6 +114,7 @@ export function usePluginUi(shellApi: ShellApi) {
             ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) });
           const value = await response.json(); guard();
           if (!response.ok) throw new Error(value.error ?? "Host operation failed.");
+          if (registration.id === AI_TASK.plugin && route === AI_TASK.settingsRoute.slice(1) && method === "PUT") setAiSettingsRevision(value => value + 1);
           return value;
         },
         imageUrl: (path, uri) => `${import.meta.env.BASE_URL}document/${uri.split("/").map(encodeURIComponent).join("/")}?${new URLSearchParams({ path })}`,
@@ -136,7 +139,7 @@ export function usePluginUi(shellApi: ShellApi) {
     void observe();
     return () => { stopped = true; controller.abort(); clearTimeout(timer); registry.close(); };
   }, []);
-  return { plugins, problem, observed,
+  return { plugins, problem, observed, aiSettingsRevision,
     busy: Object.fromEntries(plugins.map(plugin => [plugin.id, busy[`${plugin.id}/${plugin.revision}`]])),
     notices: Object.fromEntries(plugins.filter(plugin => plugin.contributions).map(plugin => [plugin.id, notices[`${plugin.id}/${plugin.revision}`]])),
   };

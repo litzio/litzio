@@ -3,6 +3,7 @@
 - Status: Implemented
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
 - Message roles verified: 2026-11-03 (#1048/#1051; fixture captures and turn-copy browser checks below).
+- Provider Save verification: 2026-11-03 (#1069 review correction; reproduced stale dock state before the fix, then existing fake browser case passed with Save/new conversation).
 - Copilot verification: 2026-11-03 (#1053; fake ACP and task-default boundary, existing ai-agent browser scenario and 1440px Light / 640px Dark Korean captures; no real Copilot session or model call).
 - Last verified: 2026-11-03 (#1047 PR A/B / #984 / #952: fake stdio/Host, worker prompt, browser and manual 1440 Light / 640 Dark Korean captures; no real model turn).
 - Previous verification: 2026-11-02 (#931 implementation 2, PR 2: 409 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
@@ -764,7 +765,15 @@ readiness only, not confirmed login, model entitlement or available quota.
 Login stays in the user's Copilot CLI. Account/rate-limit/MCP diagnostics are
 Codex-only. Disable/unregister/Host shutdown closes both owned CLI connections.
 Saving a provider switch closes the old connections; active work is disconnected
-and is never replayed. Start or resume a conversation with the newly selected provider.
+and is never replayed. A successful AI-settings PUT also refreshes an already
+open assistant through the existing shell-owned plugin transport. The panel
+rereads settings/catalog/diagnostics; when provider changes it drops the old
+conversation, running/pending state, remembered selection and composer selections,
+then uses the new provider's defaults for a fresh conversation. Late old-provider
+poll/send responses cannot restore discarded state. Refreshing settings does not
+autofocus the assistant input. Same-provider saves refresh configuration without discarding the current conversation or its
+model/effort overrides. Failed saves do not refresh the panel. No public Plugin
+API, event bus or provider framework is added.
 
 Copilot uses `copilot --acp` with the user's environment and the same Litzio-owned
 cwd/AGENTS.md. The official ACP SDK owns NDJSON framing and request dispatch.
