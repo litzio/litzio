@@ -1,5 +1,5 @@
 !macro customUnInstall
-  ; Updates replace the application tree, but preserve the external opt-in integration.
+  ; Updates replace the application tree, but preserve the external CLI integration.
   ${ifNot} ${isUpdated}
     GetTempFileName $6
     System::Call 'Kernel32::SetEnvironmentVariable(t "ELECTRON_RUN_AS_NODE", t "1") i.r0'

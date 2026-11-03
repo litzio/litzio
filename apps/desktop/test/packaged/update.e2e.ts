@@ -191,38 +191,20 @@ test("installs per user, then updates from Settings only after the open document
       await page.getByRole("button", { name: "About & updates", exact: true }).click();
     assert.equal(await page.getByTestId("app-version").innerText(), OLD);
     if (!LIVE) {
-      assert.deepEqual((await cliEnvironment.read()).user, originalUserPath, "installation must not opt in");
-      const cli = page.getByTestId("cli-integration");
-      await cli.getByText("Off", { exact: true }).waitFor();
-      await cli.getByRole("button", { name: "Turn on", exact: true }).click();
-      await cli.getByText("Installed", { exact: true }).waitFor();
+      const registeredPath = (await cliEnvironment.read()).user;
+      assert.notDeepEqual(registeredPath, originalUserPath, "first installed launch registers CLI automatically");
+      assert.equal(await page.getByTestId("cli-integration").count(), 0, "CLI controls have been removed");
       verifyPackagedCli(exe, brand.cliCommand, documents, OLD, await freshTerminalEnvironment());
-      await cli.getByRole("button", { name: "Turn off", exact: true }).click();
-      await cli.getByText("Off", { exact: true }).waitFor();
-      assert.deepEqual((await cliEnvironment.read()).user, originalUserPath, "disable preserves the original raw PATH and registry kind");
-      assert.equal(existsSync(cliBin), false, "disable must remove an empty owned bin");
-      await cli.getByRole("button", { name: "Turn on", exact: true }).click();
-      await cli.getByText("Installed", { exact: true }).waitFor();
-      await t.test("CLI ownership refusal and recovery", { skip: !BETA }, async () => {
-        // A damaged ownership record disables Repair, but Turn off must still unregister PATH.
-        writeFileSync(path.join(cliBin, "owner.json"), "damaged owner");
-        await page.reload();
-        await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached" });
+      await t.test("CLI startup repairs missing shim without rewriting PATH", { skip: !BETA }, async () => {
+        await app.close();
+        unlinkSync(path.join(cliBin, `${brand.cliCommand}.cmd`));
+        app = await electron.launch({ executablePath: exe, args: ["--lang=en-US", documentFile], timeout: 60_000 });
+        page = await app.firstWindow();
+        await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: "attached" });
+        verifyPackagedCli(exe, brand.cliCommand, documents, OLD, await freshTerminalEnvironment());
+        assert.deepEqual((await cliEnvironment.read()).user, registeredPath, "repair preserves the raw PATH and kind");
         await page.getByRole("button", { name: /^Settings/ }).click();
         await page.getByRole("button", { name: "About & updates", exact: true }).click();
-        await cli.getByText("Broken path", { exact: true }).waitFor();
-        assert.equal(await cli.getByRole("button", { name: "Repair", exact: true }).isDisabled(), true);
-        await cli.getByRole("button", { name: "Turn off", exact: true }).click();
-        await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
-        assert.equal(await cli.getByTestId("cli-status").innerText(), "Off");
-        assert.deepEqual((await cliEnvironment.read()).user, originalUserPath);
-        assert.equal(readFileSync(path.join(cliBin, "owner.json"), "utf8"), "damaged owner");
-        // Fixture-only cleanup after verifying preservation, then continue the update with CLI on.
-        for (const name of ["app", `${brand.cliCommand}.cmd`, "owner.json"]) unlinkSync(path.join(cliBin, name));
-        await cli.getByRole("button", { name: "Refresh status", exact: true }).click();
-        await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
-        await cli.getByRole("button", { name: "Turn on", exact: true }).click();
-        await cli.getByText("Installed", { exact: true }).waitFor();
       });
     }
     assert.equal(await page.getByRole("radio", { name: BETA ? /^Beta/ : /^Stable/ }).isChecked(), true, "first install uses its own channel");

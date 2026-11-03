@@ -1,5 +1,5 @@
 import { brand } from "../../../brand.ts";
-// Optional Windows shell integration only. All document commands remain in packages/cli.
+// Automatic Windows shell integration only. All document commands remain in packages/cli.
 import * as fs from "node:fs/promises";
 import path from "node:path";
 import type { CliIntegrationState } from "../../editor/shared/desktop-bridge.ts";
@@ -118,6 +118,13 @@ export class CliIntegration {
       await exists(path.join(this.junction, "resources", "cli", "cli.mjs")) &&
       await exists(this.shim) && await fs.readFile(this.shim, "utf8") === CLI_SHIM;
     return { status: valid ? "installed" : "broken", ...(conflict ? { conflict } : {}) };
+  }
+
+  /** Startup reconciliation: healthy registrations perform no file or registry writes. */
+  async ensureInstalled(): Promise<CliIntegrationState> {
+    const state = await this.state();
+    if (state.conflict || state.status === "installed") return state;
+    return this.setEnabled(true);
   }
 
   async setEnabled(enabled: boolean, uninstall = false): Promise<CliIntegrationState> {

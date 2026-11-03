@@ -1,6 +1,7 @@
 # Desktop distribution and updates v1
 
 - Status: Implemented
+- Automatic CLI verification: 2026-11-04 (#1129; isolated startup/ownership tests, Editor typecheck/build and persistent Chrome UI; actual Windows lifecycle execution is CI-only).
 - Lifecycle CI scope verification: 2026-11-03 (#1009 P6; policy/workflow and unit contracts; actual package/install/update/uninstall execution is CI-only).
 - Brand CI policy verification: 2026-11-02 (#888; path/aggregate/release workflow regressions and docs checks; package/install execution remains PR Windows CI).
 - CI artifact policy verification: 2026-10-30 (#808; generated evidence paths compared with packaged/update/uninstall tests, workflow policy regressions and docs check; package/install execution remains required CI).
@@ -76,12 +77,20 @@ because packaging and update boundaries are unchanged.
 
 ## Optional command-line tools (#604)
 
-Settings exposes **Command-line tools (CLI)** only when the Desktop bridge exists. The initial
-state is Off; neither setup nor update adds anything to PATH. Enabled reports Installed, while
-missing or mismatched owned files, application target or PATH registration report Broken path.
-Broken registrations offer Repair and Turn off. A conflicting external `litzio` command or an
-unowned file is reported without overwriting it. Operations report failures and allow another try.
-The UI follows existing Settings sections, controls and tokens, in Korean and English.
+#1129 (owner decision 2026-11-04) replaces the initial opt-in policy. The installed Windows
+app automatically registers CLI on its first launch after setup and reconciles it on every
+later launch, including after an update. Registration reuses the existing ownership and
+conflict checks. A healthy registration performs no file or PATH writes; missing owned shim,
+junction or PATH is repaired. Choosing first launch keeps the single existing TypeScript
+registration path and avoids a second NSIS install helper. Installing without launching
+therefore defers registration until the app is opened.
+
+Settings has no CLI status, enable, disable or repair section and exposes no mutation IPC.
+A foreign command/file skips registration without overwriting it. Failures do not block
+startup: the existing log records the reason and About & updates shows **CLI registration
+skipped**, with the reason in the shared Tooltip on hover or keyboard focus. Healthy
+registration adds no UI. This uses the existing Settings section, ghost Button and Tooltip
+patterns; no new surface, tokens or interaction exceptions are introduced.
 
 The per-user `%LOCALAPPDATA%\litzio\bin` directory contains a marked `litzio.cmd`, ownership
 record and an owned `app` junction to the fixed installation folder. The ASCII shim uses relative
@@ -107,10 +116,10 @@ The existing CLI build and all its chunks/notices/assets are packaged outside AS
 `resources/cli`. Desktop and CLI `serve` both use its `editor/` production files: one build and one
 copy, so their contents cannot drift. The standalone Node CLI/HTTP package is unchanged.
 
-Only explicit enable/disable changes HKCU Environment PATH. The raw registry value and its
+Automatic registration and actual uninstall change HKCU Environment PATH only when needed. The raw registry value and its
 REG_SZ/REG_EXPAND_SZ kind are preserved, along with unrelated entries and ordering. Comparisons
 expand environment variables and normalize Windows paths; edits do not rewrite unrelated text.
-WM_SETTINGCHANGE notifies Explorer. The Settings hint tells users to open a new terminal.
+WM_SETTINGCHANGE notifies Explorer. New terminals receive the updated PATH.
 Conflict checks include fresh user/machine PATH and the app's inherited PATH. No administrator
 rights or machine PATH writes are used.
 Fixed PowerShell code receives base64 UTF-8 JSON on stdin, never in argv. Long values, Unicode,
@@ -127,29 +136,38 @@ is not ownership-tracked and it also holds uninstall diagnostics. User data rema
 installation at `%LOCALAPPDATA%\Programs\litzio`; none is part of CLI directory cleanup. An uninstall
 from another installation cannot remove a registration owned by the current one. Damaged ownership
 or conflicting files do not prevent removing our bin's PATH entries; unverifiable files stay and
-Settings reports Off with the remaining conflict after successful PATH removal. Registry failures
+the uninstall diagnostic reports the remaining conflict after successful PATH removal. Registry failures
 remain errors. Optional cleanup failure never aborts app removal, including `/S`: NSIS writes a
 unique diagnostic under `%LOCALAPPDATA%\litzio\uninstall-logs` (TEMP fallback), with the bin path,
 helper error and manual Environment Variables cleanup instructions. Interactive removal displays
 a warning; silent removal logs it without waiting for input. This does not claim CLI cleanup
 succeeded. Moving an installation leaves a broken target;
-Repair from the new app rebinds it after the same ownership/conflict checks.
+startup from the new app rebinds it after the same ownership/conflict checks.
 
 Verification scope: scratch files and an injected environment boundary test state, conflict, repair,
 failure and raw PATH preservation without changing the developer's registry. Persistent-browser
 bridge mocks exercise the actual Settings UI at 1440px and 640px. Disposable Windows CI checks
 the packaged Electron Node engines range, Desktop version identity, shim help/check JSON and exit-code parity with Node,
-argument/pipe forwarding, `serve`, real enable/disable, update preservation and uninstall cleanup.
+argument/pipe forwarding, `serve`, automatic registration/repair, update preservation and uninstall cleanup.
 General update-target CI runs silent normal removal, user-file preservation and foreign-command failure, including long raw registry PATH preservation. Sensitive and unclassified changes run the full ten interactive/silent combinations, including damaged ownership, missing helper and environment failures. Isolated CLI integration and Windows environment tests retain state/conflict/raw PATH coverage on every product quality run.
-Empty-bin removal and nonempty-bin preservation are checked for disable and uninstall. General update-target PR CI runs Beta install/update; sensitive or unclassified changes and release verification run Stable then Beta on the same Windows runner, retaining the precondition that no CLI bin directory exists before either run. Beta reports CLI ownership, IPC timeout and renderer callback faults as separate subtests sharing the installed fixture, followed by the dirty-document/Save/install preservation subtest. Full execution paths and conservative fallback are defined in the [CI path policy](../../CONTRIBUTING.md#verification-matrix) and `scripts/ci-execution-policy.mjs`; direct invocation defaults to full removal.
-Manual acceptance still includes enabling in an installed app, running from a new terminal,
-disabling, running after update and checking cleanup after removal. Local tests must not modify
+Empty-bin removal and nonempty-bin preservation are checked for disable and uninstall. General update-target PR CI runs Beta install/update; sensitive or unclassified changes and release verification run Stable then Beta on the same Windows runner, retaining the precondition that no CLI bin directory exists before either run. Beta reports CLI startup repair, IPC timeout and renderer callback faults as separate subtests sharing the installed fixture, followed by the dirty-document/Save/install preservation subtest. Full execution paths and conservative fallback are defined in the [CI path policy](../../CONTRIBUTING.md#verification-matrix) and `scripts/ci-execution-policy.mjs`; direct invocation defaults to full removal.
+Manual acceptance includes first installed launch, running from a new terminal,
+quiet repair after update/relaunch, conflict diagnostics and cleanup after removal. Local tests must not modify
 the real user's PATH or registry; packaged Desktop/install tests run in CI for this work.
 Long-running `serve`, actual console Ctrl+C and all `%`/`^`/`!` argument combinations remain manual.
 
 Real Settings captures with a Desktop bridge mock: [1440px](../reviews/assets/desktop-cli-604/settings-1440.png)
-and [640px](../reviews/assets/desktop-cli-604/settings-640.png). These show the Korean initial Off
-state and existing Settings layout; the mock does not establish native registry/install behavior.
+and [640px](../reviews/assets/desktop-cli-604/settings-640.png). These historical #604 captures show the former Korean initial Off
+state, superseded by #1129; the mock does not establish native registry/install behavior.
+
+#1129 Korean Dark mock-bridge visual review (1440×900 and 640×900):
+[before 1440](assets/desktop-cli-1129/before-1440.png) /
+[after 1440](assets/desktop-cli-1129/after-1440.png),
+[before 640](assets/desktop-cli-1129/before-640.png) /
+[after 640](assets/desktop-cli-1129/after-640.png).
+The existing log-folder action and new diagnostic share Settings action alignment. The
+browser regression covers keyboard-focus explanation and absence of CLI mutation controls.
+These captures do not establish native installation or registry behavior.
 
 ## Document templates (#936)
 

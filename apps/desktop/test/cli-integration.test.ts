@@ -53,22 +53,24 @@ test("PATH edits preserve raw unrelated segments/order and recognize quoted, exp
   assert.equal(editUserPath(`${bin};C:\\Other;${bin}`, bin, false, expand), "C:\\Other");
 });
 
-test("off by default; enable/disable preserves registry kind and user files, and is idempotent", async () => {
+test("automatic registration and cleanup preserves registry kind and user files, and is idempotent", async () => {
   await fixture(async ({ data, integration, app }) => {
     assert.deepEqual(await integration.state(), { status: "off" });
     assert.equal(data.writes, 0);
     for (const uninstall of [false, true]) for (const kind of ["String", "ExpandString"] as const) {
       data.user.kind = kind;
       const original = { ...data.user };
-      assert.equal((await integration.setEnabled(true)).status, "installed");
+      assert.equal((await integration.ensureInstalled()).status, "installed");
       assert.equal(data.user.kind, kind);
       assert.equal(await readFile(integration.shim, "utf8"), CLI_SHIM);
       assert.ok((await lstat(integration.junction)).isSymbolicLink());
       assert.equal(path.resolve(await readlink(integration.junction)), path.resolve(app));
       await writeFile(path.join(integration.bin, "user-note.txt"), "keep");
       const writes: number = data.writes;
-      assert.equal((await integration.setEnabled(true)).status, "installed");
+      const shimTime = (await lstat(integration.shim)).mtimeMs;
+      assert.equal((await integration.ensureInstalled()).status, "installed");
       assert.equal(data.writes, writes);
+      assert.equal((await lstat(integration.shim)).mtimeMs, shimTime, "healthy startup does not rewrite the shim");
       assert.deepEqual(await integration.setEnabled(false, uninstall), { status: "off" });
       assert.deepEqual(data.user, original);
       assert.equal(await readFile(path.join(integration.bin, "user-note.txt"), "utf8"), "keep");
@@ -83,7 +85,7 @@ test("off by default; enable/disable preserves registry kind and user files, and
 test("disable and uninstall remove an empty owned bin without removing its parent", async () => {
   for (const uninstall of [false, true]) await fixture(async ({ integration, data }) => {
     const original = { ...data.user };
-    await integration.setEnabled(true);
+    await integration.ensureInstalled();
     assert.deepEqual(await integration.setEnabled(false, uninstall), { status: "off" });
     assert.deepEqual(data.user, original);
     await assert.rejects(lstat(integration.bin), { code: "ENOENT" });
@@ -95,16 +97,16 @@ test("disable and uninstall remove an empty owned bin without removing its paren
 test("missing target/shim/PATH and partial failures are visible and repairable", async () => {
   await fixture(async ({ data, integration, exe }) => {
     data.fail = true;
-    await assert.rejects(integration.setEnabled(true), /injected PATH failure/);
+    await assert.rejects(integration.ensureInstalled(), /injected PATH failure/);
     assert.equal((await integration.state()).status, "broken");
     data.fail = false;
-    assert.equal((await integration.setEnabled(true)).status, "installed");
+    assert.equal((await integration.ensureInstalled()).status, "installed");
     await unlink(integration.shim);
     assert.equal((await integration.state()).status, "broken");
-    assert.equal((await integration.setEnabled(true)).status, "installed");
+    assert.equal((await integration.ensureInstalled()).status, "installed");
     await unlink(exe);
     assert.equal((await integration.state()).status, "broken");
-    await assert.rejects(integration.setEnabled(true), /requires the installed/);
+    await assert.rejects(integration.ensureInstalled(), /requires the installed/);
     assert.equal((await integration.setEnabled(false)).status, "off");
   });
 });
@@ -118,13 +120,13 @@ test("foreign PATH commands and foreign files are reported without replacement o
     for (const source of ["machine", "inherited"] as const) {
       data[source] = foreign;
       assert.equal((await integration.state()).conflict, command);
-      await assert.rejects(integration.setEnabled(true), /Another litzio command/);
+      assert.equal((await integration.ensureInstalled()).conflict, command);
       data[source] = "";
     }
     await mkdir(integration.bin, { recursive: true });
     await writeFile(integration.shim, "user script");
     assert.equal((await integration.state()).status, "off");
-    await assert.rejects(integration.setEnabled(true), /Another file/);
+    assert.match((await integration.ensureInstalled()).conflict!, /Another file/);
     assert.match((await integration.setEnabled(false)).conflict!, /Another file/);
     assert.equal(await readFile(integration.shim, "utf8"), "user script");
     assert.equal(data.writes, 0);
@@ -133,14 +135,14 @@ test("foreign PATH commands and foreign files are reported without replacement o
 
 test("repair rebinds a moved app; uninstall of an older copy does not remove the new registration", async () => {
   await fixture(async ({ data, integration, root, environment }) => {
-    await integration.setEnabled(true);
+    await integration.ensureInstalled();
     const next = path.join(root, "new app");
     await mkdir(path.join(next, "resources", "cli"), { recursive: true });
     await writeFile(path.join(next, "Litzio.exe"), "new executable");
     await writeFile(path.join(next, "resources", "cli", "cli.mjs"), "new CLI");
     const moved = new CliIntegration(path.join(next, "Litzio.exe"), root, environment);
     assert.equal((await moved.state()).status, "broken");
-    await moved.setEnabled(true);
+    await moved.ensureInstalled();
     assert.equal((await moved.state()).status, "installed");
     const registered = { ...data.user };
     await integration.setEnabled(false, true);
@@ -154,7 +156,7 @@ test("repair rebinds a moved app; uninstall of an older copy does not remove the
 test("replaced junctions survive uninstall while their PATH entry is removed and the conflict reported", async () => {
   await fixture(async ({ integration, root, data }) => {
     const original = { ...data.user };
-    await integration.setEnabled(true);
+    await integration.ensureInstalled();
     await unlink(integration.junction);
     await mkdir(integration.junction);
     await writeFile(path.join(integration.junction, "keep.txt"), "user data");
@@ -166,13 +168,13 @@ test("replaced junctions survive uninstall while their PATH entry is removed and
   });
 });
 
-test("damaged ownership cannot trap Settings or uninstall in a registered state; uncertain files stay", async () => {
+test("damaged ownership cannot trap uninstall in a registered state; uncertain files stay", async () => {
   for (const uninstall of [false, true]) await fixture(async ({ integration, data }) => {
     const original = { ...data.user };
-    await integration.setEnabled(true);
+    await integration.ensureInstalled();
     await writeFile(integration.record, "damaged owner");
     assert.equal((await integration.state()).status, "broken");
-    await assert.rejects(integration.setEnabled(true), /unrecognized/);
+    assert.match((await integration.ensureInstalled()).conflict!, /unrecognized/);
     const result = await integration.setEnabled(false, uninstall);
     assert.equal(result.status, "off");
     assert.match(result.conflict!, /unrecognized/);
@@ -190,7 +192,7 @@ test("the exact shim preserves quoted Unicode arguments, binary stdin/stdout and
     await copyFile(process.execPath, exe);
     await writeFile(path.join(app, "resources", "cli", "cli.mjs"),
       'const chunks=[]; for await (const chunk of process.stdin) chunks.push(chunk); process.stdout.write(Buffer.concat(chunks)); process.stdout.write("\\n"+JSON.stringify(process.argv.slice(2))); process.stderr.write("probe stderr"); process.exitCode=37;');
-    await integration.setEnabled(true);
+    await integration.ensureInstalled();
     const args = ["한글 문서 😀.md", 'a "quoted" value', "C:\\space ! & (x)\\", ""];
     const input = Buffer.from([0, 255, 13, 10, 65, 0, 66]);
     const env = { ...process.env };

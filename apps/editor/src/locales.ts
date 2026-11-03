@@ -1,6 +1,7 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "CLI registration skipped": "CLI registration skipped",
   "Template gallery": "Template gallery",
   "Save as template…": "Save as template…",
   "Template saved.": "Template saved.",
@@ -515,17 +516,6 @@ export const en = {
   "Previous problem": "Previous problem",
   "Next problem": "Next problem",
   "The document changed. Save again to locate the problem.": "The document changed. Save again to locate the problem.",
-  "Command-line tools (CLI)": "Command-line tools (CLI)",
-  "CLI installed": "Installed",
-  "CLI off": "Off",
-  "CLI path is broken": "Broken path",
-  "Run {{command}} commands without installing Node.js. PATH changes apply to new terminals.": `Run ${brand.cliCommand} commands without installing Node.js. PATH changes apply to new terminals.`,
-  "Available in the installed Windows app.": "Available in the installed Windows app.",
-  "Turn on CLI": "Turn on",
-  "Turn off CLI": "Turn off",
-  "Repair CLI": "Repair",
-  "Refresh CLI status": "Refresh status",
-  "Another command or file conflicts with {{product}} CLI. Nothing was overwritten.": `Another command or file conflicts with ${brand.name.en} CLI. Nothing was overwritten.`,
   "Bibliography": "Bibliography",
   "No bibliography connected": "No bibliography connected",
   "{{style}} references": "{{style}} references",
@@ -1116,6 +1106,7 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "CLI registration skipped": "CLI 등록 건너뜀",
   "Template gallery": "템플릿 갤러리",
   "Save as template…": "템플릿으로 저장…",
   "Template saved.": "템플릿을 저장했습니다.",
@@ -1627,17 +1618,6 @@ export const ko: Record<keyof typeof en, string> = {
   "Previous problem": "이전 문제",
   "Next problem": "다음 문제",
   "The document changed. Save again to locate the problem.": "문서가 변경되었습니다. 다시 저장하여 문제 위치를 확인하세요.",
-  "Command-line tools (CLI)": "명령줄 도구(CLI)",
-  "CLI installed": "설치됨",
-  "CLI off": "꺼짐",
-  "CLI path is broken": "경로 깨짐",
-  "Run {{command}} commands without installing Node.js. PATH changes apply to new terminals.": `Node.js 설치 없이 ${brand.cliCommand} 명령을 실행합니다. PATH 변경은 새 터미널부터 적용됩니다.`,
-  "Available in the installed Windows app.": "설치된 Windows 앱에서 사용할 수 있습니다.",
-  "Turn on CLI": "켜기",
-  "Turn off CLI": "끄기",
-  "Repair CLI": "복구",
-  "Refresh CLI status": "상태 새로 고침",
-  "Another command or file conflicts with {{product}} CLI. Nothing was overwritten.": `다른 명령 또는 파일이 ${brand.name.ko} CLI와 충돌합니다. 기존 파일은 덮어쓰지 않았습니다.`,
   "Save these documents before renaming the image: {{documents}}": "이미지 이름을 변경하려면 먼저 저장하세요: {{documents}}",
   "Skipped unreadable or non-{{product}} documents: {{documents}}": `읽을 수 없거나 ${brand.name.ko} 문서가 아니어서 건너뛴 파일: {{documents}}`,
   "The files changed, but these tabs could not be reloaded: {{documents}}": "파일은 변경되었지만 다음 탭을 다시 불러오지 못했습니다: {{documents}}",

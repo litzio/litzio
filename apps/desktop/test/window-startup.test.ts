@@ -18,14 +18,14 @@ const source = transformSync(readFileSync(main, "utf8"), {
   loader: "ts", format: "cjs", define: { "import.meta.url": JSON.stringify(main.href), __LITZIO_REQUIRE_SIGNED_UPDATES__: "false" },
 }).code;
 
-async function start(options: { startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState } = {}) {
+async function start(options: { packaged?: boolean; cliProblem?: string; startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState } = {}) {
   const preferences: unknown[] = [];
   const logs: string[] = [], errors: unknown[][] = [], alerts: string[] = [];
   const directories: string[] = [], opened: string[] = [];
-  const mainProcess = Object.assign(new EventEmitter(), { argv: [], platform: "win32", env: {}, resourcesPath: "/fake-resources" });
+  const mainProcess = Object.assign(new EventEmitter(), { argv: [], platform: "win32", env: options.packaged ? { LOCALAPPDATA: "/fake-local" } : {}, resourcesPath: "/fake-resources" });
   const timers = new Map<number, { run: () => void; ms: number }>();
   const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
-  let timerId = 0, exits = 0, quits = 0;
+  let timerId = 0, exits = 0, quits = 0, registrations = 0;
   class Window extends EventEmitter {
     visible = false; minimized = false; shows = 0; focused = false; destroyed = false;
     background = ""; overlay: unknown;
@@ -45,7 +45,7 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
   }
   const windows: Window[] = [];
   const app = Object.assign(new EventEmitter(), {
-    isPackaged: false, requestSingleInstanceLock: () => options.lock !== false,
+    isPackaged: options.packaged ?? false, requestSingleInstanceLock: () => options.lock !== false,
     quit: () => quits++, exit: (code: number) => { assert.equal(code, 1); exits++; },
     setAppUserModelId() {}, setPath() {}, whenReady: () => Promise.resolve(), getPath: () => "/fake-user-data", getVersion: () => "0.0.2-beta.6",
   });
@@ -69,11 +69,11 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
     "./first-document.ts": { firstDocument() {} },
     "./preferences.ts": { readPreferences: () => ({ channel: "beta", seenUpdate: null }), writePreferences: (_file: string, value: unknown) => preferences.push(JSON.parse(JSON.stringify(value))) },
     "./updates.ts": { UpdateController: class { channel = "beta"; state = options.update ?? { phase: "idle" }; start() {} stop() {} } },
-    "./update-policy.ts": {}, "./signatures.ts": {}, "./github-provider.ts": {}, "./cli-integration.ts": {}, "./windows-environment.ts": {},
+    "./update-policy.ts": {}, "./signatures.ts": {}, "./github-provider.ts": {}, "./cli-integration.ts": { CliIntegration: class { async ensureInstalled() { registrations++; if (options.cliProblem) throw new Error(options.cliProblem); return { status: "installed" }; } } }, "./windows-environment.ts": { windowsEnvironment: () => ({}) },
   };
   runInNewContext(source, {
     require: (name: string) => name in dependencies ? dependencies[name] : require(name),
-    process: mainProcess,
+    process: mainProcess, Error,
     console: { error: (...args: unknown[]) => errors.push(args) },
     setTimeout: (run: () => void, ms: number) => { timers.set(++timerId, { run, ms }); return timerId; },
     clearTimeout: (id: number) => timers.delete(id),
@@ -92,7 +92,7 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
   const invoke = (channel: string, args: unknown[], trusted = true) => handlers.get(channel)!({
     sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {},
   }, ...args);
-  return { app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
+  return { registrations: () => registrations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
     seen: (version: unknown, trusted = true) => handlers.get("desktop:seen-update")!({ sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {} }, version), exits: () => exits, quits: () => quits };
 }
 
@@ -296,5 +296,17 @@ test("main's monitor observes real uncaught exceptions and default rejections wi
     assert.equal(result.status, 1, result.stderr);
     assert.equal(result.stdout, `main ${origin}`);
     assert.match(result.stderr, /private document/);
+  }
+});
+
+ test("packaged startup registers CLI and exposes a nonblocking failure only in existing info", async () => {
+  for (const cliProblem of [undefined, "foreign command"]) {
+    const h = await start({ packaged: true, cliProblem });
+    assert.ok(h.window, "CLI failure must not prevent the editor window");
+    const info = h.invoke("desktop:info", []) as { cliProblem?: string };
+    assert.equal(info.cliProblem, cliProblem);
+    assert.equal(h.exits(), 0);
+    assert.equal(h.registrations(), 1);
+    if (cliProblem) assert.match(h.logs.join(""), /CLI registration skipped: foreign command/);
   }
 });

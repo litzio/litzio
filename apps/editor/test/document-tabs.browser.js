@@ -247,8 +247,6 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
       window.litzioDesktop = {
         setTheme: async theme => theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches),
         setWindowBackground: async () => {},
-        cliIntegration: async () => ({status:'off'}),
-        setCliIntegration: async enabled => ({status:enabled ? 'installed' : 'off'}),
         info: async () => ({version:'0.0.1',channel:'beta',updatesSupported:false,update:{phase:'idle'},seenUpdate:null}),
         onUpdateState: () => () => {}, onRestartCheck: () => () => {},
       };

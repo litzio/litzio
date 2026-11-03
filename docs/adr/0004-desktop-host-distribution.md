@@ -84,6 +84,17 @@ The owner's additional decision adds a common `--version` option: build-injected
 version and commit identify the executable distribution without runtime manifest reads. Real-user
 Windows acceptance remains explicitly separate from CI.
 
+## Amendment: automatic Windows CLI registration (#1129, 2026-11-04)
+
+The owner replaces #604's initially disabled Settings choice with automatic registration on
+first installed app launch and reconciliation on subsequent launches, including after updates.
+Healthy registration does not rewrite PATH or files. Foreign commands and unowned files remain
+protected. Settings CLI controls and their mutation bridge are removed; only a short diagnostic
+in existing About & updates, with a hover/focus explanation, remains on conflict or failure.
+Actual uninstall retains the existing ownership-aware cleanup; updates skip that cleanup.
+First launch reuses the existing registration implementation without adding an installer helper.
+See the [current CLI contract](../design/desktop-distribution-v1.md#optional-command-line-tools-604).
+
 ## Amendment: product branding (#859, 2026-10-31)
 
 Discussion #856의 소유자 결정은 최초 공개 후 식별자 고정 규칙을 대체한다. [단일 브랜드 설정](../guides/branding.md)이 표시 이름·프로토콜·앱 ID·설치/데이터/CLI 폴더·업데이트 주소를 소유한다. 공식 기본값은 Litzio다. 과거 Beta의 폴더·저장소·업데이트 경로 이전은 하지 않으며, 위 #604의 당시 경로도 현행 기본값은 브랜드 안내를 따른다. 고정 내부 패키지와 Host API는 브랜드와 독립적이다.

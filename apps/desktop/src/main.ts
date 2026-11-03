@@ -61,7 +61,7 @@ function showWhenReady(): void {
 }
 let preferences: Preferences;
 let updates: UpdateController;
-let cliIntegration: CliIntegration | undefined;
+let cliProblem: string | undefined;
 let documentHost: ReturnType<typeof createProtocolHandler> | undefined;
 const explorerFolders = new ExplorerFolders();
 /** Set after the Editor agreed to restart for an update; the installer starts once the window closed. */
@@ -118,7 +118,7 @@ function trusted(event: IpcMainInvokeEvent | IpcMainEvent): boolean {
 }
 
 function info(): DesktopInfo {
-  return { version: app.getVersion(), channel: updates.channel, updatesSupported: updates.supported, update: updates.state, seenUpdate: preferences.seenUpdate };
+  return { version: app.getVersion(), channel: updates.channel, updatesSupported: updates.supported, update: updates.state, seenUpdate: preferences.seenUpdate, ...(cliProblem ? { cliProblem } : {}) };
 }
 
 /** Links leave through the system browser, and only as http(s). */
@@ -189,12 +189,6 @@ function registerIpc(): void {
     if (error) throw new Error("Could not open the log folder.");
   });
   handle("desktop:info", () => info());
-  handle("desktop:cli-state", () => cliIntegration?.state() ?? { status: "off", unsupported: true });
-  handle("desktop:cli-set", (enabled) => {
-    if (typeof enabled !== "boolean") throw new Error("Invalid CLI integration choice.");
-    if (!cliIntegration) throw new Error("CLI integration is available in the installed Windows app.");
-    return cliIntegration.setEnabled(enabled);
-  });
   handle("desktop:set-theme", (value) => {
     if (value !== "system" && value !== "light" && value !== "dark") throw new Error("Unknown theme.");
     nativeTheme.themeSource = value;
@@ -324,7 +318,7 @@ if (!app.requestSingleInstanceLock()) {
   app.on("web-contents-created", (_event, contents) => {
     contents.on("will-attach-webview", (event) => event.preventDefault());
   });
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     log(`starting ${app.getVersion()}`);
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
@@ -333,7 +327,11 @@ if (!app.requestSingleInstanceLock()) {
     documentHost = createProtocolHandler(path.join(cliRoot, "editor"), firstDocument(process.argv.slice(app.isPackaged ? 1 : 2), app.getPath("userData"), appRoot, log), file => shell.trashItem(file), root => explorerFolders.listedRoot(root), { packaged: app.isPackaged, checkoutRoot: path.resolve(appRoot, "../../../..") });
     protocol.handle(SCHEME, documentHost);
     if (app.isPackaged && process.platform === "win32" && process.env.LOCALAPPDATA) {
-      cliIntegration = new CliIntegration(process.execPath, process.env.LOCALAPPDATA, windowsEnvironment());
+      try {
+        const integration = new CliIntegration(process.execPath, process.env.LOCALAPPDATA, windowsEnvironment());
+        cliProblem = (await integration.ensureInstalled()).conflict;
+      } catch (error) { cliProblem = error instanceof Error ? error.message : String(error); }
+      if (cliProblem) log(`CLI registration skipped: ${cliProblem}`);
     }
     const { autoUpdater } = electronUpdater;
     if (__LITZIO_REQUIRE_SIGNED_UPDATES__ && autoUpdater instanceof electronUpdater.NsisUpdater) {

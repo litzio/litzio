@@ -31,19 +31,10 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
     const info = {version:'0.2.0', channel:sessionStorage.getItem('update-channel') || 'stable', updatesSupported:true, update:{phase:'idle'}, seenUpdate:sessionStorage.getItem('update-seen')};
     const calls = JSON.parse(sessionStorage.getItem('update-calls') || '[]');
     window.__desktop = {calls, info, push(state) { info.update = state; for (const listener of listeners) listener(state); }};
-    window.__cli = {state:{status:'off'}, calls:[], pending:false, fail:false};
     window.litzioDesktop = {
       setTheme: async theme => theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches),
       setWindowBackground: async (color, overlay) => { window.__desktop.appearance = { color, overlay }; },
       info: async () => ({...info}),
-      cliIntegration: async () => ({...window.__cli.state}),
-      setCliIntegration: async enabled => {
-        const cli = window.__cli;
-        cli.calls.push(enabled);
-        if (cli.pending) await new Promise(resolve => cli.finish = resolve);
-        if (cli.fail) { cli.state = {status:'broken'}; throw Error('Injected CLI registration failure'); }
-        return cli.state = {status:enabled ? 'installed' : 'off'};
-      },
       setChannel: async (channel) => { calls.push(['channel', channel]); info.channel = channel; return {...info}; },
       checkForUpdates: async () => { calls.push(['check']); },
       downloadUpdate: async () => { calls.push(['download']); },
@@ -95,40 +86,25 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   await page.evaluate(() => { window.__desktop.failLogs = false; window.__desktop.finishLogs(); });
   await page.waitForFunction(() => ![...document.querySelectorAll('button')].find(n => n.textContent === 'Open log folder')?.disabled);
   check(await page.getByText('Could not open the log folder.',{exact:true}).count() === 0, 'Successful retry retains stale log error');
-  const cli = page.getByTestId('cli-integration');
-  await cli.getByText('Off',{exact:true}).waitFor();
-  await page.evaluate(() => window.__cli.pending = true);
-  await cli.getByRole('button',{name:'Turn on',exact:true}).click();
-  check(await cli.getByRole('button',{name:'Turn on',exact:true}).isDisabled(), 'CLI enable remains clickable while pending');
-  await page.evaluate(() => { window.__cli.pending = false; window.__cli.finish(); });
-  await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
-  check(await page.getByTestId('cli-status').innerText() === 'Installed', 'CLI did not show completed installation');
-  await cli.getByRole('button',{name:'Turn off',exact:true}).click();
-  await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
-  check(await page.getByTestId('cli-status').innerText() === 'Off', 'CLI did not show completed removal');
-  await page.evaluate(() => window.__cli.fail = true);
-  await cli.getByRole('button',{name:'Turn on',exact:true}).click();
-  await page.getByTestId('cli-problem').waitFor();
-  await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
-  check(await page.getByTestId('cli-status').innerText() === 'Broken path', 'Partial failure did not expose repair');
-  check(await cli.getByRole('button',{name:'Turn off',exact:true}).isEnabled(), 'Broken integration cannot be disabled');
-  await page.evaluate(() => window.__cli.fail = false);
-  await cli.getByRole('button',{name:'Repair',exact:true}).click();
-  await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
-  check(await page.getByTestId('cli-status').innerText() === 'Installed', 'Repair did not complete');
+  check(await page.getByTestId('cli-integration').count() === 0, 'Desktop still exposes CLI controls');
+  check(await page.getByTestId('cli-diagnostic').count() === 0, 'Healthy registration shows a diagnostic');
   await page.keyboard.press('Escape');
   await page.getByTestId('settings-dialog').waitFor({state:'detached'});
-  await page.evaluate(() => window.__cli.state = {status:'off',conflict:'C:\\Another CLI\\litzio.cmd'});
+  await page.evaluate(() => window.__desktop.info.cliProblem = 'Another litzio command is on PATH: C:\\Tools\\litzio.cmd');
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await page.getByRole('button',{name:'About & updates',exact:true}).click();
-  await cli.getByText(/Another command or file conflicts/).waitFor();
-  check(await cli.getByRole('button',{name:'Turn on',exact:true}).isDisabled(), 'Foreign command can be overwritten');
-  await page.evaluate(() => window.__cli.state = {status:'off'});
-  await cli.getByRole('button',{name:'Refresh status',exact:true}).click();
-  await page.locator('[data-testid="cli-integration"][aria-busy="false"]').waitFor();
-  check(await cli.getByRole('button',{name:'Turn on',exact:true}).isEnabled(), 'Resolved conflict cannot be retried');
+  await page.getByRole('radio',{name:/^Beta/}).check();
+  const diagnostic = page.getByTestId('cli-diagnostic');
+  await diagnostic.waitFor();
+  await diagnostic.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await page.getByRole('tooltip').filter({hasText:/Another litzio command/}).waitFor();
+  await page.getByRole('radio',{name:/^Stable/}).check();
+  await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await page.getByTestId('settings-dialog').waitFor({state:'detached'});
+  await page.evaluate(() => delete window.__desktop.info.cliProblem);
   const originalViewport = page.viewportSize();
   const origin = page.url().split('/').slice(0, 3).join('/');
   const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
@@ -523,7 +499,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   await restart.click();
   await page.waitForFunction(() => window.__desktop.calls.some(call => call[0] === 'install' && call[1].ok));
   const recorded = await calls();
-  check(JSON.stringify(recorded) === JSON.stringify(['logs', 'logs', 'channel:beta', 'check', 'notes:', 'seen:0.3.0-beta.1', 'seen:0.3.0-beta.2', 'download', 'install:false', 'install:false', 'install:false', 'install:false', 'install:false', 'install:true']),
+  check(JSON.stringify(recorded) === JSON.stringify(['logs', 'logs', 'channel:beta', 'channel:stable', 'channel:beta', 'check', 'notes:', 'seen:0.3.0-beta.1', 'seen:0.3.0-beta.2', 'download', 'install:false', 'install:false', 'install:false', 'install:false', 'install:false', 'install:true']),
     `Unexpected Desktop calls ${JSON.stringify(recorded)}`);
 
   // Restore the baseline display state for the screen comparison (mock version 0.2.0,
