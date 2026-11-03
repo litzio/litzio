@@ -412,6 +412,16 @@ they are not proof of real execution.
 
 Successful structured `create_document` results supply each card's path and creation
 revision and file identity (bigint dev/ino/birthtimeMs serialized as strings). Assistant prose, failed calls and other tools never create actionable cards.
+Cards show the filename first (#1029). Distinct result paths in the conversation
+with the same filename use only the distinguishing relative location within the
+currently opened folder. Separate roots with identical relative locations include
+the root location as needed; paths outside opened folders use a distinguishing
+path suffix. Repeated receipts for the same path do not add location noise.
+The full original path remains the focusable filename's accessible name and is
+available through the shared Tooltip on hover or keyboard focus. Status, Open,
+Undo and the deletion warning retain their existing behavior. This display-only
+change adds no Core operation or CLI command.
+
 Cards remain visible after Codex history resumption. Open uses the existing tab-opening
 flow. Undo deletes the created file, as stated beside its controls; it never reruns
 creation after interruption, disconnection or an ambiguous response.
@@ -610,3 +620,25 @@ generation-bound acknowledgement ([Save contract](editing-session-save-v1.md#loc
 Question RPC arguments, focus and input handling are unchanged. The browser scenario
 retains its original text assertion and also checks that no obsolete recovery prompt
 appears; the storage scenario checks other-session and newer-edit preservation.
+
+
+## Compact result paths (#1029)
+
+Manual fixture captures, Korean, 100% zoom, 1000px height:
+
+| View | Before | After |
+| --- | --- | --- |
+| 1440px Dark | [Before](assets/assistant-paths-1029/before-1440-dark-ko.png) | [After](assets/assistant-paths-1029/after-1440-dark-ko.png) |
+| 640px Light | — | [After](assets/assistant-paths-1029/after-640-light-ko.png) |
+
+The existing shell panel, card tokens, compact Button variants and shared Tooltip
+are reused (as with the context-usage indicator and document draft indicator).
+No new surface or control variant is introduced. The narrow panel retains its
+existing overlay behavior. Visual review checks wrapping, status/action prominence,
+warning visibility and transcript/composer separation.
+
+Test design: extend the existing `ai-result` browser scenario for full-path
+accessible names, keyboard Tooltip display and two synthetic same-name receipts
+in different relative directories. Existing real Host Open/undo/confirmation
+checks remain the integration protection; no real Codex run, new subprocess or
+new scenario is added. Captures run only with `--screenshots` for manual review.

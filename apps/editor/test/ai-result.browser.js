@@ -28,6 +28,12 @@ async (page, { expect, openFolderPicker, pluginFixture, fileActionsRoot, screens
   await panel.getByRole('textbox').fill('Create a document'); await panel.getByRole('button', { name: 'Send message', exact: true }).click();
   const cards = panel.getByTestId('assistant-result');
   await expect(cards).toHaveCount(3);
+  const pathLabel = cards.first().locator('[data-slot="tooltip-trigger"]');
+  await expect(pathLabel).toHaveText('a.md');
+  await expect(pathLabel).toHaveAttribute('aria-label', paths[0]);
+  await pathLabel.focus(); await page.keyboard.press('Shift+Tab'); await page.keyboard.press('Tab');
+  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText(paths[0]);
+  await page.keyboard.press('Escape');
   const card = name => cards.filter({ has: page.locator('span', { hasText: name }) });
   await card('a.md').getByRole('button', { name: 'Open', exact: true }).click();
   await expect(activeDocument(page)).toContainText('Alpha.');
@@ -93,6 +99,26 @@ async (page, { expect, openFolderPicker, pluginFixture, fileActionsRoot, screens
   await expect(page.getByRole('dialog', { name: '만든 문서를 되돌릴까요?' })).toBeVisible();
   if (screenshots) await page.screenshot({ path: 'tmp/931-result-evidence/confirm-review-640.png' });
   await page.keyboard.press('Escape');
+  if (screenshots) {
+    await panel.getByRole('button', { name: '비서 닫기' }).click();
+    await page.getByRole('button', { name: '설정', exact: true }).click();
+    await page.getByTestId('theme').selectOption('light'); await page.getByTestId('settings-back').click();
+    await page.getByRole('button', { name: '비서', exact: true }).click();
+    await expect(panel.getByRole('textbox')).toBeEnabled();
+    await page.screenshot({ path: 'tmp/931-result-evidence/result-640-light-ko.png' });
+  }
+  // Same-name receipts must stay distinguishable, including after history polling.
+  const duplicatePaths = ['drafts/a.md', 'published/a.md'].map(relative => root + sep + relative.replaceAll('/', sep));
+  conversation.turns[0].items.push(...duplicatePaths.map((path, index) => ({
+    id: 'duplicate-' + index, kind: 'tool', text: 'create_document', status: 'completed',
+    toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ path, revision: files[0].revision }) }] }
+  })));
+  await expect(cards).toHaveCount(5);
+  for (const [index, label] of ['drafts/a.md', 'published/a.md'].entries()) {
+    const target = cards.locator('[data-slot="tooltip-trigger"]').filter({ hasText: label });
+    await expect(target).toHaveText(label);
+    await expect(target).toHaveAttribute('aria-label', duplicatePaths[index]);
+  }
   await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); }, brand.storagePrefix);
   return { receiptCards: true, resumed: true, cleanUndo: true, dirtyConfirmation: true, diskConfirmation: true };
 }

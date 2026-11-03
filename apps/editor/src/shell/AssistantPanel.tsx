@@ -143,6 +143,28 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
   });
   const catalogModel = models?.models.find(value => value.model === model);
+  const resultPaths = [...new Set(conversation?.turns.flatMap(turn => turn.items.flatMap(item => {
+    const result = createdDocument(item); return result ? [result.path] : [];
+  })) ?? [])];
+  const normalizedPath = (path: string) => path.replaceAll("\\", "/");
+  const relativePath = (path: string) => {
+    const normalized = normalizedPath(path);
+    const root = folders.map(folder => normalizedPath(folder).replace(/\/+$/, ""))
+      .sort((a, b) => b.length - a.length).find(folder => normalized.startsWith(folder + "/"));
+    return root ? normalized.slice(root.length + 1) : normalized;
+  };
+  const resultLabel = (path: string) => {
+    const relative = relativePath(path);
+    // Include the root name only when separate opened folders have the same relative path.
+    const sameRelative = resultPaths.some(other => other !== path && relativePath(other) === relative);
+    const candidate = sameRelative ? normalizedPath(path) : relative;
+    const parts = candidate.split("/");
+    for (let count = 1; count < parts.length; count++) {
+      const label = parts.slice(-count).join("/");
+      if (!resultPaths.some(other => other !== path && (sameRelative ? normalizedPath(other) : relativePath(other)).split("/").slice(-count).join("/") === label)) return label;
+    }
+    return candidate;
+  };
   const usage = conversation?.tokenUsage, percent = usage?.limit ? Math.min(100, Math.round(usage.used / usage.limit * 100)) : null;
   return <aside ref={panel} hidden={!open} className={`assistant-panel${overlay ? " assistant-panel--overlay" : ""}`} aria-label={i18n.t("Assistant")}
     role={overlay ? "dialog" : undefined} aria-modal={overlay ? true : undefined} data-testid="assistant-panel"
@@ -192,8 +214,9 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
             const deleted = removed.includes(item.id);
             return <div key={item.id} className="assistant-result" tabIndex={-1} data-testid="assistant-result">
               <strong>{i18n.t(deleted ? "Created file deleted" : "Document created")}</strong>
-              <span title={result.path}>{result.path.split(/[\\/]/).at(-1)}</span>
-              <small>{result.path}</small>
+              <Tooltip><TooltipTrigger render={<span tabIndex={0} aria-label={result.path} />}>
+                {resultLabel(result.path)}
+              </TooltipTrigger><TooltipContent className="break-all">{result.path}</TooltipContent></Tooltip>
               <div><Button size="sm" disabled={pending || deleted} onClick={() => void run(() => onOpen(result.path))}>{i18n.t("Open")}</Button>
               <Button size="sm" variant="destructive" disabled={pending || deleted} onClick={event => {
                 const trigger = event.currentTarget;
