@@ -122,7 +122,7 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
     <ul ref={list} hidden={!expanded} id="notification-list" aria-label={i18n.t("Notifications")}>{Array.from(groups, ([key, entries]) => {
       const rows = entries.map(item => <li key={item.id} data-severity={item.severity}>
       <div className="notification-content">
-        {item.context ? <p className="notification-context">{item.context}</p> : null}
+        {entries.length === 1 && item.context ? <p className="notification-context">{item.context}</p> : null}
         <div data-testid={item.testId} role={item.severity === "error" && !item.actionLabel ? "alert" : "status"}>
         {item.render ? item.render() : <p>{item.message}</p>}
         {item.reveal ? <Button className="notification-reveal" size="sm" variant="ghost" onClick={item.reveal}>{item.actionLabel ?? i18n.t("Go to problem")}</Button> : null}

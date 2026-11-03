@@ -315,6 +315,7 @@ async (page, { openPath, expect, screenshots }) => {
   await expect(center.getByTestId('numbering-warning').first()).toBeHidden();
   await group.click();
   await expect(center.getByTestId('numbering-warning').first()).toBeVisible();
+  await expect(center.locator('.notification-context')).toHaveText(['groups.md']);
   await page.keyboard.press('Space');
   await expect(group).toHaveAttribute('aria-expanded','false');
   await expect(group).toBeFocused();
@@ -326,6 +327,7 @@ async (page, { openPath, expect, screenshots }) => {
   await center.getByRole('button', {name:'Dismiss notification',exact:true}).first().click();
   await expect(group).toHaveCount(0); // A singleton uses the original row.
   await expect(center.getByTestId('numbering-warning')).toBeVisible();
+  await expect(center.locator('.notification-context')).toHaveText(['groups.md']);
   expect(await center.evaluate(el => el.contains(document.activeElement))).toBe(true);
   await center.getByRole('button', {name:'Dismiss notification',exact:true}).click();
   await expect(toggle()).toHaveAttribute('aria-expanded','false');
