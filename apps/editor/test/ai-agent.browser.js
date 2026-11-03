@@ -10,6 +10,9 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   let settings = { provider: 'codex', enabled: true, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium' };
   const models = [{ id: 'sol', model: 'gpt-6.1-sol', displayName: 'GPT Sol', description: 'General model', defaultReasoningEffort: 'medium', supportedReasoningEfforts: ['medium', 'high'].map(reasoningEffort => ({ reasoningEffort })) },
     { id: 'luna', model: 'gpt-6-luna', displayName: 'GPT Luna', description: 'Fast model', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }];
+  let skillsFail = false;
+  const skill = { name: 'litzio-guide', path: 'C:/assistant/.agents/skills/litzio-guide/SKILL.md', description: 'Explain Litzio documents and assistant tools' };
+  await page.route('**/api/ai-agent-skills', route => route.fulfill(skillsFail ? { status: 503, json: { error: 'Skills unavailable' } } : { json: { skills: [skill], errors: [] } }));
   let refreshes = 0, connectionAvailable = true;
   const settingsWrites = [];
   let settingsGate;
@@ -193,7 +196,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
         else selected = conversations.get(body.id);
         let turn = selected.turns.find(turn => turn.status === 'inProgress');
         if (!turn) { turn = { id: 'turn-' + sent.length, status: 'inProgress', items: [] }; selected.turns.push(turn); }
-        turn.items.push({ id: 'user-' + sent.length, kind: 'user', text: body.message, references: (body.references ?? []).map(path => ({ path, name: path.split(/[\\/]/).pop(), kind: 'file' })) });
+        turn.items.push({ id: 'user-' + sent.length, kind: 'user', text: body.message, references: [...(body.references ?? []).map(path => ({ path, name: path.split(/[\\/]/).pop(), kind: 'file' })), ...(body.skills ?? []).map(skill => ({ ...skill, kind: 'skill' }))] });
         if (turn.items.length === 1) turn.items.push({ id: 'summary-' + sent.length, kind: 'reasoning', text: 'Checking the document and opened folders.' },
           { id: 'tool-' + sent.length, kind: 'tool', text: 'create_document', status: 'completed', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ path: pluginFixture.document, revision: 'fixture-created-revision' }) }] } },
           { id: 'answer-' + sent.length, kind: 'assistant', text: 'Partial answer' });
@@ -283,15 +286,35 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.keyboard.press('Control+Shift+Y');
   await expect(message).toBeEnabled();
 
-  await message.fill('What changed in the current document?'); await panel.getByRole('button', { name: 'Send message', exact: true }).click();
+  await message.click(); await page.keyboard.type('/lit', { delay: 60 });
+  const skillOptions = panel.getByRole('listbox', { name: 'Codex skills' });
+  await expect(skillOptions.getByRole('option')).toContainText(skill.description);
+  if (screenshots) await page.screenshot({ path: 'docs/design/assets/assistant-skills-1047/list-1440-light-en.png' });
+  await skillOptions.getByRole('option').click();
+  await expect(message).toHaveValue('$litzio-guide ');
+  await expect(draftChips).toHaveCount(2);
+  if (screenshots) await page.screenshot({ path: 'docs/design/assets/assistant-skills-1047/chip-1440-light-en.png' });
+  await draftChips.filter({ hasText: '$litzio-guide' }).getByRole('button').click();
+  await expect(draftChips).toHaveCount(1);
+  await message.fill(''); skillsFail = true;
+  await page.keyboard.type('/');
+  await expect(skillOptions.getByRole('alert')).toContainText('Skills unavailable');
+  await message.press('Escape'); skillsFail = false;
+  await message.fill(''); await page.keyboard.type('/lit', { delay: 60 });
+  await expect(skillOptions.getByRole('option')).toBeVisible();
+  await skillOptions.getByRole('option').click();
+  await message.press('End'); await page.keyboard.type('What changed in the current document?', { delay: 30 });
+  await panel.getByRole('button', { name: 'Send message', exact: true }).click();
   await expect(panel.getByText('Partial answer', { exact: true })).toBeVisible();
   await expect(panel.locator('[data-kind=tool]').filter({ hasText: 'create_document' })).toContainText('Completed');
+  expect(sent[0].skills).toEqual([{ name: skill.name, path: skill.path }]);
+  expect(sent[0].message).toContain('$litzio-guide');
   expect(sent[0].document.source).toContain('preserved AI-off draft');
   expect(sent[0].document.source).toContain('still editable');
   expect(sent[0].document.path).toBe(pluginFixture.document);
   expect(sent[0].responseLanguage).toBeUndefined();
   expect(sent[0].references).toEqual([pluginFixture.document]);
-  await expect(panel.locator('.assistant-user .assistant-reference')).toHaveCount(1);
+  await expect(panel.locator('.assistant-user .assistant-reference')).toHaveCount(2);
   await expect(draftChips).toHaveCount(0);
   await expect(panel.getByRole('button', { name: 'Conversation model and effort' })).toBeDisabled();
   selected.turns[0].items.find(item => item.kind === 'assistant').text = 'The unsaved paragraph adds a clear qualification. Check the stated conditions before using the conclusion.';
@@ -422,6 +445,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/history-1440-light-en.png' });
   await panel.getByRole('button', { name: /What changed in the current document/ }).click();
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
+  await expect(panel.locator('.assistant-user .assistant-reference').filter({ hasText: '$litzio-guide' })).toHaveCount(1);
   const markdownSource = '# 답변 요약\n\n**중요한 조건**과 $x^2$를 확인합니다.[^n]\n\n- 첫 번째 항목\n- 두 번째 항목\n\n```js\nconst answer = "' + 'long-code-'.repeat(30) + '";\n```\n\n| 항목 | 설명 |\n| --- | --- |\n| 표 | ' + '긴내용'.repeat(70) + ' |\n\n$$\na+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z\n$$\n\n[공식 안내](https://example.com/docs)\n\n[^n]: 답변 각주';
   selected.turns[0].status = 'inProgress';
   const streamingAnswer = selected.turns[0].items.find(item => item.kind === 'assistant');
@@ -554,6 +578,14 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   expect(await panel.evaluate(element => ({ width: element.getBoundingClientRect().width, overflow: element.scrollWidth > element.clientWidth }))).toEqual({ width: 640, overflow: false });
   expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(true);
   await expect(panel.getByRole('button', { name: '대화 모델과 추론 강도' })).toContainText('높음');
+  if (screenshots) {
+  await panel.getByRole('textbox').click(); await page.keyboard.type('/lit', { delay: 60 });
+  await expect(panel.getByRole('listbox', { name: 'Codex 스킬' }).getByRole('option')).toBeVisible();
+  if (screenshots) await page.screenshot({ path: 'docs/design/assets/assistant-skills-1047/list-640-dark-ko.png' });
+  await panel.getByRole('listbox', { name: 'Codex 스킬' }).getByRole('option').click();
+  if (screenshots) await page.screenshot({ path: 'docs/design/assets/assistant-skills-1047/chip-640-dark-ko.png' });
+  await panel.locator('.assistant-composer .assistant-reference').getByRole('button').click(); await panel.getByRole('textbox').fill('');
+  }
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/assistant-640-dark-ko.png' });
   if (screenshots) await page.screenshot({ path: 'tmp/983-before-640.png' });
   selected.userInput = { requestId: 'ko-983', turnId: selected.turns.at(-1).id, questions: [{ id: 'ko', header: '설명 범위', question: '문서에서 어떤 내용을 자세히 설명할까요?', isOther: true, isSecret: false, options: [{ label: '핵심 내용', description: '문서의 핵심 내용과 주요 조건을 함께 설명합니다.' }, { label: '단계별 설명', description: '각 단계의 근거와 가정을 자세히 설명합니다.' }] }] };
@@ -625,7 +657,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByRole('button', { name: '비서', exact: true }).click();
   await expect(panel.getByRole('textbox')).toBeEnabled();
   expect(selected.id).toBe('history-older');
-  await expect(panel.getByText('What changed in the current document?', { exact: true })).toBeVisible();
+  await expect(panel.getByText('$litzio-guide What changed in the current document?', { exact: true })).toBeVisible();
   await expect(panel.locator('.assistant-user .assistant-reference').first()).toHaveText('document.md');
   // A stored thread that cannot resume falls back quietly, with usable defaults.
   await panel.getByRole('button', { name: '비서 닫기' }).click();

@@ -1,6 +1,11 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Codex skills": "Codex skills",
+  "Loading skills…": "Loading skills…",
+  "Could not load some skills.": "Could not load some skills.",
+  "No matching skills.": "No matching skills.",
+
   "Write another answer": "Write another answer",
   "Your answer": "Your answer",
   "Submit answers": "Submit answers",
@@ -1065,6 +1070,11 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Codex skills": "Codex 스킬",
+  "Loading skills…": "스킬 불러오는 중…",
+  "Could not load some skills.": "일부 스킬을 불러오지 못했습니다.",
+  "No matching skills.": "일치하는 스킬이 없습니다.",
+
   "Write another answer": "직접 입력",
   "Your answer": "답변",
   "Submit answers": "답변 제출",
