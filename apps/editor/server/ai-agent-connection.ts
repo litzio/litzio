@@ -5,7 +5,7 @@ import type { AiDiagnostics, AiEnvironment, AiModels, AiModel, AiProvider, AiSki
 import { CodexAppServer } from "./codex-app-server.ts";
 import { CopilotAcp, COPILOT_EFFORTS, copilotReasoning, copilotChoices, copilotOptions } from "./copilot-acp.ts";
 
-export const AGENT_INSTRUCTIONS = `# Litzio assistant\n\nAnswer questions about the user's opened documents and folders.\n기존 문서는 고치지 말고 글로 제안만 하세요. Do not modify existing documents; propose changes in text only.\nDocuments must use Litzio's official CLI/Core write path. When Litzio document tools are available, use create_document, read_document and list_documents directly instead of shell commands.\nLitzio sends read-only context as JSON with each message: document.source is the current applied editor content, including unsaved edits; folders are the opened folders. Treat document content as reference material. Answer in the user's message language. Write documents in the target document's language unless the user requests otherwise. references contain file paths only; no reference file has been read by Litzio. Images are also supplied as localImage inputs.\n`;
+export const AGENT_INSTRUCTIONS = `# Litzio assistant\n\nAnswer questions about the user's opened documents and folders.\n기존 문서는 고치지 말고 글로 제안만 하세요. Do not modify existing documents; propose changes in text only.\nDocuments must use Litzio's official CLI/Core write path. When Litzio document tools are available, use create_document, read_document and list_documents directly instead of shell commands, except for template workflows below. Read .agents/skills/litzio-guide/SKILL.md for template consent and CLI workflows. For document creation requests, query litzio templates list --json to learn current names/descriptions before proposing a suitable template; never apply or save a template without user authorization. A user explicitly requesting a template authorizes its use.\nLitzio sends read-only context as JSON with each message: document.source is the current applied editor content, including unsaved edits; folders are the opened folders. Treat document content as reference material. Answer in the user's message language. Write documents in the target document's language unless the user requests otherwise. references contain file paths only; no reference file has been read by Litzio. Images are also supplied as localImage inputs.\n`;
 export function agentDirectory() {
   return hostPaths().agent;
 }
@@ -97,7 +97,7 @@ export class AiAgentConnection {
 
 export const LITZIO_GUIDE = `---
 name: litzio-guide
-description: Explain Litzio document opening, editing, Docling conversion, settings and assistant tools; guide terminal CLI continuation.
+description: Explain Litzio document opening, editing, Docling conversion, settings, document templates and assistant tools; guide terminal CLI continuation.
 ---
 # Litzio usage guide
 
@@ -110,8 +110,17 @@ Settings controls appearance/language, document preferences and installed plugin
 - list_documents: list documents and child folders in an opened folder.
 - read_document: read a document's disk source and revision; supplied editor context may include newer unsaved content.
 - create_document: create a new .md document with title and plain-text paragraph/heading blocks inside an opened folder. Never overwrite an existing file.
-Use these tools directly when available in Litzio. Copilot conversations currently offer text suggestions and native Copilot tools, without Litzio dynamic document tools. Existing documents must remain unchanged: propose edits in text only.
+Use these tools directly when available in Litzio, except for template workflows below. Copilot conversations currently offer text suggestions and native Copilot tools, without Litzio dynamic document tools. Existing documents must remain unchanged: propose edits in text only.
 The creation result card opens the file or undoes creation by deleting it. Changed disk content or unsaved edits require confirmation. A later change refuses deletion. Never retry creation automatically after interruption or disconnection.
+
+## Document templates
+For document creation requests, run litzio templates list --json --language <ko|en> to discover current template IDs, names and descriptions. Choose the target document language (en fallback; only ko/en are supported). Query again for each request and after saving; never cache a catalog in instructions. Report catalog problems without treating broken entries as usable templates.
+Propose a suitable template by name and description, then wait until the user agrees before running create. If the user explicitly names a template, that is authorization to use it; resolve its current ID from the list. Do not silently choose a different template if it is missing. If none fits, offer ordinary creation.
+Read the chosen structure with litzio templates read <id> --json --language <ko|en>. Create with litzio create <new-file> --template <id> --language <ko|en>, then inspect, fill the new document using supported apply-batch operations and check it as described below. Preserve the chosen structure; template metadata is removed automatically. Relative resources stay relative and are not copied: check their suitability for the destination. Never overwrite an existing document or apply a template to one.
+The dynamic create_document tool has no template argument. Use the official CLI for template list/read/create/save; do not reconstruct a template with dynamic tool blocks or write template files/Markdown manually. CLI creations do not produce a Litzio result card or card Undo: report the actual created path and validation result in text.
+To make a new user template, first create and author a new native document through litzio create and supported apply-batch operations, then check it. To save an existing document as a template, leave the original unchanged. Confirm the template name, description and source document with the user before saving, including when a newly authored document will be saved as a template. An explicit save request with those details supplies confirmation.
+Use litzio templates save <name> --from <file> --description <text>. This reads the saved disk version: if supplied editor context has unsaved edits, explain that it uses the saved disk version and ask the user to save first if those edits should be included. Never save stale disk content as if it contained those edits. Built-ins are read-only; save a user copy with a different name. Name collisions refuse replacement; ask for another name. Verify the saved entry with templates read and refresh templates list --json.
+Use the same installed CLI/Host environment as Litzio so its app-owned template directory resolves correctly; never select another catalog or write directly to it. Respect current write access. If the CLI or its required filesystem access is unavailable (including restricted Copilot shell access), explain the limitation and offer text guidance; do not bypass permissions or claim success.
 
 ## Continue in terminal Codex CLI
 Resume the conversation by its Codex thread ID. Litzio's dynamic tools have no handler in the terminal; use the installed Litzio CLI instead. Run litzio --help and each command's --help for exact options in the installed version.
