@@ -14,6 +14,73 @@ import { NotificationCenter } from "../components/ui/notification-center.tsx";
 import { applyTheme, currentTheme } from "../theme.ts";
 import { FieldError } from "../ui/primitives.tsx";
 import "./ui-gallery.css";
+import { getEditableDocument, parse } from "@litzio/core";
+import { ReadOnlyDocument } from "../ReadOnlyDocument.tsx";
+
+// Synthetic, in-memory native source. No Host requests or persisted report.
+const report = getEditableDocument(parse(`---
+litzio: 1
+title: Docling 변환 보고서
+---
+
+원본 파일: energy-report.pdf
+
+변환 시각: 2026-11-03 14:32 · 24페이지
+
+대응표 상태: 최신 · 검수 필요 3건
+
+## 검수 필요 항목
+
+| 페이지 | 대상 | 확인할 내용 |
+| ---: | --- | --- |
+| 3 | 표 1 | 병합 셀 경계 |
+| 12 | 수식 2 | 아래 첨자 |
+| 19 | 그림 4 | 캡션 연결 |
+
+## 요약
+
+본문과 표의 변환을 완료했습니다. 표·수식·그림의 세 항목은 원본 대조가 필요합니다. 이 보고서는 변환 시점의 스냅샷이며 이후 검수 상태는 반영하지 않습니다.
+`));
+const ignoreReading = () => {};
+const spikeCategory = `Spike #${1041}`;
+const queueRows = [
+  { file: "energy-report.pdf", status: "완료", tone: "success", pages: "24", time: "14:32", map: "최신", action: "대조 열기" },
+  { file: "safety-guide.pdf", status: "검수 필요", tone: "attention", pages: "8", time: "14:28", map: "오래됨", action: "대조 열기" },
+  { file: "appendix.pdf", status: "변환 중", tone: "running", pages: "—", time: "14:35", map: "—", action: "대기 중지" },
+];
+
+function SpikeQueue({ documentStyle }: { documentStyle: boolean }) {
+  return <div className={documentStyle ? "spike-queue" : "docling-dashboard spike-current"}>
+    <div className="docling-dashboard-table-scroll"><table className={documentStyle ? "table" : undefined}>
+      <thead><tr>{["파일 / 상태", "페이지", "변환 시각", "대응표", "작업"].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
+      <tbody>{queueRows.map(row => <tr key={row.file}>
+        <th scope="row">{row.file}<div><span className={`docling-dashboard-state docling-dashboard-state--${row.tone}`}>{row.status}</span></div></th>
+        <td className="spike-number">{row.pages}</td><td>{row.time}</td><td>{row.map}</td>
+        <td><div className="docling-dashboard-actions"><Button variant="secondary" size="sm">{row.action}</Button>
+          <DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label={`${row.file} 메뉴`} />}><MoreHorizontal aria-hidden="true" /></DropdownMenuTrigger>
+            <DropdownMenuContent><DropdownMenuItem>문서 열기</DropdownMenuItem><DropdownMenuItem>폴더 열기</DropdownMenuItem></DropdownMenuContent>
+          </DropdownMenu></div></td>
+      </tr>)}</tbody>
+    </table></div>
+  </div>;
+}
+
+export function DocumentStyleSpike() {
+  return <section className="ui-gallery-section" aria-labelledby="spike-1041-title">
+    <h2 id="spike-1041-title">Spike #1041 · 문서와 앱의 시각 언어</h2>
+    <p>가상 데이터 · 외형 비교 전용 · 버튼은 작업을 실행하지 않습니다.</p>
+    <div className="spike-comparison">
+      <section className="spike-option"><h3>A · 결과물은 실제 읽기 문서</h3><p>보고서.md · 읽기 전용 · 변환 시점 스냅샷</p>
+        <div className="spike-report"><ReadOnlyDocument document={report} path="/spike-1041/report.md" onLayout={ignoreReading} onSelection={ignoreReading} /></div>
+      </section>
+      <section className="spike-option"><h3>B · 앱 조작 + 문서 표 스타일</h3><p>변환 큐 · 공통 버튼·상태 칩·메뉴</p>
+        <SpikeQueue documentStyle />
+        <h3 className="spike-baseline-title">비교 · 현재 대시보드 표 스타일</h3><p>같은 데이터·컨트롤, 현재 표 CSS</p>
+        <SpikeQueue documentStyle={false} />
+      </section>
+    </div>
+  </section>;
+}
 
 type ExampleState = "default" | "interaction" | "disabled" | "error";
 
@@ -123,7 +190,7 @@ export function UiGallery() {
       <a href="/" onClick={() => { void applyTheme(originalTheme.current); }}>Back to editor</a></header>
     <nav className="ui-gallery-section" aria-label="Gallery controls">
       <div className="ui-gallery-row"><ChoiceGroup aria-label="Category" value={category} onValueChange={setCategory}
-        options={["All", "Controls", "Surfaces", "Menus", "Notifications"].map(value => ({ value, label: value }))} /></div>
+        options={["All", "Controls", "Surfaces", "Menus", "Notifications", spikeCategory].map(value => ({ value, label: value }))} /></div>
       <div className="ui-gallery-row"><ChoiceGroup aria-label="Theme" value={theme}
         options={[{ value: "light", label: "Light" }, { value: "dark", label: "Dark" }]}
         onValueChange={value => { setTheme(value); void applyTheme(value); }} /></div>
@@ -137,6 +204,7 @@ export function UiGallery() {
     {visible("Surfaces") ? <SurfaceExamples state={state} /> : null}
     {visible("Menus") ? <MenuExamples state={state} /> : null}
     {visible("Notifications") ? <NotificationExample state={state} /> : null}
+    {category === spikeCategory ? <DocumentStyleSpike /> : null}
     <footer>Examples show current implementation, not unimplemented UI pattern targets. Review large layout changes in their actual screen.</footer>
   </main>;
 }

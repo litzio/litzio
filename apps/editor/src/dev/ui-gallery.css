@@ -1,7 +1,7 @@
 /* This file is imported only by the development gallery. */
 .ui-gallery { height: 100dvh; overflow: auto; padding: var(--space-6); background: var(--id-color-canvas); color: var(--id-color-text); font-family: var(--font-family-sans); font-size: var(--font-size-sm); }
-.ui-gallery h1 { font-size: var(--font-size-start-title); font-weight: 600; }
-.ui-gallery h2 { font-size: var(--font-size-md); font-weight: 600; }
+.ui-gallery > header > h1 { font-size: var(--font-size-start-title); font-weight: 600; }
+.ui-gallery-section > h2 { font-size: var(--font-size-md); font-weight: 600; }
 .ui-gallery-section > p:not([role="alert"]), .ui-gallery > header > p, .ui-gallery-field > p:not([role="alert"]) { margin-block: var(--space-2); color: var(--id-color-text-muted); }
 .ui-gallery a { color: var(--id-color-interaction); text-decoration: underline; }
 .ui-gallery-section { margin-block: var(--space-4); padding-block: var(--space-3); border-top: 1px solid var(--id-color-border); }
@@ -10,3 +10,37 @@
 .ui-gallery-icons { display: inline-flex; gap: var(--space-3); }
 .ui-gallery-icons svg { width: var(--size-icon-slot); height: var(--size-icon-slot); }
 .ui-gallery footer { padding-bottom: var(--space-12); color: var(--id-color-text-muted); }
+
+/* Non-shipping comparison layout; table/controls retain production styles. */
+.spike-comparison { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: var(--space-6); margin-top: var(--space-4); }
+.spike-option { min-width: 0; }
+.spike-option h3 { font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); }
+.spike-option > p { color: var(--id-color-text-muted); margin-block: var(--space-2) var(--space-4); }
+.spike-report { background: var(--id-color-paper); border: 1px solid var(--id-color-paper-border); padding: var(--space-6); }
+.spike-report .document { padding: 0; margin: 0; width: 100%; min-height: 0; border: 0; box-shadow: none; }
+.spike-queue { background: var(--id-color-paper); container-type: inline-size; }
+.spike-queue table { min-width: 600px; }
+.spike-queue .table tbody th { background: transparent; font-weight: 500; }
+.spike-queue .table th, .spike-queue .table td { vertical-align: middle; }
+.spike-queue .table td.spike-number { text-align: right; font-variant-numeric: tabular-nums; }
+.spike-queue tbody th > div { margin-top: var(--space-2); }
+.spike-current.docling-dashboard { padding: 0; }
+.spike-baseline-title { margin-top: var(--space-6); }
+@media (max-width: 1000px) { .spike-comparison { grid-template-columns: minmax(0, 1fr); } }
+
+/* Frozen visual-only snapshot from plugins/docling/src/dashboard.css at the spike base.
+ * Editor cannot import plugin implementation CSS. Do not promote this copy to product UI. */
+.docling-dashboard-row, .docling-dashboard-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.docling-dashboard-state { display: inline-block; border-radius: var(--id-radius-md); background: var(--id-color-surface-hover); padding: var(--space-1) var(--space-2); font-size: var(--font-size-xs); font-weight: 500; }
+.docling-dashboard-state--error { color: var(--id-color-danger); }
+.docling-dashboard-state--attention, .docling-dashboard-state--uncertain { color: var(--id-color-warning); }
+.docling-dashboard-state--running { color: var(--id-color-interaction); }
+.docling-dashboard-state--success { color: var(--id-color-accent-green); }
+.docling-dashboard-table-scroll { overflow-x: auto; }
+.docling-dashboard table { width: 100%; min-width: 720px; border-collapse: collapse; text-align: start; }
+.docling-dashboard th, .docling-dashboard td { text-align: start; vertical-align: middle; border-bottom: 1px solid var(--id-color-border-subtle); padding: var(--space-3); }
+.docling-dashboard thead th { color: var(--id-color-text-muted); font-weight: 500; }
+.docling-dashboard tbody th { width: 25%; font-weight: 500; }
+.docling-dashboard tbody th > div { margin-top: var(--space-2); }
+.docling-dashboard td { min-width: 5rem; }
+.docling-dashboard td:last-child { width: 13rem; }
