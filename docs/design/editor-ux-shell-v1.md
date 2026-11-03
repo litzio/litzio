@@ -2970,8 +2970,9 @@ Like Plugin tabs, Settings has no document session, dirty indicator, recovery
 record or startup restoration. Switching away keeps its mounted category and
 unsaved settings drafts; closing discards view-local drafts. Applied app preferences
 remain stored independently. AI settings retain explicit Save and Docling retains
-field-exit saving. Metadata outside-pointer completion excludes document tabs and the Settings entry,
-so navigating away and back cannot apply or discard a pending property draft.
+field-exit saving. Metadata outside-pointer completion excludes the Settings tab and Sidebar entry.
+Ordinary document-tab pointer switching retains its existing outside-apply behavior;
+keyboard switching retains drafts. Closing Settings selects its ordinary neighbor.
 Document input, drafts and Undo history stay with their mounted
 editing sessions and are never saved by opening or closing Settings.
 

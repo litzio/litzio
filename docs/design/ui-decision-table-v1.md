@@ -24,7 +24,7 @@
 
 [shadcn 공식 스킬](https://github.com/shadcn-ui/ui/blob/main/skills/shadcn/SKILL.md)에서 현재 Base UI·제품 토큰 구성과 맞는 항목만 채택한다. 스킬은 설치하지 않으며 레지스트리 기본 외형을 가져오지 않는다. Litzio의 기존 권한 문서가 우선한다.
 
-- Dialog에 `DialogTitle`을 둔다. 시각적으로 숨길 때는 `sr-only`를 사용한다([현재 Dialog 구성](../../apps/editor/src/components/ui/dialog.tsx), [Settings 제목](../../apps/editor/src/shell/SettingsDialog.tsx)).
+- Dialog에 `DialogTitle`을 둔다. 시각적으로 숨길 때는 `sr-only`를 사용한다([현재 Dialog 구성](../../apps/editor/src/components/ui/dialog.tsx), [단축키 제목](../../apps/editor/src/shell/KeyboardShortcutsDialog.tsx)).
 - 입력 오류는 컨트롤의 `aria-invalid`와 연결된 오류문으로 표현한다([NewDialog](../../apps/editor/src/shell/NewDialog.tsx), [FieldError](../../apps/editor/src/ui/primitives.tsx)). 현재 공통 Field wrapper가 없으므로 `data-invalid`를 필수로 요구하지 않는다. 기존 불일치는 [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터)의 범위를 따른다.
 - 새 flex/grid 형제 배치는 `space-x/y-*` 대신 토큰에 맞는 `gap-*`를 쓴다([DialogHeader/Footer](../../apps/editor/src/components/ui/dialog.tsx)).
 - Tailwind로 같은 폭·높이를 지정할 때 `size-*`를 사용한다. 컨트롤 크기는 새 수치 대신 기존 size variant·토큰을 고른다([Button](../../apps/editor/src/components/ui/button.tsx)).

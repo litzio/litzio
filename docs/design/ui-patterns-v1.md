@@ -305,7 +305,7 @@ of document drafts, Save and Undo. See [table contract](table-interaction-v1.md#
 
 #1032: Settings는 Host가 머리·범주 탐색·스크롤·콘텐츠 열을 소유하고 각 범주는 내용만
 그린다. 기존 Button·탭·입력 토큰을 재사용하며 공용 설정 행 블록은 #1033 범위다.
-문서 탭·Settings 진입의 pointer 이동은 metadata 바깥 적용 대신 탐색으로 처리해 초안을 보존한다.
+Settings 탭·진입의 pointer 이동은 metadata 바깥 적용 대신 탐색으로 처리해 초안을 보존한다. 일반 문서 탭 pointer 이동의 기존 바깥 적용은 유지한다.
 앱 즉시 반영, AI 명시적 Save, Docling field exit 저장은 문서 Save와 분리한다.
 탭 사이 이동은 설정 초안을 유지하며 닫기·재시작은 Plugin 탭처럼 초안을 복원하지 않는다.
 [탭 수명·키보드·전후 캡처](editor-ux-shell-v1.md#settings-task-tab-1032).

@@ -424,7 +424,8 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   check((await page.getByTestId('update-problem').innerText()).includes('Apply or Cancel the open edits'), 'An unapplied edit did not refuse the restart');
   await page.keyboard.press('Escape');
   await dialog.waitFor({state:'detached'});
-  await page.getByRole('tab', {name:'updates.md, Unsaved changes',exact:true}).click();
+  await page.getByRole('tab', {name:'updates.md, Unsaved changes',exact:true}).focus();
+  await page.keyboard.press('Enter');
   check(await page.getByTestId('table-label').inputValue() === 'unapplied-label', 'Refusing the restart lost the draft');
   await page.getByTestId('table-label').press('Escape');
 

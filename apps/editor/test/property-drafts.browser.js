@@ -144,7 +144,9 @@ async (page, { openPath, expect }) => {
       await fileActions.and(page.locator(':focus')).waitFor();
       await retained('Reload Keep editing');
 
-      await activate(page.getByRole('button',{name:'Settings',exact:true}));
+      const settingsEntry = page.getByRole('button',{name:'Settings',exact:true});
+      if (kind === 'table') await settingsEntry.click();
+      else await activate(settingsEntry);
       const settings = page.getByTestId('settings-dialog');
       await page.getByRole('tab',{name:'Settings',exact:true}).and(page.locator(':focus')).waitFor();
       await settings.getByRole('button',{name:'Saving & recovery',exact:true}).click();
