@@ -19,14 +19,15 @@ export class SaveConflictError extends SaveContentError {
   }
 }
 
-export function requestDocument(method: "PUT", filePath: string, bibliographyRoot?: string): Promise<DocumentFileResponse>;
+export function requestDocument(method: "PUT", filePath: string, bibliographyRoot?: string, template?: { template: string; language: "ko" | "en" }): Promise<DocumentFileResponse>;
 export function requestDocument(method: "GET", filePath?: string, bibliographyRoot?: string): Promise<DocumentResponse | DocumentStartResponse>;
 export async function requestDocument(
   method: "GET" | "PUT",
   filePath?: string,
   bibliographyRoot?: string,
+  template?: { template: string; language: "ko" | "en" },
 ): Promise<DocumentResponse | DocumentStartResponse> {
-  const body = method === "PUT" ? { path: filePath } : undefined;
+  const body = method === "PUT" ? { path: filePath, ...template } : undefined;
   const query = method === "GET" && filePath ? `?path=${encodeURIComponent(filePath)}` : "";
   const response = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/document${query}`, {
     method,

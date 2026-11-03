@@ -133,7 +133,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "unsafe.svg", create: () => '<svg xmlns="http://www.w3.org/2000/svg"><script>window.__litzioSVG = true; fetch("/api/folder-places");</script><text y="20">Untrusted media</text></svg>' },
   ], scenarios: ["http-host"] },
   "http-host-b/fixture": { files: [{ name: "b.md", create: () => nativeSource("# HTTP B\n\nBeta.\n") }], scenarios: ["http-host"] },
-  "new-document": { files: [], scenarios: ["new-document", "recovery-structure"] },
+  "new-document": { files: [], scenarios: ["new-document", "recovery-structure", "template-gallery"] },
   "open-files": { files: [
     { name: "긴파일이름" + "unbrokendocumentname".repeat(7) + ".md", create: () => nativeSource("# Long name\n") },
     { name: "litzio-a.md", create: () => nativeSource("# A\n") },

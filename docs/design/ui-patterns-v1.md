@@ -385,3 +385,15 @@ SettingsRow/Button and confirmation Dialog perform explicit bundled registration
 This follows the same error and confirmation implementations used by Settings
 and FolderDialog; no new shared interaction or Plugin API is introduced.
 The current contract is [Plugin UI rejection handling](plugin-ui-v1.md#rejected-saved-registrations-1097).
+
+## Template gallery application (#936 phase 2)
+
+The [gallery contract](document-templates-v1.md#editor-gallery-phase-2) applies the
+existing task-tab shell, P12 independent Dialog boundary for saving a template and
+P07 field feedback/Notice for naming and catalog errors. Settings and Docling's
+dashboard remain the comparison surfaces for independent tasks. Common Popover
+owns the approved C hover/focus reading preview; it is not a metadata edit form.
+One retained read-only DocumentEditor replaces preview content, with a short open
+delay, keyboard-scroll region and Escape focus return. Cards expose creation
+outside the preview. Descriptions stay on hover/focus; only the Built-in badge is
+persistent. Existing tokens and Button variants apply; no public Plugin API is added.
