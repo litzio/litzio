@@ -359,7 +359,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   expect(sent[0].document).toEqual({ path: pluginFixture.document });
   await expect(panel.getByRole('status').filter({ hasText: 'Using saved version' })).toBeVisible();
   await expect(panel).not.toContainText('paragraph edit cannot round-trip');
-  await editor.locator('p').first().click(); await page.keyboard.press('ControlOrMeta+End'); await page.keyboard.press('Backspace');
+  // Undo the refusal fixture before later Save checks; native End/Backspace differs by browser.
+  await editor.focus(); await page.keyboard.press('ControlOrMeta+z');
   await message.focus();
   expect(sent[0].responseLanguage).toBeUndefined();
   expect(sent[0].references).toEqual([pluginFixture.document]);
