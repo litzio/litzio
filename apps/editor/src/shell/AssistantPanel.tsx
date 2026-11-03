@@ -74,7 +74,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
         // Host disposed the old connection and conversations. Retire its UI requests too.
         providerVersion.current++;
         current.current = undefined; setConversation(undefined); rememberConversation();
-        setPending(false); setMessage(""); setReferences([]); setMention(null); setChoicesOpen(false);
+        setPending(false); setProblem(""); setHistory(null); setMessage(""); setReferences([]); setMention(null); setChoicesOpen(false);
         setRemoved([]); setSkillCatalog(undefined); setSkillProblem("");
       }
       setSettings(value); if (value.provider === "copilot") setReferences(previous => previous.filter(file => file.kind !== "skill")); if (!current.current) defaults(value);
