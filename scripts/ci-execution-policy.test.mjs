@@ -29,9 +29,9 @@ test('merge_group payloads apply the same path rules as PRs to the entire group 
     [['plugins/ai-agent/src/worker.ts'], expected(true, true, true, true, false)],
     [['packages/plugin-api/package.json'], expected(true, true, true, true, false, false)],
     [['plugins/ai-agent/package.json'], expected(true, true, true, true, false, false)],
-    [['.agents/skills/litzio-orchestrator/scripts/pr-gate.mjs'], expected(true, false, false, false, false)],
-    [['.agents/skills/litzio-orchestrator/SKILL.md'], expected(true, false, false, false, false)],
-    [['.agents/skills/litzio-orchestrator/agents/openai.yaml'], expected(true, false, false, false, false)],
+    [['.agents/skills/litzio-orchestrator/scripts/pr-gate.mjs'], expected(false, false, false, false, false)],
+    [['.agents/skills/litzio-orchestrator/SKILL.md'], expected(false, false, false, false, false)],
+    [['.agents/skills/litzio-orchestrator/agents/openai.yaml'], expected(false, false, false, false, false)],
     [['.agents/skills/litzio-orchestrator/SKILL.md', 'plugins/ai-agent/src/worker.ts'], expected(true, true, true, true, false)],
     [['packages/plugin-api/src/ui.ts', 'apps/desktop/src/main.ts'], expected(true, true, true, true, true, false)],
     [['.agents/other/config.json'], expected(true, true, true, true, true, false)],
@@ -50,6 +50,45 @@ test('merge_group payloads apply the same path rules as PRs to the entire group 
   assert.deepEqual(await executionPolicy('merge_group', event, { git: () => { throw new Error('missing history'); } }), full);
   assert.deepEqual(await executionPolicy('merge_group', { merge_group: { base_sha: '--bad', head_sha: sha } }), full);
   assert.deepEqual(await executionPolicy('merge_group', event, { git: () => '' }), full);
+});
+
+test('only audited policy tooling skips product jobs, with mixed changes taking the union', () => {
+  const policyPaths = [
+    'scripts/issues.mjs', 'scripts/issue-policy.mjs', 'scripts/issue-policy.test.mjs',
+    'scripts/check-issue-event.mjs', 'scripts/check-docs.ts', 'scripts/check-docs.test.ts',
+    'scripts/ci-execution-policy.mjs', 'scripts/ci-execution-policy.test.mjs',
+    'scripts/ci-quality-mode.mjs', 'scripts/ci-quality-mode.test.mjs',
+    '.github/ISSUE_TEMPLATE/bug.yml', '.github/ISSUE_TEMPLATE/decision.yml',
+    '.github/ISSUE_TEMPLATE/enhancement.yml', '.github/ISSUE_TEMPLATE/task.yml',
+    '.github/ISSUE_TEMPLATE/config.yml',
+    '.agents/skills/litzio-orchestrator/scripts/pr-gate.mjs',
+    '.claude/skills/litzio-orchestrator/SKILL.md',
+  ];
+  const { reused, ...none } = expected(false, false, false, false, false);
+  for (const eventName of ['pull_request', 'merge_group']) {
+    assert.deepEqual(selectJobs(eventName, [...policyPaths, 'docs/README.md']), none);
+    for (const file of policyPaths) {
+      assert.deepEqual(selectJobs(eventName, [file]), none, file);
+      for (const product of ['apps/editor/src/App.tsx', 'apps/desktop/src/main.ts',
+        'packages/cli/src/cli.ts', 'packages/core/src/myst/parse.ts']) {
+        assert.deepEqual(selectJobs(eventName, [file, product]), selectJobs(eventName, [product]),
+          `${file} + ${product}`);
+      }
+    }
+    for (const file of ['scripts/new-policy.mjs', 'scripts/check-plugin-boundaries.ts',
+      'scripts/commit-provenance.mjs', 'test/helper.ts',
+      'brand.ts', 'tsconfig.json', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml',
+      '.github/workflows/ci.yml', 'unknown/config.json']) {
+      const { reused, ...jobs } = full;
+      // smartquotes has its own narrower dependency rule.
+      assert.deepEqual(selectJobs(eventName, [...policyPaths, file]),
+        { ...jobs, smartquotes: selectJobs(eventName, [file]).smartquotes }, file);
+    }
+    assert.equal(selectJobs(eventName, [...policyPaths, 'test/fixture.md']).quality, true,
+      'test Markdown retains product quality');
+    assert.deepEqual(selectJobs(eventName, []), selectJobs('push', policyPaths));
+  }
+  assert.deepEqual(selectJobs('push', policyPaths), selectJobs('workflow_dispatch', policyPaths));
 });
 
 test('plugin package changes select Editor browser consumers without broadening other jobs', () => {
@@ -95,6 +134,27 @@ test('actual group diff includes successive PR commits, removed paths and both s
     assert.deepEqual(await policy(initial, group), expected(true, true, true, true, false));
     assert.deepEqual(await policy(docs, group), expected(true, true, true, true, false));
     assert.deepEqual(await policy('f'.repeat(40), group), full);
+    mkdirSync(path.join(dir, 'scripts'), { recursive: true });
+    writeFileSync(path.join(dir, 'scripts/issues.mjs'), 'issue tool\n');
+    const tooling = commit('add policy tool');
+    assert.deepEqual(await policy(group, tooling), expected(false, false, false, false, false));
+    git(['rm', 'scripts/issues.mjs']);
+    const deleted = commit('delete policy tool');
+    assert.deepEqual(await policy(tooling, deleted), expected(false, false, false, false, false));
+    mkdirSync(path.join(dir, 'scripts'), { recursive: true });
+    git(['mv', 'EDITOR.md', 'scripts/issues.mjs']);
+    const renamed = commit('rename documentation to policy tool');
+    assert.deepEqual(await policy(deleted, renamed), expected(false, false, false, false, false));
+    git(['mv', 'scripts/issues.mjs', 'apps/editor/src/App.tsx']);
+    const product = commit('rename policy tool to product');
+    assert.deepEqual(await policy(renamed, product), expected(true, true, true, true, false));
+    assert.deepEqual(await policy(product, renamed), expected(true, true, true, true, false),
+      'reverse rename retains the removed product path');
+    git(['mv', 'apps/editor/src/App.tsx', 'scripts/unknown.mjs']);
+    const unknown = commit('rename product to unknown script');
+    assert.deepEqual(await policy(product, unknown), { ...full, smartquotes: false });
+    // Whole group combines the earlier product deletion and later tooling changes.
+    assert.deepEqual(await policy(initial, renamed), expected(true, true, true, true, false));
     // With divergent trees, base..head includes a removed installer that a
     // merge-base diff would omit. Queue policy must use the supplied base tree.
     git(['checkout', '-qb', 'base-branch', initial]);

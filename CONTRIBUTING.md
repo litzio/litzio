@@ -102,7 +102,7 @@ gh run list --event merge_group --json databaseId,headSha,status,conclusion,url
 
 로컬에서는 변경의 고유한 위험에 맞는 관련 패키지 테스트·browser 시나리오를 지정해 실행한다. 영향 범위가 여러 계층에 걸치는 경우가 아니면 전체 `pnpm test`와 전체 `pnpm browser:test`는 로컬 필수가 아니다. 아래 표는 로컬 최소 검증이며, PR의 필수 CI 검사는 모두 통과해야 한다.
 
-CLI/Desktop `package`, `test:packaged`, release/artifact 검증, 설치·업데이트 회귀와 다른 OS 검증은 해당 패키징·설치/업데이트·배포 경계를 변경한 경우가 아니면 필수 CI에 맡긴다. [CI](.github/workflows/ci.yml)는 항상 quality job의 정책·문서 검사를 실행한다. 문서 전용 PR과 merge group은 문서 검사·checker 테스트, diff/whitespace, issue forms·등록 정책, AI provenance 회귀·event commit 검사와 CI 경로 분류 테스트만 실행한다. 나머지는 전체 제품 테스트·typecheck·Editor build를 실행하며 추가 job은 아래 경로 규칙으로 선택한다. master push는 같은 SHA의 성공한 `merge_group` CI가 확인되면 제품 검사를 생략하고 캐시만 갱신한다. 확인할 수 없으면 전체 실행한다. 실제 GitHub 업데이트·서명·수동 확인은 이 CI의 보장 범위가 아니므로 해당 변경·릴리즈의 별도 절차를 유지한다.
+CLI/Desktop `package`, `test:packaged`, release/artifact 검증, 설치·업데이트 회귀와 다른 OS 검증은 해당 패키징·설치/업데이트·배포 경계를 변경한 경우가 아니면 필수 CI에 맡긴다. [CI](.github/workflows/ci.yml)는 항상 quality job의 정책·문서 검사를 실행한다. 문서·아래 정책 도구 allowlist만 바뀐 PR과 merge group은 문서 검사·checker 테스트, diff/whitespace, issue forms·등록 정책, AI provenance 회귀·event commit 검사와 CI 경로 분류 테스트만 실행한다. 나머지는 전체 제품 테스트·typecheck·Editor build를 실행하며 추가 job은 아래 경로 규칙으로 선택한다. master push는 같은 SHA의 성공한 `merge_group` CI가 확인되면 제품 검사를 생략하고 캐시만 갱신한다. 확인할 수 없으면 전체 실행한다. 실제 GitHub 업데이트·서명·수동 확인은 이 CI의 보장 범위가 아니므로 해당 변경·릴리즈의 별도 절차를 유지한다.
 
 | Change type | Required verification |
 | --- | --- |
@@ -122,21 +122,29 @@ CLI/Desktop `package`, `test:packaged`, release/artifact 검증, 설치·업데�
 
 문서 checker를 바꾸면 `pnpm exec tsx --test scripts/check-docs.test.ts`도 실행한다. 검증 명령의 자세한 사용법은 [검증 안내](docs/test/README.md)에 있다.
 
-quality의 문서 전용 판정은 [ci-quality-mode.mjs](scripts/ci-quality-mode.mjs)의 보수적인 allowlist다. 루트 `*.md`, `.github` 바로 아래 `*.md`, `docs/**`의 `md/png/jpg/jpeg/gif/svg/webp/ico/pdf/json`만 허용한다. 제품 fixture일 수 있는 `apps/**`·`packages/**` Markdown, tooling·설정, issue form, 미분류 경로가 하나라도 섞이면 전체 quality를 실행한다. 삭제도 변경 경로에 포함하고 rename의 이전·이후 경로를 모두 검사한다. PR은 merge-base diff(`base...head`), merge group은 event payload의 전체 tree diff(`merge_group.base_sha..head_sha`)로 판정한다. diff를 계산할 수 없거나 경로가 비어 있으면 전체 실행한다. `master` push에는 문서 경로만으로 생략을 적용하지 않는다.
+quality의 제품 검사 생략은 [ci-execution-policy.mjs](scripts/ci-execution-policy.mjs)가 문서 allowlist와 정책 도구 allowlist를 합쳐 판정한다. 문서 allowlist는 [ci-quality-mode.mjs](scripts/ci-quality-mode.mjs)의 루트 `*.md`, `.github` 바로 아래 `*.md`, `docs/**`의 `md/png/jpg/jpeg/gif/svg/webp/ico/pdf/json`이다. 정책 도구 allowlist는 아래에 명시한 경로만 허용하며, 그 외 tooling·설정·제품 fixture Markdown은 전체 quality를 유지한다. `ci-quality-mode.mjs`의 `docs_only` 출력은 문서 전용 판정으로 유지하며 제품 단계는 changes의 `quality` 출력으로 선택한다. 삭제도 변경 경로에 포함하고 rename의 이전·이후 경로를 모두 검사한다. PR은 merge-base diff(`base...head`), merge group은 event payload의 전체 tree diff(`merge_group.base_sha..head_sha`)로 판정한다. diff를 계산할 수 없거나 경로가 비어 있으면 전체 실행한다. `master` push에는 경로만으로 생략을 적용하지 않는다.
 
-CI 경로 규칙의 기준은 changes job이 호출하는 [ci-execution-policy.mjs](scripts/ci-execution-policy.mjs)이며, 다음 표는 요약이다. PR과 merge group은 같은 분류 함수를 사용한다. 여러 PR이 묶인 group도 전체 diff의 합집합으로 선택하고, 삭제와 rename 양쪽 경로를 포함한다. **미분류 경로가 하나라도 있으면 전체 제품 실행**한다. smartquotes 의존성 검사는 아래 별도 조건을 따른다.
+정책 도구 allowlist와 확인한 실행 소비자는 다음과 같다. 이 경로들은 제품 빌드·테스트에서 import하거나 실행하지 않는다. CI quality의 항상 실행하는 문서·이슈·정책 검사는 그대로 유지한다.
+
+- `scripts/issues.mjs`, `scripts/issue-policy.mjs`, `scripts/issue-policy.test.mjs`, `scripts/check-issue-event.mjs`: 루트 `issues:*`·`issue:create`, 이슈 정책 테스트와 `.github/workflows/issue-policy.yml`이 소비한다.
+- `.github/ISSUE_TEMPLATE/{bug,decision,enhancement,task,config}.yml`: GitHub 이슈 작성 화면이 소비하며, `config.yml` 외 네 폼은 `issues:forms --check`도 검사한다. 디렉터리 전체를 새 allowlist로 확장하지 않는다.
+- `scripts/check-docs.ts`, `scripts/check-docs.test.ts`: `docs:check`와 CI의 checker 회귀 검사가 소비한다.
+- `scripts/ci-execution-policy.mjs`, `scripts/ci-execution-policy.test.mjs`, `scripts/ci-quality-mode.mjs`, `scripts/ci-quality-mode.test.mjs`: changes·quality의 선택/whitespace 처리와 항상 실행하는 정책 회귀 검사가 소비한다.
+- `.agents/skills/**`, `.claude/skills/**`: agent의 지침·오케스트레이션 도구와 Claude 진입점이다. 제품 runtime과 빌드는 로드하지 않는다.
+
+CI 경로 규칙의 기준은 changes job이 호출하는 [ci-execution-policy.mjs](scripts/ci-execution-policy.mjs)이며, 다음 표는 요약이다. PR과 merge group은 같은 분류 함수를 사용한다. 여러 PR이 묶인 group도 전체 diff의 합집합으로 선택하고, 삭제와 rename 양쪽 경로를 포함한다. 혼합 변경은 각 경로가 선택하는 job의 합집합이며, **미분류 경로가 하나라도 있으면 전체 제품 실행**한다. `test/**`는 일괄 생략하지 않는다. smartquotes 의존성 검사는 아래 별도 조건을 따른다.
 
 | PR / merge group 변경 경로 요약 | quality 외 추가 검증 |
 | --- | --- |
 | `docs/**`, 루트·하위 `*.md`, `.github/ISSUE_TEMPLATE/**`만 변경 | 없음 (아래 패키지·공용 경로에 속하는 Markdown은 해당 경로 규칙 우선) |
-| `.agents/skills/**` | 없음 (제품이 로드하지 않는 agent 지침·오케스트레이션 도구; 문서 전용 allowlist에는 추가하지 않아 전체 quality 유지) |
+| 위 정책 도구 allowlist (이슈·문서·CI 정책 스크립트와 명시된 폼, `.agents/skills/**`, `.claude/skills/**`) | 없음 (전체 변경이 문서·정책 allowlist에 속하면 제품 quality도 생략) |
 | 각 패키지의 `package.json` | 소속 패키지 규칙 |
 | `packages/cli/**` | http, desktop (CLI bundles both plugins; Desktop bundles the CLI) |
 | `plugins/docling/**`, `plugins/ai-agent/**` | browser, http, desktop (UI·Host·worker·fixture를 포함한 패키지 전체) |
 | `apps/editor/**`, `packages/core/**`, `packages/file-commit/**`, `packages/plugin-api/**` | browser, http, desktop |
 | `apps/desktop/**` | desktop + `test:update`·`test:uninstall` |
 | Editor의 업데이트 화면(`apps/editor/shared/desktop-bridge.ts`, `apps/editor/src/shell/SettingsDialog.tsx`, `apps/editor/src/shell/MessageArea.tsx`) | desktop + `test:update`·`test:uninstall` (Editor 파일은 Editor 규칙도 함께 적용) |
-| 공용 설정·도구 (`brand.ts`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `patches/**`, 루트 `tsconfig*`, `.github/workflows/**`, `scripts/**`) 또는 미분류 경로 | browser, http, desktop + `test:update`·`test:uninstall` |
+| 공용 설정·도구 (`brand.ts`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `patches/**`, 루트 `tsconfig*`, `.github/workflows/**`, allowlist 외 `scripts/**`) 또는 미분류 경로 | browser, http, desktop + `test:update`·`test:uninstall` |
 
 `packages/plugin-api`는 Editor Host·UI, Docling·AI agent 플러그인과 CLI가 공유하는 계약이므로 browser/http/desktop에서 소비자를 함께 검증한다. `plugins/docling`·`plugins/ai-agent`는 UI뿐 아니라 Host 연산·변환 코드·CSS·manifest·fixture가 화면 시나리오의 입력이므로 패키지 전체를 browser 대상으로 선택한다. Editor의 `docling-server`·`docling-dashboard`·`docling-compare`·`ai-agent`가 이 경계를 검증한다(AI 상태 응답은 mock이며 실제 모델 실행은 검증하지 않는다). 경로별 의존 목록을 따로 유지하지 않으며, 전체 quality에서 두 플러그인의 테스트·typecheck도 실행한다. `.agents/skills/**`는 제품 빌드·실행 입력이 아니므로 추가 제품 job을 선택하지 않는다. 다른 경로와 섞이면 기존 합집합 규칙을 적용하며 소속 패키지 규칙을 유지한다.
 

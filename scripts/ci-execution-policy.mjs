@@ -3,6 +3,20 @@ import { pathToFileURL } from 'node:url';
 import { eventDiff, isDocumentationOnly } from './ci-quality-mode.mjs';
 
 const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, update: true, smartquotes: true });
+// Consumers: root issue/docs commands and the always-run CI policy checks.
+// Product builds/tests do not load these files. Keep other scripts conservative.
+const policyFiles = new Set([
+  'scripts/issues.mjs', 'scripts/issue-policy.mjs', 'scripts/issue-policy.test.mjs',
+  'scripts/check-issue-event.mjs',
+  'scripts/check-docs.ts', 'scripts/check-docs.test.ts',
+  'scripts/ci-execution-policy.mjs', 'scripts/ci-execution-policy.test.mjs',
+  'scripts/ci-quality-mode.mjs', 'scripts/ci-quality-mode.test.mjs',
+  '.github/ISSUE_TEMPLATE/bug.yml', '.github/ISSUE_TEMPLATE/decision.yml',
+  '.github/ISSUE_TEMPLATE/enhancement.yml', '.github/ISSUE_TEMPLATE/task.yml',
+  '.github/ISSUE_TEMPLATE/config.yml',
+]);
+const policyOnly = path => policyFiles.has(path) ||
+  path.startsWith('.agents/skills/') || path.startsWith('.claude/skills/');
 const inPackage = (path, name) => path.startsWith(`${name}/`);
 const editorUpdate = path => ['apps/editor/shared/desktop-bridge.ts',
   'apps/editor/src/shell/SettingsDialog.tsx', 'apps/editor/src/shell/MessageArea.tsx'].includes(path);
@@ -10,22 +24,22 @@ const shared = path => ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml']
   /^(patches\/|tsconfig[^/]*$|\.github\/workflows\/|scripts\/)/.test(path);
 const product = path => ['packages/cli', 'plugins/docling', 'plugins/ai-agent', 'packages/plugin-api', 'apps/editor', 'packages/core', 'packages/file-commit', 'apps/desktop']
   .some(name => inPackage(path, name));
-const known = path => product(path) || shared(path) || path.startsWith('docs/') ||
-  path.startsWith('.agents/skills/') || path.endsWith('.md') || path.startsWith('.github/ISSUE_TEMPLATE/');
+const known = path => policyOnly(path) || product(path) || shared(path) || path.startsWith('docs/') ||
+  path.endsWith('.md') || path.startsWith('.github/ISSUE_TEMPLATE/');
 // These files create/configure the parser and diagnostic/footnote tokenizers.
 const parserSettings = ['parse.ts', 'serialize.ts', 'footnote.ts', 'literal-syntax.ts']
   .map(name => `packages/core/src/myst/${name}`);
 
 export function selectJobs(eventName, paths) {
   if (!['pull_request', 'merge_group'].includes(eventName) || !paths?.length) return allJobs();
-  const full = paths.some(path => shared(path) || !known(path));
+  const full = paths.some(path => !policyOnly(path) && (shared(path) || !known(path)));
   // Plugin scenarios consume UI assets, Host operations and conversion fixtures.
   // Select whole packages rather than maintaining a second dependency graph.
   const browser = full || paths.some(path => ['apps/editor', 'packages/core', 'packages/file-commit', 'packages/plugin-api', 'plugins/docling', 'plugins/ai-agent']
     .some(name => inPackage(path, name)));
   const http = browser || paths.some(path => ['packages/cli', 'plugins/docling', 'plugins/ai-agent'].some(name => inPackage(path, name)));
   return {
-    quality: !isDocumentationOnly(eventName, paths),
+    quality: !paths.every(path => policyOnly(path) || isDocumentationOnly(eventName, [path])),
     browser, http,
     desktop: http || paths.some(path => inPackage(path, 'apps/desktop')),
     update: full || paths.some(path => inPackage(path, 'apps/desktop') || editorUpdate(path)),
