@@ -1,6 +1,7 @@
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
 import taskLists from "markdown-it-task-lists";
+import texmath from "markdown-it-texmath";
 import dollarmath from "markdown-it-dollarmath";
 import katex from "katex";
 import { figureMediaPath } from "../shared/figure-media-path.ts";
@@ -22,20 +23,34 @@ export function renderPlainMarkdown(source: string, path: string): string {
 
 /** Assistant display has no document path or automatic image requests. */
 export function renderAssistantMarkdown(source: string, scope: string): string {
-  const md = markdownRenderer();
+  const md = markdownRenderer(true);
   md.renderer.rules.image = (tokens, index) => md.utils.escapeHtml(tokens[index].content);
   md.renderer.rules.footnote_anchor_name = (tokens, index) => `${scope}-${tokens[index].meta.id + 1}`;
   return md.render(source);
 }
 
-function markdownRenderer() {
-  const md = new MarkdownIt({ html: false, linkify: false, typographer: false })
+function markdownRenderer(assistant = false) {
+  const md = new MarkdownIt({ html: false, linkify: false, typographer: false });
+  if (assistant) {
+    md.use(texmath, { delimiters: "brackets", engine: katex });
+    // Equation labels are outside assistant display; retain the dollar renderer below.
+    md.block.ruler.disable("math_block_eqno");
+  }
+  md
     .use(footnote).use(taskLists).use(dollarmath, {
       allow_labels: false,
       renderer: (text: string, options: { displayMode: boolean }) => katex.renderToString(text, {
         displayMode: options.displayMode, throwOnError: false, trust: false, maxExpand: 1000,
       }),
     });
+  if (assistant) {
+    const blockMath = md.renderer.rules.math_block!;
+    md.renderer.rules.math_block = (tokens, index, ...args) => {
+      // texmath puts an unlabelled block body in info; dollarmath treats info as an ID.
+      if (tokens[index].tag === "\\[") tokens[index].info = "";
+      return blockMath(tokens, index, ...args);
+    };
+  }
   const link = md.renderer.rules.link_open ?? ((tokens, index, options, _env, renderer) => renderer.renderToken(tokens, index, options));
   md.renderer.rules.link_open = (tokens, index, options, env, renderer) => {
     const token = tokens[index], href = token.attrGet("href") ?? "";
