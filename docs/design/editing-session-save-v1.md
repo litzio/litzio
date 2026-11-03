@@ -1,6 +1,7 @@
 # Editing session and Save v1
 
 - Status: Implemented
+- Diff performance verification: 2026-11-03 (#1009 F09: recovery owns the representative large-input browser measurement; recovery-diff unit and recovery/pre-save browser checks).
 - Editor groups verification: 2026-10-29 (#488 phase 1; one mounted session per document across group moves, group actions/focused shortcuts, dirty-close and navigation-only reload; [contract and evidence](editor-ux-shell-v1.md#two-editor-groups-488-phase-1)).
 - Recovery support verification: 2026-10-29 (#705: current-schema validation and stored plaintext refusal path; Editor tests and typecheck).
 - Pre-save comparison verification: 2026-10-28 (#655 stage 2: Save parity, read-only state, external revisions, refusal locations and missing files; [visual evidence](../reviews/editor-visual-language-history-2026-10-30.md#pre-save-comparison-655)).
@@ -421,10 +422,16 @@ Both sides are about 337KiB. The same controlled Host response and real Recovery
 `6277ecd`: 10ms heartbeat maximum gap **20,299.8ms**, result ready at **20,299ms**. With the worker,
 maximum gap was **59ms**, ready at **107.6ms**, and the omission notice was present. Unit calculation
 took about **9ms** and retained both complete sources. These are observed local values, not a speed SLA.
-The browser regression requires a maximum gap below **500ms** and a complete result below **2s**;
+The `recovery` browser regression owns the representative large-input UI measurement and requires
+a maximum gap below **500ms** and a complete result below **2s**;
 the former allows scheduler/layout variance while rejecting the reproduced 20-second lock-up, and
 the latter matches the total worker watchdog. It uses a fixed 2-second observation window and direct
-DOM/timing assertions, without a readiness poll or reload. A held genuine worker module separately
+DOM/timing assertions, without a readiness poll or reload. The `recovery-diff` unit regression
+independently checks the **500ms calculation** budget and preservation of both complete sources.
+These protect different risks: calculation cost, main-thread stalls, and end-to-end completion
+including worker loading, transfer and rendering. `pre-save-diff` retains its entry-point, result,
+Close/Escape and document/selection/history/recovery-record preservation checks, without repeating
+the shared worker/UI large-input performance measurement. A held genuine worker module separately
 checks Delete/Escape within 1s, closing/cancellation, and that its late result cannot replace the next
 comparison. Oversized input checks retain the plaintext copy and all recovery actions. Production HTTP
 recovery also loads the built worker under the Host's existing self-only CSP, without changing headers.
