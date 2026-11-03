@@ -98,6 +98,8 @@ gh run list --event merge_group --json databaseId,headSha,status,conclusion,url
 
 ## Verification matrix
 
+테스트 작성·확대와 PR 기록 기준은 [테스트 설계 지침](docs/contributing/test-design.md)을 따른다.
+
 로컬에서는 변경의 고유한 위험에 맞는 관련 패키지 테스트·browser 시나리오를 지정해 실행한다. 영향 범위가 여러 계층에 걸치는 경우가 아니면 전체 `pnpm test`와 전체 `pnpm browser:test`는 로컬 필수가 아니다. 아래 표는 로컬 최소 검증이며, PR의 필수 CI 검사는 모두 통과해야 한다.
 
 CLI/Desktop `package`, `test:packaged`, release/artifact 검증, 설치·업데이트 회귀와 다른 OS 검증은 해당 패키징·설치/업데이트·배포 경계를 변경한 경우가 아니면 필수 CI에 맡긴다. [CI](.github/workflows/ci.yml)는 항상 quality job의 정책·문서 검사를 실행한다. 문서 전용 PR과 merge group은 문서 검사·checker 테스트, diff/whitespace, issue forms·등록 정책, AI provenance 회귀·event commit 검사와 CI 경로 분류 테스트만 실행한다. 나머지는 전체 제품 테스트·typecheck·Editor build를 실행하며 추가 job은 아래 경로 규칙으로 선택한다. master push는 같은 SHA의 성공한 `merge_group` CI가 확인되면 제품 검사를 생략하고 캐시만 갱신한다. 확인할 수 없으면 전체 실행한다. 실제 GitHub 업데이트·서명·수동 확인은 이 CI의 보장 범위가 아니므로 해당 변경·릴리즈의 별도 절차를 유지한다.
