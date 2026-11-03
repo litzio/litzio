@@ -10,7 +10,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { ContributionBoundary } from "./PluginTab.tsx";
 import { Notice } from "./ui/primitives.tsx";
 
-type Plugin = { ui?: unknown; id: string; version: string; revision: string; directory: string; enabled: boolean; bundledRevision: string | null };
+type Plugin = { ui?: unknown; id: string; version: string; revision: string; directory: string; enabled: boolean; bundledRevision: string | null; registrationError?: string | null };
 const endpoint = `${import.meta.env.BASE_URL}api/worker-plugins`;
 async function request<T>(options?: RequestInit): Promise<T> {
   const response = await fetch(endpoint, options);
@@ -79,9 +79,13 @@ export function PluginSettings({ sections, errors, onOpen, focusSection, selecte
     } finally { setBusy(false); }
   };
   const displayName = (item: Plugin) => i18n.t((item.id === "ai-agent" ? "AI agent" : item.id === "docling" ? "Docling" : item.id) as any);
-  const loading = (item: Plugin) => !!item.ui && item.enabled && !readyPlugins.includes(item.id) && !errors[item.id];
+  const loading = (item: Plugin) => !!item.ui && item.enabled && !readyPlugins.includes(item.id) && !errors[item.id] && !item.registrationError;
+  const defaultState = (item: Plugin) => item.registrationError ? "Error" : item.bundledRevision === null ? "Not bundled with this app" : item.revision === item.bundledRevision ? "Matches app default" : "Differs from app default";
   const selected = items?.find(item => item.id === selectedId);
-  const pluginError = (id: string) => actionErrors[id] ?? errors[id];
+  const pluginError = (id: string) => {
+    const error = items?.find(item => item.id === id)?.registrationError;
+    return error ? i18n.t(error as any) : actionErrors[id] ?? errors[id];
+  };
   return <div data-testid="plugin-settings" aria-busy={busy}>
     {!items && !problem ? <p role="status">{i18n.t("Loading…")}</p> : null}
     {items?.length === 0 ? <p>{i18n.t("No installed plugins.")}</p> : null}
@@ -89,16 +93,17 @@ export function PluginSettings({ sections, errors, onOpen, focusSection, selecte
       <Button size="sm" variant="ghost" className="px-0 gap-2" onClick={onBack}><ChevronLeft aria-hidden="true" />{i18n.t("Back to plugins")}</Button>
       <header className="settings-category-header"><h2 id={`settings-category-plugin/${selectedId}`}>{selected ? displayName(selected) : selectedId}</h2></header>
       {selected && loading(selected) ? <p role="status">{i18n.t("Loading…")}</p> : null}
-      {selected?.enabled ? sections.filter(section => section.id.startsWith(`plugin/${selected.id}/`)).map(section => { const View = section.View; return <ContributionBoundary key={section.id}><View /></ContributionBoundary>; }) : null}
+      {selected && pluginError(selected.id) ? <Notice tone="error">{pluginError(selected.id)}</Notice> : null}
+      {selected?.enabled && !selected.registrationError ? sections.filter(section => section.id.startsWith(`plugin/${selected.id}/`)).map(section => { const View = section.View; return <ContributionBoundary key={section.id}><View /></ContributionBoundary>; }) : null}
       {selected ? <section className="settings-group plugin-settings-info" aria-label={i18n.t("Plugin information")}>
         <h3 className="settings-group-heading">{i18n.t("Plugin information")}</h3>
         <SettingsRow label={i18n.t("Version")}><span className="settings-description">{selected.version}</span></SettingsRow>
         <SettingsRow label={i18n.t("Installation revision")}><span className="settings-description" title={selected.revision}>{selected.revision.slice(0, 12)}</span></SettingsRow>
         <SettingsRow label={i18n.t("Installation path")}><span className="settings-description [overflow-wrap:anywhere]">{selected.directory}</span></SettingsRow>
-        <SettingsRow label={i18n.t("App default revision")}><span className="settings-description">{i18n.t(selected.bundledRevision === null ? "Not bundled with this app" : selected.revision === selected.bundledRevision ? "Matches app default" : "Differs from app default")}</span></SettingsRow>
+        <SettingsRow label={i18n.t("App default revision")}><span className="settings-description">{i18n.t(defaultState(selected))}</span></SettingsRow>
         {selected.bundledRevision ? <SettingsRow label={i18n.t("App default")}>
-          <Tooltip><TooltipTrigger render={<Button size="sm" variant="secondary" focusableWhenDisabled disabled={busy || selected.revision === selected.bundledRevision} onClick={event => { opener.current = event.currentTarget; setProblem(""); setConfirm(selected); }} />}>{i18n.t("Register again")}</TooltipTrigger>
-            <TooltipContent>{i18n.t(selected.revision === selected.bundledRevision ? "Matches app default" : "Register app default again")}</TooltipContent>
+          <Tooltip><TooltipTrigger render={<Button size="sm" variant="secondary" focusableWhenDisabled disabled={busy || (!selected.registrationError && selected.revision === selected.bundledRevision)} onClick={event => { opener.current = event.currentTarget; setProblem(""); setConfirm(selected); }} />}>{i18n.t("Register again")}</TooltipTrigger>
+            <TooltipContent>{i18n.t(!selected.registrationError && selected.revision === selected.bundledRevision ? "Matches app default" : "Register app default again")}</TooltipContent>
           </Tooltip>
         </SettingsRow> : null}
       </section> : null}
@@ -113,12 +118,12 @@ export function PluginSettings({ sections, errors, onOpen, focusSection, selecte
               <dt>{i18n.t("Installation path")}</dt><dd>{item.directory}</dd>
               {item.bundledRevision ? <><dt>{i18n.t("App default revision")}</dt><dd>{item.bundledRevision}</dd></> : null}
             </dl>
-            <p>{i18n.t(item.bundledRevision === null ? "Not bundled with this app" : item.revision === item.bundledRevision ? "Matches app default" : "Differs from app default")}</p>
+            <p>{i18n.t(defaultState(item))}</p>
             {pluginError(item.id) ? <p>{pluginError(item.id)}</p> : null}
           </TooltipContent>
         </Tooltip>
       </>} />
-      <div className="plugin-settings-gear"><Tooltip><TooltipTrigger render={<Button ref={item.id === focusSection?.split("/")[1] ? focusTarget : undefined} size="icon-sm" variant="ghost" className="aria-disabled:bg-transparent aria-disabled:border-transparent aria-disabled:opacity-50" aria-label={i18n.t("{{name}} settings", { name: displayName(item) })} focusableWhenDisabled disabled={busy || !item.enabled || loading(item)} onClick={() => onOpen(`plugin/${item.id}`)} />}><Settings aria-hidden="true" /></TooltipTrigger>
+      <div className="plugin-settings-gear"><Tooltip><TooltipTrigger render={<Button ref={item.id === focusSection?.split("/")[1] ? focusTarget : undefined} size="icon-sm" variant="ghost" className="aria-disabled:bg-transparent aria-disabled:border-transparent aria-disabled:opacity-50" aria-label={i18n.t("{{name}} settings", { name: displayName(item) })} focusableWhenDisabled disabled={busy || (!item.registrationError && (!item.enabled || loading(item)))} onClick={() => onOpen(`plugin/${item.id}`)} />}><Settings aria-hidden="true" /></TooltipTrigger>
         <TooltipContent>{i18n.t(loading(item) ? "Loading…" : item.enabled ? "{{name}} settings" : "Turn on {{name}} to open settings", { name: displayName(item) })}</TooltipContent>
       </Tooltip></div>
     </section>)}

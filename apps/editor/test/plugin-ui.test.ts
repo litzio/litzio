@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PLUGIN_UI, type UiRegistration } from "@litzio/plugin-api/config";
@@ -26,10 +27,11 @@ test("UI activations isolate faults, reject incompatibility before load, preserv
     }, () => ({} as UiHost), () => {});
   const good = registration(), other = registration("other"), broken = registration("broken"), incompatible = registration("incompatible");
   incompatible.ui.api = 99;
-  registry.reconcile([good, other, broken, incompatible]); await settle();
+  registry.reconcile([good, other, broken, incompatible, { ...registration("stale"), registrationError: "Saved manifest is invalid." }]); await settle();
   assert.deepEqual(loads, ["test", "other", "broken"]);
   assert.match(states.find(item => item.id === "broken")!.error!, /evaluation failed/u);
   assert.match(states.find(item => item.id === "incompatible")!.error!, /Incompatible/u);
+  assert.match(states.find(item => item.id === "stale")!.error!, /Saved manifest/);
   const otherActivation = states.find(item => item.id === "other")!.contributions;
   registry.reconcile([other]); await settle();
   assert.deepEqual(disposed, ["test"]);
@@ -91,6 +93,15 @@ test("installed UI assets use identical validated routes/CSP in Desktop and inde
     assert.match((await send(asset(PLUGIN_UI.style))).headers.get("content-type")!, /text\/css/u);
     assert.notEqual((await send(asset("../worker.cjs"))).status, 200);
     assert.notEqual((await send(asset(PLUGIN_UI.script, "old"))).status, 200);
+    const db = new DatabaseSync(path.join(root, "plugins/runtime.sqlite"));
+    try {
+      db.prepare("UPDATE plugins SET value=? WHERE id=?").run(JSON.stringify({ ...installed, version: "abcdef123456" }), "docling");
+      assert.throws(() => store!.uiAsset("docling", installed.revision, PLUGIN_UI.script), /version must be semver/);
+      assert.equal((await send(asset(PLUGIN_UI.script))).status, 400, "direct asset requests also reject the stored manifest");
+    } finally {
+      db.prepare("UPDATE plugins SET value=? WHERE id=?").run(JSON.stringify(installed), "docling");
+      db.close();
+    }
     store.unregister("docling"); assert.notEqual((await send(asset(PLUGIN_UI.script))).status, 200);
     assert.equal(store.register(path.join(root, "manifest.json")).revision, installed.revision);
   }

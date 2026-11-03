@@ -8,7 +8,7 @@ import { hostPaths, type HostRun } from "./host-paths.ts";
 import { accessPath, type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
 import { resolveDocumentPath, resolveMediaPath } from "./document-path.ts";
 import { readModel } from "./document-replay.ts";
-import { readPluginBuild } from "./plugin-store.ts";
+import { readPluginBuild, registrationError } from "./plugin-store.ts";
 import { PluginRuntime } from "./plugin-runtime.ts";
 import { AI_TASK, AI_AGENT, type AiTaskService, type AiProvider, type AiAgentSettings } from "@litzio/plugin-api/ai";
 import { AiAgentConnection } from "./ai-agent-connection.ts";
@@ -79,7 +79,8 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
   const inventory = () => {
     const defaults = bundled();
     return plugins(true).list().map(item => ({ ...item,
-      bundledRevision: defaults.find(build => build.manifest.id === item.id)?.revision ?? null }));
+      bundledRevision: defaults.find(build => build.manifest.id === item.id)?.revision ?? null,
+      registrationError: registrationError(item) }));
   };
   const reregister = (id: string) => {
     const build = bundled().find(build => build.manifest.id === id);
@@ -89,6 +90,8 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
   const load = (id: string) => {
     const store = plugins(true), installation = store.list().find(item => item.id === id);
     if (!installation?.host) throw new Error("Plugin Host operations are unavailable.");
+    const problem = registrationError(installation);
+    if (problem) throw new Error(problem);
     const key = `${id}/${installation.revision}`;
     let plugin = activations.get(key);
     if (!plugin) {

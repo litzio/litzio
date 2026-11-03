@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { createServer } from "node:http";
 import { listenForFetch } from "@litzio/plugin-api/testing";
@@ -35,6 +36,19 @@ test("plugin inventory compares pinned and bundled revisions without replacing, 
   assert.equal(restored.revision, restored.bundledRevision);
   writeFileSync(manifest, JSON.stringify({ id: "external", version: "1.0.0", workerApi: 1, entry: "worker.cjs" }));
   host.plugins().register(manifest);
+  const db = new DatabaseSync(path.join(root, "store/runtime.sqlite"));
+  for (const item of host.plugins().list().filter(item => ["example", "external"].includes(item.id))) {
+    db.prepare("UPDATE plugins SET value=? WHERE id=?").run(JSON.stringify({ ...item, version: "abcdef123456" }), item.id);
+  }
+  db.close();
+  for (const id of ["example", "external"]) {
+    const item = (await list()).find(item => item.id === id)!;
+    assert.match(item.registrationError!, /manifest/);
+    assert.equal(item.version, "abcdef123456"); // Inventory must not migrate data.
+  }
+  write("1.0.0");
+  assert.equal((await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ bundled: "example" }) })).status, 200);
+  assert.equal((await list()).find(item => item.id === "example")!.registrationError, null);
   write("2.0.0");
   assert.equal(host.inventory().find(item => item.id === "external")!.bundledRevision, null);
   assert.throws(() => host.reregister("external"), /bundled/);

@@ -9,6 +9,7 @@ import { createServer } from "node:http";
 import { createPluginHost } from "../server/plugin-host.ts";
 import { handleDocumentRequest } from "../server/document-api.ts";
 import { listenForFetch } from "@litzio/plugin-api/testing";
+import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
 import { RootAccess, FileAccessError } from "../server/file-access.ts";
 
@@ -86,6 +87,19 @@ test("headless Host operations use the installed plugin through local and HTTP c
   const job = { id: randomUUID(), input: "input.pdf", output: "output", startedAt: Date.now(), state: "running" as const, progress: { phase: "checking" as const } };
   host.plugins().admit(job, "same-input", "echo");
   assert.throws(() => host.plugins().admit(job, "same-input", "another-plugin"), /conflicts/u, "a UUID cannot alias another plugin's work");
+  // Reject a changed stored manifest even when this revision is already activated.
+  const current = host.plugins().list().find(item => item.id === "echo")!;
+  const db = new DatabaseSync(path.join(root, "installed/runtime.sqlite"));
+  try {
+    db.prepare("UPDATE plugins SET value=? WHERE id=?").run(JSON.stringify({ ...current, version: "abcdef123456" }), "echo");
+    assert.throws(() => host.invoke("echo", "increment"), /version must be semver/);
+    assert.equal((await fetch(url + "/api/echo")).status, 400);
+    assert.equal(host.plugins().get(job.id)!.installation.version, current.version, "accepted work keeps its pinned installation");
+  } finally {
+    db.prepare("UPDATE plugins SET value=? WHERE id=?").run(JSON.stringify(current), "echo");
+    db.close();
+  }
+  assert.equal(host.invoke("echo", "echo").count, 1, "refused cached operations have no side effects");
   host.plugins().unregister("echo"); assert.throws(() => host.invoke("echo", "increment"), /disabled/u);
   const pinned = host.plugins().list().find(item => item.id === "echo")!;
   const enabled = await fetch(url + "/api/worker-plugins", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: "echo", enabled: true }) });

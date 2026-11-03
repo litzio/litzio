@@ -18,6 +18,7 @@ export type Receipt<J extends RuntimeJob = ConversionJob> = { job: J; fingerprin
 export const digest = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex");
 function workerManifest(value: unknown): WorkerManifest {
   const manifest = value as WorkerManifest;
+  if (manifest && typeof manifest.version === "string" && semver.valid(manifest.version) === null) throw new Error("Invalid worker manifest: version must be semver.");
   if (!manifest || typeof manifest.id !== "string" || !/^[a-z][a-z0-9-]{0,63}$/u.test(manifest.id) ||
       typeof manifest.version !== "string" || semver.valid(manifest.version) === null ||
       (manifest.entry !== undefined || manifest.workerApi !== undefined ? manifest.workerApi !== 1 || manifest.entry !== "worker.cjs" : !manifest.ui)) {
@@ -35,6 +36,10 @@ function workerManifest(value: unknown): WorkerManifest {
     ...(manifest.tasks ? { tasks: manifest.tasks } : {}), ...(manifest.services ? { services: manifest.services } : {}),
     ...(manifest.host ? { host: { api: manifest.host.api, entry: manifest.host.entry }, routes: manifest.routes } : {}),
     ...(manifest.ui ? { ui: { api: manifest.ui.api, reactMajor: manifest.ui.reactMajor, script: manifest.ui.script, ...(manifest.ui.style ? { style: manifest.ui.style } : {}), ...(manifest.ui.jobRoute ? { jobRoute: manifest.ui.jobRoute } : {}) } } : {}) };
+}
+export function registrationError(item: unknown): string | null {
+  try { workerManifest(item); return null; }
+  catch (error) { return error instanceof Error ? error.message : String(error); }
 }
 export function requestUuid(value: unknown): string {
   if (typeof value !== "string" || !/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu.test(value)) throw new Error("A request UUID is required.");
@@ -94,8 +99,8 @@ export class PluginStore {
       return value;
     });
   }
-  uiList(): UiRegistration[] {
-    return this.list().filter(item => item.enabled && item.ui).map(item => ({ id: item.id, revision: item.revision, ui: item.ui!, ...(item.features ? { features: item.features } : {}) }));
+  uiList(): (UiRegistration & { registrationError: string | null })[] {
+    return this.list().filter(item => item.enabled && item.ui).map(item => ({ id: item.id, revision: item.revision, ui: item.ui!, registrationError: registrationError(item), ...(item.features ? { features: item.features } : {}) }));
   }
   setFeatures(id: string, features: Record<string, boolean>) {
     if (!features || typeof features !== "object" || Array.isArray(features) || Object.entries(features).some(([key, value]) => !/^[a-z][a-z0-9-]*$/u.test(key) || typeof value !== "boolean")) throw new Error("Invalid plugin features.");
@@ -136,6 +141,7 @@ export class PluginStore {
   uiAsset(id: string, revision: string, name: string): Buffer {
     const item = this.list().find(item => item.id === id && item.enabled && item.revision === revision);
     if (!item?.ui || (name !== item.ui.script && name !== item.ui.style) || !item.uiHashes?.[name]) throw new Error("UI plugin asset is unavailable.");
+    workerManifest(item);
     const bytes = readFileSync(path.join(item.directory, name));
     if (digest(bytes) !== item.uiHashes[name]) throw new Error("Installed UI asset hash mismatch.");
     return bytes;
@@ -145,6 +151,7 @@ export class PluginStore {
       const item = this.list().find(item => item.id === id);
       if (!item) throw new Error("Worker plugin is not registered.");
       if (item.enabled) throw new Error("Plugin is already enabled.");
+      workerManifest(item);
       // Validate the pinned installation before admitting new work or UI loads.
       const hashes = { ...(item.entry ? { [item.entry]: item.sha256 } : {}),
         ...(item.host && item.hostHash ? { [item.host.entry]: item.hostHash } : {}), ...item.uiHashes };

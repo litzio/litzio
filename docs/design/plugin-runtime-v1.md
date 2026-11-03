@@ -102,7 +102,10 @@ and `remove-correction` regenerate the approved ledger and complete folder throu
 the [correction replay contract](docling-conversion-v1.md#approved-correction-records-and-replay-876).
 They do not admit a PDF worker job or add an AI/approval UI.
 
-Host facade activations follow installation revisions. Plugin-owned transient
+Host facade activations follow installation revisions. Every Host facade entry
+validates the current stored manifest, including activation cache hits. This does
+not change pinned accepted worker execution, receipt reads or the existing
+disable/draining-operation rules. Plugin-owned transient
 session data preserves the current job/admission gate across re-registration;
 it is not durable state or startup restoration. Disable refuses new operations,
 except declared draining operations: Docling status/cancel and UUID replay. A new
@@ -437,7 +440,9 @@ and dedicated-home limitations above remain; #931 is outside this change.
 `GET /api/worker-plugins` returns each pinned installation with its absolute
 `directory` and `bundledRevision` (null for plugins not included in the app).
 The bundled revision uses the exact manifest/file hashing used for registration;
-reading inventory never replaces an existing revision. Missing bundled plugins
+reading inventory never replaces an existing revision. Inventory also returns
+`registrationError` (null when the stored manifest meets current rules). This
+validation does not rewrite registrations or change the semver admission rules. Missing bundled plugins
 retain the existing first-use seeding behavior.
 `POST /api/worker-plugins` with `{ "bundled": "<id>" }` resolves only an app-owned
 manifest and calls the existing explicit registration function, enabling that

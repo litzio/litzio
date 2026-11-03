@@ -376,3 +376,12 @@ Settings 탭·진입의 pointer 이동은 metadata 바깥 적용 대신 탐색�
 AI·Docling 설정은 기존 Host 행 정렬을 유지한다. UI 기여 로딩 중에는 상태를
 표시하고 톱니를 비활성화하며 완료 뒤 진입한다. 설정 없는 플러그인도 정보에
 진입한다. [현재 계약과 전후 캡처](plugin-ui-v1.md#plugin-row-and-version-follow-up-1007-1090).
+
+### Rejected plugin registrations (#1097)
+
+P07/P12 now use the existing Notice and plugin information settings surface for
+stored manifest rejection. Plugin tabs link to that surface; its existing
+SettingsRow/Button and confirmation Dialog perform explicit bundled registration.
+This follows the same error and confirmation implementations used by Settings
+and FolderDialog; no new shared interaction or Plugin API is introduced.
+The current contract is [Plugin UI rejection handling](plugin-ui-v1.md#rejected-saved-registrations-1097).

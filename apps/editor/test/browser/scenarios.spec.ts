@@ -1,5 +1,6 @@
 import { brand } from "../../../../brand.ts";
 import { PluginStore } from "../../server/plugin-store.ts";
+import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
 import { fakeDoclingServer } from "../helpers/docling-server.ts";
 import { uiPluginFixture } from "../helpers/ui-plugin.ts";
@@ -176,7 +177,7 @@ for (const name of scenarios) {
     if (liveDocling) test.setTimeout(900_000);
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", ...(liveDocling ? ["manual", "docling-live.js"] : [`${name}.browser.js`])), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; pluginFixture: ReturnType<typeof uiPluginFixture>; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown; doclingFixture: { url: string; mode?: (value: import("../helpers/docling-server.ts").DoclingMode) => void; input: string; captures: string; uncertain(): string; submissions?: () => number; changeResult(folder: string, remove: boolean): void; result(folder: string): unknown } }) => Promise<unknown>;
+    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; pluginFixture: ReturnType<typeof uiPluginFixture>; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown; stalePluginRegistration(): void; doclingFixture: { url: string; mode?: (value: import("../helpers/docling-server.ts").DoclingMode) => void; input: string; captures: string; uncertain(): string; submissions?: () => number; changeResult(folder: string, remove: boolean): void; result(folder: string): unknown } }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
@@ -200,6 +201,14 @@ for (const name of scenarios) {
     }
     let result;
     try { result = await scenario(page, { fullLayout: process.env.LITZIO_TEST_LAYOUT_SCOPE !== "representative", brand, pluginFixture: uiPluginFixture(path.join(REPOSITORY_ROOT, "tmp/plugin-ui")), assertSavedSource: savedSourceAssertion(test.info()), screenshots, showNotifications, fileActionsRoot: FILE_ACTIONS_ROOT, expect, recoveryRecords, openFolderPicker, openDocument, openPath, waitForActivePath, reloadDocument, waitForEditorFocus, activeDocument, withBlockHover, bibliographyFixture,
+      stalePluginRegistration: () => {
+        const db = new DatabaseSync(path.join(REPOSITORY_ROOT, "tmp/browser-plugins/runtime.sqlite"));
+        try {
+          db.exec("PRAGMA busy_timeout=5000");
+          const row = db.prepare("SELECT value FROM plugins WHERE id=?").get("docling")!;
+          db.prepare("UPDATE plugins SET value=? WHERE id=?").run(JSON.stringify({ ...JSON.parse(row.value as string), version: "abcdef123456" }), "docling");
+        } finally { db.close(); }
+      },
       doclingFixture: { url: fake?.url ?? "http://127.0.0.1:8001", mode: fake?.mode,
         input: liveDocling ? liveInput : path.join(REPOSITORY_ROOT, "tmp", name === "docling-dashboard" ? "docling-dashboard" : "docling-server", name === "docling-dashboard" ? "completed.pdf" : "paper.pdf"),
         captures: captureDirectory,
