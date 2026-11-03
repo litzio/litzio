@@ -699,8 +699,10 @@ function EditorApp() {
   }
   const [desktopInfo, setDesktopInfo] = useState<DesktopInfo | null>(null);
   const settingsFocusRequested = useRef(false);
+  const settingsReturnTab = useRef<string | null>(null);
   function openSettingsTab(): void {
     if (operationRef.current || continuation) return;
+    if (activeId !== "settings") settingsReturnTab.current = activeId;
     if (assistantOverlay) setAssistantOpen(false);
     settingsFocusRequested.current = true;
     if (settingsGroup) {
@@ -718,6 +720,7 @@ function EditorApp() {
   const settingsReturnFocus = useRef<HTMLElement | null>(null);
   function closeSettingsTab(): void {
     closeTab("settings");
+    if (settingsReturnTab.current && navigation.groups.some(group => group.tabs.includes(settingsReturnTab.current!))) navigate({ type: "select", id: settingsReturnTab.current });
     requestAnimationFrame(() => { const target = shellReturnFocus(settingsReturnFocus.current); if (target !== true) target.focus(); });
   }
 

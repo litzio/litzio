@@ -11,7 +11,8 @@ async (page, { showNotifications, openDocument }) => {
   const file = [root, 'tmp', 'continuous-editing', 'continuous-editing.md'].join(separator);
   await openDocument(page, file);
   await page.locator('[data-document-tab][data-active=true] .document-editor h2').filter({hasText:'Heading'}).waitFor();
-  const doc = () => page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(el => el.editor.getJSON());
+  const documentTabId = await page.locator('[data-document-tab][data-active=true]').getAttribute('data-document-tab');
+  const doc = () => page.locator(`[data-document-tab="${documentTabId}"] .document-editor`).evaluate(el => el.editor.getJSON());
   const semantic = value => JSON.stringify(value, (key, item) => ['sourcePath', 'original', 'sourceCell'].includes(key) ? undefined : item);
   const assert = (ok, message) => { if (!ok) throw new Error(message); };
   const select = async (start, end = start) => page.locator('[data-document-tab][data-active=true] .document-editor').evaluate((el, args) => {
@@ -134,7 +135,7 @@ async (page, { showNotifications, openDocument }) => {
   await page.getByRole('button', {name:'Settings',exact:true}).click();
   const settings = page.getByTestId('settings-dialog');
   await settings.waitFor();
-  await settings.getByRole('heading', {name:'Settings',exact:true}).click();
+  await settings.locator('nav button[aria-current=page]').focus();
   for (const key of ['Control+z', 'Control+y', 'Control+Shift+z']) {
     await page.keyboard.press(key);
     assert(await snapshot() === beforeSettings && await settings.isVisible(), 'Settings leaked document history');
@@ -160,6 +161,7 @@ async (page, { showNotifications, openDocument }) => {
   }
   await page.keyboard.type('retained772');
   const retainedDraft = await page.getByTestId('equation-latex').inputValue();
+  const retainedInput = await page.getByTestId('equation-latex').elementHandle();
   // Leave an outside Redo entry too, so both directions must respect the modal.
   await page.keyboard.press('ArrowLeft'); await page.keyboard.press('ArrowRight');
   await page.keyboard.type('x'); await page.keyboard.press('Control+z');
@@ -167,12 +169,12 @@ async (page, { showNotifications, openDocument }) => {
   // #831: browser history must not escape a modal into an unapplied source form.
   await page.getByRole('button', {name:'Settings',exact:true}).click();
   await settings.waitFor();
-  await settings.getByRole('heading', {name:'Settings',exact:true}).click();
+  await settings.locator('nav button[aria-current=page]').focus();
   const modalHistory = [];
   for (const key of ['Control+z', 'Control+y', 'Control+Shift+z']) {
     await page.keyboard.press(key);
     modalHistory.push({key, inside:await settings.evaluate(el => el.contains(document.activeElement)),
-      draft:await page.getByTestId('equation-latex').inputValue()});
+      draft:await retainedInput.evaluate(input => input.value)});
   }
   assert(modalHistory.every(result => result.inside && result.draft === retainedDraft),
     `Modal history escaped or changed the draft: ${JSON.stringify(modalHistory)}`);
@@ -194,7 +196,7 @@ async (page, { showNotifications, openDocument }) => {
     await page.keyboard.press(key);
     assert(await serverAddress.inputValue() === expected && await serverAddress.evaluate(el => el === document.activeElement),
       `Modal input ${key} lost its own native history or focus`);
-    assert(await page.getByTestId('equation-latex').inputValue() === retainedDraft && await snapshot() === beforeDraft,
+    assert(await retainedInput.evaluate(input => input.value) === retainedDraft && await snapshot() === beforeDraft,
       `Modal input ${key} changed the outside draft/document`);
   }
   await page.keyboard.press('Escape');

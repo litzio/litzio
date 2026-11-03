@@ -371,8 +371,13 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await page.getByRole('button',{name:'Saving & recovery',exact:true}).click();
   await capture('settings');
+  let writesFromSettings = 0;
+  const settingsWrite = request => { if (request.method() === 'POST' && request.url().split('?')[0].endsWith('/api/document')) writesFromSettings++; };
+  page.on('request', settingsWrite);
   await page.keyboard.press('Control+s');
-  check(await page.getByTestId('status').getAttribute('data-operation') === 'ready', 'Save shortcut bypassed Settings modal');
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  page.off('request', settingsWrite);
+  check(writesFromSettings === 0, 'Save shortcut in Settings wrote the hidden document');
   await page.getByRole('button',{name:'Clear all recovery records…',exact:true}).click();
   const clearConfirm = page.getByRole('dialog',{name:'Delete all recovery records?',exact:true});
   await clearConfirm.waitFor({timeout:5000});
