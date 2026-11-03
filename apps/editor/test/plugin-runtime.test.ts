@@ -257,7 +257,7 @@ test("Host close awaits admitted workers and permanently prevents another runtim
     const folder = path.join(root, phase), worker = path.join(folder, "worker"); mkdirSync(worker, { recursive: true });
     const input = path.join(folder, "paper.pdf"), pidFile = path.join(folder, "worker.pid"); writeFileSync(input, "%PDF-1.7\nclose");
     writeFileSync(path.join(worker, "worker.cjs"), `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); require(${JSON.stringify(path.join(bundled, "worker.cjs"))});`);
-    writeFileSync(path.join(worker, "manifest.json"), JSON.stringify(withHost(worker, { id: "docling", version: "close-test", workerApi: 1, entry: "worker.cjs" })));
+    writeFileSync(path.join(worker, "manifest.json"), JSON.stringify(withHost(worker, { id: "docling", version: "1.0.0-close-test", workerApi: 1, entry: "worker.cjs" })));
     const plugins = path.join(folder, "plugins"), host = createDoclingHost(new RootAccess([folder]), path.join(folder, "settings.json"), { directory: plugins, manifest: path.join(worker, "manifest.json") });
     t.after(() => host.close()); host.configure(fake.url);
     const submissions = fake.submissions(), job = await host.start(input);
@@ -286,6 +286,13 @@ test("manifest/API validation and crashed registry lock recovery preserve the co
   const manifest = path.join(bundled, "manifest.json");
   const installed = store.register(manifest);
   const incompatible = path.join(root, "bad.json");
+  assert.equal(installed.version, JSON.parse(readFileSync(new URL("../../desktop/package.json", import.meta.url), "utf8")).version);
+  for (const version of ["1", "01.0.0", "1.0.0-01", "a".repeat(64)]) {
+    writeFileSync(incompatible, JSON.stringify({ ...installed, version }));
+    assert.throws(() => store.register(incompatible), /Invalid worker manifest/);
+    assert.equal(store.list()[0].revision, installed.revision);
+  }
+
   writeFileSync(incompatible, JSON.stringify({ ...installed, workerApi: 2 }));
   assert.throws(() => store.register(incompatible), /incompatible/);
   assert.equal(store.list()[0].sha256, installed.sha256);
@@ -331,7 +338,7 @@ test("worker kill during a partial REST download and deadline leave Host alive a
   const custom = path.join(root, "worker"); mkdirSync(custom);
   const pidFile = path.join(root, "worker.pid");
   writeFileSync(path.join(custom, "worker.cjs"), `require('node:fs').writeFileSync(${JSON.stringify(pidFile)}, String(process.pid)); require(${JSON.stringify(path.join(bundled, "worker.cjs"))});`);
-  writeFileSync(path.join(custom, "manifest.json"), JSON.stringify(withHost(custom, { id: "docling", version: "fault-test", workerApi: 1, entry: "worker.cjs" })));
+  writeFileSync(path.join(custom, "manifest.json"), JSON.stringify(withHost(custom, { id: "docling", version: "1.0.0-fault-test", workerApi: 1, entry: "worker.cjs" })));
   const access = new RootAccess([root]);
   const host = createDoclingHost(access, path.join(root, "settings.json"), { directory: path.join(root, "plugins"), manifest: path.join(custom, "manifest.json") });
   const fake = await fakeDoclingServer(); host.configure(fake.url);
@@ -383,7 +390,7 @@ test("Desktop registration is used by an independent serve; UUID conflict, disab
   const workerPids = path.join(root, "worker-pids.txt"), custom = path.join(root, "worker"); mkdirSync(custom);
   writeFileSync(path.join(custom, "worker.cjs"), `require('node:fs').appendFileSync(${JSON.stringify(workerPids)}, process.pid + '\\n'); require(${JSON.stringify(path.join(bundled, "worker.cjs"))});`);
   const manifest = path.join(custom, "manifest.json");
-  writeFileSync(manifest, JSON.stringify(withHost(custom, { id: "docling", version: "shared-test", workerApi: 1, entry: "worker.cjs" })));
+  writeFileSync(manifest, JSON.stringify(withHost(custom, { id: "docling", version: "1.0.0-shared-test", workerApi: 1, entry: "worker.cjs" })));
   writeFileSync(path.join(root, "index.html"), "<!doctype html><title>test</title>");
   const previousPlugins = process.env.LITZIO_PLUGINS_DIR, previousSettings = process.env.LITZIO_DOCLING_SETTINGS_FILE;
   process.env.LITZIO_PLUGINS_DIR = plugins; process.env.LITZIO_DOCLING_SETTINGS_FILE = settings;

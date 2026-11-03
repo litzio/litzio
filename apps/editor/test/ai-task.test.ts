@@ -18,7 +18,11 @@ import { AiAgentConnection } from "../server/ai-agent-connection.ts";
 import { fileURLToPath } from "node:url";
 import { brand } from "../../../brand.ts";
 
-before(() => buildAiAgent(path.dirname(bundledAiManifest())));
+before(async () => {
+  await buildAiAgent(path.dirname(bundledAiManifest()));
+  assert.equal(JSON.parse(readFileSync(bundledAiManifest(), "utf8")).version,
+    JSON.parse(readFileSync(new URL("../../desktop/package.json", import.meta.url), "utf8")).version);
+});
 async function finished(read: () => AiTaskRecord | null) {
   const deadline = Date.now() + 10_000;
   while (true) {
@@ -44,7 +48,7 @@ test("installed caller uses Host-mediated service, HTTP observes completion, UUI
   writeFileSync(path.join(facade, "host.cjs"), `exports.activate = host => ({ routes: {}, operations: {
     available: () => !!host.aiTasks(), start: request => { const service = host.aiTasks(); if (!service) throw new Error('AI agent is disabled'); return service.start(request); }
   } });`);
-  writeFileSync(path.join(facade, "manifest.json"), JSON.stringify({ id: "feature", version: "1", ui: { api: 1, reactMajor: 19, script: "ui.mjs" }, host: { api: 1, entry: "host.cjs" } }));
+  writeFileSync(path.join(facade, "manifest.json"), JSON.stringify({ id: "feature", version: "1.0.0", ui: { api: 1, reactMajor: 19, script: "ui.mjs" }, host: { api: 1, entry: "host.cjs" } }));
   host.plugins(true).register(path.join(facade, "manifest.json"));
   const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, new RootAccess([root]), 1_000_000, undefined, undefined, host); });
   await listenForFetch(server); const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
@@ -114,7 +118,7 @@ test("fake adapter failures, timeout and actual worker cancellation never expose
   const incomplete = path.join(root, "incomplete-worker"); mkdirSync(incomplete);
   writeFileSync(path.join(incomplete, "worker.cjs"), 'process.once("message", () => process.send({ type: "complete", result: { value: "partial", input: {} } }, () => process.exit(7)));');
   writeFileSync(path.join(incomplete, "host.cjs"), readFileSync(path.join(path.dirname(bundledAiManifest()), "host.cjs")));
-  writeFileSync(path.join(incomplete, "manifest.json"), JSON.stringify({ id: AI_TASK.plugin, version: "incomplete", workerApi: 1, entry: "worker.cjs", tasks: [AI_TASK.service], host: { api: 1, entry: "host.cjs" } }));
+  writeFileSync(path.join(incomplete, "manifest.json"), JSON.stringify({ id: AI_TASK.plugin, version: "1.0.0-incomplete", workerApi: 1, entry: "worker.cjs", tasks: [AI_TASK.service], host: { api: 1, entry: "host.cjs" } }));
   store.register(path.join(incomplete, "manifest.json"));
   const partial = { ...message(input), caller: AI_TASK.plugin };
   await runtime.start(partial, 5000, AI_TASK.plugin);

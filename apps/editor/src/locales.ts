@@ -1,6 +1,9 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "{{name}} settings": "{{name}} settings",
+  "Turn on {{name}} to open settings": "Turn on {{name}} to open settings",
+  "Plugin information": "Information",
   "Installation details": "Installation details",
   "Back to plugins": "Back to plugins",
   "Copilot diagnostics": "Copilot diagnostics",
@@ -1086,6 +1089,9 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "{{name}} settings": "{{name}} 설정",
+  "Turn on {{name}} to open settings": "{{name}} 플러그인을 켜면 설정을 열 수 있습니다",
+  "Plugin information": "정보",
   "Installation details": "설치 정보",
   "Back to plugins": "플러그인 목록으로",
   "Copilot diagnostics": "Copilot 진단",

@@ -205,30 +205,33 @@ During feature-driven UI reactivation, Settings retains its selected plugin cate
 while the Host still lists that UI registration. A missing contribution alone is
 not proof of removal. Settings confirms absence through the existing registration
 GET before returning to Plugins; failed reads preserve the selection. Actual
-unregistration/disable still removes the category and selects Plugins (#1007).
+unregistration/disable still selects Plugins (#1007).
 
 ## Host-owned plugin settings (#947)
 
-Settings includes a built-in Plugins category, independent of contributed
-settings and available even when a plugin is disabled. #1007 shows installation
-name (plugin ID), version and Enabled/Off/Error state. Full version, installed and
-bundled revisions, installation path, default-match status and UI loading errors
-are available from the information button on hover or keyboard focus. Only
-mismatches offer Register app default again. The existing confirmation and Host
-registration path remain unchanged; cancellation sends no request.
+Settings includes a built-in Plugins category, independent of contributed settings.
+Each plugin occupies one Host SettingsSwitch row: readable name (Docling / localized
+AI agent for bundled plugins, otherwise the plugin ID), semver version and
+Enabled/Off/Error on the left; a ghost gear button and switch at the right edge.
+The current manifest has no display-name field. Full revision, installation path,
+default-match status and errors remain accessible on information-button hover/focus.
+The gear is named “<name> settings”, disabled with an explanatory tooltip when off.
+While UI contributions load, the row shows Loading and disables the gear. A plugin
+with loaded contributions but no settings can still open its information screen.
 
-Each installation uses the Host SettingsSwitch row. Disabling uses the existing
-DELETE path; enabling uses PATCH on the same worker-plugins route and preserves
-the registered revision, directory and feature flags. Errors stay visible and do
-not claim successful activation. Contributions reattach through the existing UI
-registration refresh. Disabled plugins cannot open settings.
+The gear opens one plugin detail screen, including plugins without contributed
+settings. Host owns Back to plugins, the plugin heading, all contributed settings,
+then Information (version, short revision with full title, path and default match)
+and Register app default again for bundled plugins. Cancellation sends no request;
+confirmation calls the existing Host registration path. Back restores focus to the gear.
+No separate Settings or registration action rows appear in the inventory.
 
-Contributed settings are reached from their installation in this list, with Back
-to plugins returning to the list. They are no longer top-level navigation peers
-of Appearance or Saving. openSettings still supports direct plugin entry.
-Feature-driven reactivation retains the selected settings while its registration
-exists; actual disable returns to the list. This composes existing SettingsRow,
-SettingsSwitch and Button; no public Plugin API is added.
+Disabling uses DELETE; enabling uses PATCH and preserves the pinned revision,
+directory and feature flags. Errors do not claim successful activation. Direct
+openSettings entry still works. Feature-driven reactivation preserves the selected
+plugin while installed/enabled; actual disable returns to the list. SettingsRow,
+SettingsSwitch, ghost Button and Tooltip are reused without a new common component
+or public Plugin API. Document semantics are unchanged; no semantic CLI is needed.
 
 `plugin-settings` verifies cancellation, confirmation and the real Host POST/GET,
 with 1440px English Light and 640px Korean Dark captures including long paths.
@@ -344,3 +347,21 @@ built-in settings rows. Before/After evidence:
 [After](assets/plugin-settings-1007/after-1440.png),
 [640 Before](assets/plugin-settings-1007/before-640-dark-ko.png) /
 [After](assets/plugin-settings-1007/after-640-dark-ko.png).
+
+## Plugin row and version follow-up (#1007, #1090)
+
+Bundled manifest version is the app semver from `apps/desktop/package.json` at
+build time. Host revision continues to identify manifest/file contents and install
+paths and default matching; the displayed version is never a content hash.
+Independent plugin version/compatibility/update policy remains #867.
+
+Manual 1440px English Light and 640px Korean Dark review:
+[1440 before](assets/plugin-settings-1007/row-before-1440.png) /
+[after](assets/plugin-settings-1007/row-after-1440.png),
+[640 before](assets/plugin-settings-1007/row-before-640.png) /
+[after](assets/plugin-settings-1007/row-after-640.png),
+[1440 detail](assets/plugin-settings-1007/row-detail-1440.png) /
+[640 detail](assets/plugin-settings-1007/row-detail-640.png).
+
+[1440 information](assets/plugin-settings-1007/row-information-1440.png) /
+[640 information](assets/plugin-settings-1007/row-information-640.png).
