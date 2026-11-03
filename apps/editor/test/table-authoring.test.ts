@@ -76,6 +76,49 @@ function caretIn(state: EditorState, row: number, column: number, index = TABLE)
 
 const cellOf = (state: EditorState) => ({ row: state.selection.$from.index(1), column: state.selection.$from.index(2) });
 
+test("whole rich caption input and composition preserve neighbors and one-step Undo", () => {
+  const source = nativeSource("Before.\n\n:::{figure} ./diagram.svg\n\n**Rich** caption\n:::\n\n:::{table} **Rich** caption\n\n| A |\n| --- |\n| B |\n:::\n\nAfter.\n");
+  for (const type of ["figure", "tableCaption"]) {
+    for (const inputType of ["insertText", "insertReplacementText", "deleteContentBackward", "deleteContentForward", "compositionstart"]) {
+      let { state } = editorState(source);
+      const original = state.doc;
+      let from = -1, to = -1;
+      state.doc.descendants((node, pos) => {
+        if (node.type.name === type) { from = pos + 1; to = from + node.content.size; }
+      });
+      assert.ok(from > 0);
+      state = state.apply(state.tr.setSelection(TextSelection.create(state.doc, from, to)));
+      const extension = documentInteraction(() => assert.fail("unexpected rejection"));
+      const factory = getExtensionField<() => Plugin[]>(extension, "addProseMirrorPlugins", {
+        name: extension.name, options: extension.options, storage: extension.storage,
+        editor: { schema: state.schema, isEditable: true } as Editor,
+      });
+      const plugin = factory!()[0]!;
+      const view = { get state() { return state; }, composing: false,
+        dispatch(tr: Transaction) { state = apply(state, tr); },
+        posAtDOM(_node: unknown, offset: number) { return offset; },
+      } as unknown as EditorView;
+      let prevented = false;
+      if (inputType === "compositionstart") {
+        plugin.props.handleDOMEvents!.compositionstart!.call(plugin, view, {} as CompositionEvent);
+      } else {
+        const event = { inputType, data: "한글", cancelable: true, isComposing: false,
+          getTargetRanges: () => [{ startOffset: from, endOffset: to }],
+          preventDefault() { prevented = true; },
+        } as unknown as InputEvent;
+        assert.equal(plugin.props.handleDOMEvents!.beforeinput!.call(plugin, view, event), true);
+        assert.equal(prevented, true);
+      }
+      const expected = inputType.startsWith("insert") ? "한글" : "";
+      assert.equal(state.doc.textBetween(from, from + expected.length), expected, `${type}/${inputType} text`);
+      assert.ok(state.doc.cut(0, from).eq(original.cut(0, from)), `${type}/${inputType} preceding content`);
+      assert.ok(state.doc.cut(from + expected.length).eq(original.cut(to)), `${type}/${inputType} following content`);
+      assert.equal(undo(state, tr => { state = apply(state, tr); }), true);
+      assert.ok(state.doc.eq(original), `${type}/${inputType} Undo`);
+    }
+  }
+});
+
 test("caption replacement without usable target ranges leaves the event and document untouched", () => {
   const { state } = editorState(mixed);
   const extension = documentInteraction(() => assert.fail("unexpected rejection"));

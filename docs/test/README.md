@@ -40,6 +40,30 @@ runner는 원본 fixture의 scratch 사본을 준비한다. `file-actions`의 �
 
 ### Browser timeout policy
 
+`pnpm browser:test caption-selection` separates wrapper wiring from shared input
+contracts (#1009 F06). All four hit areas of each Figure variant, Table caption,
+code block and editable endnote retain triple-click selection, replacement and
+neighbor-preservation assertions with a representative character. The text hit area
+of image Figure, Table, code and endnote additionally checks Backspace, Delete and
+clipboard paste: 44 click/input cases replace the former 100-case product.
+Rich-caption drag replacement and native paragraph/cell triple clicks remain.
+
+The image Figure runs all six Chromium Korean composition endings (plain, Escape
+and Backspace with cancellation/commit). Mermaid, Table and pending Figure each
+retain commit and Escape cancellation, giving 12 paths instead of 28. Every path
+checks DOM/model/contentDOM consistency immediately after composition, two frames
+later, surrounding content and one-step Undo/Redo. Each of the four NodeViews saves
+and reloads both committed and cancelled content. CDP composition does not verify
+the Windows OS candidate UI; that remains a manual check in the
+[Test Guide](TEST_GUIDE.md).
+
+`table-authoring.test.ts` owns the shared whole-rich-caption `beforeinput` and
+composition-start transaction contract for Figure and Table: text/replacement
+input, backward/forward deletion, neighbor preservation and one-step Undo. Browser
+tests retain the real DOM range, wrapper event wiring, clipboard and native
+composition lifecycle risks that this headless test cannot prove. No new runner,
+retry or timeout override is used.
+
 The [shared config](../../apps/editor/test/browser/playwright.config.ts) limits each scenario to
 120 seconds and each action/wait or navigation to 15 seconds. Both persistent-context launch paths
 explicitly apply the configured defaults before creating pages: the worker session in
