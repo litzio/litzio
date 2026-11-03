@@ -1,5 +1,5 @@
 import { sourceConverterVersions } from "../src/conversion/record.ts";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
@@ -12,6 +12,7 @@ export async function buildPlugin(destination: string) {
   checkPluginSources(fileURLToPath(new URL("../", import.meta.url)));
   checkFeatureBoundaries(fileURLToPath(new URL("../src", import.meta.url)));
   mkdirSync(destination, { recursive: true });
+  cpSync(fileURLToPath(new URL("../schema/LICENSE", import.meta.url)), path.join(destination, "Docling-schema-LICENSE.txt"));
   const define = { __LITZIO_CONVERSION_VERSIONS__: JSON.stringify(sourceConverterVersions()) };
   const result = await build({
     define,

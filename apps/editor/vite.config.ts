@@ -9,6 +9,8 @@ import { defineConfig, type ViteDevServer } from "vite";
 import { buildDoclingWorker } from "../../packages/cli/scripts/build-docling-worker.ts";
 import { buildAiAgent } from "../../packages/cli/scripts/build-ai-agent.ts";
 import { faviconSvg } from "../../scripts/brand-icons.ts";
+import { collectPackages, packageNotices } from "../../scripts/third-party-notices.ts";
+import path from "node:path";
 import { brand } from "../../brand.ts";
 
 export default defineConfig({
@@ -23,6 +25,17 @@ export default defineConfig({
     },
   },
   plugins: [
+    {
+      name: "third-party-notices",
+      generateBundle() {
+        const editor = fileURLToPath(new URL("./", import.meta.url));
+        // CSS sources are build-time dependencies but their content is shipped.
+        const css = ["tailwindcss", "shadcn"].map(name => path.join(editor, "node_modules", name, "package.json"));
+        const packages = collectPackages([...this.getModuleIds()].filter(id => !id.startsWith("\0")).map(id => id.split("?")[0]).concat(css), [editor]);
+        const copied = readFileSync(new URL("./public/licenses/Shadcn-copied-source.txt", import.meta.url), "utf8");
+        this.emitFile({ type: "asset", fileName: "licenses/THIRD_PARTY_LICENSES.txt", source: packageNotices(packages) + "\n\n" + copied });
+      },
+    },
     react(),
     tailwindcss(),
     {

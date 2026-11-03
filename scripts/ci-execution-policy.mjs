@@ -44,10 +44,12 @@ const desktopBuildInputs = new Set([
   'plugins/docling/scripts/check-boundaries.ts', 'plugins/ai-agent/scripts/build.ts',
   'packages/plugin-api/src/build.ts', 'packages/plugin-api/src/config.ts',
   'apps/editor/vite.config.ts',
+  'plugins/docling/schema/LICENSE',
   ...['packages/cli', 'packages/core', 'packages/file-commit', 'packages/plugin-api',
     'plugins/docling', 'plugins/ai-agent', 'apps/editor'].map(path => `${path}/tsconfig.json`),
 ]);
-const lifecycleFullPaths = path => shared(path) || !known(path) || desktopBuildInputs.has(path) ||
+const desktopBuildInput = path => desktopBuildInputs.has(path) || path.startsWith('apps/editor/public/licenses/');
+const lifecycleFullPaths = path => shared(path) || !known(path) || desktopBuildInput(path) ||
   path === 'brand.ts' || path.endsWith('/package.json') ||
   path.startsWith('apps/desktop/installer/') || path.startsWith('apps/desktop/scripts/') ||
   ['main.ts', 'preload.ts', 'preferences.ts', 'updates.ts', 'update-policy.ts',
@@ -60,7 +62,7 @@ const lifecycleFullPaths = path => shared(path) || !known(path) || desktopBuildI
 // document semantics retain representative coverage.
 // Development-only UI is excluded from production, including its styles (#1013 1A).
 const layoutFullPaths = path => !path.startsWith('apps/editor/src/dev/') && (
-  shared(path) || !known(path) || desktopBuildInputs.has(path) ||
+  shared(path) || !known(path) || desktopBuildInput(path) ||
   path === 'brand.ts' || path.endsWith('/package.json') ||
   path.startsWith('apps/desktop/') || path.startsWith('apps/editor/src/shell/') ||
   path.startsWith('apps/editor/shared/') || path.startsWith('apps/editor/src/components/ui/') ||
