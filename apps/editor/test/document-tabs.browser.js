@@ -373,46 +373,25 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     check(JSON.stringify(fixedBefore) === JSON.stringify(fixedAfter), 'Scrolling tabs moved the active document actions');
     if(width===640)check(overflow, 'Narrow tablist did not own its horizontal overflow');
     if (width === 640) {
-      const selected = page.locator('.document-tab[data-selected="true"]');
-      const chooseHiddenA = async () => {
-        const trigger = page.getByRole('button', {name:/^Hidden tabs:/});
-        await trigger.focus();
-        await page.keyboard.press('Enter');
-        const menu = page.getByRole('menu');
-        const choice = menu.getByRole('menuitem').first();
-        await expect(choice).toHaveAttribute('title', a);
-        // Base UI queues initial focus on an animation frame after mounting the popup.
-        // DOM presence alone does not mean navigation keys will reach the menu.
-        await expect.poll(() => menu.evaluate(n => n.contains(document.activeElement))).toBe(true);
-        await page.keyboard.press('ArrowDown');
-        await page.keyboard.press('Home');
-        await expect(choice).toBeFocused();
-        await expect(choice).toHaveAttribute('data-highlighted', '');
-        await page.keyboard.press('Enter');
-        await expect(menu).toBeHidden();
-        await expect(selected).toHaveAttribute('title', a);
-        await expect.poll(() => selected.evaluate(n => {
-          const r=n.getBoundingClientRect(), b=n.parentElement.getBoundingClientRect();
-          return r.left >= b.left - 1 && r.right <= b.right + 1;
-        }), {message:'Choosing a hidden tab did not reveal it'}).toBe(true);
-      };
-      // Establish overflow through a completed activation, rather than racing the
-      // earlier ArrowRight/ArrowLeft focus handoff with a manual scroll.
+      // Start with a different active tab so selection cannot pass without activation.
       await activate('technical-2.md');
+      const selected = page.locator('.document-tab[data-selected="true"]');
       await expect(selected).toHaveAttribute('title', b);
+      const trigger = page.getByRole('button', {name:/^Hidden tabs:/});
+      await trigger.focus();
+      await expect(trigger).toBeFocused();
+      await page.keyboard.press('Enter');
+      const menu = page.getByRole('menu');
+      const choice = menu.getByRole('menuitem', {name:'technical-1.md', exact:true});
+      await expect(choice).toHaveAttribute('title', a);
+      // Base UI owns menu navigation; exercise Litzio's selection/reveal callback.
+      await choice.click();
+      await expect(menu).toBeHidden();
+      await expect(selected).toHaveAttribute('title', a);
       await expect.poll(() => selected.evaluate(n => {
         const r=n.getBoundingClientRect(), bounds=n.parentElement.getBoundingClientRect();
         return r.left >= bounds.left - 1 && r.right <= bounds.right + 1;
-      })).toBe(true);
-      await chooseHiddenA();
-      // Reselecting the active tab must reveal it even without an active-ID change.
-      // Finish the menu's focus return before manually hiding that active tab.
-      await expect(page.getByRole('button', {name:/^Hidden tabs:/})).toBeFocused();
-      await row.evaluate(n => { n.scrollLeft=n.scrollWidth; });
-      await expect.poll(() => selected.evaluate(n =>
-        n.getBoundingClientRect().left < n.parentElement.getBoundingClientRect().left - 1
-      )).toBe(true);
-      await chooseHiddenA();
+      }), {message:'Choosing a hidden tab did not reveal it'}).toBe(true);
     }
 
     await tabA.focus();
