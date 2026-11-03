@@ -22,7 +22,7 @@ function request(value: AiTaskRequest, host: PluginHostContext): AiTaskRequest {
 }
 export function activate(host: PluginHostContext): HostPlugin {
   const settings = (): AiAgentSettings => existsSync(host.settingsFile)
-    ? checkedSettings(JSON.parse(readFileSync(host.settingsFile, "utf8"))) : { ...DEFAULT_AI_SETTINGS, provider: "codex", enabled: true, writeAccess: "opened-folders" };
+    ? checkedSettings(JSON.parse(readFileSync(host.settingsFile, "utf8"))) : { ...(host.aiDefaults ?? DEFAULT_AI_SETTINGS), provider: "codex", enabled: true, writeAccess: "opened-folders" };
   const configure = (value: unknown) => {
     const next = checkedSettings(value);
     mkdirSync(path.dirname(host.settingsFile), { recursive: true });

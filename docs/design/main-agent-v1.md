@@ -42,7 +42,14 @@ not a daemon or a shared controller across Hosts.
 
 ## Settings and read routes
 
-The `ai-agent` plugin's existing settings file stores:
+With no saved AI settings, source checkout execution uses `gpt-6-luna` / `low`
+for inexpensive development checks (#1058). The Host reuses the source/packaged
+run distinction that selects `.litzio-dev`; installed Desktop and distributed
+HTTP Host retain `gpt-6.1-sol` / `medium`. Existing saved settings take priority
+and are never overwritten by these defaults. New assistant conversations and
+their initial model/effort selection use the same AI settings response.
+
+The `ai-agent` plugin's existing settings file stores (installed defaults shown):
 
 ```json
 {

@@ -1,4 +1,4 @@
-import { mkdtempSync, existsSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import { hostPaths } from "../server/host-paths.ts";
 import { brand } from "../../../brand.ts";
@@ -26,10 +26,12 @@ test("source defaults belong to the checkout, independent of launch cwd", () => 
 test("source and packaged paths retain overrides and the packaged user locations", () => {
   const root = path.join(os.tmpdir(), "checkout");
   const source = hostPaths({ packaged: false, checkoutRoot: root }, {});
+  assert.deepEqual(source.aiDefaults, { model: "gpt-6-luna", reasoningEffort: "low" });
   assert.equal(source.plugins, path.join(root, ".litzio-dev", brand.folders.plugins));
   assert.equal(source.settingsFile("ai-agent"), path.join(root, ".litzio-dev", "ai-agent.json"));
   assert.equal(source.agent, path.join(root, ".litzio-dev", "assistant"));
   const packaged = hostPaths({ packaged: true }, {});
+  assert.deepEqual(packaged.aiDefaults, { model: "gpt-6.1-sol", reasoningEffort: "medium" });
   assert.equal(packaged.plugins, path.join(os.homedir(), brand.folders.shared, brand.folders.plugins));
   assert.equal(packaged.settingsFile("docling"), path.join(os.homedir(), brand.folders.shared, "docling.json"));
   const data = process.platform === "win32" ? path.join(os.homedir(), "AppData", "Roaming")
@@ -69,6 +71,13 @@ test("source Host registers and writes defaults only under its injected checkout
   host.plugins(true);
   host.invoke("docling", "configure", { server: "http://127.0.0.1:12346" });
   const state = path.join(root, ".litzio-dev");
+  assert.deepEqual(host.invoke("ai-agent", "settings"), { provider: "codex", enabled: true, writeAccess: "opened-folders", model: "gpt-6-luna", reasoningEffort: "low" });
+  assert.equal(existsSync(path.join(state, "ai-agent.json")), false);
+  const saved = { provider: "codex", enabled: true, writeAccess: "read-only", model: "saved-model", reasoningEffort: "high" };
+  const serialized = JSON.stringify(saved);
+  writeFileSync(path.join(state, "ai-agent.json"), serialized);
+  assert.deepEqual(host.invoke("ai-agent", "settings"), saved);
+  assert.equal(readFileSync(path.join(state, "ai-agent.json"), "utf8"), serialized);
   assert.equal(JSON.parse(readFileSync(path.join(state, "docling.json"), "utf8")).server, "http://127.0.0.1:12346");
   assert.equal(host.invoke("ai-agent", "agentEnvironment").cwd, path.join(state, "assistant"));
   const observer = new PluginStore(path.join(state, "plugins"));
