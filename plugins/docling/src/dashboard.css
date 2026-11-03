@@ -11,7 +11,7 @@
 .docling-dashboard-count { text-align: start; padding: var(--space-1) var(--space-2); border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); background: var(--id-color-surface); display: inline-flex; align-items: center; gap: var(--space-2); }
 .docling-dashboard-count strong { font-weight: 600; }
 .docling-dashboard-count[aria-pressed=true] { border-color: var(--id-color-interaction); background: var(--id-color-surface-hover); }
-.docling-dashboard-count:focus-visible, .docling-dashboard-menu summary:focus-visible { outline: 2px solid var(--id-color-interaction); outline-offset: 2px; }
+.docling-dashboard-count:focus-visible { outline: 2px solid var(--id-color-interaction); outline-offset: 2px; }
 .docling-dashboard-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--id-color-danger); margin-inline-end: var(--space-2); }
 .docling-dashboard-dot.is-connected { background: var(--id-color-accent-green); }
 .docling-dashboard-running { min-width: 12rem; }
@@ -33,9 +33,6 @@
 .docling-dashboard tbody th > div { margin-top: var(--space-2); }
 .docling-dashboard td { min-width: 5rem; }
 .docling-dashboard td:last-child { width: 13rem; }
-.docling-dashboard-menu summary { cursor: pointer; list-style: none; padding: var(--space-2); border-radius: var(--id-radius-md); }
-.docling-dashboard-menu-content { display: flex; flex-direction: column; align-items: start; gap: var(--space-2); padding: var(--space-2); max-width: 20rem; }
-.docling-dashboard-menu-content .docling-review { padding: 0; margin: 0; border: 0; }
 .docling-dashboard-empty { text-align: center; padding: var(--space-6); }
 .plugin-tab.docling-dashboard-tab { overflow-y: auto; min-width: 0; }
 

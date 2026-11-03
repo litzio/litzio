@@ -516,7 +516,7 @@ test("document path splits for display without changing the address", () => {
 });
 
 test("sidebar without a folder offers only Open folder, and collapses", () => {
-  const open = renderToStaticMarkup(<Sidebar onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} onToggle={noop} onOpenFolder={noop} />);
+  const open = renderToStaticMarkup(<Sidebar onWidth={() => {}} onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} onToggle={noop} onOpenFolder={noop} />);
   assert.match(open, />Explorer</);
   assert.match(open, /<button\b(?=[^>]*aria-label="Open folder…")(?=[^>]*title="Open folder…")/);
   assert.doesNotMatch(open, /Open file…/);
@@ -526,7 +526,7 @@ test("sidebar without a folder offers only Open folder, and collapses", () => {
   assert.doesNotMatch(open, /aria-current/);
   assert.doesNotMatch(open, /sidebar-tools|sidebar-display|aria-label="Display"/);
   assert.match(open, /aria-label="Collapse Explorer"/);
-  const collapsed = renderToStaticMarkup(<Sidebar onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open={false} documentPath={PATH} onToggle={noop} onOpenFolder={noop} onSettings={noop} />);
+  const collapsed = renderToStaticMarkup(<Sidebar onWidth={() => {}} onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open={false} documentPath={PATH} onToggle={noop} onOpenFolder={noop} onSettings={noop} />);
   assert.match(collapsed, /<button\b(?=[^>]*aria-label="Expand Explorer")(?=[^>]*title="Expand Explorer")(?=[^>]*aria-controls="sidebar-files")(?=[^>]*aria-expanded="false")/);
   assert.doesNotMatch(collapsed, /Open file…|Litzio/);
   assert.match(collapsed, /id="sidebar-files"[^>]*hidden/);
@@ -552,7 +552,7 @@ test("sidebar folder is a tree under the chosen folder that marks the open docum
     pending: new Map(),
   };
   const html = renderToStaticMarkup(
-    <Sidebar onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={String.raw`C:\docs\guides\guide.md`} folders={[folder]} onToggle={noop} onOpenFolder={noop} onNewDocument={noop} />,
+    <Sidebar onWidth={() => {}} onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={String.raw`C:\docs\guides\guide.md`} folders={[folder]} onToggle={noop} onOpenFolder={noop} onNewDocument={noop} />,
   );
   assert.match(html, /title="C:\\docs"/);
   assert.match(html, />docs</);
@@ -574,12 +574,12 @@ test("sidebar folder is a tree under the chosen folder that marks the open docum
   assert.doesNotMatch(html, /data-testid="sidebar-empty"|>Open file…<|>Close folder</);
   const empty = listing(String.raw`C:\docs`, []);
   const top = renderToStaticMarkup(
-    <Sidebar onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} folders={[{ ...folder, nodes: new Map([[empty.path, empty]]), expanded: new Set() }]}
+    <Sidebar onWidth={() => {}} onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} folders={[{ ...folder, nodes: new Map([[empty.path, empty]]), expanded: new Set() }]}
       onToggle={noop} onOpenFolder={noop} />,
   );
   assert.match(top, /No files or folders/);
   const collapsed = renderToStaticMarkup(
-    <Sidebar onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} folders={[{ ...folder, sectionExpanded: false }]}
+    <Sidebar onWidth={() => {}} onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} folders={[{ ...folder, sectionExpanded: false }]}
       onToggle={noop} onOpenFolder={noop} />,
   );
   assert.match(collapsed, /<ul\b(?=[^>]*role="tree")(?=[^>]*hidden)/);
@@ -591,7 +591,7 @@ test("sidebar folder is a tree under the chosen folder that marks the open docum
     { name: "note.md", kind: "document", path: String.raw`C:\docs\note.md`, native: true },
   ]);
   const marked = renderToStaticMarkup(
-    <Sidebar onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} folders={[{ ...folder, nodes: new Map([[mixed.path, mixed]]), expanded: new Set() }]}
+    <Sidebar onWidth={() => {}} onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} folders={[{ ...folder, nodes: new Map([[mixed.path, mixed]]), expanded: new Set() }]}
       onToggle={noop} onOpenFolder={noop} />,
   );
   assert.match(marked, /<li\b(?=[^>]*data-foreign="true")(?=[^>]*aria-description="Not a Litzio document")[^>]*>/);
@@ -599,7 +599,7 @@ test("sidebar folder is a tree under the chosen folder that marks the open docum
   try {
     void i18n.changeLanguage("ko");
     const localized = renderToStaticMarkup(
-      <Sidebar onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} folders={[{ ...folder, nodes: new Map([[mixed.path, mixed]]), expanded: new Set() }]}
+      <Sidebar onWidth={() => {}} onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} folders={[{ ...folder, nodes: new Map([[mixed.path, mixed]]), expanded: new Set() }]}
         onToggle={noop} onOpenFolder={noop} />,
     );
     assert.match(localized, /title="C:\\docs\\plain.md\nLitzio 문서가 아님"/);
@@ -611,18 +611,18 @@ test("sidebar folder is a tree under the chosen folder that marks the open docum
 test("without a chosen folder, recent folders list again with one click", () => {
   const recent = [String.raw`C:\work\docs`, "/srv/notes/"];
   const html = renderToStaticMarkup(
-    <Sidebar onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} onToggle={noop} onOpenFolder={noop} recent={recent} onOpenRecent={noop} />,
+    <Sidebar onWidth={() => {}} onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} onToggle={noop} onOpenFolder={noop} recent={recent} onOpenRecent={noop} />,
   );
   assert.match(html, /<button\b(?=[^>]*title="C:\\work\\docs")[^>]*>.*?>docs</);
   assert.match(html, /<button\b(?=[^>]*title="\/srv\/notes\/")[^>]*>.*?>notes</);
   // No recent list without a way to open one.
-  assert.doesNotMatch(renderToStaticMarkup(<Sidebar onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} onToggle={noop} onOpenFolder={noop} recent={recent} />), /Recent/);
+  assert.doesNotMatch(renderToStaticMarkup(<Sidebar onWidth={() => {}} onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false} open documentPath={PATH} onToggle={noop} onOpenFolder={noop} recent={recent} />), /Recent/);
 });
 
 test("document panel offers navigation lists, and the TopBar Outline toggle shows whether it is open", () => {
   const outline = createOutlineStore();
   outline.set({ items: [{ index: 0, pos: 0, level: 1, text: "Intro" }, { index: 2, pos: 9, level: 2, text: "Detail" }], current: 1, tables: { items: [], current: -1 }, figures: { items: [], current: -1 } });
-  const panel = renderToStaticMarkup(<DocumentPanel overlay={false} outline={outline} onSelectItem={noop} onClose={noop} />);
+  const panel = renderToStaticMarkup(<DocumentPanel onWidth={() => {}} overlay={false} outline={outline} onSelectItem={noop} onClose={noop} />);
   assert.match(panel, />Outline</);
   assert.doesNotMatch(panel, /aria-label="Hide outline"/);
   assert.match(panel, /data-testid="outline"/);
@@ -799,7 +799,7 @@ test("Settings exposes the offered update without relying on color in both sideb
     i18n.changeLanguage(language);
     for (const open of [true, false]) {
       const render = (updateVersion?: string) => renderToStaticMarkup(
-        <Sidebar onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false}
+        <Sidebar onWidth={() => {}} onFileAction={async () => ""} fileActionsDisabled={false} isFileDirty={() => false}
           open={open} documentPath={PATH} onToggle={noop} onOpenFolder={noop} onSettings={noop} updateVersion={updateVersion} />);
       assert.doesNotMatch(render(), /settings-update-dot/);
       const offered = render("0.3.0-beta.1");

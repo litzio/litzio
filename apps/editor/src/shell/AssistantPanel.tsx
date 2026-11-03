@@ -1,3 +1,4 @@
+import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -232,10 +233,7 @@ export function AssistantPanel({ open, overlay, width, onWidth, onClose, onSetti
         else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
       }
     }}>
-    {!overlay ? <div className="assistant-resize" role="separator" aria-label={i18n.t("Assistant width")} aria-orientation="vertical" aria-valuemin={340} aria-valuemax={560} aria-valuenow={width ?? panel.current?.offsetWidth} tabIndex={0}
-      onKeyDown={event => { if (["ArrowLeft", "ArrowRight"].includes(event.key)) { event.preventDefault(); onWidth(Math.max(340, Math.min(560, (width ?? panel.current!.offsetWidth) + (event.key === "ArrowLeft" ? 20 : -20)))); } }}
-      onPointerDown={event => { event.currentTarget.setPointerCapture(event.pointerId); }}
-      onPointerMove={event => { if (event.currentTarget.hasPointerCapture(event.pointerId)) onWidth(Math.max(340, Math.min(560, window.innerWidth - event.clientX))); }} /> : null}
+    {!overlay ? <PanelResize label={i18n.t("Assistant width")} onWidth={onWidth} /> : null}
     <div className="assistant-header">
       <h2><MessageSquare aria-hidden="true" />{i18n.t("Assistant")}</h2>
       <Button variant="ghost" size="icon-sm" title={i18n.t("New conversation")} aria-label={i18n.t("New conversation")} disabled={!ready || pending || active} onClick={() => { setConversation(undefined); rememberConversation(); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null); if (settings) defaults(settings); input.current?.focus(); }}><Plus /></Button>

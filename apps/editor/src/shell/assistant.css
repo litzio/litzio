@@ -35,8 +35,6 @@
 .assistant-usage circle { fill: none; stroke: var(--id-color-border); stroke-width: 2; }
 .assistant-usage circle + circle { stroke: var(--id-color-accent); }
 .assistant-warning { margin: 0 0 var(--space-2); padding: var(--space-2); color: var(--id-color-warning); background: var(--id-color-surface-warning); font-size: var(--font-size-xs); }
-.assistant-resize { position: absolute; inset: 0 auto 0 -4px; width: 8px; cursor: ew-resize; touch-action: none; }
-.assistant-resize:focus-visible { outline: 2px solid var(--id-color-accent); outline-offset: -2px; }
 .app-shell.app-shell--assistant { --shell-panel: var(--assistant-width, var(--layout-assistant-width)); }
 .app-shell--assistant .plugin-tab { right: var(--shell-panel); }
 @media (width < 1100px) { .app-shell.app-shell--assistant { --shell-panel: 0px; } }

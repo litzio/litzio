@@ -17,6 +17,19 @@ export type SettingsSection = { id: string; label: string; description: string; 
 export type UiNotice = { id: string; message: string; severity: "error" | "warning" | "info"; actionLabel?: string; reveal?(): void };
 export type PluginDialogProps = { open: boolean; onClose(): void; title: string; description: string;
   returnFocus: React.RefObject<HTMLElement | null>; children?: React.ReactNode; footer?: React.ReactNode; testId?: string };
+/** Complete settings rows. Values and persistence remain owned by the caller. */
+export type SettingsRowProps = { label: string; description?: React.ReactNode; children?: React.ReactNode; testId?: string };
+export type SettingsSwitchProps = Omit<SettingsRowProps, "children"> & { checked: boolean; onChange(checked: boolean): void; disabled?: boolean };
+export type SettingsSelectProps = Omit<SettingsRowProps, "children"> & {
+  value: string; options: { value: string; label: string; lang?: string }[]; onChange(value: string): void; disabled?: boolean;
+};
+export type SettingsInputProps = Omit<SettingsRowProps, "children"> & {
+  value: string; onChange(value: string): void; onBlur?(): void; onEnter?(): void;
+  disabled?: boolean; invalid?: boolean; describedBy?: string;
+};
+export type SettingsActionProps = Omit<SettingsRowProps, "children"> & { actionLabel: string; run(): void; disabled?: boolean; variant?: "default" | "secondary" };
+export type UiMenuItem = { id: string; label: string; run(returnFocus: HTMLElement | null): void; disabled?: boolean; danger?: boolean; description?: string };
+export type PluginMenuProps = { label: string; items: UiMenuItem[] };
 export type TabKind = {
   id: string; label: string; className?: string;
   open(resource: string): Promise<TabContent>;
@@ -42,6 +55,12 @@ export type UiHost = {
   Button: React.ComponentType<{ children?: React.ReactNode; onClick(): void; disabled?: boolean; variant?: "ghost" | "secondary" | "default"; size?: "sm" | "default" }>;
   Input: React.ComponentType<React.InputHTMLAttributes<HTMLInputElement>>;
   Dialog: React.ComponentType<PluginDialogProps>;
+  SettingsRow: React.ComponentType<SettingsRowProps>;
+  SettingsSwitch: React.ComponentType<SettingsSwitchProps>;
+  SettingsSelect: React.ComponentType<SettingsSelectProps>;
+  SettingsInput: React.ComponentType<SettingsInputProps>;
+  SettingsAction: React.ComponentType<SettingsActionProps>;
+  Menu: React.ComponentType<PluginMenuProps>;
   text(key: string, values?: Record<string, string | number>): string;
   openExternalLink(url: string): void;
   /** GET-only, same-origin Host read surface; document Root checks remain Host-owned. */

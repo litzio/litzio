@@ -42,10 +42,10 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
   await page.unroute('**/api/document**', holdStartup);
   const field = page.getByRole('textbox', { name: 'Server address' });
   const addressRow = async () => {
-    const a = await page.locator('#docling-server').boundingBox();
+    const a = await field.boundingBox();
     const b = await page.getByRole('button', { name: /^(Check connection|연결 확인)$/ }).boundingBox();
-    expect(b.x).toBeGreaterThanOrEqual(a.x + a.width);
-    expect(Math.abs(a.y + a.height / 2 - b.y - b.height / 2)).toBeLessThan(2);
+    expect(Math.abs(a.x - b.x)).toBeLessThan(2);
+    expect(b.y).toBeGreaterThanOrEqual(a.y + a.height);
   };
   const check = async () => {
     await page.getByRole('button', { name: 'Check connection', exact: true }).click();
