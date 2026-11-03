@@ -34,6 +34,20 @@ async (page, { openPath, reloadDocument, assertSavedSource, expect }) => {
     const beforeCopy = await snapshot();
     const copy = code.getByRole('button', {name:'Copy code', exact:true});
     const body = await code.locator('code').textContent();
+    // Non-local HTTP has no Clipboard API. Keep readback through the real API
+    // while requiring the click to copy through the browser's legacy path.
+    await page.evaluate(async () => {
+      window.copyTestClipboard = navigator.clipboard;
+      await window.copyTestClipboard.writeText('before fallback copy');
+      Object.defineProperty(navigator, 'clipboard', { configurable:true, value:undefined });
+    });
+    try {
+      await copy.click();
+      expect((await page.evaluate(() => window.copyTestClipboard.readText())).replace(/\r\n/g, '\n')).toBe(body);
+      expect(await snapshot()).toBe(beforeCopy);
+    } finally {
+      await page.evaluate(() => { delete navigator.clipboard; delete window.copyTestClipboard; });
+    }
     await copy.click();
     expect((await page.evaluate(() => navigator.clipboard.readText())).replace(/\r\n/g, '\n')).toBe(body);
     await expect(copy).toHaveText('Copied');

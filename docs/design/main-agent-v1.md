@@ -548,6 +548,10 @@ accessible name, keyboard focus ring and hover/focus tooltip. Success changes th
 icon to Check and announces Copied; clipboard failures remain local alerts. Long
 code, tables and display math scroll within the answer. Progress, polling and Codex history ownership are unchanged.
 This is interface display only and adds no semantic operation or CLI command.
+Shared CopyButton also supports browsers without Clipboard API access (for example,
+non-local HTTP) via the temporary-textarea browser copy fallback defined in
+[Code body copy](document-editing-v1.md#code-body-copy-991) (#1049). If both paths
+fail, the existing local manual-copy alert remains.
 
 Verification: `plain-markdown.test.ts` covers escaped HTML, refused image loads and
 unsafe links, isolated footnote IDs, cumulative incomplete syntax and invalid math.
