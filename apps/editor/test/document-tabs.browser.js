@@ -407,12 +407,34 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   });
   const beforeRemoval = await editor().evaluate(n => ({json:JSON.stringify(n.editor.getJSON()), selection:n.editor.state.selection.toJSON()}));
   await activate('technical-2.md');
-  removeTabFixture();
-  check((await page.request.get(`${origin}/api/document?path=${encodeURIComponent(a)}`)).status() === 400, 'The scratch file was not removed on disk');
-  switchRequests = 0;
-  page.on('request', countRequest);
+  // This case exercises activation from a stale listing. Hold real listing responses so
+  // automatic refresh cannot remove the deleted target before the pointer reaches it.
+  // Start a refresh before deletion to supersede any listing already in flight.
+  let releaseListings, listingArrived;
+  const listingGate = new Promise(resolve => { releaseListings = resolve; });
+  const listingStarted = new Promise(resolve => { listingArrived = resolve; });
+  const listingResponses = [];
+  const holdListing = route => {
+    const response = deliverListing(route);
+    listingResponses.push(response);
+    return response;
+  };
+  const deliverListing = async route => {
+    const response = await route.fetch();
+    listingArrived();
+    await listingGate;
+    await route.fulfill({response});
+  };
+  await page.route('**/api/folder?*', holdListing);
   try {
-    // The already-listed entry remains; no refresh or file watcher is involved.
+    await page.getByTestId('folder').getByRole('button',{name:'More actions',exact:true}).click();
+    await page.getByRole('menuitem',{name:'Refresh',exact:true}).click();
+    await listingStarted;
+    removeTabFixture();
+    check((await page.request.get(`${origin}/api/document?path=${encodeURIComponent(a)}`)).status() === 400, 'The scratch file was not removed on disk');
+    switchRequests = 0;
+    page.on('request', countRequest);
+    // The retained row opens the existing session even though the Host file is gone.
     await page.getByTestId('folder').getByRole('treeitem',{name:'technical-1.md',exact:true}).click();
     await page.waitForFunction(path => document.querySelector('[data-testid="current-file"]')?.getAttribute('title') === path, a);
     check(switchRequests === 0, 'An exact open path performed a Host request');
@@ -421,7 +443,17 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     check(retained.same && retained.json === beforeRemoval.json && JSON.stringify(retained.selection) === JSON.stringify(beforeRemoval.selection), 'Missing-file activation replaced the retained session');
     await editor().focus(); await page.keyboard.press('Control+z');
     check(!(await editor().innerText()).includes('Retained after disk removal'), 'Missing-file activation lost undo history');
-  } finally { page.off('request', countRequest); }
+  } finally {
+    page.off('request', countRequest);
+    releaseListings();
+    await Promise.all(listingResponses);
+    await page.unroute('**/api/folder?*', holdListing);
+  }
+  // Resume real listings and require the deleted row to disappear, while the tab survives.
+  await page.getByTestId('folder').getByRole('button',{name:'More actions',exact:true}).click();
+  await page.getByRole('menuitem',{name:'Refresh',exact:true}).click();
+  await expect(page.getByTestId('folder').getByRole('treeitem',{name:'technical-1.md',exact:true})).toHaveCount(0);
+  check(await page.getByRole('tab',{name:'technical-1.md',exact:true}).getAttribute('aria-selected') === 'true', 'Listing refresh closed the retained tab');
 
   // Same-name labels and narrow overflow are observable product contracts.
   await openPath(page, file(['alpha','guide.md'].join(sep)));
