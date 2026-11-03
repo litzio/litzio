@@ -1,5 +1,5 @@
 // Choose a folder, expand it as a tree in the sidebar and open its documents; unsaved work blocks switching.
-async (page, { openFolderPicker, waitForActivePath, folderFixture, screenshots = false } = {}) => {
+async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, screenshots = false } = {}) => {
   await page.clock.install();
   await page.unrouteAll();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
@@ -330,11 +330,29 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, screenshots =
   await checkSidebarEntry('one');
   const sectionToggle = target => target.getByRole('button', {name:/^(Collapse|Expand) folder /});
   const firstSection = section.first();
-  const toggle = sectionToggle(firstSection);
+  const toggle = firstSection.locator('.sidebar-folder-toggle');
   assert(await toggle.count() === 1 && await toggle.getAttribute('aria-expanded') === 'true',
     'Opened folder section must expose an expanded toggle button');
   assert(await toggle.getAttribute('aria-controls') === await firstSection.getByRole('tree').getAttribute('id'),
     'Section toggle must control its tree');
+  const rootName = firstSection.locator('.sidebar-folder-name .sidebar-tree-name');
+  await rootName.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(firstSection.getByRole('tree')).toBeHidden();
+  await rootName.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await rootName.dblclick();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await rootName.click({button:'right'});
+  await page.locator('[data-slot="context-menu-content"]').waitFor();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await page.keyboard.press('Escape');
+  await item('More actions').click();
+  await page.getByRole('menuitem', {name:'Close folder', exact:true}).waitFor();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await page.keyboard.press('Escape');
   await toggle.focus();
   await page.keyboard.press('Enter');
   assert(await toggle.getAttribute('aria-expanded') === 'false' && !await firstSection.getByRole('tree').isVisible(),

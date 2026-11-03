@@ -1250,11 +1250,25 @@ Save/Reload/rollback coverage. The existing reducer test also covers expansion r
 failure; command-center's navigation check follows the second enabled match rather than a fixed
 command's old result position.
 
+#1125 verification: `folder-navigation` fails on the original name click and passes with
+name collapse/expand, single-toggle double-click behavior, root-menu isolation and the existing
+keyboard, persistence and geometry checks. No CSS or layout change. Same-state English Light
+captures at 1440px ([before](assets/root-name-1125/before-1440.png) /
+[after](assets/root-name-1125/after-1440.png)) and 640px
+([before](assets/root-name-1125/before-640.png) /
+[after](assets/root-name-1125/after-640.png)) use this checkout's persistent Chrome,
+812px height and DPR 1. Korean Dark 640px was also reviewed through the existing
+`folder-navigation --screenshots` capture path. Generated traces remain under ignored `tmp/`.
+
 ## Collapsible folder sections (#425)
 
 An opened folder without remembered section collapse starts expanded. The chevron beside its name is a native compact ghost button,
 with localized `Collapse folder <name>` / `Expand folder <name>` labels and tooltips, `aria-expanded`
-and `aria-controls` naming that section's tree. The name remains the section/tree title and its
+and `aria-controls` naming that section's tree. Single-clicking the name also toggles the same section and remembered collapse state (#1125).
+Right-click, root action buttons and the second click of a double-click do not toggle it.
+Existing non-selectable folder-name text styling is unchanged.
+The name adds no keyboard stop; the native disclosure retains Enter/Space.
+The name remains the section/tree title and its
 full path remains in `title`. The chevron points right when collapsed and down when expanded,
 like subfolder chevrons. New document… (`+`) and More actions (`⋯`, New folder…, Open folder…, Refresh and Close folder)
 remain visible and usable when the section is collapsed. Empty-folder help is hidden with the tree.

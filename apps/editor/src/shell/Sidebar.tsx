@@ -284,7 +284,10 @@ function FolderTree({ pluginFileActions = [], onAddToChat, onFileAction, fileAct
               aria-label={toggleName} title={toggleName} aria-expanded={tree.sectionExpanded} aria-controls={treeId}
               onClick={onToggleSection}><ChevronRight aria-hidden="true" /></Button>
           </span>
-          <span className="sidebar-tree-name">{folderName}</span>
+          <span className="sidebar-tree-name" onClick={event => {
+            // A double-click must not immediately undo its first toggle.
+            if (event.detail <= 1) onToggleSection();
+          }}>{folderName}</span>
         </p>
         <div className="sidebar-folder-actions">
           <Button variant="ghost" size="icon-xs" aria-label={i18n.t("New document…")} title={i18n.t("New document…")} onClick={event => onNew(event.currentTarget)}>
