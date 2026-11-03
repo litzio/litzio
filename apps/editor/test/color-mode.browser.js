@@ -3,11 +3,11 @@ async (page, { expect, screenshots = false }) => {
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const settings = () => page.locator('.sidebar-preferences button, .sidebar-footer button').filter({has:page.locator('.settings-entry-icon')});
   const mode = () => page.getByRole('button',{name:/^(Color mode|색상 모드)$/});
-  const back = () => page.getByTestId('settings-back');
+  const back = () => page.locator('[data-tab-id="settings"] .document-tab-close');
   const closeSettings = async () => { await back().click(); await page.getByTestId('settings-dialog').waitFor({state:'detached'}); };
   const configure = async (language, theme) => {
     await settings().click();
-    await expect(back()).toBeFocused();
+    await expect(page.getByRole('tab',{name:/^(Settings|설정)$/})).toBeFocused();
     await page.getByTestId('theme').selectOption(theme);
     await page.getByTestId('ui-language').selectOption(language);
     await closeSettings();

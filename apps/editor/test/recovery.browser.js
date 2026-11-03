@@ -38,7 +38,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
     await page.evaluate(() => window.releaseRecoveryDelete());
     await dialog.waitFor({state:'hidden',timeout:5000});
   };
-  const edit = (target, text) => engine(target).evaluate((node,text) => node.editor.commands.insertContentAt(1,text), text);
+  const edit = (target, text, owner = engine(target)) => owner.evaluate((node,text) => node.editor.commands.insertContentAt(1,text), text);
   const recoveryLayouts = [];
   const capture = async name => {
     const reviewLayout = name === 'prompt' || name === 'incompatible';
@@ -368,11 +368,18 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
   // Common Settings, clear with a scheduled write, and resuming only after another applied edit.
   await openPath(page,file);
   await edit(page,'Before clear. '); await count(1);
+  const clearOwnerId = await activeDocument(page).getAttribute('data-document-tab');
+  const clearOwner = page.locator(`[data-document-tab="${clearOwnerId}"] .document-editor`);
   await page.getByRole('button',{name:'Settings',exact:true}).click();
   await page.getByRole('button',{name:'Saving & recovery',exact:true}).click();
   await capture('settings');
+  let writesFromSettings = 0;
+  const settingsWrite = request => { if (request.method() === 'POST' && request.url().split('?')[0].endsWith('/api/document')) writesFromSettings++; };
+  page.on('request', settingsWrite);
   await page.keyboard.press('Control+s');
-  check(await page.getByTestId('status').getAttribute('data-operation') === 'ready', 'Save shortcut bypassed Settings modal');
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  page.off('request', settingsWrite);
+  check(writesFromSettings === 0, 'Save shortcut in Settings wrote the hidden document');
   await page.getByRole('button',{name:'Clear all recovery records…',exact:true}).click();
   const clearConfirm = page.getByRole('dialog',{name:'Delete all recovery records?',exact:true});
   await clearConfirm.waitFor({timeout:5000});
@@ -397,7 +404,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
     await confirmPendingDeletion(clearConfirm, 'Delete all records', async before => {
       // Commit an existing record update and a new other-window record while deletion is gated.
       await edit(laterWindow,'Other window recorded during pending clear. ');
-      await edit(page,'Recorded during pending clear. ');
+      await edit(page,'Recorded during pending clear. ',clearOwner);
       let committed = [];
       for (let attempt = 0; attempt < 100; attempt++) {
         committed = await records();
@@ -409,7 +416,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
       check(before.some(previous => committed.some(record => record.id === previous.id && record.recoveryText.includes('Recorded during pending clear.') && record.recoveryText !== previous.recoveryText)), 'Concurrent write did not update an existing record');
       // Also leave writes scheduled at the actual Clear-all boundary to test invalidation below.
       await edit(laterWindow,'Other window scheduled before clear. ');
-      await edit(page,'Scheduled before clear. ');
+      await edit(page,'Scheduled before clear. ',clearOwner);
     }); await count(0);
     await page.waitForTimeout(650); await count(0);
     await edit(laterWindow,'Other window after clear. '); await count(1);

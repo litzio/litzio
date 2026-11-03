@@ -6,13 +6,13 @@ import type { HostPlugin, PluginHostContext } from "@litzio/plugin-api/host";
 import { DoclingHost, type ConversionSession } from "./conversion/server.ts";
 import { readComparison } from "./comparison/compare-host.ts";
 import { convertDoclingFile } from "./conversion/files.ts";
-import { applyDoclingCorrections, addDoclingCorrection, removeDoclingCorrection } from "./conversion/correction-files.ts";
+import { applyDoclingCorrections, addDoclingCorrection, removeDoclingCorrection, readFolderCorrections } from "./conversion/correction-files.ts";
 import { doclingServerUrl } from "./conversion/pdf.ts";
 import type { ConversionJob } from "@litzio/plugin-api/worker";
 import { statSync } from "node:fs";
 import { inspectDoclingMap } from "./shared/map.ts";
 import type { Features, ConversionResult } from "./shared/dashboard.ts";
-import { StructureReviewer } from "./structure-review.ts";
+import { StructureReviewer, REVIEW_FILE } from "./structure-review.ts";
 
 export function activate(host: PluginHostContext): HostPlugin {
   const session = (host.session.get("conversion") ?? { admitting: false }) as ConversionSession;
@@ -27,18 +27,51 @@ export function activate(host: PluginHostContext): HostPlugin {
       try { host.resolvePath(job.input, true); host.resolvePath(job.output, true); return true; } catch { return false; }
     });
   };
-  const results = (): ConversionResult[] => history().filter(record => record.status === "success").map(({ job }) => {
-    const result: ConversionResult = { id: job.id, folder: job.output, path: path.join(job.output, "document.md"), name: path.basename(job.input), convertedAt: job.finishedAt ?? job.startedAt };
+  // Only dashboard summaries are memoized; approval/write paths still validate bytes.
+  const summaries = new Map<string, { files: string[]; revision: string; result: ConversionResult }>();
+  const revision = (files: string[]) => JSON.stringify(files.map(file => {
+    const resolved = host.resolvePath(file, true); // Recheck Roots even on a cache hit.
     try {
-      const folder = host.resolvePath(job.output, true);
-      try { statSync(folder); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return { ...result, missing: true }; throw error; }
-      const document = host.documentPath(result.path);
-      const { map, stale } = inspectDoclingMap(host.readText(host.mediaPath("document.docling-map.json", document)), host.readText(document));
-      let pendingProposals: number | undefined;
-      try { pendingProposals = review.list(folder).proposals.filter(p => p.state === "pending" && !p.stale).length; } catch { /* Unreadable does not mean empty. */ }
-      return { ...result, pages: Object.keys(map.pages).length, stale, pendingProposals };
-    } catch { return { ...result, problem: "Could not read the conversion result." }; }
-  });
+      const stat = statSync(resolved, { bigint: true });
+      return [resolved, stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].map(String);
+    } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return [resolved, null]; throw error; }
+  }));
+  const results = (): ConversionResult[] => {
+    const completed = history().filter(record => record.status === "success");
+    const ids = new Set(completed.map(({ job }) => job.id));
+    for (const id of summaries.keys()) if (!ids.has(id)) summaries.delete(id);
+    return completed.map(({ job }) => {
+      const result: ConversionResult = { id: job.id, folder: job.output, path: path.join(job.output, "document.md"), name: path.basename(job.input), convertedAt: job.finishedAt ?? job.startedAt };
+      try {
+        const folder = host.resolvePath(job.output, true);
+        try { statSync(folder); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return { ...result, missing: true }; throw error; }
+        const document = host.documentPath(result.path);
+        const sidecar = host.mediaPath("document.docling-map.json", document);
+        const cached = summaries.get(job.id);
+        if (cached && cached.revision === revision(cached.files)) return { ...cached.result, ...result };
+        summaries.delete(job.id);
+        // The ledger may reference an original outside the result folder.
+        let files: string[] | undefined, before: string | undefined;
+        try {
+          const ledger = readFolderCorrections(folder);
+          files = [folder, document, sidecar, path.join(folder, "corrections.json"), path.join(folder, REVIEW_FILE), path.resolve(folder, ledger.source.file)];
+          before = revision(files);
+        } catch { /* Keep the existing map-only result when review materials are unreadable. */ }
+        const { map, stale } = inspectDoclingMap(host.readText(sidecar), host.readText(document));
+        let pendingProposals: number | undefined;
+        let reviewing = true;
+        try {
+          const value = review.list(folder);
+          pendingProposals = value.proposals.filter(p => p.state === "pending" && !p.stale).length;
+          reviewing = value.task?.status === "running";
+        } catch { /* Unreadable does not mean empty. */ }
+        const summary = { ...result, pages: Object.keys(map.pages).length, stale, pendingProposals };
+        // Running reviews must observe their live receipt, including completion/cancellation.
+        if (!reviewing && files && before === revision(files)) summaries.set(job.id, { files, revision: before, result: summary });
+        return summary;
+      } catch { summaries.delete(job.id); return { ...result, problem: "Could not read the conversion result." }; }
+    });
+  };
   const correct = (args: any, change: "apply" | "add" | "remove") => {
     requireFeature("conversion");
     const folder = realpathSync.native(host.resolvePath(path.resolve(args.folder)));

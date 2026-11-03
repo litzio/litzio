@@ -12,7 +12,7 @@ export async function captionPixels(app: ElectronApplication, page: Page, output
   await page.mouse.move(300, 200); // Native hover paint must not affect the rest-state sample.
   const geometry = await page.evaluate(async surface => {
     await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-    const row = document.querySelector(surface === "settings" ? ".settings-topbar" : ".app-titlebar")!;
+    const row = document.querySelector(".app-titlebar")!;
     const rect = row.getBoundingClientRect(), style = getComputedStyle(row);
     const overlay = (navigator as Navigator & { windowControlsOverlay: { getTitlebarAreaRect(): DOMRect } }).windowControlsOverlay.getTitlebarAreaRect();
     const root = getComputedStyle(document.documentElement);
@@ -44,9 +44,7 @@ export async function captionPixels(app: ElectronApplication, page: Page, output
   assert.equal(geometry.border, geometry.tokenBorder);
   assert.equal(geometry.overlayHeight, geometry.expectedOverlay, "native height follows the header content box, excluding its border");
   assert.ok(geometry.captionLeft > 8 && geometry.captionLeft < geometry.width - 30);
-  if (surface === "settings") {
-    assert.ok(geometry.scrollLock.includes("hidden"), "Settings preserves the existing page scroll lock");
-  }
+
   assert.equal(geometry.rowRight, geometry.width, "both title strips span the viewport after #488 moved scrolling below the header");
   const handle = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getNativeWindowHandle().readBigUInt64LE().toString());
   const sample = (suffix: string) => {

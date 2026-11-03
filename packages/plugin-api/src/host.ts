@@ -1,11 +1,13 @@
 import type { ConversionExecutor } from "./worker.ts";
-import type { AiTaskExecutor, AiTaskService } from "./ai.ts";
+import type { AiExecutionSettings, AiTaskExecutor, AiTaskService } from "./ai.ts";
 
 /** Trusted Host operations. Hosts retain Root, native admission and publication checks. */
 export type PluginHostContext = {
   features(): Record<string, boolean>;
   setFeatures(features: Record<string, boolean>): Record<string, boolean>;
   settingsFile: string;
+  /** Execution defaults used only when no AI settings have been saved. */
+  aiDefaults?: AiExecutionSettings;
   resolvePath(file: string, create?: boolean): string;
   documentPath(file: string): string;
   mediaPath(uri: string, document: string): string;

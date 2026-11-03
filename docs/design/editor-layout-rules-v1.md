@@ -43,6 +43,15 @@ Role: alignment, spacing, control dimensions and deliberate geometry exceptions;
 
 ## Alignment and ownership
 
+- Editing flow-block bar (#1022) reuses BlockHandles’ top-level geometry, with absolute
+  top/height and no reflow or transition. Its left edge is the text edge minus the
+  existing `--space-block-hover-inline`; only thickness and pale accent color add
+  adjustable tokens. The existing gutter safety gap keeps insertion/drag handles
+  clear; heading-level cues remain farther left. Hover outline and Edit/metadata
+  retain their position and behavior. No bar is painted on framed blocks, in Read,
+  during drag, or outside document focus. [Scope and captures](editor-visual-language-v1.md#editing-block-bar-verification-1022).
+
+
 - Heading-depth cues (#887/#886) occupy the existing absolute block gutter and center on
   each heading's first line, independently of its level, number or wrapping. They reserve
   no space within the established gutter. In Edit they change neither text rectangles

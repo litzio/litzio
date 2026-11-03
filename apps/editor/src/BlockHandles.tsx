@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button.tsx";
 import { GripVertical, Plus } from "lucide-react";
 import { saveErrorBadge, type SaveErrorLocation } from "./save-error.ts";
 
+// Flow blocks have no boundary of their own; framed NodeViews and ruled quotes do.
+const editingFlowBlocks = new Set(["paragraph", "heading", "bulletlist", "orderedlist"]);
+
 type BlockHandlesProps = {
   readOnly?: boolean;
   showHeadingLevels?: boolean;
@@ -66,6 +69,8 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
   const geometry = useRef(blocks);
   geometry.current = blocks;
   const [active, setActive] = useState(-1);
+  const [cursorBlock, setCursorBlock] = useState(-1);
+  const [cursorFocused, setCursorFocused] = useState(false);
   const [hovered, setHovered] = useState(-1);
   const [dropTop, setDropTop] = useState<number | null>(null);
   const [moving, setMoving] = useState<{ top: number; height: number } | null>(null);
@@ -161,6 +166,7 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
       if (handlingKey && event?.transaction.docChanged) input();
       update();
       setActive(editor.state.selection.$from.index(0));
+      setCursorBlock(editor.state.selection.$from.index(0));
     };
     const hover = (event: MouseEvent) => {
       if (!event.isTrusted || (lastPointer?.x === event.clientX && lastPointer.y === event.clientY)) return;
@@ -201,6 +207,16 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
       if (dropped) editor.view.focus();
       dropped = false;
     };
+    // Native focus includes nested editable content without treating another panel as document focus.
+    const focusIn = () => setCursorFocused(true);
+    const focusOut = (event: FocusEvent) => setCursorFocused(editor.view.dom.contains(event.relatedTarget as Node | null));
+    const windowBlur = () => setCursorFocused(false);
+    const windowFocus = () => setCursorFocused(editor.view.dom.contains(document.activeElement));
+    windowFocus();
+    editor.view.dom.addEventListener("focusin", focusIn);
+    editor.view.dom.addEventListener("focusout", focusOut);
+    window.addEventListener("blur", windowBlur);
+    window.addEventListener("focus", windowFocus);
     editor.on("transaction", transaction);
     // Layout changes must not replace the hovered block with the selected one.
     const resize = new ResizeObserver(update);
@@ -226,6 +242,10 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
     transaction();
     return () => {
       editor.off("transaction", transaction);
+      editor.view.dom.removeEventListener("focusin", focusIn);
+      editor.view.dom.removeEventListener("focusout", focusOut);
+      window.removeEventListener("blur", windowBlur);
+      window.removeEventListener("focus", windowFocus);
       resize.disconnect();
       window.removeEventListener("mousemove", hover);
       editor.view.dom.removeEventListener("beforeinput", input, true);
@@ -258,7 +278,10 @@ export const BlockHandles = memo(function BlockHandles({ readOnly = false, showH
     event.dataTransfer.setData("text/plain", i18n.t("Move block"));
     setMoving({top: block.top, height: block.height});
   }, [editor]);
+  const cursor = !readOnly && cursorFocused && !moving ? blocks[cursorBlock] : undefined;
   return <div className="block-gutter" ref={gutter}>
+    {cursor && editingFlowBlocks.has(cursor.name) && <div className="editing-block-bar" data-testid="editing-block-bar"
+      data-block-index={cursorBlock} aria-hidden="true" style={{ top: cursor.top, height: cursor.height }} />}
     {(!readOnly || showHeadingLevels) && blocks.map((block, index) => {
       const blocked = block.endnote ? i18n.t(ENDNOTE_HINT)
         : moveBlockedHint?.(index);

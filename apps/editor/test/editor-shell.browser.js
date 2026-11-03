@@ -86,7 +86,7 @@ async (page, { showNotifications }) => {
     await page.keyboard.press('Tab');
     result.railSettingsKeyboardReachable = await isFocused(railSettings);
     await page.keyboard.press('Enter');
-    await page.getByTestId('settings-back').waitFor();
+    await page.locator('[data-tab-id="settings"] .document-tab-close').waitFor();
     await page.keyboard.press('Escape');
     await page.getByTestId('settings-dialog').waitFor({state:'detached'});
     result.railSettingsReturnsFocus = await isFocused(railSettings);

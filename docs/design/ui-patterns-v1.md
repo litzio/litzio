@@ -210,6 +210,11 @@ After는 #792 작업 소스로 촬영했다. source/disk 쓰기 없이 번호 �
 
 ## P09 metadata와 블록 도구
 
+#1022의 문서 focus 보조 막대는 U12 글 흐름(단락·제목·최상위 목록)에만 표시한다.
+U01–U06의 자체 경계와 인용문의 왼쪽 선을 확인해 중복 막대를 제외했다.
+기존 U18 gutter·Edit/metadata 도구는 그대로이며 [범위·시각 근거](editor-visual-language-v1.md#editing-block-bar-verification-1022)를 따른다.
+
+
 제목 깊이 표시(#887/#886)는 편집 모드와 Docling 대조의 고정 읽기에서 왼쪽 여백에
 `H1`–`H6`을 상시 표시한다. 같은 줄의 블록 핸들이 보일 때만 숨기며 도구와 본문을
 움직이지 않는다. 일반 읽기·소스·텍스트 모드에서는 표시하지 않는다. Mermaid 종류
@@ -273,11 +278,15 @@ P04의 primary 제외·secondary 해제, P07의 폼 문맥 오류를 사용한�
 이유는 기존 공용 Input으로 받으며 원문 조작부는 이미지 바깥 행에 둔다.
 현재 동작과 1440px·640px 한국어 다크 Before/After는 [대조 계약](docling-compare-v1.md#manual-page-exclusion-945)에 있다.
 
-비서 패널(#931)은 U22 AI 설정과 같은 모델·강도·응답 언어 선택을 공유 Popover와
-select로 제공한다. 설정 기본값은 명시적 Save로 저장하고, 패널의 칩은 해당 대화에만
-적용한다. 실행 중 모델·강도는 잠그고 언어와 스티어링 입력은 유지한다.
-`ai-agent` 시나리오가 두 저장 범위와 실행 상태를 검증한다
-([현재 계약·1440px/640px 캡처](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)).
+비서 패널(#931, #1047 PR A)은 U22 AI 설정과 같은 모델·강도 선택을 공유
+Popover와 select로 제공한다. 설정 기본값은 명시적 Save로 저장하고 패널의
+모델·강도 칩은 해당 대화에만 적용한다. 실행 중 모델·강도는 잠근다.
+대화 언어 선택은 없으며 사용자 메시지 언어를 따른다. U22의 AI 기본 언어는
+대화 없이 시작된 작업에만 적용한다. `@`의 파일 후보는 공용 Button의 listbox이며
+Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채팅에 추가**도
+같은 제거 가능한 초안 칩에 추가한다. 칩에는 파일 이름, 공용 Tooltip에는 전체
+경로를 표시한다. `ai-agent` 시나리오가 선택·중복·제거·참조만 보내기와 복원을
+검증한다([현재 계약·전후 캡처](main-agent-v1.md#file-references-1047-pr-a-984-952)).
 
 #974의 비서 대화 기록은 제목을 semibold 주 문구로, 현지화한 시각과 폴더 이름을
 별도 보조 줄로 표시한다. 전체 경로는 tooltip으로 유지하며 항목은 공용 subtle
@@ -287,9 +296,9 @@ select로 제공한다. 설정 기본값은 명시적 Save로 저장하고, 패�
 ## P12 모달·파일·복구·설정 범위
 
 - **목적·사용/비사용:** 파일·복구·파괴 작업은 대상과 결과를 확인한다. metadata의 Done/바깥 적용을 이식하거나 기기 설정을 문서 Save에 묶지 않는다.
-- **목표·현재 기준:** 기존 [UnsavedChangesDialog](../../apps/editor/src/shell/UnsavedChangesDialog.tsx), [DangerConfirmation](../../apps/editor/src/components/ui/danger-confirmation.tsx), 파일 dialog·비교 화면을 유지한다. 제목→대상→설명/문제→명시적 동사 action, 안전한 취소·focus 복귀, busy 중 중복 실행 방지가 기준이다. 앱 Settings는 즉시 반영하는 별도 화면, file preview·단축키는 읽기 dialog다.
+- **목표·현재 기준:** 기존 [UnsavedChangesDialog](../../apps/editor/src/shell/UnsavedChangesDialog.tsx), [DangerConfirmation](../../apps/editor/src/components/ui/danger-confirmation.tsx), 파일 dialog·비교 화면을 유지한다. 제목→대상→설명/문제→명시적 동사 action, 안전한 취소·focus 복귀, busy 중 중복 실행 방지가 기준이다. 앱 Settings는 문서와 오가는 단일 작업 탭, file preview·단축키는 읽기 dialog다.
 - **사용처:** U22 앱 설정, U23 파일/폴더 picker·새 이름, U24 미저장·삭제·저장/복구 비교, U25 미리보기·단축키·참고문헌 연결.
-- **키보드 경계 (#831):** 공용 Dialog는 native Undo/Redo가 modal 밖 입력·초안으로 이동하거나 수정하는 것을 차단한다. modal 안 입력의 자체 Undo/Redo는 유지하고, Escape는 활성 modal만 닫아 바깥 미적용 초안을 보존한다. 명령 센터도 같은 경계를 쓰며 비모달 알림 센터의 문서 history는 유지한다. [현재 Undo 계약](document-editing-v1.md#shared-history-and-editing-boundaries).
+- **키보드 경계 (#831):** 공용 Dialog는 native Undo/Redo가 modal 밖 입력·초안으로 이동하거나 수정하는 것을 차단한다. modal 안 입력의 자체 Undo/Redo는 유지하고, Escape는 활성 modal만 닫아 바깥 미적용 초안을 보존한다. 명령 센터도 같은 경계를 쓴다. #1032의 Settings 작업 탭도 같은 beforeinput 경계를 재사용하여 두 그룹에서 Settings 입력의 Undo/Redo가 다른 그룹의 문서 초안으로 이동하지 않게 하며, Settings 입력 자체의 native history는 유지한다. 비모달 알림 센터의 문서 history는 유지한다. [현재 Undo 계약](document-editing-v1.md#shared-history-and-editing-boundaries).
 - **추가 사용처:** #797 Docling 서버 Settings는 Host 기기 설정·field exit 저장, PDF 선택은 기존 FolderDialog, 실행은 작은 명시적 변환 확인 dialog다. 진행·대기 중단은 대시보드에, 완료는 이름 있는 동작 알림에 둔다(#942). 연결 확인 실패 뒤에도 서버 구성 안내 링크를 유지한다. 같은 Settings/파일 dialog 패턴을 재사용한다.
 - **추가 사용처 (#871):** Docling 대시보드는 #932부터 화면 폭을 쓰는 단일 결과 표와 상태 칩을 쓴다. #1027은 집계를 작은 필터 칩으로 줄이고, 상태별 우선 대응도 이 칩으로 같은 표를 거르며 별도 중복 필터 줄을 두지 않는다. Needs attention 범위 설명은 해당 칩 hover·focus에서 확인한다. 파일 이름·짧은 상태·진행 단계·경과 시간·대기 중단은 해당 표 행에 모아 작업을 중복 나열하지 않는다. 실패 상세·불확실 작업의 주의사항·대기 중단의 서버 취소 한계·우선 대응 설명은 hover와 keyboard focus에서 펼치며 aria-describedby로 연결한다([계약·전후 캡처](docling-conversion-v1.md#dashboard-density-review-1027)). 완료 행의 주 동작은 대조 열기, 실패·불확실 행은 Actions 열의 다시 시도·다시 시작이며 보조 동작만 기존 펼침 메뉴에 둔다. 진행 중 행의 대기 중단은 640px에서 가로 스크롤 없이 접근하도록 진행 상태 옆에 유지한다. 기능 선택은 Settings 기여로 옮겨 P11의 on/off checkbox를 쓴다. 기능 선택은 Host 플러그인 등록에 즉시 저장하며 문서 Save에 묶지 않는다. 다시 시도·불확실 작업 다시 시작은 기존 변환 확인 dialog를 열고 명시적 Convert 뒤 새 UUID로 접수한다. 기록 지우기는 불확실 기록만 숨기며 실행 취소·결과 삭제로 표현하지 않는다.
 - **추가 사용처 (#880):** U22의 AI 에이전트는 같은 Settings 화면·section·설명·상태 표현을 쓰며 어댑터, 사용 가능·로그인 필요 여부만 표시한다. 사용자 지시나 업체·자격 증명 입력은 없다. `ai-agent`가 Docling 설정과 같은 정렬·여백을 확인하고 1440px 영어 Light·640px 한국어 Dark 캡처를 검토했다. 등록 해제 시 범주·서비스가 사라져도 기존 문서 DOM·미저장 입력을 보존한다([현재 계약·캡처](plugin-ui-v1.md#verification)).
@@ -340,3 +349,10 @@ of document drafts, Save and Undo. See [table contract](table-interaction-v1.md#
 
 #973: 문서가 없는 시작 화면과 플러그인 탭에서는 탭 줄의 문서 동작 묶음을 숨긴다.
 일반 텍스트 문서의 지원 동작은 유지한다([현재 계약](editor-ux-shell-v1.md#title-strip-and-tab-row-actions-695)).
+
+#1032: Settings는 Host가 머리·범주 탐색·스크롤·콘텐츠 열을 소유하고 각 범주는 내용만
+그린다. 기존 Button·탭·입력 토큰을 재사용하며 공용 설정 행 블록은 #1033 범위다.
+Settings 탭·진입의 pointer 이동은 metadata 바깥 적용 대신 탐색으로 처리해 초안을 보존한다. 일반 문서 탭 pointer 이동의 기존 바깥 적용은 유지한다.
+앱 즉시 반영, AI 명시적 Save, Docling field exit 저장은 문서 Save와 분리한다.
+탭 사이 이동은 설정 초안을 유지하며 닫기·재시작은 Plugin 탭처럼 초안을 복원하지 않는다.
+[탭 수명·키보드·전후 캡처](editor-ux-shell-v1.md#settings-task-tab-1032).

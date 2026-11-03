@@ -26,7 +26,7 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
     await page.getByRole('button',{name:/^(Settings|설정)$/,exact:true}).click();
     await page.getByTestId('theme').selectOption(theme);
     await page.getByTestId('ui-language').selectOption(language);
-    await page.getByTestId('settings-back').click();
+    await page.locator('[data-tab-id="settings"] .document-tab-close').click();
     await page.getByTestId('settings-dialog').waitFor({state:'detached'});
     await page.evaluate(async () => { await document.fonts.ready; });
   };

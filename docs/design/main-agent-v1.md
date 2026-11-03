@@ -3,7 +3,8 @@
 - Status: Implemented
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
 - Message roles verified: 2026-11-03 (#1048/#1051; fixture captures and turn-copy browser checks below).
-- Last verified: 2026-11-02 (#931 implementation 2, PR 2: 409 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
+- Last verified: 2026-11-03 (#1047 PR A / #984 / #952: fake stdio/Host, worker prompt, browser and manual 1440 Light / 640 Dark Korean captures; no real model turn).
+- Previous verification: 2026-11-02 (#931 implementation 2, PR 2: 409 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
 - Scope: main-agent connection, Settings, shell-owned assistant panel and Codex conversations. Includes new-document result cards, guarded creation undo and the product-owned usage-guide skill.
 - Authority: [ADR-0014](../adr/0014-main-agent-app-server.md), [#931](https://github.com/litzio/litzio/issues/931) owner decisions and approved v3.1 settings mockup.
 
@@ -42,7 +43,14 @@ not a daemon or a shared controller across Hosts.
 
 ## Settings and read routes
 
-The `ai-agent` plugin's existing settings file stores:
+With no saved AI settings, source checkout execution uses `gpt-6-luna` / `low`
+for inexpensive development checks (#1058). The Host reuses the source/packaged
+run distinction that selects `.litzio-dev`; installed Desktop and distributed
+HTTP Host retain `gpt-6.1-sol` / `medium`. Existing saved settings take priority
+and are never overwritten by these defaults. New assistant conversations and
+their initial model/effort selection use the same AI settings response.
+
+The `ai-agent` plugin's existing settings file stores (installed defaults shown):
 
 ```json
 {
@@ -84,13 +92,14 @@ rule is an agent instruction, not a new document-edit enforcement system.
 Steering retains the running turn's scope; new folder/settings choices apply to
 the next turn. Docling's separate execution policy is unchanged.
 
-Response language choices are Korean, English, Japanese and Follow document
-language. Until explicitly saved, the initial choice uses the current Litzio
-display language (Korean or English). Explicit Save persists it with the other
-AI settings; provider enablement does not silently save a language draft.
-Each new conversation starts from these defaults. Composer changes affect only
-that conversation and travel with its next message. Its last sent language is
-recovered from Codex history; no extra Litzio transcript is stored.
+AI default language offers Korean, English and Japanese. Its initial value follows
+Host OS / browser language, with English fallback, independently of display language.
+Explicit Save persists it; enablement-only writes do not save a language draft.
+It applies only to tasks started without a conversation, is pinned in the task's
+execution receipt, and reaches the worker prompt. Conversations follow the user's
+message language; document writing follows the target document language unless
+explicitly requested otherwise. There is no per-conversation language state or selector.
+Model/effort defaults still initialize each new conversation.
 
 | Route | Response |
 | --- | --- |
@@ -116,7 +125,7 @@ admitted task or its UUID identity. See [AI task service](plugin-runtime-v1.md#a
 The v3.1 flow is a Codex row with status dot/summary, diagnostics and enable
 switch; the row opens a searchable model dialog with supported efforts, default
 marker, update time and refresh. Diagnostics is a separate subview with return
-navigation. Defaults are provider, model, that model's supported effort and response language.
+navigation. Defaults are provider, model, that model's supported effort and AI default language.
 The common environment shows cwd, `AGENTS.md` and actual Litzio skills.
 
 The existing Settings content/control widths, colors, type and shared modal
@@ -197,7 +206,7 @@ narrow native-caption region the button keeps its accessible name and shows
 only its icon. `Ctrl+Shift+A` is deliberately avoided because Chrome owns it. The assistant
 and Outline share the right-side space: opening Outline replaces the assistant;
 closing the assistant restores the prior Outline choice. Escape dismisses an open
-model/language chooser first, including while focus remains on its chip before
+model/effort chooser first, including while focus remains on its chip before
 popup autofocus; a subsequent Escape closes the assistant. The assistant starts
 at `--layout-assistant-width` (392px) and can be resized from 340 to 560px by
 pointer or the focused separator's arrow keys. An explicit width is remembered
@@ -260,8 +269,7 @@ unapplied node-view drafts are excluded, just as in Source. A text tab supplies
 its current text. Neither editor-engine objects nor a second Markdown
 implementation cross the Host boundary. The two user-input text parts carry the
 message and a marked read-only JSON context; the UI hides the context part when
-hydrating history. `document` response language follows the supplied document,
-or the user's language when none is open.
+hydrating history. References are restored from the same JSON context.
 
 A single nonoverlapping 600ms snapshot poll while the panel is open and the tab
 is visible delivers
@@ -301,14 +309,14 @@ Same-state source captures: 1440px English Light [Before](assets/reasoning-976/b
 [Before](assets/reasoning-976/before-640.png) / [After](assets/reasoning-976/after-640.png).
 
 
-The composer has model/effort and language chips using the shared Popover and
+The composer has a model/effort chip using the shared Popover and
 select controls. The context ring below the input uses the latest token-usage
 notification and model context window, exposes numbers on hover/focus, and
 recommends a new conversation at 80%. Codex owns automatic compaction. Replies
 remain text; existing-document changes are suggestions with no Apply action.
 
 The browser scenario uses fake metadata/conversation responses to check settings
-language persistence versus per-conversation overrides, width controls,
+default-language persistence and absence of per-conversation language overrides, width controls,
 open/close/focus (including first-open keyboard input and delayed setup without
 focus theft), hidden/off/failed-setup polling suspension and nonoverlapping
 visibility restoration, unsaved Core Source context, deltas, steering, interruption,
@@ -679,3 +687,56 @@ accessible names, keyboard Tooltip display and two synthetic same-name receipts
 in different relative directories. Existing real Host Open/undo/confirmation
 checks remain the integration protection; no real Codex run, new subprocess or
 new scenario is added. Captures run only with `--screenshots` for manual review.
+
+
+## File references (#1047 PR A, #984, #952)
+
+`@` at a word boundary opens file candidates from the opened folders. The shell
+reuses `/api/folder` enumeration recursively only while the picker is open; there
+is no index, watcher, new search service or PC-wide search. Arrow keys / Enter
+select, Escape dismisses, and pointer selection retains composer focus. Explorer's
+file context menu **Add to chat** opens the same composer draft. Folders cannot be
+added. Both entry points deduplicate paths and allow at most 10 references.
+
+Removable chips above the input show only file names; shared Tooltip exposes the
+full path on hover/focus. No file-type-specific presentation or read indicator is
+used. New conversation clears the draft. Failed sends retain it. A reference-only
+message is valid, including steering an active turn.
+
+Host checks both opened-folder RootAccess and its own access policy. Each relative
+path segment must appear in Explorer's current listing: hidden entries, symlinks,
+directories, unavailable files and paths outside opened folders are rejected.
+Checks run again immediately before submission. All files, including `.md` and
+`.txt`, are **paths only** in `references:[{path,name,kind}]` in the existing
+`Litzio read-only context (JSON)` text. PNG/JPEG/WebP/GIF additionally send
+`{type:"localImage",path}`. No file content conversion or upload store is added.
+The supplied current-document applied source, including unsaved edits, is unchanged.
+References do not extend document-editing permissions or a running turn's scope.
+
+The public conversation input takes `references?: string[]`; user items expose
+`references?: AiFileReference[]`. Both live `itemFrom` and paginated resumed history
+restore chips from context JSON, including Codex legacy history that concatenates text inputs into one string, without a second transcript store. Historical
+chips remain path metadata if files move or disappear; they do not resend files.
+This is shell/Host context, not document semantics, so no Core/CLI operation is added.
+The `/` skill picker is a separate PR B and remains outside this delivery.
+
+Verification extends existing fake stdio/Host tests for context + localImage,
+send/steer/live/resume, reference-only sends, duplicate/limit, deleted/hidden files
+and scope rejection. The existing `ai-agent` browser scenario owns Explorer →
+composer, keyboard candidate selection, deduplication/removal, reference-only steer,
+chip restoration, and no conversation-language control. Worker prompt tests own
+language injection; receipt tests retain retry identity after settings changes.
+No real model turn or new browser process framework is used.
+
+Manual visuals use the same persistent Chrome runner separately from normal tests:
+1440×1000 Light/English and 640×1000 Dark/Korean, Plum, 100% zoom.
+[1440 Before](assets/assistant-references-1047/before-1440-light-en.png) /
+[1440 After](assets/assistant-references-1047/after-1440-light-en.png),
+[640 Before](assets/assistant-references-1047/before-640-dark-ko.png) /
+[640 After](assets/assistant-references-1047/after-640-dark-ko.png).
+Shared ContextMenu, Button, Tooltip and existing shell tokens are reused; candidate
+listbox keyboard ownership is local to the composer. No new plugin UI surface.
+
+Visual inspection: file names, remove buttons, text input and model/effort control remain visible at both widths, with no horizontal overflow. Dark/Korean retains legible chip borders and close controls. The 1440 After also includes the extra reference-only steering message used to verify the feature; the document and assistant width are unchanged.
+
+Protocol evidence: [0.141.0 UserMessageItem::message](https://github.com/openai/codex/blob/rust-v0.141.0/codex-rs/protocol/src/items.rs#L269) concatenates input text, and [thread history](https://github.com/openai/codex/blob/rust-v0.141.0/codex-rs/app-server-protocol/src/protocol/thread_history.rs#L1107) returns it as one text input. The fake paginated history models this shape; live notifications retain separate inputs.

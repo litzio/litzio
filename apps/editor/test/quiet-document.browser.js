@@ -1,6 +1,6 @@
 // Regression checks on real scratch files; optional captures are for manual visual review.
 // pnpm browser:test quiet-document --screenshots writes tmp/visual-refinement/after-*.png.
-async (page, { openFolderPicker, screenshots = false, openDocument, openPath, withBlockHover }) => {
+async (page, { openFolderPicker, screenshots = false, openDocument, openPath, withBlockHover, expect }) => {
   // Manual review only, before the regression edits its disposable fixtures.
   const themeReview = screenshots ? await (async (page, { openPath, screenshots }) => {
   if (!screenshots) throw Error('Use --screenshots for the manual theme review');
@@ -409,6 +409,24 @@ async (page, { openFolderPicker, screenshots = false, openDocument, openPath, wi
     return {token,actual:parseFloat(getComputedStyle(n).fontSize),expected:parseFloat(token)*parseFloat(getComputedStyle(n.parentElement).fontSize)};
   });
   check(Math.abs(inlineMath.actual-inlineMath.expected)<0.1,`Inline math size must follow its token: ${JSON.stringify(inlineMath)}`);
+  // One user path protects the cursor indicator independently of pointer hover.
+  const editingBar = page.getByTestId('editing-block-bar');
+  await prose.click();
+  await expect(editingBar).toBeVisible();
+  const firstCursorBlock = await editingBar.getAttribute('data-block-index');
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('cursor bar');
+  await expect(editingBar).not.toHaveAttribute('data-block-index', firstCursorBlock);
+  await page.getByRole('button', {name:'Settings', exact:true}).click();
+  await expect(editingBar).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.getByTestId('settings-dialog').waitFor({state:'detached'});
+  await prose.click();
+  await expect(editingBar).toBeVisible();
+  // Restore the disposable fixture before the existing Save/hover checks.
+  await page.keyboard.press('Control+z');
+  await page.keyboard.press('Control+z');
   const initial=await json();
   const extent = page.getByTestId('block-hover-outline');
   const selectBlock = block => block.evaluate(n => {

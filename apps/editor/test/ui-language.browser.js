@@ -11,7 +11,8 @@ async (page, { openPath, screenshots }) => {
   const file = [...initial.path.split(sep).slice(0, -4), 'tmp', 'reference-save-reload', 'technical-document.md'].join(sep);
   await openPath(page, file);
   check(await page.getByTestId('sidebar').locator('.product').innerText() === 'Explorer', 'Explorer heading must be translated into English');
-  const editor = page.locator('[data-document-tab][data-active=true] .document-editor');
+  const documentTabId = await page.locator('[data-document-tab][data-active=true]').getAttribute('data-document-tab');
+  const editor = page.locator(`[data-document-tab="${documentTabId}"] .document-editor`);
   const original = await editor.evaluateHandle(node => node.editor);
   const snapshot = () => editor.evaluate(node => ({ json: JSON.stringify(node.editor.getJSON()), selection: node.editor.state.selection.toJSON() }));
   const settings = async language => {
@@ -57,11 +58,12 @@ async (page, { openPath, screenshots }) => {
     const scrollBefore = await page.evaluate(() => document.querySelector('.document-scroll[data-active="true"]').scrollTop);
     await settings('en');
     const screen = page.getByTestId('settings-dialog');
-    await page.waitForFunction(() => document.activeElement?.textContent === 'Back to document');
-    check(await screen.locator('.settings-document-name').innerText() === 'technical-document.md' &&
-      await screen.getByRole('img',{name:'Unsaved changes',exact:true}).count() === 1, 'Settings lost the return document or unsaved cue');
+    await page.getByRole('tab', {name:'Settings',exact:true}).and(page.locator(':focus')).waitFor();
+    check(await page.getByRole('tab').count() === tabCount + 1, 'Settings is not a task tab');
+    check(await page.getByTestId('save').count() === 0, 'Settings must not expose a hidden document Save');
+    await page.keyboard.press('Tab'); // Tab close, then category navigation.
     await page.keyboard.press('Tab');
-    check(await screen.getByRole('button',{name:'Appearance & language',exact:true}).evaluate(n => n === document.activeElement), 'Back does not lead to category navigation');
+    check(await screen.getByRole('button',{name:'Appearance & language',exact:true}).evaluate(n => n === document.activeElement), 'Tab does not lead to category navigation');
     await page.keyboard.press('Tab'); await page.keyboard.press('Enter');
     check(await screen.getByRole('heading',{name:'Local recovery',exact:true}).isVisible(), 'Keyboard cannot select recovery');
     await screen.getByRole('button',{name:'Appearance & language',exact:true}).click();
@@ -132,23 +134,23 @@ async (page, { openPath, screenshots }) => {
     for (const preset of presets) {
       await picker.locator(`input[value="${preset}"]`).check();
       await picker.locator(`input[value="${preset}"]`).focus();
-      const colors = await page.evaluate(() => {
+      const colors = await page.evaluate(documentTabId => {
         const root = document.documentElement;
         const resolve = name => {
           const probe = document.createElement('span'); probe.style.color = `var(--id-color-${name})`; document.body.append(probe);
           const value = getComputedStyle(probe).color; probe.remove(); return value;
         };
-        const editor = document.querySelector('[data-document-tab][data-active=true] .document-editor');
+        const editor = document.querySelector(`[data-document-tab="${documentTabId}"] .document-editor`);
         const picker = document.querySelector('[data-testid="accent-color"] input:checked + .settings-accent-face');
         const selection = getComputedStyle(editor.querySelector('.paragraph'), '::selection');
         return { theme: root.dataset.theme, preset: root.dataset.accent, interaction: resolve('interaction'), selected: resolve('text-selected'),
           selectedSurface: resolve('surface-selected'), ring: getComputedStyle(picker.querySelector('.settings-accent-swatch')).outlineColor, swatch: getComputedStyle(picker.querySelector('.settings-accent-swatch')).backgroundColor,
-          save: getComputedStyle(document.querySelector('[data-testid="save"]')).backgroundColor,
+
           selectionText: selection.color, selectionBackground: selection.backgroundColor,
           link: getComputedStyle(editor.querySelector('a')).color,
           reference: getComputedStyle(editor.querySelector('.cross-reference-chip')).color };
-      });
-      check(colors.preset === preset && colors.swatch === colors.interaction && colors.ring === colors.interaction && colors.save === colors.interaction &&
+      }, documentTabId);
+      check(colors.preset === preset && colors.swatch === colors.interaction && colors.ring === colors.interaction &&
         colors.link === colors.interaction && colors.reference === colors.interaction &&
         colors.selectionText === colors.selected && colors.selectionBackground === colors.selectedSurface,
         `Accent consumers did not update: ${JSON.stringify(colors)}`);
@@ -164,7 +166,11 @@ async (page, { openPath, screenshots }) => {
           ? style.outlineStyle === 'solid' && parseFloat(style.outlineWidth) >= 2 && parseFloat(style.outlineOffset) >= 2
           : style.outlineStyle === 'none';
       })), 'Only the selected accent must show an offset selection ring');
-      accentResults.push(colors);
+      await page.locator(`#tab-${documentTabId}`).click();
+      const saveColor = await page.getByTestId('save').evaluate(button => getComputedStyle(button).backgroundColor);
+      check(saveColor === colors.interaction, `${theme}/${preset}: document Save did not use the accent`);
+      await page.getByRole('tab',{name:'Settings',exact:true}).click();
+      accentResults.push({...colors, save: saveColor});
     }
     check(new Set(accentResults.filter(r => r.theme === theme).map(result => result.interaction)).size === presets.length, 'Presets must produce distinct colors');
     }

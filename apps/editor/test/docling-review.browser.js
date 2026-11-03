@@ -48,7 +48,7 @@ async (page, { expect, doclingFixture: fixture, screenshots }) => {
   await expect(result).toContainText('Pending proposals: 2');
   await expect(result).toContainText('AI proposals 3 / validation rejected 1');
   await expect(result).toContainText('AI summary: Checked headings');
-  await expect(result).toContainText('Last execution: gpt-6.1-sol · medium');
+  await expect(result).toContainText('Last execution: gpt-6-luna · low');
   await result.getByRole('button', { name: 'Open comparison', exact: true }).click();
   const tab = page.locator('.docling-tab[data-active=true]');
   const panel = tab.locator('.docling-review');

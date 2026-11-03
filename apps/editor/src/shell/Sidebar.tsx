@@ -15,6 +15,7 @@ import { treeKey, visibleTreeItems, type FolderTreeState, type TreeItem } from "
 
 type SidebarProps = {
   contributions?: { id: string; label: string; run(returnFocus: HTMLElement): void }[];
+  onAddToChat?(path: string, returnFocus: HTMLElement): void;
   pluginFileActions?: (UiFileAction & { disabled?: boolean })[];
   onFileAction: FileActionHandler;
   fileActionsDisabled: boolean;
@@ -50,13 +51,14 @@ type SidebarProps = {
   updateVersion?: string;
   /** App Settings, separate from document settings. Names the control focus returns to. */
   onSettings?(returnFocus: HTMLElement): void;
+  settingsDisabled?: boolean;
 };
 
 /** File navigation stays mounted when collapsed. Outline remains independent on the right. */
 export function Sidebar({
   onFileAction, fileActionsDisabled, isFileDirty, open, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
-  folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, updateVersion,
-  theme = "system", onThemeChange, contributions = [], pluginFileActions = [],
+  folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, settingsDisabled, updateVersion,
+  theme = "system", onThemeChange, contributions = [], pluginFileActions = [], onAddToChat,
 }: SidebarProps) {
   useTranslation();
   return (
@@ -84,7 +86,7 @@ export function Sidebar({
         {folders.length > 0 ? folders.map(tree => (
           <FolderTree
             key={tree.root}
-            pluginFileActions={pluginFileActions}
+            onAddToChat={onAddToChat} pluginFileActions={pluginFileActions}
             onFileAction={onFileAction} fileActionsDisabled={fileActionsDisabled} isFileDirty={isFileDirty}
             tree={tree}
             focusFolder={focusFolder}
@@ -134,7 +136,7 @@ export function Sidebar({
           {open ? contributions.map(item => <Button key={item.id} size="sm" variant="ghost" className="min-w-0 justify-start" disabled={fileActionsDisabled}
             onClick={event => item.run(event.currentTarget)}><FileText aria-hidden="true" />{i18n.t(item.label as MessageKey)}</Button>) : null}
           <div className="sidebar-preferences">
-            {onSettings ? <SettingsEntry iconOnly={!open} onOpen={onSettings} updateVersion={updateVersion} /> : null}
+            {onSettings ? <SettingsEntry disabled={settingsDisabled} iconOnly={!open} onOpen={onSettings} updateVersion={updateVersion} /> : null}
             {onThemeChange ? <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="ghost" size={open ? "sm" : "icon-sm"} className={open ? "min-w-0 justify-start" : undefined} aria-label={i18n.t("Color mode")} title={i18n.t("Color mode")} />}><SunMoon aria-hidden="true" />{open ? <>{i18n.t("Color mode")}<span className="sidebar-theme-value">{i18n.t(THEME_LABELS[theme])}</span></> : null}</DropdownMenuTrigger>
               <DropdownMenuContent side="top" aria-label={i18n.t("Color mode")}>
@@ -154,8 +156,8 @@ export function Sidebar({
 }
 
 /** One Settings entry for both sidebar states, including its focus-return target. */
-function SettingsEntry({ iconOnly, onOpen, updateVersion }: { updateVersion?: string; iconOnly: boolean; onOpen(returnFocus: HTMLElement): void }) {
-  return <Button className={iconOnly ? undefined : "min-w-0 justify-start"}
+function SettingsEntry({ iconOnly, onOpen, updateVersion, disabled }: { disabled?: boolean; updateVersion?: string; iconOnly: boolean; onOpen(returnFocus: HTMLElement): void }) {
+  return <Button disabled={disabled} data-open-settings="" className={iconOnly ? undefined : "min-w-0 justify-start"}
     size={iconOnly ? "icon-sm" : "sm"} variant="ghost"
     aria-label={updateVersion ? i18n.t("Settings, new version available") : i18n.t("Settings")}
     title={updateVersion ? i18n.t("New version {{version}} available", { version: updateVersion }) : i18n.t("Settings")}
@@ -167,6 +169,7 @@ function SettingsEntry({ iconOnly, onOpen, updateVersion }: { updateVersion?: st
 }
 
 type FolderTreeProps = {
+  onAddToChat?(path: string, returnFocus: HTMLElement): void;
   pluginFileActions?: (UiFileAction & { disabled?: boolean })[];
   onFileAction: FileActionHandler;
   fileActionsDisabled: boolean;
@@ -189,7 +192,7 @@ type FolderTreeProps = {
 };
 
 /** One opened folder as a tree: folders expand in place, documents open. */
-function FolderTree({ pluginFileActions = [], onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
+function FolderTree({ pluginFileActions = [], onAddToChat, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
   useTranslation();
   const treeId = useId();
   const section = useRef<HTMLElement>(null);
@@ -326,6 +329,7 @@ function FolderTree({ pluginFileActions = [], onFileAction, fileActionsDisabled,
             setFileAction({ action, item });
           };
           const actions: ContextMenuAction[] = [
+            ...(onAddToChat ? [{ id: "add-to-chat", label: i18n.t("Add to chat"), icon: <FileText aria-hidden="true" />, run: () => onAddToChat(entry.path, rows.current.get(entry.path)!) }] : []),
             ...pluginFileActions.filter(action => action.extensions.some(extension => entry.name.toLowerCase().endsWith(extension))).map(action => ({
               id: action.id, label: i18n.t(action.label as MessageKey), icon: <FileText aria-hidden="true" />, disabled: action.disabled,
               run: () => action.run(entry.path, rows.current.get(entry.path)!),
