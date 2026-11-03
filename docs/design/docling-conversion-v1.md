@@ -648,6 +648,16 @@ receipts by the runtime; other states explain why it is disabled. Missing and
 unreadable results retain disabled-action explanations. Internal task IDs are hidden.
 Stop waiting explains its server-cancellation limit beside the control.
 
+Dashboard polling reuses unchanged completed-result summaries (#1043). Each poll
+rechecks Host Root access and file identity, size, modification and change times
+for the result folder, Markdown, map, corrections, review record and ledger-referenced
+original JSON. Changes or read failures discard the summary. Running structure
+reviews bypass reuse so their live receipts still drive completion and cancellation.
+The memo is activation-local and pruned with visible successful request history;
+approval/write paths continue to validate original bytes. Initial and changed-result
+reads still perform full validation synchronously. Progress, Stop waiting and the
+one-second polling cadence are unchanged.
+
 Connection checks reuse version/readiness preflight. Server configuration,
 model-readiness explanation and feature checkboxes live in Settings › Docling.
 The last connection check is view-local, not persisted.
