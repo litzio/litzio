@@ -24,6 +24,7 @@ Product: 비개발자용 Git 연동의 지원 여부와 사용자 경험 검토
 | --- | --- | --- |
 | 유형 | `type:bug`, `type:enhancement`, `type:task`, `type:decision` | 정확히 하나. 사용자 불편 개선은 enhancement이며 계약을 위반한 오류만 bug로 분류한다. |
 | 영역 | `area:editor`, `area:desktop`, `area:core`, `area:cli`, `area:host`, `area:docs`, `area:product` | 제목·본문 선택과 같은 영역 하나. 등록 후 검사도 이를 맞춘다. |
+| 플러그인 | `plugin:docling`, `plugin:ai-agent`, `plugin:runtime` | 선택. 영역은 바뀌는 코드 위치로 하나 고르고, 특정 플러그인과 관련되면 해당 plugin 라벨을 겹쳐 붙인다. 런타임·관리 화면·plugin-api 같은 공통 일은 `plugin:runtime`을 쓴다. |
 | 검토 상태 | `status:needs-decision`, `status:deferred` | decision의 상태가 각각 `결정 필요`, `향후 검토`일 때 적용한다. 등록이나 검사 통과는 구현 착수 승인이 아니다. |
 | 보완 상태 | `status:needs-info` | 제목·유형·필수 정보 보완이 필요할 때 검사에서 적용하고 보완 후 제거한다. |
 
@@ -59,6 +60,7 @@ GitHub 폼은 `###`, CLI는 `##` 제목을 출력하며 같은 필드 계약으�
 ## CLI / Agent에서 등록
 
 제공받은 정보로 구조화된 JSON을 준비한다. `fields`의 키와 의미는 위 표를 따른다.
+선택 필드 `pluginLabels`에 `["plugin:docling"]`처럼 라벨 배열을 지정할 수 있다. 생략할 수 있으며 정의되지 않은 값은 거부한다.
 단순 개선 예:
 
 ```json
