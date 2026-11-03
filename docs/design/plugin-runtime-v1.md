@@ -32,11 +32,21 @@ Use a local filesystem supporting SQLite locks; network shares and hostile
 mutation of this user-owned directory are outside the contract.
 
 A worker manifest is JSON with `id` (lowercase ASCII identifier), `version`
-(1–128 letters/digits, underscore, dot, plus or hyphen), `workerApi: 1` and
+(semver, including prerelease/build metadata), `workerApi: 1` and
 `entry: "worker.cjs"`. The entry is a self-contained Node CommonJS bundle beside
-the manifest. Registration copies its bytes into `installed/<SHA-256>/worker.cjs`
-and stores the selected manifest and hash. With #857, the directory SHA-256 is
-the complete installation revision (manifest plus worker/Host/UI hashes), and optional
+the manifest. New registrations copy its bytes into
+`installed/<id>/<encoded-version>-<revision-prefix>/worker.cjs` (#1112).
+The prefix is the first 12 lowercase hex characters of the complete SHA-256
+installation revision (manifest plus worker/Host/UI hashes), matching Settings.
+The version uses `encodeURIComponent` without normalization (`+` becomes `%2B`),
+so semver build metadata and accepted version whitespace cannot introduce Windows
+filename delimiters. The displayed manifest version remains unchanged.
+An immutable `.revision` file records the full revision: an occupied directory is
+reused only when this full identity and all declared file hashes match; otherwise
+registration fails without overwriting the directory or changing registration.
+Folder names are for identification, never the integrity authority. Stored legacy
+`installed/<full-revision>` paths remain usable in place; nothing is moved or migrated.
+Registration stores the selected manifest and hashes, and optional
 UI assets share that immutable directory. Each admission pins that installation;
 the runtime checks its hash before execution. Re-registering changes future work
 only. API mismatch is refused before registration or execution. Worker API 1
@@ -462,7 +472,7 @@ use that app version. This is the human-readable release value, not a content ID
 Host-calculated `revision` still hashes manifest/files, determines installation
 folders and compares pinned versus app-default content. Changing content with the
 same version still changes revision and permits explicit default re-registration.
-Settings displays version unchanged and abbreviates revision only in details;
+Settings displays version unchanged and abbreviates revision to 12 characters in details;
 full revision/path/default match remain accessible through hover/keyboard focus.
 Independent plugin version/compatibility/update rules remain #867.
 

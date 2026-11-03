@@ -16,6 +16,8 @@ export type Receipt<J extends RuntimeJob = ConversionJob> = { job: J; fingerprin
   inputs?: string[];
   status: "running" | "success" | "error" | "cancelled" | "uncertain"; hidden?: boolean };
 export const digest = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex");
+const installationDirectory = (root: string, item: WorkerManifest, revision: string) =>
+  path.join(root, "installed", item.id, `${encodeURIComponent(item.version)}-${revision.slice(0, 12)}`);
 function workerManifest(value: unknown): WorkerManifest {
   const manifest = value as WorkerManifest;
   if (manifest && typeof manifest.version === "string" && semver.valid(manifest.version) === null) throw new Error("Invalid worker manifest: version must be semver.");
@@ -81,14 +83,16 @@ export class PluginStore {
   list(): Installation[] { return this.db.prepare("SELECT value FROM plugins ORDER BY id").all().map(row => JSON.parse(row.value as string)); }
   register(manifestFile: string, onlyIfMissing = false, checkPath: (file: string) => void = () => {}): Installation {
     const { manifest, files, sha256, hostHash, uiHashes, revision } = readPluginBuild(manifestFile, checkPath);
-    const directory = path.join(this.directory, "installed", revision);
+    const directory = installationDirectory(this.directory, manifest, revision);
     mkdirSync(path.dirname(directory), { recursive: true });
     const temporary = `${directory}.${randomUUID()}.tmp`;
     mkdirSync(temporary);
     try {
       for (const [name, bytes] of files) writeFileSync(path.join(temporary, name), bytes, { flag: "wx" });
-      try { renameSync(temporary, directory); }
+      writeFileSync(path.join(temporary, ".revision"), revision, { flag: "wx" });
+      try { if (!existsSync(directory)) renameSync(temporary, directory); }
       catch (error) { if (!existsSync(directory)) throw error; }
+      if (readFileSync(path.join(directory, ".revision"), "utf8") !== revision) throw new Error("Installed plugin revision mismatch.");
       for (const [name, bytes] of files) if (digest(readFileSync(path.join(directory, name))) !== digest(bytes)) throw new Error("Installed plugin hash mismatch.");
     } finally { rmSync(temporary, { recursive: true, force: true }); }
     return this.transaction(() => {
@@ -241,7 +245,8 @@ export class PluginStore {
       workerManifest(installation);
       if (isAiJob(job) && !installation.tasks?.includes(AI_TASK.service) || !isAiJob(job) && installation.tasks?.includes(AI_TASK.service)) throw new Error("Worker task capability mismatch.");
       if (!installation.entry || !/^[a-f\d]{64}$/u.test(installation.sha256) || !/^[a-f\d]{64}$/u.test(installation.revision) ||
-        installation.directory !== path.join(this.directory, "installed", installation.revision)) throw new Error("Invalid installed worker location.");
+        (installation.directory !== path.join(this.directory, "installed", installation.revision) &&
+          installation.directory !== installationDirectory(this.directory, installation, installation.revision))) throw new Error("Invalid installed worker location.");
       const receipt: Receipt<RuntimeJob> = { job, fingerprint, owner: this.owner, installation, status: "running" };
       this.save(receipt);
       return { receipt, fresh: true };

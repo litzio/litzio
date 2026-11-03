@@ -7,6 +7,34 @@
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
 
+### Installation path label and evidence (#1112)
+
+Plugin information and the list tooltip use “설치 경로” in Korean and retain
+“Installation path” in English. They display the stored Host path, including
+legacy paths retained in place. New registrations follow the readable folder
+rule in [Host installation](plugin-runtime-v1.md#installation-and-api).
+Existing SettingsRow and Tooltip are reused, consistent with built-in and
+plugin settings; there is no new surface, common interaction or API exception.
+
+Windows persistent Chrome, 100% zoom, 1440×1000 English Light and 640×1000
+Korean Dark, same synthetic pinned-mismatch state (long path retained):
+[1440 Before](assets/plugin-install-1112/before-1440.png) /
+[After](assets/plugin-install-1112/after-1440.png),
+[640 Before](assets/plugin-install-1112/before-640.png) /
+[After](assets/plugin-install-1112/after-640.png).
+Explicit re-registration displays the actual new Host path:
+[1440 Korean Dark](assets/plugin-install-1112/registered-1440.png) /
+[640 Korean Dark](assets/plugin-install-1112/registered-640.png).
+Review checks row centers, text padding, Korean wrapping, scrolling and clipping.
+Captures remain manual evidence, separate from pass/fail assertions.
+
+The existing plugin-settings scenario checks the translated label and actual
+registered path. Its mocked inventory handlers finish before removal, preventing
+an in-flight `route.fulfill` after unroute; behavioral assertions are unchanged.
+The Host runtime test is the primary check for naming/build metadata, full-revision
+collision refusal, occupied-directory preservation, receipt pinning and old paths.
+No subprocess, exhaustive combination or new browser scenario is added.
+
 ## Manifest and assets
 
 The brand-independent `@litzio/plugin-api` contract owns the identifiers in
