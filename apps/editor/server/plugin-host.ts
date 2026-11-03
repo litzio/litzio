@@ -157,7 +157,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
       const selected = provider(next);
       if (selected !== current.provider || next?.model !== current.model || next?.reasoningEffort !== current.reasoningEffort) {
         const catalog = await agentOperations.agentModels({ provider: selected });
-        if (!catalog.models.some(model => model.model === next?.model && (selected === "copilot" ? next.reasoningEffort === "" : model.supportedReasoningEfforts.some(effort => effort.reasoningEffort === next.reasoningEffort)))) throw new Error("Invalid AI model or reasoning effort.");
+        if (!catalog.models.some(model => model.model === next?.model && model.supportedReasoningEfforts.some(effort => effort.reasoningEffort === next.reasoningEffort))) throw new Error("Invalid AI model or reasoning effort.");
       }
       if (!plugins().list().find(item => item.id === id)?.enabled) throw new Error("Plugin is disabled.");
       const stored = plugin.operations.configure(selected === "copilot" ? { ...next,

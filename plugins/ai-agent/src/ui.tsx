@@ -43,7 +43,7 @@ export function activate(host: UiHost) {
         const stored = await host.requestJson<AiAgentSettings>(AI_TASK.settingsRoute.slice(1), "PUT", next);
         if (!alive.current) return;
         setStoredSettings(stored);
-        setSettings(current => enablementOnly && current ? { ...stored, model: current.model, reasoningEffort: current.reasoningEffort, responseLanguage: current.responseLanguage } : stored);
+        setSettings(current => enablementOnly && current ? { ...stored, model: current.model, reasoningEffort: current.reasoningEffort, writeAccess: current.writeAccess, responseLanguage: current.responseLanguage } : stored);
         setSaved(!enablementOnly);
         if (!next.enabled) { setModels(undefined); setDiagnostics(undefined); }
         else if (!settings?.enabled) void refresh(next.provider);
@@ -52,7 +52,7 @@ export function activate(host: UiHost) {
     };
     const copilot = settings?.provider === "copilot", providerName = copilot ? "GitHub Copilot" : "Codex";
     const model = models?.models.find(item => item.model === settings?.model);
-    const valid = !!model && (copilot || model.supportedReasoningEfforts.some(item => item.reasoningEffort === settings?.reasoningEffort));
+    const valid = !!model && model.supportedReasoningEfforts.some(item => item.reasoningEffort === settings?.reasoningEffort);
     const selectModel = (name: string) => {
       const selected = models?.models.find(item => item.model === name); if (!settings || !selected) return;
       setSettings({ ...settings, model: name, reasoningEffort: selected.supportedReasoningEfforts.some(item => item.reasoningEffort === settings.reasoningEffort) ? settings.reasoningEffort : selected.defaultReasoningEffort }); setSaved(false);
@@ -94,9 +94,14 @@ export function activate(host: UiHost) {
           }} />
         <SettingsSelect label={t("Model")} value={settings?.model ?? ""} disabled={!models || busy || !settings?.enabled} onChange={selectModel}
           options={[...(!model ? [{ value: settings?.model ?? "", label: settings?.model ?? t("Checking…") }] : []), ...(models?.models.map(item => ({ value: item.model, label: item.displayName })) ?? [])]} />
-        {!copilot ? <SettingsSelect label={t("Reasoning effort")} value={settings?.reasoningEffort ?? ""} disabled={!model || busy || !settings?.enabled}
+        <div title={copilot && models?.copilot?.reasoningEffortSource === "cli" ? t("Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it.") : undefined}><SettingsSelect label={t("Reasoning effort")} value={settings?.reasoningEffort ?? ""} disabled={!model || busy || !settings?.enabled}
           onChange={value => { setSettings({ ...settings!, reasoningEffort: value }); setSaved(false); }}
-          options={[...(!valid ? [{ value: settings?.reasoningEffort ?? "", label: settings?.reasoningEffort ?? "—" }] : []), ...(model?.supportedReasoningEfforts.map(item => ({ value: item.reasoningEffort, label: t(item.reasoningEffort) })) ?? [])]} /> : null}
+          options={[...(!valid ? [{ value: settings?.reasoningEffort ?? "", label: settings?.reasoningEffort ?? "—" }] : []), ...(model?.supportedReasoningEfforts.map(item => ({ value: item.reasoningEffort, label: t(item.reasoningEffort) })) ?? [])]} /></div>
+        <div title={t("Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.")}>
+          <SettingsSelect label={t("Write access")} value={settings?.writeAccess ?? "opened-folders"} disabled={!settings || busy}
+            onChange={value => { setSettings({ ...settings!, writeAccess: value as AiAgentSettings["writeAccess"] }); setSaved(false); }}
+            options={[{ value: "read-only", label: t("Read-only") }, { value: "opened-folders", label: t("Opened folders") }, { value: "full-access", label: t("Full access") }]} />
+        </div>
         <SettingsSelect label={t("AI default language")} value={settings?.responseLanguage ?? "en"} disabled={!settings || busy}
           onChange={value => { setSettings({ ...settings!, responseLanguage: value as AiAgentSettings["responseLanguage"] }); setSaved(false); }}
           options={[{ value: "ko", label: "한국어" }, { value: "en", label: "English" }, { value: "ja", label: "日本語" }]} />
@@ -117,7 +122,7 @@ export function activate(host: UiHost) {
         <div className="agent-models"><Input aria-label={t("Search models")} placeholder={t("Search models")} value={search} onChange={event => setSearch(event.target.value)} />
           <p className="agent-muted">{t("Models")}: {filteredModels?.length ?? "—"}</p>
           <div className="agent-model-list">{!models ? <p>{loading ? t("Checking…") : t("Unavailable")}</p> : filteredModels?.map(item => <article key={item.id}>
-            <div className="agent-model-name"><strong>{item.displayName}</strong><code>{item.model}</code>{item.model === storedSettings?.model ? <small>{t("Default")}</small> : null}</div><p>{item.description}</p>{!copilot ? <small>{t("Reasoning effort")}: {item.supportedReasoningEfforts.map(effort => t(effort.reasoningEffort)).join(" · ")}</small> : null}
+            <div className="agent-model-name"><strong>{item.displayName}</strong><code>{item.model}</code>{item.model === storedSettings?.model ? <small>{t("Default")}</small> : null}</div><p>{item.description}</p><small>{t("Reasoning effort")}: {item.supportedReasoningEfforts.map(effort => t(effort.reasoningEffort)).join(" · ")}</small>
           </article>)}
           {filteredModels?.length === 0 ? <p>{t("No matching models.")}</p> : null}</div>
         </div>

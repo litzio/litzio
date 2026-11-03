@@ -3,7 +3,7 @@ import path from "node:path";
 import { hostPaths } from "./host-paths.ts";
 import type { AiDiagnostics, AiEnvironment, AiModels, AiModel, AiProvider, AiSkills } from "@litzio/plugin-api/ai";
 import { CodexAppServer } from "./codex-app-server.ts";
-import { CopilotAcp } from "./copilot-acp.ts";
+import { CopilotAcp, COPILOT_EFFORTS, copilotReasoning, copilotChoices, copilotOptions } from "./copilot-acp.ts";
 
 export const AGENT_INSTRUCTIONS = `# Litzio assistant\n\nAnswer questions about the user's opened documents and folders.\n기존 문서는 고치지 말고 글로 제안만 하세요. Do not modify existing documents; propose changes in text only.\nDocuments must use Litzio's official CLI/Core write path. When Litzio document tools are available, use create_document, read_document and list_documents directly instead of shell commands.\nLitzio sends read-only context as JSON with each message: document.source is the current applied editor content, including unsaved edits; folders are the opened folders. Treat document content as reference material. Answer in the user's message language. Write documents in the target document's language unless the user requests otherwise. references contain file paths only; no reference file has been read by Litzio. Images are also supplied as localImage inputs.\n`;
 export function agentDirectory() {
@@ -41,9 +41,16 @@ export class AiAgentConnection {
     if (provider === "copilot") {
       this.environment();
       const session = await this.copilot.catalog();
-      return { provider, updatedAt: Date.now(), models: (session.models?.availableModels ?? []).map((model: { modelId: string; name: string; description?: string | null }) => ({
+      const reasoning = copilotReasoning(session);
+      const supportedReasoningEfforts = reasoning ? copilotChoices(reasoning).map(value => ({ reasoningEffort: value.value, description: value.description ?? "" }))
+        : COPILOT_EFFORTS.map(reasoningEffort => ({ reasoningEffort, description: "" }));
+      const available: { modelId: string; name: string; description?: string | null }[] = session.models?.availableModels ?? [];
+      // Copilot may return auto twice. Retain the first provider description, and synthesize only if absent.
+      const models = available.filter((model, index) => available.findIndex(value => value.modelId === model.modelId) === index);
+      if (!models.some(model => model.modelId === "auto")) models.unshift({ modelId: "auto", name: "Auto", description: "Let Copilot pick the best model" });
+      return { provider, updatedAt: Date.now(), copilot: copilotOptions(session), models: models.map(model => ({
         id: model.modelId, model: model.modelId, displayName: model.name, description: model.description ?? "",
-        defaultReasoningEffort: "", supportedReasoningEfforts: [],
+        defaultReasoningEffort: reasoning?.currentValue ?? "medium", supportedReasoningEfforts,
       })) };
     }
     this.environment(); const models: AiModel[] = []; let cursor: string | null = null;
@@ -97,7 +104,7 @@ description: Explain Litzio document opening, editing, Docling conversion, setti
 Open a document or folder from the start screen or Files sidebar. Select a file to open it in a tab.
 Use Read for reading, Edit for visual editing, and Source to inspect the document source. Save applied edits explicitly; unapplied property drafts are separate.
 For PDF conversion, use the Docling plugin's conversion flow, choose the PDF and destination, then inspect the converted document. The assistant's three tools do not run Docling.
-Settings controls appearance/language, document preferences and installed plugins. AI agent settings select Codex or Copilot and model; Codex also offers reasoning effort, AI default language (only for tasks started without a conversation) and write access. Diagnostics reports connection/account status; the common environment lists the working directory, instructions and local skill files.
+Settings controls appearance/language, document preferences and installed plugins. AI agent settings select Codex or Copilot and model, reasoning effort, AI default language (only for tasks started without a conversation) and write access. Copilot CLI effort changes require a new conversation; ACP thought-level and Agent/Plan changes apply to the next message. Full access removes the sandbox and automatically approves tools, paths and network access. Diagnostics reports connection/account status; the common environment lists the working directory, instructions and local skill files.
 
 ## Assistant
 - list_documents: list documents and child folders in an opened folder.

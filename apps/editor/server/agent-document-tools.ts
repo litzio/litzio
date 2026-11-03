@@ -28,7 +28,7 @@ export function executeDocumentTool(name: string, input: unknown, scope: Documen
   if (Object.keys(value).some(key => !keys.includes(key))) invalid("Unsupported tool input.");
   if (!scope.folders) throw new Error("No opened folders for this turn.");
   const create = name === "create_document";
-  if (create && scope.writeAccess !== "opened-folders") throw new Error("Document creation is read-only for this turn.");
+  if (create && scope.writeAccess !== "opened-folders" && scope.writeAccess !== "full-access") throw new Error("Document creation is read-only for this turn.");
   const file = scope.folders.resolve(accessPath(value.path, scope.access, create), create);
   if (name === "read_document") {
     const { path, source, revision } = loadEditorFile(file, scope.access);

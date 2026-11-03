@@ -9,6 +9,9 @@ import { listFolder } from "./document-api.ts";
 import { documentTools, executeDocumentTool, type DocumentToolScope } from "./agent-document-tools.ts";
 import { AGENT_INSTRUCTIONS } from "./ai-agent-connection.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
+import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices } from "./copilot-acp.ts";
+
+type ConversationIndexEntry = AiConversationInfo & { copilotCliReasoningEffort?: string };
 
 /** Litzio persists only its history index. Each CLI owns its conversation content. */
 export class AiAgentConversations {
@@ -54,7 +57,7 @@ export class AiAgentConversations {
     });
   }
   private get file() { return path.join(this.connection.cwd, "conversations.json"); }
-  list(): AiConversationInfo[] {
+  list(): ConversationIndexEntry[] {
     this.connection.environment();
     return existsSync(this.file) ? JSON.parse(readFileSync(this.file, "utf8")) : [];
   }
@@ -63,7 +66,8 @@ export class AiAgentConversations {
     const entries = this.list().filter(entry => entry.id !== id);
     const temporary = `${this.file}.${randomUUID()}.tmp`;
     try {
-      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}) }, ...entries]) + "\n", { flag: "wx" });
+      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}),
+        ...(provider === "copilot" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
       renameSync(temporary, this.file);
     } finally { if (existsSync(temporary)) unlinkSync(temporary); }
   }
@@ -78,16 +82,22 @@ export class AiAgentConversations {
     if (!info) throw new Error("Conversation was not found.");
     if ((info.provider ?? "codex") !== settings.provider) throw new Error("Select this conversation's provider in AI settings first.");
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
+    if (info.provider === "copilot") await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? this.connection.copilot.reasoningEffort, settings);
     const conversation: AiConversation = { ...info, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
       tokenUsage: this.conversations.get(id)?.tokenUsage };
     // Install before the RPC so token-usage notifications during resume are retained.
     this.conversations.set(id, conversation);
     if (info.provider === "copilot") {
+      this.loaded.delete(id);
       const client = await this.connection.copilot.connect();
       if (!this.connection.copilot.loadSession) throw new Error("This Copilot CLI cannot resume sessions. Start a new conversation.");
       const session = await this.connection.copilot.call(() => client.loadSession({ sessionId: id, cwd: this.connection.cwd, mcpServers: [] }));
       conversation.model = session.models?.currentModelId ?? settings.model;
-      conversation.reasoningEffort = "";
+      this.connection.copilot.remember({ ...session, sessionId: id });
+      conversation.copilot = copilotOptions({ ...session, sessionId: id });
+      const reasoning = copilotReasoning(session);
+      if (!reasoning && !COPILOT_EFFORTS.includes(info.copilotCliReasoningEffort ?? "")) throw new Error("This Copilot conversation has no saved CLI reasoning effort. Start a new conversation.");
+      conversation.reasoningEffort = reasoning?.currentValue ?? info.copilotCliReasoningEffort!;
       this.loaded.add(id);
       return conversation;
     }
@@ -120,7 +130,7 @@ export class AiAgentConversations {
       accessPath(input.document.path, this.access);
     }
     let conversation = input.id ? this.current(input.id) : undefined;
-    const key = input.id ?? "new";
+    const key = settings.provider === "copilot" ? "copilot" : input.id ?? "new";
     if (this.pending.has(key)) throw new Error("A conversation request is already pending.");
     this.pending.add(key);
     try {
@@ -165,7 +175,7 @@ export class AiAgentConversations {
         this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, writeAccess: settings.writeAccess, access: this.access });
         const result = await this.connection.client.request("turn/start", { threadId: conversation.id, input: messages,
           cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: "never",
-          sandboxPolicy: settings.writeAccess === "opened-folders" ? { type: "workspaceWrite", writableRoots: folders,
+          sandboxPolicy: settings.writeAccess === "full-access" ? { type: "dangerFullAccess" } : settings.writeAccess === "opened-folders" ? { type: "workspaceWrite", writableRoots: folders,
             networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true } : { type: "readOnly", networkAccess: false } });
         const scope = this.scopes.get(conversation.id); if (scope) scope.turnId = result.turn.id;
         if (!conversation.turns.some(turn => turn.id === result.turn.id)) conversation.turns.push(turnFrom(result.turn));
@@ -203,23 +213,55 @@ export class AiAgentConversations {
     return conversation;
   }
   private async sendCopilot(input: AiConversationInput, settings: AiAgentSettings, folders: string[], references: import("@litzio/plugin-api/ai").AiFileReference[], conversation?: AiConversation) {
-    const acp = this.connection.copilot, client = await acp.connect();
+    const acp = this.connection.copilot;
     if (conversation?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Copilot response before sending another message.");
     const catalog = await this.connection.models("copilot");
     if (!catalog.models.some(model => model.model === input.model)) throw new Error("Invalid Copilot model.");
+    if (input.mode !== undefined && !catalog.copilot?.modes.some(mode => mode.id === input.mode)) throw new Error("Invalid Copilot session mode.");
+    const source = conversation?.copilot?.reasoningEffortSource ?? catalog.copilot?.reasoningEffortSource;
+    if (source === "cli") {
+      if (!COPILOT_EFFORTS.includes(input.reasoningEffort)) throw new Error("Invalid Copilot reasoning effort.");
+      if (conversation && conversation.reasoningEffort !== input.reasoningEffort) throw new Error("Start a new conversation to change Copilot reasoning effort.");
+    }
+    const effort = source === "cli" ? input.reasoningEffort : acp.reasoningEffort;
+    const fullAccess = settings.writeAccess === "full-access";
+    await this.prepareCopilotLaunch(effort, settings);
     if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings);
+    const client = await acp.connect();
     if (!conversation) {
-      const session = await acp.call(() => client.newSession({ cwd: this.connection.cwd, mcpServers: [] }));
+      const session = acp.remember(await acp.call(() => client.newSession({ cwd: this.connection.cwd, mcpServers: [] })));
       conversation = { id: session.sessionId, provider: "copilot", title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, 80),
-        folders, createdAt: Date.now(), updatedAt: Date.now(), turns: [], model: input.model, reasoningEffort: "" };
+        folders, createdAt: Date.now(), updatedAt: Date.now(), turns: [], model: input.model, reasoningEffort: input.reasoningEffort, copilot: copilotOptions(session) };
       this.conversations.set(conversation.id, conversation); this.loaded.add(conversation.id);
     }
     const id = conversation.id;
     await acp.call(() => client.unstable_setSessionModel({ sessionId: id, modelId: input.model }));
+    const session = acp.sessions.get(id)!;
+    const reasoning = copilotReasoning(session);
+    if (reasoning) {
+      if (!copilotChoices(reasoning).some(value => value.value === input.reasoningEffort)) throw new Error("Invalid Copilot reasoning effort for this session.");
+      const result = await acp.call(() => client.setSessionConfigOption({ sessionId: id, configId: reasoning.id, value: input.reasoningEffort }));
+      session.configOptions = result.configOptions;
+    } else if (acp.reasoningEffort !== input.reasoningEffort) throw new Error("Start a new conversation to change Copilot reasoning effort.");
+    const options = copilotOptions(session);
+    const mode = input.mode ?? options.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id;
+    if (mode) {
+      if (!options.modes.some(value => value.id === mode)) throw new Error("Invalid Copilot session mode.");
+      await acp.call(() => client.setSessionMode({ sessionId: id, modeId: mode }));
+      options.currentMode = mode;
+      if (session.modes) session.modes.currentModeId = mode;
+    }
+    // Paseo's Allow All is Agent/Plan plus allow_all=on, not an autopilot mode.
+    const allowAll = session.configOptions?.find(option => option.id === "allow_all");
+    if (allowAll?.type === "select") {
+      const result = await acp.call(() => client.setSessionConfigOption({ sessionId: id, configId: allowAll.id, value: fullAccess ? "on" : "off" }));
+      session.configOptions = result.configOptions;
+    }
+    conversation.copilot = options;
     references = checkedReferences(input.references ?? [], folders, this.access);
     const context = { folders, document: input.document ?? null, references };
     const turn: AiConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.message, references }] };
-    conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = "";
+    conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort;
     conversation.folders = folders; conversation.updatedAt = Date.now();
     this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, writeAccess: settings.writeAccess, turnId: turn.id });
     this.save(conversation);
@@ -232,6 +274,11 @@ export class AiAgentConversations {
     }, error => { turn.status = "failed"; turn.error = error.message; }).finally(() => { this.scopes.delete(id); });
     return conversation;
   }
+  private async prepareCopilotLaunch(effort: string, settings: AiAgentSettings) {
+    const acp = this.connection.copilot, fullAccess = settings.writeAccess === "full-access";
+    if ((acp.reasoningEffort !== effort || acp.fullAccess !== fullAccess) && [...this.conversations.values()].some(value => value.provider === "copilot" && value.turns.some(turn => turn.status === "inProgress"))) throw new Error("Stop the Copilot response before changing launch settings.");
+    await acp.useLaunchSettings(effort, fullAccess);
+  }
   private copilotPermission(request: RequestPermissionRequest): RequestPermissionResponse {
     const scope = this.scopes.get(request.sessionId), tool = request.toolCall;
     const active = this.conversations.get(request.sessionId)?.turns.some(turn => turn.id === scope?.turnId && turn.status === "inProgress");
@@ -243,11 +290,17 @@ export class AiAgentConversations {
         accessPath(accessPath(location.path, scope!.folders, tool.kind === "edit"), this.access, tool.kind === "edit");
       }
     } catch { allowed = false; }
-    const option = allowed ? request.options.find(option => option.kind === "allow_once") : undefined;
+    const fullAccess = !!scope && !!active && scope.writeAccess === "full-access";
+    const option = allowed || fullAccess ? request.options.find(option => option.kind === "allow_once") ?? (fullAccess ? request.options.find(option => option.kind === "allow_always") : undefined) : undefined;
     return option ? { outcome: { outcome: "selected", optionId: option.optionId } } : { outcome: { outcome: "cancelled" } };
   }
   private copilotUpdate({ sessionId, update }: SessionNotification) {
     const conversation = this.conversations.get(sessionId); if (!conversation || conversation.provider !== "copilot") return;
+    if (update.sessionUpdate === "config_option_update" || update.sessionUpdate === "current_mode_update") {
+      const session = this.connection.copilot.sessions.get(sessionId);
+      if (session) { conversation.copilot = copilotOptions(session); conversation.reasoningEffort = copilotReasoning(session)?.currentValue ?? conversation.reasoningEffort; }
+      return;
+    }
     let turn = conversation.turns.at(-1);
     if (update.sessionUpdate === "user_message_chunk" && update.content.type === "text") {
       if (turn?.status === "inProgress") return;
