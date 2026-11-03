@@ -84,7 +84,9 @@ Docling·AI 설정과 같은 콘텐츠 정렬을 따르며 경로·version은 �
 skills·진단 항목은 숨긴다. #1091은 같은 SettingsSelect로 추론 강도·쓰기 범위를 표시하고 기존 비서 Popover에서 Agent/Plan을 고른다([비서 계약](main-agent-v1.md#copilot-conversations-1053)).
 
 #931의 [AI 설정](main-agent-v1.md)은 Docling 설정과 같은 Settings 콘텐츠·control
-폭과 공용 Input/select/Button을 사용한다. 모델 기본값은 명시적 Save로 저장하고,
+폭과 공용 Input/select/Button을 사용한다. #1109에서 프로바이더별 SettingsSwitch를
+이름·상태 → 진단 → 토글 한 줄에 두고, 모든 기본값은 순차 자동 저장한다.
+저장 중·실패는 기존 status/alert로 보이며 저장 완료 상시 문구는 두지 않는다.
 목록 대화상자는 기존 Dialog의 닫기·포커스 복귀를 사용한다. 한국어 시작 후 English
 전환, 1440px Light·640px Dark의 목록·진단·입력칸을 `ai-agent` 시나리오에서 확인한다.
 

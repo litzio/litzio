@@ -110,3 +110,11 @@ SettingsRow와 기존 Button으로 해당 플러그인의 설정에 진입한다
 설치 revision·경로·기본 버전 일치 여부는 기존 Tooltip과 공통 정보 버튼으로
 hover·keyboard focus에서 확인한다. 기본 버전 재등록은 기존 확인 Dialog를 유지한다.
 새 공통 컴포넌트·공개 Plugin API 예외는 없다.
+
+## AI provider settings (#1109)
+
+기존 플러그인 설정 표면에서 SettingsSelect와 SettingsSwitch, ghost Button 및
+모델 Dialog를 재사용한다. 승인된 프로바이더 한 줄 배치에서 Switch의 기존 행 label은
+접근성을 유지한 채 시각적으로 숨겨 이름·상태 → 진단 → 토글 순서를 만든다.
+새 공통 UI API는 추가하지 않는다. 공개 AI 설정 타입 변경과 자동 저장 계약은
+[Main agent settings](main-agent-v1.md#independent-provider-settings-1109)에 기록한다.

@@ -12,7 +12,7 @@ type ExpectedConsoleErrorRule = {
 };
 
 const EXPECTED_CONSOLE_ERRORS: Record<string, ExpectedConsoleErrorRule[]> = {
-  "ai-agent": [{ status: 503, pathname: "/api/ai-agent-skills", minimum: 1, description: "skill catalog failure is shown in the candidate list" }, { status: 404, pathname: "/api/ai-agent-conversations", minimum: 1, description: "a deliberately unavailable last conversation falls back to a fresh composer" }],
+  "ai-agent": [{ status: 503, pathname: "/api/ai-agent-settings", minimum: 1, description: "automatic save failure is localized and a later change can save" }, { status: 503, pathname: "/api/ai-agent-skills", minimum: 1, description: "skill catalog failure is shown in the candidate list" }, { status: 404, pathname: "/api/ai-agent-conversations", minimum: 1, description: "a deliberately unavailable last conversation falls back to a fresh composer" }],
   "external-change": [{ status: 409, pathname: "/api/document", minimum: 1, description: "a real external write refuses Save and offers comparison and confirmed Reload" }],
   "docling-review-retry": [
     { status: 500, pathname: "/api/docling-compare", minimum: 1, description: "persistent comparison failures exercise the automatic read limit and manual recovery" },

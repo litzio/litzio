@@ -10,9 +10,10 @@ export const DEFAULT_AI_SETTINGS: AiExecutionSettings = { model: "gpt-6.1-sol", 
 /** Fallback for tasks started without a conversation; never a conversation override. */
 export type AiResponseLanguage = "ko" | "en" | "ja";
 export type AiProvider = "codex" | "copilot";
-export type AiAgentSettings = AiExecutionSettings & { provider: AiProvider; enabled: boolean; writeAccess: "opened-folders" | "read-only" | "full-access";
+export type AiAgentSettings = AiExecutionSettings & { provider: AiProvider; providers: Record<AiProvider, boolean>; writeAccess: "opened-folders" | "read-only" | "full-access";
   /** Codex feature-task defaults retained while the assistant uses Copilot. */
   codexTaskSettings?: Pick<AiExecutionSettings, "model" | "reasoningEffort"> };
+export function aiAgentEnabled(settings: AiAgentSettings): boolean { return settings.providers[settings.provider]; }
 export const AI_AGENT = {
   skillsRoute: "/api/ai-agent-skills", modelsRoute: "/api/ai-agent-models", diagnosticsRoute: "/api/ai-agent-diagnostics", environmentRoute: "/api/ai-agent-environment",
   conversationsRoute: "/api/ai-agent-conversations",

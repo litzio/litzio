@@ -75,9 +75,9 @@ test("source Host registers and writes defaults only under its injected checkout
   const state = path.join(root, ".litzio-dev");
   const { responseLanguage, ...executionSettings } = host.invoke("ai-agent", "settings");
   assert.ok(["ko", "en", "ja"].includes(responseLanguage));
-  assert.deepEqual(executionSettings, { provider: "codex", enabled: true, writeAccess: "opened-folders", model: "gpt-6-luna", reasoningEffort: "low" });
+  assert.deepEqual(executionSettings, { provider: "codex", providers: { codex: true, copilot: false }, writeAccess: "opened-folders", model: "gpt-6-luna", reasoningEffort: "low" });
   assert.equal(existsSync(path.join(state, "ai-agent.json")), false);
-  const saved = { provider: "codex", enabled: true, writeAccess: "read-only", model: "saved-model", reasoningEffort: "high" };
+  const saved = { provider: "codex", providers: { codex: true, copilot: false }, writeAccess: "read-only", model: "saved-model", reasoningEffort: "high" };
   const serialized = JSON.stringify(saved);
   writeFileSync(path.join(state, "ai-agent.json"), serialized);
   assert.deepEqual(host.invoke("ai-agent", "settings"), saved);
