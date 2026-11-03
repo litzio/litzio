@@ -12,10 +12,14 @@ if (!root) {
   throw new Error("missing #root");
 }
 
-void themeReady.then(() => createRoot(root).render(
-  <StrictMode>
-    <TooltipProvider>
-      <App />
-    </TooltipProvider>
-  </StrictMode>,
-));
+void themeReady.then(async () => {
+  const Surface = import.meta.env.DEV && window.location.pathname === "/ui-gallery"
+    ? (await import("./dev/ui-gallery.tsx")).UiGallery : App;
+  createRoot(root).render(
+    <StrictMode>
+      <TooltipProvider>
+        <Surface />
+      </TooltipProvider>
+    </StrictMode>,
+  );
+});

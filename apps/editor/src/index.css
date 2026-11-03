@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Development examples have their own lazy CSS; never generate utilities for them. */
+@source not "./dev";
 @source "../../../plugins/docling/src";
 @import "shadcn/tailwind.css";
 @import "./styles/tokens.css";
