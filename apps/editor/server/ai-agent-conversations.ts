@@ -126,7 +126,10 @@ export class AiAgentConversations {
     try {
       this.connection.environment();
       if (conversation && (conversation.provider ?? "codex") !== settings.provider) throw new Error("Start a conversation with the selected provider.");
-      if (settings.provider === "copilot") return await this.sendCopilot(input, settings, folders, references, conversation);
+      if (settings.provider === "copilot") {
+        if (input.skills?.length) throw new Error("Skill selection is available only with Codex.");
+        return await this.sendCopilot(input, settings, folders, references, conversation);
+      }
       if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings);
       const active = conversation?.turns.find(turn => turn.status === "inProgress");
       if (active && (input.model !== conversation!.model || input.reasoningEffort !== conversation!.reasoningEffort)) throw new Error("Model and reasoning effort are locked while running.");
@@ -134,18 +137,26 @@ export class AiAgentConversations {
         const models = await this.connection.models();
         if (!models.models.some(model => model.model === input.model && model.supportedReasoningEfforts.some(effort => effort.reasoningEffort === input.reasoningEffort))) throw new Error("Invalid AI model or reasoning effort.");
       }
+      const selected = input.skills ?? [];
+      if (!Array.isArray(selected) || selected.some(skill => !skill || typeof skill.name !== "string" || typeof skill.path !== "string")) throw new Error("Invalid skills.");
+      const skills = selected.filter(skill => input.message.split(/\s+/).includes(`$${skill.name}`)).filter((skill, index, all) => all.findIndex(other => other.path === skill.path) === index).map(({ name, path }) => ({ name, path }));
+      if (skills.length) {
+        const catalog = await this.connection.skills();
+        if (skills.some(skill => !catalog.skills.some(active => active.name === skill.name && active.path === skill.path))) throw new Error("Selected skill is no longer active. Choose it again.");
+      }
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
           approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: documentTools });
-        conversation = { id: result.thread.id, title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
+        conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
           turns: [], model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);
         this.loaded.add(conversation.id);
         this.save(conversation);
       }
       references = checkedReferences(input.references ?? [], folders, this.access);
-      const context = { folders, document: input.document ?? null, references };
+      const context = { folders, document: input.document ?? null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
+      messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
       if (active) {
         await this.connection.client.request("turn/steer", { threadId: conversation.id, expectedTurnId: active.id, input: messages });

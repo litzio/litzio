@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { hostPaths } from "./host-paths.ts";
-import type { AiDiagnostics, AiEnvironment, AiModels, AiModel, AiProvider } from "@litzio/plugin-api/ai";
+import type { AiDiagnostics, AiEnvironment, AiModels, AiModel, AiProvider, AiSkills } from "@litzio/plugin-api/ai";
 import { CodexAppServer } from "./codex-app-server.ts";
 import { CopilotAcp } from "./copilot-acp.ts";
 
@@ -29,6 +29,13 @@ export class AiAgentConnection {
     try { skills = readdirSync(skillsDirectory, { withFileTypes: true }).filter(entry => entry.isDirectory() && existsSync(path.join(skillsDirectory, entry.name, "SKILL.md"))).map(entry => entry.name); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     return { cwd: this.cwd, instructions, skills };
+  }
+  async skills(): Promise<AiSkills> {
+    this.environment();
+    const result = await this.client.request("skills/list", { cwds: [this.cwd], forceReload: true });
+    const entry = result.data.find((value: any) => value.cwd === this.cwd);
+    if (!entry) throw new Error("Codex returned no skills for the assistant directory.");
+    return { skills: entry.skills.filter((skill: any) => skill.enabled).map(({ name, path, description }: any) => ({ name, path, description })), errors: entry.errors };
   }
   async models(provider: AiProvider = "codex"): Promise<AiModels> {
     if (provider === "copilot") {

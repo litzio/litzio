@@ -40,6 +40,10 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
     return value;
   };
   const agentOperations = {
+    agentSkills: () => {
+      if (provider() !== "codex") throw new Error("Skill selection is available only with Codex.");
+      return (agent ??= new AiAgentConnection(paths.agent)).skills();
+    },
     agentModels: (args?: { provider?: AiProvider }) => (agent ??= new AiAgentConnection(paths.agent)).models(provider(args)),
     agentDiagnostics: (args?: { provider?: AiProvider }) => (agent ??= new AiAgentConnection(paths.agent)).diagnostics(provider(args)),
     agentEnvironment: () => (agent ??= new AiAgentConnection(paths.agent)).environment(),
@@ -165,7 +169,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
   };
   const route = (url: string) => {
     if (url === AI_AGENT.conversationsRoute) { plugins(true); return { id: AI_TASK.plugin, methods: { GET: "agentConversations", POST: "agentConversation" } }; }
-    const operation = { [AI_AGENT.modelsRoute]: "agentModels", [AI_AGENT.diagnosticsRoute]: "agentDiagnostics", [AI_AGENT.environmentRoute]: "agentEnvironment" }[url];
+    const operation = { [AI_AGENT.skillsRoute]: "agentSkills", [AI_AGENT.modelsRoute]: "agentModels", [AI_AGENT.diagnosticsRoute]: "agentDiagnostics", [AI_AGENT.environmentRoute]: "agentEnvironment" }[url];
     if (operation) { plugins(true); return { id: AI_TASK.plugin, methods: { GET: operation } }; }
     for (const installation of plugins(true).list()) if (installation.host && installation.routes?.includes(url)) {
       const methods = load(installation.id).routes[url];

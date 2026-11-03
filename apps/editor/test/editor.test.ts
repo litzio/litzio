@@ -2395,7 +2395,7 @@ test("startup sample problems survive client decoding for both file and empty st
   const { requestDocument } = await import("../src/document-session.ts");
   const model = getEditableDocument(parse(nativeSource("# My document\n")));
   for (const initial of [
-    {start:true,sampleProblem:"conflict"},
+    {start:true,sampleProblem:"unavailable"},
     {path:"document.md",source:nativeSource("# My document\n"),revision:"sample-test",document:model,sampleProblem:"unavailable"},
   ]) {
     const fetch = t.mock.method(globalThis, "fetch", async () => Response.json(initial));

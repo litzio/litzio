@@ -4,7 +4,7 @@
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
 - Message roles verified: 2026-11-03 (#1048/#1051; fixture captures and turn-copy browser checks below).
 - Copilot verification: 2026-11-03 (#1053; fake ACP and task-default boundary, existing ai-agent browser scenario and 1440px Light / 640px Dark Korean captures; no real Copilot session or model call).
-- Last verified: 2026-11-03 (#1047 PR A / #984 / #952: fake stdio/Host, worker prompt, browser and manual 1440 Light / 640 Dark Korean captures; no real model turn).
+- Last verified: 2026-11-03 (#1047 PR A/B / #984 / #952: fake stdio/Host, worker prompt, browser and manual 1440 Light / 640 Dark Korean captures; no real model turn).
 - Previous verification: 2026-11-02 (#931 implementation 2, PR 2: 409 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
 - Scope: main-agent connection, Settings, shell-owned assistant panel and Codex/Copilot conversations. Includes new-document result cards, guarded creation undo and the product-owned usage-guide skill.
 - Authority: [ADR-0014](../adr/0014-main-agent-app-server.md), [#931](https://github.com/litzio/litzio/issues/931) owner decisions and approved v3.1 settings mockup.
@@ -107,6 +107,7 @@ Model/effort defaults still initialize each new conversation.
 
 | Route | Response |
 | --- | --- |
+| `GET /api/ai-agent-skills` | `{ skills, errors }`; enabled Codex skills for the assistant cwd, loader errors retained. |
 | `GET /api/ai-agent-models` | `{ provider, models, updatedAt }`; paginated `model/list`, visible models and supported reasoning efforts. |
 | `GET /api/ai-agent-diagnostics` | Codex executable/version, app-server initialization, `account/read`, `account/rateLimits/read`, paginated `mcpServerStatus/list`, check time and individual errors. |
 | `GET /api/ai-agent-environment` | `{ cwd, instructions, skills }`; Litzio-owned environment, without starting app-server. |
@@ -120,8 +121,9 @@ that an account can execute every returned model. No login/token mutation route
 or arbitrary JSON-RPC proxy is exposed.
 
 Existing Docling AI tasks still use `exec`, snapshots, original permissions,
-receipts and cancellation. Only `{ model, reasoningEffort }` from the shared
-defaults enters their worker request. Provider settings do not change a previously
+receipts and cancellation. `{ model, reasoningEffort, responseLanguage }` from the shared
+defaults enters their worker request; responseLanguage is the fallback for tasks
+started without a conversation. Provider settings do not change a previously
 admitted task or its UUID identity. See [AI task service](plugin-runtime-v1.md#ai-task-service-880).
 
 ## Settings UI
@@ -771,6 +773,8 @@ cwd/AGENTS.md. The official ACP SDK owns NDJSON framing and request dispatch.
 errors and disconnection mark a turn failed. Stop sends `session/cancel`;
 a second message waits until the current turn ends (no steering emulation).
 Provider-tagged conversation indexes are filtered to the selected provider.
+Codex `/` skill selection and `skills/list` remain Codex-only; Copilot does not
+query that catalog or send Codex skill inputs.
 `session/load`, when advertised, replays provider-owned history; otherwise
 resumption reports an explicit error and a new conversation remains available.
 
@@ -806,3 +810,50 @@ Implementation reference: [Paseo Copilot ACP](https://github.com/getpaseo/paseo/
 [Paseo transport](https://github.com/getpaseo/paseo/blob/main/packages/server/src/server/agent/providers/acp-agent.ts),
 [providers](https://paseo.sh/docs/supported-providers),
 [GitHub ACP](https://docs.github.com/en/copilot/reference/copilot-cli-reference/acp-server).
+
+
+## Codex skill selection (#1047 PR B)
+
+Typing `/` at a word boundary opens the same inline candidate surface as `@`.
+The Host calls `skills/list({cwds:[assistantCwd],forceReload:true})` using only
+parameters supported by Codex 0.141.0. Only enabled skills returned for that cwd
+appear, with name and description, filtered by the typed query. Loading, empty
+results, RPC failures and per-skill loading errors remain visible in the candidate
+surface. Opened folders do not add skill discovery roots. No installation,
+enablement, global configuration write or Litzio command palette is introduced.
+
+Click or Arrow/Enter selects a skill; Escape closes candidates before the panel.
+Selection inserts `$<name>` in text and adds a removable path-tooltip chip using
+the file-reference Button/Tooltip implementation. `/` is only selection syntax.
+The public conversation input adds `skills?: {name,path}[]`. Host validates each
+selection against the enabled catalog and sends `{type:"skill",name,path}` with
+`$<name>` text on start and steer. Selection follows whitespace-delimited
+`$name` tokens in the current input text: deleting a selected token removes its
+chip and explicit input; clicking a chip's X removes all corresponding tokens
+as well. Only selected skills whose tokens remain at send time are sent. Host
+also filters selections by those tokens and never appends a missing token;
+retained name/path pairs are still checked against the enabled catalog.
+
+Skills persist as `{name,path,kind:"skill"}` in the existing context JSON
+`references` array. Live and paginated history therefore restore chips without
+assuming Codex returns skill inputs in thread history. They are historical
+references, not automatic inputs on later turns. File references retain their
+existing validation and image handling. No document semantics change, so Core
+and CLI additions are intentionally unnecessary.
+
+Verification: the existing fake app-server covers enabled filtering, exact cwd
+and request fields, start/steer input, missing/disabled selection rejection,
+RPC and per-skill errors, and flattened history with skill items omitted. The
+existing assistant browser scenario covers ordinary paced typing and clicking,
+description display, chip/token removal in both directions, deleted-token
+start/steer payloads, send metadata, history chips and visible list
+failure. Host tests own protocol assertions; browser assertions own interaction.
+No real model turn or exhaustive combination matrix is added. The 640px skill
+candidate/chip sequence runs only with `--screenshots` for manual review.
+
+Manual captures from `pnpm browser:test ai-agent --screenshots` use the product
+surface and persistent Chrome profile: [1440 Light list](assets/assistant-skills-1047/list-1440-light-en.png),
+[1440 Light chip](assets/assistant-skills-1047/chip-1440-light-en.png),
+[640 Dark Korean list](assets/assistant-skills-1047/list-640-dark-ko.png),
+[640 Dark Korean chip](assets/assistant-skills-1047/chip-640-dark-ko.png).
+The existing file-reference captures above provide the preceding composer state.
