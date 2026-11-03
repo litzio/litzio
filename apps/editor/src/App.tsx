@@ -3,6 +3,7 @@ import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
 import { productName } from "../../../brand.ts";
 import { ASSISTANT_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
+import { usePanelWidth } from "./shell/panel-width.ts";
 import { AssistantPanel, assistantWidth, rememberAssistantWidth } from "./shell/AssistantPanel.tsx";
 import { usePluginUi } from "./plugin-ui.tsx";
 import { contributionNotices } from "./plugin-ui-registry.ts";
@@ -86,6 +87,8 @@ function EditorApp() {
   useTranslation();
   const [referenceRequest, setReferenceRequest] = useState<{ path: string }>();
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [sidebarSize, setSidebarSize] = usePanelWidth("sidebar");
+  const [documentPanelSize, setDocumentPanelSize] = usePanelWidth("document-panel");
   const [assistantSize, setAssistantSize] = useState(assistantWidth);
   const [assistantOverlay, setAssistantOverlay] = useState(() => matchMedia("(width < 1100px)").matches);
   const assistantReturn = useRef<HTMLElement | null>(null);
@@ -1196,7 +1199,7 @@ function EditorApp() {
   ];
 
   return (<>
-    <div ref={shell} style={assistantSize ? { "--assistant-width": `${assistantSize}px` } as React.CSSProperties : undefined} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
+    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
       <Sidebar
         onAddToChat={assistantAvailable ? (path, returnFocus) => { assistantReturn.current = returnFocus; setReferenceRequest({ path }); setAssistantOpen(true); } : undefined}
         theme={theme} onThemeChange={changeTheme}
@@ -1210,6 +1213,7 @@ function EditorApp() {
         contributions={pluginActions("sidebar")}
         onFileAction={fileAction} fileActionsDisabled={busy || Boolean(continuation)}
         isFileDirty={path => { const tab = tabs.find(tab => tab.path === path); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
+        onWidth={setSidebarSize}
         open={sidebarOpen}
         documentPath={openedPath}
         toggleRef={sidebarToggle}
@@ -1387,6 +1391,7 @@ function EditorApp() {
       </div>
       {panelOpen && !assistantOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? (
         <DocumentPanel
+          onWidth={setDocumentPanelSize}
           overlay={panelOverlay}
           outline={document ? outlineStore : undefined}
           onSelectItem={item => nativeSession?.revealItem(item)}
@@ -1564,10 +1569,10 @@ function EditorApp() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
     <ShellNotificationCenter panelWidth={assistantOpen
       ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
-      : panelOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? "var(--layout-document-panel-width)" : "0px"} />
+      : panelOpen && !pluginTab && !settingsFocused && session?.kind !== "text" ? "var(--document-panel-effective-width)" : "0px"} />
+    </div>
   </>);
 }
 

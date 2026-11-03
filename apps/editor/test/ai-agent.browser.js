@@ -31,6 +31,30 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await openPath(page, pluginFixture.document);
+  // #1025: one shell integration case complements the Assistant separator check below.
+  // Real drag/keyboard input catches edge direction, bounds and independent remembered widths.
+  const sidebarResize = page.getByRole('separator', { name: 'Explorer width', exact: true });
+  const documentResize = page.getByRole('separator', { name: 'Document panel width', exact: true });
+  const drag = async (handle, delta) => {
+    const box = await handle.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 + delta, box.y + box.height / 2, { steps: 8 }); await page.mouse.up();
+  };
+  await drag(sidebarResize, 20);
+  await expect(sidebarResize).toHaveAttribute('aria-valuenow', '260');
+  await documentResize.focus(); await page.keyboard.press('ArrowLeft');
+  await expect(documentResize).toHaveAttribute('aria-valuenow', '276');
+  await drag(documentResize, -100);
+  await expect(documentResize).toHaveAttribute('aria-valuenow', '280');
+  await page.reload();
+  await expect(sidebarResize).toHaveAttribute('aria-valuenow', '260');
+  await expect(documentResize).toHaveAttribute('aria-valuenow', '280');
+  await page.setViewportSize({ width: 640, height: 900 });
+  await expect(sidebarResize).toHaveAttribute('aria-valuenow', '200');
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await expect(sidebarResize).toHaveAttribute('aria-valuenow', '260');
+  await page.evaluate(prefix => { localStorage.removeItem(prefix + '.sidebarWidth'); localStorage.removeItem(prefix + '.document-panelWidth'); }, brand.storagePrefix);
+  await page.reload();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const categories = page.getByRole('navigation', { name: 'Settings categories' });
   await categories.getByRole('button', { name: 'AI agent', exact: true }).click();
