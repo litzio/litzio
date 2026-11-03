@@ -33,7 +33,11 @@ context 전체에 적용되므로 변경 시 실제 서버가 받은 두 Node �
 
 The production HTTP recovery test deliberately terminates its own browser process and launches a
 new PID with the **same** checkout-owned profile and exact origin. It obtains that PID from its
-own browser CDP session; Windows termination targets only that PID's tree. It does not clear storage
+own browser CDP session; Windows termination targets only that PID's tree. It does not judge
+success from taskkill's exit code: already-exited children can cause a nonzero status.
+The test logs taskkill's status and stderr, then requires the owned browser PID to disappear
+with the existing ESRCH poll; a surviving PID fails with those termination diagnostics.
+It does not clear storage
 between crash/restart steps or restart the HTTP server. The normal fixture still isolates separate
 tests. Packaged Desktop has its own fixed Electron test profiles and resets recovery only on a
 test's first launch, preserving the record on subsequent launches within that test.
