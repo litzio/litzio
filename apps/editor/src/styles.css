@@ -51,10 +51,16 @@ button {
   word-break: normal;
 }
 
+/* Navigation geometry is also consumed outside the shell history boundary. */
+.app-shell, .shell-notifications {
+  --sidebar-effective-width: clamp(var(--layout-sidebar-min-width), var(--sidebar-width, var(--layout-sidebar-width)), min(var(--layout-sidebar-max-width), calc(100vw - 440px)));
+  --document-panel-effective-width: clamp(var(--layout-document-panel-min-width), var(--document-panel-width, var(--layout-document-panel-width)), var(--layout-document-panel-max-width));
+}
+
 /* One title strip above file navigation | document | document navigation. */
 .app-shell {
-  --shell-sidebar: var(--layout-sidebar-width);
-  --shell-panel: var(--layout-document-panel-width);
+  --shell-sidebar: var(--sidebar-effective-width);
+  --shell-panel: var(--document-panel-effective-width);
   display: grid;
   grid-template-columns: var(--shell-sidebar) minmax(0, 1fr) calc(var(--shell-panel) + var(--document-scrollbar-width, 0px));
   grid-template-rows: auto 1fr;
@@ -413,6 +419,12 @@ button {
   line-height: var(--line-height-meta);
 }
 
+.document-outline-empty { padding-block: var(--space-1); line-height: var(--line-height-label); }
+
+.panel-resize { position: absolute; inset: 0 auto 0 -4px; width: 8px; z-index: 2; cursor: ew-resize; touch-action: none; }
+.panel-resize--left { left: auto; right: -4px; }
+.panel-resize:focus-visible { outline: 2px solid var(--id-color-accent); outline-offset: -2px; }
+
 /* The document panel mirrors the sidebar on the right: sticky and scrolling by itself. */
 .document-panel {
   z-index: 1;
@@ -440,7 +452,7 @@ button {
   top: var(--app-header-height, var(--layout-header-row));
   right: var(--document-scrollbar-width, 0px);
   z-index: 4;
-  width: min(var(--layout-document-panel-width), 100vw);
+  width: min(var(--document-panel-effective-width), 100vw);
   height: calc(100vh - var(--app-header-height, var(--layout-header-row)));
   border-top: var(--border-width) solid var(--id-color-border);
   box-shadow: var(--shadow-overlay);
@@ -470,6 +482,7 @@ button {
 
 /* The outline takes the panel's remaining height and scrolls by itself. */
 .document-outline {
+  padding-top: var(--space-4);
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -935,6 +948,16 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar, .settings-topbar
 }
 .settings-section > [role="alert"] { grid-column: 1 / -1; }
 .settings-section > progress { grid-column: 1 / -1; }
+.settings-row { align-items: center; }
+.settings-row-control { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); min-width: 0; }
+.settings-description { margin-top: var(--space-1); font-size: var(--font-size-xs); color: var(--id-color-text-muted); }
+.settings-select { font-size: var(--font-size-sm); line-height: var(--line-height-label); width: 100%; min-width: 0; height: var(--size-control); padding-inline-start: var(--space-3); color: var(--id-color-text); background-color: var(--id-color-surface); border: 1px solid var(--id-color-border-control); border-radius: var(--id-radius-md); }
+.settings-select:focus-visible, .settings-switch:focus-visible { outline: 2px solid var(--id-color-interaction); outline-offset: 2px; }
+.settings-switch { appearance: none; width: var(--size-control); height: var(--line-height-label); padding: var(--space-1); margin: 0; flex-shrink: 0; border-radius: var(--id-radius-lg); background: var(--id-color-surface-pressed); border: 1px solid var(--id-color-border-control); cursor: pointer; }
+.settings-switch::before { content: ""; display: block; height: 100%; aspect-ratio: 1; border-radius: 50%; background: var(--id-color-text-muted); }
+.settings-switch:checked { background: var(--id-color-interaction); border-color: var(--id-color-interaction); }
+.settings-switch:checked::before { margin-left: auto; background: var(--id-color-text-on-accent); }
+.settings-switch:disabled { opacity: .5; cursor: default; }
 .settings-accent-control { display: flex; align-items: center; gap: var(--space-2); }
 .settings-accents { display: flex; flex-shrink: 0; }
 .settings-accent { position: relative; min-width: 0; }
@@ -2765,7 +2788,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 
 /* A narrow expanded sidebar stays usable without reserving empty desktop space. */
 @media (max-width: 64rem) {
-  .app-shell { --layout-sidebar-width: var(--layout-sidebar-width-narrow); }
+  .app-shell, .shell-notifications { --layout-sidebar-width: var(--layout-sidebar-width-narrow); }
   .document {
     --layout-document-inline-padding: var(--space-4);
     --layout-document-block-padding: var(--layout-document-block-padding-narrow);
@@ -3342,7 +3365,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .docling-readonly-document > .document { --layout-document-gutter: var(--space-4); --layout-document-inline-padding: var(--space-4); width: 100%; margin: 0; padding: var(--space-4); min-height: 100%; border-radius: 0; box-shadow: none; overflow-wrap: anywhere; }
 .docling-readonly-document[data-heading-levels="true"] > .document { --layout-document-gutter: var(--layout-reading-heading-gutter); padding-left: var(--layout-document-gutter); }
 .docling-readonly-document .heading-level { --space-heading-level-gap: var(--space-heading-level-reading-gap); }
-.notification-center { position: fixed; z-index: 40; pointer-events: none; right: calc(var(--notification-panel-width, 0px) + var(--space-8)); bottom: var(--space-4); display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); width: min(28rem, calc(100vw - var(--notification-sidebar-width) - var(--notification-panel-width, 0px) - var(--space-8) - var(--space-4))); --notification-sidebar-width: var(--layout-sidebar-width); max-height: calc(100dvh - var(--app-header-height, 80px) - var(--space-8)); color: var(--id-color-text-muted); font-size: var(--font-size-sm); line-height: var(--line-height-label); }
+.notification-center { position: fixed; z-index: 40; pointer-events: none; right: calc(var(--notification-panel-width, 0px) + var(--space-8)); bottom: var(--space-4); display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); width: min(28rem, calc(100vw - var(--notification-sidebar-width) - var(--notification-panel-width, 0px) - var(--space-8) - var(--space-4))); --notification-sidebar-width: var(--sidebar-effective-width); max-height: calc(100dvh - var(--app-header-height, 80px) - var(--space-8)); color: var(--id-color-text-muted); font-size: var(--font-size-sm); line-height: var(--line-height-label); }
 .notification-center[data-severity="error"] { color: var(--id-color-danger); }
 .notification-center[data-severity="warning"] { color: var(--id-color-warning); }
 .notification-center > button { pointer-events: auto; flex-shrink: 0; border-radius: var(--id-radius-xl); color: inherit; }
@@ -3358,7 +3381,7 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 .notification-center .notification-context { color: var(--id-color-text-muted); font-size: var(--font-size-xs); line-height: var(--line-height-meta); }
 
 .notification-center .notification-reveal { padding-inline: 0; border-width: 0; }
-@media (width <= 64rem) { .notification-center { --notification-sidebar-width: var(--layout-sidebar-width-narrow); } }
+@media (width <= 64rem) { .notification-center { --notification-sidebar-width: var(--sidebar-effective-width); } }
 body:has(.app-shell--collapsed) .notification-center { --notification-sidebar-width: var(--layout-sidebar-rail-width); }
 
 /* Plain-text sessions use the same group viewport without a paper/editor projection. */

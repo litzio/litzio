@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { UiHost } from "@litzio/plugin-api/ui";
+import type { UiHost, PluginMenuProps, UiMenuItem } from "@litzio/plugin-api/ui";
 import type { StructureReviewer } from "./structure-review.ts";
 type Review = ReturnType<StructureReviewer["list"]> & { problem?: string };
 function newReviewId(): string {
@@ -10,8 +10,8 @@ function newReviewId(): string {
   const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, "0")).join("");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
-export function ReviewPanel({ host, folder, summary = false, agentReady = true, documentReady = true, documentLoading = false, onSelect, onChanged }: {
-  host: UiHost; folder: string; summary?: boolean; agentReady?: boolean; documentReady?: boolean; documentLoading?: boolean; onSelect?(refs: string[]): void; onChanged?(): Promise<void>;
+export function ReviewPanel({ host, folder, menu, agentReady = true, documentReady = true, documentLoading = false, onSelect, onChanged }: {
+  host: UiHost; folder: string; menu?: PluginMenuProps; agentReady?: boolean; documentReady?: boolean; documentLoading?: boolean; onSelect?(refs: string[]): void; onChanged?(): Promise<void>;
 }) {
   const { text, Button } = host;
   const [review, setReview] = useState<Review>(), [problem, setProblem] = useState("");
@@ -78,11 +78,23 @@ export function ReviewPanel({ host, folder, summary = false, agentReady = true, 
     : text(label === "text" ? "Body text" : label === "page_header" ? "Page header" : label === "page_footer" ? "Page footer" : "Other content");
   const changeValue = (change: Proposal["suggestion"] | Proposal["before"]["corrections"][number]) => "level" in change.value
     ? heading(change.value.level) : "label" in change.value ? classification(change.value.label) : text("Merge paragraphs");
+  if (menu) {
+    const status = task ? text(task.status === "running" ? "Review in progress" : task.status === "not-inspected" ? "Review could not be performed" : task.status === "success" ? "Review completed" : task.status === "cancelled" ? "Review cancelled" : task.status === "uncertain" ? "Review outcome is uncertain. Check before starting again." : "Review failed") : "";
+    const description = [text("Pending proposals") + ": " + (review?.proposals.filter(p => p.state === "pending" && !p.stale).length ?? "…"), reason ? text(reason) : "", status, task?.failure ? text(task.failure) : "", task?.error,
+      task?.execution ? `${text("Last execution")}: ${task.execution.model} · ${task.execution.reasoningEffort}${task.durationMs !== undefined ? ` · ${(task.durationMs / 1000).toFixed(1)} ${text("seconds")}` : ""}` : "",
+      task?.summary ? `${text("AI summary")}: ${task.summary}` : "",
+      task?.status === "success" && task.proposalCount !== undefined ? text("AI proposals {{count}} / validation rejected {{invalid}}", { count: task.proposalCount, invalid: task.invalidCount ?? 0 }) : "",
+      problem, readProblem, review?.problem].filter(Boolean).join(" · ");
+    const items: UiMenuItem[] = [
+      { id: "review-start", label: text("Run review"), description, disabled: busy || !!reason || task?.status === "running", run: () => void act("start") },
+      ...(task?.status === "running" ? [{ id: "review-cancel", label: text("Cancel review"), disabled: busy || !review?.canCancel, run: () => void act("cancel") }] : []),
+    ];
+    return <host.Menu label={menu.label} items={[...menu.items.slice(0, -1), ...items, ...menu.items.slice(-1)]} />;
+  }
   return <section className="docling-review" aria-label={text("Structure review")} aria-busy={busy}>
     <div className="docling-review-actions"><strong>{text("Structure review")}</strong>
       <span>{text("Pending proposals")}: {review?.proposals.filter(p => p.state === "pending" && !p.stale).length ?? "…"}</span>
-      {summary ? <><Button disabled={busy || !!reason || task?.status === "running"} onClick={() => void act("start")}>{text("Run review")}</Button>
-        {task?.status === "running" ? <Button disabled={busy || !review?.canCancel} onClick={() => void act("cancel")}>{text("Cancel review")}</Button> : null}</> : null}
+
     </div>
     {reason ? <p>{text(reason)}</p> : null}
     {task ? <p role="status">{text(task.status === "running" ? "Review in progress" : task.status === "not-inspected" ? "Review could not be performed" : task.status === "success" ? "Review completed" : task.status === "cancelled" ? "Review cancelled" : task.status === "uncertain" ? "Review outcome is uncertain. Check before starting again." : "Review failed")}{task.failure ? ` · ${text(task.failure)}` : ""}{task.error ? ` · ${task.error}` : ""}</p> : null}
@@ -90,7 +102,7 @@ export function ReviewPanel({ host, folder, summary = false, agentReady = true, 
     {task?.summary ? <p>{text("AI summary")}: {task.summary}</p> : null}
     {task?.status === "success" && task.proposalCount !== undefined ? <p>{text("AI proposals {{count}} / validation rejected {{invalid}}", { count: task.proposalCount, invalid: task.invalidCount ?? 0 })}</p> : null}
     {problem || readProblem || review?.problem ? <p role="alert">{[problem, readProblem, review?.problem].filter(Boolean).join("; ")}</p> : null}
-    {!summary && enabled && review?.available ? <div className="docling-review-content">
+    {enabled && review?.available ? <div className="docling-review-content">
       <div className="docling-review-list" aria-label={text("Review proposals")}>
         {!review.proposals.length ? <p>{text("No review proposals yet.")}</p> : null}
         {review.proposals.map(p => <button type="button" key={p.id} aria-pressed={selected === p.id} onClick={() => {
@@ -120,7 +132,7 @@ export function ReviewPanel({ host, folder, summary = false, agentReady = true, 
 
       </div> : null}
     </div> : null}
-    {!summary && enabled && review?.available ? <div className="docling-review-actions">
+    {enabled && review?.available ? <div className="docling-review-actions">
           {proposal?.state === "pending" ? <Button variant="default" disabled={busy || !!reason || proposal?.stale} onClick={() => void act("approve")}>{text("Approve proposal")}</Button> : null}
           {["pending", "inapplicable"].includes(proposal?.state ?? "") ? <Button variant="secondary" disabled={busy || !!reason} onClick={() => void act("reject")}>{text("Reject proposal")}</Button> : null}
           {proposal?.state === "approved" ? <Button variant="secondary" disabled={busy || !!reason || proposal?.stale} onClick={() => void act("undo")}>{text("Undo approval")}</Button> : null}

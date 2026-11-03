@@ -15,9 +15,17 @@ async (page, { expect, doclingFixture: fixture }) => {
   const showDashboard = async () => { await page.getByTestId('sidebar').getByRole('button', { name: 'Docling', exact: true }).click(); await expect(dashboard).toBeVisible(); };
   await expect(page.locator('.docling-tab[data-active=true]')).toHaveCount(0); await showDashboard();
   const result = dashboard.locator(`[data-result-id="${job.id}"]`);
-  await result.locator("summary").click();
-  await result.getByRole('button', { name: 'Run review', exact: true }).click();
-  await expect(result).toContainText('Pending proposals: 2');
+  const menu = page.getByRole('menu');
+  const openMenu = async () => {
+    const trigger = result.getByRole('button', { name: /^Actions:/ });
+    if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click();
+    await expect(menu).toBeVisible();
+  };
+  await openMenu();
+  await menu.getByRole('menuitem', { name: 'Run review', exact: true }).click();
+  await openMenu();
+  await expect(menu).toContainText('Pending proposals: 2');
+  await menu.press('Escape');
   await expect(result.locator('td').nth(3)).toHaveText('2');
   const attention = dashboard.locator('.docling-dashboard-count').filter({ hasText: 'Needs attention' });
   await attention.click(); await expect(result).toBeVisible(); await attention.click();
@@ -37,21 +45,25 @@ async (page, { expect, doclingFixture: fixture }) => {
   const feature = async enabled => {
     await dashboard.getByRole('button', { name: 'Settings', exact: true }).click();
     const settings = page.getByTestId('settings-dialog');
-    await expect(settings.getByRole('checkbox', { name: 'Structure review', exact: true })).toBeEnabled();
+    await expect(settings.getByRole('switch', { name: 'Structure review', exact: true })).toBeEnabled();
+    const previousControl = await settings.getByRole('switch', { name: 'Structure review', exact: true }).elementHandle();
     const saved = page.waitForResponse(r => r.url().endsWith('/api/docling-features') && r.request().method() === 'PUT');
-    await settings.getByRole('checkbox', { name: 'Structure review', exact: true }).setChecked(enabled);
+    await settings.getByRole('switch', { name: 'Structure review', exact: true }).setChecked(enabled);
     expect((await saved).ok()).toBe(true);
-    await expect(settings.getByRole('checkbox', { name: 'Structure review', exact: true })).toBeChecked({ checked: enabled });
+    // Feature writes detach/reactivate the contribution after Host observation.
+    // Wait for that actual replacement before opening the new contribution's menu.
+    await page.waitForFunction(control => !control.isConnected, previousControl);
+    await expect(settings.getByRole('switch', { name: 'Structure review', exact: true })).toBeChecked({ checked: enabled });
     await settings.press('Escape');
     await expect(result).toBeVisible();
-    if (enabled) await expect(result.getByRole('button', { name: 'Run review', exact: true, includeHidden: true })).toBeEnabled();
-    else await expect(result).toContainText('Review is disabled.');
-    if (!(await result.locator('details').evaluate(e => e.open))) await result.locator('summary').click();
+    await openMenu();
+    if (enabled) await expect(menu.getByRole('menuitem', { name: 'Run review', exact: true })).toBeEnabled();
+    else await expect(menu).toContainText('Review is disabled.');
   };
   await feature(false);
-  await expect(result).toContainText('Review is disabled.');
+  await expect(menu).toContainText('Review is disabled.');
   await feature(true);
-  await expect(result.getByRole('button', { name: 'Run review', exact: true })).toBeEnabled();
+  await expect(menu.getByRole('menuitem', { name: 'Run review', exact: true })).toBeEnabled();
   await comparisonTab.click();
   await expect(comparisonTab).toHaveAttribute('id', tabId);
   await select(); await expect(panel.locator('.docling-review-status')).toHaveText('Approved');

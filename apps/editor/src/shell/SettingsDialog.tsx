@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useEffect, useRef, useState } from "react";
 import { FileText, Info, Palette, History } from "lucide-react";
+import { SettingsRow, SettingsSelect } from "@/components/ui/settings.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import type { CliIntegrationState, DesktopBridge, DesktopInfo, OfferedUpdate, ReleaseChannel, UpdateState } from "../../shared/desktop-bridge.ts";
 import { RecoveryDeleteDialog } from "./Recovery.tsx";
@@ -186,69 +187,36 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
               {category === "plugins" ? <PluginSettings /> : null}
               {Section ? <ContributionBoundary key={category}><Section /></ContributionBoundary> : null}
               {category === "appearance" ? <>
-                <section className="settings-section" aria-labelledby="settings-theme">
-                  <div className="settings-label">
-                    <h3 id="settings-theme" className="settings-heading">{i18n.t("Theme")}</h3>
-                    <p>{i18n.t("Choose a light or dark appearance.")}</p>
-                  </div>
-                  <select className="form-select h-[var(--size-control)] w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring" aria-labelledby="settings-theme" data-testid="theme"
-                    value={theme} onChange={event => {
-                      onThemeChange(event.target.value as ThemePreference);
-                    }}>
-                    {THEMES.map(value => <option key={value} value={value}>{i18n.t(THEME_LABELS[value])}</option>)}
-                  </select>
+                <SettingsSelect label={i18n.t("Theme")} description={i18n.t("Choose a light or dark appearance.")} testId="theme"
+                  value={theme} onChange={value => {
+                      onThemeChange(value as ThemePreference);
+                    }} options={THEMES.map(value => ({ value, label: i18n.t(THEME_LABELS[value]) }))} />
                   {themeProblem ? <p role="alert">{i18n.t("Theme could not be saved. This choice applies until you close this page.")}</p> : null}
-                </section>
-                <section className="settings-section" aria-labelledby="settings-page">
-                  <div className="settings-label">
-                    <h3 id="settings-page" className="settings-heading">{i18n.t("Page style")}</h3>
-                  </div>
-                  <select className="form-select h-[var(--size-control)] w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring" aria-labelledby="settings-page" data-testid="page-background"
-                    value={page} onChange={event => {
-                      const choice = event.target.value as PageBackground;
+
+                <SettingsSelect label={i18n.t("Page style")} testId="page-background"
+                  value={page} onChange={value => {
+                      const choice = value as PageBackground;
                       applyPageBackground(choice);
                       setPage(choice);
                       setPageProblem(!writePageBackground(choice));
-                    }}>
-                    {PAGE_BACKGROUNDS.map(value => <option key={value} value={value}>{i18n.t(PAGE_LABELS[value])}</option>)}
-                  </select>
+                    }} options={PAGE_BACKGROUNDS.map(value => ({ value, label: i18n.t(PAGE_LABELS[value]) }))} />
                   {pageProblem ? <p role="alert">{i18n.t("Page style could not be saved. This choice applies until you close this page.")}</p> : null}
-                </section>
-                <section className="settings-section" aria-labelledby="settings-table-wrap">
-                  <div className="settings-label">
-                    <h3 id="settings-table-wrap" className="settings-heading">{i18n.t("Tables in new documents")}</h3>
-                    <p>{i18n.t("Default for documents without a remembered choice on this device.")}</p>
-                  </div>
-                  <select className="form-select h-[var(--size-control)] w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring" aria-labelledby="settings-table-wrap" data-testid="table-wrap-default"
-                    value={String(tableWrapDefault)} onChange={event => setTableWrapProblem(!setTableWrapDefault(event.target.value === "true"))}>
-                    <option value="true">{i18n.t("Wrap long text")}</option>
-                    <option value="false">{i18n.t("Single line")}</option>
-                  </select>
+
+                <SettingsSelect label={i18n.t("Tables in new documents")} description={i18n.t("Default for documents without a remembered choice on this device.")} testId="table-wrap-default"
+                  value={String(tableWrapDefault)} onChange={value => setTableWrapProblem(!setTableWrapDefault(value === "true"))} options={[{ value: "true", label: i18n.t("Wrap long text") }, { value: "false", label: i18n.t("Single line") }]} />
                   {tableWrapProblem ? <p role="alert">{i18n.t("This choice could not be saved. It applies until you close this page.")}</p> : null}
-                </section>
-                <section className="settings-section" aria-labelledby="settings-language">
-                  <div className="settings-label">
-                    <h3 id="settings-language" className="settings-heading">{i18n.t("Display language")}</h3>
-                    <p>{i18n.t("Remembered here; never saved in the document.")}</p>
-                  </div>
-                  <select className="form-select h-[var(--size-control)] w-full rounded-md border border-input bg-background px-3 text-sm text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring" aria-labelledby="settings-language" data-testid="ui-language"
-                    value={i18n.resolvedLanguage} onChange={event => {
-                      const language = event.target.value as UiLanguage;
+
+                <SettingsSelect label={i18n.t("Display language")} description={i18n.t("Remembered here; never saved in the document.")} testId="ui-language"
+                  value={i18n.resolvedLanguage ?? i18n.language} onChange={value => {
+                      const language = value as UiLanguage;
                       void i18n.changeLanguage(language);
                       setLanguageProblem(!writeUiLanguage(language));
-                    }}>
-                    <option value="ko" lang="ko">한국어</option>
-                    <option value="en" lang="en">English</option>
-                  </select>
+                    }} options={[{ value: "ko", label: "한국어", lang: "ko" }, { value: "en", label: "English", lang: "en" }]} />
                   {languageProblem ? <p role="alert">{i18n.t("Language preference could not be saved. This choice applies until you close this page.")}</p> : null}
-                </section>
-                <section className="settings-section" aria-labelledby="settings-accent">
-                  <div className="settings-label">
-                    <h3 id="settings-accent" className="settings-heading">{i18n.t("Accent color")}</h3>
-                    <p>{i18n.t("Remembered here; never saved in the document.")}</p>
-                  </div>
+
+                <SettingsRow label={i18n.t("Accent color")} description={i18n.t("Remembered here; never saved in the document.")}>
                   <div className="settings-accent-control">
-                    <div className="settings-accents" role="radiogroup" aria-labelledby="settings-accent" data-testid="accent-color">
+                    <div className="settings-accents" role="radiogroup" aria-label={i18n.t("Accent color")} data-testid="accent-color">
                       {ACCENT_COLORS.map(color => <label key={color} className="settings-accent" title={i18n.t(ACCENT_LABELS[color])}>
                         <input type="radio" name="accent-color" value={color} checked={accent === color} aria-label={i18n.t(ACCENT_LABELS[color])}
                           onChange={() => {
@@ -263,8 +231,9 @@ export function SettingsDialog({ sections = [], theme, themeProblem, onThemeChan
                     </div>
                     <span className="settings-accent-name">{i18n.t(ACCENT_LABELS[accent])}</span>
                   </div>
+                </SettingsRow>
                   {accentProblem ? <p role="alert">{i18n.t("Accent color could not be saved. This choice applies until you close this page.")}</p> : null}
-                </section>
+
               </> : null}
               {category === "recovery" ? <section className="settings-group" aria-labelledby="settings-recovery">
                 <h3 id="settings-recovery" className="settings-group-heading">{i18n.t("Local recovery")}</h3>

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import type { UiHost } from "@litzio/plugin-api/ui";
+import type { UiHost, UiMenuItem } from "@litzio/plugin-api/ui";
 import type { DashboardSnapshot } from "./shared/dashboard.ts";
 import type { Request } from "./conversion/ServerSettings.tsx";
 import type { ConversionJob, ServerCheck } from "./conversion/server-types.ts";
@@ -120,12 +120,18 @@ export function Dashboard({ host, request, convert, compare, onStopped }: { host
               <td>{unavailable ? <Hint focusable label={text("Correspondence map")} message={text(unavailable)}>{chip("error", "Failed")}</Hint> : result ? chip(result.stale ? "attention" : "success", result.stale ? "Correspondence map is stale" : "Correspondence map is current") : "—"}</td><td>{result ? <span className="docling-dashboard-state">{result.pendingProposals ?? "—"}</span> : "—"}</td>
               <td><div className="docling-dashboard-actions">{result ? <Hint label={text("Open comparison")} message={text(reason)} focusable={!!reason}><Button variant="secondary" disabled={!!reason} onClick={() => void act(() => host.openTab("comparison", result!.folder))}>{text("Open comparison")}</Button></Hint> : null}
                 {!result && features?.conversion && (status === "error" || status === "uncertain") ? <Hint label={text(status === "uncertain" ? "Start again…" : "Retry…")} message={busyReason} focusable={pending || running}><Button variant="secondary" disabled={pending || running} onClick={() => convert(focus(), job.input)}>{text(status === "uncertain" ? "Start again…" : "Retry…")}</Button></Hint> : null}
-                <details className="docling-dashboard-menu" onKeyDown={event => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus(); } }}><summary aria-label={`${text("Actions")}: ${fileName(job.input)}`}>⋯</summary><div className="docling-dashboard-menu-content">
-                  {result ? <><span title={text(reason)}><Button disabled={!!reason} onClick={() => void act(() => host.openTab("page-review", result.folder))}>{text("Page review")}</Button></span><span title={text(pending ? "Loading…" : unavailable || "")}><Button disabled={pending || !!unavailable} onClick={() => void act(() => host.openDocument(result.path))}>{text("Open document")}</Button></span>
-                    <span title={text(pending ? "Loading…" : result.missing ? "The result folder no longer exists." : "")}><Button disabled={pending || !!result.missing} onClick={() => void act(async () => { const error = await host.openFolder(result.folder); if (error) throw new Error(error); })}>{text("Open folder")}</Button></span>
-                    {!unavailable ? <ReviewPanel host={host} folder={result.folder} agentReady={!!snapshot.agent?.available && !snapshot.agent.loginRequired} summary /> : null}</> : features?.conversion && status !== "running" && status !== "error" && status !== "uncertain" ? <span title={busyReason}><Button disabled={pending || running} onClick={() => convert(focus(), job.input)}>{text("Retry…")}</Button></span> : null}
-                  <span title={text(status === "uncertain" ? pending ? "Loading…" : "" : "Only an uncertain request record can be cleared.")}><Button disabled={pending || status !== "uncertain"} onClick={() => void act(() => request("history", "DELETE", { id: job.id }))}>{text("Clear record")}</Button></span>
-                </div></details></div></td></tr>;
+                {(() => {
+                  const items: UiMenuItem[] = result ? [
+                    { id: "page-review", label: text("Page review"), disabled: !!reason, description: text(reason), run: () => void act(() => host.openTab("page-review", result.folder)) },
+                    { id: "document", label: text("Open document"), disabled: pending || !!unavailable, description: text(pending ? "Loading…" : unavailable || ""), run: () => void act(() => host.openDocument(result.path)) },
+                    { id: "folder", label: text("Open folder"), disabled: pending || !!result.missing, description: text(pending ? "Loading…" : result.missing ? "The result folder no longer exists." : ""), run: () => void act(async () => { const error = await host.openFolder(result.folder); if (error) throw new Error(error); }) },
+                  ] : features?.conversion && status !== "running" && status !== "error" && status !== "uncertain" ? [
+                    { id: "retry", label: text("Retry…"), disabled: pending || running, description: busyReason, run: returnFocus => convert(returnFocus, job.input) },
+                  ] : [];
+                  const clear: UiMenuItem = { id: "clear", label: text("Clear record"), disabled: pending || status !== "uncertain", description: text(status === "uncertain" ? pending ? "Loading…" : "" : "Only an uncertain request record can be cleared."), run: () => void act(() => request("history", "DELETE", { id: job.id })) };
+                  const menu = { label: `${text("Actions")}: ${fileName(job.input)}`, items: [...items, clear] };
+                  return result && !unavailable ? <ReviewPanel host={host} folder={result.folder} agentReady={!!snapshot.agent?.available && !snapshot.agent.loginRequired} menu={menu} /> : <host.Menu {...menu} />;
+                })()}</div></td></tr>;
           })}</tbody></table></div>{!filtered.length ? <p>{text("No matching conversions.")}</p> : null}
         {filtered.length > limit ? <Button onClick={() => setLimit(value => value + 10)}>{text("Show more")}</Button> : null}</>}
     </section></div>;

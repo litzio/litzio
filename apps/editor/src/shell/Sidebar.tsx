@@ -1,3 +1,5 @@
+import { PanelResize } from "./PanelResize.tsx";
+import { usePanelWidthBounds } from "./panel-width.ts";
 import type { UiFileAction } from "@litzio/plugin-api/ui";
 import { THEME_LABELS, type ThemePreference } from "../preferences.ts";
 import { ContextMenu, type ContextMenuAction } from "@/components/ui/context-menu.tsx";
@@ -21,6 +23,7 @@ type SidebarProps = {
   isFileDirty(path: string): boolean;
   open: boolean;
   documentPath: string;
+  onWidth(value: number): void;
   onToggle(): void;
   toggleRef?: RefObject<HTMLButtonElement | null>;
   /** Names the control the folder dialog returns focus to. */
@@ -55,11 +58,12 @@ type SidebarProps = {
 
 /** File navigation stays mounted when collapsed. Outline remains independent on the right. */
 export function Sidebar({
-  onFileAction, fileActionsDisabled, isFileDirty, open, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
+  onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
   folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, settingsDisabled, updateVersion,
   theme = "light", onThemeChange, contributions = [], pluginFileActions = [], onAddToChat,
 }: SidebarProps) {
   useTranslation();
+  const bounds = usePanelWidthBounds("sidebar");
   const content = useRef<HTMLDivElement>(null);
   const blankTrigger = useRef<HTMLDivElement>(null);
   const only = folders.length === 1 ? folders[0] : undefined;
@@ -72,6 +76,7 @@ export function Sidebar({
     : [{ id: "open", label: i18n.t("Open folder…"), icon: <FolderOpen aria-hidden="true" />, run: () => onOpenFolder(content.current) }];
   return (
     <nav className={`sidebar${open ? "" : " sidebar--collapsed"}`} aria-label={i18n.t("Application")} data-testid="sidebar">
+      {open && bounds ? <PanelResize label={i18n.t("Explorer width")} side="left" {...bounds} onWidth={onWidth} /> : null}
       <div className="sidebar-header">
         {open ? <span className="product">{i18n.t("Explorer")}</span> : null}
         <div className="sidebar-header-actions">
