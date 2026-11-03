@@ -202,13 +202,24 @@ const CONTEXT = "Litzio read-only context (JSON):\n";
 function itemFrom(item: any): AiConversationItem | null {
   if (item.type === "userMessage") {
     const references: import("@litzio/plugin-api/ai").AiFileReference[] = [];
-    for (const part of item.content ?? []) if (part.type === "text" && part.text.startsWith(CONTEXT)) {
-      try {
-        const value = JSON.parse(part.text.slice(CONTEXT.length));
-        if (Array.isArray(value.references)) references.push(...value.references.filter((file: any) => file && typeof file.path === "string" && typeof file.name === "string" && typeof file.kind === "string"));
-      } catch { /* Non-Litzio CLI text need not contain valid context. */ }
+    const text: string[] = [];
+    for (const part of item.content ?? []) {
+      if (part.type !== "text") continue;
+      // Codex's legacy history flattens all text inputs into one string.
+      const marker = part.text.lastIndexOf(CONTEXT);
+      if (marker >= 0) {
+        try {
+          const value = JSON.parse(part.text.slice(marker + CONTEXT.length));
+          if (value && Array.isArray(value.folders)) {
+            if (Array.isArray(value.references)) references.push(...value.references.filter((file: any) => file && typeof file.path === "string" && typeof file.name === "string" && typeof file.kind === "string"));
+            if (marker) text.push(part.text.slice(0, marker));
+            continue;
+          }
+        } catch { /* Ordinary CLI text need not contain valid Litzio context. */ }
+      }
+      text.push(part.text);
     }
-    return { id: item.id, kind: "user", text: item.content.filter((part: any) => part.type === "text" && !part.text.startsWith(CONTEXT)).map((part: any) => part.text).join("\n"), references };
+    return { id: item.id, kind: "user", text: text.join("\n"), references };
   }
   if (item.type === "agentMessage") return { id: item.id, kind: "assistant", text: item.text };
   if (item.type === "reasoning") return { id: item.id, kind: "reasoning", text: item.summary.join("\n") };

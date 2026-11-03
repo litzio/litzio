@@ -65,7 +65,10 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
     assert.deepEqual(history.turns[0]!.items.filter(item => item.kind === "reasoning"), conversation.turns[0]!.items.filter(item => item.kind === "reasoning"));
     assert.equal(JSON.stringify(history).includes("PRIVATE RAW REASONING"), false);
     assert.equal("responseLanguage" in history, false);
-    assert.deepEqual(history.turns[0]!.items.find(item => item.kind === "user")!.references, refs);
+    assert.deepEqual(history.turns[0]!.items.filter(item => item.kind === "user").map(item => ({ text: item.text, references: item.references })), [
+      { text: "What changed?", references: refs }, { text: "Only summarize.", references: refs },
+    ]);
+    assert.equal(JSON.stringify(history).includes("UNSAVED DOCUMENT TEXT"), false);
     await assert.rejects(resumed.send({ ...input, references: [root] }, settings), /outside/);
     await assert.rejects(resumed.send({ ...input, folders: [cwd], references: [input.document.path] }, settings), /outside/);
     writeFileSync(path.join(root, ".hidden"), "hidden");

@@ -708,7 +708,7 @@ References do not extend document-editing permissions or a running turn's scope.
 
 The public conversation input takes `references?: string[]`; user items expose
 `references?: AiFileReference[]`. Both live `itemFrom` and paginated resumed history
-restore chips from context JSON, without a second transcript store. Historical
+restore chips from context JSON, including Codex legacy history that concatenates text inputs into one string, without a second transcript store. Historical
 chips remain path metadata if files move or disappear; they do not resend files.
 This is shell/Host context, not document semantics, so no Core/CLI operation is added.
 The `/` skill picker is a separate PR B and remains outside this delivery.
@@ -731,3 +731,5 @@ Shared ContextMenu, Button, Tooltip and existing shell tokens are reused; candid
 listbox keyboard ownership is local to the composer. No new plugin UI surface.
 
 Visual inspection: file names, remove buttons, text input and model/effort control remain visible at both widths, with no horizontal overflow. Dark/Korean retains legible chip borders and close controls. The 1440 After also includes the extra reference-only steering message used to verify the feature; the document and assistant width are unchanged.
+
+Protocol evidence: [0.141.0 UserMessageItem::message](https://github.com/openai/codex/blob/rust-v0.141.0/codex-rs/protocol/src/items.rs#L269) concatenates input text, and [thread history](https://github.com/openai/codex/blob/rust-v0.141.0/codex-rs/app-server-protocol/src/protocol/thread_history.rs#L1107) returns it as one text input. The fake paginated history models this shape; live notifications retain separate inputs.
