@@ -5,14 +5,14 @@ import { Button } from "./button.tsx";
 
 export function SettingsRow({ label, description, children, testId }: SettingsRowProps) {
   return <div className="settings-section settings-row" data-testid={testId}>
-    <div className="settings-label"><div className="settings-heading">{label}</div>{description ? <div className="settings-description">{description}</div> : null}</div>
+    <div className="settings-label"><h3 className="settings-heading">{label}</h3>{description ? <div className="settings-description">{description}</div> : null}</div>
     <div className="settings-row-control">{children}</div>
   </div>;
 }
 
 function FieldRow({ label, description, children, id, testId }: SettingsRowProps & { id: string }) {
   return <div className="settings-section settings-row">
-    <div className="settings-label"><label className="settings-heading" htmlFor={id}>{label}</label>{description ? <div id={`${id}-description`} className="settings-description">{description}</div> : null}</div>
+    <div className="settings-label"><h3 className="settings-heading"><label htmlFor={id}>{label}</label></h3>{description ? <div id={`${id}-description`} className="settings-description">{description}</div> : null}</div>
     <div className="settings-row-control" data-testid={testId}>{children}</div>
   </div>;
 }

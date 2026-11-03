@@ -242,7 +242,8 @@ Appearance. [Lifecycle, keyboard and captures](editor-ux-shell-v1.md#settings-ta
 ## Host settings rows and declarative menus (#1033)
 
 The injected components reuse the built-in Settings row, Input, Button and native
-select/checkbox keyboard behavior. `SettingsSwitch` is a labeled native checkbox
+select/checkbox keyboard behavior. Row labels preserve heading navigation as well
+as the native label/control association. `SettingsSwitch` is a labeled native checkbox
 with switch semantics and Host styling; it is only exposed as a complete settings
 row, not a general Toggle. Settings screens compose these rows inside the existing
 Host content column. Custom content (for example accent swatches) uses `SettingsRow`.
@@ -278,7 +279,8 @@ These are UI contributions, with no Core semantics or CLI document operation.
 Verification: Editor tests (419), workspace typecheck, Editor build, documentation,
 import-boundary and token checks; targeted persistent Chrome scenarios
 `ai-agent`, `docling-server`, `docling-dashboard`, `docling-review`,
-`docling-review-recovery`, `docling-review-retry`, `layout-rules`, `quiet-document`.
+`docling-review-recovery`, `docling-review-retry`, `layout-rules`, `quiet-document`,
+`ui-language` (including the existing Korean settings-heading assertion).
 The menu Retry → Cancel focus loss was reproduced before the trigger handoff fix;
 the same action then returned focus to the mounted trigger. The existing dashboard
 scenario retains this regression. Feature reactivation waits for actual control
