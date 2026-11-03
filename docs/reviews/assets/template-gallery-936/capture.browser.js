@@ -26,4 +26,3 @@ async (page, { screenshots }) => {
     }
   }
 }
-

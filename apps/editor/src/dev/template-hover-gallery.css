@@ -1,0 +1,13 @@
+/* Proposal C only. The document's typography and node rendering remain product-owned. */
+.tg-hover-gallery > .tg-hint { margin-bottom:var(--space-4); }
+.tg-hover-card { display:flex; flex-direction:column; min-width:0; background:var(--id-color-surface); border:1px solid var(--id-color-border-subtle); border-radius:var(--id-radius-sm); }
+.tg-hover-card .tg-item { border:0; flex:1; }
+.tg-card-footer { padding:var(--space-3); display:flex; align-items:center; border-top:1px solid var(--id-color-border-subtle); }
+.tg-document-popover { width:560px; max-width:min(calc(100vw - var(--space-4)),var(--available-width)); height:min(820px,calc(100dvh - var(--space-4))); max-height:var(--available-height); padding:0; gap:0; overflow:hidden; }
+.tg-popover-heading { display:flex; align-items:center; flex-wrap:wrap; justify-content:space-between; gap:var(--space-2); padding:var(--space-3) var(--space-4); border-bottom:1px solid var(--id-color-border-subtle); flex-shrink:0; }
+.tg-popover-heading span { color:var(--id-color-text-muted); font-size:var(--font-size-xs); }
+.tg-preview-scroll { overflow:auto; min-height:0; flex:1; background:var(--id-color-paper); }
+.tg-preview-scroll .document { width:100%; min-height:0; margin:0; border:0; border-radius:0; box-shadow:none; padding:var(--space-6); }
+.tg-preview-scroll:focus-visible { outline:2px solid var(--id-color-interaction); outline-offset:-2px; }
+@media (max-width:900px) { .tg-hover-gallery .tg-cards { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.tg-preview-scroll .document-title-input { word-break:var(--word-break-document); overflow-wrap:anywhere; }

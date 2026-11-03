@@ -1,3 +1,4 @@
+import { TemplateHoverGallery } from "./template-hover-gallery.tsx";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, FileText, FolderOpen, LayoutTemplate, Settings } from "lucide-react";
 import { Button } from "../components/ui/button.tsx";
@@ -15,10 +16,10 @@ const templates = [
   { name: "실험 노트", description: "가설, 관찰과 결론을 분리해 재현 가능한 실험 기록을 만듭니다.", builtin: false, sections: ["가설", "실험 조건", "관찰", "결론"], example: "이번 실험에서 확인하려는 질문을 적습니다." },
 ];
 
-/** UI-only proposal: no document parse, semantic operation, Host API or file write. */
+/** UI-only proposal: no semantic operation, Host API or file write. */
 export function TemplateGallery() {
   const query = new URLSearchParams(location.search);
-  const [variant, setVariant] = useState(query.get("variant") === "b" ? "b" : "a");
+  const [variant, setVariant] = useState(query.get("variant") === "a" ? "a" : query.get("variant") === "b" ? "b" : "c");
   const [theme, setTheme] = useState(query.get("theme") === "dark" ? "dark" : "light");
   const [empty, setEmpty] = useState(query.get("empty") === "1");
   const [opened, setOpened] = useState(true);
@@ -53,7 +54,7 @@ export function TemplateGallery() {
     </section>;
   };
   return <div className="tg-shell">
-    <div className="tg-dev"><strong>#936 · 화면 시안</strong><ChoiceGroup aria-label="시안" value={variant} options={[{ value: "a", label: "A · 목록과 미리보기" }, { value: "b", label: "B · 카드와 상세" }]} onValueChange={v => { setVariant(v); setDetail(false); }} />
+    <div className="tg-dev"><strong>#936 · 화면 시안</strong><ChoiceGroup aria-label="시안" value={variant} options={[{ value: "a", label: "A · 목록과 미리보기" }, { value: "b", label: "B · 카드와 상세" }, { value: "c", label: "C · 카드와 hover" }]} onValueChange={v => { setVariant(v); setDetail(false); }} />
       <Button size="sm" variant="ghost" onClick={() => setTheme(theme === "light" ? "dark" : "light")}>{theme === "light" ? "다크" : "라이트"}</Button><Button size="sm" variant="ghost" aria-pressed={empty} onClick={() => { setEmpty(!empty); setDetail(false); }}>빈 상태</Button>
     </div>
     <div className="tg-workspace"><aside className="tg-sidebar"><strong>Litzio</strong><span className="tg-explorer">탐색기</span><Button variant="ghost" aria-label="작업 폴더" title="작업 폴더" onClick={() => setOpened(false)}><FolderOpen /><span>작업 폴더</span></Button><Button variant="ghost" aria-label="템플릿 갤러리" title="템플릿 갤러리" aria-pressed={opened} onClick={() => setOpened(true)}><LayoutTemplate /><span>템플릿 갤러리</span></Button><span className="tg-sidebar-bottom"><Settings /><span>설정</span></span></aside>
@@ -61,7 +62,7 @@ export function TemplateGallery() {
         <header className="tg-title"><h1>템플릿 갤러리</h1><p>같은 틀에서 시작하고, 나만의 내용으로 완성하세요.</p></header>
         {variant === "b" && detail && !empty ? <><Button variant="ghost" onClick={() => { setDetail(false); requestAnimationFrame(() => document.querySelector<HTMLButtonElement>(`.tg-item[data-template-index="${selected}"]`)?.focus()); }}><ArrowLeft />목록으로</Button>{preview}</> : <>
           <label className="tg-search">템플릿 찾기<Input value={search} onChange={e => setSearch(e.target.value)} placeholder="이름 또는 설명으로 검색" /></label>
-          <div className={`tg-body tg-${variant}`}><div className="tg-catalog">{list(true)}{list(false)}</div>{variant === "a" && !empty && preview}</div>
+          {variant === "c" ? <TemplateHoverGallery templates={templates} search={search} empty={empty} onCreate={(index, trigger) => { setSelected(index); action.current = trigger; setFolder("프로젝트 / 문서"); setFilename(`${templates[index]!.name}.md`); setSaving(true); }} /> : <div className={`tg-body tg-${variant}`}><div className="tg-catalog">{list(true)}{list(false)}</div>{variant === "a" && !empty && preview}</div>}
         </>}{notice && <p role="status">{notice}</p>}
       </div> : <div className="tg-welcome"><h1>어떤 문서를 만들까요?</h1><Button variant="secondary" onClick={() => setOpened(true)}><LayoutTemplate />템플릿 갤러리 열기</Button></div>}</main>
     </div>
