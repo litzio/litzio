@@ -48,14 +48,16 @@ test("HTTP recovery survives browser crash and daemon reconnect, then Save/Reloa
     } catch (error) { child.kill(); await exited; throw error; }
   };
   let host = await start(), stopped = false;
-  const stop = async () => {
+  let closing: Promise<void> | undefined;
+  const stop = () => closing ??= (async () => {
     if (stopped) return;
     const response = await fetch(origin + "/daemon/stop", { method: "POST", signal: AbortSignal.timeout(15_000), headers: { Origin: origin, "Content-Type": "application/json", "X-Litzio-Protocol": DAEMON_PROTOCOL }, body: JSON.stringify({ ...host.identity, confirm: true }) });
     expect(response.status).toBe(200);
     await response.json();
     await expect.poll(() => host.child.exitCode, { timeout: 15_000, message: "Owned daemon must finish shutdown" }).not.toBeNull();
     await host.exited; stopped = true;
-  };
+  })();
+  const nativeStopFinished = Promise.withResolvers<{ error?: unknown }>();
   const file = path.join(REPOSITORY_ROOT, "tmp/http-host-a/fixture/a.md");
   writeFileSync(file, "---\nlitzio: 1\n---\n");
   const original = readFileSync(file, "utf8");
@@ -68,8 +70,11 @@ test("HTTP recovery survives browser crash and daemon reconnect, then Save/Reloa
     // Apply to every persistent context, including the ones recreated after a crash.
     context.setDefaultTimeout(info.project.use.actionTimeout!);
     context.setDefaultNavigationTimeout(info.project.use.navigationTimeout!);
-    await context.exposeFunction("testStopDaemon", async () => { await stop(); return true; });
-    await context.exposeFunction("testReconnectDaemon", async () => { host = await start(); stopped = false; });
+    await context.exposeFunction("testStopDaemon", async () => {
+      try { await stop(); nativeStopFinished.resolve({}); return true; }
+      catch (error) { nativeStopFinished.resolve({ error }); throw error; }
+    });
+    await context.exposeFunction("testReconnectDaemon", async () => { host = await start(); stopped = false; closing = undefined; });
     await context.exposeFunction("testCheckDaemon", async () => {
       const response = await fetch(origin + "/daemon/health", { headers: { "X-Litzio-Protocol": DAEMON_PROTOCOL }, signal: AbortSignal.timeout(5000) });
       if (!response.ok) throw new Error("Disconnected");
@@ -184,6 +189,9 @@ test("HTTP recovery survives browser crash and daemon reconnect, then Save/Reloa
     await page.keyboard.press("End"); await page.keyboard.insertText(" Unsaved across daemon reconnect.");
     await page.getByRole("button", { name: "Desktop menu", exact: true }).click();
     await page.getByRole("menuitem", { name: "Stop daemon", exact: true }).click();
+    // A health tick can display disconnection before the native stop promise
+    // finishes. Await that operation's completion, not the earlier notice.
+    expect((await nativeStopFinished.promise).error).toBeUndefined();
     await expect(page.getByTestId("daemon-disconnected")).toBeVisible();
     expect(stopped).toBe(true); expect(host.child.exitCode).toBe(0);
     await page.getByRole("button", { name: "Reconnect", exact: true }).click();
