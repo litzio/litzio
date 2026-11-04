@@ -8,7 +8,7 @@ import { handleAssetRequest } from "./asset-api.ts";
 import { handleDocumentRequest } from "./document-api.ts";
 import { SECURITY_HEADERS, serveEditorFile } from "./editor-static.ts";
 import { LOCAL_FILE_ACCESS, RootAccess } from "./file-access.ts";
-import { daemonRequest, type DaemonAuth } from "./daemon-protocol.ts";
+import { daemonRequest, type DaemonControl } from "./daemon-protocol.ts";
 import { trashFile } from "./os-trash.ts";
 import { requestQuery } from "./request-query.ts";
 
@@ -20,7 +20,7 @@ export type HttpHostOptions = {
   port?: number;
   host?: string;
   publicOrigin?: string;
-  daemon?: DaemonAuth;
+  daemon?: DaemonControl;
   removeFile?: (file: string) => void | Promise<void>;
 };
 
@@ -49,8 +49,7 @@ export async function startHttpHost(options: HttpHostOptions) {
   // Port zero is for an OS-assigned test listener; the public CLI accepts only 1–65535.
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("Invalid port.");
   const external = options.publicOrigin === undefined ? undefined : publicOrigin(options.publicOrigin);
-  if (!loopback(host) && !external) throw new Error("Non-loopback binding requires --public-origin and an access-controlled proxy/network.");
-  if (!options.roots.length && !options.daemon?.token) throw new Error("Unrestricted access requires daemon token authentication.");
+  if (!loopback(host) && !external) throw new Error("Non-loopback binding requires --public-origin.");
   const access = options.roots.length ? new RootAccess(options.roots) : LOCAL_FILE_ACCESS;
   const editorDir = realpathSync(options.editorDir);
   if (!statSync(path.join(editorDir, "index.html")).isFile()) throw new Error("The production Editor build is missing.");
@@ -92,7 +91,7 @@ export async function startHttpHost(options: HttpHostOptions) {
     if (writing && (url.pathname !== "/api/asset" || req.method === "DELETE") && !/^application\/json(?:\s*;|$)/i.test(req.headers["content-type"] ?? "")) {
       return json(res, 415, "Expected application/json.");
     }
-    if (options.daemon && await daemonRequest(req, res, url, options.daemon, external ?? `http://${authority(host, req.socket.localPort!)}`)) return;
+    if (options.daemon && await daemonRequest(req, res, url, options.daemon)) return;
     // Full filesystem access must not select Vite's checkout-relative development sample.
     if (!access && url.pathname === "/api/document" && req.method === "GET" && !url.searchParams.get("path")?.trim()) {
       res.setHeader("Content-Type", "application/json; charset=utf-8"); res.end(JSON.stringify({ start: true })); return;
@@ -135,7 +134,7 @@ export async function startHttpHost(options: HttpHostOptions) {
   }
   if (external) origins.add(external);
   for (const origin of origins) authorities.add(new URL(origin).host.toLowerCase());
-  if (!access && !loopback(host)) console.warn("WARNING: unrestricted daemon on a non-loopback address. Over HTTP, the token can be exposed to others on the same network. Anyone with the token can access the entire disk with this OS user's permissions.");
+  if (!loopback(host)) console.warn("WARNING: this daemon has no authentication. Anyone on the same network who can reach this port can access it. Without --root, the entire disk and assistant (AI) execution are exposed with this OS user's permissions.");
   return {
     server,
     roots: access?.roots ?? [],

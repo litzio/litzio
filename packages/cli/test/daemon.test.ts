@@ -9,7 +9,7 @@ import { build } from "esbuild";
 import { createServer } from "node:net";
 import { acquireDaemonLock, daemonPort, readDaemonRecord, stopDaemon, type DaemonRecord } from "../../../apps/editor/server/daemon-state.ts";
 
-test("daemon CLI keeps one local instance, rejects occupied ports and authenticates unrestricted remote mode", async t => {
+test("daemon CLI keeps one local instance, rejects occupied ports and warns for unrestricted remote mode", async t => {
   const userA = "sid:S-1-5-21-111-222-333-1001", userB = "sid:S-1-5-21-111-222-333-1002";
   const channels = ["stable", "beta", "development"] as const;
   const userPorts = [userA, userB].flatMap(user => channels.map(channel => daemonPort(channel, user)));
@@ -55,7 +55,7 @@ test("daemon CLI keeps one local instance, rejects occupied ports and authentica
     const first = JSON.parse(results[0].stdout), second = JSON.parse(results[1].stdout);
     assert.equal(first.instanceId, second.instanceId); assert.equal(first.pid, second.pid);
     assert.equal(first.url, `http://127.0.0.1:${daemonPort("development")}`);
-    assert.equal((await fetch(first.url + "/api/document")).status, 401);
+    assert.equal((await fetch(first.url + "/api/document")).status, 200);
     const status = await execute(["status"]); assert.equal(status.code, 0, status.stderr);
     assert.equal(JSON.parse(status.stdout).instanceId, first.instanceId);
     assert.equal((await execute(["stop"])).code, 1);
@@ -79,22 +79,18 @@ test("daemon CLI keeps one local instance, rejects occupied ports and authentica
     } finally { await new Promise<void>(resolve => blocker.close(() => resolve())); }
     const remote = await execute(["run", "--host", "0.0.0.0", "--public-origin", first.url], async () => {
       assert.equal(readDaemonRecord(directory), undefined, "remote unrestricted daemon is not a Desktop discovery candidate");
-      const token = fs.readFileSync(path.join(directory, "token"), "utf8");
-      const headers = { Authorization: `Bearer ${token}`, "X-Litzio-Protocol": "1", Origin: first.url };
+      const headers = { "X-Litzio-Protocol": "1", Origin: first.url };
       const folder = first.url + "/api/folder?" + new URLSearchParams({ root: base });
-      assert.equal((await fetch(folder)).status, 401);
-      assert.equal((await fetch(folder, { headers })).status, 200);
-      const session = await fetch(first.url + "/daemon/session", { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: "{}" });
-      assert.equal(session.status, 200);
-      const cookie = session.headers.get("set-cookie")!.split(";")[0]!;
-      assert.equal((await fetch(folder, { headers: { Cookie: cookie } })).status, 200);
+      assert.equal((await fetch(folder)).status, 200);
+      assert.equal((await fetch(folder, { headers: { Origin: "https://foreign.invalid" } })).status, 403);
+      assert.equal((await fetch(folder, { headers: { "Sec-Fetch-Site": "cross-site" } })).status, 403);
       const health = await (await fetch(first.url + "/daemon/health", { headers })).json();
-      await stopDaemon({ ...health, url: first.url }, token, "test-version");
+      await stopDaemon({ ...health, url: first.url }, "test-version");
     });
     assert.equal(remote.code, 0, remote.stderr);
-    assert.match(remote.stderr, /WARNING: unrestricted daemon on a non-loopback address/);
-    assert.match(remote.stderr, /HTTP.*token.*same network/);
-    assert.match(remote.stderr, /token.*entire disk/);
+    assert.match(remote.stderr, /WARNING: this daemon has no authentication/);
+    assert.match(remote.stderr, /Anyone on the same network.*reach this port/);
+    assert.match(remote.stderr, /Without --root.*entire disk.*assistant \(AI\) execution/);
   } finally {
     owned ??= readDaemonRecord(directory);
     if (!stopped && owned) {

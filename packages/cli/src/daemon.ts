@@ -7,17 +7,17 @@ import { isIP } from "node:net";
 import { brand } from "../../../brand.ts";
 import { startHttpHost } from "../../../apps/editor/server/http-host.ts";
 import { DAEMON_PROTOCOL, sameInstance } from "../../../apps/editor/server/daemon-protocol.ts";
-import { acquireDaemonLock, daemonDirectory, daemonPort, daemonToken, inspectDaemon, prepareDaemonDirectory, readDaemonRecord, stopDaemon, type DaemonChannel } from "../../../apps/editor/server/daemon-state.ts";
+import { acquireDaemonLock, daemonDirectory, daemonPort, inspectDaemon, prepareDaemonDirectory, readDaemonRecord, stopDaemon, type DaemonChannel } from "../../../apps/editor/server/daemon-state.ts";
 import { productVersion } from "./version.ts";
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 function options(action: string, args: string[]) {
   const { values, tokens } = parseArgs({ args, strict: true, allowPositionals: false, tokens: true, options: {
     channel: { type: "string" }, root: { type: "string", multiple: true }, port: { type: "string" }, host: { type: "string" }, "public-origin": { type: "string" },
-    confirm: { type: "boolean" }, "browser-url": { type: "boolean" },
+    confirm: { type: "boolean" },
   } });
   const seen = new Set<string>();
-  const allowed = new Set(["channel", ...(action === "run" ? ["root", "port", "host", "public-origin"] : action === "stop" ? ["confirm"] : action === "status" ? ["browser-url"] : [])]);
+  const allowed = new Set(["channel", ...(action === "run" ? ["root", "port", "host", "public-origin"] : action === "stop" ? ["confirm"] : [])]);
   for (const token of tokens) {
     if (token.kind !== "option") continue;
     if (!allowed.has(token.name)) throw new Error(`--${token.name} is not supported by daemon ${action}.`);
@@ -54,9 +54,8 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
     })();
     const signalStop = () => { void stop().catch(error => { console.error(error.message); process.exitCode = 1; }); };
     try {
-      const token = daemonToken(directory);
       host = await startHttpHost({ roots: config.root ?? [], host: config.host, port: config.port, editorDir, publicOrigin: config["public-origin"],
-        daemon: { token, health: { ...identity, productVersion, protocolVersion: DAEMON_PROTOCOL }, stop: signalStop } });
+        daemon: { health: { ...identity, productVersion, protocolVersion: DAEMON_PROTOCOL }, stop: signalStop } });
       if (config.local) {
         const temp = path.join(directory, `${identity.instanceId}.tmp`);
         fs.writeFileSync(temp, JSON.stringify({ ...identity, url: host.url }), { flag: "wx", mode: 0o600 });
@@ -64,7 +63,6 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
       }
       process.once("SIGINT", signalStop); process.once("SIGTERM", signalStop);
       console.log(`${brand.name.en} HTTP: ${host.url}\nAllowed folders: ${host.roots.length ? host.roots.join(", ") : "unrestricted access"}`);
-      console.log(`Browser authentication: ${host.url}/daemon/login#${token}`);
       process.send?.({ ready: true }); process.disconnect?.();
     } catch (error) { await stop(); throw error; }
     return;
@@ -97,17 +95,15 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
     if (!record) throw new Error(`Daemon startup was not confirmed. Inspect ${log}; lock is not automatically replaced.`);
   }
   if (!record) { console.log(JSON.stringify({ running: false, locked: fs.existsSync(path.join(directory, "daemon.lock")) })); return; }
-  const token = fs.readFileSync(path.join(directory, "token"), "utf8");
   if (action === "stop") {
     if (!config.confirm) throw new Error("daemon stop requires --confirm; other clients/jobs may be interrupted.");
-    await stopDaemon(record, token, productVersion);
+    await stopDaemon(record, productVersion);
     for (let i = 0; i < 100; i++) {
       if (!fs.existsSync(path.join(directory, "daemon.lock"))) { console.log(JSON.stringify({ stopped: record })); return; }
       await delay(100);
     }
     throw new Error("Daemon shutdown was not confirmed; inspect status before restarting.");
   }
-  const health = await inspectDaemon(record, token, productVersion);
-  if (config["browser-url"]) console.log(`${record.url}/daemon/login#${token}`);
-  else console.log(JSON.stringify({ running: true, ...record, ...health }));
+  const health = await inspectDaemon(record, productVersion);
+  console.log(JSON.stringify({ running: true, ...record, ...health }));
 }

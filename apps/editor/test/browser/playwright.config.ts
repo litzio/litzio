@@ -1,7 +1,7 @@
 import { defineConfig } from "@playwright/test";
 import path from "node:path";
 import { REPOSITORY_ROOT } from "./fixtures.ts";
-import { HTTP_DAEMON_STATE } from "./daemon-auth.ts";
+const HTTP_DAEMON_STATE = process.env.LITZIO_BROWSER_DAEMON_DIR;
 
 const httpHost = process.env.LITZIO_BROWSER_HOST === "http";
 const url = process.env.LITZIO_BROWSER_URL ?? (httpHost ? "http://127.0.0.1:5181" : "http://127.0.0.1:5173");
@@ -22,7 +22,7 @@ export default defineConfig({
       : process.platform !== "win32" && process.env.LITZIO_BROWSER_SERVER_LOG ? 'pnpm editor > "$LITZIO_BROWSER_SERVER_LOG" 2>&1' : "pnpm editor",
     cwd: REPOSITORY_ROOT,
     env: { ...(HTTP_DAEMON_STATE ? { LITZIO_DAEMON_DIR: HTTP_DAEMON_STATE } : {}), LITZIO_AI_AGENT_CWD: path.join(REPOSITORY_ROOT, "tmp", "browser-assistant"), ...(process.env.LITZIO_BROWSER_SCENARIOS?.includes("docling-review") ? { LITZIO_AI_TEST_ADAPTER: "docling-review" } : {}), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(REPOSITORY_ROOT, "tmp", "browser-ai-settings.json"), LITZIO_DOCLING_SETTINGS_FILE: path.join(REPOSITORY_ROOT, "tmp", "browser-docling-settings.json"), LITZIO_PLUGINS_DIR: path.join(REPOSITORY_ROOT, "tmp", "browser-plugins") },
-    url: `${url}${httpHost ? "/daemon/login" : "/api/document"}`,
+    url: `${url}/api/document`,
     reuseExistingServer: !httpHost && !process.env.CI,
     timeout: 60_000,
     gracefulShutdown: { signal: "SIGTERM", timeout: 10_000 },

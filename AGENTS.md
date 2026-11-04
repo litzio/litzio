@@ -25,7 +25,7 @@
 - Visual Editor는 ADR-0001에 따라 Tiptap/ProseMirror 기반의 single-document editor state를 사용한다. Litzio가 selection, history, cursor, clipboard 등을 포함한 자체 rich-text editor engine을 재구현하지 않는다.
 - Editor-engine-specific types and document models stay inside `apps/editor`. Core exposes editor-neutral document semantics.
 - Editor는 ADR-0010에 따라 최소 640px의 데스크톱급 창과 키보드·포인터 입력을 지원 대상으로 한다. 휴대폰 폭·터치 전용 레이아웃이나 검증은 실제 사용자가 확인되어 별도 결정이 나기 전까지 계획하지 않는다.
-- [ADR-0016](docs/adr/0016-shared-local-daemon-host.md)에 따라 Desktop은 같은 PC의 인증된 공유 daemon(HTTP Host)에 연결하는 방향으로 전환한다. `apps/editor/server`의 공용 파일 Host handler와 Core 의미·공식 write path를 재사용한다. 화면과 독립된 daemon 수명 및 ADR-0012의 플러그인 등록·요청 기록을 허용하되, 이를 범용 persistence/backend나 공유 편집 세션의 근거로 확장하지 않는다. PR1은 결정만 기록하며 현재 in-process 구현과 계약은 PR2~PR4에서 함께 갱신한다.
+- [ADR-0016](docs/adr/0016-shared-local-daemon-host.md)에 따라 Desktop은 같은 PC의 공유 daemon(HTTP Host; 현재 단계는 인증 없음, #1145에서 방식·시점 선택)에 연결하는 방향으로 전환한다. `apps/editor/server`의 공용 파일 Host handler와 Core 의미·공식 write path를 재사용한다. 화면과 독립된 daemon 수명 및 ADR-0012의 플러그인 등록·요청 기록을 허용하되, 이를 범용 persistence/backend나 공유 편집 세션의 근거로 확장하지 않는다. PR1은 결정만 기록하며 현재 in-process 구현과 계약은 PR2~PR4에서 함께 갱신한다.
 
 이 원칙을 이유로 미래 구조나 기능을 선제적으로 구현하지 않는다.
 

@@ -33,7 +33,7 @@ union, limits and snapshot policy are specified in [Citations v1](citations-v1.m
 
 ## Shared local daemon transition (#1142)
 
-[ADR-0016](../adr/0016-shared-local-daemon-host.md)의 PR2는 인증된 daemon의 선택 Root와 OS 휴지통 삭제를 구현한다. 인증·탐색·인스턴스 수명은 [HTTP Host](http-host-v1.md#shared-local-daemon-1142-pr2)를 따른다. Desktop 연결과 종료 정책·플러그인/AI 수명은 PR3/PR4에서 전환한다.
+[ADR-0016](../adr/0016-shared-local-daemon-host.md)의 PR2는 현재 무인증 daemon의 선택 Root와 OS 휴지통 삭제를 구현한다. 인증 보류(#1145)·탐색·인스턴스 수명은 [HTTP Host](http-host-v1.md#shared-local-daemon-1142-pr2)를 따른다. Desktop 연결과 종료 정책·플러그인/AI 수명은 PR3/PR4에서 전환한다.
 
 ## Plain text file boundary (#817)
 

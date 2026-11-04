@@ -196,7 +196,7 @@ test("folder image preview is read-only, root bounded and isolated for GET, HEAD
   assert.equal((await send(route(a, path.join(a, "bad.png")), "HEAD")).status, 413);
 });
 
-async function fixture(t: TestContext, external?: string, authenticated = false) {
+async function fixture(t: TestContext, external?: string, controlled = false) {
   const base = fs.mkdtempSync(path.join(tmpdir(), "litzio-http-"));
   const a = path.join(base, "문서 A"), b = path.join(base, "documents-B");
   const outside = path.join(base, "문서 A-other"), editorDir = path.join(base, "editor");
@@ -210,10 +210,10 @@ async function fixture(t: TestContext, external?: string, authenticated = false)
   const previousPlugins = process.env.LITZIO_PLUGINS_DIR;
   process.env.LITZIO_PLUGINS_DIR = path.join(base, "plugins");
   const trashed: string[] = [];
-  const token = randomUUID(), health = { pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), productVersion: "test-product", protocolVersion: DAEMON_PROTOCOL };
+  const health = { pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), productVersion: "test-product", protocolVersion: DAEMON_PROTOCOL };
   let stopped = false;
-  const host = await startFetchServer(() => startHttpHost({ editorDir, roots: authenticated && !external ? [] : [a, b], port: 0, publicOrigin: external,
-    ...(authenticated ? { daemon: { token, health, stop: () => { stopped = true; } } } : {}),
+  const host = await startFetchServer(() => startHttpHost({ editorDir, roots: controlled && !external ? [] : [a, b], port: 0, publicOrigin: external,
+    ...(controlled ? { daemon: { health, stop: () => { stopped = true; } } } : {}),
     removeFile: file => { trashed.push(file); fs.renameSync(file, path.join(base, "trashed-" + path.basename(file))); } }));
   if (previousPlugins === undefined) delete process.env.LITZIO_PLUGINS_DIR; else process.env.LITZIO_PLUGINS_DIR = previousPlugins;
   const address = host.server.address();
@@ -224,57 +224,27 @@ async function fixture(t: TestContext, external?: string, authenticated = false)
     method, headers: { Origin: url, ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...headers },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  return { base, a, b, outside, editorDir, host, url, send, trashed, token, health, stopped: () => stopped };
+  return { base, a, b, outside, editorDir, host, url, send, trashed, health, stopped: () => stopped };
 }
 
-test("daemon gates static/API/media, exchanges a browser cookie, checks versions and only stops its own instance", async t => {
-  const { url, token, health, send, outside, stopped } = await fixture(t, undefined, true);
-  const headers = { Authorization: `Bearer ${token}`, "X-Litzio-Protocol": DAEMON_PROTOCOL };
-  assert.deepEqual(await (await send("/api/document", "GET", undefined, headers)).json(), { start: true });
-  for (const route of ["/", "/api/document", "/daemon/health", "/document/image.png"]) {
-    assert.equal((await send(route)).status, 401);
-    assert.equal((await send(route, "GET", undefined, { ...headers, Authorization: "Bearer wrong" })).status, 401);
-  }
-  assert.equal((await send("/daemon/health", "GET", undefined, { ...headers, "X-Litzio-Protocol": "incompatible" })).status, 409);
-  assert.equal((await send("/daemon/session", "POST", {}, { ...headers, Origin: "https://foreign.invalid" })).status, 403);
-  const session = await send("/daemon/session", "POST", {}, headers);
-  assert.equal(session.status, 200);
-  const cookie = session.headers.get("set-cookie")!;
-  assert.match(cookie, /HttpOnly; SameSite=Strict; Path=\//);
-  assert.doesNotMatch(cookie, /; Secure/);
-  assert.equal((await send(`/api/folder?${new URLSearchParams({ root: outside })}`, "GET", undefined, { Cookie: cookie.split(";")[0]! })).status, 200);
-  const other = await fixture(t, undefined, true);
-  const otherHeaders = { Authorization: `Bearer ${other.token}`, "X-Litzio-Protocol": DAEMON_PROTOCOL };
-  const otherSession = await other.send("/daemon/session", "POST", {}, otherHeaders);
-  assert.equal(otherSession.status, 200);
-  // Same hostname/Path: browser cookie replacement uses names, never ports.
-  const jar = new Map<string, string>();
-  const storeCookie = (value: string) => { const pair = value.split(";")[0]!; jar.set(pair.split("=")[0]!, pair); };
-  storeCookie(cookie); storeCookie(otherSession.headers.get("set-cookie")!);
-  assert.equal(jar.size, 2, "concurrent daemon logins must have separate cookie storage keys");
-  for (const sendTo of [send, other.send]) assert.equal((await sendTo("/api/document", "GET", undefined, { Cookie: [...jar.values()].join("; ") })).status, 200);
-  storeCookie((await send("/daemon/session", "POST", {}, headers)).headers.get("set-cookie")!);
-  for (const sendTo of [send, other.send]) assert.equal((await sendTo("/api/document", "GET", undefined, { Cookie: [...jar.values()].join("; ") })).status, 200, "relogin cannot log out the other endpoint");
-  const proxy = await fixture(t, "https://docs.example", true);
-  const proxySession = await proxy.send("/daemon/session", "POST", {}, { Authorization: `Bearer ${proxy.token}`, "X-Litzio-Protocol": DAEMON_PROTOCOL, Origin: "https://docs.example" });
-  assert.equal(proxySession.status, 200); assert.match(proxySession.headers.get("set-cookie")!, /; Secure/);
+test("daemon checks protocol/product versions and only stops its own instance", async t => {
+  const { url, health, send, stopped } = await fixture(t, undefined, true);
+  const headers = { "X-Litzio-Protocol": DAEMON_PROTOCOL };
+  assert.deepEqual(await (await send("/api/document")).json(), { start: true });
+  assert.equal((await send("/")).status, 200);
+  assert.equal((await send("/daemon/health", "GET", undefined, { "X-Litzio-Protocol": "incompatible" })).status, 409);
   const warnings: string[] = [], record = { ...health, url };
-  assert.deepEqual(await inspectDaemon(record, token, "new-product", message => warnings.push(message)), health);
+  assert.deepEqual(await inspectDaemon(record, "new-product", message => warnings.push(message)), health);
   assert.match(warnings.join(), /WARNING.*restart explicitly/);
-  await assert.rejects(stopDaemon({ ...record, instanceId: "another-instance" }, token, health.productVersion), /identity changed/);
+  await assert.rejects(stopDaemon({ ...record, instanceId: "another-instance" }, health.productVersion), /identity changed/);
   const invalidStop = await send("/daemon/stop", "POST", { ...health, startedAt: "other-start", confirm: true }, headers);
   assert.equal(invalidStop.status, 409); assert.equal(stopped(), false);
-  await stopDaemon(record, token, health.productVersion);
+  await stopDaemon(record, health.productVersion);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(stopped(), true);
-  health.protocolVersion = "2";
-  assert.equal((await send("/api/document", "GET", undefined, { Cookie: cookie.split(";")[0]! })).status, 401, "a cookie from another protocol cannot reconnect silently");
 });
 
-test("HTTP unrestricted access requires token authentication on local and non-loopback bindings", async () => {
-  for (const options of [{}, { host: "0.0.0.0", publicOrigin: "https://docs.example" }]) {
-    await assert.rejects(startHttpHost({ roots: [], editorDir: "unused", ...options }), /Unrestricted access requires/);
-  }
+test("non-loopback binding still requires an explicit public origin", async () => {
   await assert.rejects(startHttpHost({ roots: [], editorDir: "unused", host: "0.0.0.0" }), /Non-loopback binding requires --public-origin/);
 });
 

@@ -63,8 +63,7 @@ test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/h
           if (output.includes(`${brand.name.en} HTTP:`)) { clearTimeout(timer); resolve(); }
         });
       });
-      const token = readFileSync(path.join(folder, "daemon/development/token"), "utf8");
-      const response = await fetch(`http://127.0.0.1:${address.port}/`, { headers: { Authorization: `Bearer ${token}`, "X-Litzio-Protocol": "1" } });
+      const response = await fetch(`http://127.0.0.1:${address.port}/`);
       assert.equal(response.status, 200);
       assert.match(await response.text(), /<html/);
       assert.equal(errors, "");

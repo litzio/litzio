@@ -68,21 +68,19 @@ test("the packed CLI installs offline outside the checkout and serves both roots
       child!.once("exit", code => { clearTimeout(timeout); reject(new Error(`CLI exited ${code}: ${errors}`)); });
       child!.stdout!.on("data", data => { output += data; if (output.includes("Litzio HTTP:")) { clearTimeout(timeout); resolve(); } });
     });
-    const token = readFileSync(path.join(scratch, "daemon/development/token"), "utf8");
-    const hostFetch = (url: string, init: RequestInit = {}) => fetch(url, { ...init, headers: { Authorization: `Bearer ${token}`, "X-Litzio-Protocol": "1", ...init.headers } });
-    assert.equal((await hostFetch(url)).status, 200);
-    const notices = await hostFetch(url + "/licenses/THIRD_PARTY_LICENSES.txt");
+    assert.equal((await fetch(url)).status, 200);
+    const notices = await fetch(url + "/licenses/THIRD_PARTY_LICENSES.txt");
     assert.equal(notices.status, 200);
     assert.match(notices.headers.get("content-type") ?? "", /text\/plain/);
     assert.match(await notices.text(), /Tiptap GmbH/);
     assert.match(readFileSync(path.join(path.dirname(entry), "docling-worker/Docling-schema-LICENSE.txt"), "utf8"), /International Business Machines/);
-    assert.deepEqual((await (await hostFetch(url + "/api/document")).json()).allowedRoots, [a, b]);
-    await verifyPackagedWorker((endpoint, method = "GET", body) => hostFetch(`${url}/api/${endpoint}`, { method,
+    assert.deepEqual((await (await fetch(url + "/api/document")).json()).allowedRoots, [a, b]);
+    await verifyPackagedWorker((endpoint, method = "GET", body) => fetch(`${url}/api/${endpoint}`, { method,
       ...(body === undefined ? {} : { headers: { Origin: url, "Content-Type": "application/json" }, body: JSON.stringify(body) }) }), a, fake.url);
     for (const folder of [a, b]) {
       const file = path.join(folder, "document.md");
-      const loaded = await (await hostFetch(url + `/api/document?${new URLSearchParams({ path: file })}`)).json();
-      const response = await hostFetch(url + "/api/document", { method: "POST", headers: { Origin: url, "Content-Type": "application/json" },
+      const loaded = await (await fetch(url + `/api/document?${new URLSearchParams({ path: file })}`)).json();
+      const response = await fetch(url + "/api/document", { method: "POST", headers: { Origin: url, "Content-Type": "application/json" },
         body: JSON.stringify({ path: file, revision: loaded.revision, base: { source: loaded.source },
           paragraphs: [{ path: [2], content: [{ kind: "text", text: "Packed save." }] }] }) });
       assert.equal(response.status, 200, await response.text());
@@ -92,7 +90,7 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     assert.notEqual(conflict.status, 0);
     assert.match(conflict.stderr, /Daemon lock exists/);
     await stop(child);
-    await assert.rejects(hostFetch(url), /fetch failed/);
+    await assert.rejects(fetch(url), /fetch failed/);
   } finally {
     if (child) await stop(child);
     await fake.close();

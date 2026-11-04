@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { brand } from "../../../brand.ts";
 import { DAEMON_PROTOCOL, sameInstance, type DaemonHealth, type DaemonIdentity } from "./daemon-protocol.ts";
 
@@ -23,27 +23,13 @@ export function daemonPort(channel: DaemonChannel, user = daemonUser()): number 
 }
 export const daemonDirectory = (channel: DaemonChannel) => path.join(process.env.LITZIO_DAEMON_DIR ?? path.join(os.homedir(), brand.folders.shared, "daemon"), channel);
 
-/** Tokens inherit only this user's directory permissions (POSIX mode or Windows ACL). */
+/** Keep instance records and locks private to the OS user; this is not HTTP authentication. */
 export function prepareDaemonDirectory(directory: string): void {
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   if (process.platform === "win32") {
     const user = execFileSync("whoami", [], { encoding: "utf8", windowsHide: true }).trim();
     execFileSync("icacls", [directory, "/inheritance:r", "/grant:r", `${user}:(OI)(CI)F`], { stdio: "pipe", windowsHide: true });
   } else fs.chmodSync(directory, 0o700);
-}
-
-export function daemonToken(directory: string): string {
-  const file = path.join(directory, "token");
-  if (!fs.existsSync(file)) {
-    const temp = path.join(directory, `${randomUUID()}.token.tmp`);
-    fs.writeFileSync(temp, randomBytes(32).toString("base64url"), { flag: "wx", mode: 0o600 });
-    try { fs.linkSync(temp, file); }
-    catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
-    finally { fs.unlinkSync(temp); }
-  }
-  const token = fs.readFileSync(file, "utf8");
-  if (!/^[A-Za-z0-9_-]{43}$/.test(token)) throw new Error("Invalid daemon token file; inspect it before restarting.");
-  return token;
 }
 
 export function readDaemonRecord(directory: string): DaemonRecord | undefined {
@@ -70,24 +56,24 @@ export function acquireDaemonLock(file: string, identity: DaemonIdentity): () =>
   };
 }
 
-export async function daemonRpc(record: DaemonRecord, token: string, route: string, body?: unknown, protocol = DAEMON_PROTOCOL) {
+export async function daemonRpc(record: DaemonRecord, route: string, body?: unknown, protocol = DAEMON_PROTOCOL) {
   const response = await fetch(record.url + route, { method: body === undefined ? "GET" : "POST",
-    headers: { Authorization: `Bearer ${token}`, "X-Litzio-Protocol": protocol, Origin: record.url, "Content-Type": "application/json" },
+    headers: { "X-Litzio-Protocol": protocol, Origin: record.url, "Content-Type": "application/json" },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(10_000) });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error ?? `Daemon request failed (${response.status}).`);
   return result;
 }
 
-export async function inspectDaemon(record: DaemonRecord, token: string, productVersion: string, warn: (message: string) => void = console.error): Promise<DaemonHealth> {
-  const health = await daemonRpc(record, token, "/daemon/health") as DaemonHealth;
+export async function inspectDaemon(record: DaemonRecord, productVersion: string, warn: (message: string) => void = console.error): Promise<DaemonHealth> {
+  const health = await daemonRpc(record, "/daemon/health") as DaemonHealth;
   if (!sameInstance(record, health)) throw new Error("Daemon identity changed; refusing this discovery record.");
   if (health.protocolVersion !== DAEMON_PROTOCOL) throw new Error("Daemon protocol mismatch. Use the CLI matching the running daemon to stop it, or Ctrl+C in its foreground terminal; then start the desired version.");
   if (health.productVersion !== productVersion) warn(`WARNING: daemon product ${health.productVersion}, client ${productVersion}. Connection retained; restart explicitly with daemon stop --confirm then daemon start. Other clients/jobs may be interrupted.`);
   return health;
 }
 
-export async function stopDaemon(record: DaemonRecord, token: string, productVersion: string): Promise<void> {
-  await inspectDaemon(record, token, productVersion);
-  await daemonRpc(record, token, "/daemon/stop", { ...record, confirm: true });
+export async function stopDaemon(record: DaemonRecord, productVersion: string): Promise<void> {
+  await inspectDaemon(record, productVersion);
+  await daemonRpc(record, "/daemon/stop", { ...record, confirm: true });
 }
