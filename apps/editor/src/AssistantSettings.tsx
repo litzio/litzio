@@ -1,7 +1,7 @@
 import { hostClient } from "./host-client.ts";
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { AI_AGENT, type AiAgentSettings, type AiModels, type AiDiagnostics, type AiEnvironment, type AiProvider } from "../shared/ai.ts";
-import "./ai-settings.css";
+import { ASSISTANT, type AssistantSettings, type AiModels, type AssistantDiagnostics, type AssistantEnvironment, type AiProvider } from "../shared/assistant.ts";
+import "./assistant-settings.css";
 import { SettingsSelect } from "./components/ui/settings.tsx";
 import { Input } from "./components/ui/input.tsx";
 import { Button } from "./components/ui/button.tsx";
@@ -23,39 +23,39 @@ async function request<T>(route: string, method = "GET", body?: unknown): Promis
  const value = await response.json(); if (!response.ok) throw new Error(value.error ?? `HTTP ${response.status}`); return value;
 }
 
-export function AiSettings({ onSaved }: { onSaved(): void }) {
-    const [settings, setSettings] = useState<AiAgentSettings>();
-    const [storedSettings, setStoredSettings] = useState<AiAgentSettings>();
+export function AssistantSettings({ onSaved }: { onSaved(): void }) {
+    const [settings, setSettings] = useState<AssistantSettings>();
+    const [storedSettings, setStoredSettings] = useState<AssistantSettings>();
     const [inspecting, setInspecting] = useState<AiProvider>("codex");
     const [catalogs, setCatalogs] = useState<Partial<Record<AiProvider, AiModels>>>({});
     const models = catalogs[inspecting];
     const setModels = (value: AiModels | undefined) => { if (value) setCatalogs(current => ({ ...current, [value.provider]: value })); };
-    const [diagnostics, setDiagnostics] = useState<AiDiagnostics>();
-    const [environment, setEnvironment] = useState<AiEnvironment>();
+    const [diagnostics, setDiagnostics] = useState<AssistantDiagnostics>();
+    const [environment, setEnvironment] = useState<AssistantEnvironment>();
     const [view, setView] = useState<"settings" | "diagnostics">("settings");
     const [dialog, setDialog] = useState(false), [search, setSearch] = useState("");
     const [busy, setBusy] = useState(false), [loading, setLoading] = useState(false);
-    const latest = useRef<AiAgentSettings | undefined>(undefined), queue = useRef(Promise.resolve()), revision = useRef(0);
-    const [connections, setConnections] = useState<Partial<Record<AiProvider, AiDiagnostics>>>({});
+    const latest = useRef<AssistantSettings | undefined>(undefined), queue = useRef(Promise.resolve()), revision = useRef(0);
+    const [connections, setConnections] = useState<Partial<Record<AiProvider, AssistantDiagnostics>>>({});
     const [problem, setProblem] = useState("");
     const focus = useRef<HTMLElement | null>(null), alive = useRef(true);
     const t = (key: string) => i18n.t(key as MessageKey);
     const get = <T,>(route: string, provider?: AiProvider) => request<T>(route + (provider ? `?provider=${provider}` : ""));
-    const save = (next: AiAgentSettings) => {
+    const save = (next: AssistantSettings) => {
       latest.current = next; setSettings(next); setBusy(true); setProblem("");
       const version = ++revision.current;
       queue.current = queue.current.then(async () => {
         try {
-          const stored = await request<AiAgentSettings>(AI_AGENT.settingsRoute, "PUT", next);
+          const stored = await request<AssistantSettings>(ASSISTANT.settingsRoute, "PUT", next);
           onSaved();
           if (alive.current && version === revision.current) setStoredSettings(stored);
-        } catch { if (alive.current && version === revision.current) setProblem(t("Could not save AI settings.")); }
+        } catch { if (alive.current && version === revision.current) setProblem(t("Could not save Assistant settings.")); }
         finally { if (alive.current && version === revision.current) setBusy(false); }
       });
     };
     const refresh = async (provider: AiProvider = inspecting) => {
       setLoading(true); setProblem("");
-      const results = await Promise.allSettled([get<AiModels>(AI_AGENT.modelsRoute, provider), get<AiDiagnostics>(AI_AGENT.diagnosticsRoute, provider)]);
+      const results = await Promise.allSettled([get<AiModels>(ASSISTANT.modelsRoute, provider), get<AssistantDiagnostics>(ASSISTANT.diagnosticsRoute, provider)]);
       if (!alive.current) return;
       if (results[0].status === "fulfilled") setModels(results[0].value);
       else { setModels(undefined); setProblem(String(results[0].reason.message)); }
@@ -69,22 +69,22 @@ export function AiSettings({ onSaved }: { onSaved(): void }) {
       if (provider === current.provider) { save({ ...current }); return; }
       setLoading(true); setProblem("");
       try {
-        const catalog = await get<AiModels>(AI_AGENT.modelsRoute, provider), first = catalog.models[0];
+        const catalog = await get<AiModels>(ASSISTANT.modelsRoute, provider), first = catalog.models[0];
         if (!first) throw new Error();
         if (!alive.current) return;
         save({ ...latest.current!, provider, model: first.model, reasoningEffort: first.defaultReasoningEffort });
         setModels(catalog); setInspecting(provider); void refresh(provider);
-      } catch { if (alive.current) setProblem(t("Could not save AI settings.")); }
+      } catch { if (alive.current) setProblem(t("Could not save Assistant settings.")); }
       finally { if (alive.current) setLoading(false); }
     };
     useEffect(() => {
       alive.current = true;
-      void Promise.all([get<AiAgentSettings>(AI_AGENT.settingsRoute), get<AiEnvironment>(AI_AGENT.environmentRoute)]).then(([next, env]) => {
+      void Promise.all([get<AssistantSettings>(ASSISTANT.settingsRoute), get<AssistantEnvironment>(ASSISTANT.environmentRoute)]).then(([next, env]) => {
         if (!alive.current) return;
         next = { ...next, responseLanguage: next.responseLanguage ?? (navigator.language.startsWith("ko") ? "ko" : navigator.language.startsWith("ja") ? "ja" : "en") };
         latest.current = next; setSettings(next); setStoredSettings(next); setEnvironment(env); setInspecting(next.provider); void refresh(next.provider);
         const other = next.provider === "codex" ? "copilot" : "codex";
-        void get<AiDiagnostics>(AI_AGENT.diagnosticsRoute, other).then(value => { if (alive.current) setConnections(current => ({ ...current, [other]: value })); }).catch(() => {});
+        void get<AssistantDiagnostics>(ASSISTANT.diagnosticsRoute, other).then(value => { if (alive.current) setConnections(current => ({ ...current, [other]: value })); }).catch(() => {});
       }).catch(error => { if (alive.current) setProblem(error.message); });
       return () => { alive.current = false; };
     }, []);
@@ -136,12 +136,12 @@ export function AiSettings({ onSaved }: { onSaved(): void }) {
           onChange={value => { save({ ...latest.current!, reasoningEffort: value }); }}
           options={[...(!valid ? [{ value: settings?.reasoningEffort ?? "", label: settings?.reasoningEffort ?? "—" }] : []), ...(model?.supportedReasoningEfforts.map(item => ({ value: item.reasoningEffort, label: t(item.reasoningEffort) })) ?? [])]} /></div>
         <div title={t("Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.")}>
-          <SettingsSelect label={t("Write access")} value={settings?.writeAccess ?? "opened-folders"} disabled={!settings}
-            onChange={value => { save({ ...latest.current!, writeAccess: value as AiAgentSettings["writeAccess"] }); }}
+          <SettingsSelect label={t("Write access")} value={settings?.permissionMode ?? "opened-folders"} disabled={!settings}
+            onChange={value => { save({ ...latest.current!, permissionMode: value as AssistantSettings["permissionMode"] }); }}
             options={[{ value: "read-only", label: t("Read-only") }, { value: "opened-folders", label: t("Opened folders") }, { value: "full-access", label: t("Full access") }]} />
         </div>
         <SettingsSelect label={t("AI default language")} value={settings?.responseLanguage ?? "en"} disabled={!settings}
-          onChange={value => { save({ ...latest.current!, responseLanguage: value as AiAgentSettings["responseLanguage"] }); }}
+          onChange={value => { save({ ...latest.current!, responseLanguage: value as AssistantSettings["responseLanguage"] }); }}
           options={[{ value: "ko", label: "한국어" }, { value: "en", label: "English" }, { value: "ja", label: "日本語" }]} />
         <p className="agent-muted">{t("Used only for tasks started without a conversation.")}</p>
         {models && !valid ? <p role="status">{t("Choose a model and reasoning effort from the available list.")}</p> : null}
@@ -155,7 +155,7 @@ export function AiSettings({ onSaved }: { onSaved(): void }) {
       </>}
       {problem ? <p role="alert">{problem}</p> : null}
       {busy ? <p role="status">{t("Saving…")}</p> : null}
-      <Dialog open={dialog} onClose={() => setDialog(false)} title={t(copilot ? "Copilot models" : "Codex models")} description={t(copilot ? "Models reported by Copilot CLI. Account access and quota may vary." : "Models and supported reasoning efforts reported by Codex.")} returnFocus={focus} testId="ai-models-dialog"
+      <Dialog open={dialog} onClose={() => setDialog(false)} title={t(copilot ? "Copilot models" : "Codex models")} description={t(copilot ? "Models reported by Copilot CLI. Account access and quota may vary." : "Models and supported reasoning efforts reported by Codex.")} returnFocus={focus} testId="assistant-models-dialog"
         footer={<><span className="agent-updated">{t("Updated")}: {date(models?.updatedAt)}</span><Button variant="secondary" onClick={() => { setDialog(false); setView("diagnostics"); }}>{t("Diagnostics")}</Button><Button variant="default" disabled={loading} onClick={() => void refresh()}>{t("Refresh")}</Button></>}>
         <div className="agent-models"><Input aria-label={t("Search models")} placeholder={t("Search models")} value={search} onChange={event => setSearch(event.target.value)} />
           <p className="agent-muted">{t("Models")}: {filteredModels?.length ?? "—"}</p>

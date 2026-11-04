@@ -33,8 +33,8 @@ import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 const cliRoot = fileURLToPath(new URL("..", import.meta.url));
 const nativeSource = (body: string): string => `---\nlitzio: 1\n---\n\n${body}`;
 const fixtures = mkdtempSync(path.join(tmpdir(), "litzio-cli-native-fixtures-"));
-process.env.LITZIO_AI_AGENT_SETTINGS_FILE = path.join(fixtures, "ai-agent.json");
-process.env.LITZIO_AI_AGENT_CWD = path.join(fixtures, "assistant");
+process.env.LITZIO_ASSISTANT_SETTINGS_FILE = path.join(fixtures, "assistant.json");
+process.env.LITZIO_ASSISTANT_CWD = path.join(fixtures, "assistant");
 
 after(() => rmSync(fixtures, { recursive: true, force: true }));
 const fixture = path.join(fixtures, "document.md");
@@ -646,7 +646,7 @@ test("litzio help exits successfully", () => {
       "Edit — tables": ["insert-table", "insert-table-row", "insert-table-column", "remove-table-row", "remove-table-column", "move-table-row", "move-table-column", "update-table-alignment", "update-table-caption", "update-table-cell"],
       "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-numbering-mode", "update-reference-templates", "update-title"],
       "Format": ["format"],
-      "Serve": ["ai", "daemon"],
+      "Serve": ["assistant", "daemon"],
     };
     const expectedCommands = Object.values(expectedGroups).flat();
     const listed: string[] = [];
@@ -2918,8 +2918,8 @@ test("CLI build constant selects distributed defaults even for checkout dist art
   const bundled = await import(pathToFileURL(cliFile).href);
   assert.deepEqual(bundled.hostCli(), { bin: process.execPath, args: [cliFile] });
   const expected = hostPaths({ packaged: true }, {}), actual = bundled.hostPaths({}, {});
-  assert.equal(actual.settingsFile("ai-agent"), expected.settingsFile("ai-agent"));
-  assert.equal(actual.agent, expected.agent);
+  assert.equal(actual.settingsFile("assistant"), expected.settingsFile("assistant"));
+  assert.equal(actual.assistant, expected.assistant);
 });
 
 test("templates CLI lists, previews, saves and exclusively creates through the shared store", t => {
@@ -2956,13 +2956,13 @@ test("templates CLI lists, previews, saves and exclusively creates through the s
   assert.equal(run(["templates", "read", name, "--json", "--json"]).status, 1);
 });
 
-test("ai configure reports invalid fields without writing settings or calling a provider", () => {
+test("assistant configure reports invalid fields without writing settings or calling a provider", () => {
   const file = path.join(fixtures, "invalid-ai.json");
-  const settings = process.env.LITZIO_AI_AGENT_SETTINGS_FILE!;
+  const settings = process.env.LITZIO_ASSISTANT_SETTINGS_FILE!;
   const before = fs.existsSync(settings) ? readFileSync(settings, "utf8") : undefined;
-  for (const [field, value, reason] of [["provider", "bad", /codex, copilot/], ["responseLanguage", "bad", /ko, en, ja/], ["writeAccess", "bad", /opened-folders, read-only, full-access/], ["model", "", /non-empty/], ["reasoningEffort", "BAD", /lowercase/]] as const) {
+  for (const [field, value, reason] of [["provider", "bad", /codex, copilot/], ["responseLanguage", "bad", /ko, en, ja/], ["permissionMode", "bad", /opened-folders, read-only, full-access/], ["model", "", /non-empty/], ["reasoningEffort", "BAD", /lowercase/]] as const) {
     writeFileSync(file, JSON.stringify({ provider: "codex", model: "test", reasoningEffort: "low", [field]: value }));
-    const result = runProcess(["ai", "configure", "--file", file]);
+    const result = runProcess(["assistant", "configure", "--file", file]);
     assert.equal(result.status, 1); assert.match(result.stderr, new RegExp(field)); assert.match(result.stderr, reason);
   }
   assert.equal(fs.existsSync(settings) ? readFileSync(settings, "utf8") : undefined, before);

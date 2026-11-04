@@ -1,10 +1,10 @@
 import { useRef, useState } from "react";
-import type { AiUserInput, AiUserInputAnswers } from "../../shared/ai.ts";
+import type { AssistantUserInput, AssistantUserInputAnswers } from "../../shared/assistant.ts";
 import { Button } from "../components/ui/button.tsx";
 import { Input } from "../components/ui/input.tsx";
 import { i18n } from "../i18n.ts";
 
-export function AssistantQuestion({ question, disabled, submit }: { question: AiUserInput; disabled: boolean; submit(answers: AiUserInputAnswers): Promise<void> }) {
+export function AssistantQuestion({ question, disabled, submit }: { question: AssistantUserInput; disabled: boolean; submit(answers: AssistantUserInputAnswers): Promise<void> }) {
   const [values, setValues] = useState(() => new Map<string, string>());
   const [other, setOther] = useState(() => new Map<string, boolean>());
   const [sending, setSending] = useState(false);

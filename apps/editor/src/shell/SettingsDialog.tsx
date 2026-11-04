@@ -1,4 +1,4 @@
-import { AiSettings } from "../AiSettings.tsx";
+import { AssistantSettings } from "../AssistantSettings.tsx";
 import { useNativeHistoryBoundary } from "../ui/use-native-history-boundary.ts";
 import { DaemonStatus } from "./DesktopDaemon.tsx";
 import { useTableWrapDefault, setTableWrapDefault } from "../table-wrap.ts";
@@ -55,7 +55,7 @@ export function updateStatusText(info: DesktopInfo): string {
   }
 }
 
-export type SettingsCategory = "appearance" | "recovery" | "ai" | "about";
+export type SettingsCategory = "appearance" | "recovery" | "assistant" | "about";
 
 function CliSettings({ desktop }: { desktop: DesktopBridge }) {
   const [state, setState] = useState<CliIntegrationState | null>(null);
@@ -99,7 +99,7 @@ function CliSettings({ desktop }: { desktop: DesktopBridge }) {
 }
 
 type SettingsDialogProps = {
-  onAiSaved(): void;
+  onAssistantSaved(): void;
   theme: ThemePreference;
   themeProblem: boolean;
   onThemeChange(theme: ThemePreference): void;
@@ -117,7 +117,7 @@ type SettingsDialogProps = {
 };
 
 /** Shared local recovery settings; About and update controls require the Desktop bridge. */
-export function SettingsDialog({ onAiSaved, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
+export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
   useTranslation();
   const [screen, setScreen] = useState<HTMLDivElement | null>(null);
   useNativeHistoryBoundary(screen);
@@ -150,7 +150,7 @@ export function SettingsDialog({ onAiSaved, theme, themeProblem, onThemeChange, 
   const categories = [
     { id: "appearance", label: i18n.t("Appearance & language"), icon: Palette },
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
-    { id: "ai", label: i18n.t("Assistant"), icon: FileText },
+    { id: "assistant", label: i18n.t("Assistant"), icon: FileText },
     ...(desktop ? [{ id: "about" as const, label: i18n.t("About & updates"), icon: Info }] : []),
   ] as const;
 
@@ -169,7 +169,7 @@ export function SettingsDialog({ onAiSaved, theme, themeProblem, onThemeChange, 
           <main className="settings-content" aria-labelledby={`settings-category-${category}`}>
             <div className="settings-content-inner">
               <header className="settings-category-header"><h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2></header>
-              {category === "ai" ? <AiSettings onSaved={onAiSaved} /> : null}
+              {category === "assistant" ? <AssistantSettings onSaved={onAssistantSaved} /> : null}
               {category === "appearance" ? <>
                 <SettingsSelect label={i18n.t("Theme")} description={i18n.t("Choose a light or dark appearance.")} testId="theme"
                   value={theme} onChange={value => {

@@ -25,6 +25,7 @@ import { verifyPackagedCli } from "./cli-check.ts";
 import { daemonDirectory, readDaemonRecord } from "../../../editor/server/daemon-state.ts";
 import { cliDaemon, desktopRecord, assertExited, assertNoDiscovery } from "./daemon-fixture.ts";
 import { installedDirectory } from "./installed-app.ts";
+import { installationPort } from "../../src/installation-lifecycle.ts";
 
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repo = path.resolve(desktop, "../..");
@@ -169,6 +170,23 @@ test("installs per user, then updates from Settings only after the open document
   let other: Awaited<ReturnType<typeof cliDaemon>> | undefined;
   const channel = BETA ? "beta" : "stable";
   const otherChannel = BETA ? "stable" : "beta";
+  const diagnose = (stage: string, error: unknown) => {
+    // Log the original failure before cleanup can replace it. Read-only OS/daemon evidence.
+    const evidence: Record<string, unknown> = { stage, error: error instanceof Error ? error.stack : error };
+    try {
+      if (installedAt) {
+        const port = installationPort(path.join(installedAt, `${brand.executableName}.exe`));
+        evidence.processes = port.processes(); evidence.records = port.records();
+      }
+      evidence.desktopLog = existsSync(path.join(appData, "logs/desktop.log")) ? readFileSync(path.join(appData, "logs/desktop.log"), "utf8") : null;
+      evidence.daemonLogs = Object.fromEntries((["stable", "beta"] as const).map(channel => {
+        const log = path.join(daemonDirectory(channel), "daemon.log");
+        return [channel, existsSync(log) ? readFileSync(log, "utf8") : null];
+      }));
+    } catch (diagnosticError) { evidence.diagnosticError = String(diagnosticError); }
+    console.error("Update failure evidence:", JSON.stringify(evidence));
+    writeFileSync(path.join(work, `${stage}-diagnostics.json`), JSON.stringify(evidence, null, 2));
+  };
   try {
     // Per-user and silent: no administrator rights and no wizard.
     const started = Date.now();
@@ -372,29 +390,38 @@ test("installs per user, then updates from Settings only after the open document
       assert.ok(readFileSync(log, "utf8").includes(`started ${NEW} (${prefs.channel})`), "the new app loaded the preserved channel");
       if (!LIVE) verifyPackagedCli(exe, brand.cliCommand, documents, NEW, await freshTerminalEnvironment());
     });
+  } catch (error) {
+    diagnose("update", error);
+    throw error;
   } finally {
     try {
-      if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
-      if (installedAt && !LIVE) {
-        const executable = path.join(installedAt, `${brand.executableName}.exe`);
-        const daemon = readDaemonRecord(daemonDirectory(channel));
-        const report = path.join(work, "prepare-cleanup.txt");
-        const prepared = spawnSync(executable, [path.join(installedAt, "resources/prepare-installation.cjs"), "--prepare-installation", report], {
-          env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, timeout: 30_000, encoding: "utf8",
-        });
-        assert.equal(prepared.status, 0, `graceful post-update cleanup: ${prepared.stderr} ${existsSync(report) ? readFileSync(report, "utf16le") : ""}`);
-        if (daemon) assertExited(daemon);
-        assertNoDiscovery(channel);
-        await other?.alive();
-      }
-      for (const process of installedAt ? (() => { try { return appProcesses(installedAt); } catch { return []; } })() : []) {
-        spawnSync("taskkill", ["/PID", String(process.pid), "/T", "/F"], { stdio: "ignore" });
-      }
-      if (installedAt) {
-        const uninstall = spawnSync(path.join(installedAt, `Uninstall ${brand.executableName}.exe`), ["/S", "/currentuser"], { stdio: "ignore" });
-        // The uninstaller copies itself and returns at once; wait for the entry to go.
-        for (let wait = 0; wait < 60 && installedEntry(); wait++) await new Promise((resolve) => setTimeout(resolve, 1000));
-        console.log(`uninstall: ${uninstall.status}; entry ${installedEntry() ? "remains" : "removed"}`);
+      try {
+        if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
+        if (installedAt && !LIVE) {
+          const executable = path.join(installedAt, `${brand.executableName}.exe`);
+          const daemon = readDaemonRecord(daemonDirectory(channel));
+          const report = path.join(work, "prepare-cleanup.txt");
+          const prepared = spawnSync(executable, [path.join(installedAt, "resources/prepare-installation.cjs"), "--prepare-installation", report], {
+            env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, timeout: 30_000, encoding: "utf8",
+          });
+          if (prepared.status !== 0) diagnose("cleanup", { status: prepared.status, stderr: prepared.stderr, report: existsSync(report) ? readFileSync(report, "utf16le") : null });
+          assert.equal(prepared.status, 0, `graceful post-update cleanup: ${prepared.stderr} ${existsSync(report) ? readFileSync(report, "utf16le") : ""}`);
+          if (daemon) assertExited(daemon);
+          assertNoDiscovery(channel);
+          await other?.alive();
+        }
+      } finally {
+        // Always release only this test's owned installation, even when the graceful
+        // cleanup assertion fails. The assertion still fails; production never force-kills.
+        for (const process of installedAt ? (() => { try { return appProcesses(installedAt); } catch { return []; } })() : []) {
+          spawnSync("taskkill", ["/PID", String(process.pid), "/T", "/F"], { stdio: "ignore" });
+        }
+        if (installedAt) {
+          const uninstall = spawnSync(path.join(installedAt, `Uninstall ${brand.executableName}.exe`), ["/S", "/currentuser"], { stdio: "ignore" });
+          // The uninstaller copies itself and returns at once; wait for the entry to go.
+          for (let wait = 0; wait < 60 && installedEntry(); wait++) await new Promise((resolve) => setTimeout(resolve, 1000));
+          console.log(`uninstall: ${uninstall.status}; entry ${installedEntry() ? "remains" : "removed"}`);
+        }
       }
     } finally {
       // A failed cleanup assertion must not leave the CLI fixture keeping the runner alive.

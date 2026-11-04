@@ -12,7 +12,7 @@ for (const base of ["apps/editor/src", "apps/editor/server", "apps/editor/shared
 }
 console.log("Core and official application boundaries passed.");
 
-// Check displayed values only: translation keys remain stable until PR B.
+// Displayed values have their own terminology rules; keys are internal identifiers.
 // External product/protocol names are allowed; historical documents are outside this scope.
 const locales = fs.readFileSync(path.join(root, "apps/editor/src/locales.ts"), "utf8");
 for (const match of locales.matchAll(/^\s*"[^"\n]+": "((?:\\.|[^"\\])*)"/gm)) {
@@ -20,3 +20,13 @@ for (const match of locales.matchAll(/^\s*"[^"\n]+": "((?:\\.|[^"\\])*)"/gm)) {
     throw new Error(`Obsolete UI terminology: ${match[1]}`);
   }
 }
+
+// Current product source/contracts; ADRs, reviews, releases and external names are excluded.
+const obsoletePublicName = /\/api\/ai-agent(?:[-/]|\b)|\bwriteAccess\b|\b(?:litzio|pnpm cli) ai\b|["']ai["']\s*,\s*["'](?:settings|configure)["']|\b(?:AiAgent\w*|AI_AGENT|LITZIO_AI_AGENT_\w*)\b/;
+for (const base of ["apps/editor/src", "apps/editor/server", "apps/editor/shared", "apps/desktop/src", "packages/cli/src", "docs/design", "docs/guides", "docs/contributing", "docs/test"]) {
+  for (const file of fs.readdirSync(path.join(root, base), { recursive: true }).filter(name => /\.(?:tsx?|md)$/.test(name) && !name.startsWith("assets"))) {
+    const source = fs.readFileSync(path.join(root, base, file), "utf8");
+    if (obsoletePublicName.test(source) || base === "packages/cli/src" && /(?:name:|args\[0\]\s*[!=]==?)\s*["']ai["']/.test(source)) throw new Error(`Obsolete assistant public name: ${base}/${file}`);
+  }
+}
+if (obsoletePublicName.test(fs.readFileSync(path.join(root, "README.md"), "utf8"))) throw new Error("Obsolete assistant public name: README.md");

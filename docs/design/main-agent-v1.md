@@ -2,16 +2,17 @@
 
 - Status: Implemented
 - Terminology: [제품 용어집](../contributing/terminology.md); PR A preserves current code/API names pending PR B.
-- Official AI transition: 2026-11-04 (#1150 ③). `ai-host.ts` composes connections/conversations directly; no registration, manifest, worker or plugin UI is loaded. Settings use the built-in Settings → Assistant category with the shared Button, SettingsSelect and Dialog components. No UI pattern exception. Protocol version 2 refuses older daemons.
+- Official AI transition: 2026-11-04 (#1150 ③). `assistant-host.ts` composes connections/conversations directly; no registration, manifest, worker or plugin UI is loaded. Settings use the built-in Settings → Assistant category with the shared Button, SettingsSelect and Dialog components. No UI pattern exception. Protocol version 4 refuses older daemons.
 - Historical PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation. PR4's packaged worker/native comparison was required Windows CI then; #1150 ③ removed that feature. Current Windows CI retains packaged Desktop and main/CLI license-notice checks in the startup/sample smoke.
-- Saved-file context (#1106): 2026-11-04 owner decision; fake Host/protocol, existing ai-agent browser and Korean 1440px/640px Light/Dark capture checks, no real model turn.
-- Copilot options/full access (#1091): 2026-11-03; fake ACP/Codex/Host checks, existing ai-agent browser and 1440px/640px Korean Dark captures; one real no-prompt catalog session only.
+- Assistant naming (#1168 PR B): 2026-11-05. CLI, HTTP routes, feature types/files and settings use assistant; `permissionMode` retains the same values and behavior. Settings use `assistant.json`, `LITZIO_ASSISTANT_SETTINGS_FILE` and `LITZIO_ASSISTANT_CWD`. There are no aliases, old-key acceptance or data migrations. Protocol 4 rejects v3 before connecting because its settings/routes differ.
+- Saved-file context (#1106): 2026-11-04 owner decision; fake Host/protocol, existing assistant browser and Korean 1440px/640px Light/Dark capture checks, no real model turn.
+- Copilot options/full access (#1091): 2026-11-03; fake ACP/Codex/Host checks, existing assistant browser and 1440px/640px Korean Dark captures; one real no-prompt catalog session only.
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
 - Message roles verified: 2026-11-03 (#1048/#1051; fixture captures and turn-copy browser checks below).
-- Host settings integration: 2026-11-03 (#1070 merge; target unit/type checks and existing fake ai-agent browser case, 1440px/640px Korean Dark captures; no real Copilot call).
+- Host settings integration: 2026-11-03 (#1070 merge; target unit/type checks and existing fake assistant browser case, 1440px/640px Korean Dark captures; no real Copilot call).
 - Provider Save verification: 2026-11-03 (#1069 review correction; reproduced stale dock state before the fix, then existing fake browser case passed with Save/new conversation).
 - Composer input verification: 2026-11-03 (#1087; delayed-caret ordering reproduced before the fix; existing fixture browser scenario, no real model call).
-- Copilot verification: 2026-11-03 (#1053; fake ACP and task-default boundary, existing ai-agent browser scenario and 1440px Light / 640px Dark Korean captures; no real Copilot session or model call).
+- Copilot verification: 2026-11-03 (#1053; fake ACP and task-default boundary, existing assistant browser scenario and 1440px Light / 640px Dark Korean captures; no real Copilot session or model call).
 - Last verified: 2026-11-03 (#1047 PR A/B / #984 / #952: fake stdio/Host, worker prompt, browser and manual 1440 Light / 640 Dark Korean captures; no real model turn).
 - Previous verification: 2026-11-02 (#931 implementation 2, PR 2: 409 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
 - Display settings (#1120): 2026-11-04; fixed Host/screen allowlist, fake stdio/HTTP and browser checks; no real model call.
@@ -45,7 +46,7 @@ Linux uses XDG data home and macOS uses Application Support. Source execution
 (Vite, tsx CLI and development Electron) instead uses
 `<checkout>/.litzio-dev/assistant`, alongside its isolated official settings defaults
 ). Built checkout
-`packages/cli/dist/cli.mjs` retains distributed defaults. `LITZIO_AI_AGENT_CWD` explicitly overrides this directory
+`packages/cli/dist/cli.mjs` retains distributed defaults. `LITZIO_ASSISTANT_CWD` explicitly overrides this directory
 for local integration/testing. Litzio regenerates its product-owned `AGENTS.md`
 there and lists folders containing `.agents/skills/<name>/SKILL.md`. The file
 instructs the agent to leave existing documents intact and propose edits in text.
@@ -75,25 +76,25 @@ HTTP Host retain `gpt-6.1-sol` / `medium`. Existing saved settings take priority
 and are never overwritten by these defaults. New assistant conversations and
 their initial model/effort selection use the same Assistant settings response.
 
-The official `ai-agent.json` settings file stores (installed defaults shown):
+The official `assistant.json` settings file stores (installed defaults shown):
 
 ```json
 {
   "provider": "codex",
   "model": "gpt-6.1-sol",
   "reasoningEffort": "medium",
-  "writeAccess": "opened-folders",
+  "permissionMode": "opened-folders",
   "responseLanguage": "ko"
 }
 ```
 
-`GET/PUT /api/ai-agent-settings` and `litzio ai settings` / `litzio ai configure --file <json-file>` call the same `createAiHost().invoke` operations. Input is the complete official settings object; unknown keys (including old enable/provider switches) are refused. Scope is the selected Host's settings path. The returned persisted snapshot is the operation result/receipt; no new ledger or assistant management tool is added. CLI source execution uses local Host storage, as the former management CLI did. Model/provider/effort changes require a current provider catalog pair. Invalid input or a failed write preserves the previous file; writes use an exclusive temporary sibling and rename.
+`GET/PUT /api/assistant/settings` and `litzio assistant settings` / `litzio assistant configure --file <json-file>` call the same `createAssistantHost().invoke` operations. Input is the complete official settings object; unknown keys (including the old permission key and enable/provider switches) are refused. Scope is the selected Host's settings path. The returned persisted snapshot is the operation result/receipt; no new ledger or assistant management tool is added. CLI source execution uses local Host storage, as the former management CLI did. Model/provider/effort changes require a current provider catalog pair. Invalid input or a failed write preserves the previous file; writes use an exclusive temporary sibling and rename.
 
 AI is always a daemon feature. Both supported providers are inspectable and selectable without enable switches. Diagnostics report actual executable, connection and account availability. A new conversation/turn with an unavailable selected provider fails with its reason; Litzio never silently substitutes another provider or model. Existing turns, steering, interruption, display replies and history reads do not depend on the current availability/default settings. Changing defaults does not dispose connections, erase conversations or cancel admitted turns; choices apply to the next conversation/turn. Daemon shutdown alone closes its owned provider connections and awaits exit. No settings, registrations or installed files from the removed plugin system are migrated or cleaned.
 
 Each UI change saves a complete snapshot through the existing sequential request queue; errors retain the draft and show a localized alert. Successful saves refresh the assistant defaults while retaining its current conversation. The model dialog retains catalog search, refresh and diagnostics.
 
-`writeAccess` is the single assistant permission-mode value (`opened-folders`,
+`permissionMode` is the single assistant permission-mode value (`opened-folders`,
 `read-only` or `full-access`). Each new turn supplies the current opened-folder paths
 as `workspaceWrite.writableRoots`, uses `readOnly`, or disables the sandbox with
 `dangerFullAccess`. Host path checks run before
@@ -117,10 +118,10 @@ Model/effort defaults still initialize each new conversation.
 
 | Route | Response |
 | --- | --- |
-| `GET /api/ai-agent-skills` | `{ skills, errors }`; enabled Codex skills for the assistant cwd, loader errors retained. |
-| `GET /api/ai-agent-models` | `{ provider, models, updatedAt }`; paginated `model/list`, visible models and supported reasoning efforts. |
-| `GET /api/ai-agent-diagnostics` | Codex executable/version, app-server initialization, `account/read`, `account/rateLimits/read`, paginated `mcpServerStatus/list`, check time and individual errors. |
-| `GET /api/ai-agent-environment` | `{ cwd, instructions, skills }`; Litzio-owned environment, without starting app-server. |
+| `GET /api/assistant/skills` | `{ skills, errors }`; enabled Codex skills for the assistant cwd, loader errors retained. |
+| `GET /api/assistant/models` | `{ provider, models, updatedAt }`; paginated `model/list`, visible models and supported reasoning efforts. |
+| `GET /api/assistant/diagnostics` | Codex executable/version, app-server initialization, `account/read`, `account/rateLimits/read`, paginated `mcpServerStatus/list`, check time and individual errors. |
+| `GET /api/assistant/environment` | `{ cwd, instructions, skills }`; Litzio-owned environment, without starting app-server. |
 
 These official Host reads use the existing route/JSON transport and add no extension lifecycle
 API. Diagnostics keep partial successes: an account/rate-limit/MCP error is not
@@ -166,7 +167,7 @@ and defers handling until it causes a real user problem. No model workaround or
 additional test scenario is introduced. Original and temporary auth-file hashes
 were identical after both version checks; temporary auth files were deleted.
 
-`ai-agent-connection.test.ts` runs a fake Node child speaking newline JSON-RPC:
+`provider-connections.test.ts` runs a fake Node child speaking newline JSON-RPC:
 one process/initialization, UTF-8 splits, notifications, catalog pagination,
 partial diagnostics, errors/timeouts/process loss and confirmed shutdown.
 `ai-task.test.ts` checks real Host routes with that child, shared defaults reaching
@@ -174,7 +175,7 @@ the old worker, persistent settings and preserved receipts across changes/off.
 The Host test starts the fake app-server before unregistering through HTTP and
 asserts process exit while accepted exec work remains running and cancellable.
 It also disables Codex with its catalog connection already closed.
-The `ai-agent` browser scenario mocks metadata/settings responses, checks
+The `assistant` browser scenario mocks metadata/settings responses, checks
 language-switch regression, model filtering/efforts, refresh, diagnostics,
 provider toggle payloads with unsaved model/effort drafts and a disconnected
 catalog, automatic saving, re-entry, 640px layout and ordinary document preservation.
@@ -191,7 +192,7 @@ committed):
 | Settings, 640px Korean Dark | [Image](assets/ai-connection-931/ai-640-dark-ko.png) |
 | Diagnostics, 640px Korean Dark | [Image](assets/ai-connection-931/diagnostics-640-dark-ko.png) |
 
-Reproduce with `pnpm browser:test ai-agent --screenshots` against the local Host.
+Reproduce with `pnpm browser:test assistant --screenshots` against the local Host.
 The earlier settings surface is recorded in [#930's capture](assets/ai-settings-930/after-ai-1440-light-en.png).
 
 One real Codex 0.166.0 check used `gpt-6.1-sol` / `medium`, the user's existing
@@ -253,18 +254,18 @@ short folder names with full paths in the tooltip. Quiet dividers separate rows,
 as in other shell/settings lists; long titles and names wrap within the panel.
 No rename/delete actions or document-path metadata are added.
 
-The fake `ai-agent` browser scenario checks selected older-thread restoration,
+The fake `assistant` browser scenario checks selected older-thread restoration,
 page reload, New conversation and failed automatic resume without model turns.
 Same-state Korean Dark captures: 1440px [Before](assets/assistant-history-974/before-1440.png) /
 [After](assets/assistant-history-974/after-1440.png), 640px
 [Before](assets/assistant-history-974/before-640.png) /
 [After](assets/assistant-history-974/after-640.png).
-Reproduce with `pnpm browser:test ai-agent --screenshots` (history captures in
+Reproduce with `pnpm browser:test assistant --screenshots` (history captures in
 `tmp/974-evidence`). Captures are manual visual evidence.
 
-`GET /api/ai-agent-conversations` lists metadata; `?id=…` reads a loaded snapshot.
+`GET /api/assistant/conversations` lists metadata; `?id=…` reads a loaded snapshot.
 `POST` accepts `send`, `resume` and `interrupt` actions. These are concrete
-official AI Host routes, not an arbitrary JSON-RPC proxy or a new UI contribution
+official Assistant Host routes, not an arbitrary JSON-RPC proxy or a new UI contribution
 point. The selected AI provider must be available for new conversation calls.
 
 Each send captures the current opened folders and active document path only,
@@ -392,7 +393,7 @@ beyond Codex/Copilot remain outside the current delivery. Copilot was added in
 The Host registers document specs, the three [template specs](#template-workflows-936-phase-3) and the two
 [display-setting specs](#assistant-display-settings-1120) in `thread/start.dynamicTools` and handles
 server-originated `item/tool/call` and the [structured questions](#structured-user-questions-983) added in #983; other requests still return `-32601`.
-The small `agent-document-tools.ts` module validates input and invokes Core and
+The small `assistant-document-tools.ts` module validates input and invokes Core and
 existing Host file reads/listing, independently of the Codex wire format. There
 is no tool registry, plugin registration API, MCP server or provider abstraction.
 
@@ -411,7 +412,7 @@ operation or CLI command is needed: this is an AI interface to existing semantic
 
 | Permission | Host enforcement |
 | --- | --- |
-| `writeAccess` | Captured at turn start; `read-only` refuses creation |
+| `permissionMode` | Captured at turn start; `read-only` refuses creation |
 | Opened folders | Pinned `RootAccess` for that turn; no folders means no file tools |
 | Host operator Roots | Existing `accessPath` checks, in addition to the turn boundary |
 | Symlink escape/root replacement | Existing pinned Root identity and real-path checks |
@@ -529,12 +530,12 @@ Verification reuses the existing fake app-server child and HTTP Host tests for
 registration, read/change receipts, denied settings and another window's reply,
 request expiry/cancellation and guarded inverse requests. The existing `recovery`
 browser case disables secure-context-only `randomUUID` and protects application
-startup when that API is absent; its assertions are unchanged. An existing `ai-agent`
+startup when that API is absent; its assertions are unchanged. An existing `assistant`
 browser case exercises the actual poll → live settings → acknowledgement path,
 card and Undo, Settings reflection, manual-change conflict, document-draft
 preservation and no AI-settings write. It adds no subprocess, exhaustive matrix,
 real model call, runner retry or timeout override. Captures are opt-in manual
-visual evidence from `pnpm browser:test ai-agent --screenshots` under
+visual evidence from `pnpm browser:test assistant --screenshots` under
 `tmp/1120-evidence` at 1440px and 640px (Korean Dark after application); generated
 large generated artifacts are not committed.
 
@@ -580,7 +581,7 @@ launcher. This is function reuse, not a live CLI connection or shared editing st
 The existing fake app-server test verifies registration, input/scope refusals,
 app-owned saving, template receipt history/resume and a real CLI read from the
 fake Codex child's PATH. Core/CLI/HTTP tests own document semantics and adapter
-behavior; `ai-result` uses an actual template creation receipt for the existing
+behavior; `assistant-result` uses an actual template creation receipt for the existing
 Open/guarded Undo path. No real model call is made for #1128.
 
 ## Created-document results and undo (#931 implementation 2, PR 2)
@@ -638,7 +639,7 @@ AI UI execution and file deletion add no document semantic operation, so no new 
 command is added. Existing Core/CLI semantics remain unchanged.
 
 Verification on 2026-11-02: targeted file-operation, connection and browser-fixture
-checks pass. The `ai-result` browser scenario uses synthetic conversation receipts
+checks pass. The `assistant-result` browser scenario uses synthetic conversation receipts
 with real Host files/deletion: card open, history resumption, immediate clean undo,
 unsaved-tab confirmation/Cancel/discard, and changed-disk confirmation.
 
@@ -673,7 +674,7 @@ The previous real-Codex captures above predate these review corrections; identit
 transport is additionally covered by the fake stdio creation/history tests.
 
 The review fix passed 409 Editor tests, workspace typecheck, Editor build and docs checks.
-The `ai-result`, `recovery-storage`, `file-actions` and `ai-agent` browser regressions
+The `assistant-result`, `recovery-storage`, `file-actions` and `assistant` browser regressions
 cover the corrected guards. A local HMR module-instance mismatch in the existing
 file-actions test was diagnosed from the timestamped recovery-storage import; a clean
 Vite start retains the original assertions. Confirmation text explicitly names recovery
@@ -720,8 +721,8 @@ non-local HTTP) via the temporary-textarea browser copy fallback defined in
 [Code body copy](document-editing-v1.md#code-body-copy-991) (#1049). If both paths
 fail, the existing local manual-copy alert remains.
 
-#1098 visual verification: the fixed `ai-agent` response was captured through
-`pnpm browser:test ai-agent --screenshots` before/after enabling bracket math.
+#1098 visual verification: the fixed `assistant` response was captured through
+`pnpm browser:test assistant --screenshots` before/after enabling bracket math.
 [1440 Light before](assets/assistant-bracket-math-1098/before-1440-light.png) /
 [after](assets/assistant-bracket-math-1098/after-1440-light.png),
 [640 Korean Dark before](assets/assistant-bracket-math-1098/before-640-dark.png) /
@@ -733,7 +734,7 @@ bracket math, original-source clipboard readback and history with no model call.
 
 Verification: `plain-markdown.test.ts` covers escaped HTML, refused image loads and
 unsafe links, isolated footnote IDs, cumulative incomplete syntax and invalid math.
-The fake `ai-agent` browser scenario covers streaming completion, rendered history,
+The fake `assistant` browser scenario covers streaming completion, rendered history,
 original-answer/code clipboard readback (OS newline normalization only), external
 opening and unchanged ordinary-document editing. No real model turn is used.
 `layout-rules` and `quiet-document` also passed. The same fake response supplies
@@ -750,13 +751,13 @@ The bottom captures expose math, links and copy controls below the long table.
 The shared Recovery copy control supplies the compact-button/Copied feedback pattern.
 Visual inspection checked control padding/centering, Korean wrapping, theme contrast
 and transcript/composer separation. Code, tables and math remain locally scrollable.
-Reproduce after captures with `pnpm browser:test ai-agent --screenshots`; traces and
+Reproduce after captures with `pnpm browser:test assistant --screenshots`; traces and
 runtime fixture files are intentionally not committed.
 
 
 After captures were refreshed after merging #979; its Korean effort labels are
 preserved. Before captures retain the original pre-#979 base. The integrated
-`ai-agent --screenshots` scenario passed with both localization and Markdown checks.
+`assistant --screenshots` scenario passed with both localization and Markdown checks.
 
 
 ### Message roles and turn actions (#1048, #1051)
@@ -780,7 +781,7 @@ card controls, contrast and clipping at both widths.
 | 1440px Light Korean | [Before](assets/assistant-roles-1051/before-1440-light-ko.png) | [After](assets/assistant-roles-1051/after-1440-light-ko.png) |
 | 640px Dark Korean | [Before](assets/assistant-roles-1051/before-640-dark-ko.png) | [After](assets/assistant-roles-1051/after-640-dark-ko.png) |
 
-Test design: extend the existing `ai-agent` fixture scenario, without real Codex
+Test design: extend the existing `assistant` fixture scenario, without real Codex
 calls or a new scenario/matrix. Its original single-answer/code clipboard and
 history checks remain. The added split-answer case protects named role groups,
 one action after all turn content, keyboard Tab/Enter and focus tooltip, and the
@@ -819,7 +820,7 @@ is introduced.
 
 Verification: the stdio fixture checks string and zero-valued numeric RPC ids,
 exactly one response, invalid/stale answers and all expiration paths. The existing
-`ai-agent` browser scenario covers selection, Other input, password masking,
+`assistant` browser scenario covers selection, Other input, password masking,
 polling, panel reopening and expiry, including `constructor` choice/Other
 submissions and `__proto__` free text. The Host fixture also rejects inherited
 answer keys/values. These regressions failed before the #994 review fix. A real source-run Codex 0.166.0 turn using
@@ -835,12 +836,12 @@ renderer changes):
 | 1440px Light English | [Before](assets/assistant-questions-983/before-1440.png) | [After](assets/assistant-questions-983/after-1440.png) |
 | 640px Dark Korean | [Before](assets/assistant-questions-983/before-640.png) | [After](assets/assistant-questions-983/after-640.png) |
 
-Reproduce with `pnpm browser:test ai-agent --screenshots`. The question form
+Reproduce with `pnpm browser:test assistant --screenshots`. The question form
 scrolls inside the transcript above the composer; controls, padding, Korean
 wrapping and viewport bounds were visually inspected. Runtime traces are omitted.
 
 
-#994 CI follow-up: `ai-agent` now holds its own recovery deletion through the
+#994 CI follow-up: `assistant` now holds its own recovery deletion through the
 post-Save page reload after confirming both the committed dirty record and saved
 disk text. This reproduced the CI failure before any question card or conversation
 polling starts: the old recovery record excluded the remembered document from
@@ -866,7 +867,7 @@ No new surface or control variant is introduced. The narrow panel retains its
 existing overlay behavior. Visual review checks wrapping, status/action prominence,
 warning visibility and transcript/composer separation.
 
-Test design: extend the existing `ai-result` browser scenario for full-path
+Test design: extend the existing `assistant-result` browser scenario for full-path
 accessible names, keyboard Tooltip display and two synthetic same-name receipts
 in different relative directories. Existing real Host Open/undo/confirmation
 checks remain the integration protection; no real Codex run, new subprocess or
@@ -902,7 +903,7 @@ The active document is likewise supplied only as a path; the assistant reads its
 References do not extend document-editing permissions or a running turn's scope.
 
 The public conversation input takes `references?: string[]`; user items expose
-`references?: AiFileReference[]`. Both live `itemFrom` and paginated resumed history
+`references?: AssistantFileReference[]`. Both live `itemFrom` and paginated resumed history
 restore chips from context JSON, including Codex legacy history that concatenates text inputs into one string, without a second transcript store. Historical
 chips remain path metadata if files move or disappear; they do not resend files.
 This is shell/Host context, not document semantics, so no Core/CLI operation is added.
@@ -910,7 +911,7 @@ The `/` skill picker is a separate PR B and remains outside this delivery.
 
 Verification extends existing fake stdio/Host tests for context + localImage,
 send/steer/live/resume, reference-only sends, duplicate/limit, deleted/hidden files
-and scope rejection. The existing `ai-agent` browser scenario owns Explorer →
+and scope rejection. The existing `assistant` browser scenario owns Explorer →
 composer, keyboard candidate selection, deduplication/removal, reference-only steer,
 chip restoration, and no conversation-language control. Worker prompt tests own
 language injection; receipt tests retain retry identity after settings changes.
@@ -981,7 +982,7 @@ read references. Litzio dynamic document tools/result cards and Codex skill
 selection are not exposed. Existing-document editing remains text suggestions
 only. The settings hide Codex skills and diagnostics. No context limit is inferred when ACP does not report one.
 
-ACP permission mediation captures each turn's `writeAccess` and opened folders.
+ACP permission mediation captures each turn's `permissionMode` and opened folders.
 Only read/edit requests carrying absolute paths inside those folders and Host
 Roots can receive the returned `allow_once` option. Edits additionally require
 `opened-folders`; `read-only` denies them. Missing paths, execution, network and
@@ -1021,7 +1022,7 @@ Current values use the existing Check convention and aria-current; menu boundari
 and item faces use existing control/surface/text tokens (#1110/#1124). No new common interaction,
 Plugin UI contribution or mode default setting is added. Only exact Agent/Plan short
 or protocol IDs are accepted by Host; Autopilot, Allow All and Auto Accept are absent.
-Full access is controlled exclusively by writeAccess. UI controls are locked during
+Full access is controlled exclusively by permissionMode. UI controls are locked during
 an active turn. Model/mode changes apply at the next message, with `session/set_mode`
 for the selected mode. Each new conversation starts with Agent when advertised.
 
@@ -1062,7 +1063,7 @@ uses #1091 UI. Captures are manual review only, not pixel assertions.
 
 Alignment, spacing, legibility and clipping were reviewed in both widths. The
 640px settings content scrolls vertically; the composer popup remains in view.
-Reproduce After with `pnpm browser:test ai-agent --screenshots`. Before uses the
+Reproduce After with `pnpm browser:test assistant --screenshots`. Before uses the
 same screenshot-only popup traversal against the original UI; no extra scenario
 is retained. The initial baseline attempt retained a newer built plugin; rebuilding
 the original source produced the reviewed Before captures.
@@ -1122,7 +1123,7 @@ failure. Host tests own protocol assertions; browser assertions own interaction.
 No real model turn or exhaustive combination matrix is added. The 640px skill
 candidate/chip sequence runs only with `--screenshots` for manual review.
 
-Manual captures from `pnpm browser:test ai-agent --screenshots` use the product
+Manual captures from `pnpm browser:test assistant --screenshots` use the product
 surface and persistent Chrome profile: [1440 Light list](assets/assistant-skills-1047/list-1440-light-en.png),
 [1440 Light chip](assets/assistant-skills-1047/chip-1440-light-en.png),
 [640 Dark Korean list](assets/assistant-skills-1047/list-640-dark-ko.png),
@@ -1131,8 +1132,8 @@ The existing file-reference captures above provide the preceding composer state.
 
 ### Conversation choices (#1110 / #1124)
 
-Owner decision (2026-11-04): `AiConversationInput` accepts optional `provider` and
-`writeAccess` overrides from the user's composer selections. These never write
+Owner decision (2026-11-04): `AssistantConversationInput` accepts optional `provider` and
+`permissionMode` overrides from the user's composer selections. These never write
 Assistant settings or change global defaults. New conversation restores the global
 provider/model/effort/access defaults together with that provider's catalog; closing
 and reopening the panel preserves unsent choices. The picker contains both supported AI providers without enable switches. Host send/resume reports an unavailable selected provider with its reason, independently of the global default. Model catalogs and diagnostics inspect both providers; the provider is pinned when the first message creates a session. Both UI and Host
@@ -1166,7 +1167,7 @@ model call is required.
 
 Manual visual evidence: Windows persistent Chrome, same fake catalog and unsaved
 document, 1440×900 Light/English and 640×900 Dark/Korean. The existing
-`pnpm browser:test ai-agent` runner used a temporary capture-only block (removed
+`pnpm browser:test assistant` runner used a temporary capture-only block (removed
 from the automatic scenario) to open Model directly. Before images retain the original native-list defect;
 after images show the review follow-up direct menu.
 No screenshots-only loop was added to CI. Alignment, padding, viewport bounds,
@@ -1184,9 +1185,9 @@ own its border; ghost remains transparent. No NewDialog styling is changed.
 
 ## Official provider settings (#1150 ③)
 
-`AiAgentSettings` lives in `apps/editor/shared/ai.ts`. The daemon owns settings and its provider connections directly. The removed enable switches, plugin transport and Codex feature-task defaults have no compatibility aliases. Both providers remain inspectable; the selected provider's real availability controls new work, while current turns and tools retain their lifecycle. Existing settings controls, ordered autosave and failed-save recovery remain covered by the fake `ai-agent` browser scenario.
+`AssistantSettings` lives in `apps/editor/shared/assistant.ts`. The daemon owns settings and its provider connections directly. The removed enable switches, plugin transport and Codex feature-task defaults have no compatibility aliases. Both providers remain inspectable; the selected provider's real availability controls new work, while current turns and tools retain their lifecycle. Existing settings controls, ordered autosave and failed-save recovery remain covered by the fake `assistant` browser scenario.
 
-Verification: full workspace tests/typecheck, boundaries, docs, Editor/CLI build, fake ai-agent/ai-result browser scenarios, and production HTTP recovery/reconnect/Save/conflict. Packaging and platform distribution are CI-only; no paid AI call, install/update/uninstall or user-data migration was run.
+Verification: full workspace tests/typecheck, boundaries, docs, Editor/CLI build, fake assistant/assistant-result browser scenarios, and production HTTP recovery/reconnect/Save/conflict. Packaging and platform distribution are CI-only; no paid AI call, install/update/uninstall or user-data migration was run.
 
 Manual visual review, 1440px English Light and 640px Korean Dark: [wide](assets/official-ai-1150/ai-1440-light-en.png), [narrow](assets/official-ai-1150/ai-640-dark-ko.png). Reuses SettingsSelect, Button and Dialog with existing shell geometry. No new interaction or UI pattern exception.
 
@@ -1200,7 +1201,7 @@ retains the active turn's scope. No real model call or extra subprocess suite is
 
 HTTP scope: under [ADR-0005](../adr/0005-http-host.md), an allowed HTTP caller is
 trusted as the single operator (including operator-managed proxy authentication
-or private network access). Its explicit send `writeAccess` is treated as a user
+or private network access). Its explicit send `permissionMode` is treated as a user
 selection. The Host does not prove a browser click or distinguish that trusted
 caller's custom HTTP request from the UI. This change adds no approval service,
 identity system or protection against a hostile operator/administrator. In contrast,
@@ -1210,10 +1211,10 @@ assistant-writable history is never accepted as authority to elevate a grant.
 
 Verification captures: [1440px English Light](assets/editor-1159/ai-1440-light-en.png), [640px Korean Dark](assets/editor-1159/ai-640-dark-ko.png).
 
-`litzio ai configure` validation errors name the invalid field and its allowed values or reason, including provider model/effort catalog restrictions. Validation rules are unchanged.
+`litzio assistant configure` validation errors name the invalid field and its allowed values or reason, including provider model/effort catalog restrictions. Validation rules are unchanged.
 
 ## Terminology alignment (#1168 PR A)
 
 The [terminology glossary](../contributing/terminology.md) defines Assistant, AI provider and Permission mode. Current code/API/CLI names remain unchanged pending PR B. UI uses Background service (daemon in the status title), while CLI and documentation retain daemon. Settings use the existing SettingsSelect, native hover and conversation Tooltip without a UI pattern exception. Permission descriptions distinguish sandboxed Codex tools from Copilot permission mediation and inherited preauthorizations. Unused disabled-assistant locale declarations were removed; availability errors retain their actual cause.
 
-Verification (2026-11-04): persistent Chrome `pnpm browser:test ai-agent --screenshots` passed, along with boundaries/docs checks, full typecheck, Editor tests (411 passed, one skipped) and build. Fake providers verify interface behavior without live model calls. Visual review: [1440px English](assets/terminology-1168/settings-1440-en.png), [640px Korean dark](assets/terminology-1168/settings-640-ko-dark.png), [640px permission control](assets/terminology-1168/permissions-640-ko-dark.png). Existing layout and overflow assertions remain intact.
+Verification (2026-11-04): persistent Chrome `pnpm browser:test assistant --screenshots` passed, along with boundaries/docs checks, full typecheck, Editor tests (411 passed, one skipped) and build. Fake providers verify interface behavior without live model calls. Visual review: [1440px English](assets/terminology-1168/settings-1440-en.png), [640px Korean dark](assets/terminology-1168/settings-640-ko-dark.png), [640px permission control](assets/terminology-1168/permissions-640-ko-dark.png). Existing layout and overflow assertions remain intact.

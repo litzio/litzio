@@ -91,7 +91,7 @@ skills·진단 항목은 숨긴다. #1091은 같은 SettingsSelect로 추론 강
 #1109의 enable SettingsSwitch는 제거했으며 모든 기본값은 순차 자동 저장한다.
 저장 중·실패는 기존 status/alert로 보이며 저장 완료 상시 문구는 두지 않는다.
 목록 대화상자는 기존 Dialog의 닫기·포커스 복귀를 사용한다. 한국어 시작 후 English
-전환, 1440px Light·640px Dark의 목록·진단·입력칸을 `ai-agent` 시나리오에서 확인한다.
+전환, 1440px Light·640px Dark의 목록·진단·입력칸을 `assistant` 시나리오에서 확인한다.
 
 - **목적·사용/비사용:** 짧은 속성 입력을 찾기 쉽게 하되 중첩 경계를 줄인다. 문서 입력·원문·모달 전체에 경계 제거를 전파하지 않는다.
 - **목표:** 짧은 text field는 subtle fill + hover/focus border, label은 항상 표시한다. 원문은 code surface, 경로·새 이름 같은 독립 모달 핵심 입력은 상시 경계를 유지한다. placeholder는 예시/빈 값 표시이며 label·필수 조건을 대신하지 않는다. 필요한 제약은 label 가까이, 오류는 P07을 따른다.
@@ -301,7 +301,7 @@ P04의 primary 제외·secondary 해제, P07의 폼 문맥 오류를 사용한�
 대화 없이 시작된 작업에만 적용한다. `@`의 파일 후보는 공용 Button의 listbox이며
 Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채팅에 추가**도
 같은 제거 가능한 초안 칩에 추가한다. 칩에는 파일 이름, 공용 Tooltip에는 전체
-경로를 표시한다. `ai-agent` 시나리오가 선택·중복·제거·참조만 보내기와 복원을
+경로를 표시한다. `assistant` 시나리오가 선택·중복·제거·참조만 보내기와 복원을
 검증한다([현재 계약·전후 캡처](main-agent-v1.md#file-references-1047-pr-a-984-952)).
 
 #974의 비서 대화 기록은 제목을 semibold 주 문구로, 현지화한 시각과 폴더 이름을
@@ -317,14 +317,14 @@ Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채�
 - **키보드 경계 (#831):** 공용 Dialog는 native Undo/Redo가 modal 밖 입력·초안으로 이동하거나 수정하는 것을 차단한다. modal 안 입력의 자체 Undo/Redo는 유지하고, Escape는 활성 modal만 닫아 바깥 미적용 초안을 보존한다. 명령 센터도 같은 경계를 쓴다. #1032의 Settings 작업 탭도 같은 beforeinput 경계를 재사용하여 두 그룹에서 Settings 입력의 Undo/Redo가 다른 그룹의 문서 초안으로 이동하지 않게 하며, Settings 입력 자체의 native history는 유지한다. 비모달 알림 센터의 문서 history는 유지한다. [현재 Undo 계약](document-editing-v1.md#shared-history-and-editing-boundaries).
 - **추가 사용처:** #797 Docling 서버 Settings는 Host 기기 설정·field exit 저장, PDF 선택은 기존 FolderDialog, 실행은 작은 명시적 변환 확인 dialog다. 진행·대기 중단은 대시보드에, 완료는 이름 있는 동작 알림에 둔다(#942). 연결 확인 실패 뒤에도 서버 구성 안내 링크를 유지한다. 같은 Settings/파일 dialog 패턴을 재사용한다.
 - **추가 사용처 (#871):** Docling 대시보드는 #932부터 화면 폭을 쓰는 단일 결과 표와 상태 칩을 쓴다. #1027은 집계를 작은 필터 칩으로 줄이고, 상태별 우선 대응도 이 칩으로 같은 표를 거르며 별도 중복 필터 줄을 두지 않는다. Needs attention 범위 설명은 해당 칩 hover·focus에서 확인한다. 파일 이름·짧은 상태·진행 단계·경과 시간·대기 중단은 해당 표 행에 모아 작업을 중복 나열하지 않는다. 실패 상세·불확실 작업의 주의사항·대기 중단의 서버 취소 한계·우선 대응 설명은 hover와 keyboard focus에서 펼치며 aria-describedby로 연결한다([계약·전후 캡처](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md#dashboard-density-review-1027)). 완료 행의 주 동작은 대조 열기, 실패·불확실 행은 Actions 열의 다시 시도·다시 시작이며 보조 동작만 Host 선언형 Menu에 둔다(#1033). 진행 중 행의 대기 중단은 640px에서 가로 스크롤 없이 접근하도록 진행 상태 옆에 유지한다. 기능 선택은 Settings 기여에서 Host SettingsSwitch 행을 쓴다(#1033). 기능 선택은 Host 플러그인 등록에 즉시 저장하며 문서 Save에 묶지 않는다. 다시 시도·불확실 작업 다시 시작은 기존 변환 확인 dialog를 열고 명시적 Convert 뒤 새 UUID로 접수한다. 기록 지우기는 불확실 기록만 숨기며 실행 취소·결과 삭제로 표현하지 않는다.
-- **추가 사용처 (#880):** U22의 AI 에이전트는 같은 Settings 화면·section·설명·상태 표현을 쓰며 어댑터, 사용 가능·로그인 필요 여부만 표시한다. 사용자 지시나 업체·자격 증명 입력은 없다. `ai-agent`가 Docling 설정과 같은 정렬·여백을 확인하고 1440px 영어 Light·640px 한국어 Dark 캡처를 검토했다. 등록 해제 시 범주·서비스가 사라져도 기존 문서 DOM·미저장 입력을 보존한다([현재 계약·캡처](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#verification)).
+- **추가 사용처 (#880):** U22의 AI 에이전트는 같은 Settings 화면·section·설명·상태 표현을 쓰며 어댑터, 사용 가능·로그인 필요 여부만 표시한다. 사용자 지시나 업체·자격 증명 입력은 없다. `assistant`가 Docling 설정과 같은 정렬·여백을 확인하고 1440px 영어 Light·640px 한국어 Dark 캡처를 검토했다. 등록 해제 시 범주·서비스가 사라져도 기존 문서 DOM·미저장 입력을 보존한다([현재 계약·캡처](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#verification)).
 - **추가 사용처:** [Docling 대조](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-compare-v1.md)는 기존 FolderDialog로 변환 폴더를 명시적으로 연다. 문서 쓰기·미저장 확인과 연결하지 않는다. bbox·연결선·변환 메모 띠는 비교 전용 새 표현이며 기존 편집 패턴을 바꾸지 않는다.
 - **추가 사용처 (#817):** 별도 텍스트 문서도 U24의 미저장 확인·복구·삭제·비교 경계를 재사용한다. 텍스트 편집 화면은 Source 읽기 화면과 분리하며, 소유자가 요구한 짧은 종류 표시는 오류/알림 대신 입력 위 문맥 정보로 유지한다. 고정폭 입력은 Source의 기존 서체·색/간격 토큰을 공유하고 탭·Save 줄은 이동하지 않는다. `text-mode`에서 닫기 취소/Save/버리기·지연 응답·종류별 복구/충돌, 1440/640px·한국어·다크를 검증했다. [현재 계약](editing-session-save-v1.md#text-editing-sessions-817).
 - **결정·불일치:** [소유자 결정 P12][decision], [현재 저장·복구 계약](editing-session-save-v1.md#switching-and-recovery). 이 작업·확정 경계의 알려진 불일치 없음. 메시지 표시는 P07/D07에서 별도 추적한다.
 
 비서 패널(#931)의 좁은 창 오버레이는 U24/U25 dialog처럼 Tab 경계·Escape 닫기와
 이전 편집 focus 복귀를 유지한다. 넓은 창에서는 비모달 오른쪽 패널이며 문서 상태를
-유지한다. 처음 사용 안내는 U22의 기존 AI 설정·진단으로 연결한다. `ai-agent`가
+유지한다. 처음 사용 안내는 U22의 기존 AI 설정·진단으로 연결한다. `assistant`가
 미저장 문서 보존·focus 복귀와 640px 한국어 Dark의 가림/잘림을 검증한다
 ([현재 계약·캡처](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)).
 

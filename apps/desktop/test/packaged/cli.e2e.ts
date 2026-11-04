@@ -48,7 +48,7 @@ test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/h
     const child = spawn(process.env.ComSpec ?? "cmd.exe", windowsCommand(integration.shim,
       ["daemon", "run", "--channel", "development", "--root", folder, "--port", String(address.port)]), {
         env: { ...process.env, LITZIO_DAEMON_DIR: path.join(folder, "daemon"),
-          LITZIO_AI_AGENT_CWD: path.join(folder, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(folder, "ai.json") },
+          LITZIO_ASSISTANT_CWD: path.join(folder, "assistant"), LITZIO_ASSISTANT_SETTINGS_FILE: path.join(folder, "ai.json") },
         windowsVerbatimArguments: true, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
       });
     let output = "", errors = "";

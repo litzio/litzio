@@ -216,7 +216,7 @@ The product mark uses the owner-approved E soft-knot [SVG originals](app-icon-v1
 ## Plugin color inspection (#1035)
 
 The existing Editor `visual-tokens` unit check also scans TSX and CSS in
-`plugins/docling/src` and `plugins/ai-agent/src` with the same literal-color
+`plugins/docling/src` and `plugins/assistant/src` with the same literal-color
 judgment. Plugin layout dimensions and native controls are deliberately excluded:
 the Host API does not replace every plugin interaction owner. No plugin color
 exceptions are currently needed. Existing Editor mask-alpha and transparent-ring

@@ -2,29 +2,29 @@ import { templateTools, executeTemplateOperation, templateOperations } from "./d
 import { readFileSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { AiUserInputAnswers, AiAgentSettings, AiConversation, AiConversationInfo, AiConversationInput, AiConversationItem, AiConversationTurn } from "../shared/ai.ts";
-import type { AiAgentConnection } from "./ai-agent-connection.ts";
+import type { AssistantUserInputAnswers, AssistantSettings, AssistantConversation, AssistantConversationInfo, AssistantConversationInput, AssistantConversationItem, AssistantConversationTurn } from "../shared/assistant.ts";
+import type { ProviderConnections } from "./provider-connections.ts";
 import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
 
 import { listFolder } from "./document-api.ts";
-import { documentTools, executeDocumentTool, type DocumentToolScope } from "./agent-document-tools.ts";
-import { AGENT_INSTRUCTIONS } from "./ai-agent-connection.ts";
+import { documentTools, executeDocumentTool, type DocumentToolScope } from "./assistant-document-tools.ts";
+import { ASSISTANT_INSTRUCTIONS } from "./provider-connections.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
 import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices } from "./copilot-acp.ts";
 
-import { AgentDisplayRequests, displayTools } from "./agent-display-tools.ts";
+import { AgentDisplayRequests, displayTools } from "./assistant-display-tools.ts";
 
-type ConversationIndexEntry = AiConversationInfo & { copilotCliReasoningEffort?: string };
+type ConversationIndexEntry = AssistantConversationInfo & { copilotCliReasoningEffort?: string };
 
 /** Litzio persists only its history index. Each CLI owns its conversation content. */
-export class AiAgentConversations {
+export class AssistantConversations {
   readonly display = new AgentDisplayRequests();
-  private conversations = new Map<string, AiConversation>();
+  private conversations = new Map<string, AssistantConversation>();
   private pending = new Set<string>();
   private scopes = new Map<string, DocumentToolScope & { turnId?: string; displayClient?: string }>();
-  private answers = new Map<string, (answers: AiUserInputAnswers) => void>();
+  private answers = new Map<string, (answers: AssistantUserInputAnswers) => void>();
   private loaded = new Set<string>();
-  constructor(private connection: AiAgentConnection, private access: FileAccess) {
+  constructor(private connection: ProviderConnections, private access: FileAccess) {
     connection.copilot.on("update", (params: SessionNotification) => this.copilotUpdate(params));
     connection.copilot.on("disconnected", (message: string) => {
       for (const conversation of this.conversations.values()) if (conversation.provider === "copilot") {
@@ -72,12 +72,12 @@ export class AiAgentConversations {
     this.connection.environment();
     return existsSync(this.file) ? JSON.parse(readFileSync(this.file, "utf8")) : [];
   }
-  private save(conversation: AiConversation) {
-    const { id, title, folders, createdAt, updatedAt, provider, writeAccess } = conversation;
+  private save(conversation: AssistantConversation) {
+    const { id, title, folders, createdAt, updatedAt, provider, permissionMode } = conversation;
     const entries = this.list().filter(entry => entry.id !== id);
     const temporary = `${this.file}.${randomUUID()}.tmp`;
     try {
-      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}), ...(writeAccess ? { writeAccess } : {}),
+      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}), ...(permissionMode ? { permissionMode } : {}),
         ...(provider === "copilot" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
       renameSync(temporary, this.file);
     } finally { if (existsSync(temporary)) unlinkSync(temporary); }
@@ -87,19 +87,19 @@ export class AiAgentConversations {
     if (!conversation) throw new Error("Resume the conversation first.");
     return conversation;
   }
-  async resume(id: string, settings: AiAgentSettings, turnWriteAccess?: AiAgentSettings["writeAccess"]) {
+  async resume(id: string, settings: AssistantSettings, turnPermissionMode?: AssistantSettings["permissionMode"]) {
     if (typeof id !== "string") throw new Error("Invalid conversation selection.");
     const info = this.list().find(entry => entry.id === id);
     if (!info) throw new Error("Conversation was not found.");
     // Only this Host's memory can retain a user-approved elevation. The cwd index
     // is assistant-writable and is never authority for a stronger grant.
     const grants = ["read-only", "opened-folders", "full-access"];
-    const stored = grants.indexOf(info.writeAccess ?? "");
-    const restored = stored >= 0 && stored <= grants.indexOf(settings.writeAccess) ? info.writeAccess! : settings.writeAccess;
-    settings = { ...settings, provider: info.provider ?? "codex", writeAccess: turnWriteAccess ?? this.conversations.get(id)?.writeAccess ?? restored };
+    const stored = grants.indexOf(info.permissionMode ?? "");
+    const restored = stored >= 0 && stored <= grants.indexOf(settings.permissionMode) ? info.permissionMode! : settings.permissionMode;
+    settings = { ...settings, provider: info.provider ?? "codex", permissionMode: turnPermissionMode ?? this.conversations.get(id)?.permissionMode ?? restored };
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
     if (info.provider === "copilot") await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? this.connection.copilot.reasoningEffort, settings);
-    const conversation: AiConversation = { ...info, writeAccess: settings.writeAccess, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
+    const conversation: AssistantConversation = { ...info, permissionMode: settings.permissionMode, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
       tokenUsage: this.conversations.get(id)?.tokenUsage };
     // Install before the RPC so token-usage notifications during resume are retained.
     this.conversations.set(id, conversation);
@@ -131,15 +131,15 @@ export class AiAgentConversations {
     this.loaded.add(id);
     return conversation;
   }
-  async send(input: AiConversationInput, settings: AiAgentSettings, displayClient?: string) {
+  async send(input: AssistantConversationInput, settings: AssistantSettings, displayClient?: string) {
     if (!input || typeof input.message !== "string" || (!input.message.trim() && !input.references?.length) ||
       typeof input.model !== "string" || typeof input.reasoningEffort !== "string" || !Array.isArray(input.folders)) throw new Error("Invalid conversation input.");
     const existing = input.id ? this.current(input.id) : undefined;
     if (input.provider !== undefined && input.provider !== "codex" && input.provider !== "copilot") throw new Error("Invalid AI provider.");
-    if (input.writeAccess !== undefined && !["opened-folders", "read-only", "full-access"].includes(input.writeAccess)) throw new Error("Invalid write access.");
+    if (input.permissionMode !== undefined && !["opened-folders", "read-only", "full-access"].includes(input.permissionMode)) throw new Error("Invalid permission mode.");
     if (existing && input.provider !== undefined && input.provider !== (existing.provider ?? "codex")) throw new Error("Provider is locked after a conversation starts.");
     settings = { ...settings, provider: existing?.provider ?? input.provider ?? settings.provider,
-      writeAccess: input.writeAccess ?? existing?.writeAccess ?? settings.writeAccess };
+      permissionMode: input.permissionMode ?? existing?.permissionMode ?? settings.permissionMode };
     const folders = [...new Set(input.folders.map(folder => {
       if (typeof folder !== "string" || !path.isAbsolute(folder)) throw new Error("Invalid opened folder.");
       const resolved = accessPath(folder, this.access);
@@ -162,7 +162,7 @@ export class AiAgentConversations {
         if (input.skills?.length) throw new Error("Skill selection is available only with Codex.");
         return await this.sendCopilot(input, settings, folders, references, conversation);
       }
-      if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings, settings.writeAccess);
+      if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings, settings.permissionMode);
       const active = conversation?.turns.find(turn => turn.status === "inProgress");
       if (active && (input.model !== conversation!.model || input.reasoningEffort !== conversation!.reasoningEffort)) throw new Error("Model and reasoning effort are locked while running.");
       if (!active) {
@@ -180,7 +180,7 @@ export class AiAgentConversations {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
           approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [...documentTools, ...displayTools, ...templateTools] });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
-          turns: [], provider: "codex", writeAccess: settings.writeAccess, model: input.model, reasoningEffort: input.reasoningEffort };
+          turns: [], provider: "codex", permissionMode: settings.permissionMode, model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);
         this.loaded.add(conversation.id);
         this.save(conversation);
@@ -193,11 +193,11 @@ export class AiAgentConversations {
       if (active) {
         await this.connection.client.request("turn/steer", { threadId: conversation.id, expectedTurnId: active.id, input: messages });
       } else {
-        conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort; conversation.writeAccess = settings.writeAccess;
-        this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, writeAccess: settings.writeAccess, access: this.access, displayClient });
+        conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort; conversation.permissionMode = settings.permissionMode;
+        this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, permissionMode: settings.permissionMode, access: this.access, displayClient });
         const result = await this.connection.client.request("turn/start", { threadId: conversation.id, input: messages,
           cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: "never",
-          sandboxPolicy: settings.writeAccess === "full-access" ? { type: "dangerFullAccess" } : settings.writeAccess === "opened-folders" ? { type: "workspaceWrite", writableRoots: folders,
+          sandboxPolicy: settings.permissionMode === "full-access" ? { type: "dangerFullAccess" } : settings.permissionMode === "opened-folders" ? { type: "workspaceWrite", writableRoots: folders,
             networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true } : { type: "readOnly", networkAccess: false } });
         const scope = this.scopes.get(conversation.id); if (scope) scope.turnId = result.turn.id;
         if (!conversation.turns.some(turn => turn.id === result.turn.id)) conversation.turns.push(turnFrom(result.turn));
@@ -207,10 +207,10 @@ export class AiAgentConversations {
       return conversation;
     } finally { this.pending.delete(key); }
   }
-  private expireQuestion(conversation: AiConversation) {
+  private expireQuestion(conversation: AssistantConversation) {
     delete conversation.userInput; this.answers.delete(conversation.id);
   }
-  answer(id: string, turnId: string, requestId: string | number, answers: AiUserInputAnswers) {
+  answer(id: string, turnId: string, requestId: string | number, answers: AssistantUserInputAnswers) {
     const conversation = this.current(id), question = conversation.userInput, respond = this.answers.get(id);
     if (!question || !respond || question.requestId !== requestId || question.turnId !== turnId ||
       !conversation.turns.some(turn => turn.id === turnId && turn.status === "inProgress")) throw new Error("Question expired.");
@@ -235,7 +235,7 @@ export class AiAgentConversations {
     } else if (turn) await this.connection.client.request("turn/interrupt", { threadId: id, turnId: turn.id });
     return conversation;
   }
-  private async sendCopilot(input: AiConversationInput, settings: AiAgentSettings, folders: string[], references: import("../shared/ai.ts").AiFileReference[], conversation?: AiConversation) {
+  private async sendCopilot(input: AssistantConversationInput, settings: AssistantSettings, folders: string[], references: import("../shared/assistant.ts").AssistantFileReference[], conversation?: AssistantConversation) {
     const acp = this.connection.copilot;
     if (conversation?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Copilot response before sending another message.");
     const catalog = await this.connection.models("copilot");
@@ -247,14 +247,14 @@ export class AiAgentConversations {
       if (conversation && conversation.reasoningEffort !== input.reasoningEffort) throw new Error("Start a new conversation to change Copilot reasoning effort.");
     }
     const effort = source === "cli" ? input.reasoningEffort : acp.reasoningEffort;
-    const fullAccess = settings.writeAccess === "full-access";
+    const fullAccess = settings.permissionMode === "full-access";
     await this.prepareCopilotLaunch(effort, settings);
-    if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings, settings.writeAccess);
+    if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings, settings.permissionMode);
     const client = await acp.connect();
     if (!conversation) {
       const session = acp.remember(await acp.call(() => client.newSession({ cwd: this.connection.cwd, mcpServers: [] })));
       conversation = { id: session.sessionId, provider: "copilot", title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, 80),
-        folders, createdAt: Date.now(), updatedAt: Date.now(), writeAccess: settings.writeAccess, turns: [], model: input.model, reasoningEffort: input.reasoningEffort, copilot: copilotOptions(session) };
+        folders, createdAt: Date.now(), updatedAt: Date.now(), permissionMode: settings.permissionMode, turns: [], model: input.model, reasoningEffort: input.reasoningEffort, copilot: copilotOptions(session) };
       this.conversations.set(conversation.id, conversation); this.loaded.add(conversation.id);
     }
     const id = conversation.id;
@@ -283,13 +283,13 @@ export class AiAgentConversations {
     conversation.copilot = options;
     references = checkedReferences(input.references ?? [], folders, this.access);
     const context = { folders, document: input.document ? { path: input.document.path } : null, references };
-    const turn: AiConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.message, references }] };
+    const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.message, references }] };
     conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort;
-    conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.writeAccess = settings.writeAccess;
-    this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, writeAccess: settings.writeAccess, turnId: turn.id });
+    conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;
+    this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, permissionMode: settings.permissionMode, turnId: turn.id });
     this.save(conversation);
     // ACP prompt resolves at turn completion; return the snapshot immediately for existing panel polling.
-    void client.prompt({ sessionId: id, prompt: [{ type: "text", text: AGENT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] }).then(result => {
+    void client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] }).then(result => {
       if (turn.status === "inProgress") {
         turn.status = result.stopReason === "cancelled" ? "interrupted" : result.stopReason === "end_turn" ? "completed" : "failed";
         if (turn.status === "failed") turn.error = `Copilot stopped: ${result.stopReason}`;
@@ -297,15 +297,15 @@ export class AiAgentConversations {
     }, error => { turn.status = "failed"; turn.error = error.message; }).finally(() => { this.scopes.delete(id); });
     return conversation;
   }
-  private async prepareCopilotLaunch(effort: string, settings: AiAgentSettings) {
-    const acp = this.connection.copilot, fullAccess = settings.writeAccess === "full-access";
+  private async prepareCopilotLaunch(effort: string, settings: AssistantSettings) {
+    const acp = this.connection.copilot, fullAccess = settings.permissionMode === "full-access";
     if ((acp.reasoningEffort !== effort || acp.fullAccess !== fullAccess) && [...this.conversations.values()].some(value => value.provider === "copilot" && value.turns.some(turn => turn.status === "inProgress"))) throw new Error("Stop the Copilot response before changing launch settings.");
     await acp.useLaunchSettings(effort, fullAccess);
   }
   private copilotPermission(request: RequestPermissionRequest): RequestPermissionResponse {
     const scope = this.scopes.get(request.sessionId), tool = request.toolCall;
     const active = this.conversations.get(request.sessionId)?.turns.some(turn => turn.id === scope?.turnId && turn.status === "inProgress");
-    let allowed = !!scope && !!active && (tool.kind === "read" || tool.kind === "edit" && scope.writeAccess === "opened-folders");
+    let allowed = !!scope && !!active && (tool.kind === "read" || tool.kind === "edit" && scope.permissionMode === "opened-folders");
     if (!tool.locations?.length) allowed = false;
     if (allowed) try {
       for (const location of tool.locations!) {
@@ -313,7 +313,7 @@ export class AiAgentConversations {
         accessPath(accessPath(location.path, scope!.folders, tool.kind === "edit"), this.access, tool.kind === "edit");
       }
     } catch { allowed = false; }
-    const fullAccess = !!scope && !!active && scope.writeAccess === "full-access";
+    const fullAccess = !!scope && !!active && scope.permissionMode === "full-access";
     const option = allowed || fullAccess ? request.options.find(option => option.kind === "allow_once") ?? (fullAccess ? request.options.find(option => option.kind === "allow_always") : undefined) : undefined;
     return option ? { outcome: { outcome: "selected", optionId: option.optionId } } : { outcome: { outcome: "cancelled" } };
   }
@@ -372,15 +372,15 @@ export class AiAgentConversations {
       if (!item) { item = { id: params.itemId, kind: method.includes("reasoning") ? "reasoning" : method.includes("plan") ? "plan" : "assistant", text: "" }; turn.items.push(item); }
       item.text += params.delta;
     } else if (method === "turn/plan/updated") {
-      const item: AiConversationItem = { id: `${turnId}-plan`, kind: "plan", text: params.plan.map((step: any) => `${step.status}: ${step.step}`).join("\n") };
+      const item: AssistantConversationItem = { id: `${turnId}-plan`, kind: "plan", text: params.plan.map((step: any) => `${step.status}: ${step.step}`).join("\n") };
       const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item;
     } else if (method === "error" && !params.willRetry) { this.display.cancel(params.threadId); turn.error = params.error.message; turn.status = "failed"; if (conversation.userInput?.turnId === turnId) this.expireQuestion(conversation); }
   }
 }
 const CONTEXT = "Litzio read-only context (JSON):\n";
-function itemFrom(item: any): AiConversationItem | null {
+function itemFrom(item: any): AssistantConversationItem | null {
   if (item.type === "userMessage") {
-    const references: import("../shared/ai.ts").AiFileReference[] = [];
+    const references: import("../shared/assistant.ts").AssistantFileReference[] = [];
     const text: string[] = [];
     for (const part of item.content ?? []) {
       if (part.type !== "text") continue;
@@ -411,13 +411,13 @@ function itemFrom(item: any): AiConversationItem | null {
   if (item.type === "fileChange") return { id: item.id, kind: "tool", text: item.changes.map((change: any) => change.path).join("\n"), status: item.status };
   return null;
 }
-function turnFrom(turn: any): AiConversationTurn { return { id: turn.id, status: turn.status, items: (turn.items ?? []).map(itemFrom).filter(Boolean), ...(turn.error ? { error: turn.error.message } : {}) }; }
+function turnFrom(turn: any): AssistantConversationTurn { return { id: turn.id, status: turn.status, items: (turn.items ?? []).map(itemFrom).filter(Boolean), ...(turn.error ? { error: turn.error.message } : {}) }; }
 
 /** Reuse Explorer visibility at each path segment; never include reference content in input. */
 function checkedReferences(value: string[], folders: string[], access: FileAccess) {
   if (!Array.isArray(value)) throw new Error("Invalid file references.");
   const scope = folders.length ? new RootAccess(folders) : null;
-  const references: import("../shared/ai.ts").AiFileReference[] = [];
+  const references: import("../shared/assistant.ts").AssistantFileReference[] = [];
   for (const requested of value) {
     if (typeof requested !== "string" || !path.isAbsolute(requested) || !scope) throw new Error("File reference is outside opened folders.");
     const resolved = accessPath(accessPath(requested, scope), access);

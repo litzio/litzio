@@ -31,7 +31,7 @@ test("HTTP recovery survives browser crash and daemon reconnect, then Save/Reloa
     const child = spawn(process.execPath, [path.join(REPOSITORY_ROOT, "packages/cli/dist/cli.mjs"), "daemon", "run", "--channel", "development", "--port", String(port),
       ...["a", "b"].flatMap(name => ["--root", path.join(REPOSITORY_ROOT, `tmp/http-host-${name}`)])], {
       windowsHide: true, stdio: ["ignore", "pipe", "pipe", "ipc"],
-      env: { ...process.env, LITZIO_DAEMON_DIR: path.join(data, "daemon"), LITZIO_DATA_DIR: data, LITZIO_AI_AGENT_CWD: path.join(data, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(data, "ai.json"), LITZIO_DESKTOP_DAEMON: "0" },
+      env: { ...process.env, LITZIO_DAEMON_DIR: path.join(data, "daemon"), LITZIO_DATA_DIR: data, LITZIO_ASSISTANT_CWD: path.join(data, "assistant"), LITZIO_ASSISTANT_SETTINGS_FILE: path.join(data, "ai.json"), LITZIO_DESKTOP_DAEMON: "0" },
     });
     let diagnostics = "";
     child.stdout!.on("data", value => { diagnostics += value; }); child.stderr!.on("data", value => { diagnostics += value; });

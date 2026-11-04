@@ -52,7 +52,7 @@ pnpm --filter @litzio/desktop package
 서명된 빌드는 자신의 인증서/게시자 설정과 기존 릴리스 검증 절차도 따라야 한다.
 공식판의 배포·업데이트 저장소 기본값은 `litzio/litzio`다(#860). 과거 Beta의 업데이트 경로를 이전하거나 호환 alias를 제공하지 않는다.
 
-기존 `LITZIO_AI_AGENT_SETTINGS_FILE`, `LITZIO_AI_AGENT_CWD`, `--user-data-dir` 같은 명시적 운영자/테스트 경로는
+기존 `LITZIO_ASSISTANT_SETTINGS_FILE`, `LITZIO_ASSISTANT_CWD`, `--user-data-dir` 같은 명시적 운영자/테스트 경로는
 기본값보다 우선한다. 두 브랜드를 의도적으로 같은 경로로 덮어쓰면 격리를 보장하지 않는다.
 
 ## 고정 내부 계약과 검증

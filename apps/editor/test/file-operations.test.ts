@@ -1,4 +1,4 @@
-import { executeDocumentTool } from "../server/agent-document-tools.ts";
+import { executeDocumentTool } from "../server/assistant-document-tools.ts";
 import { creationUndoNeedsConfirmation } from "../shared/file-operations.ts";
 import { textRevision } from "@litzio/file-commit";
 import assert from "node:assert/strict";
@@ -281,7 +281,7 @@ test("creation undo refuses a same-byte replacement before check or final deleti
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "undo-identity-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const file = path.join(root, "created.md");
-  const created = executeDocumentTool("create_document", { path: file, title: "Created", blocks: [] }, { folders: new RootAccess([root]), access: new RootAccess([root]), writeAccess: "opened-folders" }) as any;
+  const created = executeDocumentTool("create_document", { path: file, title: "Created", blocks: [] }, { folders: new RootAccess([root]), access: new RootAccess([root]), permissionMode: "opened-folders" }) as any;
   const checked = await deleteFile({ root, path: file, checkOnly: true });
   assert.deepEqual(checked.identity, created.identity);
   const source = fs.readFileSync(file);

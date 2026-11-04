@@ -1,6 +1,6 @@
 import { assistantCliEnvironment } from "../server/assistant-cli.ts";
 import { brand } from "../../../brand.ts";
-import { AgentDisplayRequests } from "../server/agent-display-tools.ts";
+import { AgentDisplayRequests } from "../server/assistant-display-tools.ts";
 import { displayRequestCurrent } from "../shared/assistant-display.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -9,16 +9,16 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CodexAppServer, LineDecoder } from "../server/codex-app-server.ts";
-import { AiAgentConnection, AGENT_INSTRUCTIONS, LITZIO_GUIDE } from "../server/ai-agent-connection.ts";
-import { AiAgentConversations } from "../server/ai-agent-conversations.ts";
+import { ProviderConnections, ASSISTANT_INSTRUCTIONS, LITZIO_GUIDE } from "../server/provider-connections.ts";
+import { AssistantConversations } from "../server/assistant-conversations.ts";
 import { RootAccess } from "../server/file-access.ts";
 
 export const fakeServer = fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url));
 
 test("Copilot ACP lists its models, streams one turn, applies permission scope, cancels and reports a failed turn", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "copilot-connection-")), log = path.join(root, "acp.jsonl");
-  const connection = new AiAgentConnection(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] });
-  const conversations = new AiAgentConversations(connection, new RootAccess([root]));
+  const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] });
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const catalog = await connection.models("copilot");
   assert.deepEqual(catalog.models.map(model => model.model), ["auto", "copilot-model"]);
@@ -26,7 +26,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   assert.deepEqual(catalog.copilot?.modes.map(mode => mode.id), ["agent", "plan"]);
   assert.equal((await connection.diagnostics("copilot")).connected, true);
   assert.equal(readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.method === "initialize").length, 1);
-  const settings = { provider: "codex" as const, writeAccess: "read-only" as const, model: "auto", reasoningEffort: "high" };
+  const settings = { provider: "codex" as const, permissionMode: "read-only" as const, model: "auto", reasoningEffort: "high" };
   const input = { provider: "copilot" as const, message: "Question", folders: [root], model: settings.model, reasoningEffort: "high", mode: "plan" };
   await assert.rejects(conversations.send({ ...input, skills: [{ name: "codex-only", path: path.join(root, "SKILL.md") }] }, settings), /only with Codex/);
   const conversation = await conversations.send(input, settings);
@@ -47,7 +47,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     // A protocol barrier ensures prompt completion is processed, without a timing assumption.
     await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: conversation.id, modelId: input.model }));
     assert.equal(turn.status, "interrupted");
-    await conversations.send({ ...input, id: conversation.id, writeAccess: "opened-folders" }, settings);
+    await conversations.send({ ...input, id: conversation.id, permissionMode: "opened-folders" }, settings);
     assert.deepEqual(connection.copilot.permission!(request), { outcome: { outcome: "selected", optionId: "once" } });
     assert.deepEqual(connection.copilot.permission!({ ...request, toolCall: { ...request.toolCall, locations: [{ path: path.join(root, "..", "outside.txt") }] } }), { outcome: { outcome: "cancelled" } });
     await conversations.interrupt(conversation.id);
@@ -64,7 +64,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   assert.ok(rpc.some(message => message.method === "session/set_mode" && message.params.modeId === "plan"));
   await assert.rejects(conversations.send({ ...input, id: conversation.id, reasoningEffort: "low" }, settings), /new conversation/);
   await assert.rejects(conversations.send({ ...input, mode: "autopilot" }, settings), /mode/);
-  const full = await conversations.send(input, { ...settings, writeAccess: "full-access" });
+  const full = await conversations.send(input, { ...settings, permissionMode: "full-access" });
   const execution = { sessionId: full.id, toolCall: { toolCallId: "shell", kind: "execute" as const }, options: [{ optionId: "once", name: "Allow once", kind: "allow_once" as const }] };
   assert.deepEqual(connection.copilot.permission!(execution), { outcome: { outcome: "selected", optionId: "once" } });
   assert.deepEqual(connection.copilot.permission!({ ...execution, toolCall: { toolCallId: "outside", kind: "edit", locations: [{ path: path.join(root, "..", "outside.txt") }] } }), { outcome: { outcome: "selected", optionId: "once" } });
@@ -76,7 +76,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   assert.ok(launch.args.includes("--disable-builtin-mcps"));
   assert.ok(fullRpc.some(message => message.method === "session/set_config_option" && message.params.configId === "allow_all" && message.params.value === "on"));
   await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: full.id, modelId: input.model }));
-  const restricted = await conversations.send({ ...input, id: full.id, writeAccess: "read-only" }, settings);
+  const restricted = await conversations.send({ ...input, id: full.id, permissionMode: "read-only" }, settings);
   assert.deepEqual(connection.copilot.permission!({ ...execution, sessionId: restricted.id }), { outcome: { outcome: "cancelled" } });
   await conversations.interrupt(restricted.id);
   const restrictedRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
@@ -97,9 +97,9 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     await conversations.send({ ...input, id: resumed.id }, settings);
     await conversations.interrupt(resumed.id); await barrier();
     await connection.close();
-    const next = new AiAgentConnection(connection.cwd, undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] });
+    const next = new ProviderConnections(connection.cwd, undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] });
     try {
-      const history = new AiAgentConversations(next, new RootAccess([root]));
+      const history = new AssistantConversations(next, new RootAccess([root]));
       const loaded = await history.resume(restricted.id, { ...settings, reasoningEffort: "low" });
       assert.equal(loaded.reasoningEffort, "high");
       assert.equal(next.copilot.reasoningEffort, "high");
@@ -108,10 +108,10 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     } finally { await next.close(); }
   });
   // One config-capable fixture session exercises the alternative to CLI fallback.
-  const configConnection = new AiAgentConnection(path.join(root, "config-assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-config"] });
+  const configConnection = new ProviderConnections(path.join(root, "config-assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log, "--fixture-config"] });
   await t.test("live config choices override the separate catalog", async () => {
     try {
-      const configConversations = new AiAgentConversations(configConnection, new RootAccess([root]));
+      const configConversations = new AssistantConversations(configConnection, new RootAccess([root]));
       const configConversation = await configConversations.send({ ...input, reasoningEffort: "low" }, settings);
       assert.deepEqual(configConversation.copilot?.reasoningEfforts?.map(value => value.reasoningEffort), ["low", "max"]);
       assert.deepEqual((await configConnection.models("copilot")).models[0]!.supportedReasoningEfforts.map(value => value.reasoningEffort), ["low", "high"]);
@@ -130,9 +130,9 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
 
 test("conversation streams summaries, steers and interrupts one Codex thread; only its index is stored by Litzio", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-conversation-")), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");
-  const connection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
-  const conversations = new AiAgentConversations(connection, new RootAccess([root]));
-  const settings = { provider: "codex" as const, writeAccess: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const connection = new ProviderConnections(cwd, { bin: process.execPath, args: [fakeServer, log] });
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  const settings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "What changed?", folders: [root], model: settings.model, reasoningEffort: "medium", references: [path.join(root, "notes.md"), path.join(root, "image.png"), path.join(root, "report.pdf"), path.join(root, "notes.md")],
     document: { path: path.join(root, "notes.md"), source: "UNSAVED DOCUMENT TEXT" } };
   writeFileSync(input.document.path, "ON DISK");
@@ -152,17 +152,17 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.equal(JSON.stringify(conversation).includes("PRIVATE RAW REASONING"), false);
   assert.equal(JSON.stringify(conversation).includes("UNSAVED DOCUMENT TEXT"), false, "unsaved content is not displayed as a user message");
   await assert.rejects(conversations.send({ ...input, id: conversation.id, reasoningEffort: "high" }, settings), /locked/);
-  await conversations.send({ ...input, id: conversation.id, message: "Only summarize.", writeAccess: "full-access" }, settings);
+  await conversations.send({ ...input, id: conversation.id, message: "Only summarize.", permissionMode: "full-access" }, settings);
   assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "user").map(item => item.text), ["What changed?", "Only summarize."]);
-  assert.equal(conversation.writeAccess, "opened-folders", "steering cannot change the captured scope");
+  assert.equal(conversation.permissionMode, "opened-folders", "steering cannot change the captured scope");
   await assert.rejects(conversations.send({ ...input, id: conversation.id, provider: "copilot" }, settings), /Provider is locked/);
-  await assert.rejects(conversations.send({ ...input, writeAccess: "invalid" as any }, settings), /Invalid write access/);
+  await assert.rejects(conversations.send({ ...input, permissionMode: "invalid" as any }, settings), /Invalid permission mode/);
   await conversations.interrupt(conversation.id);
   assert.equal(conversation.turns[0]!.status, "interrupted");
   assert.equal(conversation.turns[0]!.items.find(item => item.kind === "assistant")!.text, "Partial answer");
   assert.equal(readFileSync(input.document.path, "utf8"), "ON DISK");
   const stored = JSON.parse(readFileSync(path.join(cwd, "conversations.json"), "utf8"));
-  assert.deepEqual(Object.keys(stored[0]).sort(), ["createdAt", "folders", "id", "provider", "title", "updatedAt", "writeAccess"]);
+  assert.deepEqual(Object.keys(stored[0]).sort(), ["createdAt", "folders", "id", "permissionMode", "provider", "title", "updatedAt"]);
   const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   const start = rpc.find(item => item.method === "turn/start").params;
   assert.equal(start.summary, "auto");
@@ -180,14 +180,14 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.equal(rpc.find(item => item.method === "turn/steer").params.expectedTurnId, conversation.turns[0]!.id);
   await connection.close();
   const tampered = JSON.parse(readFileSync(path.join(cwd, "conversations.json"), "utf8"));
-  tampered.find((entry: any) => entry.id === conversation.id).writeAccess = "full-access";
+  tampered.find((entry: any) => entry.id === conversation.id).permissionMode = "full-access";
   writeFileSync(path.join(cwd, "conversations.json"), JSON.stringify(tampered));
-  const resumedConnection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
+  const resumedConnection = new ProviderConnections(cwd, { bin: process.execPath, args: [fakeServer, log] });
   try {
-    const resumed = new AiAgentConversations(resumedConnection, new RootAccess([root]));
-    const history = await resumed.resume(conversation.id, { ...settings, provider: "copilot", writeAccess: "read-only" });
+    const resumed = new AssistantConversations(resumedConnection, new RootAccess([root]));
+    const history = await resumed.resume(conversation.id, { ...settings, provider: "copilot", permissionMode: "read-only" });
     assert.equal(history.provider, "codex");
-    assert.equal(history.writeAccess, "read-only", "UI snapshots must expose only the bounded grant before sending");
+    assert.equal(history.permissionMode, "read-only", "UI snapshots must expose only the bounded grant before sending");
     assert.deepEqual(history.turns[0]!.items.filter(item => item.kind === "reasoning"), conversation.turns[0]!.items.filter(item => item.kind === "reasoning"));
     assert.equal(JSON.stringify(history).includes("PRIVATE RAW REASONING"), false);
     assert.equal("responseLanguage" in history, false);
@@ -208,7 +208,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
     const deleted = many[0]!; rmSync(deleted);
     await assert.rejects(resumed.send({ ...input, references: [deleted] }, settings));
     assert.equal(history.turns[0]!.status, "interrupted");
-    await resumed.send({ ...input, id: conversation.id, message: "" }, { ...settings, writeAccess: "read-only" });
+    await resumed.send({ ...input, id: conversation.id, message: "" }, { ...settings, permissionMode: "read-only" });
     const requests = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
     assert.deepEqual(requests.filter(item => item.method === "turn/start").at(-1).params.sandboxPolicy, { type: "readOnly", networkAccess: false });
     await resumedConnection.client.request("fixture/finish", { threadId: conversation.id });
@@ -218,13 +218,13 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
     await assert.rejects(resumed.send({ ...input, folders: [path.dirname(root)] }, settings), /outside/);
     await assert.rejects(resumed.resume("unknown-thread", settings), /not found/);
     await resumed.interrupt(conversation.id);
-    await resumed.send({ ...input, id: conversation.id, writeAccess: "full-access" }, settings);
+    await resumed.send({ ...input, id: conversation.id, permissionMode: "full-access" }, settings);
     const fullRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
     const fullStart = fullRpc.filter(item => item.method === "turn/start").at(-1).params;
     assert.deepEqual(fullStart.sandboxPolicy, { type: "dangerFullAccess" });
     assert.equal(fullStart.approvalPolicy, "never");
     await resumed.interrupt(conversation.id);
-    assert.equal((await resumed.resume(conversation.id, settings)).writeAccess, "full-access", "same Host retains the user-approved override");
+    assert.equal((await resumed.resume(conversation.id, settings)).permissionMode, "full-access", "same Host retains the user-approved override");
     await resumed.send({ ...input, id: conversation.id }, settings);
     const approvedRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
     assert.deepEqual(approvedRpc.filter(item => item.method === "turn/start").at(-1).params.sandboxPolicy, { type: "dangerFullAccess" });
@@ -240,7 +240,7 @@ test("stdio splits UTF-8 safely", () => {
 });
 test("one lazy process initializes once, preserves caller home and cwd, pages models and reports partial diagnostics", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-connection-")), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");
-  const connection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log, "account-fail"] });
+  const connection = new ProviderConnections(cwd, { bin: process.execPath, args: [fakeServer, log, "account-fail"] });
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   assert.equal(existsSync(log), false);
   const env = connection.environment(); assert.equal(env.cwd, cwd); assert.deepEqual(env.skills, ["litzio-guide"]);
@@ -248,7 +248,7 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.equal(readFileSync(guide, "utf8"), LITZIO_GUIDE);
   writeFileSync(guide, "stale"); connection.environment();
   assert.equal(readFileSync(guide, "utf8"), LITZIO_GUIDE);
-  assert.equal(readFileSync(env.instructions, "utf8"), AGENT_INSTRUCTIONS);
+  assert.equal(readFileSync(env.instructions, "utf8"), ASSISTANT_INSTRUCTIONS);
   // Generated guidance owns consent and CLI routing; CLI tests own actual writes.
   const instructions = readFileSync(env.instructions, "utf8"), generatedGuide = readFileSync(guide, "utf8");
   assert.doesNotMatch(instructions + generatedGuide, /docling|convert-pdf/i, "generated product guidance must not advertise removed conversion features");
@@ -330,9 +330,9 @@ test("installed CLI launcher paths with spaces support version diagnostics and r
 test("dynamic document tools enforce turn scope and preserve results across process resume", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-tools-")), folder = path.join(root, "docs"), outside = path.join(root, "outside"), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");
   mkdirSync(folder); mkdirSync(outside);
-  const connection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] }, undefined, { packaged: false, checkoutRoot: root });
-  const conversations = new AiAgentConversations(connection, new RootAccess([root]));
-  const settings = { provider: "codex" as const, writeAccess: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const connection = new ProviderConnections(cwd, { bin: process.execPath, args: [fakeServer, log] }, undefined, { packaged: false, checkoutRoot: root });
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  const settings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "Create Hello", folders: [folder], model: settings.model, reasoningEffort: "medium" };
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const conversation = await conversations.send(input, settings, "window-a");
@@ -366,7 +366,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   conversations.display.reply(conversation.id, "window-a", restoring.id, { before: after, after: original });
   assert.deepEqual(await undo, { undone: true });
   await assert.rejects(conversations.display.undo(conversation.id, "window-a", displayReceipt.requestId), /unavailable/);
-  for (const changes of [{ writeAccess: "full-access" }, { provider: "copilot" }, { model: "x" }, { plugins: [] }, { frontMatter: {} }, { theme: "invalid" }, {}]) {
+  for (const changes of [{ permissionMode: "full-access" }, { provider: "copilot" }, { model: "x" }, { plugins: [] }, { frontMatter: {} }, { theme: "invalid" }, {}]) {
     assert.equal((await call("change_display_settings", { changes })).result.success, false);
   }
   const file = path.join(folder, "Hello.md"), args = { path: file, title: "Hello", blocks: [{ type: "heading", level: 2, text: "Welcome" }, { type: "paragraph", text: "Hello world" }] };
@@ -412,7 +412,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   assert.equal((await call("list_documents", { path: path.join(folder, "escape") })).result.success, false);
   assert.equal((await call("read_document", { path: file }, { turnId: "stale" })).result.success, false);
   assert.equal((await call("ignored", {}, { method: "unsupported" })).error.code, -32601);
-  await conversations.send({ ...input, id: conversation.id, folders: [outside] }, { ...settings, writeAccess: "read-only" }, "window-b");
+  await conversations.send({ ...input, id: conversation.id, folders: [outside] }, { ...settings, permissionMode: "read-only" }, "window-b");
   assert.equal((await call("create_document", { ...args, path: path.join(folder, "Steered.md") })).result.success, true);
   const endingDisplay = await beginDisplay("read_display_settings", {});
   assert.equal(conversations.display.snapshot(conversation.id, "window-b"), undefined, "Steering cannot transfer the originating window");
@@ -420,12 +420,12 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   assert.equal((await endingDisplay.response).result.success, false);
   assert.equal((await call("create_document", { ...args, path: path.join(folder, "late.md") })).result.success, false);
   await connection.close();
-  const next = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] }, undefined, { packaged: false, checkoutRoot: root });
+  const next = new ProviderConnections(cwd, { bin: process.execPath, args: [fakeServer, log] }, undefined, { packaged: false, checkoutRoot: root });
   try {
-    const history = new AiAgentConversations(next, new RootAccess([root]));
+    const history = new AssistantConversations(next, new RootAccess([root]));
     const resumed = await history.resume(conversation.id, settings);
     assert.deepEqual(resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success === true)!.toolResult, created);
-    await history.send({ ...input, id: conversation.id, folders: [], writeAccess: "read-only" }, settings, "window-readonly");
+    await history.send({ ...input, id: conversation.id, folders: [], permissionMode: "read-only" }, settings, "window-readonly");
     const readOnlyDisplay = next.client.toolCall!({ threadId: conversation.id, turnId: history.current(conversation.id).turns.at(-1)!.id, namespace: null,
       tool: "read_display_settings", arguments: {} });
     const readOnlyRequest = history.display.snapshot(conversation.id, "window-readonly")!;
@@ -448,10 +448,10 @@ test("dynamic document tools enforce turn scope and preserve results across proc
 
 test("user questions reply once with exact RPC id and expire on resolution, completion, interruption and disconnect", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-question-")), log = path.join(root, "rpc.jsonl");
-  const connection = new AiAgentConnection(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, log] });
-  const conversations = new AiAgentConversations(connection, new RootAccess([root]));
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, log] });
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
-  const settings = { provider: "codex" as const, writeAccess: "read-only" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const settings = { provider: "codex" as const, permissionMode: "read-only" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "Ask", folders: [root], model: settings.model, reasoningEffort: "medium" };
   const c = await conversations.send(input, settings);
   const questions = [{ id: "constructor", header: "Choice", question: "Which?", isOther: false, isSecret: false, options: [{ label: "A", description: "First" }] },
@@ -496,14 +496,14 @@ test("user questions reply once with exact RPC id and expire on resolution, comp
 
 test("skills use only assistant cwd, enabled catalog, explicit input and context history", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-skills-")), log = path.join(root, "rpc.jsonl");
-  const connection = new AiAgentConnection(root, { bin: process.execPath, args: [fakeServer, log] });
+  const connection = new ProviderConnections(root, { bin: process.execPath, args: [fakeServer, log] });
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const catalog = await connection.skills();
   assert.deepEqual(catalog.skills.map(skill => skill.name), ["litzio-guide"]);
   assert.match(catalog.errors[0]!.message, /frontmatter/);
   const skill = catalog.skills[0]!;
-  const conversations = new AiAgentConversations(connection, new RootAccess([root]));
-  const settings = { provider: "codex" as const, writeAccess: "read-only" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  const settings = { provider: "codex" as const, permissionMode: "read-only" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "$litzio-guide Help", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort, skills: [{ name: skill.name, path: skill.path }] };
   const conversation = await conversations.send(input, settings);
   await conversations.send({ ...input, id: conversation.id, message: "Steer" }, settings);
@@ -519,7 +519,7 @@ test("skills use only assistant cwd, enabled catalog, explicit input and context
     if (method === "turn/steer") assert.equal(messages.some((part: any) => part.type === "skill"), false);
   }
   await assert.rejects(conversations.send({ ...input, message: "$disabled Help", skills: [{ name: "disabled", path: "/disabled/SKILL.md" }] }, settings), /no longer active/);
-  const failing = new AiAgentConnection(root, { bin: process.execPath, args: [fakeServer, log, "skills-fail"] });
+  const failing = new ProviderConnections(root, { bin: process.execPath, args: [fakeServer, log, "skills-fail"] });
   try { await assert.rejects(failing.skills(), /skills unavailable/); } finally { await failing.close(); }
 });
 

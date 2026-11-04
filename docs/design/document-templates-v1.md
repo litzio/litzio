@@ -246,7 +246,7 @@ Placeholder substitution, folder templates and Docling result formatting (#1103)
 remain outside this contract. Phase 3 extends the existing generated-environment
 test with consent, live catalog and CLI command guidance assertions. Existing CLI
 template tests verify list/read/save/create and refusal paths; no duplicate write
-harness or real model call was added for phase 3. #1128 extends the existing fake app-server test with tool registration, captured permissions, template save/create/read and receipt history. One real CLI read from that fake child proves PATH execution; the same test asserts parent PATH preservation. The existing ai-result browser case uses an actual template creation receipt for Open/guarded Undo (12 seconds locally). Existing packaged Desktop CLI CI adds one template read through the private launcher while optional CLI integration is off; no new packaging run or local install/update/uninstall is added. Core preservation assertions also
+harness or real model call was added for phase 3. #1128 extends the existing fake app-server test with tool registration, captured permissions, template save/create/read and receipt history. One real CLI read from that fake child proves PATH execution; the same test asserts parent PATH preservation. The existing assistant-result browser case uses an actual template creation receipt for Open/guarded Undo (12 seconds locally). Existing packaged Desktop CLI CI adds one template read through the private launcher while optional CLI integration is off; no new packaging run or local install/update/uninstall is added. Core preservation assertions also
 check the YAML marker comment before and after template creation.
 
 ## Gallery visual review
