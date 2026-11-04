@@ -15,6 +15,7 @@ import { MAX_JSON_BYTES, startHttpHost } from "../server/http-host.ts";
 import { DAEMON_PROTOCOL } from "../server/daemon-protocol.ts";
 import { inspectDaemon, stopDaemon } from "../server/daemon-state.ts";
 import { RootAccess } from "../server/file-access.ts";
+import { trashFile } from "../server/os-trash.ts";
 
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
 
@@ -218,12 +219,18 @@ test("non-loopback binding still requires an explicit public origin", async () =
 
 test("HTTP trash failure preserves the original file without permanent deletion", async t => {
   const { a, editorDir } = await fixture(t);
-  const host = await startFetchServer(() => startHttpHost({ roots: [a], editorDir, port: 0, removeFile: async () => { throw new Error("OS trash unavailable"); } }));
+  const host = await startFetchServer(() => startHttpHost({ roots: [a], editorDir, port: 0,
+    removeFile: file => trashFile(file, { platform: "linux", dataHome: path.join(a, "test-data"), rename: async () => {
+      throw Object.assign(new Error("rename outside-secret-path"), { code: "EXDEV" });
+    } }) }));
   t.after(() => host.close());
   assert.deepEqual(await (await fetch(host.url + "/api/host-capabilities")).json(), { fileDeletion: "trash" });
   const file = path.join(a, "document.md"), original = fs.readFileSync(file);
   const response = await fetch(host.url + "/api/file", { method: "DELETE", headers: { Origin: host.url, "Content-Type": "application/json" }, body: JSON.stringify({ root: a, path: file }) });
   assert.equal(response.status, 400); assert.deepEqual(fs.readFileSync(file), original);
+  const message = (await response.json()).error;
+  assert.match(message, /OS trash unavailable.*different devices.*EXDEV/);
+  assert.doesNotMatch(message, /outside-secret-path/);
 });
 
 const documentQuery = (file: string) => `/api/document?${new URLSearchParams({ path: file })}`;
