@@ -6,6 +6,7 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   const path = root + sep + 'same.txt';
   const missing = root + sep + 'missing.txt', fresh = root + sep + 'fresh.txt';
   let failRemembered = false, failedReads = 0, showFresh = false;
+  let delayStartup = false, releaseStartup;
   const sources = { local: 'Local text', remote: 'Remote text' };
   const saves = [];
   const versions = { local: 0, remote: 0 };
@@ -17,7 +18,13 @@ async (page, { expect, screenshots, recoveryRecords }) => {
     if (!url.includes('?path=')) return route.fulfill({ json: { start: true } });
     const requestedPath = decodeURIComponent(url.split('?path=')[1].split('&')[0]);
     if (host === 'remote' && requestedPath === missing && failRemembered) { failedReads++; return route.fulfill({ status: 503, json: { error: 'Fixture startup read failure' } }); }
-    return route.fulfill({ json: { kind: 'text', path: requestedPath, source: sources[host], revision: revision(host) } });
+    const json = { kind: 'text', path: requestedPath, source: sources[host], revision: revision(host) };
+    if (host === 'remote' && requestedPath === path && delayStartup) {
+      delayStartup = false;
+      await new Promise(resolve => { releaseStartup = async () => { await route.fulfill({ json }); resolve(); }; });
+      return;
+    }
+    return route.fulfill({ json });
   });
   await page.route('**/api/folder?**', route => route.fulfill({ json: { root, path: root, entries: [{ path, name: 'same.txt', kind: 'document', native: false }, ...(showFresh ? [{ path: fresh, name: 'fresh.txt', kind: 'document', native: false }] : [])] } }));
   await page.route('**/api/folder-version?**', route => route.fulfill({ json: { version: '1', revisions: [] } }));
@@ -158,4 +165,27 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   await expect(local).toHaveCount(1);
   await expect(remote).toHaveCount(0);
   expect((await rememberedRemote()).paths).toEqual([]);
+
+  // A late startup read must neither replace an explicit open nor resurrect an explicitly closed tab.
+  for (const closeBeforeReply of [false, true]) {
+    delayStartup = true; releaseStartup = undefined;
+    await page.evaluate(path => localStorage.setItem(JSON.stringify(['remote', 'litzio.openTabs']), JSON.stringify({ paths: [path], activePath: path })), path);
+    await page.reload();
+    await expect.poll(() => typeof releaseStartup).toBe('function');
+    await page.locator('[data-host-id="remote"]').getByRole('treeitem', { name: /same.txt/ }).click();
+    await expect(remote).toHaveCount(1);
+    await expect(remote).toHaveAttribute('aria-selected', 'true');
+    if (closeBeforeReply) {
+      await page.getByRole('button', { name: /^Close same.txt.*Remote$/ }).click();
+      await expect(remote).toHaveCount(0);
+    }
+    const lateReply = page.waitForResponse(response => response.url().includes('/fixture/remote/api/document?path=') && response.request().method() === 'GET');
+    await releaseStartup();
+    await (await lateReply).finished();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(local).toHaveCount(1);
+    await expect(remote).toHaveCount(closeBeforeReply ? 0 : 1);
+    await expect(closeBeforeReply ? local : remote).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('textbox', { name: 'Text editor' })).toHaveValue(closeBeforeReply ? sources.local : sources.remote);
+  }
 }

@@ -3080,6 +3080,8 @@ not overwrite that Host's navigation memory; recovery records remain available f
 That startup protection is separate from explicit navigation: selecting, opening, moving,
 restoring, renaming or closing a tab on the affected Host resumes saving its current tab list.
 Navigation on another Host alone does not release the failed Host's startup protection.
+A delayed startup read cannot replace an existing same-Host/path tab or reopen a location
+explicitly opened or closed during restoration; it creates navigation only for a newly admitted tab.
 Requests and recovery barriers for open, rename and delete retain `(hostId, path)`.
 
 Remote Explorer never receives the Desktop Explorer callback. Log-folder and daemon controls

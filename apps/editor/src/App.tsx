@@ -1,6 +1,6 @@
 import { AssistantHostChooser } from "./shell/AssistantHostChooser.tsx";
 import { HostContext, HostClientContext } from "./host-context.tsx";
-import { LOCAL_HOST_ID, sameLocator } from "./host-locator.ts";
+import { LOCAL_HOST_ID, locatorKey, sameLocator } from "./host-locator.ts";
 import { getHostClient, hostRegistry, hostLabel, type HostClient } from "./host-client.ts";
 import { handleDisplayRequest } from "./assistant-display.ts";
 import { creationUndoNeedsConfirmation, type FileIdentity } from "../shared/file-operations.ts";
@@ -181,6 +181,8 @@ function EditorApp() {
   const remoteImageRename = useCallback<ImageRenamer>(async () => { throw new Error("Image rename requires Host-specific shell integration."); }, []);
   const renameImage = useCallback<ImageRenamer>((...args) => renameImageRef.current!(...args), []);
   const [tabs, setTabs] = useState<Tab[]>([]);
+  const latestTabs = useRef(tabs); latestTabs.current = tabs;
+  const startupOverrides = useRef(new Set<string>());
   const assistantAvailable = true;
   const [assistantHost, setAssistantHost] = useState<string | undefined>();
   const [assistantSettingsRevision, setAssistantSettingsRevision] = useState(0);
@@ -275,6 +277,7 @@ function EditorApp() {
       throw new UiError({ key: "This document already has open work. Close its tab before restoring a recovery record." });
     }
     const recoveryId = newRecoveryId();
+    startupOverrides.current.add(locatorKey(record));
     await recoveryStorage.restore(record, recoveryId);
     try { client.assertCurrent(); }
     catch (cause) {
@@ -489,7 +492,8 @@ function EditorApp() {
 
   function acceptFile(file: EditorFileResponse, client: HostClient, group = navigation.focused, hostId = LOCAL_HOST_ID): void {
     client.assertCurrent();
-    const existing = openedTab(tabs, file.path, hostId);
+    startupOverrides.current.add(locatorKey({ hostId, path: file.path }));
+    const existing = openedTab(latestTabs.current, file.path, hostId);
     const target = splitAvailable.current ? group : navigation.focused;
     if (existing) placeTab(existing.id, target);
     else {
@@ -584,8 +588,14 @@ function EditorApp() {
           if (recovery) { if (alive) reviewRecovery(recovery, true); return; }
           const file = await createDocumentRequests(client).requestDocument("GET", path);
           if (!alive || "start" in file) return;
+          if (startupOverrides.current.has(locatorKey({ hostId: host.hostId, path })) ||
+              startupOverrides.current.has(locatorKey({ hostId: host.hostId, path: file.path })) ||
+              openedTab(latestTabs.current, file.path, host.hostId)) return;
           const id = `document-${++nextId.current}`;
-          setTabs(previous => openedTab(previous, file.path, host.hostId) ? previous : [...previous, { client, hostId: host.hostId, id, path: file.path, file, recoveryId: newRecoveryId() }]);
+          const tab = { client, hostId: host.hostId, id, path: file.path, file, recoveryId: newRecoveryId() };
+          // Reserve this admission before another restoration response can allocate a duplicate ID.
+          latestTabs.current = [...latestTabs.current, tab];
+          setTabs(previous => [...previous, tab]);
           navigate({ type: "open", id });
         } catch { failed = true; /* Keep Host navigation and recovery records for a later connection. */ }
       })).then(() => { if (alive && !failed) restoredHosts.current.add(host.hostId); });
@@ -594,6 +604,8 @@ function EditorApp() {
   }, [tabsRestored]);
 
   function removeTab(id: string): void {
+    const closing = latestTabs.current.find(tab => tab.id === id);
+    if (closing) startupOverrides.current.add(locatorKey(closing));
     void sessions.current.get(id)?.discardRecovery()?.then(deleted => {
       if (!deleted) setError({ key: "The tab closed, but its local recovery record could not be deleted. Review it on the start screen and try Delete record again." });
     });
@@ -810,6 +822,7 @@ function EditorApp() {
     if (!requestedPath) return i18n.t("Enter a Markdown file path.");
     if (!/\.(md|txt)$/i.test(requestedPath)) return i18n.t("Only .md and .txt files can be opened.");
     if (operationRef.current || busy || continuation) return i18n.t("Wait for the current operation to finish.");
+    startupOverrides.current.add(locatorKey({ hostId, path: requestedPath }));
     const existing = openedTab(tabs, requestedPath, hostId);
     if (existing) {
       placeTab(existing.id, group);
