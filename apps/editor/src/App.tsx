@@ -1,6 +1,7 @@
+import { AssistantHostChooser } from "./shell/AssistantHostChooser.tsx";
 import { HostContext, HostClientContext } from "./host-context.tsx";
 import { LOCAL_HOST_ID, sameLocator } from "./host-locator.ts";
-import { getHostClient, hostRegistry, type HostClient } from "./host-client.ts";
+import { getHostClient, hostRegistry, hostLabel, type HostClient } from "./host-client.ts";
 import { handleDisplayRequest } from "./assistant-display.ts";
 import { creationUndoNeedsConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
@@ -181,7 +182,7 @@ function EditorApp() {
   const renameImage = useCallback<ImageRenamer>((...args) => renameImageRef.current!(...args), []);
   const [tabs, setTabs] = useState<Tab[]>([]);
   const assistantAvailable = true;
-  const [assistantHost, setAssistantHost] = useState<string | undefined>(() => hostRegistry.list().length === 1 ? hostRegistry.list()[0]!.hostId : undefined);
+  const [assistantHost, setAssistantHost] = useState<string | undefined>();
   const [assistantSettingsRevision, setAssistantSettingsRevision] = useState(0);
   // Remove the operation guard before newly mounted Explorer rows restore focus in layout.
   useLayoutEffect(() => {
@@ -1289,6 +1290,7 @@ function EditorApp() {
         <div className="top-bar-container">
           <TopBar onOpenCommandCenter={() => openCommandCenter()} documentPath={openedPath}
             onAssistant={assistantAvailable ? toggleAssistant : undefined} assistantOpen={assistantOpen}
+            hostLabel={session && hostRegistry.list().length > 1 ? hostLabel(session.hostId) : undefined}
             location={documentLocation(openedPath, folders.rootOf(openedPath))} />
         </div>
       </div>
@@ -1432,7 +1434,13 @@ function EditorApp() {
         documentPath={session?.hostId === assistantHost ? session.openedPath : ""} folders={assistantHost === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(assistantHost)}
         documentDirty={Boolean(session?.documentDirty || session?.draftActive)}
         onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("assistant"); openSettingsTab(); }} /></HostContext.Provider> : null}
-      {assistantOpen && !assistantHost ? <Dialog open onOpenChange={open => { if (!open) closeAssistant(); }}><DialogContent><DialogHeader><DialogTitle>{i18n.t("Select Host")}</DialogTitle></DialogHeader>{hostRegistry.list().map(host => <Button key={host.hostId} variant="secondary" onClick={() => { try { localStorage.removeItem(`${brand.storagePrefix}.assistantConversation:${host.hostId}`); } catch { /* Page state remains usable. */ } setAssistantHost(host.hostId); }}>{host.label}</Button>)}</DialogContent></Dialog> : null}
+      {assistantOpen && !assistantHost ? <AssistantHostChooser onChoose={hostId => {
+        if (hostRegistry.get(hostId).state !== "connected") return;
+        if (hostRegistry.list().length > 1) {
+          try { localStorage.removeItem(`${brand.storagePrefix}.assistantConversation:${hostId}`); } catch { /* Page state remains usable. */ }
+        }
+        setAssistantHost(hostId);
+      }} onClose={closeAssistant} /> : null}
       <NotificationSource items={themeProblem && !settingsOpen ? [{ id: "theme-storage", severity: "error", message: i18n.t("Theme could not be saved. This choice applies until you close this page.") }] : []} />
       <CommandCenter open={commandQuery !== null} initialQuery={commandQuery ?? ""} items={commandItems}
         returnFocus={commandReturnFocus} onClose={() => setCommandQuery(null)} />

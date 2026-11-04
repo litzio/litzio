@@ -17,7 +17,8 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   });
   await page.route('**/api/folder?**', route => route.fulfill({ json: { root, path: root, entries: [{ path, name: 'same.txt', kind: 'document', native: false }] } }));
   await page.route('**/api/folder-version?**', route => route.fulfill({ json: { version: '1', revisions: [] } }));
-  await page.route('**/fixture/remote/api/host-capabilities', route => route.fulfill({ json: { fileDeletion: 'trash' } }));
+  let remoteAvailable = true;
+  await page.route('**/fixture/remote/api/host-capabilities', route => route.fulfill(remoteAvailable ? { json: { fileDeletion: 'trash' } } : { status: 503, json: { error: 'Fixture unreachable' } }));
   await page.route('**/fixture/off/api/host-capabilities', route => route.fulfill({ status: 503, json: { error: 'Unreachable' } }));
   await page.evaluate(({ path, root }) => {
     for (const host of ['local', 'remote']) { localStorage.setItem(JSON.stringify([host, 'litzio.openTabs']), JSON.stringify({ paths: [], activePath: null })); localStorage.setItem(JSON.stringify([host, 'litzio.openFolders']), JSON.stringify([root])); }
@@ -43,10 +44,12 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   await page.getByLabel('Host', { exact: true }).selectOption('remote');
   await expect(page.locator('[data-host-id="remote"]')).toBeVisible();
   await remote.click();
+  await expect(page.getByTestId("current-host")).toHaveText("Remote");
   await page.getByRole('textbox', { name: 'Text editor' }).fill('Remote saved');
   await page.keyboard.press('Control+s');
   await expect.poll(() => saves.join()).toBe('remote');
   await local.click();
+  await expect(page.getByTestId('current-host')).toHaveText('Local');
   await page.getByRole('textbox', { name: 'Text editor' }).fill('Local saved');
   await page.keyboard.press('Control+s');
   await expect.poll(() => saves.join()).toBe('remote,local');
@@ -85,12 +88,20 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   await expect(page.getByRole('textbox', { name: 'Text editor' })).toHaveValue('Local saved');
   if ((await page.evaluate(() => window.__explorerCalls)).length) throw new Error('Remote paths reached the Desktop shell');
   const assistantRequests = [];
-  await page.route('**/fixture/remote/api/assistant/**', route => { assistantRequests.push(route.request().url()); return route.fulfill({ json: route.request().url().includes('/models') ? { models: [], provider: 'codex' } : route.request().url().includes('/diagnostics') ? { connected: false, error: 'Fixture: no model call' } : { provider: 'codex', permissionMode: 'opened-folders', model: '', reasoningEffort: '' } }); });
+  await page.route('**/api/assistant/**', route => { assistantRequests.push(route.request().url()); return route.fulfill({ json: route.request().url().includes('/models') ? { models: [], provider: 'codex' } : route.request().url().includes('/diagnostics') ? { connected: false, error: 'Fixture: no model call' } : { provider: 'codex', permissionMode: 'opened-folders', model: '', reasoningEffort: '' } }); });
   await page.getByRole('button', { name: 'Assistant', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Select Host' })).toBeVisible();
+  const chooser = page.getByRole('dialog', { name: 'Select Host' });
+  await expect(chooser).toBeVisible();
+  const unavailable = chooser.getByRole('button', { name: /^Offline/ });
+  await expect(unavailable).toBeDisabled();
+  await expect(unavailable).toContainText('Unreachable');
+  await unavailable.locator('..').hover();
+  await expect(page.getByText('This Host is unreachable. A new conversation cannot be started.', { exact: true })).toBeVisible();
+  await page.mouse.move(0, 0);
+  await expect(page.getByText('This Host is unreachable. A new conversation cannot be started.', { exact: true })).toHaveCount(0);
   if (screenshots) { await page.setViewportSize({ width: 1440, height: 1000 }); await page.screenshot({ path: 'tmp/pr4-choose-1440.png' }); await page.setViewportSize({ width: 640, height: 900 }); await page.screenshot({ path: 'tmp/pr4-choose-640.png' }); }
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.getByRole('button', { name: 'Remote', exact: true }).click();
+  await page.getByRole('button', { name: /^Remote/ }).click();
   await expect(page.locator('.assistant-context')).toContainText('Remote');
   await expect.poll(() => assistantRequests.some(url => url.endsWith('/settings'))).toBe(true);
   await local.click();
@@ -99,5 +110,14 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   if (screenshots) { await page.screenshot({ path: 'tmp/pr4-assistant-1440.png' }); await page.setViewportSize({ width: 640, height: 900 }); await page.screenshot({ path: 'tmp/pr4-assistant-640.png' }); }
   await page.getByRole('button', { name: 'Close assistant' }).click();
   await page.getByLabel('Host', { exact: true }).selectOption('');
-  if (screenshots) { await page.setViewportSize({ width: 1440, height: 1000 }); await page.screenshot({ path: 'tmp/pr4-1440.png' }); await page.setViewportSize({ width: 640, height: 900 }); await page.screenshot({ path: 'tmp/pr4-640.png' }); }
+  await expect(page.locator('[data-host-id="local"]').getByRole('button', { name: 'Open folder…', exact: true })).toHaveCount(0);
+  await expect(page.locator('[data-host-id="remote"]').getByRole('button', { name: 'Open folder…', exact: true })).toHaveCount(0);
+  if (screenshots) { await page.setViewportSize({ width: 1440, height: 1000 }); await page.screenshot({ path: 'tmp/pr4-1440.png' }); await page.setViewportSize({ width: 640, height: 900 }); await expect(page.getByTestId('current-host')).toBeVisible(); await page.screenshot({ path: 'tmp/pr4-640.png' }); }
+  // Only Local is available: opening Assistant must skip the chooser, even with three registrations.
+  remoteAvailable = false;
+  await page.reload();
+  await expect(page.locator('[data-host-id="remote"]')).toContainText('Unreachable');
+  await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Select Host' })).toHaveCount(0);
+  await expect(page.locator('.assistant-context')).toContainText('Local');
 }

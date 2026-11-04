@@ -1228,9 +1228,12 @@ Verification (2026-11-04): persistent Chrome `pnpm browser:test assistant --scre
 
 ## Conversation Host selection (#1174 PR4)
 
-The shell selects the Host before mounting a new conversation surface. One registered Host
-is selected directly; several registered Hosts open the existing Dialog with one Button per
-Host. Unreachable Hosts remain selectable and failures stay on the selected Host. Choosing
+The shell selects the Host before mounting a new conversation surface. Once initial connection
+observations settle, one connected candidate is selected directly, even if more Hosts are registered.
+Several connected candidates open the existing Dialog with one Button per registered Host.
+Each row uses the shared HostConnectionStatus dot and localized state name. Unreachable/connecting
+Hosts remain listed but disabled; the focusable tooltip wrapper explains why they cannot start
+a conversation. Connection changes never retarget an existing conversation. Choosing
 another Host requires New conversation; the selector cannot retarget an existing conversation.
 The conversation context always displays its fixed Host label. Its tooltip explains that files
 and AI run in the target Host's OS-account context.
@@ -1244,6 +1247,7 @@ the server's history is preserved. New conversation remains available after conn
 failure, while pending or active execution still prevents it.
 
 Common Dialog/Button/Tooltip and existing panel behavior are reused. `pnpm browser:test multi-host`
-checks selection, visible fixed Host and remote settings routing after local tab/filter changes
+checks disabled-unreachable selection and its tooltip, single-available-candidate bypass, visible
+fixed Host and remote settings routing after local tab/filter changes
 using fixture responses; it performs no real AI call. Settings and registration UI integration
 remain PR3b's responsibility; remote panels do not dispatch the local Settings shortcut.

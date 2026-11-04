@@ -1,6 +1,8 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "This Host is unreachable. A new conversation cannot be started.": "This Host is unreachable. A new conversation cannot be started.",
+  "Wait for the Host connection before starting a conversation.": "Wait for the Host connection before starting a conversation.",
   "Files and AI run under this Host’s OS account. Start a new conversation to choose another Host.": "Files and AI run under this Host’s OS account. Start a new conversation to choose another Host.",
   "Start a conversation on the file’s Host to reference it.": "Start a conversation on the file’s Host to reference it.",
   "The Host trash is unavailable.": "The Host trash is unavailable.",
@@ -983,6 +985,8 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "This Host is unreachable. A new conversation cannot be started.": "이 Host에 닿을 수 없어 새 대화를 시작할 수 없습니다.",
+  "Wait for the Host connection before starting a conversation.": "Host 연결 후 대화를 시작할 수 있습니다.",
   "Files and AI run under this Host’s OS account. Start a new conversation to choose another Host.": "파일 접근과 AI 실행은 이 Host의 OS 계정으로 수행됩니다. 다른 Host를 선택하려면 새 대화를 시작하세요.",
   "Start a conversation on the file’s Host to reference it.": "이 파일을 참조하려면 파일이 속한 Host에서 대화를 시작하세요.",
   "The Host trash is unavailable.": "대상 Host의 휴지통을 사용할 수 없습니다.",

@@ -3058,8 +3058,15 @@ Under [ADR-0018](../adr/0018-desktop-remote-hosts.md), the shell consumes the in
 Host registry. Explorer retains a section for each Host, including unreachable Hosts.
 The shared SettingsSelect offers All Hosts or one Host; it filters Explorer visibility only.
 Mounted trees, document sessions and assistant conversations retain their original Host.
-Connection state has both token color and a readable state name; Unreachable does not claim
+Connection state uses the shared [HostConnectionStatus](../../apps/editor/src/components/HostConnectionStatus.tsx)
+component with a token-colored dot and a localized state name; Unreachable does not claim
 that the remote machine is powered off. The state tooltip carries the observed error/origin.
+
+Each Host section offers Open folder only while it has no opened folders. With folders open,
+the existing folder menus offer the same action on both local and remote Hosts.
+
+The title-strip search also displays the active tab's Host beside its document context. Its short
+Host label remains visible when the folder context yields at 640px; filter changes do not retarget it.
 
 Document tabs show the Host label. When multiple Hosts are registered, accessible
 names, full-path tooltips and the hidden-tabs menu also include it. Same-path tabs on different Hosts remain separate. Folder

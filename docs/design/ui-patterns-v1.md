@@ -423,10 +423,14 @@ persistent. Existing tokens and Button variants apply; no public Plugin API is a
 
 Explorer uses the same SettingsSelect value-selection recipe as Settings (P10), stacked within
 the narrow Explorer column. Its All Hosts/one-Host value changes visibility only. Host connection
-state has token color plus a readable status name (P07); error/origin detail uses the existing
+state reuses [HostConnectionStatus](../../apps/editor/src/components/HostConnectionStatus.tsx),
+a token-colored dot plus a localized status name (P07); error/origin detail uses the existing
 Tooltip rather than permanent explanatory copy. Unreachable Hosts remain visible.
 The assistant's new-conversation Host choice reuses Dialog and Button (P12); its context row
-then displays the fixed Host and puts the OS-account explanation in a tooltip. Existing
+then displays the fixed Host and puts the OS-account explanation in a tooltip. The chooser
+uses the same status component, disables unreachable candidates with a reason tooltip and
+skips the dialog when only one connected candidate remains. Explorer offers Open folder
+only in empty Host sections; populated sections use the existing folder menu. Existing
 Settings selects, FolderDialog, document-tab overflow and AssistantPanel were compared for the
 same patterns. No new shared interaction or pattern exception is introduced.
 
