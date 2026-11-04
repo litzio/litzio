@@ -19,7 +19,7 @@ const repo = path.resolve(desktop, "../..");
 const exe = path.join(desktop, "release", "win-unpacked", `${brand.executableName}.exe`);
 if (process.platform !== "win32") throw new Error("Packaged CLI verification runs on Windows.");
 
-test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/help/serve", async () => {
+test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/help/daemon run", async () => {
   const folder = path.join(repo, "tmp", "desktop-cli");
   mkdirSync(folder, { recursive: true });
   let user: RegistryPath = { value: "", kind: null };
@@ -46,14 +46,14 @@ test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/h
     const address = portServer.address(); assert.ok(address && typeof address !== "string");
     await new Promise<void>(resolve => portServer.close(() => resolve()));
     const child = spawn(process.env.ComSpec ?? "cmd.exe", windowsCommand(integration.shim,
-      ["serve", "--root", folder, "--port", String(address.port)]), { windowsVerbatimArguments: true, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+      ["daemon", "run", "--root", folder, "--port", String(address.port)]), { windowsVerbatimArguments: true, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
     let output = "", errors = "";
     child.stderr.on("data", data => { errors += data; });
     try {
       await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error(`CLI serve did not become ready: ${errors}`)), 20_000);
+        const timer = setTimeout(() => reject(new Error(`CLI daemon run did not become ready: ${errors}`)), 20_000);
         child.once("error", error => { clearTimeout(timer); reject(error); });
-        child.once("exit", code => { clearTimeout(timer); reject(new Error(`CLI serve exited ${code}: ${errors}`)); });
+        child.once("exit", code => { clearTimeout(timer); reject(new Error(`CLI daemon run exited ${code}: ${errors}`)); });
         child.stdout.on("data", data => {
           output += data;
           if (output.includes(`${brand.name.en} HTTP:`)) { clearTimeout(timer); resolve(); }

@@ -361,13 +361,19 @@ test("CLI refuses invalid UTF-8 documents/operation files and escaped surrogates
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("serve help explains the boundary and invalid invocation never starts a listener", () => {
-  const help = run(["serve", "--help"]);
+test("daemon help explains the boundary and invalid invocation never starts a listener", () => {
+  for (const args of [["daemon"], ["daemon", "--help"], ["daemon", "run", "--help"], ["help", "daemon"]]) {
+    const result = runProcess(args);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /daemon run/);
+  }
+  for (const args of [["serve"], ["daemon", "start"]]) assert.notEqual(runProcess(args).status, 0);
+  const help = run(["daemon", "--help"]);
   assert.equal(help.status, 0);
   assert.match(help.stdout, /--root.*--root/);
   assert.match(help.stdout, /127\.0\.0\.1/);
   for (const args of [[], ["--port", "0"], ["--port", "1.5"], ["--port", "5180", "--port", "5181"], ["--unknown", "x"], ["--root"]]) {
-    const result = runProcess(["serve", ...args]);
+    const result = runProcess(["daemon", "run", ...args]);
     assert.notEqual(result.status, 0, args.join(" "));
     assert.doesNotMatch(result.stdout, /Litzio HTTP:/);
   }
@@ -627,7 +633,7 @@ test("apply-batch preserves original bytes for step errors, invalid input and st
         [{ command: "format", [option]: true }], new RegExp(`^operation 1 \\(format\\): unknown option: --${option}`),
       ]),
       [[{ command: "format", typo: true }], /^operation 1 \(format\): unknown option: --typo/],
-      ...["create", "check", "inspect", "serve", "apply-batch"].map(command => [
+      ...["create", "check", "inspect", "daemon", "apply-batch"].map(command => [
         [{ command }], new RegExp(`^operation 1 \\(${command}\\): not a document edit command: ${command}`),
       ]),
       [[first, null], /^operation 2 \(<unknown>\): operation must be an object/],
@@ -720,7 +726,7 @@ test("--version prints one build identity line and rejects every combination bef
   assert.equal(version.stdout, "litzio development (unknown)\n");
   assert.equal(version.stderr, "");
   for (const args of [["--version", "check"], ["--version", "--help"], ["--help", "--version"],
-    ["help", "--version"], ["--version", "--version"], ["check", "missing.md", "--version"], ["serve", "--version"]]) {
+    ["help", "--version"], ["--version", "--version"], ["check", "missing.md", "--version"], ["daemon", "--version"]]) {
     const result = runProcess(args);
     assert.equal(result.status, 1, args.join(" "));
     assert.equal(result.stdout, "");
@@ -751,7 +757,7 @@ test("litzio help exits successfully", () => {
       "Edit — tables": ["insert-table", "insert-table-row", "insert-table-column", "remove-table-row", "remove-table-column", "move-table-row", "move-table-column", "update-table-alignment", "update-table-caption", "update-table-cell"],
       "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-numbering-mode", "update-reference-templates", "update-title"],
       "Format": ["format"],
-      "Serve": ["plugins", "serve"],
+      "Serve": ["plugins", "daemon"],
     };
     const expectedCommands = Object.values(expectedGroups).flat();
     const listed: string[] = [];
@@ -2086,7 +2092,7 @@ function run(args: string[]) {
   }
 }
 
-// Keep process exit delivery, serve, and Node preload/env isolation on the executable path.
+// Keep process exit delivery, daemon run, and Node preload/env isolation on the executable path.
 function runProcess(args: string[], nodeArgs: string[] = [], env?: NodeJS.ProcessEnv, input?: string | Buffer) {
   const tsxCli = fileURLToPath(import.meta.resolve("tsx/cli"));
   const cli = path.join(cliRoot, "src", "cli.ts");

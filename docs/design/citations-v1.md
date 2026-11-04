@@ -96,7 +96,7 @@ canonical output. Ordinary successful file edits retain their existing stdout co
 resource warnings to stderr; resource warnings do not change successful exit 0. Text check/inspect
 and text dry-run diagnostics appear on stdout; JSON output embeds them under `citations`.
 Document check/inspect/edit commands accept optional `--bibliography-root <directory>`; default
-is the document directory, independent of process cwd. This is not a `serve` option.
+is the document directory, independent of process cwd. This is not a `daemon run` option.
 
 ## Editor
 

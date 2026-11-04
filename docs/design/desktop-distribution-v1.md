@@ -113,7 +113,7 @@ The commit is the actual checkout's `git rev-parse --short=12 HEAD`; a build wit
 `unknown`. Unbuilt source/tsx execution explicitly reports `litzio development (unknown)`.
 
 The existing CLI build and all its chunks/notices/assets are packaged outside ASAR as
-`resources/cli`. Desktop and CLI `serve` both use its `editor/` production files: one build and one
+`resources/cli`. Desktop and CLI `daemon run` both use its `editor/` production files: one build and one
 copy, so their contents cannot drift. The standalone Node CLI/HTTP package is unchanged.
 
 Only explicit enable/disable changes HKCU Environment PATH. The raw registry value and its
@@ -148,13 +148,13 @@ Verification scope: scratch files and an injected environment boundary test stat
 failure and raw PATH preservation without changing the developer's registry. Persistent-browser
 bridge mocks exercise the actual Settings UI at 1440px and 640px. Disposable Windows CI checks
 the packaged Electron Node engines range, Desktop version identity, shim help/check JSON and exit-code parity with Node,
-argument/pipe forwarding, `serve`, real enable/disable, update preservation and uninstall cleanup.
+argument/pipe forwarding, `daemon run`, real enable/disable, update preservation and uninstall cleanup.
 General update-target CI runs silent normal removal, user-file preservation and foreign-command failure, including long raw registry PATH preservation. Sensitive and unclassified changes run the full ten interactive/silent combinations, including damaged ownership, missing helper and environment failures. Isolated CLI integration and Windows environment tests retain state/conflict/raw PATH coverage on every product quality run.
 Empty-bin removal and nonempty-bin preservation are checked for disable and uninstall. General update-target PR CI runs Beta install/update; sensitive or unclassified changes and release verification run Stable then Beta on the same Windows runner, retaining the precondition that no CLI bin directory exists before either run. Beta reports CLI ownership, IPC timeout and renderer callback faults as separate subtests sharing the installed fixture, followed by the dirty-document/Save/install preservation subtest. Full execution paths and conservative fallback are defined in the [CI path policy](../../CONTRIBUTING.md#verification-matrix) and `scripts/ci-execution-policy.mjs`; direct invocation defaults to full removal.
 Manual acceptance still includes enabling in an installed app, running from a new terminal,
 disabling, running after update and checking cleanup after removal. Local tests must not modify
 the real user's PATH or registry; packaged Desktop/install tests run in CI for this work.
-Long-running `serve`, actual console Ctrl+C and all `%`/`^`/`!` argument combinations remain manual.
+Long-running `daemon run`, actual console Ctrl+C and all `%`/`^`/`!` argument combinations remain manual.
 
 Real Settings captures with a Desktop bridge mock: [1440px](../reviews/assets/desktop-cli-604/settings-1440.png)
 and [640px](../reviews/assets/desktop-cli-604/settings-640.png). These show the Korean initial Off

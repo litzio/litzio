@@ -6,6 +6,10 @@
 - Authority: [#1132 소유자 승인](https://github.com/litzio/litzio/issues/1132#issuecomment-6618888405), [종합과 결정 제안](https://github.com/litzio/litzio/issues/1132#issuecomment-6618863609), [Discussion #767 결정 기록](https://github.com/litzio/litzio/discussions/767#discussioncomment-19386313), under [AGENTS.md](../../AGENTS.md).
 - Scope: 새 사용자 기능의 공용 작업·CLI·비서 도구 계약. 기존 기능은 아래 순서로 이행하며, 실행 중 Host 연결과 편집 상태 공유는 보류한다.
 
+## Amendment (2026-11-04, #1139)
+
+The [owner-approved terminology amendment](https://github.com/litzio/litzio/issues/1139) defines daemon as a shared Host process separate from the UI, without deciding its lifetime. `daemon run` starts the independent foreground HTTP Host; Desktop retains its in-process Host. Automatic discovery/connections to a running Host, lifetime management and shared editing sessions remain deferred. See the [HTTP Host terminology](../design/http-host-v1.md#host-and-daemon-terminology-1139). This amends the earlier blanket daemon deferral; it does not introduce those deferred capabilities.
+
 ## Context
 
 문서 의미는 Core가 소유하지만 앱 기능은 화면·HTTP·CLI·비서 도구 중 일부에만 제공되어 왔다. 템플릿은 화면·HTTP·CLI에 있으나 비서는 셸 CLI 안내에 의존하고, CLI가 PATH에 없거나 템플릿 폴더에 셸 쓰기 권한이 없으면 작업을 이어 가지 못한다. CLI 생성 결과도 기존 비서의 결과 카드·되돌리기와 연결되지 않는다.
@@ -48,16 +52,16 @@ CLI stdout에 같은 receipt가 있다는 것만으로 다른 창에 결과 카�
 - 공용 작업은 화면 상태를 가정하지 않는 명령으로 정의한다.
 - 문서 의미는 Core의 editor-neutral 연산으로 유지한다.
 - 화면 소유 상태인 미저장 내용·Undo·표시 설정과 열린 탭 등은 공유하지 않는다고 명시한다.
-- 장기 실행 Host가 살아 있는 문서 세션을 소유하면 그것이 daemon이다. 별도 프로그램 신설 여부는 동시 편집 결정 때 판단한다.
+- daemon은 화면과 따로 실행되는 공용 Host 프로세스다. 수명 정책은 별도로 결정한다.
 
-공유 문서 모델, 화면 상태를 세션으로 옮길 범위, ADR-0001·0002와 인증은 동시 편집 결정 때 별도로 다룬다. 이번 결정으로 daemon이나 공유 편집 session/history를 구현하지 않는다.
+공유 문서 모델, 화면 상태를 세션으로 옮길 범위, ADR-0001·0002와 인증은 동시 편집 결정 때 별도로 다룬다. 실행 중 Host 자동 탐색·연결, 수명 관리, 공유 편집 session/history는 보류한다.
 
 ## Relationship to existing decisions
 
 - [ADR-0001](0001-single-document-editor-architecture.md)·[ADR-0002](0002-document-persistence-semantic-ownership.md)·[ADR-0007](0007-editing-session-lifetime.md): single-document editor state, plain-text SSOT, Core 의미·쓰기, 명시적 Save와 클라이언트 복구를 유지한다.
 - [ADR-0004](0004-desktop-host-distribution.md): Desktop custom protocol과 in-process Host·TCP 없음은 유지한다. 설치형 CLI 통합을 켜는 것과 비서 child에 CLI 경로를 전달하는 것은 다르며 시스템 PATH 변경을 요구하지 않는다.
 - [ADR-0005](0005-http-host.md): 독립 HTTP Host와 stateless 파일 handler, 고정 Root와 기존 외부 접근 통제는 유지한다. 공용 작업이 새 persistence/backend나 다중 사용자 인증을 도입하지 않는다.
-- [ADR-0012](0012-plugin-runtime-and-ui-contributions.md): 공용 설치·등록/요청 기록은 live controller나 편집 세션 공유가 아니다. worker 수명·요청 중복 방지·완료 결과 공개·uncertain/no-replay를 재사용하며 daemon 보류를 유지한다.
+- [ADR-0012](0012-plugin-runtime-and-ui-contributions.md): 공용 설치·등록/요청 기록은 live controller나 편집 세션 공유가 아니다. worker 수명·요청 중복 방지·완료 결과 공개·uncertain/no-replay를 재사용하며 실행 중 Host 자동 탐색·연결, 수명 관리와 공유 편집 세션 보류를 유지한다.
 - [ADR-0013](0013-ai-agent-task-service.md)·[ADR-0014](0014-main-agent-app-server.md): 기존 AI 실행·연결·대화의 CLI 생략은 당시 구현 범위로 남긴다. 문서 의미 연산이 아니라는 이유로 향후 사용자 기능의 CLI를 생략하는 규칙은 이 ADR이 대체한다. 이 문서 PR은 해당 기존 기능의 CLI나 provider 연결을 구현하지 않는다.
 
 ## First case and follow-up
