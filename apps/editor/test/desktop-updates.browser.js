@@ -91,7 +91,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
     await page.getByTestId('settings-dialog').waitFor({state:'detached'});
   }
   await page.getByRole('button', {name:'Desktop menu',exact:true}).click();
-  await page.getByRole('menuitem', {name:'Stop daemon',exact:true}).click();
+  await page.getByRole('menuitem', {name:'Stop background service',exact:true}).click();
   await page.getByTestId('daemon-disconnected').waitFor();
   if (screenshots) { await page.setViewportSize({width:1440,height:1000}); await capture('daemon-disconnected-1440'); await page.setViewportSize({width:640,height:1000}); }
   await capture('daemon-disconnected-640');

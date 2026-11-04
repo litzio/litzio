@@ -188,7 +188,7 @@ test("HTTP recovery survives browser crash and daemon reconnect, then Save/Reloa
     await page.locator(".document-editor p").first().click();
     await page.keyboard.press("End"); await page.keyboard.insertText(" Unsaved across daemon reconnect.");
     await page.getByRole("button", { name: "Desktop menu", exact: true }).click();
-    await page.getByRole("menuitem", { name: "Stop daemon", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Stop background service", exact: true }).click();
     // A health tick can display disconnection before the native stop promise
     // finishes. Await that operation's completion, not the earlier notice.
     expect((await nativeStopFinished.promise).error).toBeUndefined();

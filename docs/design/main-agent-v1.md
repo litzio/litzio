@@ -1,6 +1,7 @@
-# Main agent connection, settings and conversations
+# Assistant connection, settings and conversations
 
 - Status: Implemented
+- Terminology: [제품 용어집](../contributing/terminology.md); PR A preserves current code/API names pending PR B.
 - Official AI transition: 2026-11-04 (#1150 ③). `ai-host.ts` composes connections/conversations directly; no registration, manifest, worker or plugin UI is loaded. Settings use the built-in Settings → Assistant category with the shared Button, SettingsSelect and Dialog components. No UI pattern exception. Protocol version 2 refuses older daemons.
 - Historical PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation. PR4's packaged worker/native comparison was required Windows CI then; #1150 ③ removed that feature. Current Windows CI retains packaged Desktop and main/CLI license-notice checks in the startup/sample smoke.
 - Saved-file context (#1106): 2026-11-04 owner decision; fake Host/protocol, existing ai-agent browser and Korean 1440px/640px Light/Dark capture checks, no real model turn.
@@ -67,12 +68,12 @@ different Host processes.
 
 ## Settings and read routes
 
-With no saved AI settings, source checkout execution uses `gpt-6-luna` / `low`
+With no saved Assistant settings, source checkout execution uses `gpt-6-luna` / `low`
 for inexpensive development checks (#1058). The Host reuses the source/packaged
 run distinction that selects `.litzio-dev`; installed Desktop and distributed
 HTTP Host retain `gpt-6.1-sol` / `medium`. Existing saved settings take priority
 and are never overwritten by these defaults. New assistant conversations and
-their initial model/effort selection use the same AI settings response.
+their initial model/effort selection use the same Assistant settings response.
 
 The official `ai-agent.json` settings file stores (installed defaults shown):
 
@@ -92,7 +93,7 @@ AI is always a daemon feature. Both supported providers are inspectable and sele
 
 Each UI change saves a complete snapshot through the existing sequential request queue; errors retain the draft and show a localized alert. Successful saves refresh the assistant defaults while retaining its current conversation. The model dialog retains catalog search, refresh and diagnostics.
 
-`writeAccess` is the single main-agent write-scope value (`opened-folders`,
+`writeAccess` is the single assistant permission-mode value (`opened-folders`,
 `read-only` or `full-access`). Each new turn supplies the current opened-folder paths
 as `workspaceWrite.writableRoots`, uses `readOnly`, or disables the sandbox with
 `dangerFullAccess`. Host path checks run before
@@ -264,7 +265,7 @@ Reproduce with `pnpm browser:test ai-agent --screenshots` (history captures in
 `GET /api/ai-agent-conversations` lists metadata; `?id=…` reads a loaded snapshot.
 `POST` accepts `send`, `resume` and `interrupt` actions. These are concrete
 official AI Host routes, not an arbitrary JSON-RPC proxy or a new UI contribution
-point. The installed/enabled provider gates all new conversation calls.
+point. The selected AI provider must be available for new conversation calls.
 
 Each send captures the current opened folders and active document path only,
 for both native and text tabs. The assistant reads saved content from disk when
@@ -939,7 +940,7 @@ Protocol evidence: [0.141.0 UserMessageItem::message](https://github.com/openai/
   without a thought-level config. No prompt/model call was made. Actual model
   execution and permissions remain owner checks.
 
-The Default provider select offers enabled providers. Changing it fetches that
+The Default AI provider select offers both supported providers. Changing it fetches that
 provider's catalog and automatically saves the first available model/effort.
 Host validates changed model/effort against the provider's current response. Copilot's catalog is
 `session/new.models.availableModels`, deduplicated by ID retaining the first entry.
@@ -999,10 +1000,10 @@ The removed feature-task settings (`codexTaskSettings`) are not retained.
 Official settings store the selected provider/model/reasoning effort and accept
 full-access; no migration of earlier saved settings is included.
 
-UI uses the shared SettingsSelect for provider/model/effort/language/write access.
-Providers have no enable switches; all defaults save automatically. Write access defaults to
+UI uses the shared SettingsSelect for provider/model/effort/language/permission mode.
+Providers have no enable switches; all defaults save automatically. Permission mode defaults to
 opened-folders and also offers read-only and Full access. A native hover description
-explains that Full access removes the sandbox and automatically approves tools,
+explains each permission mode and the Copilot containment limitation; Full access removes the Codex sandbox and automatically approves tools,
 paths and network access; no permanent warning is shown. Codex full-access turns use
 `sandboxPolicy: {type:"dangerFullAccess"}` and `approvalPolicy:"never"`; steering keeps
 the captured active-turn scope. Document tools still use their existing opened-folder,
@@ -1132,17 +1133,13 @@ The existing file-reference captures above provide the preceding composer state.
 
 Owner decision (2026-11-04): `AiConversationInput` accepts optional `provider` and
 `writeAccess` overrides from the user's composer selections. These never write
-AI settings or change global defaults. New conversation restores the global
+Assistant settings or change global defaults. New conversation restores the global
 provider/model/effort/access defaults together with that provider's catalog; closing
-and reopening the panel preserves unsent choices. The picker contains only enabled
-`providers`; Host send/resume rejects a disabled conversation provider independently
-of the global default. Model catalogs/diagnostics retain #1109's read-only inspection
-of disabled providers. Only enabled providers may be selected;
-the provider is pinned when the first message creates a session. Both UI and Host
+and reopening the panel preserves unsent choices. The picker contains both supported AI providers without enable switches. Host send/resume reports an unavailable selected provider with its reason, independently of the global default. Model catalogs and diagnostics inspect both providers; the provider is pinned when the first message creates a session. Both UI and Host
 reject changing an existing session's provider. Its disabled button remains
 explainable through the common Tooltip on hover or keyboard focus.
 
-Write access is captured at each new turn. Steering preserves the running turn's
+Permission mode is captured at each new turn. Steering preserves the running turn's
 scope; an explicit later selection takes effect on the next turn. The history
 index stores the last applied write access and provider. The index is inside the
 assistant-writable cwd and is not approval authority. The current Host's in-memory
@@ -1214,3 +1211,9 @@ assistant-writable history is never accepted as authority to elevate a grant.
 Verification captures: [1440px English Light](assets/editor-1159/ai-1440-light-en.png), [640px Korean Dark](assets/editor-1159/ai-640-dark-ko.png).
 
 `litzio ai configure` validation errors name the invalid field and its allowed values or reason, including provider model/effort catalog restrictions. Validation rules are unchanged.
+
+## Terminology alignment (#1168 PR A)
+
+The [terminology glossary](../contributing/terminology.md) defines Assistant, AI provider and Permission mode. Current code/API/CLI names remain unchanged pending PR B. UI uses Background service (daemon in the status title), while CLI and documentation retain daemon. Settings use the existing SettingsSelect, native hover and conversation Tooltip without a UI pattern exception. Permission descriptions distinguish sandboxed Codex tools from Copilot permission mediation and inherited preauthorizations. Unused disabled-assistant locale declarations were removed; availability errors retain their actual cause.
+
+Verification (2026-11-04): persistent Chrome `pnpm browser:test ai-agent --screenshots` passed, along with boundaries/docs checks, full typecheck, Editor tests (411 passed, one skipped) and build. Fake providers verify interface behavior without live model calls. Visual review: [1440px English](assets/terminology-1168/settings-1440-en.png), [640px Korean dark](assets/terminology-1168/settings-640-ko-dark.png), [640px permission control](assets/terminology-1168/permissions-640-ko-dark.png). Existing layout and overflow assertions remain intact.

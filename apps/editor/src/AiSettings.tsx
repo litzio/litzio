@@ -119,7 +119,7 @@ export function AiSettings({ onSaved }: { onSaved(): void }) {
         </div>
         <p className="agent-muted">{t(copilot ? "Sign in with Copilot CLI on the Host. Connection does not verify model access or quota." : "To sign in, run codex login in a terminal, then run diagnostics again.")}</p>
       </> : <>
-        <h4>{t("Providers")}</h4>
+        <h4 title={t("Connected products: Codex, GitHub Copilot")}>{t("Providers")}</h4>
         {(["codex", "copilot"] as const).map(provider => <div className="agent-provider" key={provider}>
           <Button variant="ghost" className="agent-provider-open justify-start" disabled={loading} onClick={event => { focus.current = event.currentTarget; setInspecting(provider); void refresh(provider); setSearch(""); setDialog(true); }} aria-label={t(provider === "copilot" ? "Copilot models" : "Codex models")}>
             <span aria-hidden="true">›</span><strong>{provider === "copilot" ? "GitHub Copilot" : "Codex"}</strong><span className="agent-provider-summary">{status(provider)}</span>

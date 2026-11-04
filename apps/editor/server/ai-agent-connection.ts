@@ -106,7 +106,7 @@ description: Explain Litzio document opening, editing, settings, document templa
 
 Open a document or folder from the start screen or Files sidebar. Select a file to open it in a tab.
 Use Read for reading, Edit for visual editing, and Source to inspect the document source. Save applied edits explicitly; unapplied property drafts are separate.
-Settings controls appearance/language, document preferences and official AI. AI agent settings select Codex or Copilot and model, reasoning effort, AI default language (only for tasks started without a conversation) and write access. Copilot CLI effort changes require a new conversation; ACP thought-level and Agent/Plan changes apply to the next message. Full access removes the sandbox and automatically approves tools, paths and network access. Diagnostics reports connection/account status; the common environment lists the working directory, instructions and local skill files.
+Settings controls appearance/language, document preferences and official AI. Assistant settings select Codex or Copilot and model, reasoning effort, AI default language (only for tasks started without a conversation) and permission mode. Copilot CLI effort changes require a new conversation; ACP thought-level and Agent/Plan changes apply to the next message. Full access removes the sandbox and automatically approves tools, paths and network access. Diagnostics reports connection/account status; the common environment lists the working directory, instructions and local skill files.
 
 ## Assistant
 - read_display_settings: read theme, UI language, document width and page background in the sending Litzio window.
