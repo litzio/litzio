@@ -316,7 +316,9 @@ test("Host close awaits admitted workers and permanently prevents another runtim
     const observer = new PluginStore(plugins);
     try {
       const receipt = observer.get(job.id)!;
-      assert.equal(receipt.status, "cancelled");
+      assert.equal(receipt.status, "uncertain");
+      assert.match(receipt.job.error!, /uncertain/);
+      assert.equal(observer.admit(receipt.job, receipt.fingerprint, "docling").fresh, false, "shutdown receipts never replay");
       assert.ok(receipt.staging); assert.equal(existsSync(receipt.staging), false);
       assert.equal(existsSync(job.output), false);
     } finally { observer.close(); }

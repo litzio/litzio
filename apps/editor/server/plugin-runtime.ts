@@ -14,7 +14,7 @@ async function fileHash(file: string) {
   for await (const chunk of createReadStream(file)) hash.update(chunk);
   return hash.digest("hex");
 }
-type Execution = { child?: ChildProcess; stopped?: "cancelled" | "timeout"; done: Promise<void> };
+type Execution = { child?: ChildProcess; stopped?: "cancelled" | "timeout" | "uncertain"; done: Promise<void> };
 
 /** Worker handles are Host-local. Only registration/receipts are shared. */
 export class PluginRuntime implements ConversionExecutor {
@@ -65,7 +65,7 @@ export class PluginRuntime implements ConversionExecutor {
   private async execute(receipt: Receipt, request: ConversionRequest, sourceHash: string, execution: Execution): Promise<void> {
     const { job, installation } = receipt;
     let staging: string | undefined, outputOwned = false;
-    const timer = setTimeout(() => { execution.stopped = "timeout"; execution.child?.kill(); }, request.timeoutMs ?? this.timeoutMs);
+    const timer = setTimeout(() => { execution.stopped ??= "timeout"; execution.child?.kill(); }, request.timeoutMs ?? this.timeoutMs);
     const stopped = () => { if (this.closed || execution.stopped) throw new Error(execution.stopped ?? "The plugin runtime is closing."); };
     try {
       if (!installation.entry || installation.workerApi !== 1) throw new Error("Plugin has no compatible worker.");
@@ -117,8 +117,9 @@ export class PluginRuntime implements ConversionExecutor {
     } catch (error) {
       if (outputOwned) await rm(job.output, { recursive: true, force: true });
       job.state = execution.stopped === "cancelled" ? "cancelled" : "error";
-      receipt.status = job.state;
+      receipt.status = execution.stopped === "uncertain" ? "uncertain" : job.state;
       job.error = execution.stopped === "cancelled" ? "Cancelled; only local waiting stopped. The server task may continue."
+        : execution.stopped === "uncertain" ? "Conversion outcome is uncertain after Host shutdown; it is never automatically retried. The server task may continue."
         : execution.stopped === "timeout" ? "Docling worker timed out. The server task may continue."
         : error instanceof Error ? error.message : String(error);
       job.failure ??= { code: execution.stopped === "timeout" ? "timeout" : "output", taskId: job.progress.taskId };
@@ -127,7 +128,7 @@ export class PluginRuntime implements ConversionExecutor {
       job.finishedAt = Date.now();
       try { if (staging) await rm(staging, { recursive: true, force: true }); }
       catch (error) {
-        job.state = "error"; receipt.status = "error";
+        job.state = "error"; receipt.status = execution.stopped === "uncertain" ? "uncertain" : "error";
         job.error = `Worker staging cleanup failed: ${error instanceof Error ? error.message : String(error)}`;
         job.failure = { code: "output", taskId: job.progress.taskId };
       }
@@ -139,7 +140,7 @@ export class PluginRuntime implements ConversionExecutor {
     const receipt = this.store.get(id);
     if (!receipt) throw new Error("This Docling conversion is no longer available.");
     if (receipt.status === "running" && !execution) throw new Error("Only the Host owning this conversion can stop waiting.");
-    if (execution) { execution.stopped = "cancelled"; execution.child?.kill(); await execution.done; }
+    if (execution) { execution.stopped ??= "cancelled"; execution.child?.kill(); await execution.done; }
     return this.current(id)!;
   }
   close(): Promise<void> {
@@ -148,7 +149,7 @@ export class PluginRuntime implements ConversionExecutor {
   private async shutdown() {
     this.closed = true;
     const executions = [...this.active.values()];
-    for (const execution of executions) { execution.stopped = "cancelled"; execution.child?.kill(); }
+    for (const execution of executions) { execution.stopped ??= "uncertain"; execution.child?.kill(); }
     try {
       const outcomes = await Promise.allSettled([...executions.map(execution => execution.done), this.ai.close()]);
       const failed = outcomes.find(outcome => outcome.status === "rejected");

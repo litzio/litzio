@@ -145,6 +145,23 @@ test("fake adapter failures, timeout and actual worker cancellation never expose
     assert.equal(recovered.admit(receipt.job, "same", AI_TASK.plugin).fresh, false);
     assert.equal(recovered.getAi(id)!.status, "uncertain");
   } finally { await restarted.close(); recovered.close(); }
+  store.register(bundledAiManifest());
+  process.env.LITZIO_AI_TEST_ADAPTER = "hang";
+  const shutdownRequest = { ...message(input), caller: AI_TASK.plugin };
+  await runtime.start(shutdownRequest, 5000, AI_TASK.plugin);
+  const temporary = store.getAi(shutdownRequest.id)!.temporary!;
+  t.after(() => { for (const file of Object.values(temporary)) rmSync(file, { recursive: true, force: true }); });
+  const workerReady = Date.now() + 5000;
+  while (!existsSync(path.join(temporary.snapshot, "material.txt"))) {
+    assert.ok(Date.now() < workerReady, "the real worker must prepare its snapshot before daemon shutdown");
+    await delay(10);
+  }
+  await runtime.close();
+  const shutdown = runtime.current(shutdownRequest.id)!;
+  assert.equal(shutdown.status, "uncertain"); assert.equal(shutdown.job.failure, "uncertain");
+  assert.equal(shutdown.job.result, undefined); assert.equal(shutdown.canCancel, false);
+  const retained = store.getAi(shutdownRequest.id)!;
+  assert.equal(store.admit(retained.job, retained.fingerprint, AI_TASK.plugin).fresh, false, "daemon shutdown never replays an admitted request");
 });
 
 
@@ -183,10 +200,16 @@ test("agent-owned settings persist, reach the worker, and remain pinned in seria
   assert.ok(done.job.durationMs! >= 0);
   assert.deepEqual(JSON.parse(JSON.stringify(done)).job.execution, execution);
   assert.deepEqual((await host.aiTasks()!.start(request)).job.execution, execution);
-  const conversationResponse = await fetch(url + AI_AGENT.conversationsRoute, { method: "POST", headers: { "Content-Type": "application/json" },
+  const conversationResponse = await fetch(url + AI_AGENT.conversationsRoute, { method: "POST", headers: { "Content-Type": "application/json", Connection: "close" },
     body: JSON.stringify({ action: "send", displayClient: "http-window", message: "Inspect this folder.", folders: [root], model: "next-model", reasoningEffort: "low" }) });
   assert.equal(conversationResponse.status, 200);
   const conversation = await conversationResponse.json();
+  // The sending client's socket is gone. A new client must observe the same live
+  // turn in this daemon, without resuming/replaying work in the provider.
+  const reattached = await fetch(url + AI_AGENT.conversationsRoute, { method: "POST", headers: { "Content-Type": "application/json", Connection: "close" },
+    body: JSON.stringify({ action: "resume", id: conversation.id }) });
+  assert.equal(reattached.status, 200);
+  assert.deepEqual(await reattached.json(), conversation);
   assert.equal((await (await fetch(url + AI_AGENT.conversationsRoute + "?id=" + conversation.id)).json()).turns[0].status, "inProgress");
   assert.equal((await (await fetch(url + AI_AGENT.conversationsRoute)).json())[0].id, conversation.id);
   const displayBefore = { theme: "light", uiLanguage: "en", documentWidth: "standard", pageBackground: "paper" };
@@ -214,8 +237,15 @@ test("agent-owned settings persist, reach the worker, and remain pinned in seria
   await fetch(url + AI_AGENT.conversationsRoute, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "display-result", id: conversation.id,
     displayClient: "http-window", requestId: undoRequest.id, reply: { before: { ...displayBefore, theme: "dark" }, after: displayBefore } }) });
   assert.deepEqual(await (await undoCall).json(), { undone: true });
+  await agent.client.request("fixture/finish", { threadId: conversation.id });
+  const completed = await (await fetch(url + AI_AGENT.conversationsRoute + "?id=" + conversation.id)).json();
+  assert.equal(completed.turns[0].id, conversation.turns[0].id);
+  assert.equal(completed.turns[0].status, "completed", "a client detaching does not interrupt the daemon-owned turn");
+  assert.equal(completed.turns.length, 1, "reattaching does not automatically rerun the request");
+  // Explicitly start the next turn so the existing interrupt contract stays covered.
+  await host.invoke(AI_TASK.plugin, "agentConversation", { action: "send", id: conversation.id, message: "Next turn.", folders: [root], model: "next-model", reasoningEffort: "low" });
   const interrupted = await fetch(url + AI_AGENT.conversationsRoute, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "interrupt", id: conversation.id }) });
-  assert.equal((await interrupted.json()).turns[0].status, "interrupted");
+  assert.equal((await interrupted.json()).turns.at(-1).status, "interrupted");
   await agent.close(); // An enablement-only write must work without a live catalog connection.
   const disable = await fetch(url + AI_TASK.settingsRoute, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "next-model", reasoningEffort: "low", provider: "codex", providers: { codex: false, copilot: false }, writeAccess: "read-only" }) });
   assert.equal(disable.status, 200);
