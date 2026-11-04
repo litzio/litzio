@@ -72,6 +72,17 @@ Settings → About에서 버전·업데이트를 확인합니다. 업데이트 �
 <a id="install"></a>
 <a id="visual-editor"></a>
 
+## Desktop 원격 Host 등록 CLI
+
+`litzio host list`, `host register <origin> <label>`, `host rename <hostId> <label>`,
+`host remove <hostId>`, `host connect <hostId>`와 `host status <hostId>`는 JSON 결과를 출력합니다.
+등록·라벨은 Desktop 로컬 목록에 저장되며 원격 daemon 설정을 바꾸지 않습니다.
+`LITZIO_DATA_DIR`로 저장 경로를 분리할 수 있습니다. 등록 후 현재 창의 CSP는 바뀌지 않으며
+미저장 작업을 보호한 앱 재시작이 필요합니다. connect/status는 health·프로토콜을 확인하는
+CLI 관측이며 앱의 지속 연결이나 재시작을 수행하지 않습니다. 프로토콜 차이는 거부하고 제품
+버전 차이는 경고합니다. CLI remove는 화면의 작업·복구 보호 상태를 확인할 수 없어 거부합니다.
+설정 화면·보호된 재시작·자동 연결은 #1174 PR3b에서 제공합니다.
+
 ## CLI·개발 실행·HTTP
 
 개발 checkout의 시작 예입니다. Node.js·pnpm 요구 버전과 검증 절차는 [기여 안내](CONTRIBUTING.md#development-requirements)를 먼저 확인하세요.

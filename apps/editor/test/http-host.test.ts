@@ -585,7 +585,7 @@ test("background folder disappearance is an availability result; manual errors a
 
 
 test("only the bundled Desktop origin receives CORS API/media access and bounded preflight", async t => {
-  const { send, url, a } = await fixture(t);
+  const { send, url, a } = await fixture(t, undefined, true);
   const headers = { Origin: "litzio://app", "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "cors" };
   const query = new URLSearchParams({ path: path.join(a, "document.md") });
   const loaded = await send(`/api/document?${query}`, "GET", undefined, headers);
@@ -603,6 +603,14 @@ test("only the bundled Desktop origin receives CORS API/media access and bounded
   const preview = await send(`/api/file-preview?${new URLSearchParams({ root:a, path:path.join(a,"image.png") })}`, "GET", undefined, headers);
   assert.equal(preview.status, 200);
   assert.match(preview.headers.get("content-security-policy")!, /^sandbox;.*script-src 'none'/);
+  const healthPreflight = { ...headers, "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "x-litzio-protocol" };
+  const healthOptions = await send("/daemon/health", "OPTIONS", undefined, healthPreflight);
+  assert.equal(healthOptions.status, 204);
+  assert.equal(healthOptions.headers.get("access-control-allow-methods"), "GET");
+  assert.equal(healthOptions.headers.get("access-control-allow-headers"), "X-Litzio-Protocol");
+  assert.equal((await send("/daemon/health", "GET", undefined, { ...headers, "X-Litzio-Protocol": DAEMON_PROTOCOL })).status, 200);
+  for (const route of ["/daemon/stop", "/daemon/unknown", "/daemon/health?extra=1"]) assert.equal((await send(route, "OPTIONS", undefined, healthPreflight)).status, 403);
+  for (const invalid of [{ "Access-Control-Request-Method": "POST" }, { "Access-Control-Request-Headers": "content-type" }, { "Access-Control-Request-Headers": "x-arbitrary" }, { Origin: "https://foreign.example" }]) assert.equal((await send("/daemon/health", "OPTIONS", undefined, { ...healthPreflight, ...invalid })).status, 403);
   const preflight = { ...headers, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" };
   assert.equal((await send("/api/document", "OPTIONS", undefined, preflight)).status, 204);
   for (const invalid of [{ "Access-Control-Request-Headers": "x-arbitrary" }, { "Access-Control-Request-Method": "TRACE" }]) {

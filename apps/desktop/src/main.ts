@@ -1,3 +1,4 @@
+import { RemoteHostRegistry } from "../../editor/server/remote-host-registry.ts";
 import { brand } from "../../../brand.ts";
 // Litzio Desktop: one window with the bundled Editor, the shared daemon HTTP Host, preferences
 // and updates. Documents are read and written only through the existing Host handlers.
@@ -376,7 +377,9 @@ if (!app.requestSingleInstanceLock()) {
     first = firstDocument(process.argv.slice(app.isPackaged ? 1 : 2), app.getPath("userData"), appRoot, log, app.getVersion());
     daemon = new DesktopDaemon(app.getVersion(), process.execPath, path.join(cliRoot, "cli.mjs"));
     const target = `http://127.0.0.1:${daemonPort(daemon.channel)}`;
-    protocol.handle("litzio", request => bundledUiResponse(path.join(appRoot, "ui"), request, target));
+    // Snapshot once per app start. Registry changes never expand a running window CSP.
+    const remoteOrigins = new RemoteHostRegistry().list().map(host => host.origin);
+    protocol.handle("litzio", request => bundledUiResponse(path.join(appRoot, "ui"), request, target, remoteOrigins));
     if (app.isPackaged && process.platform === "win32" && process.env.LOCALAPPDATA) {
       cliIntegration = new CliIntegration(process.execPath, process.env.LOCALAPPDATA, windowsEnvironment());
     }
