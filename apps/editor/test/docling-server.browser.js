@@ -215,7 +215,7 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
   await progress.getByRole('button', { name: 'Convert', exact: true }).click();
   await expect(center.getByRole('button', { name: 'View dashboard', exact: true })).toBeVisible();
   await expect(center).toContainText('Conversion started.');
-  expect(await progress.count()).toBe(0);
+  await expect(progress).toHaveCount(0);
   expect(await center.getByRole('button', { name: 'View dashboard' }).evaluate(el => el === document.activeElement)).toBe(false);
   await expect(page.getByTestId('notification-announcement')).toContainText('Conversion started.');
   await capture('start-notice-en-1440');
@@ -296,7 +296,7 @@ async (page, { expect, openFolderPicker, doclingFixture: fixture, screenshots })
       await (await readBack).finished();
       await expect(center.getByRole('button', { name: 'Open settings', exact: true })).toBeVisible();
       const reason = mode === 'reject' ? 'Rejected new conversion' : 'Failed to fetch';
-      expect(await progress.count()).toBe(0);
+      await expect(progress).toHaveCount(0);
       expect(await center.textContent()).toContain(reason);
       expect(await page.getByRole('tab', { name: / · Docling comparison$/ }).count()).toBe(0);
       expect((await (await page.request.get(endpoint)).json()).id).toBe(oldSuccess.id);
