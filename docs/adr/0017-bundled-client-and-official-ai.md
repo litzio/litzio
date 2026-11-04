@@ -3,7 +3,7 @@
 - Status: Accepted
 - Decision date: 2026-11-04
 - Last verified: 2026-11-04 — #1150·#1142, 관련 ADR 및 Paseo `bfbd4d5` 사전 정적 조사 대조. 제품 실행 검증 없음.
-- Authority: 2026-11-04 소유자 승인 결정, [#1150](https://github.com/litzio/litzio/issues/1150), under [AGENTS.md](../../AGENTS.md). 플러그인 UI 신뢰 규칙은 소유자 확인 대기 추천이며, Docling 제외 종료 조건과 AI 사용 중지의 의미도 아래에 결정 대기로 구분한다.
+- Authority: 2026-11-04 소유자 승인 결정, [#1150](https://github.com/litzio/litzio/issues/1150), under [AGENTS.md](../../AGENTS.md). 플러그인 UI 신뢰 규칙은 소유자 확인 대기 추천이며, Docling 제외 종료 조건도 아래에 결정 대기로 구분한다. AI 가용성은 아래 소유자 최종 결정을 따른다.
 - Scope: 같은 PC의 로컬 daemon, 공식 AI 흡수와 Docling 분리·재연결, Desktop 번들 UI 전환. Accepted는 구현 완료를 뜻하지 않는다.
 - Amends: [ADR-0012](0012-plugin-runtime-and-ui-contributions.md), [ADR-0013](0013-ai-agent-task-service.md), [ADR-0015](0015-shared-host-operations.md), [ADR-0016](0016-shared-local-daemon-host.md)의 아래 명시한 경계.
 
@@ -25,13 +25,13 @@ Litzio 조사 기준은 master `3ffe557381c250f1a095996761d24de6b232ce86`이다.
 
 AI 에이전트는 기본 포함 플러그인에서 daemon의 공식 기능으로 흡수한다. AI 수명은 daemon 수명이며 [#1142 PR4 (#1151)](https://github.com/litzio/litzio/pull/1151)에서 정리하는 연결·실행·중단·종료 계약을 그대로 가져온다. 화면 닫힘이나 연결 해제를 AI 종료 신호로 바꾸지 않는다. daemon 종료로 확정할 수 없는 진행 요청은 uncertain·결과 비공개·UUID 재실행 금지로 남기고, 명시적 사용자 취소와 이미 결정된 timeout은 구분한다. 소유 worker/provider 종료를 기다리며 기존 보호를 유지한다. PR4 완료 전 임의로 새 수명 정책을 정하지 않는다.
 
-설정의 **AI 사용** 스위치로 켜고 끈다. 플러그인 활성/비활성으로 표현하지 않는다. #1137의 `plugins configure ai-agent` 등 AI 설정 CLI는 공식 설정 명령으로 옮기고 ADR-0015에 따라 입력·결과·범위·receipt를 공용 Host 작업으로 정의한다. 새 AI 사용자 기능은 공용 작업 + CLI를 제공하되 기존 기능 전체의 CLI화를 요구하지 않는다. 구체 명령 표기는 구현 PR에서 정하며 호환 alias나 과거 데이터 migration은 만들지 않는다. 비서는 AI 권한·프로바이더·모델과 플러그인을 변경하지 못한다는 기존 도구 원칙을 유지한다.
+**소유자 최종 결정: AI는 항상 존재하는 공식 기능이며 AI를 끄는 버튼·스위치를 제공하지 않는다.** 사용 가능한 프로바이더가 있는지로만 AI 사용 가능 여부를 판단한다. 사용 가능한 프로바이더가 없으면 새 AI 작업(대화·`aiTasks` 요청)은 그 이유를 알리며 거부하고 이미 진행 중인 작업에는 영향을 주지 않는다. Docling 등 플러그인이 확인하던 AI 사용 가능 상태도 프로바이더 가용성으로 대체한다. 기존 “Codex 사용” 같은 켜기/끄기 설정은 남기지 않으며 하위 호환은 제공하지 않는다. #1137의 `plugins configure ai-agent` 등 AI 설정 CLI는 공식 설정 명령으로 옮기고 ADR-0015에 따라 입력·결과·범위·receipt를 공용 Host 작업으로 정의한다. 새 AI 사용자 기능은 공용 작업 + CLI를 제공하되 기존 기능 전체의 CLI화를 요구하지 않는다. 구체 명령 표기는 구현 PR에서 정하며 호환 alias나 과거 데이터 migration은 만들지 않는다. 비서는 AI 권한·프로바이더·모델과 플러그인을 변경하지 못한다는 기존 도구 원칙을 유지한다.
 
 ADR-0013의 Host 중개 작업 메시지, provider-neutral 기능 요청, caller의 내용 검증과 baseline 확인, UUID·uncertain/no-replay 보호는 유지한다. 공식 기능 전환을 문서 의미의 Host 이전이나 새 provider framework의 근거로 쓰지 않는다.
 
-`aiTasks`는 구현 위치를 옮겨도 의미를 보존하는 최소 서비스 계약으로 유지한다. caller별 조회·취소 제한, caller와 서비스의 활성 상태 검사, receipt의 ID/caller/task/baseline 일치, uncertain·no-replay를 보존한다. 근거는 조사 기준 `plugin-host.ts`의 caller 경계와 Docling `structure-review.ts`의 receipt 검증이다. 새 범용 서비스 registry는 만들지 않는다.
+`aiTasks`는 구현 위치를 옮겨도 의미를 보존하는 최소 서비스 계약으로 유지한다. caller별 조회·취소 제한, caller 활성 상태와 신규 요청 시 프로바이더 가용성 검사, receipt의 ID/caller/task/baseline 일치, uncertain·no-replay를 보존한다. 근거는 조사 기준 `plugin-host.ts`의 caller 경계와 Docling `structure-review.ts`의 receipt 검증이다. 새 범용 서비스 registry는 만들지 않는다.
 
-**결정 대기 — AI 사용 중지의 의미:** AI 사용 스위치를 끌 때 신규 요청 차단·진행 작업 drain/취소·provider 연결 종료를 어떻게 조합할지는 소유자 결정 전까지 확정하지 않는다. 현재 플러그인 disable 동작을 자동으로 새 설정 계약으로 승격하지 않는다.
+기존 AI 플러그인 disable을 공식 기능의 설정 계약으로 옮기지 않는다. 프로바이더 가용성 변화 자체는 진행 작업의 취소·drain·provider 연결 종료 신호가 아니며, 기존 명시적 취소·timeout·daemon 종료 계약은 유지한다.
 
 ### 2. Docling은 핵심 부가 기능인 플러그인으로 남는다
 

@@ -9,7 +9,7 @@
 
 ## Amendment (2026-11-04, #1150)
 
-[ADR-0017](0017-bundled-client-and-official-ai.md)은 기본 포함·제거 가능한 AI 플러그인 결정을 daemon 필수 공식 기능과 설정의 AI 사용 스위치로 대체한다. Host 중개 작업 메시지와 검증·UUID·uncertain/no-replay 보호는 유지한다. 아래 플러그인 구현 서술은 전환 전 기록이며 실제 구현 계약은 구현 PR에서 갱신한다.
+[ADR-0017](0017-bundled-client-and-official-ai.md)은 기본 포함·제거 가능한 AI 플러그인 결정을 항상 존재하는 daemon 필수 공식 기능으로 대체한다. AI 켜기/끄기 설정은 없고 프로바이더 가용성으로 신규 대화·aiTasks 요청의 사용 가능 여부를 판단한다. 가용 프로바이더가 없으면 이유를 알리며 신규 요청을 거부하고 진행 작업에는 영향을 주지 않는다. Host 중개 작업 메시지와 검증·UUID·uncertain/no-replay 보호는 유지한다. 아래 플러그인 구현 서술은 전환 전 기록이며 실제 구현 계약은 구현 PR에서 갱신한다.
 
 ## Decision
 

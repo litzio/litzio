@@ -40,7 +40,7 @@ The [owner-approved terminology amendment](https://github.com/litzio/litzio/issu
 
 cursor, focus, selection, toolbar, hover 등 Editor 전용 interaction은 기존대로 CLI parity 대상이 아니다. 특정 화면의 상태가 필요한 명령은 그 대상·필요 조건을 명시하며, 공용 작업을 정의했다는 이유로 상태를 Host 전역으로 옮기지 않는다. 기존 기능의 빈칸을 이번 결정 PR에서 모두 채우지는 않는다. 과거의 “문서 의미 연산이 아니므로 CLI 생략”을 새 사용자 기능의 생략 근거로 사용하지 않는다.
 
-AI가 daemon 공식 기능으로 옮겨가는 결정은 [ADR-0017](0017-bundled-client-and-official-ai.md)을 따른다. #1137의 `plugins configure ai-agent` 등 AI 설정 CLI도 플러그인 명령에서 공식 설정 명령으로 옮기고 같은 공용 작업(입력·결과·범위·receipt)을 호출한다. 설정의 AI 사용 스위치와 CLI를 함께 제공하며, 비서의 AI 권한·프로바이더·모델 및 플러그인 변경 금지는 유지한다. 구체 명령 표기는 구현 PR에서 정하고 이 문서가 제공 완료를 뜻하지는 않는다.
+AI가 daemon 공식 기능으로 옮겨가는 결정은 [ADR-0017](0017-bundled-client-and-official-ai.md)을 따른다. #1137의 `plugins configure ai-agent` 등 AI 설정 CLI도 플러그인 명령에서 공식 설정 명령으로 옮기고 같은 공용 작업(입력·결과·범위·receipt)을 호출한다. AI 켜기/끄기 설정은 제공하지 않는다. AI 가용성은 사용 가능한 프로바이더로만 판단하며, 가용 프로바이더가 없으면 이유와 함께 신규 대화·aiTasks 요청을 거부하고 진행 작업에는 영향을 주지 않는다. 남는 공식 AI 설정은 공용 작업과 CLI로 제공하며, 비서의 AI 권한·프로바이더·모델 및 플러그인 변경 금지는 유지한다. 구체 명령 표기는 구현 PR에서 정하고 이 문서가 제공 완료를 뜻하지는 않는다.
 
 ### 2. 같은 작업 정의와 실행 중 Host 연결은 구분한다
 
