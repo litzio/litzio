@@ -1,6 +1,6 @@
 // Destructive to a disposable account only. CI runs this after building the actual NSIS package.
 import assert from "node:assert/strict";
-import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmdirSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -75,6 +75,7 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
       const env = { ...process.env, TEMP: temporary, TMP: temporary,
         ...(fault === "environment" ? { SystemRoot: path.join(work, "missing-windows") } : {}) };
       let live: Awaited<ReturnType<typeof electron.launch>> | undefined;
+      let liveProcess: ChildProcess | undefined;
       let owned: ReturnType<typeof desktopRecord> | undefined;
       let other: Awaited<ReturnType<typeof cliDaemon>> | undefined;
       const channel = version.includes("-") ? "beta" : "stable";
@@ -93,6 +94,8 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
           } finally { await cli.stop(); }
           other = await cliDaemon(path.join(desktop, "release/win-unpacked", `${brand.executableName}.exe`), otherChannel);
           live = await electron.launch({ executablePath: integration.executable, args: [`--user-data-dir=${path.join(work, "profile")}`, "--lang=en-US"], timeout: 60_000 });
+          // ElectronApplication.process() cannot be called after Playwright disposes it.
+          liveProcess = live.process();
           const page = await live.firstWindow();
           await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached", timeout: 30_000 });
           owned = desktopRecord(channel, version);
@@ -125,8 +128,8 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
           await other!.alive();
         }
       } finally {
-        if (live && live.process().exitCode === null) await live.close();
-        await other?.stop();
+        try { if (live && liveProcess?.exitCode === null) await live.close(); }
+        finally { await other?.stop(); }
       }
       assert.equal(status!, 0, `${label}: app removal must succeed despite optional cleanup failure`);
       assert.equal(entries(), "", `${label}: uninstall registration removed`);
