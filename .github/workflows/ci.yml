@@ -302,13 +302,14 @@ jobs:
         env:
           LITZIO_TEST_LIFECYCLE_SCOPE: ${{ needs.changes.outputs.fullLifecycle == 'true' && 'full' || 'representative' }}
       - name: Upload Desktop diagnostics on failure
-        if: failure()
+        if: always() && (failure() || cancelled())
         uses: actions/upload-artifact@v6
         with:
           name: desktop-windows-diagnostics
           path: |
             tmp/desktop-e2e/profiles/*/logs/desktop.log*
             tmp/desktop-e2e/recovery-proof.json
+            tmp/desktop-update/*-diagnostics.json
             tmp/desktop-update/v*/latest.yml
             tmp/desktop-update/v*/beta.yml
             tmp/desktop-uninstall/*-dialogs.txt

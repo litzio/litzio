@@ -139,7 +139,7 @@ test('release browser shards match CI while preserving trusted checkout and publ
   assert.deepEqual(release.permissions, { contents: 'read' });
   assert.equal(browser.permissions, undefined);
   const diagnostics = browser.steps.find(step => step.uses?.startsWith('actions/upload-artifact@'));
-  assert.equal(diagnostics.if, 'failure()');
+  assert.equal(diagnostics.if, 'always() && (failure() || cancelled())');
   assert.ok(diagnostics.with.name.includes('${{ matrix.shard }}'));
   assert.equal(diagnostics.with.path, ci.jobs.browser.steps.find(step => step.uses?.startsWith('actions/upload-artifact@')).with.path);
   assert.deepEqual(publish.needs, ['preflight', 'browser', 'build']);
@@ -217,10 +217,11 @@ test('ordinary CI retains small diagnostics and screen evidence without distribu
   const desktop = uploads(ci.jobs.desktop);
   assert.ok(!desktop.some(step => step.with.name === 'desktop-windows-unsigned'));
   const diagnostics = desktop.find(step => step.with.name === 'desktop-windows-diagnostics');
-  assert.equal(diagnostics.if, 'failure()');
+  assert.equal(diagnostics.if, 'always() && (failure() || cancelled())');
   assert.deepEqual(new Set(diagnostics.with.path.trim().split('\n')), new Set([
     'tmp/desktop-e2e/profiles/*/logs/desktop.log*',
     'tmp/desktop-e2e/recovery-proof.json',
+    'tmp/desktop-update/*-diagnostics.json',
     'tmp/desktop-update/v*/latest.yml',
     'tmp/desktop-update/v*/beta.yml',
     'tmp/desktop-uninstall/*-dialogs.txt',
