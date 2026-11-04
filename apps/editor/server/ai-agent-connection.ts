@@ -10,7 +10,7 @@ export const AGENT_INSTRUCTIONS = `# Litzio assistant\n\nAnswer questions about 
 export function agentDirectory() {
   return hostPaths().agent;
 }
-/** Host-owned lifetime; settings and Docling execution remain in the installed plugin. */
+/** Provider connections share the official AI Host's daemon lifetime. */
 export class AiAgentConnection {
   readonly client: CodexAppServer;
   readonly copilot: CopilotAcp;
@@ -100,13 +100,12 @@ export class AiAgentConnection {
 
 export const LITZIO_GUIDE = `---
 name: litzio-guide
-description: Explain Litzio document opening, editing, Docling conversion, settings, document templates and assistant tools; guide terminal CLI continuation.
+description: Explain Litzio document opening, editing, settings, document templates and assistant tools; guide terminal CLI continuation.
 ---
 # Litzio usage guide
 
 Open a document or folder from the start screen or Files sidebar. Select a file to open it in a tab.
 Use Read for reading, Edit for visual editing, and Source to inspect the document source. Save applied edits explicitly; unapplied property drafts are separate.
-For PDF conversion, use the Docling plugin's conversion flow, choose the PDF and destination, then inspect the converted document. The assistant's document tools do not run Docling.
 Settings controls appearance/language, document preferences and official AI. AI agent settings select Codex or Copilot and model, reasoning effort, AI default language (only for tasks started without a conversation) and write access. Copilot CLI effort changes require a new conversation; ACP thought-level and Agent/Plan changes apply to the next message. Full access removes the sandbox and automatically approves tools, paths and network access. Diagnostics reports connection/account status; the common environment lists the working directory, instructions and local skill files.
 
 ## Assistant

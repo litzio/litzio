@@ -75,19 +75,20 @@ Label 입력칸에 focus를 준다(#847). 이미지/pending Figure·Mermaid·수
 
 ## P05 입력칸·placeholder·위계
 
-#947의 [플러그인 목록](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-owned-plugin-settings-947)은 U22의
+과거 #947의 [플러그인 목록](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-owned-plugin-settings-947)은 U22의
 기존 Settings 콘텐츠 폭·stacked section·공용 Button과 확인 Dialog를 재사용한다.
 Docling·AI 설정과 같은 콘텐츠 정렬을 따르며 경로·version은 줄바꿈하고 revision은
 짧게 표시한 뒤 tooltip에 전체 값을 둔다. `plugin-settings`의 1440px English Light·
-640px Korean Dark 캡처로 여백, 긴 경로와 확인 문구를 수동 확인한다.
+640px Korean Dark 캡처로 여백, 긴 경로와 확인 문구를 수동 확인했다. 이 목록과 Docling 설정은 #1150 ③에서 제거했으며 현재 사용처가 아니다.
 
 
 #1053의 Copilot 선택도 #1033의 Host SettingsSelect·모델 Dialog를 사용하며 Codex 전용
 skills·진단 항목은 숨긴다. #1091은 같은 SettingsSelect로 추론 강도·쓰기 범위를 표시하고 기존 비서 DropdownMenu에서 Agent/Plan을 고른다([비서 계약](main-agent-v1.md#copilot-conversations-1053)).
 
-#931의 [AI 설정](main-agent-v1.md)은 Docling 설정과 같은 Settings 콘텐츠·control
-폭과 공용 Input/select/Button을 사용한다. #1109에서 프로바이더별 SettingsSwitch를
-이름·상태 → 진단 → 토글 한 줄에 두고, 모든 기본값은 순차 자동 저장한다.
+#1150 ③의 공식 [AI 설정](main-agent-v1.md)은 Appearance/Recovery와 같은 Settings
+콘텐츠·control 폭과 공용 Input/select/Button을 사용한다. 프로바이더의 이름·상태는
+공용 ghost Button에 `justify-start`를 명시해 각 행의 같은 왼쪽 축에 놓고 진단은 오른쪽에 둔다.
+#1109의 enable SettingsSwitch는 제거했으며 모든 기본값은 순차 자동 저장한다.
 저장 중·실패는 기존 status/alert로 보이며 저장 완료 상시 문구는 두지 않는다.
 목록 대화상자는 기존 Dialog의 닫기·포커스 복귀를 사용한다. 한국어 시작 후 English
 전환, 1440px Light·640px Dark의 목록·진단·입력칸을 `ai-agent` 시나리오에서 확인한다.
@@ -366,10 +367,10 @@ of document drafts, Save and Undo. See [table contract](table-interaction-v1.md#
 일반 텍스트 문서의 지원 동작은 유지한다([현재 계약](editor-ux-shell-v1.md#title-strip-and-tab-row-actions-695)).
 
 #1032: Settings는 Host가 머리·범주 탐색·스크롤·콘텐츠 열을 소유하고 각 범주는 내용만
-그린다. 기존 Button·탭·입력 토큰을 재사용하며 공용 설정 행 블록은 [#1033 Host API](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-settings-rows-and-declarative-menus-1033)를 쓴다.
+그린다. 기존 Button·탭·입력 토큰과 [공용 설정 행 컴포넌트](../../apps/editor/src/components/ui/settings.tsx)를 재사용한다. 플러그인용 #1033 Host API는 #1150 ③에서 제거했다.
 Settings 탭·진입의 pointer 이동은 metadata 바깥 적용 대신 탐색으로 처리해 초안을 보존한다. 일반 문서 탭 pointer 이동의 기존 바깥 적용은 유지한다.
-앱 즉시 반영, AI 명시적 Save, Docling field exit 저장은 문서 Save와 분리한다.
-탭 사이 이동은 설정 초안을 유지하며 닫기·재시작은 Plugin 탭처럼 초안을 복원하지 않는다.
+앱 표시 설정의 즉시 반영과 AI의 순차 자동 저장은 문서 Save와 분리한다.
+탭 사이 이동은 설정 초안을 유지하며 닫기·재시작은 미저장 설정 초안을 복원하지 않는다.
 [탭 수명·키보드·전후 캡처](editor-ux-shell-v1.md#settings-task-tab-1032).
 
 #990/#1025: 문서 탐색의 빈 상태는 기존 P06 안내를 유지하고 탭 아래 간격과 label
@@ -377,20 +378,20 @@ Settings 탭·진입의 pointer 이동은 metadata 바깥 적용 대신 탐색�
 독립 localStorage 너비는 문서 초안·Save와 분리하며 Settings 범주 열은 바꾸지 않는다.
 [너비 제한과 배치](editor-layout-rules-v1.md#alignment-and-ownership)를 따른다.
 
-#1007/#1090: U22 플러그인 목록은 같은 Host SettingsSwitch 행의 오른쪽에 ghost
+과거 #1007/#1090: U22 플러그인 목록은 같은 Host SettingsSwitch 행의 오른쪽에 ghost
 톱니와 스위치를 두고, 정보·기본 버전 재등록은 플러그인 상세로 모은다.
 AI·Docling 설정은 기존 Host 행 정렬을 유지한다. UI 기여 로딩 중에는 상태를
 표시하고 톱니를 비활성화하며 완료 뒤 진입한다. 설정 없는 플러그인도 정보에
-진입한다. [현재 계약과 전후 캡처](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#plugin-row-and-version-follow-up-1007-1090).
+진입했다. #1150 ③에서 제거된 표면의 [과거 계약과 전후 캡처](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#plugin-row-and-version-follow-up-1007-1090)다.
 
 ### Rejected plugin registrations (#1097)
 
-P07/P12 now use the existing Notice and plugin information settings surface for
+Historical #1097, removed in #1150 ③: P07/P12 used the existing Notice and plugin information settings surface for
 stored manifest rejection. Plugin tabs link to that surface; its existing
 SettingsRow/Button and confirmation Dialog perform explicit bundled registration.
 This follows the same error and confirmation implementations used by Settings
 and FolderDialog; no new shared interaction or Plugin API is introduced.
-The current contract is [Plugin UI rejection handling](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#rejected-saved-registrations-1097).
+The archived contract is [Plugin UI rejection handling](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#rejected-saved-registrations-1097).
 
 #1106: 비서의 활성 문서에 미저장 변경이 있으면 기존 맥락 행에 짧게 저장된 버전 사용을
 표시한다. 설명·경로는 공용 Tooltip의 hover·keyboard focus로 확인한다. 같은 패널의
@@ -408,8 +409,8 @@ hover/focus 안내에 둔다. 이후 수동 변경과 충돌하면 덮어쓰지 
 
 The [gallery contract](document-templates-v1.md#editor-gallery-phase-2) applies the
 existing task-tab shell, P12 independent Dialog boundary for saving a template and
-P07 field feedback/Notice for naming and catalog errors. Settings and Docling's
-dashboard remain the comparison surfaces for independent tasks. Common Popover
+P07 field feedback/Notice for naming and catalog errors. Settings remains the
+comparison surface for independent tasks; the Docling dashboard was removed in #1150 ③. Common Popover
 owns the approved C hover/focus reading preview; it is not a metadata edit form.
 One retained read-only DocumentEditor replaces preview content, with a short open
 delay, keyboard-scroll region and Escape focus return. Cards expose creation

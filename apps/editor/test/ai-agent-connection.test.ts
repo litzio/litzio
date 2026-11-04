@@ -251,6 +251,7 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   assert.equal(readFileSync(env.instructions, "utf8"), AGENT_INSTRUCTIONS);
   // Generated guidance owns consent and CLI routing; CLI tests own actual writes.
   const instructions = readFileSync(env.instructions, "utf8"), generatedGuide = readFileSync(guide, "utf8");
+  assert.doesNotMatch(instructions + generatedGuide, /docling|convert-pdf/i, "generated product guidance must not advertise removed conversion features");
   assert.match(instructions, /Read .*litzio-guide.*SKILL\.md.*template/);
   assert.match(instructions, /query list_templates/);
   assert.match(generatedGuide, /templates list --json --language <ko\|en>/);

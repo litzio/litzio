@@ -120,7 +120,7 @@ export function AiSettings({ onSaved }: { onSaved(): void }) {
       </> : <>
         <h4>{t("Providers")}</h4>
         {(["codex", "copilot"] as const).map(provider => <div className="agent-provider" key={provider}>
-          <Button variant="ghost" className="agent-provider-open" disabled={loading} onClick={event => { focus.current = event.currentTarget; setInspecting(provider); void refresh(provider); setSearch(""); setDialog(true); }} aria-label={t(provider === "copilot" ? "Copilot models" : "Codex models")}>
+          <Button variant="ghost" className="agent-provider-open justify-start" disabled={loading} onClick={event => { focus.current = event.currentTarget; setInspecting(provider); void refresh(provider); setSearch(""); setDialog(true); }} aria-label={t(provider === "copilot" ? "Copilot models" : "Codex models")}>
             <span aria-hidden="true">›</span><strong>{provider === "copilot" ? "GitHub Copilot" : "Codex"}</strong><span className="agent-provider-summary">{status(provider)}</span>
           </Button>
           <Button variant="ghost" onClick={() => { setInspecting(provider); void refresh(provider); setView("diagnostics"); }}>{t("Diagnostics")}</Button>

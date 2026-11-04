@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Official AI transition: 2026-11-04 (#1150 ③). `ai-host.ts` composes connections/conversations directly; no registration, manifest, worker or plugin UI is loaded. Settings use the built-in Settings → AI agent category with the shared Button, SettingsSelect and Dialog components. No UI pattern exception. Protocol version 2 refuses older daemons.
-- PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation; restored packaged worker/native comparison is required Windows CI.
+- Historical PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation. PR4's packaged worker/native comparison was required Windows CI then; #1150 ③ removed that feature. Current Windows CI retains packaged Desktop and main/CLI license-notice checks in the startup/sample smoke.
 - Saved-file context (#1106): 2026-11-04 owner decision; fake Host/protocol, existing ai-agent browser and Korean 1440px/640px Light/Dark capture checks, no real model turn.
 - Copilot options/full access (#1091): 2026-11-03; fake ACP/Codex/Host checks, existing ai-agent browser and 1440px/640px Korean Dark captures; one real no-prompt catalog session only.
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
@@ -995,14 +995,12 @@ provider actions may not ask Host for permission. Users must verify their CLI
 configuration; these settings are not represented as equivalent containment.
 
 Docling and its feature-task exec adapter were removed in #1150 ③.
-When selecting Copilot, Host preserves the last saved Codex model/effort in
-`codexTaskSettings`; feature tasks use those values and the existing AI default
-language. Copilot settings store the selected `reasoningEffort`. Returning to Codex
-explicitly saves its selected model/effort. `checkedSettings` accepts full-access;
-no migration of earlier saved settings is included.
+The removed feature-task settings (`codexTaskSettings`) are not retained.
+Official settings store the selected provider/model/reasoning effort and accept
+full-access; no migration of earlier saved settings is included.
 
-UI uses #1070 Host SettingsSelect for provider/model/effort/language/write access,
-SettingsSwitch for each provider's enablement; all defaults save automatically. Write access defaults to
+UI uses the shared SettingsSelect for provider/model/effort/language/write access.
+Providers have no enable switches; all defaults save automatically. Write access defaults to
 opened-folders and also offers read-only and Full access. A native hover description
 explains that Full access removes the sandbox and automatically approves tools,
 paths and network access; no permanent warning is shown. Codex full-access turns use
@@ -1194,6 +1192,8 @@ own its border; ghost remains transparent. No NewDialog styling is changed.
 Verification: full workspace tests/typecheck, boundaries, docs, Editor/CLI build, fake ai-agent/ai-result browser scenarios, and production HTTP recovery/reconnect/Save/conflict. Packaging and platform distribution are CI-only; no paid AI call, install/update/uninstall or user-data migration was run.
 
 Manual visual review, 1440px English Light and 640px Korean Dark: [wide](assets/official-ai-1150/ai-1440-light-en.png), [narrow](assets/official-ai-1150/ai-640-dark-ko.png). Reuses SettingsSelect, Button and Dialog with existing shell geometry. No new interaction or UI pattern exception.
+
+Independent-review follow-up: generated `litzio-guide` frontmatter and instructions describe only retained features; the environment regeneration test rejects removed Docling/convert-pdf guidance. Provider rows retain the common ghost Button with explicit start alignment, following the left-aligned label convention in Appearance/Recovery; obsolete toggle CSS is removed. The wide/narrow captures above are refreshed for this alignment fix. Desktop license assertions are preserved in the existing packaged startup/sample smoke and run only in required Windows CI.
 
 Review follow-up (#1131): the existing Host test first reproduced a forged
 `full-access` history entry becoming `dangerFullAccess` after a fresh Host resume

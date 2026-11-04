@@ -114,6 +114,18 @@ test("started without a document, it opens none; the sample opens with its figur
   writeFileSync(oldSample, "User-modified legacy sample.\n");
   const { app, page, requests } = await launch(userData);
   try {
+    const locations = await app.evaluate(({ app }) => ({ archive: app.getAppPath(), resources: process.resourcesPath }));
+    const require = createRequire(import.meta.url);
+    const builder = createRequire(require.resolve("electron-builder"));
+    const appBuilder = createRequire(builder.resolve("app-builder-lib"));
+    const asar = appBuilder("@electron/asar") as { extractFile(archive: string, file: string): Buffer };
+    const notices = {
+      main: asar.extractFile(locations.archive, "THIRD_PARTY_LICENSES.txt").toString("utf8"),
+      cli: readFileSync(path.join(locations.resources, "cli/THIRD_PARTY_LICENSES.txt"), "utf8"),
+    };
+    assert.match(notices.main, /electron-updater@6\.8\.9/);
+    assert.match(notices.main, /Copyright \(c\) 2015 Loopline Systems/);
+    assert.match(notices.cli, /Tiptap GmbH/);
     assert.equal(page.url(), `${origin}/index.html`);
     assert.deepEqual(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getMinimumSize()), [640, 480], "native minimum size follows ADR-0010");
     const expectedVersion = process.env.LITZIO_TEST_VERSION ?? JSON.parse(readFileSync(path.join(desktop, "package.json"), "utf8")).version;
