@@ -1,5 +1,7 @@
 # HTTP Host v1
 
+#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트·Desktop 번들 UI는 후속 범위다.
+
 - Status: Implemented
 - Daemon verification: 2026-11-04 (#1142 PR2: Windows CLI concurrent start/stop, Host/Origin boundaries and production browser Save/Reload/conflict; Linux remains required CI).
 - CI artifact policy verification: 2026-10-30 (#808; tarball upload removed, screen evidence retained on failure; workflow policy regressions and docs check, no local HTTP/browser execution).
@@ -89,12 +91,12 @@ union, limits and snapshot policy are specified in [Citations v1](citations-v1.m
 Docling configuration and PDF conversion run on this Host under its fixed Root
 policy. HTTP clients share the Host user's server address; they do not call a
 Docling service on the browser device. See the
-[app conversion contract](docling-conversion-v1.md#app-pdf-conversion-797) and
-[Korean administrator guide](../guides/docling-server.md). Worker admission,
+[app conversion contract](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md#app-pdf-conversion-797) and
+[Korean administrator guide](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/guides/docling-server.md). Worker admission,
 shared installation/request receipts and uncertain/no-replay
-recovery follow [Host worker plugins](plugin-runtime-v1.md), under ADR-0012.
+recovery follow [Host worker plugins](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md), under ADR-0012.
 The same Host also serves enabled, revision/hash-checked installed UI ESM/CSS
-through [Plugin UI contributions](plugin-ui-v1.md) (#857), retaining its CSP and
+through [Plugin UI contributions](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md) (#857), retaining its CSP and
 document Root policy. Registration checks every supplied source asset against Roots.
 The process-local current snapshot is not a persistent queue or document backend.
 
@@ -109,7 +111,7 @@ pnpm install --frozen-lockfile
 pnpm --filter @litzio/cli package
 ```
 
-`packages/cli/dist/litzio-cli-0.0.0.tgz` contains the CLI ESM bundles, production Editor, manifest and dependency license notices. It has no runtime npm dependencies. `THIRD_PARTY_LICENSES.txt` accompanies the CLI; the Editor serves its own dependency-closure notices at `/licenses/THIRD_PARTY_LICENSES.txt` and an index at `/licenses/index.html`, inside the existing static root. The inventory can include build/type dependencies reached by production/peer declarations; listing them does not mean their code runs in the browser. Docling schema notices travel beside `docling-worker/worker.cjs` as `Docling-schema-LICENSE.txt`. Copy the archive to the target machine; install it in an otherwise empty folder with `npm install --offline --ignore-scripts <archive-path>`. Then run the installed binary:
+`packages/cli/dist/litzio-cli-0.0.0.tgz` contains the CLI ESM bundles, production Editor, manifest and dependency license notices. It has no runtime npm dependencies. `THIRD_PARTY_LICENSES.txt` accompanies the CLI; the Editor serves its own dependency-closure notices at `/licenses/THIRD_PARTY_LICENSES.txt` and an index at `/licenses/index.html`, inside the existing static root. The inventory can include build/type dependencies reached by production/peer declarations; listing them does not mean their code runs in the browser. Copy the archive to the target machine; install it in an otherwise empty folder with `npm install --offline --ignore-scripts <archive-path>`. Then run the installed binary:
 
 ```powershell
 # Windows; these folders must already exist on the server.
@@ -130,7 +132,7 @@ user defaults as installed Desktop. To intentionally share a source HTTP Host wi
 Desktop, explicitly set `LITZIO_PLUGINS_DIR`, the required individual
 `LITZIO_<ID>_SETTINGS_FILE` variables and `LITZIO_AI_AGENT_CWD` to the desired
 locations. These overrides take precedence in both execution forms; see
-[runtime paths](plugin-runtime-v1.md#installation-and-api). No existing store is
+[runtime paths](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md#installation-and-api). No existing store is
 migrated or cleaned automatically.
 
 `litzio --version` alone prints `litzio <CLI package version> (<build commit>)` and exits 0. The build injects the version and 12-character Git commit; a Git-free build reports `unknown`. Combining `--version` with any other argument is an argument error. This reads no manifest at runtime. Desktop-specific identity is documented in the [Desktop contract](desktop-distribution-v1.md#optional-command-line-tools-604).

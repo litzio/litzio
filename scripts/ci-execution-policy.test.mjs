@@ -6,14 +6,12 @@ import path from 'node:path';
 import test from 'node:test';
 import { load } from 'js-yaml';
 import { executionPolicy, selectJobs, successfulQueueRun } from './ci-execution-policy.mjs';
-
 const sha = 'a'.repeat(40);
 const base = 'b'.repeat(40);
 const event = { merge_group: { base_sha: base, head_sha: sha } };
 const expected = (quality, browser, http, desktop, update, smartquotes = false, fullLayout = update) =>
   ({ quality, browser, http, desktop, update, fullLifecycle: update, fullLayout, smartquotes, reused: false });
 const full = expected(true, true, true, true, true, true);
-
 test('merge_group payloads apply the same path rules as PRs to the entire group diff', async () => {
   const cases = [
     [['docs/test/README.md'], expected(false, false, false, false, false)],
@@ -23,17 +21,17 @@ test('merge_group payloads apply the same path rules as PRs to the entire group 
     // Multiple PRs in one group: take the union, including a deleted file.
     [['docs/test/README.md', 'apps/editor/src/App.tsx', 'apps/desktop/installer/cli.nsh'], expected(true, true, true, true, true, false)],
     [['packages/cli/src/cli.ts'], expected(true, false, true, true, false)],
-    [['plugins/docling/src/conversion/convert.ts'], expected(true, true, true, true, false)],
-    [['packages/plugin-api/src/ui.ts'], expected(true, true, true, true, false)],
-    [['packages/plugin-api/src/ai.ts'], expected(true, true, true, true, false)],
-    [['plugins/ai-agent/src/worker.ts'], expected(true, true, true, true, false)],
-    [['packages/plugin-api/package.json'], expected(true, true, true, true, false, false, true)],
-    [['plugins/ai-agent/package.json'], expected(true, true, true, true, false, false, true)],
+    [['packages/core/src/write.ts'], expected(true, true, true, true, false)],
+    [['apps/editor/src/components/ui/settings.tsx'], expected(true, true, true, true, false, false, true)],
+    [['apps/editor/shared/ai.ts'], expected(true, true, true, true, false, false, true)],
+    [['apps/editor/server/ai-host.ts'], expected(true, true, true, true, false)],
+    [['apps/editor/package.json'], expected(true, true, true, true, false, false, true)],
+    [['apps/editor/package.json'], expected(true, true, true, true, false, false, true)],
     [['.agents/skills/litzio-orchestrator/scripts/pr-gate.mjs'], expected(false, false, false, false, false)],
     [['.agents/skills/litzio-orchestrator/SKILL.md'], expected(false, false, false, false, false)],
     [['.agents/skills/litzio-orchestrator/agents/openai.yaml'], expected(false, false, false, false, false)],
-    [['.agents/skills/litzio-orchestrator/SKILL.md', 'plugins/ai-agent/src/worker.ts'], expected(true, true, true, true, false)],
-    [['packages/plugin-api/src/ui.ts', 'apps/desktop/src/main.ts'], expected(true, true, true, true, true, false)],
+    [['.agents/skills/litzio-orchestrator/SKILL.md', 'apps/editor/server/ai-host.ts'], expected(true, true, true, true, false)],
+    [['apps/editor/src/components/ui/settings.tsx', 'apps/desktop/src/main.ts'], expected(true, true, true, true, true, false)],
     [['.agents/other/config.json'], expected(true, true, true, true, true, false)],
     [['unknown/config.json'], expected(true, true, true, true, true, false)],
     [['apps/editor/document/fixture.md'], expected(true, true, true, true, false)],
@@ -51,7 +49,6 @@ test('merge_group payloads apply the same path rules as PRs to the entire group 
   assert.deepEqual(await executionPolicy('merge_group', { merge_group: { base_sha: '--bad', head_sha: sha } }), full);
   assert.deepEqual(await executionPolicy('merge_group', event, { git: () => '' }), full);
 });
-
 test('only audited policy tooling skips product jobs, with mixed changes taking the union', () => {
   const policyPaths = [
     'scripts/issues.mjs', 'scripts/issue-policy.mjs', 'scripts/issue-policy.test.mjs',
@@ -90,7 +87,6 @@ test('only audited policy tooling skips product jobs, with mixed changes taking 
   }
   assert.deepEqual(selectJobs('push', policyPaths), selectJobs('workflow_dispatch', policyPaths));
 });
-
 test('HTTP selection always retains Windows unit coverage in Desktop', () => {
   // Every tracked path exercises the current classifications, including unknown fallback.
   const paths = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
@@ -108,23 +104,14 @@ test('HTTP selection always retains Windows unit coverage in Desktop', () => {
     assert.ok(jobs.http.steps.some(step => step.run === run && !step.if));
   }
   assert.ok(jobs.http.steps.some(step => step.run?.startsWith('pnpm browser:test http-host') && !step.if));
-  assert.ok(!jobs.http.steps.some(step => /tsx --test|@litzio\/(?:editor|docling) .*test/.test(step.run ?? '')),
+  assert.ok(!jobs.http.steps.some(step => /tsx --test|@litzio\/editor .*test/.test(step.run ?? '')),
     'HTTP owns packaged/production checks; Desktop owns Windows unit/integration checks');
   const editor = JSON.parse(readFileSync(new URL('../apps/editor/package.json', import.meta.url), 'utf8'));
   assert.ok(editor.scripts.test.split(/\s+/).includes('test/file-identity.test.ts'));
 });
-
-test('plugin package changes select Editor browser consumers without broadening other jobs', () => {
+test('Core changes select Editor browser consumers without broadening other jobs', () => {
   const paths = [
-    'plugins/docling/src/Dashboard.tsx',
-    'plugins/docling/src/comparison/CompareView.tsx',
-    'plugins/ai-agent/src/ui.tsx',
-    'plugins/docling/src/host.ts', 'plugins/ai-agent/src/host.ts',
-    'plugins/docling/src/structure-review.ts',
-    'plugins/docling/src/conversion/convert.ts',
-    'plugins/docling/src/dashboard.css',
-    'plugins/docling/test/fixtures/synthetic/source.pdf',
-    'plugins/docling/README.md', 'plugins/ai-agent/README.md',
+    'packages/core/src/write.ts',
   ];
   const { reused, ...jobs } = expected(true, true, true, true, false);
   for (const event of ['pull_request', 'merge_group']) {
@@ -134,7 +121,6 @@ test('plugin package changes select Editor browser consumers without broadening 
     }
   }
 });
-
 test('actual group diff includes successive PR commits, removed paths and both sides of renames', async () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'litzio-queue-policy-'));
   const git = args => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
@@ -189,7 +175,6 @@ test('actual group diff includes successive PR commits, removed paths and both s
     rmSync(dir, { recursive: true, force: true });
   }
 });
-
 const successful = { event: 'merge_group', head_sha: sha, conclusion: 'success', status: 'completed',
   html_url: 'https://github.com/litzio/litzio/actions/runs/123' };
 const apiInputs = { repository: 'litzio/litzio', sha, token: 'test-token' };
@@ -198,7 +183,6 @@ const response = runs => async (url, options) => {
   assert.equal(options.headers.Authorization, 'Bearer test-token');
   return { ok: true, json: async () => ({ workflow_runs: runs }) };
 };
-
 test('only a successful same-SHA merge_group run in this workflow permits master push reuse', async () => {
   assert.deepEqual(await successfulQueueRun({ ...apiInputs, fetchRuns: response([successful]) }), successful);
   const result = await executionPolicy('push', { ref: 'refs/heads/master' }, { ...apiInputs, fetchRuns: response([successful]) });
@@ -219,8 +203,6 @@ test('only a successful same-SHA merge_group run in this workflow permits master
     ...apiInputs, fetchRuns: () => assert.fail('non-master push must not reuse queue CI'),
   }), full);
 });
-
-
 test('smartquotes runs for dependency, patch and parser configuration changes, outside default Core tests', () => {
   for (const file of ['package.json', 'packages/core/package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml',
     'patches/markdown-it@13.0.2.patch', 'patches/linkify-it@4.0.1.patch', 'packages/core/src/myst/parse.ts',
@@ -237,7 +219,6 @@ test('smartquotes runs for dependency, patch and parser configuration changes, o
   assert.ok(!scripts.test.includes('smartquotes'));
   assert.equal(scripts['test:smartquotes'], 'tsx --test test/smartquotes-patch.test.ts');
 });
-
 const workflow = () => load(readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8'));
 test('cache-only master runs preserve pnpm OS stores and the exact Linux browser cache path and key', () => {
   const { jobs } = workflow();
@@ -253,7 +234,6 @@ test('cache-only master runs preserve pnpm OS stores and the exact Linux browser
   assert.ok(warm.steps.some(step => step.run === 'pnpm install --frozen-lockfile'));
   assert.ok(!warm.steps.some(step => /test|package|build/.test(step.run ?? '')), 'cache warming must not repeat product validation');
 });
-
 test('aggregate accepts unselected skips but rejects failed, cancelled or skipped selected jobs', () => {
   const aggregate = workflow().jobs['quality-and-browser'];
   const script = aggregate.steps.find(step => step.env?.CHANGES_RESULT && step.env?.HTTP_SELECTED).run;
@@ -275,8 +255,6 @@ test('aggregate accepts unselected skips but rejects failed, cancelled or skippe
   assert.equal(run({ CHANGES_RESULT: 'failure' }).status, 1);
   assert.equal(aggregate.steps.find(step => step.name === 'Reject a cancelled workflow').if, '${{ cancelled() }}');
 });
-
-
 test('alternate brand jobs are absent from CI and release gates', () => {
   const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
   const ci = workflow();
@@ -286,8 +264,6 @@ test('alternate brand jobs are absent from CI and release gates', () => {
   assert.equal(release.jobs.brand, undefined);
   assert.ok(!release.jobs.publish.needs.includes('brand'));
 });
-
-
 test('lifecycle scope keeps representative Beta and removal but selects full for sensitive or unknown inputs', () => {
   const representative = ['apps/editor/shared/desktop-bridge.ts',
     'apps/editor/src/shell/SettingsDialog.tsx', 'apps/editor/src/shell/MessageArea.tsx',
@@ -311,14 +287,12 @@ test('lifecycle scope keeps representative Beta and removal but selects full for
   }
   for (const file of sensitive) assert.equal(selectJobs('pull_request', [file]).fullLifecycle, true, file);
   // These packaging inputs alone retain update=false, but must promote an update-target diff.
-  const buildInputs = ['packages/cli/scripts/build.ts', 'packages/cli/scripts/build-docling-worker.ts',
-    'packages/cli/scripts/build-ai-agent.ts', 'plugins/docling/scripts/build.ts',
-    'plugins/docling/scripts/check-boundaries.ts', 'plugins/ai-agent/scripts/build.ts',
-    'packages/plugin-api/src/build.ts', 'packages/plugin-api/src/config.ts', 'apps/editor/vite.config.ts',
-    'plugins/docling/schema/LICENSE', 'apps/editor/public/licenses/Shadcn-copied-source.txt',
+  const buildInputs = ['packages/cli/scripts/build.ts',
+    'apps/editor/vite.config.ts',
+    'apps/editor/public/licenses/Shadcn-copied-source.txt',
     'apps/editor/public/licenses/index.html',
-    ...['packages/cli', 'packages/core', 'packages/file-commit', 'packages/plugin-api',
-      'plugins/docling', 'plugins/ai-agent', 'apps/editor'].map(path => `${path}/tsconfig.json`)];
+    ...['packages/cli', 'packages/core', 'packages/file-commit',
+      'apps/editor'].map(path => `${path}/tsconfig.json`)];
   for (const file of buildInputs) {
     assert.equal(selectJobs('pull_request', [file]).update, false, file);
     assert.equal(selectJobs('pull_request', [representative[0], file]).fullLifecycle, true, file);
@@ -354,11 +328,9 @@ test('lifecycle scope keeps representative Beta and removal but selects full for
   assert.ok(!fullRemoval.if);
   assert.equal(fullRemoval.env?.LITZIO_TEST_LIFECYCLE_SCOPE, undefined);
 });
-
-
 test('layout scope promotes shell/native/style and unknown inputs independently of lifecycle', () => {
   const representative = ['packages/core/src/myst/figure.ts', 'apps/editor/src/components/FigureView.tsx',
-    'plugins/docling/src/conversion/convert.ts', 'apps/editor/src/dev/panel.tsx',
+    'packages/core/src/write.ts', 'apps/editor/src/dev/panel.tsx',
     'apps/editor/src/dev/panel.css'];
   const sensitive = ['apps/editor/src/App.tsx', 'apps/editor/src/shell/TopBar.tsx',
     'apps/editor/src/shell/new-control.tsx', 'apps/editor/src/styles.css', 'apps/editor/src/tokens.css',
@@ -367,8 +339,8 @@ test('layout scope promotes shell/native/style and unknown inputs independently 
     'apps/editor/src/theme.ts', 'apps/editor/public/theme-init.js', 'apps/editor/src/locales.ts',
     'apps/editor/src/i18n.ts', 'apps/editor/src/preferences.ts', 'apps/editor/src/shortcuts.ts',
     'apps/editor/src/document-tabs.ts', 'apps/editor/src/lib/utils.ts', 'apps/editor/src/ui/primitives.tsx',
-    'apps/editor/src/ui-message.ts', 'apps/editor/src/PluginSettings.tsx', 'apps/editor/src/PluginTab.tsx',
-    'apps/editor/src/plugin-ui.tsx', 'apps/editor/src/plugin-ui-registry.ts',
+    'apps/editor/src/ui-message.ts', 'apps/editor/src/AiSettings.tsx', 'apps/editor/src/App.tsx',
+    'apps/editor/src/AiSettings.tsx', 'apps/editor/src/preferences.ts',
     'apps/editor/src/components/CopyButton.tsx', 'packages/cli/scripts/build.ts',
     'apps/editor/tsconfig.json',
     'apps/editor/test/layout-rules.browser.js', 'apps/editor/test/desktop-updates.browser.js',
@@ -382,7 +354,7 @@ test('layout scope promotes shell/native/style and unknown inputs independently 
     // Shared UI and transitive build inputs must promote an otherwise representative diff.
     for (const input of ['apps/editor/src/components/ui/button.tsx', 'apps/editor/src/locales.ts',
       'packages/cli/scripts/build.ts', 'apps/editor/tsconfig.json',
-      'plugins/docling/schema/LICENSE', 'apps/editor/public/licenses/Shadcn-copied-source.txt']) {
+      'apps/editor/public/licenses/Shadcn-copied-source.txt']) {
       assert.equal(selectJobs(event, [representative[0], input]).fullLayout, true, input);
     }
     assert.equal(selectJobs(event, [sensitive[0]]).fullLifecycle, false);

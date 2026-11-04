@@ -15,22 +15,9 @@ const EXPECTED_CONSOLE_ERRORS: Record<string, ExpectedConsoleErrorRule[]> = {
   "template-gallery": [{ status: 400, pathname: "/api/templates", minimum: 2, description: "reserved and duplicate template names retain the save form with localized feedback" }],
   "ai-agent": [{ status: 400, pathname: "/api/ai-agent-conversations", minimum: 1, description: "display Undo refuses a subsequent manual preference change" }, { status: 503, pathname: "/api/ai-agent-settings", minimum: 1, description: "automatic save failure is localized and a later change can save" }, { status: 503, pathname: "/api/ai-agent-skills", minimum: 1, description: "skill catalog failure is shown in the candidate list" }, { status: 404, pathname: "/api/ai-agent-conversations", minimum: 1, description: "a deliberately unavailable last conversation falls back to a fresh composer" }],
   "external-change": [{ status: 409, pathname: "/api/document", minimum: 1, description: "a real external write refuses Save and offers comparison and confirmed Reload" }],
-  "docling-review-retry": [
-    { status: 500, pathname: "/api/docling-compare", minimum: 1, description: "persistent comparison failures exercise the automatic read limit and manual recovery" },
-  ],
-  "docling-review-recovery": [
-    { status: 400, pathname: "/api/docling-review-approve", minimum: 1, description: "successful publication is followed by an injected approval cleanup error" },
-    { status: 400, pathname: "/api/docling-review-undo", minimum: 1, description: "successful publication is followed by an injected undo cleanup error" },
-    { status: 500, pathname: "/api/docling-compare", minimum: 1, description: "the comparison refresh read is deliberately unavailable until the recovery assertion" },
-  ],
-  "plugin-ui": [{ text: "PLUGIN_UI_RENDER_FIXTURE", pathname: "", minimum: 1, description: "the synthetic plugin throws during render; its tab error boundary retains the native editing session" }],
   "text-mode": [
     {status:400, pathname:"/api/document", minimum:1, description:"a text session cannot raw-save a file that has become native"},
     {status:409, pathname:"/api/document", minimum:1, description:"recovered text refuses an external revision without losing local input"},
-  ],
-  "docling-server": [
-    { networkError: "net::ERR_FAILED", pathname: "/api/docling-conversion", minimum: 4, description: "two status reads, one accepted response and one undelivered start are deliberately lost" },
-    { status: 400, pathname: "/api/docling-conversion", minimum: 1, description: "a rejected new start cannot reopen an older successful job" },
   ],
   "reference-save-reload": [
     {status:400, pathname:"/api/document", minimum:1, description:"final Save refuses a fixed number on an empty equation"},

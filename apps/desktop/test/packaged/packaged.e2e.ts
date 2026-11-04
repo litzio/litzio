@@ -16,8 +16,6 @@ import { openDocument, openFolderPicker, reloadDocument } from "../../../editor/
 import { recoveryRecords, resetRecovery } from "../../../editor/test/browser/recovery-records.ts";
 import { processTree } from "./process-tree.ts";
 import { captionPixels } from "./caption-pixels.ts";
-import { fakeDoclingServer } from "../../../editor/test/helpers/docling-server.ts";
-import { verifyPackagedWorker } from "../../../../test/helpers/plugin-conversion.ts";
 
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repo = path.resolve(desktop, "../..");
@@ -108,61 +106,6 @@ async function closeApp(app: ElectronApplication): Promise<void> {
   }
 }
 
-test("packaged daemon forks its shipped Docling worker and opens a complete native comparison", async () => {
-  const userData = profile("docling-worker"), folder = path.join(work, "docling-worker");
-  rmSync(folder, { recursive: true, force: true }); mkdirSync(folder, { recursive: true });
-  const fake = await fakeDoclingServer();
-  let app: ElectronApplication | undefined;
-  try {
-    const launched = await launch(userData, [], { LITZIO_AI_AGENT_CWD: path.join(folder, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(folder, "ai-agent.json"), LITZIO_PLUGINS_DIR: path.join(folder, "plugins"), LITZIO_DOCLING_SETTINGS_FILE: path.join(folder, "settings.json") });
-    app = launched.app;
-    const daemon = await launched.page.evaluate(() => window.litzioDesktop!.daemonInfo());
-    assert.equal(daemon.state, "running"); assert.equal(daemon.launcher, "desktop");
-    assert.notEqual(daemon.pid, app.process().pid, "workers belong to the separate daemon, not the Desktop process");
-    const locations = await app.evaluate(({ app }) => ({ archive: app.getAppPath(), resources: process.resourcesPath }));
-    const require = createRequire(import.meta.url);
-    const builder = createRequire(require.resolve("electron-builder"));
-    const appBuilder = createRequire(builder.resolve("app-builder-lib"));
-    const asar = appBuilder("@electron/asar") as { extractFile(archive: string, file: string): Buffer };
-    const notices = {
-      main: asar.extractFile(locations.archive, "THIRD_PARTY_LICENSES.txt").toString("utf8"),
-      cli: readFileSync(path.join(locations.resources, "cli/THIRD_PARTY_LICENSES.txt"), "utf8"),
-      schema: readFileSync(path.join(locations.resources, "cli/docling-worker/Docling-schema-LICENSE.txt"), "utf8"),
-    };
-    assert.match(notices.main, /electron-updater@6\.8\.9/);
-    assert.match(notices.main, /Copyright \(c\) 2015 Loopline Systems/);
-    assert.match(notices.cli, /Tiptap GmbH/);
-    assert.match(notices.schema, /International Business Machines/);
-    const output = await verifyPackagedWorker(async (endpoint, method = "GET", body) => {
-      const response = await launched.page.evaluate(async ({ endpoint, method, body }) => {
-        const response = await fetch(`/api/${endpoint}`, { method,
-          ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) });
-        return { status: response.status, text: await response.text() };
-      }, { endpoint, method, body });
-      return new Response(response.text, { status: response.status });
-    }, folder, fake.url);
-    const page = launched.page, timeOrigin = await page.evaluate(() => performance.timeOrigin);
-    await page.getByRole("button", { name: "Docling", exact: true }).click();
-    await page.getByRole("button", { name: "Open conversion folder…", exact: true }).click();
-    await page.getByTestId("folder-path").fill(output);
-    await page.getByTestId("folder-open").click();
-    const comparison = page.locator(".docling-tab[data-active=true]");
-    await expect(comparison.locator(".docling-source img").first()).toBeVisible();
-    await expect(comparison.locator(".ProseMirror")).toBeVisible();
-    const tabId = await comparison.getAttribute("aria-labelledby");
-    const manifest = await app.evaluate(() => process.resourcesPath + "/cli/docling-worker/manifest.json");
-    assert.equal(await page.evaluate(async () => (await fetch("/api/worker-plugins", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: "docling" }) })).status), 200);
-    await expect(comparison.getByText("Plugin is disabled.", { exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Docling", exact: true })).toHaveCount(0);
-    assert.equal(await page.evaluate(async manifest => (await fetch("/api/worker-plugins", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ manifest }) })).status, manifest), 200);
-    await expect(comparison.locator(".docling-source img").first()).toBeVisible();
-    assert.equal(await comparison.getAttribute("aria-labelledby"), tabId);
-    assert.equal(await page.evaluate(() => performance.timeOrigin), timeOrigin);
-  } finally {
-    if (app) await closeApp(app);
-    await fake.close();
-  }
-});
 
 test("started without a document, it opens none; the sample opens with its figure from the app origin when chosen", async () => {
   const userData = profile("sample");
@@ -171,6 +114,18 @@ test("started without a document, it opens none; the sample opens with its figur
   writeFileSync(oldSample, "User-modified legacy sample.\n");
   const { app, page, requests } = await launch(userData);
   try {
+    const locations = await app.evaluate(({ app }) => ({ archive: app.getAppPath(), resources: process.resourcesPath }));
+    const require = createRequire(import.meta.url);
+    const builder = createRequire(require.resolve("electron-builder"));
+    const appBuilder = createRequire(builder.resolve("app-builder-lib"));
+    const asar = appBuilder("@electron/asar") as { extractFile(archive: string, file: string): Buffer };
+    const notices = {
+      main: asar.extractFile(locations.archive, "THIRD_PARTY_LICENSES.txt").toString("utf8"),
+      cli: readFileSync(path.join(locations.resources, "cli/THIRD_PARTY_LICENSES.txt"), "utf8"),
+    };
+    assert.match(notices.main, /electron-updater@6\.8\.9/);
+    assert.match(notices.main, /Copyright \(c\) 2015 Loopline Systems/);
+    assert.match(notices.cli, /Tiptap GmbH/);
     assert.equal(page.url(), `${origin}/index.html`);
     assert.deepEqual(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getMinimumSize()), [640, 480], "native minimum size follows ADR-0010");
     const expectedVersion = process.env.LITZIO_TEST_VERSION ?? JSON.parse(readFileSync(path.join(desktop, "package.json"), "utf8")).version;

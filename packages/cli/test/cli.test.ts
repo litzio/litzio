@@ -33,120 +33,9 @@ import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 const cliRoot = fileURLToPath(new URL("..", import.meta.url));
 const nativeSource = (body: string): string => `---\nlitzio: 1\n---\n\n${body}`;
 const fixtures = mkdtempSync(path.join(tmpdir(), "litzio-cli-native-fixtures-"));
-process.env.LITZIO_PLUGINS_DIR = path.join(fixtures, "plugins");
-process.env.LITZIO_DOCLING_SETTINGS_FILE = path.join(fixtures, "docling.json");
 process.env.LITZIO_AI_AGENT_SETTINGS_FILE = path.join(fixtures, "ai-agent.json");
 process.env.LITZIO_AI_AGENT_CWD = path.join(fixtures, "assistant");
 
-test("docling convert delegates whole-document conversion and refuses overwrite and range options", () => {
-  const input = fileURLToPath(new URL("../../../plugins/docling/test/fixtures/synthetic/document.json", import.meta.url));
-  const before = readFileSync(input);
-  const output = path.join(fixtures, "docling-bundle");
-  const converted = run(["docling", "convert", input, "--output", output]);
-  assert.equal(converted.status, 0, converted.stderr);
-  assert.equal(JSON.parse(converted.stdout).output, output);
-  assert.ok(fs.existsSync(path.join(output, "document.md")));
-  const map = readFileSync(path.join(output, "document.docling-map.json"));
-  assert.deepEqual(readFileSync(input), before);
-  assert.equal(run(["docling", "convert", input, "--output", output]).status, 1);
-  assert.deepEqual(readFileSync(path.join(output, "document.docling-map.json")), map);
-  const refused = path.join(fixtures, "docling-refused");
-  assert.equal(run(["docling", "convert", input, "--output", refused, "--chapter", "7"]).status, 1);
-  assert.equal(fs.existsSync(refused), false);
-  assert.match(run(["help", "docling"]).stdout, /DoclingDocument 1\.10\.0/);
-  assert.match(run(["help", "docling"]).stdout, /apply-corrections/);
-  const recordFile = path.join(output, "corrections.json");
-  const record = JSON.parse(readFileSync(recordFile, "utf8"));
-  const original = JSON.parse(before.toString("utf8"));
-  const heading = original.texts.find((item: any) => item.label === "section_header" && item.content_layer === "body");
-  record.entries.push({ id: "cli-heading", self_ref: heading.self_ref, operation: "heading", value: { level: 6 }, reason: "CLI integration", approvedAt: "2026-11-02T01:00:00Z" });
-  writeFileSync(recordFile, JSON.stringify(record, null, 2) + "\n");
-  const applied = run(["docling", "apply-corrections", output]);
-  assert.equal(applied.status, 0, applied.stderr);
-  assert.equal(JSON.parse(applied.stdout).output, fs.realpathSync.native(output));
-  const updated = readFileSync(path.join(output, "document.md"), "utf8");
-  assert.ok(getEditableDocument(parse(updated)).blocks.some(b => b.block === "heading" && b.level === 6 && b.text === heading.text));
-  const correspondence = JSON.parse(readFileSync(path.join(output, "document.docling-map.json"), "utf8"));
-  assert.equal(correspondence.document.sha256, textRevision(updated));
-  assert.deepEqual(readFileSync(input), before);
-  if (process.platform === "win32") {
-    const alias = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
-      "(New-Object -ComObject Scripting.FileSystemObject).GetFolder($env:LITZIO_TEST_CONVERSION_FOLDER).ShortPath"],
-    { encoding: "utf8", windowsHide: true, env: { ...process.env, LITZIO_TEST_CONVERSION_FOLDER: output } }).trim();
-    const replay = run(["docling", "apply-corrections", alias]);
-    assert.equal(replay.status, 0, replay.stderr);
-    assert.ok(fs.existsSync(output), "the installed Host must preserve the long public folder path");
-    assert.equal(JSON.parse(replay.stdout).output, fs.realpathSync.native(output));
-    assert.equal(readFileSync(path.join(output, "document.md"), "utf8"), updated);
-    assert.deepEqual(JSON.parse(readFileSync(path.join(output, "document.docling-map.json"), "utf8")), correspondence);
-  }
-  assert.equal(run(["docling", "remove-correction", output, "cli-heading"]).status, 0);
-  const pageEntry = { id: "cli-pages", operation: "exclude-pages", value: { pages: [1] }, reason: "CLI page exclusion", approvedAt: "2026-11-02T01:00:00Z" };
-  const entryFile = path.join(fixtures, "page-entry.json"); writeFileSync(entryFile, JSON.stringify(pageEntry));
-  for (const entry of [JSON.stringify(pageEntry), entryFile]) {
-    const added = run(["docling", "add-correction", output, "--entry", entry]); assert.equal(added.status, 0, added.stderr);
-    assert.equal(JSON.parse(readFileSync(path.join(output, "document.docling-map.json"), "utf8")).pages["1"].exclusion.id, "cli-pages");
-    assert.equal(run(["docling", "apply-corrections", output]).status, 0);
-    assert.equal(run(["docling", "remove-correction", output, "cli-pages"]).status, 0);
-  }
-  assert.deepEqual(readFileSync(input), before);
-  assert.equal(run(["docling", "add-correction", output, "--entry", JSON.stringify(record.entries[0])]).status, 0);
-  record.entries[0].self_ref = "#/texts/99999";
-  writeFileSync(recordFile, JSON.stringify(record));
-  const rejected = run(["docling", "apply-corrections", output]);
-  assert.equal(rejected.status, 1); assert.match(rejected.stderr, /does not exist/);
-  assert.equal(readFileSync(path.join(output, "document.md"), "utf8"), updated);
-  assert.deepEqual(JSON.parse(readFileSync(path.join(output, "document.docling-map.json"), "utf8")), correspondence);
-  assert.equal(run(["docling", "apply-corrections", output, "--ai"]).status, 1);
-});
-
-test("docling convert-pdf executable accepts server flag/environment and reports module results", async () => {
-  const server = createServer(async (req, res) => {
-    res.setHeader("content-type", "application/json");
-    if (req.url === "/version") res.end('{"docling-serve":"1.32.0"}');
-    else if (req.url === "/ready") res.end('{}');
-    else if (req.url === "/openapi.json") res.end('{"info":{"version":"1.32.0"}}');
-    else if (req.url === "/v1/convert/file/async") {
-      for await (const _ of req) { /* consume uploaded PDF */ }
-      res.end('{"task_id":"cli-job","task_status":"success"}');
-    } else if (req.url === "/v1/result/cli-job") res.end(JSON.stringify({ status: "success", document: {
-      json_content: { schema_name: "DoclingDocument", version: "1.10.0", name: "CLI", body: { self_ref: "#/body", children: [] } },
-    } }));
-    else { res.statusCode = 404; res.end('{}'); }
-  });
-  await listenForFetch(server);
-  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-  const input = path.join(fixtures, "rest.pdf"); writeFileSync(input, "%PDF-1.7\nfixture");
-  async function execute(args: string[], envServer: string) {
-    const child = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../src/cli.ts", import.meta.url)), ...args], {
-      cwd: cliRoot, env: { ...process.env, LITZIO_DOCLING_SERVER: envServer }, stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "", stderr = "";
-    child.stdout.on("data", c => { stdout += c; }); child.stderr.on("data", c => { stderr += c; });
-    const status = await new Promise<number | null>((resolve, reject) => { child.once("error", reject); child.once("close", resolve); });
-    return { status, stdout, stderr };
-  }
-  try {
-    for (const explicit of [true, false]) {
-      const output = path.join(fixtures, explicit ? "rest-explicit" : "rest-env");
-      const result = await execute(["docling", "convert-pdf", input, "--output", output, ...(explicit ? ["--server", url] : [])], explicit ? "http://127.0.0.1:1" : url);
-      assert.equal(result.status, 0, result.stderr);
-      assert.equal(JSON.parse(result.stdout).taskId, "cli-job");
-      assert.equal(JSON.parse(readFileSync(path.join(output, "conversion-record.json"), "utf8")).server.url, url + "/");
-      assert.ok(fs.existsSync(path.join(output, "document.md")));
-    }
-    for (const flags of [["--timeout", "NaN"], ["--image-export-mode", "referenced"], ["--server", url, "--server", url]]) {
-      const result = await execute(["docling", "convert-pdf", input, "--output", path.join(fixtures, "rest-refused"), ...flags], url);
-      assert.equal(result.status, 1);
-      assert.equal(fs.existsSync(path.join(fixtures, "rest-refused")), false);
-    }
-    const missing = await execute(["docling", "convert-pdf", input, "--output", path.join(fixtures, "rest-refused")], "");
-    assert.equal(missing.status, 1); assert.match(missing.stderr, /requires.*--server/);
-  } finally {
-    server.closeAllConnections();
-    await new Promise<void>((resolve, reject) => server.close(e => e ? reject(e) : resolve()));
-  }
-});
 after(() => rmSync(fixtures, { recursive: true, force: true }));
 const fixture = path.join(fixtures, "document.md");
 const technicalFixture = path.join(fixtures, "technical-document.md");
@@ -748,7 +637,7 @@ test("litzio help exits successfully", () => {
     }
     const help = args.length === 0 ? result.stderr : result.stdout;
     const expectedGroups: Record<string, string[]> = {
-      "Create and inspect": ["create", "inspect", "docling", "templates"],
+      "Create and inspect": ["create", "inspect", "templates"],
       "Check": ["check"],
       "Edit — batch": ["apply-batch"],
       "Edit — insert blocks": ["insert-block", "insert-heading", "insert-admonition", "insert-quote", "insert-divider", "insert-equation", "insert-figure", "insert-list", "insert-code-block"],
@@ -757,7 +646,7 @@ test("litzio help exits successfully", () => {
       "Edit — tables": ["insert-table", "insert-table-row", "insert-table-column", "remove-table-row", "remove-table-column", "move-table-row", "move-table-column", "update-table-alignment", "update-table-caption", "update-table-cell"],
       "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-numbering-mode", "update-reference-templates", "update-title"],
       "Format": ["format"],
-      "Serve": ["plugins", "daemon"],
+      "Serve": ["ai", "daemon"],
     };
     const expectedCommands = Object.values(expectedGroups).flat();
     const listed: string[] = [];
@@ -3028,48 +2917,9 @@ test("CLI build constant selects distributed defaults even for checkout dist art
   const bundled = await import(pathToFileURL(cliFile).href);
   assert.deepEqual(bundled.hostCli(), { bin: process.execPath, args: [cliFile] });
   const expected = hostPaths({ packaged: true }, {}), actual = bundled.hostPaths({}, {});
-  assert.equal(actual.plugins, expected.plugins); assert.equal(actual.settingsFile("docling"), expected.settingsFile("docling"));
+  assert.equal(actual.settingsFile("ai-agent"), expected.settingsFile("ai-agent"));
   assert.equal(actual.agent, expected.agent);
 });
-
-test("plugins CLI manages Host inventory and persisted settings", () => {
-  const listed = run(["plugins", "list", "--json"]);
-  assert.equal(listed.status, 0, listed.stderr);
-  const plugins = JSON.parse(listed.stdout);
-  const docling = plugins.find((item: any) => item.id === "docling");
-  assert.equal(docling.revision, docling.bundledRevision);
-  assert.ok(path.isAbsolute(docling.directory));
-  assert.match(run(["plugins", "list"]).stdout, /docling/);
-  assert.equal(run(["plugins", "reregister", "docling"]).status, 0);
-  assert.notEqual(run(["plugins", "reregister", "unknown"]).status, 0);
-  assert.notEqual(run(["plugins", "list", "--invalid"]).status, 0);
-  const config = path.join(fixtures, "plugin-config.json");
-  writeFileSync(config, JSON.stringify({ server: "http://127.0.0.1:9876" }));
-  const configured = runProcess(["plugins", "configure", "docling", "--file", config]);
-  assert.equal(configured.status, 0, configured.stderr);
-  assert.equal(JSON.parse(configured.stdout).server, "http://127.0.0.1:9876");
-  assert.equal(JSON.parse((runProcess(["plugins", "settings", "docling"])).stdout).server, "http://127.0.0.1:9876");
-  const before = readFileSync(process.env.LITZIO_DOCLING_SETTINGS_FILE!);
-  writeFileSync(config, JSON.stringify({ server: "not a URL" }));
-  assert.equal((runProcess(["plugins", "configure", "docling", "--file", config])).status, 1);
-  assert.deepEqual(readFileSync(process.env.LITZIO_DOCLING_SETTINGS_FILE!), before);
-  writeFileSync(config, JSON.stringify({ review: false }));
-  assert.equal(JSON.parse((runProcess(["plugins", "features", "docling", "--file", config])).stdout).review, false);
-  const disabled = runProcess(["plugins", "disable", "docling"]);
-  assert.equal(disabled.status, 0, disabled.stderr);
-  assert.equal(JSON.parse(disabled.stdout).find((item: any) => item.id === "docling").enabled, false);
-  assert.equal(runProcess(["plugins", "settings", "docling"]).status, 1);
-  const enabled = runProcess(["plugins", "enable", "docling"]);
-  assert.equal(enabled.status, 0, enabled.stderr);
-  assert.equal(JSON.parse(enabled.stdout).revision, docling.revision);
-  assert.equal(JSON.parse(enabled.stdout).features.review, false);
-  assert.equal(runProcess(["plugins", "enable", "missing"]).status, 1);
-  writeFileSync(config, JSON.stringify({ review: true }));
-  assert.equal(runProcess(["plugins", "features", "docling", "--file", config]).status, 0);
-  assert.match(run(["help", "plugins"]).stdout, /configure.*features/);
-
-});
-
 
 test("templates CLI lists, previews, saves and exclusively creates through the shared store", t => {
   const directory = fileURLToPath(new URL("../../../.litzio-dev/templates/", import.meta.url));

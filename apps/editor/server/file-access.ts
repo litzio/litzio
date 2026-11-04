@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { isPrivatePluginPath } from "./plugin-output.ts";
 import { assertUnicode } from "@litzio/file-commit";
 
 /** An explicit local Host policy; only the HTTP Host requires RootAccess. */
@@ -117,7 +116,6 @@ export class RootAccess {
       real = path.join(parent, path.basename(target));
     }
     if (!this.contains(real)) throw new FileAccessError();
-    if (isPrivatePluginPath(target)) throw new FileAccessError("Plugin work is not published.");
     // Keep the locator: existing per-document media/asset rules must still see symlinks.
     return target;
   }
@@ -132,7 +130,6 @@ export class RootAccess {
 export function accessPath(value: string, access: FileAccess, create = false): string {
   if (access) return access.resolve(value, create);
   assertUnicode(value);
-  if (isPrivatePluginPath(value)) throw new FileAccessError("Plugin work is not published.");
   return value;
 }
 

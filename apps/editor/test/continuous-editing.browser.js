@@ -196,30 +196,36 @@ async (page, { expect, showNotifications, openDocument }) => {
   const settingsHistory = [];
   // Native history is document-wide even when the key starts in a modal input.
   // After undoing its own edit, another Undo must not reach the outside textarea.
-  await settings.getByRole('navigation').getByRole('button', {name:'Plugins',exact:true}).click();
-  await expect(settings.getByRole('button', {name:'Docling settings',exact:true})).toBeEnabled();
-  await settings.getByRole('button', {name:'Docling settings',exact:true}).click();
-  const serverAddress = settings.getByRole('textbox', {name:'Server address',exact:true});
-  // Capture native history only after the saved Host address replaces the
-  // disabled loading value; a preceding conversion can configure another URL.
-  await serverAddress.and(page.locator(':enabled')).waitFor();
-  const originalAddress = await serverAddress.inputValue();
-  await serverAddress.click();
-  await serverAddress.and(page.locator(':focus')).waitFor();
+  // The removed Docling input is replaced by the official model search field.
+  // Fake reads keep this native-history regression independent of provider installation.
+  await page.route('**/api/ai-agent-settings*', route => route.fulfill({json:{provider:'codex',model:'fixture',reasoningEffort:'low',writeAccess:'read-only'}}));
+  await page.route('**/api/ai-agent-environment*', route => route.fulfill({json:{cwd:'/fixture',instructions:'/fixture/AGENTS.md',skills:[]}}));
+  await page.route('**/api/ai-agent-diagnostics*', route => route.fulfill({json:{provider:'codex',connected:true,account:{type:'fixture'}}}));
+  await page.route('**/api/ai-agent-models*', route => route.fulfill({json:{provider:'codex',updatedAt:0,models:[{id:'fixture',model:'fixture',displayName:'Fixture',description:'',defaultReasoningEffort:'low',supportedReasoningEfforts:[{reasoningEffort:'low',description:''}]}]}}));
+  await settings.getByRole('navigation').getByRole('button', {name:'AI agent',exact:true}).click();
+  await settings.getByRole('button', {name:'Codex models',exact:true}).click();
+  const modelDialog = page.getByRole('dialog', {name:'Codex models',exact:true});
+  const modelSearch = modelDialog.getByRole('textbox', {name:'Search models',exact:true});
+  await modelSearch.and(page.locator(':enabled')).waitFor();
+  const originalSearch = await modelSearch.inputValue();
+  await modelSearch.click();
+  await modelSearch.and(page.locator(':focus')).waitFor();
   await page.keyboard.press('End'); await page.keyboard.type('x');
   for (const [key, expected] of [
-    ['Control+z', originalAddress], ['Control+z', originalAddress],
-    ['Control+y', originalAddress + 'x'], ['Control+z', originalAddress],
-    ['Control+Shift+z', originalAddress + 'x'], ['Control+Shift+z', originalAddress + 'x'],
-    ['Control+z', originalAddress],
+    ['Control+z', originalSearch], ['Control+z', originalSearch],
+    ['Control+y', originalSearch + 'x'], ['Control+z', originalSearch],
+    ['Control+Shift+z', originalSearch + 'x'], ['Control+Shift+z', originalSearch + 'x'],
+    ['Control+z', originalSearch],
   ]) {
     await page.keyboard.press(key);
-    settingsHistory.push({key,address:await serverAddress.inputValue(),draft:await retainedInput.evaluate(input => input.value),focus:await serverAddress.evaluate(el => el === document.activeElement)});
-    assert(await serverAddress.inputValue() === expected && await serverAddress.evaluate(el => el === document.activeElement),
+    settingsHistory.push({key,search:await modelSearch.inputValue(),draft:await retainedInput.evaluate(input => input.value),focus:await modelSearch.evaluate(el => el === document.activeElement)});
+    assert(await modelSearch.inputValue() === expected && await modelSearch.evaluate(el => el === document.activeElement),
       `Modal input ${key} lost its own native history or focus`);
     assert(await retainedInput.evaluate(input => input.value) === retainedDraft && await snapshot() === beforeDraft,
       `Modal input ${key} changed the outside draft/document`);
   }
+  await page.keyboard.press('Escape');
+  await expect(modelDialog).toBeHidden();
   await page.keyboard.press('Escape');
   await settings.waitFor({state:'detached'});
   console.log('Settings native history:', JSON.stringify(settingsHistory));

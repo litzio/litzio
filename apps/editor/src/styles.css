@@ -3354,14 +3354,10 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
   .app-shell--split .document-scroll { width: auto; padding: 0; }
   .document-column, .app-shell--wide .document-column { max-width: none; min-height: 0; padding: 0; }
 }
-.plugin-tab { position: fixed; top: var(--app-header-height, var(--layout-header-row)); bottom: 0; left: var(--shell-sidebar); right: var(--shell-panel); min-height: 0; min-width: 0; overflow: hidden; }
-.app-shell--split .plugin-tab { --editor-group-width: calc((100vw - var(--shell-sidebar) - var(--shell-panel) - var(--border-width)) / 2); left: calc(var(--shell-sidebar) + var(--editor-group-index) * (var(--editor-group-width) + var(--border-width))); right: auto; width: var(--editor-group-width); }
-.plugin-tab[hidden] { display: none; }
-.plugin-tab-message { margin: var(--space-4); }
-.docling-readonly-document { min-height: 100%; }
-.docling-readonly-document > .document { --layout-document-gutter: var(--space-4); --layout-document-inline-padding: var(--space-4); width: 100%; margin: 0; padding: var(--space-4); min-height: 100%; border-radius: 0; box-shadow: none; overflow-wrap: anywhere; }
-.docling-readonly-document[data-heading-levels="true"] > .document { --layout-document-gutter: var(--layout-reading-heading-gutter); padding-left: var(--layout-document-gutter); }
-.docling-readonly-document .heading-level { --space-heading-level-gap: var(--space-heading-level-reading-gap); }
+.shell-tab { position: fixed; top: var(--app-header-height, var(--layout-header-row)); bottom: 0; left: var(--shell-sidebar); right: var(--shell-panel); min-height: 0; min-width: 0; overflow: hidden; }
+.app-shell--split .shell-tab { --editor-group-width: calc((100vw - var(--shell-sidebar) - var(--shell-panel) - var(--border-width)) / 2); left: calc(var(--shell-sidebar) + var(--editor-group-index) * (var(--editor-group-width) + var(--border-width))); right: auto; width: var(--editor-group-width); }
+.shell-tab[hidden] { display: none; }
+.shell-tab-message { margin: var(--space-4); }
 .notification-center { position: fixed; z-index: 40; pointer-events: none; right: calc(var(--notification-panel-width, 0px) + var(--space-8)); bottom: var(--space-4); display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-2); width: min(28rem, calc(100vw - var(--notification-sidebar-width) - var(--notification-panel-width, 0px) - var(--space-8) - var(--space-4))); --notification-sidebar-width: var(--sidebar-effective-width); max-height: calc(100dvh - var(--app-header-height, 80px) - var(--space-8)); color: var(--id-color-text-muted); font-size: var(--font-size-sm); line-height: var(--line-height-label); }
 .notification-center[data-severity="error"] { color: var(--id-color-danger); }
 .notification-center[data-severity="warning"] { color: var(--id-color-warning); }
@@ -3387,7 +3383,7 @@ body:has(.app-shell--collapsed) .notification-center { --notification-sidebar-wi
 .text-document-input { flex: 1; width: 100%; min-height: 0; resize: none; padding: var(--space-3); border: var(--border-width) solid var(--id-color-border-control); border-radius: var(--radius-sm); background: var(--id-color-surface); color: var(--id-color-text); font-family: var(--font-family-mono); font-size: var(--font-size-sm); line-height: var(--line-height-label); white-space: pre; overflow: auto; }
 .text-document-input:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
-/* Document-local presentation, shared by Edit, Read and plugin reading surfaces. */
+/* Document-local presentation, shared by Edit and Read. */
 [data-table-wrap="false"] .table :is(th, td) {
   max-width: none;
   white-space: nowrap;
@@ -3422,10 +3418,3 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .notification-group-heading > .notification-content { flex: 1; min-width: 0; }
 .notification-group-heading .notification-content > button { padding-inline: 0; }
 .notification-center .notification-group > div > ul { padding: var(--space-3) 0 0 var(--space-3); border: 0; border-radius: 0; box-shadow: none; }
-
-.plugin-settings-row { position: relative; }
-.plugin-settings-row .settings-row-control { justify-content: end; }
-.plugin-settings-row .settings-section { grid-template-columns: minmax(0, 1fr) auto; }
-.plugin-settings-row .settings-label { padding-inline-end: calc(var(--size-control) + var(--space-2)); }
-.plugin-settings-gear { position: absolute; inset-inline-end: calc(var(--size-control) + var(--space-2)); top: 50%; transform: translateY(-50%); }
-.plugin-settings-info .settings-description { margin-top: 0; }

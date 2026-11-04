@@ -1,10 +1,12 @@
 # UI 결정표와 실행 예제
 
+#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트·Desktop 번들 UI는 후속 범위다.
+
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
 | 문서 내용을 읽고 편집한다 | 문서 본문 | 기존 Tiptap editor / NodeView와 Core operation | 직접 입력은 즉시 적용·Undo · 디스크는 Save · 미저장 닫기는 Save/Don't save/Cancel ([저장 계약](editing-session-save-v1.md#switching-and-recovery), [P04](ui-patterns-v1.md#p04-적용취소완료)) | [DocumentEditor](../../apps/editor/src/DocumentEditor.tsx) | 별도 editor engine을 만들지 않는다. [미적용 초안](editing-session-save-v1.md#applied-content-and-drafts)은 직접 본문 입력과 다르다. |
 | 대상의 작은 속성을 고치며 본문 문맥을 유지한다 | 대상에 붙는 작은 편집면 | 기존 속성 폼과 Popover | Metadata는 Edit로 진입 · Done/유효한 바깥 pointer 적용·Esc 취소 · 오류는 초안 유지 ([P03](ui-patterns-v1.md#p03-편집-진입), [P04](ui-patterns-v1.md#p04-적용취소완료)) | [MetadataProperties](../../apps/editor/src/metadata-properties.tsx) | 바깥 적용은 클릭 위치 focus 유지. 링크·교차참조의 명시적 Apply/Cancel, [미주](footnotes-v1.md#editor), [인용 동결](../adr/0008-citations-and-bibliography.md)은 [P04](ui-patterns-v1.md#p04-적용취소완료)의 별도 경계다. |
-| 독립 작업을 열어 다른 문서와 오간다 | 작업 탭 | 기존 탭 / Plugin `TabKind` | Settings는 Sidebar·명령 센터, Plugin은 명령·sidebar/openTab으로 진입 · 오류는 탭/알림에 표시 · Plugin 탭에는 Save/복구 세션 없음 ([탭 수명](plugin-ui-v1.md#contributions-lifetime-and-failures)) | [Docling UI 등록](../../plugins/docling/src/ui-plugin.tsx) | 문서 탭은 별도 [편집 세션](editing-session-save-v1.md#editor-ownership)을 갖는다. 집계·작업 목록을 문서 본문처럼 꾸미지 않는다. |
+| 독립 작업을 열어 다른 문서와 오간다 | 작업 탭 | 기존 탭 / Plugin `TabKind` | Settings는 Sidebar·명령 센터, Plugin은 명령·sidebar/openTab으로 진입 · 오류는 탭/알림에 표시 · Plugin 탭에는 Save/복구 세션 없음 ([탭 수명](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#contributions-lifetime-and-failures)) | [Docling UI 등록](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/plugins/docling/src/ui-plugin.tsx) | 문서 탭은 별도 [편집 세션](editing-session-save-v1.md#editor-ownership)을 갖는다. 집계·작업 목록을 문서 본문처럼 꾸미지 않는다. |
 | 문서를 보며 보조 작업을 동시에 한다 | 도킹 패널 | 기존 shell 패널 · 답변 동작은 CopyButton icon-sm + Tooltip | 사용자 오른쪽 말풍선·AI 왼쪽 본문, turn 끝 복사 1개 ([역할 구분](main-agent-v1.md#message-roles-and-turn-actions-1048-1051)) · Assistant로 진입 · Esc는 열린 선택 팝업부터 닫음 · 좁은 창 Escape/Close는 이전 편집 focus 복귀 ([비서 계약](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)) | [AssistantPanel](../../apps/editor/src/shell/AssistantPanel.tsx) | 좁은 창의 modal 전환은 [현재 패널 계약](main-agent-v1.md#assistant-panel-and-conversations-931-pr-2)을 따른다. 파일 참조는 `@` 후보와 Explorer ContextMenu가 같은 초안 칩을 사용하며, `/` Codex 스킬도 같은 후보 UI·칩·경로 Tooltip을 사용한다([스킬 계약](main-agent-v1.md#codex-skill-selection-1047-pr-b)). Button·Tooltip을 재사용한다([#1047 계약](main-agent-v1.md#file-references-1047-pr-a-984-952)). 범용 Plugin 패널 API는 없다. |
 | 현재 작업에서 확인이나 별도 입력 경계가 필요하다 | 모달 | Dialog / DangerConfirmation / 기존 파일 picker | 제목→대상→명시적 동작 · 안전한 취소·focus 복귀 · busy 중복 실행 방지 ([P12](ui-patterns-v1.md#p12-모달파일복구설정-범위)) | [FolderDialog](../../apps/editor/src/shell/FolderDialog.tsx) | 확인·파일 선택만으로 제한하는 새 규칙은 없다. 파일·복구에 metadata의 바깥 적용을 이식하지 않는다([P12](ui-patterns-v1.md#p12-모달파일복구설정-범위)). |
 | 앱 전체 설정을 바꾼다 | 작업 탭 | Host Settings / Plugin settings contribution | 앱 설정은 즉시 반영 · 문서 Save와 분리 · 선택값 저장 오류는 입력 피드백 ([P12](ui-patterns-v1.md#p12-모달파일복구설정-범위), [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터)) | [SettingsDialog](../../apps/editor/src/shell/SettingsDialog.tsx) | [AI 설정의 순차 자동 저장](main-agent-v1.md#settings-and-read-routes), [Docling field exit 저장](ui-patterns-v1.md#p12-모달파일복구설정-범위)의 저장 시점은 각 계약을 따른다. [#1032 탭 수명·키보드·캡처](editor-ux-shell-v1.md#settings-task-tab-1032)를 따른다. |
@@ -33,16 +35,16 @@
 
 ## 공통 구현
 
-아래 import는 `apps/editor` 내부용이다. 플러그인은 Editor 내부를 import하지 않고 주입된 [UiHost](../../packages/plugin-api/src/ui.ts)를 사용한다([Plugin API 경계](plugin-ui-v1.md#renderer-and-api-surface)). 실행 가능한 예제는 [ui-gallery.tsx](../../apps/editor/src/dev/ui-gallery.tsx)의 이름 있는 함수이며 상단 import와 함께 재사용한다. 예제의 로컬 상태 처리를 제품의 저장·초안 처리로 복사하지 않는다.
+아래 import는 `apps/editor` 내부용이다. 플러그인은 Editor 내부를 import하지 않고 주입된 [UiHost](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/packages/plugin-api/src/ui.ts)를 사용한다([Plugin API 경계](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#renderer-and-api-surface)). 실행 가능한 예제는 [ui-gallery.tsx](../../apps/editor/src/dev/ui-gallery.tsx)의 이름 있는 함수이며 상단 import와 함께 재사용한다. 예제의 로컬 상태 처리를 제품의 저장·초안 처리로 복사하지 않는다.
 
 | 구현 / 실행 예제 함수 | 용도 / 비사용 | Editor import | Plugin Host | 대표 사용처 / 권한 문서 |
 | --- | --- | --- | --- | --- |
 | Button / `ControlExamples` | 일반 동작·compact·아이콘 버튼 / 탭·목록의 키보드 소유권 대체 아님 | `import { Button } from "@/components/ui/button"` | `host.Button`: default/secondary/ghost, default/sm만; 모든 Editor props가 공개된 것은 아님 | [Sidebar](../../apps/editor/src/shell/Sidebar.tsx), [공통 컨트롤](editor-visual-language-v1.md#shared-controls), [의도적 예외](editor-layout-rules-v1.md#deliberate-control-exceptions) |
 | ChoiceGroup / `ChoiceGroupExamples` | 이름 있는 필수 단일 선택 / 독립 토글·탭·메뉴 대체 아님 | `import { ChoiceGroup } from "@/components/ui/choice-group"` | 미제공 | [NumberField](../../apps/editor/src/numbering-properties.tsx), [DocumentActions](../../apps/editor/src/shell/DocumentActions.tsx), 갤러리 선택 도구 |
-| Input / `ControlExamples` | 한 줄 입력과 연결된 label·오류문 / multiline editor·select·checkbox 대체 아님 | `import { Input } from "@/components/ui/input"` | `host.Input` | [ServerSettings](../../plugins/docling/src/conversion/ServerSettings.tsx), [P05](ui-patterns-v1.md#p05-입력칸placeholder위계), [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터) |
-| Dialog / `SurfaceExamples` | 독립 입력·focus 경계 / 단순 속성마다 새 모달을 만들지 않음 | `import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"` | `host.Dialog`: open/onClose/title/description/returnFocus/children/footer; primitive API와 다름 | [ConversionDialog](../../plugins/docling/src/conversion/ConversionDialog.tsx), [P12](ui-patterns-v1.md#p12-모달파일복구설정-범위) |
+| Input / `ControlExamples` | 한 줄 입력과 연결된 label·오류문 / multiline editor·select·checkbox 대체 아님 | `import { Input } from "@/components/ui/input"` | `host.Input` | [ServerSettings](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/plugins/docling/src/conversion/ServerSettings.tsx), [P05](ui-patterns-v1.md#p05-입력칸placeholder위계), [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터) |
+| Dialog / `SurfaceExamples` | 독립 입력·focus 경계 / 단순 속성마다 새 모달을 만들지 않음 | `import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"` | `host.Dialog`: open/onClose/title/description/returnFocus/children/footer; primitive API와 다름 | [ConversionDialog](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/plugins/docling/src/conversion/ConversionDialog.tsx), [P12](ui-patterns-v1.md#p12-모달파일복구설정-범위) |
 | Popover / `SurfaceExamples` | anchor 옆의 작은 표면 / 초안·적용 의미를 제공하는 engine 아님 | `import { Popover, PopoverContent } from "@/components/ui/popover"`; 예제 trigger는 `@base-ui/react/popover` | 미제공 | [MetadataProperties](../../apps/editor/src/metadata-properties.tsx), [P01](ui-patterns-v1.md#p01-속성-편집-표면과-위치), [가용 영역](editor-layout-rules-v1.md#form-content-viewport-782) |
-| 설정 화면 레시피 | Host 콘텐츠 열 안에 SettingsRow/Switch/Select/Input/Action 조합; 값·저장 시점은 호출자 소유 | `import { SettingsRow, SettingsSwitch, SettingsSelect, SettingsInput, SettingsAction } from "@/components/ui/settings"` | `host.SettingsRow/Switch/Select/Input/Action` | [본체 Settings](../../apps/editor/src/shell/SettingsDialog.tsx), AI·Docling Settings; [API 필드](plugin-ui-v1.md#host-settings-rows-and-declarative-menus-1033) |
+| 설정 화면 레시피 | Host 콘텐츠 열 안에 SettingsRow/Switch/Select/Input/Action 조합; 값·저장 시점은 호출자 소유 | `import { SettingsRow, SettingsSwitch, SettingsSelect, SettingsInput, SettingsAction } from "@/components/ui/settings"` | `host.SettingsRow/Switch/Select/Input/Action` | [본체 Settings](../../apps/editor/src/shell/SettingsDialog.tsx), AI·Docling Settings; [API 필드](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-settings-rows-and-declarative-menus-1033) |
 | DropdownMenu / `MenuExamples` | trigger에서 작업 선택 / 값 선택·자유 입력 폼 대체 아님 | `import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu"` | `host.Menu({ label, items })`: id/label/run(returnFocus), optional disabled/danger/description; Host가 기존 DropdownMenu로 그림 | [Sidebar](../../apps/editor/src/shell/Sidebar.tsx), [P10](ui-patterns-v1.md#p10-메뉴와-선택-도구) |
 | ContextMenu / `MenuExamples` | 대상의 우클릭·Shift+F10 작업 / 주 동작의 유일한 진입점으로 사용하지 않음 | `import { ContextMenu } from "@/components/ui/context-menu"` | 미제공 | [DocumentTabs](../../apps/editor/src/shell/DocumentTabs.tsx), [P10](ui-patterns-v1.md#p10-메뉴와-선택-도구) |
 | Tooltip / `ControlExamples`, `MenuExamples` | hover·keyboard focus 도움말 / label·필수 안내·오류문 대체 아님 | `import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip"` | 미제공 | [main의 TooltipProvider](../../apps/editor/src/main.tsx), [상태 규칙](editor-visual-language-v1.md#state-rules) |
@@ -50,7 +52,7 @@
 | NotificationCenter / `NotificationExample` | 창 단위 작업·문서 알림·같은 종류 묶음 / 입력 오류 대체나 화면마다 center 추가 금지 | 제품에서는 `import { useNotifications } from "@/components/ui/notification-center"`; 직접 center 렌더링은 격리된 갤러리 예제용 | `host.notify(notice)` / `host.notify(null)` | [MessageArea](../../apps/editor/src/shell/MessageArea.tsx), [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터) |
 | 아이콘 / `ControlExamples` | 기존 동작의 Lucide 아이콘과 접근성 이름 / 새 SVG 체계·장식 의미 추가 아님 | `import { FileText, FolderOpen, Pencil, Plus, Settings, Trash2, MoreHorizontal } from "lucide-react"` | Host 아이콘 API 미제공 | [Sidebar](../../apps/editor/src/shell/Sidebar.tsx), [Controls and spacing](editor-layout-rules-v1.md#controls-and-spacing) |
 
-플러그인 실행 예제는 [ConversionDialog](../../plugins/docling/src/conversion/ConversionDialog.tsx)와 [ServerSettings](../../plugins/docling/src/conversion/ServerSettings.tsx)를 사용한다. 설정 행과 선언형 Menu는 [#1033 API](plugin-ui-v1.md#host-settings-rows-and-declarative-menus-1033)를 따른다. 범용 Toggle·Popover는 공개하지 않는다. native 탭·행 버튼은 [기존 예외](editor-layout-rules-v1.md#deliberate-control-exceptions)를 확인한다.
+플러그인 실행 예제는 [ConversionDialog](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/plugins/docling/src/conversion/ConversionDialog.tsx)와 [ServerSettings](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/plugins/docling/src/conversion/ServerSettings.tsx)를 사용한다. 설정 행과 선언형 Menu는 [#1033 API](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-settings-rows-and-declarative-menus-1033)를 따른다. 범용 Toggle·Popover는 공개하지 않는다. native 탭·행 버튼은 [기존 예외](editor-layout-rules-v1.md#deliberate-control-exceptions)를 확인한다.
 
 ## 갤러리 열기와 검토
 
@@ -119,11 +121,10 @@ hover·keyboard focus에서 확인한다. 기본 버전 재등록은 기존 확�
 
 ## AI provider settings (#1109)
 
-기존 플러그인 설정 표면에서 SettingsSelect와 SettingsSwitch, ghost Button 및
-모델 Dialog를 재사용한다. 승인된 프로바이더 한 줄 배치에서 Switch의 기존 행 label은
-접근성을 유지한 채 시각적으로 숨겨 이름·상태 → 진단 → 토글 순서를 만든다.
-새 공통 UI API는 추가하지 않는다. 공개 AI 설정 타입 변경과 자동 저장 계약은
-[Main agent settings](main-agent-v1.md#independent-provider-settings-1109)에 기록한다.
+공식 Settings → AI agent에서 SettingsSelect, ghost Button과 모델 Dialog를 재사용한다.
+#1150 ③에서 enable Switch와 플러그인 영역을 제거했다. 프로바이더 행은 이름·실제 상태와
+진단을 표시하며 기존 설정 화면 geometry와 자동 저장을 유지한다. 새 공통 상호작용 예외는 없다.
+타입과 자동 저장 계약, 1440/640px 캡처는 [Main agent settings](main-agent-v1.md)에 기록한다.
 
 ## Desktop daemon (#1142 PR3)
 

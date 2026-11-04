@@ -9,8 +9,8 @@
 
 The static connections and transient-task text below preserve the original
 decision. #853 replaces Host execution with the
-[worker contract](../design/plugin-runtime-v1.md); #857 replaces command/tab/sidebar
-connections with the [UI contribution contract](../design/plugin-ui-v1.md).
+[worker contract](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md); #857 replaces command/tab/sidebar
+connections with the [UI contribution contract](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md).
 #869 moves Settings, the conversion dialog and the Host facade into `plugins/docling`
 through those contracts; the static descriptions below remain the original decision record. For the approved runtime
 plugin direction, the superseding parts of ADR-0012 take precedence; adoption
@@ -35,7 +35,7 @@ The CLI offers thin `litzio docling convert` and `convert-pdf` commands that
 delegate conversion, external REST service access and file output to the module.
 It does not implement Docling interpretation,
 MyST syntax or document semantics. The implemented policy and sidecar contract
-are in [Docling conversion](../design/docling-conversion-v1.md).
+are in [Docling conversion](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md).
 
 ## Scope and consequences
 
@@ -63,7 +63,7 @@ boundaries apply before reading Markdown/sidecar or serving lazy page images
 through the existing media route. The sidecar contains the necessary information
 from document.json; the UI does not fetch/repeatedly parse that large source JSON.
 The comparison endpoint is read-only. See the
-[comparison contract](../design/docling-compare-v1.md).
+[comparison contract](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-compare-v1.md).
 
 Unsupported source meaning must be reported explicitly by the
 converter rather than silently claimed as preserved native meaning.
@@ -87,4 +87,4 @@ with the same preflight as CLI. The setting is a device preference outside
 native documents; the task snapshot is process-local and has no persistent queue,
 resume, document session or background-service contract. Cancellation stops
 local waiting, not a server job. See the
-[conversion contract](../design/docling-conversion-v1.md#app-pdf-conversion-797).
+[conversion contract](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md#app-pdf-conversion-797).

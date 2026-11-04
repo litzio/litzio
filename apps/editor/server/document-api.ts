@@ -1,13 +1,10 @@
-import { executePluginOperation, executePluginInvocation } from "./plugin-operations.ts";
 import { executeTemplateOperation } from "./document-templates.ts";
 import { createDocumentSourceFile } from "./document-create.ts";
 import { hostPaths } from "./host-paths.ts";
 import { folderVersion } from "./folder-watch.ts";
 import { documentRevisions } from "./document-revisions.ts";
 import { readBibliographySources } from "./bibliography.ts";
-import { PLUGIN_UI } from "@litzio/plugin-api/config";
-import { AI_TASK } from "@litzio/plugin-api/ai";
-import type { createPluginHost } from "./plugin-host.ts";
+import type { createAiHost } from "./ai-host.ts";
 import { MAX_ASSET_BYTES } from "../shared/asset-policy.ts";
 import { ImageValidationError, validateImage } from "./image-validation.ts";
 import fs, { readFileSync, statSync, writeFileSync } from "node:fs";
@@ -246,7 +243,7 @@ export async function handleDocumentRequest(
   bodyLimit = Infinity,
   removeFile?: (file: string) => void | Promise<void>,
   sampleAvailability?: SampleAvailability,
-  plugins?: ReturnType<typeof createPluginHost>,
+  ai?: ReturnType<typeof createAiHost>,
   templatesDirectory = hostPaths().templates,
 ): Promise<void> {
   const readBody = async (request: IncomingMessage) => decodeUtf8(await readRequestBody(request, bodyLimit));
@@ -268,61 +265,6 @@ export async function handleDocumentRequest(
       } else if (req.method === "POST" && url === "/api/templates") {
         sendJson(res, 201, executeTemplateOperation("save", JSON.parse(await readBody(req)), { access, directory: templatesDirectory }));
       } else { res.statusCode = 405; res.end(); }
-    } catch (error) { failure(error); }
-    return;
-  }
-  if (url === AI_TASK.discoveryRoute) {
-    if (req.method !== "GET") { res.statusCode = 405; res.end(); return; }
-    try { sendJson(res, 200, { available: !!plugins?.aiTasks() }); } catch (error) { failure(error); }
-    return;
-  }
-  if (url === PLUGIN_UI.route) {
-    if (req.method !== "GET") { res.statusCode = 405; res.end(); return; }
-    if (!plugins) { sendJson(res, 503, { error: "Plugins are unavailable on this Host." }); return; }
-    try {
-      const store = plugins.plugins(true), asset = query.get("asset");
-      res.setHeader("Cache-Control", "no-store");
-      if (!asset) sendJson(res, 200, store.uiList());
-      else {
-        const bytes = store.uiAsset(query.get("id") ?? "", query.get("revision") ?? "", asset);
-        res.setHeader("Content-Type", asset === PLUGIN_UI.script ? "text/javascript; charset=utf-8" : "text/css; charset=utf-8");
-        res.setHeader("X-Content-Type-Options", "nosniff");
-        res.end(bytes);
-      }
-    } catch (error) { failure(error); }
-    return;
-  }
-  if (url === "/api/worker-plugins") {
-    if (!plugins) { sendJson(res, 503, { error: "Plugins are unavailable on this Host." }); return; }
-    if (!["GET", "POST", "PATCH", "DELETE"].includes(req.method ?? "")) { res.statusCode = 405; res.end(); return; }
-    try {
-      const scope = { host: plugins, access };
-      if (req.method === "GET") sendJson(res, 200, executePluginOperation("list", {}, scope));
-      else {
-        const body = JSON.parse(await readBody(req));
-        if (req.method === "PATCH") {
-          if (typeof body.id !== "string" || body.enabled !== true) throw new Error("Plugin id and enabled=true are required.");
-          sendJson(res, 200, executePluginOperation("enable", { id: body.id }, scope));
-        } else if (req.method === "POST") {
-          if (typeof body.bundled === "string") {
-            sendJson(res, 200, executePluginOperation("reregister", { id: body.bundled }, scope)); return;
-          }
-          sendJson(res, 200, executePluginOperation("register", { manifest: body.manifest }, scope));
-        } else {
-          if (typeof body.id !== "string") throw new Error("Plugin id is required.");
-          sendJson(res, 200, await executePluginOperation("disable", { id: body.id }, scope));
-        }
-      }
-    } catch (error) { failure(error); }
-    return;
-  }
-  if (url === "/api/plugin-operation") {
-    if (!plugins) { sendJson(res, 503, { error: "Plugins are unavailable on this Host." }); return; }
-    if (req.method !== "POST") { res.statusCode = 405; res.end(); return; }
-    try {
-      const body = JSON.parse(await readBody(req));
-      if (typeof body.plugin !== "string" || typeof body.operation !== "string") throw new Error("Plugin and operation are required.");
-      sendJson(res, 200, await executePluginInvocation(body.plugin, body.operation, body.args, { host: plugins, access }));
     } catch (error) { failure(error); }
     return;
   }
@@ -455,14 +397,14 @@ export async function handleDocumentRequest(
     return;
   }
   if (url !== "/api/document") {
-    if (url.startsWith("/api/") && plugins) {
+    if (url.startsWith("/api/") && ai) {
     try {
-      const route = plugins.route(url);
+      const route = ai.route(url);
       if (route) {
-        const operation = route.methods[req.method as keyof typeof route.methods];
+        const operation = route[req.method ?? ""];
         if (!operation) { res.statusCode = 405; res.end(); return; }
         const args = req.method === "GET" ? Object.fromEntries(query) : JSON.parse(await readBody(req));
-        sendJson(res, 200, await executePluginInvocation(route.id, operation, args, { host: plugins, access }));
+        sendJson(res, 200, await ai.invoke(operation, args));
         return;
       }
     } catch (error) { failure(error); return; }

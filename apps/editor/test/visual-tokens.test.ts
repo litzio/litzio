@@ -171,8 +171,6 @@ const nativeButtons = new Map([
 test("UI consumers use shared colors, control geometry and reasoned native-button exceptions", () => {
   const roots = [
     { root: new URL("../src/", import.meta.url), prefix: "", plugin: false },
-    { root: new URL("../../../plugins/docling/src/", import.meta.url), prefix: "plugins/docling/src/", plugin: true },
-    { root: new URL("../../../plugins/ai-agent/src/", import.meta.url), prefix: "plugins/ai-agent/src/", plugin: true },
   ];
   const failures: string[] = [];
   const seenNative = new Set<string>();

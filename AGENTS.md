@@ -33,7 +33,7 @@
 
 ## Internal naming
 
-- 내부 코드 이름은 `litzio`다(Discussion #856, #858). 패키지는 `@litzio/*`, 플러그인 Host API는 `@litzio/plugin-api`를 사용한다. 제품 표시 이름, CLI·Desktop 프로토콜·설치·데이터 경로는 `brand.ts`와 패키저용 안내를 따른다(공식 기본값 Litzio). 저장소 참조는 별도 계약을 따른다.
+- 내부 코드 이름은 `litzio`다(Discussion #856, #858). 패키지는 `@litzio/*`를 사용한다. 플러그인 API는 ADR-0017에 따라 제거했다. 제품 표시 이름, CLI·Desktop 프로토콜·설치·데이터 경로는 `brand.ts`와 패키저용 안내를 따른다(공식 기본값 Litzio). 저장소 참조는 별도 계약을 따른다.
 
 ## Repository map
 
@@ -48,10 +48,8 @@
 - `packages/core/src/myst/` — MyST integration boundary. MyST-specific parsing/serialization logic은 이 경계 안에 둔다.
 - `packages/core/test/` — Core의 document semantics와 canonical round-trip 계약을 검증한다.
 - `packages/cli/` — `@litzio/core`의 얇은 명령줄 인터페이스. 문서 의미나 AST 처리 로직을 구현하지 않는다.
-- `plugins/` — 현재 플러그인·Docling 구현. ADR-0017 ③a에서 AI를 공식 기능으로 이전한 뒤 ③b에서 런타임·UI 기여·관리 CLI/설정·Docling과 관련 테스트·문서를 삭제한다. 삭제 직전 master를 원격 보관 브랜치에 남긴다.
-- `packages/plugin-api/` — ③b에서 공식 AI가 쓰지 않는 부분을 삭제한다. aiTasks 계약은 ADR-0017에 재개발 시 복원할 기록으로 남긴다.
 - `packages/file-commit/` — CLI와 Editor Host가 공유하는 Node 전용 파일 교체(revision 확인, temporary sibling, rename). 문서 의미를 알지 않는다.
-- `apps/editor/server` — 공용 HTTP Host handler. ADR-0017에서 AI는 플러그인에서 daemon 공식 기능으로 옮기며 AI 수명은 daemon을 따른다. 구체 코드 위치와 현재 동작 계약은 구현 PR에서 갱신한다. AI 이전 뒤 플러그인·Docling 기능은 제거하며 소유자 재개 개시 때 보관 코드를 참고해 다시 개발한다.
+- `apps/editor/server` — 공용 HTTP Host handler. ADR-0017에서 AI는 플러그인에서 daemon 공식 기능으로 옮기며 AI 수명은 daemon을 따른다. `ai-host.ts`가 공식 AI를 직접 구성하고 `shared/ai.ts`가 중립 계약을 소유한다. 플러그인·Docling 기능은 제거했으며 소유자 재개 개시 때 보관 코드를 참고해 다시 개발한다.
 - `apps/editor/` — Core-backed Visual Editor. MyST AST를 직접 다루지 않고 Core read model과 Core operations만 사용한다.
 - `apps/desktop/` — Electron Windows shell, NSIS 패키징과 Stable/Beta 업데이트. ADR-0016의 공유 로컬 daemon 수명을 따르고 ADR-0017에서 앱 번들 UI + 대상 Host를 아는 HTTP 클라이언트로 전환한다. 문서 의미를 구현하지 않는다.
 - [UI 결정표와 갤러리](docs/design/ui-decision-table-v1.md) — UI 작업의 진입점. 기존 토큰·variant·아이콘 관례 안의 선택은 묻지 않고 정한다. 새 표면 구조·기존 계약 변경·새 공통 상호작용·공개 Plugin API 변경만 소유자에게 올린다. 결과에는 선택한 공통 구현과 예외 이유를 적는다.

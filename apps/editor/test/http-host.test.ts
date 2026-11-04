@@ -15,7 +15,6 @@ import { MAX_JSON_BYTES, startHttpHost } from "../server/http-host.ts";
 import { DAEMON_PROTOCOL } from "../server/daemon-protocol.ts";
 import { inspectDaemon, stopDaemon } from "../server/daemon-state.ts";
 import { RootAccess } from "../server/file-access.ts";
-import { convertDoclingFile } from "../../../plugins/docling/src/index.ts";
 
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
 
@@ -39,35 +38,7 @@ test("revision checks batch opened documents without parsing or writing and reta
   assert.deepEqual(await (await send(`/api/folder-version?${focus}`)).json(), { revisions: [{ path: file, revision: documentRevision("changed") }] });
   assert.deepEqual(Object.keys(await (await send(`/api/folder-version?${new URLSearchParams({ root: a })}`)).json()), ["version"]);
   assert.equal((await send(`/api/folder-version?${new URLSearchParams({ paths: JSON.stringify([path.join(outside, "secret.md")]) })}`)).status, 403);
-  const privateFolder = path.join(a, ".litzio-plugin-private");
-  fs.mkdirSync(privateFolder); fs.writeFileSync(path.join(privateFolder, "secret.md"), "private");
-  query.set("paths", JSON.stringify([removed, file, path.join(privateFolder, "secret.md")]));
-  assert.equal((await send(`/api/folder-version?${query}`)).status, 403, "an unavailable item cannot mask a private-path refusal");
   assert.equal(fs.readFileSync(file, "utf8"), "changed");
-});
-
-test("comparison reads a self-contained bundle through the shared Host, refuses writes and Root/media escapes", async t => {
-  const { a, outside, send } = await fixture(t);
-  const directory = path.join(a, "comparison");
-  convertDoclingFile(fileURLToPath(new URL("../../../plugins/docling/test/fixtures/synthetic/document.json", import.meta.url)), directory);
-  const file = path.join(directory, "document.md");
-  const endpoint = `/api/docling-compare?${new URLSearchParams({ path: file })}`;
-  const original = fs.readFileSync(file, "utf8");
-  const response = await send(endpoint);
-  assert.equal(response.status, 200);
-  assert.equal((await response.json()).stale, false);
-  assert.equal((await send(endpoint, "POST", {})).status, 405);
-  assert.equal((await send(`/api/docling-compare?${new URLSearchParams({ path: path.join(outside, "document.md") })}`)).status, 403);
-  fs.writeFileSync(file, `${original}\nChanged.\n`);
-  assert.equal((await (await send(endpoint)).json()).stale, true);
-  fs.writeFileSync(file, original);
-  const sidecar = path.join(directory, "document.docling-map.json");
-  const map = JSON.parse(fs.readFileSync(sidecar, "utf8"));
-  for (const uri of ["../../private.png", "https://example.com/page.png", "data:image/png;base64,AA=="]) {
-    map.pages["1"].image.uri = uri; fs.writeFileSync(sidecar, JSON.stringify(map));
-    assert.equal((await send(endpoint)).status, 400, uri);
-  }
-  assert.equal(fs.readFileSync(file, "utf8"), original);
 });
 
 test("fetch listeners close a forced blocked allocation before listening again", async t => {
@@ -207,15 +178,12 @@ async function fixture(t: TestContext, external?: string, controlled = false) {
   }
   fs.writeFileSync(path.join(editorDir, "index.html"), "<!doctype html><title>Editor</title>");
   fs.writeFileSync(path.join(editorDir, "app.js"), "export {};");
-  const previousPlugins = process.env.LITZIO_PLUGINS_DIR;
-  process.env.LITZIO_PLUGINS_DIR = path.join(base, "plugins");
   const trashed: string[] = [];
   const health = { processStartedAt: "test", daemonHome: "test", executable: process.execPath, roots: [], nonLoopback: false, launcher: "cli-run" as const, pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), productVersion: "test-product", protocolVersion: DAEMON_PROTOCOL };
   let stopped = false;
   const host = await startFetchServer(() => startHttpHost({ editorDir, roots: controlled && !external ? [] : [a, b], port: 0, publicOrigin: external,
     ...(controlled ? { daemon: { health, stop: () => { stopped = true; } } } : {}),
     removeFile: file => { trashed.push(file); fs.renameSync(file, path.join(base, "trashed-" + path.basename(file))); } }));
-  if (previousPlugins === undefined) delete process.env.LITZIO_PLUGINS_DIR; else process.env.LITZIO_PLUGINS_DIR = previousPlugins;
   const address = host.server.address();
   assert.ok(address && typeof address !== "string");
   const url = `http://127.0.0.1:${address.port}`;

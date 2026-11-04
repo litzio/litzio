@@ -5,14 +5,6 @@
 export const STABLE_SCENARIOS = [
   "numbering-mode",
   "brand-config",
-  "docling-server",
-  "docling-compare",
-  "docling-dashboard",
-  "docling-review",
-  "docling-review-recovery",
-  "docling-review-retry",
-  "plugin-ui",
-  "plugin-settings",
   "ai-agent",
   "ai-result",
   "continuous-editing",
@@ -108,7 +100,6 @@ export const STABLE_SCENARIOS = [
 export const NOTIFICATION_SCENARIOS = [
   "desktop-updates",
   "reveal-folder",
-  "plugin-ui",
   "color-mode",
   "image-assets",
   "pending-figure",
@@ -118,9 +109,6 @@ export const NOTIFICATION_SCENARIOS = [
   "numbering-mode",
   "continuous-editing",
   "cross-reference",
-  "docling-server",
-  "docling-compare",
-  "docling-dashboard",
   "document-tabs",
   "editor-shell",
   "equation-node-selection-typing",
@@ -174,8 +162,8 @@ export function selectBrowserScenarios(args: readonly string[]): {
       shard: `${index}/${count}`,
     };
   }
-  if (screenshots && (requested.length !== 1 || !["save-session", "numbering-mode", "document-scroll", "heading-levels", "brand-config", "plugin-ui", "plugin-settings", "ai-agent", "ai-result", "read-view", "text-mode", "draft-notice-layout", "color-mode", "selection-toolbar", "ui-prose-wrap", "short-field-errors", "notification-center", "docling-server", "docling-compare", "docling-dashboard", "docling-review", "reference-preview", "image-link-preview", "document-title", "list-format", "link-authoring", "panel-lists", "pre-save-diff", "external-change", "reveal-folder", "save-error", "mermaid-authoring", "image-assets", "inline-math-authoring", "empty-elements", "inline-document-settings", "file-actions", "table-caption", "table-authoring", "figure-authoring", "source-view", "cross-reference", "command-center", "file-preview", "ui-language", "quiet-document", "folder-navigation", "desktop-updates", "open-files", "document-tabs", "editor-groups", "recovery", "recovery-structure", "footnotes", "citations", "bibliography", "bibliography-connection", ...HTTP_SCENARIOS].includes(requested[0]!))) {
-    throw new Error("Use: pnpm browser:test docling-compare|reference-preview|image-link-preview|document-title|list-format|panel-lists|mermaid-authoring|image-assets|figure-authoring|source-view|quiet-document|folder-navigation|desktop-updates|open-files|document-tabs|footnotes|citations|bibliography|bibliography-connection|http-host --screenshots");
+  if (screenshots && (requested.length !== 1 || !["save-session", "numbering-mode", "document-scroll", "heading-levels", "brand-config", "ai-agent", "ai-result", "read-view", "text-mode", "draft-notice-layout", "color-mode", "selection-toolbar", "ui-prose-wrap", "short-field-errors", "notification-center", "reference-preview", "image-link-preview", "document-title", "list-format", "link-authoring", "panel-lists", "pre-save-diff", "external-change", "reveal-folder", "save-error", "mermaid-authoring", "image-assets", "inline-math-authoring", "empty-elements", "inline-document-settings", "file-actions", "table-caption", "table-authoring", "figure-authoring", "source-view", "cross-reference", "command-center", "file-preview", "ui-language", "quiet-document", "folder-navigation", "desktop-updates", "open-files", "document-tabs", "editor-groups", "recovery", "recovery-structure", "footnotes", "citations", "bibliography", "bibliography-connection", ...HTTP_SCENARIOS].includes(requested[0]!))) {
+    throw new Error("Use: pnpm browser:test reference-preview|image-link-preview|document-title|list-format|panel-lists|mermaid-authoring|image-assets|figure-authoring|source-view|quiet-document|folder-navigation|desktop-updates|open-files|document-tabs|footnotes|citations|bibliography|bibliography-connection|http-host --screenshots");
   }
   return { scenarios: requested.length ? requested : [...STABLE_SCENARIOS], screenshots };
 }

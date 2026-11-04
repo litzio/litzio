@@ -1,4 +1,3 @@
-import { executePluginOperation, type PluginOperation } from "../../../apps/editor/server/plugin-operations.ts";
 import { createDocumentSourceFile } from "../../../apps/editor/server/document-create.ts";
 import { executeTemplateOperation, templateLanguage } from "../../../apps/editor/server/document-templates.ts";
 import { brand } from "../../../brand.ts";
@@ -102,7 +101,7 @@ import {
 import { assertUnicode, commitFile, decodeUtf8, preflightFileCommit, textRevision } from "@litzio/file-commit";
 import { resolveMediaPath } from "../../../apps/editor/server/document-path.ts";
 import { figureMediaPath } from "../../../apps/editor/shared/figure-media-path.ts";
-import { createPluginHost } from "../../../apps/editor/server/plugin-host.ts";
+import { createAiHost } from "../../../apps/editor/server/ai-host.ts";
 
 const HELP_GROUPS = [
   "Create and inspect",
@@ -188,8 +187,8 @@ const COMMANDS: CommandSpec[] = [
     details: [`${brand.cliCommand} templates read <name|id> [--json] [--language <ko|en>]`,
       `${brand.cliCommand} templates save <name> --from <file> [--description <text>]`,
       "Save never overwrites. Names of app defaults in both languages are reserved."] },
-  { name: "plugins", group: "Serve", summary: "Manage installed plugins and their Host settings",
-    usage: `${brand.cliCommand} plugins list [--json]`, details: [`${brand.cliCommand} plugins reregister <id>`, `${brand.cliCommand} plugins enable|disable|settings <id>`, `${brand.cliCommand} plugins configure|features <id> --file <json-file>`, "configure takes the complete settings object; features takes plugin-defined boolean switches.", "Uses local Host storage, not a connection to a running Host. Returns installation/settings JSON; failures exit nonzero."] },
+  { name: "ai", group: "Serve", summary: "Read or configure official AI settings",
+    usage: `${brand.cliCommand} ai settings | ai configure --file <json-file>`, details: ["configure takes the complete AI settings snapshot. Uses the same Host operation as HTTP; failures exit nonzero."] },
   {
     name: "apply-batch",
     group: "Edit — batch",
@@ -229,23 +228,7 @@ const COMMANDS: CommandSpec[] = [
     usage: `${brand.cliCommand} create <file> [--template <name|id>] [--language <ko|en>] [--format <text|json>]`,
     details: ["Create a new .md file in an existing directory. Existing files are never overwritten."],
   },
-  {
-    name: "docling",
-    group: "Create and inspect",
-    summary: "Convert a whole DoclingDocument and create its correspondence sidecar",
-    usage: `${brand.cliCommand} docling convert <document.json> --output <new-folder>`,
-    details: ["Accepts DoclingDocument 1.10.0. The output directory must not exist.",
-      `${brand.cliCommand} docling convert-pdf <pdf> --server <url> --output <new-folder> [--timeout <seconds>]`,
-      "--server defaults to LITZIO_DOCLING_SERVER. Uses the fixed litzio-pdf-en-v1 profile.",
-      "PDF conversion creates document.json, readable image files, conversion-record.json and the native document/map.",
-      `${brand.cliCommand} docling add-correction <conversion-folder> --entry <json-or-file>`,
-      `${brand.cliCommand} docling remove-correction <conversion-folder> <id>`,
-      "Creates document.md, document.docling-map.json and local image assets.",
-      `${brand.cliCommand} docling apply-corrections <conversion-folder>`,
-      "Replays corrections.json against the unchanged source; replaces the document/map together. No AI execution.",
-      "Furniture and unsupported elements are reported in the sidecar. No chapter/range selection.",
-      "Original heading numbers remain literal text; automatic heading numbering is off."],
-  },
+
   {
     name: "update-bibliography",
     group: "Edit — labels, footnotes and numbering",
@@ -933,45 +916,6 @@ function main(argv: string[]): number {
     if (rest.length === 0) { process.stdout.write(commandHelp(command)); return 0; }
     throw new Error(commandHelp(command));
   }
-  if (command === "plugins") {
-    if (!(rest[0] === "list" && (rest.length === 1 || rest.length === 2 && rest[1] === "--json") ||
-        rest[0] === "reregister" && rest.length === 2 && !rest[1].startsWith("-"))) throw new Error(commandHelp(command));
-    const host = createPluginHost();
-    try {
-      if (rest[0] === "reregister") process.stdout.write(JSON.stringify(executePluginOperation("reregister", { id: rest[1] }, { host })) + "\n");
-      else {
-        const items = executePluginOperation("list", {}, { host }) as ReturnType<typeof host.inventory>;
-        process.stdout.write(rest[1] === "--json" ? JSON.stringify(items) + "\n" : items.map(item =>
-          `${item.id} ${item.version} ${item.revision} ${item.enabled ? "on" : "off"} ${item.bundledRevision === null ? "not bundled" : item.revision === item.bundledRevision ? "matches bundled" : "differs from bundled"}\n  ${item.directory}`).join("\n") + "\n");
-      }
-    } finally { void host.close(); }
-    return 0;
-  }
-  if (command === "docling") {
-    if ((rest.length === 4 && rest[0] === "add-correction" && rest[2] === "--entry") ||
-        (rest.length === 3 && rest[0] === "remove-correction")) {
-      const host = createPluginHost();
-      try {
-        const args = rest[0] === "add-correction"
-          ? { folder: rest[1], entry: JSON.parse(rest[3].trimStart().startsWith("{") ? rest[3] : readFile(rest[3])) }
-          : { folder: rest[1], id: rest[2] };
-        process.stdout.write(JSON.stringify(host.invoke("docling", rest[0], args)) + "\n");
-      } finally { void host.close(); }
-      return 0;
-    }
-    if (rest.length === 2 && rest[0] === "apply-corrections" && !rest[1].startsWith("-")) {
-      const host = createPluginHost();
-      try { process.stdout.write(JSON.stringify(host.invoke("docling", "apply-corrections", { folder: rest[1] })) + "\n"); }
-      finally { void host.close(); }
-      return 0;
-    }
-    if (rest.length !== 4 || rest[0] !== "convert" || rest[2] !== "--output" ||
-        rest[1].startsWith("-") || rest[3].startsWith("-")) throw new Error(commandHelp(command));
-    const host = createPluginHost();
-    try { process.stdout.write(JSON.stringify(host.invoke("docling", "convert", { input: rest[1], output: rest[3] })) + "\n"); }
-    finally { void host.close(); }
-    return 0;
-  }
   if (!rest[0]) {
     process.stderr.write(commandHelp(command));
     return 2;
@@ -1509,7 +1453,7 @@ function topLevelHelp(): string {
 function commandHelp(name: string): string {
   const spec = findCommand(name);
   if (!spec) return topLevelHelp();
-  if (name === "docling" || name === "plugins") return ["Usage:", `  ${spec.usage}`, "", ...spec.details, ""].join("\n");
+  if (name === "ai") return ["Usage:", `  ${spec.usage}`, "", ...spec.details, ""].join("\n");
   const editing = isEditCommand(name);
   const addressed = /--(?:at|path|from) <(?:index|heading index|table)/.test(spec.usage);
   return ["Usage:", `  ${spec.usage}${editing ? " [--if-revision <revision>] [--dry-run [--format <text|json>]]" : ""}`, "", ...spec.details,
@@ -1968,33 +1912,12 @@ export function runCli(args: string[]): number {
 
 /** Asynchronous command surface; synchronous commands keep the existing runCli API. */
 export async function runCliAsync(args: string[]): Promise<number> {
-  if (args[0] === "plugins" && ["enable", "disable", "settings", "configure", "features"].includes(args[1]) && !isCommandHelpRequest(args.slice(1)) && !args.includes("--version")) {
-    try {
-      const operation = args[1] as PluginOperation, id = args[2];
-      const write = operation === "configure" || operation === "features";
-      if (!id || id.startsWith("-") || (write ? args.length !== 5 || args[3] !== "--file" : args.length !== 3)) throw new Error(commandHelp("plugins"));
-      const input = { id, ...(write ? { args: JSON.parse(readFileSync(args[4], "utf8")) } : {}) };
-      const host = createPluginHost();
-      try { process.stdout.write(JSON.stringify(await executePluginOperation(operation, input, { host })) + "\n"); }
-      finally { await host.close(); }
-      return 0;
-    } catch (error) { return reportError(args, error); }
-  }
-  if (args[0] !== "docling" || args[1] !== "convert-pdf" || args.includes("--version") || isCommandHelpRequest(args.slice(1))) return runCli(args);
+  if (args[0] !== "ai" || args.includes("--version") || isCommandHelpRequest(args.slice(1))) return runCli(args);
   try {
-    const input = args[2], flags = new Map<string, string>();
-    if (!input || input.startsWith("-")) throw new Error(commandHelp("docling"));
-    for (let i = 3; i < args.length; i += 2) {
-      const key = args[i], value = args[i + 1];
-      if (!["--server", "--output", "--timeout"].includes(key) || flags.has(key) || !value || value.startsWith("-")) throw new Error(commandHelp("docling"));
-      flags.set(key, value);
-    }
-    const output = flags.get("--output"), server = flags.get("--server") ?? process.env.LITZIO_DOCLING_SERVER;
-    if (!output || !server) throw new Error("convert-pdf requires --output and --server (or LITZIO_DOCLING_SERVER)");
-    const seconds = flags.has("--timeout") ? Number(flags.get("--timeout")) : 1800;
-    if (!Number.isFinite(seconds) || seconds <= 0) throw new Error("--timeout must be a positive number of seconds");
-    const host = createPluginHost();
-    try { process.stdout.write(JSON.stringify(await host.invoke("docling", "convert-pdf", { input, output, server, timeoutMs: seconds * 1000 })) + "\n"); }
+    const operation = args[1];
+    if (operation === "settings" ? args.length !== 2 : operation !== "configure" || args.length !== 4 || args[2] !== "--file") throw new Error(commandHelp("ai"));
+    const host = createAiHost();
+    try { process.stdout.write(JSON.stringify(await host.invoke(operation, operation === "configure" ? JSON.parse(readFileSync(args[3], "utf8")) : {})) + "\n"); }
     finally { await host.close(); }
     return 0;
   } catch (error) { return reportError(args, error); }

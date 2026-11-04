@@ -6,8 +6,6 @@ import { LOCAL_FILE_ACCESS } from "./server/file-access.ts";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type ViteDevServer } from "vite";
-import { buildDoclingWorker } from "../../packages/cli/scripts/build-docling-worker.ts";
-import { buildAiAgent } from "../../packages/cli/scripts/build-ai-agent.ts";
 import { faviconSvg } from "../../scripts/brand-icons.ts";
 import { collectPackages, packageNotices } from "../../scripts/third-party-notices.ts";
 import path from "node:path";
@@ -56,12 +54,10 @@ export default defineConfig({
     {
       name: "litzio-document",
       async configureServer(server: ViteDevServer) {
-        await buildDoclingWorker(fileURLToPath(new URL("../../tmp/docling-worker", import.meta.url)));
-        await buildAiAgent(fileURLToPath(new URL("../../tmp/ai-agent-worker", import.meta.url)));
         const assetSigningKey = randomBytes(32);
-        let plugins: Promise<ReturnType<typeof import("./server/plugin-host.ts").createPluginHost>> | undefined;
-        const pluginHost = () => plugins ??= server.ssrLoadModule("/server/plugin-host.ts").then(mod => mod.createPluginHost());
-        server.httpServer?.once("close", () => { void plugins?.then(host => host.close()); });
+        let ai: Promise<ReturnType<typeof import("./server/ai-host.ts").createAiHost>> | undefined;
+        const aiHost = () => ai ??= server.ssrLoadModule("/server/ai-host.ts").then(mod => mod.createAiHost());
+        server.httpServer?.once("close", () => { void ai?.then(host => host.close()); });
         const sampleAvailability = prepareSampleDocuments(fileURLToPath(new URL("./samples", import.meta.url)), fileURLToPath(new URL("../../tmp/sample-native-v1", import.meta.url)));
         server.middlewares.use((req, res, next) => {
           const requestUrl = req.url ?? "";
@@ -84,7 +80,7 @@ export default defineConfig({
           void server.ssrLoadModule("/server/document-api.ts").then(async (mod) => {
             const handle = (mod as { handleDocumentRequest: typeof import("./server/document-api.ts").handleDocumentRequest })
               .handleDocumentRequest;
-            return handle(req, res, next, LOCAL_FILE_ACCESS, Infinity, undefined, sampleAvailability, await pluginHost());
+            return handle(req, res, next, LOCAL_FILE_ACCESS, Infinity, undefined, sampleAvailability, await aiHost());
           }).catch((error: unknown) => {
             res.statusCode = 500;
             res.setHeader("Content-Type", "application/json; charset=utf-8");

@@ -2,7 +2,7 @@ import { templateTools, executeTemplateOperation, templateOperations } from "./d
 import { readFileSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { AiUserInputAnswers, AiAgentSettings, AiConversation, AiConversationInfo, AiConversationInput, AiConversationItem, AiConversationTurn } from "@litzio/plugin-api/ai";
+import type { AiUserInputAnswers, AiAgentSettings, AiConversation, AiConversationInfo, AiConversationInput, AiConversationItem, AiConversationTurn } from "../shared/ai.ts";
 import type { AiAgentConnection } from "./ai-agent-connection.ts";
 import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
 
@@ -97,7 +97,6 @@ export class AiAgentConversations {
     const stored = grants.indexOf(info.writeAccess ?? "");
     const restored = stored >= 0 && stored <= grants.indexOf(settings.writeAccess) ? info.writeAccess! : settings.writeAccess;
     settings = { ...settings, provider: info.provider ?? "codex", writeAccess: turnWriteAccess ?? this.conversations.get(id)?.writeAccess ?? restored };
-    if (!settings.providers[settings.provider]) throw new Error("Selected AI provider is disabled.");
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
     if (info.provider === "copilot") await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? this.connection.copilot.reasoningEffort, settings);
     const conversation: AiConversation = { ...info, writeAccess: settings.writeAccess, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
@@ -141,7 +140,6 @@ export class AiAgentConversations {
     if (existing && input.provider !== undefined && input.provider !== (existing.provider ?? "codex")) throw new Error("Provider is locked after a conversation starts.");
     settings = { ...settings, provider: existing?.provider ?? input.provider ?? settings.provider,
       writeAccess: input.writeAccess ?? existing?.writeAccess ?? settings.writeAccess };
-    if (!settings.providers[settings.provider]) throw new Error("Selected AI provider is disabled.");
     const folders = [...new Set(input.folders.map(folder => {
       if (typeof folder !== "string" || !path.isAbsolute(folder)) throw new Error("Invalid opened folder.");
       const resolved = accessPath(folder, this.access);
@@ -237,7 +235,7 @@ export class AiAgentConversations {
     } else if (turn) await this.connection.client.request("turn/interrupt", { threadId: id, turnId: turn.id });
     return conversation;
   }
-  private async sendCopilot(input: AiConversationInput, settings: AiAgentSettings, folders: string[], references: import("@litzio/plugin-api/ai").AiFileReference[], conversation?: AiConversation) {
+  private async sendCopilot(input: AiConversationInput, settings: AiAgentSettings, folders: string[], references: import("../shared/ai.ts").AiFileReference[], conversation?: AiConversation) {
     const acp = this.connection.copilot;
     if (conversation?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the Copilot response before sending another message.");
     const catalog = await this.connection.models("copilot");
@@ -382,7 +380,7 @@ export class AiAgentConversations {
 const CONTEXT = "Litzio read-only context (JSON):\n";
 function itemFrom(item: any): AiConversationItem | null {
   if (item.type === "userMessage") {
-    const references: import("@litzio/plugin-api/ai").AiFileReference[] = [];
+    const references: import("../shared/ai.ts").AiFileReference[] = [];
     const text: string[] = [];
     for (const part of item.content ?? []) {
       if (part.type !== "text") continue;
@@ -419,7 +417,7 @@ function turnFrom(turn: any): AiConversationTurn { return { id: turn.id, status:
 function checkedReferences(value: string[], folders: string[], access: FileAccess) {
   if (!Array.isArray(value)) throw new Error("Invalid file references.");
   const scope = folders.length ? new RootAccess(folders) : null;
-  const references: import("@litzio/plugin-api/ai").AiFileReference[] = [];
+  const references: import("../shared/ai.ts").AiFileReference[] = [];
   for (const requested of value) {
     if (typeof requested !== "string" || !path.isAbsolute(requested) || !scope) throw new Error("File reference is outside opened folders.");
     const resolved = accessPath(accessPath(requested, scope), access);

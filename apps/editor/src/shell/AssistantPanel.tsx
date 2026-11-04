@@ -5,7 +5,7 @@ import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquare, Plus, History, X, ArrowUp, Square, Check } from "lucide-react";
-import { AI_AGENT, AI_TASK, aiAgentEnabled, type AiAgentSettings, type AiConversation, type AiConversationInfo, type AiModels, type AiFileReference, type AiSkills, type AiDiagnostics } from "@litzio/plugin-api/ai";
+import { AI_AGENT, type AiAgentSettings, type AiConversation, type AiConversationInfo, type AiModels, type AiFileReference, type AiSkills, type AiDiagnostics } from "../../shared/ai.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
@@ -74,7 +74,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
   const initialFocus = useRef(false);
   const current = useRef(conversation); current.current = conversation;
   const initializedSettings = useRef(settingsRevision), providerVersion = useRef(0);
-  const enabled = settings?.providers[provider] ?? false;
+  const enabled = !!settings;
   const active = conversation?.turns.some(turn => turn.status === "inProgress") ?? false;
   const defaults = (value: AiAgentSettings) => { setProvider(value.provider); setWriteAccess(value.writeAccess); setModel(value.model); setEffort(value.reasoningEffort); setMode(models?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); };
   useEffect(() => {
@@ -87,21 +87,9 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
     document.addEventListener("focusin", cancelInitialFocus);
     let alive = true;
     setReady(false); setSetup(""); setProblem(""); setHistory(null); setModels(undefined);
-    void request<AiAgentSettings>(AI_TASK.settingsRoute).then(async value => {
+    void request<AiAgentSettings>(AI_AGENT.settingsRoute).then(async value => {
       if (!alive) return;
-      if (settings && value.provider !== settings.provider) {
-        // Host disposed the old connection and conversations. Retire its UI requests too.
-        providerVersion.current++;
-        current.current = undefined; setConversation(undefined); rememberConversation();
-        setPending(false); setProblem(""); setHistory(null); setMessage(""); setReferences([]); setMention(null); setChoicesOpen(null);
-        setRemoved([]); setSkillCatalog(undefined); setSkillProblem("");
-      }
       setSettings(value); if (value.provider === "copilot") setReferences(previous => previous.filter(file => file.kind !== "skill")); if (!current.current && (!settings || refreshingSettings)) defaults(value);
-      if (!aiAgentEnabled(value)) {
-        setSetup(value.provider === "copilot" ? "AI agent is disabled." : "Codex is disabled.");
-        setConversation(current => current ? { ...current, userInput: undefined, turns: current.turns.map(turn => turn.status === "inProgress" ? { ...turn, status: "interrupted" } : turn) } : current);
-        return;
-      }
       const id = current.current?.id ?? lastConversation();
       let resumed: AiConversation | undefined;
       if (id) {
@@ -352,7 +340,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
               <strong>{i18n.t(undone ? "Display settings restored" : "Display settings changed")}</strong>
               {receipt.changed.map(key => <span key={key}>{i18n.t(displayLabels[key])}: {displayValueLabel(receipt.before[key])} → {displayValueLabel(receipt.after[key])}</span>)}
               {receipt.error ? <small role="alert">{receipt.error}</small> : null}
-              <div><Tooltip><TooltipTrigger render={<Button size="sm" variant="outline" disabled={pending || displayUndoBusy || undone || !ready || !(settings && aiAgentEnabled(settings)) || !!setup} />}
+              <div><Tooltip><TooltipTrigger render={<Button size="sm" variant="outline" disabled={pending || displayUndoBusy || undone || !ready || !settings || !!setup} />}
                 onClick={() => {
                   setDisplayUndoBusy(true); setProblem("");
                   void request(AI_AGENT.conversationsRoute, { action: "display-undo", id: conversation!.id, displayClient, requestId: receipt.requestId })
@@ -406,8 +394,8 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
       <div className="assistant-controls">
         <AssistantChoice label={i18n.t("Provider")} value={provider === "copilot" ? "GitHub Copilot" : "Codex"}
           help={i18n.t(conversation ? "Provider is fixed after a conversation starts. Start a new conversation to change it." : "These choices apply only to this conversation. Defaults are in AI settings.")}
-          disabled={!!conversation || active || pending || !settings || !Object.values(settings.providers).some(Boolean) || !models && !setup} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={provider}
-          options={(settings ? Object.entries(settings.providers) : []).filter(([, enabled]) => enabled).map(([value]) => ({ value, label: value === "codex" ? "Codex" : "GitHub Copilot" }))}
+          disabled={!!conversation || active || pending || !settings || !settings || !models && !setup} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={provider}
+          options={["codex", "copilot"].map(value => ({ value, label: value === "codex" ? "Codex" : "GitHub Copilot" }))}
           onSelect={selection => {
             const selected = selection as "codex" | "copilot";
             void run(async isCurrent => {
@@ -449,7 +437,7 @@ function activityStatus(value: string) {
   return value === "inProgress" ? i18n.t("In progress") : value === "completed" ? i18n.t("Completed") : value === "failed" ? i18n.t("Failed") : value === "declined" ? i18n.t("Declined") : value;
 }
 
-function createdDocument(item: import("@litzio/plugin-api/ai").AiConversationItem): { path: string; revision: string; identity?: FileIdentity } | null {
+function createdDocument(item: import("../../shared/ai.ts").AiConversationItem): { path: string; revision: string; identity?: FileIdentity } | null {
   if (item.kind !== "tool" || item.text !== "create_document" || item.toolResult?.success !== true) return null;
   for (const part of item.toolResult.contentItems) {
     if (part.type !== "inputText" || !part.text) continue;

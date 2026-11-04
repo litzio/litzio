@@ -1,5 +1,5 @@
 import { useId } from "react";
-import type { SettingsRowProps, SettingsSwitchProps, SettingsSelectProps, SettingsInputProps, SettingsActionProps } from "@litzio/plugin-api/ui";
+import type { SettingsRowProps, SettingsSwitchProps, SettingsSelectProps, SettingsInputProps, SettingsActionProps } from "./settings-types.ts";
 import { Input } from "./input.tsx";
 import { Button } from "./button.tsx";
 

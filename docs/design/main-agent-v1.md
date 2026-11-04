@@ -1,7 +1,8 @@
 # Main agent connection, settings and conversations
 
 - Status: Implemented
-- PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation; restored packaged worker/native comparison is required Windows CI.
+- Official AI transition: 2026-11-04 (#1150 ③). `ai-host.ts` composes connections/conversations directly; no registration, manifest, worker or plugin UI is loaded. Settings use the built-in Settings → AI agent category with the shared Button, SettingsSelect and Dialog components. No UI pattern exception. Protocol version 2 refuses older daemons.
+- Historical PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation. PR4's packaged worker/native comparison was required Windows CI then; #1150 ③ removed that feature. Current Windows CI retains packaged Desktop and main/CLI license-notice checks in the startup/sample smoke.
 - Saved-file context (#1106): 2026-11-04 owner decision; fake Host/protocol, existing ai-agent browser and Korean 1440px/640px Light/Dark capture checks, no real model turn.
 - Copilot options/full access (#1091): 2026-11-03; fake ACP/Codex/Host checks, existing ai-agent browser and 1440px/640px Korean Dark captures; one real no-prompt catalog session only.
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
@@ -41,8 +42,8 @@ No credential/configuration file is copied or written. The cwd is the branded
 OS user-data directory plus `assistant` for packaged Desktop and distributed CLI;
 Linux uses XDG data home and macOS uses Application Support. Source execution
 (Vite, tsx CLI and development Electron) instead uses
-`<checkout>/.litzio-dev/assistant`, alongside its isolated plugin/settings defaults
-([runtime paths](plugin-runtime-v1.md#installation-and-api)). Built checkout
+`<checkout>/.litzio-dev/assistant`, alongside its isolated official settings defaults
+). Built checkout
 `packages/cli/dist/cli.mjs` retains distributed defaults. `LITZIO_AI_AGENT_CWD` explicitly overrides this directory
 for local integration/testing. Litzio regenerates its product-owned `AGENTS.md`
 there and lists folders containing `.agents/skills/<name>/SKILL.md`. The file
@@ -58,8 +59,7 @@ client. Unsaved document content, Undo and selection remain client-local.
 
 Closing the daemon ends stdin, waits for exit and terminates the exact owned
 provider process tree if needed. Shutdown failure is surfaced. Provider loss marks
-live conversation turns failed; durable plugin task requests become `uncertain`
-on dead-owner observation. Neither is automatically replayed. Provider history
+live conversation turns failed; no request is automatically replayed. The removed durable `aiTasks` uncertain/no-replay contract remains recorded in ADR-0017 for owner-initiated redevelopment. Provider history
 is loaded only by explicit resume after daemon restart. Desktop owns only a
 daemon it launched; a CLI daemon survives Desktop close under
 [ADR-0016](../adr/0016-shared-local-daemon-host.md). There is no controller across
@@ -74,12 +74,11 @@ HTTP Host retain `gpt-6.1-sol` / `medium`. Existing saved settings take priority
 and are never overwritten by these defaults. New assistant conversations and
 their initial model/effort selection use the same AI settings response.
 
-The `ai-agent` plugin's existing settings file stores (installed defaults shown):
+The official `ai-agent.json` settings file stores (installed defaults shown):
 
 ```json
 {
   "provider": "codex",
-  "providers": { "codex": true, "copilot": false },
   "model": "gpt-6.1-sol",
   "reasoningEffort": "medium",
   "writeAccess": "opened-folders",
@@ -87,25 +86,11 @@ The `ai-agent` plugin's existing settings file stores (installed defaults shown)
 }
 ```
 
-`GET/PUT /api/ai-agent-settings` retains the existing atomic sibling-write/rename.
-`plugins settings/configure ai-agent` uses the same validation and stored results
-through the [shared management operations](plugin-runtime-v1.md#shared-plugin-management-operations-1137); no assistant tool is added.
-Changed model/effort pairs must occur in the current `model/list` response; no
-hard-coded effort list or model fallback is used. Save failures retain the UI
-draft. The persisted model may be shown as unavailable until a valid catalog
-selection is saved. Turning the provider off/on does not require a catalog read
-when the model/effort are unchanged. Each change automatically saves a complete
-settings snapshot through a sequential request queue; late writes cannot overwrite
-newer choices. Errors retain the selected values and show a localized alert.
+`GET/PUT /api/ai-agent-settings` and `litzio ai settings` / `litzio ai configure --file <json-file>` call the same `createAiHost().invoke` operations. Input is the complete official settings object; unknown keys (including old enable/provider switches) are refused. Scope is the selected Host's settings path. The returned persisted snapshot is the operation result/receipt; no new ledger or assistant management tool is added. CLI source execution uses local Host storage, as the former management CLI did. Model/provider/effort changes require a current provider catalog pair. Invalid input or a failed write preserves the previous file; writes use an exclusive temporary sibling and rename.
 
-A disconnected catalog therefore does not prevent switching off.
-The model dialog's default marker reflects the stored model. Codex off refuses new feature tasks; both off refuse new conversations.
-Model and diagnostic reads remain available for either provider, while retained UUID receipts stay readable/replayable and
-running tasks retain their existing cancellation path. This Host's app-server
-closes when its settings request disables the default provider or `DELETE /api/worker-plugins`
-unregisters `ai-agent`. The Host awaits process exit before acknowledging that
-unregistration; accepted exec work retains its drain/cancellation path.
-Ordinary editing is unaffected.
+AI is always a daemon feature. Both supported providers are inspectable and selectable without enable switches. Diagnostics report actual executable, connection and account availability. A new conversation/turn with an unavailable selected provider fails with its reason; Litzio never silently substitutes another provider or model. Existing turns, steering, interruption, display replies and history reads do not depend on the current availability/default settings. Changing defaults does not dispose connections, erase conversations or cancel admitted turns; choices apply to the next conversation/turn. Daemon shutdown alone closes its owned provider connections and awaits exit. No settings, registrations or installed files from the removed plugin system are migrated or cleaned.
+
+Each UI change saves a complete snapshot through the existing sequential request queue; errors retain the draft and show a localized alert. Successful saves refresh the assistant defaults while retaining its current conversation. The model dialog retains catalog search, refresh and diagnostics.
 
 `writeAccess` is the single main-agent write-scope value (`opened-folders`,
 `read-only` or `full-access`). Each new turn supplies the current opened-folder paths
@@ -118,7 +103,7 @@ rejected, rather than opening an unimplemented approval dialog. User Codex
 configuration, MCP servers and login remain inherited. The existing-document
 rule is an agent instruction, not a new document-edit enforcement system.
 Steering retains the running turn's scope; new folder/settings choices apply to
-the next turn. Docling's separate execution policy is unchanged.
+the next turn.
 
 AI default language offers Korean, English and Japanese. Its initial value follows
 Host OS / browser language, with English fallback, independently of display language.
@@ -136,24 +121,17 @@ Model/effort defaults still initialize each new conversation.
 | `GET /api/ai-agent-diagnostics` | Codex executable/version, app-server initialization, `account/read`, `account/rateLimits/read`, paginated `mcpServerStatus/list`, check time and individual errors. |
 | `GET /api/ai-agent-environment` | `{ cwd, instructions, skills }`; Litzio-owned environment, without starting app-server. |
 
-These concrete Host reads require the installed AI plugin to be enabled. They
-use the existing route/JSON transport and add no plugin contribution/lifecycle
+These official Host reads use the existing route/JSON transport and add no extension lifecycle
 API. Diagnostics keep partial successes: an account/rate-limit/MCP error is not
 presented as a successful probe. Unknown MCP runtime status is not inferred from
 authentication status. Model discovery and a connected process do not prove
 that an account can execute every returned model. No login/token mutation route
 or arbitrary JSON-RPC proxy is exposed.
 
-Existing Docling AI tasks still use `exec`, snapshots, original permissions,
-receipts and cancellation. `{ model, reasoningEffort, responseLanguage }` from the shared
-defaults enters their worker request; responseLanguage is the fallback for tasks
-started without a conversation. Provider settings do not change a previously
-admitted task or its UUID identity. See [AI task service](plugin-runtime-v1.md#ai-task-service-880).
-
 ## Settings UI
 
 The flow always shows Codex and GitHub Copilot rows with name/status, diagnostics
-and independent enable switches; the row opens a searchable model dialog with supported efforts, default
+without enable switches; the row opens a searchable model dialog with supported efforts, default
 marker, update time and refresh. Diagnostics is a separate subview with return
 navigation. Defaults are provider, model, that model's supported effort and AI default language.
 The common environment shows cwd, `AGENTS.md` and actual Litzio skills.
@@ -164,11 +142,6 @@ English Light at 1440px and Korean Dark at 640px retain visible controls and
 no horizontal overflow. Relative to the static mockup, the existing product
 Settings shell supplies navigation; #1109 replaces explicit Save with automatic saving. Mockup
 example error rows, further providers, disabled model-add decoration are not presented as functioning features. The common skill list includes the generated `litzio-guide`; this filesystem inventory does not itself prove Codex discovery.
-
-Contribution labels/descriptions are untranslated keys, translated by the shell
-at render time. Plugin view strings use `host.text` during render. Starting in
-Korean then selecting English no longer freezes the AI menu or description in
-Korean; Docling uses the same metadata convention.
 
 ## Verification and remaining scope
 
@@ -290,7 +263,7 @@ Reproduce with `pnpm browser:test ai-agent --screenshots` (history captures in
 
 `GET /api/ai-agent-conversations` lists metadata; `?id=…` reads a loaded snapshot.
 `POST` accepts `send`, `resume` and `interrupt` actions. These are concrete
-AI-plugin Host routes, not an arbitrary JSON-RPC proxy or a new UI contribution
+official AI Host routes, not an arbitrary JSON-RPC proxy or a new UI contribution
 point. The installed/enabled provider gates all new conversation calls.
 
 Each send captures the current opened folders and active document path only,
@@ -653,7 +626,7 @@ pending clears (to the surviving card after deletion).
 There is no undo journal or new persistence layer. A deleted receipt remains historical;
 a fresh page may offer Undo again, which refuses a missing file.
 
-The product-owned guide explains opening files/folders, Read/Edit/Source, Docling,
+The product-owned guide explains opening files/folders, Read/Edit/Source,
 Settings and the assistant document/template tools. Terminal continuation uses existing `litzio`
 create, inspect, apply-batch and check commands; it does not promise dynamic-tool
 handlers in terminal Codex. Environment diagnostics list local skill names without
@@ -706,7 +679,7 @@ Vite start retains the original assertions. Confirmation text explicitly names r
 records: [1440px English](assets/assistant-results-931/confirm-review-1440.png) and
 [640px Korean Dark](assets/assistant-results-931/confirm-review-640.png).
 
-UI-owned reasoning-effort labels, MCP connection/authentication states and token units follow the display language, including plugin `host.text` rendering. Provider model names, descriptions, IDs and diagnostic payloads remain provider data. Translated labels retain the original option values and do not change the selected response language.
+UI-owned reasoning-effort labels, MCP connection/authentication states and token units follow the display language, including official settings rendering. Provider model names, descriptions, IDs and diagnostic payloads remain provider data. Translated labels retain the original option values and do not change the selected response language.
 
 #975 source captures (1440px Light English / 640px Dark Korean):
 
@@ -978,7 +951,7 @@ Login stays in the user's Copilot CLI. Account/rate-limit/MCP diagnostics are
 Codex-only. Disable/unregister/Host shutdown closes both owned CLI connections.
 Saving a provider switch closes the old connections; active work is disconnected
 and is never replayed. A successful AI-settings PUT also refreshes an already
-open assistant through the existing shell-owned plugin transport. The panel
+open assistant through the official AI HTTP transport. The panel
 rereads settings/catalog/diagnostics; when provider changes it drops the old
 conversation, running/pending state, remembered selection and composer selections,
 then uses the new provider's defaults for a fresh conversation. Late old-provider
@@ -1021,15 +994,13 @@ override every inherited Copilot permission/MCP configuration. Preauthorized
 provider actions may not ask Host for permission. Users must verify their CLI
 configuration; these settings are not represented as equivalent containment.
 
-Docling and other feature tasks still use the unchanged Codex exec adapter.
-When selecting Copilot, Host preserves the last saved Codex model/effort in
-`codexTaskSettings`; feature tasks use those values and the existing AI default
-language. Copilot settings store the selected `reasoningEffort`. Returning to Codex
-explicitly saves its selected model/effort. `checkedSettings` accepts full-access;
-no migration of earlier saved settings is included.
+Docling and its feature-task exec adapter were removed in #1150 ③.
+The removed feature-task settings (`codexTaskSettings`) are not retained.
+Official settings store the selected provider/model/reasoning effort and accept
+full-access; no migration of earlier saved settings is included.
 
-UI uses #1070 Host SettingsSelect for provider/model/effort/language/write access,
-SettingsSwitch for each provider's enablement; all defaults save automatically. Write access defaults to
+UI uses the shared SettingsSelect for provider/model/effort/language/write access.
+Providers have no enable switches; all defaults save automatically. Write access defaults to
 opened-folders and also offers read-only and Full access. A native hover description
 explains that Full access removes the sandbox and automatically approves tools,
 paths and network access; no permanent warning is shown. Codex full-access turns use
@@ -1037,7 +1008,7 @@ paths and network access; no permanent warning is shown. Codex full-access turns
 the captured active-turn scope. Document tools still use their existing opened-folder,
 Host Root and exclusive-new-file boundaries. These are not general shell tools.
 Copilot hides only Codex-specific skills/diagnostics. The existing model Dialog/provider summary
-remain; Docling and AI share Host row widths (P05/P12), with no additional UI API.
+remain; official AI reuses shared settings row widths (P05/P12).
 Manual owner checks: Host login, available model selection, conversation and
 history, Stop, and read-only/opened-folder writes with the user's configuration.
 ### Copilot choices and application timing (#1091)
@@ -1214,38 +1185,15 @@ The shared expanded-button CSS incorrectly removed outline borders as well as
 ghost borders. Removing that redundant reset lets each existing Button variant
 own its border; ghost remains transparent. No NewDialog styling is changed.
 
-## Independent provider settings (#1109)
+## Official provider settings (#1150 ③)
 
-`AiAgentSettings` is a public `@litzio/plugin-api/ai` type. `enabled` is replaced
-by required `providers: Record<AiProvider, boolean>`; `provider` remains the default
-provider. Defaults enable Codex and disable Copilot. The default must be enabled
-unless both are off, when the assistant is off. Disabling the default selects the
-other enabled provider and its first advertised model/effort. Codex feature tasks
-(including Docling) follow the Codex flag independently of the assistant default.
-Old files without `providers` return current Host defaults without rewriting or
-migrating the file. New writes require the new shape.
+`AiAgentSettings` lives in `apps/editor/shared/ai.ts`. The daemon owns settings and its provider connections directly. The removed enable switches, plugin transport and Codex feature-task defaults have no compatibility aliases. Both providers remain inspectable; the selected provider's real availability controls new work, while current turns and tools retain their lifecycle. Existing settings controls, ordered autosave and failed-save recovery remain covered by the fake `ai-agent` browser scenario.
 
-Both providers are always visible. Each row holds name/status, Diagnostics, then
-the existing Host SettingsSwitch with an accessible label. Model browsing and
-diagnostics inspect either provider without changing the default. Defaults reuse
-Host SettingsSelect; no save button or persistent success text remains. Saving
-and failure use existing localized status/alert text. No document semantics or
-CLI operation changes are introduced.
+Verification: full workspace tests/typecheck, boundaries, docs, Editor/CLI build, fake ai-agent/ai-result browser scenarios, and production HTTP recovery/reconnect/Save/conflict. Packaging and platform distribution are CI-only; no paid AI call, install/update/uninstall or user-data migration was run.
 
-Verification (2026-11-04): full workspace typecheck, Editor build, documentation
-and whitespace checks passed. Existing plugin tests cover old-file fallback and independent
-Codex admission; the existing ai-agent browser scenario covers the settings UI
-and assistant integration with fake providers (1m36s with manual captures).
-Delayed PUT responses (including an older failure followed by a successful latest
-snapshot) and a failed latest write exercise ordered autosave and localized
-error recovery; no new browser scenario or subprocess is added. The ai-result
-fixture uses the same new settings contract. No model calls or user settings
-writes are used. Captures: 1440px English Light and 640px Korean Dark
-[before wide](assets/ai-settings-1109/before/ai-1440-light-en.png),
-[after wide](assets/ai-settings-1109/after/ai-1440-light-en.png),
-[before narrow](assets/ai-settings-1109/before/ai-640-dark-ko.png),
-[after narrow](assets/ai-settings-1109/after/ai-640-dark-ko.png).
+Manual visual review, 1440px English Light and 640px Korean Dark: [wide](assets/official-ai-1150/ai-1440-light-en.png), [narrow](assets/official-ai-1150/ai-640-dark-ko.png). Reuses SettingsSelect, Button and Dialog with existing shell geometry. No new interaction or UI pattern exception.
 
+Independent-review follow-up: generated `litzio-guide` frontmatter and instructions describe only retained features; the environment regeneration test rejects removed Docling/convert-pdf guidance. Provider rows retain the common ghost Button with explicit start alignment, following the left-aligned label convention in Appearance/Recovery; obsolete toggle CSS is removed. The wide/narrow captures above are refreshed for this alignment fix. Desktop license assertions are preserved in the existing packaged startup/sample smoke and run only in required Windows CI.
 
 Review follow-up (#1131): the existing Host test first reproduced a forged
 `full-access` history entry becoming `dangerFullAccess` after a fresh Host resume

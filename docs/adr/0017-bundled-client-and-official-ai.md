@@ -37,7 +37,7 @@ ADR-0013의 Host 중개 작업 메시지, provider-neutral 기능 요청, caller
 
 소유자는 코어 기능의 핵심 전환에 집중하기 위해 플러그인 코드를 남기고 연결만 끊는 방식 대신 **기능 제거**를 결정했다. 플러그인 런타임·UI 기여·`plugins` CLI·설정의 플러그인 영역·Docling 플러그인과 관련 테스트·문서를 저장소에서 삭제한다. `@litzio/plugin-api`도 공식 AI 기능이 쓰지 않는 부분을 삭제한다. 공식 AI가 플러그인 경로 없이 동작하도록 먼저 이전하며, 그 뒤 삭제한다.
 
-삭제 직전 master 커밋을 원격 보관 브랜치 **`archive/plugins-docling-2026-11`**로 남긴다. 보관 브랜치의 기준 SHA와 삭제 범위는 삭제 구현 PR에 기록한다. 이번 문서 PR에서는 브랜치 생성이나 코드·테스트·관련 문서 삭제를 수행하지 않는다.
+삭제 직전 master 커밋을 원격 보관 브랜치 **`archive/plugins-docling-2026-11`**로 남긴다. 보관 브랜치의 기준 SHA와 삭제 범위는 삭제 구현 PR에 기록한다. ③ 구현에서 원격 보관 SHA `ce90560aacaee2482d37c4b25e36e93060ed156c`를 확인했다. ③a·③b는 한 PR로 구현한다. `plugins/`, `packages/plugin-api/`, Host runtime·store·worker·aiTasks·UI 기여 로더, 관리 CLI·설정·Docling과 전용 테스트·fixture·문서를 제거한다. AI 계약은 `apps/editor/shared/ai.ts`, 공식 composition은 `apps/editor/server/ai-host.ts`, 설정 CLI는 `ai settings` / `ai configure --file`로 옮긴다. ④·⑤는 구현하지 않는다.
 
 이는 테스트 기준 약화의 기간 한정 예외가 아니라 기능 제거다. ADR-0016 ⑥의 PR3 예외는 PR4에서 복구한 이력으로 남기며 연장하지 않는다. 제거되는 기능의 테스트·문서를 함께 삭제하고 코어·공식 AI·문서 유효성·데이터 보존·공식 write path의 검증은 유지한다. 기능 제거를 무관한 테스트 삭제 근거로 쓰지 않는다.
 
@@ -75,7 +75,7 @@ ADR-0016의 고정 HTTP origin은 daemon에 유지한다. Desktop UI는 별도 �
 
 복구 검증은 둘로 구분한다. #1142 PR4의 재연결은 같은 편집 세션의 미저장 내용·Undo → Save를 검증한다. Desktop 번들 UI 전환에서는 새 번들 origin에서 앱 종료·재시작 → Restore → Save 및 외부 변경 충돌을 별도로 검증한다. 과거 origin 데이터 이전은 없다.
 
-이 PR은 문서만 변경한다. 각 구현 PR이 해당 [HTTP Host](../design/http-host-v1.md), [Desktop distribution](../design/desktop-distribution-v1.md), [Main agent](../design/main-agent-v1.md), [Plugin runtime](../design/plugin-runtime-v1.md), [Plugin UI](../design/plugin-ui-v1.md), [Docling conversion](../design/docling-conversion-v1.md) 계약을 실제 동작과 함께 갱신한다. 아직 구현되지 않은 결정을 Implemented 계약의 현재 동작으로 쓰지 않는다.
+ADR 채택 PR은 문서만 변경했다. 각 구현 PR이 해당 [HTTP Host](../design/http-host-v1.md), [Desktop distribution](../design/desktop-distribution-v1.md), [Main agent](../design/main-agent-v1.md), [Plugin runtime](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md), [Plugin UI](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md), [Docling conversion](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md) 계약을 실제 동작과 함께 갱신한다. 아직 구현되지 않은 결정을 Implemented 계약의 현재 동작으로 쓰지 않는다.
 
 ## Deferred
 
