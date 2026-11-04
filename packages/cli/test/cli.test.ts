@@ -26,7 +26,7 @@ import {
   numberingReport,
 } from "@litzio/core";
 import { textRevision } from "@litzio/file-commit";
-import { runCli } from "../src/cli.ts";
+import { runCli, runCliAsync } from "../src/cli.ts";
 import { versionText } from "../src/version.ts";
 import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 
@@ -3026,7 +3026,7 @@ test("CLI build constant selects distributed defaults even for checkout dist art
   assert.equal(actual.agent, expected.agent);
 });
 
-test("plugins CLI lists Host inventory and explicitly reregisters bundled revisions", () => {
+test("plugins CLI manages Host inventory and persisted settings", async () => {
   const listed = run(["plugins", "list", "--json"]);
   assert.equal(listed.status, 0, listed.stderr);
   const plugins = JSON.parse(listed.stdout);
@@ -3037,6 +3037,31 @@ test("plugins CLI lists Host inventory and explicitly reregisters bundled revisi
   assert.equal(run(["plugins", "reregister", "docling"]).status, 0);
   assert.notEqual(run(["plugins", "reregister", "unknown"]).status, 0);
   assert.notEqual(run(["plugins", "list", "--invalid"]).status, 0);
+  const config = path.join(fixtures, "plugin-config.json");
+  writeFileSync(config, JSON.stringify({ server: "http://127.0.0.1:9876" }));
+  const configured = await runAsync(["plugins", "configure", "docling", "--file", config]);
+  assert.equal(configured.status, 0, configured.stderr);
+  assert.equal(JSON.parse(configured.stdout).server, "http://127.0.0.1:9876");
+  assert.equal(JSON.parse((await runAsync(["plugins", "settings", "docling"])).stdout).server, "http://127.0.0.1:9876");
+  const before = readFileSync(process.env.LITZIO_DOCLING_SETTINGS_FILE!);
+  writeFileSync(config, JSON.stringify({ server: "not a URL" }));
+  assert.equal((await runAsync(["plugins", "configure", "docling", "--file", config])).status, 1);
+  assert.deepEqual(readFileSync(process.env.LITZIO_DOCLING_SETTINGS_FILE!), before);
+  writeFileSync(config, JSON.stringify({ review: false }));
+  assert.equal(JSON.parse((await runAsync(["plugins", "features", "docling", "--file", config])).stdout).review, false);
+  const disabled = await runAsync(["plugins", "disable", "docling"]);
+  assert.equal(disabled.status, 0, disabled.stderr);
+  assert.equal(JSON.parse(disabled.stdout).find((item: any) => item.id === "docling").enabled, false);
+  assert.equal((await runAsync(["plugins", "settings", "docling"])).status, 1);
+  const enabled = await runAsync(["plugins", "enable", "docling"]);
+  assert.equal(enabled.status, 0, enabled.stderr);
+  assert.equal(JSON.parse(enabled.stdout).revision, docling.revision);
+  assert.equal(JSON.parse(enabled.stdout).features.review, false);
+  assert.equal((await runAsync(["plugins", "enable", "missing"])).status, 1);
+  writeFileSync(config, JSON.stringify({ review: true }));
+  assert.equal((await runAsync(["plugins", "features", "docling", "--file", config])).status, 0);
+  assert.match(run(["help", "plugins"]).stdout, /configure.*features/);
+
 });
 
 
@@ -3073,3 +3098,15 @@ test("templates CLI lists, previews, saves and exclusively creates through the s
   assert.equal(run(["templates", "list", "--language", "invalid"]).status, 1);
   assert.equal(run(["templates", "read", name, "--json", "--json"]).status, 1);
 });
+
+// Async management must finish (including Host cleanup) before output is inspected.
+async function runAsync(args: string[]) {
+  const stdoutWrite = process.stdout.write, stderrWrite = process.stderr.write;
+  let stdout = "", stderr = "";
+  try {
+    process.stdout.write = chunk => { stdout += chunk; return true; };
+    process.stderr.write = chunk => { stderr += chunk; return true; };
+    const status = await runCliAsync(args);
+    return { status, stdout, stderr };
+  } finally { process.stdout.write = stdoutWrite; process.stderr.write = stderrWrite; }
+}
