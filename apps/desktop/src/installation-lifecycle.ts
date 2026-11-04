@@ -14,18 +14,19 @@ export interface InstallationPort {
 /** Never use image-name taskkill: another channel/installation can use the same image name. */
 export function installationPort(executable: string): InstallationPort {
   const ps = (script: string, input = "") => execFileSync(path.join(process.env.WINDIR ?? "C:\\Windows", "System32/WindowsPowerShell/v1.0/powershell.exe"),
-    ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference = 'Stop'; ${script}`], { input, encoding: "utf8", windowsHide: true });
+    ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference = 'Stop'; [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); $inputText = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadToEnd())); ${script}`],
+    { input: Buffer.from(input, "utf8").toString("base64"), encoding: "utf8", windowsHide: true });
   const samePath = (file: string) => path.resolve(file).toLowerCase() === path.resolve(executable).toLowerCase();
   return {
     processes: () => JSON.parse(ps(
-      "$target = [Console]::In.ReadToEnd(); ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $target } | ForEach-Object { " +
+      "$target = $inputText; ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $target } | ForEach-Object { " +
       "@{ pid = $_.ProcessId; started = [string]$_.CreationDate.ToUniversalTime().Ticks; command = $_.CommandLine; window = ((Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue).MainWindowHandle -ne 0) } })", executable)).filter((p: InstalledProcess) => p.pid !== process.pid),
     records: () => (["stable", "beta", "development"] as const).flatMap(channel => {
       const record = readDaemonRecord(daemonDirectory(channel));
       return record && samePath(record.executable) ? [record] : [];
     }),
     closeWindows: processes => { if (processes.length) ps(
-      "$request = ConvertFrom-Json ([Console]::In.ReadToEnd()); foreach ($owner in $request.processes) { " +
+      "$request = ConvertFrom-Json $inputText; foreach ($owner in $request.processes) { " +
       "$current = Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $owner.pid); " +
       "if ($current -and $current.ExecutablePath -eq $request.executable -and [string]$current.CreationDate.ToUniversalTime().Ticks -eq $owner.started) { " +
       "$p = Get-Process -Id $owner.pid -ErrorAction SilentlyContinue; if ($p) { [void]$p.CloseMainWindow() } } }", JSON.stringify({ executable, processes })); },
