@@ -1,3 +1,4 @@
+import { executePluginOperation, executePluginInvocation } from "./plugin-operations.ts";
 import { executeTemplateOperation } from "./document-templates.ts";
 import { createDocumentSourceFile } from "./document-create.ts";
 import { hostPaths } from "./host-paths.ts";
@@ -294,22 +295,21 @@ export async function handleDocumentRequest(
     if (!plugins) { sendJson(res, 503, { error: "Plugins are unavailable on this Host." }); return; }
     if (!["GET", "POST", "PATCH", "DELETE"].includes(req.method ?? "")) { res.statusCode = 405; res.end(); return; }
     try {
-      const store = plugins.plugins();
-      if (req.method === "GET") sendJson(res, 200, plugins.inventory());
+      const scope = { host: plugins, access };
+      if (req.method === "GET") sendJson(res, 200, executePluginOperation("list", {}, scope));
       else {
         const body = JSON.parse(await readBody(req));
         if (req.method === "PATCH") {
           if (typeof body.id !== "string" || body.enabled !== true) throw new Error("Plugin id and enabled=true are required.");
-          sendJson(res, 200, store.enable(body.id));
+          sendJson(res, 200, executePluginOperation("enable", { id: body.id }, scope));
         } else if (req.method === "POST") {
           if (typeof body.bundled === "string") {
-            sendJson(res, 200, plugins.reregister(body.bundled)); return;
+            sendJson(res, 200, executePluginOperation("reregister", { id: body.bundled }, scope)); return;
           }
-          const manifest = accessPath(body.manifest, access);
-          sendJson(res, 200, store.register(manifest, false, file => { accessPath(file, access); }));
+          sendJson(res, 200, executePluginOperation("register", { manifest: body.manifest }, scope));
         } else {
           if (typeof body.id !== "string") throw new Error("Plugin id is required.");
-          await plugins.unregister(body.id); sendJson(res, 200, store.list());
+          sendJson(res, 200, await executePluginOperation("disable", { id: body.id }, scope));
         }
       }
     } catch (error) { failure(error); }
@@ -321,7 +321,7 @@ export async function handleDocumentRequest(
     try {
       const body = JSON.parse(await readBody(req));
       if (typeof body.plugin !== "string" || typeof body.operation !== "string") throw new Error("Plugin and operation are required.");
-      sendJson(res, 200, await plugins.invoke(body.plugin, body.operation, body.args));
+      sendJson(res, 200, await executePluginInvocation(body.plugin, body.operation, body.args, { host: plugins, access }));
     } catch (error) { failure(error); }
     return;
   }
@@ -461,7 +461,7 @@ export async function handleDocumentRequest(
         const operation = route.methods[req.method as keyof typeof route.methods];
         if (!operation) { res.statusCode = 405; res.end(); return; }
         const args = req.method === "GET" ? Object.fromEntries(query) : JSON.parse(await readBody(req));
-        sendJson(res, 200, await plugins.invoke(route.id, operation, args));
+        sendJson(res, 200, await executePluginInvocation(route.id, operation, args, { host: plugins, access }));
         return;
       }
     } catch (error) { failure(error); return; }

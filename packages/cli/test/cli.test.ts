@@ -3032,7 +3032,7 @@ test("CLI build constant selects distributed defaults even for checkout dist art
   assert.equal(actual.agent, expected.agent);
 });
 
-test("plugins CLI lists Host inventory and explicitly reregisters bundled revisions", () => {
+test("plugins CLI manages Host inventory and persisted settings", () => {
   const listed = run(["plugins", "list", "--json"]);
   assert.equal(listed.status, 0, listed.stderr);
   const plugins = JSON.parse(listed.stdout);
@@ -3043,6 +3043,31 @@ test("plugins CLI lists Host inventory and explicitly reregisters bundled revisi
   assert.equal(run(["plugins", "reregister", "docling"]).status, 0);
   assert.notEqual(run(["plugins", "reregister", "unknown"]).status, 0);
   assert.notEqual(run(["plugins", "list", "--invalid"]).status, 0);
+  const config = path.join(fixtures, "plugin-config.json");
+  writeFileSync(config, JSON.stringify({ server: "http://127.0.0.1:9876" }));
+  const configured = runProcess(["plugins", "configure", "docling", "--file", config]);
+  assert.equal(configured.status, 0, configured.stderr);
+  assert.equal(JSON.parse(configured.stdout).server, "http://127.0.0.1:9876");
+  assert.equal(JSON.parse((runProcess(["plugins", "settings", "docling"])).stdout).server, "http://127.0.0.1:9876");
+  const before = readFileSync(process.env.LITZIO_DOCLING_SETTINGS_FILE!);
+  writeFileSync(config, JSON.stringify({ server: "not a URL" }));
+  assert.equal((runProcess(["plugins", "configure", "docling", "--file", config])).status, 1);
+  assert.deepEqual(readFileSync(process.env.LITZIO_DOCLING_SETTINGS_FILE!), before);
+  writeFileSync(config, JSON.stringify({ review: false }));
+  assert.equal(JSON.parse((runProcess(["plugins", "features", "docling", "--file", config])).stdout).review, false);
+  const disabled = runProcess(["plugins", "disable", "docling"]);
+  assert.equal(disabled.status, 0, disabled.stderr);
+  assert.equal(JSON.parse(disabled.stdout).find((item: any) => item.id === "docling").enabled, false);
+  assert.equal(runProcess(["plugins", "settings", "docling"]).status, 1);
+  const enabled = runProcess(["plugins", "enable", "docling"]);
+  assert.equal(enabled.status, 0, enabled.stderr);
+  assert.equal(JSON.parse(enabled.stdout).revision, docling.revision);
+  assert.equal(JSON.parse(enabled.stdout).features.review, false);
+  assert.equal(runProcess(["plugins", "enable", "missing"]).status, 1);
+  writeFileSync(config, JSON.stringify({ review: true }));
+  assert.equal(runProcess(["plugins", "features", "docling", "--file", config]).status, 0);
+  assert.match(run(["help", "plugins"]).stdout, /configure.*features/);
+
 });
 
 

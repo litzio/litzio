@@ -262,7 +262,8 @@ directory and feature flags. Errors do not claim successful activation. Direct
 openSettings entry still works. Feature-driven reactivation preserves the selected
 plugin while installed/enabled; actual disable returns to the list. SettingsRow,
 SettingsSwitch, ghost Button and Tooltip are reused without a new common component
-or public Plugin API. Document semantics are unchanged; no semantic CLI is needed.
+or public Plugin API. Document semantics are unchanged. Plugin management and settings now have the
+[shared Host operations and CLI](plugin-runtime-v1.md#shared-plugin-management-operations-1137) required by ADR-0015.
 
 `plugin-settings` verifies cancellation, confirmation and the real Host POST/GET,
 with 1440px English Light and 640px Korean Dark captures including long paths.

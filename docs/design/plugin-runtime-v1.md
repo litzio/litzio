@@ -465,6 +465,48 @@ revision, version, enabled state, installed directory and bundled revision.
 `litzio plugins reregister <id>` calls the same Host default registration.
 There is no automatic replacement, installation/removal UI or marketplace.
 
+### Shared plugin management operations (#1137)
+
+Under [ADR-0015](../adr/0015-shared-host-operations.md), `pluginOperations` and
+`executePluginOperation` define the management slice. HTTP worker-plugin routes,
+contributed settings routes and the generic plugin-operation route adapt into
+these same operations; CLI calls them in its own process.
+
+| Operation / CLI | Input | Result / receipt |
+| --- | --- | --- |
+| `list` / `plugins list [--json]` | `{}` | Current inventory (plain text by default in CLI). |
+| `enable` / `plugins enable <id>` | `{ id }` | Enabled pinned installation, retaining revision/directory/features. |
+| `disable` / `plugins disable <id>` | `{ id }` | Registration list after disable and local agent shutdown; accepted work drains. |
+| `reregister` / `plugins reregister <id>` | `{ id }` | Explicitly registered bundled installation. |
+| `register` / existing HTTP manifest POST | `{ manifest }` | Registered installation; source files remain subject to Host Root checks. |
+| `settings` / `plugins settings <id>` | `{ id }` | Plugin-owned settings snapshot. |
+| `configure` / `plugins configure <id> --file <json-file>` | `{ id, args }` | Stored settings snapshot; file contains the complete plugin settings object. |
+| `features` / `plugins features <id> --file <json-file>` | `{ id, args }` | Effective plugin feature flags; file contains plugin-defined boolean switches. |
+
+For example, Docling configure accepts `{ "server": "http://127.0.0.1:8001" }`
+and features accepts `{ "review": false }`. Feature updates retain the plugin's
+existing partial-update behavior. Settings reads/writes keep existing disabled-plugin
+and disabled-feature refusals. Invalid settings never become a successful result.
+CLI writes return JSON, wait for asynchronous validation/shutdown and exit nonzero
+on refusal/failure. The synchronous `runCli` API retains list/reregister; new
+management commands use `runCliAsync`, as does the executable.
+
+Scope is the selected Host's plugin installation and plugin settings paths,
+including existing environment overrides. CLI does not connect to another running
+Host or share its live sessions, UI drafts or history. Independent Hosts reread
+persisted settings/registrations through their existing paths. Results reuse
+installation/setting snapshots and existing worker request records; no management
+ledger, UUID replay policy or automatic retry is added. Disabling via CLI cannot
+claim shutdown of another Host's live provider process.
+
+AI configure reuses the existing provider/model/reasoning catalog validation and
+atomic settings write. Changing those selections may connect to Codex app-server
+or Copilot catalog; toggling a provider with unchanged selections retains the
+existing no-catalog path. This adds no assistant tools or permission for the
+assistant to change plugins, AI permissions, provider or model. Local automated
+coverage uses the existing fake catalog; no real provider connection is required.
+
+
 Manifest `version` must be semver, including prerelease/build metadata; hashes,
 short numeric versions and arbitrary names are refused. No past-data migration is
 provided. Bundled Docling and AI agent builds read `apps/desktop/package.json` and

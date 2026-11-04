@@ -1,3 +1,4 @@
+import { executePluginOperation, type PluginOperation } from "../../../apps/editor/server/plugin-operations.ts";
 import { createDocumentSourceFile } from "../../../apps/editor/server/document-create.ts";
 import { executeTemplateOperation, templateLanguage } from "../../../apps/editor/server/document-templates.ts";
 import { brand } from "../../../brand.ts";
@@ -187,8 +188,8 @@ const COMMANDS: CommandSpec[] = [
     details: [`${brand.cliCommand} templates read <name|id> [--json] [--language <ko|en>]`,
       `${brand.cliCommand} templates save <name> --from <file> [--description <text>]`,
       "Save never overwrites. Names of app defaults in both languages are reserved."] },
-  { name: "plugins", group: "Serve", summary: "List installed plugins or explicitly register the app default again",
-    usage: `${brand.cliCommand} plugins list [--json]`, details: [`${brand.cliCommand} plugins reregister <id>`, "Uses the same Host installation and bundled manifests as the Editor. No automatic replacement."] },
+  { name: "plugins", group: "Serve", summary: "Manage installed plugins and their Host settings",
+    usage: `${brand.cliCommand} plugins list [--json]`, details: [`${brand.cliCommand} plugins reregister <id>`, `${brand.cliCommand} plugins enable|disable|settings <id>`, `${brand.cliCommand} plugins configure|features <id> --file <json-file>`, "configure takes the complete settings object; features takes plugin-defined boolean switches.", "Uses local Host storage, not a connection to a running Host. Returns installation/settings JSON; failures exit nonzero."] },
   {
     name: "apply-batch",
     group: "Edit — batch",
@@ -931,9 +932,9 @@ function main(argv: string[]): number {
         rest[0] === "reregister" && rest.length === 2 && !rest[1].startsWith("-"))) throw new Error(commandHelp(command));
     const host = createPluginHost();
     try {
-      if (rest[0] === "reregister") process.stdout.write(JSON.stringify(host.reregister(rest[1])) + "\n");
+      if (rest[0] === "reregister") process.stdout.write(JSON.stringify(executePluginOperation("reregister", { id: rest[1] }, { host })) + "\n");
       else {
-        const items = host.inventory();
+        const items = executePluginOperation("list", {}, { host }) as ReturnType<typeof host.inventory>;
         process.stdout.write(rest[1] === "--json" ? JSON.stringify(items) + "\n" : items.map(item =>
           `${item.id} ${item.version} ${item.revision} ${item.enabled ? "on" : "off"} ${item.bundledRevision === null ? "not bundled" : item.revision === item.bundledRevision ? "matches bundled" : "differs from bundled"}\n  ${item.directory}`).join("\n") + "\n");
       }
@@ -1961,6 +1962,18 @@ export function runCli(args: string[]): number {
 
 /** Asynchronous command surface; synchronous commands keep the existing runCli API. */
 export async function runCliAsync(args: string[]): Promise<number> {
+  if (args[0] === "plugins" && ["enable", "disable", "settings", "configure", "features"].includes(args[1]) && !isCommandHelpRequest(args.slice(1)) && !args.includes("--version")) {
+    try {
+      const operation = args[1] as PluginOperation, id = args[2];
+      const write = operation === "configure" || operation === "features";
+      if (!id || id.startsWith("-") || (write ? args.length !== 5 || args[3] !== "--file" : args.length !== 3)) throw new Error(commandHelp("plugins"));
+      const input = { id, ...(write ? { args: JSON.parse(readFileSync(args[4], "utf8")) } : {}) };
+      const host = createPluginHost();
+      try { process.stdout.write(JSON.stringify(await executePluginOperation(operation, input, { host })) + "\n"); }
+      finally { await host.close(); }
+      return 0;
+    } catch (error) { return reportError(args, error); }
+  }
   if (args[0] !== "docling" || args[1] !== "convert-pdf" || args.includes("--version") || isCommandHelpRequest(args.slice(1))) return runCli(args);
   try {
     const input = args[2], flags = new Map<string, string>();

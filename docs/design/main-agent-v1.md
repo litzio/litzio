@@ -75,6 +75,8 @@ The `ai-agent` plugin's existing settings file stores (installed defaults shown)
 ```
 
 `GET/PUT /api/ai-agent-settings` retains the existing atomic sibling-write/rename.
+`plugins settings/configure ai-agent` uses the same validation and stored results
+through the [shared management operations](plugin-runtime-v1.md#shared-plugin-management-operations-1137); no assistant tool is added.
 Changed model/effort pairs must occur in the current `model/list` response; no
 hard-coded effort list or model fallback is used. Save failures retain the UI
 draft. The persisted model may be shown as unavailable until a valid catalog
