@@ -271,6 +271,7 @@ jobs:
         if: needs.changes.outputs.update == 'true'
         env:
           LITZIO_TEST_UPDATE_CHANNEL: beta
+          GH_TOKEN: ${{ github.token }}
         run: pnpm --filter @litzio/desktop test:update
       - name: Build a clean package from the actual app version
         run: pnpm --filter @litzio/desktop package
