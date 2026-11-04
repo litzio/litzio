@@ -1208,3 +1208,5 @@ selection. The Host does not prove a browser click or distinguish that trusted
 caller's custom HTTP request from the UI. This change adds no approval service,
 identity system or protection against a hostile operator/administrator. In contrast,
 assistant-writable history is never accepted as authority to elevate a grant.
+
+`litzio ai configure` validation errors name the invalid field and its allowed values or reason, including provider model/effort catalog restrictions. Validation rules are unchanged.

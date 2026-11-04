@@ -23,11 +23,14 @@ export function createAiSettings(settingsFile: string, aiDefaults = DEFAULT_AI_S
 
 export function checkedAiSettings(value: unknown): AiAgentSettings {
   const v = value as AiAgentSettings;
-  if (!v || Object.keys(v).some(key => !["provider", "model", "reasoningEffort", "writeAccess", "responseLanguage"].includes(key)) || typeof v.model !== "string" || !v.model.trim() || /[\r\n\x00]/u.test(v.model) ||
-    typeof v.reasoningEffort !== "string" || !/^[a-z][a-z0-9-]{0,63}$/.test(v.reasoningEffort) ||
-    !["codex", "copilot"].includes(v.provider) ||
-    v.writeAccess !== undefined && !["opened-folders", "read-only", "full-access"].includes(v.writeAccess) ||
-    v.responseLanguage !== undefined && !["ko", "en", "ja"].includes(v.responseLanguage)) throw new Error("Invalid AI execution settings.");
+  if (!v || typeof v !== "object" || Array.isArray(v)) throw new Error("AI settings: expected an object.");
+  const unknown = Object.keys(v).filter(key => !["provider", "model", "reasoningEffort", "writeAccess", "responseLanguage"].includes(key));
+  if (unknown.length) throw new Error(`AI settings: unknown field(s): ${unknown.join(", ")}. Allowed: provider, model, reasoningEffort, writeAccess, responseLanguage.`);
+  if (typeof v.model !== "string" || !v.model.trim() || /[\r\n\x00]/u.test(v.model)) throw new Error("AI model: expected a non-empty string without newline or NUL.");
+  if (typeof v.reasoningEffort !== "string" || !/^[a-z][a-z0-9-]{0,63}$/.test(v.reasoningEffort)) throw new Error("AI reasoningEffort: expected 1-64 lowercase letters, digits or hyphens, starting with a letter.");
+  if (!["codex", "copilot"].includes(v.provider)) throw new Error("AI provider: allowed values: codex, copilot.");
+  if (v.writeAccess !== undefined && !["opened-folders", "read-only", "full-access"].includes(v.writeAccess)) throw new Error("AI writeAccess: allowed values: opened-folders, read-only, full-access.");
+  if (v.responseLanguage !== undefined && !["ko", "en", "ja"].includes(v.responseLanguage)) throw new Error("AI responseLanguage: allowed values: ko, en, ja.");
   return { model: v.model.trim(), reasoningEffort: v.reasoningEffort, provider: v.provider ?? "codex", writeAccess: v.writeAccess ?? "opened-folders",
     ...(v.responseLanguage !== undefined ? { responseLanguage: v.responseLanguage } : {}) };
 }

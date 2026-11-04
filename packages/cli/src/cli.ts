@@ -188,7 +188,7 @@ const COMMANDS: CommandSpec[] = [
       `${brand.cliCommand} templates save <name> --from <file> [--description <text>]`,
       "Save never overwrites. Names of app defaults in both languages are reserved."] },
   { name: "ai", group: "Serve", summary: "Read or configure official AI settings",
-    usage: `${brand.cliCommand} ai settings | ai configure --file <json-file>`, details: ["configure takes the complete AI settings snapshot. Uses the same Host operation as HTTP; failures exit nonzero."] },
+    usage: `${brand.cliCommand} ai settings | ai configure --file <json-file>`, details: ["configure takes the complete AI settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero."] },
   {
     name: "apply-batch",
     group: "Edit — batch",
@@ -226,7 +226,7 @@ const COMMANDS: CommandSpec[] = [
     group: "Create and inspect",
     summary: `Create a ${brand.name.en} native document, optionally from a template`,
     usage: `${brand.cliCommand} create <file> [--template <name|id>] [--language <ko|en>] [--format <text|json>]`,
-    details: ["Create a new .md file in an existing directory. Existing files are never overwritten."],
+    details: ["Create a new .md file in an existing directory. Existing files are never overwritten. Success prints the created path; --format json prints the creation receipt."],
   },
 
   {
@@ -263,7 +263,7 @@ const COMMANDS: CommandSpec[] = [
     summary: "Run and manage the HTTP daemon",
     usage: `${brand.cliCommand} daemon run [--root <folder> ...] [--port <port>] [--host <IP>] [--public-origin <origin>] [--channel <stable|beta|development>]`,
     details: [
-      "run executes in this terminal in the foreground. --root/--host/--port/--public-origin configure a server; without them it uses local mode. daemon alone shows help.",
+      "run executes in this terminal in the foreground. --root/--host/--port/--public-origin configure a server; without them it uses local mode. status lists local and manual daemons with URLs; --json includes manualInstances. start/stop target local mode only. daemon alone shows help.",
       `${brand.cliCommand} daemon start|status [--channel <stable|beta|development>] [status: --json]`,
       `${brand.cliCommand} daemon stop --confirm [--channel <stable|beta|development>]`,
       "start starts a background daemon for this PC; Desktop discovers and connects to it. status prints a table (--json for structured output).",
@@ -953,7 +953,7 @@ function main(argv: string[]): number {
       const language = templateLanguage(optionalFlag(flags, "--language"));
       const receipt = template === undefined ? createDocumentSourceFile(file, serialize(createDocument()))
         : executeTemplateOperation("create", { path: file, template, language });
-      if (format === "json") process.stdout.write(JSON.stringify(receipt) + "\n");
+      process.stdout.write((format === "json" ? JSON.stringify(receipt) : receipt.path) + "\n");
       return 0;
     }
     case "check": {

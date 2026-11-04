@@ -38,7 +38,10 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
     assert.deepEqual(JSON.parse(output.pop()!), settings);
     const before = readFileSync(file, "utf8");
     assert.equal((await put({ ...settings, providers: { codex: false, copilot: false } })).status, 400);
-    assert.equal((await put({ ...settings, model: "missing-model" })).status, 400);
+    const missing = await put({ ...settings, model: "missing-model" });
+    assert.equal(missing.status, 400); assert.match(await missing.text(), /model.*allowed values.*gpt-6.1-sol/);
+    const effort = await put({ ...settings, reasoningEffort: "unsupported" });
+    assert.equal(effort.status, 400); assert.match(await effort.text(), /reasoningEffort.*allowed values/);
     assert.equal(readFileSync(file, "utf8"), before);
     assert.equal((await fetch(`${url}/api/worker-plugins`)).status, 404);
     assert.equal((await fetch(`${url}/api/ai-tasks`)).status, 404);
