@@ -58,10 +58,10 @@ download, marketplace or an approval UI.
 installation paths. `?id=…&revision=…&asset=ui.mjs` (or `ui.css`) serves only the
 currently enabled revision's declared, hash-checked bytes. Disabled, obsolete,
 undeclared, traversing, missing or changed assets are refused. Responses use the
-proper JS/CSS MIME, `nosniff` and `Cache-Control: no-store`. Vite, HTTP Host and
-the in-process Desktop protocol use the same handler. Production CSP remains
-`script-src 'self'`; no eval, global React bridge, remote URL or Desktop TCP
-listener is added. Discovery seeds the bundled Docling installation only if absent;
+proper JS/CSS MIME, `nosniff` and `Cache-Control: no-store`. Vite and the shared
+HTTP daemon used by Desktop and browsers use the same handler. Production CSP
+remains `script-src 'self'`; no eval, global React bridge or remote asset URL
+is added. Daemon lifetime follows [ADR-0016](../adr/0016-shared-local-daemon-host.md). Discovery seeds the bundled Docling installation only if absent;
 explicit disable and pinned registrations survive later discovery/app updates.
 
 ## Renderer and API surface

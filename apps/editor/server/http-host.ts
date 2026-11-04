@@ -53,6 +53,8 @@ export async function startHttpHost(options: HttpHostOptions) {
   const access = options.roots.length ? new RootAccess(options.roots) : LOCAL_FILE_ACCESS;
   const editorDir = realpathSync(options.editorDir);
   if (!statSync(path.join(editorDir, "index.html")).isFile()) throw new Error("The production Editor build is missing.");
+  // One runtime per daemon. HTTP client/window disconnects never close its
+  // workers or AI connections; only Host shutdown (or explicit plugin actions) does.
   const plugins = createPluginHost(access);
   const key = randomBytes(32);
   const origins = new Set<string>();

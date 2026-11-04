@@ -8,7 +8,7 @@ import { AI_TASK, DEFAULT_AI_SETTINGS, type AiExecutionSettings, type AiTaskJob,
 import { brand } from "../../../brand.ts";
 import { digest, PluginStore, requestUuid, type Receipt } from "./plugin-store.ts";
 
-type Execution = { child?: ChildProcess; stopped?: "timeout" | "cancelled"; done: Promise<void>; stop(): void };
+type Execution = { child?: ChildProcess; stopped?: "timeout" | "cancelled" | "uncertain"; done: Promise<void>; stop(): void };
 const temporaryPrefix = `${brand.appName}-ai-task-`;
 
 /** Uses the existing installation/receipt store and its OS ownership lock. */
@@ -97,7 +97,7 @@ export class AiTaskRuntime {
             } else child.kill("SIGKILL");
           }, 5000);
         };
-        timer = setTimeout(() => { execution.stopped = "timeout"; execution.stop(); }, timeoutMs);
+        timer = setTimeout(() => { execution.stopped ??= "timeout"; execution.stop(); }, timeoutMs);
         child.on("error", error => { workerError = error; child.kill(); });
         child.on("message", (value: any) => {
           if (value?.type === "provider-process" && Number.isSafeInteger(value.pid) && value.pid > 0) providerPid = value.pid;
@@ -118,10 +118,11 @@ export class AiTaskRuntime {
       });
       job.result = result; job.state = "success"; receipt.status = "success";
     } catch (error) {
-      const outcome = failure as AiFailure;
+      const outcome = execution.stopped === "uncertain" ? "uncertain" : failure as AiFailure;
       job.state = outcome === "uncertain" ? "error" : execution.stopped === "cancelled" ? "cancelled" : "error";
       receipt.status = outcome === "uncertain" ? "uncertain" : job.state;
-      job.failure = outcome === "uncertain" ? "uncertain" : execution.stopped ?? outcome; job.error = error instanceof Error ? error.message : String(error);
+      job.failure = outcome === "uncertain" ? "uncertain" : execution.stopped ?? outcome;
+      job.error = execution.stopped === "uncertain" ? "AI task outcome is uncertain after Host shutdown; it is never automatically retried." : error instanceof Error ? error.message : String(error);
       delete job.result;
     } finally {
       clearTimeout(timer);
@@ -139,13 +140,13 @@ export class AiTaskRuntime {
     const record = this.current(id), execution = this.active.get(id);
     if (!record) throw new Error("AI request is unavailable.");
     if (record.status === "running" && !execution) throw new Error("Only the owning Host can cancel this AI task.");
-    if (execution) { execution.stopped = "cancelled"; execution.stop(); await execution.done; }
+    if (execution) { execution.stopped ??= "cancelled"; execution.stop(); await execution.done; }
     return this.current(id)!;
   }
   async close() {
     this.closed = true;
     const active = [...this.active.values()];
-    for (const execution of active) { execution.stopped = "cancelled"; execution.stop(); }
+    for (const execution of active) { execution.stopped ??= "uncertain"; execution.stop(); }
     const results = await Promise.allSettled(active.map(execution => execution.done));
     const failed = results.find(result => result.status === "rejected");
     if (failed?.status === "rejected") throw failed.reason;

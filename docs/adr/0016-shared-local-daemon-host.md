@@ -66,15 +66,17 @@ PR2는 선택 Root, 로컬 `start/stop/status`, 단일 인스턴스·버전 확�
 
 ### ⑥ 기간 한정 플러그인 테스트 예외
 
+현재 상태: **종료됨 (PR4 복구, 필수 CI 전체 통과가 1단계 완료의 최종 조건)**.
+
 소유자는 1단계 동안 **느리고 in-process 수명에 묶인 플러그인 테스트만** 일시 제외하도록 승인했다. 제외 전에 CI 시간을 측정한다. 이는 AGENTS.md의 테스트 기준 약화 금지에 대한 기간 한정 예외이며 다른 테스트·문서 유효성·데이터 보존 기준을 완화하지 않는다. PR3의 제외 전 CI 측정·제외 목록과 PR4 복구 대상은 [Desktop 전환 검증](../design/desktop-distribution-v1.md#pr3-plugin-test-exception)에 기록한다.
 
-PR3에서 해당 범위만 일시 제외하고 PR4에서 새 플러그인·AI 수명 계약으로 복구한다. 일시 제외한 테스트 복구와 필수 CI 전체 통과를 1단계 완료 조건으로 삼는다. **예외가 적용되는 기간에는 릴리스하지 않는다.** 복구 전에는 1단계 완료나 릴리스 가능 상태로 보고하지 않는다.
+PR3의 packaged in-process Docling smoke 1개는 PR4에서 공유 daemon 소유 worker·native comparison 검사로 복구했다. 기간 한정 예외는 **종료됨**이며 제외 전 측정 기록을 보존한다. PR4 필수 CI 전체 통과가 1단계 완료의 최종 조건이며, 통과 시 이 예외에 따른 릴리스 중단 조건을 해제한다. 업데이트·제거의 daemon 통합은 계속 2단계다.
 
 ## Boundaries retained
 
 plain-text SSOT, Core의 editor-neutral 문서 의미·valid write와 File commit은 유지한다. Host 공용 작업·CLI 제공은 ADR-0015를 따른다. 기존 handler와 플러그인·AI 실행 경계를 재사용하며 별도 문서 backend나 범용 infrastructure를 만들지 않는다.
 
-화면과 분리된 daemon 수명은 미저장 편집·Undo·selection을 공유 세션으로 옮긴다는 결정이 아니다. 클라이언트 복구와 명시적 Save는 계속 ADR-0007을 따른다. 플러그인 UUID·uncertain·자동 재실행 금지·완료 결과 공개 보호는 유지한다.
+화면과 분리된 daemon 수명은 미저장 편집·Undo·selection을 공유 세션으로 옮긴다는 결정이 아니다. 클라이언트 복구와 명시적 Save는 계속 ADR-0007을 따른다. 플러그인 UUID·uncertain·자동 재실행 금지·완료 결과 공개 보호는 유지한다. 플러그인 worker와 AI provider 연결·대화는 daemon이 소유한다. CLI daemon이 살아 있으면 Desktop 창이 닫히거나 브라우저가 다시 붙어도 진행 중 작업·대화를 읽을 수 있다. daemon 종료 시 owned worker/provider를 정리하며, 결과가 불명확한 영속 요청은 uncertain으로 남고 자동 재실행하지 않는다.
 
 ## 이행 순서와 완료 조건
 

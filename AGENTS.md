@@ -9,7 +9,7 @@
 - 기존 코드와 검증된 라이브러리를 재사용하고, 필요성이 확인되지 않은 abstraction이나 infrastructure를 추가하지 않는다.
 - 정상 동작하는 주변 코드를 현재 작업과 무관하게 재설계하거나 리팩터링하지 않는다.
 - 기존 기술로 해결 가능한 parser, AST, document format, editor engine 등을 불필요하게 재구현하지 않는다.
-- 기술적 제약이나 실패를 숨기기 위해 테스트 기준을 약화하거나 동작을 우회하지 않는다. 소유자가 승인한 유일한 기간 한정 예외는 [ADR-0016 ⑥](docs/adr/0016-shared-local-daemon-host.md#⑥-기간-한정-플러그인-테스트-예외)의 느리고 in-process 수명에 묶인 플러그인 테스트다. 제외 전 CI 시간을 측정하고, 1단계 완료 전 복구·필수 CI 전체 통과를 요구하며 예외 기간에는 릴리스하지 않는다.
+- 기술적 제약이나 실패를 숨기기 위해 테스트 기준을 약화하거나 동작을 우회하지 않는다. 소유자가 승인했던 유일한 기간 한정 예외는 [ADR-0016 ⑥](docs/adr/0016-shared-local-daemon-host.md#⑥-기간-한정-플러그인-테스트-예외)의 느리고 in-process 수명에 묶인 플러그인 테스트였으며 PR4에서 복구해 종료했다. 제외 전 CI 측정 기록은 보존하며, PR4 필수 CI 전체 통과로 1단계를 완료하고 이 예외에 따른 릴리스 중단 조건을 해제한다.
 - 개발 단계이므로 소유자가 Migration을 명시적으로 지시하지 않는 한, 이미 저장된 Litzio 문서·복구 기록·설정 등 과거 데이터의 하위 호환성을 설계 판단이나 구현 범위에 포함하지 않는다. 사람·AI·CLI가 앞으로 작성하는 입력의 처리는 이 규칙과 별개다.
 
 ## Architectural constraints
@@ -25,7 +25,7 @@
 - Visual Editor는 ADR-0001에 따라 Tiptap/ProseMirror 기반의 single-document editor state를 사용한다. Litzio가 selection, history, cursor, clipboard 등을 포함한 자체 rich-text editor engine을 재구현하지 않는다.
 - Editor-engine-specific types and document models stay inside `apps/editor`. Core exposes editor-neutral document semantics.
 - Editor는 ADR-0010에 따라 최소 640px의 데스크톱급 창과 키보드·포인터 입력을 지원 대상으로 한다. 휴대폰 폭·터치 전용 레이아웃이나 검증은 실제 사용자가 확인되어 별도 결정이 나기 전까지 계획하지 않는다.
-- [ADR-0016](docs/adr/0016-shared-local-daemon-host.md)에 따라 Desktop은 같은 PC의 공유 daemon(HTTP Host; 현재 단계는 인증 없음, #1145에서 방식·시점 선택)에 연결하는 방향으로 전환한다. `apps/editor/server`의 공용 파일 Host handler와 Core 의미·공식 write path를 재사용한다. 화면과 독립된 daemon 수명 및 ADR-0012의 플러그인 등록·요청 기록을 허용하되, 이를 범용 persistence/backend나 공유 편집 세션의 근거로 확장하지 않는다. Desktop은 PR3부터 공유 daemon에만 연결하며 띄운 주체별 종료·명시적 종료·수동 다시 연결을 ADR-0016에 따른다. 플러그인·AI 수명 계약과 한정 테스트 복구는 PR4다.
+- [ADR-0016](docs/adr/0016-shared-local-daemon-host.md)에 따라 Desktop은 같은 PC의 공유 daemon(HTTP Host; 현재 단계는 인증 없음, #1145에서 방식·시점 선택)에 연결하는 방향으로 전환한다. `apps/editor/server`의 공용 파일 Host handler와 Core 의미·공식 write path를 재사용한다. 화면과 독립된 daemon 수명 및 ADR-0012의 플러그인 등록·요청 기록을 허용하되, 이를 범용 persistence/backend나 공유 편집 세션의 근거로 확장하지 않는다. Desktop은 PR3부터 공유 daemon에만 연결하며 띄운 주체별 종료·명시적 종료·수동 다시 연결을 ADR-0016에 따른다. 플러그인·AI는 daemon 수명을 따르며 PR4가 수명 계약과 한정 테스트 복구를 완료한다.
 
 이 원칙을 이유로 미래 구조나 기능을 선제적으로 구현하지 않는다.
 

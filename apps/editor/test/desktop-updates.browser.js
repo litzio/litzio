@@ -83,7 +83,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
     await page.keyboard.press('Escape');
     await page.getByRole('button', {name:'Settings',exact:true}).click();
     await page.getByRole('button', {name:'About & updates',exact:true}).click();
-    await page.getByText('running · cli-start · 0.2.0', {exact:true}).waitFor();
+    await page.getByText('running · CLI (start) · 0.2.0', {exact:true}).waitFor();
     check(await page.getByText('http://127.0.0.1:25887', {exact:true}).isVisible(), 'Daemon address missing');
     await capture(`daemon-status-${width}`);
     await page.keyboard.press('Escape');
@@ -580,6 +580,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   }
   await koreanSettings.click(); await dialog.waitFor(); await dot.waitFor({state:'detached'});
   check(await dialog.getByRole('button',{name:'정보·업데이트',exact:true}).getAttribute('aria-current') === 'page', 'Korean cue did not open About');
+  await dialog.getByText('running · CLI (백그라운드 실행) · 0.2.0', {exact:true}).waitFor();
   check(await dialog.getByText(`${brand.name.ko}(리치오)는 Litz wire로 입출력(I/O)을 잇는다는 뜻입니다.`, {exact:true}).isVisible(), 'Korean About does not explain the product name');
   await capture('update-highlight-ko-light-640');
   await push({phase:'available',version:'0.3.0-beta.4',prerelease:true});

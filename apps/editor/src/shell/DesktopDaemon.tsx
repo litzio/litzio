@@ -52,7 +52,7 @@ export function DaemonStatus({ desktop }: { desktop: DesktopBridge }) {
   }, [desktop]);
   if (!info) return null;
   return <>
-    <SettingsRow label={i18n.t("Local daemon")}><span>{info.state} · {info.launcher} · {info.productVersion}</span></SettingsRow>
+    <SettingsRow label={i18n.t("Local daemon")}><span>{info.state} · {i18n.t(info.launcher === "desktop" ? "Desktop" : info.launcher === "cli-start" ? "CLI (start)" : "CLI (run)")} · {info.productVersion}</span></SettingsRow>
     <SettingsRow label={i18n.t("Address")}><span className="break-all">{info.url}</span></SettingsRow>
     <details className="settings-section"><summary>{i18n.t("Details")}</summary>
       <dl className="settings-facts">

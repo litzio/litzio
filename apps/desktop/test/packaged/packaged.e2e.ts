@@ -2,7 +2,7 @@ import { daemonPort } from "../../../editor/server/daemon-state.ts";
 import { brand } from "../../../../brand.ts";
 import { createRequire } from "node:module";
 // The packaged Windows app (release/win-unpacked, or LITZIO_DESKTOP_EXE for an installed copy)
-// under Playwright: the configured in-process origin with real files, no Vite and no TCP port.
+// under Playwright: the shared daemon HTTP origin with real files, without Vite.
 //   pnpm --filter @litzio/desktop package && pnpm --filter @litzio/desktop test:packaged
 // Files live in the repository's ignored tmp/desktop-e2e; each test uses its own fixed profile there.
 import assert from "node:assert/strict";
@@ -108,7 +108,7 @@ async function closeApp(app: ElectronApplication): Promise<void> {
   }
 }
 
-test("packaged in-process Host forks its shipped Docling worker and opens a complete native comparison", { skip: "ADR-0016 section 6: PR4 restores daemon worker lifecycle coverage; CI 41782696099: 5.669s" }, async () => {
+test("packaged daemon forks its shipped Docling worker and opens a complete native comparison", async () => {
   const userData = profile("docling-worker"), folder = path.join(work, "docling-worker");
   rmSync(folder, { recursive: true, force: true }); mkdirSync(folder, { recursive: true });
   const fake = await fakeDoclingServer();
@@ -116,6 +116,9 @@ test("packaged in-process Host forks its shipped Docling worker and opens a comp
   try {
     const launched = await launch(userData, [], { LITZIO_AI_AGENT_CWD: path.join(folder, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(folder, "ai-agent.json"), LITZIO_PLUGINS_DIR: path.join(folder, "plugins"), LITZIO_DOCLING_SETTINGS_FILE: path.join(folder, "settings.json") });
     app = launched.app;
+    const daemon = await launched.page.evaluate(() => window.litzioDesktop!.daemonInfo());
+    assert.equal(daemon.state, "running"); assert.equal(daemon.launcher, "desktop");
+    assert.notEqual(daemon.pid, app.process().pid, "workers belong to the separate daemon, not the Desktop process");
     const locations = await app.evaluate(({ app }) => ({ archive: app.getAppPath(), resources: process.resourcesPath }));
     const require = createRequire(import.meta.url);
     const builder = createRequire(require.resolve("electron-builder"));

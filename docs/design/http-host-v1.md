@@ -225,9 +225,11 @@ The package test installs the archive offline outside the checkout and runs exis
 
 Windows/Linux CI runs package and production browser checks; the Windows Desktop job runs the filesystem/HTTP suite through the full `pnpm test`, and Linux's quality job runs it with all Editor tests. The path policy always selects Desktop when HTTP is selected; the HTTP job retains archive and production browser checks without repeating unit/integration tests. CI does not upload the generated `.tgz`. Generated `tmp/http-host-capture/` screen evidence is retained for 7 days on success or failure, including captures produced before a later failure; an early failure may leave no captures. Failed jobs also retain `tmp/browser-results/` diagnostics for 7 days. Existing Vite browser and Windows packaged Desktop regressions remain required. This does not establish arbitrary NAS compatibility, measured startup speed improvements, public Internet hardening or OS-native clipboard/IME correctness.
 
-`pnpm browser:test http-host` also runs `http-recovery.spec.ts` against that same production server.
+`pnpm browser:test http-host` also runs `http-recovery.spec.ts` against its own production CLI daemon.
 It kills only its launched browser PID (and its children on Windows), checks exit and a new PID,
-and reopens the same persistent profile and exact origin without restarting the server. Committed
+and reopens the same persistent profile and exact origin. Browser crash recovery keeps the daemon alive;
+PR4 additionally stops/restarts that owned daemon via a native bridge stand-in and asserts
+unsaved edits, Undo/Redo and Save without renderer reload. Committed
 records survive; the actual list/prompt/Restore, dirty state, explicit Save/Reload and external
 file conflict are asserted. This was executed on Windows Chrome; the same HTTP CI command runs
 it on Linux Chromium. The latter is not a local Windows verification result.
