@@ -130,13 +130,17 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm docs:check
       - run: pnpm typecheck
+      - name: Published beta.6 first-update regression
+        env:
+          LITZIO_TEST_PUBLISHED_BASE: '1'
+          GH_TOKEN: ${{ github.token }}
+        run: pnpm --filter @litzio/desktop test:update
       - run: pnpm test
       - name: Stable install/update regression before the final package
         run: pnpm --filter @litzio/desktop test:update
       - name: Beta install/update regression before the final package
         env:
           LITZIO_TEST_UPDATE_CHANNEL: beta
-          GH_TOKEN: ${{ github.token }}
         run: pnpm --filter @litzio/desktop test:update
       - name: Build unsigned verification or Beta package
         if: inputs.mode != 'signed'

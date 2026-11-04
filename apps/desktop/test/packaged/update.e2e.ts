@@ -31,7 +31,8 @@ const repo = path.resolve(desktop, "../..");
 const work = path.join(repo, "tmp", "desktop-update");
 const HOST = "127.0.0.1:47320";
 const LIVE = process.argv.includes("--github");
-const BETA = LIVE || process.env.LITZIO_TEST_UPDATE_CHANNEL === "beta";
+const PUBLISHED_BASE = process.env.LITZIO_TEST_PUBLISHED_BASE === "1";
+const BETA = LIVE || PUBLISHED_BASE || process.env.LITZIO_TEST_UPDATE_CHANNEL === "beta";
 // NSIS relaunches through the Windows shell, which does not inherit process-only overrides.
 // Like installation/PATH/userData, shared state belongs to a clean disposable test account.
 const sharedData = path.join(os.homedir(), brand.folders.shared);
@@ -139,7 +140,7 @@ function requireCleanUser(): void {
   for (const folder of [appData, updaterCache, defaultInstall, ...(!LIVE ? [sharedData] : [])]) assert.equal(existsSync(folder), false, `${folder} exists; this test would change it`);
 }
 
-test("installs per user, then updates from Settings only after the open document is saved", { timeout: 15 * 60_000 }, async (t) => {
+test("installs per user, then updates from Settings only after the open document is saved", { skip: PUBLISHED_BASE, timeout: 15 * 60_000 }, async (t) => {
   requireCleanUser();
   const cliEnvironment = windowsEnvironment();
   const originalUserPath = !LIVE ? (await cliEnvironment.read()).user : null;
@@ -411,21 +412,21 @@ test("installs per user, then updates from Settings only after the open document
 });
 
 
-// Reuse the candidate built by the same-source Beta case above. Only the starting installer
-// comes from GitHub: rebuilding the old version here would miss installer bootstrap defects.
+// The old installer comes from GitHub; only the candidate is built. Rebuilding the old
+// version here would miss installer bootstrap defects. CI runs this as a separate early step.
 test("published beta.6 upgrades to the candidate without an installed lifecycle helper", {
-  skip: !BETA || LIVE, timeout: 5 * 60_000,
+  skip: !PUBLISHED_BASE || LIVE, timeout: 5 * 60_000,
 }, async () => {
   requireCleanUser();
   const started = Date.now();
+  rmSync(work, { recursive: true, force: true });
   const published = "0.0.2-beta.6";
   const oldBuild = await publicBeta([published], published);
   const oldSetup = path.join(oldBuild, `${brand.executableName}-Setup-${published}.exe`);
   const digest = createHash("sha256").update(readFileSync(oldSetup)).digest("hex");
   assert.equal(digest, "cbc41da8550bf5fac8b335b9bb95a9958603eb7587381a73b923f318a267a2be", "the exact public beta.6 installer, not a rebuilt version");
   console.log(`verified public v${published}: SHA-256 ${digest}`);
-  const candidate = path.join(work, `v${NEW}`, `${brand.executableName}-Setup-${NEW}.exe`);
-  assert.equal(existsSync(candidate), true, "same-source Beta case built the candidate");
+  const candidate = path.join(packageVersion(NEW), `${brand.executableName}-Setup-${NEW}.exe`);
   const install = path.join(work, "published-beta6-install");
   const documentFile = path.join(work, "published-beta6.md");
   const bytes = "---\nlitzio: 1\n---\n\n# Published update\n\nPreserve this document.\n";
