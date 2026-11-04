@@ -4,6 +4,9 @@ export const en = {
   "Details": "Details",
   "Stop daemon": "Stop daemon",
   "Local daemon": "Local daemon",
+  "Desktop": "Desktop",
+  "CLI (start)": "CLI (start)",
+  "CLI (run)": "CLI (run)",
   "Address": "Address",
 
   "Disconnected from daemon": "Disconnected from daemon",
@@ -1143,6 +1146,9 @@ export const ko: Record<keyof typeof en, string> = {
   "Details": "상세 정보",
   "Stop daemon": "daemon 종료",
   "Local daemon": "로컬 daemon",
+  "Desktop": "데스크톱",
+  "CLI (start)": "CLI (백그라운드 실행)",
+  "CLI (run)": "CLI (전경 실행)",
   "Address": "주소",
 
   "Disconnected from daemon": "daemon 연결이 끊겼습니다",

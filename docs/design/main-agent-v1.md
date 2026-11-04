@@ -1,6 +1,7 @@
 # Main agent connection, settings and conversations
 
 - Status: Implemented
+- PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation; restored packaged worker/native comparison is required Windows CI.
 - Saved-file context (#1106): 2026-11-04 owner decision; fake Host/protocol, existing ai-agent browser and Korean 1440px/640px Light/Dark capture checks, no real model turn.
 - Copilot options/full access (#1091): 2026-11-03; fake ACP/Codex/Host checks, existing ai-agent browser and 1440px/640px Korean Dark captures; one real no-prompt catalog session only.
 - Minimum-version verification: 2026-11-03 ([#967](https://github.com/litzio/litzio/issues/967); connection, catalog and settings only, limitations below).
@@ -48,9 +49,21 @@ there and lists folders containing `.agents/skills/<name>/SKILL.md`. The file
 instructs the agent to leave existing documents intact and propose edits in text.
 Litzio also regenerates `.agents/skills/litzio-guide/SKILL.md` here. It has name/description frontmatter and usage/CLI guidance, with no executable scripts.
 
-Closing the owning Host ends stdin, waits for exit and terminates the exact
-owned process tree if needed. Shutdown failure is surfaced. The connection is
-not a daemon or a shared controller across Hosts.
+The shared daemon owns provider connections and in-memory conversations. Closing
+a Desktop window, assistant panel or browser does not stop a turn while that
+daemon remains alive. Another client at its origin lists/resumes the same
+conversation and sees current progress without starting another turn. Display
+tools remain bound to the sending window and cannot silently move to another
+client. Unsaved document content, Undo and selection remain client-local.
+
+Closing the daemon ends stdin, waits for exit and terminates the exact owned
+provider process tree if needed. Shutdown failure is surfaced. Provider loss marks
+live conversation turns failed; durable plugin task requests become `uncertain`
+on dead-owner observation. Neither is automatically replayed. Provider history
+is loaded only by explicit resume after daemon restart. Desktop owns only a
+daemon it launched; a CLI daemon survives Desktop close under
+[ADR-0016](../adr/0016-shared-local-daemon-host.md). There is no controller across
+different Host processes.
 
 ## Settings and read routes
 

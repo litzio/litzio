@@ -38,7 +38,10 @@ success from taskkill's exit code: already-exited children can cause a nonzero s
 The test logs taskkill's status and stderr, then requires the owned browser PID to disappear
 with the existing ESRCH poll; a surviving PID fails with those termination diagnostics.
 It does not clear storage
-between crash/restart steps or restart the HTTP server. The normal fixture still isolates separate
+between browser crash/restart steps, which keep the daemon alive. PR4 separately stops/restarts
+its own production CLI daemon at the same origin to check unsaved input, Undo/Redo and Save
+through the Desktop reconnect control (native bridge stand-in). It never stops the runner daemon
+or an external caller-supplied server. The normal fixture still isolates separate
 tests. Packaged Desktop has its own fixed Electron test profiles and resets recovery only on a
 test's first launch, preserving the record on subsequent launches within that test.
 

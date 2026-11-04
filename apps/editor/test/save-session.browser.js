@@ -125,12 +125,17 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument, screensh
   // Enter leaves an empty editing paragraph in place. It does not block a Save or become a file block.
   await paragraph().click();
   await page.keyboard.press('End');
+  // Native End collapses even a multi-click selection; wait for the engine and DOM
+  // to agree on that caret before Enter can replace the still-selected paragraph.
+  await paragraphCaret(true);
   await page.keyboard.press('Enter');
   const selection = await page.evaluate(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.from);
   await save();
   check('emptyParagraphRetained', await page.locator('[data-document-tab][data-active=true] .document-editor > p[data-block="paragraph"]').count() === 3 &&
     await page.evaluate(pos => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.state.selection.from === pos, selection));
-  check('emptyParagraphNotWritten', (await read(file)).document.blocks.length === 3);
+  const emptyParagraphSaved = await read(file);
+  await expect(emptyParagraphSaved.document.blocks, `emptyParagraphNotWritten: ${JSON.stringify(emptyParagraphSaved)}`).toHaveLength(3);
+  result.emptyParagraphNotWritten = true;
   await page.locator('[data-document-tab][data-active=true] .document-editor').focus();
   await page.keyboard.type('Inserted.');
   await save();

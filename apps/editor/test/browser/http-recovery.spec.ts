@@ -1,8 +1,11 @@
 import { brand } from "../../../../brand.ts";
 import { test, expect, chromium, type BrowserContext, type Page } from "@playwright/test";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createServer } from "node:net";
+import { once } from "node:events";
+import { DAEMON_PROTOCOL, type DaemonIdentity } from "../../server/daemon-protocol.ts";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { prepareBrowserFixtures, REPOSITORY_ROOT } from "./fixtures.ts";
@@ -10,13 +13,51 @@ import { openPath, reloadDocument } from "./navigation.ts";
 import { recoveryRecords, resetRecovery } from "./recovery-records.ts";
 import type { Editor } from "@tiptap/core";
 
-// Same checkout-owned persistent Chrome profile as the serial HTTP harness. No server restart.
+// Same checkout-owned persistent Chrome profile as the serial HTTP harness.
 const profile = path.join(tmpdir(), `${brand.appName}-browser-profile`, createHash("sha256").update(REPOSITORY_ROOT).digest("hex").slice(0, 16));
-const origin = process.env.LITZIO_BROWSER_URL ?? "http://127.0.0.1:5181";
 const ready = (page: Page) => page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({ state: "attached" });
 
-test("HTTP recovery survives an owned browser process crash, then Save/Reload and conflict", async ({}, info) => {
+test("HTTP recovery survives browser crash and daemon reconnect, then Save/Reload and conflict", async ({}, info) => {
   prepareBrowserFixtures();
+  // Own a production CLI daemon so stop/restart preserves the existing packaged
+  // Host recovery coverage. Only the native bridge is a stand-in.
+  const data = mkdtempSync(path.join(tmpdir(), "litzio-reconnect-"));
+  const reservation = createServer();
+  reservation.listen(0, "127.0.0.1"); await once(reservation, "listening");
+  const port = (reservation.address() as { port: number }).port;
+  await new Promise<void>((resolve, reject) => reservation.close(error => error ? reject(error) : resolve()));
+  const origin = `http://127.0.0.1:${port}`;
+  const start = async () => {
+    const child = spawn(process.execPath, [path.join(REPOSITORY_ROOT, "packages/cli/dist/cli.mjs"), "daemon", "run", "--channel", "development", "--port", String(port),
+      ...["a", "b"].flatMap(name => ["--root", path.join(REPOSITORY_ROOT, `tmp/http-host-${name}`)])], {
+      windowsHide: true, stdio: ["ignore", "pipe", "pipe", "ipc"],
+      env: { ...process.env, LITZIO_DAEMON_DIR: path.join(data, "daemon"), LITZIO_DATA_DIR: data, LITZIO_PLUGINS_DIR: path.join(data, "plugins"), LITZIO_AI_AGENT_CWD: path.join(data, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(data, "ai.json"), LITZIO_DOCLING_SETTINGS_FILE: path.join(data, "docling.json"), LITZIO_DESKTOP_DAEMON: "0" },
+    });
+    let diagnostics = "";
+    child.stdout!.on("data", value => { diagnostics += value; }); child.stderr!.on("data", value => { diagnostics += value; });
+    const exited = new Promise<void>(resolve => child.once("close", () => resolve()));
+    try {
+      const identity = await new Promise<DaemonIdentity>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error(`Owned daemon startup not confirmed: ${diagnostics}`)), 15_000);
+        const finish = () => clearTimeout(timer);
+        child.once("message", message => { finish(); resolve((message as { identity: DaemonIdentity }).identity); });
+        child.once("error", error => { finish(); reject(error); });
+        child.once("exit", code => { finish(); reject(new Error(`Owned daemon exited ${code}: ${diagnostics}`)); });
+      });
+      return { child, identity, exited };
+    } catch (error) { child.kill(); await exited; throw error; }
+  };
+  let host = await start(), stopped = false;
+  let closing: Promise<void> | undefined;
+  const stop = () => closing ??= (async () => {
+    if (stopped) return;
+    const response = await fetch(origin + "/daemon/stop", { method: "POST", signal: AbortSignal.timeout(15_000), headers: { Origin: origin, "Content-Type": "application/json", "X-Litzio-Protocol": DAEMON_PROTOCOL }, body: JSON.stringify({ ...host.identity, confirm: true }) });
+    expect(response.status).toBe(200);
+    await response.json();
+    await expect.poll(() => host.child.exitCode, { timeout: 15_000, message: "Owned daemon must finish shutdown" }).not.toBeNull();
+    await host.exited; stopped = true;
+  })();
+  const nativeStopFinished = Promise.withResolvers<{ error?: unknown }>();
   const file = path.join(REPOSITORY_ROOT, "tmp/http-host-a/fixture/a.md");
   writeFileSync(file, "---\nlitzio: 1\n---\n");
   const original = readFileSync(file, "utf8");
@@ -29,6 +70,25 @@ test("HTTP recovery survives an owned browser process crash, then Save/Reload an
     // Apply to every persistent context, including the ones recreated after a crash.
     context.setDefaultTimeout(info.project.use.actionTimeout!);
     context.setDefaultNavigationTimeout(info.project.use.navigationTimeout!);
+    await context.exposeFunction("testStopDaemon", async () => {
+      try { await stop(); nativeStopFinished.resolve({}); return true; }
+      catch (error) { nativeStopFinished.resolve({ error }); throw error; }
+    });
+    await context.exposeFunction("testReconnectDaemon", async () => { host = await start(); stopped = false; closing = undefined; });
+    await context.exposeFunction("testCheckDaemon", async () => {
+      const response = await fetch(origin + "/daemon/health", { headers: { "X-Litzio-Protocol": DAEMON_PROTOCOL }, signal: AbortSignal.timeout(5000) });
+      if (!response.ok) throw new Error("Disconnected");
+      await response.json();
+    });
+    await context.addInitScript(() => {
+      const bridge = window as unknown as { testStopDaemon(): Promise<boolean>; testReconnectDaemon(): Promise<void>; testCheckDaemon(): Promise<void> };
+      window.litzioDesktop = {
+        startup: async () => ({}), setTheme: async () => false, setWindowBackground: async () => {}, setOpenedFolders: async () => {},
+        info: async () => ({ version: "test", channel: "stable", updatesSupported: false, update: { phase: "idle" }, seenUpdate: null }),
+        onUpdateState: () => () => {}, onRestartCheck: () => () => {},
+        stopDaemon: () => bridge.testStopDaemon(), reconnectDaemon: () => bridge.testReconnectDaemon(), checkDaemon: () => bridge.testCheckDaemon(),
+      } as unknown as NonNullable<Window["litzioDesktop"]>;
+    });
     const cdp = await context.browser()!.newBrowserCDPSession();
     const { processInfo } = await cdp.send("SystemInfo.getProcessInfo");
     const pid = processInfo.find(p => p.type === "browser")!.id;
@@ -123,10 +183,36 @@ test("HTTP recovery survives an owned browser process crash, then Save/Reload an
     await expect(page.locator(".document-editor")).toContainText("Measured cell");
     await expect(page.locator(".document-editor")).toContainText("HTTP pending figure caption");
 
+    const timeOrigin = await page.evaluate(() => performance.timeOrigin);
+    const beforeReconnect = await page.locator(".document-editor").innerText();
+    await page.locator(".document-editor p").first().click();
+    await page.keyboard.press("End"); await page.keyboard.insertText(" Unsaved across daemon reconnect.");
+    await page.getByRole("button", { name: "Desktop menu", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Stop daemon", exact: true }).click();
+    // A health tick can display disconnection before the native stop promise
+    // finishes. Await that operation's completion, not the earlier notice.
+    expect((await nativeStopFinished.promise).error).toBeUndefined();
+    await expect(page.getByTestId("daemon-disconnected")).toBeVisible();
+    expect(stopped).toBe(true); expect(host.child.exitCode).toBe(0);
+    await page.getByRole("button", { name: "Reconnect", exact: true }).click();
+    await expect(page.getByTestId("daemon-disconnected")).toHaveCount(0);
+    expect(host.child.exitCode).toBe(null);
+    expect(await page.evaluate(() => performance.timeOrigin)).toBe(timeOrigin);
+    await expect(page.locator(".document-editor")).toContainText("Unsaved across daemon reconnect.");
+    expect(readFileSync(file, "utf8")).toBe(saved);
+    await page.locator(".document-editor p").first().click();
+    await page.keyboard.press("ControlOrMeta+z");
+    expect(await page.locator(".document-editor").innerText()).toBe(beforeReconnect);
+    await page.keyboard.press("ControlOrMeta+Shift+z");
+    await expect(page.locator(".document-editor")).toContainText("Unsaved across daemon reconnect.");
+    await page.getByTestId("save").click();
+    await page.locator('[data-testid="status"][data-operation="saved"]').waitFor();
+    expect(readFileSync(file, "utf8")).toContain("Unsaved across daemon reconnect.");
+
     await edit(" HTTP conflict recorded.");
     const conflictRecord = await recoveryRecords(page);
     await crash();
-    const outside = saved + "\nChanged outside before restore.\n";
+    const outside = readFileSync(file, "utf8") + "\nChanged outside before restore.\n";
     writeFileSync(file, outside);
     page = await launch(file);
     expect(await recoveryRecords(page)).toEqual(conflictRecord);
@@ -143,10 +229,12 @@ test("HTTP recovery survives an owned browser process crash, then Save/Reload an
     expect(readFileSync(file, "utf8")).toBe(outside);
     expect((await recoveryRecords(page)).some(r => r.recoveryText.includes("HTTP conflict recorded."))).toBe(true);
     const proof = info.outputPath("host-recovery-proof.json");
-    writeFileSync(proof, JSON.stringify({ platform: process.platform, origin, profile, processes, forcedBrowserRestarts: 2, serverRestarted: false, committedRecordSurvived: true, restoreDirty: true, originalUnchangedUntilSave: true, saveReload: true, externalConflict409: true }, null, 2));
+    writeFileSync(proof, JSON.stringify({ platform: process.platform, origin, profile, processes, forcedBrowserRestarts: 2, serverRestarted: true, reconnectPreservesUnsavedUndoSave: true, committedRecordSurvived: true, restoreDirty: true, originalUnchangedUntilSave: true, saveReload: true, externalConflict409: true }, null, 2));
     await info.attach("host-recovery-proof", { path: proof, contentType: "application/json" });
   } finally {
     await context?.close();
+    try { await stop(); } finally { if (host.child.exitCode === null) { host.child.kill(); await host.exited; } }
+    rmSync(data, { recursive: true, force: true });
     prepareBrowserFixtures();
   }
 });

@@ -1,10 +1,11 @@
 # Host worker plugins v1
 
 - Status: Implemented
+- PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation; restored packaged worker/native comparison is required Windows CI.
 - Folder/Host boundary verified: 2026-11-01 (#869: relocated-folder build/typecheck/tests, shared Host and headless CLI, Docling browser scenarios; packaging remains required CI and the real service remains manual).
 - Last verified: 2026-10-31 (#853 and PR #855 review: shared Host tests, filesystem alias denial, ancestor-listing permission regression, scoped image-reference scans and shutdown/admission races; real Docling remains manual and packaged Desktop is checked by CI).
 - Authority: [ADR-0012](../adr/0012-plugin-runtime-and-ui-contributions.md), with [ADR-0004](../adr/0004-desktop-host-distribution.md) and [ADR-0005](../adr/0005-http-host.md).
-- Scope: trusted local worker execution in Vite, in-process Desktop and independent `litzio daemon run`. The same registration also supports [UI contributions](plugin-ui-v1.md) under ADR-0012 (#857).
+- Scope: trusted local worker execution in Vite and the shared HTTP daemon used by Desktop, browsers and CLI. The same registration also supports [UI contributions](plugin-ui-v1.md) under ADR-0012 (#857).
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
 
@@ -69,8 +70,8 @@ The thin shared Host surface is available without restarting:
 | `POST /api/docling-conversion`, `{ path, id? }` | Admit a PDF request. Optional `id` is a UUID; omitted IDs are generated once by the Host for the existing UI. |
 | `GET /api/docling-conversion?id=<UUID>` | Read that receipt, subject to this Host's input/output Root checks. Without `id`, retain the current process-local UI snapshot. |
 
-HTTP retains its Origin/Host/body limits. Desktop uses the same handler through
-`litzio://app`, with no TCP listener. #857 adds the read-only UI listing/asset
+HTTP retains its Origin/Host/body limits. Desktop and browsers use the same
+daemon origin and handler under [ADR-0016](../adr/0016-shared-local-daemon-host.md). #857 adds the read-only UI listing/asset
 surface described in [Plugin UI contributions](plugin-ui-v1.md). Registration is explicit trusted code execution, without an OS
 sandbox, download, approval workflow or additional permissions model.
 
@@ -206,7 +207,16 @@ ID messages update the receipt. A complete message **and exit code zero** are
 required for publication; failure messages preserve module failure codes. The
 Host deadline defaults to 30 minutes and covers startup through publication.
 Stop waiting, deadline and normal Host close terminate local workers and await
-cleanup. Desktop closes workers only after its ordinary unsaved-work close gate.
+cleanup. Workers and plugin Host sessions belong to the daemon, not its clients.
+Closing a Desktop window or browser does not cancel work while a CLI-started
+daemon remains alive. A reattached client reads the same running task/UUID.
+Desktop-owned daemons stop after the ordinary unsaved-work close gate; CLI-owned
+daemons survive Desktop close unless explicitly stopped. There is no automatic
+restart or replay. On daemon loss, durable running requests become `uncertain`
+on observation under the existing owner-lock rules. Graceful daemon shutdown also
+records active requests as `uncertain`, without publishing a result; explicit user
+Stop waiting/cancel retains `cancelled`. An already chosen cancel/timeout reason
+is not overwritten by shutdown.
 Close first permanently blocks lazy runtime creation and new admissions, including
 HTTP bodies that finish arriving during shutdown. An initialized runtime blocks
 forks immediately, stops all its accepted workers and awaits every execution's
@@ -405,7 +415,7 @@ publication name, cross-process duplicate admission/conflicts, disable/drain,
 Host death/restart, no replay, crashed registry-lock rollback and new ownership
 at an identical live PID. Desktop registers the same installation an independent
 HTTP Host executes. Distribution smoke tests exercise the shipped worker through
-offline Node CLI and the actual packaged Desktop protocol in required CI.
+offline Node CLI and the actual packaged Desktop HTTP daemon in required CI.
 Review regressions additionally cover real document endpoints through Windows
 case/available 8.3 and junction aliases, unrelated image renames with retained
 private data, ordinary hidden-folder references, a partial HTTP body completing

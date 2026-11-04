@@ -1,6 +1,7 @@
 # Desktop distribution and updates v1
 
 - Status: Implemented
+- PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation; restored packaged worker/native comparison is required Windows CI.
 - PR3 verification: 2026-11-04 — CLI 90, Editor 433, Desktop 76 tests; ownership/crash/stale subprocess cases; typecheck and dev build; persistent Chrome Desktop/HTTP scenarios. Windows packaged checks remain CI-only.
 - Lifecycle CI scope verification: 2026-11-03 (#1009 P6; policy/workflow and unit contracts; actual package/install/update/uninstall execution is CI-only).
 - Brand CI policy verification: 2026-11-02 (#888; path/aggregate/release workflow regressions and docs checks; package/install execution remains PR Windows CI).
@@ -34,7 +35,7 @@ Desktop discovers only unrestricted local-mode records at the fixed loopback ori
 
 The existing single Desktop instance, native close protection, folder picker and Explorer integration remain. Folder selection has no Root-registration step. Before granting Explorer capability, main asks the connected daemon to validate the supplied opened-root listing and pins it through existing `RootAccess`. IPC accepts only this window's main frame at the exact daemon origin; navigation outside it is refused. Browser links leave through the system browser. The bridge exposes startup file/sample paths, not a second document write API.
 
-The existing sidebar DropdownMenu offers **Open in browser** and **Stop daemon**. Stop always confirms that connected tabs and ongoing work will be interrupted, regardless of launcher. The existing NotificationCenter reports disconnection and offers **Reconnect**, which explicitly repeats discovery/spawn without reloading or discarding local editing state. A five-second health check detects loss; it does not restart anything. About settings reuse SettingsRow and a details disclosure for daemon state, URL, launcher and versions plus process/access/path diagnostics. Product mismatch warns and retains the connection; protocol mismatch refuses. Both direct the user to restart through the CLI, without a Desktop restart button.
+The existing sidebar DropdownMenu offers **Open in browser** and **Stop daemon**. Stop always confirms that connected tabs and ongoing work will be interrupted, regardless of launcher. The existing NotificationCenter reports disconnection and offers **Reconnect**, which explicitly repeats discovery/spawn without reloading or discarding local editing state. A five-second health check detects loss; it does not restart anything. About settings reuse SettingsRow and a details disclosure for daemon state, URL, launcher and versions plus process/access/path diagnostics. Launcher labels are localized (Desktop / CLI (start) / CLI (run)); CLI status JSON retains `desktop` / `cli-start` / `cli-run`. Product mismatch warns and retains the connection; protocol mismatch refuses. Both direct the user to restart through the CLI, without a Desktop restart button.
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md). Update/uninstall daemon integration remains phase 2; no installer modifications are part of PR3.
 
@@ -45,14 +46,31 @@ Baseline: [CI 41782696099](https://github.com/litzio/litzio/actions/runs/4178269
 | Job/scenario | Measured duration | PR3 treatment |
 | --- | ---: | --- |
 | Windows Desktop package/update job | 16m05s; packaged step 60s | All non-plugin package/update/uninstall assertions retained |
-| packaged in-process Host forks shipped Docling worker | 5.669s | Only excluded test; directly requires removed in-process ownership. PR4 restores daemon-owned worker/native comparison coverage |
+| packaged in-process Host forks shipped Docling worker | 5.669s | Only PR3 exclusion; restored in PR4 as daemon-owned worker/native comparison coverage |
 | Browser docling-dashboard / plugin-ui | 42.0s / 9.3s | Retained |
 | Browser docling-server / docling-compare | 50.4s / 21.0s | Retained |
 | Browser docling-review / recovery / retry | 36.7s / 23.3s / 26.5s | Retained |
 | Browser plugin-settings / ai-agent / ai-result | 6.9s / 1.2m / 10.7s | Retained |
 | Host close waits admitted workers / partial REST worker kill (Windows) | 1.681s / 6.316s | Retained; existing integration adapters now call HTTP |
 
-No fast unit tests or data-preservation assertions are excluded. Obsolete custom-protocol transport tests are removed with that implementation; shared HTTP tests retain CSP, path, revision, trash, template and plugin protections. Startup/sample behavior is covered at the bridge/client and sample copier boundaries. PR4 must restore the one marked skip and pass all required CI before phase 1 is complete. **No releases while this exception exists.**
+No fast unit tests or data-preservation assertions are excluded. Obsolete custom-protocol transport tests are removed with that implementation; shared HTTP tests retain CSP, path, revision, trash, template and plugin protections. Startup/sample behavior is covered at the bridge/client and sample copier boundaries. PR4 restores the only skip as `packaged daemon forks its shipped Docling worker and opens a complete native comparison`. It checks a separate daemon PID/launcher as well as the shipped worker, notices, native comparison and disable/re-registration. The exception is **ended**; all required PR4 CI passing completes phase 1 and lifts this exception's release hold. Update/uninstall daemon integration remains phase 2.
+
+PR4 extends existing cases instead of adding a scenario: the fake app-server HTTP
+case detaches the sending connection and observes the same turn through another
+connection until completion, without replay. The HTTP recovery case owns a real
+production CLI daemon subprocess and stops/restarts it at the same origin via a native bridge
+stand-in; it asserts unsaved input, Undo/Redo and Save without page reload. The
+two subprocess starts are necessary to exercise actual daemon loss/reconnection;
+the existing recovery case took 16.3s locally. Native
+daemon ownership/IPC lifecycle remains covered by existing subprocess tests.
+No paid AI, local packaging, install/update/uninstall or Edge is used. The UI
+retains SettingsRow and translations, with no common UI exception.
+
+Manual persistent-Chrome capture review (production controls, bridge stand-in):
+[1440px](assets/desktop-daemon-lifetime-1142/status-1440.png) /
+[640px](assets/desktop-daemon-lifetime-1142/status-640.png). The localized launcher
+and address fit both widths. Existing Desktop browser assertions check English
+and Korean labels; the CLI JSON protocol is unchanged.
 
 ## Open folders in File Explorer (#487)
 
