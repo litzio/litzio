@@ -580,3 +580,29 @@ The release verifier emits its validated installer, blockmap, current configured
 ## Third-party notices (#1076)
 
 The main esbuild input graph supplies `build/app/THIRD_PARTY_LICENSES.txt`, packaged inside `resources/app.asar`. The existing shared CLI copy carries `resources/cli/THIRD_PARTY_LICENSES.txt` and `editor/licenses/` (including the notice index). Electron/Chromium and existing font/component notices remain separate. The existing packaged startup/sample smoke checks the main archive's electron-updater version and Loopline copyright and the CLI's Tiptap notice. These original assertions remain unchanged when moving them out of the removed Docling smoke; only the removed worker/schema checks are dropped. HTTP package tests separately check the Editor-served notices. Editor public notices remain transitive Desktop build inputs in the existing CI scope policy (alone they retain `update=false`; mixed with an update target they select full lifecycle coverage). No new installation or update behavior is introduced.
+
+## Connection and sample messages (#1156, #1157)
+
+Desktop connection notices reuse NotificationCenter, ghost/sm Reconnect and native
+Details disclosure. The persistent text identifies the local daemon, its last verified
+address when available, and manual reconnect / matching CLI stop-and-start guidance.
+Protocol mismatch, unreachable/incompatible daemon and startup failure have localized
+explanations; unknown failures keep a neutral connection explanation. Electron IPC
+wrappers and original errors appear only inside collapsed Details. Product-version
+warnings retain their existing nonblocking behavior.
+
+Start-screen and opened-sample guidance in Desktop describes same-version restart
+preservation and new folders only on app-version changes. Browser Host reset guidance
+is unchanged. No sample preparation or document write behavior changes.
+
+Manual visual review (browser Editor with native bridge stand-in, not packaged Electron):
+[1440px English](assets/desktop-messages-1156/messages-en-1440.png),
+[640px English](assets/desktop-messages-1156/messages-en-640.png),
+[1440px Korean Dark](assets/desktop-messages-1156/messages-ko-dark-1440.png),
+[640px Korean Dark](assets/desktop-messages-1156/messages-ko-dark-640.png).
+The collapsed diagnostic, address, wrapping and Reconnect fit at both supported widths.
+The [manual capture script](assets/desktop-messages-1156/capture.browser.js) reuses the
+Desktop bridge scenario; to rerun, copy it to `apps/editor/test/messages-capture.browser.js`,
+temporarily include that name in the runner's notification/screenshot allowlists, then run
+`pnpm browser:test messages-capture --screenshots`. It is not a CI capture sweep.
+Before: [#1150 disconnected 640px](assets/desktop-bundled-1150/disconnected-640.png).
