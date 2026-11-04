@@ -1,3 +1,4 @@
+import { hostClient } from "./host-client.ts";
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { AI_AGENT, type AiAgentSettings, type AiModels, type AiDiagnostics, type AiEnvironment, type AiProvider } from "../shared/ai.ts";
 import "./ai-settings.css";
@@ -18,7 +19,7 @@ function Dialog({ open, onClose, title, description, returnFocus, children, foot
   </BaseDialog>;
 }
 async function request<T>(route: string, method = "GET", body?: unknown): Promise<T> {
- const response = await fetch(`${import.meta.env.BASE_URL}${route.slice(1)}`, { method, ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
+ const response = await hostClient.request(route, { method, ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
  const value = await response.json(); if (!response.ok) throw new Error(value.error ?? `HTTP ${response.status}`); return value;
 }
 

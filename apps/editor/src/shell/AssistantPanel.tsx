@@ -1,3 +1,4 @@
+import { hostClient } from "../host-client.ts";
 import { displayRequestCurrent, displayValues, type DisplayRequest, type DisplayReply, type DisplayReceipt, type DisplaySnapshot, type DisplaySettings } from "../../shared/assistant-display.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
@@ -16,7 +17,7 @@ import { CopyButton } from "../components/CopyButton.tsx";
 import { AssistantAnswer } from "./AssistantAnswer.tsx";
 
 async function request<T>(url: string, body?: unknown): Promise<T> {
-  const response = await fetch(import.meta.env.BASE_URL + url.replace(/^\//, ""), body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined);
+  const response = await hostClient.request(url, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined);
   const data = await response.json(); if (!response.ok) throw new Error(data.error ?? response.statusText); return data;
 }
 const conversationKey = `${brand.storagePrefix}.assistantConversation`;

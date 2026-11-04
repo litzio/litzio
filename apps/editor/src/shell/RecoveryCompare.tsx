@@ -1,3 +1,4 @@
+import { hostClient } from "../host-client.ts";
 import { useCallback } from "react";
 import { prepareRecovery } from "../recovery-restore.ts";
 import { recoveryText, type RecoveryRecord } from "../recovery-storage.ts";
@@ -11,7 +12,7 @@ async function compare(record: RecoveryRecord, signal: AbortSignal): Promise<Com
   try {
     const snapshot = prepareRecovery(record);
     if (snapshot.kind === "text") {
-      const response = await fetch(`${import.meta.env.BASE_URL}api/document-source?recovery=1`, {
+      const response = await hostClient.request(`/api/document-source?recovery=1`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: record.path }), signal,
       });
       const result: RecoveryPreviewResponse = await response.json();
@@ -23,7 +24,7 @@ async function compare(record: RecoveryRecord, signal: AbortSignal): Promise<Com
       base: { source: snapshot.file.source, savedEdits: snapshot.savedEdits },
       ...collectSupportedEdits(snapshot.file.document, snapshot.editor.editorDocument) };
   } catch (error) { fallback = error instanceof Error ? error.message : String(error); }
-  const response = await fetch(`${import.meta.env.BASE_URL}api/document-source?recovery=1`, {
+  const response = await hostClient.request(`/api/document-source?recovery=1`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: record.path, save }), signal,
   });
   const result: RecoveryPreviewResponse = await response.json();

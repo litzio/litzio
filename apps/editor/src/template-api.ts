@@ -1,3 +1,4 @@
+import { hostClient } from "./host-client.ts";
 import type { SaveTemplateRequest, TemplateContent, TemplateList } from "../shared/template-protocol.ts";
 import { i18n } from "./i18n.ts";
 
@@ -6,7 +7,7 @@ const templateText = i18n.getFixedT(null, "templates");
 export const templateLanguage = () => i18n.resolvedLanguage === "ko" ? "ko" : "en";
 
 export async function templateRequest<T extends TemplateList | TemplateContent>(route: string, body?: SaveTemplateRequest, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(`${import.meta.env.BASE_URL}api/${route}`, {
+  const response = await hostClient.request(`/api/${route}`, {
     method: body ? "POST" : "GET", signal,
     ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
   });

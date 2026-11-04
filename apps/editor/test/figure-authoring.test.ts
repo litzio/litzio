@@ -486,3 +486,32 @@ test("Diagram insertion and source Apply retain one-step history and canonical S
   assert.equal(isUnappliedFigureDraft(true, { imageUrl: "", imageAlt: "", caption: "", mermaidSource: "draft" },
     { imageUrl: "", imageAlt: "", caption: "", mermaidSource: "applied" }), true);
 });
+
+
+import { createHostClient, hostClient } from "../src/host-client.ts";
+import { resolveFigureSource } from "../src/node-views/figure-view.tsx";
+import { renderPlainMarkdown } from "../src/plain-markdown.ts";
+import { requestSave } from "../src/document-session.ts";
+
+test("Host address applies to API and rendered media without entering serialized source", async t => {
+  const target = createHostClient("http://127.0.0.1:43123/");
+  t.mock.method(hostClient, "url", target.url);
+  const markdown = nativeSource(":::{figure} ./assets/a.svg\n:alt: Diagram\n\nCaption.\n:::\n");
+  const document = parse(markdown);
+  const before = serialize(document);
+  const media = "http://127.0.0.1:43123/document/assets/a.svg?path=%2Froot%2Fa.md";
+  assert.equal(resolveFigureSource("./assets/a.svg", "/root/a.md"), media);
+  assert.ok(renderPlainMarkdown("![Diagram](./assets/a.svg)", "/root/a.md").includes(media));
+  assert.equal(resolveFigureSource("https://example.com/a.svg", "/root/a.md"), "https://example.com/a.svg");
+  const after = serialize(document);
+  assert.equal(after, before);
+  assert.match(after, /figure\} \.\/assets\/a.svg/);
+  assert.ok(!after.includes("43123"));
+  t.mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
+    assert.equal(url, "http://127.0.0.1:43123/api/document");
+    assert.equal(init.method, "POST");
+    assert.equal(JSON.parse(String(init.body)).source, after);
+    return Response.json({ revision: "saved" });
+  });
+  assert.deepEqual(await requestSave({ kind: "text", path: "/root/a.md", revision: "baseline", source: after }), { revision: "saved" });
+});

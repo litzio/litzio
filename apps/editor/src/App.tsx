@@ -1,3 +1,4 @@
+import { hostClient } from "./host-client.ts";
 import { handleDisplayRequest } from "./assistant-display.ts";
 import { creationUndoNeedsConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
@@ -300,7 +301,7 @@ function EditorApp() {
       try {
         const query = new URLSearchParams();
         query.set("paths", JSON.stringify(checks.map(check => check.path)));
-        const response = await fetch(`${import.meta.env.BASE_URL}api/folder-version?${query}`, { signal: controller.signal });
+        const response = await hostClient.request(`/api/folder-version?${query}`, { signal: controller.signal });
         if (!response.ok) return;
         const { revisions } = await response.json() as { revisions?: { path: string; revision: string | null }[] };
         if (!controller.signal.aborted) for (const check of checks) {
@@ -561,7 +562,7 @@ function EditorApp() {
       let checkedRecovery: RecoveryRecord[] | undefined;
       if (creation !== undefined) {
         if (!creation.identity) throw new Error("This creation receipt has no file identity. Undo is unavailable.");
-        const check = await fetch(`${import.meta.env.BASE_URL}api/file`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ root, path: entry.path, checkOnly: true, expectedIdentity: creation.identity }) });
+        const check = await hostClient.request(`/api/file`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ root, path: entry.path, checkOnly: true, expectedIdentity: creation.identity }) });
         const state = await check.json();
         if (!check.ok || typeof state.revision !== "string") throw new Error(state.error ?? "Could not check file.");
         expectedRevision = state.revision;
@@ -593,7 +594,7 @@ function EditorApp() {
           }
         }
       }
-      const response = await fetch(`${import.meta.env.BASE_URL}api/file`, {
+      const response = await hostClient.request(`/api/file`, {
         method: action === "delete" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ root, path: entry.path, ...(expectedRevision !== undefined ? { expectedRevision, expectedIdentity: creation!.identity } : {}), ...(action === "rename" ? { name, openDocuments } : {}),
           ...(figure && formSession ? { figureDocument: { path: figure.documentPath, imageUrl: figure.imageUrl,
@@ -1513,7 +1514,7 @@ function newDestinations(trees: readonly FolderTreeState[]): NewDestination[] {
 /** Asks the Host for one level of a folder inside the folder the user chose. */
 async function requestFolder(root: string, path?: string, background = false): Promise<FolderResponse> {
   const query = new URLSearchParams({ root, ...(path ? { path } : {}), ...(background ? { background: "1" } : {}) });
-  const response = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/folder?${query}`);
+  const response = await hostClient.request(`/api/folder?${query}`);
   const payload = (await response.json()) as Partial<FolderResponse> & Partial<DocumentErrorResponse>;
   if (!response.ok || !Array.isArray(payload.entries)) throw new Error(payload.error ?? `request failed (${response.status})`);
   return payload as FolderResponse;
@@ -1521,7 +1522,7 @@ async function requestFolder(root: string, path?: string, background = false): P
 
 /** Asks the Host for one level of any folder while choosing which folder to open, or an image. */
 async function browseHostFolder(path: string, files?: "image" | "pdf"): Promise<FolderBrowseResponse> {
-  const response = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/folder-browse?${new URLSearchParams({ path, ...(files ? { files } : {}) })}`);
+  const response = await hostClient.request(`/api/folder-browse?${new URLSearchParams({ path, ...(files ? { files } : {}) })}`);
   const payload = (await response.json()) as Partial<FolderBrowseResponse> & Partial<DocumentErrorResponse>;
   if (!response.ok || !Array.isArray(payload.entries) || !Array.isArray(payload.crumbs)) throw new Error(payload.error ?? `request failed (${response.status})`);
   return payload as FolderBrowseResponse;
@@ -1532,7 +1533,7 @@ const browseHostPdfs = (path: string) => browseHostFolder(path, "pdf");
 
 /** Asks the Host to create one folder inside an existing one. */
 async function requestCreateFolder(parent: string, name: string): Promise<FolderCreateResponse> {
-  const response = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/folder`, {
+  const response = await hostClient.request(`/api/folder`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ parent, name } satisfies FolderCreateRequest),
@@ -1544,7 +1545,7 @@ async function requestCreateFolder(parent: string, name: string): Promise<Folder
 
 /** Asks the Host where choosing a folder can start. */
 async function folderPlaces(): Promise<FolderPlace[]> {
-  const response = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/folder-places`);
+  const response = await hostClient.request(`/api/folder-places`);
   const payload = (await response.json()) as Partial<FolderPlacesResponse> & Partial<DocumentErrorResponse>;
   if (!response.ok || !Array.isArray(payload.places)) throw new Error(payload.error ?? `request failed (${response.status})`);
   return payload.places;

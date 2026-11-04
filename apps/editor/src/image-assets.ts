@@ -1,3 +1,4 @@
+import { hostClient } from "./host-client.ts";
 import { Extension } from "@tiptap/core";
 import { closeHistory } from "@tiptap/pm/history";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
@@ -18,7 +19,7 @@ const browserHost: AssetHost = {
   async create(file, documentPath, source) {
     let response: Response, body: AssetResponse & { error?: string };
     try {
-      response = await fetch(`${import.meta.env.BASE_URL}api/asset?path=${encodeURIComponent(documentPath)}&name=${encodeURIComponent(file.name)}&source=${source}`, {
+      response = await hostClient.request(`/api/asset?path=${encodeURIComponent(documentPath)}&name=${encodeURIComponent(file.name)}&source=${source}`, {
         method: "POST", headers: { "Content-Type": file.type }, body: file,
       });
       body = await response.json() as AssetResponse & { error?: string };
@@ -30,7 +31,7 @@ const browserHost: AssetHost = {
     return body;
   },
   async rollback(created, documentPath) {
-    const response = await fetch(`${import.meta.env.BASE_URL}api/asset`, {
+    const response = await hostClient.request(`/api/asset`, {
       method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentPath, ...created }),
     });
     if (!response.ok) {
@@ -42,7 +43,7 @@ const browserHost: AssetHost = {
 
 /** Links an image chosen on the Host, or copies it into assets/ with a rollback receipt. */
 export async function chooseHostImage(documentPath: string, source: string): Promise<ImageChoiceResponse> {
-  const response = await fetch(`${import.meta.env.BASE_URL}api/asset`, {
+  const response = await hostClient.request(`/api/asset`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentPath, source } satisfies ImageChoiceRequest),
   });
   const body = await response.json() as Partial<ImageChoiceResponse> & { error?: string };
