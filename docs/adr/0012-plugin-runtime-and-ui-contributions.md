@@ -19,7 +19,7 @@ the adoption conditions below and update the affected contracts.
 
 ## Amendment: 공식 AI·Docling 전환과 Desktop 번들 UI (2026-11-04, #1150)
 
-[ADR-0017](0017-bundled-client-and-official-ai.md)은 AI를 항상 존재하는 daemon 공식 기능으로 흡수하고, 전환 기간 플러그인 시스템 전체를 일시 중단한다. daemon의 worker·route·UI 기여 ESM/CSS, Desktop 플러그인 UI와 관리 CLI/설정 연결을 중단한다. 코드는 남기되 연결하지 않고 플러그인 테스트·fixture 실행 검증도 재개 때로 미룬다. 소유자가 명시적으로 재개를 개시할 때까지 Docling을 사용할 수 없고 릴리스하지 않는다. 재개 시 Docling을 새 구조와 공식 AI에 연결하며 서비스 계약·테스트를 복원하고, UI 신뢰·번들 origin의 ESM/CSS 경계와 제외 종료 적용을 결정한다. fixture만으로 재개 완료를 선언하지 않는다. 아래 구현 기록은 보존하며 실제 계약 갱신은 구현 PR에서 한다.
+[ADR-0017](0017-bundled-client-and-official-ai.md)은 AI를 항상 존재하는 daemon 공식 기능으로 먼저 이전한 뒤 플러그인 런타임·UI 기여·관리 CLI/설정·Docling과 관련 테스트·문서를 삭제하도록 결정한다. 공식 AI가 쓰지 않는 `@litzio/plugin-api` 부분도 삭제한다. 삭제 직전 master는 원격 `archive/plugins-docling-2026-11`에 보관한다. 이는 기능 제거이며 테스트 예외가 아니다. 소유자는 이미 검증한 설계여서 재개발 비용이 낮을 것으로 판단했다. 소유자가 명시적으로 재개를 개시할 때 보관 코드를 참고하여 컨셉을 다시 개발하며 그대로 복구하지 않는다. aiTasks 계약 복원·플러그인 UI 신뢰·원격 UI·번들 origin 로드 경계·Docling 재개발은 그때 결정한다. 1단계와 #1150 코어 전환 완료 전에는 릴리스하지 않으며 이후 플러그인 없는 제품의 릴리스 여부는 소유자가 정한다. 아래 구현 기록은 삭제 구현 전 근거이며 실제 코드·관련 문서 제거는 구현 PR에서 한다.
 
 ## Amendment: 공유 로컬 daemon Host (2026-11-04, #1142)
 
