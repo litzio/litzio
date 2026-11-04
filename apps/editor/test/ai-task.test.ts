@@ -1,3 +1,4 @@
+import { executePluginOperation } from "../server/plugin-operations.ts";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -164,7 +165,11 @@ test("agent-owned settings persist, reach the worker, and remain pinned in seria
   assert.deepEqual(host.invoke(AI_TASK.plugin, "settings"), { responseLanguage: ["ko", "ja"].includes(Intl.DateTimeFormat().resolvedOptions().locale.split("-")[0]!) ? Intl.DateTimeFormat().resolvedOptions().locale.split("-")[0] : "en", provider: "codex", providers: { codex: true, copilot: false }, writeAccess: "opened-folders", model: "gpt-6.1-sol", reasoningEffort: "medium" });
   const enablement = { provider: "codex", providers: { codex: true, copilot: false } };
   const execution = { model: "chosen-model", reasoningEffort: "xhigh", responseLanguage: "ja" as const };
-  await host.invoke(AI_TASK.plugin, "configure", { ...enablement, ...execution, responseLanguage: "ja" });
+  const configured = await executePluginOperation("configure", { id: AI_TASK.plugin, args: { ...enablement, ...execution, responseLanguage: "ja" } }, { host });
+  assert.deepEqual(await (await fetch(url + AI_TASK.settingsRoute)).json(), configured);
+  const beforeSettings = readFileSync(path.join(root, "ai-settings.json"), "utf8");
+  await assert.rejects(() => executePluginOperation("configure", { id: AI_TASK.plugin, args: { ...enablement, ...execution, model: "missing-model" } }, { host }), /Invalid AI/);
+  assert.equal(readFileSync(path.join(root, "ai-settings.json"), "utf8"), beforeSettings);
   assert.equal(host.invoke(AI_TASK.plugin, "settings").responseLanguage, "ja");
   await assert.rejects(() => host.invoke(AI_TASK.plugin, "configure", { ...enablement, ...execution, responseLanguage: "invalid" }), /Invalid AI/);
   await assert.rejects(() => host.invoke(AI_TASK.plugin, "configure", { ...enablement, ...execution, reasoningEffort: "invalid" }), /Invalid AI/);

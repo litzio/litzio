@@ -1,3 +1,4 @@
+import { executePluginOperation } from "../server/plugin-operations.ts";
 import assert from "node:assert/strict";
 import fs, { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -100,12 +101,18 @@ test("headless Host operations use the installed plugin through local and HTTP c
     db.close();
   }
   assert.equal(host.invoke("echo", "echo").count, 1, "refused cached operations have no side effects");
-  host.plugins().unregister("echo"); assert.throws(() => host.invoke("echo", "increment"), /disabled/u);
+  await executePluginOperation("disable", { id: "echo" }, { host }); assert.throws(() => host.invoke("echo", "increment"), /disabled/u);
   const pinned = host.plugins().list().find(item => item.id === "echo")!;
   const enabled = await fetch(url + "/api/worker-plugins", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: "echo", enabled: true }) });
   assert.equal(enabled.status, 200);
   assert.deepEqual(await enabled.json(), { ...pinned, enabled: true });
   assert.equal(host.invoke("echo", "echo").count, 1);
+  assert.throws(() => executePluginOperation("enable", { id: "echo", extra: true }, { host }), /Unsupported/);
+  assert.throws(() => executePluginOperation("configure", { id: "echo", args: [] }, { host }), /Invalid/);
+  const refused = await fetch(url + "/api/plugin-operation", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plugin: "echo", operation: "configure", args: [] }) });
+  assert.equal(refused.status, 400);
+  assert.match((await refused.json()).error, /Invalid plugin args/);
+
   assert.throws(() => host.plugins().enable("echo"), /already enabled/u);
   assert.throws(() => host.plugins().enable("missing"), /not registered/u);
   const installed = host.plugins().list().find(item => item.id === "echo")!;
