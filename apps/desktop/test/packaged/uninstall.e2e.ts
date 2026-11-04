@@ -98,9 +98,11 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
           owned = desktopRecord(channel, version);
         }
         if (silent) {
-          const result = spawnSync(uninstaller, args, { env, encoding: "utf8", timeout: 60_000 });
-          assert.ifError(result.error);
-          status = result.status;
+          // Playwright must service stderr and detach its Node inspector when Electron
+          // quits. spawnSync blocks that callback, making the real installer correctly
+          // refuse the still-running inspected process. Keep the same 60s deadline.
+          const child = spawn(uninstaller, args, { env, stdio: "ignore", timeout: 60_000 });
+          status = await new Promise<number | null>((resolve, reject) => { child.once("error", reject); child.once("exit", resolve); });
         } else {
           const child = spawn(uninstaller, args, { env, stdio: "ignore" });
           const completed = new Promise<number | null>((resolve, reject) => { child.once("error", reject); child.once("exit", resolve); });
