@@ -1,8 +1,8 @@
 # 제품 용어집
 
 - Status: Implemented
-- Scope: #1168 화면·문서·CLI·API·코드·설정 용어.
-- Last verified: 2026-11-05 — #1168 PR B의 이름과 소유자 결정 대조.
+- Scope: #1168 화면·문서·CLI·API·코드·설정 용어와 #1174 원격 Host 승인 용어(구현 예정).
+- Last verified: 2026-11-05 — #1168 PR B의 이름 및 #1174·ADR-0018 승인 용어와 문서 대조. 제품 실행 검증 없음.
 
 | 개념 | 한국어 UI | 영어 UI | 코드·API | 문서 용어 |
 | --- | --- | --- | --- | --- |
@@ -32,3 +32,22 @@
 동작 계약은 [비서 계약](../design/main-agent-v1.md)을 따른다. 읽기 전용은 파일 쓰기를 거부하고, 열린 폴더는 열린 폴더와 Host Root 안의 파일 쓰기만 허용한다. 제한 모드에서 Codex는 sandbox를 적용하고 네트워크·OS 임시 쓰기 예외를 끈다. Copilot은 경로가 있는 요청을 중개하고 실행·네트워크·알 수 없는 요청을 거부하며 shell 도구를 끈다. Copilot에는 OS sandbox가 없고 사전 승인된 설정의 동작까지 동등하게 격리하지 않는다. 전체 접근은 Codex sandbox를 해제하고 양쪽 공급자의 도구·경로·네트워크 요청을 자동 승인한다. 기존 문서는 변경하지 않고 글로 제안한다는 비서 지침과 문서 도구의 공식 쓰기 경계는 유지한다.
 
 현재 소스·계약의 옛 공개 이름과 화면 locales의 옛 표시 용어는 `pnpm boundaries:check`에서 검사한다. 화면 문구는 번역 값만 검사하며 외부 이름·과거 문서는 검사 범위 밖이다.
+
+## 원격 Host와 여러 Host 보기 (#1174, 구현 예정)
+
+아래 용어는 [ADR-0018](../adr/0018-desktop-remote-hosts.md)의 승인 결정이다. 현재 기능 제공을 뜻하지 않으며 PR1~4에서 코드·화면에 적용한다. 상태의 구체 코드 enum과 CLI 명령 표기는 구현 PR에서 정한다.
+
+| 개념 | 한국어 UI | 영어 UI | 코드·API | 문서 용어 |
+| --- | --- | --- | --- | --- |
+| 같은 PC의 작업 대상 | 로컬 Host | Local Host | local Host 문맥 | 로컬 Host; daemon 수명 제어 대상 |
+| 주소로 연결하는 작업 대상 | 원격 Host | Remote Host | remote Host 문맥 | 원격 Host; Desktop 로컬 OS 경로와 구별 |
+| 연결 설정 저장 | Host 등록 / 등록 제거 | Register Host / Remove registration | Desktop 로컬 Host registry, 공용 등록 작업 | 등록; 연결·원격 daemon 제어와 구별 |
+| 등록 식별자 | 진단에서 Host ID | Host ID | `hostId` | 불변 등록 식별자; daemon instanceId·Paseo serverId·문서 identity와 구별 |
+| 등록 주소 | 주소 | Address | `origin` | HTTP(S) origin; 주소 변경은 새 등록, 같은 정규화 origin 중복 거부 |
+| 표시 이름 | 라벨 | Label | label | 등록 라벨; 변경해도 hostId·origin 유지 |
+| 대상 안의 위치 | Host 표시와 경로 | Host label and path | `(hostId, path)` | Host별 문서·폴더 위치; 경로만으로 식별하지 않음 |
+| 연결 상태 | 연결 중 / 연결됨 / 연결 끊김 / 다시 연결 중 | Connecting / Connected / Disconnected / Reconnecting | Host별 connection state; 최종 enum은 구현 PR | 연결 상태; 등록 저장·제품 버전 경고·프로토콜 거부 사유와 구별 |
+| 표시 범위 | 전체 Host / 개별 Host 라벨 | All hosts / Individual Host label | Host filter | 전체/개별 Host 필터; 요청 대상 변경 아님 |
+| 비서 실행 대상 | 대화의 Host | Conversation Host | 대화 생성 시 고정된 hostId | 대화 대상 Host; 활성 탭 변경으로 전환하지 않음 |
+
+등록 저장 성공과 연결 성공을 같은 말로 표시하지 않는다. 원격의 자동 재연결은 연결 복구이며 저장·AI 쓰기의 자동 재전송이나 원격 daemon 재시작을 뜻하지 않는다. 앱 전역 설정과 Host별 설정을 구분한다.

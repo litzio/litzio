@@ -35,6 +35,10 @@ UI를 `litzio://app/index.html`로 연다. custom scheme은 static UI 전용이�
 브라우저는 계속 daemon HTTP UI를 쓴다. Electron storage의 현재 origin은 `litzio://app`이며
 과거 origin 데이터의 migration/하위 호환은 제공하지 않는다. 인증은 #1145에 보류한다.
 
+## 후속 결정: 원격 Host (#1174, 미구현)
+
+[ADR-0018](../adr/0018-desktop-remote-hosts.md)은 Desktop 원격 등록·자동 연결/재연결·여러 Host 보기를 결정한다. 아래는 현재 구현 계약이며 해당 변경은 #1174 PR1~4에서 실제 구현과 함께 갱신한다. 이 연결은 원격 기능의 제공 완료를 뜻하지 않는다.
+
 ## Shared daemon Desktop (#1142 PR3)
 
 Desktop discovers only unrestricted local-mode records at the fixed loopback origin. Without a live record it starts the shipped CLI's `daemon run` through a private IPC pipe, using the PR2 lock/HTTP/asset path. A ready identity proves which generation it spawned. Normal close disconnects that pipe and waits for matching record removal and child-process exit; parent death also disconnects the pipe. Other clients/jobs are not counted. A CLI-started daemon survives Desktop close. Explicit start/reconnect reclaims only OS-proven dead/reused process identities, never an HTTP timeout.
