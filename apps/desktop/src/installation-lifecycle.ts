@@ -13,9 +13,12 @@ export interface InstallationPort {
 
 /** Never use image-name taskkill: another channel/installation can use the same image name. */
 export function installationPort(executable: string): InstallationPort {
-  const ps = (script: string, input = "") => execFileSync(path.join(process.env.WINDIR ?? "C:\\Windows", "System32/WindowsPowerShell/v1.0/powershell.exe"),
+  const windows = process.env.WINDIR ?? "C:\\Windows";
+  const ps = (script: string, input = "") => execFileSync(path.join(windows, "System32/WindowsPowerShell/v1.0/powershell.exe"),
     ["-NoProfile", "-NonInteractive", "-Command", `$ErrorActionPreference = 'Stop'; [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); $inputText = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String([Console]::In.ReadToEnd())); ${script}`],
-    { input: Buffer.from(input, "utf8").toString("base64"), encoding: "utf8", windowsHide: true });
+    // PowerShell cannot even initialize with a damaged SystemRoot. Keep the OS query tied
+    // to its Windows executable; do not repair the parent/optional CLI cleanup environment.
+    { input: Buffer.from(input, "utf8").toString("base64"), encoding: "utf8", windowsHide: true, env: { ...process.env, SystemRoot: windows } });
   const samePath = (file: string) => path.resolve(file).toLowerCase() === path.resolve(executable).toLowerCase();
   return {
     processes: () => JSON.parse(ps(

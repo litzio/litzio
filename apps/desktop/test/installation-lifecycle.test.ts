@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { checkInstallation, prepareInstallation, type InstallationPort, type InstalledProcess } from "../src/installation-lifecycle.ts";
+import { checkInstallation, prepareInstallation, installationPort, type InstallationPort, type InstalledProcess } from "../src/installation-lifecycle.ts";
 import type { DaemonRecord } from "../../editor/server/daemon-state.ts";
 
 const record = { pid: 42, processStartedAt: "creation", launcher: "desktop", daemonHome: "isolated/beta" } as DaemonRecord;
@@ -36,4 +36,17 @@ test("a reused PID never proves Desktop ownership of a CLI process", () => {
   const h = fixture();
   h.setProcesses([{ ...daemon, started: "new creation" }]);
   assert.throws(() => checkInstallation(h.port), /CLI daemon/);
+});
+
+test("mandatory Windows process query survives damaged optional-cleanup environment without repairing it", { skip: process.platform !== "win32" }, () => {
+  const saved = process.env.SystemRoot;
+  const damaged = "C:\\missing-windows-1164";
+  process.env.SystemRoot = damaged;
+  try {
+    // Read-only OS query, no record reads, window closes, user data or registry writes.
+    assert.equal(installationPort(process.execPath).processes().some(p => p.pid === process.pid), false);
+    assert.equal(process.env.SystemRoot, damaged, "optional cleanup must still see its own failure");
+  } finally {
+    if (saved === undefined) delete process.env.SystemRoot; else process.env.SystemRoot = saved;
+  }
 });
