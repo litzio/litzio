@@ -1,4 +1,5 @@
-import { listTemplates, readTemplate, saveTemplate, templateDocumentSource, templateLanguage } from "./document-templates.ts";
+import { executeTemplateOperation } from "./document-templates.ts";
+import { createDocumentSourceFile } from "./document-create.ts";
 import { hostPaths } from "./host-paths.ts";
 import { folderVersion } from "./folder-watch.ts";
 import { documentRevisions } from "./document-revisions.ts";
@@ -129,30 +130,8 @@ export function saveTextFile(request: TextSaveRequest, access: FileAccess = LOCA
 }
 
 export function createDocumentFile(requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS, source = EMPTY_DOCUMENT_MARKDOWN): DocumentFileResponse {
-  // Admission and canonical serialization happen before exclusive creation.
-  source = serialize(parse(source));
-  if (!requestedPath?.trim()) {
-    throw new Error("document path is required");
-  }
-  const filePath = resolveDocumentPath(requestedPath, access, true);
-  const parentDirectory = path.dirname(filePath);
-  try {
-    if (!statSync(parentDirectory).isDirectory()) {
-      throw new Error("parent directory does not exist");
-    }
-  } catch (error) {
-    if (error instanceof Error && error.message === "parent directory does not exist") throw error;
-    throw new Error("parent directory does not exist");
-  }
-  try {
-    writeFileSync(accessPath(filePath, access, true), source, { encoding: "utf8", flag: "wx" });
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "EEXIST") {
-      throw new Error("file already exists");
-    }
-    throw error;
-  }
-  return loadDocumentFile(filePath, access);
+  const created = createDocumentSourceFile(requestedPath ?? "", source, access);
+  return { ...created, kind: "native", ...readModel(created.source) };
 }
 
 export function saveDocumentFile(
@@ -281,15 +260,11 @@ export async function handleDocumentRequest(
   if (url === "/api/templates" || url === "/api/template") {
     try {
       if (req.method === "GET") {
-        const language = templateLanguage(query.get("language") ?? "en");
-        sendJson(res, 200, url === "/api/templates" ? listTemplates(language, templatesDirectory)
-          : readTemplate(query.get("id") ?? "", language, templatesDirectory));
+        const input = { language: query.get("language") ?? "en" }, scope = { access, directory: templatesDirectory };
+        sendJson(res, 200, url === "/api/templates" ? executeTemplateOperation("list", input, scope)
+          : executeTemplateOperation("read", { ...input, template: query.get("id") ?? "" }, scope));
       } else if (req.method === "POST" && url === "/api/templates") {
-        const body = JSON.parse(await readBody(req));
-        if (!isObject(body) || typeof body.name !== "string" || typeof body.from !== "string" ||
-            body.description !== undefined && typeof body.description !== "string" ||
-            Object.keys(body).some(key => !["name", "description", "from"].includes(key))) throw new Error("Invalid template save request.");
-        sendJson(res, 201, saveTemplate(body as { name: string; from: string; description?: string }, access, templatesDirectory));
+        sendJson(res, 201, executeTemplateOperation("save", JSON.parse(await readBody(req)), { access, directory: templatesDirectory }));
       } else { res.statusCode = 405; res.end(); }
     } catch (error) { failure(error); }
     return;
@@ -505,9 +480,9 @@ export async function handleDocumentRequest(
     }
     if (req.method === "PUT") {
       const body = JSON.parse(await readBody(req)) as { path?: unknown; template?: unknown; language?: unknown };
-      if (body.template !== undefined && typeof body.template !== "string") throw new Error("Invalid template id.");
-      const source = body.template === undefined ? undefined : templateDocumentSource(body.template, templateLanguage(body.language), templatesDirectory);
-      const created = createDocumentFile(typeof body.path === "string" ? body.path : undefined, access, source);
+      const receipt = body.template === undefined ? undefined : executeTemplateOperation("create", body, { access, directory: templatesDirectory });
+      const created = receipt ? { ...receipt, kind: "native", ...readModel(receipt.source) }
+        : createDocumentFile(typeof body.path === "string" ? body.path : undefined, access);
       sendJson(res, 201, created);
       return;
     }

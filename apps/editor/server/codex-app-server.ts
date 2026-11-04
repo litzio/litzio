@@ -40,7 +40,7 @@ export class CodexAppServer extends EventEmitter {
   private closing?: Promise<void>;
   private nextId = 0;
   private pending = new Map<number, { resolve(value: any): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
-  constructor(readonly cwd: string, private options: { bin?: string; args?: string[]; timeoutMs?: number } = {}) { super(); }
+  constructor(readonly cwd: string, private options: { bin?: string; args?: string[]; timeoutMs?: number; env?: () => NodeJS.ProcessEnv } = {}) { super(); }
   get executable() { return this.options.bin ?? codexPath(); }
   async version(): Promise<string | null> {
     const bin = this.executable; if (!bin) return null;
@@ -61,7 +61,7 @@ export class CodexAppServer extends EventEmitter {
     if (this.closed) throw new Error("Codex app-server is closed.");
     const cmd = command(bin);
     const child = spawn(cmd.bin, this.options.args ?? ["app-server", "-c", "features.default_mode_request_user_input=true"], { cwd: this.cwd, shell: cmd.shell,
-      windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"] });
+      windowsHide: true, detached: process.platform !== "win32", stdio: ["pipe", "pipe", "pipe"], env: this.options.env?.() });
     this.child = child;
     let initialized = false;
     const fail = (error: Error) => { for (const item of this.pending.values()) { clearTimeout(item.timer); item.reject(error); } this.pending.clear(); };

@@ -12,6 +12,7 @@
 - Last verified: 2026-11-03 (#1047 PR A/B / #984 / #952: fake stdio/Host, worker prompt, browser and manual 1440 Light / 640 Dark Korean captures; no real model turn).
 - Previous verification: 2026-11-02 (#931 implementation 2, PR 2: 409 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
 - Display settings (#1120): 2026-11-04; fixed Host/screen allowlist, fake stdio/HTTP and browser checks; no real model call.
+- Template operations verification: 2026-11-04 (#1128: shared Host operations, fake dynamic-tool/receipt-history and child PATH execution; no real model call; packaged behavior is CI-only).
 - Scope: main-agent connection, Settings, shell-owned assistant panel and Codex/Copilot conversations. Includes new-document result cards, guarded creation undo and the product-owned usage-guide skill.
 - Authority: [ADR-0014](../adr/0014-main-agent-app-server.md), [#931](https://github.com/litzio/litzio/issues/931) owner decisions and approved v3.1 settings mockup.
 
@@ -399,7 +400,7 @@ beyond Codex/Copilot remain outside the current delivery. Copilot was added in
 
 ## Document tools (#931 implementation 2, PR 1)
 
-The Host registers the three document function specs and the two
+The Host registers document specs, the three [template specs](#template-workflows-936-phase-3) and the two
 [display-setting specs](#assistant-display-settings-1120) in `thread/start.dynamicTools` and handles
 server-originated `item/tool/call` and the [structured questions](#structured-user-questions-983) added in #983; other requests still return `-32601`.
 The small `agent-document-tools.ts` module validates input and invokes Core and
@@ -408,12 +409,12 @@ is no tool registry, plugin registration API, MCP server or provider abstraction
 
 | Tool | Input | JSON result |
 | --- | --- | --- |
-| `create_document` | `{path, title, blocks}`; absolute new `.md` path, title string, ordered `{type:"paragraph", text}` or `{type:"heading", level:1..6, text}` blocks; empty array allowed | `{path, revision, identity}` |
+| `create_document` | `{path, title, blocks}` or `{path, template, language?}` (mutually exclusive); absolute new `.md` path, title string, ordered `{type:"paragraph", text}` or `{type:"heading", level:1..6, text}` blocks; empty array allowed | `{path, source, revision, identity}` |
 | `read_document` | `{path}`; absolute existing document path | `{path, source, revision}` from the existing Host read path |
 | `list_documents` | `{path}`; absolute folder path | Existing one-level folder listing, retaining document and child-folder entries |
 
-Creation calls `createDocument`, `updateDocumentTitle`, existing insertions,
-`validateStructure` and final `serialize`, followed by exclusive `wx` publication.
+Block creation calls `createDocument`, `updateDocumentTitle`, existing insertions,
+`validateStructure` and final `serialize`, followed by the common `document-create.ts` exclusive `wx` publication. Template creation delegates to the shared template operation and Core template semantics.
 Text is literal Core input, not a separate Markdown assembler. Unsupported fields
 or blocks fail with Core's `invalid-operation` diagnostic; Core insertion and
 canonical-write errors are returned without publishing a file. No new semantic
@@ -559,33 +560,39 @@ capture-only fixture was temporary and is not part of CI.
 
 ## Template workflows (#936 phase 3)
 
-The generated `AGENTS.md` routes document creation to the product-owned
-`litzio-guide` skill and a fresh CLI `templates list --json` lookup. Names and
-descriptions are discovered per request, rather than frozen when the environment
-is generated. The skill requires proposal → user consent → application, with an
-explicitly named template counting as consent. It reads the chosen structure and
-uses `create --template`, then existing inspect/apply-batch/check operations to
-fill the new document. It also documents new-template authoring and saving an
-existing document through `templates save` after confirmation of name, description
-and source, with unsaved-content and no-overwrite boundaries. Template saving
-always reads the saved disk version; the assistant has only the active path and
-asks the user to save first if current unsaved changes should be included (#1106).
+Since #1128, templates use the shared Host operations in
+[Document templates](document-templates-v1.md#shared-host-operations-and-assistant-1128).
+`list_templates({language?})`, `read_template({template,language?})` and
+`save_template({name,from,description?})` are registered alongside the existing
+functions. `create_document({path,template,language?})` is an alternative to its
+title/blocks form. It yields the same structured creation receipt and result card,
+with guarded Undo. Start a new conversation for the added tool specifications.
 
-This is generated guidance, not a new model tool or enforcement mechanism.
-The existing skill inventory and Codex selection surface are reused. Template
-CLI operations are the explicit exception to preferring dynamic document tools;
-`create_document` does not accept a template. CLI creation reports its actual
-path and check result in prose and does not produce a result card or card Undo.
-The same CLI/Host environment must resolve the catalog; inaccessible CLI or
-restricted shell/filesystem permissions are reported without bypassing them.
-Copilot's restricted shell remains restricted. Existing-document editing stays
-text-only. Details and command syntax are owned by the
-[template contract](document-templates-v1.md#assistant-guidance-phase-3).
+List/read use the Host's fixed catalog and need no opened folders. Save/create
+require the captured turn's write access and pinned folder/Host Root checks for
+the source/destination document. Save writes only the app-owned template directory,
+so opened-folder shell access to that directory is unnecessary. A template is not
+applied to an existing document; its original and source document remain intact.
 
-Verification (2026-11-04): the existing generated-environment unit test checks
-written/regenerated instructions and skill content, including consent and CLI
-routing. Existing CLI template tests own the real list/read/save/create paths.
-No real model response, new browser scenario or UI change is required or claimed.
+Generated AGENTS.md and `litzio-guide` require a fresh template lookup and
+proposal → permission → application. Explicit template requests supply consent;
+missing names never fall back. Save requires name/description/source confirmation,
+uses the saved disk version, then reads back and refreshes the catalog. Unsaved
+content must be saved first if intended. Copilot offers text guidance only.
+
+CLI instructions now serve terminal continuation. Before Codex launch the Host
+prepends a private `<assistant cwd>/bin/<CLI identity>` launcher for its own CLI to the child PATH,
+without changing Host/system/user PATH or optional Desktop CLI integration.
+Source, distributed HTTP and packaged Desktop resolve their own runtime/CLI and
+retain source versus installed catalog classification. Desktop supplies its
+bundled CLI location explicitly and uses Electron RunAsNode only in the CLI
+launcher. This is function reuse, not a live CLI connection or shared editing state.
+
+The existing fake app-server test verifies registration, input/scope refusals,
+app-owned saving, template receipt history/resume and a real CLI read from the
+fake Codex child's PATH. Core/CLI/HTTP tests own document semantics and adapter
+behavior; `ai-result` uses an actual template creation receipt for the existing
+Open/guarded Undo path. No real model call is made for #1128.
 
 ## Created-document results and undo (#931 implementation 2, PR 2)
 
@@ -632,7 +639,7 @@ There is no undo journal or new persistence layer. A deleted receipt remains his
 a fresh page may offer Undo again, which refuses a missing file.
 
 The product-owned guide explains opening files/folders, Read/Edit/Source, Docling,
-Settings and the three assistant tools. Terminal continuation uses existing `litzio`
+Settings and the assistant document/template tools. Terminal continuation uses existing `litzio`
 create, inspect, apply-batch and check commands; it does not promise dynamic-tool
 handlers in terminal Codex. Environment diagnostics list local skill names without
 starting Codex. Runtime discovery is separately verified using

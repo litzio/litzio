@@ -76,6 +76,15 @@ because packaging and update boundaries are unchanged.
 
 ## Optional command-line tools (#604)
 
+The #1128 assistant launcher is separate from this optional integration. Before
+Codex launch, the Host prepends an assistant-cwd private bin to that child PATH,
+using the bundled CLI and Electron RunAsNode. It works while this setting is off;
+no user/system PATH or registry is changed. Source Desktop instead uses the source
+CLI with tsx. See [template operations](document-templates-v1.md#shared-host-operations-and-assistant-1128).
+The existing packaged CLI CI exercises one template read through that launcher
+before enabling the optional integration. Local packaging is not part of #1128 verification.
+
+
 Settings exposes **Command-line tools (CLI)** only when the Desktop bridge exists. The initial
 state is Off; neither setup nor update adds anything to PATH. Enabled reports Installed, while
 missing or mismatched owned files, application target or PATH registration report Broken path.

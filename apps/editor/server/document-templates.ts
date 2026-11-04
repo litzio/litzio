@@ -4,7 +4,8 @@ import { createDocumentFromTemplate, getTemplateMetadata, parse, serialize, upda
 import { decodeUtf8 } from "@litzio/file-commit";
 import { validFileStem } from "../shared/file-operations.ts";
 import type { SaveTemplateRequest, TemplateContent, TemplateLanguage, TemplateList } from "../shared/template-protocol.ts";
-import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
+import { accessPath, LOCAL_FILE_ACCESS, type FileAccess, type RootAccess } from "./file-access.ts";
+import { createDocumentSourceFile, type DocumentCreationReceipt } from "./document-create.ts";
 import { resolveDocumentPath } from "./document-path.ts";
 import { BUILTIN_TEMPLATES } from "./builtin-templates.ts";
 import { hostPaths } from "./host-paths.ts";
@@ -87,4 +88,43 @@ export function saveTemplate(request: SaveTemplateRequest, access: FileAccess = 
   fs.mkdirSync(directory, { recursive: true });
   fs.writeFileSync(path.join(directory, `${name}.md`), source, { encoding: "utf8", flag: "wx" });
   return { id: `user:${name}`, kind: "user", name, description, source };
+}
+
+const string = { type: "string" };
+const language = { type: "string", enum: ["ko", "en"] };
+/** The template slice's shared inputs/results. Transports only adapt these Host operations. */
+export const templateOperations = {
+  list: { name: "list_templates", description: "List current Litzio template names and descriptions. Propose a template and obtain permission before applying it.", inputSchema: { type: "object", properties: { language }, additionalProperties: false } },
+  read: { name: "read_template", description: "Read a Litzio template by id or name, preserving its structure.", inputSchema: { type: "object", properties: { template: string, language }, required: ["template"], additionalProperties: false } },
+  create: { name: "create_document", description: "Create a new document from the user's authorized template. Never overwrites; returns a creation receipt for Open/Undo.", inputSchema: { type: "object", properties: { path: string, template: string, language }, required: ["path", "template"], additionalProperties: false } },
+  save: { name: "save_template", description: "Save a disk document as a new user template. Confirm name, description and source first; never overwrites. Unsaved changes are not included.", inputSchema: { type: "object", properties: { name: string, from: string, description: string }, required: ["name", "from"], additionalProperties: false } },
+};
+export const templateTools = [templateOperations.list, templateOperations.read, templateOperations.save].map(spec => ({ type: "function", ...spec }));
+export type TemplateScope = {
+  access: FileAccess; directory?: string;
+  /** Absent for local CLI/HTTP; null means a tool turn without opened folders. */
+  folders?: RootAccess | null; writeAccess?: string;
+};
+export function executeTemplateOperation(operation: "list", input: unknown, scope?: TemplateScope): TemplateList;
+export function executeTemplateOperation(operation: "read" | "save", input: unknown, scope?: TemplateScope): TemplateContent;
+export function executeTemplateOperation(operation: "create", input: unknown, scope?: TemplateScope): DocumentCreationReceipt;
+export function executeTemplateOperation(operation: keyof typeof templateOperations, input: unknown, scope: TemplateScope = { access: LOCAL_FILE_ACCESS }) {
+  const spec = templateOperations[operation];
+  if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).some(key => !Object.hasOwn(spec.inputSchema.properties, key))) throw new Error("Unsupported template operation input.");
+  const value = input as Record<string, unknown>;
+  for (const [key, property] of Object.entries(spec.inputSchema.properties)) {
+    if (value[key] !== undefined && property.type === "string" && typeof value[key] !== "string") throw new Error(`Invalid template ${key}.`);
+  }
+  if ("required" in spec.inputSchema && spec.inputSchema.required.some(key => typeof value[key] !== "string" || !(value[key] as string).trim())) throw new Error("Required template operation input is missing.");
+  const lang = templateLanguage(value.language);
+  if (operation === "list") return listTemplates(lang, scope.directory);
+  if (operation === "read") return readTemplate(value.template as string, lang, scope.directory);
+  if (scope.writeAccess !== undefined && scope.writeAccess !== "opened-folders" && scope.writeAccess !== "full-access") throw new Error("Template writes are read-only for this turn.");
+  const requested = (operation === "save" ? value.from : value.path) as string;
+  const create = operation === "create";
+  if (scope.folders !== undefined && (!scope.folders || !path.isAbsolute(requested))) throw new Error("An absolute path inside an opened folder is required.");
+  const file = accessPath(requested, scope.access, create);
+  const target = scope.folders ? scope.folders.resolve(file, create) : file;
+  if (operation === "save") return saveTemplate({ name: value.name as string, from: target, description: value.description as string | undefined }, scope.access, scope.directory);
+  return createDocumentSourceFile(target, templateDocumentSource(value.template as string, lang, scope.directory), scope.access);
 }

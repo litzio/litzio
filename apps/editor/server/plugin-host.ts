@@ -33,7 +33,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
   const sessions = new Map<string, Map<string, unknown>>();
   let agent: AiAgentConnection | undefined = options?.agent;
   let conversations: AiAgentConversations | undefined;
-  const history = () => conversations ??= new AiAgentConversations(agent ??= new AiAgentConnection(paths.agent), access);
+  const history = () => conversations ??= new AiAgentConversations(agent ??= new AiAgentConnection(paths.agent, undefined, undefined, options?.run), access);
   const provider = (args?: { provider?: AiProvider }): AiProvider => {
     const value = args?.provider ?? load(AI_TASK.plugin).operations.settings({}).provider;
     if (value !== "codex" && value !== "copilot") throw new Error("Invalid AI provider.");
@@ -42,11 +42,11 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
   const agentOperations = {
     agentSkills: () => {
       if (provider() !== "codex") throw new Error("Skill selection is available only with Codex.");
-      return (agent ??= new AiAgentConnection(paths.agent)).skills();
+      return (agent ??= new AiAgentConnection(paths.agent, undefined, undefined, options?.run)).skills();
     },
-    agentModels: (args?: { provider?: AiProvider }) => (agent ??= new AiAgentConnection(paths.agent)).models(provider(args)),
-    agentDiagnostics: (args?: { provider?: AiProvider }) => (agent ??= new AiAgentConnection(paths.agent)).diagnostics(provider(args)),
-    agentEnvironment: () => (agent ??= new AiAgentConnection(paths.agent)).environment(),
+    agentModels: (args?: { provider?: AiProvider }) => (agent ??= new AiAgentConnection(paths.agent, undefined, undefined, options?.run)).models(provider(args)),
+    agentDiagnostics: (args?: { provider?: AiProvider }) => (agent ??= new AiAgentConnection(paths.agent, undefined, undefined, options?.run)).diagnostics(provider(args)),
+    agentEnvironment: () => (agent ??= new AiAgentConnection(paths.agent, undefined, undefined, options?.run)).environment(),
     agentConversations: (args: any) => {
       if (!args.id) return history().list().filter(info => (info.provider ?? "codex") === provider());
       const conversation = history().current(args.id);

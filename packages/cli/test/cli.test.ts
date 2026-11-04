@@ -3014,10 +3014,13 @@ test("CLI title settings support inspect, revision-safe writes, removal, batches
 test("CLI build constant selects distributed defaults even for checkout dist artifacts", async () => {
   const { build } = await import("esbuild");
   const { hostPaths } = await import("../../../apps/editor/server/host-paths.ts");
-  const result = await build({ entryPoints: [fileURLToPath(new URL("../../../apps/editor/server/host-paths.ts", import.meta.url))],
+  const result = await build({ stdin: { contents: 'export { hostPaths } from "./apps/editor/server/host-paths.ts"; export { hostCli } from "./apps/editor/server/assistant-cli.ts";', resolveDir: fileURLToPath(new URL("../../../", import.meta.url)) },
     bundle: true, write: false, platform: "node", format: "esm", logLevel: "silent",
     define: { __LITZIO_CLI_BUILD__: JSON.stringify({ version: "test", desktop: false, commit: "test" }) } });
-  const bundled = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`);
+  const cliFile = path.join(fixtures, "cli.mjs");
+  writeFileSync(cliFile, result.outputFiles[0].text);
+  const bundled = await import(pathToFileURL(cliFile).href);
+  assert.deepEqual(bundled.hostCli(), { bin: process.execPath, args: [cliFile] });
   const expected = hostPaths({ packaged: true }, {}), actual = bundled.hostPaths({}, {});
   assert.equal(actual.plugins, expected.plugins); assert.equal(actual.settingsFile("docling"), expected.settingsFile("docling"));
   assert.equal(actual.agent, expected.agent);
@@ -3047,9 +3050,12 @@ test("templates CLI lists, previews, saves and exclusively creates through the s
   assert.equal(listed.status, 0, listed.stderr);
   assert.ok(JSON.parse(listed.stdout).templates.some((item: any) => item.name === "AI 작업 보고서" && item.kind === "builtin"));
   const output = path.join(fixtures, "template-created.md");
-  const created = run(["create", output, "--template", "builtin:ai-report", "--language", "ko"]);
+  const created = run(["create", output, "--template", "builtin:ai-report", "--language", "ko", "--format", "json"]);
   assert.equal(created.status, 0, created.stderr);
+  const receipt = JSON.parse(created.stdout);
+  assert.equal(receipt.path, output); assert.ok(receipt.revision); assert.ok(receipt.identity.ino);
   const source = readFileSync(output, "utf8");
+  assert.equal(receipt.source, source);
   assert.ok(source.includes("작업 목적"));
   assert.equal(run(["create", output, "--template", "builtin:technical-document"]).status, 1);
   assert.equal(readFileSync(output, "utf8"), source);
