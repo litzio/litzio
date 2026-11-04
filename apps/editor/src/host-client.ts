@@ -1,5 +1,10 @@
 import { LOCAL_HOST_ID } from "./host-locator.ts";
 
+export class HostConnectionChangedError extends Error {
+  readonly code = "host-connection-changed";
+  constructor() { super("The Host connection changed. This operation belongs to the previous connection; reopen it explicitly."); }
+}
+
 export type HostClient = ReturnType<typeof createHostClient>;
 /** Immutable address boundary. Never persists Host URLs in document content. */
 export function createHostClient(base: string, ready: Promise<void> = Promise.resolve()) {
@@ -60,20 +65,29 @@ const desktopReady = typeof window !== "undefined" && window.litzioDesktop
   ? new Promise<HostClient>(resolve => { release = resolve; }) : Promise.resolve(createHostClient("/"));
 // Local startup waits for Desktop's verified address. Other Hosts have no shared gate.
 const local = hostRegistry.get(LOCAL_HOST_ID);
-let localAddress = "/";
 let connectedLocal: HostClient | undefined;
-local.client = {
-  url: path => createHostClient(localAddress).url(path),
-  get crossOrigin() { return createHostClient(localAddress).crossOrigin; },
-  async request(path, init) {
-    const client = connectedLocal ?? await desktopReady;
-    return client.request(path, init);
-  },
-};
+/** A session/receipt keeps its connection. A changed origin invalidates follow-ups. */
+function bindLocalConnection(): HostClient {
+  const binding = connectedLocal ? Promise.resolve(connectedLocal) : desktopReady;
+  let address = connectedLocal;
+  void binding.then(client => { address = client; });
+  return {
+    url: path => (address ?? createHostClient("/")).url(path),
+    get crossOrigin() { return address?.crossOrigin; },
+    async request(path, init) {
+      const client = await binding;
+      if (connectedLocal && client.url("/") !== connectedLocal.url("/")) {
+        throw new HostConnectionChangedError();
+      }
+      return client.request(path, init);
+    },
+  };
+}
+local.client = bindLocalConnection();
 export function setDesktopHost(origin: string): void {
-  localAddress = origin;
   connectedLocal = createHostClient(origin);
   release?.(connectedLocal);
+  local.client = bindLocalConnection();
   void hostRegistry.connect(LOCAL_HOST_ID);
 }
 export const getHostClient = (hostId: string): HostClient => hostRegistry.get(hostId).client;

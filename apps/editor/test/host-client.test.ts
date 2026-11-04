@@ -51,6 +51,14 @@ test("Host-bound operations retain origin, isolate outage, and never replay writ
     assert.equal((await createTemplateRequest(client)("templates") as unknown as { host: string }).host, id);
     assert.ok(fixture.requests.some(req => req.url === "/api/document" && req.method === "POST"));
   }
+  const desktop = await import(new URL("../src/host-client.ts?receipt-reconnect", import.meta.url).href);
+  desktop.setDesktopHost(a.origin);
+  const originalAssets = createAssetHost(desktop.getHostClient("local"));
+  const receipt = await originalAssets.create(new File(["image"], "image.png", { type: "image/png" }), "/same.md", "paste");
+  const deletesBefore = b.requests.filter(req => req.method === "DELETE").length;
+  desktop.setDesktopHost(b.origin);
+  await assert.rejects(originalAssets.rollback(receipt, "/same.md"), /connection changed/);
+  assert.equal(b.requests.filter(req => req.method === "DELETE").length, deletesBefore);
   a.server.closeAllConnections(); await new Promise<void>(resolve => a.server.close(() => resolve()));
   await assert.rejects(createDocumentRequests(registry.get("a").client).requestSave({ kind: "text", path: "/same.md", revision: "a", source: "unsure" }), /may already have been saved/);
   await registry.connect("a");
@@ -83,7 +91,7 @@ test("Desktop bootstrap and reconnect keep in-flight targets while new work uses
   t.mock.method(globalThis, "fetch", (url: string) => {
     requests.push(url);
     if (url.endsWith("/save")) return new Promise<Response>(resolve => { finish = resolve; });
-    return Promise.resolve(Response.json({ fileDeletion: "trash" }));
+    return Promise.resolve(Response.json({ fileDeletion: "trash", path: "assets/a.png", rollbackToken: "first-receipt", revision: "saved" }));
   });
   const module = await import(new URL("../src/host-client.ts?desktop-reconnect", import.meta.url).href);
   const client = module.getHostClient("local");
@@ -91,11 +99,25 @@ test("Desktop bootstrap and reconnect keep in-flight targets while new work uses
   assert.equal(requests.length, 0);
   module.setDesktopHost("http://first"); await bootstrap;
   const saving = client.request("/save"); await Promise.resolve(); await Promise.resolve();
+  const assets = createAssetHost(client);
+  const receipt = await assets.create(new File(["image"], "a.png", { type: "image/png" }), "/same.md", "paste");
+  const docs = createDocumentRequests(client), assistant = createAssistantRequest(client), templates = createTemplateRequest(client);
   module.setDesktopHost("http://second");
-  await client.request("/next");
+  const workRequests = () => requests.filter(url => !url.endsWith("/api/host-capabilities"));
+  const afterReconnect = workRequests().length;
+  await assert.rejects(assets.rollback(receipt, "/same.md"), /connection changed/);
+  await assert.rejects(docs.requestSave({ kind: "text", path: "/same.md", revision: "first", source: "edits" }), /connection changed/);
+  await assert.rejects(assistant("/api/assistant/conversations", { action: "send", id: "first" }), /connection changed/);
+  await assert.rejects(templates("templates", { name: "first", from: "/same.md", description: "" }), /connection changed/);
+  assert.equal(workRequests().length, afterReconnect, "stale follow-ups never reach either connection");
+  module.setDesktopHost("http://first");
+  await assets.rollback(receipt, "/same.md");
+  module.setDesktopHost("http://second");
+  await assert.rejects(client.request("/next"), /connection changed/);
+  await module.getHostClient("local").request("/next");
   finish!(Response.json({ revision: "first" })); await saving;
   assert.ok(requests.includes("http://first/initial"));
   assert.equal(requests.filter(url => url.endsWith("/save")).join(), "http://first/save");
   assert.ok(requests.includes("http://second/next"));
-  assert.equal(client.url("/image"), "http://second/image");
+  assert.equal(client.url("/image"), "http://first/image");
 });

@@ -94,6 +94,7 @@ export function createDocumentRequests(client: HostClient) {
       });
       payload = await response.json();
     } catch (cause) {
+      if (cause instanceof Error && "code" in cause && cause.code === "host-connection-changed") throw cause;
       throw new SaveContentError("The Host response could not be received or read. The file may already have been saved.", undefined, {
         cause, phase: "transport", action: "Keep your edits. Check the connection to the Host and the disk version before deciding whether to save again or Reload.",
       });
@@ -142,7 +143,18 @@ export function createDocumentRequests(client: HostClient) {
 
   return { requestDocument, requestBibliography, requestSave, requestSource, validateFigure };
 }
-export const { requestDocument, requestBibliography, requestSave, requestSource, validateFigure } = createDocumentRequests(getHostClient(LOCAL_HOST_ID));
+// Shell entry points begin a new local operation; sessions use the bound factory above.
+export function requestDocument(method: "PUT", filePath: string, bibliographyRoot?: string, template?: { template: string; language: "ko" | "en" }): Promise<DocumentFileResponse>;
+export function requestDocument(method: "GET", filePath?: string, bibliographyRoot?: string): Promise<DocumentResponse | DocumentStartResponse>;
+export function requestDocument(method: "GET" | "PUT", filePath?: string, bibliographyRoot?: string, template?: { template: string; language: "ko" | "en" }) {
+  const requests = createDocumentRequests(getHostClient(LOCAL_HOST_ID));
+  return method === "GET" ? requests.requestDocument(method, filePath, bibliographyRoot) : requests.requestDocument(method, filePath!, bibliographyRoot, template);
+}
+export const requestBibliography = (...args: Parameters<ReturnType<typeof createDocumentRequests>["requestBibliography"]>) => createDocumentRequests(getHostClient(LOCAL_HOST_ID)).requestBibliography(...args);
+export const requestSave = (...args: Parameters<ReturnType<typeof createDocumentRequests>["requestSave"]>) => createDocumentRequests(getHostClient(LOCAL_HOST_ID)).requestSave(...args);
+export const requestSource = (...args: Parameters<ReturnType<typeof createDocumentRequests>["requestSource"]>) => createDocumentRequests(getHostClient(LOCAL_HOST_ID)).requestSource(...args);
+export const validateFigure = (...args: Parameters<ReturnType<typeof createDocumentRequests>["validateFigure"]>) => createDocumentRequests(getHostClient(LOCAL_HOST_ID)).validateFigure(...args);
+
 
 export function messageOf(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
