@@ -395,28 +395,33 @@ test("installs per user, then updates from Settings only after the open document
     throw error;
   } finally {
     try {
-      if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
-      if (installedAt && !LIVE) {
-        const executable = path.join(installedAt, `${brand.executableName}.exe`);
-        const daemon = readDaemonRecord(daemonDirectory(channel));
-        const report = path.join(work, "prepare-cleanup.txt");
-        const prepared = spawnSync(executable, [path.join(installedAt, "resources/prepare-installation.cjs"), "--prepare-installation", report], {
-          env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, timeout: 30_000, encoding: "utf8",
-        });
-        if (prepared.status !== 0) diagnose("cleanup", { status: prepared.status, stderr: prepared.stderr, report: existsSync(report) ? readFileSync(report, "utf16le") : null });
-        assert.equal(prepared.status, 0, `graceful post-update cleanup: ${prepared.stderr} ${existsSync(report) ? readFileSync(report, "utf16le") : ""}`);
-        if (daemon) assertExited(daemon);
-        assertNoDiscovery(channel);
-        await other?.alive();
-      }
-      for (const process of installedAt ? (() => { try { return appProcesses(installedAt); } catch { return []; } })() : []) {
-        spawnSync("taskkill", ["/PID", String(process.pid), "/T", "/F"], { stdio: "ignore" });
-      }
-      if (installedAt) {
-        const uninstall = spawnSync(path.join(installedAt, `Uninstall ${brand.executableName}.exe`), ["/S", "/currentuser"], { stdio: "ignore" });
-        // The uninstaller copies itself and returns at once; wait for the entry to go.
-        for (let wait = 0; wait < 60 && installedEntry(); wait++) await new Promise((resolve) => setTimeout(resolve, 1000));
-        console.log(`uninstall: ${uninstall.status}; entry ${installedEntry() ? "remains" : "removed"}`);
+      try {
+        if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
+        if (installedAt && !LIVE) {
+          const executable = path.join(installedAt, `${brand.executableName}.exe`);
+          const daemon = readDaemonRecord(daemonDirectory(channel));
+          const report = path.join(work, "prepare-cleanup.txt");
+          const prepared = spawnSync(executable, [path.join(installedAt, "resources/prepare-installation.cjs"), "--prepare-installation", report], {
+            env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, timeout: 30_000, encoding: "utf8",
+          });
+          if (prepared.status !== 0) diagnose("cleanup", { status: prepared.status, stderr: prepared.stderr, report: existsSync(report) ? readFileSync(report, "utf16le") : null });
+          assert.equal(prepared.status, 0, `graceful post-update cleanup: ${prepared.stderr} ${existsSync(report) ? readFileSync(report, "utf16le") : ""}`);
+          if (daemon) assertExited(daemon);
+          assertNoDiscovery(channel);
+          await other?.alive();
+        }
+      } finally {
+        // Always release only this test's owned installation, even when the graceful
+        // cleanup assertion fails. The assertion still fails; production never force-kills.
+        for (const process of installedAt ? (() => { try { return appProcesses(installedAt); } catch { return []; } })() : []) {
+          spawnSync("taskkill", ["/PID", String(process.pid), "/T", "/F"], { stdio: "ignore" });
+        }
+        if (installedAt) {
+          const uninstall = spawnSync(path.join(installedAt, `Uninstall ${brand.executableName}.exe`), ["/S", "/currentuser"], { stdio: "ignore" });
+          // The uninstaller copies itself and returns at once; wait for the entry to go.
+          for (let wait = 0; wait < 60 && installedEntry(); wait++) await new Promise((resolve) => setTimeout(resolve, 1000));
+          console.log(`uninstall: ${uninstall.status}; entry ${installedEntry() ? "remains" : "removed"}`);
+        }
       }
     } finally {
       // A failed cleanup assertion must not leave the CLI fixture keeping the runner alive.
