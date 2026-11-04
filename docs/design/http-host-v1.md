@@ -64,7 +64,7 @@ No shared editing state or conversion of existing file CLI commands to live daem
 
 Local mode has no `--host`, `--root`, `--port` or `--public-origin`. Only this loopback,
 unrestricted instance is registered for Desktop discovery. Manual modes
-are never published as Desktop candidates. `start/stop/status` manage only the local instance.
+are never published as Desktop candidates. `start/stop` manage only the local instance. `status` also inspects endpoint-specific manual locks and prints their verified URLs. JSON keeps the local status at the top level and includes `manualInstances` (each running or unreachable). Desktop discovery remains local-only.
 `--channel stable|beta|development` selects the user/channel namespace: default is development
 for source, beta for prerelease builds, otherwise stable. The fixed origin is derived from the OS
 user identity (Windows SID via `whoami /user /fo csv /nh`, POSIX numeric UID) and channel:
@@ -82,7 +82,7 @@ state. The directory is user-only (POSIX 0700, Windows inheritance removed and c
 full access). `daemon.lock` is exclusively created before startup and contains PID, start
 time and instance UUID. Ready `instance.json` is published by sibling rename and contains those
 identity fields plus the fixed URL and the diagnostic fields below. Shutdown removes only its matching record/lock.
-Manual foreground listeners use an endpoint-specific lock in the same directory.
+Manual foreground listeners use an endpoint-specific lock in the same directory, containing the identity, URL and diagnostic fields for read-only status inspection. Status preserves unreachable manual records and distinguishes exited/reused owners from live unresponsive owners.
 
 `GET /daemon/health` returns PID, start time, instance ID, **productVersion**
 and **protocolVersion** separately. Clients must verify all identity fields against discovery.

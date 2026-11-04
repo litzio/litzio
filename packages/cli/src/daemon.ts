@@ -7,7 +7,7 @@ import { isIP } from "node:net";
 import { brand } from "../../../brand.ts";
 import { startHttpHost } from "../../../apps/editor/server/http-host.ts";
 import { DAEMON_PROTOCOL, sameInstance } from "../../../apps/editor/server/daemon-protocol.ts";
-import { acquireDaemonLock, processStart, reclaimStaleDaemon, daemonDirectory, daemonPort, inspectDaemon, prepareDaemonDirectory, readDaemonRecord, stopDaemon, type DaemonChannel } from "../../../apps/editor/server/daemon-state.ts";
+import { acquireDaemonLock, processStart, reclaimStaleDaemon, daemonDirectory, daemonPort, inspectDaemon, prepareDaemonDirectory, readDaemonRecord, stopDaemon, type DaemonChannel, type DaemonRecord } from "../../../apps/editor/server/daemon-state.ts";
 import { productVersion } from "./version.ts";
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -48,7 +48,8 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
     if (!processStartedAt) throw new Error("Could not determine daemon process creation identity.");
     const identity = { processStartedAt, launcher, pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID() };
     const lock = path.join(directory, config.local ? "daemon.lock" : `manual-${config.host ?? "127.0.0.1"}-${config.port}.lock`.replaceAll(":", "_"));
-    const release = acquireDaemonLock(lock, identity);
+    const manualRecord = { ...identity, ...details, productVersion, protocolVersion: DAEMON_PROTOCOL, url: config["public-origin"] ?? `http://${config.host?.includes(":") ? `[${config.host}]` : config.host ?? "127.0.0.1"}:${config.port}` };
+    const release = acquireDaemonLock(lock, config.local ? identity : manualRecord);
     let host: Awaited<ReturnType<typeof startHttpHost>> | undefined, closing: Promise<void> | undefined;
     const stop = () => closing ??= (async () => {
       process.off("SIGINT", signalStop); process.off("SIGTERM", signalStop);
@@ -111,6 +112,31 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
       await delay(100);
     }
     if (!record) throw new Error(`Daemon startup was not confirmed. Inspect ${log}; lock is not automatically replaced.`);
+  }
+  if (action === "status") {
+    const manual: DaemonRecord[] = [];
+    for (const name of fs.existsSync(directory) ? fs.readdirSync(directory).sort() : []) {
+      if (!name.startsWith("manual-") || !name.endsWith(".lock")) continue;
+      try {
+        const candidate = JSON.parse(fs.readFileSync(path.join(directory, name), "utf8")) as DaemonRecord;
+        if (!Number.isSafeInteger(candidate.pid) || candidate.pid < 1 || !candidate.processStartedAt || !candidate.instanceId || !candidate.startedAt || !candidate.url || !Array.isArray(candidate.roots)) throw new Error(`Invalid manual daemon lock: ${name}. Inspect it; records preserved.`);
+        manual.push(candidate);
+      }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    }
+    const inspect = async (candidate: NonNullable<typeof record>) => {
+      try { return { ...candidate, ...await inspectDaemon(candidate, productVersion), state: "running", running: true }; }
+      catch (error) {
+        const started = processStart(candidate.pid);
+        const owner = !started ? "exited" : started === candidate.processStartedAt ? "alive but unresponsive/incompatible" : "PID reused";
+        process.exitCode = 1;
+        return { ...candidate, state: "unreachable", running: false, owner, error: `${(error as Error).message} Owner: ${owner}. ${owner === "alive but unresponsive/incompatible" ? "Inspect logs or use the matching CLI to stop it; records preserved." : "Recorded generation exited or PID reused; records preserved."}` };
+      }
+    };
+    const local = record ? await inspect(record) : { state: "not-running", running: false, daemonHome: directory, locked: fs.existsSync(path.join(directory, "daemon.lock")) };
+    const manualInstances = await Promise.all(manual.map(candidate => inspect(candidate)));
+    console.log(config.json ? JSON.stringify({ ...local, manualInstances }) : [record ? statusTable(local as Parameters<typeof statusTable>[0]) : `Status: not running (local)\nDaemon home: ${directory}\nLock: ${fs.existsSync(path.join(directory, "daemon.lock")) ? "present" : "absent"}`, ...manualInstances.map(status => `Manual daemon\n${statusTable(status)}`)].join("\n\n"));
+    return;
   }
   if (!record) {
     const status = { state: "not-running", running: false, daemonHome: directory, locked: fs.existsSync(path.join(directory, "daemon.lock")) };

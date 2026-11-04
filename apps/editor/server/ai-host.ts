@@ -60,7 +60,9 @@ export function createAiHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFil
       const selected = provider(next);
       if (selected !== current.provider || next?.model !== current.model || next?.reasoningEffort !== current.reasoningEffort) {
         const catalog = await agentOperations.agentModels({ provider: selected });
-        if (!catalog.models.some(model => model.model === next?.model && model.supportedReasoningEfforts.some(effort => effort.reasoningEffort === next.reasoningEffort))) throw new Error("Invalid AI model or reasoning effort.");
+        const model = catalog.models.find(model => model.model === next.model);
+        if (!model) throw new Error(`AI model: allowed values for ${selected}: ${catalog.models.map(model => model.model).join(", ") || "none available"}.`);
+        if (!model.supportedReasoningEfforts.some(effort => effort.reasoningEffort === next.reasoningEffort)) throw new Error(`AI reasoningEffort: allowed values for ${next.model}: ${model.supportedReasoningEfforts.map(effort => effort.reasoningEffort).join(", ") || "none available"}.`);
       }
       if (closed) throw new Error("The AI Host is closing.");
       return configure(next);
