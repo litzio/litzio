@@ -2269,6 +2269,7 @@ test("native create and admission keep existing files intact and report structur
   try {
     const created = run(["create", file]);
     assert.equal(created.status, 0, created.stderr);
+    assert.equal(created.stdout, file + "\n");
     const source = readFileSync(file, "utf8");
     assert.deepEqual(getEditableDocument(parse(source)).blocks, []);
     assert.equal(runProcess(["create", file]).status, 1);
@@ -2953,4 +2954,16 @@ test("templates CLI lists, previews, saves and exclusively creates through the s
   assert.equal(run(["check", reused]).status, 0);
   assert.equal(run(["templates", "list", "--language", "invalid"]).status, 1);
   assert.equal(run(["templates", "read", name, "--json", "--json"]).status, 1);
+});
+
+test("ai configure reports invalid fields without writing settings or calling a provider", () => {
+  const file = path.join(fixtures, "invalid-ai.json");
+  const settings = process.env.LITZIO_AI_AGENT_SETTINGS_FILE!;
+  const before = fs.existsSync(settings) ? readFileSync(settings, "utf8") : undefined;
+  for (const [field, value, reason] of [["provider", "bad", /codex, copilot/], ["responseLanguage", "bad", /ko, en, ja/], ["writeAccess", "bad", /opened-folders, read-only, full-access/], ["model", "", /non-empty/], ["reasoningEffort", "BAD", /lowercase/]] as const) {
+    writeFileSync(file, JSON.stringify({ provider: "codex", model: "test", reasoningEffort: "low", [field]: value }));
+    const result = runProcess(["ai", "configure", "--file", file]);
+    assert.equal(result.status, 1); assert.match(result.stderr, new RegExp(field)); assert.match(result.stderr, reason);
+  }
+  assert.equal(fs.existsSync(settings) ? readFileSync(settings, "utf8") : undefined, before);
 });

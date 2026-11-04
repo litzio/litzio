@@ -282,3 +282,5 @@ The new gallery strings use a bundled i18next `templates` namespace. Adding all
 20 strings to the existing default namespace alone reproduced TypeScript 7.0.2
 `TS2859` on an otherwise unchanged baseline; separating the resource-key types
 preserves typed keys/interpolation without changing compiler checks or dependencies.
+
+`litzio create` prints the created file path on one line on success, for both empty and template documents. `--format json` retains the shared creation receipt.

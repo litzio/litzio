@@ -1,5 +1,5 @@
 import { DAEMON_PROTOCOL } from "../../../apps/editor/server/daemon-protocol.ts";
-import { DesktopDaemon, trustedDaemonUrl } from "../../../apps/desktop/src/daemon-client.ts";
+import { DesktopDaemon } from "../../../apps/desktop/src/daemon-client.ts";
 import { once } from "node:events";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -126,12 +126,27 @@ test("daemon CLI keeps one local instance, rejects occupied ports and warns for 
     } finally { await new Promise<void>(resolve => blocker.close(() => resolve())); }
     const remote = await execute(["run", "--host", "0.0.0.0", "--public-origin", first.url], async () => {
       assert.equal(readDaemonRecord(directory), undefined, "remote unrestricted daemon is not a Desktop discovery candidate");
+      const status = await execute(["status", "--json"]);
+      assert.equal(status.code, 0, status.stderr);
+      const manual = JSON.parse(status.stdout).manualInstances;
+      assert.equal(manual.length, 1); assert.equal(manual[0].url, first.url); assert.equal(manual[0].running, true);
+      assert.match((await execute(["status"])).stdout, /Manual daemon/);
       const headers = { "X-Litzio-Protocol": DAEMON_PROTOCOL, Origin: first.url };
       const folder = first.url + "/api/folder?" + new URLSearchParams({ root: base });
       assert.equal((await fetch(folder)).status, 200);
       assert.equal((await fetch(folder, { headers: { Origin: "https://foreign.invalid" } })).status, 403);
       assert.equal((await fetch(folder, { headers: { "Sec-Fetch-Site": "cross-site" } })).status, 403);
       const health = await (await fetch(first.url + "/daemon/health", { headers })).json();
+      const staleLock = path.join(directory, "manual-stale.lock");
+      const staleBytes = JSON.stringify({ ...health, url: first.url, instanceId: "previous-generation", processStartedAt: "previous-generation" });
+      fs.writeFileSync(staleLock, staleBytes);
+      try {
+        const stale = await execute(["status", "--json"]);
+        assert.equal(stale.code, 1);
+        const entry = JSON.parse(stale.stdout).manualInstances.find((item: DaemonRecord) => item.processStartedAt === "previous-generation");
+        assert.equal(entry.state, "unreachable"); assert.equal(entry.owner, "PID reused");
+        assert.equal(fs.readFileSync(staleLock, "utf8"), staleBytes, "status preserves stale manual locks");
+      } finally { fs.unlinkSync(staleLock); }
       await stopDaemon({ ...health, url: first.url }, "test-version");
     });
     assert.equal(remote.code, 0, remote.stderr);
@@ -165,10 +180,4 @@ test("exclusive lock never reclaims a PID or releases another generation", () =>
     assert.throws(release, /ownership changed/);
     assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).instanceId, "replacement");
   } finally { fs.rmSync(base, { recursive: true, force: true }); }
-});
-
-test("Desktop trust compares exact HTTP origin and rejects credentials, remote and lookalike origins", () => {
-  const origin = "http://127.0.0.1:23456";
-  assert.equal(trustedDaemonUrl(origin + "/index.html", origin), true);
-  for (const url of ["litzio://app/index.html", "http://127.0.0.1:234567/", "http://127.0.0.1:23456.evil/", "http://user@127.0.0.1:23456/", "http://localhost:23456/", "https://remote.example/", "data:text/html,test"]) assert.equal(trustedDaemonUrl(url, origin), false, url);
 });

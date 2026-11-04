@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readRequestBody } from "./request-body.ts";
 
-export const DAEMON_PROTOCOL = "2";
+// v3 requires the bundled Desktop origin API/media boundary; v2 daemons cannot serve it.
+export const DAEMON_PROTOCOL = "3";
 export type DaemonIdentity = { pid: number; startedAt: string; instanceId: string };
 export type DaemonLauncher = "desktop" | "cli-start" | "cli-run";
 export type DaemonDetails = { processStartedAt: string; daemonHome: string; executable: string; log?: string; roots: readonly string[]; nonLoopback: boolean };

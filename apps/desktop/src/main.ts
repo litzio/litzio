@@ -1,15 +1,17 @@
 import { brand } from "../../../brand.ts";
-// Litzio Desktop: one window with the Editor, the local Host behind the shared daemon HTTP origin, preferences
+// Litzio Desktop: one window with the bundled Editor, the shared daemon HTTP Host, preferences
 // and updates. Documents are read and written only through the existing Host handlers.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import electronUpdater from "electron-updater";
 import { load as loadYaml } from "js-yaml";
 import type { DesktopInfo, RestartCheck } from "../../editor/shared/desktop-bridge.ts";
-import { DesktopDaemon, trustedDaemonUrl } from "./daemon-client.ts";
-import { daemonRpc } from "../../editor/server/daemon-state.ts";
+import { DesktopDaemon } from "./daemon-client.ts";
+import { DESKTOP_ENTRY, trustedDesktopUrl } from "../../editor/shared/desktop-origin.ts";
+import { bundledUiResponse } from "./bundled-ui.ts";
+import { daemonPort, daemonRpc } from "../../editor/server/daemon-state.ts";
 import { ExplorerFolders } from "./explorer.ts";
 import { firstDocument } from "./first-document.ts";
 import { readPreferences, writePreferences, type Preferences } from "./preferences.ts";
@@ -24,6 +26,7 @@ import { windowsEnvironment } from "./windows-environment.ts";
 declare const __LITZIO_REQUIRE_SIGNED_UPDATES__: boolean;
 
 
+protocol.registerSchemesAsPrivileged([{ scheme: "litzio", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
 app.setAppUserModelId(brand.appId);
 // Explicit automation/operator profile overrides remain authoritative.
 if (!process.argv.some(arg => arg === "--user-data-dir" || arg.startsWith("--user-data-dir="))) {
@@ -63,6 +66,7 @@ let preferences: Preferences;
 let updates: UpdateController;
 let cliIntegration: CliIntegration | undefined;
 let daemon: DesktopDaemon;
+let initialConnection: Promise<void>;
 let first: ReturnType<typeof firstDocument>;
 const explorerFolders = new ExplorerFolders();
 /** Set after the Editor agreed to restart for an update; the installer starts once the window closed. */
@@ -115,7 +119,7 @@ function updatesUnsupported(updater: typeof electronUpdater.autoUpdater): string
 /** Only the app's own page may call the Desktop bridge. */
 function trusted(event: IpcMainInvokeEvent | IpcMainEvent): boolean {
   return window !== null && event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame &&
-    trustedDaemonUrl(event.senderFrame?.url ?? "", daemon.record.url);
+    trustedDesktopUrl(event.senderFrame?.url ?? "");
 }
 
 function info(): DesktopInfo {
@@ -174,11 +178,9 @@ async function installUpdate(): Promise<RestartCheck> {
   return { ok: true };
 }
 
-function warnDaemonVersion(): void {
-  if (window && daemon.health.productVersion !== app.getVersion()) dialog.showMessageBoxSync(window, {
-    type: "warning", message: `Daemon ${daemon.health.productVersion} · Desktop ${app.getVersion()}`,
-    detail: "Connection retained. Restart the daemon with the CLI to switch versions.", buttons: ["Continue"],
-  });
+async function hostConnection() {
+  await initialConnection;
+  return { url: daemon.record.url, productVersion: daemon.health.productVersion, desktopVersion: app.getVersion() };
 }
 
 function registerIpc(): void {
@@ -196,8 +198,10 @@ function registerIpc(): void {
     if (request === folderRequest) explorerFolders.setOpened(roots);
   });
   handle("desktop:startup", () => first);
+  handle("desktop:host-connection", () => hostConnection());
   handle("desktop:browser", () => shell.openExternal(daemon.record.url));
   handle("desktop:daemon-info", async () => {
+    await initialConnection;
     let state: "running" | "unreachable" = "running"; try { await daemon.check(); } catch { state = "unreachable"; }
     return { ...daemon.health, url: daemon.record.url, state };
   });
@@ -206,7 +210,10 @@ function registerIpc(): void {
     await daemon.stopExplicitly(); return true;
   });
   handle("desktop:daemon-check", () => daemon.check());
-  handle("desktop:daemon-reconnect", async () => { await daemon.connect(); warnDaemonVersion(); });
+  handle("desktop:daemon-reconnect", async () => {
+    initialConnection = daemon.connect();
+    return hostConnection();
+  });
   handle("desktop:open-folder", folder => explorerFolders.open(folder, target => shell.openPath(target)));
   handle("desktop:open-log-folder", async () => {
     const directory = path.join(app.getPath("userData"), "logs");
@@ -322,7 +329,7 @@ function createWindow(): void {
     return { action: "deny" };
   });
   const preventForeignNavigation = (event: { preventDefault(): void }, url: string) => {
-    if (!trustedDaemonUrl(url, daemon.record.url)) event.preventDefault();
+    if (!trustedDesktopUrl(url)) event.preventDefault();
   };
   created.webContents.on("will-navigate", preventForeignNavigation);
   created.webContents.on("will-redirect", preventForeignNavigation);
@@ -332,7 +339,7 @@ function createWindow(): void {
     startupPending = false;
     if (window === created) window = null;
   });
-  void created.loadURL(`${daemon.record.url}/index.html`).catch(error => failed(`renderer load failed: ${String(error)}`));
+  void created.loadURL(DESKTOP_ENTRY).catch(error => failed(`renderer load failed: ${String(error)}`));
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -360,7 +367,8 @@ if (!app.requestSingleInstanceLock()) {
     const cliRoot = path.join(app.isPackaged ? process.resourcesPath : path.dirname(appRoot), "cli");
     first = firstDocument(process.argv.slice(app.isPackaged ? 1 : 2), app.getPath("userData"), appRoot, log, app.getVersion());
     daemon = new DesktopDaemon(app.getVersion(), process.execPath, path.join(cliRoot, "cli.mjs"));
-    await daemon.connect();
+    const target = `http://127.0.0.1:${daemonPort(daemon.channel)}`;
+    protocol.handle("litzio", request => bundledUiResponse(path.join(appRoot, "ui"), request, target));
     if (app.isPackaged && process.platform === "win32" && process.env.LOCALAPPDATA) {
       cliIntegration = new CliIntegration(process.execPath, process.env.LOCALAPPDATA, windowsEnvironment());
     }
@@ -394,7 +402,9 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc();
     log(`started ${app.getVersion()} (${preferences.channel}); ${unsupported ?? "updates on"}`);
     createWindow();
-    warnDaemonVersion();
+    initialConnection = daemon.connect();
+    // The renderer reports connection/protocol errors; the bundled window stays usable.
+    void initialConnection.catch(error => log(`daemon connection failed: ${String(error)}`));
     updates.start();
   }).catch(error => {
     void daemon?.close().catch(error => log(`daemon cleanup failed: ${String(error)}`));

@@ -1212,3 +1212,5 @@ assistant-writable history is never accepted as authority to elevate a grant.
 #1159: User-facing settings and messages consistently use Assistant (비서); provider names remain Codex and GitHub Copilot. Existing Settings components are reused.
 
 Verification captures: [1440px English Light](assets/editor-1159/ai-1440-light-en.png), [640px Korean Dark](assets/editor-1159/ai-640-dark-ko.png).
+
+`litzio ai configure` validation errors name the invalid field and its allowed values or reason, including provider model/effort catalog restrictions. Validation rules are unchanged.

@@ -1,6 +1,6 @@
 # HTTP Host v1
 
-#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. ④ Host 클라이언트는 아래 경계를 구현했으며 Desktop 번들 UI는 ⑤ 후속 범위다.
+#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. ④ Host 클라이언트와 ⑤ Desktop 번들 origin은 아래 경계를 구현한다.
 
 - Status: Implemented
 - Daemon verification: 2026-11-04 (#1142 PR2: Windows CLI concurrent start/stop, Host/Origin boundaries and production browser Save/Reload/conflict; Linux remains required CI).
@@ -13,9 +13,34 @@
 
 ## Editor Host client (#1150 ④)
 
-Editor의 API 요청(문서·폴더·복구·템플릿·공식 AI와 폴링)과 Figure·일반 Markdown 이미지·파일 미리보기의 Host URL은 `src/host-client.ts`를 거친다. 현재 대상은 `/`로 같은 serving origin이며 기존 요청·저장·실패 동작을 유지한다. UI bundle의 `BASE_URL`을 Host 주소로 사용하지 않는다. `createHostClient(base)`가 요청과 렌더링 URL에 같은 Host 기준 주소를 적용한다. 문서 상대 URI는 렌더링 때만 해석하며 Core·디스크·직렬화에는 Host 절대 주소를 저장하지 않는다. 외부 HTTP(S) 이미지 URI는 그대로 유지한다.
+Editor의 API 요청(문서·폴더·복구·템플릿·공식 AI와 폴링)과 Figure·일반 Markdown 이미지·파일 미리보기의 Host URL은 `src/host-client.ts`를 거친다. 브라우저 대상은 `/`로 같은 serving origin이며 Desktop은 main이 확인한 로컬 daemon URL을 대상 주소로 설정한다. UI bundle의 `BASE_URL`을 Host 주소로 사용하지 않는다. `createHostClient(base)`가 요청과 렌더링 URL에 같은 Host 기준 주소를 적용한다. 문서 상대 URI는 렌더링 때만 해석하며 Core·디스크·직렬화에는 Host 절대 주소를 저장하지 않는다. 외부 HTTP(S) 이미지 URI는 그대로 유지한다.
 
-Desktop bridge의 daemon 수명·연결 정보·OS shell 호출은 HTTP로 옮기지 않는다. Desktop 번들 UI·daemon 주소 주입·CORS/origin 전환은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)의 ⑤ 범위이며 아직 구현하지 않았다.
+Desktop bridge의 daemon 수명·연결 정보·OS shell 호출은 HTTP로 옮기지 않는다. Desktop 번들 UI와 daemon origin 전환은 아래 ⑤ 계약을 따른다.
+
+## Desktop bundled origin (#1150 ⑤)
+
+Desktop은 `litzio://app/index.html`에서 앱에 들어 있는 정적 UI만 제공한다. custom
+scheme은 Core/문서/API handler가 아니다. 최초 Host 요청은 main의 daemon identity·protocol
+확인이 성공할 때까지 기다리며 화면·theme·연결 알림은 기다리지 않는다. 연결 실패 시
+NotificationCenter에 원인과 CLI 안내, 수동 Reconnect가 남는다. 재연결은 같은 편집
+세션을 유지한다. CORS 미지원 구 daemon을 연결 완료로 오인하지 않도록 프로토콜은 3이다. 제품 버전 차이는 경고하며 호환 계층·capability 협상은 없다.
+
+TCP Host authority 목록은 그대로다. UI Origin은 **정확히 `litzio://app` 하나**만 추가한다.
+API/media의 cross-site 거부 예외와 `Access-Control-Allow-Origin`은 그 Origin에만 적용한다.
+OPTIONS는 API/media의 GET/HEAD/POST/PUT/PATCH/DELETE와 Content-Type/X-Litzio-Protocol만
+허용한다. credentials·wildcard·사용자 지정 Origin은 없다. 쓰기 Origin·JSON 검사는 유지한다.
+Figure·일반 Markdown·파일/읽기 미리보기의 Host 이미지는 UI와 Host origin이 다른 경우에만 anonymous CORS를 사용한다. 같은-origin 브라우저 이미지는 기존 로딩 방식을 유지한다.
+허용 Origin의 CORS 응답만 CORP cross-origin이며 나머지는 same-origin이다. Origin 없는
+cross-site API/media, lookalike/foreign/null origin과 잘못된 TCP Host는 계속 거부한다.
+
+번들 CSP는 script/style/font를 앱에 한정하고 connect/img만 정확한 로컬 daemon 주소에
+추가 허용한다. daemon이 내보낸 JavaScript/HTML을 앱 코드로 로드하지 않는다. 문서
+SVG/HTML과 파일 미리보기의 sandbox·script-src none, frame 금지는 그대로다.
+브라우저 UI·같은 origin 요청·기존 Core write path는 유지한다. 인증은 #1145에 보류한다.
+
+검증은 HTTP 경계 단위 검사, production HTTP browser Save/Reload/충돌·재연결,
+Desktop main-frame IPC 검사와 실제 dev Electron의 새 origin 복구를 구별한다.
+패키지의 origin·복구·daemon 미가동 시작 검사는 기존 Desktop CI가 실행한다.
 
 ## Shared local daemon (#1142 PR2)
 
@@ -39,7 +64,7 @@ No shared editing state or conversion of existing file CLI commands to live daem
 
 Local mode has no `--host`, `--root`, `--port` or `--public-origin`. Only this loopback,
 unrestricted instance is registered for Desktop discovery. Manual modes
-are never published as Desktop candidates. `start/stop/status` manage only the local instance.
+are never published as Desktop candidates. `start/stop` manage only the local instance. `status` also inspects endpoint-specific manual locks and prints their verified URLs. JSON keeps the local status at the top level and includes `manualInstances` (each running or unreachable). Desktop discovery remains local-only.
 `--channel stable|beta|development` selects the user/channel namespace: default is development
 for source, beta for prerelease builds, otherwise stable. The fixed origin is derived from the OS
 user identity (Windows SID via `whoami /user /fo csv /nh`, POSIX numeric UID) and channel:
@@ -57,16 +82,16 @@ state. The directory is user-only (POSIX 0700, Windows inheritance removed and c
 full access). `daemon.lock` is exclusively created before startup and contains PID, start
 time and instance UUID. Ready `instance.json` is published by sibling rename and contains those
 identity fields plus the fixed URL and the diagnostic fields below. Shutdown removes only its matching record/lock.
-Manual foreground listeners use an endpoint-specific lock in the same directory.
+Manual foreground listeners use an endpoint-specific lock in the same directory, containing the identity, URL and diagnostic fields for read-only status inspection. Status preserves unreachable manual records and distinguishes exited/reused owners from live unresponsive owners.
 
 `GET /daemon/health` returns PID, start time, instance ID, **productVersion**
 and **protocolVersion** separately. Clients must verify all identity fields against discovery.
-Daemon health/stop requests require `X-Litzio-Protocol: 1`; mismatch returns 409 before operations. Other requests may omit this header, but an explicit mismatching value is refused. A product
+Daemon health/stop requests require `X-Litzio-Protocol: 3`; mismatch returns 409 before operations. Other requests may omit this header, but an explicit mismatching value is refused. A product
 version difference warns and retains the connection. On a protocol mismatch, use the CLI version
 matching the running daemon to stop it (with that channel), or Ctrl+C in its foreground terminal,
 then start the desired version. The incompatible CLI does not bypass protocol checks to stop it;
 never kill a PID alone. `POST /daemon/stop` requires
-same-origin JSON, all three identity fields and `confirm:true`. No OS kill based on a PID.
+allowed-origin JSON, all three identity fields and `confirm:true`. No OS kill based on a PID.
 
 `start` and Desktop's explicit reconnect reclaim records/locks only after OS creation identity proves the owner exited or its PID was reused. They recheck lock/discovery ownership before cleanup. Malformed records and live but unresponsive owners fail closed with recorded PID/URL and log guidance. `status` distinguishes running, not running and recorded-but-unreachable; it never deletes state. No background restart or PID-based process killing is introduced. Repeated `start` reports the existing PID, URL and launcher.
 
@@ -162,7 +187,7 @@ Choose a folder, then a Markdown file in the sidebar. Several opened folders may
 
 ## Filesystem boundary
 
-Explorer file deletion uses the daemon OS trash adapter: Windows Microsoft.VisualBasic recycle-bin API, Linux `gio trash` (GIO must be installed and trash available). Unsupported/unavailable trash fails without unlink fallback. The validated `deleteFile` handler still checks folder/file identity and expected revision. Tests inject a scratch-only adapter and never touch the user trash. Asset receipt rollback and other internal cleanup retain their existing narrow deletion contracts.
+Explorer file deletion uses the daemon OS trash adapter: Windows Microsoft.VisualBasic recycle-bin API, Linux freedesktop home trash (`$XDG_DATA_HOME/Trash`, or `~/.local/share/Trash` when XDG_DATA_HOME is absent or relative), without external commands. Linux writes paired `files/` and `info/*.trashinfo` entries with a percent-encoded absolute Path and local DeletionDate, reserving collision-free names. It only renames on the same filesystem: cross-device (EXDEV) moves are refused; per-device `.Trash-$uid` is outside this contract. Unsupported/unavailable trash fails without unlink fallback. The validated `deleteFile` handler still checks folder/file identity and expected revision. Tests use scratch-only adapters/data homes and never touch the user trash. Failures expose the trash failure reason/error code; restricted Root filesystem errors expose their code without leaking resolved paths outside the roots. Asset receipt rollback and other internal cleanup retain their existing narrow deletion contracts.
 
 
 Every document read/create/save/preview, folder list/browse/create, media read, image choice source and asset upload/rollback passes the same root policy. Figure validation performs no filesystem access. Static Editor assets are a separate fixed build directory, never a requested document directory.
@@ -208,7 +233,7 @@ litzio daemon run --port 5180 --root /srv/project --root /srv/document --public-
 
 If choosing an authenticated proxy, configure it to authenticate **every path** on that dedicated origin, forward `/` unchanged to `http://127.0.0.1:5180`, preserve the browser's Origin, and set Host to `docs.example.internal` or the loopback upstream authority. Do not mount under a URL subpath. Use HTTPS at the proxy and restrict direct upstream access. A proxy on another machine additionally requires an explicit bind such as `--host 0.0.0.0` and firewall/private-network controls; specifying a public origin alone provides no access control. Never expose this service as an unauthenticated public Internet editor. Proxy identity, credentials and TLS provisioning remain the operator's responsibility.
 
-The listener accepts only configured Host authorities and exact origins. Writes require Origin; cross-site API/media requests are rejected. It emits no permissive CORS headers and does not infer trust from `Forwarded`/`X-Forwarded-*`. JSON routes require `application/json`. Malformed/duplicated query parameters and malformed encoded paths are rejected. GET/HEAD with bodies are rejected; unknown routes fail without SPA fallback.
+The listener accepts only configured Host authorities and exact origins. Writes require Origin; cross-site API/media requests are rejected except for the exact bundled Desktop origin above. It emits no wildcard CORS headers and does not infer trust from `Forwarded`/`X-Forwarded-*`. JSON routes require `application/json`. Malformed/duplicated query parameters and malformed encoded paths are rejected. GET/HEAD with bodies are rejected; unknown routes fail without SPA fallback.
 
 | Limit | Value |
 | --- | --- |

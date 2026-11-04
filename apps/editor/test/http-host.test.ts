@@ -15,6 +15,7 @@ import { MAX_JSON_BYTES, startHttpHost } from "../server/http-host.ts";
 import { DAEMON_PROTOCOL } from "../server/daemon-protocol.ts";
 import { inspectDaemon, stopDaemon } from "../server/daemon-state.ts";
 import { RootAccess } from "../server/file-access.ts";
+import { trashFile } from "../server/os-trash.ts";
 
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
 
@@ -201,6 +202,7 @@ test("daemon checks protocol/product versions and only stops its own instance", 
   assert.deepEqual(await (await send("/api/document")).json(), { start: true });
   assert.equal((await send("/")).status, 200);
   assert.equal((await send("/daemon/health", "GET", undefined, { "X-Litzio-Protocol": "incompatible" })).status, 409);
+  assert.equal((await send("/daemon/health", "GET", undefined, { "X-Litzio-Protocol": "2" })).status, 409, "pre-bundle daemon protocol must be refused before connection");
   const warnings: string[] = [], record = { ...health, url };
   assert.deepEqual(await inspectDaemon(record, "new-product", message => warnings.push(message)), health);
   assert.match(warnings.join(), /WARNING.*restart explicitly/);
@@ -218,12 +220,18 @@ test("non-loopback binding still requires an explicit public origin", async () =
 
 test("HTTP trash failure preserves the original file without permanent deletion", async t => {
   const { a, editorDir } = await fixture(t);
-  const host = await startFetchServer(() => startHttpHost({ roots: [a], editorDir, port: 0, removeFile: async () => { throw new Error("OS trash unavailable"); } }));
+  const host = await startFetchServer(() => startHttpHost({ roots: [a], editorDir, port: 0,
+    removeFile: file => trashFile(file, { platform: "linux", dataHome: path.join(a, "test-data"), rename: async () => {
+      throw Object.assign(new Error("rename outside-secret-path"), { code: "EXDEV" });
+    } }) }));
   t.after(() => host.close());
   assert.deepEqual(await (await fetch(host.url + "/api/host-capabilities")).json(), { fileDeletion: "trash" });
   const file = path.join(a, "document.md"), original = fs.readFileSync(file);
   const response = await fetch(host.url + "/api/file", { method: "DELETE", headers: { Origin: host.url, "Content-Type": "application/json" }, body: JSON.stringify({ root: a, path: file }) });
   assert.equal(response.status, 400); assert.deepEqual(fs.readFileSync(file), original);
+  const message = (await response.json()).error;
+  assert.match(message, /OS trash unavailable.*different devices.*EXDEV/);
+  assert.doesNotMatch(message, /outside-secret-path/);
 });
 
 const documentQuery = (file: string) => `/api/document?${new URLSearchParams({ path: file })}`;
@@ -573,4 +581,41 @@ test("background folder disappearance is an availability result; manual errors a
   assert.equal(version.status, 200);
   assert.deepEqual(await version.json(), { unavailable: true });
   assert.equal((await send(`/api/folder?${new URLSearchParams({ root: outside, background: "1" })}`)).status, 403);
+});
+
+
+test("only the bundled Desktop origin receives CORS API/media access and bounded preflight", async t => {
+  const { send, url, a } = await fixture(t);
+  const headers = { Origin: "litzio://app", "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "cors" };
+  const query = new URLSearchParams({ path: path.join(a, "document.md") });
+  const loaded = await send(`/api/document?${query}`, "GET", undefined, headers);
+  assert.equal(loaded.status, 200);
+  assert.equal(loaded.headers.get("access-control-allow-origin"), "litzio://app");
+  const response = await send("/api/document", "POST", saveBody(path.join(a, "document.md")), headers);
+  assert.equal(response.status, 200);
+  const media = `/document/image.png?${query}`;
+  const image = await send(media, "GET", undefined, headers);
+  assert.equal(image.status, 200);
+  assert.equal(image.headers.get("cross-origin-resource-policy"), "cross-origin");
+  assert.match(image.headers.get("content-security-policy")!, /^sandbox;.*script-src 'none'/);
+  assert.deepEqual(Buffer.from(await image.arrayBuffer()), png);
+  assert.equal((await send(media)).headers.get("cross-origin-resource-policy"), "same-origin");
+  const preview = await send(`/api/file-preview?${new URLSearchParams({ root:a, path:path.join(a,"image.png") })}`, "GET", undefined, headers);
+  assert.equal(preview.status, 200);
+  assert.match(preview.headers.get("content-security-policy")!, /^sandbox;.*script-src 'none'/);
+  const preflight = { ...headers, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" };
+  assert.equal((await send("/api/document", "OPTIONS", undefined, preflight)).status, 204);
+  for (const invalid of [{ "Access-Control-Request-Headers": "x-arbitrary" }, { "Access-Control-Request-Method": "TRACE" }]) {
+    assert.equal((await send("/api/document", "OPTIONS", undefined, { ...preflight, ...invalid })).status, 403);
+  }
+  for (const origin of ["null", "litzio://app.evil", "litzio://foreign", "https://foreign.example"]) {
+    for (const route of ["/api/document", media]) {
+      const denied = await send(route, "GET", undefined, { ...headers, Origin:origin });
+      assert.equal(denied.status, 403);
+      assert.equal(denied.headers.get("access-control-allow-origin"), null);
+    }
+    assert.equal((await send("/api/document", "OPTIONS", undefined, { ...preflight, Origin:origin })).status, 403);
+  }
+  assert.equal((await fetch(url + media, { headers: { "Sec-Fetch-Site":"cross-site" } })).status, 403);
+  assert.equal(await rawStatus(url + "/api/document", { ...headers, Host:"app" }), 403);
 });
