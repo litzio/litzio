@@ -7,6 +7,11 @@ async (page, { showNotifications, openDocument, openPath, expect, screenshots = 
   await page.reload();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const origin = page.url().split('/').slice(0, 3).join('/');
+  const reconnectOrigin = origin.replace('127.0.0.1', 'localhost');
+  // Background folder observation is independent of the stale operation under test.
+  await page.route(`${reconnectOrigin}/api/folder-version?*`, route => route.fulfill({
+    headers: { 'access-control-allow-origin': origin }, json: { version: 'reconnected-fixture', revisions: [] },
+  }));
   const loaded = await (await page.request.get(`${origin}/api/document`)).json();
   const separator = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(separator).slice(0, -4).join(separator);
@@ -313,7 +318,7 @@ async (page, { showNotifications, openDocument, openPath, expect, screenshots = 
     await page.route('**/api/host-capabilities', route => route.fulfill({ json: { fileDeletion: 'trash' } }));
     const writesBeforeLateOpen = requests.length;
     try {
-      await page.evaluate(async () => (await import('/src/host-client.ts')).setDesktopHost('http://localhost:1'));
+      await page.evaluate(async target => (await import('/src/host-client.ts')).setDesktopHost(target), reconnectOrigin);
       releaseOpen();
       await showNotifications(page);
       await expect(page.getByText(/Host connection changed/).last()).toBeVisible();

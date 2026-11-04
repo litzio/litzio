@@ -4,6 +4,11 @@ async (page, { expect, waitForEditorFocus }) => {
   const previousLanguage = await page.evaluate(() => localStorage.getItem('litzio.uiLanguage'));
   try {
     const origin = page.url().split('/').slice(0, 3).join('/');
+    const reconnectOrigin = origin.replace('127.0.0.1', 'localhost');
+    // Background folder observation is independent of the stale operation under test.
+    await page.route(`${reconnectOrigin}/api/folder-version?*`, route => route.fulfill({
+      headers: { 'access-control-allow-origin': origin }, json: { version: 'reconnected-fixture', revisions: [] },
+    }));
     const loaded = await (await page.request.get(origin + '/api/document')).json();
     const originalCatalog = await (await page.request.get(origin + '/api/templates?language=ko')).json();
     const sep = loaded.path.includes('\\') ? '\\' : '/';
@@ -80,7 +85,7 @@ async (page, { expect, waitForEditorFocus }) => {
     // Reconnection is a Desktop lifecycle event, injected here to test a dialog
     // opened AFTER the change; it must keep the source document's old client.
     await page.route('**/api/host-capabilities', route => route.fulfill({ json: { fileDeletion: 'trash' } }));
-    await page.evaluate(async () => (await import('/src/host-client.ts')).setDesktopHost('http://localhost:1'));
+    await page.evaluate(async target => (await import('/src/host-client.ts')).setDesktopHost(target), reconnectOrigin);
     try {
       await page.keyboard.press('Control+Slash');
       await page.getByRole('combobox').fill('템플릿으로 저장');
@@ -130,7 +135,7 @@ async (page, { expect, waitForEditorFocus }) => {
     let staleCreates = 0;
     const countCreates = request => { if (request.method() === 'PUT' && request.url().includes('/api/document')) staleCreates++; };
     page.on('request', countCreates);
-    await page.evaluate(async () => (await import('/src/host-client.ts')).setDesktopHost('http://localhost:1'));
+    await page.evaluate(async target => (await import('/src/host-client.ts')).setDesktopHost(target), reconnectOrigin);
     try {
       await gallery.getByRole('button', { name: '이 템플릿으로 새 문서', exact: true }).first().click();
       const newDocument = page.getByRole('dialog', { name: '새 문서', exact: true });
