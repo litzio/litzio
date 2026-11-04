@@ -51,12 +51,14 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
     agentConversations: (args: any) => {
       if (!args.id) return history().list().filter(info => (info.provider ?? "codex") === provider(args));
       const conversation = history().current(args.id);
-      return conversation;
+      return { ...conversation, displayRequest: history().display.snapshot(args.id, args.displayClient) };
     },
     agentConversation: (args: any) => {
       const settings = load(AI_TASK.plugin).operations.settings({});
+      if (args.action === "display-result") { history().display.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
+      if (args.action === "display-undo") return history().display.undo(args.id, args.displayClient, args.requestId);
       if (args.action === "resume") return history().resume(args.id, settings);
-      if (args.action === "send") return history().send(args, settings);
+      if (args.action === "send") return history().send(args, settings, args.displayClient);
       if (args.action === "answer") return history().answer(args.id, args.turnId, args.requestId, args.answers);
       if (args.action === "interrupt") return history().interrupt(args.id);
       throw new Error("Unknown conversation action.");
@@ -139,6 +141,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
     return installation ? load(installation.id).aiTaskService : undefined;
   };
   const closeAgent = async () => {
+    conversations?.display.cancel();
     if (agent) { await agent.close(); agent = undefined; conversations = undefined; }
   };
   const unregister = async (id: string) => {

@@ -1,7 +1,7 @@
 import { brand } from "../../../brand.ts";
 /**
  * User display and navigation preferences. They belong to this browser, never to a document: nothing here is
- * written to Markdown or sent to the Host. Their visual values live in `styles/tokens.css`.
+ * written to Markdown. The assistant can read/change its fixed appearance allowlist through the Host. Their visual values live in `styles/tokens.css`.
  */
 export type DocumentWidth = "standard" | "wide";
 
@@ -98,11 +98,14 @@ export function readDocumentWidth(): DocumentWidth {
 }
 
 /** Remembers the preference when storage is available; the current page applies it either way. */
-export function writeDocumentWidth(width: DocumentWidth): void {
+export function writeDocumentWidth(width: DocumentWidth): boolean {
   try {
-    globalThis.localStorage?.setItem(DOCUMENT_WIDTH_KEY, width);
+    if (!globalThis.localStorage) return false;
+    globalThis.localStorage.setItem(DOCUMENT_WIDTH_KEY, width);
+    return true;
   } catch {
     // Storage can be disabled; the preference then lasts for this page only.
+    return false;
   }
 }
 

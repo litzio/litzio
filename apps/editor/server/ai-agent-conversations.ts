@@ -11,13 +11,16 @@ import { AGENT_INSTRUCTIONS } from "./ai-agent-connection.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
 import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices } from "./copilot-acp.ts";
 
+import { AgentDisplayRequests, displayTools } from "./agent-display-tools.ts";
+
 type ConversationIndexEntry = AiConversationInfo & { copilotCliReasoningEffort?: string };
 
 /** Litzio persists only its history index. Each CLI owns its conversation content. */
 export class AiAgentConversations {
+  readonly display = new AgentDisplayRequests();
   private conversations = new Map<string, AiConversation>();
   private pending = new Set<string>();
-  private scopes = new Map<string, DocumentToolScope & { turnId?: string }>();
+  private scopes = new Map<string, DocumentToolScope & { turnId?: string; displayClient?: string }>();
   private answers = new Map<string, (answers: AiUserInputAnswers) => void>();
   private loaded = new Set<string>();
   constructor(private connection: AiAgentConnection, private access: FileAccess) {
@@ -40,15 +43,18 @@ export class AiAgentConversations {
       conversation.userInput = { requestId, turnId: params.turnId, questions: params.questions };
       this.answers.set(conversation.id, respond);
     };
-    connection.client.toolCall = params => {
+    connection.client.toolCall = async params => {
       const scope = this.scopes.get(params?.threadId);
       const active = this.conversations.get(params?.threadId)?.turns.find(turn => turn.id === params.turnId && turn.status === "inProgress");
       if (!scope || !active || scope.turnId !== params.turnId || params.namespace != null) throw new Error("No authorized active turn for this tool call.");
-      const result = executeDocumentTool(params.tool, params.arguments, scope);
-      return { contentItems: [{ type: "inputText", text: JSON.stringify(result) }], success: true };
+      const result = displayTools.some(tool => tool.name === params.tool)
+        ? await this.display.execute(params.tool, params.arguments, params.threadId, scope.displayClient)
+        : executeDocumentTool(params.tool, params.arguments, scope);
+      return { contentItems: [{ type: "inputText", text: JSON.stringify(result) }], success: !("error" in result && result.error) };
     };
     connection.client.on("notification", (method, params) => this.notification(method, params));
     connection.client.on("disconnected", (message: string) => {
+      this.display.cancel();
       for (const [id, conversation] of this.conversations) if (conversation.provider !== "copilot") { this.loaded.delete(id); this.scopes.delete(id); }
       for (const conversation of this.conversations.values()) if (conversation.provider !== "copilot") this.expireQuestion(conversation);
       for (const conversation of this.conversations.values()) if (conversation.provider !== "copilot") for (const turn of conversation.turns) {
@@ -121,7 +127,7 @@ export class AiAgentConversations {
     this.loaded.add(id);
     return conversation;
   }
-  async send(input: AiConversationInput, settings: AiAgentSettings) {
+  async send(input: AiConversationInput, settings: AiAgentSettings, displayClient?: string) {
     if (!input || typeof input.message !== "string" || (!input.message.trim() && !input.references?.length) ||
       typeof input.model !== "string" || typeof input.reasoningEffort !== "string" || !Array.isArray(input.folders)) throw new Error("Invalid conversation input.");
     const existing = input.id ? this.current(input.id) : undefined;
@@ -169,7 +175,7 @@ export class AiAgentConversations {
       }
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
-          approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: documentTools });
+          approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [...documentTools, ...displayTools] });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
           turns: [], provider: "codex", writeAccess: settings.writeAccess, model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);
@@ -185,7 +191,7 @@ export class AiAgentConversations {
         await this.connection.client.request("turn/steer", { threadId: conversation.id, expectedTurnId: active.id, input: messages });
       } else {
         conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort; conversation.writeAccess = settings.writeAccess;
-        this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, writeAccess: settings.writeAccess, access: this.access });
+        this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, writeAccess: settings.writeAccess, access: this.access, displayClient });
         const result = await this.connection.client.request("turn/start", { threadId: conversation.id, input: messages,
           cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: "never",
           sandboxPolicy: settings.writeAccess === "full-access" ? { type: "dangerFullAccess" } : settings.writeAccess === "opened-folders" ? { type: "workspaceWrite", writableRoots: folders,
@@ -219,6 +225,7 @@ export class AiAgentConversations {
   async interrupt(id: string) {
     const conversation = this.current(id), turn = conversation.turns.find(turn => turn.status === "inProgress");
     this.expireQuestion(conversation);
+    this.display.cancel(id);
     if (turn && conversation.provider === "copilot") {
       const client = await this.connection.copilot.connect();
       await this.connection.copilot.call(() => client.cancel({ sessionId: id }));
@@ -352,7 +359,7 @@ export class AiAgentConversations {
     if (method === "turn/started" || method === "turn/completed") {
       turn.status = params.turn.status;
       if (method === "turn/started") { const scope = this.scopes.get(params.threadId); if (scope) scope.turnId = turnId; }
-      else { this.scopes.delete(params.threadId); if (conversation.userInput?.turnId === turnId) this.expireQuestion(conversation); }
+      else { this.display.cancel(params.threadId); this.scopes.delete(params.threadId); if (conversation.userInput?.turnId === turnId) this.expireQuestion(conversation); }
       if (params.turn.error) turn.error = params.turn.error.message;
     } else if (method === "item/started" || method === "item/completed") {
       const item = itemFrom(params.item);
@@ -364,7 +371,7 @@ export class AiAgentConversations {
     } else if (method === "turn/plan/updated") {
       const item: AiConversationItem = { id: `${turnId}-plan`, kind: "plan", text: params.plan.map((step: any) => `${step.status}: ${step.step}`).join("\n") };
       const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item;
-    } else if (method === "error" && !params.willRetry) { turn.error = params.error.message; turn.status = "failed"; if (conversation.userInput?.turnId === turnId) this.expireQuestion(conversation); }
+    } else if (method === "error" && !params.willRetry) { this.display.cancel(params.threadId); turn.error = params.error.message; turn.status = "failed"; if (conversation.userInput?.turnId === turnId) this.expireQuestion(conversation); }
   }
 }
 const CONTEXT = "Litzio read-only context (JSON):\n";

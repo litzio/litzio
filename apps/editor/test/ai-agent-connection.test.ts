@@ -1,3 +1,5 @@
+import { AgentDisplayRequests } from "../server/agent-display-tools.ts";
+import { displayRequestCurrent } from "../shared/assistant-display.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtempSync, readFileSync, rmSync, existsSync, writeFileSync, chmodSync, mkdirSync, symlinkSync } from "node:fs";
@@ -319,8 +321,40 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   const settings = { provider: "codex" as const, providers: { codex: true, copilot: true }, writeAccess: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "Create Hello", folders: [folder], model: settings.model, reasoningEffort: "medium" };
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
-  const conversation = await conversations.send(input, settings);
+  const conversation = await conversations.send(input, settings, "window-a");
   const call = async (tool: string, args: unknown, extra = {}) => (await connection.client.request("fixture/tool", { threadId: conversation.id, tool, arguments: args, ...extra }));
+  const handler = connection.client.toolCall!;
+  let arrived: (() => void) | undefined;
+  connection.client.toolCall = params => { const reply = handler(params); arrived?.(); return reply; };
+  const beginDisplay = async (tool: string, args: unknown) => {
+    const received = new Promise<void>(resolve => { arrived = resolve; });
+    const response = call(tool, args); await received; arrived = undefined;
+    const request = conversations.display.snapshot(conversation.id, "window-a")!;
+    assert.ok(request);
+    return { response, request };
+  };
+  const original = { theme: "light" as const, uiLanguage: "en" as const, documentWidth: "standard" as const, pageBackground: "paper" as const };
+  const reading = await beginDisplay("read_display_settings", {});
+  assert.equal(conversations.display.snapshot(conversation.id, "window-b"), undefined);
+  assert.throws(() => conversations.display.reply(conversation.id, "window-b", reading.request.id, { before: original, after: original }), /another window/);
+  conversations.display.reply(conversation.id, "window-a", reading.request.id, { before: original, after: original });
+  assert.deepEqual(JSON.parse((await reading.response).result.contentItems[0].text), original);
+  const changing = await beginDisplay("change_display_settings", { changes: { theme: "dark" } });
+  const after = { ...original, theme: "dark" as const };
+  conversations.display.reply(conversation.id, "window-a", changing.request.id, { before: original, after });
+  const displayResult = (await changing.response).result;
+  assert.equal(displayResult.success, true);
+  const displayReceipt = JSON.parse(displayResult.contentItems[0].text);
+  assert.deepEqual(displayReceipt.changed, ["theme"]);
+  const undo = conversations.display.undo(conversation.id, "window-a", displayReceipt.requestId);
+  const restoring = conversations.display.snapshot(conversation.id, "window-a")!;
+  assert.deepEqual(restoring.expected, { theme: "dark" });
+  conversations.display.reply(conversation.id, "window-a", restoring.id, { before: after, after: original });
+  assert.deepEqual(await undo, { undone: true });
+  await assert.rejects(conversations.display.undo(conversation.id, "window-a", displayReceipt.requestId), /unavailable/);
+  for (const changes of [{ writeAccess: "full-access" }, { provider: "copilot" }, { model: "x" }, { plugins: [] }, { frontMatter: {} }, { theme: "invalid" }, {}]) {
+    assert.equal((await call("change_display_settings", { changes })).result.success, false);
+  }
   const file = path.join(folder, "Hello.md"), args = { path: file, title: "Hello", blocks: [{ type: "heading", level: 2, text: "Welcome" }, { type: "paragraph", text: "Hello world" }] };
   const created = (await call("create_document", args)).result;
   assert.equal(created.success, true);
@@ -341,21 +375,29 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   assert.equal((await call("list_documents", { path: path.join(folder, "escape") })).result.success, false);
   assert.equal((await call("read_document", { path: file }, { turnId: "stale" })).result.success, false);
   assert.equal((await call("ignored", {}, { method: "unsupported" })).error.code, -32601);
-  await conversations.send({ ...input, id: conversation.id, folders: [outside] }, { ...settings, writeAccess: "read-only" });
+  await conversations.send({ ...input, id: conversation.id, folders: [outside] }, { ...settings, writeAccess: "read-only" }, "window-b");
   assert.equal((await call("create_document", { ...args, path: path.join(folder, "Steered.md") })).result.success, true);
+  const endingDisplay = await beginDisplay("read_display_settings", {});
+  assert.equal(conversations.display.snapshot(conversation.id, "window-b"), undefined, "Steering cannot transfer the originating window");
   await connection.client.request("fixture/finish", { threadId: conversation.id });
+  assert.equal((await endingDisplay.response).result.success, false);
   assert.equal((await call("create_document", { ...args, path: path.join(folder, "late.md") })).result.success, false);
   await connection.close();
   const next = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
   try {
     const history = new AiAgentConversations(next, new RootAccess([root]));
     const resumed = await history.resume(conversation.id, settings);
-    assert.deepEqual(resumed.turns[0]!.items.find(item => item.toolResult?.success === true)!.toolResult, created);
-    await history.send({ ...input, id: conversation.id, writeAccess: "read-only" }, settings);
+    assert.deepEqual(resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success === true)!.toolResult, created);
+    await history.send({ ...input, id: conversation.id, folders: [], writeAccess: "read-only" }, settings, "window-readonly");
+    const readOnlyDisplay = next.client.toolCall!({ threadId: conversation.id, turnId: history.current(conversation.id).turns.at(-1)!.id, namespace: null,
+      tool: "read_display_settings", arguments: {} });
+    const readOnlyRequest = history.display.snapshot(conversation.id, "window-readonly")!;
+    history.display.reply(conversation.id, "window-readonly", readOnlyRequest.id, { before: original, after: original });
+    assert.equal((await readOnlyDisplay as { success: boolean }).success, true, "Display reads do not need document write access or opened folders");
     const denied = await next.client.request("fixture/tool", { threadId: conversation.id, tool: "create_document", arguments: { ...args, path: path.join(folder, "readonly.md") } });
     assert.equal(denied.result.success, false); assert.equal(existsSync(path.join(folder, "readonly.md")), false);
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["create_document", "read_document", "list_documents"]);
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
   } finally { await next.close(); }
 });
@@ -436,4 +478,54 @@ test("skills use only assistant cwd, enabled catalog, explicit input and context
   await assert.rejects(conversations.send({ ...input, message: "$disabled Help", skills: [{ name: "disabled", path: "/disabled/SKILL.md" }] }, settings), /no longer active/);
   const failing = new AiAgentConnection(root, { bin: process.execPath, args: [fakeServer, log, "skills-fail"] });
   try { await assert.rejects(failing.skills(), /skills unavailable/); } finally { await failing.close(); }
+});
+
+test("display requests report absent windows, expire honestly, cancel and reject mismatched acknowledgements", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const host = new AgentDisplayRequests();
+  const before = { theme: "light" as const, uiLanguage: "en" as const, documentWidth: "standard" as const, pageBackground: "paper" as const };
+  await assert.rejects(host.execute("read_display_settings", {}, "thread"), /originating/);
+  const pending = host.execute("change_display_settings", { changes: { theme: "dark" } }, "thread", "window");
+  const rejected = assert.rejects(pending, /unconfirmed/);
+  const command = host.snapshot("thread", "window")!;
+  assert.throws(() => host.reply("thread", "window", command.id, { before, after: before }), /confirm/);
+  await assert.rejects(host.execute("read_display_settings", {}, "thread", "window"), /pending/);
+  t.mock.timers.tick(10_000); await rejected;
+  assert.equal(host.snapshot("thread", "window"), undefined);
+  assert.throws(() => host.reply("thread", "window", command.id, { before, after: { ...before, theme: "dark" } }), /expired/);
+  const cancelled = assert.rejects(host.execute("read_display_settings", {}, "thread", "window"), /cancelled/);
+  host.cancel("thread"); await cancelled;
+  const failed = host.execute("change_display_settings", { changes: { theme: "dark" } }, "thread", "window");
+  host.reply("thread", "window", host.snapshot("thread", "window")!.id, { before, after: { ...before, theme: "dark" }, error: "Storage blocked" });
+  assert.equal((await failed as { error?: string }).error, "Storage blocked");
+  const timers = t.mock.timers;
+  for (const skew of [-60_000, 60_000]) await t.test(`remote clock offset ${skew}ms keeps fresh requests and rejects delayed snapshots`, async t => {
+    let hostNow = 20_000, screenNow = 5_000_000, screen = false;
+    t.mock.method(performance, "now", () => screen ? screenNow : hostNow);
+    t.mock.method(Date, "now", () => 1_000_000 + hostNow + (screen ? skew : 0));
+    const requests = new AgentDisplayRequests();
+    t.after(() => requests.cancel());
+    const pollStartedAt = screenNow;
+    const fresh = requests.execute("change_display_settings", { changes: { theme: "dark" } }, "thread", "window").catch(error => error);
+    hostNow += 2000; screenNow += 2000;
+    const command = requests.snapshot("thread", "window")!;
+    assert.equal(command.validForMs, 8000, "Snapshots carry remaining Host lifetime, not a renewed lease");
+    hostNow += 1000; screenNow += 1000; screen = true;
+    assert.equal(displayRequestCurrent(command, pollStartedAt), true, "A fresh request must survive either remote wall-clock offset");
+    screen = false;
+    requests.reply("thread", "window", command.id, { before, after: { ...before, theme: "dark" } });
+    assert.deepEqual((await fresh).changed, ["theme"]);
+    const delayedPollStartedAt = screenNow;
+    const delayed = requests.execute("read_display_settings", {}, "thread", "window").catch(error => error);
+    const oldSnapshot = requests.snapshot("thread", "window")!;
+    hostNow += 11_000; screenNow += 11_000; screen = true;
+    assert.equal(displayRequestCurrent(oldSnapshot, delayedPollStartedAt), false, "Transit time must not revive an expired Host request");
+    screen = false;
+    assert.equal(requests.snapshot("thread", "window"), undefined);
+    assert.throws(() => requests.reply("thread", "window", oldSnapshot.id, { before, after: before }), /expired/);
+    timers.tick(10_000);
+    assert.match((await delayed).message, /unconfirmed/);
+    assert.equal(requests.snapshot("thread", "window"), undefined);
+    assert.throws(() => requests.reply("thread", "window", oldSnapshot.id, { before, after: before }), /expired/);
+  });
 });

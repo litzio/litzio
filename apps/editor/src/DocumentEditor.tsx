@@ -18,6 +18,7 @@ import { i18n } from "./i18n.ts";
 import { prepareEditorSnapshot, type EditorSnapshot } from "./editor-snapshot.ts";
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useImperativeHandle, useReducer, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { EditorAuthoring, useEditorVisible } from "./editor-visibility.ts";
+import { normalizeSaveTails } from "./save-normalization.ts";
 import { closeHistory } from "@tiptap/pm/history";
 import {
   BLOCK_COMMANDS,
@@ -574,7 +575,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   }, [editor, onHeadingNumberingChange, onReferenceTemplatesChange]);
 
   // Keep the opening snapshot and its locators for the lifetime of the editor. Save
-  // acknowledges a submitted snapshot; it never rewrites nodes, selection or engine history.
+  // acknowledges the submitted snapshot; tail cleanup happens before capture.
   if (editor && saved.current === null) saved.current = editorDocumentJSON(editor.state);
   const hasDocumentChanges = (currentApplied?: string) => Boolean(editor && (currentApplied ?? JSON.stringify(appliedDocument(editorDocumentJSON(editor.state)))) !==
     JSON.stringify(appliedDocument(saved.current!)));
@@ -656,7 +657,9 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       toggleHeadingNumbering,
       beginSave() {
         if (!editor) throw new Error("Editor is not ready");
-        // Separate subsequent typing from this save's undo event without changing the document.
+        // Core owns tail semantics; the engine maps selection and records one cleanup Undo.
+        const cleanup = normalizeSaveTails(editor.state);
+        if (cleanup.docChanged) editor.view.dispatch(cleanup);
         editor.view.dispatch(closeHistory(editor.state.tr));
         updateSaveLocations([]);
         pendingDocument.current = editor.state.doc;

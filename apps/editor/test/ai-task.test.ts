@@ -179,11 +179,36 @@ test("agent-owned settings persist, reach the worker, and remain pinned in seria
   assert.deepEqual(JSON.parse(JSON.stringify(done)).job.execution, execution);
   assert.deepEqual((await host.aiTasks()!.start(request)).job.execution, execution);
   const conversationResponse = await fetch(url + AI_AGENT.conversationsRoute, { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action: "send", message: "Inspect this folder.", folders: [root], model: "next-model", reasoningEffort: "low" }) });
+    body: JSON.stringify({ action: "send", displayClient: "http-window", message: "Inspect this folder.", folders: [root], model: "next-model", reasoningEffort: "low" }) });
   assert.equal(conversationResponse.status, 200);
   const conversation = await conversationResponse.json();
   assert.equal((await (await fetch(url + AI_AGENT.conversationsRoute + "?id=" + conversation.id)).json()).turns[0].status, "inProgress");
   assert.equal((await (await fetch(url + AI_AGENT.conversationsRoute)).json())[0].id, conversation.id);
+  const displayBefore = { theme: "light", uiLanguage: "en", documentWidth: "standard", pageBackground: "paper" };
+  // HTTP transport is separate from protocol/allowlist coverage: no additional fake child.
+  const displayCall = agent.client.toolCall!({ threadId: conversation.id, turnId: conversation.turns[0].id, namespace: null,
+    tool: "change_display_settings", arguments: { changes: { theme: "dark" } } });
+  const snapshot = await (await fetch(url + AI_AGENT.conversationsRoute + "?id=" + conversation.id + "&displayClient=http-window")).json();
+  assert.deepEqual(snapshot.displayRequest.changes, { theme: "dark" });
+  assert.equal((await (await fetch(url + AI_AGENT.conversationsRoute + "?id=" + conversation.id + "&displayClient=other-window")).json()).displayRequest, undefined);
+  const acknowledge = await fetch(url + AI_AGENT.conversationsRoute, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "display-result", id: conversation.id, displayClient: "http-window", requestId: snapshot.displayRequest.id,
+      reply: { before: displayBefore, after: { ...displayBefore, theme: "dark" } } }) });
+  assert.equal(acknowledge.status, 200);
+  const displayResult = await displayCall as { success: boolean; contentItems: { text: string }[] };
+  assert.equal(displayResult.success, true);
+  const receipt = JSON.parse(displayResult.contentItems[0]!.text);
+  const undoCall = fetch(url + AI_AGENT.conversationsRoute, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "display-undo", id: conversation.id, displayClient: "http-window", requestId: receipt.requestId }) });
+  let undoRequest;
+  for (let attempt = 0; attempt < 100 && !undoRequest; attempt++) {
+    undoRequest = (await (await fetch(url + AI_AGENT.conversationsRoute + "?id=" + conversation.id + "&displayClient=http-window")).json()).displayRequest;
+    if (!undoRequest) await delay(10);
+  }
+  assert.deepEqual(undoRequest.expected, { theme: "dark" });
+  await fetch(url + AI_AGENT.conversationsRoute, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "display-result", id: conversation.id,
+    displayClient: "http-window", requestId: undoRequest.id, reply: { before: { ...displayBefore, theme: "dark" }, after: displayBefore } }) });
+  assert.deepEqual(await (await undoCall).json(), { undone: true });
   const interrupted = await fetch(url + AI_AGENT.conversationsRoute, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "interrupt", id: conversation.id }) });
   assert.equal((await interrupted.json()).turns[0].status, "interrupted");
   await agent.close(); // An enablement-only write must work without a live catalog connection.

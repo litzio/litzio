@@ -22,6 +22,7 @@
 | [ADR-0012: Plugin runtime and UI contributions](adr/0012-plugin-runtime-and-ui-contributions.md) | Accepted | 2026-10-31 소유자 승인. 데몬 없는 공용 설치 폴더, 별도 worker, 같은 origin의 검증된 ESM/CSS와 좁은 UI API, 동적 기여·drain·비활성 탭, UUID·uncertain·완료 결과 공개. 구현 채택 조건과 범위 제외를 명시하며 스파이크 코드 채택은 아님. |
 | [ADR-0013: AI agent task service](adr/0013-ai-agent-task-service.md) | Accepted | 2026-11-02 소유자 승인. #880 기본 포함 AI 플러그인, Host 중개 작업 메시지, 기능·추론 역할 분리와 자료 스냅샷. 전용 Codex 홈 격리의 유예와 도입 조건 포함. |
 | [ADR-0014: Main agent app-server](adr/0014-main-agent-app-server.md) | Accepted | #931 Host 소유 stdio 연결, 사용자 Codex 환경 재사용, 앱 데이터 cwd, provider 이름만 전제한 구조와 ADR-0013 조건 2 변경. 연결·설정·대화의 소유권과 후속 문서 작성 기능의 경계. |
+| [ADR-0015: Shared Host operations](adr/0015-shared-host-operations.md) | Accepted | 2026-11-04 #1132 소유자 승인. 새 사용자 기능의 입력·결과·범위·receipt 공용 정의와 CLI 필수, 필요 시 비서 도구. #1128 첫 사례, live Host 연결·daemon·편집 상태 공유 보류와 동시 편집 대비 경계. |
 
 ## Current implemented contracts
 

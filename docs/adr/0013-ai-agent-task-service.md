@@ -3,6 +3,7 @@
 - Status: Accepted
 - Decision date: 2026-11-02
 - Last verified: 2026-11-02 (#880 implementation and local fake-adapter/runtime checks; documentation updated for owner acceptance and the deferred Codex-home isolation decision, without further runtime checks).
+- CLI policy clarification: 2026-11-04 — documentation-only alignment with [ADR-0015](0015-shared-host-operations.md); no runtime change.
 - Authority: owner approval on 2026-11-02, following the B scope in [Discussion #767](https://github.com/litzio/litzio/discussions/767), under [ADR-0012](0012-plugin-runtime-and-ui-contributions.md).
 - Scope: default-included, removable AI execution plugin; no document semantic operation.
 
@@ -76,6 +77,8 @@ same shared defaults and execution path.
 Conversation UI, user instructions, provider/credential selection, other
 providers, document-edit proposals, task registration, streaming, automatic
 retry, MCP/ACP/A2A, multi-agent features and official plugin
-distribution remain outside B. CLI parity is intentionally omitted: AI execution
-is not a document semantic operation. Headless execution uses the shared Host
-HTTP surface.
+distribution remain outside B. B intentionally shipped without a CLI surface;
+headless execution uses the shared Host HTTP surface. This records the delivered
+scope, not a standing exemption for non-semantic features. Since 2026-11-04,
+[ADR-0015](0015-shared-host-operations.md) requires a shared Host operation and
+CLI for new user features. It does not backfill this service in the decision PR.
