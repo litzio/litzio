@@ -1,6 +1,16 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Details": "Details",
+  "Stop daemon": "Stop daemon",
+  "Local daemon": "Local daemon",
+  "Address": "Address",
+
+  "Disconnected from daemon": "Disconnected from daemon",
+  "Reconnect": "Reconnect",
+  "Desktop menu": "Desktop menu",
+  "Open in browser": "Open in browser",
+
   "Provider": "Provider",
   "Provider is fixed after a conversation starts. Start a new conversation to change it.": "Provider is fixed after a conversation starts. Start a new conversation to change it.",
   "Write access applies to the next turn in this conversation. Global defaults stay unchanged.": "Write access applies to the next turn in this conversation. Global defaults stay unchanged.",
@@ -1130,6 +1140,16 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Details": "상세 정보",
+  "Stop daemon": "daemon 종료",
+  "Local daemon": "로컬 daemon",
+  "Address": "주소",
+
+  "Disconnected from daemon": "daemon 연결이 끊겼습니다",
+  "Reconnect": "다시 연결",
+  "Desktop menu": "Desktop 메뉴",
+  "Open in browser": "브라우저에서 열기",
+
   "Provider": "프로바이더",
   "Provider is fixed after a conversation starts. Start a new conversation to change it.": "대화를 시작한 뒤에는 프로바이더를 바꿀 수 없습니다. 새 대화를 시작해 주세요.",
   "Write access applies to the next turn in this conversation. Global defaults stay unchanged.": "이 대화의 다음 응답부터 적용됩니다. 전역 기본값은 바뀌지 않습니다.",

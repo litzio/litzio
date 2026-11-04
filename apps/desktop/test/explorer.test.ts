@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { ExplorerFolders } from "../src/explorer.ts";
-import { createProtocolHandler, ORIGIN } from "../src/host-protocol.ts";
+import { listFolder } from "../../editor/server/document-api.ts";
 
 test("Explorer only opens existing directories in currently opened, Host-listed roots", async () => {
   const temp = mkdtempSync(path.join(os.tmpdir(), "litzio-explorer-"));
@@ -18,8 +18,8 @@ test("Explorer only opens existing directories in currently opened, Host-listed 
     const calls: string[] = [];
     const open = async (folder: string) => { calls.push(folder); return ""; };
     assert.throws(() => folders.setOpened([root]), /Unknown/);
-    const handler = createProtocolHandler(temp, {}, undefined, root => folders.listedRoot(root));
-    assert.equal((await handler(new Request(`${ORIGIN}/api/folder?root=${encodeURIComponent(root)}`))).status, 200);
+    const listing = listFolder(root, root);
+    folders.listedRoot(listing.root);
     folders.listedRoot("//server/share");
     folders.setOpened([root, "//server/share"]);
     await folders.open(root, open); await folders.open(child, open);

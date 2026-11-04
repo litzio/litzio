@@ -1,4 +1,5 @@
 import { useNativeHistoryBoundary } from "../ui/use-native-history-boundary.ts";
+import { DaemonStatus } from "./DesktopDaemon.tsx";
 import { PluginSettings } from "../PluginSettings.tsx";
 import { useTableWrapDefault, setTableWrapDefault } from "../table-wrap.ts";
 import type { SettingsSection } from "@litzio/plugin-api/ui";
@@ -260,6 +261,7 @@ export function SettingsDialog({ sections = [], pluginStateKey = "", readyPlugin
               </section> : null}
               {category === "about" && info && desktop ? (
                 <section className="settings-group" aria-labelledby="settings-about">
+                  <DaemonStatus desktop={desktop} />
                   <h3 id="settings-about" className="settings-group-heading">{i18n.t("About")}</h3>
                   <p className="settings-status settings-section">{i18n.t("{{product}} connects input/output (I/O) with Litz wire.")}</p>
                   <dl className="settings-facts settings-section">

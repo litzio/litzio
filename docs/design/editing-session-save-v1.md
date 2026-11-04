@@ -903,7 +903,7 @@ records before/after restart, then exercises the matching-file recovery review d
 Restore, dirty state, unchanged disk until explicit Save, actual Save/Reload, and a second crash
 followed by an external disk change and a 409 with both external bytes and recovered work preserved.
 
-The packaged Windows Desktop regression uses the real `litzio://app` protocol and verifies
+The packaged Windows Desktop regression uses the real fixed daemon HTTP origin (ADR-0016) and verifies
 that Electron `userData` and `sessionData` are the same isolated test profile across new app PIDs.
 Forced app-tree termination preserves the committed record including an inserted pending Figure;
 Restore and Save/Reload use the real packaged Editor and file Host. A subsequent normal window

@@ -26,10 +26,13 @@ function realTree(folder: string): boolean {
   return true;
 }
 
-function copySamples(source: string, destination: string): SampleDocuments {
+function copySamples(source: string, destination: string, preserve: boolean): SampleDocuments {
   destination = path.resolve(destination);
   const paths = { ko: path.join(destination, "ko", "converter-control.md"), en: path.join(destination, "en", "converter-control.md") };
-  realTree(destination);
+  if (realTree(destination) && preserve) {
+    for (const file of Object.values(paths)) if (!lstatSync(file).isFile()) throw new Error("Sample document is unavailable.");
+    return paths;
+  }
 
   const parent = path.dirname(destination);
   mkdirSync(parent, { recursive: true });
@@ -67,8 +70,8 @@ function copySamples(source: string, destination: string): SampleDocuments {
 }
 
 /** A sample failure is an optional Host capability failure, never a document-start failure. */
-export function prepareSampleDocuments(source: string, destination: string, onWarning: (message: string) => void = console.error): SampleAvailability {
-  try { return { samples: copySamples(source, destination) }; }
+export function prepareSampleDocuments(source: string, destination: string, onWarning: (message: string) => void = console.error, preserve = false): SampleAvailability {
+  try { return { samples: copySamples(source, destination, preserve) }; }
   catch (cause) {
     onWarning(`Sample documents unavailable: ${cause instanceof Error ? cause.message : String(cause)}`);
     return { sampleProblem: "unavailable" };

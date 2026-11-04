@@ -9,7 +9,7 @@ import type { UiHost, UiContributions } from "@litzio/plugin-api/ui";
 import { UiRegistry, contributionNotices, type ActiveUi } from "../src/plugin-ui-registry.ts";
 import { PluginStore } from "../server/plugin-store.ts";
 import { buildDoclingWorker, buildPluginUi } from "../../../packages/cli/scripts/build-docling-worker.ts";
-import { createProtocolHandler, ORIGIN } from "../../desktop/src/host-protocol.ts";
+import { createTestHttpHost, ORIGIN } from "./helpers/http-host.ts";
 import { startHttpHost } from "../server/http-host.ts";
 
 const registration = (id = "test", revision = "a"): UiRegistration => ({ id, revision,
@@ -69,7 +69,7 @@ test("installed UI assets use identical validated routes/CSP in Desktop and inde
   const root = mkdtempSync(path.join(tmpdir(), "plugin-ui-"));
   const oldDirectory = process.env.LITZIO_PLUGINS_DIR;
   process.env.LITZIO_PLUGINS_DIR = path.join(root, "plugins");
-  let store: PluginStore | undefined, desktop: ReturnType<typeof createProtocolHandler> | undefined, http: Awaited<ReturnType<typeof startHttpHost>> | undefined;
+  let store: PluginStore | undefined, desktop: ReturnType<typeof createTestHttpHost> | undefined, http: Awaited<ReturnType<typeof startHttpHost>> | undefined;
   t.after(async () => {
     await http?.close(); await desktop?.close(); store?.close();
     if (oldDirectory === undefined) delete process.env.LITZIO_PLUGINS_DIR; else process.env.LITZIO_PLUGINS_DIR = oldDirectory;
@@ -79,7 +79,7 @@ test("installed UI assets use identical validated routes/CSP in Desktop and inde
   writeFileSync(path.join(root, "index.html"), "<!doctype html><title>Host fixture</title>");
   store = new PluginStore(process.env.LITZIO_PLUGINS_DIR);
   const installed = store.register(path.join(root, "manifest.json"));
-  desktop = createProtocolHandler(root, { samples: {} as any });
+  desktop = createTestHttpHost(root);
   http = await startHttpHost({ roots: [root], editorDir: root, port: 0 });
   for (const send of [(route: string) => desktop!(new Request(ORIGIN + route)), (route: string) => fetch(http!.url + route)]) {
     const list = await send(PLUGIN_UI.route); assert.equal(list.status, 200);

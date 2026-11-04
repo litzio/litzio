@@ -13,7 +13,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { after, before, test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { buildDoclingWorker } from "../../../packages/cli/scripts/build-docling-worker.ts";
-import { createProtocolHandler, ORIGIN } from "../../desktop/src/host-protocol.ts";
+import { createTestHttpHost, ORIGIN } from "./helpers/http-host.ts";
 import { createDoclingHost } from "./helpers/docling-host.ts";
 import { accessPath, RootAccess } from "../server/file-access.ts";
 import { PluginStore, readPluginBuild } from "../server/plugin-store.ts";
@@ -438,7 +438,7 @@ test("Desktop registration is used by an independent httpHost; UUID conflict, di
   writeFileSync(path.join(root, "index.html"), "<!doctype html><title>test</title>");
   const previousPlugins = process.env.LITZIO_PLUGINS_DIR, previousSettings = process.env.LITZIO_DOCLING_SETTINGS_FILE;
   process.env.LITZIO_PLUGINS_DIR = plugins; process.env.LITZIO_DOCLING_SETTINGS_FILE = settings;
-  const desktop = createProtocolHandler(root, { samples: {} as any });
+  const desktop = createTestHttpHost(root);
   if (previousPlugins === undefined) delete process.env.LITZIO_PLUGINS_DIR; else process.env.LITZIO_PLUGINS_DIR = previousPlugins;
   if (previousSettings === undefined) delete process.env.LITZIO_DOCLING_SETTINGS_FILE; else process.env.LITZIO_DOCLING_SETTINGS_FILE = previousSettings;
   const fake = await fakeDoclingServer();

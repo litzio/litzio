@@ -12,12 +12,13 @@
 ## Shared local daemon (#1142 PR2)
 
 [ADR-0016](../adr/0016-shared-local-daemon-host.md) governs the daemon; the owner-approved 2026-11-04 authentication decision below supersedes earlier token requirements.
-`daemon run` runs it in the foreground; `daemon start` starts or connects to the local
-background instance. `daemon status` verifies its identity and prints JSON including its URL.
+`daemon start` starts a background local-mode daemon for this PC; Desktop discovers it.
+`daemon run` runs in this terminal in the foreground. `--root`, `--host`, `--port` and
+`--public-origin` allow server/deployment settings; without those options it is local mode. `daemon status` verifies its identity and prints a table; `--json` returns structured status including its URL.
 `daemon stop --confirm` stops that exact instance; confirmation acknowledges that other
 clients/jobs can be interrupted. Restart is explicit: stop, then start. Product changes never
-replace a running daemon. Desktop connection/exit policy and plugin/AI lifetime are PR3/PR4;
-Desktop still uses its in-process Host in PR2.
+replace a running daemon. Desktop uses this daemon through the PR3 connection/owner-pipe path;
+plugin/AI lifetime revision and the one temporary packaged smoke restoration remain PR4.
 
 ### Host and daemon terminology (#1139)
 
@@ -47,7 +48,7 @@ State is `<home>/<brand.folders.shared>/daemon/<channel>/` (official `.litzio`).
 state. The directory is user-only (POSIX 0700, Windows inheritance removed and current user
 full access). `daemon.lock` is exclusively created before startup and contains PID, start
 time and instance UUID. Ready `instance.json` is published by sibling rename and contains those
-three fields plus the fixed URL. Shutdown removes only its matching record/lock.
+identity fields plus the fixed URL and the diagnostic fields below. Shutdown removes only its matching record/lock.
 Manual foreground listeners use an endpoint-specific lock in the same directory.
 
 `GET /daemon/health` returns PID, start time, instance ID, **productVersion**
@@ -59,11 +60,11 @@ then start the desired version. The incompatible CLI does not bypass protocol ch
 never kill a PID alone. `POST /daemon/stop` requires
 same-origin JSON, all three identity fields and `confirm:true`. No OS kill based on a PID.
 
-Stale, malformed or unreachable records/locks fail closed and are never reclaimed automatically.
-After a crash, inspect the recorded identity, endpoint and log and establish that the owned
-instance is gone before manually removing its stale lock/discovery record. This is diagnosis,
-not automatic recovery. `status` without discovery reports `running:false` and whether a local
-lock exists; it does not assert that a locked/unreachable process is safely replaceable.
+`start` and Desktop's explicit reconnect reclaim records/locks only after OS creation identity proves the owner exited or its PID was reused. They recheck lock/discovery ownership before cleanup. Malformed records and live but unresponsive owners fail closed with recorded PID/URL and log guidance. `status` distinguishes running, not running and recorded-but-unreachable; it never deletes state. No background restart or PID-based process killing is introduced. Repeated `start` reports the existing PID, URL and launcher.
+
+Discovery and health also carry launcher (`desktop`, `cli-start`, `cli-run`), OS creation identity, unrestricted/Root scope and non-loopback flag, daemon home, executable path and log path when present. Status offers a table and `--json`; Desktop shows the same information in its existing settings surface. `LITZIO_DATA_DIR` isolates the shared Host data base for tests; public `.litzio` is not used by these tests.
+
+Desktop invokes the same local `run`/lock path with a private IPC pipe (`LITZIO_DESKTOP_DAEMON=1`, requiring an IPC parent). Its daemon exits when that pipe disconnects, including parent crash. CLI `start`/`run` have no Desktop parent lifetime. Normal Desktop close stops only its spawned generation. Explicit Desktop Stop uses the existing confirmed identity-checked stop RPC regardless of launcher. No client/job tracking. See [Desktop contract](desktop-distribution-v1.md#shared-daemon-desktop-1142-pr3).
 
 ### Authentication deferred (#1145)
 

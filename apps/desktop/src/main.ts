@@ -1,14 +1,15 @@
 import { brand } from "../../../brand.ts";
-// Litzio Desktop: one window with the Editor, the local Host behind the configured app origin, preferences
+// Litzio Desktop: one window with the Editor, the local Host behind the shared daemon HTTP origin, preferences
 // and updates. Documents are read and written only through the existing Host handlers.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import electronUpdater from "electron-updater";
 import { load as loadYaml } from "js-yaml";
 import type { DesktopInfo, RestartCheck } from "../../editor/shared/desktop-bridge.ts";
-import { createProtocolHandler, ORIGIN, SCHEME } from "./host-protocol.ts";
+import { DesktopDaemon, trustedDaemonUrl } from "./daemon-client.ts";
+import { daemonRpc } from "../../editor/server/daemon-state.ts";
 import { ExplorerFolders } from "./explorer.ts";
 import { firstDocument } from "./first-document.ts";
 import { readPreferences, writePreferences, type Preferences } from "./preferences.ts";
@@ -22,7 +23,6 @@ import { windowsEnvironment } from "./windows-environment.ts";
 /** Set by the release build: an update must carry the publisher signature the installed app names. */
 declare const __LITZIO_REQUIRE_SIGNED_UPDATES__: boolean;
 
-protocol.registerSchemesAsPrivileged([{ scheme: SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
 
 app.setAppUserModelId(brand.appId);
 // Explicit automation/operator profile overrides remain authoritative.
@@ -62,7 +62,8 @@ function showWhenReady(): void {
 let preferences: Preferences;
 let updates: UpdateController;
 let cliIntegration: CliIntegration | undefined;
-let documentHost: ReturnType<typeof createProtocolHandler> | undefined;
+let daemon: DesktopDaemon;
+let first: ReturnType<typeof firstDocument>;
 const explorerFolders = new ExplorerFolders();
 /** Set after the Editor agreed to restart for an update; the installer starts once the window closed. */
 let installing = false;
@@ -114,7 +115,7 @@ function updatesUnsupported(updater: typeof electronUpdater.autoUpdater): string
 /** Only the app's own page may call the Desktop bridge. */
 function trusted(event: IpcMainInvokeEvent | IpcMainEvent): boolean {
   return window !== null && event.sender === window.webContents && event.senderFrame === window.webContents.mainFrame &&
-    (event.senderFrame?.url ?? "").startsWith(`${ORIGIN}/`);
+    trustedDaemonUrl(event.senderFrame?.url ?? "", daemon.record.url);
 }
 
 function info(): DesktopInfo {
@@ -173,14 +174,39 @@ async function installUpdate(): Promise<RestartCheck> {
   return { ok: true };
 }
 
+function warnDaemonVersion(): void {
+  if (window && daemon.health.productVersion !== app.getVersion()) dialog.showMessageBoxSync(window, {
+    type: "warning", message: `Daemon ${daemon.health.productVersion} · Desktop ${app.getVersion()}`,
+    detail: "Connection retained. Restart the daemon with the CLI to switch versions.", buttons: ["Continue"],
+  });
+}
+
 function registerIpc(): void {
+  let folderRequest = 0;
   const handle = (channel: string, run: (...args: unknown[]) => unknown) => {
     ipcMain.handle(channel, (event, ...args) => {
       if (!trusted(event)) throw new Error("Untrusted sender.");
       return run(...args);
     });
   };
-  handle("desktop:opened-folders", roots => explorerFolders.setOpened(roots));
+  handle("desktop:opened-folders", async roots => {
+    if (!Array.isArray(roots) || !roots.every(root => typeof root === "string")) throw new Error("Invalid folders.");
+    const request = ++folderRequest;
+    for (const root of roots) { await daemonRpc(daemon.record, `/api/folder?${new URLSearchParams({ root })}`); explorerFolders.listedRoot(root); }
+    if (request === folderRequest) explorerFolders.setOpened(roots);
+  });
+  handle("desktop:startup", () => first);
+  handle("desktop:browser", () => shell.openExternal(daemon.record.url));
+  handle("desktop:daemon-info", async () => {
+    let state: "running" | "unreachable" = "running"; try { await daemon.check(); } catch { state = "unreachable"; }
+    return { ...daemon.health, url: daemon.record.url, state };
+  });
+  handle("desktop:daemon-stop", async () => {
+    if (!window || dialog.showMessageBoxSync(window, { type: "warning", message: "Stop daemon?", detail: "Connected tabs will disconnect and ongoing work will stop.", buttons: ["Cancel", "Stop"], defaultId: 0, cancelId: 0, noLink: true }) !== 1) return false;
+    await daemon.stopExplicitly(); return true;
+  });
+  handle("desktop:daemon-check", () => daemon.check());
+  handle("desktop:daemon-reconnect", async () => { await daemon.connect(); warnDaemonVersion(); });
   handle("desktop:open-folder", folder => explorerFolders.open(folder, target => shell.openPath(target)));
   handle("desktop:open-log-folder", async () => {
     const directory = path.join(app.getPath("userData"), "logs");
@@ -295,16 +321,18 @@ function createWindow(): void {
     openExternal(url);
     return { action: "deny" };
   });
-  created.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith(`${ORIGIN}/`)) event.preventDefault();
-  });
+  const preventForeignNavigation = (event: { preventDefault(): void }, url: string) => {
+    if (!trustedDaemonUrl(url, daemon.record.url)) event.preventDefault();
+  };
+  created.webContents.on("will-navigate", preventForeignNavigation);
+  created.webContents.on("will-redirect", preventForeignNavigation);
   created.on("closed", () => {
     clearTimeout(appearanceTimer);
     clearTimeout(startupTimer);
     startupPending = false;
     if (window === created) window = null;
   });
-  void created.loadURL(`${ORIGIN}/index.html`).catch(error => failed(`renderer load failed: ${String(error)}`));
+  void created.loadURL(`${daemon.record.url}/index.html`).catch(error => failed(`renderer load failed: ${String(error)}`));
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -324,14 +352,15 @@ if (!app.requestSingleInstanceLock()) {
   app.on("web-contents-created", (_event, contents) => {
     contents.on("will-attach-webview", (event) => event.preventDefault());
   });
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     log(`starting ${app.getVersion()}`);
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
     preferences = readPreferences(preferencesFile(), app.getVersion());
     const cliRoot = path.join(app.isPackaged ? process.resourcesPath : path.dirname(appRoot), "cli");
-    documentHost = createProtocolHandler(path.join(cliRoot, "editor"), firstDocument(process.argv.slice(app.isPackaged ? 1 : 2), app.getPath("userData"), appRoot, log), file => shell.trashItem(file), root => explorerFolders.listedRoot(root), { packaged: app.isPackaged, checkoutRoot: path.resolve(appRoot, "../../../.."), ...(app.isPackaged ? { cli: { bin: process.execPath, args: [path.join(cliRoot, "cli.mjs")] } } : {}) });
-    protocol.handle(SCHEME, documentHost);
+    first = firstDocument(process.argv.slice(app.isPackaged ? 1 : 2), app.getPath("userData"), appRoot, log, app.getVersion());
+    daemon = new DesktopDaemon(app.getVersion(), process.execPath, path.join(cliRoot, "cli.mjs"));
+    await daemon.connect();
     if (app.isPackaged && process.platform === "win32" && process.env.LOCALAPPDATA) {
       cliIntegration = new CliIntegration(process.execPath, process.env.LOCALAPPDATA, windowsEnvironment());
     }
@@ -365,8 +394,10 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc();
     log(`started ${app.getVersion()} (${preferences.channel}); ${unsupported ?? "updates on"}`);
     createWindow();
+    warnDaemonVersion();
     updates.start();
   }).catch(error => {
+    void daemon?.close().catch(error => log(`daemon cleanup failed: ${String(error)}`));
     log(`startup failed: ${String(error)}`);
     try {
       dialog.showErrorBox(brand.name.en, `${brand.name.en} could not start.\n${String(error)}`);
@@ -376,7 +407,7 @@ if (!app.requestSingleInstanceLock()) {
   });
   app.on("window-all-closed", async () => {
     updates?.stop();
-    try { await documentHost?.close(); } catch (error) { log(`worker shutdown failed: ${String(error)}`); }
+    try { await daemon?.close(); } catch (error) { log(`daemon shutdown failed: ${String(error)}`); dialog.showErrorBox(brand.name.en, String(error)); }
     // Only the restart the Editor allowed installs an update; quitting the app never does.
     if (installing) {
       updates.finishInstall();

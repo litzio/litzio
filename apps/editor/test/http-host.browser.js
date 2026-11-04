@@ -75,6 +75,11 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   const folderImage = await page.request.get(`${origin}/api/file-preview?root=${encodeURIComponent(a)}&path=${encodeURIComponent(a + sep + 'fixture' + sep + 'diagram.svg')}`);
   check(folderImage.status() === 200 && folderImage.headers()['content-type'] === 'image/svg+xml' && folderImage.headers()['content-security-policy'].startsWith('sandbox;'), 'Production preview uses shared safe image handler');
   await page.keyboard.press('Escape'); await preview.waitFor({state:'detached'});
+  await sidebar.getByRole('treeitem', {name:'a.md', exact:true}).click({button:'right'});
+  await page.getByRole('menuitem', {name:'Delete file…',exact:true}).click();
+  await page.getByRole('dialog', {name:'Move file to Trash?',exact:true}).waitFor();
+  check(await page.getByRole('button', {name:'Move to Trash',exact:true}).isVisible(), 'HTTP deletion confirmation contradicts the trash capability');
+  await page.getByRole('button', {name:'Cancel',exact:true}).click();
   await sidebar.getByRole('treeitem', {name:'a.md', exact:true}).click(); await ready();
   await waitForActivePath(page, fileA); await ready();
   const editor = page.locator('[data-document-tab][data-active=true] .document-editor');
