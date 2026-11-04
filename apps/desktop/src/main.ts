@@ -61,7 +61,8 @@ function showWhenReady(): void {
 }
 let preferences: Preferences;
 let updates: UpdateController;
-let cliProblem: string | undefined;
+let cliIntegration: CliIntegration | undefined;
+let cliChanging = false;
 let documentHost: ReturnType<typeof createProtocolHandler> | undefined;
 const explorerFolders = new ExplorerFolders();
 /** Set after the Editor agreed to restart for an update; the installer starts once the window closed. */
@@ -118,7 +119,7 @@ function trusted(event: IpcMainInvokeEvent | IpcMainEvent): boolean {
 }
 
 function info(): DesktopInfo {
-  return { version: app.getVersion(), channel: updates.channel, updatesSupported: updates.supported, update: updates.state, seenUpdate: preferences.seenUpdate, ...(cliProblem ? { cliProblem } : {}) };
+  return { version: app.getVersion(), channel: updates.channel, updatesSupported: updates.supported, update: updates.state, seenUpdate: preferences.seenUpdate };
 }
 
 /** Links leave through the system browser, and only as http(s). */
@@ -189,6 +190,23 @@ function registerIpc(): void {
     if (error) throw new Error("Could not open the log folder.");
   });
   handle("desktop:info", () => info());
+  handle("desktop:cli-state", async () => {
+    if (!cliIntegration) return { status: "off", unsupported: true };
+    return { ...await cliIntegration.state(), enabled: preferences.cliEnabled };
+  });
+  handle("desktop:cli-set", async enabled => {
+    if (typeof enabled !== "boolean") throw new Error("Invalid CLI integration choice.");
+    if (!cliIntegration) throw new Error("CLI integration is available in the installed Windows app.");
+    if (cliChanging) throw new Error("A CLI integration change is already in progress.");
+    cliChanging = true;
+    try {
+      // Persist intent before OS work: even a failed removal must not opt the user back in.
+      const next = { ...preferences, cliEnabled: enabled };
+      writePreferences(preferencesFile(), next);
+      preferences = next;
+      return { ...await cliIntegration.setEnabled(enabled), enabled };
+    } finally { cliChanging = false; }
+  });
   handle("desktop:set-theme", (value) => {
     if (value !== "system" && value !== "light" && value !== "dark") throw new Error("Unknown theme.");
     nativeTheme.themeSource = value;
@@ -328,10 +346,12 @@ if (!app.requestSingleInstanceLock()) {
     protocol.handle(SCHEME, documentHost);
     if (app.isPackaged && process.platform === "win32" && process.env.LOCALAPPDATA) {
       try {
-        const integration = new CliIntegration(process.execPath, process.env.LOCALAPPDATA, windowsEnvironment());
-        cliProblem = (await integration.ensureInstalled()).conflict;
-      } catch (error) { cliProblem = error instanceof Error ? error.message : String(error); }
-      if (cliProblem) log(`CLI registration skipped: ${cliProblem}`);
+        cliIntegration = new CliIntegration(process.execPath, process.env.LOCALAPPDATA, windowsEnvironment());
+        if (preferences.cliEnabled) {
+          const state = await cliIntegration.ensureInstalled();
+          if (state.conflict) log(`CLI registration skipped: ${state.conflict}`);
+        }
+      } catch (error) { log(`CLI registration failed: ${error instanceof Error ? error.message : String(error)}`); }
     }
     const { autoUpdater } = electronUpdater;
     if (__LITZIO_REQUIRE_SIGNED_UPDATES__ && autoUpdater instanceof electronUpdater.NsisUpdater) {

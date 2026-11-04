@@ -37,8 +37,6 @@ export type UpdateState =
 
 export type DesktopInfo = {
   version: string;
-  /** Automatic CLI registration failed or encountered a foreign command/file. */
-  cliProblem?: string;
   channel: ReleaseChannel;
   /** False in a development run, which has no installed update configuration. */
   updatesSupported: boolean;
@@ -52,6 +50,8 @@ export type RestartCheck = { ok: true } | { ok: false; reason: string };
 
 export type CliIntegrationState = {
   status: "off" | "installed" | "broken";
+  /** Saved intent, independent of a failed or conflicting registration. */
+  enabled?: boolean;
   /** A foreign PATH command or file; never overwritten. */
   conflict?: string;
   /** Integration is available only in a packaged Windows application. */
@@ -71,6 +71,8 @@ export type DesktopBridge = {
   /** Opaque sRGB #rrggbb canvas and caption roles; also marks the initial appearance ready to show. */
   setWindowBackground(color: string, overlay: { color: string; symbolColor: string }): Promise<void>;
   info(): Promise<DesktopInfo>;
+  cliIntegration(): Promise<CliIntegrationState>;
+  setCliIntegration(enabled: boolean): Promise<CliIntegrationState>;
   setChannel(channel: ReleaseChannel): Promise<DesktopInfo>;
   checkForUpdates(): Promise<void>;
   downloadUpdate(): Promise<void>;

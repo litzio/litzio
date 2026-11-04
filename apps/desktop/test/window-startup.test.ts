@@ -18,8 +18,9 @@ const source = transformSync(readFileSync(main, "utf8"), {
   loader: "ts", format: "cjs", define: { "import.meta.url": JSON.stringify(main.href), __LITZIO_REQUIRE_SIGNED_UPDATES__: "false" },
 }).code;
 
-async function start(options: { packaged?: boolean; cliProblem?: string; startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState } = {}) {
+async function start(options: { cliChangeError?: boolean; cliEnabled?: boolean; preferenceError?: boolean; packaged?: boolean; cliProblem?: string; startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState } = {}) {
   const preferences: unknown[] = [];
+  const cliChanges: boolean[] = [];
   const logs: string[] = [], errors: unknown[][] = [], alerts: string[] = [];
   const directories: string[] = [], opened: string[] = [];
   const mainProcess = Object.assign(new EventEmitter(), { argv: [], platform: "win32", env: options.packaged ? { LOCALAPPDATA: "/fake-local" } : {}, resourcesPath: "/fake-resources" });
@@ -67,9 +68,9 @@ async function start(options: { packaged?: boolean; cliProblem?: string; startup
     "./host-protocol.ts": { ORIGIN: "litzio://app", SCHEME: "litzio", createProtocolHandler() {} },
     "./explorer.ts": { ExplorerFolders },
     "./first-document.ts": { firstDocument() {} },
-    "./preferences.ts": { readPreferences: () => ({ channel: "beta", seenUpdate: null }), writePreferences: (_file: string, value: unknown) => preferences.push(JSON.parse(JSON.stringify(value))) },
+    "./preferences.ts": { readPreferences: () => ({ channel: "beta", seenUpdate: null, cliEnabled: options.cliEnabled ?? true }), writePreferences: (_file: string, value: unknown) => { if (options.preferenceError) throw new Error("preferences denied"); preferences.push(JSON.parse(JSON.stringify(value))); } },
     "./updates.ts": { UpdateController: class { channel = "beta"; state = options.update ?? { phase: "idle" }; start() {} stop() {} } },
-    "./update-policy.ts": {}, "./signatures.ts": {}, "./github-provider.ts": {}, "./cli-integration.ts": { CliIntegration: class { async ensureInstalled() { registrations++; if (options.cliProblem) throw new Error(options.cliProblem); return { status: "installed" }; } } }, "./windows-environment.ts": { windowsEnvironment: () => ({}) },
+    "./update-policy.ts": {}, "./signatures.ts": {}, "./github-provider.ts": {}, "./cli-integration.ts": { CliIntegration: class { async state() { return { status: "installed" }; } async setEnabled(enabled: boolean) { cliChanges.push(enabled); if (options.cliChangeError) throw new Error("PATH denied"); return { status: enabled ? "installed" : "off" }; } async ensureInstalled() { registrations++; if (options.cliProblem) throw new Error(options.cliProblem); return { status: "installed" }; } } }, "./windows-environment.ts": { windowsEnvironment: () => ({}) },
   };
   runInNewContext(source, {
     require: (name: string) => name in dependencies ? dependencies[name] : require(name),
@@ -92,7 +93,7 @@ async function start(options: { packaged?: boolean; cliProblem?: string; startup
   const invoke = (channel: string, args: unknown[], trusted = true) => handlers.get(channel)!({
     sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {},
   }, ...args);
-  return { registrations: () => registrations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
+  return { cliChanges, registrations: () => registrations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
     seen: (version: unknown, trusted = true) => handlers.get("desktop:seen-update")!({ sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {} }, version), exits: () => exits, quits: () => quits };
 }
 
@@ -232,7 +233,7 @@ test("viewed updates persist only the current offered version from a trusted ren
     h.seen("0.4.0"); h.seen(null);
     assert.equal(h.preferences.length, 0);
     h.seen("0.3.0-beta.1");
-    assert.equal(JSON.stringify(h.preferences), JSON.stringify([{ channel: "beta", seenUpdate: "0.3.0-beta.1" }]));
+    assert.equal(JSON.stringify(h.preferences), JSON.stringify([{ channel: "beta", seenUpdate: "0.3.0-beta.1", cliEnabled: true }]));
   }
   const idle = await start();
   idle.seen("0.3.0-beta.1");
@@ -299,14 +300,30 @@ test("main's monitor observes real uncaught exceptions and default rejections wi
   }
 });
 
- test("packaged startup registers CLI and exposes a nonblocking failure only in existing info", async () => {
-  for (const cliProblem of [undefined, "foreign command"]) {
-    const h = await start({ packaged: true, cliProblem });
-    assert.ok(h.window, "CLI failure must not prevent the editor window");
-    const info = h.invoke("desktop:info", []) as { cliProblem?: string };
-    assert.equal(info.cliProblem, cliProblem);
+test("packaged startup defaults on, respects off and reports nonblocking failures in CLI settings", async () => {
+  for (const cliEnabled of [true, false]) for (const cliProblem of [undefined, "foreign command"]) {
+    const h = await start({ packaged: true, cliEnabled, cliProblem });
+    assert.ok(h.window);
+    const state = await h.invoke("desktop:cli-state", []) as { conflict?: string };
+    assert.equal(state.conflict, undefined, "CLI query reads fresh integration state rather than a cached startup error");
+    if (cliEnabled && cliProblem) assert.match(h.logs.join(""), /CLI registration failed: foreign command/);
     assert.equal(h.exits(), 0);
-    assert.equal(h.registrations(), 1);
-    if (cliProblem) assert.match(h.logs.join(""), /CLI registration skipped: foreign command/);
+    assert.equal(h.registrations(), cliEnabled ? 1 : 0);
   }
+});
+
+test("CLI choice persists before OS mutation and rejects invalid or untrusted changes", async () => {
+  const h = await start({ packaged: true });
+  await h.invoke("desktop:cli-set", [false]);
+  assert.equal((h.preferences.at(-1) as { cliEnabled: boolean }).cliEnabled, false);
+  assert.deepEqual(h.cliChanges, [false]);
+  await assert.rejects(async () => h.invoke("desktop:cli-set", [true], false), /Untrusted/);
+  await assert.rejects(async () => h.invoke("desktop:cli-set", ["false"]), /Invalid/);
+  const removalFailure = await start({ packaged: true, cliChangeError: true });
+  await assert.rejects(async () => removalFailure.invoke("desktop:cli-set", [false]), /PATH denied/);
+  assert.equal((await removalFailure.invoke("desktop:cli-state", []) as { enabled: boolean }).enabled, false,
+    "failed OS cleanup still retains the off choice");
+  const failed = await start({ packaged: true, preferenceError: true });
+  await assert.rejects(async () => failed.invoke("desktop:cli-set", [false]), /preferences denied/);
+  assert.deepEqual(failed.cliChanges, [], "preference failure cannot change registration");
 });

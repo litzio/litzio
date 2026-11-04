@@ -1,4 +1,4 @@
-// App preferences in the user data folder: the release channel and the last viewed update version.
+// App preferences in the user data folder: release channel, last viewed update version and CLI choice.
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import semver from "semver";
@@ -6,6 +6,8 @@ import type { ReleaseChannel } from "../../editor/shared/desktop-bridge.ts";
 
 export type Preferences = {
   channel: ReleaseChannel;
+  /** Default on; an explicit off choice survives app updates. */
+  cliEnabled: boolean;
   /** Last viewed offered version; a newer version shows the Settings dot again. */
   seenUpdate: string | null;
 };
@@ -15,6 +17,7 @@ export function readPreferences(file: string, installedVersion: string): Prefere
   const defaults: Preferences = {
     channel: semver.prerelease(installedVersion)?.[0] === "beta" ? "beta" : "stable",
     seenUpdate: null,
+    cliEnabled: true,
   };
   let value: unknown;
   try {
@@ -24,6 +27,7 @@ export function readPreferences(file: string, installedVersion: string): Prefere
   }
   const record = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
   return {
+    cliEnabled: typeof record.cliEnabled === "boolean" ? record.cliEnabled : true,
     channel: record.channel === "stable" || record.channel === "beta" ? record.channel : defaults.channel,
     seenUpdate: typeof record.seenUpdate === "string" && semver.valid(record.seenUpdate) ? record.seenUpdate : null,
   };

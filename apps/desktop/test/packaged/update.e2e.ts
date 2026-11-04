@@ -170,7 +170,7 @@ test("installs per user, then updates from Settings only after the open document
     const exe = path.join(installedAt, `${brand.executableName}.exe`);
     assert.equal(existsSync(exe), true);
     console.log(`installed ${OLD} in ${Date.now() - started} ms at ${installedAt}`);
-    const prefs = { channel: BETA ? "beta" as const : "stable" as const, seenUpdate: OLD };
+    const prefs = { channel: BETA ? "beta" as const : "stable" as const, seenUpdate: OLD, cliEnabled: true };
     const preferencesFile = path.join(appData, "preferences.json");
     const canary = path.join(appData, "update-test-canary.txt");
     mkdirSync(appData, { recursive: true });
@@ -193,7 +193,7 @@ test("installs per user, then updates from Settings only after the open document
     if (!LIVE) {
       const registeredPath = (await cliEnvironment.read()).user;
       assert.notDeepEqual(registeredPath, originalUserPath, "first installed launch registers CLI automatically");
-      assert.equal(await page.getByTestId("cli-integration").count(), 0, "CLI controls have been removed");
+      await page.getByTestId("cli-status").getByText("Installed", { exact: true }).waitFor();
       verifyPackagedCli(exe, brand.cliCommand, documents, OLD, await freshTerminalEnvironment());
       await t.test("CLI startup repairs missing shim without rewriting PATH", { skip: !BETA }, async () => {
         await app.close();
@@ -287,6 +287,11 @@ test("installs per user, then updates from Settings only after the open document
       await page.getByRole("button", { name: "Restart to update" }).click();
       await page.getByTestId("update-problem").waitFor();
       assert.match(await page.getByTestId("update-problem").innerText(), /Save your changes, then restart to update/);
+      if (!LIVE && BETA) {
+        await page.getByRole("button", { name: "Turn off", exact: true }).click();
+        await page.getByTestId("cli-status").getByText("Off", { exact: true }).waitFor();
+        assert.deepEqual((await cliEnvironment.read()).user, originalUserPath);
+      }
       await page.keyboard.press("Escape");
       await page.getByTestId("settings-dialog").waitFor({ state: "detached" });
       assert.equal(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length), 1);
@@ -314,7 +319,11 @@ test("installs per user, then updates from Settings only after the open document
       assert.deepEqual(readPreferences(preferencesFile, NEW), savedPreferences, "saved channel and preferences survived installation");
       assert.equal(readFileSync(canary, "utf8"), "Preserve existing user data.\n");
       assert.ok(readFileSync(log, "utf8").includes(`started ${NEW} (${prefs.channel})`), "the new app loaded the preserved channel");
-      if (!LIVE) verifyPackagedCli(exe, brand.cliCommand, documents, NEW, await freshTerminalEnvironment());
+      if (!LIVE && BETA) {
+        assert.equal(savedPreferences.cliEnabled, false);
+        assert.equal(existsSync(cliBin), false, "update must not recreate explicitly disabled CLI");
+        assert.deepEqual((await cliEnvironment.read()).user, originalUserPath, "update must preserve the off choice");
+      } else if (!LIVE) verifyPackagedCli(exe, brand.cliCommand, documents, NEW, await freshTerminalEnvironment());
     });
   } finally {
     if (server) await new Promise<void>((resolve) => server.close(() => resolve()));

@@ -84,16 +84,21 @@ The owner's additional decision adds a common `--version` option: build-injected
 version and commit identify the executable distribution without runtime manifest reads. Real-user
 Windows acceptance remains explicitly separate from CI.
 
-## Amendment: automatic Windows CLI registration (#1129, 2026-11-04)
+## Amendment: default-on, user-controlled CLI registration (#1129, 2026-11-04)
 
-The owner replaces #604's initially disabled Settings choice with automatic registration on
-first installed app launch and reconciliation on subsequent launches, including after updates.
+The owner's final decision replaces #604's initially disabled default with **on**, retaining
+Settings status and Turn on / Turn off / Repair. The purpose is for external agents that do
+not know Litzio to discover `litzio` on PATH and control it; Paseo's CLI choice is the reference.
+First installed launch registers CLI and later launches reconcile it after updates unless the
+user opted out. `cliEnabled` in existing Desktop preferences remembers that choice using the
+existing temporary-sibling/rename convention. Missing/invalid choice defaults on; explicit
+false is preserved across restart/update, including after a failed OS removal attempt.
+
 Healthy registration does not rewrite PATH or files. Foreign commands and unowned files remain
-protected. Settings CLI controls and their mutation bridge are removed; only a short diagnostic
-in existing About & updates, with a hover/focus explanation, remains on conflict or failure.
-Actual uninstall retains the existing ownership-aware cleanup; updates skip that cleanup.
-First launch reuses the existing registration implementation without adding an installer helper.
-See the [current CLI contract](../design/desktop-distribution-v1.md#optional-command-line-tools-604).
+protected. The existing CLI Settings section reports skipped registration and its hover/focus
+reason without another diagnostic elsewhere. Actual uninstall retains ownership-aware cleanup;
+updates skip that cleanup. First launch reuses the existing implementation without a new NSIS
+install helper. See the [current CLI contract](../design/desktop-distribution-v1.md#optional-command-line-tools-604).
 
 ## Amendment: product branding (#859, 2026-10-31)
 
