@@ -165,5 +165,5 @@ export function AiSettings({ onSaved }: { onSaved(): void }) {
         </div>
       </Dialog>
     </section>;
-  
+
 }
