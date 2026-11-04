@@ -124,7 +124,7 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
         }
       } finally {
         if (live && live.process().exitCode === null) await live.close();
-        if (other) { await other.alive(); await other.stop(); }
+        await other?.stop();
       }
       assert.equal(status!, 0, `${label}: app removal must succeed despite optional cleanup failure`);
       assert.equal(entries(), "", `${label}: uninstall registration removed`);

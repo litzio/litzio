@@ -44,11 +44,18 @@ export async function cliDaemon(executable: string, channel: DaemonChannel) {
   return { record,
     async alive() { await inspectDaemon(record, record.productVersion, () => {}); },
     async stop() {
-      await daemonRpc(record, "/daemon/stop", { ...record, confirm: true });
       let timer: ReturnType<typeof setTimeout> | undefined;
-      try { await Promise.race([exited, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("CLI fixture did not exit")), 10_000); })]); }
+      try {
+        await daemonRpc(record, "/daemon/stop", { ...record, confirm: true });
+        await Promise.race([exited, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error("CLI fixture did not exit")), 10_000); })]);
+        assertExited(record); assertNoDiscovery(channel);
+      } catch (error) {
+        // Preserve the graceful-shutdown failure, but never leave this owned ChildProcess
+        // keeping node:test alive and hiding that failure until the job is cancelled.
+        if (child.exitCode === null && child.signalCode === null) { child.kill(); await exited; }
+        throw error;
+      }
       finally { clearTimeout(timer); }
-      assertExited(record); assertNoDiscovery(channel);
       console.log(`isolated ${channel} CLI daemon lifetime ${Date.now() - started} ms`);
     },
   };
