@@ -309,18 +309,21 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   // Real browser paint is the primary layer for #1124: preflight previously erased
   // the field boundary and transparent native selects produced white-on-white lists.
   const assertChoiceContrast = async () => {
-    const values = await page.locator('.assistant-controls button:not(:disabled), .assistant-choices select').evaluateAll(nodes => nodes.map(node => {
+    const values = await page.locator('.assistant-controls button:not(:disabled), .assistant-choices, .assistant-choices [role=menuitem]').evaluateAll(nodes => nodes.map(node => {
       const style = getComputedStyle(node);
+      let surface = node;
+      while (getComputedStyle(surface).backgroundColor === 'rgba(0, 0, 0, 0)' && surface.parentElement) surface = surface.parentElement;
+      const background = getComputedStyle(surface).backgroundColor;
       const rgb = value => value.match(/[\d.]+/g).map(Number);
       const lum = value => rgb(value).slice(0, 3).map(v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }).reduce((s, v, i) => s + v * [.2126, .7152, .0722][i], 0);
       const ratio = (a, b) => (Math.max(lum(a), lum(b)) + .05) / (Math.min(lum(a), lum(b)) + .05);
-      return { node: node.outerHTML, color: style.color, background: style.backgroundColor, edge: style.borderColor, boundary: ratio(style.borderColor, style.backgroundColor), text: ratio(style.color, style.backgroundColor), border: parseFloat(style.borderWidth), alpha: rgb(style.backgroundColor)[3] ?? 1 };
+      return { control: node.getAttribute("role") !== "menuitem", node: node.outerHTML, boundary: ratio(style.borderColor, background), text: ratio(style.color, background), border: parseFloat(style.borderWidth), alpha: rgb(background)[3] ?? 1 };
     }));
     expect(values.length).toBeGreaterThan(0);
-    for (const value of values) { expect(value.border).toBeGreaterThanOrEqual(1); expect(value.alpha).toBe(1); expect(value.boundary, JSON.stringify(value)).toBeGreaterThanOrEqual(3); expect(value.text).toBeGreaterThanOrEqual(4.5); }
+    for (const value of values) { if (value.control) { expect(value.border).toBeGreaterThanOrEqual(1); expect(value.boundary, JSON.stringify(value)).toBeGreaterThanOrEqual(3); } expect(value.alpha).toBe(1); expect(value.text).toBeGreaterThanOrEqual(4.5); }
   };
   await panel.getByRole('button', {name: 'Provider settings', exact: true}).click();
-  await expect(page.locator('#assistant-provider option')).toHaveText(['Codex']);
+  await expect(page.getByRole('menu', {name: 'Provider settings', exact: true}).getByRole('menuitem')).toHaveText(['Codex']);
   await page.keyboard.press('Escape');
   await panel.getByRole('button', {name: 'Close assistant', exact: true}).click();
   await page.getByRole('button', {name: 'Settings', exact: true}).click();
@@ -333,23 +336,23 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(message).toBeEnabled();
   const defaultWrites = settingsWrites.length;
   await panel.getByRole('button', {name: 'Provider settings', exact: true}).click();
-  await page.locator('#assistant-provider').selectOption('copilot');
+  await page.getByRole('menuitem', {name: 'GitHub Copilot', exact: true}).click();
   await expect(panel.getByRole('button', {name: 'Model settings', exact: true})).toHaveText('Auto');
   await expect(panel.getByRole('button', {name: 'Provider settings', exact: true})).toBeEnabled();
-  await page.keyboard.press('Escape');
   await panel.getByRole('button', {name: 'New conversation', exact: true}).click();
   await expect(panel.getByRole('button', {name: 'Provider settings', exact: true})).toHaveText('Codex');
   await expect(panel.getByRole('button', {name: 'Model settings', exact: true})).toHaveText('GPT Sol');
 
   await panel.getByRole('button', {name: 'Write access settings', exact: true}).click();
-  await page.locator('#assistant-access').selectOption('read-only');
-  await page.keyboard.press('Escape');
+  await page.getByRole('menuitem', {name: 'Read-only', exact: true}).click();
   await expect(panel.getByRole('button', {name: 'Write access settings', exact: true})).toHaveText('Read-only');
   expect(settingsWrites.length).toBe(defaultWrites);
 
   await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveCount(0);
-  await panel.getByRole('button', { name: 'Model settings', exact: true }).click();
-  await expect(page.locator('#assistant-model')).toBeVisible();
+  await panel.getByRole('button', { name: 'Model settings', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('menu', {name: /^(Model settings|모델 설정)$/})).toBeVisible();
+  await expect(page.getByRole('menuitem', {name: 'GPT Sol', exact: true})).toHaveAttribute('aria-current', 'true');
   await assertChoiceContrast();
   await page.keyboard.press('Escape');
   await expect(panel.getByRole('button', { name: 'Model settings', exact: true })).toBeFocused();
@@ -742,7 +745,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(true);
   await expect(panel.getByRole('button', { name: '추론 강도 설정', exact: true })).toContainText('높음');
   await panel.getByRole('button', {name: '모델 설정', exact: true}).click();
-  await expect(page.locator('#assistant-model')).toBeVisible();
+  await expect(page.getByRole('menu', {name: /^(Model settings|모델 설정)$/})).toBeVisible();
   await assertChoiceContrast();
   await page.keyboard.press('Escape');
 
@@ -875,8 +878,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(panel.getByRole('button', { name: 'Stop response' })).toHaveCount(0);
   await expect(panel.getByRole('button', { name: 'New conversation' })).toBeEnabled();
   await panel.getByRole('button', { name: 'Session mode settings', exact: true }).click();
-  await page.getByLabel('Session mode', { exact: true }).selectOption('plan');
-  await page.keyboard.press('Escape');
+  await page.getByRole('menuitem', {name: 'Plan', exact: true}).click();
   await panel.getByRole('textbox').fill('After provider switch');
   await panel.getByRole('textbox').press('Enter');
   await expect(panel.getByText('After provider switch', { exact: true })).toBeVisible();

@@ -80,11 +80,16 @@ export class AiAgentConversations {
     if (typeof id !== "string") throw new Error("Invalid conversation selection.");
     const info = this.list().find(entry => entry.id === id);
     if (!info) throw new Error("Conversation was not found.");
-    settings = { ...settings, provider: info.provider ?? "codex", writeAccess: turnWriteAccess ?? info.writeAccess ?? settings.writeAccess };
+    // Only this Host's memory can retain a user-approved elevation. The cwd index
+    // is assistant-writable and is never authority for a stronger grant.
+    const grants = ["read-only", "opened-folders", "full-access"];
+    const stored = grants.indexOf(info.writeAccess ?? "");
+    const restored = stored >= 0 && stored <= grants.indexOf(settings.writeAccess) ? info.writeAccess! : settings.writeAccess;
+    settings = { ...settings, provider: info.provider ?? "codex", writeAccess: turnWriteAccess ?? this.conversations.get(id)?.writeAccess ?? restored };
     if (!settings.providers[settings.provider]) throw new Error("Selected AI provider is disabled.");
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
     if (info.provider === "copilot") await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? this.connection.copilot.reasoningEffort, settings);
-    const conversation: AiConversation = { ...info, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
+    const conversation: AiConversation = { ...info, writeAccess: settings.writeAccess, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
       tokenUsage: this.conversations.get(id)?.tokenUsage };
     // Install before the RPC so token-usage notifications during resume are retained.
     this.conversations.set(id, conversation);

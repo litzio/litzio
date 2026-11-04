@@ -347,8 +347,8 @@ Same-state source captures: 1440px English Light [Before](assets/reasoning-976/b
 [Before](assets/reasoning-976/before-640.png) / [After](assets/reasoning-976/after-640.png).
 
 
-The composer has a model/effort chip using the shared Popover and
-select controls. The context ring below the input uses the latest token-usage
+The composer opens individual conversation choices directly through the shared
+DropdownMenu/DropdownMenuItem controls. The context ring below the input uses the latest token-usage
 notification and model context window, exposes numbers on hover/focus, and
 recommends a new conversation at 80%. Codex owns automatic compaction. Replies
 remain text; existing-document changes are suggestions with no Apply action.
@@ -919,11 +919,11 @@ Manual owner checks: Host login, available model selection, conversation and
 history, Stop, and read-only/opened-folder writes with the user's configuration.
 ### Copilot choices and application timing (#1091)
 
-The composer uses separate compact outline Buttons/Popovers with native labeled
-`settings-select` controls for provider, model, reasoning effort, write access and
+The composer uses separate compact outline Buttons with direct common
+DropdownMenu/DropdownMenuItem choices for provider, model, reasoning effort, write access and
 (Copilot only) advertised Agent/Plan. Model buttons use the catalog display name.
-Labels use the existing secondary description typography; fields, popup boundaries
-and native option faces use the existing control/surface/text tokens (#1110/#1124). No new common interaction,
+Current values use the existing Check convention and aria-current; menu boundaries
+and item faces use existing control/surface/text tokens (#1110/#1124). No new common interaction,
 Plugin UI contribution or mode default setting is added. Only exact Agent/Plan short
 or protocol IDs are accepted by Host; Autopilot, Allow All and Auto Accept are absent.
 Full access is controlled exclusively by writeAccess. UI controls are locked during
@@ -955,7 +955,7 @@ its effort list cannot veto a newly advertised conversation value. Only the CLI
 fallback uses the fixed seven-value validation. Settings defaults affect new conversations; active conversations retain
 their effort selection. ACP config updates are retained for subsequent validation.
 
-Manual review uses the existing SettingsSelect and composer Button/Popover with no
+The original #1091 manual review used SettingsSelect and composer Button/Popover with no
 new common implementation or UI exception. Korean Dark, 1440×1000 and 640×1000,
 same fixture state: Before uses master `080f7bc1` UI and a rebuilt plugin; After
 uses #1091 UI. Captures are manual review only, not pixel assertions.
@@ -1050,15 +1050,22 @@ explainable through the common Tooltip on hover or keyboard focus.
 
 Write access is captured at each new turn. Steering preserves the running turn's
 scope; an explicit later selection takes effect on the next turn. The history
-index stores the last applied write access and provider, and resume restores them
-independently of current global defaults. The existing permission checks and
+index stores the last applied write access and provider. The index is inside the
+assistant-writable cwd and is not approval authority. The current Host's in-memory
+conversation retains a user-approved override through resume. After Host restart,
+a stored grant can only restore at or below the current global default in the order
+read-only < opened-folders < full-access; invalid values use that default. The
+sanitized value is also returned to the UI. Elevation beyond that cap requires a
+fresh explicit selection in this Host session. This bounds restored state instead
+of adding a second persistent grant store or assuming a sibling directory is
+outside every opened folder. No past-data migration is added. The existing permission checks and
 Copilot launch rules still apply. No assistant tool can change these choices:
 the concrete user-facing send route owns overrides, while model tool dispatch
 remains restricted to the existing document tools. No language selector or Core
 semantic operation is added; this is Host conversation state, with no CLI document
 operation parity requirement.
 
-Shared implementation: outline Button, Tooltip, Popover and `settings-select`;
+Shared implementation: outline Button, Tooltip, DropdownMenu and DropdownMenuItem;
 no new common interaction or style system. NewDialog's existing `form-select`
 already supplies the shared control border and opaque surface, so it needs no
 parallel visual patch. Browser checks protect composer wiring and real computed
@@ -1069,14 +1076,16 @@ model call is required.
 Manual visual evidence: Windows persistent Chrome, same fake catalog and unsaved
 document, 1440×900 Light/English and 640×900 Dark/Korean. The existing
 `pnpm browser:test ai-agent` runner used a temporary capture-only block (removed
-from the automatic scenario) to open Model, then Alt+Down for the native list.
+from the automatic scenario) to open Model directly. Before images retain the original native-list defect;
+after images show the review follow-up direct menu.
 No screenshots-only loop was added to CI. Alignment, padding, viewport bounds,
-Korean wrapping and native list readability were reviewed directly.
+Korean wrapping, current-value checks and open-menu readability were reviewed directly.
+The DOM contrast assertions cover rendered menu surfaces/items, not OS-native options.
 
 | View | Before | After |
 | --- | --- | --- |
-| 1440 Light | [Combined popup](assets/assistant-choices-1110/before-1440.png) | [Separate choices](assets/assistant-choices-1110/after-1440-closed.png), [Model popup](assets/assistant-choices-1110/after-1440.png) |
-| 640 Korean Dark | [White-on-white native list](assets/assistant-choices-1110/before-640-list.png) | [Separate choices](assets/assistant-choices-1110/after-640-closed.png), [Readable native list](assets/assistant-choices-1110/after-640-list.png) |
+| 1440 Light | [Combined popup](assets/assistant-choices-1110/before-1440.png) | [Separate choices](assets/assistant-choices-1110/after-1440-closed.png), [Direct menu](assets/assistant-choices-1110/after-1440.png) |
+| 640 Korean Dark | [White-on-white native list](assets/assistant-choices-1110/before-640-list.png) | [Separate choices](assets/assistant-choices-1110/after-640-closed.png), [Direct menu](assets/assistant-choices-1110/after-640-list.png) |
 
 The shared expanded-button CSS incorrectly removed outline borders as well as
 ghost borders. Removing that redundant reset lets each existing Button variant
@@ -1113,3 +1122,18 @@ writes are used. Captures: 1440px English Light and 640px Korean Dark
 [after wide](assets/ai-settings-1109/after/ai-1440-light-en.png),
 [before narrow](assets/ai-settings-1109/before/ai-640-dark-ko.png),
 [after narrow](assets/ai-settings-1109/after/ai-640-dark-ko.png).
+
+
+Review follow-up (#1131): the existing Host test first reproduced a forged
+`full-access` history entry becoming `dangerFullAccess` after a fresh Host resume
+and a send with no override. It now checks read-only restoration/sending, a safe UI
+snapshot and a valid same-Host elevated override surviving resume. Steering still
+retains the active turn's scope. No real model call or extra subprocess suite is added.
+
+HTTP scope: under [ADR-0005](../adr/0005-http-host.md), an allowed HTTP caller is
+trusted as the single operator (including operator-managed proxy authentication
+or private network access). Its explicit send `writeAccess` is treated as a user
+selection. The Host does not prove a browser click or distinguish that trusted
+caller's custom HTTP request from the UI. This change adds no approval service,
+identity system or protection against a hostile operator/administrator. In contrast,
+assistant-writable history is never accepted as authority to elevate a grant.

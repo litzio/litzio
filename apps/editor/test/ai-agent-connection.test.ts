@@ -177,11 +177,15 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   assert.equal(rpc.find(item => item.method === "thread/start").params.ephemeral, false);
   assert.equal(rpc.find(item => item.method === "turn/steer").params.expectedTurnId, conversation.turns[0]!.id);
   await connection.close();
+  const tampered = JSON.parse(readFileSync(path.join(cwd, "conversations.json"), "utf8"));
+  tampered.find((entry: any) => entry.id === conversation.id).writeAccess = "full-access";
+  writeFileSync(path.join(cwd, "conversations.json"), JSON.stringify(tampered));
   const resumedConnection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
   try {
     const resumed = new AiAgentConversations(resumedConnection, new RootAccess([root]));
     const history = await resumed.resume(conversation.id, { ...settings, provider: "copilot", writeAccess: "read-only" });
-    assert.equal(history.provider, "codex"); assert.equal(history.writeAccess, "opened-folders");
+    assert.equal(history.provider, "codex");
+    assert.equal(history.writeAccess, "read-only", "UI snapshots must expose only the bounded grant before sending");
     assert.deepEqual(history.turns[0]!.items.filter(item => item.kind === "reasoning"), conversation.turns[0]!.items.filter(item => item.kind === "reasoning"));
     assert.equal(JSON.stringify(history).includes("PRIVATE RAW REASONING"), false);
     assert.equal("responseLanguage" in history, false);
@@ -202,7 +206,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
     const deleted = many[0]!; rmSync(deleted);
     await assert.rejects(resumed.send({ ...input, references: [deleted] }, settings));
     assert.equal(history.turns[0]!.status, "interrupted");
-    await resumed.send({ ...input, id: conversation.id, message: "", writeAccess: "read-only" }, settings);
+    await resumed.send({ ...input, id: conversation.id, message: "" }, { ...settings, writeAccess: "read-only" });
     const requests = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
     assert.deepEqual(requests.filter(item => item.method === "turn/start").at(-1).params.sandboxPolicy, { type: "readOnly", networkAccess: false });
     await resumedConnection.client.request("fixture/finish", { threadId: conversation.id });
@@ -217,7 +221,12 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
     const fullStart = fullRpc.filter(item => item.method === "turn/start").at(-1).params;
     assert.deepEqual(fullStart.sandboxPolicy, { type: "dangerFullAccess" });
     assert.equal(fullStart.approvalPolicy, "never");
-    const lastActive = paged.turns.at(-1)!;
+    await resumed.interrupt(conversation.id);
+    assert.equal((await resumed.resume(conversation.id, settings)).writeAccess, "full-access", "same Host retains the user-approved override");
+    await resumed.send({ ...input, id: conversation.id }, settings);
+    const approvedRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+    assert.deepEqual(approvedRpc.filter(item => item.method === "turn/start").at(-1).params.sandboxPolicy, { type: "dangerFullAccess" });
+    const lastActive = resumed.current(conversation.id).turns.at(-1)!;
     await resumedConnection.close(); assert.equal(lastActive.status, "failed"); assert.match(lastActive.error!, /exited/);
   } finally { await resumedConnection.close(); }
 });

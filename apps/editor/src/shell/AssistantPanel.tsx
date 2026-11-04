@@ -3,10 +3,10 @@ import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageSquare, Plus, History, X, ArrowUp, Square } from "lucide-react";
+import { MessageSquare, Plus, History, X, ArrowUp, Square, Check } from "lucide-react";
 import { AI_AGENT, AI_TASK, aiAgentEnabled, type AiAgentSettings, type AiConversation, type AiConversationInfo, type AiModels, type AiFileReference, type AiSkills, type AiDiagnostics } from "@litzio/plugin-api/ai";
 import { Button } from "@/components/ui/button.tsx";
-import { Popover, PopoverContent } from "@/components/ui/popover.tsx";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
 import { i18n, type MessageKey } from "../i18n.ts";
 import { brand } from "../../../../brand.ts";
@@ -370,9 +370,10 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
       <div className="assistant-controls">
         <AssistantChoice label={i18n.t("Provider")} value={provider === "copilot" ? "GitHub Copilot" : "Codex"}
           help={i18n.t(conversation ? "Provider is fixed after a conversation starts. Start a new conversation to change it." : "These choices apply only to this conversation. Defaults are in AI settings.")}
-          disabled={!!conversation || active || pending || !settings || !Object.values(settings.providers).some(Boolean) || !models && !setup} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open}>
-          <select id="assistant-provider" className="form-select settings-select" aria-label={i18n.t("Provider")} value={provider} onChange={event => {
-            const selected = event.target.value as "codex" | "copilot";
+          disabled={!!conversation || active || pending || !settings || !Object.values(settings.providers).some(Boolean) || !models && !setup} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={provider}
+          options={(settings ? Object.entries(settings.providers) : []).filter(([, enabled]) => enabled).map(([value]) => ({ value, label: value === "codex" ? "Codex" : "GitHub Copilot" }))}
+          onSelect={selection => {
+            const selected = selection as "codex" | "copilot";
             void run(async isCurrent => {
               setReady(false);
               try {
@@ -384,25 +385,19 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
                 setReferences(previous => previous.filter(file => file.kind !== "skill")); setMention(null); setHistory(null);
               } finally { if (isCurrent()) setReady(true); }
             });
-          }}>{settings?.providers.codex ? <option value="codex">Codex</option> : null}{settings?.providers.copilot ? <option value="copilot">GitHub Copilot</option> : null}</select>
-        </AssistantChoice>
-        <AssistantChoice label={i18n.t("Model")} value={catalogModel?.displayName ?? model} help={catalogModel?.description || i18n.t(effortHelp)} disabled={active || pending || !models} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open}>
-          <select id="assistant-model" className="form-select settings-select" aria-label={i18n.t("Model")} value={model} onChange={event => { const value = models!.models.find(model => model.model === event.target.value)!; setModel(value.model); if (!conversation || copilot?.reasoningEffortSource !== "cli") setEffort(value.defaultReasoningEffort); }}>
-            {!catalogModel ? <option value={model}>{model}</option> : null}{models?.models.map(value => <option key={value.id} value={value.model}>{value.displayName}</option>)}
-          </select>
-        </AssistantChoice>
-        <AssistantChoice label={i18n.t("Reasoning effort")} value={i18n.t(effort as MessageKey)} help={i18n.t(effortHelp)} disabled={active || pending || !catalogModel || !!conversation && copilot?.reasoningEffortSource === "cli"} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open}>
-          <select id="assistant-effort" className="form-select settings-select" aria-label={i18n.t("Reasoning effort")} value={effort} onChange={event => setEffort(event.target.value)}>{(copilot?.reasoningEfforts ?? catalogModel?.supportedReasoningEfforts)?.map(value => <option key={value.reasoningEffort} value={value.reasoningEffort}>{i18n.t(value.reasoningEffort as MessageKey)}</option>)}</select>
-        </AssistantChoice>
+          }} />
+
+        <AssistantChoice label={i18n.t("Model")} value={catalogModel?.displayName ?? model} help={catalogModel?.description || i18n.t(effortHelp)} disabled={active || pending || !models} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={model} options={models?.models.map(value => ({ value: value.model, label: value.displayName })) ?? []}
+          onSelect={selection => { const value = models!.models.find(model => model.model === selection)!; setModel(value.model); if (!conversation || copilot?.reasoningEffortSource !== "cli") setEffort(value.defaultReasoningEffort); }} />
+
+        <AssistantChoice label={i18n.t("Reasoning effort")} value={i18n.t(effort as MessageKey)} help={i18n.t(effortHelp)} disabled={active || pending || !catalogModel || !!conversation && copilot?.reasoningEffortSource === "cli"} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={effort} options={(copilot?.reasoningEfforts ?? catalogModel?.supportedReasoningEfforts)?.map(value => ({ value: value.reasoningEffort, label: i18n.t(value.reasoningEffort as MessageKey) })) ?? []} onSelect={setEffort} />
+
         <AssistantChoice label={i18n.t("Write access")} value={i18n.t(writeAccess === "full-access" ? "Full access" : writeAccess === "read-only" ? "Read-only" : "Opened folders")}
-          help={i18n.t(writeAccess === "full-access" ? "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text." : "Write access applies to the next turn in this conversation. Global defaults stay unchanged.")} disabled={active || pending || !settings} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open}>
-          <select id="assistant-access" className="form-select settings-select" aria-label={i18n.t("Write access")} value={writeAccess} onChange={event => setWriteAccess(event.target.value as AiAgentSettings["writeAccess"])}>
-            <option value="opened-folders">{i18n.t("Opened folders")}</option><option value="read-only">{i18n.t("Read-only")}</option><option value="full-access">{i18n.t("Full access")}</option>
-          </select>
-        </AssistantChoice>
-        {provider === "copilot" && copilot?.modes.length ? <AssistantChoice label={i18n.t("Session mode")} value={copilot.modes.find(value => value.id === mode)?.name ?? mode} help={i18n.t("Model, reasoning effort and mode changes apply to the next message.")} disabled={active || pending} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open}>
-          <select id="assistant-mode" className="form-select settings-select" aria-label={i18n.t("Session mode")} value={mode} onChange={event => setMode(event.target.value)}>{copilot.modes.map(value => <option key={value.id} value={value.id}>{value.name}</option>)}</select>
-        </AssistantChoice> : null}
+          help={i18n.t(writeAccess === "full-access" ? "Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text." : "Write access applies to the next turn in this conversation. Global defaults stay unchanged.")} disabled={active || pending || !settings} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={writeAccess} options={[
+            { value: "opened-folders", label: i18n.t("Opened folders") }, { value: "read-only", label: i18n.t("Read-only") }, { value: "full-access", label: i18n.t("Full access") },
+          ]} onSelect={value => setWriteAccess(value as AiAgentSettings["writeAccess"])} />
+
+        {provider === "copilot" && copilot?.modes.length ? <AssistantChoice label={i18n.t("Session mode")} value={copilot.modes.find(value => value.id === mode)?.name ?? mode} help={i18n.t("Model, reasoning effort and mode changes apply to the next message.")} disabled={active || pending} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={mode} options={copilot.modes.map(value => ({ value: value.id, label: value.name }))} onSelect={setMode} /> : null}
       </div>
       <div className="assistant-footer">
         <Tooltip><TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>
@@ -445,16 +440,22 @@ function ReferenceChips({ references, remove }: { references: AiFileReference[];
 
 function hasSkillToken(text: string, name: string) { return text.split(/\s+/).includes(`$${name}`); }
 
-/** Each setting owns the same small Button/Popover editing surface. */
-function AssistantChoice({ label, value, help, disabled, visible, choiceOpen, onOpenChange, children }: { label: string; value: string; help: string; disabled: boolean; visible: boolean; choiceOpen: string | null; onOpenChange(open: string | null): void; children: React.ReactNode }) {
-  const anchor = useRef<HTMLButtonElement>(null);
+/** Direct choices reuse the existing menu and item interaction. */
+function AssistantChoice({ label, value, help, disabled, visible, choiceOpen, onOpenChange, selected, options, onSelect }: {
+  label: string; value: string; help: string; disabled: boolean; visible: boolean; choiceOpen: string | null; onOpenChange(open: string | null): void;
+  selected: string; options: { value: string; label: string }[]; onSelect(value: string): void;
+}) {
   const open = choiceOpen === label;
   const change = (value: boolean) => onOpenChange(value ? label : null);
   useEffect(() => { if (!visible) change(false); }, [visible]);
-  return <><Tooltip disabled={open}><TooltipTrigger render={<span tabIndex={disabled ? 0 : undefined} />}>
-    <Button ref={anchor} type="button" variant="outline" size="sm" disabled={disabled} aria-label={i18n.t("{{name}} settings", { name: label })} aria-expanded={open} onKeyDown={event => { if (open && event.key === "Escape") { event.preventDefault(); event.stopPropagation(); change(false); } }} onClick={() => change(!open)}>{value || label}</Button>
-  </TooltipTrigger><TooltipContent className="assistant-choice-help pointer-events-none">{label}: {help}</TooltipContent></Tooltip>
-    <Popover open={open && visible && !disabled} onOpenChange={change}><PopoverContent anchor={anchor} side="top" align="start" className="assistant-choices" finalFocus={anchor}>
-      <label className="settings-description">{label}</label>{children}
-    </PopoverContent></Popover></>;
+  return <DropdownMenu open={open && visible && !disabled} onOpenChange={change}>
+    <Tooltip disabled={open}><TooltipTrigger render={<span tabIndex={disabled ? 0 : undefined} />}>
+      <DropdownMenuTrigger disabled={disabled} render={<Button type="button" variant="outline" size="sm" aria-label={i18n.t("{{name}} settings", { name: label })} />}>{value || label}</DropdownMenuTrigger>
+    </TooltipTrigger><TooltipContent className="assistant-choice-help pointer-events-none">{label}: {help}</TooltipContent></Tooltip>
+    <DropdownMenuContent side="top" align="start" aria-label={label} className="assistant-choices">
+      {options.map(option => <DropdownMenuItem key={option.value} aria-current={selected === option.value ? "true" : undefined} onClick={() => onSelect(option.value)}>
+        <Check aria-hidden="true" style={{ visibility: selected === option.value ? "visible" : "hidden" }} />{option.label}
+      </DropdownMenuItem>)}
+    </DropdownMenuContent>
+  </DropdownMenu>;
 }
