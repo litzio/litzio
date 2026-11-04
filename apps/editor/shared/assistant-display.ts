@@ -12,7 +12,13 @@ export function displayValues(value: unknown, complete = false): DisplayChanges 
     !Object.hasOwn(DISPLAY_SETTINGS, key) || !(DISPLAY_SETTINGS[key as keyof DisplaySettings] as readonly unknown[]).includes(val))) throw new Error("Unsupported display setting or value.");
   return { ...value };
 }
-export type DisplayRequest = { id: string; expiresAt: number; changes?: DisplayChanges; expected?: DisplayChanges };
+export type DisplayRequest = { id: string; validForMs: number; changes?: DisplayChanges; expected?: DisplayChanges };
+export function displayRequestCurrent(request: DisplayRequest, pollStartedAt: number): boolean {
+  // Charge the entire poll round trip to the Host's remaining duration. Starting
+  // at receipt would revive a snapshot delayed beyond the Host's deadline.
+  const elapsed = performance.now() - pollStartedAt;
+  return Number.isFinite(request.validForMs) && elapsed >= 0 && elapsed < request.validForMs;
+}
 export type DisplayReply = { before: DisplaySettings; after: DisplaySettings; error?: string };
 export type DisplayReceipt = DisplayReply & { requestId: string; changed: (keyof DisplaySettings)[] };
 export type DisplaySnapshot = { displayRequest?: DisplayRequest };

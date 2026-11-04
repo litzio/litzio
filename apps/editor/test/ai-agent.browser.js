@@ -254,7 +254,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
         return route.fulfill({ json: { acknowledged: true } });
       }
       if (body.action === 'display-undo') {
-        displayRequest = { id: 'undo-display-' + (++displaySequence), expiresAt: Date.now() + 10000, changes: displayReceipt.before, expected: displayReceipt.after };
+        displayRequest = { id: 'undo-display-' + (++displaySequence), validForMs: 10000, changes: displayReceipt.before, expected: displayReceipt.after };
         const reply = await new Promise(resolve => { displayResolve = resolve; });
         return route.fulfill(reply.error ? { status: 400, json: { error: reply.error } } : { json: { undone: true } });
       }
@@ -819,7 +819,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await panel.getByRole('textbox').press('Enter');
   await expect(panel.locator('.assistant-turn')).toHaveCount(1);
   selected.turns[0].status = 'completed';
-  displayRequest = { id: 'display-read', expiresAt: Date.now() + 10000 };
+  displayRequest = { id: 'display-read', validForMs: 10000 };
   await expect.poll(() => displayReply?.after?.theme).toBe('light');
   const displayBefore = displayReply.after;
   if (screenshots) for (const width of [1440, 640]) {
@@ -829,7 +829,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   const aiWritesBeforeDisplay = settingsWrites.length;
   displayReply = undefined;
   const displayAfter = { theme: 'dark', uiLanguage: 'ko', documentWidth: 'wide', pageBackground: 'flat' };
-  displayRequest = { id: 'display-change', expiresAt: Date.now() + 10000, changes: displayAfter };
+  displayRequest = { id: 'display-change', validForMs: 10000, changes: displayAfter };
   await expect.poll(() => displayReply?.after).toEqual(displayAfter);
   expect(displayReply.error).toBeUndefined();
   displayReceipt = { requestId: 'display-change', before: displayBefore, after: displayAfter, changed: Object.keys(displayAfter).filter(key => displayBefore[key] !== displayAfter[key]) };

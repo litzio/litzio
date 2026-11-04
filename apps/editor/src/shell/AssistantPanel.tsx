@@ -1,4 +1,4 @@
-import { displayValues, type DisplayRequest, type DisplayReply, type DisplayReceipt, type DisplaySnapshot, type DisplaySettings } from "../../shared/assistant-display.ts";
+import { displayRequestCurrent, displayValues, type DisplayRequest, type DisplayReply, type DisplayReceipt, type DisplaySnapshot, type DisplaySettings } from "../../shared/assistant-display.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
@@ -27,7 +27,7 @@ const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
 type Props = { settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
-  onDisplay(request: DisplayRequest): Promise<DisplayReply>;
+  onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
   referenceRequest?: { path: string };
   documentPath: string; folders: string[]; documentDirty: boolean };
@@ -143,13 +143,14 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
       timer = undefined;
       if (!alive || document.visibilityState !== "visible") return;
       polling = true;
+      const pollStartedAt = performance.now();
       try { const next = await request<AiConversation & DisplaySnapshot>(`${AI_AGENT.conversationsRoute}?id=${encodeURIComponent(id)}&displayClient=${encodeURIComponent(displayClient)}`);
         if (alive && document.visibilityState === "visible") {
-          if (next.displayRequest && Date.now() < next.displayRequest.expiresAt) {
+          if (next.displayRequest && displayRequestCurrent(next.displayRequest, pollStartedAt)) {
             const command = next.displayRequest;
             // An ACK can be lost; retransmit the reply, never apply the request twice.
             let reply = displayReplies.current.get(command.id);
-            if (!reply) { reply = await displayHandler.current(command); displayReplies.current.set(command.id, reply); }
+            if (!reply) { reply = await displayHandler.current(command, pollStartedAt); displayReplies.current.set(command.id, reply); }
             await request(AI_AGENT.conversationsRoute, { action: "display-result", id, displayClient, requestId: command.id, reply });
           }
           if (alive && document.visibilityState === "visible") setConversation(next);

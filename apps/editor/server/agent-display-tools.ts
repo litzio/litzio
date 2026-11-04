@@ -5,7 +5,7 @@ export const displayTools = [
   { type: "function", name: "read_display_settings", description: "Read the display settings in the Litzio window that sent this turn. Requires that window's visible assistant panel.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
   { type: "function", name: "change_display_settings", description: "Change only the user's requested Litzio display settings. Propose first and wait for permission unless explicitly requested. Never changes AI permissions, provider/model, plugins or document settings. Requires the sending window's visible assistant panel.", inputSchema: { type: "object", properties: { changes: { type: "object", properties: Object.fromEntries(Object.entries(DISPLAY_SETTINGS).map(([key, values]) => [key, { type: "string", enum: values }])), minProperties: 1, additionalProperties: false } }, required: ["changes"], additionalProperties: false } },
 ];
-type Pending = { conversation: string; client: string; request: DisplayRequest; resolve(reply: DisplayReply): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> };
+type Pending = { conversation: string; client: string; request: Omit<DisplayRequest, "validForMs">; deadline: number; resolve(reply: DisplayReply): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> };
 
 /** Provider-neutral, Host-owned validation and volatile request receipts. No browser storage on Host. */
 export class AgentDisplayRequests {
@@ -13,7 +13,9 @@ export class AgentDisplayRequests {
   private receipts = new Map<string, { conversation: string; client: string; receipt: DisplayReceipt; undone: boolean }>();
   constructor(private timeoutMs = 10_000) {}
   snapshot(conversation: string, client: string) {
-    return [...this.pending.values()].find(value => value.conversation === conversation && value.client === client)?.request;
+    const pending = [...this.pending.values()].find(value => value.conversation === conversation && value.client === client);
+    const validForMs = pending ? pending.deadline - performance.now() : 0;
+    return pending && validForMs > 0 ? { ...pending.request, validForMs } : undefined;
   }
   async execute(name: string, input: unknown, conversation: string, client?: string) {
     if (!displayTools.some(tool => tool.name === name)) throw new Error("Unknown display tool.");
@@ -29,16 +31,16 @@ export class AgentDisplayRequests {
   private async request(conversation: string, client?: string, changes?: DisplayChanges, expected?: DisplayChanges) {
     if (typeof client !== "string" || !client || client.length > 100) throw new Error("No originating Litzio window for display settings. Send from an open assistant panel.");
     if ([...this.pending.values()].some(value => value.conversation === conversation)) throw new Error("A display request is already pending.");
-    const id = randomUUID(), request = { id, expiresAt: Date.now() + this.timeoutMs, ...(changes ? { changes } : {}), ...(expected ? { expected } : {}) };
+    const id = randomUUID(), deadline = performance.now() + this.timeoutMs, request = { id, ...(changes ? { changes } : {}), ...(expected ? { expected } : {}) };
     const reply = await new Promise<DisplayReply>((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(id); reject(new Error("The originating Litzio window did not confirm display settings. It may be closed, hidden or disconnected; application is unconfirmed. Check the window before retrying.")); }, this.timeoutMs);
-      this.pending.set(id, { conversation, client, request, resolve, reject, timer });
+      this.pending.set(id, { conversation, client, request, deadline, resolve, reject, timer });
     });
     return { id, reply };
   }
   reply(conversation: string, client: string, id: string, input: DisplayReply) {
     const pending = this.pending.get(id);
-    if (!pending || pending.conversation !== conversation || pending.client !== client || Date.now() >= pending.request.expiresAt) throw new Error("Display request expired or belongs to another window.");
+    if (!pending || pending.conversation !== conversation || pending.client !== client || performance.now() >= pending.deadline) throw new Error("Display request expired or belongs to another window.");
     const before = displayValues(input?.before, true) as DisplaySettings, after = displayValues(input?.after, true) as DisplaySettings;
     if (input.error !== undefined && typeof input.error !== "string") throw new Error("Invalid display response.");
     if (!input.error && Object.keys(DISPLAY_SETTINGS).some(key => {

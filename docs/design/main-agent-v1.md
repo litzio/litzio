@@ -489,8 +489,16 @@ receives only its pending `displayRequest`. A `display-result` action returns
 validated live before/after values and any application/storage failure. A
 missing originating ID refuses immediately. A closed/hidden panel, hidden tab,
 lost connection or lost acknowledgement expires after 10 seconds with an
-**unconfirmed** result; it never reports success. The screen checks expiration
-before applying. Interruption, turn completion, disconnection and Host shutdown
+**unconfirmed** result; it never reports success. The Host uses its monotonic
+clock for the deadline and acknowledgement check. Each snapshot carries only
+the remaining duration, `validForMs`, rather than an absolute wall-clock time.
+The screen records `performance.now()` before starting the poll and checks the
+elapsed time against that duration both on receipt and immediately before
+applying. Charging the entire round trip conservatively includes network delay
+and queued screen work; starting a new lifetime on receipt would revive delayed
+snapshots. Neither machine compares the other machine's clock origin. A slow
+round trip can refuse early, but cannot extend the Host deadline. Interruption,
+turn completion, disconnection and Host shutdown
 cancel pending work. Application and acknowledgement are not atomic: a timeout
 or cancellation can follow a live change, so the error advises inspecting the
 window before another explicit request. No automatic tool retry occurs. Within

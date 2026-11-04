@@ -1,15 +1,15 @@
-import { displayValues, type DisplayReply, type DisplayRequest, type DisplaySettings } from "../shared/assistant-display.ts";
+import { displayRequestCurrent, displayValues, type DisplayReply, type DisplayRequest, type DisplaySettings } from "../shared/assistant-display.ts";
 import { currentTheme, applyTheme, applyPageBackground } from "./theme.ts";
 import { i18n } from "./i18n.ts";
 import { writePageBackground, writeTheme, writeUiLanguage, writeDocumentWidth, type DocumentWidth } from "./preferences.ts";
 
 /** Uses the same live state and preference writers as Settings; never touches document state. */
-export async function handleDisplayRequest(request: DisplayRequest, width: DocumentWidth, setWidth: (width: DocumentWidth) => void, setTheme: (theme: DisplaySettings["theme"]) => void): Promise<DisplayReply> {
+export async function handleDisplayRequest(request: DisplayRequest, width: DocumentWidth, setWidth: (width: DocumentWidth) => void, setTheme: (theme: DisplaySettings["theme"]) => void, pollStartedAt: number): Promise<DisplayReply> {
   const read = (): DisplaySettings => ({ theme: currentTheme(), uiLanguage: i18n.resolvedLanguage === "ko" ? "ko" : "en", documentWidth: width,
     pageBackground: document.documentElement.dataset.page === "flat" ? "flat" : "paper" });
   const before = read();
   try {
-    if (Date.now() >= request.expiresAt) throw new Error(i18n.t("Display request expired."));
+    if (!displayRequestCurrent(request, pollStartedAt)) throw new Error(i18n.t("Display request expired."));
     if (!request.changes) return { before, after: before };
     const changes = displayValues(request.changes);
     if (request.expected && Object.entries(displayValues(request.expected)).some(([key, value]) => before[key as keyof DisplaySettings] !== value)) throw new Error(i18n.t("Display settings changed since this action. Undo was not applied."));
