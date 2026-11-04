@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Decision date: 2026-11-04
-- Last verified: 2026-11-04 — #1142 본문 ①~⑥, #834 결정 기록·S1 결과와 기존 문서·현재 `daemon run --root` 코드를 대조. 제품 실행·배포 검증은 하지 않음.
+- Last verified: 2026-11-04 — #1142 본문 ①~⑥·소유자의 `--root` 선택 옵션 추가 승인, #834 결정 기록·S1 결과와 기존 문서·현재 `daemon run --root` 코드를 대조. 제품 실행·배포 검증은 하지 않음.
 - Authority: [#1142 소유자 결정](https://github.com/litzio/litzio/issues/1142), [#834 S1 승인 조건](https://github.com/litzio/litzio/discussions/834#discussioncomment-19389153), under [AGENTS.md](../../AGENTS.md).
 - Scope: 같은 PC의 Desktop·브라우저가 사용하는 공유 로컬 HTTP Host로의 1단계 전환. PR1은 결정 문서만 작성하며 구현 완료를 뜻하지 않는다.
 - Amends: [ADR-0004](0004-desktop-host-distribution.md), [ADR-0005](0005-http-host.md), [ADR-0012](0012-plugin-runtime-and-ui-contributions.md), [ADR-0015](0015-shared-host-operations.md)의 아래 명시한 경계. 나머지 결정은 유지한다.
@@ -29,7 +29,9 @@ daemon이 OS 휴지통을 직접 쓴다. 같은 PC의 모든 클라이언트가 
 
 **로컬 daemon은 Root 제한 없음, 토큰 인증 필수, 중앙 서버의 Workspace 제한은 막지 않음**으로 정한다. Desktop의 전체 로컬 접근을 유지하기 위한 결정이다. S1의 폴더별 Root 누적 등록·철회 모델은 채택하지 않는다. Root 제한 없음이 Core의 valid write, revision 확인이나 기존 파일 교체 보호를 없애지는 않는다.
 
-현재 `daemon run --root <folder>`는 하나 이상의 Root가 필수인 전경 HTTP Host다(`packages/cli/src/serve.ts`, `apps/editor/server/http-host.ts`). PR1은 이를 바꾸지 않는다. 이 제한 실행을 전환 후에도 선택 모드로 유지할지는 승인 근거에 명시되지 않았으므로 이 ADR에서 새로 결정하지 않고 PR 질문으로 남긴다. 현재 필수 옵션을 이미 선택 옵션으로 바뀐 것처럼 설명하지 않는다.
+소유자의 추가 승인에 따라 `daemon run --root`는 전환 후 선택 옵션으로 남긴다. `--root`를 생략하면 Root 제한 없는 로컬 전체 접근이며 Desktop이 띄우는 기본 모드다. 이 모드는 loopback과 토큰 인증이 필수다. `--root`를 지정하면 현재처럼 지정한 폴더만 접근한다. 이는 중앙 서버 Workspace 제한의 출발점이며 테스트와 기존 HTTP Host 사용법을 유지한다. non-loopback 바인딩의 `--public-origin` 및 접근 통제 프록시·네트워크 요구는 바꾸지 않는다.
+
+현재 구현은 여전히 하나 이상의 Root가 필수인 전경 HTTP Host다(`packages/cli/src/serve.ts`, `apps/editor/server/http-host.ts`). 실제 옵션 변경은 PR2에서 구현한다. PR1은 코드와 현재 Implemented 계약을 바꾸지 않는다.
 
 ### ④ 샘플 문서 수명
 
@@ -56,7 +58,7 @@ plain-text SSOT, Core의 editor-neutral 문서 의미·valid write와 File commi
 | PR | 범위 | 완료 조건 |
 | --- | --- | --- |
 | PR1 | 이 ADR, ADR-0004·0005·0012·0015와 AGENTS.md 개정·색인 | 승인 결정과 보류 범위를 연결하고 Implemented 문서에는 후속 연결만 둔다. `pnpm docs:check` 통과. 코드 변경 없음. |
-| PR2 | daemon `start/stop/status`, 단일 인스턴스 lock, 토큰 인증, 버전, OS 휴지통 | 위 시작·인증·단일 인스턴스·버전 정책과 같은 PC 휴지통 동작을 구현·검증하고 관련 계약을 갱신한다. |
+| PR2 | daemon `start/stop/status`, `run --root` 선택 옵션, 단일 인스턴스 lock, 토큰 인증, 버전, OS 휴지통 | 위 시작·인증·단일 인스턴스·버전 정책과 같은 PC 휴지통 동작을 구현·검증하고 관련 계약을 갱신한다. |
 | PR3 | Desktop 전환, custom protocol 제거, OS 기능, 샘플 수명, 고정 origin, 종료 정책·메뉴, 한정 테스트 제외 | Desktop이 공유 daemon만 사용하고 ①~⑤를 충족한다. ⑥의 제외 전 CI 시간과 제외 범위를 기록하고 해당 계약을 갱신한다. |
 | PR4 | 플러그인·AI 수명, 테스트 복구 | 새 수명 계약으로 일시 제외한 플러그인 테스트를 복구하고 필수 CI 전체 통과. 관련 계약 갱신과 함께 1단계를 완료한다. |
 
