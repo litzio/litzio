@@ -19,7 +19,7 @@ the adoption conditions below and update the affected contracts.
 
 ## Amendment: 공식 AI·Docling 전환과 Desktop 번들 UI (2026-11-04, #1150)
 
-[ADR-0017](0017-bundled-client-and-official-ai.md)은 AI를 daemon 공식 기능으로 흡수하고, Docling을 전환 기간 기본 설치·CI에서 분리한 뒤 플러그인으로 재연결한다. 기존 기본 포함 AI 플러그인·Docling 계속 번들 결정은 이 범위에서 대체된다. 플러그인 기반은 fixture로 검증하며 재연결까지 릴리스하지 않는다. Desktop 번들 UI에서는 daemon 자산의 same-origin 전제를 개정하고 Host 클라이언트를 통해 대상 주소를 적용한다. 플러그인 UI 신뢰 추천은 ADR-0017에서 소유자 확인 대기로 구분한다. 아래 구현 기록은 보존하며 실제 계약 갱신은 구현 PR에서 한다.
+[ADR-0017](0017-bundled-client-and-official-ai.md)은 AI를 항상 존재하는 daemon 공식 기능으로 흡수하고, 전환 기간 플러그인 시스템 전체를 일시 중단한다. daemon의 worker·route·UI 기여 ESM/CSS, Desktop 플러그인 UI와 관리 CLI/설정 연결을 중단한다. 코드는 남기되 연결하지 않고 플러그인 테스트·fixture 실행 검증도 재개 때로 미룬다. 소유자가 명시적으로 재개를 개시할 때까지 Docling을 사용할 수 없고 릴리스하지 않는다. 재개 시 Docling을 새 구조와 공식 AI에 연결하며 서비스 계약·테스트를 복원하고, UI 신뢰·번들 origin의 ESM/CSS 경계와 제외 종료 적용을 결정한다. fixture만으로 재개 완료를 선언하지 않는다. 아래 구현 기록은 보존하며 실제 계약 갱신은 구현 PR에서 한다.
 
 ## Amendment: 공유 로컬 daemon Host (2026-11-04, #1142)
 

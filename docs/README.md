@@ -24,7 +24,7 @@
 | [ADR-0014: Main agent app-server](adr/0014-main-agent-app-server.md) | Accepted | #931 Host 소유 stdio 연결, 사용자 Codex 환경 재사용, 앱 데이터 cwd, provider 이름만 전제한 구조와 ADR-0013 조건 2 변경. 연결·설정·대화의 소유권과 후속 문서 작성 기능의 경계. |
 | [ADR-0015: Shared Host operations](adr/0015-shared-host-operations.md) | Accepted | 2026-11-04 #1132 소유자 승인. 새 사용자 기능의 입력·결과·범위·receipt 공용 정의와 CLI 필수, 필요 시 비서 도구. #1128 첫 사례와 동시 편집 대비 경계. 로컬 daemon 자동 탐색·연결·수명은 ADR-0016으로 개정하고 편집 상태 공유는 보류. |
 | [ADR-0016: 공유 로컬 daemon Host](adr/0016-shared-local-daemon-host.md) | Accepted | 2026-11-04 #1142 소유자 결정 ①~⑥. 인증 보류(#1145)·단일 인스턴스·버전·수명·Root·휴지통·샘플·origin, PR1~PR4와 기간 한정 테스트 예외·릴리스 중단. PR2/PR3 daemon·Desktop 구현 계약은 HTTP Host/ Desktop distribution, 플러그인 수명·테스트 복구는 PR4. 공유 편집은 보류. |
-| [ADR-0017: Desktop 번들 UI와 daemon 공식 AI](adr/0017-bundled-client-and-official-ai.md) | Accepted | #1150 소유자 결정. 공식 AI·설정 CLI, Docling 분리·재연결과 릴리스 중단, Host 클라이언트·번들 UI·origin 전환. 플러그인 UI 신뢰는 확인 대기 추천, Docling 제외 종료 판정은 결정 대기. AI 스위치는 없고 프로바이더 가용성으로 신규 요청을 판단. 구현 완료 아님. |
+| [ADR-0017: Desktop 번들 UI와 daemon 공식 AI](adr/0017-bundled-client-and-official-ai.md) | Accepted | #1150 소유자 결정. 공식 AI·프로바이더 가용성·설정 CLI, 플러그인 시스템 전체 일시 중단·테스트 제외·릴리스 중단, Host 클라이언트·번들 UI 전환. 소유자 개시 시 재개·Docling 재연결 및 플러그인 UI 경계·제외 종료 적용 결정. 구현 완료 아님. |
 
 ## Current implemented contracts
 

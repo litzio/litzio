@@ -9,7 +9,7 @@
 - 기존 코드와 검증된 라이브러리를 재사용하고, 필요성이 확인되지 않은 abstraction이나 infrastructure를 추가하지 않는다.
 - 정상 동작하는 주변 코드를 현재 작업과 무관하게 재설계하거나 리팩터링하지 않는다.
 - 기존 기술로 해결 가능한 parser, AST, document format, editor engine 등을 불필요하게 재구현하지 않는다.
-- 기술적 제약이나 실패를 숨기기 위해 테스트 기준을 약화하거나 동작을 우회하지 않는다. 소유자가 승인한 유일한 기간 한정 예외는 [ADR-0016 ⑥](docs/adr/0016-shared-local-daemon-host.md#⑥-기간-한정-플러그인-테스트-예외)의 느리고 in-process 수명에 묶인 플러그인 테스트와 [ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)의 Docling 전환 기간 기본 설치·CI 제외다. 제외 전 CI 시간·목록·복구 대상을 기록하고, 기존 테스트는 PR4에서 복구하며 Docling 제외의 구체 종료 판정은 ADR-0017의 소유자 결정 대기로 두고 재연결까지 릴리스 중단을 유지한다. 플러그인 기반은 fixture로 검증하며 예외 기간에는 릴리스하지 않는다.
+- 기술적 제약이나 실패를 숨기기 위해 테스트 기준을 약화하거나 동작을 우회하지 않는다. 소유자가 승인한 기간 한정 예외는 [ADR-0016 ⑥](docs/adr/0016-shared-local-daemon-host.md#⑥-기간-한정-플러그인-테스트-예외)의 PR3 플러그인 테스트 제외와 [ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)의 플러그인 시스템 전체 일시 중단·관련 테스트 제외다. 기존 제외는 PR4에서 복구하고 후속 중단은 소유자가 명시적으로 재개를 개시할 때까지 적용한다. 제외 전 CI 시간·목록·복구 대상을 기록하며 fixture 검증도 재개 때 수행한다. 그때까지 Docling을 사용할 수 없고 릴리스하지 않는다. fixture만으로 재개 완료를 선언하지 않는다.
 - 개발 단계이므로 소유자가 Migration을 명시적으로 지시하지 않는 한, 이미 저장된 Litzio 문서·복구 기록·설정 등 과거 데이터의 하위 호환성을 설계 판단이나 구현 범위에 포함하지 않는다. 사람·AI·CLI가 앞으로 작성하는 입력의 처리는 이 규칙과 별개다.
 
 ## Architectural constraints
@@ -27,7 +27,7 @@
 - Editor는 ADR-0010에 따라 최소 640px의 데스크톱급 창과 키보드·포인터 입력을 지원 대상으로 한다. 휴대폰 폭·터치 전용 레이아웃이나 검증은 실제 사용자가 확인되어 별도 결정이 나기 전까지 계획하지 않는다.
 - [ADR-0016](docs/adr/0016-shared-local-daemon-host.md)에 따라 Desktop은 같은 PC의 공유 daemon(HTTP Host; 현재 단계는 인증 없음, #1145에서 방식·시점 선택)에 연결하는 방향으로 전환한다. `apps/editor/server`의 공용 파일 Host handler와 Core 의미·공식 write path를 재사용한다. 화면과 독립된 daemon 수명 및 ADR-0012의 플러그인 등록·요청 기록을 허용하되, 이를 범용 persistence/backend나 공유 편집 세션의 근거로 확장하지 않는다. Desktop은 PR3부터 공유 daemon에만 연결하며 띄운 주체별 종료·명시적 종료·수동 다시 연결을 ADR-0016에 따른다. 플러그인·AI 수명 계약과 한정 테스트 복구는 PR4다.
 
-[ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)에 따라 PR4 이후 AI 공식 기능 흡수·Docling 분리, Host 클라이언트, Desktop 번들 UI 전환, Docling 재연결 순으로 진행한다. 원격 Host 설정·여러 Host 동시 보기는 이번 범위 밖이다.
+[ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)에 따라 PR4 → ADR → AI 공식 기능 흡수·플러그인 시스템 전체 중단 → Host 클라이언트 → Desktop 번들 UI 전환 → 소유자 개시 시 플러그인 재개·Docling 재연결 순으로 진행한다. 중단 기간에는 daemon의 플러그인 worker·route·ESM/CSS와 Desktop 플러그인 UI를 연결하지 않고 관리 CLI·설정 영역은 미제공 또는 일시 중단 상태로 둔다. 원격 Host 설정·여러 Host 동시 보기는 이번 범위 밖이다.
 
 이 원칙을 이유로 미래 구조나 기능을 선제적으로 구현하지 않는다.
 
@@ -49,7 +49,7 @@
 - `packages/core/test/` — Core의 document semantics와 canonical round-trip 계약을 검증한다.
 - `packages/cli/` — `@litzio/core`의 얇은 명령줄 인터페이스. 문서 의미나 AST 처리 로직을 구현하지 않는다.
 - `packages/file-commit/` — CLI와 Editor Host가 공유하는 Node 전용 파일 교체(revision 확인, temporary sibling, rename). 문서 의미를 알지 않는다.
-- `apps/editor/server` — 공용 HTTP Host handler. ADR-0017에서 AI는 플러그인에서 daemon 공식 기능으로 옮기며 AI 수명은 daemon을 따른다. 구체 코드 위치와 현재 동작 계약은 구현 PR에서 갱신한다. Docling은 전환 기간 분리 뒤 플러그인으로 재연결한다.
+- `apps/editor/server` — 공용 HTTP Host handler. ADR-0017에서 AI는 플러그인에서 daemon 공식 기능으로 옮기며 AI 수명은 daemon을 따른다. 구체 코드 위치와 현재 동작 계약은 구현 PR에서 갱신한다. 플러그인 시스템은 전체 일시 중단하며 소유자 재개 개시 때 Docling을 새 구조와 공식 AI에 연결한다.
 - `apps/editor/` — Core-backed Visual Editor. MyST AST를 직접 다루지 않고 Core read model과 Core operations만 사용한다.
 - `apps/desktop/` — Electron Windows shell, NSIS 패키징과 Stable/Beta 업데이트. ADR-0016의 공유 로컬 daemon 수명을 따르고 ADR-0017에서 앱 번들 UI + 대상 Host를 아는 HTTP 클라이언트로 전환한다. 문서 의미를 구현하지 않는다.
 - [UI 결정표와 갤러리](docs/design/ui-decision-table-v1.md) — UI 작업의 진입점. 기존 토큰·variant·아이콘 관례 안의 선택은 묻지 않고 정한다. 새 표면 구조·기존 계약 변경·새 공통 상호작용·공개 Plugin API 변경만 소유자에게 올린다. 결과에는 선택한 공통 구현과 예외 이유를 적는다.

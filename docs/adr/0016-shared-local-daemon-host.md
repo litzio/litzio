@@ -9,7 +9,7 @@
 
 ## Amendment: Desktop 번들 UI와 Docling 전환 (2026-11-04, #1150)
 
-[ADR-0017](0017-bundled-client-and-official-ai.md)은 PR4 이후 Desktop이 daemon UI를 로드하는 구조를 앱 번들 UI + HTTP Host 클라이언트로 전환하도록 결정한다. daemon의 브라우저 UI·고정 HTTP origin과 기존 수명 정책은 유지한다. AI는 daemon 공식 기능으로 흡수하고 Docling은 전환 기간 분리 후 플러그인으로 재연결한다. 이 결정은 구현 완료 선언이 아니며 아래 PR1~PR4의 기록을 보존한다.
+[ADR-0017](0017-bundled-client-and-official-ai.md)은 PR4 이후 Desktop이 daemon UI를 로드하는 구조를 앱 번들 UI + HTTP Host 클라이언트로 전환하도록 결정한다. daemon의 브라우저 UI·고정 HTTP origin과 기존 수명 정책은 유지한다. AI는 daemon 공식 기능으로 흡수하고 플러그인 시스템 전체를 일시 중단한다. 소유자가 재개를 개시할 때 Docling을 새 구조 위 플러그인으로 공식 AI에 연결한다. 이 결정은 구현 완료 선언이 아니며 아래 PR1~PR4 기록을 보존한다.
 
 ## Context
 
@@ -74,7 +74,7 @@ daemon은 고정 HTTP origin을 쓴다. PR3의 Desktop은 daemon UI를 로드하
 
 PR3에서 해당 범위만 일시 제외하고 PR4에서 새 플러그인·AI 수명 계약으로 복구한다. 일시 제외한 테스트 복구와 필수 CI 전체 통과를 1단계 완료 조건으로 삼는다. **예외가 적용되는 기간에는 릴리스하지 않는다.** 복구 전에는 1단계 완료나 릴리스 가능 상태로 보고하지 않는다.
 
-**#1150 소유자 예외 연장:** PR4의 기존 제외 테스트 복구 뒤, [ADR-0017](0017-bundled-client-and-official-ai.md)의 AI 흡수·Docling 분리부터 재연결까지 Docling을 기본 설치와 CI에서 제외할 수 있다. 그 기간 Docling은 사용할 수 없고 플러그인 기반은 fixture로 계속 검증한다. 분리 전 CI 시간·제외 목록·복구 대상을 기록한다. Docling 재연결·관련 테스트 복구·필수 CI 전체 통과는 종료 조건안이며 구체 종료 판정은 ADR-0017의 소유자 결정 대기로 둔다. 재연결까지 릴리스하지 않는다. PR4 완료만으로 이 후속 전환의 완료나 릴리스 가능을 선언하지 않는다. 그 밖의 테스트·문서 유효성·데이터 보존 기준은 그대로다.
+**#1150 소유자 예외 확대:** PR4의 기존 제외 테스트 복구 뒤 [ADR-0017](0017-bundled-client-and-official-ai.md)에 따라 플러그인 시스템 전체를 일시 중단하고 관련 테스트를 제외한다. daemon의 플러그인 worker·route·UI 기여 ESM/CSS와 Desktop 플러그인 UI를 연결하지 않으며, `plugins` CLI·설정 영역은 제공하지 않거나 일시 중단 상태로 둔다. 코드는 보존한다. 제외 전 CI 시간·제외 목록·복구 대상을 기록하고 fixture 실행 검증도 재개 때로 옮긴다. 중단 기간은 소유자가 명시적으로 플러그인 재개를 개시할 때까지이며 그때까지 Docling은 사용할 수 없고 릴리스하지 않는다. 재개 시 Docling을 새 구조와 공식 AI에 연결하고 UI 경계·제외 종료 적용을 결정한다. fixture만으로 재개 완료를 선언하지 않는다. 다른 테스트·문서 유효성·데이터 보존 기준은 그대로다.
 
 ## Boundaries retained
 
