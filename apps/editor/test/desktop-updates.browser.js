@@ -704,4 +704,3 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   }
   return {calls: recorded, screenResults, separatorGeometry};
 }
-
