@@ -73,7 +73,7 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   await dialog.getByRole('textbox',{name:'File name',exact:true}).fill('b');
   await dialog.getByRole('button',{name:'Rename',exact:true}).click();
   await expect(dialog.getByRole('alert')).toContainText('already exists');
-  await dialog.getByRole('textbox',{name:'File name',exact:true}).fill('renamed');
+  await dialog.getByRole('textbox',{name:'File name',exact:true}).fill('renamed.MD');
   await dialog.getByRole('button',{name:'Rename',exact:true}).click();
   await dialog.waitFor({state:'hidden'}); await row('renamed.md').waitFor();
   await expect(activeDocument(page).getByTestId('document-editor')).toHaveAttribute('data-table-wrap','false');

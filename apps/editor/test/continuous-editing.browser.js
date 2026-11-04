@@ -202,7 +202,7 @@ async (page, { expect, showNotifications, openDocument }) => {
   await page.route('**/api/ai-agent-environment*', route => route.fulfill({json:{cwd:'/fixture',instructions:'/fixture/AGENTS.md',skills:[]}}));
   await page.route('**/api/ai-agent-diagnostics*', route => route.fulfill({json:{provider:'codex',connected:true,account:{type:'fixture'}}}));
   await page.route('**/api/ai-agent-models*', route => route.fulfill({json:{provider:'codex',updatedAt:0,models:[{id:'fixture',model:'fixture',displayName:'Fixture',description:'',defaultReasoningEffort:'low',supportedReasoningEfforts:[{reasoningEffort:'low',description:''}]}]}}));
-  await settings.getByRole('navigation').getByRole('button', {name:'AI agent',exact:true}).click();
+  await settings.getByRole('navigation').getByRole('button', {name:'Assistant',exact:true}).click();
   await settings.getByRole('button', {name:'Codex models',exact:true}).click();
   const modelDialog = page.getByRole('dialog', {name:'Codex models',exact:true});
   const modelSearch = modelDialog.getByRole('textbox', {name:'Search models',exact:true});
