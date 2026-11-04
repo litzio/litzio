@@ -284,7 +284,7 @@ const COMMANDS: CommandSpec[] = [
       `${brand.cliCommand} daemon start|status [--channel <stable|beta|development>]`,
       `${brand.cliCommand} daemon stop --confirm [--channel <stable|beta|development>]`,
       "start connects or starts one local background daemon; status --browser-url prints a secret login URL.",
-      "Local mode: 127.0.0.1 with a fixed channel port (43127 stable, 43128 beta, 43129 development).",
+      "Local mode: 127.0.0.1 with a stable port derived from the OS user identity and channel (20000–44575).",
       "Without --root, loopback and token authentication are required. Repeat --root to restrict folders.",
       "Roots are server filesystem access boundaries,",
       "not a workspace or an initial folder selection. Use Open Folder to choose a root or subfolder.",

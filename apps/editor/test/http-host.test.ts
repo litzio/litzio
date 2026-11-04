@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { randomUUID } from "node:crypto";
 import { folderVersion } from "../server/folder-watch.ts";
 import { listenForFetch, startFetchServer } from "../../../test/helpers/fetch-server.ts";
 import { nativeSource } from "./helpers/document.ts";
@@ -209,9 +210,9 @@ async function fixture(t: TestContext, external?: string, authenticated = false)
   const previousPlugins = process.env.LITZIO_PLUGINS_DIR;
   process.env.LITZIO_PLUGINS_DIR = path.join(base, "plugins");
   const trashed: string[] = [];
-  const token = "test-token", health = { pid: process.pid, startedAt: new Date().toISOString(), instanceId: "test-instance", productVersion: "test-product", protocolVersion: DAEMON_PROTOCOL };
+  const token = randomUUID(), health = { pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), productVersion: "test-product", protocolVersion: DAEMON_PROTOCOL };
   let stopped = false;
-  const host = await startFetchServer(() => startHttpHost({ editorDir, roots: authenticated ? [] : [a, b], port: 0, publicOrigin: external,
+  const host = await startFetchServer(() => startHttpHost({ editorDir, roots: authenticated && !external ? [] : [a, b], port: 0, publicOrigin: external,
     ...(authenticated ? { daemon: { token, health, stop: () => { stopped = true; } } } : {}),
     removeFile: file => { trashed.push(file); fs.renameSync(file, path.join(base, "trashed-" + path.basename(file))); } }));
   if (previousPlugins === undefined) delete process.env.LITZIO_PLUGINS_DIR; else process.env.LITZIO_PLUGINS_DIR = previousPlugins;
@@ -240,7 +241,23 @@ test("daemon gates static/API/media, exchanges a browser cookie, checks versions
   assert.equal(session.status, 200);
   const cookie = session.headers.get("set-cookie")!;
   assert.match(cookie, /HttpOnly; SameSite=Strict; Path=\//);
+  assert.doesNotMatch(cookie, /; Secure/);
   assert.equal((await send(`/api/folder?${new URLSearchParams({ root: outside })}`, "GET", undefined, { Cookie: cookie.split(";")[0]! })).status, 200);
+  const other = await fixture(t, undefined, true);
+  const otherHeaders = { Authorization: `Bearer ${other.token}`, "X-Litzio-Protocol": DAEMON_PROTOCOL };
+  const otherSession = await other.send("/daemon/session", "POST", {}, otherHeaders);
+  assert.equal(otherSession.status, 200);
+  // Same hostname/Path: browser cookie replacement uses names, never ports.
+  const jar = new Map<string, string>();
+  const storeCookie = (value: string) => { const pair = value.split(";")[0]!; jar.set(pair.split("=")[0]!, pair); };
+  storeCookie(cookie); storeCookie(otherSession.headers.get("set-cookie")!);
+  assert.equal(jar.size, 2, "concurrent daemon logins must have separate cookie storage keys");
+  for (const sendTo of [send, other.send]) assert.equal((await sendTo("/api/document", "GET", undefined, { Cookie: [...jar.values()].join("; ") })).status, 200);
+  storeCookie((await send("/daemon/session", "POST", {}, headers)).headers.get("set-cookie")!);
+  for (const sendTo of [send, other.send]) assert.equal((await sendTo("/api/document", "GET", undefined, { Cookie: [...jar.values()].join("; ") })).status, 200, "relogin cannot log out the other endpoint");
+  const proxy = await fixture(t, "https://docs.example", true);
+  const proxySession = await proxy.send("/daemon/session", "POST", {}, { Authorization: `Bearer ${proxy.token}`, "X-Litzio-Protocol": DAEMON_PROTOCOL, Origin: "https://docs.example" });
+  assert.equal(proxySession.status, 200); assert.match(proxySession.headers.get("set-cookie")!, /; Secure/);
   const warnings: string[] = [], record = { ...health, url };
   assert.deepEqual(await inspectDaemon(record, token, "new-product", message => warnings.push(message)), health);
   assert.match(warnings.join(), /WARNING.*restart explicitly/);
@@ -258,6 +275,9 @@ test("HTTP unrestricted access rejects non-loopback or absent authentication bef
   for (const options of [{}, { host: "0.0.0.0", publicOrigin: "https://docs.example" }]) {
     await assert.rejects(startHttpHost({ roots: [], editorDir: "unused", ...options }), /Unrestricted access requires/);
   }
+  await assert.rejects(startHttpHost({ roots: [], editorDir: "unused", publicOrigin: "https://docs.example",
+    daemon: { token: "valid-token", health: { pid: process.pid, startedAt: new Date().toISOString(), instanceId: "local", productVersion: "test", protocolVersion: DAEMON_PROTOCOL }, stop() {} },
+  }), /Unrestricted access does not allow --public-origin/);
 });
 
 test("HTTP trash failure preserves the original file without permanent deletion", async t => {

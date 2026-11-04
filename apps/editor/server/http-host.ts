@@ -51,6 +51,7 @@ export async function startHttpHost(options: HttpHostOptions) {
   const external = options.publicOrigin === undefined ? undefined : publicOrigin(options.publicOrigin);
   if (!loopback(host) && !external) throw new Error("Non-loopback binding requires --public-origin and an access-controlled proxy/network.");
   if (!options.roots.length && (!loopback(host) || !options.daemon?.token)) throw new Error("Unrestricted access requires loopback and daemon token authentication.");
+  if (!options.roots.length && external) throw new Error("Unrestricted access does not allow --public-origin. Specify --root for proxy/remote access.");
   const access = options.roots.length ? new RootAccess(options.roots) : LOCAL_FILE_ACCESS;
   const editorDir = realpathSync(options.editorDir);
   if (!statSync(path.join(editorDir, "index.html")).isFile()) throw new Error("The production Editor build is missing.");
@@ -92,7 +93,7 @@ export async function startHttpHost(options: HttpHostOptions) {
     if (writing && (url.pathname !== "/api/asset" || req.method === "DELETE") && !/^application\/json(?:\s*;|$)/i.test(req.headers["content-type"] ?? "")) {
       return json(res, 415, "Expected application/json.");
     }
-    if (options.daemon && await daemonRequest(req, res, url, options.daemon)) return;
+    if (options.daemon && await daemonRequest(req, res, url, options.daemon, external ?? `http://${authority(host, req.socket.localPort!)}`)) return;
     // Full local access must not select Vite's checkout-relative development sample.
     if (!access && url.pathname === "/api/document" && req.method === "GET" && !url.searchParams.get("path")?.trim()) {
       res.setHeader("Content-Type", "application/json; charset=utf-8"); res.end(JSON.stringify({ start: true })); return;

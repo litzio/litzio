@@ -33,8 +33,15 @@ Local mode has no `--host`, `--root`, `--port` or `--public-origin`. Only this l
 unrestricted, token-authenticated instance is registered for Desktop discovery. Manual modes
 are never published as Desktop candidates. `start/stop/status` manage only the local instance.
 `--channel stable|beta|development` selects the user/channel namespace: default is development
-for source, beta for prerelease builds, otherwise stable. Fixed ports are **43127/43128/43129**
-respectively. A busy port fails; no alternate port or automatic replacement.
+for source, beta for prerelease builds, otherwise stable. The fixed origin is derived from the OS
+user identity (Windows SID via `whoami /user /fo csv /nh`, POSIX numeric UID) and channel:
+SHA-256 of `brand.appId`, NUL and `sid:<SID>`/`uid:<UID>`, first unsigned big-endian 32 bits modulo
+8192 gives a user slot; port is `20000 + slot * 3 + channelOffset` (stable 0, beta 1, development 2).
+This stays in 20000–44575, below the dynamic-port range and away from usual development defaults.
+The same OS identity/channel retains its origin across restarts and builds; different users are
+no longer assigned the same three machine-wide ports. Finite hash slots can collide: a busy port
+(including such a collision) fails explicitly, with no alternate port or automatic replacement.
+`daemon status` reports the verified URL; do not assume one machine-wide port.
 
 State is `<home>/<brand.folders.shared>/daemon/<channel>/` (official `.litzio`).
 `LITZIO_DAEMON_DIR` overrides the parent directory; all automated tests use isolated temporary
@@ -48,7 +55,10 @@ Manual foreground listeners use an endpoint-specific lock in the same directory.
 Authenticated `GET /daemon/health` returns PID, start time, instance ID, **productVersion**
 and **protocolVersion** separately. Clients must verify all identity fields against discovery.
 Bearer requests require `X-Litzio-Protocol: 1`; mismatch returns 409 before operations. A product
-version difference warns and retains the connection. `POST /daemon/stop` requires Bearer,
+version difference warns and retains the connection. On a protocol mismatch, use the CLI version
+matching the running daemon to stop it (with that channel), or Ctrl+C in its foreground terminal,
+then start the desired version. The incompatible CLI does not bypass protocol checks to stop it;
+never kill a PID alone. `POST /daemon/stop` requires Bearer,
 same-origin JSON, all three identity fields and `confirm:true`. No OS kill based on a PID.
 
 Stale, malformed or unreachable records/locks fail closed and are never reclaimed automatically.
@@ -63,9 +73,13 @@ All CLI-launched daemons authenticate API, media and static assets. Desktop/CLI 
 `Authorization: Bearer <token>` and the protocol header. Browser entry is
 `/daemon/login#<token>`: the bootstrap removes the fragment from the visible address, exchanges
 the token using same-origin `POST /daemon/session`, then navigates to `/`. The session uses an
-HttpOnly, SameSite=Strict, Path=/ cookie; the token never goes into a request URL. Login HTML
+HttpOnly, SameSite=Strict, Path=/ cookie namespaced by protocol and SHA-256 endpoint origin
+(first 16 hex characters); the token never goes into a request URL. Login HTML
 and its bootstrap script are the only unauthenticated routes. Missing/wrong tokens return 401.
-The login URL and foreground output/daemon log are credentials; do not share them. A fresh
+Port is absent from browser cookie storage keys, so endpoint namespacing keeps concurrent
+channel/manual listeners logged in independently. HTTPS public origins in root-restricted proxy
+mode set `Secure`; local HTTP cookies do not. The login URL and foreground output/daemon log are
+credentials; do not share them. A fresh
 browser must use that login route. This is local token authentication, not remote accounts.
 
 Bibliography reads reuse the shared stateless Host and existing Root checks through the dedicated
@@ -124,10 +138,10 @@ migrated or cleaned automatically.
 
 | Option | Contract |
 | --- | --- |
-| `--root <directory>` | Optional, repeatable; omit only for authenticated loopback full local access; relative paths use launch cwd. All must exist and be directories. The same real directory (filesystem identity) given twice is deduplicated. Nested roots are allowed. |
+| `--root <directory>` | Optional, repeatable; omit only for authenticated loopback full local access without `--public-origin`; relative paths use launch cwd. All must exist and be directories. The same real directory (filesystem identity) given twice is deduplicated. Nested roots are allowed. |
 | `--port <number>` | Default channel port above; integer 1–65535. Port conflicts fail without starting a replacement listener. |
 | `--host <IP>` | Default `127.0.0.1`; IP literal only. A non-loopback bind requires `--root` and `--public-origin`. |
-| `--public-origin <origin>` | Explicit `http(s)://host[:port]`, without path, credentials, query or fragment. Adds that exact origin and Host authority. |
+| `--public-origin <origin>` | Explicit `http(s)://host[:port]`, without path, credentials, query or fragment. Adds that exact origin and Host authority; requires explicit `--root` even when binding to loopback. |
 
 Unknown options, positional arguments and repeated single-value options fail. Invalid configuration is rejected before listening. SIGINT/SIGTERM closes the listener, allows active connections up to five seconds, then closes remaining owned connections. New CLI builds replace the complete package, including Editor assets; do not mix versions.
 

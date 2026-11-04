@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { readRequestBody } from "./request-body.ts";
 
 export const DAEMON_PROTOCOL = "1";
@@ -20,8 +20,9 @@ function reply(res: ServerResponse, status: number, data: unknown) {
 }
 
 /** Called after Host/Origin/body checks, before every static, media or API route. */
-export async function daemonRequest(req: IncomingMessage, res: ServerResponse, url: URL, auth: DaemonAuth): Promise<boolean> {
-  const cookieName = `litzio-daemon-v${auth.health.protocolVersion}`;
+export async function daemonRequest(req: IncomingMessage, res: ServerResponse, url: URL, auth: DaemonAuth, endpoint: string): Promise<boolean> {
+  // Cookies are scoped by hostname, never TCP port. Keep concurrent channel/manual listeners independent.
+  const cookieName = `litzio-daemon-v${auth.health.protocolVersion}-${createHash("sha256").update(endpoint).digest("hex").slice(0, 16)}`;
   if (req.method === "GET" && url.pathname === "/daemon/login") {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
     res.end('<!doctype html><title>Litzio daemon</title><body>Connecting…<script src="/daemon/login.js"></script>'); return true;
@@ -34,12 +35,12 @@ export async function daemonRequest(req: IncomingMessage, res: ServerResponse, u
   const authorizedBearer = equal(bearer, auth.token);
   if (!authorizedBearer && !equal(cookie, auth.token)) { reply(res, 401, { error: "Daemon authentication required." }); return true; }
   if ((authorizedBearer || req.headers["x-litzio-protocol"] !== undefined) && req.headers["x-litzio-protocol"] !== auth.health.protocolVersion) {
-    reply(res, 409, { error: "Daemon protocol mismatch. Explicitly stop and start a matching daemon.", protocolVersion: auth.health.protocolVersion }); return true;
+    reply(res, 409, { error: "Daemon protocol mismatch. Stop with the CLI version matching the running daemon, or Ctrl+C in its foreground terminal; then start the desired version. Do not kill by PID alone.", protocolVersion: auth.health.protocolVersion }); return true;
   }
   if (!url.pathname.startsWith("/daemon/")) return false;
   if (url.pathname === "/daemon/health" && req.method === "GET") { reply(res, 200, auth.health); return true; }
   if (url.pathname === "/daemon/session" && req.method === "POST" && authorizedBearer) {
-    res.setHeader("Set-Cookie", `${cookieName}=${auth.token}; HttpOnly; SameSite=Strict; Path=/${url.protocol === "https:" ? "; Secure" : ""}`);
+    res.setHeader("Set-Cookie", `${cookieName}=${auth.token}; HttpOnly; SameSite=Strict; Path=/${new URL(endpoint).protocol === "https:" ? "; Secure" : ""}`);
     reply(res, 200, { authenticated: true }); return true;
   }
   if (url.pathname === "/daemon/stop" && req.method === "POST" && authorizedBearer) {

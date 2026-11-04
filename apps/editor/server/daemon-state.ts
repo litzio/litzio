@@ -2,13 +2,25 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { brand } from "../../../brand.ts";
 import { DAEMON_PROTOCOL, sameInstance, type DaemonHealth, type DaemonIdentity } from "./daemon-protocol.ts";
 
 export type DaemonRecord = DaemonIdentity & { url: string };
 export type DaemonChannel = "stable" | "beta" | "development";
-export const daemonPort = (channel: DaemonChannel) => ({ stable: 43127, beta: 43128, development: 43129 })[channel];
+export function daemonUser(): string {
+  if (process.platform !== "win32") return `uid:${os.userInfo().uid}`;
+  const result = execFileSync("whoami", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
+  const sid = result.match(/"(S-1-(?:\d+-)+\d+)"\s*$/)?.[1];
+  if (!sid) throw new Error("Cannot determine the Windows user SID for the daemon origin.");
+  return `sid:${sid}`;
+}
+
+/** Stable user slots below the dynamic-port range; never probe or silently select a new origin. */
+export function daemonPort(channel: DaemonChannel, user = daemonUser()): number {
+  const slot = createHash("sha256").update(`${brand.appId}\0${user}`).digest().readUInt32BE(0) % 8192;
+  return 20000 + slot * 3 + ({ stable: 0, beta: 1, development: 2 })[channel];
+}
 export const daemonDirectory = (channel: DaemonChannel) => path.join(process.env.LITZIO_DAEMON_DIR ?? path.join(os.homedir(), brand.folders.shared, "daemon"), channel);
 
 /** Tokens inherit only this user's directory permissions (POSIX mode or Windows ACL). */
@@ -70,7 +82,7 @@ export async function daemonRpc(record: DaemonRecord, token: string, route: stri
 export async function inspectDaemon(record: DaemonRecord, token: string, productVersion: string, warn: (message: string) => void = console.error): Promise<DaemonHealth> {
   const health = await daemonRpc(record, token, "/daemon/health") as DaemonHealth;
   if (!sameInstance(record, health)) throw new Error("Daemon identity changed; refusing this discovery record.");
-  if (health.protocolVersion !== DAEMON_PROTOCOL) throw new Error("Daemon protocol mismatch. Explicitly stop and start a matching daemon.");
+  if (health.protocolVersion !== DAEMON_PROTOCOL) throw new Error("Daemon protocol mismatch. Use the CLI matching the running daemon to stop it, or Ctrl+C in its foreground terminal; then start the desired version.");
   if (health.productVersion !== productVersion) warn(`WARNING: daemon product ${health.productVersion}, client ${productVersion}. Connection retained; restart explicitly with daemon stop --confirm then daemon start. Other clients/jobs may be interrupted.`);
   return health;
 }

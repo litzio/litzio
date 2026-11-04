@@ -10,6 +10,13 @@ import { createServer } from "node:net";
 import { acquireDaemonLock, daemonPort, readDaemonRecord, type DaemonRecord } from "../../../apps/editor/server/daemon-state.ts";
 
 test("daemon CLI concurrent start publishes one authenticated instance, stop verifies it, occupied port fails", async t => {
+  const userA = "sid:S-1-5-21-111-222-333-1001", userB = "sid:S-1-5-21-111-222-333-1002";
+  const channels = ["stable", "beta", "development"] as const;
+  const userPorts = [userA, userB].flatMap(user => channels.map(channel => daemonPort(channel, user)));
+  assert.equal(new Set(userPorts).size, userPorts.length, "different Windows users/channels must not all use machine-wide channel ports");
+  for (const channel of channels) {
+    assert.ok(daemonPort(channel, userA) >= 20000 && daemonPort(channel, userA) <= 44575);
+  }
   const started = Date.now(), base = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-daemon-"));
   const entry = path.join(base, "cli.mjs"), state = path.join(base, "state");
   const env = { ...process.env, LITZIO_DAEMON_DIR: state, LITZIO_PLUGINS_DIR: path.join(base, "plugins"),
@@ -22,9 +29,13 @@ test("daemon CLI concurrent start publishes one authenticated instance, stop ver
     banner: { js: 'import {createRequire as __testCreateRequire} from "node:module"; const require=__testCreateRequire(import.meta.url);' } });
   const execute = (args: string[]) => new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(process.execPath, [entry, "daemon", ...args, "--channel", "development"], { env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+    // A refusal regression must fail rather than leave a foreground listener/test hanging.
+    let timedOut = false;
+    const timer = setTimeout(() => { timedOut = true; child.kill(); }, 15_000);
     let stdout = "", stderr = "";
     child.stdout.on("data", data => { stdout += data; }); child.stderr.on("data", data => { stderr += data; });
-    child.once("error", reject); child.once("close", code => resolve({ code, stdout, stderr }));
+    child.once("error", error => { clearTimeout(timer); reject(error); });
+    child.once("close", code => { clearTimeout(timer); if (timedOut) reject(new Error(`CLI did not exit: ${args.join(" ")}`)); else resolve({ code, stdout, stderr }); });
   });
   const directory = path.join(state, "development");
   let stopped = false;
@@ -59,6 +70,8 @@ test("daemon CLI concurrent start publishes one authenticated instance, stop ver
     } finally { await new Promise<void>(resolve => blocker.close(() => resolve())); }
     const restricted = await execute(["run", "--host", "0.0.0.0", "--public-origin", "https://docs.example"]);
     assert.equal(restricted.code, 1); assert.match(restricted.stderr, /Unrestricted access requires/);
+    const publicUnrestricted = await execute(["run", "--public-origin", "https://docs.example"]);
+    assert.equal(publicUnrestricted.code, 1); assert.match(publicUnrestricted.stderr, /Unrestricted access does not allow --public-origin/);
   } finally {
     owned ??= readDaemonRecord(directory);
     if (!stopped && owned) {
