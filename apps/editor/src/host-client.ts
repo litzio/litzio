@@ -23,6 +23,11 @@ export function setDesktopHost(url: string): void {
   release?.();
 }
 export const hostClient = {
+  /** Keep browser media loading unchanged; only a separate UI origin needs CORS. */
+  get crossOrigin(): "anonymous" | undefined {
+    if (typeof window === "undefined") return undefined;
+    return new URL(this.url("/"), window.location.href).origin !== window.location.origin ? "anonymous" : undefined;
+  },
   url: (path: string) => client.url(path),
   async request(path: string, init?: RequestInit): Promise<Response> {
     await ready;

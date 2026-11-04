@@ -12,7 +12,7 @@ export function FileImagePreview({ entry, root, quiet = false }: { entry: Folder
   return <>
     {state === "loading" ? <p role="status">{i18n.t("Loading…")}</p> : null}
     {state === "error" ? <p role={quiet ? undefined : "alert"}>{i18n.t("The image could not be previewed. It may be unavailable, damaged, unsupported, or larger than 10 MiB.")}</p> : null}
-    <img crossOrigin="anonymous" className="file-preview-image" hidden={state !== "ready"} alt={entry.name}
+    <img crossOrigin={hostClient.crossOrigin} className="file-preview-image" hidden={state !== "ready"} alt={entry.name}
       src={hostClient.url(`/api/file-preview?${new URLSearchParams({ root, path: entry.path })}`)}
       onLoad={() => setState("ready")} onError={() => setState("error")} />
   </>;

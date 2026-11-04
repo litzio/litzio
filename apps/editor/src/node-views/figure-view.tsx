@@ -326,7 +326,7 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
           ? "File name changes require Rename in Advanced. Press Esc to discard them."
           : "Unapplied figure properties are not saved. Choose Done or press Esc to cancel.")}</p>
       ) : null}
-      {src ? <img crossOrigin={src.startsWith(hostClient.url("/document/")) ? "anonymous" : undefined} key={src} src={src} alt={applied.imageAlt} hidden={imageFailed} data-testid="figure-image" contentEditable={false} onMouseDown={selectFigure} onDoubleClick={beginEdit}
+      {src ? <img crossOrigin={src.startsWith(hostClient.url("/document/")) ? hostClient.crossOrigin : undefined} key={src} src={src} alt={applied.imageAlt} hidden={imageFailed} data-testid="figure-image" contentEditable={false} onMouseDown={selectFigure} onDoubleClick={beginEdit}
         onError={() => setFailedSource(src)} onLoad={() => setFailedSource(undefined)} /> : null}
       {imageFailed ? (
         <Notice tone="error" className="figure-image-error" data-testid="figure-image-error" contentEditable={false} onMouseDown={selectFigure} onDoubleClick={beginEdit}>{i18n.t("Image could not be loaded. Check the image path or URL.")}</Notice>
@@ -359,7 +359,7 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
         onCancel={cancel}
       >
         <div className="figure-property-media">
-          {src && !imageFailed ? <div className="figure-property-thumbnail"><img crossOrigin={src.startsWith(hostClient.url("/document/")) ? "anonymous" : undefined} src={src} alt="" /></div> : null}
+          {src && !imageFailed ? <div className="figure-property-thumbnail"><img crossOrigin={src.startsWith(hostClient.url("/document/")) ? hostClient.crossOrigin : undefined} src={src} alt="" /></div> : null}
           <Button ref={replaceButton} type="button" size="sm" variant="outline" disabled={validating || choosing}
             data-testid="figure-replace" onClick={() => setReplacing(value => !value)}>{i18n.t("Replace")}</Button>
         </div>

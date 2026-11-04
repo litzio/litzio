@@ -140,5 +140,5 @@ function PreviewImage({ src, label }: { src: string; label: string }) {
   const { t } = useTranslation();
   const [failed, setFailed] = useState(false);
   return failed ? <span>{t("Image not found")}</span>
-    : <img crossOrigin={src.startsWith(hostClient.url("/document/")) ? "anonymous" : undefined} src={src} alt={label} onError={() => setFailed(true)} />;
+    : <img crossOrigin={src.startsWith(hostClient.url("/document/")) ? hostClient.crossOrigin : undefined} src={src} alt={label} onError={() => setFailed(true)} />;
 }

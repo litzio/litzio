@@ -29,7 +29,7 @@ TCP Host authority 목록은 그대로다. UI Origin은 **정확히 `litzio://ap
 API/media의 cross-site 거부 예외와 `Access-Control-Allow-Origin`은 그 Origin에만 적용한다.
 OPTIONS는 API/media의 GET/HEAD/POST/PUT/PATCH/DELETE와 Content-Type/X-Litzio-Protocol만
 허용한다. credentials·wildcard·사용자 지정 Origin은 없다. 쓰기 Origin·JSON 검사는 유지한다.
-Figure·일반 Markdown·파일/읽기 미리보기의 Host 이미지는 anonymous CORS를 사용한다.
+Figure·일반 Markdown·파일/읽기 미리보기의 Host 이미지는 UI와 Host origin이 다른 경우에만 anonymous CORS를 사용한다. 같은-origin 브라우저 이미지는 기존 로딩 방식을 유지한다.
 허용 Origin의 CORS 응답만 CORP cross-origin이며 나머지는 same-origin이다. Origin 없는
 cross-site API/media, lookalike/foreign/null origin과 잘못된 TCP Host는 계속 거부한다.
 
