@@ -15,6 +15,9 @@ export function remoteHostOrigin(value: string): string {
   let url: URL;
   try { url = new URL(value); } catch { throw new RemoteHostRefusal("Expected an exact http(s) origin."); }
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.pathname !== "/" || url.search || url.hash || value.includes("?") || value.includes("#")) throw new RemoteHostRefusal("Expected an http(s) origin without credentials, path, query or fragment.");
+  // URL parsing can decode host escapes and map Unicode (for example %2a or ＊) to
+  // CSP syntax. Validate the canonical source too, before it can reach disk/CSP.
+  if (!/^https?:\/\/[^/?#]+\/?$/i.test(url.origin) || /[\s\\*;"'<>]/.test(url.origin)) throw new RemoteHostRefusal("Expected an exact http(s) origin.");
   return url.origin;
 }
 function labelText(value: string): string {
@@ -78,7 +81,7 @@ export class RemoteHostRegistry {
       const index = rows.findIndex(row => row.hostId === hostId);
       if (index < 0) throw new RemoteHostRefusal("Unknown registered hostId.");
       const proof = protection?.(rows[index]);
-      if (!proof?.confirmed || !proof.workCleared || !proof.recoveryCleared) throw new RemoteHostRefusal("Removal refused: Desktop work/recovery protection cannot be verified. Use the protected settings flow.");
+      if (!proof?.confirmed || !proof.workCleared || !proof.recoveryCleared) throw new RemoteHostRefusal("Removal refused: Desktop work/recovery protection cannot be verified. CLI removal is unavailable until PR3b provides the protected work/recovery check; keep this registration until then.");
       const [host] = rows.splice(index, 1);
       return { outcome: "success", host, saved: true, restartRequired: true } as const;
     });

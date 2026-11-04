@@ -671,7 +671,8 @@ Before: [#1150 disconnected 640px](assets/desktop-bundled-1150/disconnected-640.
 `apps/editor/server/remote-host-registry.ts` owns the shared local operations used by CLI and
 future settings. The JSON array at `<LITZIO_DATA_DIR or ~/.litzio>/desktop/remote-hosts.json`
 stores immutable UUID hostId, normalized HTTP(S) origin and editable label. Duplicate normalized
-origins, credentials, paths, query/fragment and CSP source syntax are rejected. Address changes
+origins, credentials, paths, query/fragment and CSP source syntax are rejected. Validation checks
+both input and normalized origin, including URL-decoded and Unicode-mapped host characters. Address changes
 require new registration. An exclusive sibling lock prevents concurrent lost updates; an atomic
 sibling rename commits the list. Invalid stored data fails explicitly; no migration is provided.
 
@@ -684,6 +685,9 @@ refuse connection; product differences warn. Redirects are refused and probes ar
 Removal uses a shared operation requiring the UI owner to confirm removal, clear open work and
 verify no recovery remains while holding that protection through the call. PR3a has no live UI
 protection provider, so CLI removal always refuses; command flags cannot assert safety. PR3b
-must supply the protected settings flow. Removal never sends stop or mutates remote files.
+must supply the protected settings flow and CLI protection check. Its planned CLI success path
+requires Desktop to be stopped and a Desktop-written per-hostId open-work/recovery summary in
+app data to prove that no work remains for that Host. PR3a does not implement this summary or
+success path; CLI removal currently always refuses and explains that PR3b provides the check. Removal never sends stop or mutates remote files.
 Settings UI, connection indicators, automatic connection/reconnection and protected restart are
 not implemented by PR3a. Existing local daemon lifetime and OS shell restrictions remain.

@@ -20,6 +20,24 @@ test("shared registry preserves identity, rejects invalid/duplicate origins and 
   assert.throws(() => registry.register("https://example.com", "Duplicate"), /already registered/);
   const original = readFileSync(registry.file, "utf8");
   for (const origin of ["https://x/path", "https://x/a/..", "https://u:p@x", "https://x?", "https://x#", "file:///tmp", "https://*.example.com", "https://x;script-src *", "https://x\\evil"]) assert.throws(() => remoteHostOrigin(origin));
+  // Canonicalization must never turn accepted input into an unreadable registry or CSP wildcard.
+  for (const origin of ["https://%2a.example.com", "https://%2A.example.com", "https://＊.example.com", "https://%EF%BC%8A.example.com", "https://x%3b.example.com"]) {
+    assert.equal(await runCliAsync(["host", "register", origin, "Remote"]), 1, origin);
+    assert.equal(readFileSync(registry.file, "utf8"), original);
+    assert.deepEqual(registry.list(), [host]);
+  }
+  for (const origin of ["HTTPS://EXAMPLE.COM:443/", "https://%65xample.com", "https://ＥＸＡＭＰＬＥ.com"]) {
+    assert.equal(remoteHostOrigin(origin), host.origin);
+    assert.throws(() => registry.register(origin, "Duplicate"), /already registered/);
+  }
+  const idn = registry.register("https://BÜCHER.example:443/", "IDN").host;
+  assert.equal(idn.origin, "https://xn--bcher-kva.example");
+  for (const origin of ["https://xn--bcher-kva.example", "https://b%C3%BCcher.example"]) {
+    assert.equal(remoteHostOrigin(origin), idn.origin);
+    assert.throws(() => registry.register(origin, "Duplicate IDN"), /already registered/);
+  }
+  assert.deepEqual(registry.list(), [host, idn]);
+  registry.remove(idn.hostId, () => ({ confirmed: true, workCleared: true, recoveryCleared: true }));
   assert.throws(() => registry.remove(host.hostId), /protection cannot be verified/);
   assert.equal(readFileSync(registry.file, "utf8"), original);
   assert.equal(await runCliAsync(["host", "rename", host.hostId, "New label"]), 0);
