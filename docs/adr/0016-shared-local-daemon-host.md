@@ -2,7 +2,8 @@
 
 - Status: Accepted
 - Decision date: 2026-11-04
-- Last verified: 2026-11-04 — #1150·ADR-0017 승인 결정과 전환 범위를 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.
+- Last verified: 2026-11-05 — #1174·ADR-0018 결정과 문서 대조. 제품 실행 검증 없음.
+- Previous verification: 2026-11-04 — #1150·ADR-0017 승인 결정과 전환 범위를 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.
 - Authority: [#1142 소유자 결정](https://github.com/litzio/litzio/issues/1142), [#834 S1 승인 조건](https://github.com/litzio/litzio/discussions/834#discussioncomment-19389153), under [AGENTS.md](../../AGENTS.md).
 - Scope: 같은 PC의 Desktop·브라우저가 사용하는 공유 로컬 HTTP Host로의 1단계 전환. 수동 원격 접근은 ③의 추가 승인을 따른다. PR1은 결정 문서만 작성하며 구현 완료를 뜻하지 않는다.
 - Amends: [ADR-0004](0004-desktop-host-distribution.md), [ADR-0005](0005-http-host.md), [ADR-0012](0012-plugin-runtime-and-ui-contributions.md), [ADR-0015](0015-shared-host-operations.md)의 아래 명시한 경계. 나머지 결정은 유지한다.
@@ -10,6 +11,10 @@
 ## Amendment: Desktop 번들 UI와 Docling 전환 (2026-11-04, #1150)
 
 [ADR-0017](0017-bundled-client-and-official-ai.md)은 PR4 이후 AI를 플러그인 경로 없는 daemon 공식 기능으로 먼저 이전하고 플러그인·Docling 기능을 제거하도록 결정한다. 삭제 직전 master는 원격 `archive/plugins-docling-2026-11`에 보관한다. 이어 Host 클라이언트와 Desktop 앱 번들 UI로 전환하며 daemon의 브라우저 UI·고정 HTTP origin·수명 정책은 유지한다. 이는 구현 완료 선언이 아니며 아래 PR1~PR4의 기록을 보존한다.
+
+## Amendment: Desktop 원격 Host와 여러 Host 보기 (2026-11-04, #1174)
+
+[ADR-0018](0018-desktop-remote-hosts.md)은 소유자 결정 ①~⑨에 따라 Desktop 로컬 등록 목록·불변 hostId, 등록한 원격 Host의 자동 연결·재연결, Host별 탐색기·필터·탭·비서 대상과 공용 등록 작업·CLI를 결정한다. 기존의 원격 Host 보류를 이 범위에서 해제한다. 로컬 daemon의 자동 탐색·spawn·수동 다시 연결·종료 정책은 유지하며 원격 daemon 제어는 제공하지 않는다. 구현은 #1174 PR1~4에서 진행하고 아래 단일 로컬 Host 구현·당시 조사 기록은 보존한다. Accepted는 구현 완료 선언이 아니다.
 
 ## Context
 
@@ -50,7 +55,7 @@ daemon이 OS 휴지통을 직접 쓴다. 같은 PC의 모든 클라이언트가 
 접근하며, non-loopback 바인딩(`--host` + `--public-origin`)에서도 이 모드를 허용한다.
 `--root`를 지정하면 기존처럼 지정한 폴더만 접근한다. Host/Origin 검사, 고정 포트와
 탐색 기록 규칙은 유지하며 non-loopback은 명시적 `--public-origin`을 요구한다.
-Desktop 탐색 대상은 loopback·Root 제한 없음의 로컬 모드뿐이며 수동 원격 daemon은 등록하지 않는다.
+Desktop의 로컬 daemon 자동 탐색 대상은 loopback·Root 제한 없음의 로컬 모드뿐이며 수동 원격 daemon을 이 탐색 기록에 등록하지 않는다. Desktop의 별도 원격 연결 목록은 ADR-0018에서 결정하며 로컬 탐색 기록과 구분한다.
 
 **소유자 최종 승인 (2026-11-04):** 인증 없이 같은 PC의 다른 Windows 사용자도 daemon에
 접근할 수 있다. non-loopback 바인딩에서는 같은 네트워크에서 해당 포트에 닿는 누구나 접근한다.

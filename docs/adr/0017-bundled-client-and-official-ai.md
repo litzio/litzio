@@ -2,10 +2,15 @@
 
 - Status: Accepted
 - Decision date: 2026-11-04
-- Last verified: 2026-11-04 — #1150·#1142, 관련 ADR 및 Paseo `bfbd4d5` 사전 정적 조사 대조. 제품 실행 검증 없음.
+- Last verified: 2026-11-05 — #1174·ADR-0018 결정과 문서 대조. 제품 실행 검증 없음.
+- Previous verification: 2026-11-04 — #1150·#1142, 관련 ADR 및 Paseo `bfbd4d5` 사전 정적 조사 대조. 제품 실행 검증 없음.
 - Authority: 2026-11-04 소유자 승인 결정, [#1150](https://github.com/litzio/litzio/issues/1150), under [AGENTS.md](../../AGENTS.md). AI 가용성과 플러그인·Docling 기능 제거·보관은 소유자 최종 결정이다. 플러그인 컨셉 재개발은 소유자가 명시적으로 개시할 때 다룬다.
 - Scope: 같은 PC의 로컬 daemon, 공식 AI 이전과 플러그인·Docling 기능 제거·보관, 소유자 개시 후 컨셉 재개발, Desktop 번들 UI 전환. Accepted는 구현 완료를 뜻하지 않는다.
 - Amends: [ADR-0012](0012-plugin-runtime-and-ui-contributions.md), [ADR-0013](0013-ai-agent-task-service.md), [ADR-0015](0015-shared-host-operations.md), [ADR-0016](0016-shared-local-daemon-host.md)의 아래 명시한 경계.
+
+## Amendment: Desktop 원격 Host와 여러 Host 보기 (2026-11-04, #1174)
+
+[ADR-0018](0018-desktop-remote-hosts.md)은 소유자 결정 ①~⑨에 따라 Desktop 로컬 등록 목록·불변 hostId, 등록한 원격 Host의 자동 연결·재연결, Host별 탐색기·필터·탭·비서 대상과 공용 등록 작업·CLI를 결정한다. 기존의 원격 Host 보류를 이 범위에서 해제한다. 로컬 daemon의 자동 탐색·spawn·수동 다시 연결·종료 정책은 유지하며 원격 daemon 제어는 제공하지 않는다. 구현은 #1174 PR1~4에서 진행하고 아래 단일 로컬 Host 구현·당시 조사 기록은 보존한다. Accepted는 구현 완료 선언이 아니다.
 
 ## Context and evidence
 
@@ -51,7 +56,7 @@ Desktop은 앱에 번들된 UI를 로드한다. 문서·AI 등 코어 Host 작�
 
 Editor의 모든 Host 호출과 렌더링 URL은 대상 Host를 아는 Host 클라이언트를 거친다. 문서·폴더·복구·템플릿·비서 API와 폴링, 문서 이미지·미리보기 등 코어 자산 URL을 포함한다. 플러그인 API·CSS/ESM·자산 경로는 기능 제거 대상이며 재개발 때 다시 다룬다. 원문의 상대 URI는 보존하고 렌더링 경계에서 Host 주소를 적용한다. 문서에 daemon 절대 주소를 저장하지 않는다. 앱 UI의 BASE_URL을 Host 주소로 간주하지 않는다. 이 단계의 범위는 사전 조사된 29 fetch 호출식과 6 리소스 sink 중 플러그인 기능 제거 뒤 남는 코어 호출·자산의 전환이며 조사된 Desktop bridge 26곳은 HTTP로 옮기지 않는다. 다중 Host registry·relay·범용 transport는 만들지 않는다.
 
-이번 연결 대상은 같은 PC의 로컬 daemon 하나다. 원격 Host 설정·여러 Host 동시 보기의 저장소나 화면을 미리 구현하지 않는다. daemon 중단 중에도 번들 화면과 연결 상태가 남아야 한다. ADR-0016의 수동 다시 연결·주체별 종료·명시적 종료, 제품/프로토콜 버전 정책과 Host 실패 시 로컬 재실행 금지는 유지한다.
+이 ADR의 #1150 전환 대상은 같은 PC의 로컬 daemon 하나다. 이후 원격 Host 설정·여러 Host 동시 보기의 저장소와 화면은 ADR-0018에서 결정하고 #1174 PR1~4로 이행한다. daemon 중단 중에도 번들 화면과 연결 상태가 남아야 한다. ADR-0016의 수동 다시 연결·주체별 종료·명시적 종료, 제품/프로토콜 버전 정책과 Host 실패 시 로컬 재실행 금지는 유지한다.
 
 Desktop origin을 daemon에 명시적으로 허용한다. 구현은 CORS·OPTIONS, 허용 methods/headers와 Origin 목록, 실제 HTTP Host authority 목록 및 CSP를 함께 다룬다. custom scheme의 UI origin을 TCP Host 목록에 섞거나 wildcard로 넓히지 않는다. 기존 쓰기 Origin 검사와 문서 SVG/HTML sandbox 보호를 유지하고, 문서 이미지·미리보기 등 코어 리소스의 cross-origin/CORP 전환을 검증한다. 플러그인 ESM/CSS 로드는 이번 전환 검증에서 제외하며 컨셉 재개발 때 결정·검증한다. 인증 방식·시점은 #1145에 남긴다.
 
@@ -79,7 +84,7 @@ ADR 채택 PR은 문서만 변경했다. 각 구현 PR이 해당 [HTTP Host](../
 
 ## Deferred
 
-- 원격 Host 주소 설정과 여러 Host 동시 보기.
+- 원격 Host 주소 설정과 여러 Host 동시 보기는 [ADR-0018](0018-desktop-remote-hosts.md)에서 보류를 해제했다. #1174 PR1~4의 구현 대상이며 이 문서의 #1150 구현 완료에 포함하지 않는다.
 - 소유자 재개 개시 때 결정: aiTasks 계약 복원, 플러그인 UI 신뢰, 원격 Host 플러그인 UI 실행 방식, 번들 origin의 플러그인 로드 경계, Docling 재개발.
 - 인증 방식·도입 시점, HTTPS·계정·권한 체계([#1145](https://github.com/litzio/litzio/issues/1145)). 현재 무인증 단계는 바꾸지 않는다.
 - 공유 편집·미저장 내용·Undo/history의 공유. plain-text SSOT, Core 의미·valid write와 클라이언트 편집 세션 경계는 유지한다.

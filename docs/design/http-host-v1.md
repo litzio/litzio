@@ -11,6 +11,10 @@
 - Authority: [ADR-0005](../adr/0005-http-host.md), [Filesystem Host boundary](filesystem-host-boundary-v1.md), [Editing session and Save](editing-session-save-v1.md).
 - Scope: local daemon and manual remote single-operator HTTP Editor with optional Root limits ([#186](https://github.com/litzio/litzio/issues/186)).
 
+## 후속 결정: 원격 Host (#1174, 미구현)
+
+[ADR-0018](../adr/0018-desktop-remote-hosts.md)은 Desktop 원격 등록·자동 연결/재연결·여러 Host 보기를 결정한다. 아래는 현재 구현 계약이며 해당 변경은 #1174 PR1~4에서 실제 구현과 함께 갱신한다. 이 연결은 원격 기능의 제공 완료를 뜻하지 않는다.
+
 ## Editor Host client (#1150 ④)
 
 Editor의 API 요청(문서·폴더·복구·템플릿·공식 AI와 폴링)과 Figure·일반 Markdown 이미지·파일 미리보기의 Host URL은 `src/host-client.ts`를 거친다. 브라우저 대상은 `/`로 같은 serving origin이며 Desktop은 main이 확인한 로컬 daemon URL을 대상 주소로 설정한다. UI bundle의 `BASE_URL`을 Host 주소로 사용하지 않는다. `createHostClient(base)`가 요청과 렌더링 URL에 같은 Host 기준 주소를 적용한다. 문서 상대 URI는 렌더링 때만 해석하며 Core·디스크·직렬화에는 Host 절대 주소를 저장하지 않는다. 외부 HTTP(S) 이미지 URI는 그대로 유지한다.
