@@ -25,10 +25,13 @@ export function createHostClient(base: string, ready: Promise<void> = Promise.re
 export type HostRuntime = {
   client: HostClient;
   state: "connecting" | "connected" | "disconnected";
+  error?: string;
   capabilities?: { fileDeletion: "trash" | "permanent" };
 };
 /** A registry can be injected in fixtures; unknown identities fail closed. */
-export function createHostRegistry(hosts: readonly { hostId: string; origin: string }[]) {
+export function createHostRegistry(hosts: readonly { hostId: string; origin: string; label?: string }[]) {
+  const listeners = new Set<() => void>();
+  const notify = () => { for (const listener of listeners) listener(); };
   const attempts = new Map<string, object>();
   const runtimes = new Map<string, HostRuntime>();
   for (const host of hosts) {
@@ -36,6 +39,8 @@ export function createHostRegistry(hosts: readonly { hostId: string; origin: str
     runtimes.set(host.hostId, { client: createHostClient(host.origin), state: "connecting" });
   }
   return {
+    subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    list: () => hosts.map(host => ({ ...host, label: host.label ?? host.hostId })),
     get(hostId: string): HostRuntime {
       const runtime = runtimes.get(hostId);
       if (!runtime) throw new Error(`Unavailable Host: ${hostId}`);
@@ -48,6 +53,8 @@ export function createHostRegistry(hosts: readonly { hostId: string; origin: str
       attempts.set(hostId, attempt);
       runtime.state = "connecting";
       runtime.capabilities = undefined;
+      runtime.error = undefined;
+      notify();
       const client = runtime.client;
       try {
         const response = await client.request("/api/host-capabilities");
@@ -56,11 +63,19 @@ export function createHostRegistry(hosts: readonly { hostId: string; origin: str
         if (attempts.get(hostId) !== attempt) return;
         runtime.capabilities = { fileDeletion: body.fileDeletion === "trash" ? "trash" : "permanent" };
         runtime.state = "connected";
-      } catch { if (attempts.get(hostId) === attempt) runtime.state = "disconnected"; }
+      } catch (cause) { if (attempts.get(hostId) === attempt) { runtime.state = "disconnected"; runtime.error = String(cause); } }
+      notify();
     },
   };
 }
-export const hostRegistry = createHostRegistry([{ hostId: LOCAL_HOST_ID, origin: "/" }]);
+export let hostRegistry = createHostRegistry([{ hostId: LOCAL_HOST_ID, origin: "/", label: "Local" }]);
+/** Inject the same registry contract used by Desktop and browser fixtures before mounting App. */
+export function setHostRegistry(registry: ReturnType<typeof createHostRegistry>): void { hostRegistry = registry; }
+export function hostLabel(hostId: string): string {
+  const hosts = hostRegistry.list();
+  const label = hosts.find(host => host.hostId === hostId)?.label ?? hostId;
+  return hosts.filter(host => host.label === label).length > 1 ? `${label} (${hostId})` : label;
+}
 let release: ((client: HostClient) => void) | undefined;
 const desktopReady = typeof window !== "undefined" && window.litzioDesktop
   ? new Promise<HostClient>(resolve => { release = resolve; }) : Promise.resolve(createHostClient("/"));
@@ -90,7 +105,7 @@ local.client = bindLocalConnection();
 export function setDesktopHost(origin: string): void {
   connectedLocal = createHostClient(origin);
   release?.(connectedLocal);
-  local.client = bindLocalConnection();
+  hostRegistry.get(LOCAL_HOST_ID).client = bindLocalConnection();
   void hostRegistry.connect(LOCAL_HOST_ID);
 }
 export const getHostClient = (hostId: string): HostClient => hostRegistry.get(hostId).client;

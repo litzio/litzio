@@ -198,14 +198,15 @@ export function treeKey(items: TreeItem[], index: number, key: string, expanded:
 
 /** Opened folders with their Host requests. `request` lists one level of a folder inside an opened one. */
 export function useFolderTrees(request: (root: string, path?: string, background?: boolean) => Promise<FolderResponse>, onError: (message: string) => void,
-  revisionChecks?: () => { path: string; accept(revision: string | null): void }[]) {
+  revisionChecks?: () => { path: string; accept(revision: string | null): void }[], hostId = LOCAL_HOST_ID) {
   const [trees, reduce] = useReducer(folderTreesReducer, []);
   const latest = useRef(trees);
   latest.current = trees;
   const revisionChecksRef = useRef(revisionChecks);
   revisionChecksRef.current = revisionChecks;
   // Async Open completions can share a render. Resolve their containment against every prior action.
-  const dispatch = (action: FolderTreesAction) => {
+  const dispatch = (input: FolderTreesAction) => {
+    const action = { ...input, hostId };
     latest.current = folderTreesReducer(latest.current, action);
     reduce(action);
   };
@@ -223,8 +224,8 @@ export function useFolderTrees(request: (root: string, path?: string, background
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const saved = readOpenFolders();
-      const collapsed = new Set(readCollapsedFolderSections());
+      const saved = readOpenFolders(hostId);
+      const collapsed = new Set(readCollapsedFolderSections(hostId));
       for (const root of saved) {
         if (cancelled) return;
         try {
@@ -245,7 +246,7 @@ export function useFolderTrees(request: (root: string, path?: string, background
   // Tree-only changes do not write. During restoration, user changes wait for all remembered paths.
   useEffect(() => {
     if (!restored || rememberVersion === 0) return;
-    writeOpenFolders(JSON.parse(serializedRoots) as string[]);
+    writeOpenFolders(JSON.parse(serializedRoots) as string[], hostId);
   }, [serializedRoots, restored, rememberVersion]);
 
   // Like #370, every explicit action writes the current reduced state, even if this tab wrote
@@ -253,7 +254,7 @@ export function useFolderTrees(request: (root: string, path?: string, background
   // writes until every restored root has settled; restoration/child listing alone never writes.
   useEffect(() => {
     if (!restored || sectionVersion === 0) return;
-    writeCollapsedFolderSections(JSON.parse(serializedCollapsed) as string[]);
+    writeCollapsedFolderSections(JSON.parse(serializedCollapsed) as string[], hostId);
   }, [serializedCollapsed, restored, sectionVersion]);
 
   const load = (root: string, path: string, preserveExpansion = false, quiet = false) => {
@@ -313,7 +314,7 @@ export function useFolderTrees(request: (root: string, path?: string, background
             const checks = (revisionChecksRef.current?.() ?? []).filter(check => containingRoot(roots, check.path) === root);
             const query = new URLSearchParams({ root });
             if (checks.length) query.set("paths", JSON.stringify(checks.map(check => check.path)));
-            const response = await getHostClient(LOCAL_HOST_ID).request(`/api/folder-version?${query}`, { signal: controller.signal });
+            const response = await getHostClient(hostId).request(`/api/folder-version?${query}`, { signal: controller.signal });
             if (!response.ok) return;
             const { version, revisions } = await response.json() as { version?: string; revisions?: { path: string; revision: string | null }[] };
             if (!version) return;

@@ -12,6 +12,7 @@ type ExpectedConsoleErrorRule = {
 };
 
 const EXPECTED_CONSOLE_ERRORS: Record<string, ExpectedConsoleErrorRule[]> = {
+  "multi-host": [{ status: 500, pathname: "/fixture/remote/api/file", minimum: 1, description: "remote trash failure preserves both tabs without a permanent-delete retry" }, { status: 503, pathname: "/fixture/off/api/host-capabilities", minimum: 1, description: "unreachable Host remains listed without blocking startup" }],
   "template-gallery": [{ status: 400, pathname: "/api/templates", minimum: 2, description: "reserved and duplicate template names retain the save form with localized feedback" }],
   "assistant": [{ status: 400, pathname: "/api/assistant/conversations", minimum: 1, description: "display Undo refuses a subsequent manual preference change" }, { status: 503, pathname: "/api/assistant/settings", minimum: 1, description: "automatic save failure is localized and a later change can save" }, { status: 503, pathname: "/api/assistant/skills", minimum: 1, description: "skill catalog failure is shown in the candidate list" }, { status: 404, pathname: "/api/assistant/conversations", minimum: 1, description: "a deliberately unavailable last conversation falls back to a fresh composer" }],
   "external-change": [{ status: 409, pathname: "/api/document", minimum: 1, description: "a real external write refuses Save and offers comparison and confirmed Reload" }],

@@ -80,7 +80,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   await activate('technical-1.md');
   await page.reload(); await ready();
   check(await page.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').count() === 2, 'Reload did not restore both open document tabs');
-  check(JSON.stringify(await page.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').allTextContents()) === JSON.stringify(['technical-1.md','technical-2.md']), 'Reload changed the remembered tab order');
+  check(JSON.stringify(await page.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').locator('.document-tab-file').allTextContents()) === JSON.stringify(['technical-1.md','technical-2.md']), 'Reload changed the remembered tab order');
   check(await page.getByRole('tab',{name:'technical-1.md',exact:true}).getAttribute('aria-selected') === 'true', 'Reload did not restore the last active tab');
   check(JSON.stringify(await memory()) === JSON.stringify({paths:[a,b],activePath:a}), 'Navigation memory contains more than paths, order and active identity');
   await flush();
@@ -95,7 +95,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   await editor().evaluate(n => { n.editor.commands.undo(); location.reload(); });
   await navigated; await ready();
   check(!await page.getByTestId('recovery-prompt').count(), 'Undo to saved content proposed obsolete recovery after immediate Reload');
-  check(JSON.stringify(await page.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').allTextContents()) === JSON.stringify(['technical-1.md','technical-2.md']),
+  check(JSON.stringify(await page.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').locator('.document-tab-file').allTextContents()) === JSON.stringify(['technical-1.md','technical-2.md']),
     'Undo to saved content prevented remembered tab restoration');
   check(!(await editor().innerText()).includes('Undo before immediate Reload.'), 'Reload brought back the undone edit');
 
@@ -167,7 +167,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     for (const explicit of [false,true]) {
       targetReads = 0;
       await page.goto(explicit ? `${origin}/?path=${encodeURIComponent(b)}` : origin); await ready();
-      const names = await page.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').allTextContents();
+      const names = await page.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').locator('.document-tab-file').allTextContents();
       const expected = explicit ? ['technical-2.md'] : ['technical-1.md','technical-2.md'];
       if (JSON.stringify(names) !== JSON.stringify(expected) || targetReads === 0 || await page.getByTestId('error').count()) {
         startupFailures.push(`${explicit ? 'Explicit URL' : 'Remembered tabs'} depended on the unused default: tabs=${JSON.stringify(names)}, targetReads=${targetReads}`);
@@ -224,7 +224,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     check(await page.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').count() === 0 && JSON.stringify(await memory()) === JSON.stringify(saved), 'Pending restoration published or remembered an incomplete tab list');
     release(); await ready();
   } finally { release(); await page.unroute('**/api/document?**',hold); }
-  check(JSON.stringify(await page.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').allTextContents()) === JSON.stringify(['technical-1.md','README.md','technical-2.md']), 'Missing/refused paths, text admission or Host aliases changed restored order/deduplication');
+  check(JSON.stringify(await page.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').locator('.document-tab-file').allTextContents()) === JSON.stringify(['technical-1.md','README.md','technical-2.md']), 'Missing/refused paths, text admission or Host aliases changed restored order/deduplication');
   check(await page.getByRole('tab',{name:'technical-1.md',exact:true}).getAttribute('aria-selected') === 'true', 'Missing active path did not fall back to the first surviving tab');
   check(!await page.getByTestId('error').count() && !await page.getByRole('dialog').count(), 'An excluded remembered path interrupted startup');
   await flush();
@@ -260,7 +260,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     check(await desktopPage.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').count() === 1 && await desktopPage.getByRole('tab',{name:'technical-document.md',exact:true}).count() === 1, 'Desktop file argument did not take precedence');
     await desktopPage.route('**/api/document',route => route.fulfill({json:{start:true,samples:{ko:loaded.path,en:loaded.path}}}));
     await desktopPage.reload(); await desktopPage.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
-    check(JSON.stringify(await desktopPage.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').allTextContents()) === JSON.stringify(['technical-1.md','technical-2.md']) && await desktopPage.getByRole('tab',{name:'technical-1.md',exact:true}).getAttribute('aria-selected') === 'true', 'Desktop startup without an argument did not restore tabs');
+    check(JSON.stringify(await desktopPage.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').locator('.document-tab-file').allTextContents()) === JSON.stringify(['technical-1.md','technical-2.md']) && await desktopPage.getByRole('tab',{name:'technical-1.md',exact:true}).getAttribute('aria-selected') === 'true', 'Desktop startup without an argument did not restore tabs');
     await desktopPage.goto(`${origin}/?path=${encodeURIComponent(b)}`);
     await desktopPage.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     check(await desktopPage.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').count() === 1, 'URL did not override Desktop navigation memory');

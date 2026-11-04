@@ -3418,3 +3418,14 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .notification-group-heading > .notification-content { flex: 1; min-width: 0; }
 .notification-group-heading .notification-content > button { padding-inline: 0; }
 .notification-center .notification-group > div > ul { padding: var(--space-3) 0 0 var(--space-3); border: 0; border-radius: 0; box-shadow: none; }
+
+.host-heading { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); min-width: 0; }
+.host-state { font-size: var(--font-size-xs); flex-shrink: 0; }
+.host-state--connected { color: var(--id-color-interaction); }
+.host-state--connecting { color: var(--id-color-warning); }
+.host-state--disconnected { color: var(--id-color-danger); }
+.document-tab-host { flex-shrink: 0; color: var(--id-color-text-subtle); font-size: var(--font-size-xs); }
+
+.host-filter .settings-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); padding: var(--space-2); }
+.host-filter .settings-heading { margin: 0; font-size: var(--font-size-xs); }
+.host-filter select { width: 100%; min-width: 0; }

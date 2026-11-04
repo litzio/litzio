@@ -418,3 +418,19 @@ outside the preview. Descriptions stay on hover/focus; only the Built-in badge i
 persistent. Existing tokens and Button variants apply; no public Plugin API is added.
 
 #1159: U22 Settings와 비서 패널의 사용자 표시 이름은 비서(Assistant)로 통일한다. 기존 Settings·Dialog·Input을 유지하며 U23 새 문서와 이름 변경의 `.md` 중복 방지를 확인했다. [현재 비서 계약과 캡처](main-agent-v1.md), [Root picker 계약](http-host-v1.md#allowed-roots-and-open-folder).
+
+## Multi-Host shell usage (#1174 PR4, P07 / P10 / P12)
+
+Explorer uses the same SettingsSelect value-selection recipe as Settings (P10), stacked within
+the narrow Explorer column. Its All Hosts/one-Host value changes visibility only. Host connection
+state has token color plus a readable status name (P07); error/origin detail uses the existing
+Tooltip rather than permanent explanatory copy. Unreachable Hosts remain visible.
+The assistant's new-conversation Host choice reuses Dialog and Button (P12); its context row
+then displays the fixed Host and puts the OS-account explanation in a tooltip. Existing
+Settings selects, FolderDialog, document-tab overflow and AssistantPanel were compared for the
+same patterns. No new shared interaction or pattern exception is introduced.
+
+Current behavior and browser/1440px/640px fixture evidence are recorded in
+[Editor UX Shell](editor-ux-shell-v1.md#multiple-host-shell-1174-pr4) and
+[Assistant](main-agent-v1.md#conversation-host-selection-1174-pr4). Registration and connection
+management remain the separate PR3b scope; this section does not claim them as implemented.

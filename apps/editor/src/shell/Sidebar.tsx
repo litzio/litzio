@@ -1,3 +1,6 @@
+import { HostExplorer, HostStatus } from "./HostExplorer.tsx";
+import { hostRegistry } from "../host-client.ts";
+import { SettingsSelect } from "@/components/ui/settings.tsx";
 import { locatorKey } from "../host-locator.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { usePanelWidthBounds } from "./panel-width.ts";
@@ -17,6 +20,10 @@ import { splitDocumentPath } from "./document-path.ts";
 import { treeKey, visibleTreeItems, type FolderTreeState, type TreeItem } from "./folder-tree.ts";
 
 type SidebarProps = {
+  documentHostId?: string;
+  onHostDirty?(hostId: string, path: string): boolean;
+  onHostOpen?(hostId: string, path: string): Promise<void>;
+  onHostFileAction?(hostId: string, ...args: Parameters<FileActionHandler>): Promise<string>;
   contributions?: { id: string; label: string; run(returnFocus: HTMLElement): void }[];
   onAddToChat?(path: string, returnFocus: HTMLElement): void;
   onFileAction: FileActionHandler;
@@ -59,11 +66,13 @@ type SidebarProps = {
 
 /** File navigation stays mounted when collapsed. Outline remains independent on the right. */
 export function Sidebar({
-  onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
+  documentHostId = "local", onHostDirty, onHostOpen, onHostFileAction, onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
   folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, settingsDisabled, updateVersion,
   theme = "light", onThemeChange, contributions = [], onAddToChat,
 }: SidebarProps) {
   useTranslation();
+  const [hostFilter, setHostFilter] = useState("");
+  const hosts = hostRegistry.list();
   const bounds = usePanelWidthBounds("sidebar");
   const content = useRef<HTMLDivElement>(null);
   const blankTrigger = useRef<HTMLDivElement>(null);
@@ -104,6 +113,9 @@ export function Sidebar({
           // Keep this menu's provider beside the tree: file dialogs must not inherit a closed menu's focus scope.
           blankTrigger.current?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: event.clientX, clientY: event.clientY }));
         }}>
+        {hosts.length > 1 ? <div className="host-filter"><SettingsSelect label={i18n.t("Host")} value={hostFilter} options={[{ value: "", label: i18n.t("All Hosts") }, ...hosts.map(host => ({ value: host.hostId, label: host.label }))]} onChange={setHostFilter} /></div> : null}
+        <section data-host-id="local" hidden={!!hostFilter && hostFilter !== "local"} aria-label={hosts.find(host => host.hostId === "local")?.label ?? "Local"}>
+        {hosts.length > 1 ? <HostStatus hostId="local" /> : null}
         {folders.length > 0 ? folders.map(tree => (
           <FolderTree
             key={locatorKey({ hostId: tree.hostId, path: tree.root })}
@@ -112,7 +124,7 @@ export function Sidebar({
             tree={tree}
             focusFolder={focusFolder}
             onFolderFocused={onFolderFocused}
-            documentPath={documentPath}
+            documentPath={documentHostId === "local" ? documentPath : ""}
             onToggleFolder={path => onToggleFolder?.(tree.root, path)}
             onToggleSection={() => onToggleSection?.(tree.root)}
             onOpenDocument={path => onOpenDocument?.(path)}
@@ -151,6 +163,8 @@ export function Sidebar({
             ) : null}
           </section>
         )}
+        </section>
+        {hosts.filter(host => host.hostId !== "local").map(host => <div key={host.hostId} hidden={!!hostFilter && hostFilter !== host.hostId}><HostExplorer documentPath={documentHostId === host.hostId ? documentPath : ""} isFileDirty={path => onHostDirty?.(host.hostId, path) ?? false} hostId={host.hostId} onOpen={path => onHostOpen?.(host.hostId, path) ?? Promise.reject(new Error("Host navigation unavailable"))} onFileAction={(...args) => onHostFileAction?.(host.hostId, ...args) ?? Promise.reject(new Error("Host file actions unavailable"))} disabled={fileActionsDisabled} /></div>)}
       </div>
       <ContextMenu actions={blankActions} trigger={<div ref={blankTrigger} className="contents" />} />
       {onSettings || onThemeChange || contributions.length ? (
@@ -200,8 +214,8 @@ type FolderTreeProps = {
   onOpenDocument(path: string): void;
   onOpenRight?(path: string): void;
   openRightDisabled?: boolean;
-  onNew(button: HTMLElement, path?: string): void;
-  onNewFolder(button: HTMLElement, path?: string): void;
+  onNew?(button: HTMLElement, path?: string): void;
+  onNewFolder?(button: HTMLElement, path?: string): void;
   onOpenFolder(returnFocus: HTMLElement | null): void;
   onRevealFolder?(path: string): void;
   onRefresh(): void;
@@ -212,8 +226,8 @@ type FolderTreeProps = {
 function folderActions(props: Pick<FolderTreeProps, "onNew" | "onNewFolder" | "onOpenFolder" | "onRevealFolder" | "onRefresh" | "onClose">,
   root: string, button: () => HTMLElement | null): ContextMenuAction[] {
   return [
-    { id: "new", label: i18n.t("New document…"), icon: <Plus aria-hidden="true" />, run: () => { const target = button(); if (target) props.onNew(target); } },
-    { id: "new-folder", label: i18n.t("New folder…"), icon: <FolderPlus aria-hidden="true" />, run: () => { const target = button(); if (target) props.onNewFolder(target); } },
+    { id: "new", visible: !!props.onNew, label: i18n.t("New document…"), icon: <Plus aria-hidden="true" />, run: () => { const target = button(); if (target) props.onNew?.(target); } },
+    { id: "new-folder", visible: !!props.onNewFolder, label: i18n.t("New folder…"), icon: <FolderPlus aria-hidden="true" />, run: () => { const target = button(); if (target) props.onNewFolder?.(target); } },
     { id: "open", label: i18n.t("Open folder…"), icon: <FolderOpen aria-hidden="true" />, run: () => props.onOpenFolder(button()) },
     { id: "reveal", label: i18n.t("Open in File Explorer"), icon: <FolderOpen aria-hidden="true" />, visible: !!props.onRevealFolder, run: () => props.onRevealFolder?.(root) },
     { id: "refresh", label: i18n.t("Refresh"), icon: <RotateCw aria-hidden="true" />, run: props.onRefresh },
@@ -222,7 +236,7 @@ function folderActions(props: Pick<FolderTreeProps, "onNew" | "onNewFolder" | "o
 }
 
 /** One opened folder as a tree: folders expand in place, documents open. */
-function FolderTree({ onAddToChat, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
+export function FolderTree({ onAddToChat, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
   useTranslation();
   const treeId = useId();
   const section = useRef<HTMLElement>(null);
@@ -291,7 +305,7 @@ function FolderTree({ onAddToChat, onFileAction, fileActionsDisabled, isFileDirt
           }}>{folderName}</span>
         </p>
         <div className="sidebar-folder-actions">
-          <Button variant="ghost" size="icon-xs" aria-label={i18n.t("New document…")} title={i18n.t("New document…")} onClick={event => onNew(event.currentTarget)}>
+          <Button hidden={!onNew} variant="ghost" size="icon-xs" aria-label={i18n.t("New document…")} title={i18n.t("New document…")} onClick={event => onNew?.(event.currentTarget)}>
             <Plus />
           </Button>
           <DropdownMenu>
@@ -350,8 +364,8 @@ function FolderTree({ onAddToChat, onFileAction, fileActionsDisabled, isFileDirt
             </li>
           );
           if (folder) return <ContextMenu key={entry.path} trigger={row} actions={folderActions({
-            onNew: target => onNew(target, entry.path),
-            onNewFolder: target => onNewFolder(target, entry.path),
+            onNew: onNew ? target => onNew(target, entry.path) : undefined,
+            onNewFolder: onNewFolder ? target => onNewFolder(target, entry.path) : undefined,
             onOpenFolder, onRevealFolder, onRefresh, onClose,
           }, entry.path, () => rows.current.get(entry.path) ?? null)
             .filter(action => action.id === "new" || action.id === "new-folder" || action.id === "reveal")} />;
@@ -369,7 +383,7 @@ function FolderTree({ onAddToChat, onFileAction, fileActionsDisabled, isFileDirt
         })}
       </ul>
       {fileAction ? <FileActionDialog action={fileAction.action} entry={fileAction.item.entry}
-        trash={fileDeletion() === "trash"} dirty={isFileDirty(fileAction.item.entry.path)}
+        trash={tree.hostId !== "local" || fileDeletion(tree.hostId) === "trash"} dirty={isFileDirty(fileAction.item.entry.path)}
         returnFocus={actionReturn} onClose={() => setFileAction(undefined)} onExecute={async name => {
           const index = items.findIndex(item => item.entry.path === fileAction.item.entry.path);
           const next = await onFileAction(fileAction.action, tree.root, fileAction.item.entry, name);

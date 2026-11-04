@@ -17,6 +17,7 @@ if (!root) {
 void connectDesktop();
 void connectHost();
 void themeReady.then(async () => {
+  if (import.meta.env.DEV && window.location.pathname === "/host-fixture") await import("./dev/host-fixture.ts");
   const Surface = import.meta.env.DEV && window.location.pathname === "/ui-gallery"
     ? (await import("./dev/ui-gallery.tsx")).UiGallery : App;
   createRoot(root).render(
