@@ -36,6 +36,10 @@ The packaged CI smoke exercises this actual path with synthetic REST.
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
 
+## Approved transition (#1142; not implemented here)
+
+[ADR-0016](../adr/0016-shared-local-daemon-host.md)은 인증된 공유 로컬 daemon으로의 Desktop 전환을 승인한다. 아래는 현재 구현 계약이다. 새 daemon·Desktop·플러그인/AI 수명 동작은 #1142의 PR2~PR4에서 구현과 함께 갱신한다. 이 문서 연결은 구현 완료나 배포 검증을 뜻하지 않는다.
+
 ## Open folders in File Explorer (#487)
 
 The Desktop preload exposes `openFolderInExplorer` as the Host capability, plus

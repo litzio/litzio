@@ -2,7 +2,8 @@
 
 - Status: Accepted
 - Decision date: 2026-10-31
-- Last verified: 2026-10-31 (#853 Host worker and #857 UI manifest/assets/contributions, React compatibility, disposal/re-registration and failure-isolation verification; real Docling remains manual).
+- Last verified: 2026-11-04 — #1142·ADR-0016 문서 개정 대조. runtime 검증 없음.
+- Previous verification: 2026-10-31 (#853 Host worker and #857 UI manifest/assets/contributions, React compatibility, disposal/re-registration and failure-isolation verification; real Docling remains manual).
 - Authority: owner approval in [Discussion #767](https://github.com/litzio/litzio/discussions/767#discussioncomment-19307920), under [AGENTS.md](../../AGENTS.md). Related: [ADR-0011](0011-code-module-boundary.md), [ADR-0004](0004-desktop-host-distribution.md), [ADR-0005](0005-http-host.md), [ADR-0007](0007-editing-session-lifetime.md), [staged Host decision #834](https://github.com/litzio/litzio/discussions/834#discussioncomment-19307667).
 - Supersedes: the static/no-registration/no-dynamic-loading boundary and process-local-only conversion task state in ADR-0011; its Core, package, external-data and thin-interface boundaries remain Accepted.
 
@@ -16,9 +17,15 @@ implementation. Current behavior remains described by the Implemented
 [HTTP Host](../design/http-host-v1.md) contracts until implementation PRs satisfy
 the adoption conditions below and update the affected contracts.
 
+## Amendment: 공유 로컬 daemon Host (2026-11-04, #1142)
+
+[ADR-0016](0016-shared-local-daemon-host.md)은 소유자 승인에 따라 Desktop의 custom protocol·in-process Host·TCP 없음 경계를 공유 로컬 HTTP daemon으로 대체하고, 실행 중 daemon 자동 탐색·연결과 수명 정책을 결정한다. 로컬 daemon은 Root 제한 없이 사용자별 토큰 인증(Desktop Bearer·브라우저 쿠키)을 필수로 한다. 제품/프로토콜 버전 분리와 자동 교체 금지, 종료·휴지통·샘플·origin 정책 및 기간 한정 테스트 예외는 해당 ADR을 따른다. 공유 편집 세션과 원격 인증은 계속 보류한다.
+
+이 개정은 결정이며 PR1에서 제품 동작을 바꾸지 않는다. 아래 기존 transport·Root·인증·수명 서술은 개정 전 결정과 현재 구현의 기록이다. 충돌하는 결정에는 ADR-0016이 우선하며 구현 계약은 PR2~PR4에서 실제 변경과 함께 갱신한다.
+
 ## Amendment (2026-11-04, #1139)
 
-The [owner-approved terminology amendment](https://github.com/litzio/litzio/issues/1139) defines daemon as a shared Host process separate from the UI, without deciding its lifetime. `daemon run` starts the independent foreground HTTP Host; Desktop retains its in-process Host. Automatic discovery/connections to a running Host, lifetime management and shared editing sessions remain deferred. See the [HTTP Host terminology](../design/http-host-v1.md#host-and-daemon-terminology-1139). This amends the earlier blanket daemon deferral; it does not introduce those deferred capabilities.
+The [owner-approved terminology amendment](https://github.com/litzio/litzio/issues/1139) defines daemon as a shared Host process separate from the UI, without deciding its lifetime. `daemon run` starts the independent foreground HTTP Host; Desktop retains its in-process Host. At that amendment, automatic discovery/connections, lifetime management and shared editing were deferred; ADR-0016 now decides local daemon discovery/connections and lifetime. Shared editing remains deferred. See the [HTTP Host terminology](../design/http-host-v1.md#host-and-daemon-terminology-1139). This amends the earlier blanket daemon deferral; it does not introduce those deferred capabilities.
 
 ## Context
 
@@ -48,9 +55,9 @@ needed. This ADR decides only the first stage.
 
 The owner selected `litzio` as the internal code name in [Discussion #856](https://github.com/litzio/litzio/discussions/856). Workspace packages use `@litzio/*`; the shared worker/UI Host contract lives in `@litzio/plugin-api`, including the single `PLUGIN_UI` identifier table. API versions, manifest fields and generic routes/assets keep their existing values. Product labels, CLI command, Desktop transport and installed/data/plugin folders follow the separate [brand configuration](../guides/branding.md) (#859; official default Litzio). Repository references remain separately managed. This rename adds no compatibility aliases or migration.
 
-### 1. Existing Hosts share a user installation without live Host connections
+### 1. Shared installation (original transport boundary amended by ADR-0016)
 
-Desktop keeps ADR-0004's in-process Host and configured Desktop origin (official default `litzio://app`) without a
+Before the ADR-0016 transition, Desktop keeps ADR-0004's in-process Host and configured Desktop origin (official default `litzio://app`) without a
 TCP listener. `litzio daemon run` keeps ADR-0005's independent HTTP Host. Packaged Desktop and distributed CLI builds use a
 common per-user plugin installation folder containing installed code, plugin
 registration state and request records.
@@ -69,7 +76,7 @@ Plugin registration state and request records in that folder are the explicit
 exception to the stateless Host scope in AGENTS.md and ADR-0005. Document file
 handlers remain stateless; this exception does not introduce document/session
 persistence or a general backend. Sharing installations and request records does
-not provide a shared live task controller or editing session. Automatic discovery/connections to a running Host, lifetime management and shared editing sessions remain deferred under #834 and #1139.
+not provide a shared live task controller or editing session. Local running-Host discovery/connections and lifetime are now decided by ADR-0016; shared editing sessions remain deferred.
 
 ### 2. Host execution uses a separate worker and versioned boundaries
 
@@ -146,8 +153,8 @@ surfaces rather than another document implementation.
   additional durable Host responsibility. Existing document Root/access rules
   continue to apply; installed validated plugin assets are served through the
   explicit plugin surface rather than arbitrary document file access.
-- **ADR-0001/0002/0004/0007 remain in force:** editor-engine ownership, plain-text
-  SSOT and Core writes, Desktop in-process transport, and client-local unsaved
+- **ADR-0001/0002/0007 remain in force; ADR-0004 transport amended by ADR-0016:** editor-engine ownership, plain-text
+  SSOT and Core writes, client-local unsaved
   editing recovery are unchanged.
 
 ## Adoption conditions
@@ -188,7 +195,7 @@ leftovers remain private. See the contract for the check/use boundary.
 Condition 1 remains a [manual real-service check](../test/README.md#docling-worker-runtime-853).
 Condition 2 is covered by required Windows packaged CI, not a local packaging run.
 Conditions 4 and 5, UI manifests/contributions, conversion-dialog migration, AI
-installation/approval, OS sandbox and running-Host discovery/connections, lifetime management and shared editing sessions remain outside #853. The full UI
+installation/approval, OS sandbox and shared editing sessions remain outside #853. Local running-Host discovery/connections and lifetime are subsequently decided by ADR-0016, not implemented by #853. The full UI
 plugin boundary is not claimed as adopted by this Host-only implementation.
 
 ## UI implementation progress (#857)
@@ -225,7 +232,7 @@ not implemented in #857.
 - AI-generated plugin installation, user approval and automatic download flows.
 - OS sandbox implementation. Initially only trusted local code is allowed;
   untrusted code is not allowed before OS sandbox validation.
-- Automatic discovery/connections to a running Host, lifetime management and shared editing sessions; these remain later decisions in #834 and #1139.
+- Shared editing sessions remain deferred. Local running-Host discovery/connections and lifetime management are now decided by [ADR-0016](0016-shared-local-daemon-host.md), with implementation in PR2~PR4 of #1142.
 - Remote plugin deployment, a marketplace or Core changes.
 
 ## Consequences

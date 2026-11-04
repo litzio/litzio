@@ -2,13 +2,20 @@
 
 - Status: Accepted
 - Decision date: 2026-11-04
-- Last verified: 2026-11-04 — #1132 승인·Discussion 기록과 관련 ADR/Implemented 계약의 문서 대조. 제품 실행이나 기능 이행 검증은 포함하지 않는다.
+- Last verified: 2026-11-04 — #1142·ADR-0016 문서 개정 대조. runtime 검증 없음.
+- Previous verification: 2026-11-04 — #1132 승인·Discussion 기록과 관련 ADR/Implemented 계약의 문서 대조. 제품 실행이나 기능 이행 검증은 포함하지 않는다.
 - Authority: [#1132 소유자 승인](https://github.com/litzio/litzio/issues/1132#issuecomment-6618888405), [종합과 결정 제안](https://github.com/litzio/litzio/issues/1132#issuecomment-6618863609), [Discussion #767 결정 기록](https://github.com/litzio/litzio/discussions/767#discussioncomment-19386313), under [AGENTS.md](../../AGENTS.md).
-- Scope: 새 사용자 기능의 공용 작업·CLI·비서 도구 계약. 기존 기능은 아래 순서로 이행하며, 실행 중 Host 연결과 편집 상태 공유는 보류한다.
+- Scope: 새 사용자 기능의 공용 작업·CLI·비서 도구 계약. 기존 기능은 아래 순서로 이행한다. 로컬 daemon 연결·수명은 ADR-0016에서 결정하며 편집 상태 공유는 계속 보류한다.
+
+## Amendment: 공유 로컬 daemon Host (2026-11-04, #1142)
+
+[ADR-0016](0016-shared-local-daemon-host.md)은 소유자 승인에 따라 Desktop의 custom protocol·in-process Host·TCP 없음 경계를 공유 로컬 HTTP daemon으로 대체하고, 실행 중 daemon 자동 탐색·연결과 수명 정책을 결정한다. 로컬 daemon은 Root 제한 없이 사용자별 토큰 인증(Desktop Bearer·브라우저 쿠키)을 필수로 한다. 제품/프로토콜 버전 분리와 자동 교체 금지, 종료·휴지통·샘플·origin 정책 및 기간 한정 테스트 예외는 해당 ADR을 따른다. 공유 편집 세션과 원격 인증은 계속 보류한다.
+
+이 개정은 결정이며 PR1에서 제품 동작을 바꾸지 않는다. 아래 기존 transport·Root·인증·수명 서술은 개정 전 결정과 현재 구현의 기록이다. 충돌하는 결정에는 ADR-0016이 우선하며 구현 계약은 PR2~PR4에서 실제 변경과 함께 갱신한다.
 
 ## Amendment (2026-11-04, #1139)
 
-The [owner-approved terminology amendment](https://github.com/litzio/litzio/issues/1139) defines daemon as a shared Host process separate from the UI, without deciding its lifetime. `daemon run` starts the independent foreground HTTP Host; Desktop retains its in-process Host. Automatic discovery/connections to a running Host, lifetime management and shared editing sessions remain deferred. See the [HTTP Host terminology](../design/http-host-v1.md#host-and-daemon-terminology-1139). This amends the earlier blanket daemon deferral; it does not introduce those deferred capabilities.
+The [owner-approved terminology amendment](https://github.com/litzio/litzio/issues/1139) defines daemon as a shared Host process separate from the UI, without deciding its lifetime. `daemon run` starts the independent foreground HTTP Host; Desktop retains its in-process Host. At that amendment, automatic discovery/connections, lifetime management and shared editing were deferred; ADR-0016 now decides local daemon discovery/connections and lifetime. Shared editing remains deferred. See the [HTTP Host terminology](../design/http-host-v1.md#host-and-daemon-terminology-1139). This amends the earlier blanket daemon deferral; it does not introduce those deferred capabilities.
 
 ## Context
 
@@ -35,7 +42,7 @@ cursor, focus, selection, toolbar, hover 등 Editor 전용 interaction은 기존
 
 ### 2. 같은 작업 정의와 실행 중 Host 연결은 구분한다
 
-현재 CLI는 공용 함수를 자기 프로세스에서 실행할 수 있다. 이것은 실행 중 Desktop/HTTP Host를 호출하거나 그 창의 편집 상태를 사용하는 기능이 아니다. 실행 중 Host에 CLI를 연결하는 방식과 자동 탐색은 미룬다. Desktop 외부 호출은 ADR-0004의 in-process·TCP 없음 경계를 검토하고 IPC를 별도로 결정해야 한다.
+현재 CLI는 공용 함수를 자기 프로세스에서 실행할 수 있다. 이것은 실행 중 Desktop/HTTP Host를 호출하거나 그 창의 편집 상태를 사용하는 기능이 아니다. ADR-0016은 Desktop의 로컬 daemon 자동 탐색·연결과 관리 CLI를 결정한다. 모든 기존 CLI 명령을 live daemon RPC로 바꾸는 방식은 결정하지 않는다. ADR-0004의 in-process·TCP 없음 경계는 그 ADR로 대체된다.
 
 **Host 호출 실패나 timeout을 로컬 재실행으로 바꾸지 않는다.** 응답을 받지 못해도 Host에서 쓰기가 완료됐을 수 있으므로 실패 또는 결과 불확실로 반환한다. 실행 대상과 권한이 다른 로컬 경로로 전환해 중복 쓰기를 일으키지 않는다. ADR-0012의 UUID·uncertain·자동 재실행 금지 계약은 그대로 유지한다.
 
@@ -52,16 +59,16 @@ CLI stdout에 같은 receipt가 있다는 것만으로 다른 창에 결과 카�
 - 공용 작업은 화면 상태를 가정하지 않는 명령으로 정의한다.
 - 문서 의미는 Core의 editor-neutral 연산으로 유지한다.
 - 화면 소유 상태인 미저장 내용·Undo·표시 설정과 열린 탭 등은 공유하지 않는다고 명시한다.
-- daemon은 화면과 따로 실행되는 공용 Host 프로세스다. 수명 정책은 별도로 결정한다.
+- daemon은 화면과 따로 실행되는 공용 Host 프로세스다. 로컬 수명 정책은 ADR-0016을 따른다.
 
-공유 문서 모델, 화면 상태를 세션으로 옮길 범위, ADR-0001·0002와 인증은 동시 편집 결정 때 별도로 다룬다. 실행 중 Host 자동 탐색·연결, 수명 관리, 공유 편집 session/history는 보류한다.
+공유 문서 모델, 화면 상태를 세션으로 옮길 범위, ADR-0001·0002와 인증은 동시 편집 결정 때 별도로 다룬다. 로컬 daemon 자동 탐색·연결과 수명 관리는 ADR-0016에서 결정하며 공유 편집 session/history는 계속 보류한다.
 
 ## Relationship to existing decisions
 
 - [ADR-0001](0001-single-document-editor-architecture.md)·[ADR-0002](0002-document-persistence-semantic-ownership.md)·[ADR-0007](0007-editing-session-lifetime.md): single-document editor state, plain-text SSOT, Core 의미·쓰기, 명시적 Save와 클라이언트 복구를 유지한다.
-- [ADR-0004](0004-desktop-host-distribution.md): Desktop custom protocol과 in-process Host·TCP 없음은 유지한다. 설치형 CLI 통합을 켜는 것과 비서 child에 CLI 경로를 전달하는 것은 다르며 시스템 PATH 변경을 요구하지 않는다.
-- [ADR-0005](0005-http-host.md): 독립 HTTP Host와 stateless 파일 handler, 고정 Root와 기존 외부 접근 통제는 유지한다. 공용 작업이 새 persistence/backend나 다중 사용자 인증을 도입하지 않는다.
-- [ADR-0012](0012-plugin-runtime-and-ui-contributions.md): 공용 설치·등록/요청 기록은 live controller나 편집 세션 공유가 아니다. worker 수명·요청 중복 방지·완료 결과 공개·uncertain/no-replay를 재사용하며 실행 중 Host 자동 탐색·연결, 수명 관리와 공유 편집 세션 보류를 유지한다.
+- [ADR-0004](0004-desktop-host-distribution.md): Desktop custom protocol과 in-process Host·TCP 없음은 ADR-0016으로 대체한다. 설치형 CLI 통합을 켜는 것과 비서 child에 CLI 경로를 전달하는 것은 다르며 시스템 PATH 변경을 요구하지 않는다.
+- [ADR-0005](0005-http-host.md): 공용 파일 handler와 Core 경계는 유지한다. 로컬 공유 daemon의 Root·인증은 ADR-0016을 따르며, 현재 고정 Root 전경 Host 계약은 구현 PR에서 갱신한다. 공용 작업이 새 persistence/backend나 다중 사용자 인증을 도입하지 않는다.
+- [ADR-0012](0012-plugin-runtime-and-ui-contributions.md): 공용 설치·등록/요청 기록은 live controller나 편집 세션 공유가 아니다. worker 수명·요청 중복 방지·완료 결과 공개·uncertain/no-replay를 재사용하며 로컬 daemon 자동 탐색·연결과 수명 관리는 ADR-0016으로 정하고 공유 편집 세션 보류는 유지한다.
 - [ADR-0013](0013-ai-agent-task-service.md)·[ADR-0014](0014-main-agent-app-server.md): 기존 AI 실행·연결·대화의 CLI 생략은 당시 구현 범위로 남긴다. 문서 의미 연산이 아니라는 이유로 향후 사용자 기능의 CLI를 생략하는 규칙은 이 ADR이 대체한다. 이 문서 PR은 해당 기존 기능의 CLI나 provider 연결을 구현하지 않는다.
 
 ## First case and follow-up

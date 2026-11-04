@@ -31,6 +31,10 @@ Bibliography reads reuse the shared stateless Host and existing Root checks thro
 resource errors do not block Markdown Save. The local per-document folder context, HTTP fixed Root
 union, limits and snapshot policy are specified in [Citations v1](citations-v1.md#bibliography-snapshots-and-limited-formatting-unit-b).
 
+## Approved transition (#1142; not implemented here)
+
+[ADR-0016](../adr/0016-shared-local-daemon-host.md)은 인증된 공유 로컬 daemon으로의 Desktop 전환을 승인한다. 아래는 현재 구현 계약이다. 새 daemon·Desktop·플러그인/AI 수명 동작은 #1142의 PR2~PR4에서 구현과 함께 갱신한다. 이 문서 연결은 구현 완료나 배포 검증을 뜻하지 않는다.
+
 ## Plain text file boundary (#817)
 
 Shared Vite/Desktop/HTTP `GET /api/document` returns either a native Core read model
