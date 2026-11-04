@@ -35,7 +35,7 @@ test("the packed CLI installs offline outside the checkout and serves both roots
   const install = path.join(scratch, "install"), cwd = path.join(scratch, "unrelated cwd");
   const a = path.join(scratch, "문서 A"), b = path.join(scratch, "documents B");
   for (const folder of [install, cwd, a, b]) mkdirSync(folder);
-  const env: NodeJS.ProcessEnv = { ...process.env, LITZIO_AI_AGENT_CWD: path.join(scratch, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(scratch, "ai-agent.json"), LITZIO_PLUGINS_DIR: path.join(scratch, "plugins"), LITZIO_DOCLING_SETTINGS_FILE: path.join(scratch, "docling.json") };
+  const env: NodeJS.ProcessEnv = { ...process.env, LITZIO_DAEMON_DIR: path.join(scratch, "daemon"), LITZIO_AI_AGENT_CWD: path.join(scratch, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(scratch, "ai-agent.json"), LITZIO_PLUGINS_DIR: path.join(scratch, "plugins"), LITZIO_DOCLING_SETTINGS_FILE: path.join(scratch, "docling.json") };
   delete env.NODE_PATH; delete env.NODE_OPTIONS;
   let child: ChildProcess | undefined;
   const fake = await fakeDoclingServer();
@@ -59,7 +59,7 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     const formatted = spawnSync(process.execPath, [entry, "format", path.join(a, "document.md")], { cwd, env, encoding: "utf8" });
     assert.equal(formatted.status, 0, formatted.stderr);
     const port = await freePort(), url = `http://127.0.0.1:${port}`;
-    child = spawn(process.execPath, [entry, "daemon", "run", "--port", String(port), "--root", a, "--root", b], { cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    child = spawn(process.execPath, [entry, "daemon", "run", "--channel", "development", "--port", String(port), "--root", a, "--root", b], { cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     let output = "", errors = "";
     child.stderr!.on("data", data => { errors += data; });
     await new Promise<void>((resolve, reject) => {
@@ -86,9 +86,9 @@ test("the packed CLI installs offline outside the checkout and serves both roots
       assert.equal(response.status, 200, await response.text());
       assert.equal(readFileSync(file, "utf8"), "---\nlitzio: 1\n---\n\n# Title\n\nPacked save.\n");
     }
-    const conflict = spawnSync(process.execPath, [entry, "daemon", "run", "--port", String(port), "--root", a], { cwd, env, encoding: "utf8", timeout: 10_000 });
+    const conflict = spawnSync(process.execPath, [entry, "daemon", "run", "--channel", "development", "--port", String(port), "--root", a], { cwd, env, encoding: "utf8", timeout: 10_000 });
     assert.notEqual(conflict.status, 0);
-    assert.match(conflict.stderr, /EADDRINUSE/);
+    assert.match(conflict.stderr, /Daemon lock exists/);
     await stop(child);
     await assert.rejects(fetch(url), /fetch failed/);
   } finally {

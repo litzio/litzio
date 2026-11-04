@@ -277,15 +277,21 @@ const COMMANDS: CommandSpec[] = [
   {
     name: "daemon",
     group: "Serve",
-    summary: "Serve the production Editor inside explicitly allowed folders",
-    usage: `${brand.cliCommand} daemon run --root <folder> [--root <folder> ...] [--port <port>] [--host <IP>] [--public-origin <origin>]`,
+    summary: "Run and manage the HTTP daemon",
+    usage: `${brand.cliCommand} daemon run [--root <folder> ...] [--port <port>] [--host <IP>] [--public-origin <origin>] [--channel <stable|beta|development>]`,
     details: [
       "run starts the independent HTTP Host in the foreground. daemon alone shows help.",
-      "At least one existing --root is required. Roots are server filesystem access boundaries,",
+      `${brand.cliCommand} daemon start|status [--channel <stable|beta|development>]`,
+      `${brand.cliCommand} daemon stop --confirm [--channel <stable|beta|development>]`,
+      "start connects or starts one local background daemon; status reports its verified URL and versions.",
+      "Local mode: 127.0.0.1 with a stable port derived from the OS user identity and channel (20000–44575).",
+      "Without --root, the entire server disk is accessible. Repeat --root to restrict folders.",
+      "Roots are server filesystem access boundaries,",
       "not a workspace or an initial folder selection. Use Open Folder to choose a root or subfolder.",
-      "Defaults: --host 127.0.0.1 --port 5180. Requires the production Editor build.",
+      "Requires the production Editor build. Manual --host/--root/--port modes are not registered for discovery.",
       "For an access-controlled reverse proxy, set --public-origin to its exact http(s) origin.",
-      "Non-loopback binding requires --public-origin and restricted upstream access. No built-in authentication.",
+      "Non-loopback binding requires --public-origin. There is no authentication in this phase (decision #1145).",
+      "Non-loopback startup warns that anyone who can reach the port can access it; without --root, disk and assistant (AI) execution are exposed.",
       "Serve at the site root (/); subpath hosting is not supported. Ctrl+C stops the server.",
     ],
   },
@@ -1997,11 +2003,11 @@ export async function runCliAsync(args: string[]): Promise<number> {
 if (import.meta.main) {
   const args = process.argv.slice(2);
   try {
-    if (args[0] === "daemon" && args[1] === "run" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
-      const { serve } = await import("./serve.ts");
+    if (args[0] === "daemon" && ["run", "start", "stop", "status"].includes(args[1]) && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
+      const { daemonCli } = await import("./daemon.ts");
       // Source checkout runs use an explicit Editor build; the distributable carries it beside cli.mjs.
       const editorDir = fileURLToPath(new URL(import.meta.url.endsWith(".ts") ? "../../../apps/editor/dist/" : "./editor/", import.meta.url));
-      await serve(args.slice(2), editorDir);
+      await daemonCli(args[1], args.slice(2), editorDir, fileURLToPath(import.meta.url));
     } else process.exitCode = await runCliAsync(args);
   } catch (error) {
     process.exitCode = reportError(args, error);

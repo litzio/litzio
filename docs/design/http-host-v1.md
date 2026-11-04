@@ -1,22 +1,84 @@
 # HTTP Host v1
 
 - Status: Implemented
+- Daemon verification: 2026-11-04 (#1142 PR2: Windows CLI concurrent start/stop, Host/Origin boundaries and production browser Save/Reload/conflict; Linux remains required CI).
 - CI artifact policy verification: 2026-10-30 (#808; tarball upload removed, screen evidence retained on failure; workflow policy regressions and docs check, no local HTTP/browser execution).
 - Documentation verification: 2026-10-26 (pathless Host response versus Editor startup/restoration compared with document-api.ts, App.tsx and the session contract; no new HTTP/browser execution).
 - Last verified: 2026-10-16 (#296 PR3: Windows production Host with actual Chrome process crashes, same-profile/origin restart, local Restore, real Save/Reload and external 409 preservation; HTTP boundary tests. Linux execution remains required CI).
 - Previous verification: 2026-10-15 (ADR-0006 route/validation cleanup by code/test comparison; no runtime regressions rerun). Previous verification: 2026-10-13 (real TCP boundaries, packaged Node-only execution and production browser Save/Reload; Windows/Linux package and browser checks are required in CI).
 - Authority: [ADR-0005](../adr/0005-http-host.md), [Filesystem Host boundary](filesystem-host-boundary-v1.md), [Editing session and Save](editing-session-save-v1.md).
-- Scope: single-operator HTTP Editor with fixed allowed server folders ([#186](https://github.com/litzio/litzio/issues/186)).
+- Scope: local daemon and manual remote single-operator HTTP Editor with optional Root limits ([#186](https://github.com/litzio/litzio/issues/186)).
 
-## Approved transition (#1142; not implemented here)
+## Shared local daemon (#1142 PR2)
 
-[ADR-0016](../adr/0016-shared-local-daemon-host.md)은 인증된 공유 로컬 daemon으로의 Desktop 전환을 승인한다. 아래는 현재 구현 계약이다. 새 daemon·Desktop·플러그인/AI 수명 동작은 #1142의 PR2~PR4에서 구현과 함께 갱신한다. 이 문서 연결은 구현 완료나 배포 검증을 뜻하지 않는다.
+[ADR-0016](../adr/0016-shared-local-daemon-host.md) governs the daemon; the owner-approved 2026-11-04 authentication decision below supersedes earlier token requirements.
+`daemon run` runs it in the foreground; `daemon start` starts or connects to the local
+background instance. `daemon status` verifies its identity and prints JSON including its URL.
+`daemon stop --confirm` stops that exact instance; confirmation acknowledges that other
+clients/jobs can be interrupted. Restart is explicit: stop, then start. Product changes never
+replace a running daemon. Desktop connection/exit policy and plugin/AI lifetime are PR3/PR4;
+Desktop still uses its in-process Host in PR2.
 
-## Host and daemon terminology (#1139)
+### Host and daemon terminology (#1139)
 
-Under the [2026-11-04 owner decision](https://github.com/litzio/litzio/issues/1139), Host is the role providing document capabilities; HTTP Host provides that role over HTTP. A daemon is a shared Host process running separately from the UI; its lifetime policy is a separate decision. Web and Desktop Hosts are intended to converge over time.
+Host is the role providing document capabilities; HTTP Host provides that role over HTTP.
+A daemon is the shared Host process running separately from UI. CLI `daemon` alone and help
+exit without a listener; unknown subcommands fail. There is no `serve` alias.
+No shared editing state or conversion of existing file CLI commands to live daemon RPC is implied.
 
-Currently `daemon run` runs an independent HTTP Host in the foreground, with the existing options and shutdown signals. Desktop retains its in-process Host. This does not introduce CLI/Desktop connections to a running Host or shared state. `daemon` alone and help exit without starting a server; unknown subcommands fail. There is no `serve` alias or background lifecycle command.
+### Discovery, identity and versions
+
+Local mode has no `--host`, `--root`, `--port` or `--public-origin`. Only this loopback,
+unrestricted instance is registered for Desktop discovery. Manual modes
+are never published as Desktop candidates. `start/stop/status` manage only the local instance.
+`--channel stable|beta|development` selects the user/channel namespace: default is development
+for source, beta for prerelease builds, otherwise stable. The fixed origin is derived from the OS
+user identity (Windows SID via `whoami /user /fo csv /nh`, POSIX numeric UID) and channel:
+SHA-256 of `brand.appId`, NUL and `sid:<SID>`/`uid:<UID>`, first unsigned big-endian 32 bits modulo
+8192 gives a user slot; port is `20000 + slot * 3 + channelOffset` (stable 0, beta 1, development 2).
+This stays in 20000–44575, below the dynamic-port range and away from usual development defaults.
+The same OS identity/channel retains its origin across restarts and builds; different users are
+no longer assigned the same three machine-wide ports. Finite hash slots can collide: a busy port
+(including such a collision) fails explicitly, with no alternate port or automatic replacement.
+`daemon status` reports the verified URL; do not assume one machine-wide port.
+
+State is `<home>/<brand.folders.shared>/daemon/<channel>/` (official `.litzio`).
+`LITZIO_DAEMON_DIR` overrides the parent directory; all automated tests use isolated temporary
+state. The directory is user-only (POSIX 0700, Windows inheritance removed and current user
+full access). `daemon.lock` is exclusively created before startup and contains PID, start
+time and instance UUID. Ready `instance.json` is published by sibling rename and contains those
+three fields plus the fixed URL. Shutdown removes only its matching record/lock.
+Manual foreground listeners use an endpoint-specific lock in the same directory.
+
+`GET /daemon/health` returns PID, start time, instance ID, **productVersion**
+and **protocolVersion** separately. Clients must verify all identity fields against discovery.
+Daemon health/stop requests require `X-Litzio-Protocol: 1`; mismatch returns 409 before operations. Other requests may omit this header, but an explicit mismatching value is refused. A product
+version difference warns and retains the connection. On a protocol mismatch, use the CLI version
+matching the running daemon to stop it (with that channel), or Ctrl+C in its foreground terminal,
+then start the desired version. The incompatible CLI does not bypass protocol checks to stop it;
+never kill a PID alone. `POST /daemon/stop` requires
+same-origin JSON, all three identity fields and `confirm:true`. No OS kill based on a PID.
+
+Stale, malformed or unreachable records/locks fail closed and are never reclaimed automatically.
+After a crash, inspect the recorded identity, endpoint and log and establish that the owned
+instance is gone before manually removing its stale lock/discovery record. This is diagnosis,
+not automatic recovery. `status` without discovery reports `running:false` and whether a local
+lock exists; it does not assert that a locked/unreachable process is safely replaceable.
+
+### Authentication deferred (#1145)
+
+**Owner-approved final decision, 2026-11-04:** this phase has **no authentication**.
+The method and adoption timing are deferred to [#1145](https://github.com/litzio/litzio/issues/1145).
+The previous token-file, login/bootstrap, session-cookie, Bearer-check and secret browser-link
+implementation is removed, not disabled. There is no cleanup/migration of old credentials.
+Browsers open the ordinary daemon URL directly. Instance identity and protocol checks are
+compatibility/ownership guards, not proof of an authorized caller.
+
+Anyone on the same PC, including other Windows users, can reach a local daemon. Desktop's
+daemon remains loopback-only. A manual non-loopback bind admits anyone on the same network who
+can reach its port; without `--root`, this exposes the entire disk and assistant (AI) execution
+under the Host OS user's permissions. Host/Origin checks remain and reject cross-origin browser
+requests, but a direct client can construct accepted headers. They do not authenticate people.
 
 Bibliography reads reuse the shared stateless Host and existing Root checks through the dedicated
 `/api/bibliography` endpoint. Only declarations of an admitted, revision-matched document are read;
@@ -74,22 +136,25 @@ migrated or cleaned automatically.
 
 | Option | Contract |
 | --- | --- |
-| `--root <directory>` | Required, repeatable; relative paths use launch cwd. All must exist and be directories. The same real directory (filesystem identity) given twice is deduplicated. Nested roots are allowed. |
-| `--port <number>` | Default `5180`; integer 1–65535. Port conflicts fail without starting a replacement listener. |
-| `--host <IP>` | Default `127.0.0.1`; IP literal only. A non-loopback bind requires `--public-origin`. |
-| `--public-origin <origin>` | Explicit `http(s)://host[:port]`, without path, credentials, query or fragment. Adds that exact origin and Host authority. |
+| `--root <directory>` | Optional, repeatable; omit for full server-disk access; relative paths use launch cwd. All must exist and be directories. The same real directory (filesystem identity) given twice is deduplicated. Nested roots are allowed. |
+| `--port <number>` | Default channel port above; integer 1–65535. Port conflicts fail without starting a replacement listener. |
+| `--host <IP>` | Default `127.0.0.1`; IP literal only. A non-loopback bind requires `--public-origin`. Root limits remain optional; no authentication is provided. |
+| `--public-origin <origin>` | Explicit `http(s)://host[:port]`, without path, credentials, query or fragment. Adds that exact origin and Host authority; required for non-loopback binding. |
 
 Unknown options, positional arguments and repeated single-value options fail. Invalid configuration is rejected before listening. SIGINT/SIGTERM closes the listener, allows active connections up to five seconds, then closes remaining owned connections. New CLI builds replace the complete package, including Editor assets; do not mix versions.
 
 ## Allowed roots and Open Folder
 
-Roots are the server's access boundary, fixed until restart. They are neither initial folder selections nor a merged Workspace. Paths refer to the server filesystem, even when a browser runs on another PC.
+When configured, Roots are the server's access boundary, fixed until restart. Without roots, the daemon uses the same full server-file policy as Desktop; per-document media and mutation guards still apply. They are neither initial folder selections nor a merged Workspace. Paths refer to the server filesystem, even when a browser runs on another PC.
 
 HTTP supplies no default document or development sample. The Editor can still open an explicit path or restore tabs under the [session startup contract](editing-session-save-v1.md#tab-navigation-memory-383). Open Folder offers each allowed root and its descendants. Breadcrumbs start at the most specific containing root; Up cannot leave it. The path field still accepts another allowed root. Recent folders are browser preferences: locations outside current roots are hidden without deleting stored preferences, and every actual request is revalidated by the Host. A root name is compact in breadcrumbs; starting places and the path field retain the full locator.
 
 Choose a folder, then a Markdown file in the sidebar. Several opened folders may be kept, each within an allowed root ([ADR-0009](../adr/0009-multiple-opened-folders.md)); remembered ones the roots no longer allow are left out on start. Open, New file/folder, Save, relative images, image paste/drop, image choice and receipt-based rollback use existing shared handlers. Image choice lists only server images within the allowed roots. Open/New keeps existing sessions; operation guards and work-loss confirmation follow the [session protection contract](editing-session-save-v1.md#switching-and-recovery). Stale disk revisions still return 409; unsupported canonical writes fail closed. Markdown semantics and relative image source strings do not change.
 
 ## Filesystem boundary
+
+Explorer file deletion uses the daemon OS trash adapter: Windows Microsoft.VisualBasic recycle-bin API, Linux `gio trash` (GIO must be installed and trash available). Unsupported/unavailable trash fails without unlink fallback. The validated `deleteFile` handler still checks folder/file identity and expected revision. Tests inject a scratch-only adapter and never touch the user trash. Asset receipt rollback and other internal cleanup retain their existing narrow deletion contracts.
+
 
 Every document read/create/save/preview, folder list/browse/create, media read, image choice source and asset upload/rollback passes the same root policy. Figure validation performs no filesystem access. Static Editor assets are a separate fixed build directory, never a requested document directory.
 
@@ -105,15 +170,34 @@ The operator's OS account and filesystem administrators are trusted. `realpath` 
 
 ## HTTP and remote access
 
-Default access is `http://127.0.0.1:5180`. This Host has no built-in authentication. Host/Origin checks defend browser request boundaries; they do not identify an authorized person. A same-machine process or directly reachable client can construct accepted headers.
+Default local access uses the fixed user/channel origin above. There is no authentication;
+Host/Origin checks protect browser request boundaries.
+
+**Owner-approved final decision, 2026-11-04 ([ADR-0016 ③](../adr/0016-shared-local-daemon-host.md#③-로컬-접근-범위)):**
+Root-unrestricted non-loopback mode is allowed with explicit `--host` and `--public-origin`,
+without authentication in this phase. Manual remote daemons are not published for Desktop
+discovery. Local user/channel fixed ports and discovery rules remain unchanged.
+
+Every non-loopback startup warns in the terminal that anyone on the same network who can reach
+the port can access the daemon, and omitting `--root` exposes the entire disk and assistant (AI)
+execution. This warning does not block startup. Authentication, including HTTPS and accounts,
+will be selected later in #1145. For example, using the operator's actual LAN address:
+
+```bash
+litzio daemon run --host 0.0.0.0 --port 5180 --public-origin http://192.168.1.10:5180
+```
+
+Root-specified mode and Host/Origin checks retain their existing behavior. Operators may still
+provide their own proxy/network controls; these are not daemon authentication or a requirement
+implemented by this phase.
 
 For an existing access-controlled reverse proxy on the same server, keep the upstream on loopback and configure its browser origin explicitly:
 
 ```bash
-litzio daemon run --root /srv/project --root /srv/document --public-origin https://docs.example.internal
+litzio daemon run --port 5180 --root /srv/project --root /srv/document --public-origin https://docs.example.internal
 ```
 
-Configure the proxy to authenticate **every path** on that dedicated origin, forward `/` unchanged to `http://127.0.0.1:5180`, preserve the browser's Origin, and set Host to `docs.example.internal` or the loopback upstream authority. Do not mount under a URL subpath. Use HTTPS at the proxy and restrict direct upstream access. A proxy on another machine additionally requires an explicit bind such as `--host 0.0.0.0` and firewall/private-network controls; specifying a public origin alone provides no access control. Never expose this service as an unauthenticated public Internet editor. Proxy identity, credentials and TLS provisioning remain the operator's responsibility.
+If choosing an authenticated proxy, configure it to authenticate **every path** on that dedicated origin, forward `/` unchanged to `http://127.0.0.1:5180`, preserve the browser's Origin, and set Host to `docs.example.internal` or the loopback upstream authority. Do not mount under a URL subpath. Use HTTPS at the proxy and restrict direct upstream access. A proxy on another machine additionally requires an explicit bind such as `--host 0.0.0.0` and firewall/private-network controls; specifying a public origin alone provides no access control. Never expose this service as an unauthenticated public Internet editor. Proxy identity, credentials and TLS provisioning remain the operator's responsibility.
 
 The listener accepts only configured Host authorities and exact origins. Writes require Origin; cross-site API/media requests are rejected. It emits no permissive CORS headers and does not infer trust from `Forwarded`/`X-Forwarded-*`. JSON routes require `application/json`. Malformed/duplicated query parameters and malformed encoded paths are rejected. GET/HEAD with bodies are rejected; unknown routes fail without SPA fallback.
 

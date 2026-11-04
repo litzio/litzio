@@ -1,4 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -12,6 +13,11 @@ try {
       throw new Error("Build the production HTTP Host first: pnpm --filter @litzio/cli build");
     }
     process.env.LITZIO_BROWSER_HOST = "http";
+    if (!process.env.LITZIO_BROWSER_URL) {
+      const directory = mkdtempSync(path.join(os.tmpdir(), "litzio-http-browser-"));
+      process.env.LITZIO_BROWSER_DAEMON_DIR = directory;
+      process.once("exit", () => rmSync(directory, { recursive: true, force: true }));
+    }
     prepareBrowserFixtures();
   }
   const unknown = scenarios.filter(name => !existsSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`)));

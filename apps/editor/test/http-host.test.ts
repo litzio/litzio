@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { randomUUID } from "node:crypto";
 import { folderVersion } from "../server/folder-watch.ts";
 import { listenForFetch, startFetchServer } from "../../../test/helpers/fetch-server.ts";
 import { nativeSource } from "./helpers/document.ts";
@@ -11,6 +12,8 @@ import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
 import { documentRevision, loadDocumentFile } from "../server/document-api.ts";
 import { MAX_JSON_BYTES, startHttpHost } from "../server/http-host.ts";
+import { DAEMON_PROTOCOL } from "../server/daemon-protocol.ts";
+import { inspectDaemon, stopDaemon } from "../server/daemon-state.ts";
 import { RootAccess } from "../server/file-access.ts";
 import { convertDoclingFile } from "../../../plugins/docling/src/index.ts";
 
@@ -118,7 +121,7 @@ test("fetch listener startup and close errors propagate without retries", async 
 });
 
 test("HTTP file mutations reuse shared validation, strict bodies and allowlisted roots", async t => {
-  const { a, b, outside, send } = await fixture(t);
+  const { a, b, outside, send, trashed, base } = await fixture(t);
   const file = path.join(a, "document.md");
   const original = fs.readFileSync(file);
   assert.equal((await send("/api/file", "GET")).status, 405);
@@ -129,6 +132,8 @@ test("HTTP file mutations reuse shared validation, strict bodies and allowlisted
   assert.deepEqual(fs.readFileSync(renamed), original);
   assert.equal((await send("/api/file", "DELETE", {root:a, path:renamed})).status, 200);
   assert.equal(fs.existsSync(renamed), false);
+  assert.deepEqual(trashed, [renamed]);
+  assert.deepEqual(fs.readFileSync(path.join(base, "trashed-renamed.md")), original);
   const source = nativeSource(":::{figure} ./image.png\n\nCaption.\n:::\n");
   fs.writeFileSync(file, source); fs.writeFileSync(path.join(b, "document.md"), source);
   fs.unlinkSync(path.join(b, "image.png")); fs.linkSync(path.join(a, "image.png"), path.join(b, "image.png"));
@@ -191,7 +196,7 @@ test("folder image preview is read-only, root bounded and isolated for GET, HEAD
   assert.equal((await send(route(a, path.join(a, "bad.png")), "HEAD")).status, 413);
 });
 
-async function fixture(t: TestContext, external?: string) {
+async function fixture(t: TestContext, external?: string, controlled = false) {
   const base = fs.mkdtempSync(path.join(tmpdir(), "litzio-http-"));
   const a = path.join(base, "문서 A"), b = path.join(base, "documents-B");
   const outside = path.join(base, "문서 A-other"), editorDir = path.join(base, "editor");
@@ -204,7 +209,12 @@ async function fixture(t: TestContext, external?: string) {
   fs.writeFileSync(path.join(editorDir, "app.js"), "export {};");
   const previousPlugins = process.env.LITZIO_PLUGINS_DIR;
   process.env.LITZIO_PLUGINS_DIR = path.join(base, "plugins");
-  const host = await startFetchServer(() => startHttpHost({ editorDir, roots: [a, b], port: 0, publicOrigin: external }));
+  const trashed: string[] = [];
+  const health = { pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), productVersion: "test-product", protocolVersion: DAEMON_PROTOCOL };
+  let stopped = false;
+  const host = await startFetchServer(() => startHttpHost({ editorDir, roots: controlled && !external ? [] : [a, b], port: 0, publicOrigin: external,
+    ...(controlled ? { daemon: { health, stop: () => { stopped = true; } } } : {}),
+    removeFile: file => { trashed.push(file); fs.renameSync(file, path.join(base, "trashed-" + path.basename(file))); } }));
   if (previousPlugins === undefined) delete process.env.LITZIO_PLUGINS_DIR; else process.env.LITZIO_PLUGINS_DIR = previousPlugins;
   const address = host.server.address();
   assert.ok(address && typeof address !== "string");
@@ -214,8 +224,38 @@ async function fixture(t: TestContext, external?: string) {
     method, headers: { Origin: url, ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...headers },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  return { base, a, b, outside, editorDir, host, url, send };
+  return { base, a, b, outside, editorDir, host, url, send, trashed, health, stopped: () => stopped };
 }
+
+test("daemon checks protocol/product versions and only stops its own instance", async t => {
+  const { url, health, send, stopped } = await fixture(t, undefined, true);
+  const headers = { "X-Litzio-Protocol": DAEMON_PROTOCOL };
+  assert.deepEqual(await (await send("/api/document")).json(), { start: true });
+  assert.equal((await send("/")).status, 200);
+  assert.equal((await send("/daemon/health", "GET", undefined, { "X-Litzio-Protocol": "incompatible" })).status, 409);
+  const warnings: string[] = [], record = { ...health, url };
+  assert.deepEqual(await inspectDaemon(record, "new-product", message => warnings.push(message)), health);
+  assert.match(warnings.join(), /WARNING.*restart explicitly/);
+  await assert.rejects(stopDaemon({ ...record, instanceId: "another-instance" }, health.productVersion), /identity changed/);
+  const invalidStop = await send("/daemon/stop", "POST", { ...health, startedAt: "other-start", confirm: true }, headers);
+  assert.equal(invalidStop.status, 409); assert.equal(stopped(), false);
+  await stopDaemon(record, health.productVersion);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(stopped(), true);
+});
+
+test("non-loopback binding still requires an explicit public origin", async () => {
+  await assert.rejects(startHttpHost({ roots: [], editorDir: "unused", host: "0.0.0.0" }), /Non-loopback binding requires --public-origin/);
+});
+
+test("HTTP trash failure preserves the original file without permanent deletion", async t => {
+  const { a, editorDir } = await fixture(t);
+  const host = await startFetchServer(() => startHttpHost({ roots: [a], editorDir, port: 0, removeFile: async () => { throw new Error("OS trash unavailable"); } }));
+  t.after(() => host.close());
+  const file = path.join(a, "document.md"), original = fs.readFileSync(file);
+  const response = await fetch(host.url + "/api/file", { method: "DELETE", headers: { Origin: host.url, "Content-Type": "application/json" }, body: JSON.stringify({ root: a, path: file }) });
+  assert.equal(response.status, 400); assert.deepEqual(fs.readFileSync(file), original);
+});
 
 const documentQuery = (file: string) => `/api/document?${new URLSearchParams({ path: file })}`;
 // fetch normalizes/overrides Host; use an actual Node request to test a forged wire header.
