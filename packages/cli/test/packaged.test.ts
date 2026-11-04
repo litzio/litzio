@@ -8,8 +8,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { verifyPackagedWorker } from "../../../test/helpers/plugin-conversion.ts";
-import { fakeDoclingServer } from "../../../apps/editor/test/helpers/docling-server.ts";
 
 const dist = fileURLToPath(new URL("../dist/", import.meta.url));
 
@@ -35,10 +33,9 @@ test("the packed CLI installs offline outside the checkout and serves both roots
   const install = path.join(scratch, "install"), cwd = path.join(scratch, "unrelated cwd");
   const a = path.join(scratch, "문서 A"), b = path.join(scratch, "documents B");
   for (const folder of [install, cwd, a, b]) mkdirSync(folder);
-  const env: NodeJS.ProcessEnv = { ...process.env, LITZIO_DAEMON_DIR: path.join(scratch, "daemon"), LITZIO_AI_AGENT_CWD: path.join(scratch, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(scratch, "ai-agent.json"), LITZIO_PLUGINS_DIR: path.join(scratch, "plugins"), LITZIO_DOCLING_SETTINGS_FILE: path.join(scratch, "docling.json") };
+  const env: NodeJS.ProcessEnv = { ...process.env, LITZIO_DAEMON_DIR: path.join(scratch, "daemon"), LITZIO_AI_AGENT_CWD: path.join(scratch, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(scratch, "ai-agent.json") };
   delete env.NODE_PATH; delete env.NODE_OPTIONS;
   let child: ChildProcess | undefined;
-  const fake = await fakeDoclingServer();
   try {
     // Anchor npm here even when an ancestor of the OS temp directory is another npm project.
     writeFileSync(path.join(install, "package.json"), JSON.stringify({ name: "litzio-package-test", private: true }));
@@ -73,10 +70,7 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     assert.equal(notices.status, 200);
     assert.match(notices.headers.get("content-type") ?? "", /text\/plain/);
     assert.match(await notices.text(), /Tiptap GmbH/);
-    assert.match(readFileSync(path.join(path.dirname(entry), "docling-worker/Docling-schema-LICENSE.txt"), "utf8"), /International Business Machines/);
     assert.deepEqual((await (await fetch(url + "/api/document")).json()).allowedRoots, [a, b]);
-    await verifyPackagedWorker((endpoint, method = "GET", body) => fetch(`${url}/api/${endpoint}`, { method,
-      ...(body === undefined ? {} : { headers: { Origin: url, "Content-Type": "application/json" }, body: JSON.stringify(body) }) }), a, fake.url);
     for (const folder of [a, b]) {
       const file = path.join(folder, "document.md");
       const loaded = await (await fetch(url + `/api/document?${new URLSearchParams({ path: file })}`)).json();
@@ -93,7 +87,6 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     await assert.rejects(fetch(url), /fetch failed/);
   } finally {
     if (child) await stop(child);
-    await fake.close();
     rmSync(scratch, { recursive: true, force: true });
   }
 });

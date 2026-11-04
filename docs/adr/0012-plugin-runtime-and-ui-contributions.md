@@ -9,9 +9,9 @@
 
 This records an approved architectural direction. It does not adopt either spike
 implementation. Current behavior remains described by the Implemented
-[Docling conversion](../design/docling-conversion-v1.md),
-[Docling comparison](../design/docling-compare-v1.md),
-[Host worker plugins](../design/plugin-runtime-v1.md),
+[Docling conversion](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md),
+[Docling comparison](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-compare-v1.md),
+[Host worker plugins](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md),
 [Editor UX Shell](../design/editor-ux-shell-v1.md),
 [Filesystem Host](../design/filesystem-host-boundary-v1.md) and
 [HTTP Host](../design/http-host-v1.md) contracts until implementation PRs satisfy
@@ -37,12 +37,12 @@ The owner wants AI agents to attach capabilities as plugins while Litzio is
 running, with Docling as the first plugin. ADR-0011 established the first module's
 dependency boundary, but its Host and Editor connections are static.
 
-The [runtime spike](../reviews/docling-plugin-runtime-spike.md) exercised a
+The [runtime spike](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/reviews/docling-plugin-runtime-spike.md) exercised a
 separate worker, shared user installation, request deduplication, failure
 isolation and disable/drain through development Desktop and an independent
 `litzio daemon run`. Its external Docling REST service was synthetic; actual server
 conversion and packaged Desktop remain unverified.
-The [UI spike](../reviews/docling-plugin-ui-spike.md) exercised live command/tab
+The [UI spike](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/reviews/docling-plugin-ui-spike.md) exercised live command/tab
 contributions from installed ESM/CSS, API mismatch rejection and local UI fault
 handling without a page reload. It did not move the sidebar, Settings or
 conversion dialog to dynamic contributions. Both records remain Historical;
@@ -182,7 +182,7 @@ plugin boundary is adopted; the historical measurements do not satisfy them:
 
 ## Host implementation progress (#853)
 
-[Host worker plugins v1](../design/plugin-runtime-v1.md) implements the worker
+[Host worker plugins v1](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md) implements the worker
 manifest/API, common trusted installation, live register/unregister with drain,
 UUID transactions, session-lock recovery independent of PID reuse, uncertain/no
 replay and complete-result Host visibility. Synthetic shared Host tests include
@@ -196,7 +196,7 @@ OS lock release, identical-live-PID owner replacement and exclusive marked outpu
 publication on supported CI platforms. Publication means atomic Host visibility;
 direct filesystem tools can observe a reserved directory during copying. Crash
 leftovers remain private. See the contract for the check/use boundary.
-Condition 1 remains a [manual real-service check](../test/README.md#docling-worker-runtime-853).
+Condition 1 remains a [manual real-service check](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/test/README.md#docling-worker-runtime-853).
 Condition 2 is covered by required Windows packaged CI, not a local packaging run.
 Conditions 4 and 5, UI manifests/contributions, conversion-dialog migration, AI
 installation/approval, OS sandbox and shared editing sessions remain outside #853. Local running-Host discovery/connections and lifetime are subsequently decided by ADR-0016, not implemented by #853. The full UI
@@ -204,7 +204,7 @@ plugin boundary is not claimed as adopted by this Host-only implementation.
 
 ## UI implementation progress (#857)
 
-[Plugin UI contributions v1](../design/plugin-ui-v1.md) implements conditions 4
+[Plugin UI contributions v1](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md) implements conditions 4
 and 5. A brand-independent API 1/React 19 manifest is checked at registration and
 before asset loading. A lexical ESM factory binds React/JSX imports to the exact
 renderer instances supplied by the Host; no second React copy or global bridge

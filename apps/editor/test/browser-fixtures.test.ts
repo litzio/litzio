@@ -8,17 +8,7 @@ import { prepareBrowserFixtures, REPOSITORY_ROOT, SCRATCH_DIRS, SOURCE_DIRS } fr
 import { NOTIFICATION_SCENARIOS, HTTP_SCENARIOS, selectBrowserScenarios, STABLE_SCENARIOS } from "./browser/scenarios.ts";
 import { classifyConsoleErrors } from "./browser/console-errors.ts";
 
-test("fault injection permits only its expected network failures and caught plugin render error", () => {
-  const message = "Failed to load resource: net::ERR_FAILED @ http://127.0.0.1:5173/api/docling-conversion";
-  const rejected = "Failed to load resource: the server responded with a status of 400 (Bad Request) @ http://127.0.0.1:5173/api/docling-conversion";
-  const injected = [message, message, message, message, rejected];
-  assert.deepEqual(classifyConsoleErrors("docling-server", injected).unexpected, []);
-  assert.deepEqual(classifyConsoleErrors("docling-server", injected).missing, []);
-  assert.equal(classifyConsoleErrors("docling-server", []).missing.length, 2);
-  assert.deepEqual(classifyConsoleErrors("docling-live", [message]).unexpected, [message]);
-  const unrelated = message.replace("/api/docling-conversion", "/api/document");
-  assert.deepEqual(classifyConsoleErrors("docling-server", [unrelated]).unexpected, [unrelated]);
-  assert.deepEqual(classifyConsoleErrors("plugin-ui", ["Error: PLUGIN_UI_RENDER_FIXTURE"]).unexpected, []);
+test("fault injection permits only its expected network failures", () => {
   const missingThread = "Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:5173/api/ai-agent-conversations";
   const missingSkills = "Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://127.0.0.1:5173/api/ai-agent-skills";
   const undoConflict = missingThread.replace("404 (Not Found)", "400 (Bad Request)");
@@ -29,7 +19,6 @@ test("fault injection permits only its expected network failures and caught plug
   const unexpectedThreadFailure = missingThread.replace("404 (Not Found)", "500 (Internal Server Error)");
   assert.deepEqual(classifyConsoleErrors("ai-agent", [unexpectedThreadFailure]).unexpected, [unexpectedThreadFailure]);
   const uncaught = "Uncaught page error: PLUGIN_UI_RENDER_FIXTURE";
-  assert.deepEqual(classifyConsoleErrors("plugin-ui", [uncaught]).unexpected, [uncaught]);
 });
 
 const testDir = path.join(REPOSITORY_ROOT, "apps", "editor", "test");
@@ -137,7 +126,7 @@ test("prepared scratch files start as copies of their sources, with the derived 
   // Wrapping needs the real prose table before the separate long-identifier table.
   const wrapping = getEditableDocument(parse(readFileSync(path.join(tmp, "table-authoring", "wrapping.md"), "utf8"))).blocks
     .filter(block => block.block === "table");
-  const nistTable = getEditableDocument(parse(readFileSync(path.join(REPOSITORY_ROOT, "plugins/docling/test/fixtures/nist-sp1108r4/document.md"), "utf8"))).blocks
+  const nistTable = getEditableDocument(parse(readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test/browser/fixtures/wide-table.md"), "utf8"))).blocks
     .find(block => block.block === "table");
   assert.ok(nistTable?.block === "table");
   assert.equal(wrapping.length, 2, "prose and identifier tables must both be prepared");

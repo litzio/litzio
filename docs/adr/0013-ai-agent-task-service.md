@@ -47,7 +47,7 @@ records execution settings, start/end timestamps, duration, status and failure;
 results remain serializable for future conversation UI. An uncertain owner-loss
 end timestamp records observation, not a confirmed provider exit. The current Codex global-instruction
 limitation and verification boundary are explicit in the
-[runtime contract](../design/plugin-runtime-v1.md#ai-task-service-880).
+[runtime contract](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md#ai-task-service-880).
 
 ## Limitations and follow-up
 

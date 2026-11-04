@@ -1,8 +1,7 @@
+import { AiSettings } from "../AiSettings.tsx";
 import { useNativeHistoryBoundary } from "../ui/use-native-history-boundary.ts";
 import { DaemonStatus } from "./DesktopDaemon.tsx";
-import { PluginSettings } from "../PluginSettings.tsx";
 import { useTableWrapDefault, setTableWrapDefault } from "../table-wrap.ts";
-import type { SettingsSection } from "@litzio/plugin-api/ui";
 import { useMessageState } from "../ui-message.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
@@ -56,7 +55,7 @@ export function updateStatusText(info: DesktopInfo): string {
   }
 }
 
-export type SettingsCategory = "appearance" | "recovery" | "plugins" | "about" | `plugin/${string}`;
+export type SettingsCategory = "appearance" | "recovery" | "ai" | "about";
 
 function CliSettings({ desktop }: { desktop: DesktopBridge }) {
   const [state, setState] = useState<CliIntegrationState | null>(null);
@@ -100,10 +99,7 @@ function CliSettings({ desktop }: { desktop: DesktopBridge }) {
 }
 
 type SettingsDialogProps = {
-  sections?: SettingsSection[];
-  pluginStateKey?: string;
-  readyPlugins?: string[];
-  pluginErrors?: Record<string, string>;
+  onAiSaved(): void;
   theme: ThemePreference;
   themeProblem: boolean;
   onThemeChange(theme: ThemePreference): void;
@@ -121,22 +117,10 @@ type SettingsDialogProps = {
 };
 
 /** Shared local recovery settings; About and update controls require the Desktop bridge. */
-export function SettingsDialog({ sections = [], pluginStateKey = "", readyPlugins = [], pluginErrors = {}, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
+export function SettingsDialog({ onAiSaved, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
   useTranslation();
-  const lastPluginSection = useRef<string | undefined>(undefined);
   const [screen, setScreen] = useState<HTMLDivElement | null>(null);
   useNativeHistoryBoundary(screen);
-  useEffect(() => {
-    if (!category.startsWith("plugin/")) return;
-    const controller = new AbortController();
-    void fetch(`${import.meta.env.BASE_URL}api/worker-plugins`, { signal: controller.signal })
-      .then(async response => {
-        if (!response.ok) return;
-        const items: { id: string; enabled: boolean }[] = await response.json();
-        if (!controller.signal.aborted && !items.some(item => item.id === category.split("/")[1] && item.enabled)) onCategoryChange("plugins");
-      }).catch(() => {});
-    return () => controller.abort();
-  }, [category, sections, onCategoryChange]);
   const [clearConfirm, setClearConfirm] = useState(false);
   const clearButton = useRef<HTMLButtonElement>(null);
   const [clearing, setClearing] = useState(false);
@@ -166,7 +150,7 @@ export function SettingsDialog({ sections = [], pluginStateKey = "", readyPlugin
   const categories = [
     { id: "appearance", label: i18n.t("Appearance & language"), icon: Palette },
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
-    { id: "plugins", label: i18n.t("Plugins"), icon: FileText },
+    { id: "ai", label: i18n.t("AI agent"), icon: FileText },
     ...(desktop ? [{ id: "about" as const, label: i18n.t("About & updates"), icon: Info }] : []),
   ] as const;
 
@@ -177,15 +161,15 @@ export function SettingsDialog({ sections = [], pluginStateKey = "", readyPlugin
             <h1>{i18n.t("Settings")}</h1>
             <nav aria-label={i18n.t("Settings categories")}>
               {categories.map(({ id, label, icon: Icon }) => <Button key={id} variant="ghost"
-                aria-current={category === id || (id === "plugins" && category.startsWith("plugin/")) ? "page" : undefined} onClick={() => onCategoryChange(id)}>
+                aria-current={category === id ? "page" : undefined} onClick={() => onCategoryChange(id)}>
                 <Icon aria-hidden="true" />{label}
               </Button>)}
             </nav>
           </aside>
-          <main className="settings-content" aria-labelledby={`settings-category-${category.startsWith("plugin/") ? category.split("/").slice(0, 2).join("/") : category}`}>
+          <main className="settings-content" aria-labelledby={`settings-category-${category}`}>
             <div className="settings-content-inner">
-              {!category.startsWith("plugin/") ? <header className="settings-category-header"><h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2></header> : null}
-              {category === "plugins" || category.startsWith("plugin/") ? <PluginSettings pluginStateKey={pluginStateKey} readyPlugins={readyPlugins} selectedId={category.startsWith("plugin/") ? category.split("/")[1] : undefined} onBack={() => onCategoryChange("plugins")} sections={sections} errors={pluginErrors} focusSection={lastPluginSection.current} onOpen={id => { lastPluginSection.current = id; onCategoryChange(id as SettingsCategory); }} /> : null}
+              <header className="settings-category-header"><h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2></header>
+              {category === "ai" ? <AiSettings onSaved={onAiSaved} /> : null}
               {category === "appearance" ? <>
                 <SettingsSelect label={i18n.t("Theme")} description={i18n.t("Choose a light or dark appearance.")} testId="theme"
                   value={theme} onChange={value => {

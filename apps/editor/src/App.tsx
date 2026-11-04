@@ -6,10 +6,6 @@ import { productName } from "../../../brand.ts";
 import { ASSISTANT_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
 import { usePanelWidth } from "./shell/panel-width.ts";
 import { AssistantPanel, assistantWidth, rememberAssistantWidth } from "./shell/AssistantPanel.tsx";
-import { usePluginUi } from "./plugin-ui.tsx";
-import { contributionNotices } from "./plugin-ui-registry.ts";
-import { ContributionBoundary, PluginTab, type ContributedTab } from "./PluginTab.tsx";
-import type { UiHost } from "@litzio/plugin-api/ui";
 import { NotificationProvider, NotificationSource, ShellNotificationCenter } from "./components/ui/notification-center.tsx";
 import { UiError } from "./ui-message.ts";
 import { useMessageState } from "./ui-message.ts";
@@ -180,47 +176,8 @@ function EditorApp() {
   const renameImageRef = useRef<ImageRenamer | undefined>(undefined);
   const renameImage = useCallback<ImageRenamer>((...args) => renameImageRef.current!(...args), []);
   const [tabs, setTabs] = useState<Tab[]>([]);
-  const [pluginTabs, setPluginTabs] = useState<ContributedTab[]>([]);
-  const [pluginPicker, setPluginPicker] = useState<(Parameters<UiHost["pickFolder"]>[0] & { signal: AbortSignal }) | null>(null);
-  const [pluginActionProblem, setPluginActionProblem] = useState("");
-  const [pluginFilePicker, setPluginFilePicker] = useState<(Parameters<UiHost["pickFile"]>[0] & { signal: AbortSignal }) | null>(null);
-  const filePickerReturn = useRef<HTMLElement | null>(null);
-  const pickedFile = useRef("");
-  const filePickerRequest = useRef<typeof pluginFilePicker>(null);
-  const compareReturn = useRef<HTMLElement | null>(null);
-  const ui = usePluginUi({
-    openSettings: (section, focus) => { settingsReturnFocus.current = focus; setSettingsCategory(section as SettingsCategory); openSettingsTab(); },
-    openDocument: async path => { await openFolderDocument(path); },
-    openFolder: path => openFolder(path),
-    pickFolder: (options, focus, signal) => { compareReturn.current = focus; setPluginPicker({ ...options, signal }); },
-    openTab: openPluginTab,
-    pickFile: (options, focus, signal) => {
-      const picker = { ...options, signal };
-      filePickerReturn.current = focus; pickedFile.current = ""; filePickerRequest.current = picker; setPluginFilePicker(picker);
-    },
-  });
-  useEffect(() => {
-    const subscribe = (signal: AbortSignal | undefined, close: () => void) => {
-      if (!signal) return () => {};
-      signal.addEventListener("abort", close, { once: true });
-      if (signal.aborted) close();
-      return () => signal.removeEventListener("abort", close);
-    };
-    const releaseFile = subscribe(pluginFilePicker?.signal, () => {
-      if (filePickerRequest.current === pluginFilePicker) {
-        filePickerRequest.current = null; pickedFile.current = ""; filePickerReturn.current = null;
-      }
-      setPluginFilePicker(current => current === pluginFilePicker ? null : current);
-    });
-    const releaseFolder = subscribe(pluginPicker?.signal, () => {
-      compareReturn.current = null;
-      setPluginPicker(current => current === pluginPicker ? null : current);
-    });
-    return () => { releaseFile(); releaseFolder(); };
-  }, [pluginFilePicker, pluginPicker]);
-  const currentPlugins = useRef(ui.plugins); currentPlugins.current = ui.plugins;
-  const assistantAvailable = ui.plugins.some(plugin => plugin.id === "ai-agent" && plugin.contributions);
-  useEffect(() => { if (!assistantAvailable) setAssistantOpen(false); }, [assistantAvailable]);
+  const assistantAvailable = true;
+  const [aiSettingsRevision, setAiSettingsRevision] = useState(0);
   // Remove the operation guard before newly mounted Explorer rows restore focus in layout.
   useLayoutEffect(() => {
     if (!(assistantOpen && assistantOverlay) && !fileOperationPending) return;
@@ -228,34 +185,16 @@ function EditorApp() {
     elements?.forEach(element => { element.inert = true; });
     return () => elements?.forEach(element => { element.inert = false; });
   }, [assistantOpen, assistantOverlay, fileOperationPending]);
-  const pluginActions = (surface: "commands" | "sidebar") => ui.plugins.flatMap(plugin =>
-    (plugin.registrationError ? [{
-      id: "registration-error", label: plugin.id === "docling" ? "Docling" : plugin.id === "ai-agent" ? "AI agent" : plugin.id,
-      run: (focus: HTMLElement | null) => {
-        settingsReturnFocus.current = focus; setSettingsCategory(`plugin/${plugin.id}`); openSettingsTab();
-      },
-    }] : plugin.contributions?.[surface] ?? []).map(action => ({ ...action, id: `${plugin.id}/${action.id}`,
-      run: (focus: HTMLElement | null) => {
-        try { void Promise.resolve(action.run(focus)).catch(error => setPluginActionProblem(String(error))); }
-        catch (error) { setPluginActionProblem(String(error)); }
-      },
-    })));
   const [navigation, navigate] = useReducer(editorGroups, initialEditorGroups);
   const focusedGroup = navigation.groups.find(group => group.id === navigation.focused)!;
   const activeId = focusedGroup.active;
-  const pluginTab = pluginTabs.find(tab => tab.id === activeId);
-  const pluginTabLabels = pluginTabs.map(tab => {
-    const peers = pluginTabs.filter(other => other.plugin === tab.plugin && other.kind === tab.kind);
-    return tabLabels(peers)[peers.indexOf(tab)]!;
-  });
   const settingsGroup = navigation.groups.find(group => group.tabs.includes("settings"));
   const settingsOpen = settingsGroup?.active === "settings";
   const settingsFocused = activeId === "settings";
   const galleryGroup = navigation.groups.find(group => group.tabs.includes("templates"));
   const galleryOpen = galleryGroup?.active === "templates";
   const galleryFocused = activeId === "templates";
-  const allTabs = [...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs, ...pluginTabs.map((tab, index) => ({ ...tab,
-    title: [pluginTabLabels[index]!.folder ?? documentLocation(tab.path)[0], i18n.t(tab.label as MessageKey)].filter(Boolean).join(" · ") }))];
+  const allTabs = [...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
@@ -403,7 +342,7 @@ function EditorApp() {
     imageChoice = null, imageReturnFocus = emptyImageRef,
   } = nativeSession ?? {};
   const { openedPath = "", draftActive = false, documentDirty = false, reloadDialog = false } = session ?? {};
-  const tableWrapPath = pluginTab?.path ?? (nativeSession ? openedPath : "");
+  const tableWrapPath = nativeSession ? openedPath : "";
   const tableWrap = useTableWrap(tableWrapPath);
   const busy = Boolean(operation || fileOperationPending || session?.busy || continuationPending);
   // Match the window-level navigation guard; a tab-owned Save still permits Settings diagnostics.
@@ -711,9 +650,8 @@ function EditorApp() {
     return `./${renamed.slice(directory.length).replaceAll("\\", "/")}`;
   };
   function closeTab(id: string): void {
-    if (id === "settings" || id === "templates" || pluginTabs.some(tab => tab.id === id)) {
+    if (id === "settings" || id === "templates") {
       if (busy || continuation) return;
-      setPluginTabs(previous => previous.filter(tab => tab.id !== id));
       if (id === "settings") setHighlightUpdate(false);
       navigate({ type: "close", id }); focusAfterClose.current = true; return;
     }
@@ -832,23 +770,6 @@ function EditorApp() {
       }
       return messageOf(cause);
     } finally { operationRef.current = false; setOperation(""); }
-  }
-  async function openPluginTab(key: string, resource: string, current = () => true): Promise<string> {
-    try {
-      const [pluginId, kindId] = key.split("/");
-      const plugin = ui.plugins.find(plugin => plugin.id === pluginId);
-      const kind = plugin?.contributions?.tabs.find(kind => kind.id === kindId);
-      if (!kind) return i18n.t("Plugin is disabled.");
-      const content = await kind.open(resource);
-      if (!current()) return "";
-      if (currentPlugins.current.find(item => item.id === pluginId)?.contributions !== plugin?.contributions) return i18n.t("Plugin is disabled.");
-      if (!content || typeof content.path !== "string" || !content.path) throw new Error("Invalid plugin tab content.");
-      const existing = pluginTabs.find(tab => tab.plugin === pluginId && tab.kind === kindId && tab.path === content.path);
-      if (existing) { placeTab(existing.id); return ""; }
-      const id = `plugin-${++nextId.current}`;
-      setPluginTabs(previous => [...previous, { ...content, id, plugin: pluginId!, kind: kindId!, label: kind.label, className: kind.className }]);
-      placeTab(id); return "";
-    } catch (cause) { return messageOf(cause); }
   }
   function openTemplateGallery(): void {
     if (busy || continuation) return;
@@ -1204,8 +1125,6 @@ function EditorApp() {
       run: () => { setTableWrap(tableWrapPath, !tableWrap); } },
     { id: "width", kind: "command", label: i18n.t(documentWidth === "wide" ? "Standard document width" : "Wide document"), icon: documentWidth === "wide" ? Columns3 : StretchHorizontal, disabled: session?.kind === "text",
       keywords: ["document width", "문서 너비"], run: toggleDocumentWidth },
-    ...pluginActions("commands").map(action => ({ id: action.id, kind: "command" as const, label: i18n.t(action.label as MessageKey), icon: FileText,
-      takesFocus: true, disabled: busy || Boolean(continuation), keywords: action.keywords, run: () => action.run(commandReturnFocus.current) })),
     ...THEMES.map(value => ({ id: `theme-${value}`, kind: "command" as const,
       label: i18n.t(`Color mode: ${THEME_LABELS[value]}`), icon: Monitor,
       keywords: ["color mode", "theme", "색상 모드", "테마", THEME_LABELS[value], { light: "라이트", dark: "다크" }[value]],
@@ -1236,18 +1155,11 @@ function EditorApp() {
   ];
 
   return (<>
-    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !pluginTab && !settingsFocused && !galleryFocused && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
+    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !settingsFocused && !galleryFocused && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
       <Sidebar
         onAddToChat={assistantAvailable ? (path, returnFocus) => { assistantReturn.current = returnFocus; setReferenceRequest({ path }); setAssistantOpen(true); } : undefined}
         theme={theme} onThemeChange={changeTheme}
-        pluginFileActions={ui.plugins.flatMap(plugin => (plugin.contributions?.fileActions ?? []).map(action => ({ ...action,
-          id: `${plugin.id}/${action.id}`, disabled: ui.busy[plugin.id],
-          run: (path, focus) => {
-            try { void Promise.resolve(action.run(path, focus)).catch(error => setPluginActionProblem(String(error))); }
-            catch (error) { setPluginActionProblem(String(error)); }
-          },
-        })))}
-        contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }, ...pluginActions("sidebar")]}
+        contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }]}
         onFileAction={fileAction} fileActionsDisabled={busy || Boolean(continuation)}
         isFileDirty={path => { const tab = tabs.find(tab => tab.path === path); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
         onWidth={setSidebarSize}
@@ -1376,7 +1288,7 @@ function EditorApp() {
           if (event.button === 0 && event.target instanceof HTMLElement && event.target.classList.contains("document-column") && (owner?.kind === "text" || owner?.view === "visual") &&
             owner.editorRef.current?.focusEnd(event.clientY)) event.preventDefault();
         }}>
-          {tabs.length === 0 && pluginTabs.length === 0 && !settingsGroup && !galleryGroup && start ? (
+          {tabs.length === 0 && !settingsGroup && !galleryGroup && start ? (
             <div className="document-scroll" data-active="true"><div className="document-column"><DocumentStart
               mark={productMark} darkMark={darkIcon}
               recovery={<RecoveryList records={recoveryRecords.filter(record => !tabs.some(tab => tab.recoveryId === record.id))} unavailable={Boolean(recoveryProblem)} onReview={reviewRecovery} />}
@@ -1400,27 +1312,18 @@ function EditorApp() {
               report={reportSession} onAssetChange={onAssetChange} renameImage={renameImage} onReveal={revealDocument}
               onCompare={compareExternal} />;
           })}
-          {pluginTabs.map(tab => {
-            const groupIndex = navigation.groups.findIndex(group => group.tabs.includes(tab.id));
-            return <PluginTab onRecover={id => { setSettingsCategory(`plugin/${id}`); openSettingsTab(); }} key={tab.id} tab={tab} plugin={ui.plugins.find(plugin => plugin.id === tab.plugin)} groupIndex={groupIndex}
-              active={navigation.groups[groupIndex]?.active === tab.id} focused={tab.id === activeId} onFocus={focusDocument} />;
-          })}
-          {galleryGroup ? <div className="plugin-tab" role="tabpanel" tabIndex={-1} id="panel-templates" aria-labelledby="tab-templates"
+          {galleryGroup ? <div className="shell-tab" role="tabpanel" tabIndex={-1} id="panel-templates" aria-labelledby="tab-templates"
             hidden={!galleryOpen} inert={!galleryOpen} data-document-tab="templates" data-active={galleryFocused ? "true" : "false"}
             data-group-index={navigation.groups.indexOf(galleryGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(galleryGroup) } as React.CSSProperties}
             onFocusCapture={() => focusDocument("templates")} onPointerDownCapture={() => focusDocument("templates")}>
             <Suspense fallback={null}><TemplateGallery active={galleryOpen} revision={templateRevision} disabled={busy || Boolean(continuation)}
               onCreate={(item, focus) => newDocument(focus, item)} onOpenFolder={path => openFolder(path)} /></Suspense>
           </div> : null}
-          {settingsGroup ? <div className="plugin-tab settings-tab" role="tabpanel" tabIndex={-1} id="panel-settings" aria-labelledby="tab-settings"
+          {settingsGroup ? <div className="shell-tab settings-tab" role="tabpanel" tabIndex={-1} id="panel-settings" aria-labelledby="tab-settings"
             hidden={!settingsOpen} inert={!settingsOpen} data-document-tab="settings" data-active={settingsFocused ? "true" : "false"}
             data-group-index={navigation.groups.indexOf(settingsGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(settingsGroup) } as React.CSSProperties}
             onFocusCapture={() => focusDocument("settings")} onPointerDownCapture={() => focusDocument("settings")}>
-            <SettingsDialog
-                pluginStateKey={JSON.stringify([settingsOpen, ui.plugins.map(plugin => [plugin.id, plugin.revision, plugin.features, !!plugin.contributions, plugin.error])])}
-                readyPlugins={ui.plugins.filter(plugin => plugin.contributions).map(plugin => plugin.id)}
-                pluginErrors={Object.fromEntries(ui.plugins.filter(plugin => plugin.error).map(plugin => [plugin.id, plugin.error!]))}
-                sections={ui.plugins.flatMap(plugin => (plugin.contributions?.settings ?? []).map(section => ({ ...section, id: `plugin/${plugin.id}/${section.id}` })))}
+            <SettingsDialog onAiSaved={() => setAiSettingsRevision(value => value + 1)}
                 theme={theme} themeProblem={themeProblem} onThemeChange={changeTheme}
                 category={settingsCategory}
                 highlightUpdate={highlightUpdate}
@@ -1436,7 +1339,7 @@ function EditorApp() {
           </div> : null}
         </main>
       </div>
-      {panelOpen && !assistantOpen && !pluginTab && !settingsFocused && !galleryFocused && session?.kind !== "text" ? (
+      {panelOpen && !assistantOpen && !settingsFocused && !galleryFocused && session?.kind !== "text" ? (
         <DocumentPanel
           onWidth={setDocumentPanelSize}
           overlay={panelOverlay}
@@ -1452,7 +1355,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable ? <AssistantPanel onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={ui.aiSettingsRevision} settingsDisabled={settingsDisabled} referenceRequest={referenceRequest} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable ? <AssistantPanel onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={aiSettingsRevision} settingsDisabled={settingsDisabled} referenceRequest={referenceRequest} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { await openFolderDocument(path); }}
         onUndo={async result => {
@@ -1462,42 +1365,7 @@ function EditorApp() {
         }}
         documentPath={session?.openedPath ?? ""} folders={openedFolderPaths}
         documentDirty={Boolean(session?.documentDirty || session?.draftActive)}
-        onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("plugin/ai-agent/ai-agent"); openSettingsTab(); }} /> : null}
-      {ui.plugins.map(plugin => { const View = plugin.contributions?.View; return View ? <ContributionBoundary key={`${plugin.id}/${plugin.revision}`}><View /></ContributionBoundary> : null; })}
-      <FolderDialog open={Boolean(pluginFilePicker)} choose={pluginFilePicker?.choose} title={pluginFilePicker?.title ?? ""}
-        description={pluginFilePicker?.description ?? ""}
-        initialPath={folders.roots.at(-1) ?? splitDocumentPath(openedPath).directory} recent={visibleRecent}
-        restricted={allowedRoots !== undefined} browse={browseHostPdfs} places={folderPlaces}
-        onOpen={async path => {
-          if (!pluginFilePicker || pluginFilePicker.signal.aborted) return i18n.t("Plugin is disabled.");
-          pickedFile.current = path; return "";
-        }}
-        returnFocus={filePickerReturn} onClose={() => setPluginFilePicker(null)}
-        finalFocus={() => shellReturnFocus(filePickerReturn.current)}
-        onClosed={() => {
-          const request = filePickerRequest.current, path = pickedFile.current;
-          filePickerRequest.current = null; pickedFile.current = "";
-          if (path && request && !request.signal.aborted) void request.open(path).catch(error => {
-            if (!request.signal.aborted) setPluginActionProblem(String(error));
-          });
-        }} />
-      <NotificationSource items={[...(themeProblem && !settingsOpen ? [{ id: "theme-storage", severity: "error" as const, message: i18n.t("Theme could not be saved. This choice applies until you close this page.") }] : []), ...ui.plugins.flatMap(plugin => ui.notices[plugin.id] ? [{ ...ui.notices[plugin.id]!, id: `${plugin.id}/${ui.notices[plugin.id]!.id}` }] : []),
-        ...[ui.problem, pluginActionProblem, ...ui.plugins.filter(plugin => plugin.error).map(plugin => `${plugin.id}: ${plugin.error}`)].filter(Boolean).map(message => ({ id: `plugin-error-${message}`, severity: "error" as const, message })),
-        ...pluginTabs.flatMap(tab => contributionNotices(ui.plugins.find(plugin => plugin.id === tab.plugin), tab.kind, tab.data).map(notice => ({ ...notice, id: `plugin-${tab.id}-${notice.id}`,
-        reveal: () => {
-          activateTab(tab.id);
-          requestAnimationFrame(() => globalThis.document.getElementById(`panel-${tab.id}`)?.focus());
-        },
-      })))]} />
-      <FolderDialog open={Boolean(pluginPicker)} title={pluginPicker?.title ?? ""}
-        description={pluginPicker?.description ?? ""}
-        showSidebarHint={false}
-        initialPath={folders.roots.at(-1) ?? splitDocumentPath(openedPath).directory} recent={visibleRecent}
-        restricted={allowedRoots !== undefined} browse={browseHostFolder} places={folderPlaces} onOpen={async folder => {
-          try { return await pluginPicker?.open(folder) ?? i18n.t("Plugin is disabled."); }
-          catch (error) { return messageOf(error); }
-        }}
-        returnFocus={compareReturn} finalFocus={() => shellReturnFocus(compareReturn.current)} onClose={() => setPluginPicker(null)} />
+        onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("ai"); openSettingsTab(); }} /> : null}
       <CommandCenter open={commandQuery !== null} initialQuery={commandQuery ?? ""} items={commandItems}
         returnFocus={commandReturnFocus} onClose={() => setCommandQuery(null)} />
       <KeyboardShortcutsDialog open={shortcutsOpen} returnFocus={shortcutsReturnFocus} onClose={() => setShortcutsOpen(false)} />
@@ -1621,7 +1489,7 @@ function EditorApp() {
     </div>
     <ShellNotificationCenter sidebarWidth={sidebarSize} documentPanelWidth={documentPanelSize} panelWidth={assistantOpen
       ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
-      : panelOpen && !pluginTab && !settingsFocused && !galleryFocused && session?.kind !== "text" ? "var(--document-panel-effective-width)" : "0px"} />
+      : panelOpen && !settingsFocused && !galleryFocused && session?.kind !== "text" ? "var(--document-panel-effective-width)" : "0px"} />
   </>);
 }
 

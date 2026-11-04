@@ -3,7 +3,7 @@
 - Status: Historical
 - Last verified: 2026-11-02 KST. 공개 공식 문서·소스와 Litzio checkout `0501e0f2884d2b4e477f66410561b07275cc8571`을 읽고 대조했다. 외부 제품 실행·성능·계정별 기능 제공 여부는 검증하지 않았다.
 - Scope: [#877](https://github.com/litzio/litzio/issues/877)의 B 최소 골격 설계 참고자료. 설계안·채택 결정·현재 구현 계약이 아니다. 예상 읽기 시간 20–30분.
-- Authority: 현재 Litzio 계약은 [ADR-0012](../adr/0012-plugin-runtime-and-ui-contributions.md), [Host worker plugins](../design/plugin-runtime-v1.md), [Plugin UI contributions](../design/plugin-ui-v1.md)를 따른다. 조사에서 도출한 해석·권고는 아래에서 **시사점**으로 구분한다.
+- Authority: 현재 Litzio 계약은 [ADR-0012](../adr/0012-plugin-runtime-and-ui-contributions.md), [Host worker plugins](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md), [Plugin UI contributions](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md)를 따른다. 조사에서 도출한 해석·권고는 아래에서 **시사점**으로 구분한다.
 
 ## 1. 읽는 기준과 Litzio의 출발점
 
@@ -21,7 +21,7 @@
 
 **작업과 도구를 구분한다.** B의 AI 작업은 기능 플러그인이 지시·입력 조각·결과 형식·검증을 제공하고 에이전트에 추론을 요청하는 단위다. 일반적인 tool calling은 반대로 에이전트가 기능을 골라 호출한다. 조사 사례의 도구 등록만으로 B의 작업 요청 계약까지 해결되지는 않는다.
 
-현재 [`@litzio/plugin-api/host`](../../packages/plugin-api/src/host.ts)는 설치 플러그인의 `operations`와 Host 서비스 주입을, [`ui`](../../packages/plugin-api/src/ui.ts)는 명령·탭·설정·좁은 Host 호출을 제공한다. [`worker`](../../packages/plugin-api/src/worker.ts)의 API 1은 `input/output/server` PDF 변환 전용이며, 범용 AI 작업 등록·추론 결과 계약은 없다. Host facade는 신뢰한 in-process 코드이고 별도 worker와 격리 수준이 다르다. UI 해제는 이미 수락된 작업 취소가 아니며, 재시작 시 `uncertain`·자동 재실행 금지, 완료 결과만 공개하는 제약을 유지한다.
+현재 [`@litzio/plugin-api/host`](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/packages/plugin-api/src/host.ts)는 설치 플러그인의 `operations`와 Host 서비스 주입을, [`ui`](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/packages/plugin-api/src/ui.ts)는 명령·탭·설정·좁은 Host 호출을 제공한다. [`worker`](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/packages/plugin-api/src/worker.ts)의 API 1은 `input/output/server` PDF 변환 전용이며, 범용 AI 작업 등록·추론 결과 계약은 없다. Host facade는 신뢰한 in-process 코드이고 별도 worker와 격리 수준이 다르다. UI 해제는 이미 수락된 작업 취소가 아니며, 재시작 시 `uncertain`·자동 재실행 금지, 완료 결과만 공개하는 제약을 유지한다.
 
 스파이크 [`674db001…`의 기록](https://github.com/litzio/litzio/blob/674db0011a7112342ab1de922a2f45f6c1c38b51/docs/reviews/ai-agent-proposal-spike.md)과 [`plugins/ai-agent`](https://github.com/litzio/litzio/tree/674db0011a7112342ab1de922a2f45f6c1c38b51/plugins/ai-agent)는 별도 근거다. `adapters.ts`의 중립 함수·Codex/가짜 어댑터, `worker.ts`의 IPC, `ui.tsx`·CSS의 명령/탭으로 나뉜다. 브랜치 전용 worker API 2와 Core 문서 제안 연산을 추가했고, 보고된 a–h 성공은 단일 문단/제목 인라인 수정과 Windows Vite 범위다. 이번에는 재실행하지 않았다. **B가 이 문서 편집 기능이나 API 2를 채택했다는 뜻이 아니다.**
 

@@ -1,11 +1,11 @@
 import { useId, useRef } from "react";
 import { MoreHorizontal } from "lucide-react";
-import type { PluginMenuProps } from "@litzio/plugin-api/ui";
+import type { ActionMenuProps } from "./settings-types.ts";
 import { Button } from "./button.tsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./dropdown-menu.tsx";
 
 /** The caller supplies actions; Base UI owns dismissal, navigation and focus return. */
-export function ActionMenu({ label, items }: PluginMenuProps) {
+export function ActionMenu({ label, items }: ActionMenuProps) {
   const id = useId(), trigger = useRef<HTMLButtonElement>(null);
   return <DropdownMenu>
     <DropdownMenuTrigger ref={trigger} render={<Button variant="ghost" size="icon-sm" aria-label={label} />}><MoreHorizontal aria-hidden="true" /></DropdownMenuTrigger>

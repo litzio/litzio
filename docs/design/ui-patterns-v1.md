@@ -1,5 +1,7 @@
 # 반복 UI 패턴 v1
 
+#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트·Desktop 번들 UI는 후속 범위다.
+
 역할: 반복 UI 동작의 확정 목표·현재 기준·불일치를 관리하며, 시각 표현은 [Visual Language](editor-visual-language-v1.md), 배치·치수는 [Layout Rules](editor-layout-rules-v1.md)를 따른다.
 
 - Status: Draft
@@ -73,7 +75,7 @@ Label 입력칸에 focus를 준다(#847). 이미지/pending Figure·Mermaid·수
 
 ## P05 입력칸·placeholder·위계
 
-#947의 [플러그인 목록](plugin-ui-v1.md#host-owned-plugin-settings-947)은 U22의
+#947의 [플러그인 목록](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-owned-plugin-settings-947)은 U22의
 기존 Settings 콘텐츠 폭·stacked section·공용 Button과 확인 Dialog를 재사용한다.
 Docling·AI 설정과 같은 콘텐츠 정렬을 따르며 경로·version은 줄바꿈하고 revision은
 짧게 표시한 뒤 tooltip에 전체 값을 둔다. `plugin-settings`의 1440px English Light·
@@ -111,7 +113,7 @@ skills·진단 항목은 숨긴다. #1091은 같은 SettingsSelect로 추론 강
 - **목표 — 창 단위:** 오른쪽 아래 둥근 아이콘 **하나**가 가장 높은 심각도(경고 주황·오류 빨강)와 개수를 나타내며 스크롤바와 겹치지 않는다. 문서·앱 알림(번호 경고, 저장 실패, 파일·Host 오류, Mermaid 렌더 실패, 앱 메시지)을 모으고 항목마다 ‘문제 위치로 이동’을 둔다. 번호 경고는 적용된 문서 기준임을 명시한다.
 - **겹침 허용 (#1003):** 떠 있는 알림 센터는 본문이나 다른 control 위에 겹칠 수 있으며 사용자가 접거나 피한다. 비겹침은 보장하지 않는다. 알림 센터를 검사하지 않는 브라우저 시나리오는 공통 하네스의 테스트 전용 스타일로 센터를 숨긴다.
 - **목표 — 생명주기:** 새 경고·오류가 생기면 포커스를 가져오지 않고 목록을 자동으로 펼치며 사용자가 접을 수 있다. 일회성 안내는 펼치지 않는다. 알림이 없어도 버튼을 항상 표시하고 심각도 색·개수 없이 중립 상태로 둔다. 접근성 이름은 알림이 없음을 말하며, 사용자가 열면 한·영으로 짧은 빈 상태 안내를 보인다. 빈 상태 자체는 focus를 가져가거나 자동으로 펼쳐지지 않는다. 해결된 항목은 자동 제거하고 사용자가 닫은 항목은 같은 원인이 다시 생길 때까지 숨긴다.
-- **현재 기준:** [NotificationCenter](../../apps/editor/src/components/ui/notification-center.tsx)는 창의 App 인스턴스에 하나만 둔다(#792). #837의 소유자 결정(2026-10-31)에 따라 알림이 없어도 중립 버튼이 항상 보이고, 열면 “알림 없음” / “No notifications”를 표시한다. 열린 모든 문서의 적용된 번호 경고·저장 실패·지속 파일/Host 오류·앱 메시지와 적용된 Mermaid 렌더 실패를 [Docling 대조](docling-compare-v1.md)의 낡은 대응표 경고(#769)·[Docling 변환](docling-conversion-v1.md#app-pdf-conversion-797)의 실행 오류(#797), [플러그인 UI](plugin-ui-v1.md)의 로딩·활성화 오류(#857)와 함께 모은다. 문서 이름과 문제 위치 이동을 제공하며 위치 없는 앱 메시지는 이동 없이 표시한다. [MessageArea](../../apps/editor/src/shell/MessageArea.tsx)는 기존 메시지의 등록·일회 안내 만료를 맡는다. 미적용 초안의 Save/Source 범위 설명은 아래 탭 줄 상태 표시로 제공한다(#839 소유자 결정). 문서 상단/번호 폼 경고는 센터로 옮겼으며 저장 실패의 기술적 상세·다중 위치 탐색과 문서 안 빨간 테두리는 유지한다.
+- **현재 기준:** [NotificationCenter](../../apps/editor/src/components/ui/notification-center.tsx)는 창의 App 인스턴스에 하나만 둔다(#792). #837의 소유자 결정(2026-10-31)에 따라 알림이 없어도 중립 버튼이 항상 보이고, 열면 “알림 없음” / “No notifications”를 표시한다. 열린 모든 문서의 적용된 번호 경고·저장 실패·지속 파일/Host 오류·앱 메시지와 적용된 Mermaid 렌더 실패를 [Docling 대조](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-compare-v1.md)의 낡은 대응표 경고(#769)·[Docling 변환](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md#app-pdf-conversion-797)의 실행 오류(#797), [플러그인 UI](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md)의 로딩·활성화 오류(#857)와 함께 모은다. 문서 이름과 문제 위치 이동을 제공하며 위치 없는 앱 메시지는 이동 없이 표시한다. [MessageArea](../../apps/editor/src/shell/MessageArea.tsx)는 기존 메시지의 등록·일회 안내 만료를 맡는다. 미적용 초안의 Save/Source 범위 설명은 아래 탭 줄 상태 표시로 제공한다(#839 소유자 결정). 문서 상단/번호 폼 경고는 센터로 옮겼으며 저장 실패의 기술적 상세·다중 위치 탐색과 문서 안 빨간 테두리는 유지한다.
 - **현재 생명주기:** 새 경고·오류만 focus 없이 목록을 펼친다. 원인별 안정적인 ID를 쓰며 샘플 준비·복구 저장소 등 독립 원인을 합치지 않는다. 토글의 접근성 이름은 알림이 있으면 최고 심각도·개수, 없으면 “알림: 없음” / “Notifications: none”을 포함하고, 새 항목은 펼침과 독립된 polite live region에서 한 번 알린다. 접은 목록은 항목 제거·안내 추가로 다시 펼쳐지지 않는다. 마지막 알림이 없어지면 자동으로 접으며, 사용자가 마지막 항목을 닫으면 알림 버튼으로 focus를 돌린다(#986). 같은 종류가 둘 이상이면 접힌 묶음으로 모으고 한 항목이면 기존 행을 유지한다(#1005; 아래 기준). 일회 안내는 기존 5초 수명과 Undo를 유지한다. 원인 제거 시 항목을 없애고, 닫은 원인은 탭 전환·무관한 편집에서 숨김을 유지하다가 제거 후 재발하면 다시 표시한다. 탭을 닫으면 그 탭의 원인도 제거한다. 알림·접힘·숨김은 창 메모리에만 두고 문서·복구 기록에 쓰지 않는다. 저장 실패는 기존 계약대로 다음 성공한 Save가 해소하며, 편집 후 위치가 낡으면 재저장을 안내한다. Core/Host의 저장 허용·거부를 재판정하지 않는다.
 - **남기는 문맥 표시:** #839의 2026-10-31 소유자 결정에 따라 미적용 초안은 탭 줄의 저장 버튼 왼쪽에 `미적용 초안` / `Unapplied draft` 상태로 표시한다. 1440px에서는 글자, 640px 및 compact 그룹에서는 아이콘만 보인다. hover·keyboard focus 시 기존 Save/Source 안내 전문을 보여 주며 접근성 이름에도 짧은 이름과 전문을 포함한다. 읽기·편집·소스 모두 같은 문서의 상태를 표시하고 기존 미저장 점과 구분한다. 일회 안내·알림 센터 항목·초안 위치 이동 동작으로 만들지 않는다. 표시·해제 시 문서 좌표와 native scroll이 변하지 않으며 초안이 없는 평소에도 문서 위 빈 공간을 확보하지 않는다. 입력칸 오류·Mermaid **초안** 미리보기 오류는 폼에 유지한다. 파일 picker의 경로/이름 오류·Settings 선택값 저장 오류는 해당 입력 피드백이다. 열린 Source/Recovery 비교 등의 읽기 실패는 그 화면 상태를 설명하는 P12 문맥 정보여서 화면 안에 둔다. 참고문헌 completeness는 ADR-0008 동결 범위를 유지한다. 블록의 짧은 미리보기 불가 표시는 위치 표식이며 상세 실패를 중복 출력하지 않는다. 폼 입력칸 연결은 기존 연결과 D09 범위를 따른다.
 - **검증:** `notification-center`는 항상 보이는 중립 빈 상태·한영 안내·초기 접힘·무음 live region, 심각도·개수, 자동 펼침/접기, focus/selection 유지, 해결·닫기·재발, 비활성 탭 위치 이동, 창 격리와 일회 안내를 검증한다. 1440/640px·light/dark·한국어 [시각 근거](#notification-center-792)를 함께 확인한다.
@@ -273,7 +275,7 @@ Button·Tooltip·초안 칩을 사용한다. 스킬은 이름·설명을 표시�
 - **목표:** 짧은 상호배타 값은 segment, 많은 값은 선택 메뉴, on/off는 checkbox를 기본으로 한다. 번호 field는 32px, shell view track은 28px이다. current와 keyboard focus의 단서는 독립적으로 유지한다.
 - **현재 기준:** [DocumentActions](../../apps/editor/src/shell/DocumentActions.tsx)의 `읽기 | 편집 | 소스` / `Read | Edit | Source` 보기 segment(#849, 28px track, 탭별 일시 상태). 읽기는 기존 편집기의 입력·도구를 막고 초안을 유지하며, 일반 Markdown 텍스트 탭은 읽기/편집을 제공하고 다른 텍스트 종류에는 전환을 보이지 않는다([계약](editor-ux-shell-v1.md#read--edit--source-849)). [DocumentSettings](../../apps/editor/src/shell/DocumentSettings.tsx)의 문서 값, Settings의 기기 설정. 보기·탐색의 toggle/tablist와 문서 draft는 서로 다른 의미다.
 - **사용처:** U09–U10 인용·참조 값, U13–U14 문서 설정·번호, U19–U22 언어/종류·메뉴·보기/탐색·앱 설정.
-- **추가 사용처:** [Docling 대조](docling-compare-v1.md)의 동기 스크롤 checkbox와 원문 상자 선택은 탭 안의 일시적 보기 상태이며 문서/기기 설정에 저장하지 않는다. 그림 자식 연결은 기본적으로 그림 하나로 묶고, 자식 상자를 선택하면 해당 연결·변환 메모를 강조한다(#799). 오른쪽은 공용 읽기로 고정하고 보기 segment를 숨긴다(#815). 오른쪽 블록 선택·키보드 이동은 대응 원문 상자·연결선·변환 메모를 같은 일시 상태로 갱신하며, 일반 편집기의 읽기 hover·선택 표현을 재사용한다.
+- **추가 사용처:** [Docling 대조](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-compare-v1.md)의 동기 스크롤 checkbox와 원문 상자 선택은 탭 안의 일시적 보기 상태이며 문서/기기 설정에 저장하지 않는다. 그림 자식 연결은 기본적으로 그림 하나로 묶고, 자식 상자를 선택하면 해당 연결·변환 메모를 강조한다(#799). 오른쪽은 공용 읽기로 고정하고 보기 segment를 숨긴다(#815). 오른쪽 블록 선택·키보드 이동은 대응 원문 상자·연결선·변환 메모를 같은 일시 상태로 갱신하며, 일반 편집기의 읽기 hover·선택 표현을 재사용한다.
 - **결정·불일치:** [소유자 결정 P11][decision]. 번호 세그먼트는 P02의 다섯 폼에 적용했다(#776). 알려진 불일치 없음.
 
 Docling 구조 검수 (#900)는 P04의 명시적 승인·거절·승인 되돌리기,
@@ -287,7 +289,7 @@ P07의 화면 문맥 오류·실패 상태, P11의 등록 상태 checkbox를 사
 Docling 수동 페이지 제외 (#945, #995 PR 2)는 별도 페이지 검수 탭에서 P11의 페이지 checkbox,
 P04의 primary 제외·secondary 해제, P07의 폼 문맥 오류를 사용한다.
 이유는 기존 공용 Input으로 받으며 원문 조작부는 이미지 바깥 행에 둔다.
-현재 동작과 1440px·640px 한국어 다크 Before/After는 [대조 계약](docling-compare-v1.md#manual-page-exclusion-945)에 있다.
+현재 동작과 1440px·640px 한국어 다크 Before/After는 [대조 계약](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-compare-v1.md#manual-page-exclusion-945)에 있다.
 
 비서 패널(#931, #1047 PR A)은 U22 AI 설정과 같은 모델·강도 선택을 공유
 개별 outline Button에서 공통 DropdownMenu·DropdownMenuItem 목록을 바로 연다(#1110/#1124).
@@ -313,9 +315,9 @@ Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채�
 - **사용처:** U22 앱 설정, U23 파일/폴더 picker·새 이름, U24 미저장·삭제·저장/복구 비교, U25 미리보기·단축키·참고문헌 연결.
 - **키보드 경계 (#831):** 공용 Dialog는 native Undo/Redo가 modal 밖 입력·초안으로 이동하거나 수정하는 것을 차단한다. modal 안 입력의 자체 Undo/Redo는 유지하고, Escape는 활성 modal만 닫아 바깥 미적용 초안을 보존한다. 명령 센터도 같은 경계를 쓴다. #1032의 Settings 작업 탭도 같은 beforeinput 경계를 재사용하여 두 그룹에서 Settings 입력의 Undo/Redo가 다른 그룹의 문서 초안으로 이동하지 않게 하며, Settings 입력 자체의 native history는 유지한다. 비모달 알림 센터의 문서 history는 유지한다. [현재 Undo 계약](document-editing-v1.md#shared-history-and-editing-boundaries).
 - **추가 사용처:** #797 Docling 서버 Settings는 Host 기기 설정·field exit 저장, PDF 선택은 기존 FolderDialog, 실행은 작은 명시적 변환 확인 dialog다. 진행·대기 중단은 대시보드에, 완료는 이름 있는 동작 알림에 둔다(#942). 연결 확인 실패 뒤에도 서버 구성 안내 링크를 유지한다. 같은 Settings/파일 dialog 패턴을 재사용한다.
-- **추가 사용처 (#871):** Docling 대시보드는 #932부터 화면 폭을 쓰는 단일 결과 표와 상태 칩을 쓴다. #1027은 집계를 작은 필터 칩으로 줄이고, 상태별 우선 대응도 이 칩으로 같은 표를 거르며 별도 중복 필터 줄을 두지 않는다. Needs attention 범위 설명은 해당 칩 hover·focus에서 확인한다. 파일 이름·짧은 상태·진행 단계·경과 시간·대기 중단은 해당 표 행에 모아 작업을 중복 나열하지 않는다. 실패 상세·불확실 작업의 주의사항·대기 중단의 서버 취소 한계·우선 대응 설명은 hover와 keyboard focus에서 펼치며 aria-describedby로 연결한다([계약·전후 캡처](docling-conversion-v1.md#dashboard-density-review-1027)). 완료 행의 주 동작은 대조 열기, 실패·불확실 행은 Actions 열의 다시 시도·다시 시작이며 보조 동작만 Host 선언형 Menu에 둔다(#1033). 진행 중 행의 대기 중단은 640px에서 가로 스크롤 없이 접근하도록 진행 상태 옆에 유지한다. 기능 선택은 Settings 기여에서 Host SettingsSwitch 행을 쓴다(#1033). 기능 선택은 Host 플러그인 등록에 즉시 저장하며 문서 Save에 묶지 않는다. 다시 시도·불확실 작업 다시 시작은 기존 변환 확인 dialog를 열고 명시적 Convert 뒤 새 UUID로 접수한다. 기록 지우기는 불확실 기록만 숨기며 실행 취소·결과 삭제로 표현하지 않는다.
-- **추가 사용처 (#880):** U22의 AI 에이전트는 같은 Settings 화면·section·설명·상태 표현을 쓰며 어댑터, 사용 가능·로그인 필요 여부만 표시한다. 사용자 지시나 업체·자격 증명 입력은 없다. `ai-agent`가 Docling 설정과 같은 정렬·여백을 확인하고 1440px 영어 Light·640px 한국어 Dark 캡처를 검토했다. 등록 해제 시 범주·서비스가 사라져도 기존 문서 DOM·미저장 입력을 보존한다([현재 계약·캡처](plugin-ui-v1.md#verification)).
-- **추가 사용처:** [Docling 대조](docling-compare-v1.md)는 기존 FolderDialog로 변환 폴더를 명시적으로 연다. 문서 쓰기·미저장 확인과 연결하지 않는다. bbox·연결선·변환 메모 띠는 비교 전용 새 표현이며 기존 편집 패턴을 바꾸지 않는다.
+- **추가 사용처 (#871):** Docling 대시보드는 #932부터 화면 폭을 쓰는 단일 결과 표와 상태 칩을 쓴다. #1027은 집계를 작은 필터 칩으로 줄이고, 상태별 우선 대응도 이 칩으로 같은 표를 거르며 별도 중복 필터 줄을 두지 않는다. Needs attention 범위 설명은 해당 칩 hover·focus에서 확인한다. 파일 이름·짧은 상태·진행 단계·경과 시간·대기 중단은 해당 표 행에 모아 작업을 중복 나열하지 않는다. 실패 상세·불확실 작업의 주의사항·대기 중단의 서버 취소 한계·우선 대응 설명은 hover와 keyboard focus에서 펼치며 aria-describedby로 연결한다([계약·전후 캡처](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md#dashboard-density-review-1027)). 완료 행의 주 동작은 대조 열기, 실패·불확실 행은 Actions 열의 다시 시도·다시 시작이며 보조 동작만 Host 선언형 Menu에 둔다(#1033). 진행 중 행의 대기 중단은 640px에서 가로 스크롤 없이 접근하도록 진행 상태 옆에 유지한다. 기능 선택은 Settings 기여에서 Host SettingsSwitch 행을 쓴다(#1033). 기능 선택은 Host 플러그인 등록에 즉시 저장하며 문서 Save에 묶지 않는다. 다시 시도·불확실 작업 다시 시작은 기존 변환 확인 dialog를 열고 명시적 Convert 뒤 새 UUID로 접수한다. 기록 지우기는 불확실 기록만 숨기며 실행 취소·결과 삭제로 표현하지 않는다.
+- **추가 사용처 (#880):** U22의 AI 에이전트는 같은 Settings 화면·section·설명·상태 표현을 쓰며 어댑터, 사용 가능·로그인 필요 여부만 표시한다. 사용자 지시나 업체·자격 증명 입력은 없다. `ai-agent`가 Docling 설정과 같은 정렬·여백을 확인하고 1440px 영어 Light·640px 한국어 Dark 캡처를 검토했다. 등록 해제 시 범주·서비스가 사라져도 기존 문서 DOM·미저장 입력을 보존한다([현재 계약·캡처](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#verification)).
+- **추가 사용처:** [Docling 대조](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-compare-v1.md)는 기존 FolderDialog로 변환 폴더를 명시적으로 연다. 문서 쓰기·미저장 확인과 연결하지 않는다. bbox·연결선·변환 메모 띠는 비교 전용 새 표현이며 기존 편집 패턴을 바꾸지 않는다.
 - **추가 사용처 (#817):** 별도 텍스트 문서도 U24의 미저장 확인·복구·삭제·비교 경계를 재사용한다. 텍스트 편집 화면은 Source 읽기 화면과 분리하며, 소유자가 요구한 짧은 종류 표시는 오류/알림 대신 입력 위 문맥 정보로 유지한다. 고정폭 입력은 Source의 기존 서체·색/간격 토큰을 공유하고 탭·Save 줄은 이동하지 않는다. `text-mode`에서 닫기 취소/Save/버리기·지연 응답·종류별 복구/충돌, 1440/640px·한국어·다크를 검증했다. [현재 계약](editing-session-save-v1.md#text-editing-sessions-817).
 - **결정·불일치:** [소유자 결정 P12][decision], [현재 저장·복구 계약](editing-session-save-v1.md#switching-and-recovery). 이 작업·확정 경계의 알려진 불일치 없음. 메시지 표시는 P07/D07에서 별도 추적한다.
 
@@ -364,7 +366,7 @@ of document drafts, Save and Undo. See [table contract](table-interaction-v1.md#
 일반 텍스트 문서의 지원 동작은 유지한다([현재 계약](editor-ux-shell-v1.md#title-strip-and-tab-row-actions-695)).
 
 #1032: Settings는 Host가 머리·범주 탐색·스크롤·콘텐츠 열을 소유하고 각 범주는 내용만
-그린다. 기존 Button·탭·입력 토큰을 재사용하며 공용 설정 행 블록은 [#1033 Host API](plugin-ui-v1.md#host-settings-rows-and-declarative-menus-1033)를 쓴다.
+그린다. 기존 Button·탭·입력 토큰을 재사용하며 공용 설정 행 블록은 [#1033 Host API](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-settings-rows-and-declarative-menus-1033)를 쓴다.
 Settings 탭·진입의 pointer 이동은 metadata 바깥 적용 대신 탐색으로 처리해 초안을 보존한다. 일반 문서 탭 pointer 이동의 기존 바깥 적용은 유지한다.
 앱 즉시 반영, AI 명시적 Save, Docling field exit 저장은 문서 Save와 분리한다.
 탭 사이 이동은 설정 초안을 유지하며 닫기·재시작은 Plugin 탭처럼 초안을 복원하지 않는다.
@@ -379,7 +381,7 @@ Settings 탭·진입의 pointer 이동은 metadata 바깥 적용 대신 탐색�
 톱니와 스위치를 두고, 정보·기본 버전 재등록은 플러그인 상세로 모은다.
 AI·Docling 설정은 기존 Host 행 정렬을 유지한다. UI 기여 로딩 중에는 상태를
 표시하고 톱니를 비활성화하며 완료 뒤 진입한다. 설정 없는 플러그인도 정보에
-진입한다. [현재 계약과 전후 캡처](plugin-ui-v1.md#plugin-row-and-version-follow-up-1007-1090).
+진입한다. [현재 계약과 전후 캡처](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#plugin-row-and-version-follow-up-1007-1090).
 
 ### Rejected plugin registrations (#1097)
 
@@ -388,7 +390,7 @@ stored manifest rejection. Plugin tabs link to that surface; its existing
 SettingsRow/Button and confirmation Dialog perform explicit bundled registration.
 This follows the same error and confirmation implementations used by Settings
 and FolderDialog; no new shared interaction or Plugin API is introduced.
-The current contract is [Plugin UI rejection handling](plugin-ui-v1.md#rejected-saved-registrations-1097).
+The current contract is [Plugin UI rejection handling](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#rejected-saved-registrations-1097).
 
 #1106: 비서의 활성 문서에 미저장 변경이 있으면 기존 맥락 행에 짧게 저장된 버전 사용을
 표시한다. 설명·경로는 공용 Tooltip의 hover·keyboard focus로 확인한다. 같은 패널의

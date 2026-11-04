@@ -1,3 +1,4 @@
+import { DAEMON_PROTOCOL } from "../../../apps/editor/server/daemon-protocol.ts";
 import { DesktopDaemon, trustedDaemonUrl } from "../../../apps/desktop/src/daemon-client.ts";
 import { once } from "node:events";
 import assert from "node:assert/strict";
@@ -21,8 +22,8 @@ test("daemon CLI keeps one local instance, rejects occupied ports and warns for 
   }
   const started = Date.now(), base = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-daemon-"));
   const entry = path.join(base, "cli.mjs"), state = path.join(base, "state");
-  const env = { ...process.env, LITZIO_DATA_DIR: path.join(base, "data"), LITZIO_DAEMON_DIR: state, LITZIO_PLUGINS_DIR: path.join(base, "plugins"),
-    LITZIO_AI_AGENT_CWD: path.join(base, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(base, "ai.json"), LITZIO_DOCLING_SETTINGS_FILE: path.join(base, "docling.json") };
+  const env = { ...process.env, LITZIO_DATA_DIR: path.join(base, "data"), LITZIO_DAEMON_DIR: state,
+    LITZIO_AI_AGENT_CWD: path.join(base, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(base, "ai.json") };
   // Real CLI dispatch + detached subprocess/IPC + TCP cannot be proved by in-process lock tests.
   // Use a tiny static Editor fixture; production Save/Reload remains in the existing browser test.
   fs.mkdirSync(path.join(base, "editor")); fs.writeFileSync(path.join(base, "editor/index.html"), "<!doctype html><title>Fixture</title>");
@@ -125,7 +126,7 @@ test("daemon CLI keeps one local instance, rejects occupied ports and warns for 
     } finally { await new Promise<void>(resolve => blocker.close(() => resolve())); }
     const remote = await execute(["run", "--host", "0.0.0.0", "--public-origin", first.url], async () => {
       assert.equal(readDaemonRecord(directory), undefined, "remote unrestricted daemon is not a Desktop discovery candidate");
-      const headers = { "X-Litzio-Protocol": "1", Origin: first.url };
+      const headers = { "X-Litzio-Protocol": DAEMON_PROTOCOL, Origin: first.url };
       const folder = first.url + "/api/folder?" + new URLSearchParams({ root: base });
       assert.equal((await fetch(folder)).status, 200);
       assert.equal((await fetch(folder, { headers: { Origin: "https://foreign.invalid" } })).status, 403);

@@ -23,12 +23,11 @@
 | `protocol` | `litzio`; Desktop의 `litzio://app` origin |
 | `folders.desktopData` | `litzio`; `%APPDATA%\litzio`의 설정·sample·로그·Chromium 저장소 |
 | `folders.cli` | `litzio`; `%LOCALAPPDATA%\litzio\bin`의 opt-in CLI와 제거 진단 |
-| `folders.shared`, `folders.plugins` | `.litzio`, `plugins`; 모든 같은 브랜드 Host의 `~/.litzio/plugins`, Docling 설정은 `~/.litzio/docling.json` |
+| `folders.shared` | `.litzio`; 공식 AI 설정과 templates의 공용 상위 폴더 |
 | `cliCommand` | `litzio`; 생성 npm manifest의 bin, Desktop shim·충돌 탐지·도움말·버전 출력 |
 | `storagePrefix` | `litzio`; localStorage 키와 `litzio-recovery` IndexedDB |
 | `updates.repository` | 현재 `litzio/litzio`; 배포와 업데이트를 받는 GitHub 저장소 |
 | `updates.channels.stable`, `.beta` | `latest`, `beta`; 업데이트 메타데이터 파일명. Stable/Beta의 semver 선택·다운그레이드 거부 정책은 고정 |
-| `officialPluginsUrl` | `null`; 공식 목록이 아직 게시되지 않았음을 뜻함. 주소와 설치 UI는 후속 플러그인 설치 작업에서 사용 |
 
 ```powershell
 pnpm install --frozen-lockfile
@@ -43,7 +42,7 @@ pnpm --filter @litzio/desktop package
 
 별도 빌드는 표시 이름만 바꾸지 말고 `appId`, `appName`, `executableName`, `protocol`,
 `folders.desktopData`, `folders.cli`, `folders.shared`, `cliCommand`, `storagePrefix`를 모두 별도로 지정한다.
-플러그인 하위 폴더 이름이 같아도 공용 상위 폴더가 달라야 한다. 설치/폴더/명령 이름에는
+공용 설정의 상위 폴더도 달라야 한다. 설치/폴더/명령 이름에는
 경로 구분자나 shell·NSIS 구문을 넣지 않고, 앱 이름·명령·프로토콜에는 단순한 ASCII 식별자를 권장한다.
 지원되는 Windows 파일명과 유효한 reverse-DNS 앱 ID를 사용한다.
 
@@ -53,15 +52,12 @@ pnpm --filter @litzio/desktop package
 서명된 빌드는 자신의 인증서/게시자 설정과 기존 릴리스 검증 절차도 따라야 한다.
 공식판의 배포·업데이트 저장소 기본값은 `litzio/litzio`다(#860). 과거 Beta의 업데이트 경로를 이전하거나 호환 alias를 제공하지 않는다.
 
-기존 `LITZIO_PLUGINS_DIR`, `LITZIO_DOCLING_SETTINGS_FILE`, `--user-data-dir` 같은 명시적 운영자/테스트 경로는
+기존 `LITZIO_AI_AGENT_SETTINGS_FILE`, `LITZIO_AI_AGENT_CWD`, `--user-data-dir` 같은 명시적 운영자/테스트 경로는
 기본값보다 우선한다. 두 브랜드를 의도적으로 같은 경로로 덮어쓰면 격리를 보장하지 않는다.
 
 ## 고정 내부 계약과 검증
 
-`@litzio/*`, native `litzio: 1`, `@litzio/plugin-api`, worker API 1, UI API 1/React 19,
-manifest 필드·route·bridge는 제품 브랜드로 바꾸지 않는다. 문서 Root에 생기는 비공개 staging `.litzio-plugin-*`와 미완료 표식 `.litzio-incomplete`도 고정 내부 식별자다. 공용 설치 폴더가 다른 브랜드라도 같은 문서 Root를 열 수 있으므로 서로의 미완료 산출물을 모두 차단한다. Core는 브랜드 설정을 import하지 않으며
-사용자 진단도 제품명을 요구하지 않는 중립 문구를 사용한다. 문서 의미는 패키저 설정의 영향을 받지 않는다.
-같은 공식 Docling worker/UI 번들이 다른 브랜드에도 설치·등록되어 실행된다.
+`@litzio/*`, native `litzio: 1`과 공식 AI HTTP route·Desktop bridge는 제품 브랜드로 바꾸지 않는다. Core는 브랜드 설정을 import하지 않으며 문서 의미는 패키저 설정의 영향을 받지 않는다. 플러그인·Docling·공식 목록 URL과 플러그인 폴더 설정은 ADR-0017 ③에서 제거했다. 과거 저장소/설정을 이전하거나 정리하지 않는다.
 
 다른 브랜드 빌드와 공식판·대체판의 동시 설치는 CI로 검증하지 않는다(#1000). 공식 Litzio의 패키징·설치·Stable/Beta 업데이트·제거 검사는 유지한다.
 

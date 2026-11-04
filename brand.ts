@@ -13,15 +13,13 @@ export const brand = {
   executableName: "Litzio",
   protocol: "litzio",
   // appName is also the one-click install directory and updater-cache prefix.
-  folders: { desktopData: "litzio", cli: "litzio", shared: ".litzio", plugins: "plugins" },
+  folders: { desktopData: "litzio", cli: "litzio", shared: ".litzio" },
   cliCommand: "litzio",
   storagePrefix: "litzio",
   updates: {
     repository: { owner: "litzio", repo: "litzio" },
     channels: { stable: "latest", beta: "beta" },
   },
-  // No official plugin catalog is published yet. Its installer is subsequent ADR-0012 work.
-  officialPluginsUrl: null as string | null,
 } as const;
 
 export function productName(language: string = "en"): string {

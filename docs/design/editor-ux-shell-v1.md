@@ -1,5 +1,7 @@
 # Editor UX Shell v1
 
+#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트·Desktop 번들 UI는 후속 범위다.
+
 - Status: Implemented
 - Image-link preview verification: 2026-10-29 (#731; [contract and captures](#relative-image-link-previews-731)).
 - Link opening verification: 2026-10-29 (#725; [contract and captures](#open-ordinary-links-725)).
@@ -86,7 +88,7 @@ recovery records. Applied work, dirty state and revision are unchanged.
 module consumers. Docling comparison's thin `ReadOnlyDocument` adapter uses it
 in fixed Read without view controls (#815). Optional engine-neutral geometry and
 selection callbacks connect that surface to the module's own source matching;
-see [Docling comparison](docling-compare-v1.md). These view-only changes need no
+see [Docling comparison](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-compare-v1.md). These view-only changes need no
 Core/CLI operation.
 
 ### Read view verification and captures (2026-10-31)
@@ -152,13 +154,13 @@ the text editor and never provides a raw native-document replacement path.
 ## Docling comparison tabs (#769)
 
 The command, tab kind and expanded-sidebar footer action now come from the
-[versioned UI contribution contract](plugin-ui-v1.md) (#857). The shell owns tab
+[versioned UI contribution contract](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md) (#857). The shell owns tab
 identity/group placement and generic folder navigation. Disabled contributed
 tabs retain their context, can be moved/closed, and reconstruct their content on
 re-registration without a page reload. They create no editing/recovery session.
 
 The sidebar opens the read-only module tab described in
-[Docling comparison](docling-compare-v1.md), under [ADR-0011](../adr/0011-code-module-boundary.md).
+[Docling comparison](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-compare-v1.md), under [ADR-0011](../adr/0011-code-module-boundary.md).
 Its entry sits in the sidebar footer above Settings, separate from Explorer's
 empty-state help and folder navigation. Collapse Explorer → Open folder retains
 its existing Tab order; the collapsed rail exposes Explorer, Color mode and Settings.
@@ -2860,7 +2862,7 @@ and Command Center's Convert with Docling share a PDF picker/explicit conversion
 confirmation flow. Progress and Stop waiting live in the Docling dashboard (#942).
 The shared notification center offers named completion/failure actions alongside
 stale comparison warnings.
-See the [conversion contract](docling-conversion-v1.md#app-pdf-conversion-797) for
+See the [conversion contract](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/docling-conversion-v1.md#app-pdf-conversion-797) for
 setting lifetime, output naming, limits and explicit completion navigation. Existing
 Appearance/recovery settings and ordinary document actions retain their contracts.
 
@@ -2902,8 +2904,8 @@ Saving & recovery. Contributed plugin settings are reached inside this list
 section rows, actions and confirmation dialog. Full installation paths and
 revisions wrap inside the hover/keyboard-focus information tooltip. Inventory
 and the explicit app-default re-registration contract are defined in
-[Plugin UI contributions](plugin-ui-v1.md#host-owned-plugin-settings-947) and
-[Host worker plugins](plugin-runtime-v1.md#plugin-inventory-and-explicit-default-registration-947).
+[Plugin UI contributions](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-owned-plugin-settings-947) and
+[Host worker plugins](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md#plugin-inventory-and-explicit-default-registration-947).
 
 ## Document action visibility (#973)
 
@@ -3030,7 +3032,7 @@ openSettings contributions still select their detail view. A missing contributio
 during feature reactivation does not discard the view; confirmed registration
 loss returns to Plugins. Disabled installations remain in the list with their
 switch off and cannot enter settings. Installation identifiers are accessible on
-hover and keyboard focus; see [plugin management](plugin-ui-v1.md#host-owned-plugin-settings-947).
+hover and keyboard focus; see [plugin management](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-owned-plugin-settings-947).
 
 ## Template gallery task tab (#936 phase 2)
 

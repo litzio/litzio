@@ -24,7 +24,7 @@
 | [ADR-0014: Main agent app-server](adr/0014-main-agent-app-server.md) | Accepted | #931 Host 소유 stdio 연결, 사용자 Codex 환경 재사용, 앱 데이터 cwd, provider 이름만 전제한 구조와 ADR-0013 조건 2 변경. 연결·설정·대화의 소유권과 후속 문서 작성 기능의 경계. |
 | [ADR-0015: Shared Host operations](adr/0015-shared-host-operations.md) | Accepted | 2026-11-04 #1132 소유자 승인. 새 사용자 기능의 입력·결과·범위·receipt 공용 정의와 CLI 필수, 필요 시 비서 도구. #1128 첫 사례와 동시 편집 대비 경계. 로컬 daemon 자동 탐색·연결·수명은 ADR-0016으로 개정하고 편집 상태 공유는 보류. |
 | [ADR-0016: 공유 로컬 daemon Host](adr/0016-shared-local-daemon-host.md) | Accepted | 2026-11-04 #1142 소유자 결정 ①~⑥. 인증 보류(#1145)·단일 인스턴스·버전·수명·Root·휴지통·샘플·origin, PR1~PR4. PR4에서 플러그인·AI daemon 수명과 테스트 복구로 기간 한정 예외 종료; 필수 CI 전체 통과로 1단계 완료·해당 릴리스 중단 해제. 구현 계약은 HTTP Host/ Desktop distribution과 Plugin runtime/Main agent. 공유 편집은 보류. |
-| [ADR-0017: Desktop 번들 UI와 daemon 공식 AI](adr/0017-bundled-client-and-official-ai.md) | Accepted | #1150 소유자 결정. 공식 AI·프로바이더 가용성·설정 CLI, 플러그인·Docling 기능 제거·직전 master 원격 보관, Host 클라이언트·번들 UI 전환. 소유자 개시 시 컨셉 재개발. 1단계·코어 전환 전 릴리스 금지, 이후 플러그인 없는 제품 릴리스는 소유자 결정. 구현 완료 아님. |
+| [ADR-0017: Desktop 번들 UI와 daemon 공식 AI](adr/0017-bundled-client-and-official-ai.md) | Accepted | #1150 소유자 결정. 공식 AI·프로바이더 가용성·설정 CLI, 플러그인·Docling 기능 제거·직전 master 원격 보관, Host 클라이언트·번들 UI 전환. 소유자 개시 시 컨셉 재개발. 1단계·코어 전환 전 릴리스 금지, 이후 플러그인 없는 제품 릴리스는 소유자 결정. ③a·③b 구현: 공식 AI·설정 CLI와 플러그인/Docling 삭제. ④·⑤는 후속 범위. |
 
 ## Current implemented contracts
 
@@ -34,11 +34,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | --- | --- | --- |
 | [Native document support](design/document-support-v1.md) | Implemented | 현재 계약. 표식·지원 의미·Core 진입/생성/쓰기 경계와 LF/fail-closed 보존. #817 별도 텍스트 종류·저장 경계. |
 | [Document templates](design/document-templates-v1.md) | Implemented | #936 1–3단계. Core template 메타데이터·생성, 공용 CLI/Host, ko/en 기본 2종, Editor 카드 갤러리·사용자 저장. #1128 공용 작업·Codex 템플릿 도구·생성 receipt/Undo와 child CLI PATH. |
-| [Host worker plugins](design/plugin-runtime-v1.md) | Implemented | #853 공용 설치·worker API·UUID/uncertain·OS 잠금 복구·Host 결과 공개 및 #869 플러그인 Host 작업·폴더 분리 절차. |
 | [Main agent connection, settings and conversations](design/main-agent-v1.md) | Implemented | #931 연결·설정·대화: Codex app-server / Copilot ACP, 모델·진단·공통 환경, 무발화 작업의 AI 기본 언어, @·Explorer 파일 참조, / Codex 활성 스킬 선택과 기록 칩 복원, 셸 비서 패널·thread 기록·스티어링·중단·컨텍스트 사용량. |
-| [Plugin UI contributions](design/plugin-ui-v1.md) | Implemented | #857 중립 UI manifest/API, 같은 origin의 검증된 ESM/CSS, React 주입, 명령·탭·사이드바·설정·변환 화면 기여와 비활성 탭·오류 격리·ESM 수명. |
-| [Docling conversion](design/docling-conversion-v1.md) | Implemented | DoclingDocument 1.10.0 전체 변환, 외부 PDF REST 프로필·원본 묶음·대응표, #871 대시보드·기능 선택과 요청 기록, #876 승인 교정 JSON·재변환·CLI, #884 구조 검수·제안 파일·Host 승인 연산, #900 검수 실행·승인 화면. |
-| [Docling comparison](design/docling-compare-v1.md) | Implemented | 읽기 전용 대조 탭, 원문 bbox·연결선·동기 스크롤, 지연 이미지와 대응표 불일치 경고, #900 제안 선택·승인·거절·되돌리기와 자동 새로 고침. |
 | [Parser security boundary](design/parser-security-v1.md) | Implemented | 공개 parse/참조 진단 도달성, URL·inline HTML backport와 patch 제거 조건. |
 | [Continuous document editing](design/document-editing-v1.md) | Implemented | 현재 계약. 연속 편집, clipboard, table/section 구조 변경의 보존 경계. |
 | [Editing session and Save](design/editing-session-save-v1.md) | Implemented | 현재 계약. opening snapshot, Save acknowledgement, draft/work-loss 보호와 로컬 복구. |
@@ -66,7 +62,6 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | Document | Status | Scope |
 | --- | --- | --- |
 | [패키저용 브랜드 설정](guides/branding.md) | Implemented | 단일 브랜드 설정, 공식 Litzio 기본값, 별도 설치와 고정 Host API·CI 검증 범위. |
-| [Docling 서버 구성 안내](guides/docling-server.md) | Implemented | 한국어 관리자 안내. 고정 이미지·모델·영구 캐시 예시, 연결 확인의 한계, 원격 접근과 오류 진단·종료. 실기 검증 범위와 미확인 환경을 명시한다. |
 
 ## Contribution and documentation governance
 
@@ -110,8 +105,6 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Footnote region verification](reviews/footnote-regions-2026-10-12.md) | Historical | #185 원문 위치의 각주 구역 Before/After, 좁은 화면과 원문·편집·복사·저장 보존 검증. |
 | [Endnotes verification](reviews/endnotes-2026-10-12.md) | Historical | #194 단일 미주 구역 Before/After, 원문 보존·명시적 변환·참조 복귀·초안 보호 검증. |
 | [Single Editor Foundation review](reviews/single-editor-foundation.md) | Historical | 당시 architecture 검토 근거. 현재 authority는 ADR-0001과 design contracts. |
-| [Docling plugin runtime spike](reviews/docling-plugin-runtime-spike.md) | Historical | 2026-10-31 별도 worker·공용 설치·UUID·drain·uncertain의 개발 Desktop/serve 실측. 실제 Docling 서버·패키지 Desktop 미검증. 승인된 후속 결정은 ADR-0012. |
-| [Docling plugin UI spike](reviews/docling-plugin-ui-spike.md) | Historical | 2026-10-31 ESM/CSS 명령·대조 탭의 동적 등록/해제·오류 격리·API 경계 실측. React 호환·ESM 해제 한계와 미이전 화면을 보존. 승인된 후속 결정은 ADR-0012. |
 | [AI agent host and extension patterns](reviews/ai-agent-host-patterns-2026-11.md) | Historical | #877 공개 문서·소스 조사. AI 작업/도구·업체 어댑터·검증·승인·수명·다중 에이전트 8개 축과 B 최소 골격 시사점. 설계·채택 결정 아님. |
 | [MyST security alignment review](reviews/myst-security-alignment-v1.md) | Historical | 당시 security 분석. 현재 후속 작업은 issue #11; 현재 안전성의 영구 보증이 아님. |
 | [Desktop shell spike](reviews/desktop-shell-spike-v1.md) | Historical | 실행 가능성과 비용의 실험 근거. 제품 Host·배포 결정이 아님. |

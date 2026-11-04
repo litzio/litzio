@@ -22,7 +22,7 @@ const editorUpdate = path => ['apps/editor/shared/desktop-bridge.ts',
   'apps/editor/src/shell/SettingsDialog.tsx', 'apps/editor/src/shell/MessageArea.tsx'].includes(path);
 const shared = path => ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml'].includes(path) ||
   /^(patches\/|tsconfig[^/]*$|\.github\/workflows\/|scripts\/)/.test(path);
-const product = path => ['packages/cli', 'plugins/docling', 'plugins/ai-agent', 'packages/plugin-api', 'apps/editor', 'packages/core', 'packages/file-commit', 'apps/desktop']
+const product = path => ['packages/cli', 'apps/editor', 'packages/core', 'packages/file-commit', 'apps/desktop']
   .some(name => inPackage(path, name));
 const known = path => policyOnly(path) || product(path) || shared(path) || path.startsWith('docs/') ||
   path.endsWith('.md') || path.startsWith('.github/ISSUE_TEMPLATE/');
@@ -36,17 +36,17 @@ const representativeDesktop = new Set([
   'src/host-protocol.ts', 'src/explorer.ts', 'src/first-document.ts',
   'test/host-protocol.test.ts', 'test/explorer.test.ts', 'test/first-document.test.ts',
 ].map(path => `apps/desktop/${path}`));
-// Desktop copies CLI dist, including plugin workers/UI and the production Editor.
+// Desktop copies CLI dist, including official AI and the production Editor.
 // Keep transitive build composition/configuration here without broadening update.
 const desktopBuildInputs = new Set([
-  'packages/cli/scripts/build.ts', 'packages/cli/scripts/build-docling-worker.ts',
-  'packages/cli/scripts/build-ai-agent.ts', 'plugins/docling/scripts/build.ts',
-  'plugins/docling/scripts/check-boundaries.ts', 'plugins/ai-agent/scripts/build.ts',
-  'packages/plugin-api/src/build.ts', 'packages/plugin-api/src/config.ts',
+  'packages/cli/scripts/build.ts',
+
+
+
   'apps/editor/vite.config.ts',
-  'plugins/docling/schema/LICENSE',
-  ...['packages/cli', 'packages/core', 'packages/file-commit', 'packages/plugin-api',
-    'plugins/docling', 'plugins/ai-agent', 'apps/editor'].map(path => `${path}/tsconfig.json`),
+
+  ...['packages/cli', 'packages/core', 'packages/file-commit',
+    'apps/editor'].map(path => `${path}/tsconfig.json`),
 ]);
 const desktopBuildInput = path => desktopBuildInputs.has(path) || path.startsWith('apps/editor/public/licenses/');
 const lifecycleFullPaths = path => shared(path) || !known(path) || desktopBuildInput(path) ||
@@ -70,7 +70,7 @@ const layoutFullPaths = path => !path.startsWith('apps/editor/src/dev/') && (
     // Shell/Settings consume shared primitives, theme/i18n/preferences and tab/control labels.
     'apps/editor/src/lib/utils.ts', 'apps/editor/src/ui/primitives.tsx',
     ...['theme.ts', 'i18n.ts', 'locales.ts', 'preferences.ts', 'shortcuts.ts', 'document-tabs.ts',
-      'ui-message.ts', 'PluginSettings.tsx', 'PluginTab.tsx', 'plugin-ui.tsx', 'plugin-ui-registry.ts',
+      'ui-message.ts', 'AiSettings.tsx',
       'components/CopyButton.tsx'].map(name => `apps/editor/src/${name}`),
     'apps/editor/public/theme-init.js', 'apps/editor/test/desktop-updates.browser.js',
     'apps/editor/test/layout-rules.browser.js'].includes(path) ||
@@ -79,11 +79,11 @@ const layoutFullPaths = path => !path.startsWith('apps/editor/src/dev/') && (
 export function selectJobs(eventName, paths) {
   if (!['pull_request', 'merge_group'].includes(eventName) || !paths?.length) return allJobs();
   const full = paths.some(path => !policyOnly(path) && (shared(path) || !known(path)));
-  // Plugin scenarios consume UI assets, Host operations and conversion fixtures.
+  // Editor scenarios consume UI assets and Host operations.
   // Select whole packages rather than maintaining a second dependency graph.
-  const browser = full || paths.some(path => ['apps/editor', 'packages/core', 'packages/file-commit', 'packages/plugin-api', 'plugins/docling', 'plugins/ai-agent']
+  const browser = full || paths.some(path => ['apps/editor', 'packages/core', 'packages/file-commit', ]
     .some(name => inPackage(path, name)));
-  const http = browser || paths.some(path => ['packages/cli', 'plugins/docling', 'plugins/ai-agent'].some(name => inPackage(path, name)));
+  const http = browser || paths.some(path => ['packages/cli', ].some(name => inPackage(path, name)));
   const update = full || paths.some(path => inPackage(path, 'apps/desktop') || editorUpdate(path));
   return {
     quality: !paths.every(path => policyOnly(path) || isDocumentationOnly(eventName, [path])),

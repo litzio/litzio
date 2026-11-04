@@ -26,10 +26,9 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   assert.deepEqual(catalog.copilot?.modes.map(mode => mode.id), ["agent", "plan"]);
   assert.equal((await connection.diagnostics("copilot")).connected, true);
   assert.equal(readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.method === "initialize").length, 1);
-  const settings = { provider: "codex" as const, providers: { codex: true, copilot: true }, writeAccess: "read-only" as const, model: "auto", reasoningEffort: "high" };
+  const settings = { provider: "codex" as const, writeAccess: "read-only" as const, model: "auto", reasoningEffort: "high" };
   const input = { provider: "copilot" as const, message: "Question", folders: [root], model: settings.model, reasoningEffort: "high", mode: "plan" };
   await assert.rejects(conversations.send({ ...input, skills: [{ name: "codex-only", path: path.join(root, "SKILL.md") }] }, settings), /only with Codex/);
-  await assert.rejects(conversations.send(input, { ...settings, providers: { codex: true, copilot: false } }), /disabled/);
   const conversation = await conversations.send(input, settings);
   assert.equal(conversation.turns.length, 1, "ACP selector updates must not create transcript turns");
   const turn = conversation.turns[0]!;
@@ -59,7 +58,6 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     assert.match(conversation.turns.at(-1)!.error!, /quota fixture/);
   });
   assert.equal(conversations.list()[0]!.provider, "copilot");
-  await assert.rejects(conversations.resume(conversation.id, { ...settings, providers: { codex: true, copilot: false } }), /disabled/);
   assert.equal((await conversations.resume(conversation.id, { ...settings, provider: "codex" })).provider, "copilot");
   const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   assert.ok(rpc.some(message => message.args?.includes("high")), "CLI fallback receives the selected effort at startup");
@@ -134,7 +132,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   const root = mkdtempSync(path.join(tmpdir(), "ai-conversation-")), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");
   const connection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
   const conversations = new AiAgentConversations(connection, new RootAccess([root]));
-  const settings = { provider: "codex" as const, providers: { codex: true, copilot: true }, writeAccess: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const settings = { provider: "codex" as const, writeAccess: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "What changed?", folders: [root], model: settings.model, reasoningEffort: "medium", references: [path.join(root, "notes.md"), path.join(root, "image.png"), path.join(root, "report.pdf"), path.join(root, "notes.md")],
     document: { path: path.join(root, "notes.md"), source: "UNSAVED DOCUMENT TEXT" } };
   writeFileSync(input.document.path, "ON DISK");
@@ -333,7 +331,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   mkdirSync(folder); mkdirSync(outside);
   const connection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] }, undefined, { packaged: false, checkoutRoot: root });
   const conversations = new AiAgentConversations(connection, new RootAccess([root]));
-  const settings = { provider: "codex" as const, providers: { codex: true, copilot: true }, writeAccess: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const settings = { provider: "codex" as const, writeAccess: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "Create Hello", folders: [folder], model: settings.model, reasoningEffort: "medium" };
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const conversation = await conversations.send(input, settings, "window-a");
@@ -452,7 +450,7 @@ test("user questions reply once with exact RPC id and expire on resolution, comp
   const connection = new AiAgentConnection(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, log] });
   const conversations = new AiAgentConversations(connection, new RootAccess([root]));
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
-  const settings = { provider: "codex" as const, providers: { codex: true, copilot: true }, writeAccess: "read-only" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const settings = { provider: "codex" as const, writeAccess: "read-only" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "Ask", folders: [root], model: settings.model, reasoningEffort: "medium" };
   const c = await conversations.send(input, settings);
   const questions = [{ id: "constructor", header: "Choice", question: "Which?", isOther: false, isSecret: false, options: [{ label: "A", description: "First" }] },
@@ -504,7 +502,7 @@ test("skills use only assistant cwd, enabled catalog, explicit input and context
   assert.match(catalog.errors[0]!.message, /frontmatter/);
   const skill = catalog.skills[0]!;
   const conversations = new AiAgentConversations(connection, new RootAccess([root]));
-  const settings = { provider: "codex" as const, providers: { codex: true, copilot: true }, writeAccess: "read-only" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+  const settings = { provider: "codex" as const, writeAccess: "read-only" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "$litzio-guide Help", folders: [], model: settings.model, reasoningEffort: settings.reasoningEffort, skills: [{ name: skill.name, path: skill.path }] };
   const conversation = await conversations.send(input, settings);
   await conversations.send({ ...input, id: conversation.id, message: "Steer" }, settings);

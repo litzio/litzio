@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { AiUserInput, AiUserInputAnswers } from "@litzio/plugin-api/ai";
+import type { AiUserInput, AiUserInputAnswers } from "../../shared/ai.ts";
 import { Button } from "../components/ui/button.tsx";
 import { Input } from "../components/ui/input.tsx";
 import { i18n } from "../i18n.ts";

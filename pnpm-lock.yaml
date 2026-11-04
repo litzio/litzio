@@ -173,9 +173,6 @@ importers:
 
   .:
     devDependencies:
-      '@litzio/plugin-api':
-        specifier: workspace:*
-        version: link:packages/plugin-api
       '@playwright/cli':
         specifier: 0.1.21
         version: 0.1.21
@@ -194,9 +191,6 @@ importers:
       '@litzio/file-commit':
         specifier: workspace:*
         version: link:../../packages/file-commit
-      '@litzio/plugin-api':
-        specifier: workspace:*
-        version: link:../../packages/plugin-api
       '@playwright/test':
         specifier: 1.64.0-alpha-1789764292000
         version: 1.64.0-alpha-1789764292000
@@ -248,9 +242,6 @@ importers:
       '@litzio/file-commit':
         specifier: workspace:*
         version: link:../../packages/file-commit
-      '@litzio/plugin-api':
-        specifier: workspace:*
-        version: link:../../packages/plugin-api
       '@tiptap/core':
         specifier: 3.31.3
         version: 3.31.3(@tiptap/pm@3.31.3)
@@ -384,9 +375,6 @@ importers:
       '@litzio/file-commit':
         specifier: workspace:*
         version: link:../file-commit
-      '@litzio/plugin-api':
-        specifier: workspace:*
-        version: link:../plugin-api
     devDependencies:
       '@babel/parser':
         specifier: 7.29.9
@@ -449,84 +437,6 @@ importers:
       '@types/node':
         specifier: ^24.5.2
         version: 24.13.6
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
-      typescript:
-        specifier: 7.0.2
-        version: 7.0.2
-
-  packages/plugin-api:
-    dependencies:
-      '@babel/parser':
-        specifier: 7.29.9
-        version: 7.29.9
-      '@litzio/core':
-        specifier: workspace:*
-        version: link:../core
-      esbuild:
-        specifier: 0.28.2
-        version: 0.28.2
-    devDependencies:
-      '@types/react':
-        specifier: ^19.1.13
-        version: 19.3.0
-
-  plugins/ai-agent:
-    dependencies:
-      '@litzio/plugin-api':
-        specifier: workspace:*
-        version: link:../../packages/plugin-api
-      ajv:
-        specifier: 8.20.0
-        version: 8.20.0
-      react:
-        specifier: ^19.1.1
-        version: 19.3.0
-    devDependencies:
-      '@types/node':
-        specifier: ^24.5.2
-        version: 24.13.6
-      '@types/react':
-        specifier: ^19.1.13
-        version: 19.3.0
-      esbuild:
-        specifier: 0.28.2
-        version: 0.28.2
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
-      typescript:
-        specifier: 7.0.2
-        version: 7.0.2
-
-  plugins/docling:
-    dependencies:
-      '@litzio/core':
-        specifier: workspace:*
-        version: link:../../packages/core
-      '@litzio/plugin-api':
-        specifier: workspace:*
-        version: link:../../packages/plugin-api
-      ajv:
-        specifier: 8.20.0
-        version: 8.20.0
-      ajv-formats:
-        specifier: 3.0.1
-        version: 3.0.1(ajv@8.20.0)
-      react:
-        specifier: ^19.1.1
-        version: 19.3.0
-    devDependencies:
-      '@types/node':
-        specifier: ^24.5.2
-        version: 24.13.6
-      '@types/react':
-        specifier: ^19.1.13
-        version: 19.3.0
-      esbuild:
-        specifier: 0.28.2
-        version: 0.28.2
       tsx:
         specifier: ^4.23.15
         version: 4.23.15

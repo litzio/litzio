@@ -1,5 +1,4 @@
 import { nativeSource } from "../helpers/document.ts";
-import { comparisonFiles } from "./docling-fixtures.ts";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -56,10 +55,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "fields.md", create: () => nativeSource("# Property fields\n\n(section-one)=\n## Section one\n\nA [link](https://example.com) and $x+1$.\n\n```{math}\n:label: eq-one\n\nx=1\n```\n\n:::{figure} ./diagram.svg\n:name: fig-one\n:alt: Diagram\n\nImage caption\n:::\n\n:::{table} Table caption\n:name: tbl-one\n\n| Header |\n| --- |\n| Cell |\n:::\n\n:::{figure}\n:name: fig-flow\n\n```{mermaid}\ngraph LR\n  A --> B\n```\n\nFlow caption\n:::\n") },
     document("diagram.svg"),
   ], scenarios: ["short-field-errors", "ui-prose-wrap", "draft-notice-layout", "read-view"] },
-  "docling-server": { files: [{ name: "paper.pdf", create: () => readFileSync(path.join(REPOSITORY_ROOT, "plugins/docling/test/fixtures/synthetic/source.pdf")) }], scenarios: ["docling-server", "docling-review", "docling-review-recovery", "docling-review-retry"] },
-  "docling-dashboard": { files: ["completed.pdf", "failed.pdf", "running.pdf", "uncertain.pdf"].map(name => ({ name, create: () => readFileSync(path.join(REPOSITORY_ROOT, "plugins/docling/test/fixtures/synthetic/source.pdf")) })), scenarios: ["docling-dashboard"] },
-  "docling-compare": { files: [], scenarios: ["docling-compare"] },
-  "plugin-ui": { files: [{ name: "document.md", create: () => nativeSource("# Plugin boundary\n\nOrdinary editable content.\n") }], scenarios: ["plugin-ui"] },
+  "assistant": { files: [{ name: "document.md", create: () => nativeSource("# Plugin boundary\n\nOrdinary editable content.\n") }], scenarios: ["ai-agent", "ai-result"] },
   "caption-selection": { files: [
     { name: "selection.md", create: () => nativeSource("# Caption selection\n\nBefore.\n\n" +
       ":::{figure} ./diagram.svg\n:name: fig-a\n\n**Upper** caption alpha\n:::\n\n" +
@@ -200,7 +196,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "untitled.md", create: () => nativeSource("Lead paragraph.\n\n## Part\n\nBody.\n") },
     { name: "untitled-empty.md", create: () => nativeSource("Lead paragraph.\n") }], scenarios: ["document-title"] },
   "table-authoring": { files: [fixture("tables.md"), { name: "wrapping.md", create: () => {
-    const nist = readFileSync(path.join(REPOSITORY_ROOT, "plugins/docling/test/fixtures/nist-sp1108r4/document.md"), "utf8");
+    const nist = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test/browser/fixtures/wide-table.md"), "utf8");
     const start = nist.indexOf(":::{table} ");
     const end = nist.indexOf("\n:::", start);
     if (start < 0 || end < 0) throw new Error("NIST wrapping fixture requires a complete native table");
@@ -345,19 +341,11 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
 };
 
 /** Recreate every scratch directory under `tmpRoot` from its sources. Returns the directories. */
-let comparisons: ReturnType<typeof comparisonFiles> | undefined;
 export function prepareBrowserFixtures(tmpRoot = path.join(REPOSITORY_ROOT, "tmp")): string[] {
   return Object.entries(SCRATCH_DIRS).map(([name, { files }]) => {
     const dir = name === "file-actions" && tmpRoot === path.join(REPOSITORY_ROOT, "tmp") ? FILE_ACTIONS_ROOT : path.join(tmpRoot, name);
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
-    if (name === "docling-compare") {
-      comparisons ??= comparisonFiles();
-      for (const file of comparisons) {
-        mkdirSync(path.dirname(path.join(dir, file.name)), { recursive: true });
-        writeFileSync(path.join(dir, file.name), file.bytes);
-      }
-    }
     for (const file of files) {
       mkdirSync(path.dirname(path.join(dir, file.name)), { recursive: true });
       writeFileSync(path.join(dir, file.name), file.create());

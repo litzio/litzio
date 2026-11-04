@@ -1,7 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_AI_SETTINGS, type AiExecutionSettings } from "@litzio/plugin-api/ai";
+import { DEFAULT_AI_SETTINGS, type AiExecutionSettings } from "../shared/ai.ts";
 import { brand } from "../../../brand.ts";
 
 declare const __LITZIO_CLI_BUILD__: unknown;
@@ -17,7 +17,6 @@ export function hostPaths(run: HostRun = {}, env: NodeJS.ProcessEnv = process.en
   return {
     aiDefaults: (packaged ? DEFAULT_AI_SETTINGS : { model: "gpt-6-luna", reasoningEffort: "low" }) as AiExecutionSettings,
     templates: path.join(base, "templates"),
-    plugins: env.LITZIO_PLUGINS_DIR ?? path.join(base, brand.folders.plugins),
     settingsFile: (id: string) => env[`LITZIO_${id.toUpperCase().replaceAll("-", "_")}_SETTINGS_FILE`] ?? path.join(base, `${id}.json`),
     agent: env.LITZIO_AI_AGENT_CWD ?? path.join(packaged ? path.join(data, brand.folders.desktopData) : base, "assistant"),
   };
