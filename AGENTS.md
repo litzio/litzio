@@ -9,7 +9,7 @@
 - 기존 코드와 검증된 라이브러리를 재사용하고, 필요성이 확인되지 않은 abstraction이나 infrastructure를 추가하지 않는다.
 - 정상 동작하는 주변 코드를 현재 작업과 무관하게 재설계하거나 리팩터링하지 않는다.
 - 기존 기술로 해결 가능한 parser, AST, document format, editor engine 등을 불필요하게 재구현하지 않는다.
-- 기술적 제약이나 실패를 숨기기 위해 테스트 기준을 약화하거나 동작을 우회하지 않는다. 소유자가 승인한 유일한 기간 한정 예외는 [ADR-0016 ⑥](docs/adr/0016-shared-local-daemon-host.md#⑥-기간-한정-플러그인-테스트-예외)의 느리고 in-process 수명에 묶인 플러그인 테스트와 [ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)의 Docling 전환 기간 기본 설치·CI 제외다. 제외 전 CI 시간·목록·복구 대상을 기록하고, 기존 테스트는 PR4에서 복구하며 Docling은 재연결·관련 테스트 복구·필수 CI 전체 통과까지 예외를 연장한다. 플러그인 기반은 fixture로 검증하며 예외 기간에는 릴리스하지 않는다.
+- 기술적 제약이나 실패를 숨기기 위해 테스트 기준을 약화하거나 동작을 우회하지 않는다. 소유자가 승인한 유일한 기간 한정 예외는 [ADR-0016 ⑥](docs/adr/0016-shared-local-daemon-host.md#⑥-기간-한정-플러그인-테스트-예외)의 느리고 in-process 수명에 묶인 플러그인 테스트와 [ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)의 Docling 전환 기간 기본 설치·CI 제외다. 제외 전 CI 시간·목록·복구 대상을 기록하고, 기존 테스트는 PR4에서 복구하며 Docling 제외의 구체 종료 판정은 ADR-0017의 소유자 결정 대기로 두고 재연결까지 릴리스 중단을 유지한다. 플러그인 기반은 fixture로 검증하며 예외 기간에는 릴리스하지 않는다.
 - 개발 단계이므로 소유자가 Migration을 명시적으로 지시하지 않는 한, 이미 저장된 Litzio 문서·복구 기록·설정 등 과거 데이터의 하위 호환성을 설계 판단이나 구현 범위에 포함하지 않는다. 사람·AI·CLI가 앞으로 작성하는 입력의 처리는 이 규칙과 별개다.
 
 ## Architectural constraints
