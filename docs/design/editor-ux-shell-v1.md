@@ -3077,6 +3077,9 @@ names, full-path tooltips and the hidden-tabs menu also include it. Same-path ta
 suffixes disambiguate paths within a Host. Tab tooltips include Host and full path.
 Navigation and folder preferences are read/written for each Host. A failed startup read does
 not overwrite that Host's navigation memory; recovery records remain available for review.
+That startup protection is separate from explicit navigation: selecting, opening, moving,
+restoring, renaming or closing a tab on the affected Host resumes saving its current tab list.
+Navigation on another Host alone does not release the failed Host's startup protection.
 Requests and recovery barriers for open, rename and delete retain `(hostId, path)`.
 
 Remote Explorer never receives the Desktop Explorer callback. Log-folder and daemon controls

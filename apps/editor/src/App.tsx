@@ -90,7 +90,7 @@ export function App() {
 
 function EditorApp() {
   useTranslation();
-  const [referenceRequest, setReferenceRequest] = useState<{ path: string }>();
+  const [referenceRequest, setReferenceRequest] = useState<{ hostId: string; path: string }>();
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [sidebarSize, setSidebarSize] = usePanelWidth("sidebar");
   const [documentPanelSize, setDocumentPanelSize] = usePanelWidth("document-panel");
@@ -206,7 +206,13 @@ function EditorApp() {
   const splitAvailable = useRef(false);
   const [tabsRestored, setTabsRestored] = useState(false);
   const restoredHosts = useRef(new Set([LOCAL_HOST_ID]));
-  const [rememberVersion, rememberTabs] = useReducer(version => version + 1, 0);
+  // A startup failure protects old memory until the user navigates this Host explicitly.
+  const navigatedHosts = useRef(new Set<string>());
+  const [rememberVersion, advanceTabMemory] = useReducer(version => version + 1, 0);
+  function rememberTabs(hostId?: string): void {
+    if (hostId) navigatedHosts.current.add(hostId);
+    advanceTabMemory();
+  }
   const serializedTabs = JSON.stringify({ paths: navigation.groups.flatMap(group => group.tabs).flatMap(id => {
     const tab = tabs.find(tab => tab.id === id); return tab ? [tab.path] : [];
   }), activePath: tabs.find(tab => tab.id === activeId)?.path ?? null });
@@ -215,7 +221,7 @@ function EditorApp() {
   useEffect(() => {
     if (tabsRestored && rememberVersion > 0) {
       for (const host of hostRegistry.list()) {
-        if (!restoredHosts.current.has(host.hostId)) continue;
+        if (!restoredHosts.current.has(host.hostId) && !navigatedHosts.current.has(host.hostId)) continue;
         const paths = navigation.groups.flatMap(group => group.tabs).flatMap(id => tabs.filter(tab => tab.id === id && tab.hostId === host.hostId).map(tab => tab.path));
         writeOpenTabs({ paths, activePath: tabs.find(tab => tab.id === activeId && tab.hostId === host.hostId)?.path ?? null }, host.hostId);
       }
@@ -281,7 +287,7 @@ function EditorApp() {
     setTabs(previous => [...previous.filter(tab => tab.id !== existing?.id), { client, id, hostId: record.hostId, path: record.path, file: restored.file, recoveryId, restored }]);
     if (existing) navigate({ type: "close", id: existing.id });
     navigate({ type: "open", id });
-    rememberTabs();
+    rememberTabs(record.hostId);
     setRecoveryReview(null);
     await refreshRecovery();
   }
@@ -431,7 +437,7 @@ function EditorApp() {
     // Actual focus always follows a visible document, even while Open/Save is pending.
     // Switching a group's hidden tab still waits for that group's current operation.
     if (group.active !== id && (!explicit || group.active && sessions.current.get(group.active)?.busyRef.current)) return;
-    if (explicit || id !== activeId) rememberTabs();
+    if (explicit || id !== activeId) rememberTabs(tabs.find(tab => tab.id === id)?.hostId);
     if (id === activeId) return;
     navigate({ type: "select", id });
     setError("");
@@ -452,9 +458,9 @@ function EditorApp() {
     }
   }, [activeId, tabs.length, navigation]);
 
-  function placeTab(id: string, group = navigation.focused): void {
+  function placeTab(id: string, group = navigation.focused, hostId = tabs.find(tab => tab.id === id)?.hostId): void {
     navigate({ type: "open", id, group });
-    rememberTabs();
+    rememberTabs(hostId);
   }
   const rightGroup = navigation.groups[1]?.id ?? 1 - navigation.groups[0]!.id;
   function moveTab(id: string, right = false): void {
@@ -490,7 +496,7 @@ function EditorApp() {
       const id = `document-${++nextId.current}`;
       const recoveryId = newRecoveryId();
       setTabs(previous => [...previous, { client, id, hostId, path: file.path, file, recoveryId }]);
-      placeTab(id, target);
+      placeTab(id, target, hostId);
     }
   }
   useEffect(() => {
@@ -595,7 +601,7 @@ function EditorApp() {
     focusAfterClose.current = true;
     setTabs(previous => previous.filter(tab => tab.id !== id));
     navigate({ type: "close", id });
-    rememberTabs();
+    rememberTabs(tabs.find(tab => tab.id === id)?.hostId);
   }
   const fileAction = async (action: Parameters<FileActionHandler>[0], chosenRoot: string, entry: FolderEntry, name?: string, figure?: { documentPath: string; imageUrl: string }, creation?: { revision: string; identity?: FileIdentity }, hostId = LOCAL_HOST_ID) => {
     if (operationRef.current || [...sessions.current.values()].some(owner => owner.busyRef.current)) throw new Error(i18n.t("Wait for the current file operation to finish."));
@@ -692,7 +698,7 @@ function EditorApp() {
         setTabs(previous => previous.filter(item => item.id !== tab.id));
         navigate({ type: "close", id: tab.id });
       }
-      rememberTabs();
+      rememberTabs(hostId);
       if (hostId === LOCAL_HOST_ID) folders.refreshParents(entry.path);
       await refreshRecovery();
       return result.path;
@@ -1224,7 +1230,7 @@ function EditorApp() {
         onHostOpen={(hostId, path) => openFile(path, "", navigation.focused, hostId).then(message => { if (message) setError(message); })}
         onHostDirty={(hostId, path) => { const tab = openedTab(tabs, path, hostId); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
         onHostFileAction={(hostId, ...args) => fileAction(...args, undefined, undefined, hostId)}
-        onAddToChat={assistantAvailable ? (path, returnFocus) => { if (assistantHost && assistantHost !== LOCAL_HOST_ID) { setError({ key: "Start a conversation on the file’s Host to reference it." }); return; } setAssistantHost(LOCAL_HOST_ID); assistantReturn.current = returnFocus; setReferenceRequest({ path }); setAssistantOpen(true); } : undefined}
+        onAddToChat={assistantAvailable ? (path, returnFocus) => { if (assistantHost && assistantHost !== LOCAL_HOST_ID) { setError({ key: "Start a conversation on the file’s Host to reference it." }); return; } setAssistantHost(LOCAL_HOST_ID); assistantReturn.current = returnFocus; setReferenceRequest({ hostId: LOCAL_HOST_ID, path }); setAssistantOpen(true); } : undefined}
         theme={theme} onThemeChange={changeTheme}
         contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }]}
         onFileAction={fileAction} fileActionsDisabled={busy || Boolean(continuation)}
@@ -1423,7 +1429,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel key={assistantHost} onNewHost={hostRegistry.list().length > 1 ? () => setAssistantHost(undefined) : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel key={assistantHost} onNewHost={hostRegistry.list().length > 1 ? () => { setReferenceRequest(undefined); setAssistantHost(undefined); } : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={request => setReferenceRequest(previous => previous === request ? undefined : previous)} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { const message = await openFile(path, "", navigation.focused, assistantHost); if (message) throw new Error(message); }}
         onUndo={async result => {

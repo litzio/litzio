@@ -4,6 +4,8 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const root = initial.path.split(sep).slice(0, -4).concat('tmp', 'multi-host').join(sep);
   const path = root + sep + 'same.txt';
+  const missing = root + sep + 'missing.txt', fresh = root + sep + 'fresh.txt';
+  let failRemembered = false, failedReads = 0, showFresh = false;
   const sources = { local: 'Local text', remote: 'Remote text' };
   const saves = [];
   const versions = { local: 0, remote: 0 };
@@ -13,9 +15,11 @@ async (page, { expect, screenshots, recoveryRecords }) => {
     const host = url.includes('/fixture/remote/') ? 'remote' : 'local';
     if (route.request().method() === 'POST') { const body = route.request().postDataJSON(); if (body.revision !== revision(host)) throw new Error("Save used another Host’s revision"); sources[host] = body.source; versions[host]++; saves.push(host); return route.fulfill({ json: { revision: revision(host) } }); }
     if (!url.includes('?path=')) return route.fulfill({ json: { start: true } });
-    return route.fulfill({ json: { kind: 'text', path, source: sources[host], revision: revision(host) } });
+    const requestedPath = decodeURIComponent(url.split('?path=')[1].split('&')[0]);
+    if (host === 'remote' && requestedPath === missing && failRemembered) { failedReads++; return route.fulfill({ status: 503, json: { error: 'Fixture startup read failure' } }); }
+    return route.fulfill({ json: { kind: 'text', path: requestedPath, source: sources[host], revision: revision(host) } });
   });
-  await page.route('**/api/folder?**', route => route.fulfill({ json: { root, path: root, entries: [{ path, name: 'same.txt', kind: 'document', native: false }] } }));
+  await page.route('**/api/folder?**', route => route.fulfill({ json: { root, path: root, entries: [{ path, name: 'same.txt', kind: 'document', native: false }, ...(showFresh ? [{ path: fresh, name: 'fresh.txt', kind: 'document', native: false }] : [])] } }));
   await page.route('**/api/folder-version?**', route => route.fulfill({ json: { version: '1', revisions: [] } }));
   let remoteAvailable = true;
   await page.route('**/fixture/remote/api/host-capabilities', route => route.fulfill(remoteAvailable ? { json: { fileDeletion: 'trash' } } : { status: 503, json: { error: 'Fixture unreachable' } }));
@@ -89,7 +93,11 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   if ((await page.evaluate(() => window.__explorerCalls)).length) throw new Error('Remote paths reached the Desktop shell');
   const assistantRequests = [];
   await page.route('**/api/assistant/**', route => { assistantRequests.push(route.request().url()); return route.fulfill({ json: route.request().url().includes('/models') ? { models: [], provider: 'codex' } : route.request().url().includes('/diagnostics') ? { connected: false, error: 'Fixture: no model call' } : { provider: 'codex', permissionMode: 'opened-folders', model: '', reasoningEffort: '' } }); });
-  await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  // A consumed local reference must not be replayed when New conversation selects another Host.
+  await page.locator('[data-host-id="local"]').getByRole('treeitem', { name: /same.txt/ }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Add to chat', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Remove reference: same.txt', exact: true })).toHaveCount(1);
+  await page.getByRole('button', { name: 'New conversation', exact: true }).click();
   const chooser = page.getByRole('dialog', { name: 'Select Host' });
   await expect(chooser).toBeVisible();
   const unavailable = chooser.getByRole('button', { name: /^Offline/ });
@@ -103,6 +111,7 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: /^Remote/ }).click();
   await expect(page.locator('.assistant-context')).toContainText('Remote');
+  await expect(page.getByRole('button', { name: 'Remove reference: same.txt', exact: true })).toHaveCount(0);
   await expect.poll(() => assistantRequests.some(url => url.endsWith('/settings'))).toBe(true);
   await local.click();
   await page.getByLabel('Host', { exact: true }).selectOption('local');
@@ -120,4 +129,33 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   await page.getByRole('button', { name: 'Assistant', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Select Host' })).toHaveCount(0);
   await expect(page.locator('.assistant-context')).toContainText('Local');
+  await page.getByRole('button', { name: 'Close assistant', exact: true }).click();
+
+  // One failed remembered read preserves the original list until this Host is explicitly navigated.
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  remoteAvailable = true; failRemembered = true;
+  const rememberedRemote = () => page.evaluate(() => JSON.parse(localStorage.getItem(JSON.stringify(['remote', 'litzio.openTabs']))));
+  await page.evaluate(({ path, missing }) => localStorage.setItem(JSON.stringify(['remote', 'litzio.openTabs']), JSON.stringify({ paths: [path, missing], activePath: path })), { path, missing });
+  await page.reload();
+  await expect.poll(() => failedReads).toBe(1);
+  await expect(remote).toHaveCount(1);
+  await local.click();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect(await rememberedRemote()).toEqual({ paths: [path, missing], activePath: path });
+  // Closing the successfully restored tab must resume persistence even before another Open.
+  await page.getByRole('button', { name: /^Close same.txt.*Remote$/ }).click();
+  await expect.poll(async () => (await rememberedRemote()).paths).toEqual([]);
+  failRemembered = false; showFresh = true;
+  await page.locator('[data-host-id="remote"] [data-folder-menu]').click();
+  await page.getByRole('menuitem', { name: 'Refresh', exact: true }).click();
+  await page.mouse.move(0, 0);
+  await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(0);
+  await page.locator('[data-host-id="remote"]').getByRole('treeitem', { name: /fresh.txt/ }).click();
+  await expect.poll(async () => (await rememberedRemote()).paths).toEqual([fresh]);
+  await page.getByRole('button', { name: /^Close fresh.txt.*Remote$/ }).click();
+  await expect.poll(async () => (await rememberedRemote()).paths).toEqual([]);
+  await page.reload();
+  await expect(local).toHaveCount(1);
+  await expect(remote).toHaveCount(0);
+  expect((await rememberedRemote()).paths).toEqual([]);
 }

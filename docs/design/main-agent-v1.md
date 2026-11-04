@@ -1241,7 +1241,9 @@ and AI run in the target Host's OS-account context.
 The panel is keyed by Host and uses that Host's bound client for settings/catalog/history,
 references and execution. Active tabs and the Explorer visibility filter cannot change it.
 Only a document from the same Host is included in the current-document context. The local
-Explorer refuses adding a reference to a conversation fixed to another Host. A fresh Host
+Explorer refuses adding a reference to a conversation fixed to another Host. Each queued
+Explorer reference carries its Host ID; a panel accepts only its own Host and acknowledges
+consumption so remounting or choosing a new conversation cannot replay the request. A fresh Host
 selection clears that Host's last-conversation shortcut before creating the new surface;
 the server's history is preserved. New conversation remains available after connection/setup
 failure, while pending or active execution still prevents it.

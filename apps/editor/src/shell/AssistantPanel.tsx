@@ -27,11 +27,12 @@ export function rememberAssistantWidth(value: number) { try { localStorage.setIt
 type Props = { onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
   onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
-  referenceRequest?: { path: string };
+  referenceRequest?: { hostId: string; path: string };
+  onReferenceConsumed(request: { hostId: string; path: string }): void;
   documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onDisplay }: Props) {
+export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
   useTranslation();
   const client = useHostClient();
   const [hostId] = useState(useContext(HostContext));
@@ -193,8 +194,13 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
     });
   };
   useEffect(() => {
-    if (referenceRequest) { addReference({ path: referenceRequest.path, name: pathName(referenceRequest.path), kind: "file" }); setHistory(null); }
-  }, [referenceRequest]);
+    if (!referenceRequest) return;
+    if (referenceRequest.hostId === hostId) {
+      addReference({ path: referenceRequest.path, name: pathName(referenceRequest.path), kind: "file" });
+      setHistory(null);
+    }
+    onReferenceConsumed(referenceRequest);
+  }, [referenceRequest, hostId, onReferenceConsumed]);
   const mentionOpen = mention !== null;
   const skillOpen = mention?.skill ?? false;
   // Parent renders create a fresh folders array; only changed paths invalidate the lookup.
