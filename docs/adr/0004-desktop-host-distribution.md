@@ -1,9 +1,16 @@
 # ADR-0004: Desktop Host & Distribution
 
 - Status: Accepted
-- Last verified: 2026-10-28 (unsigned v0.0.2-beta.1 release CI, anonymous asset hashes and withdrawal of v0.1.0-beta.1/v0.1.0-beta.2 Releases/assets/remote tags verified; actual GitHub 0.0.1-beta.4→0.0.2-beta.1 installation/update unverified; Stable unpublished; [record](../releases/v0.0.2-beta.1.md)).
+- Last verified: 2026-11-04 — #1142·ADR-0016 문서 개정 대조. runtime 검증 없음.
+- Previous verification: 2026-10-28 (unsigned v0.0.2-beta.1 release CI, anonymous asset hashes and withdrawal of v0.1.0-beta.1/v0.1.0-beta.2 Releases/assets/remote tags verified; actual GitHub 0.0.1-beta.4→0.0.2-beta.1 installation/update unverified; Stable unpublished; [record](../releases/v0.0.2-beta.1.md)).
 - Authority: architectural decision under [AGENTS.md](../../AGENTS.md). Related: [ADR-0002](0002-document-persistence-semantic-ownership.md) · [Filesystem Host boundary](../design/filesystem-host-boundary-v1.md) · [Desktop distribution](../design/desktop-distribution-v1.md) · historical evidence [Desktop shell spike](../reviews/desktop-shell-spike-v1.md)
 - Decision date: 2026-10-12
+
+## Amendment: 공유 로컬 daemon Host (2026-11-04, #1142)
+
+[ADR-0016](0016-shared-local-daemon-host.md)은 소유자 승인에 따라 Desktop의 custom protocol·in-process Host·TCP 없음 경계를 공유 로컬 HTTP daemon으로 대체하고, 실행 중 daemon 자동 탐색·연결과 수명 정책을 결정한다. 로컬 daemon은 Root 제한 없이 사용자별 토큰 인증(Desktop Bearer·브라우저 쿠키)을 필수로 한다. 제품/프로토콜 버전 분리와 자동 교체 금지, 종료·휴지통·샘플·origin 정책 및 기간 한정 테스트 예외는 해당 ADR을 따른다. 공유 편집 세션과 원격 인증은 계속 보류한다.
+
+이 개정은 결정이며 PR1에서 제품 동작을 바꾸지 않는다. 아래 기존 transport·Root·인증·수명 서술은 개정 전 결정과 현재 구현의 기록이다. 충돌하는 결정에는 ADR-0016이 우선하며 구현 계약은 PR2~PR4에서 실제 변경과 함께 갱신한다.
 
 ## Context
 

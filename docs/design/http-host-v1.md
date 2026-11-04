@@ -8,6 +8,10 @@
 - Authority: [ADR-0005](../adr/0005-http-host.md), [Filesystem Host boundary](filesystem-host-boundary-v1.md), [Editing session and Save](editing-session-save-v1.md).
 - Scope: single-operator HTTP Editor with fixed allowed server folders ([#186](https://github.com/litzio/litzio/issues/186)).
 
+## Approved transition (#1142; not implemented here)
+
+[ADR-0016](../adr/0016-shared-local-daemon-host.md)은 인증된 공유 로컬 daemon으로의 Desktop 전환을 승인한다. 아래는 현재 구현 계약이다. 새 daemon·Desktop·플러그인/AI 수명 동작은 #1142의 PR2~PR4에서 구현과 함께 갱신한다. 이 문서 연결은 구현 완료나 배포 검증을 뜻하지 않는다.
+
 ## Host and daemon terminology (#1139)
 
 Under the [2026-11-04 owner decision](https://github.com/litzio/litzio/issues/1139), Host is the role providing document capabilities; HTTP Host provides that role over HTTP. A daemon is a shared Host process running separately from the UI; its lifetime policy is a separate decision. Web and Desktop Hosts are intended to converge over time.
