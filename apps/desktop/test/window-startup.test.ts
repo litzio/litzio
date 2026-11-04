@@ -8,7 +8,9 @@ import { setImmediate } from "node:timers/promises";
 import { runInNewContext } from "node:vm";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
-import { trustedDaemonUrl } from "../src/daemon-client.ts";
+import { DESKTOP_ENTRY, trustedDesktopUrl } from "../../editor/shared/desktop-origin.ts";
+import { bundledUiResponse } from "../src/bundled-ui.ts";
+import { daemonPort } from "../../editor/server/daemon-state.ts";
 import { ExplorerFolders } from "../src/explorer.ts";
 import { brand } from "../../../brand.ts";
 
@@ -19,7 +21,7 @@ const source = transformSync(readFileSync(main, "utf8"), {
   loader: "ts", format: "cjs", define: { "import.meta.url": JSON.stringify(main.href), __LITZIO_REQUIRE_SIGNED_UPDATES__: "false" },
 }).code;
 
-async function start(options: { startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState; daemonVersion?: string; stopChoice?: number } = {}) {
+async function start(options: { startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState; daemonVersion?: string; daemonError?: string; daemonPending?: boolean; stopChoice?: number } = {}) {
   const preferences: unknown[] = [];
   const logs: string[] = [], errors: unknown[][] = [], alerts: string[] = [];
   const directories: string[] = [], opened: string[] = [];
@@ -30,9 +32,10 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
   let timerId = 0, exits = 0, quits = 0;
   class Window extends EventEmitter {
     visible = false; minimized = false; shows = 0; focused = false; destroyed = false;
+    loaded = "";
     background = ""; overlay: unknown;
     webContents = Object.assign(new EventEmitter(), {
-      mainFrame: { url: "http://127.0.0.1:23456/index.html" }, setWindowOpenHandler() {}, send() {},
+      mainFrame: { url: DESKTOP_ENTRY }, setWindowOpenHandler() {}, send() {},
     });
     constructor(_options: unknown) { super(); windows.push(this); }
     isDestroyed() { return this.destroyed; }
@@ -43,7 +46,7 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
     show() { this.visible = true; this.shows++; }
     setBackgroundColor(color: string) { this.background = color; }
     setTitleBarOverlay(overlay: unknown) { this.overlay = overlay; }
-    loadURL() { return options.loadError ? Promise.reject(new Error("load rejected")) : Promise.resolve(); }
+    loadURL(url: string) { this.loaded = url; return options.loadError ? Promise.reject(new Error("load rejected")) : Promise.resolve(); }
   }
   const windows: Window[] = [];
   const app = Object.assign(new EventEmitter(), {
@@ -66,12 +69,15 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
       appendFileSync: (_file: string, message: string) => logs.push(message), existsSync: () => false,
     },
     "electron-updater": { autoUpdater: {} }, "js-yaml": {},
-    "./daemon-client.ts": { trustedDaemonUrl, DesktopDaemon: class {
+    "../../editor/shared/desktop-origin.ts": { DESKTOP_ENTRY, trustedDesktopUrl },
+    "./bundled-ui.ts": { bundledUiResponse },
+    "./daemon-client.ts": { DesktopDaemon: class {
+      channel = "beta";
       record = { url: "http://127.0.0.1:23456" }; health = { productVersion: options.daemonVersion ?? "0.0.2-beta.6", launcher: "cli-start" };
-      async connect() { daemonCalls.push("connect"); } async close() { daemonCalls.push("close"); }
+      async connect() { daemonCalls.push("connect"); if (options.daemonPending) await new Promise(() => {}); if (options.daemonError) throw new Error(options.daemonError); } async close() { daemonCalls.push("close"); }
       async check() { daemonCalls.push("check"); } async stopExplicitly() { daemonCalls.push("stop"); }
     } },
-    "../../editor/server/daemon-state.ts": { async daemonRpc() {} },
+    "../../editor/server/daemon-state.ts": { daemonPort, async daemonRpc() {} },
     "./explorer.ts": { ExplorerFolders },
     "./first-document.ts": { firstDocument() {} },
     "./preferences.ts": { readPreferences: () => ({ channel: "beta", seenUpdate: null }), writePreferences: (_file: string, value: unknown) => preferences.push(JSON.parse(JSON.stringify(value))) },
@@ -306,14 +312,15 @@ test("main's monitor observes real uncaught exceptions and default rejections wi
   }
 });
 
-test("daemon controls require trusted HTTP frame, always confirm stop and keep product mismatches connected", async () => {
+test("daemon controls require trusted bundled main frame, always confirm stop and keep product mismatches connected", async () => {
   for (const stopChoice of [0, 1]) {
     const h = await start({ stopChoice, daemonVersion: "0.0.1" });
     assert.deepEqual(h.daemonCalls, ["connect"]);
-    assert.match(h.confirmations[0].detail, /CLI/);
+    assert.equal(h.window.loaded, DESKTOP_ENTRY);
+    assert.equal((await h.invoke("desktop:host-connection", []) as any).productVersion, "0.0.1");
     assert.equal(await h.invoke("desktop:daemon-stop", []), stopChoice === 1);
-    assert.equal(h.confirmations[1].cancelId, 0);
-    assert.match(h.confirmations[1].detail, /Connected tabs.*ongoing work/);
+    assert.equal(h.confirmations[0].cancelId, 0);
+    assert.match(h.confirmations[0].detail, /Connected tabs.*ongoing work/);
     assert.equal(h.daemonCalls.includes("stop"), stopChoice === 1);
     for (const event of ["will-navigate", "will-redirect"]) {
       let refused = false;
@@ -322,11 +329,29 @@ test("daemon controls require trusted HTTP frame, always confirm stop and keep p
     }
     h.window.webContents.mainFrame.url = "http://127.0.0.1:23457/index.html";
     assert.throws(() => h.invoke("desktop:daemon-reconnect", []), /Untrusted/);
-    h.window.webContents.mainFrame.url = "http://127.0.0.1:23456/index.html";
+    h.window.webContents.mainFrame.url = DESKTOP_ENTRY;
     await h.invoke("desktop:daemon-reconnect", []);
     assert.equal(h.daemonCalls.filter(call => call === "connect").length, 2);
     h.app.emit("window-all-closed");
     await setImmediate();
     assert.equal(h.daemonCalls.at(-1), "close");
+  }
+});
+
+
+test("bundled window and IPC remain available while daemon is pending or rejected", async () => {
+  for (const options of [{ daemonPending: true }, { daemonError: "Protocol mismatch. Restart with CLI." }]) {
+    const h = await start(options);
+    assert.equal(h.window.loaded, DESKTOP_ENTRY);
+    h.window.emit("ready-to-show"); h.appearance();
+    assert.equal(h.window.visible, true);
+    assert.equal(h.exits(), 0);
+    if (options.daemonError) await assert.rejects(async () => h.invoke("desktop:host-connection", []), /Protocol mismatch.*CLI/);
+    for (const url of ["http://127.0.0.1:23456/index.html", "litzio://foreign/index.html", "litzio://app.evil/index.html", "litzio://user@app/index.html"]) {
+      h.window.webContents.mainFrame.url = url;
+      assert.throws(() => h.invoke("desktop:info", []), /Untrusted sender/);
+    }
+    h.window.webContents.mainFrame.url = DESKTOP_ENTRY;
+    assert.throws(() => h.invoke("desktop:info", [], false), /Untrusted sender/);
   }
 });

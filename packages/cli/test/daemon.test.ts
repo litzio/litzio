@@ -1,5 +1,5 @@
 import { DAEMON_PROTOCOL } from "../../../apps/editor/server/daemon-protocol.ts";
-import { DesktopDaemon, trustedDaemonUrl } from "../../../apps/desktop/src/daemon-client.ts";
+import { DesktopDaemon } from "../../../apps/desktop/src/daemon-client.ts";
 import { once } from "node:events";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -165,10 +165,4 @@ test("exclusive lock never reclaims a PID or releases another generation", () =>
     assert.throws(release, /ownership changed/);
     assert.equal(JSON.parse(fs.readFileSync(file, "utf8")).instanceId, "replacement");
   } finally { fs.rmSync(base, { recursive: true, force: true }); }
-});
-
-test("Desktop trust compares exact HTTP origin and rejects credentials, remote and lookalike origins", () => {
-  const origin = "http://127.0.0.1:23456";
-  assert.equal(trustedDaemonUrl(origin + "/index.html", origin), true);
-  for (const url of ["litzio://app/index.html", "http://127.0.0.1:234567/", "http://127.0.0.1:23456.evil/", "http://user@127.0.0.1:23456/", "http://localhost:23456/", "https://remote.example/", "data:text/html,test"]) assert.equal(trustedDaemonUrl(url, origin), false, url);
 });

@@ -10,6 +10,8 @@ export const en = {
   "Address": "Address",
 
   "Disconnected from daemon": "Disconnected from daemon",
+  "Connecting to daemon": "Connecting to daemon",
+  "Daemon version differs. Restart the daemon with the CLI to switch versions.": "Daemon version differs. Restart the daemon with the CLI to switch versions.",
   "Reconnect": "Reconnect",
   "Desktop menu": "Desktop menu",
   "Open in browser": "Open in browser",
@@ -977,6 +979,8 @@ export const ko: Record<keyof typeof en, string> = {
   "Address": "주소",
 
   "Disconnected from daemon": "daemon 연결이 끊겼습니다",
+  "Connecting to daemon": "daemon에 연결 중",
+  "Daemon version differs. Restart the daemon with the CLI to switch versions.": "daemon 버전이 다릅니다. 버전을 바꾸려면 CLI로 daemon을 다시 시작하세요.",
   "Reconnect": "다시 연결",
   "Desktop menu": "Desktop 메뉴",
   "Open in browser": "브라우저에서 열기",

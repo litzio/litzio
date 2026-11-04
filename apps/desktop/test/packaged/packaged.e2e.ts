@@ -1,8 +1,10 @@
+import { DAEMON_PROTOCOL } from "../../../editor/server/daemon-protocol.ts";
+import { DESKTOP_ENTRY, DESKTOP_ORIGIN } from "../../../editor/shared/desktop-origin.ts";
 import { daemonPort } from "../../../editor/server/daemon-state.ts";
 import { brand } from "../../../../brand.ts";
 import { createRequire } from "node:module";
 // The packaged Windows app (release/win-unpacked, or LITZIO_DESKTOP_EXE for an installed copy)
-// under Playwright: the shared daemon HTTP origin with real files, without Vite.
+// under Playwright: app-owned bundled origin and a shared HTTP Host, without Vite.
 //   pnpm --filter @litzio/desktop package && pnpm --filter @litzio/desktop test:packaged
 // Files live in the repository's ignored tmp/desktop-e2e; each test uses its own fixed profile there.
 import assert from "node:assert/strict";
@@ -126,7 +128,7 @@ test("started without a document, it opens none; the sample opens with its figur
     assert.match(notices.main, /electron-updater@6\.8\.9/);
     assert.match(notices.main, /Copyright \(c\) 2015 Loopline Systems/);
     assert.match(notices.cli, /Tiptap GmbH/);
-    assert.equal(page.url(), `${origin}/index.html`);
+    assert.equal(page.url(), DESKTOP_ENTRY);
     assert.deepEqual(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getMinimumSize()), [640, 480], "native minimum size follows ADR-0010");
     const expectedVersion = process.env.LITZIO_TEST_VERSION ?? JSON.parse(readFileSync(path.join(desktop, "package.json"), "utf8")).version;
     assert.equal(await page.evaluate(async () => (await window.litzioDesktop!.info()).version), expectedVersion, "the packaged version matches its source");
@@ -255,8 +257,8 @@ test("started without a document, it opens none; the sample opens with its figur
     assert.equal(await page.locator(".ProseMirror h1").first().innerText(), "Current control for a 48 V converter");
     assert.equal(readFileSync(oldSample, "utf8"), "User-modified legacy sample.\n", "unrelated legacy sample directory is outside the versioned copy");
     assert.equal(await page.evaluate(() => typeof (globalThis as { process?: unknown }).process), "undefined", "the page has no Node.js");
-    const foreign = requests.filter((url) => !url.startsWith(`${origin}/`) && !/^(data:|blob:)/.test(url));
-    assert.deepEqual(foreign, [], "every request stays inside the app");
+    const foreign = requests.filter((url) => !url.startsWith(`${origin}/`) && !url.startsWith(`${DESKTOP_ORIGIN}/`) && !/^(data:|blob:)/.test(url));
+    assert.deepEqual(foreign, [], "every request stays inside the app or its local Host");
   } finally {
     await closeApp(app);
   }
@@ -332,7 +334,7 @@ test("local recovery survives a packaged app crash and normal close, with real S
     const pid = app.process().pid!;
     assert.ok(pid > 0 && !processes.includes(pid), "restart must create a new owned app process");
     processes.push(pid);
-    assert.equal(page.url(), `${origin}/index.html`);
+    assert.equal(page.url(), DESKTOP_ENTRY);
     assert.equal(await app.evaluate(({ app }) => app.getPath("userData")), userData);
     assert.equal(await app.evaluate(({ app }) => app.getPath("sessionData")), userData);
   };
@@ -411,7 +413,7 @@ test("local recovery survives a packaged app crash and normal close, with real S
     await expect(page!.locator(".document-editor")).toContainText("NORMAL CLOSE RECORDED");
     assert.equal(readFileSync(file, "utf8"), outside);
     assert.ok((await recoveryRecords(page!)).some(r => r.recoveryText.includes("NORMAL CLOSE RECORDED")));
-    writeFileSync(path.join(work, "recovery-proof.json"), JSON.stringify({ platform: process.platform, exe, userData, origin, processes, forcedAppRestarts: 1, normalWindowClose: true, nativeDialogAnswerStub: true, committedRecordsSurvived: true, pendingFigure: true, restoreDirty: true, originalUnchangedUntilSave: true, saveReload: true, externalConflict409: true }, null, 2));
+    writeFileSync(path.join(work, "recovery-proof.json"), JSON.stringify({ platform: process.platform, exe, userData, origin: DESKTOP_ORIGIN, hostOrigin: origin, processes, forcedAppRestarts: 1, normalWindowClose: true, nativeDialogAnswerStub: true, committedRecordsSurvived: true, pendingFigure: true, restoreDirty: true, originalUnchangedUntilSave: true, saveReload: true, externalConflict409: true }, null, 2));
   } finally {
     if (app && app.process().exitCode === null && app.process().signalCode === null) {
       await answerClose(app, 0);
@@ -580,4 +582,29 @@ test("started directly, the app owns one loopback daemon; start time and memory 
   } finally {
     execFileSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
   }
+});
+
+test("bundled screen survives absent daemon and reconnects explicitly", async () => {
+  // The direct-start test intentionally kills its process tree; do not replace its discovery record.
+  const daemonDirectory = path.join(work, "offline-daemon");
+  const record = path.join(daemonDirectory,appVersion.includes("-") ? "beta" : "stable","instance.json");
+  mkdirSync(path.dirname(record),{recursive:true});
+  writeFileSync(record,JSON.stringify({ pid:process.pid, startedAt:new Date().toISOString(), instanceId:"offline-probe", processStartedAt:"probe", launcher:"cli-start", productVersion:appVersion, protocolVersion:DAEMON_PROTOCOL, daemonHome:work, executable:process.execPath, roots:[], nonLoopback:false, url:origin }));
+  let fake = true;
+  let app: ElectronApplication | undefined;
+  try {
+    app = await electron.launch({executablePath:exe,args:["--lang=en-US",`--user-data-dir=${profile("offline")}`],env:{...process.env,LITZIO_DAEMON_DIR:daemonDirectory,LITZIO_DATA_DIR:path.join(work,"data")}});
+    const page = await app.firstWindow();
+    page.on("dialog",()=>{});
+    await page.waitForURL(DESKTOP_ENTRY);
+    assert.equal(page.url(),DESKTOP_ENTRY);
+    await page.getByTestId("daemon-disconnected").getByRole("button",{name:"Reconnect",exact:true}).waitFor();
+    await expect(page.getByTestId("daemon-disconnected").getByRole("button",{name:"Reconnect",exact:true})).toBeEnabled();
+    await expect(page.getByTestId("daemon-disconnected")).toContainText("CLI");
+    rmSync(record); fake = false;
+    await page.getByRole("button",{name:"Reconnect",exact:true}).click();
+    await ready(page);
+    await expect(page.getByTestId("daemon-disconnected")).toHaveCount(0);
+    assert.equal(page.url(),DESKTOP_ENTRY);
+  } finally { if (fake) rmSync(record,{force:true}); if (app) await closeApp(app); }
 });

@@ -66,7 +66,7 @@ PR2는 선택 Root, 로컬 `start/stop/status`, 단일 인스턴스·버전 확�
 
 ### ⑤ Origin과 하위 호환
 
-daemon은 고정 HTTP origin을 쓴다. PR3의 Desktop은 daemon UI를 로드하지만 ADR-0017 전환 뒤에는 앱 번들 UI의 별도 origin에서 HTTP Host API로 연결한다. 소유자가 기존 사용자 0명을 보증했으므로 이전 `litzio://app` origin 저장소를 이전하지 않는다(하위 호환 없음).
+daemon은 고정 HTTP origin을 쓴다. PR3에서 daemon UI를 로드하던 Desktop은 ADR-0017 ⑤에서 `litzio://app` 번들 UI로 전환했다. daemon HTTP origin은 Host API와 브라우저 UI에 유지한다. 소유자가 기존 사용자 0명을 보증했으므로 이전 `litzio://app` origin 저장소를 이전하지 않는다(하위 호환 없음).
 
 ### ⑥ 플러그인 기능 제거와 보관
 

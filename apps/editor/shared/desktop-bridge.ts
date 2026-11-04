@@ -56,13 +56,16 @@ export type CliIntegrationState = {
   unsupported?: boolean;
 };
 
+export type HostConnection = { url: string; productVersion: string; desktopVersion: string };
+
 export type DesktopBridge = {
+  hostConnection(): Promise<HostConnection>;
   startup(): Promise<{ document?: string; samples?: { ko: string; en: string }; sampleProblem?: "unavailable" }>;
   openInBrowser(): Promise<void>;
   daemonInfo(): Promise<{ state: "running" | "unreachable"; url: string; productVersion: string; protocolVersion: string; launcher: "desktop" | "cli-start" | "cli-run"; pid: number; startedAt: string; daemonHome: string; executable: string; log?: string; roots: readonly string[]; nonLoopback: boolean }>;
   stopDaemon(): Promise<boolean>;
   checkDaemon(): Promise<void>;
-  reconnectDaemon(): Promise<void>;
+  reconnectDaemon(): Promise<HostConnection>;
   /** OS folder action capability; only Host-listed roots can be synchronized. */
   setOpenedFolders(roots: string[]): Promise<void>;
   openFolderInExplorer(folder: string): Promise<void>;
