@@ -585,13 +585,15 @@ test("started directly, the app owns one loopback daemon; start time and memory 
 });
 
 test("bundled screen survives absent daemon and reconnects explicitly", async () => {
-  const record = path.join(work,"daemon",appVersion.includes("-") ? "beta" : "stable","instance.json");
+  // The direct-start test intentionally kills its process tree; do not replace its discovery record.
+  const daemonDirectory = path.join(work, "offline-daemon");
+  const record = path.join(daemonDirectory,appVersion.includes("-") ? "beta" : "stable","instance.json");
   mkdirSync(path.dirname(record),{recursive:true});
   writeFileSync(record,JSON.stringify({ pid:process.pid, startedAt:new Date().toISOString(), instanceId:"offline-probe", processStartedAt:"probe", launcher:"cli-start", productVersion:appVersion, protocolVersion:DAEMON_PROTOCOL, daemonHome:work, executable:process.execPath, roots:[], nonLoopback:false, url:origin }));
   let fake = true;
   let app: ElectronApplication | undefined;
   try {
-    app = await electron.launch({executablePath:exe,args:["--lang=en-US",`--user-data-dir=${profile("offline")}`],env:{...process.env,LITZIO_DAEMON_DIR:path.join(work,"daemon"),LITZIO_DATA_DIR:path.join(work,"data")}});
+    app = await electron.launch({executablePath:exe,args:["--lang=en-US",`--user-data-dir=${profile("offline")}`],env:{...process.env,LITZIO_DAEMON_DIR:daemonDirectory,LITZIO_DATA_DIR:path.join(work,"data")}});
     const page = await app.firstWindow();
     page.on("dialog",()=>{});
     await page.waitForURL(DESKTOP_ENTRY);
