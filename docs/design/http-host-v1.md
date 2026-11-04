@@ -78,7 +78,9 @@ no longer assigned the same three machine-wide ports. Finite hash slots can coll
 
 State is `<home>/<brand.folders.shared>/daemon/<channel>/` (official `.litzio`).
 `LITZIO_DAEMON_DIR` overrides the parent directory; all automated tests use isolated temporary
-state. The directory is user-only (POSIX 0700, Windows inheritance removed and current user
+state, except the NSIS update fixture: shell relaunch uses a clean disposable Windows account's
+default shared directory, refusing existing data and cleaning only its own directory (see
+[installation verification](desktop-distribution-v1.md#update-and-removal-daemon-gate-1164)). The directory is user-only (POSIX 0700, Windows inheritance removed and current user
 full access). `daemon.lock` is exclusively created before startup and contains PID, start
 time and instance UUID. Ready `instance.json` is published by sibling rename and contains those
 identity fields plus the fixed URL and the diagnostic fields below. Shutdown removes only its matching record/lock.

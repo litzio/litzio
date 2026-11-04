@@ -73,7 +73,11 @@ Beta also checks update refusal with a same-installation CLI daemon. The existin
 scenario adds one representative live Desktop case plus CLI refusal and opposite-channel
 survival, without multiplying startup across optional-CLI fault cases. These exercise real
 Electron/NSIS file locks and cannot be replaced with unit ports. The additional subprocess
-lifetimes are logged in CI; local installation/package tests are explicitly prohibited for this
+lifetimes are logged in CI. NSIS shell relaunch does not inherit process-only state overrides,
+so the update fixture uses the disposable account's default shared data directory, refuses an
+existing directory and removes only the directory it created (the same ownership boundary as
+its userData/PATH installation fixture). Other automated daemon tests use temporary overrides.
+Local installation/package tests are explicitly prohibited for this
 work, so their duration is measured by PR CI. Existing deadlines/assertions remain unchanged;
 no retries or fixed sleeps were added. Unit tests cover ownership/refusal, record cleanup and
 updater failure ordering; the existing CLI lifecycle test also checks actual process exit.

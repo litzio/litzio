@@ -12,6 +12,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
@@ -28,11 +29,14 @@ import { installedDirectory } from "./installed-app.ts";
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repo = path.resolve(desktop, "../..");
 const work = path.join(repo, "tmp", "desktop-update");
-process.env.LITZIO_DAEMON_DIR = path.join(work, "daemon");
-process.env.LITZIO_DATA_DIR = path.join(work, "host-data");
 const HOST = "127.0.0.1:47320";
 const LIVE = process.argv.includes("--github");
 const BETA = LIVE || process.env.LITZIO_TEST_UPDATE_CHANNEL === "beta";
+// NSIS relaunches through the Windows shell, which does not inherit process-only overrides.
+// Like installation/PATH/userData, shared state belongs to a clean disposable test account.
+const sharedData = path.join(os.homedir(), brand.folders.shared);
+process.env.LITZIO_DAEMON_DIR = LIVE ? path.join(work, "daemon") : path.join(sharedData, "daemon");
+process.env.LITZIO_DATA_DIR = LIVE ? path.join(work, "host-data") : sharedData;
 // Litzio beta.6 candidate pair; IeumDoc beta.4 cannot update to Litzio beta.5.
 // Both Litzio releases must be public before this opt-in harness can run.
 const [OLD, NEW] = LIVE ? ["0.0.2-beta.5", "0.0.2-beta.6"]
@@ -132,7 +136,7 @@ function appProcesses(folder: string): { pid: number; version: string }[] {
 
 function requireCleanUser(): void {
   assert.equal(installedEntry(), "", `${brand.name.en} is already installed; use a separate Windows test account`);
-  for (const folder of [appData, updaterCache, defaultInstall]) assert.equal(existsSync(folder), false, `${folder} exists; this test would change it`);
+  for (const folder of [appData, updaterCache, defaultInstall, ...(!LIVE ? [sharedData] : [])]) assert.equal(existsSync(folder), false, `${folder} exists; this test would change it`);
 }
 
 test("installs per user, then updates from Settings only after the open document is saved", { timeout: 15 * 60_000 }, async (t) => {
@@ -350,7 +354,7 @@ test("installs per user, then updates from Settings only after the open document
       const log = path.join(appData, "logs", "desktop.log");
       const shown = () => (!oldDaemon || readDaemonRecord(daemonDirectory(channel))?.productVersion === NEW) && existsSync(log) && new RegExp(`started ${NEW.replaceAll(".", "\\.")} [^\\n]*\\n[^\\n]*window shown`).test(readFileSync(log, "utf8"));
       while (!shown()) {
-        if (Date.now() - restarted > 180_000) throw new Error(`The updated app did not start: ${existsSync(log) ? readFileSync(log, "utf8") : "no log"}`);
+        if (Date.now() - restarted > 180_000) throw new Error(`The updated app/daemon did not start: ${JSON.stringify(readDaemonRecord(daemonDirectory(channel)))}\n${existsSync(log) ? readFileSync(log, "utf8") : "no log"}`);
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
       if (oldDaemon) {
@@ -368,14 +372,16 @@ test("installs per user, then updates from Settings only after the open document
       if (!LIVE) verifyPackagedCli(exe, brand.cliCommand, documents, NEW, await freshTerminalEnvironment());
     });
   } finally {
+    try {
     if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
     if (installedAt && !LIVE) {
       const executable = path.join(installedAt, `${brand.executableName}.exe`);
       const daemon = readDaemonRecord(daemonDirectory(channel));
-      const prepared = spawnSync(executable, [path.join(installedAt, "resources/prepare-installation.cjs"), "--prepare-installation"], {
+      const report = path.join(work, "prepare-cleanup.txt");
+      const prepared = spawnSync(executable, [path.join(installedAt, "resources/prepare-installation.cjs"), "--prepare-installation", report], {
         env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, timeout: 30_000, encoding: "utf8",
       });
-      assert.equal(prepared.status, 0, `graceful post-update cleanup: ${prepared.stderr}`);
+      assert.equal(prepared.status, 0, `graceful post-update cleanup: ${prepared.stderr} ${existsSync(report) ? readFileSync(report, "utf16le") : ""}`);
       if (daemon) assertExited(daemon);
       assertNoDiscovery(channel);
       await other?.alive();
@@ -389,10 +395,12 @@ test("installs per user, then updates from Settings only after the open document
       for (let wait = 0; wait < 60 && installedEntry(); wait++) await new Promise((resolve) => setTimeout(resolve, 1000));
       console.log(`uninstall: ${uninstall.status}; entry ${installedEntry() ? "remains" : "removed"}`);
     }
-    await other?.alive();
-    await other?.stop();
+    } finally {
+      // A failed cleanup assertion must not leave the CLI fixture keeping the runner alive.
+      await other?.stop();
+    }
     // This test made these folders (it refused to run when they existed).
-    if (ownsData) for (const folder of [appData, updaterCache]) rmSync(folder, { recursive: true, force: true });
+    if (ownsData) for (const folder of [appData, updaterCache, ...(!LIVE ? [sharedData] : [])]) rmSync(folder, { recursive: true, force: true });
   }
   assert.equal(installedEntry(), "", "the uninstaller left its entry");
   if (!LIVE) {
