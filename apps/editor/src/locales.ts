@@ -1,6 +1,10 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Provider": "Provider",
+  "Provider is fixed after a conversation starts. Start a new conversation to change it.": "Provider is fixed after a conversation starts. Start a new conversation to change it.",
+  "Write access applies to the next turn in this conversation. Global defaults stay unchanged.": "Write access applies to the next turn in this conversation. Global defaults stay unchanged.",
+
   "Document width": "Document width",
 
   "Display settings restored": "Display settings restored",
@@ -1126,6 +1130,10 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Provider": "프로바이더",
+  "Provider is fixed after a conversation starts. Start a new conversation to change it.": "대화를 시작한 뒤에는 프로바이더를 바꿀 수 없습니다. 새 대화를 시작해 주세요.",
+  "Write access applies to the next turn in this conversation. Global defaults stay unchanged.": "이 대화의 다음 응답부터 적용됩니다. 전역 기본값은 바뀌지 않습니다.",
+
   "Document width": "문서 너비",
 
   "Display settings restored": "표시 설정 복원됨",

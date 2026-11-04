@@ -111,6 +111,12 @@ SettingsRow와 기존 Button으로 해당 플러그인의 설정에 진입한다
 hover·keyboard focus에서 확인한다. 기본 버전 재등록은 기존 확인 Dialog를 유지한다.
 새 공통 컴포넌트·공개 Plugin API 예외는 없다.
 
+
+#1110/#1124: 비서 대화 선택은 기존 outline Button·Tooltip·DropdownMenu와 DropdownMenuItem을 재사용한다.
+단추에서 목록이 바로 열리며 현재 값은 기존 Check 아이콘·aria-current로 표시한다.
+경계는 border-control, 목록은 surface/text 토큰을 따른다. radio wrapper를 추가하지 않는다. 새 공통 상호작용 예외는 없다.
+프로바이더 고정·다음 turn 권한·기록 복원은 [비서 계약](main-agent-v1.md#conversation-choices-1110--1124)을 따른다.
+
 ## AI provider settings (#1109)
 
 기존 플러그인 설정 표면에서 SettingsSelect와 SettingsSwitch, ghost Button 및

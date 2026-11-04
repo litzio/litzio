@@ -3206,11 +3206,6 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
   box-shadow: var(--focus-ring-inset), var(--shadow-segment);
 }
 
-/* An open menu's ghost trigger keeps a quiet pressed face, without a border box. */
-[data-slot="button"][aria-expanded="true"] {
-  border-color: transparent;
-}
-
 /* Shared list rows (tree, outline, recent folders, menus): one radius, a hover tint and a
  * selected tint; keyboard focus adds only the thin inset ring. */
 :is(.sidebar-tree-item, .document-outline-item, .document-start-folder, .command-menu-item, .folder-picker-option) {
