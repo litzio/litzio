@@ -93,6 +93,7 @@ test("daemon CLI keeps one local instance, rejects occupied ports and warns for 
       assert.equal(readDaemonRecord(directory)!.instanceId, desktop.record.instanceId);
       await desktop.close();
       assert.equal(readDaemonRecord(directory), undefined, "normal Desktop close ends its own daemon");
+      assert.notEqual(processStart(desktop.record.pid), desktop.record.processStartedAt, "close waits for process exit, not only discovery removal");
       const parentScript = path.join(base, "desktop-parent.mts");
       fs.writeFileSync(parentScript, `import { DesktopDaemon } from ${JSON.stringify(new URL("../../../apps/desktop/src/daemon-client.ts", import.meta.url).href)}; const daemon = new DesktopDaemon("development", process.execPath, ${JSON.stringify(entry)}); await daemon.connect(); process.send?.(daemon.record); setInterval(()=>{}, 1000);`);
       const parent = spawn(process.execPath, ["--import", "tsx", parentScript], { cwd: fileURLToPath(new URL("../../../", import.meta.url)), env, windowsHide: true, stdio: ["ignore", "ignore", "inherit", "ipc"] });

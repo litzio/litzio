@@ -12,6 +12,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
@@ -21,16 +22,22 @@ import { readUpdateInfo } from "../../scripts/verify-release.ts";
 import { readPreferences, writePreferences } from "../../src/preferences.ts";
 import { windowsEnvironment } from "../../src/windows-environment.ts";
 import { verifyPackagedCli } from "./cli-check.ts";
+import { daemonDirectory, readDaemonRecord } from "../../../editor/server/daemon-state.ts";
+import { cliDaemon, desktopRecord, assertExited, assertNoDiscovery } from "./daemon-fixture.ts";
 import { installedDirectory } from "./installed-app.ts";
 
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repo = path.resolve(desktop, "../..");
 const work = path.join(repo, "tmp", "desktop-update");
-process.env.LITZIO_DAEMON_DIR = path.join(work, "daemon");
-process.env.LITZIO_DATA_DIR = path.join(work, "host-data");
 const HOST = "127.0.0.1:47320";
 const LIVE = process.argv.includes("--github");
-const BETA = LIVE || process.env.LITZIO_TEST_UPDATE_CHANNEL === "beta";
+const PUBLISHED_BASE = process.env.LITZIO_TEST_PUBLISHED_BASE === "1";
+const BETA = LIVE || PUBLISHED_BASE || process.env.LITZIO_TEST_UPDATE_CHANNEL === "beta";
+// NSIS relaunches through the Windows shell, which does not inherit process-only overrides.
+// Like installation/PATH/userData, shared state belongs to a clean disposable test account.
+const sharedData = path.join(os.homedir(), brand.folders.shared);
+process.env.LITZIO_DAEMON_DIR = LIVE ? path.join(work, "daemon") : path.join(sharedData, "daemon");
+process.env.LITZIO_DATA_DIR = LIVE ? path.join(work, "host-data") : sharedData;
 // Litzio beta.6 candidate pair; IeumDoc beta.4 cannot update to Litzio beta.5.
 // Both Litzio releases must be public before this opt-in harness can run.
 const [OLD, NEW] = LIVE ? ["0.0.2-beta.5", "0.0.2-beta.6"]
@@ -66,11 +73,11 @@ function packageVersion(version: string): string {
 }
 
 /** Opt-in, public read/download only. Both releases must already exist; no publication API calls. */
-async function publicBeta(): Promise<string> {
-  const folder = path.join(work, `public-${OLD}`);
+async function publicBeta(versions = [OLD, NEW], startVersion = OLD): Promise<string> {
+  const folder = path.join(work, `public-${startVersion}`);
   mkdirSync(folder, { recursive: true });
-  for (const version of [OLD, NEW]) {
-    const result = await fetch(`https://api.github.com/repos/${owner}/${name}/releases/tags/v${version}`);
+  for (const version of versions) {
+    const result = await fetch(`https://api.github.com/repos/${owner}/${name}/releases/tags/v${version}`, process.env.GH_TOKEN ? { headers: { Authorization: `Bearer ${process.env.GH_TOKEN}` } } : {});
     assert.equal(result.status, 200, `Public v${version} is required; real GitHub update validation remains Pending`);
     const release = await result.json() as { tag_name: string; draft: boolean; prerelease: boolean; assets: { name: string; size: number; digest: string; browser_download_url: string }[] };
     assert.equal(release.tag_name, `v${version}`); assert.equal(release.draft, false); assert.equal(release.prerelease, true);
@@ -89,7 +96,7 @@ async function publicBeta(): Promise<string> {
     assert.equal(metadata.version, version); assert.equal(metadata.path, installer);
     assert.ok(Array.isArray(metadata.files) && metadata.files.length === 1);
     const file = metadata.files[0]; assert.equal(file.url, installer); assert.equal(file.sha512, metadata.sha512);
-    if (version === OLD) {
+    if (version === startVersion) {
       const bytes = await download(installer);
       assert.equal(createHash("sha512").update(bytes).digest("base64"), file.sha512);
       assert.equal(bytes.length, file.size);
@@ -130,10 +137,10 @@ function appProcesses(folder: string): { pid: number; version: string }[] {
 
 function requireCleanUser(): void {
   assert.equal(installedEntry(), "", `${brand.name.en} is already installed; use a separate Windows test account`);
-  for (const folder of [appData, updaterCache, defaultInstall]) assert.equal(existsSync(folder), false, `${folder} exists; this test would change it`);
+  for (const folder of [appData, updaterCache, defaultInstall, ...(!LIVE ? [sharedData] : [])]) assert.equal(existsSync(folder), false, `${folder} exists; this test would change it`);
 }
 
-test("installs per user, then updates from Settings only after the open document is saved", { timeout: 15 * 60_000 }, async (t) => {
+test("installs per user, then updates from Settings only after the open document is saved", { skip: PUBLISHED_BASE, timeout: 15 * 60_000 }, async (t) => {
   requireCleanUser();
   const cliEnvironment = windowsEnvironment();
   const originalUserPath = !LIVE ? (await cliEnvironment.read()).user : null;
@@ -159,6 +166,9 @@ test("installs per user, then updates from Settings only after the open document
   if (server) await new Promise<void>((resolve) => server.listen(47320, "127.0.0.1", resolve));
   let installedAt = "";
   let ownsData = false;
+  let other: Awaited<ReturnType<typeof cliDaemon>> | undefined;
+  const channel = BETA ? "beta" : "stable";
+  const otherChannel = BETA ? "stable" : "beta";
   try {
     // Per-user and silent: no administrator rights and no wizard.
     const started = Date.now();
@@ -242,9 +252,28 @@ test("installs per user, then updates from Settings only after the open document
     assert.equal(await phase(), "downloaded");
     if (!LIVE) assert.ok(requests.some((url) => url.endsWith(`${brand.executableName}-Setup-${NEW}.exe`)), "the installer was downloaded from the release");
 
+    if (!LIVE) {
+      await t.test("CLI daemon blocks update without stopping either channel", { skip: !BETA }, async () => {
+        const cli = await cliDaemon(path.join(cliBin, "app", `${brand.executableName}.exe`), otherChannel);
+        try {
+          await page.getByRole("button", { name: "Restart to update" }).click();
+          await page.getByTestId("update-problem").waitFor();
+          assert.match(await page.getByTestId("update-problem").innerText(), /CLI daemon.*Stop it/);
+          await cli.alive();
+          desktopRecord(channel, OLD);
+          assert.equal(await phase(), "downloaded");
+        } finally { await cli.stop(); }
+      });
+      // The other channel uses a DIFFERENT installation; replacing this tree must leave it alive.
+      other = await cliDaemon(path.join(desktop, "release/win-unpacked", `${brand.executableName}.exe`), otherChannel);
+    }
+
     // Normal quit with a downloaded update is not consent to install. Restart the old app,
     // then explicitly download again (the updater may reuse its checksum-verified cache).
+    const quitDaemon = !LIVE ? desktopRecord(channel, OLD) : undefined;
     await app.close();
+    if (quitDaemon) { assertExited(quitDaemon); assertNoDiscovery(channel); }
+    await other?.alive();
     const versionAfterQuit = powershell(`(Get-Item -LiteralPath '${exe.replaceAll("'", "''")}').VersionInfo.FileVersion`);
     assert.equal(versionAfterQuit, OLD, "normal quit did not update the installed app");
     writePreferences(preferencesFile, prefs);
@@ -315,6 +344,7 @@ test("installs per user, then updates from Settings only after the open document
       await page.waitForFunction(() => document.querySelector('[data-testid="status"]')?.textContent === "Saved");
       const savedPreferences = readPreferences(preferencesFile, OLD);
       if (!LIVE) assert.equal(savedPreferences.seenUpdate, NEW, "viewing About acknowledges the offered update");
+      const oldDaemon = !LIVE ? desktopRecord(channel, OLD) : undefined;
       const closed = new Promise<void>((resolve) => app.once("close", () => resolve()));
       await page.getByRole("button", { name: /^Settings/ }).click();
       await page.getByRole("button", { name: "About & updates", exact: true }).click();
@@ -323,10 +353,16 @@ test("installs per user, then updates from Settings only after the open document
       const restarted = Date.now();
       // The installer starts the new version without arguments, so it logs to the default user data.
       const log = path.join(appData, "logs", "desktop.log");
-      const shown = () => existsSync(log) && new RegExp(`started ${NEW.replaceAll(".", "\\.")} [^\\n]*\\n[^\\n]*window shown`).test(readFileSync(log, "utf8"));
+      const shown = () => (!oldDaemon || readDaemonRecord(daemonDirectory(channel))?.productVersion === NEW) && existsSync(log) && new RegExp(`started ${NEW.replaceAll(".", "\\.")} [^\\n]*\\n[^\\n]*window shown`).test(readFileSync(log, "utf8"));
       while (!shown()) {
-        if (Date.now() - restarted > 180_000) throw new Error(`The updated app did not start: ${existsSync(log) ? readFileSync(log, "utf8") : "no log"}`);
+        if (Date.now() - restarted > 180_000) throw new Error(`The updated app/daemon did not start: ${JSON.stringify(readDaemonRecord(daemonDirectory(channel)))}\n${existsSync(log) ? readFileSync(log, "utf8") : "no log"}`);
         await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      if (oldDaemon) {
+        assertExited(oldDaemon);
+        const current = desktopRecord(channel, NEW);
+        assert.notEqual(current.instanceId, oldDaemon.instanceId);
+        await other?.alive();
       }
       assert.ok(appProcesses(installedAt).some((process) => process.version === NEW), "the new version is running");
       console.log(`installed ${NEW} and showed its window ${Date.now() - restarted} ms after the restart`);
@@ -337,23 +373,129 @@ test("installs per user, then updates from Settings only after the open document
       if (!LIVE) verifyPackagedCli(exe, brand.cliCommand, documents, NEW, await freshTerminalEnvironment());
     });
   } finally {
-    if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
-    for (const process of installedAt ? (() => { try { return appProcesses(installedAt); } catch { return []; } })() : []) {
-      spawnSync("taskkill", ["/PID", String(process.pid), "/T", "/F"], { stdio: "ignore" });
-    }
-    if (installedAt) {
-      const uninstall = spawnSync(path.join(installedAt, `Uninstall ${brand.executableName}.exe`), ["/S", "/currentuser"], { stdio: "ignore" });
-      // The uninstaller copies itself and returns at once; wait for the entry to go.
-      for (let wait = 0; wait < 60 && installedEntry(); wait++) await new Promise((resolve) => setTimeout(resolve, 1000));
-      console.log(`uninstall: ${uninstall.status}; entry ${installedEntry() ? "remains" : "removed"}`);
+    try {
+      if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
+      if (installedAt && !LIVE) {
+        const executable = path.join(installedAt, `${brand.executableName}.exe`);
+        const daemon = readDaemonRecord(daemonDirectory(channel));
+        const report = path.join(work, "prepare-cleanup.txt");
+        const prepared = spawnSync(executable, [path.join(installedAt, "resources/prepare-installation.cjs"), "--prepare-installation", report], {
+          env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, timeout: 30_000, encoding: "utf8",
+        });
+        assert.equal(prepared.status, 0, `graceful post-update cleanup: ${prepared.stderr} ${existsSync(report) ? readFileSync(report, "utf16le") : ""}`);
+        if (daemon) assertExited(daemon);
+        assertNoDiscovery(channel);
+        await other?.alive();
+      }
+      for (const process of installedAt ? (() => { try { return appProcesses(installedAt); } catch { return []; } })() : []) {
+        spawnSync("taskkill", ["/PID", String(process.pid), "/T", "/F"], { stdio: "ignore" });
+      }
+      if (installedAt) {
+        const uninstall = spawnSync(path.join(installedAt, `Uninstall ${brand.executableName}.exe`), ["/S", "/currentuser"], { stdio: "ignore" });
+        // The uninstaller copies itself and returns at once; wait for the entry to go.
+        for (let wait = 0; wait < 60 && installedEntry(); wait++) await new Promise((resolve) => setTimeout(resolve, 1000));
+        console.log(`uninstall: ${uninstall.status}; entry ${installedEntry() ? "remains" : "removed"}`);
+      }
+    } finally {
+      // A failed cleanup assertion must not leave the CLI fixture keeping the runner alive.
+      await other?.stop();
     }
     // This test made these folders (it refused to run when they existed).
-    if (ownsData) for (const folder of [appData, updaterCache]) rmSync(folder, { recursive: true, force: true });
+    if (ownsData) for (const folder of [appData, updaterCache, ...(!LIVE ? [sharedData] : [])]) rmSync(folder, { recursive: true, force: true });
   }
   assert.equal(installedEntry(), "", "the uninstaller left its entry");
   if (!LIVE) {
     assert.deepEqual((await cliEnvironment.read()).user, originalUserPath, "uninstall restores only our PATH entry");
     for (const name of [`${brand.cliCommand}.cmd`, "owner.json", "app"]) assert.equal(existsSync(path.join(cliBin, name)), false, `uninstall left ${name}`);
     assert.equal(existsSync(cliBin), false, "uninstall must remove an empty owned bin before the next channel runs");
+  }
+});
+
+
+// The old installer comes from GitHub; only the candidate is built. Rebuilding the old
+// version here would miss installer bootstrap defects. CI runs this as a separate early step.
+test("published beta.6 upgrades to the candidate without an installed lifecycle helper", {
+  skip: !PUBLISHED_BASE || LIVE, timeout: 5 * 60_000,
+}, async () => {
+  requireCleanUser();
+  const started = Date.now();
+  rmSync(work, { recursive: true, force: true });
+  const published = "0.0.2-beta.6";
+  const oldBuild = await publicBeta([published], published);
+  const oldSetup = path.join(oldBuild, `${brand.executableName}-Setup-${published}.exe`);
+  const digest = createHash("sha256").update(readFileSync(oldSetup)).digest("hex");
+  assert.equal(digest, "cbc41da8550bf5fac8b335b9bb95a9958603eb7587381a73b923f318a267a2be", "the exact public beta.6 installer, not a rebuilt version");
+  console.log(`verified public v${published}: SHA-256 ${digest}`);
+  const candidate = path.join(packageVersion(NEW), `${brand.executableName}-Setup-${NEW}.exe`);
+  const install = path.join(work, "published-beta6-install");
+  const documentFile = path.join(work, "published-beta6.md");
+  const bytes = "---\nlitzio: 1\n---\n\n# Published update\n\nPreserve this document.\n";
+  writeFileSync(documentFile, bytes);
+  const environment = windowsEnvironment();
+  const originalPath = (await environment.read()).user;
+  let ownsInstallation = false;
+  let oldApp: Awaited<ReturnType<typeof electron.launch>> | undefined;
+  try {
+    requireCleanUser();
+    const initial = spawnSync(oldSetup, ["/S", `/D=${install}`], { timeout: 60_000, encoding: "utf8" });
+    assert.ifError(initial.error); assert.equal(initial.status, 0);
+    assert.equal(path.resolve(installedEntry()).toLowerCase(), install.toLowerCase());
+    ownsInstallation = true;
+    const exe = path.join(install, `${brand.executableName}.exe`);
+    assert.equal(powershell(`(Get-Item -LiteralPath '${exe.replaceAll("'", "''")}').VersionInfo.FileVersion`), published);
+    assert.equal(existsSync(path.join(install, "resources/prepare-installation.cjs")), false, "public beta.6 has no lifecycle helper");
+    assertNoDiscovery("beta");
+    oldApp = await electron.launch({ executablePath: exe, args: ["--lang=en-US", documentFile], timeout: 60_000 });
+    const page = await oldApp.firstWindow();
+    await page.locator('[data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached", timeout: 30_000 });
+    await page.getByRole("button", { name: /^Settings/ }).click();
+    await page.getByRole("button", { name: "About & updates", exact: true }).click();
+    assert.equal(await page.getByTestId("app-version").innerText(), published);
+    await oldApp.close(); oldApp = undefined;
+    const canary = path.join(appData, "published-update-canary.txt");
+    writeFileSync(canary, "Preserve existing beta.6 user data.\n");
+    const preferencesFile = path.join(appData, "preferences.json");
+    const preferences = readPreferences(preferencesFile, published);
+    // Same NSIS command-line transaction used by electron-updater; updater UI/dirty guards
+    // remain in the existing two cases. No app-update config or old ASAR is modified.
+    const updated = spawnSync(candidate, ["--updated", "/S", "--force-run"], { timeout: 60_000, encoding: "utf8" });
+    assert.ifError(updated.error);
+    assert.equal(updated.status, 0, "public beta.6 -> candidate NSIS update must succeed without an old helper");
+    const log = path.join(appData, "logs/desktop.log");
+    const deadline = Date.now() + 30_000;
+    while (!(readDaemonRecord(daemonDirectory("beta"))?.productVersion === NEW && existsSync(log) && readFileSync(log, "utf8").split(`starting ${NEW}`).at(-1)!.includes("window shown"))) {
+      if (Date.now() >= deadline) throw new Error(`Updated beta.6 app/daemon did not start: ${existsSync(log) ? readFileSync(log, "utf8") : "no log"}`);
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    desktopRecord("beta", NEW);
+    assert.equal(powershell(`(Get-Item -LiteralPath '${exe.replaceAll("'", "''")}').VersionInfo.FileVersion`), NEW);
+    assert.equal(readFileSync(documentFile, "utf8"), bytes);
+    assert.equal(readFileSync(canary, "utf8"), "Preserve existing beta.6 user data.\n");
+    assert.deepEqual(readPreferences(preferencesFile, NEW), preferences);
+    assert.deepEqual((await environment.read()).user, originalPath, "first update does not opt in to CLI/PATH");
+    console.log(`public beta.6 -> ${NEW}: installed, launched and preserved data`);
+  } finally {
+    await oldApp?.close();
+    if (ownsInstallation) {
+      const exe = path.join(install, `${brand.executableName}.exe`);
+      const helper = path.join(install, "resources/prepare-installation.cjs");
+      if (existsSync(helper)) {
+        const record = readDaemonRecord(daemonDirectory("beta"));
+        const report = path.join(work, "published-cleanup.txt");
+        const result = spawnSync(exe, [helper, "--prepare-installation", report], { env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, timeout: 30_000, encoding: "utf8" });
+        assert.equal(result.status, 0, existsSync(report) ? readFileSync(report, "utf16le") : result.stderr);
+        if (record) assertExited(record);
+        assertNoDiscovery("beta");
+      }
+      const removal = path.join(work, "published-beta6-uninstall.exe");
+      copyFileSync(path.join(install, `Uninstall ${brand.executableName}.exe`), removal);
+      const removed = spawnSync(removal, ["/S", "/currentuser", `_?=${install}`], { timeout: 60_000, encoding: "utf8" });
+      assert.ifError(removed.error); assert.equal(removed.status, 0);
+      assert.equal(installedEntry(), "");
+      assert.equal(existsSync(exe), false);
+      for (const folder of [appData, updaterCache, sharedData]) rmSync(folder, { recursive: true, force: true });
+    }
+    assert.deepEqual((await environment.read()).user, originalPath);
+    console.log(`public beta.6 update case: ${Date.now() - started} ms (download, install, update, startup, cleanup)`);
   }
 });

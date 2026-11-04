@@ -1,4 +1,41 @@
+; This include is generated next to the bundled helper. Capture its build-time directory
+; here, before macro expansion inside electron-builder's installer/uninstaller templates.
+!define LITZIO_LIFECYCLE_SOURCE "${__FILEDIR__}\prepare-installation.cjs"
+
+; Replace electron-builder's image-name kill path for BOTH setup and removal.
+!macro customCheckAppRunning
+  ${if} ${FileExists} "$INSTDIR\@EXECUTABLE@.exe"
+    ; Always run our own payload: public beta.6 has no installed lifecycle helper.
+    ; The installed exe supplies RunAsNode and remains the process identity target.
+    InitPluginsDir
+    File "/oname=$PLUGINSDIR\prepare-installation.cjs" "${LITZIO_LIFECYCLE_SOURCE}"
+    GetTempFileName $6
+    System::Call 'Kernel32::SetEnvironmentVariable(t "ELECTRON_RUN_AS_NODE", t "1") i.r0'
+    nsExec::ExecToStack '"$INSTDIR\@EXECUTABLE@.exe" "$PLUGINSDIR\prepare-installation.cjs" --prepare-installation "$6"'
+    Pop $0
+    Pop $1
+    System::Call 'Kernel32::SetEnvironmentVariable(t "ELECTRON_RUN_AS_NODE", p 0) i.r2'
+    ${if} $0 != 0
+      ClearErrors
+      FileOpen $7 "$6" r
+      ${ifNot} ${Errors}
+        FileReadUTF16LE $7 $1
+        FileClose $7
+      ${endif}
+      Delete "$6"
+      DetailPrint "@PRODUCT@ installation is in use: $0 $1"
+      MessageBox MB_OK|MB_ICONEXCLAMATION "@PRODUCT@ installation cannot continue.$\r$\n$1$\r$\nClose Desktop and stop its CLI daemons, then try again." /SD IDOK
+      SetErrorLevel 1
+      Quit
+    ${endif}
+    Delete "$6"
+    ClearErrors
+  ${endif}
+!macroend
+
 !macro customUnInstall
+  ; Silent one-click uninstall skips checkAppRunning in electron-builder; always gate deletion.
+  !insertmacro customCheckAppRunning
   ; Updates replace the application tree, but preserve the external opt-in integration.
   ${ifNot} ${isUpdated}
     GetTempFileName $6

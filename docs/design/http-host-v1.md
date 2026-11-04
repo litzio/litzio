@@ -78,7 +78,9 @@ no longer assigned the same three machine-wide ports. Finite hash slots can coll
 
 State is `<home>/<brand.folders.shared>/daemon/<channel>/` (official `.litzio`).
 `LITZIO_DAEMON_DIR` overrides the parent directory; all automated tests use isolated temporary
-state. The directory is user-only (POSIX 0700, Windows inheritance removed and current user
+state, except the NSIS update fixture: shell relaunch uses a clean disposable Windows account's
+default shared directory, refusing existing data and cleaning only its own directory (see
+[installation verification](desktop-distribution-v1.md#update-and-removal-daemon-gate-1164)). The directory is user-only (POSIX 0700, Windows inheritance removed and current user
 full access). `daemon.lock` is exclusively created before startup and contains PID, start
 time and instance UUID. Ready `instance.json` is published by sibling rename and contains those
 identity fields plus the fixed URL and the diagnostic fields below. Shutdown removes only its matching record/lock.
@@ -97,7 +99,7 @@ allowed-origin JSON, all three identity fields and `confirm:true`. No OS kill ba
 
 Discovery and health also carry launcher (`desktop`, `cli-start`, `cli-run`), OS creation identity, unrestricted/Root scope and non-loopback flag, daemon home, executable path and log path when present. Status offers a table and `--json`; Desktop shows the same information in its existing settings surface. `LITZIO_DATA_DIR` isolates the shared Host data base for tests; public `.litzio` is not used by these tests.
 
-Desktop invokes the same local `run`/lock path with a private IPC pipe (`LITZIO_DESKTOP_DAEMON=1`, requiring an IPC parent). Its daemon exits when that pipe disconnects, including parent crash. CLI `start`/`run` have no Desktop parent lifetime. Normal Desktop close stops only its spawned generation. Explicit Desktop Stop uses the existing confirmed identity-checked stop RPC regardless of launcher. No client/job tracking. See [Desktop contract](desktop-distribution-v1.md#shared-daemon-desktop-1142-pr3).
+Desktop invokes the same local `run`/lock path with a private IPC pipe (`LITZIO_DESKTOP_DAEMON=1`, requiring an IPC parent). Its daemon exits when that pipe disconnects, including parent crash. CLI `start`/`run` have no Desktop parent lifetime. Normal Desktop close stops only its spawned generation and waits for its process exit as well as discovery removal. Update/removal gates and CLI-daemon refusal follow the [Desktop installation contract](desktop-distribution-v1.md#update-and-removal-daemon-gate-1164). Explicit Desktop Stop uses the existing confirmed identity-checked stop RPC regardless of launcher. No client/job tracking. See [Desktop contract](desktop-distribution-v1.md#shared-daemon-desktop-1142-pr3).
 
 ### Authentication deferred (#1145)
 

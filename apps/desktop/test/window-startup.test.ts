@@ -21,7 +21,7 @@ const source = transformSync(readFileSync(main, "utf8"), {
   loader: "ts", format: "cjs", define: { "import.meta.url": JSON.stringify(main.href), __LITZIO_REQUIRE_SIGNED_UPDATES__: "false" },
 }).code;
 
-async function start(options: { startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState; daemonVersion?: string; daemonError?: string; daemonPending?: boolean; stopChoice?: number } = {}) {
+async function start(options: { startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState; daemonVersion?: string; daemonError?: string; daemonPending?: boolean; stopChoice?: number; closeError?: string; installationError?: string; packaged?: boolean } = {}) {
   const preferences: unknown[] = [];
   const logs: string[] = [], errors: unknown[][] = [], alerts: string[] = [];
   const directories: string[] = [], opened: string[] = [];
@@ -30,12 +30,15 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
   const timers = new Map<number, { run: () => void; ms: number }>();
   const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
   let timerId = 0, exits = 0, quits = 0;
+  let restartAnswer: ((...args: any[]) => void) | undefined;
   class Window extends EventEmitter {
     visible = false; minimized = false; shows = 0; focused = false; destroyed = false;
     loaded = "";
     background = ""; overlay: unknown;
     webContents = Object.assign(new EventEmitter(), {
-      mainFrame: { url: DESKTOP_ENTRY }, setWindowOpenHandler() {}, send() {},
+      mainFrame: { url: DESKTOP_ENTRY }, setWindowOpenHandler() {}, send(channel: string, id: number) {
+        if (channel === "desktop:restart-check") restartAnswer?.({ sender: this, senderFrame: this.mainFrame }, id, { ok: true });
+      },
     });
     constructor(_options: unknown) { super(); windows.push(this); }
     isDestroyed() { return this.destroyed; }
@@ -44,13 +47,15 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
     restore() { this.minimized = false; }
     focus() { this.focused = true; }
     show() { this.visible = true; this.shows++; }
+    setEnabled(_enabled: boolean) {}
+    close() { this.destroyed = true; this.emit("closed"); app.emit("window-all-closed"); }
     setBackgroundColor(color: string) { this.background = color; }
     setTitleBarOverlay(overlay: unknown) { this.overlay = overlay; }
     loadURL(url: string) { this.loaded = url; return options.loadError ? Promise.reject(new Error("load rejected")) : Promise.resolve(); }
   }
   const windows: Window[] = [];
   const app = Object.assign(new EventEmitter(), {
-    isPackaged: false, requestSingleInstanceLock: () => options.lock !== false,
+    isPackaged: options.packaged ?? false, requestSingleInstanceLock: () => options.lock !== false,
     quit: () => quits++, exit: (code: number) => { assert.equal(code, 1); exits++; },
     setAppUserModelId() {}, setPath() {}, whenReady: () => Promise.resolve(), getPath: () => "/fake-user-data", getVersion: () => "0.0.2-beta.6",
   });
@@ -59,7 +64,7 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
     "../../../brand.ts": { brand },
     "electron": {
       app, BrowserWindow: Window, dialog: { showMessageBoxSync: (_target: unknown, details: any) => { confirmations.push(details); return options.stopChoice ?? 0; }, showErrorBox: (_title: string, message: string) => alerts.push(message) },
-      ipcMain: { handle: (name: string, handler: (event: unknown, ...args: unknown[]) => unknown) => handlers.set(name, handler), on() {} },
+      ipcMain: { handle: (name: string, handler: (event: unknown, ...args: unknown[]) => unknown) => handlers.set(name, handler), on: (_name: string, handler: (...args: any[]) => void) => { restartAnswer = handler; } },
       Menu: { setApplicationMenu() {} }, nativeTheme: {}, protocol: { registerSchemesAsPrivileged() {}, handle() {} },
       session: { defaultSession: { setPermissionRequestHandler() { if (options.startupError) throw new Error("permission setup failed"); }, setPermissionCheckHandler() {} } },
       shell: { openPath: async (directory: string) => { opened.push(directory); return options.openError ?? ""; } },
@@ -74,14 +79,19 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
     "./daemon-client.ts": { DesktopDaemon: class {
       channel = "beta";
       record = { url: "http://127.0.0.1:23456" }; health = { productVersion: options.daemonVersion ?? "0.0.2-beta.6", launcher: "cli-start" };
-      async connect() { daemonCalls.push("connect"); if (options.daemonPending) await new Promise(() => {}); if (options.daemonError) throw new Error(options.daemonError); } async close() { daemonCalls.push("close"); }
+      async connect() { daemonCalls.push("connect"); if (options.daemonPending) await new Promise(() => {}); if (options.daemonError) throw new Error(options.daemonError); } async close() { daemonCalls.push("close"); if (options.closeError) throw new Error(options.closeError); }
       async check() { daemonCalls.push("check"); } async stopExplicitly() { daemonCalls.push("stop"); }
     } },
     "../../editor/server/daemon-state.ts": { daemonPort, async daemonRpc() {} },
     "./explorer.ts": { ExplorerFolders },
     "./first-document.ts": { firstDocument() {} },
     "./preferences.ts": { readPreferences: () => ({ channel: "beta", seenUpdate: null }), writePreferences: (_file: string, value: unknown) => preferences.push(JSON.parse(JSON.stringify(value))) },
-    "./updates.ts": { UpdateController: class { channel = "beta"; state = options.update ?? { phase: "idle" }; start() {} stop() {} } },
+    "./installation-lifecycle.ts": { installationPort() {}, checkInstallation() { if (options.installationError) throw new Error(options.installationError); } },
+    "./updates.ts": { UpdateController: class { channel = "beta"; state = options.update ?? { phase: "idle" }; start() {} stop() {}
+      beginInstall() { return { version: "0.3.0-beta.1" }; }
+      cancelInstall() { daemonCalls.push("cancel-install"); }
+      finishInstall() { daemonCalls.push("install"); }
+    } },
     "./update-policy.ts": {}, "./signatures.ts": {}, "./github-provider.ts": {}, "./cli-integration.ts": {}, "./windows-environment.ts": {},
   };
   runInNewContext(source, {
@@ -354,4 +364,20 @@ test("bundled window and IPC remain available while daemon is pending or rejecte
     h.window.webContents.mainFrame.url = DESKTOP_ENTRY;
     assert.throws(() => h.invoke("desktop:info", [], false), /Untrusted sender/);
   }
+});
+
+
+test("update installation requires confirmed daemon exit; CLI refusal keeps the window open", async () => {
+  for (const closeError of [undefined, "daemon still running"]) {
+    const h = await start({ closeError, update: { phase: "downloaded", version: "0.3.0-beta.1", prerelease: true } });
+    await h.invoke("desktop:install", []);
+    await setImmediate();
+    assert.equal(h.daemonCalls.includes("install"), !closeError);
+    assert.equal(h.daemonCalls.includes("cancel-install"), Boolean(closeError));
+    assert.ok(h.daemonCalls.indexOf("close") < (h.daemonCalls.indexOf("install") === -1 ? Infinity : h.daemonCalls.indexOf("install")));
+  }
+  const h = await start({ packaged: true, installationError: "Stop CLI daemon first", update: { phase: "downloaded", version: "0.3.0-beta.1", prerelease: true } });
+  assert.equal((await h.invoke("desktop:install", []) as any).reason, "Stop CLI daemon first");
+  assert.equal(h.window.destroyed, false);
+  assert.equal(h.daemonCalls.includes("close"), false);
 });

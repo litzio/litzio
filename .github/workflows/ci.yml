@@ -262,6 +262,12 @@ jobs:
           run_install: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @litzio/desktop typecheck
+      - name: Published beta.6 first-update regression
+        if: needs.changes.outputs.update == 'true'
+        env:
+          LITZIO_TEST_PUBLISHED_BASE: '1'
+          GH_TOKEN: ${{ github.token }}
+        run: pnpm --filter @litzio/desktop test:update
       - name: Run all unit tests (same as release build)
         run: pnpm test
       - name: Stable install/update regression before the final package

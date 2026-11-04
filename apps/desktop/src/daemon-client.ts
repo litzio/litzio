@@ -66,14 +66,20 @@ export class DesktopDaemon {
   }
   async check(): Promise<void> { await inspectDaemon(this.record, this.version, () => {}); }
   async close(): Promise<void> {
+    // A window can close while startup is still publishing its ready identity.
+    await this.connecting?.catch(() => {});
     const owned = this.owned;
     if (!owned) return;
-    this.owned = undefined;
     // Closing the IPC pipe also handles crashes; never stop a CLI-owned or replaced instance.
     if (this.child?.connected) this.child.disconnect();
     for (let i = 0; i < 100; i++) {
       const current = readDaemonRecord(daemonDirectory(this.channel));
-      if (!current || !sameInstance(current, owned)) return;
+      // Record removal precedes process exit: the executable can still be locked then.
+      if ((!current || !sameInstance(current, owned)) &&
+          (this.child?.exitCode !== null || this.child?.signalCode != null)) {
+        this.owned = undefined;
+        return;
+      }
       await delay(100);
     }
     throw new Error("Desktop daemon shutdown was not confirmed; inspect its log.");
