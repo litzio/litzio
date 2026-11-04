@@ -99,7 +99,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   await page.evaluate(raw => { window.__desktop.failure = raw; }, raw);
   await page.getByRole('button', {name:'Reconnect',exact:true}).click();
   const connectionNotice = page.getByTestId('daemon-disconnected');
-  await connectionNotice.getByText('The local daemon is not responding or is incompatible.', {exact:true}).waitFor();
+  await connectionNotice.getByText('The local background service is not responding or is incompatible.', {exact:true}).waitFor();
   check(!await connectionNotice.getByText(`Error: ${raw}`, {exact:true}).isVisible(), 'IPC diagnostic is always visible');
   await connectionNotice.getByText('Details', {exact:true}).click();
   await connectionNotice.getByText(`Error: ${raw}`, {exact:true}).waitFor();
@@ -704,3 +704,4 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   }
   return {calls: recorded, screenResults, separatorGeometry};
 }
+
