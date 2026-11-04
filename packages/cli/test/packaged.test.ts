@@ -45,7 +45,7 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     copyFileSync(path.join(dist, archive), path.join(install, "artifact.tgz"));
     execSync("npm install --ignore-scripts --no-audit --no-fund --offline ./artifact.tgz", { cwd: install, env, stdio: "pipe" });
     const bin = process.platform === "win32" ? ".\\node_modules\\.bin\\litzio.cmd" : "./node_modules/.bin/litzio";
-    assert.match(execSync(`${bin} help serve`, { cwd: install, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }), /--root/);
+    assert.match(execSync(`${bin} help daemon`, { cwd: install, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }), /--root/);
     const entry = path.join(install, "node_modules/@litzio/cli/cli.mjs");
     const installed = JSON.parse(readFileSync(path.join(install, "node_modules/@litzio/cli/package.json"), "utf8"));
     assert.equal(installed.dependencies, undefined, "No runtime install should fetch dependencies");
@@ -59,7 +59,7 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     const formatted = spawnSync(process.execPath, [entry, "format", path.join(a, "document.md")], { cwd, env, encoding: "utf8" });
     assert.equal(formatted.status, 0, formatted.stderr);
     const port = await freePort(), url = `http://127.0.0.1:${port}`;
-    child = spawn(process.execPath, [entry, "serve", "--port", String(port), "--root", a, "--root", b], { cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    child = spawn(process.execPath, [entry, "daemon", "run", "--port", String(port), "--root", a, "--root", b], { cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     let output = "", errors = "";
     child.stderr!.on("data", data => { errors += data; });
     await new Promise<void>((resolve, reject) => {
@@ -86,7 +86,7 @@ test("the packed CLI installs offline outside the checkout and serves both roots
       assert.equal(response.status, 200, await response.text());
       assert.equal(readFileSync(file, "utf8"), "---\nlitzio: 1\n---\n\n# Title\n\nPacked save.\n");
     }
-    const conflict = spawnSync(process.execPath, [entry, "serve", "--port", String(port), "--root", a], { cwd, env, encoding: "utf8", timeout: 10_000 });
+    const conflict = spawnSync(process.execPath, [entry, "daemon", "run", "--port", String(port), "--root", a], { cwd, env, encoding: "utf8", timeout: 10_000 });
     assert.notEqual(conflict.status, 0);
     assert.match(conflict.stderr, /EADDRINUSE/);
     await stop(child);

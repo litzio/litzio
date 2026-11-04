@@ -428,7 +428,7 @@ test("worker kill during a partial REST download and deadline leave Host alive a
   assert.equal(readFileSync(otherFile, "utf8"), "another request's retained output", "kill, timeout and cleanup stay within their own request's staging");
 });
 
-test("Desktop registration is used by an independent serve; UUID conflict, disable/drain and restart never replay", async t => {
+test("Desktop registration is used by an independent httpHost; UUID conflict, disable/drain and restart never replay", async t => {
   const root = directory("shared"), plugins = path.join(root, "plugins"), settings = path.join(root, "settings.json");
   const input = path.join(root, "paper.pdf"); writeFileSync(input, "%PDF-1.7\nshared");
   const workerPids = path.join(root, "worker-pids.txt"), custom = path.join(root, "worker"); mkdirSync(custom);
@@ -442,15 +442,15 @@ test("Desktop registration is used by an independent serve; UUID conflict, disab
   if (previousPlugins === undefined) delete process.env.LITZIO_PLUGINS_DIR; else process.env.LITZIO_PLUGINS_DIR = previousPlugins;
   if (previousSettings === undefined) delete process.env.LITZIO_DOCLING_SETTINGS_FILE; else process.env.LITZIO_DOCLING_SETTINGS_FILE = previousSettings;
   const fake = await fakeDoclingServer();
-  let serve: ChildProcess | undefined;
-  t.after(async () => { await desktop.close(); if (serve) await kill(serve); await fake.close(); });
+  let httpHost: ChildProcess | undefined;
+  t.after(async () => { await desktop.close(); if (httpHost) await kill(httpHost); await fake.close(); });
   const send = (endpoint: string, method = "GET", body?: unknown) => desktop(new Request(`${ORIGIN}/api/${endpoint}`, { method,
     ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) }));
   assert.equal((await send("worker-plugins", "POST", { manifest })).status, 200);
   await send("docling-settings", "PUT", { server: fake.url });
   const env = { ...process.env, LITZIO_PLUGINS_DIR: plugins, LITZIO_DOCLING_SETTINGS_FILE: settings };
-  serve = child("serve", root, env);
-  let { url } = (await once(serve, "message"))[0];
+  httpHost = child("httpHost", root, env);
+  let { url } = (await once(httpHost, "message"))[0];
   const http = (endpoint: string, method = "GET", body?: unknown) => fetch(`${url}/api/${endpoint}`, { method,
     ...(body === undefined ? {} : { headers: { "Content-Type": "application/json", Origin: url }, body: JSON.stringify(body) }) });
   const id = randomUUID(); fake.mode("pending");
@@ -477,9 +477,9 @@ test("Desktop registration is used by an independent serve; UUID conflict, disab
   assert.equal((await http("docling-conversion", "POST", { path: input, id: interrupted })).status, 200);
   await until(() => fake.submissions(), count => count === 2);
   const interruptedWorker = Number(readFileSync(workerPids, "utf8").trim().split("\n").at(-1));
-  await kill(serve);
+  await kill(httpHost);
   await until(() => { try { process.kill(interruptedWorker, 0); return false; } catch { return true; } }, Boolean);
-  serve = child("serve", root, env); ({ url } = (await once(serve, "message"))[0]);
+  httpHost = child("httpHost", root, env); ({ url } = (await once(httpHost, "message"))[0]);
   const receipt = await (await http(`docling-conversion?id=${interrupted}`)).json();
   assert.equal(receipt.state, "error"); assert.match(receipt.error, /uncertain/);
   assert.equal((await http("docling-conversion", "POST", { path: input, id: interrupted })).status, 200);

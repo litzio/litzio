@@ -171,7 +171,7 @@ Host는 Browser가 보낸 임의 path를 무조건 신뢰하지 않는다. 특�
 
 ### Path Unicode
 
-CLI는 모든 문서 명령의 파일 인자와 `apply-batch --operations`를 공통 인자 파싱에서 `assertUnicode()`로 검사한다(#287). 단독 surrogate는 파일 접근 전에 Unicode 오류와 exit 1로 거부한다. `serve --root`는 기존 공유 Host Root 검사를 따른다. Desktop `firstDocument()`도 시작 문서 인자를 경로 정규화·존재 확인 전에 같은 함수로 검사한다. 거부한 인자는 경고 후 건너뛰며, 유효한 다른 인자가 없으면 문서 없이 시작하고 기존 sample 사본을 제공한다. 정상 한글·emoji·리터럴 U+FFFD 파일명은 허용한다.
+CLI는 모든 문서 명령의 파일 인자와 `apply-batch --operations`를 공통 인자 파싱에서 `assertUnicode()`로 검사한다(#287). 단독 surrogate는 파일 접근 전에 Unicode 오류와 exit 1로 거부한다. `daemon run --root`는 기존 공유 Host Root 검사를 따른다. Desktop `firstDocument()`도 시작 문서 인자를 경로 정규화·존재 확인 전에 같은 함수로 검사한다. 거부한 인자는 경고 후 건너뛰며, 유효한 다른 인자가 없으면 문서 없이 시작하고 기존 sample 사본을 제공한다. 정상 한글·emoji·리터럴 U+FFFD 파일명은 허용한다.
 
 Vite·Desktop·HTTP의 공유 Host는 사용자 경로·이름의 단독 UTF-16 surrogate를 파일시스템에 전달하거나 경로를 정규화하기 전에 거부한다. 문서 열기·생성·저장·미리보기의 `path`, 폴더 목록의 `root`/`path`, browse의 `path`, 폴더 생성의 `parent`/`name`, 이미지 선택의 `documentPath`/`source`, asset 업로드·rollback의 문서/상대 경로와 media 상대 경로에 적용한다. HTTP의 시작 Root도 같은 Unicode 검사를 거친다. 정상 한글·emoji·리터럴 U+FFFD는 허용하며 다른 문자로 치환하거나 이름을 보정하지 않는다.
 
@@ -300,7 +300,7 @@ Editor Host Save와 CLI의 파일 수정 명령은 기존 Markdown 파일을 같
 
 - NodePath 옵션 `--path`는 쉼표로 구분한 음이 아닌 정수이며 숫자 주변 공백은 허용한다. 빈 segment(예: `1,,0`, `1, ,0`, `,1,0`, `1,0,`)와 빈 경로는 `--path must be comma-separated non-negative integers` 오류와 exit 1로 거부한다. `apply-batch`의 `path`도 같은 파서를 사용하며, 단건·배치 실패 시 원본 파일 바이트를 보존한다(#345).
 - `inspect <file> --format json`은 기존 `ok`, `command`, `nodes`에 `revision`을 추가한다. 파일을 한 번 읽은 동일한 원본 text를 Core parse와 `textRevision(source)`에 사용한다. Revision은 canonical serialization의 hash가 아니며 문서에 기록하지 않는다. Text inspect 출력은 유지한다.
-- 공통 `edit()`를 거치는 모든 문서 변경 명령(`format` 포함)은 선택적 `--if-revision <revision>`을 받는다. `create`, `check`, `inspect`, `serve`는 대상이 아니다. 생략하면 기존 명령 형식과 동작을 유지한다.
+- 공통 `edit()`를 거치는 모든 문서 변경 명령(`format` 포함)은 선택적 `--if-revision <revision>`을 받는다. `create`, `check`, `inspect`, `daemon run`는 대상이 아니다. 생략하면 기존 명령 형식과 동작을 유지한다.
 - Revision 인자는 정확히 64자리 소문자 hex여야 한다. 형식이 잘못되면 `--if-revision must be 64 lowercase hexadecimal characters`를 stderr에 출력하고 exit 1로 종료한다. 값 누락·중복은 기존 공통 옵션 오류(`missing --if-revision`, `duplicate option: --if-revision`)로 거부한다.
 - `edit()`는 원본을 읽은 직후 revision을 비교한다. 다르면 Core parse/operation 전에 `revision mismatch; run inspect again; nothing was written`을 stderr에 출력하고 exit 1로 종료하며 파일 바이트를 보존한다. 새 전용 exit code는 없다.
 - 사전조건 통과 후에도 위 File commit 계약을 유지한다. `commitFile`의 baseline은 이번 요청이 읽은 원본의 revision이므로 검증부터 커밋 사이 외부 변경도 기존 `FileChangedError` 경계에서 거부한다. 마지막 확인과 rename 사이의 기존 TOCTOU 한계는 그대로다.
@@ -314,7 +314,7 @@ Stdin verification: 2026-10-28 (#681: actual piped UTF-8/BOM input, file-byte/ou
 - `--at end` (batch JSON `"at": "end"`) is accepted by top-level body insertions: `insert-block`, `insert-heading`, `insert-admonition`, `insert-quote`, `insert-divider`, `insert-equation`, `insert-figure`, `insert-table`, `insert-list`, `insert-code-block`, `insert-target`. CLI calls Core `bodyEndIndex` for the current step's snapshot: before endnote definitions, after the last body block without definitions, or 1 for an empty native document. Table row/column positions, removal positions and move destinations (`--to`) remain numeric. The revision precondition above applies unchanged to all these edits.
 - `apply-batch <file> --operations <json-file|-> [--if-revision <revision>] [--format json]`은 한 문서에 기존 Core operation을 순서대로 적용하는 CLI orchestration이다. Core 의미 처리나 Markdown/AST 로직을 별도로 구현하지 않는다. 단건 명령과 같은 옵션 해석·Core operation 생성 함수를 공유한다.
 - 입력은 비어 있지 않은 JSON 배열이며 각 원소는 `{ "command": "<변경 명령명>", ...options }`다. 키는 기존 플래그에서 `--`를 뺀 이름이다. 스칼라 옵션은 string/number/boolean만 허용하고 플래그 문자열과 같은 의미로 해석한다. JSON 옵션(`content`, `caption-content`, `cells`, `list`, `insert-table`의 `align`)은 객체/배열을 직접 받거나 기존 JSON 문자열을 받으며 그 외 타입은 거부한다. 모든 옵션의 `null` 값은 거부한다. 필수·허용·상호 배타 옵션 검사는 단건과 같다. `--operations -`는 EOF까지 stdin을 UTF-8로 읽는다. 잘못된 UTF-8, 빈 입력과 잘못된 JSON은 문서를 변경하지 않고 exit 1로 거부한다. Windows PowerShell UTF-8 파이프의 선두 BOM 하나만 stdin에서 제거하며 파일 입력의 BOM 처리 규칙은 바꾸지 않는다.
-- `isEditCommand`인 모든 단건 변경 명령(`format` 포함)을 허용한다. `create`, `check`, `inspect`, `serve`, 중첩 `apply-batch`와 operation 내부의 `if-revision` 및 허용되지 않은 키를 거부한다. 배열이 아닌 입력과 빈 배열, 잘못된 JSON도 exit 1로 거부한다.
+- `isEditCommand`인 모든 단건 변경 명령(`format` 포함)을 허용한다. `create`, `check`, `inspect`, `daemon run`, 중첩 `apply-batch`와 operation 내부의 `if-revision` 및 허용되지 않은 키를 거부한다. 배열이 아닌 입력과 빈 배열, 잘못된 JSON도 exit 1로 거부한다.
 - 파일 원본을 한 번 읽고, 배치 전체의 `--if-revision`을 그 원본에 대해 위 #214와 같은 규칙으로 Core parse/operation 전에 한 번 확인한다. Revision 불일치는 operation prefix 없이 단건과 같은 `revision mismatch; run inspect again; nothing was written`으로 표시한다.
 - 각 단계는 Core operation → `validateStructure` → Core `placeEndnotes`의 canonical 배치와 중간 write 검사 순서다. 후속 NodePath와 인덱스는 **직전 단계의 canonical 배치 snapshot** 기준이며 자동 추적·재지정하지 않는다. #716에 따라 미주 정의·참조의 정리는 단계마다 하지 않고, 전체 batch가 끝난 뒤 Core `reconcileEndnotes`로 한 번 판정하고 최종 native serialize한다. 참조를 잠시 제거했다가 다른 위치에 넣는 이동도 정의를 잃지 않는다. 중간 write 검사는 미주를 완성한 검증용 복사본만 사용하며 그 합성 참조·정의는 결과에 포함하지 않는다. 미주 이외의 write 거부 계약(빈 수식의 고정 번호 등)은 그대로 유지한다. 완성된 단계만으로 구성된 기존 batch는 순차 단건 실행과 같은 파일 바이트를 쓴다.
 - 중간 결과는 메모리에만 두고, 실제 쓰기 모드는 마지막에 최초 원본 revision으로 `commitFile`을 한 번 호출한다. 옵션·Core·검증·serialize·revision·커밋 실패 시 배치의 부분 결과를 쓰지 않고 exit 1로 종료한다. 외부 write는 덮어쓰지 않으며 위 File commit의 TOCTOU 한계는 동일하다.
@@ -364,7 +364,7 @@ Get-Content -Raw -Encoding utf8 "<임시 폴더>/operations.json" | pnpm cli app
 - 원본에 literal syntax 진단(정의 없는 각주·명시적 참조식 링크/이미지 또는 닫히지 않은 코드 opener)이 있으면 결과 검사와 별도로, 성공한 dry run도 실제 쓰기와 같은 `warnLiteralSyntax` 경고를 stderr에 출력한다(JSON 모드 포함). `written as literal`은 미리보기의 canonical Markdown 표현을 가리키며 파일을 썼다는 뜻이 아니다. 원본 parse의 진단을 operation 전에 보관하므로 배치도 원본의 각 발생을 한 번씩만 보고한다. 실패한 실행에서는 이 경고를 출력하지 않는다. [공통 literal syntax 진단 계약](footnotes-v1.md#literal-syntax-diagnostics-290-304)을 따른다.
 - `--dry-run --format json`은 stdout 한 줄에 `ok`, `command`, `dryRun: true`, `revision`(결과 Markdown의 SHA-256), `markdown`과 check의 `validation`, `writeability`, `references`, `readiness`, `endnotes`를 출력한다. 배치는 `applied`도 포함한다. 단건의 `--format`은 dry run에서만 지원한다. 경고는 실패가 아니며 성공 exit code는 0이다. 실패는 기존 편집 명령처럼 stderr 메시지와 exit 1을 사용한다(JSON 오류 envelope를 새로 도입하지 않음).
 - JSON 미리보기는 `originalWarnings` 배열도 포함한다. 원본의 모든 source-only 진단을 Core 형식 그대로 담는다(예: `{"footnote":true,"label":"loss","path":[1],"line":5}`); 없으면 `[]`다. `references.unresolved`는 결과 문서의 진단만 유지하므로 canonical escape 후 해당 항목이 사라져도 원본 경고를 잃지 않는다. `check`와 실제 쓰기 JSON에는 이 필드를 추가하지 않는다.
-- `create`는 기존 파일 편집과 별도의 exclusive-create 경로이므로 제외한다. `check`, `inspect`, `serve`도 대상이 아니며 batch operation 안의 `dry-run`/`format` 출력 옵션은 허용하지 않는다. 배치 전체 요청에만 지정한다. 실제 쓰기 모드의 출력 계약은 유지한다. 미리보기 뒤 실제 적용 시 원본 revision을 `--if-revision`으로 전달하고, 실제 쓰기 후에는 `inspect`로 저장된 revision과 경로를 다시 얻는다.
+- `create`는 기존 파일 편집과 별도의 exclusive-create 경로이므로 제외한다. `check`, `inspect`, `daemon run`도 대상이 아니며 batch operation 안의 `dry-run`/`format` 출력 옵션은 허용하지 않는다. 배치 전체 요청에만 지정한다. 실제 쓰기 모드의 출력 계약은 유지한다. 미리보기 뒤 실제 적용 시 원본 revision을 `--if-revision`으로 전달하고, 실제 쓰기 후에는 `inspect`로 저장된 revision과 경로를 다시 얻는다.
 
 ### Folder listing v1 (#112)
 

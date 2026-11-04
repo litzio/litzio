@@ -203,7 +203,7 @@ const COMMANDS: CommandSpec[] = [
       "JSON options (content, caption-content, cells, list, keys, paths, and insert-table align) accept objects/arrays",
       "directly or existing JSON strings. Required, unknown and mutually exclusive options follow single edits.",
       "JSON options accept objects, arrays or strings only; null option values are rejected.",
-      "All document edit commands, including format, are allowed; create, check, inspect, serve,",
+      "All document edit commands, including format, are allowed; create, check, inspect, daemon,",
       "apply-batch and per-operation if-revision, dry-run and format options are forbidden.",
       "Top-level insertions accept at: \"end\", resolved by Core before endnotes on each step's snapshot.",
       "Table row/column positions, removal positions and move destinations remain numeric.",
@@ -275,11 +275,12 @@ const COMMANDS: CommandSpec[] = [
       "Offset must point to an existing citation; it removes the whole group. An unsaveable empty block is refused.", ...PATH_NOTE],
   },
   {
-    name: "serve",
+    name: "daemon",
     group: "Serve",
     summary: "Serve the production Editor inside explicitly allowed folders",
-    usage: `${brand.cliCommand} serve --root <folder> [--root <folder> ...] [--port <port>] [--host <IP>] [--public-origin <origin>]`,
+    usage: `${brand.cliCommand} daemon run --root <folder> [--root <folder> ...] [--port <port>] [--host <IP>] [--public-origin <origin>]`,
     details: [
+      "run starts the independent HTTP Host in the foreground. daemon alone shows help.",
       "At least one existing --root is required. Roots are server filesystem access boundaries,",
       "not a workspace or an initial folder selection. Use Open Folder to choose a root or subfolder.",
       "Defaults: --host 127.0.0.1 --port 5180. Requires the production Editor build.",
@@ -921,6 +922,10 @@ function main(argv: string[]): number {
       for (const problem of inventory.problems) process.stderr.write(`${problem.file}: ${problem.error}\n`);
     } else process.stdout.write(JSON.stringify(result) + "\n");
     return 0;
+  }
+  if (command === "daemon") {
+    if (rest.length === 0) { process.stdout.write(commandHelp(command)); return 0; }
+    throw new Error(commandHelp(command));
   }
   if (command === "plugins") {
     if (!(rest[0] === "list" && (rest.length === 1 || rest.length === 2 && rest[1] === "--json") ||
@@ -1992,11 +1997,11 @@ export async function runCliAsync(args: string[]): Promise<number> {
 if (import.meta.main) {
   const args = process.argv.slice(2);
   try {
-    if (args[0] === "serve" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
+    if (args[0] === "daemon" && args[1] === "run" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
       const { serve } = await import("./serve.ts");
       // Source checkout runs use an explicit Editor build; the distributable carries it beside cli.mjs.
       const editorDir = fileURLToPath(new URL(import.meta.url.endsWith(".ts") ? "../../../apps/editor/dist/" : "./editor/", import.meta.url));
-      await serve(args.slice(1), editorDir);
+      await serve(args.slice(2), editorDir);
     } else process.exitCode = await runCliAsync(args);
   } catch (error) {
     process.exitCode = reportError(args, error);

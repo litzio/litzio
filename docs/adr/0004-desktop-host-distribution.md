@@ -44,10 +44,10 @@ electron-updater의 GitHub provider는 Stable에서 GitHub의 `releases/latest`�
 
 The owner approved shipping the existing `packages/cli` build with Desktop. Settings offers an
 explicit, initially disabled command-line integration. Its per-user `litzio.cmd` runs the installed
-`Litzio.exe` with `ELECTRON_RUN_AS_NODE=1`; commands, arguments, JSON output, exit codes and `serve`
+`Litzio.exe` with `ELECTRON_RUN_AS_NODE=1`; commands, arguments, JSON output, exit codes and `daemon run`
 remain the existing CLI's responsibility. The independent Node.js CLI/HTTP distribution remains.
 
-The CLI build's Editor assets are the single packaged copy used by both Desktop and `serve`.
+The CLI build's Editor assets are the single packaged copy used by both Desktop and `daemon run`.
 The shim lives in `%LOCALAPPDATA%\litzio\bin`, outside the installation tree replaced by updates.
 An owned directory junction references the fixed application installation folder, avoiding literal
 Unicode installation paths in batch source and any console-code-page change. No version-specific

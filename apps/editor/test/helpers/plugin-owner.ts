@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import path from "node:path";
 
 const [mode, root] = process.argv.slice(2);
-if (mode === "serve") {
+if (mode === "httpHost") {
   const host = await startHttpHost({ roots: [root], editorDir: root, port: 0 });
   process.send?.({ url: host.url });
   process.once("message", async () => { await host.close(); process.exit(0); });

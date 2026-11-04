@@ -16,6 +16,10 @@ implementation. Current behavior remains described by the Implemented
 [HTTP Host](../design/http-host-v1.md) contracts until implementation PRs satisfy
 the adoption conditions below and update the affected contracts.
 
+## Amendment (2026-11-04, #1139)
+
+The [owner-approved terminology amendment](https://github.com/litzio/litzio/issues/1139) defines daemon as a shared Host process separate from the UI, without deciding its lifetime. `daemon run` starts the independent foreground HTTP Host; Desktop retains its in-process Host. Automatic discovery/connections to a running Host, lifetime management and shared editing sessions remain deferred. See the [HTTP Host terminology](../design/http-host-v1.md#host-and-daemon-terminology-1139). This amends the earlier blanket daemon deferral; it does not introduce those deferred capabilities.
+
 ## Context
 
 The owner wants AI agents to attach capabilities as plugins while Litzio is
@@ -25,7 +29,7 @@ dependency boundary, but its Host and Editor connections are static.
 The [runtime spike](../reviews/docling-plugin-runtime-spike.md) exercised a
 separate worker, shared user installation, request deduplication, failure
 isolation and disable/drain through development Desktop and an independent
-`litzio serve`. Its external Docling REST service was synthetic; actual server
+`litzio daemon run`. Its external Docling REST service was synthetic; actual server
 conversion and packaged Desktop remain unverified.
 The [UI spike](../reviews/docling-plugin-ui-spike.md) exercised live command/tab
 contributions from installed ESM/CSS, API mismatch rejection and local UI fault
@@ -33,7 +37,7 @@ handling without a page reload. It did not move the sidebar, Settings or
 conversion dialog to dynamic contributions. Both records remain Historical;
 their unaccepted outlines describe the experiments' decision point.
 
-Running plugins does not itself require a daemon. The approved order in #834 is
+Running plugins does not itself require connections to a shared running Host. The approved order in #834 is
 the Docling plugin boundary, then AI-generated plugin installation and user
 approval, then a shared local Host when client-independent task lifetime is
 needed. This ADR decides only the first stage.
@@ -44,10 +48,10 @@ needed. This ADR decides only the first stage.
 
 The owner selected `litzio` as the internal code name in [Discussion #856](https://github.com/litzio/litzio/discussions/856). Workspace packages use `@litzio/*`; the shared worker/UI Host contract lives in `@litzio/plugin-api`, including the single `PLUGIN_UI` identifier table. API versions, manifest fields and generic routes/assets keep their existing values. Product labels, CLI command, Desktop transport and installed/data/plugin folders follow the separate [brand configuration](../guides/branding.md) (#859; official default Litzio). Repository references remain separately managed. This rename adds no compatibility aliases or migration.
 
-### 1. Existing Hosts share a user installation without a daemon
+### 1. Existing Hosts share a user installation without live Host connections
 
 Desktop keeps ADR-0004's in-process Host and configured Desktop origin (official default `litzio://app`) without a
-TCP listener. `litzio serve` keeps ADR-0005's independent HTTP Host. Packaged Desktop and distributed CLI builds use a
+TCP listener. `litzio daemon run` keeps ADR-0005's independent HTTP Host. Packaged Desktop and distributed CLI builds use a
 common per-user plugin installation folder containing installed code, plugin
 registration state and request records.
 
@@ -59,15 +63,13 @@ Plugin settings and main-agent cwd follow the same execution classification.
 Environment overrides remain authoritative. The checkout's built
 `packages/cli/dist/cli.mjs` is a distributed artifact and retains shared defaults.
 Tests explicitly inject temporary paths. This changes defaults only, not
-registration pinning or the packaged Desktop/serve sharing contract.
+registration pinning or the packaged Desktop/HTTP Host sharing contract.
 
 Plugin registration state and request records in that folder are the explicit
 exception to the stateless Host scope in AGENTS.md and ADR-0005. Document file
 handlers remain stateless; this exception does not introduce document/session
 persistence or a general backend. Sharing installations and request records does
-not provide a shared live task controller or editing session. A shared local
-Host (daemon) is a later decision under #834 when tasks must outlive clients or
-be controlled independently of the client that started them.
+not provide a shared live task controller or editing session. Automatic discovery/connections to a running Host, lifetime management and shared editing sessions remain deferred under #834 and #1139.
 
 ### 2. Host execution uses a separate worker and versioned boundaries
 
@@ -155,7 +157,7 @@ plugin boundary is adopted; the historical measurements do not satisfy them:
 
 1. Convert through a real Docling server, preserving source PDF/JSON and
    publishing only a complete Core-valid result; synthetic REST is insufficient.
-2. Verify the packaged Desktop alongside the independent `litzio serve` Host;
+2. Verify the packaged Desktop alongside the independent `litzio daemon run` Host;
    development Electron does not establish packaged behavior.
 3. Resolve lock/crash recovery and PID reuse so stale ownership cannot admit
    duplicate execution or misclassify interrupted work. Preserve `uncertain`
@@ -186,7 +188,7 @@ leftovers remain private. See the contract for the check/use boundary.
 Condition 1 remains a [manual real-service check](../test/README.md#docling-worker-runtime-853).
 Condition 2 is covered by required Windows packaged CI, not a local packaging run.
 Conditions 4 and 5, UI manifests/contributions, conversion-dialog migration, AI
-installation/approval, OS sandbox and daemon remain outside #853. The full UI
+installation/approval, OS sandbox and running-Host discovery/connections, lifetime management and shared editing sessions remain outside #853. The full UI
 plugin boundary is not claimed as adopted by this Host-only implementation.
 
 ## UI implementation progress (#857)
@@ -196,7 +198,7 @@ and 5. A brand-independent API 1/React 19 manifest is checked at registration an
 before asset loading. A lexical ESM factory binds React/JSX imports to the exact
 renderer instances supplied by the Host; no second React copy or global bridge
 is introduced. Same-origin, hash-checked assets retain existing CSP on Desktop
-and serve. Command Center, tab kinds and expanded-sidebar actions attach live.
+and HTTP Host. Command Center, tab kinds and expanded-sidebar actions attach live.
 Docling reuses its #815 reading/matching view through this boundary.
 
 Detachment unmounts views before disposal/style removal and preserves disabled
@@ -223,8 +225,7 @@ not implemented in #857.
 - AI-generated plugin installation, user approval and automatic download flows.
 - OS sandbox implementation. Initially only trusted local code is allowed;
   untrusted code is not allowed before OS sandbox validation.
-- A daemon/shared local Host, client-independent task lifetime or shared editing
-  sessions; these remain later decisions in #834.
+- Automatic discovery/connections to a running Host, lifetime management and shared editing sessions; these remain later decisions in #834 and #1139.
 - Remote plugin deployment, a marketplace or Core changes.
 
 ## Consequences

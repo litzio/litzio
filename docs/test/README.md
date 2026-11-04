@@ -280,7 +280,7 @@ pnpm --filter @litzio/cli package
 pnpm --filter @litzio/cli test:packaged
 ```
 
-The archive test installs outside the checkout with no runtime dependencies and runs Node-only CLI/serve, real writes, port conflict and shutdown. The separate HTTP browser scenario starts the built Host with two scratch roots and verifies real Save/Reload, New file/folder, images, dirty/draft guards, revision conflict and SVG script blocking. Do not combine it with Vite scenarios. Windows uses the existing persistent browser profile. `--screenshots` saves optional wide/narrow manual captures under `tmp/http-host-capture/`.
+The archive test installs outside the checkout with no runtime dependencies and runs Node-only CLI/daemon run, real writes, port conflict and shutdown. The separate HTTP browser scenario starts the built Host with two scratch roots and verifies real Save/Reload, New file/folder, images, dirty/draft guards, revision conflict and SVG script blocking. Do not combine it with Vite scenarios. Windows uses the existing persistent browser profile. `--screenshots` saves optional wide/narrow manual captures under `tmp/http-host-capture/`.
 
 HTTP boundary tests are included in `pnpm test`; targeted command: `pnpm --filter @litzio/editor exec tsx --test test/http-host.test.ts`. When the HTTP job is selected, CI requires the archive and HTTP browser paths on Windows and Linux. Windows unit/integration coverage, including `file-identity.test.ts`, belongs to the Desktop full `pnpm test`; `http ⇒ desktop` path selection prevents a coverage gap. PR path selection and full checks on master pushes follow the [Verification matrix](../../CONTRIBUTING.md#verification-matrix), with [ci.yml](../../.github/workflows/ci.yml) as the path-rule source of truth. See [HTTP contract](../design/http-host-v1.md) for scope and deployment limitations.
 
@@ -647,7 +647,7 @@ holds the browser's UI module while accepted conversion finishes, then verifies
 the comparison opens after activation. It does not extend timeouts or weaken
 assertions. `plugin-ui` checks live contributions, exact native document identity
 and input across failures, retained-tab recovery, same-ESM reuse and unmount
-cleanup before disposal/style removal. Production serve supports the same
+cleanup before disposal/style removal. Production HTTP Host supports the same
 feature scenarios via `LITZIO_BROWSER_URL`; packaged Desktop loading and
 disable/re-register run in required Windows CI. See the
 [UI contract](../design/plugin-ui-v1.md) for React compatibility and ESM memory
@@ -673,7 +673,7 @@ PC do not run Desktop packaging, update/uninstall or Edge for #853.
 Manual acceptance against an operator's existing **real** pinned Docling service:
 
 1. Use a separate `LITZIO_PLUGINS_DIR`/settings file and a disposable copy of a
-   known PDF. Record original PDF/JSON hashes. Start Desktop or `litzio serve`
+   known PDF. Record original PDF/JSON hashes. Start Desktop or `litzio daemon run`
    with the same OS user/installation; do not launch a Docling service from this
    repository's test or agent workflow.
 2. In the unchanged Docling Settings check the server, convert from the PDF menu
@@ -682,7 +682,7 @@ Manual acceptance against an operator's existing **real** pinned Docling service
    canonical Core reopen and unchanged original hashes. Record task ID/server
    versions and separately judge OCR/content fidelity.
 3. Register the same trusted manifest through Desktop's `/api/worker-plugins` and
-   execute a conversion through independent `serve` with the same plugin folder.
+   execute a conversion through independent `daemon run` with the same plugin folder.
    Disable while pending: accepted work drains, new UUIDs are refused. Restore
    registration afterward. This is not cross-Host cancellation or shared UI state.
 4. Record remaining real-service/model/capacity errors without claiming synthetic

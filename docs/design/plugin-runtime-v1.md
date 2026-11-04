@@ -4,7 +4,7 @@
 - Folder/Host boundary verified: 2026-11-01 (#869: relocated-folder build/typecheck/tests, shared Host and headless CLI, Docling browser scenarios; packaging remains required CI and the real service remains manual).
 - Last verified: 2026-10-31 (#853 and PR #855 review: shared Host tests, filesystem alias denial, ancestor-listing permission regression, scoped image-reference scans and shutdown/admission races; real Docling remains manual and packaged Desktop is checked by CI).
 - Authority: [ADR-0012](../adr/0012-plugin-runtime-and-ui-contributions.md), with [ADR-0004](../adr/0004-desktop-host-distribution.md) and [ADR-0005](../adr/0005-http-host.md).
-- Scope: trusted local worker execution in Vite, in-process Desktop and independent `litzio serve`. The same registration also supports [UI contributions](plugin-ui-v1.md) under ADR-0012 (#857).
+- Scope: trusted local worker execution in Vite, in-process Desktop and independent `litzio daemon run`. The same registration also supports [UI contributions](plugin-ui-v1.md) under ADR-0012 (#857).
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
 
@@ -13,7 +13,7 @@ Brand defaults and packager overrides follow [the branding guide](../guides/bran
 Packaged Desktop (`app.isPackaged`) and distributed CLI builds running as one
 OS user share `~/.litzio/plugins`. The CLI build constant classifies all built CLI
 artifacts, including checkout `packages/cli/dist/cli.mjs` and Desktop's bundled CLI.
-Source Vite, tsx CLI (serve and plugin commands), and development Electron use
+Source Vite, tsx CLI (daemon run and plugin commands), and development Electron use
 `<checkout>/.litzio-dev/plugins`. This gitignored folder is outside `tmp` so
 scratch cleanup does not erase registrations. Known source-module or Desktop
 `build/app` locations determine the checkout independently of launch cwd.
