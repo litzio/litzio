@@ -55,7 +55,7 @@ Editor의 모든 Host 호출과 렌더링 URL은 대상 Host를 아는 Host 클�
 
 Desktop origin을 daemon에 명시적으로 허용한다. 구현은 CORS·OPTIONS, 허용 methods/headers와 Origin 목록, 실제 HTTP Host authority 목록 및 CSP를 함께 다룬다. custom scheme의 UI origin을 TCP Host 목록에 섞거나 wildcard로 넓히지 않는다. 기존 쓰기 Origin 검사와 문서 SVG/HTML sandbox 보호를 유지하고, 문서 이미지·미리보기 등 코어 리소스의 cross-origin/CORP 전환을 검증한다. 플러그인 ESM/CSS 로드는 이번 전환 검증에서 제외하며 컨셉 재개발 때 결정·검증한다. 인증 방식·시점은 #1145에 남긴다.
 
-ADR-0016의 고정 HTTP origin은 daemon에 유지한다. Desktop UI는 별도 번들 origin으로 전환한다. ADR-0012의 플러그인 same-origin UI 자산 규칙은 기능 제거 후 적용 대상이 없으며 번들 origin의 플러그인 ESM/CSS 경계는 재개 때 결정한다. ⑤의 scheme은 `litzio://app`이며 static UI 전용이다. ⑤는 이 origin의 CORS/media 경계를 필수로 쓰므로 프로토콜을 3으로 올려 구 daemon을 연결 단계에서 거부한다. API·플러그인 UI의 비호환 변경 때는 프로토콜 버전을 올린다. 제품 버전 차이는 경고, 프로토콜 불일치는 거부한다. 구 CLI daemon에 신 번들 UI 연결은 지원하지 않으며 호환 계층·capability 협상은 만들지 않는다. 기존 origin 저장소·설정·문서 데이터의 하위 호환과 migration은 포함하지 않는다.
+ADR-0016의 고정 HTTP origin은 daemon에 유지한다. Desktop UI는 별도 번들 origin으로 전환한다. ADR-0012의 플러그인 same-origin UI 자산 규칙은 기능 제거 후 적용 대상이 없으며 번들 origin의 플러그인 ESM/CSS 경계는 재개 때 결정한다. ⑤의 scheme은 `litzio://app`이며 static UI 전용이다. ⑤는 이 origin의 CORS/media 경계를 필수로 쓰므로 프로토콜을 3으로 올려 구 daemon을 연결 단계에서 거부했다. 이후 #1168의 비서 API 이름 변경으로 현재 프로토콜은 4다. API·플러그인 UI의 비호환 변경 때는 프로토콜 버전을 올린다. 제품 버전 차이는 경고, 프로토콜 불일치는 거부한다. 구 CLI daemon에 신 번들 UI 연결은 지원하지 않으며 호환 계층·capability 협상은 만들지 않는다. 기존 origin 저장소·설정·문서 데이터의 하위 호환과 migration은 포함하지 않는다.
 
 ### 4. 플러그인 컨셉 재개발 때 결정할 경계
 
