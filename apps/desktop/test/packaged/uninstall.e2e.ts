@@ -83,7 +83,7 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
       try {
         if (silent && fault === "empty") {
           // Exercise real locks once, without repeating Desktop startup for optional-CLI faults.
-          const cli = await cliDaemon(integration.executable, otherChannel);
+          const cli = await cliDaemon(path.join(integration.junction, `${brand.executableName}.exe`), otherChannel);
           try {
             const refused = spawnSync(uninstaller, args, { env, encoding: "utf8", timeout: 60_000 });
             assert.equal(refused.status, 1, "CLI-owned daemon blocks removal");

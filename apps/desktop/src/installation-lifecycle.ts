@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
 import { daemonDirectory, readDaemonRecord, type DaemonRecord } from "../../editor/server/daemon-state.ts";
 
-export type InstalledProcess = { pid: number; started: string; command: string; window: boolean };
+export type InstalledProcess = { pid: number; started: string; command: string; window: boolean; executable?: string };
 export interface InstallationPort {
   processes(): InstalledProcess[];
   records(): DaemonRecord[];
@@ -19,20 +19,25 @@ export function installationPort(executable: string): InstallationPort {
     // PowerShell cannot even initialize with a damaged SystemRoot. Keep the OS query tied
     // to its Windows executable; do not repair the parent/optional CLI cleanup environment.
     { input: Buffer.from(input, "utf8").toString("base64"), encoding: "utf8", windowsHide: true, env: { ...process.env, SystemRoot: windows } });
-  const samePath = (file: string) => path.resolve(file).toLowerCase() === path.resolve(executable).toLowerCase();
+  const target = realpathSync.native(executable).toLowerCase();
+  const samePath = (file: string) => {
+    try { return realpathSync.native(file).toLowerCase() === target; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
+  };
   return {
     processes: () => JSON.parse(ps(
-      "$target = $inputText; ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $target } | ForEach-Object { " +
-      "@{ pid = $_.ProcessId; started = [string]$_.CreationDate.ToUniversalTime().Ticks; command = $_.CommandLine; window = ((Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue).MainWindowHandle -ne 0) } })", executable)).filter((p: InstalledProcess) => p.pid !== process.pid),
+      "$name = $inputText; ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process | Where-Object { $_.Name -eq $name } | ForEach-Object { " +
+      "@{ pid = $_.ProcessId; executable = $_.ExecutablePath; started = [string]$_.CreationDate.ToUniversalTime().Ticks; command = $_.CommandLine; window = ((Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue).MainWindowHandle -ne 0) } })", path.basename(executable)))
+      .filter((p: InstalledProcess) => p.pid !== process.pid && p.executable && samePath(p.executable)),
     records: () => (["stable", "beta", "development"] as const).flatMap(channel => {
       const record = readDaemonRecord(daemonDirectory(channel));
       return record && samePath(record.executable) ? [record] : [];
     }),
     closeWindows: processes => { if (processes.length) ps(
-      "$request = ConvertFrom-Json $inputText; foreach ($owner in $request.processes) { " +
+      "$owners = ConvertFrom-Json $inputText; foreach ($owner in $owners) { " +
       "$current = Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $owner.pid); " +
-      "if ($current -and $current.ExecutablePath -eq $request.executable -and [string]$current.CreationDate.ToUniversalTime().Ticks -eq $owner.started) { " +
-      "$p = Get-Process -Id $owner.pid -ErrorAction SilentlyContinue; if ($p) { [void]$p.CloseMainWindow() } } }", JSON.stringify({ executable, processes })); },
+      "if ($current -and $current.ExecutablePath -eq $owner.executable -and [string]$current.CreationDate.ToUniversalTime().Ticks -eq $owner.started) { " +
+      "$p = Get-Process -Id $owner.pid -ErrorAction SilentlyContinue; if ($p) { [void]$p.CloseMainWindow() } } }", JSON.stringify(processes)); },
     recordsRemoved: records => records.every(record => !existsSync(path.join(record.daemonHome, "instance.json")) && !existsSync(path.join(record.daemonHome, "daemon.lock"))),
   };
 }

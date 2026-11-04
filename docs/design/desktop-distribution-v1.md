@@ -55,14 +55,14 @@ another installation can stay running. The final owned-daemon close waits for pr
 well as record removal; a shutdown failure prevents `quitAndInstall`.
 
 NSIS setup and removal replace electron-builder's image-name process termination with a shared
-installation helper. It selects the exact installed executable path, checks CLI ownership and OS
+installation helper. It compares canonical installed executable paths (including the CLI shim's junction), checks CLI ownership and OS
 creation identity, then requests `WM_CLOSE` only from windows of that installation (rechecking
 path and creation identity before the request). The existing unsaved-work confirmation remains.
 The helper excludes itself and requires all other processes using that executable to exit and
 observed discovery/lock files to disappear before replacement/removal. It fails closed on a
 missing helper, unknown CLI listener, cleanup failure or a window that stays open. Silent
 removal uses the same gate. Optional CLI/PATH cleanup remains a separate best-effort operation.
-There is no image-name kill, automatic restart, stale-record deletion or remote Host handling.
+The mandatory OS-query child uses SystemRoot matching its Windows executable; the parent and optional CLI cleanup keep their original environment and failures. There is no image-name kill, automatic restart, stale-record deletion or remote Host handling.
 A same-installation CLI daemon in another channel blocks the operation without being stopped;
 other installations/channels are untouched. A CLI daemon started concurrently after a check can
 still block file replacement; there is no cross-process installation lock in this phase.
@@ -80,7 +80,7 @@ its userData/PATH installation fixture). Other automated daemon tests use tempor
 Local installation/package tests are explicitly prohibited for this
 work, so their duration is measured by PR CI. Existing deadlines/assertions remain unchanged;
 no retries or fixed sleeps were added. Unit tests cover ownership/refusal, record cleanup and
-updater failure ordering; the existing CLI lifecycle test also checks actual process exit.
+updater failure ordering; the existing CLI lifecycle test also checks actual process exit. One owned Node child verifies actual Windows junction identity (about 1.8s locally), which in-memory ports cannot establish. The existing packaged CLI-refusal probes launch through the real integration junction.
 
 ### PR3 plugin test exception
 

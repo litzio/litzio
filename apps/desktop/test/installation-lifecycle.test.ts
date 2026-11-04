@@ -1,5 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
+import { mkdtempSync, symlinkSync, unlinkSync, rmdirSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { checkInstallation, prepareInstallation, installationPort, type InstallationPort, type InstalledProcess } from "../src/installation-lifecycle.ts";
 import type { DaemonRecord } from "../../editor/server/daemon-state.ts";
 
@@ -48,5 +53,30 @@ test("mandatory Windows process query survives damaged optional-cleanup environm
     assert.equal(process.env.SystemRoot, damaged, "optional cleanup must still see its own failure");
   } finally {
     if (saved === undefined) delete process.env.SystemRoot; else process.env.SystemRoot = saved;
+  }
+});
+
+test("Windows identifies the same executable launched through the CLI junction", { skip: process.platform !== "win32" }, async () => {
+  // CIM and process.execPath preserve the junction spelling. A port-only test cannot
+  // establish this OS behavior; use one owned Node child, never a packaged installation.
+  const base = mkdtempSync(path.join(os.tmpdir(), "litzio-1164-alias-"));
+  const link = path.join(base, "app");
+  symlinkSync(path.dirname(process.execPath), link, "junction");
+  const child = spawn(path.join(link, path.basename(process.execPath)), ["-e", "process.send({ready:true});setInterval(()=>{},1000)"], {
+    windowsHide: true, stdio: ["ignore", "ignore", "ignore", "ipc"],
+  });
+  const exited = once(child, "exit");
+  const timer = setTimeout(() => child.kill(), 15_000);
+  try {
+    await Promise.race([once(child, "message"), exited.then(() => { throw new Error("Alias probe exited before ready"); })]);
+    const port = installationPort(process.execPath);
+    const owner = port.processes().find(p => p.pid === child.pid);
+    assert.ok(owner, "canonical executable query includes the junction alias");
+    assert.throws(() => checkInstallation({ ...port, records: () => [{ ...record, pid: owner.pid, processStartedAt: owner.started, launcher: "cli-run" }] }), /CLI daemon/);
+  } finally {
+    clearTimeout(timer);
+    if (child.exitCode === null && child.signalCode === null) child.kill();
+    await exited;
+    unlinkSync(link); rmdirSync(base);
   }
 });

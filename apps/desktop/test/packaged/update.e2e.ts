@@ -253,7 +253,7 @@ test("installs per user, then updates from Settings only after the open document
 
     if (!LIVE) {
       await t.test("CLI daemon blocks update without stopping either channel", { skip: !BETA }, async () => {
-        const cli = await cliDaemon(exe, otherChannel);
+        const cli = await cliDaemon(path.join(cliBin, "app", `${brand.executableName}.exe`), otherChannel);
         try {
           await page.getByRole("button", { name: "Restart to update" }).click();
           await page.getByTestId("update-problem").waitFor();
