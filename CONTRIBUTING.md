@@ -31,7 +31,7 @@ pnpm --filter @litzio/editor build
 
 ## Architecture boundaries
 
-- 영속적인 문서 의미 변경은 editor-neutral Core operation이 소유한다. 새로운 주요 operation은 얇은 CLI command로도 제공하며, 생략하면 이유를 기록한다.
+- 영속적인 문서 의미 변경은 editor-neutral Core operation이 소유한다. [ADR-0015](docs/adr/0015-shared-host-operations.md)에 따라 새 사용자 기능은 Host 공용 작업으로 정의하고 얇은 CLI command를 함께 제공하며, 비서에 필요하면 같은 정의로 도구를 만든다. Editor 전용 interaction은 CLI parity 대상이 아니다.
 - Editor는 Markdown 의미를 따로 구현하지 않고 Core의 read model과 operation을 사용한다. CLI도 얇은 인터페이스로 유지한다.
 - Tiptap/ProseMirror 타입과 문서 모델은 `apps/editor` 안에 둔다. 하나의 문서 편집 상태를 사용한다.
 - `apps/editor/server`의 stateless 파일 handler는 Vite, Desktop, HTTP Host가 공유한다. 제품 backend나 장기 persistence 결정으로 확대하지 않는다.

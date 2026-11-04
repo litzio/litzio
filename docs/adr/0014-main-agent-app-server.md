@@ -6,6 +6,7 @@
 - Copilot options (#1091): 2026-11-03; one real initialize/catalog session (no prompt), fake protocol tests; actual model/permission behavior remains owner verification.
 - Copilot verification: 2026-11-03 (#1053; fake ACP/permission checks only, no real Copilot session or model call).
 - Last verified: 2026-11-03 (#952 / #1047 PR A/B, user-message language versus task-only fallback; fake Host/worker/browser checks, no real model turn).
+- CLI policy clarification: 2026-11-04 — documentation-only alignment with [ADR-0015](0015-shared-host-operations.md); no runtime change.
 - Previous verification: 2026-11-02 (connection/settings and conversation implementation, fake stdio/Host and browser tests, one real Q&A turn with steering and read-only history resumption).
 - Authority: [#931 owner decisions](https://github.com/litzio/litzio/issues/931), including the approved split into connection/settings and subsequent conversation PRs, under [ADR-0012](0012-plugin-runtime-and-ui-contributions.md).
 - Partially supersedes: dedicated `CODEX_HOME` trigger 2 in [ADR-0013](0013-ai-agent-task-service.md).
@@ -107,9 +108,11 @@ unless explicitly requested otherwise. AI default language is used only for task
 started without a conversation; no conversation-language selector is exposed. Existing-document editing, Docling integration, further providers, assistant tabs and an agent home
 screen remain outside the current delivery.
 
-CLI parity is intentionally omitted: connection, diagnostics and AI execution
-are not document semantic operations. The shared Host surface is headless;
-document semantics and their existing CLI/Core operations remain unchanged.
+Connection, diagnostics and AI execution shipped without Litzio CLI commands;
+their shared Host surface is headless. This is the existing delivery scope,
+not an exemption for future non-semantic features. Since 2026-11-04,
+[ADR-0015](0015-shared-host-operations.md) requires shared Host operations and
+CLI commands for new user features. Existing CLI gaps are migrated separately.
 
 Current routes, settings and verification are defined by
 [Main agent connection, settings and conversations](../design/main-agent-v1.md).
@@ -132,8 +135,9 @@ both the original tool specifications and creation receipt, and a subsequent rea
 call succeeded. Threads originally started without tools require a new conversation;
 Litzio does not claim retroactive registration. Terminal CLI resumption has no
 Litzio tool handler: the owner's chosen alternative is usage guidance via a skill
-(delivered with result cards/undo in implementation 2, PR 2). AI execution adds no semantic operation,
-so separate CLI parity is omitted. Exact inputs, permissions and verification are
+(delivered with result cards/undo in implementation 2, PR 2). The existing document
+CLI remains the terminal surface; it does not acquire a live Host/tool handler.
+New user features follow ADR-0015's shared-operation/CLI rule. Exact inputs, permissions and verification are
 in the [implemented contract](../design/main-agent-v1.md#document-tools-931-implementation-2-pr-1).
 
 ## Copilot addition (#1053, 2026-11-03)
