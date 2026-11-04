@@ -1,3 +1,4 @@
+import { projectInlineContent, paragraphLeadingSpaceLength } from "../inline.ts";
 import { writeMd } from "myst-to-md";
 import { createTokenizer } from "myst-parser";
 import { assertUnicode } from "./unicode.ts";
@@ -59,6 +60,31 @@ export function serialize(document: MystDocument): string {
   const footnotes = footnoteWriteIssue(document);
   if (footnotes) throw new SemanticLossError(footnotes.reason, footnotes);
   const tree = cloneDocument(document);
+  // Normalize only prose paragraphs on the disposable write clone. Tables and
+  // Figure captions have their own whitespace contracts.
+  const normalizeStarts = (node: MystNode): void => {
+    if (isFigure(node) || tableOf(node)) return;
+    if (node.type === "paragraph") {
+      const content = projectInlineContent(node);
+      let remaining = content ? paragraphLeadingSpaceLength(content) : 0;
+      const trim = (items: MystNode[]): MystNode[] => items.flatMap(item => {
+        if (!remaining) return [item];
+        if (item.type === "text" && typeof item.value === "string") {
+          const count = Math.min(remaining, item.value.length);
+          remaining -= count;
+          item.value = item.value.slice(count);
+          return item.value ? [item] : [];
+        }
+        if (item.children) {
+          item.children = trim(item.children);
+          return item.children.length ? [item] : [];
+        }
+        return [item];
+      });
+      if (remaining) node.children = trim(node.children ?? []);
+    } else node.children?.forEach(normalizeStarts);
+  };
+  tree.children.forEach(normalizeStarts);
   const originalIndex = new Map(tree.children.map((node, index) => [node, index]));
   tree.children = endnotePlacement(tree);
   const blockPaths = tree.children.map(node => [originalIndex.get(node)!]);

@@ -1,25 +1,28 @@
-import { inlineContentLength, paragraphInlineContent } from "@litzio/core";
+import { inlineContentLength, paragraphInlineContent, paragraphLeadingSpaceLength } from "@litzio/core";
 import { closeHistory } from "@tiptap/pm/history";
 import type { EditorState } from "@tiptap/pm/state";
 import { fromTiptapContent } from "./tiptap-inline.ts";
 
-/** Apply only Core's removed suffixes, leaving node identities, marks and history intact. */
+/** Apply only Core's removed prefixes and suffixes, leaving node identities, marks and history intact. */
 export function normalizeSaveTails(state: EditorState) {
   const tr = closeHistory(state.tr);
   state.doc.descendants((node, pos, parent) => {
     if (!["paragraph", "quote", "admonition", "figure", "footnoteDefinition"].includes(node.type.name)) return;
     // Table cells have a separate single-line contract.
     if (parent?.type.name === "tableCell" || parent?.type.name === "tableHeader") return;
-    let length: number;
+    let length: number, leading: number;
     try {
       const content = fromTiptapContent({ type: "doc", content: [{ type: "paragraph", content: node.toJSON().content }] });
-      length = inlineContentLength(paragraphInlineContent(content));
+      leading = node.type.name === "figure" ? 0 : paragraphLeadingSpaceLength(content);
+      length = inlineContentLength(paragraphInlineContent(content, false));
     } catch {
       // Cleanup is not admission: leave invalid input untouched for the existing
       // collector/Host refusal path and its diagnostics, without acknowledging it.
       return;
     }
-    const from = pos + 1 + length, to = pos + 1 + node.content.size;
+    const from = pos + 1 + Math.max(length, leading), to = pos + 1 + node.content.size;
+    // Prefix cleanup is unconditional; the engine maps even a caret in the prefix.
+    if (leading > 0) tr.delete(tr.mapping.map(pos + 1), tr.mapping.map(pos + 1 + leading));
     if (from >= to) return;
     // Retain the active tail (or a selection touching it) while the user is writing there.
     if (state.selection.from <= to && state.selection.to > from) return;

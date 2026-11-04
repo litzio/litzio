@@ -97,6 +97,29 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument, screensh
   await reloadDocument(page);
   await ready();
   check('trailingBreakReopensCanonical', await paragraph().textContent() === 'Alpha.');
+  // #1160: real input, mapped caret, separate Undo and canonical reopening.
+  await paragraph().click();
+  await page.keyboard.press('Home');
+  await page.keyboard.type('   ');
+  await page.keyboard.press('End');
+  await paragraphCaret(true);
+  await page.keyboard.press('Control+s');
+  await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'saved');
+  check('leadingSpacesRemovedFromScreenAndFile', await paragraph().textContent() === 'Alpha.' &&
+    !(await read(file)).source.includes('&#x20;'));
+  check('leadingCleanupMapsCaret', await paragraph().evaluate(element => {
+    const editor = element.closest('.document-editor').editor;
+    return editor.state.selection.$from.parentOffset === 6;
+  }));
+  await page.keyboard.press('Control+z');
+  check('leadingCleanupUndo', await paragraph().textContent() === '   Alpha.' &&
+    await page.getByTestId('status').innerText() === 'Unsaved changes');
+  await page.keyboard.press('Control+Shift+z');
+  check('leadingCleanupRedo', await paragraph().textContent() === 'Alpha.' &&
+    await page.getByTestId('status').innerText() !== 'Unsaved changes');
+  await reloadDocument(page);
+  await ready();
+  check('leadingCleanupReopensCanonical', await paragraph().textContent() === 'Alpha.');
   await paragraph().click();
   await page.keyboard.press('End');
   await page.keyboard.type(' Saved');

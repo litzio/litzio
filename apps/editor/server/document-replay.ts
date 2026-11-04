@@ -6,6 +6,7 @@ import {
   inspectDocument,
   isAdmonitionVariant,
   inlineContentLength,
+  paragraphLeadingSpaceLength,
   inlineContentText,
   insertAdmonition,
   insertHeading,
@@ -445,7 +446,7 @@ export function saveEdits(
     document = editAt(target, () => updateParagraphInlineContent(document, [start], group.parts.flat()));
     // Split offsets use Core's paragraph offset definition (inline math counts as one).
     const lengths = group.parts.map(part => inlineContentLength(part));
-    let offset = lengths.reduce((sum, length) => sum + length, 0);
+    let offset = lengths.reduce((sum, length) => sum + length, 0) - paragraphLeadingSpaceLength(group.parts.flat());
     for (let index = lengths.length - 1; index > 0; index--) {
       offset -= lengths[index];
       const splitTarget = { path: group.paths[0], part: lengths[index] === 0 ? index : offset === 0 ? 0 : index - 1 };

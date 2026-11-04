@@ -109,12 +109,32 @@ export function structuralInlineContent(content: InlineContent[]): InlineContent
   return hasVisibleContent(content) || containsLink(content) ? paragraphInlineContent(content) : [];
 }
 
-/** Remove a paragraph's blank-line tail at the semantic write boundary. Interior
+/** ASCII indentation at the start of paragraph text, across formatting marks.
+ * Stop at breaks and data-bearing atoms; NBSP and other Unicode spaces are content. */
+export function paragraphLeadingSpaceLength(content: InlineContent[]): number {
+  let length = 0, done = false;
+  const visit = (items: InlineContent[]): void => {
+    for (const item of items) {
+      if (done) break;
+      if (item.kind === "text") {
+        const prefix = item.text.match(/^[ \t]*/)![0].length;
+        length += prefix;
+        done = prefix !== item.text.length;
+      } else if (item.kind !== "link" && "children" in item) visit(item.children);
+      else done = true;
+    }
+  };
+  visit(content);
+  return done ? length : 0;
+}
+
+/** Remove ASCII leading indentation and a paragraph's blank-line tail. Interior
  * breaks, marks and data-bearing inline atoms (including link labels) stay intact.
  * Space-only tails without a line break keep their existing round-trip rules. */
-export function paragraphInlineContent(content: InlineContent[]): InlineContent[] {
+export function paragraphInlineContent(content: InlineContent[], trimStart = true): InlineContent[] {
   assertInlineContent(content);
-  const original = concatenateInlineContent(content);
+  const original = concatenateInlineContent(trimStart
+    ? splitInlineContent(content, paragraphLeadingSpaceLength(content))[1] : content);
   let atEnd = true, hasBreak = false;
   const trimTail = (items: InlineContent[]): InlineContent[] => {
     const result: InlineContent[] = [];
