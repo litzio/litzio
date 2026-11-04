@@ -1,4 +1,5 @@
-import { hostClient } from "./host-client.ts";
+import { LOCAL_HOST_ID } from "./host-locator.ts";
+import { getHostClient, type HostClient } from "./host-client.ts";
 import type { SaveTemplateRequest, TemplateContent, TemplateList } from "../shared/template-protocol.ts";
 import { i18n } from "./i18n.ts";
 
@@ -6,8 +7,8 @@ const templateText = i18n.getFixedT(null, "templates");
 
 export const templateLanguage = () => i18n.resolvedLanguage === "ko" ? "ko" : "en";
 
-export async function templateRequest<T extends TemplateList | TemplateContent>(route: string, body?: SaveTemplateRequest, signal?: AbortSignal): Promise<T> {
-  const response = await hostClient.request(`/api/${route}`, {
+export function createTemplateRequest(client: HostClient) { return async function templateRequest<T extends TemplateList | TemplateContent>(route: string, body?: SaveTemplateRequest, signal?: AbortSignal): Promise<T> {
+  const response = await client.request(`/api/${route}`, {
     method: body ? "POST" : "GET", signal,
     ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
   });
@@ -15,6 +16,9 @@ export async function templateRequest<T extends TemplateList | TemplateContent>(
   if (!response.ok) throw new Error(templateError(payload.error ?? `request failed (${response.status})`));
   return payload as T;
 }
+
+}
+export const templateRequest = createTemplateRequest(getHostClient(LOCAL_HOST_ID));
 
 // Host errors are literal transport details; localize the actionable naming failures here.
 export function templateError(error: string): string {

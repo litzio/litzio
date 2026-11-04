@@ -1,4 +1,4 @@
-import { hostClient } from "../host-client.ts";
+import type { HostClient } from "../host-client.ts";
 import { useCallback, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import type { RecoveryPreviewResponse, SaveRequest } from "../../shared/document-protocol.ts";
@@ -10,14 +10,14 @@ import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 
-export type SaveComparison = { path: string; revision: string; request?: SaveRequest; submitted?: TiptapJSON; failure?: Error; text?: string };
+export type SaveComparison = { client: HostClient; hostId?: string; path: string; revision: string; request?: SaveRequest; submitted?: TiptapJSON; failure?: Error; text?: string };
 
 export default function SaveCompare({ comparison, returnFocus, onClose }: {
   comparison: SaveComparison; returnFocus: RefObject<HTMLElement | null>; onClose(): void;
 }) {
   useTranslation();
   const load = useCallback(async (signal: AbortSignal): Promise<Comparison> => {
-    const response = await hostClient.request(`/api/document-source?recovery=1`, {
+    const response = await comparison.client.request(`/api/document-source?recovery=1`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: comparison.path, save: comparison.request }), signal,
     });

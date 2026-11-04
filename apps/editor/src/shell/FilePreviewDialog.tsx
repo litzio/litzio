@@ -1,4 +1,4 @@
-import { hostClient } from "../host-client.ts";
+import { useHostClient } from "../host-context.tsx";
 import { useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
@@ -8,12 +8,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 /** Shared bounded Host preview. Key by entry path to retire both the image and its load state. */
 export function FileImagePreview({ entry, root, quiet = false }: { entry: FolderEntry; root: string; quiet?: boolean }) {
   useTranslation();
+  const client = useHostClient();
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   return <>
     {state === "loading" ? <p role="status">{i18n.t("Loading…")}</p> : null}
     {state === "error" ? <p role={quiet ? undefined : "alert"}>{i18n.t("The image could not be previewed. It may be unavailable, damaged, unsupported, or larger than 10 MiB.")}</p> : null}
-    <img crossOrigin={hostClient.crossOrigin} className="file-preview-image" hidden={state !== "ready"} alt={entry.name}
-      src={hostClient.url(`/api/file-preview?${new URLSearchParams({ root, path: entry.path })}`)}
+    <img crossOrigin={client.crossOrigin} className="file-preview-image" hidden={state !== "ready"} alt={entry.name}
+      src={client.url(`/api/file-preview?${new URLSearchParams({ root, path: entry.path })}`)}
       onLoad={() => setState("ready")} onError={() => setState("error")} />
   </>;
 }

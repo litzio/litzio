@@ -1,4 +1,4 @@
-import { hostClient } from "./host-client.ts";
+import { useHostClient } from "./host-context.tsx";
 import { forwardRef, useImperativeHandle, useMemo, useRef, useState, type ReactNode } from "react";
 import { closeHistory } from "@tiptap/pm/history";
 import { Button } from "@/components/ui/button.tsx";
@@ -27,6 +27,7 @@ export const BibliographyContent = forwardRef<BibliographyHandle, {
   editor: Editor; bibliography: DocumentFileResponse["bibliography"]; documentPath: string; children: ReactNode;
 }>(function BibliographyContent({ editor, bibliography, documentPath, children }, ref) {
   useTranslation();
+  const client = useHostClient();
   const editable = useEditorState({ editor, selector: ({ editor: current }) => current.isEditable });
   const paths = useEditorState({ editor, selector: ({ editor: current }) => current.state.doc.attrs.bibliography as string[] | null });
   const declared = paths ?? bibliography?.declarations ?? [];
@@ -57,7 +58,7 @@ export const BibliographyContent = forwardRef<BibliographyHandle, {
       // One level of the existing listing, in the document's own directory. The Host
       // still decides whether the saved declarations can be read; no text preview route.
       const folder = documentPath.slice(0, Math.max(documentPath.lastIndexOf("/"), documentPath.lastIndexOf("\\")) + 1);
-      const response = await hostClient.request(`/api/folder?${new URLSearchParams({ root: folder })}`);
+      const response = await client.request(`/api/folder?${new URLSearchParams({ root: folder })}`);
       const result = await response.json() as FolderResponse;
       if (!response.ok || !Array.isArray(result.entries)) throw new Error();
       setCandidates(result.entries.filter(entry => entry.kind === "file" && entry.name.endsWith(".bib")).map(entry => entry.name));

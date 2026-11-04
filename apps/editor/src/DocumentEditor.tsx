@@ -1,3 +1,4 @@
+import { useHostClient } from "./host-context.tsx";
 import { useTableWrap, setTableWrap } from "./table-wrap.ts";
 import { DocumentSettings, type DocumentSettingsHandle } from "./shell/DocumentSettings.tsx";
 import { useDocumentReading, type ReadingCallbacks } from "./document-reading.ts";
@@ -224,11 +225,12 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   documentPathRef.current = documentPath;
   // This component remounts for a new document. Keep extension and view option identities
   // stable during React updates so setOptions cannot rebuild NodeViews holding drafts.
+  const assetClient = useHostClient();
   const [editorOptions] = useState<UseEditorOptions>(() => {
     const initialDeletedPaths: string[] = [];
     const extensions = createEditorExtensions(projection, onStructuralReject, reportDraft, () => documentPathRef.current, validateFigure, onAssetPendingChange, onAssetError,
       sourcePath => sourcePath === undefined ? activeDrafts.current.size > 0
-        : [...activeDrafts.current.values()].some(draft => draft.path === sourcePath), chooseImage, initialDeletedPaths, onAssetChange);
+        : [...activeDrafts.current.values()].some(draft => draft.path === sourcePath), chooseImage, initialDeletedPaths, onAssetChange, assetClient);
     const restored = initialSnapshot && prepareEditorSnapshot(getSchema(extensions), projection, initialSnapshot);
     if (restored) {
       saved.current = restored.savedDocument;

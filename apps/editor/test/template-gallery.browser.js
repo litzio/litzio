@@ -4,6 +4,11 @@ async (page, { expect, waitForEditorFocus }) => {
   const previousLanguage = await page.evaluate(() => localStorage.getItem('litzio.uiLanguage'));
   try {
     const origin = page.url().split('/').slice(0, 3).join('/');
+    const reconnectOrigin = origin.replace('127.0.0.1', 'localhost');
+    // Background folder observation is independent of the stale operation under test.
+    await page.route(`${reconnectOrigin}/api/folder-version?*`, route => route.fulfill({
+      headers: { 'access-control-allow-origin': origin }, json: { version: 'reconnected-fixture', revisions: [] },
+    }));
     const loaded = await (await page.request.get(origin + '/api/document')).json();
     const originalCatalog = await (await page.request.get(origin + '/api/templates?language=ko')).json();
     const sep = loaded.path.includes('\\') ? '\\' : '/';
@@ -77,6 +82,23 @@ async (page, { expect, waitForEditorFocus }) => {
     await save.getByRole('button', { name: '저장', exact: true }).click();
     await expect(save).toBeHidden();
     expect(calls).toBe(3);
+    // Reconnection is a Desktop lifecycle event, injected here to test a dialog
+    // opened AFTER the change; it must keep the source document's old client.
+    await page.route('**/api/host-capabilities', route => route.fulfill({ json: { fileDeletion: 'trash' } }));
+    await page.evaluate(async target => (await import('/src/host-client.ts')).setDesktopHost(target), reconnectOrigin);
+    try {
+      await page.keyboard.press('Control+Slash');
+      await page.getByRole('combobox').fill('템플릿으로 저장');
+      await page.getByRole('option', { name: '템플릿으로 저장…', exact: true }).click();
+      await save.getByLabel('이름', { exact: true }).fill('Previous connection');
+      await save.getByRole('button', { name: '저장', exact: true }).click();
+      await expect(save.getByRole('alert')).toContainText('Host connection changed');
+      expect(calls).toBe(3);
+      await save.getByRole('button', { name: '취소', exact: true }).click();
+    } finally {
+      await page.evaluate(async () => (await import('/src/host-client.ts')).setDesktopHost('/'));
+    }
+
     // Partial catalog failure must leave valid choices available, including a separate empty state.
     const user = { id: 'user:technical-document', name: 'technical-document', description: 'Reading table spacing', kind: 'user' };
     await page.route('**/api/template?*', route => route.fulfill({ json: { ...user, source: loaded.source } }));
@@ -109,6 +131,23 @@ async (page, { expect, waitForEditorFocus }) => {
     await expect(userCard).toBeFocused();
     await page.mouse.move(0, 0);
     await expect(preview).toBeHidden();
+    // Creating from a gallery card is also a continuation of that gallery's connection.
+    let staleCreates = 0;
+    const countCreates = request => { if (request.method() === 'PUT' && request.url().includes('/api/document')) staleCreates++; };
+    page.on('request', countCreates);
+    await page.evaluate(async target => (await import('/src/host-client.ts')).setDesktopHost(target), reconnectOrigin);
+    try {
+      await gallery.getByRole('button', { name: '이 템플릿으로 새 문서', exact: true }).first().click();
+      const newDocument = page.getByRole('dialog', { name: '새 문서', exact: true });
+      await page.getByTestId('new-file-name').fill('stale-template');
+      await newDocument.getByRole('button', { name: '만들기', exact: true }).click();
+      await expect(newDocument.getByRole('alert')).toContainText('Host connection changed');
+      expect(staleCreates).toBe(0);
+      await newDocument.getByRole('button', { name: '취소', exact: true }).click();
+    } finally {
+      page.off('request', countCreates);
+      await page.evaluate(async () => (await import('/src/host-client.ts')).setDesktopHost('/'));
+    }
   } finally {
     await page.evaluate(value => {
       if (value === null) localStorage.removeItem('litzio.uiLanguage');

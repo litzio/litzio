@@ -1,3 +1,5 @@
+import type { HostClient } from "./host-client.ts";
+import { useHostClient, useHostId } from "./host-context.tsx";
 import type { UiMessage } from "./ui-message.ts";
 import { useMessageState } from "./ui-message.ts";
 import { i18n } from "./i18n.ts";
@@ -17,7 +19,7 @@ import { createOutlineStore, type OutlineItem } from "./outline.ts";
 import { SaveDisplayError, type SaveErrorLocation } from "./save-error.ts";
 import type { DocumentView } from "./shell/TopBar.tsx";
 import { collectSupportedEdits, type TiptapJSON } from "./tiptap-document.ts";
-import { createDocumentSessionLifetime, messageOf, requestBibliography, requestDocument, requestSave, requestSource, SaveConflictError, validateFigure } from "./document-session.ts";
+import { createDocumentSessionLifetime, messageOf, createDocumentRequests, SaveConflictError } from "./document-session.ts";
 
 /** Shown until the first Save of a source whose endnote definitions canonical write moves. */
 const ENDNOTES_MOVE_NOTICE = "Save moves this file's endnote definitions after the body, in the order of their first reference, keeping each label and text. Source shows the Markdown Save writes.";
@@ -33,6 +35,9 @@ export type DocumentSessionSnapshot = {
 
 /** One document's state and operations. The shell owns the shared work-loss confirmation. */
 export function useDocumentSession(initial: DocumentFileResponse, restored?: Pick<DocumentSessionSnapshot, "editor" | "savedEdits">, recoveryId?: string, onAssetChange?: (documentPath: string, assetPath: string) => void, renameImage?: ImageRenamer, replaceFile?: (file: EditorFileResponse) => void) {
+  const client = useHostClient();
+  const hostId = useHostId();
+  const { requestBibliography, requestDocument, requestSave, requestSource, validateFigure } = createDocumentRequests(client);
   const renameRef = useRef(renameImage);
   renameRef.current = renameImage;
   const assetChangeRef = useRef(onAssetChange);
@@ -45,7 +50,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   const openedPathRef = useRef(openedPath);
   const [recorder] = useState(() => recoveryId ? createRecoveryRecorder(recoveryId, () => openedPathRef.current, () => captureRef.current(),
     cause => setRecoveryError({ key: "Local recovery is unavailable: {{reason}}. Keep this window open and save or copy your work. Changes after the last record may be lost.", values: { reason: messageOf(cause) } }),
-    () => setRecoveryError("")) : undefined);
+    () => setRecoveryError(""), hostId) : undefined);
   const [document, setDocument] = useState<EditableDocument>(initial.document);
   const sourceRevision = useRef(initial.revision);
   const [externalRevision, setExternalRevision] = useState<string | null>();
@@ -92,7 +97,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   const lifetime = useRef(createDocumentSessionLifetime()).current;
   const isCurrent = useMemo(() => lifetime.capture(), [lifetime, editorGeneration]);
   // A Figure's Choose… opens the image picker; its promise settles when the picker closes.
-  const [imageChoice, setImageChoice] = useState<{ documentPath: string; resolve(choice?: ImageChoice): void } | null>(null);
+  const [imageChoice, setImageChoice] = useState<{ client: HostClient; hostId: string; documentPath: string; resolve(choice?: ImageChoice): void } | null>(null);
   const imageChoiceRef = useRef(imageChoice);
   const imageReturnFocus = useRef<HTMLElement | null>(null);
 
@@ -113,7 +118,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     const chooseImage: ImageChooser = (documentPath, returnFocus) => new Promise(resolve => {
       if (!isCurrent()) { resolve(undefined); return; }
       imageReturnFocus.current = returnFocus.current;
-      imageChoiceRef.current = { documentPath, resolve };
+      imageChoiceRef.current = { client, hostId, documentPath, resolve };
       setImageChoice(imageChoiceRef.current);
     });
     return {
@@ -309,10 +314,10 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     if (!imageChoice || !isCurrent()) return "";
     const { documentPath, resolve } = imageChoice;
     try {
-      const { path, rollbackToken } = await chooseHostImage(documentPath, source);
+      const { path, rollbackToken } = await chooseHostImage(documentPath, source, client);
       if (rollbackToken) assetChangeRef.current?.(documentPath, path);
       // A copy no Figure ends up using is removed; a linked image is never touched.
-      const discard = rollbackToken === undefined ? undefined : () => void rollbackAsset({ path, rollbackToken }, documentPath).finally(() => assetChangeRef.current?.(documentPath, path)).catch((cause: unknown) => {
+      const discard = rollbackToken === undefined ? undefined : () => void rollbackAsset({ path, rollbackToken }, documentPath, client).finally(() => assetChangeRef.current?.(documentPath, path)).catch((cause: unknown) => {
         if (isCurrent()) setError({ key: "The unused copied image remains at {{path}}: {{reason}}", values: { path: path, reason: messageOf(cause) } });
       });
       if (!isCurrent() || imageChoiceRef.current !== imageChoice) {
@@ -345,7 +350,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   captureRef.current = () => isCurrent() && editorRef.current?.hasDocumentChanges() ? getSnapshot() : null;
 
   return {
-    kind: "native" as const,
+    client, hostId, kind: "native" as const,
     recoveryError, discardRecovery: () => recorder?.discard(),
     suspendRecovery: () => recorder?.cancel(),
     resumeRecovery: () => { if (editorRef.current?.hasDocumentChanges()) recorder?.edit(); },

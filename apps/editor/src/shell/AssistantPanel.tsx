@@ -1,9 +1,10 @@
-import { hostClient } from "../host-client.ts";
+import { createAssistantRequest } from "../assistant-api.ts";
+import { useHostClient, HostContext } from "../host-context.tsx";
 import { displayRequestCurrent, displayValues, type DisplayRequest, type DisplayReply, type DisplayReceipt, type DisplaySnapshot, type DisplaySettings } from "../../shared/assistant-display.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquare, Plus, History, X, ArrowUp, Square, Check } from "lucide-react";
 import { ASSISTANT, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
@@ -16,13 +17,8 @@ import "./assistant.css";
 import { CopyButton } from "../components/CopyButton.tsx";
 import { AssistantAnswer } from "./AssistantAnswer.tsx";
 
-async function request<T>(url: string, body?: unknown): Promise<T> {
-  const response = await hostClient.request(url, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined);
-  const data = await response.json(); if (!response.ok) throw new Error(data.error ?? response.statusText); return data;
-}
-const conversationKey = `${brand.storagePrefix}.assistantConversation`;
-function lastConversation() { try { return localStorage.getItem(conversationKey) || undefined; } catch { return undefined; } }
-function rememberConversation(id?: string) { try { if (id) localStorage.setItem(conversationKey, id); else localStorage.removeItem(conversationKey); } catch { /* In-page state remains usable. */ } }
+function lastConversation(conversationKey: string) { try { return localStorage.getItem(conversationKey) || undefined; } catch { return undefined; } }
+function rememberConversation(conversationKey: string, id?: string) { try { if (id) localStorage.setItem(conversationKey, id); else localStorage.removeItem(conversationKey); } catch { /* In-page state remains usable. */ } }
 const pathName = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).at(-1) || path;
 const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
@@ -36,6 +32,10 @@ type Props = { settingsRevision: number; open: boolean; overlay: boolean; width:
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
 export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onDisplay }: Props) {
   useTranslation();
+  const client = useHostClient();
+  const [hostId] = useState(useContext(HostContext));
+  const conversationKey = `${brand.storagePrefix}.assistantConversation:${hostId}`;
+  const request = createAssistantRequest(client);
   // Match existing editor identities: getRandomValues also works on non-localhost HTTP.
   const [displayClient] = useState(() => crypto.getRandomValues(new Uint32Array(4)).join("-"));
   const displayHandler = useRef(onDisplay); displayHandler.current = onDisplay;
@@ -91,13 +91,13 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
     void request<AssistantSettings>(ASSISTANT.settingsRoute).then(async value => {
       if (!alive) return;
       setSettings(value); if (value.provider === "copilot") setReferences(previous => previous.filter(file => file.kind !== "skill")); if (!current.current && (!settings || refreshingSettings)) defaults(value);
-      const id = current.current?.id ?? lastConversation();
+      const id = current.current?.id ?? lastConversation(conversationKey);
       let resumed: AssistantConversation | undefined;
       if (id) {
         try { resumed = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "resume", id }); }
         catch {
           // A missing or unavailable last thread must not block a fresh conversation.
-          if (alive) { current.current = undefined; setConversation(undefined); rememberConversation(); setMessage(""); setProblem(""); defaults(value); }
+          if (alive) { current.current = undefined; setConversation(undefined); rememberConversation(conversationKey, ); setMessage(""); setProblem(""); defaults(value); }
         }
       }
       if (!alive) return;
@@ -107,7 +107,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
       setModels(catalog);
       if (resumed) {
         if (!current.current) { setModel(resumed.model); setEffort(resumed.reasoningEffort); setMode(resumed.copilot?.currentMode ?? ""); setProvider(selectedProvider); setPermissionMode(resumed.permissionMode ?? value.permissionMode); }
-        setConversation(resumed); rememberConversation(resumed.id);
+        setConversation(resumed); rememberConversation(conversationKey, resumed.id);
       } else setMode(catalog.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? "");
       if (!diagnostics.connected) { setSetup(diagnostics.error ?? "Codex CLI is unavailable on the Host."); return; }
       if (selectedProvider === "codex" && !diagnostics.account) { setSetup("Sign in to Codex to start a conversation."); return; }
@@ -181,7 +181,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
     const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "send", displayClient, id: conversation?.id, message: value,
       provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: provider !== "codex" ? [] : references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document });
     if (!isCurrent()) return;
-    setConversation(next); rememberConversation(next.id); setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
+    setConversation(next); rememberConversation(conversationKey, next.id); setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
   });
   const addReference = (file: AssistantFileReference) => {
@@ -285,7 +285,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
         let catalog = models;
         if (settings && provider !== settings.provider) catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${settings.provider}`);
         if (!isCurrent()) return;
-        setConversation(undefined); rememberConversation(); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null);
+        setConversation(undefined); rememberConversation(conversationKey, ); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null);
         setModels(catalog); if (settings) defaults(settings);
         setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); input.current?.focus();
       })}><Plus /></Button>
@@ -303,7 +303,7 @@ export function AssistantPanel({ settingsRevision, open, overlay, width, onWidth
         {!history.length ? <p>{i18n.t("No conversations yet.")}</p> : history.map(entry => <Button key={entry.id} variant="ghost" disabled={pending} onClick={() => void run(async isCurrent => {
           const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "resume", id: entry.id });
           if (!isCurrent()) return;
-          setConversation(next); rememberConversation(next.id); setProvider(next.provider ?? provider); setPermissionMode(next.permissionMode ?? settings!.permissionMode); setModel(next.model); setEffort(next.reasoningEffort); setMode(next.copilot?.currentMode ?? ""); setHistory(null); input.current?.focus();
+          setConversation(next); rememberConversation(conversationKey, next.id); setProvider(next.provider ?? provider); setPermissionMode(next.permissionMode ?? settings!.permissionMode); setModel(next.model); setEffort(next.reasoningEffort); setMode(next.copilot?.currentMode ?? ""); setHistory(null); input.current?.focus();
         })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
           {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
         : conversation?.turns.map(turn => <section key={turn.id} className="assistant-turn" data-status={turn.status}>

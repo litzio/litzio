@@ -1,3 +1,5 @@
+import type { HostClient } from "../host-client.ts";
+import { useHostClient } from "../host-context.tsx";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
@@ -7,7 +9,7 @@ import type { TemplateContent, TemplateList, TemplateSummary } from "../../share
 import { DocumentEditor } from "../DocumentEditor.tsx";
 import { i18n } from "../i18n.ts";
 import { messageOf } from "../document-session.ts";
-import { templateLanguage, templateRequest } from "../template-api.ts";
+import { templateLanguage, createTemplateRequest } from "../template-api.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Popover, PopoverContent } from "@/components/ui/popover.tsx";
 import { Notice } from "../ui/primitives.tsx";
@@ -18,10 +20,12 @@ const templateText = i18n.getFixedT(null, "templates");
 
 export function TemplateGallery({ active, revision, disabled, onCreate, onOpenFolder }: {
   active: boolean; revision: number; disabled: boolean;
-  onCreate(item: TemplateSummary, returnFocus: HTMLElement): void;
+  onCreate(item: TemplateSummary, returnFocus: HTMLElement, client: HostClient): void;
   onOpenFolder(path: string): Promise<string>;
 }) {
   useTranslation();
+  const client = useHostClient();
+  const templateRequest = createTemplateRequest(client);
   const language = templateLanguage();
   const [catalog, setCatalog] = useState<TemplateList>();
   const [problem, setProblem] = useState("");
@@ -103,7 +107,7 @@ export function TemplateGallery({ active, revision, disabled, onCreate, onOpenFo
               <FileText aria-hidden="true" /><span className="template-card-name">{item.name}</span>
               {item.kind === "builtin" ? <span className="template-card-badge">{templateText("Built-in")}</span> : null}
             </PopoverPrimitive.Trigger>
-            <div className="template-card-footer"><Button size="sm" variant="secondary" disabled={disabled} onClick={event => { setOpen(false); onCreate(item, event.currentTarget); }}>
+            <div className="template-card-footer"><Button size="sm" variant="secondary" disabled={disabled} onClick={event => { setOpen(false); onCreate(item, event.currentTarget, client); }}>
               {templateText("New document from template")}</Button></div>
           </article>)}
         </div> : <p className="template-gallery-empty">{section.kind === "user" ? templateText("No user templates yet.") : templateText("No templates available.")}</p>}

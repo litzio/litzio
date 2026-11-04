@@ -1,7 +1,8 @@
+import type { HostClient } from "../host-client.ts";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
-import { templateRequest } from "../template-api.ts";
+import { createTemplateRequest } from "../template-api.ts";
 import { messageOf } from "../document-session.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Input } from "@/components/ui/input.tsx";
@@ -10,10 +11,11 @@ import { FieldError } from "../ui/primitives.tsx";
 
 const templateText = i18n.getFixedT(null, "templates");
 
-export function SaveTemplateDialog({ path, returnFocus, onClose, onSaved }: {
-  path: string; returnFocus: HTMLElement | null; onClose(): void; onSaved(): void;
+export function SaveTemplateDialog({ client, path, returnFocus, onClose, onSaved }: {
+  client: HostClient; path: string; returnFocus: HTMLElement | null; onClose(): void; onSaved(): void;
 }) {
   useTranslation();
+  const templateRequest = createTemplateRequest(client);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");

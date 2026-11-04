@@ -488,20 +488,20 @@ test("Diagram insertion and source Apply retain one-step history and canonical S
 });
 
 
-import { createHostClient, hostClient } from "../src/host-client.ts";
+import { createHostClient } from "../src/host-client.ts";
 import { resolveFigureSource } from "../src/node-views/figure-view.tsx";
 import { renderPlainMarkdown } from "../src/plain-markdown.ts";
-import { requestSave } from "../src/document-session.ts";
+import { createDocumentRequests } from "../src/document-session.ts";
 
 test("Host address applies to API and rendered media without entering serialized source", async t => {
   const target = createHostClient("http://127.0.0.1:43123/");
-  t.mock.method(hostClient, "url", target.url);
+  const { requestSave } = createDocumentRequests(target);
   const markdown = nativeSource(":::{figure} ./assets/a.svg\n:alt: Diagram\n\nCaption.\n:::\n");
   const document = parse(markdown);
   const before = serialize(document);
   const media = "http://127.0.0.1:43123/document/assets/a.svg?path=%2Froot%2Fa.md";
-  assert.equal(resolveFigureSource("./assets/a.svg", "/root/a.md"), media);
-  assert.ok(renderPlainMarkdown("![Diagram](./assets/a.svg)", "/root/a.md").includes(media));
+  assert.equal(resolveFigureSource("./assets/a.svg", "/root/a.md", target), media);
+  assert.ok(renderPlainMarkdown("![Diagram](./assets/a.svg)", "/root/a.md", target).includes(media));
   assert.equal(resolveFigureSource("https://example.com/a.svg", "/root/a.md"), "https://example.com/a.svg");
   const after = serialize(document);
   assert.equal(after, before);

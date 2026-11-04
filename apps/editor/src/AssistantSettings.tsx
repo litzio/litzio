@@ -1,4 +1,4 @@
-import { hostClient } from "./host-client.ts";
+import { useHostClient } from "./host-context.tsx";
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ASSISTANT, type AssistantSettings, type AiModels, type AssistantDiagnostics, type AssistantEnvironment, type AiProvider } from "../shared/assistant.ts";
 import "./assistant-settings.css";
@@ -18,12 +18,13 @@ function Dialog({ open, onClose, title, description, returnFocus, children, foot
     </DialogContent>
   </BaseDialog>;
 }
-async function request<T>(route: string, method = "GET", body?: unknown): Promise<T> {
- const response = await hostClient.request(route, { method, ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
+function createRequest(client: ReturnType<typeof useHostClient>) { return async function request<T>(route: string, method = "GET", body?: unknown): Promise<T> {
+ const response = await client.request(route, { method, ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}) });
  const value = await response.json(); if (!response.ok) throw new Error(value.error ?? `HTTP ${response.status}`); return value;
-}
+}; }
 
 export function AssistantSettings({ onSaved }: { onSaved(): void }) {
+    const request = createRequest(useHostClient());
     const [settings, setSettings] = useState<AssistantSettings>();
     const [storedSettings, setStoredSettings] = useState<AssistantSettings>();
     const [inspecting, setInspecting] = useState<AiProvider>("codex");

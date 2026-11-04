@@ -6,6 +6,11 @@
 - Scope: #1128 and #936 phases 1–3: Core semantics, thin CLI/Host interfaces, Editor gallery and assistant guidance.
 - Authority: [#936 owner decisions](https://github.com/litzio/litzio/issues/936), including the 2026-11-04 approval of optional `template: { name, description }`; [native support](document-support-v1.md), [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md) and [ADR-0006](../adr/0006-native-document-boundary.md).
 
+## Host 요청 경계 (#1174 PR2)
+
+템플릿 목록·미리보기 표면은 mount 시 Host client를 고정한다. 사용자 템플릿 저장 대화상자는 원본 문서 세션의 client를 직접 받으며, 대화상자를 여는 시점의 현재 client로 대체하지 않는다. 원본 연결이 달라졌으면 제출을 전송 전에 거부한다. 갤러리에서 템플릿을 선택해 시작한 문서 생성은 갤러리의 고정 client를 생성 대화상자까지 전달하며, 연결 변경 뒤 새 문서 PUT도 전송 전에 거부한다. 비동기 완료 전에 활성 탭을 바꾸어도 요청이 다른 Host로 이동하지 않으며 쓰기를 자동 replay하지 않는다. 운영 목록은 로컬 하나이며 원격 등록과 화면 대상 선택은 ADR-0018 PR3~4에서 통합한다.
+
+
 ## Native document semantics
 
 A template is an ordinary native Markdown document accepted by Core, not a new

@@ -1,10 +1,8 @@
-import { hostClient } from "./host-client.ts";
-export let fileDeletion: "trash" | "permanent" = "permanent";
-
-/** The confirmation names the actual Host deletion adapter, in Desktop and browsers alike. */
-export async function connectHost(): Promise<void> {
-  try {
-    const response = await hostClient.request("/api/host-capabilities");
-    if (response.ok) fileDeletion = (await response.json()).fileDeletion === "trash" ? "trash" : "permanent";
-  } catch { /* Vite has no capability endpoint; its deletion remains permanent. */ }
+import { hostRegistry } from "./host-client.ts";
+import { LOCAL_HOST_ID } from "./host-locator.ts";
+export function fileDeletion(hostId = LOCAL_HOST_ID): "trash" | "permanent" {
+  return hostRegistry.get(hostId).capabilities?.fileDeletion ?? "permanent";
+}
+export async function connectHost(hostId = LOCAL_HOST_ID): Promise<void> {
+  await hostRegistry.connect(hostId);
 }

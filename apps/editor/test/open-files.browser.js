@@ -1,12 +1,17 @@
 // Run with pnpm browser:test open-files.
 // Mocks two selected Markdown files while exercising the real Editor state flow.
-async (page, { showNotifications, openDocument, openPath, screenshots = false }) => {
+async (page, { showNotifications, openDocument, openPath, expect, screenshots = false }) => {
   page.setDefaultTimeout(15000);
   await page.unroute('**/api/document');
   await page.unrouteAll();
   await page.reload();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const origin = page.url().split('/').slice(0, 3).join('/');
+  const reconnectOrigin = origin.replace('127.0.0.1', 'localhost');
+  // Background folder observation is independent of the stale operation under test.
+  await page.route(`${reconnectOrigin}/api/folder-version?*`, route => route.fulfill({
+    headers: { 'access-control-allow-origin': origin }, json: { version: 'reconnected-fixture', revisions: [] },
+  }));
   const loaded = await (await page.request.get(`${origin}/api/document`)).json();
   const separator = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(separator).slice(0, -4).join(separator);
@@ -27,6 +32,8 @@ async (page, { showNotifications, openDocument, openPath, screenshots = false })
   const longDialogLayouts = [];
   let conflictNext = false;
   let failNext = false;
+  let pendingOpen;
+  let releaseOpen;
   let pendingSave;
   let releaseSave;
   // The Desktop Host's first answer when the app was started without a document.
@@ -38,6 +45,7 @@ async (page, { showNotifications, openDocument, openPath, screenshots = false })
     if (request.method() === 'GET') {
       if (!queryPath(request.url()) && startNext) return route.fulfill({json:{start:true, samples:{ko:pathB,en:pathB}}});
       const requestedPath = queryPath(request.url()) || pathA;
+      if (requestedPath === pathA && pendingOpen) await pendingOpen;
       const response = files.get(requestedPath);
       if (!response) return route.fulfill({status:400,json:{error:'unknown test file'}});
       return route.fulfill({json:response});
@@ -302,12 +310,34 @@ async (page, { showNotifications, openDocument, openPath, screenshots = false })
     await confirmation.getByRole('button',{name:"Don't save",exact:true}).click();
     await confirmation.waitFor({state:'detached'});
     if (await page.getByTestId('current-file').getAttribute('title') !== pathB || requests.length !== draftWrites) throw new Error('Inactive discard changed B or wrote a draft');
+    // The selected GET owns the old connection even if its answer arrives after reconnect.
+    pendingOpen = new Promise(resolve => { releaseOpen = resolve; });
+    const startedOpen = page.waitForRequest(request => request.method() === 'GET' && queryPath(request.url()) === pathA);
+    await openDocument(page, pathA);
+    await startedOpen;
+    await page.route('**/api/host-capabilities', route => route.fulfill({ json: { fileDeletion: 'trash' } }));
+    const writesBeforeLateOpen = requests.length;
+    try {
+      await page.evaluate(async target => (await import('/src/host-client.ts')).setDesktopHost(target), reconnectOrigin);
+      releaseOpen();
+      await showNotifications(page);
+      await expect(page.getByText(/Host connection changed/).last()).toBeVisible();
+      await expect(page.getByRole('tab', { name: /litzio-a.md/ })).toHaveCount(0);
+      await expect(page.getByTestId('current-file')).toHaveAttribute('title', pathB);
+      await page.keyboard.press('Escape');
+      await page.keyboard.press('Control+s');
+      expect(requests.length).toBe(writesBeforeLateOpen);
+    } finally {
+      releaseOpen(); pendingOpen = undefined;
+      await page.evaluate(async () => (await import('/src/host-client.ts')).setDesktopHost('/'));
+    }
     if (longDialogFailures.length) throw Error(JSON.stringify(longDialogLayouts));
     await page.evaluate(() => localStorage.removeItem(JSON.stringify(["local", "litzio.recentFolders"])));
     return {longDialogLayouts, start:true, independentSaves:true, savingSwitchGuarded:true, closeCancel:true, closeSave:true, closeDiscard:true, failureRetained:true, conflictRetained:true, newerEditsRetained:true, inactiveClose:true};
   } finally {
     // The page fixture closes the page and its routes. Do not evaluate in a timed-out page:
     // that cleanup error would hide the action that originally failed.
+    releaseOpen?.();
     releaseSave?.();
   }
 

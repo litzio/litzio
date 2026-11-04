@@ -1,5 +1,6 @@
+import { HostContext, HostClientContext } from "./host-context.tsx";
 import { LOCAL_HOST_ID, sameLocator } from "./host-locator.ts";
-import { hostClient } from "./host-client.ts";
+import { getHostClient, type HostClient } from "./host-client.ts";
 import { handleDisplayRequest } from "./assistant-display.ts";
 import { creationUndoNeedsConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
@@ -26,7 +27,7 @@ import { DocumentTab, type EditorSession, type SessionSnapshot } from "./Documen
 import { documentScrollContainer, scrollDocumentFromShell } from "./document-scroll.ts";
 import { DocumentTabs } from "./shell/DocumentTabs.tsx";
 import { editorGroups, initialEditorGroups, allTabsPendingWork, openedTab, tabLabels, tabNames } from "./document-tabs.ts";
-import { messageOf, NativeOpenError, requestDocument } from "./document-session.ts";
+import { messageOf, NativeOpenError, createDocumentRequests } from "./document-session.ts";
 import { THEME_LABELS, THEMES, writeTheme, type ThemePreference, readDocumentWidth, readOpenTabs, readRecentFolders, rememberRecentFolder, visibleRecentFolders, writeDocumentWidth, writeOpenTabs, type DocumentWidth } from "./preferences.ts";
 import { applyTheme, currentTheme } from "./theme.ts";
 import { DocumentPanel } from "./shell/DocumentPanel.tsx";
@@ -77,7 +78,7 @@ const SaveCompare = lazy(() => import("./shell/SaveCompare.tsx"));
 const PANEL_OVERLAY_LAYOUT = "(width < 89rem)";
 // 640px supported viewport - 200px narrow Explorer; two groups plus their boundary.
 const SPLIT_MIN_WIDTH = 440 * 2 + 1;
-type Tab = { hostId: string; id: string; path: string; file: EditorFileResponse; recoveryId: string; restored?: SessionSnapshot };
+type Tab = { client: HostClient; hostId: string; id: string; path: string; file: EditorFileResponse; recoveryId: string; restored?: SessionSnapshot };
 
 /** The Desktop app's bridge; the browser Editor has none and shows no Desktop UI. */
 const desktop = typeof window === "undefined" ? undefined : window.litzioDesktop;
@@ -165,9 +166,9 @@ function EditorApp() {
   const recentFoldersRef = useRef(recentFolders);
   const [allowedRoots, setAllowedRoots] = useState<string[] | undefined>(undefined);
   const visibleRecent = visibleRecentFolders(recentFolders, allowedRoots);
-  const [newTemplate, setNewTemplate] = useState<TemplateSummary>();
+  const [newTemplate, setNewTemplate] = useState<TemplateSummary & { client: HostClient }>();
   const [templateRevision, setTemplateRevision] = useState(0);
-  const [saveTemplate, setSaveTemplate] = useState<{ path: string; returnFocus: HTMLElement | null }>();
+  const [saveTemplate, setSaveTemplate] = useState<{ client: HostClient; hostId: string; path: string; returnFocus: HTMLElement | null }>();
   const [newDialog, setNewDialog] = useState(false);
   const [newDirectory, setNewDirectory] = useState("");
   const [newFolderDialog, setNewFolderDialog] = useState(false);
@@ -249,6 +250,8 @@ function EditorApp() {
     if (!recoveryReview) return;
     const record = recoveryReview.record;
     if (record.hostId !== LOCAL_HOST_ID) throw new Error("This recovery belongs to an unavailable Host.");
+    const client = getHostClient(record.hostId);
+    client.assertCurrent();
     const restored = prepareRecovery(record);
     const existing = openedTab(tabs, record.path, record.hostId);
     const owner = existing && sessions.current.get(existing.id);
@@ -257,8 +260,15 @@ function EditorApp() {
     }
     const recoveryId = newRecoveryId();
     await recoveryStorage.restore(record, recoveryId);
+    try { client.assertCurrent(); }
+    catch (cause) {
+      // restore only transfers the durable record to recoveryId; preserve it for review.
+      setRecoveryReview(null);
+      await refreshRecovery();
+      throw cause;
+    }
     const id = `document-${++nextId.current}`;
-    setTabs(previous => [...previous.filter(tab => tab.id !== existing?.id), { id, hostId: record.hostId, path: record.path, file: restored.file, recoveryId, restored }]);
+    setTabs(previous => [...previous.filter(tab => tab.id !== existing?.id), { client, id, hostId: record.hostId, path: record.path, file: restored.file, recoveryId, restored }]);
     if (existing) navigate({ type: "close", id: existing.id });
     navigate({ type: "open", id });
     rememberTabs();
@@ -303,7 +313,7 @@ function EditorApp() {
       try {
         const query = new URLSearchParams();
         query.set("paths", JSON.stringify(checks.map(check => check.path)));
-        const response = await hostClient.request(`/api/folder-version?${query}`, { signal: controller.signal });
+        const response = await getHostClient(LOCAL_HOST_ID).request(`/api/folder-version?${query}`, { signal: controller.signal });
         if (!response.ok) return;
         const { revisions } = await response.json() as { revisions?: { path: string; revision: string | null }[] };
         if (!controller.signal.aborted) for (const check of checks) {
@@ -344,6 +354,10 @@ function EditorApp() {
     editorRef = emptyEditorRef, document, outlineStore, view = "visual",
     imageChoice = null, imageReturnFocus = emptyImageRef,
   } = nativeSession ?? {};
+  const imageHostId = imageChoice?.hostId ?? LOCAL_HOST_ID;
+  const imageClient = imageChoice?.client ?? getHostClient(imageHostId);
+  const browseImages = useCallback((path: string) => browseHostFolder(path, "image", imageHostId, imageClient), [imageHostId, imageClient]);
+  const imagePlaces = useCallback(() => folderPlaces(imageHostId, imageClient), [imageHostId, imageClient]);
   const { openedPath = "", draftActive = false, documentDirty = false, reloadDialog = false } = session ?? {};
   const tableWrapPath = nativeSession ? openedPath : "";
   const tableWrap = useTableWrap(tableWrapPath);
@@ -356,14 +370,14 @@ function EditorApp() {
     saveComparisonReturnFocus.current = returnFocus;
     if (owner.kind === "text") {
       const snapshot = owner.getSnapshot();
-      setSaveComparison({ path: snapshot.file.path, revision: snapshot.file.revision, text: snapshot.text });
+      setSaveComparison({ client: owner.client, hostId: owner.hostId, path: snapshot.file.path, revision: snapshot.file.revision, text: snapshot.text });
       return;
     }
     const submitted = owner.editorRef.current?.getDocument();
-    try { setSaveComparison({ path: owner.openedPath, revision: owner.acknowledgedRevision, submitted, request: owner.savePreviewRequest() }); }
+    try { setSaveComparison({ client: owner.client, hostId: owner.hostId, path: owner.openedPath, revision: owner.acknowledgedRevision, submitted, request: owner.savePreviewRequest() }); }
     catch (cause) {
       const failure = cause instanceof SaveContentError ? cause : new SaveContentError(messageOf(cause), undefined, { phase: "collect", cause });
-      setSaveComparison({ path: owner.openedPath, revision: owner.acknowledgedRevision, submitted, failure: new SaveDisplayError([failure], submitted) });
+      setSaveComparison({ client: owner.client, hostId: owner.hostId, path: owner.openedPath, revision: owner.acknowledgedRevision, submitted, failure: new SaveDisplayError([failure], submitted) });
     }
   }
   const save = () => session?.save();
@@ -455,14 +469,15 @@ function EditorApp() {
     return () => observer.disconnect();
   }, [split]);
 
-  function acceptFile(file: EditorFileResponse, group = navigation.focused): void {
+  function acceptFile(file: EditorFileResponse, client: HostClient, group = navigation.focused): void {
+    client.assertCurrent();
     const existing = openedTab(tabs, file.path);
     const target = splitAvailable.current ? group : navigation.focused;
     if (existing) placeTab(existing.id, target);
     else {
       const id = `document-${++nextId.current}`;
       const recoveryId = newRecoveryId();
-      setTabs(previous => [...previous, { id, hostId: LOCAL_HOST_ID, path: file.path, file, recoveryId }]);
+      setTabs(previous => [...previous, { client, id, hostId: LOCAL_HOST_ID, path: file.path, file, recoveryId }]);
       placeTab(id, target);
     }
   }
@@ -471,6 +486,8 @@ function EditorApp() {
     // usable start/default document while folder restoration continues independently.
     if (tabsRestored || !folders.restored && readOpenTabs()?.paths.length) return;
     let current = true;
+    const client = getHostClient(LOCAL_HOST_ID);
+    const { requestDocument } = createDocumentRequests(client);
     void (async () => {
       const path = new URLSearchParams(window.location.search).get("path")?.trim() || undefined;
       const saved = readOpenTabs();
@@ -493,7 +510,8 @@ function EditorApp() {
       if (!current) return;
       const initialTabs: Tab[] = [];
       const add = (file: EditorFileResponse) => {
-        if (!openedTab(initialTabs, file.path)) initialTabs.push({ hostId: LOCAL_HOST_ID, id: `document-${++nextId.current}`, path: file.path, file, recoveryId: newRecoveryId() });
+        client.assertCurrent();
+        if (!openedTab(initialTabs, file.path)) initialTabs.push({ client, hostId: LOCAL_HOST_ID, id: `document-${++nextId.current}`, path: file.path, file, recoveryId: newRecoveryId() });
       };
       // Explicit URL/ Desktop launch documents win over navigation memory. The Vite default
       // is only a fallback when no preference exists; an empty preference keeps the start screen.
@@ -523,6 +541,7 @@ function EditorApp() {
       if (!current) return;
       setStart("start" in first ? first : { start: true, samples: first.samples, sampleProblem: first.sampleProblem });
       if ("start" in first) setAllowedRoots(first.allowedRoots);
+      client.assertCurrent();
       setTabs(initialTabs);
       navigate({ type: "reset", tabs: initialTabs.map(tab => tab.id), active: openedTab(initialTabs, activePath ?? "")?.id ?? initialTabs[0]?.id ?? null });
       // With no clean tabs, the existing start-screen list already offers every record.
@@ -553,6 +572,7 @@ function EditorApp() {
     const formSession = figure && localSessions().filter(owner => owner.kind === "native").find(owner => owner.openedPath === figure.documentPath);
     const tab = tabs.find(tab => sameLocator(tab, { hostId: LOCAL_HOST_ID, path: entry.path }));
     const owner = tab && sessions.current.get(tab.id);
+    const client = formSession ? formSession.client : owner?.client ?? getHostClient(LOCAL_HOST_ID);
     owner?.suspendRecovery();
     let completed = false;
     try {
@@ -566,7 +586,7 @@ function EditorApp() {
       let checkedRecovery: RecoveryRecord[] | undefined;
       if (creation !== undefined) {
         if (!creation.identity) throw new Error("This creation receipt has no file identity. Undo is unavailable.");
-        const check = await hostClient.request(`/api/file`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ root, path: entry.path, checkOnly: true, expectedIdentity: creation.identity }) });
+        const check = await client.request(`/api/file`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ root, path: entry.path, checkOnly: true, expectedIdentity: creation.identity }) });
         const state = await check.json();
         if (!check.ok || typeof state.revision !== "string") throw new Error(state.error ?? "Could not check file.");
         expectedRevision = state.revision;
@@ -598,7 +618,7 @@ function EditorApp() {
           }
         }
       }
-      const response = await hostClient.request(`/api/file`, {
+      const response = await client.request(`/api/file`, {
         method: action === "delete" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ root, path: entry.path, ...(expectedRevision !== undefined ? { expectedRevision, expectedIdentity: creation!.identity } : {}), ...(action === "rename" ? { name, openDocuments } : {}),
           ...(figure && formSession ? { figureDocument: { path: figure.documentPath, imageUrl: figure.imageUrl,
@@ -761,9 +781,10 @@ function EditorApp() {
     setOperation("opening");
     setError("");
     try {
-      const next = await requestDocument("GET", requestedPath, folders.rootOf(requestedPath));
+      const client = getHostClient(LOCAL_HOST_ID);
+      const next = await createDocumentRequests(client).requestDocument("GET", requestedPath, folders.rootOf(requestedPath));
       if ("start" in next) throw new UiError({ key: "The Host did not return a document." });
-      acceptFile(next, group);
+      acceptFile(next, client, group);
       void offerRecovery(next);
       setNotice(openedNotice);
       return "";
@@ -789,7 +810,9 @@ function EditorApp() {
     setError("");
     setNotice("");
     try {
-      acceptFile(await requestDocument("PUT", path, folders.rootOf(path), newTemplate ? { template: newTemplate.id, language: templateLanguage() } : undefined));
+      const client = newTemplate?.client ?? getHostClient(LOCAL_HOST_ID);
+      const file = await createDocumentRequests(client).requestDocument("PUT", path, folders.rootOf(path), newTemplate ? { template: newTemplate.id, language: templateLanguage() } : undefined);
+      acceptFile(file, client);
       return "";
     } catch (cause) { const message = messageOf(cause); setError(message); return message; }
     finally { operationRef.current = false; setOperation(""); }
@@ -798,13 +821,13 @@ function EditorApp() {
   function newDirectoryIn(root: string): string {
     return folderChain(root, openedPath).at(-1) ?? root;
   }
-  function newFile(root: string, exact = false, template?: TemplateSummary): void {
+  function newFile(root: string, exact = false, template?: TemplateSummary & { client: HostClient }): void {
     if (busy || continuation) { setError({ key: "Wait for the current operation to finish." }); return; }
     setNewTemplate(template);
     setNewDirectory(exact ? root : newDirectoryIn(root));
     setNewDialog(true);
   }
-  function newDocument(returnFocus: HTMLElement | null, template?: TemplateSummary): void {
+  function newDocument(returnFocus: HTMLElement | null, template?: TemplateSummary & { client: HostClient }): void {
     if (busy || continuation) return;
     setNewTemplate(template);
     newFileButton.current = returnFocus;
@@ -1089,7 +1112,7 @@ function EditorApp() {
       run: () => {
         if (!session || session.kind !== "native") return;
         if (session.editorRef.current?.hasUnsavedChanges()) { setError({ key: "Save the document before saving it as a template." }); return; }
-        setSaveTemplate({ path: session.openedPath, returnFocus: commandReturnFocus.current });
+        setSaveTemplate({ client: session.client, hostId: session.hostId, path: session.openedPath, returnFocus: commandReturnFocus.current });
       } },
     { id: "new-document", kind: "command", label: i18n.t("New document…"), icon: FileText, takesFocus: true,
       disabled: busy || Boolean(continuation), keywords: ["new document", "new file", "새 문서", "새 파일"],
@@ -1312,9 +1335,9 @@ function EditorApp() {
           {tabs.map(tab => {
             const groupIndex = navigation.groups.findIndex(group => group.tabs.includes(tab.id));
             const group = navigation.groups[groupIndex];
-            return <DocumentTab settingsDisabled={Boolean(operation || fileOperationPending || continuationPending)} key={tab.id} id={tab.id} file={tab.file} restored={tab.restored} recoveryId={tab.recoveryId}
+            return <DocumentTab client={tab.client} hostId={tab.hostId} settingsDisabled={Boolean(operation || fileOperationPending || continuationPending)} key={tab.id} id={tab.id} file={tab.file} restored={tab.restored} recoveryId={tab.recoveryId}
               active={group?.active === tab.id} focused={tab.id === activeId} groupIndex={groupIndex} onFocus={focusDocument}
-              report={reportSession} onAssetChange={onAssetChange} renameImage={renameImage} onReveal={revealDocument}
+              report={reportSession} onAssetChange={onAssetChange} renameImage={tab.hostId === LOCAL_HOST_ID ? renameImage : async () => { throw new Error("Image rename requires Host-specific shell integration."); }} onReveal={revealDocument}
               onCompare={compareExternal} />;
           })}
           {galleryGroup ? <div className="shell-tab" role="tabpanel" tabIndex={-1} id="panel-templates" aria-labelledby="tab-templates"
@@ -1322,7 +1345,7 @@ function EditorApp() {
             data-group-index={navigation.groups.indexOf(galleryGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(galleryGroup) } as React.CSSProperties}
             onFocusCapture={() => focusDocument("templates")} onPointerDownCapture={() => focusDocument("templates")}>
             <Suspense fallback={null}><TemplateGallery active={galleryOpen} revision={templateRevision} disabled={busy || Boolean(continuation)}
-              onCreate={(item, focus) => newDocument(focus, item)} onOpenFolder={path => openFolder(path)} /></Suspense>
+              onCreate={(item, focus, client) => newDocument(focus, { ...item, client })} onOpenFolder={path => openFolder(path)} /></Suspense>
           </div> : null}
           {settingsGroup ? <div className="shell-tab settings-tab" role="tabpanel" tabIndex={-1} id="panel-settings" aria-labelledby="tab-settings"
             hidden={!settingsOpen} inert={!settingsOpen} data-document-tab="settings" data-active={settingsFocused ? "true" : "false"}
@@ -1401,21 +1424,21 @@ function EditorApp() {
         finalFocus={() => folderNewReady.current || pendingFolderFocus.current ? false : shellReturnFocus(dialogReturnFocus.current)}
         onClose={() => { setFolderDialog(false); setNewAfterFolder(false); }}
       />
-      <FolderDialog
+      <HostContext.Provider value={imageChoice?.hostId ?? LOCAL_HOST_ID}><HostClientContext.Provider value={imageClient}><FolderDialog
         open={imageChoice !== null}
         choose="image"
         initialPath={imageChoice ? splitDocumentPath(imageChoice.documentPath).directory : ""}
         recent={visibleRecent}
         restricted={allowedRoots !== undefined}
         allowedRoots={allowedRoots}
-        browse={browseHostImages}
-        places={folderPlaces}
+        browse={browseImages}
+        places={imagePlaces}
         onOpen={selectImage}
         returnFocus={imageReturnFocus}
         onClose={closeImageChoice}
-      />
-      {saveTemplate ? <SaveTemplateDialog {...saveTemplate} onClose={() => setSaveTemplate(undefined)}
-        onSaved={() => { setSaveTemplate(undefined); setTemplateRevision(value => value + 1); setNotice({ key: "Template saved." }); }} /> : null}
+      /></HostClientContext.Provider></HostContext.Provider>
+      {saveTemplate ? <HostContext.Provider value={saveTemplate.hostId}><SaveTemplateDialog {...saveTemplate} onClose={() => setSaveTemplate(undefined)}
+        onSaved={() => { setSaveTemplate(undefined); setTemplateRevision(value => value + 1); setNotice({ key: "Template saved." }); }} /></HostContext.Provider> : null}
       <NewDialog
         open={newDialog}
         destinations={newDestinations(folders.trees)}
@@ -1520,26 +1543,25 @@ function newDestinations(trees: readonly FolderTreeState[]): NewDestination[] {
 /** Asks the Host for one level of a folder inside the folder the user chose. */
 async function requestFolder(root: string, path?: string, background = false): Promise<FolderResponse> {
   const query = new URLSearchParams({ root, ...(path ? { path } : {}), ...(background ? { background: "1" } : {}) });
-  const response = await hostClient.request(`/api/folder?${query}`);
+  const response = await getHostClient(LOCAL_HOST_ID).request(`/api/folder?${query}`);
   const payload = (await response.json()) as Partial<FolderResponse> & Partial<DocumentErrorResponse>;
   if (!response.ok || !Array.isArray(payload.entries)) throw new Error(payload.error ?? `request failed (${response.status})`);
   return payload as FolderResponse;
 }
 
 /** Asks the Host for one level of any folder while choosing which folder to open, or an image. */
-async function browseHostFolder(path: string, files?: "image" | "pdf"): Promise<FolderBrowseResponse> {
-  const response = await hostClient.request(`/api/folder-browse?${new URLSearchParams({ path, ...(files ? { files } : {}) })}`);
+async function browseHostFolder(path: string, files?: "image" | "pdf", hostId = LOCAL_HOST_ID, client = getHostClient(hostId)): Promise<FolderBrowseResponse> {
+  const response = await client.request(`/api/folder-browse?${new URLSearchParams({ path, ...(files ? { files } : {}) })}`);
   const payload = (await response.json()) as Partial<FolderBrowseResponse> & Partial<DocumentErrorResponse>;
   if (!response.ok || !Array.isArray(payload.entries) || !Array.isArray(payload.crumbs)) throw new Error(payload.error ?? `request failed (${response.status})`);
   return payload as FolderBrowseResponse;
 }
 
-const browseHostImages = (path: string) => browseHostFolder(path, "image");
 const browseHostPdfs = (path: string) => browseHostFolder(path, "pdf");
 
 /** Asks the Host to create one folder inside an existing one. */
 async function requestCreateFolder(parent: string, name: string): Promise<FolderCreateResponse> {
-  const response = await hostClient.request(`/api/folder`, {
+  const response = await getHostClient(LOCAL_HOST_ID).request(`/api/folder`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ parent, name } satisfies FolderCreateRequest),
@@ -1550,8 +1572,8 @@ async function requestCreateFolder(parent: string, name: string): Promise<Folder
 }
 
 /** Asks the Host where choosing a folder can start. */
-async function folderPlaces(): Promise<FolderPlace[]> {
-  const response = await hostClient.request(`/api/folder-places`);
+async function folderPlaces(hostId = LOCAL_HOST_ID, client = getHostClient(hostId)): Promise<FolderPlace[]> {
+  const response = await client.request(`/api/folder-places`);
   const payload = (await response.json()) as Partial<FolderPlacesResponse> & Partial<DocumentErrorResponse>;
   if (!response.ok || !Array.isArray(payload.places)) throw new Error(payload.error ?? `request failed (${response.status})`);
   return payload.places;
