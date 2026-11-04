@@ -139,7 +139,7 @@ test('release browser shards match CI while preserving trusted checkout and publ
   assert.deepEqual(release.permissions, { contents: 'read' });
   assert.equal(browser.permissions, undefined);
   const diagnostics = browser.steps.find(step => step.uses?.startsWith('actions/upload-artifact@'));
-  assert.equal(diagnostics.if, 'always() && (failure() || cancelled())');
+  assert.equal(diagnostics.if, 'failure()');
   assert.ok(diagnostics.with.name.includes('${{ matrix.shard }}'));
   assert.equal(diagnostics.with.path, ci.jobs.browser.steps.find(step => step.uses?.startsWith('actions/upload-artifact@')).with.path);
   assert.deepEqual(publish.needs, ['preflight', 'browser', 'build']);
