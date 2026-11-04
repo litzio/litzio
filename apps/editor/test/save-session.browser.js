@@ -575,5 +575,34 @@ async (page, { expect, openDocument, waitForActivePath, reloadDocument, screensh
   check('unicodeRepeatSaveReload', unicodeReloaded.source.includes('한글 😀 � Again.') &&
     unicodeReloaded.source === unicodeSaved.source && unicodeReloaded.revision === unicodeSaved.revision &&
     (await paragraph().innerText()).includes('한글 😀 � Again.'));
+  // Native Chromium composition protocol exercises IME replacement ranges; DOM
+  // composition events alone cannot reproduce a composing text node being replaced.
+  const beforeComposition = await paragraph().textContent();
+  await paragraph().click();
+  await page.keyboard.press('Home');
+  await page.keyboard.type('   ');
+  await page.keyboard.press('End');
+  await paragraphCaret(true);
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    await cdp.send('Input.imeSetComposition', {text:'한', selectionStart:1, selectionEnd:1});
+    await page.waitForFunction(() => document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.view.composing);
+    await page.keyboard.press('Control+s');
+    await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'saved');
+    const composingScreen = await paragraph().textContent();
+    await cdp.send('Input.imeSetComposition', {text:'한글', selectionStart:2, selectionEnd:2});
+    await cdp.send('Input.insertText', {text:'한글'});
+    await page.waitForFunction(() => !document.querySelector('[data-document-tab][data-active=true] .document-editor').editor.view.composing);
+    await expect(paragraph()).toHaveText('   ' + beforeComposition + '한글');
+    check('compositionSaveDefersCleanup', composingScreen === '   ' + beforeComposition + '한');
+    await save();
+    check('compositionConfirmedSavedExactly', await paragraph().textContent() === beforeComposition + '한글' &&
+      (await read(file)).source.includes(beforeComposition + '한글') && !(await read(file)).source.includes('&#x20;'));
+    await reloadDocument(page);
+    await ready();
+    check('compositionSaveReloadHasNoDuplicate', await paragraph().textContent() === beforeComposition + '한글');
+  } finally {
+    await cdp.detach();
+  }
   return result;
 }

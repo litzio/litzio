@@ -657,10 +657,14 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       toggleHeadingNumbering,
       beginSave() {
         if (!editor) throw new Error("Editor is not ready");
-        // Core owns tail semantics; the engine maps selection and records one cleanup Undo.
-        const cleanup = normalizeSaveTails(editor.state);
-        if (cleanup.docChanged) editor.view.dispatch(cleanup);
-        editor.view.dispatch(closeHistory(editor.state.tr));
+        // Replacing text before Chromium's live composition range invalidates that
+        // range and can duplicate the next IME update. Save the current snapshot,
+        // but defer cleanup/history boundaries until a Save outside composition.
+        if (!editor.view.composing) {
+          const cleanup = normalizeSaveTails(editor.state);
+          if (cleanup.docChanged) editor.view.dispatch(cleanup);
+          editor.view.dispatch(closeHistory(editor.state.tr));
+        }
         updateSaveLocations([]);
         pendingDocument.current = editor.state.doc;
         pending.current = editorDocumentJSON(editor.state);
