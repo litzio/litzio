@@ -16,6 +16,7 @@ ipcRenderer.on("desktop:restart-check", (_event, id: number) => {
 });
 
 const bridge: DesktopBridge = {
+  hostConnection: () => ipcRenderer.invoke("desktop:host-connection"),
   startup: () => ipcRenderer.invoke("desktop:startup"),
   openInBrowser: () => ipcRenderer.invoke("desktop:browser"),
   daemonInfo: () => ipcRenderer.invoke("desktop:daemon-info"),

@@ -1,3 +1,4 @@
+import { DESKTOP_ORIGIN } from "../shared/desktop-origin.ts";
 import { createAiHost } from "./ai-host.ts";
 import { randomBytes } from "node:crypto";
 import { realpathSync, statSync } from "node:fs";
@@ -83,9 +84,28 @@ export async function startHttpHost(options: HttpHostOptions) {
     const media = url.pathname.startsWith("/document/");
     const writing = req.method === "POST" || req.method === "PUT" || req.method === "PATCH" || req.method === "DELETE";
     const origin = req.headers.origin;
-    if ((origin !== undefined && !origins.has(origin)) || (writing && !origin) ||
-        ((api || media || writing) && req.headers["sec-fetch-site"] === "cross-site")) {
+    const desktop = origin === DESKTOP_ORIGIN;
+    if ((origin !== undefined && !desktop && !origins.has(origin)) || (writing && !origin) ||
+        ((api || media || writing) && req.headers["sec-fetch-site"] === "cross-site" && !desktop)) {
       return json(res, 403, "Request origin is not allowed.");
+    }
+    if (desktop) {
+      res.setHeader("Vary", "Origin");
+      res.setHeader("Access-Control-Allow-Origin", DESKTOP_ORIGIN);
+      // Anonymous CORS media only; no-cors requests retain same-origin CORP.
+      if (req.headers["sec-fetch-mode"] === "cors") res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    }
+    if (req.method === "OPTIONS") {
+      if (!desktop) return json(res, 405, "Method not allowed.");
+      const method = req.headers["access-control-request-method"];
+      const headers = String(req.headers["access-control-request-headers"] ?? "").toLowerCase().split(",").map(value => value.trim()).filter(Boolean);
+      if (!method || !["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"].includes(method) ||
+          headers.some(value => !["content-type", "x-litzio-protocol"].includes(value)) || !(api || media)) {
+        return json(res, 403, "Preflight is not allowed.");
+      }
+      res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, POST, PUT, PATCH, DELETE");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Litzio-Protocol");
+      res.statusCode = 204; res.end(); return;
     }
     if ((req.method === "GET" || req.method === "HEAD") && (Number(req.headers["content-length"]) > 0 || req.headers["transfer-encoding"])) {
       return json(res, 400, "This request must not have a body.");

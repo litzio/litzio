@@ -1,6 +1,6 @@
 # UI 결정표와 실행 예제
 
-#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트·Desktop 번들 UI는 후속 범위다.
+#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP Host 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
@@ -139,3 +139,25 @@ hover·keyboard focus에서 확인한다. 기본 버전 재등록은 기존 확�
 | Disconnected | [capture](assets/desktop-daemon-1142/daemon-disconnected-1440.png) | [capture](assets/desktop-daemon-1142/daemon-disconnected-640.png) |
 
 시각 점검: 640px 설정의 기존 세로 전환, 주소 줄바꿈, 메뉴의 화면 안 배치, 끊김 본문·행동 및 닫기 버튼의 잘림 없음을 확인했다. 기존 공통 UI를 그대로 사용했으며 새 예외는 없다.
+
+
+## Desktop bundled connection (#1150 ⑤)
+
+기존 DesktopMenu의 NotificationCenter·ghost/sm Button과 About의 SettingsRow를 그대로
+쓴다. 최초 연결 중·실패와 제품 버전 경고도 같은 창 단위 알림이며 새 표면·공통 구현
+예외는 없다. 비서의 연결 알림과 기존 daemon 끊김 알림을 함께 확인했다.
+
+Windows dev Electron, English/Light, 앱 번들 `litzio://app/index.html`, 1440×1000 및
+640×1000에서 검토했다. 최초 daemon 미가동 시작은 이전에 화면 자체가 없어서 같은
+상태의 Before 캡처가 없다. 기존 연결 끊김 표면의 Before는 위 #1142 캡처를 유지한다.
+
+| 상태 | 1440px | 640px |
+| --- | --- | --- |
+| 최초 연결 실패 / CLI 안내·Reconnect | [capture](assets/desktop-bundled-1150/disconnected-1440.png) | [capture](assets/desktop-bundled-1150/disconnected-640.png) |
+| 같은 화면의 수동 재연결 완료 | [capture](assets/desktop-bundled-1150/connected-1440.png) | [capture](assets/desktop-bundled-1150/connected-640.png) |
+
+본문·긴 오류의 줄바꿈, Reconnect·알림 닫기, 640px 콘텐츠/Sidebar의 잘림 없음을 확인했다.
+새 origin의 복구 [실행 기록](assets/desktop-bundled-1150/recovery-proof.json)은 dev Electron의
+앱 프로세스 강제 종료·일반 닫기/재시작 → Restore → Save/Reload·외부 409를 기록한다.
+패키징/설치 검증이 아니다. 패키지 검사는 PR CI가 담당한다. 촬영은 일회성 dev 수동
+검토이며 CI 성공 캡처용 순회를 추가하지 않았다.

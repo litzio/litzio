@@ -15,7 +15,10 @@ export function renderPlainMarkdown(source: string, path: string): string {
     const token = tokens[index];
     const src = token.attrGet("src") ?? "";
     const relative = figureMediaPath(src);
-    if (relative !== undefined) token.attrSet("src", hostClient.url(`/document/${relative}?path=${encodeURIComponent(path)}`));
+    if (relative !== undefined) {
+      token.attrSet("src", hostClient.url(`/document/${relative}?path=${encodeURIComponent(path)}`));
+      token.attrSet("crossorigin", "anonymous");
+    }
     else if (!/^https?:\/\//i.test(src)) return md.utils.escapeHtml(token.content);
     return image(tokens, index, options, env, renderer);
   };

@@ -1,3 +1,4 @@
+import { hostClient } from "./host-client.ts";
 import type { Editor, EditorEvents } from "@tiptap/core";
 import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
@@ -139,5 +140,5 @@ function PreviewImage({ src, label }: { src: string; label: string }) {
   const { t } = useTranslation();
   const [failed, setFailed] = useState(false);
   return failed ? <span>{t("Image not found")}</span>
-    : <img src={src} alt={label} onError={() => setFailed(true)} />;
+    : <img crossOrigin={src.startsWith(hostClient.url("/document/")) ? "anonymous" : undefined} src={src} alt={label} onError={() => setFailed(true)} />;
 }

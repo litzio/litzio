@@ -86,7 +86,7 @@ test("HTTP recovery survives browser crash and daemon reconnect, then Save/Reloa
         startup: async () => ({}), setTheme: async () => false, setWindowBackground: async () => {}, setOpenedFolders: async () => {},
         info: async () => ({ version: "test", channel: "stable", updatesSupported: false, update: { phase: "idle" }, seenUpdate: null }),
         onUpdateState: () => () => {}, onRestartCheck: () => () => {},
-        stopDaemon: () => bridge.testStopDaemon(), reconnectDaemon: () => bridge.testReconnectDaemon(), checkDaemon: () => bridge.testCheckDaemon(),
+        stopDaemon: () => bridge.testStopDaemon(), hostConnection: async () => ({url:location.origin, productVersion:"test", desktopVersion:"test"}), reconnectDaemon: async () => { await bridge.testReconnectDaemon(); return {url:location.origin, productVersion:"test", desktopVersion:"test"}; }, checkDaemon: () => bridge.testCheckDaemon(),
       } as unknown as NonNullable<Window["litzioDesktop"]>;
     });
     const cdp = await context.browser()!.newBrowserCDPSession();

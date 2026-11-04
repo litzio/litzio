@@ -903,7 +903,8 @@ records before/after restart, then exercises the matching-file recovery review d
 Restore, dirty state, unchanged disk until explicit Save, actual Save/Reload, and a second crash
 followed by an external disk change and a 409 with both external bytes and recovered work preserved.
 
-The packaged Windows Desktop regression uses the real fixed daemon HTTP origin (ADR-0016) and verifies
+The packaged Windows Desktop regression uses the bundled `litzio://app` UI origin (ADR-0017),
+the real fixed daemon HTTP Host (ADR-0016), and verifies
 that Electron `userData` and `sessionData` are the same isolated test profile across new app PIDs.
 Forced app-tree termination preserves the committed record including an inserted pending Figure;
 Restore and Save/Reload use the real packaged Editor and file Host. A subsequent normal window
@@ -985,3 +986,17 @@ client/scroll widths), and at 1440px they are `350/350` and `382/382`. All revie
 remain inside the dialog; enabled actions pass click trials. The desktop footer remains one row.
 The [long incompatible-record capture](assets/recovery-395/incompatible-375.png) also keeps its
 expanded plaintext, standing clipboard error and all footer buttons visible at 375×900.
+
+
+## Bundled Desktop recovery (#1150 ⑤)
+
+Desktop 복구 저장소는 새 UI origin `litzio://app`에 속한다. daemon HTTP origin과
+같은 저장소로 간주하지 않으며 과거 origin 데이터를 이전하지 않는다. 앱 번들 UI가
+IndexedDB·복구와 편집 세션을 소유하고 Restore·Save·revision 충돌은 기존 HTTP Host와
+Core 경계를 그대로 쓴다. daemon 연결 실패는 로컬 복구 기록을 지우지 않는다.
+
+2026-11-04 Windows dev Electron: 새 origin에서 실제 입력·pending Figure → 복구 기록
+commit → 앱 강제 종료/재시작 → Restore → Save/Reload, 일반 닫기/재시작 후 외부 변경
+409와 원본·복구 기록 보존을 확인했다. native 닫기 답변만 기존 seam으로 지정했다.
+기존 packaged 복구 시나리오도 `litzio://app/index.html`과 별도 Host API URL을 단언하도록
+보완했으며 패키지 실행은 CI에 맡긴다. 같은 세션의 daemon 재연결/Undo 검증과 별개다.

@@ -35,7 +35,8 @@ export async function buildDesktop(): Promise<string> {
   const cliBuild = path.join(repo, "packages", "cli", "dist");
   const editorBuild = path.join(cliBuild, "editor");
   if (!existsSync(path.join(editorBuild, "index.html"))) throw new Error("The Editor build has no index.html");
-  // One relocatable CLI distribution; Desktop and daemon run use the same production Editor assets.
+  // Independent app-owned UI; the CLI still serves its own browser copy.
+  cpSync(editorBuild, path.join(stage, "ui"), { recursive: true });
   const stagedCli = path.join(desktop, "build", "cli");
   rmSync(stagedCli, { recursive: true, force: true });
   cpSync(cliBuild, stagedCli, { recursive: true });

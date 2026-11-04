@@ -4,9 +4,6 @@ import path from "node:path";
 import { daemonDirectory, daemonPort, reclaimStaleDaemon, inspectDaemon, readDaemonRecord, prepareDaemonDirectory, daemonRpc, type DaemonChannel, type DaemonRecord } from "../../editor/server/daemon-state.ts";
 import { sameInstance, type DaemonHealth } from "../../editor/server/daemon-protocol.ts";
 
-export const trustedDaemonUrl = (url: string, origin: string) => {
-  try { const parsed = new URL(url); return parsed.origin === origin && !parsed.username && !parsed.password; } catch { return false; }
-};
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /** The same local CLI run/lock path. A private IPC pipe owns only the instance this Desktop spawned. */

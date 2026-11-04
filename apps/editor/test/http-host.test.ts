@@ -574,3 +574,40 @@ test("background folder disappearance is an availability result; manual errors a
   assert.deepEqual(await version.json(), { unavailable: true });
   assert.equal((await send(`/api/folder?${new URLSearchParams({ root: outside, background: "1" })}`)).status, 403);
 });
+
+
+test("only the bundled Desktop origin receives CORS API/media access and bounded preflight", async t => {
+  const { send, url, a } = await fixture(t);
+  const headers = { Origin: "litzio://app", "Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "cors" };
+  const query = new URLSearchParams({ path: path.join(a, "document.md") });
+  const loaded = await send(`/api/document?${query}`, "GET", undefined, headers);
+  assert.equal(loaded.status, 200);
+  assert.equal(loaded.headers.get("access-control-allow-origin"), "litzio://app");
+  const response = await send("/api/document", "POST", saveBody(path.join(a, "document.md")), headers);
+  assert.equal(response.status, 200);
+  const media = `/document/image.png?${query}`;
+  const image = await send(media, "GET", undefined, headers);
+  assert.equal(image.status, 200);
+  assert.equal(image.headers.get("cross-origin-resource-policy"), "cross-origin");
+  assert.match(image.headers.get("content-security-policy")!, /^sandbox;.*script-src 'none'/);
+  assert.deepEqual(Buffer.from(await image.arrayBuffer()), png);
+  assert.equal((await send(media)).headers.get("cross-origin-resource-policy"), "same-origin");
+  const preview = await send(`/api/file-preview?${new URLSearchParams({ root:a, path:path.join(a,"image.png") })}`, "GET", undefined, headers);
+  assert.equal(preview.status, 200);
+  assert.match(preview.headers.get("content-security-policy")!, /^sandbox;.*script-src 'none'/);
+  const preflight = { ...headers, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type" };
+  assert.equal((await send("/api/document", "OPTIONS", undefined, preflight)).status, 204);
+  for (const invalid of [{ "Access-Control-Request-Headers": "x-arbitrary" }, { "Access-Control-Request-Method": "TRACE" }]) {
+    assert.equal((await send("/api/document", "OPTIONS", undefined, { ...preflight, ...invalid })).status, 403);
+  }
+  for (const origin of ["null", "litzio://app.evil", "litzio://foreign", "https://foreign.example"]) {
+    for (const route of ["/api/document", media]) {
+      const denied = await send(route, "GET", undefined, { ...headers, Origin:origin });
+      assert.equal(denied.status, 403);
+      assert.equal(denied.headers.get("access-control-allow-origin"), null);
+    }
+    assert.equal((await send("/api/document", "OPTIONS", undefined, { ...preflight, Origin:origin })).status, 403);
+  }
+  assert.equal((await fetch(url + media, { headers: { "Sec-Fetch-Site":"cross-site" } })).status, 403);
+  assert.equal(await rawStatus(url + "/api/document", { ...headers, Host:"app" }), 403);
+});
