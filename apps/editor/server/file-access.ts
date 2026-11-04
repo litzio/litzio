@@ -59,11 +59,11 @@ function within(entry: RootEntry, root: string, target: string): boolean {
 
 /** Fixed operator roots, not the folder currently selected in the Editor. */
 export class RootAccess {
-  readonly roots: readonly string[];
-  private readonly entries: readonly RootEntry[];
+  roots: readonly string[];
+  private readonly entries: RootEntry[];
 
-  constructor(roots: readonly string[]) {
-    if (!roots.length) throw new Error("At least one --root directory is required.");
+  constructor(roots: readonly string[], allowEmpty = false) {
+    if (!roots.length && !allowEmpty) throw new Error("At least one --root directory is required.");
     const entries: RootEntry[] = [];
     for (const value of roots) {
       const folder = locator(value);
@@ -74,8 +74,17 @@ export class RootAccess {
         entries.push({ path: folder, real, dev: stat.dev, ino: stat.ino });
       }
     }
-    this.entries = Object.freeze(entries.map(entry => Object.freeze(entry)));
+    this.entries = entries.map(entry => Object.freeze(entry));
     this.roots = Object.freeze(entries.map(entry => entry.path));
+  }
+
+  /** S1 only: retain existing pinned identities when an authenticated Desktop adds a root. */
+  addRoot(root: string): void {
+    this.currentRoots();
+    const added = new RootAccess([root]);
+    if (this.entries.some(entry => inside(entry.real, added.entries[0]!.real))) return;
+    this.entries.push(...added.entries);
+    this.roots = Object.freeze(this.entries.map(entry => entry.path));
   }
 
   /** Recheck even after startup: moving/replacing an allowed root must not grant new access. */

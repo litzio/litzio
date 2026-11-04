@@ -10,7 +10,7 @@ export type HostRun = { packaged?: boolean; checkoutRoot?: string; cli?: import(
 /** Known source module location; bundled Desktop supplies its build/app-relative root. */
 export function hostPaths(run: HostRun = {}, env: NodeJS.ProcessEnv = process.env) {
   const packaged = run.packaged ?? (typeof __LITZIO_CLI_BUILD__ !== "undefined");
-  const base = packaged ? path.join(os.homedir(), brand.folders.shared)
+  const base = env.LITZIO_S1_DIR ? path.join(env.LITZIO_S1_DIR, "data") : packaged ? path.join(os.homedir(), brand.folders.shared)
     : path.join(run.checkoutRoot ?? fileURLToPath(new URL("../../../", import.meta.url)), ".litzio-dev");
   const data = process.platform === "win32" ? env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming")
     : process.platform === "darwin" ? path.join(os.homedir(), "Library", "Application Support") : env.XDG_DATA_HOME ?? path.join(os.homedir(), ".local", "share");

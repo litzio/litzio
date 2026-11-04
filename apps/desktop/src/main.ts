@@ -18,6 +18,7 @@ import { verifyUpdateSignature } from "./signatures.ts";
 import { IeumGitHubProvider } from "./github-provider.ts";
 import { CliIntegration } from "./cli-integration.ts";
 import { windowsEnvironment } from "./windows-environment.ts";
+import type { createS1Proxy } from "./s1-proxy.ts";
 
 /** Set by the release build: an update must carry the publisher signature the installed app names. */
 declare const __LITZIO_REQUIRE_SIGNED_UPDATES__: boolean;
@@ -62,7 +63,7 @@ function showWhenReady(): void {
 let preferences: Preferences;
 let updates: UpdateController;
 let cliIntegration: CliIntegration | undefined;
-let documentHost: ReturnType<typeof createProtocolHandler> | undefined;
+let documentHost: ReturnType<typeof createProtocolHandler> | Awaited<ReturnType<typeof createS1Proxy>> | undefined;
 const explorerFolders = new ExplorerFolders();
 /** Set after the Editor agreed to restart for an update; the installer starts once the window closed. */
 let installing = false;
@@ -307,7 +308,7 @@ function createWindow(): void {
   void created.loadURL(`${ORIGIN}/index.html`).catch(error => failed(`renderer load failed: ${String(error)}`));
 }
 
-if (!app.requestSingleInstanceLock()) {
+if (!process.env.LITZIO_S1_DIR && !app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   // No application menu: its Reload and DevTools shortcuts are not part of the Editor.
@@ -324,13 +325,16 @@ if (!app.requestSingleInstanceLock()) {
   app.on("web-contents-created", (_event, contents) => {
     contents.on("will-attach-webview", (event) => event.preventDefault());
   });
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     log(`starting ${app.getVersion()}`);
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
     preferences = readPreferences(preferencesFile(), app.getVersion());
     const cliRoot = path.join(app.isPackaged ? process.resourcesPath : path.dirname(appRoot), "cli");
-    documentHost = createProtocolHandler(path.join(cliRoot, "editor"), firstDocument(process.argv.slice(app.isPackaged ? 1 : 2), app.getPath("userData"), appRoot, log), file => shell.trashItem(file), root => explorerFolders.listedRoot(root), { packaged: app.isPackaged, checkoutRoot: path.resolve(appRoot, "../../../.."), ...(app.isPackaged ? { cli: { bin: process.execPath, args: [path.join(cliRoot, "cli.mjs")] } } : {}) });
+    const first = firstDocument(process.argv.slice(app.isPackaged ? 1 : 2), app.getPath("userData"), appRoot, log);
+    documentHost = process.env.LITZIO_S1_DIR
+      ? await (await import("./s1-proxy.ts")).createS1Proxy(path.join(cliRoot, "cli.mjs"), first, process.env.LITZIO_S1_DESKTOP_PRODUCT ?? app.getVersion(), root => explorerFolders.listedRoot(root), message => { log(message); console.error(message); })
+      : createProtocolHandler(path.join(cliRoot, "editor"), first, file => shell.trashItem(file), root => explorerFolders.listedRoot(root), { packaged: app.isPackaged, checkoutRoot: path.resolve(appRoot, "../../../.."), ...(app.isPackaged ? { cli: { bin: process.execPath, args: [path.join(cliRoot, "cli.mjs")] } } : {}) });
     protocol.handle(SCHEME, documentHost);
     if (app.isPackaged && process.platform === "win32" && process.env.LOCALAPPDATA) {
       cliIntegration = new CliIntegration(process.execPath, process.env.LOCALAPPDATA, windowsEnvironment());
@@ -369,7 +373,8 @@ if (!app.requestSingleInstanceLock()) {
   }).catch(error => {
     log(`startup failed: ${String(error)}`);
     try {
-      dialog.showErrorBox(brand.name.en, `${brand.name.en} could not start.\n${String(error)}`);
+      if (process.env.LITZIO_S1_NONINTERACTIVE === "1") console.error(String(error));
+      else dialog.showErrorBox(brand.name.en, `${brand.name.en} could not start.\n${String(error)}`);
     } finally {
       app.exit(1);
     }

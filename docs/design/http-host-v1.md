@@ -10,6 +10,8 @@
 
 ## Host and daemon terminology (#1139)
 
+Branch-only experiment: [S1 Desktop daemon spike](../reviews/s1-desktop-daemon-spike.md) records opt-in `LITZIO_S1_DIR` discovery/authentication/lifetime controls on an unmerged spike branch. It does not supersede the implemented contract below or amend the accepted ADRs.
+
 Under the [2026-11-04 owner decision](https://github.com/litzio/litzio/issues/1139), Host is the role providing document capabilities; HTTP Host provides that role over HTTP. A daemon is a shared Host process running separately from the UI; its lifetime policy is a separate decision. Web and Desktop Hosts are intended to converge over time.
 
 Currently `daemon run` runs an independent HTTP Host in the foreground, with the existing options and shutdown signals. Desktop retains its in-process Host. This does not introduce CLI/Desktop connections to a running Host or shared state. `daemon` alone and help exit without starting a server; unknown subcommands fail. There is no `serve` alias or background lifecycle command.

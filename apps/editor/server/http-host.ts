@@ -18,6 +18,12 @@ export type HttpHostOptions = {
   port?: number;
   host?: string;
   publicOrigin?: string;
+  /** Unmerged #834 S1 transport experiment. No effect on the normal HTTP Host. */
+  spike?: {
+    access: RootAccess;
+    agent?: import("./ai-agent-connection.ts").AiAgentConnection;
+    intercept(req: IncomingMessage, res: ServerResponse, url: URL): Promise<boolean>;
+  };
 };
 
 const loopback = (host: string) => host === "::1" || /^127\./.test(host);
@@ -39,8 +45,8 @@ function json(res: ServerResponse, status: number, message: string): void {
 
 /** The only TCP Host: fixed roots and production assets, without a document/session store. */
 export async function startHttpHost(options: HttpHostOptions) {
-  const access = new RootAccess(options.roots);
-  const plugins = createPluginHost(access);
+  const access = options.spike?.access ?? new RootAccess(options.roots);
+  const plugins = createPluginHost(access, undefined, { agent: options.spike?.agent });
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? 5180;
   if (!isIP(host)) throw new Error("--host must be an IP address (default: 127.0.0.1).");
@@ -73,6 +79,7 @@ export async function startHttpHost(options: HttpHostOptions) {
       if (decoded.includes("\0") || decoded.includes("\\") || /%(?:2e|2f|5c|00)/i.test(decoded)) throw new Error();
       for (const name of new Set(query.keys())) if (query.getAll(name).length !== 1) throw new Error();
     } catch { return json(res, 400, "Invalid request path."); }
+    if (options.spike && await options.spike.intercept(req, res, url)) return;
     const api = url.pathname.startsWith("/api/");
     const media = url.pathname.startsWith("/document/");
     const writing = req.method === "POST" || req.method === "PUT" || req.method === "PATCH" || req.method === "DELETE";

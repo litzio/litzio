@@ -109,6 +109,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Endnotes verification](reviews/endnotes-2026-10-12.md) | Historical | #194 단일 미주 구역 Before/After, 원문 보존·명시적 변환·참조 복귀·초안 보호 검증. |
 | [Single Editor Foundation review](reviews/single-editor-foundation.md) | Historical | 당시 architecture 검토 근거. 현재 authority는 ADR-0001과 design contracts. |
 | [Docling plugin runtime spike](reviews/docling-plugin-runtime-spike.md) | Historical | 2026-10-31 별도 worker·공용 설치·UUID·drain·uncertain의 개발 Desktop/serve 실측. 실제 Docling 서버·패키지 Desktop 미검증. 승인된 후속 결정은 ADR-0012. |
+| [S1 Desktop daemon spike](reviews/s1-desktop-daemon-spike.md) | Historical | #834 병합하지 않는 실험. 인증·탐색·동시 기동·버전·수명과 Desktop 기능 차이. 제품 채택이나 ADR 개정이 아님. |
 | [Docling plugin UI spike](reviews/docling-plugin-ui-spike.md) | Historical | 2026-10-31 ESM/CSS 명령·대조 탭의 동적 등록/해제·오류 격리·API 경계 실측. React 호환·ESM 해제 한계와 미이전 화면을 보존. 승인된 후속 결정은 ADR-0012. |
 | [AI agent host and extension patterns](reviews/ai-agent-host-patterns-2026-11.md) | Historical | #877 공개 문서·소스 조사. AI 작업/도구·업체 어댑터·검증·승인·수명·다중 에이전트 8개 축과 B 최소 골격 시사점. 설계·채택 결정 아님. |
 | [MyST security alignment review](reviews/myst-security-alignment-v1.md) | Historical | 당시 security 분석. 현재 후속 작업은 issue #11; 현재 안전성의 영구 보증이 아님. |

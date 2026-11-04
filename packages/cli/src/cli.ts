@@ -1997,7 +1997,11 @@ export async function runCliAsync(args: string[]): Promise<number> {
 if (import.meta.main) {
   const args = process.argv.slice(2);
   try {
-    if (args[0] === "daemon" && args[1] === "run" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
+    if (process.env.LITZIO_S1_DIR && args[0] === "daemon" && args[1] !== "run" && args[1]) {
+      const { s1Cli } = await import("../../../apps/editor/server/s1-daemon.ts");
+      const editorDir = fileURLToPath(new URL(import.meta.url.endsWith(".ts") ? "../../../apps/editor/dist/" : "./editor/", import.meta.url));
+      await s1Cli(args[1], args.slice(2), editorDir, fileURLToPath(import.meta.url));
+    } else if (args[0] === "daemon" && args[1] === "run" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
       const { serve } = await import("./serve.ts");
       // Source checkout runs use an explicit Editor build; the distributable carries it beside cli.mjs.
       const editorDir = fileURLToPath(new URL(import.meta.url.endsWith(".ts") ? "../../../apps/editor/dist/" : "./editor/", import.meta.url));
