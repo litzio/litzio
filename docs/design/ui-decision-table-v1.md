@@ -124,3 +124,17 @@ hover·keyboard focus에서 확인한다. 기본 버전 재등록은 기존 확�
 접근성을 유지한 채 시각적으로 숨겨 이름·상태 → 진단 → 토글 순서를 만든다.
 새 공통 UI API는 추가하지 않는다. 공개 AI 설정 타입 변경과 자동 저장 계약은
 [Main agent settings](main-agent-v1.md#independent-provider-settings-1109)에 기록한다.
+
+## Desktop daemon (#1142 PR3)
+
+기존 Sidebar footer의 ghost/icon-sm Button·Ellipsis와 DropdownMenu를 재사용한다. 메뉴에는 브라우저에서 열기와 daemon 종료를 둔다. 종료 확인은 기존 main의 native confirmation 경계를 재사용하며 항상 연결된 탭·진행 작업의 중단을 안내한다. About 설정은 SettingsRow와 기존 details disclosure로 상태·주소·주체·버전 및 상세 진단을 표시한다. 연결 끊김은 기존 NotificationCenter·Button으로 다시 연결을 제공한다. 새로운 화면 구조·공통 UI·Plugin API 예외는 없다. 1440px/640px 캡처는 PR 검증 근거로 남긴다.
+
+검증: `pnpm browser:test desktop-updates --screenshots`의 persistent Chrome, English/Light, 1440×1000 및 640×1000. 동일 production 컴포넌트와 native boundary stand-in을 사용했다. 메뉴 열기, 주소·주체·버전 표시, 종료 후 끊김 알림/다시 연결을 자동 검사와 함께 확인했다. 실제 native stop 확인은 main wiring 검사, daemon 종료는 실제 subprocess 검사로 별도 보호한다. 새 메뉴는 기존 Tab 순서를 보존하도록 Settings·Color mode 뒤에 둔다.
+
+| Surface | 1440px | 640px |
+| --- | --- | --- |
+| Menu | [capture](assets/desktop-daemon-1142/daemon-menu-1440.png) | [capture](assets/desktop-daemon-1142/daemon-menu-640.png) |
+| Status | [capture](assets/desktop-daemon-1142/daemon-status-1440.png) | [capture](assets/desktop-daemon-1142/daemon-status-640.png) |
+| Disconnected | [capture](assets/desktop-daemon-1142/daemon-disconnected-1440.png) | [capture](assets/desktop-daemon-1142/daemon-disconnected-640.png) |
+
+시각 점검: 640px 설정의 기존 세로 전환, 주소 줄바꿈, 메뉴의 화면 안 배치, 끊김 본문·행동 및 닫기 버튼의 잘림 없음을 확인했다. 기존 공통 UI를 그대로 사용했으며 새 예외는 없다.

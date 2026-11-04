@@ -16,7 +16,12 @@ ipcRenderer.on("desktop:restart-check", (_event, id: number) => {
 });
 
 const bridge: DesktopBridge = {
-  fileDeletion: "trash",
+  startup: () => ipcRenderer.invoke("desktop:startup"),
+  openInBrowser: () => ipcRenderer.invoke("desktop:browser"),
+  daemonInfo: () => ipcRenderer.invoke("desktop:daemon-info"),
+  stopDaemon: () => ipcRenderer.invoke("desktop:daemon-stop"),
+  checkDaemon: () => ipcRenderer.invoke("desktop:daemon-check"),
+  reconnectDaemon: () => ipcRenderer.invoke("desktop:daemon-reconnect"),
   setOpenedFolders: roots => ipcRenderer.invoke("desktop:opened-folders", roots),
   openFolderInExplorer: folder => ipcRenderer.invoke("desktop:open-folder", folder),
   openLogFolder: () => ipcRenderer.invoke("desktop:open-log-folder"),

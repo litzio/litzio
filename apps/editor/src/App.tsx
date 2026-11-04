@@ -535,7 +535,11 @@ function EditorApp() {
       // Keep Host metadata and Desktop launch-file precedence. A browser default that
       // will not be used is optional; its failure cannot block the higher-priority route.
       let first: EditorFileResponse | DocumentStartResponse;
-      try { first = await requestDocument("GET"); }
+      try {
+        const startup = await desktop?.startup?.();
+        first = await requestDocument("GET", startup?.document);
+        if (startup) first = { ...first, samples: startup.samples, sampleProblem: startup.sampleProblem };
+      }
       catch (cause) {
         if (!path && (desktop || !saved)) throw cause;
         first = { start: true };

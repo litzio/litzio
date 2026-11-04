@@ -3,7 +3,9 @@ import { readRequestBody } from "./request-body.ts";
 
 export const DAEMON_PROTOCOL = "1";
 export type DaemonIdentity = { pid: number; startedAt: string; instanceId: string };
-export type DaemonHealth = DaemonIdentity & { productVersion: string; protocolVersion: string };
+export type DaemonLauncher = "desktop" | "cli-start" | "cli-run";
+export type DaemonDetails = { processStartedAt: string; daemonHome: string; executable: string; log?: string; roots: readonly string[]; nonLoopback: boolean };
+export type DaemonHealth = DaemonIdentity & DaemonDetails & { launcher: DaemonLauncher; productVersion: string; protocolVersion: string };
 export type DaemonControl = { health: DaemonHealth; stop(): void };
 export const sameInstance = (a: DaemonIdentity, b: DaemonIdentity) => a.pid === b.pid && a.startedAt === b.startedAt && a.instanceId === b.instanceId;
 function reply(res: ServerResponse, status: number, data: unknown) {

@@ -30,9 +30,14 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
     let restartCheck = null;
     const info = {version:'0.2.0', channel:sessionStorage.getItem('update-channel') || 'stable', updatesSupported:true, update:{phase:'idle'}, seenUpdate:sessionStorage.getItem('update-seen')};
     const calls = JSON.parse(sessionStorage.getItem('update-calls') || '[]');
-    window.__desktop = {calls, info, push(state) { info.update = state; for (const listener of listeners) listener(state); }};
+    window.__desktop = {connected:true, calls, info, push(state) { info.update = state; for (const listener of listeners) listener(state); }};
     window.__cli = {state:{status:'off'}, calls:[], pending:false, fail:false};
     window.litzioDesktop = {
+      daemonInfo: async () => ({state: window.__desktop.connected ? 'running' : 'unreachable', url:'http://127.0.0.1:25887', launcher:'cli-start', productVersion:'0.2.0', protocolVersion:'1', pid:1234, startedAt:'2026-11-04T00:00:00Z', daemonHome:'C:/temporary/daemon/beta', executable:'C:/Litzio/Litzio.exe', roots:[], nonLoopback:false}),
+      checkDaemon: async () => { if (!window.__desktop.connected) throw Error('Disconnected'); },
+      reconnectDaemon: async () => { calls.push(['reconnect']); window.__desktop.connected = true; },
+      stopDaemon: async () => { calls.push(['daemon-stop']); window.__desktop.connected = false; return true; },
+      openInBrowser: async () => { calls.push(['browser']); },
       setTheme: async theme => theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches),
       setWindowBackground: async (color, overlay) => { window.__desktop.appearance = { color, overlay }; },
       info: async () => ({...info}),
@@ -67,6 +72,33 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   await page.unrouteAll();
   await page.reload();
   await ready();
+  // Shared production controls; only the native boundary is a bridge stand-in.
+  await page.getByRole('button', {name:'Desktop menu',exact:true}).click();
+  await page.getByRole('menuitem', {name:'Open in browser',exact:true}).click();
+  check(await page.evaluate(() => window.__desktop.calls.some(call => call[0] === 'browser')), 'Browser menu did not call the Desktop opener');
+  for (const width of screenshots ? [1440,640] : [640]) {
+    await page.setViewportSize({width,height:1000});
+    await page.getByRole('button', {name:'Desktop menu',exact:true}).click();
+    await capture(`daemon-menu-${width}`);
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', {name:'Settings',exact:true}).click();
+    await page.getByRole('button', {name:'About & updates',exact:true}).click();
+    await page.getByText('running · cli-start · 0.2.0', {exact:true}).waitFor();
+    check(await page.getByText('http://127.0.0.1:25887', {exact:true}).isVisible(), 'Daemon address missing');
+    await capture(`daemon-status-${width}`);
+    await page.keyboard.press('Escape');
+    await page.getByTestId('settings-dialog').waitFor({state:'detached'});
+  }
+  await page.getByRole('button', {name:'Desktop menu',exact:true}).click();
+  await page.getByRole('menuitem', {name:'Stop daemon',exact:true}).click();
+  await page.getByTestId('daemon-disconnected').waitFor();
+  if (screenshots) { await page.setViewportSize({width:1440,height:1000}); await capture('daemon-disconnected-1440'); await page.setViewportSize({width:640,height:1000}); }
+  await capture('daemon-disconnected-640');
+  await page.getByRole('button', {name:'Reconnect',exact:true}).click();
+  await page.getByTestId('daemon-disconnected').waitFor({state:'detached'});
+  check(await page.evaluate(() => window.__desktop.calls.some(call => call[0] === 'reconnect')), 'Reconnect did not use the bridge');
+  await page.evaluate(() => { window.__desktop.calls.length = 0; });
+  await page.setViewportSize({width:1440,height:1000});
   // Browser bridge coverage: resolved roles, explicit Light/Dark changes and geometry only.
   // Real Window Controls Overlay/native window behavior is checked in packaged CI/manual review.
   for (const theme of ['light', 'dark']) {

@@ -210,7 +210,7 @@ async function fixture(t: TestContext, external?: string, controlled = false) {
   const previousPlugins = process.env.LITZIO_PLUGINS_DIR;
   process.env.LITZIO_PLUGINS_DIR = path.join(base, "plugins");
   const trashed: string[] = [];
-  const health = { pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), productVersion: "test-product", protocolVersion: DAEMON_PROTOCOL };
+  const health = { processStartedAt: "test", daemonHome: "test", executable: process.execPath, roots: [], nonLoopback: false, launcher: "cli-run" as const, pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), productVersion: "test-product", protocolVersion: DAEMON_PROTOCOL };
   let stopped = false;
   const host = await startFetchServer(() => startHttpHost({ editorDir, roots: controlled && !external ? [] : [a, b], port: 0, publicOrigin: external,
     ...(controlled ? { daemon: { health, stop: () => { stopped = true; } } } : {}),
@@ -252,6 +252,7 @@ test("HTTP trash failure preserves the original file without permanent deletion"
   const { a, editorDir } = await fixture(t);
   const host = await startFetchServer(() => startHttpHost({ roots: [a], editorDir, port: 0, removeFile: async () => { throw new Error("OS trash unavailable"); } }));
   t.after(() => host.close());
+  assert.deepEqual(await (await fetch(host.url + "/api/host-capabilities")).json(), { fileDeletion: "trash" });
   const file = path.join(a, "document.md"), original = fs.readFileSync(file);
   const response = await fetch(host.url + "/api/file", { method: "DELETE", headers: { Origin: host.url, "Content-Type": "application/json" }, body: JSON.stringify({ root: a, path: file }) });
   assert.equal(response.status, 400); assert.deepEqual(fs.readFileSync(file), original);

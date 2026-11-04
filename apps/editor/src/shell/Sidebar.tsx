@@ -9,6 +9,8 @@ import { useTranslation } from "react-i18next";
 import { i18n, type MessageKey } from "../i18n.ts";
 import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { Sun, Moon, Pencil, Trash2, ChevronRight, Ellipsis, File, Files as FilesIcon, Image as ImageIcon, FileText, FileX, Folder, FolderOpen, FolderPlus, PanelLeftClose, PanelRightOpen, Plus, RotateCw, Settings, X } from "lucide-react";
+import { fileDeletion } from "../host-capabilities.ts";
+import { DesktopMenu } from "./DesktopDaemon.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
 import { splitDocumentPath } from "./document-path.ts";
@@ -164,6 +166,7 @@ export function Sidebar({
               onClick={() => onThemeChange(theme === "dark" ? "light" : "dark")}>
               {theme === "dark" ? <Moon aria-hidden="true" /> : <Sun aria-hidden="true" />}
             </Button> : null}
+            {typeof window !== "undefined" && window.litzioDesktop ? <DesktopMenu desktop={window.litzioDesktop} /> : null}
           </div>
         </div>
       ) : null}
@@ -372,7 +375,7 @@ function FolderTree({ pluginFileActions = [], onAddToChat, onFileAction, fileAct
         })}
       </ul>
       {fileAction ? <FileActionDialog action={fileAction.action} entry={fileAction.item.entry}
-        trash={window.litzioDesktop?.fileDeletion === "trash"} dirty={isFileDirty(fileAction.item.entry.path)}
+        trash={fileDeletion === "trash"} dirty={isFileDirty(fileAction.item.entry.path)}
         returnFocus={actionReturn} onClose={() => setFileAction(undefined)} onExecute={async name => {
           const index = items.findIndex(item => item.entry.path === fileAction.item.entry.path);
           const next = await onFileAction(fileAction.action, tree.root, fileAction.item.entry, name);

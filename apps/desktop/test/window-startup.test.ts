@@ -8,6 +8,7 @@ import { setImmediate } from "node:timers/promises";
 import { runInNewContext } from "node:vm";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
+import { trustedDaemonUrl } from "../src/daemon-client.ts";
 import { ExplorerFolders } from "../src/explorer.ts";
 import { brand } from "../../../brand.ts";
 
@@ -18,10 +19,11 @@ const source = transformSync(readFileSync(main, "utf8"), {
   loader: "ts", format: "cjs", define: { "import.meta.url": JSON.stringify(main.href), __LITZIO_REQUIRE_SIGNED_UPDATES__: "false" },
 }).code;
 
-async function start(options: { startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState } = {}) {
+async function start(options: { startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState; daemonVersion?: string; stopChoice?: number } = {}) {
   const preferences: unknown[] = [];
   const logs: string[] = [], errors: unknown[][] = [], alerts: string[] = [];
   const directories: string[] = [], opened: string[] = [];
+  const daemonCalls: string[] = [], confirmations: any[] = [];
   const mainProcess = Object.assign(new EventEmitter(), { argv: [], platform: "win32", env: {}, resourcesPath: "/fake-resources" });
   const timers = new Map<number, { run: () => void; ms: number }>();
   const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
@@ -30,7 +32,7 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
     visible = false; minimized = false; shows = 0; focused = false; destroyed = false;
     background = ""; overlay: unknown;
     webContents = Object.assign(new EventEmitter(), {
-      mainFrame: { url: "litzio://app/index.html" }, setWindowOpenHandler() {}, send() {},
+      mainFrame: { url: "http://127.0.0.1:23456/index.html" }, setWindowOpenHandler() {}, send() {},
     });
     constructor(_options: unknown) { super(); windows.push(this); }
     isDestroyed() { return this.destroyed; }
@@ -53,7 +55,7 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
   const dependencies: Record<string, unknown> = {
     "../../../brand.ts": { brand },
     "electron": {
-      app, BrowserWindow: Window, dialog: { showErrorBox: (_title: string, message: string) => alerts.push(message) },
+      app, BrowserWindow: Window, dialog: { showMessageBoxSync: (_target: unknown, details: any) => { confirmations.push(details); return options.stopChoice ?? 0; }, showErrorBox: (_title: string, message: string) => alerts.push(message) },
       ipcMain: { handle: (name: string, handler: (event: unknown, ...args: unknown[]) => unknown) => handlers.set(name, handler), on() {} },
       Menu: { setApplicationMenu() {} }, nativeTheme: {}, protocol: { registerSchemesAsPrivileged() {}, handle() {} },
       session: { defaultSession: { setPermissionRequestHandler() { if (options.startupError) throw new Error("permission setup failed"); }, setPermissionCheckHandler() {} } },
@@ -64,7 +66,12 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
       appendFileSync: (_file: string, message: string) => logs.push(message), existsSync: () => false,
     },
     "electron-updater": { autoUpdater: {} }, "js-yaml": {},
-    "./host-protocol.ts": { ORIGIN: "litzio://app", SCHEME: "litzio", createProtocolHandler() {} },
+    "./daemon-client.ts": { trustedDaemonUrl, DesktopDaemon: class {
+      record = { url: "http://127.0.0.1:23456" }; health = { productVersion: options.daemonVersion ?? "0.0.2-beta.6", launcher: "cli-start" };
+      async connect() { daemonCalls.push("connect"); } async close() { daemonCalls.push("close"); }
+      async check() { daemonCalls.push("check"); } async stopExplicitly() { daemonCalls.push("stop"); }
+    } },
+    "../../editor/server/daemon-state.ts": { async daemonRpc() {} },
     "./explorer.ts": { ExplorerFolders },
     "./first-document.ts": { firstDocument() {} },
     "./preferences.ts": { readPreferences: () => ({ channel: "beta", seenUpdate: null }), writePreferences: (_file: string, value: unknown) => preferences.push(JSON.parse(JSON.stringify(value))) },
@@ -73,7 +80,7 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
   };
   runInNewContext(source, {
     require: (name: string) => name in dependencies ? dependencies[name] : require(name),
-    process: mainProcess,
+    process: mainProcess, URL, URLSearchParams,
     console: { error: (...args: unknown[]) => errors.push(args) },
     setTimeout: (run: () => void, ms: number) => { timers.set(++timerId, { run, ms }); return timerId; },
     clearTimeout: (id: number) => timers.delete(id),
@@ -92,7 +99,7 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
   const invoke = (channel: string, args: unknown[], trusted = true) => handlers.get(channel)!({
     sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {},
   }, ...args);
-  return { app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
+  return { daemonCalls, confirmations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
     seen: (version: unknown, trusted = true) => handlers.get("desktop:seen-update")!({ sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {} }, version), exits: () => exits, quits: () => quits };
 }
 
@@ -171,9 +178,9 @@ test("renderer startup failures notify and reveal before paint; subframe failure
   for (const kind of ["did-fail-load", "render-process-gone", "load-rejection"]) {
     const h = await start({ loadError: kind === "load-rejection" });
     if (kind === "did-fail-load") {
-      h.window.webContents.emit(kind, {}, -105, "missing resource", "litzio://app/frame", false);
+      h.window.webContents.emit(kind, {}, -105, "missing resource", "http://127.0.0.1:23456/frame", false);
       assert.equal(h.window.shows, 0);
-      h.window.webContents.emit(kind, {}, -105, "missing page", "litzio://app/index.html", true);
+      h.window.webContents.emit(kind, {}, -105, "missing page", "http://127.0.0.1:23456/index.html", true);
     } else if (kind === "render-process-gone") h.window.webContents.emit(kind, {}, { reason: "crashed", exitCode: 1 });
     assert.equal(h.window.shows, 1, kind);
     assert.equal(h.alerts.length, 1, kind);
@@ -244,7 +251,7 @@ test("Explorer IPC rejects untrusted senders and invalid roots/paths through mai
   for (const channel of ["desktop:opened-folders", "desktop:open-folder"]) {
     assert.throws(() => h.invoke(channel, [null], false), /Untrusted sender/);
   }
-  assert.throws(() => h.invoke("desktop:opened-folders", [["unlisted-root"]]), /Unknown opened folders/);
+  await assert.rejects(async () => h.invoke("desktop:opened-folders", [[null]]), /Invalid folders/);
   await assert.rejects(async () => h.invoke("desktop:open-folder", [null]), /Invalid local folder path/);
 });
 
@@ -296,5 +303,30 @@ test("main's monitor observes real uncaught exceptions and default rejections wi
     assert.equal(result.status, 1, result.stderr);
     assert.equal(result.stdout, `main ${origin}`);
     assert.match(result.stderr, /private document/);
+  }
+});
+
+test("daemon controls require trusted HTTP frame, always confirm stop and keep product mismatches connected", async () => {
+  for (const stopChoice of [0, 1]) {
+    const h = await start({ stopChoice, daemonVersion: "0.0.1" });
+    assert.deepEqual(h.daemonCalls, ["connect"]);
+    assert.match(h.confirmations[0].detail, /CLI/);
+    assert.equal(await h.invoke("desktop:daemon-stop", []), stopChoice === 1);
+    assert.equal(h.confirmations[1].cancelId, 0);
+    assert.match(h.confirmations[1].detail, /Connected tabs.*ongoing work/);
+    assert.equal(h.daemonCalls.includes("stop"), stopChoice === 1);
+    for (const event of ["will-navigate", "will-redirect"]) {
+      let refused = false;
+      h.window.webContents.emit(event, { preventDefault() { refused = true; } }, "https://foreign.invalid/");
+      assert.equal(refused, true);
+    }
+    h.window.webContents.mainFrame.url = "http://127.0.0.1:23457/index.html";
+    assert.throws(() => h.invoke("desktop:daemon-reconnect", []), /Untrusted/);
+    h.window.webContents.mainFrame.url = "http://127.0.0.1:23456/index.html";
+    await h.invoke("desktop:daemon-reconnect", []);
+    assert.equal(h.daemonCalls.filter(call => call === "connect").length, 2);
+    h.app.emit("window-all-closed");
+    await setImmediate();
+    assert.equal(h.daemonCalls.at(-1), "close");
   }
 });

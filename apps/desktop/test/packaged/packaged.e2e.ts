@@ -1,3 +1,4 @@
+import { daemonPort } from "../../../editor/server/daemon-state.ts";
 import { brand } from "../../../../brand.ts";
 import { createRequire } from "node:module";
 // The packaged Windows app (release/win-unpacked, or LITZIO_DESKTOP_EXE for an installed copy)
@@ -22,7 +23,8 @@ const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.
 const repo = path.resolve(desktop, "../..");
 const exe = process.env.LITZIO_DESKTOP_EXE ?? path.join(desktop, "release", "win-unpacked", `${brand.executableName}.exe`);
 const work = path.join(repo, "tmp", "desktop-e2e");
-const origin = `${brand.protocol}://app`;
+const appVersion = JSON.parse(readFileSync(path.join(desktop, "package.json"), "utf8")).version as string;
+const origin = `http://127.0.0.1:${daemonPort(appVersion.includes("-") ? "beta" : "stable")}`;
 const resetProfiles = new Set<string>();
 if (process.platform !== "win32") throw new Error("The packaged app tests run on Windows.");
 if (!existsSync(exe)) throw new Error(`Package the app first: ${exe} is missing.`);
@@ -32,7 +34,7 @@ function profile(name: string): string {
   const folder = path.join(work, "profiles", name);
   resetProfiles.add(folder);
   mkdirSync(folder, { recursive: true });
-  for (const file of ["preferences.json", "logs/desktop.log", "logs/desktop.log.old", "sample-native-v1"]) {
+  for (const file of ["preferences.json", "logs/desktop.log", "logs/desktop.log.old", "samples-0.0.2-beta.6"]) {
     rmSync(path.join(folder, file), { force: true, recursive: true });
   }
   return folder;
@@ -50,7 +52,7 @@ function documentFolder(name: string): { folder: string; file: string } {
 }
 
 async function launch(userData: string, args: string[] = [], environment: Record<string, string> = {}): Promise<{ app: ElectronApplication; page: Page; requests: string[] }> {
-  const env = Object.fromEntries(Object.entries({ ...process.env, ...environment }).filter((entry): entry is [string, string] => entry[1] !== undefined));
+  const env = Object.fromEntries(Object.entries({ ...process.env, LITZIO_DAEMON_DIR: path.join(work, "daemon"), LITZIO_DATA_DIR: path.join(work, "data"), ...environment }).filter((entry): entry is [string, string] => entry[1] !== undefined));
   const app = await electron.launch({ executablePath: exe, args: ["--lang=en-US", `--user-data-dir=${userData}`, ...args], env, timeout: 60_000 });
   const page = await app.firstWindow();
   // The app, not Playwright, answers beforeunload (will-prevent-unload); a listener stops Playwright's auto-dismiss.
@@ -106,7 +108,7 @@ async function closeApp(app: ElectronApplication): Promise<void> {
   }
 }
 
-test("packaged in-process Host forks its shipped Docling worker and opens a complete native comparison", async () => {
+test("packaged in-process Host forks its shipped Docling worker and opens a complete native comparison", { skip: "ADR-0016 section 6: PR4 restores daemon worker lifecycle coverage; CI 41782696099: 5.669s" }, async () => {
   const userData = profile("docling-worker"), folder = path.join(work, "docling-worker");
   rmSync(folder, { recursive: true, force: true }); mkdirSync(folder, { recursive: true });
   const fake = await fakeDoclingServer();
@@ -291,7 +293,7 @@ test("started without a document, it opens none; the sample opens with its figur
       }
     }
     if (captionFailures.length) throw new AggregateError(captionFailures, "Native caption pixel regressions (all captures retained)");
-    assert.match(await page.getByTestId("current-file").getAttribute("title") ?? "", /[\\/]sample-native-v1[\\/]en[\\/]converter-control\.md$/);
+    assert.match(await page.getByTestId("current-file").getAttribute("title") ?? "", new RegExp(`[\\\\/]samples-${appVersion.replaceAll(".", "\\.")}[\\\\/]en[\\\\/]converter-control\\.md$`));
     assert.equal(await page.locator(".ProseMirror h1").first().innerText(), "Current control for a 48 V converter");
     assert.equal(readFileSync(oldSample, "utf8"), "User-modified legacy sample.\n", "unrelated legacy sample directory is outside the versioned copy");
     assert.equal(await page.evaluate(() => typeof (globalThis as { process?: unknown }).process), "undefined", "the page has no Node.js");
@@ -598,11 +600,11 @@ test("a damaged update configuration leaves the Editor and Settings usable", {
   }
 });
 
-test("started directly, the app opens no TCP port; start time and memory are measured", async () => {
+test("started directly, the app owns one loopback daemon; start time and memory are measured", async () => {
   const userData = profile("direct");
   const log = path.join(userData, "logs", "desktop.log");
   const started = Date.now();
-  const child = spawn(exe, ["--lang=en-US", `--user-data-dir=${userData}`], { stdio: "ignore" });
+  const child = spawn(exe, ["--lang=en-US", `--user-data-dir=${userData}`], { stdio: "ignore", env: { ...process.env, LITZIO_DAEMON_DIR: path.join(work, "daemon"), LITZIO_DATA_DIR: path.join(work, "data") } });
   try {
     while (!(existsSync(log) && readFileSync(log, "utf8").includes("window shown"))) {
       if (Date.now() - started > 30_000) throw new Error("The window did not show within 30 seconds");
@@ -610,12 +612,13 @@ test("started directly, the app opens no TCP port; start time and memory are mea
     }
     const shown = Date.now() - started;
     const initial = await processTree(child, exe);
-    assert.deepEqual(initial.listening, []);
+    assert.equal(initial.listening.length, 1);
+    assert.equal(initial.listening[0], new URL(origin).host);
     await new Promise((resolve) => setTimeout(resolve, 3000));
     const tree = await processTree(child, exe, initial.identities);
     console.log(`direct start identities: ${JSON.stringify(tree.identities)}`);
     console.log(`direct start: window shown after ${shown} ms; ${tree.processes} processes; ${tree.workingSetMb} MB working set; listening: ${JSON.stringify(tree.listening)}`);
-    assert.deepEqual(tree.listening, []);
+    assert.deepEqual(tree.listening, initial.listening);
   } finally {
     execFileSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
   }

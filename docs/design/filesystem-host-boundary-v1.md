@@ -146,7 +146,7 @@ without creating or renewing a folder watcher. No document revision cache or Hos
 
 Host는 요청된 document locator를 실제 filesystem 동작으로 연결한다. Locator는 interface/host layer의 값이며 Core의 semantic document model에 포함하지 않는다.
 
-Host 구현은 교체 가능해야 한다. Vite는 개발 HTTP, Windows Desktop은 `litzio://app` custom protocol, 독립 HTTP Host는 Node listener와 production 정적 파일을 사용하며 같은 stateless document/asset handler를 호출한다. Vite/Desktop은 기존 local 파일 정책을 명시적으로 선택하고 HTTP는 고정 Root allowlist를 반드시 적용한다. [Desktop contract](desktop-distribution-v1.md)와 [HTTP contract](http-host-v1.md)가 각 배포·접근 경계를 정한다. 이 재사용을 장기 persistence/backend 또는 Workspace 결정으로 확대하지 않는다.
+Host 구현은 교체 가능해야 한다. Vite는 개발 HTTP, Windows Desktop과 브라우저는 같은 HTTP daemon의 Node listener와 production 정적 파일을 사용하며 같은 stateless document/asset handler를 호출한다. Vite와 로컬 Desktop daemon은 전체 로컬 접근 정책을 사용하고, 수동 HTTP는 선택 Root allowlist를 적용한다. [Desktop contract](desktop-distribution-v1.md)와 [HTTP contract](http-host-v1.md)가 각 배포·접근 경계를 정한다. 이 재사용을 장기 persistence/backend 또는 Workspace 결정으로 확대하지 않는다.
 
 Litzio는 browser file upload를 기본 document access model로 사용하지 않는다.
 
@@ -477,7 +477,7 @@ stem `name` and optional `{path, source?}[]` `openDocuments` containing dirty ta
 requesting Editor window. `source` contains applied unsaved content when present; a path-only
 entry covers property drafts against the saved document's references.
 Vite, Desktop and HTTP reuse this stateless handler. The selected root is supplied per request;
-HTTP additionally enforces the operator Root allowlist. No open-folder registry is retained.
+HTTP additionally enforces the operator Root allowlist when configured. No open-folder registry is retained.
 
 Only regular files below the chosen root are accepted. Lexical and real paths must stay inside;
 symlinks (including junctions and the chosen root itself), directories and missing files are refused.
@@ -491,8 +491,7 @@ distinct existing entries (including hard links to the same inode) remain confli
 Ownership checks bound accidental replacement; as with existing file commit, validation/use
 steps are separate and do not sandbox a hostile concurrent filesystem administrator.
 
-Explorer Vite deletion is permanent, after the Editor names the file and confirms. HTTP daemon deletion uses the OS trash adapter (Windows recycle bin, Linux GIO); failure preserves the file. Desktop supplies
-`shell.trashItem` to the same checked handler; failure never falls back to permanent deletion.
+Explorer Vite deletion is permanent, after the Editor names the file and confirms. HTTP daemon deletion uses the OS trash adapter (Windows recycle bin, Linux GIO); failure preserves the file. Desktop uses the same daemon adapter; failure never falls back to permanent deletion.
 Successful operations return `{path, updatedDocuments?, skippedDocuments?}` and the Editor
 refreshes already-loaded parent listings. Updated document locators are absolute; skipped
 unreadable/non-native `.md` names are relative to the requested root and shown in a notice.

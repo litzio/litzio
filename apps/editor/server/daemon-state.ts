@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { brand } from "../../../brand.ts";
 import { DAEMON_PROTOCOL, sameInstance, type DaemonHealth, type DaemonIdentity } from "./daemon-protocol.ts";
 
-export type DaemonRecord = DaemonIdentity & { url: string };
+export type DaemonRecord = DaemonHealth & { url: string };
 export type DaemonChannel = "stable" | "beta" | "development";
 export function daemonUser(): string {
   if (process.platform !== "win32") return `uid:${os.userInfo().uid}`;
@@ -23,6 +23,38 @@ export function daemonPort(channel: DaemonChannel, user = daemonUser()): number 
 }
 export const daemonDirectory = (channel: DaemonChannel) => path.join(process.env.LITZIO_DAEMON_DIR ?? path.join(os.homedir(), brand.folders.shared, "daemon"), channel);
 
+/** OS process creation identity; an HTTP timeout is never evidence of a dead owner. */
+export function processStart(pid: number): string | undefined {
+  try { process.kill(pid, 0); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ESRCH") return; throw error; }
+  if (process.platform === "win32") {
+    const value = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `$p = Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}' -ErrorAction Stop; if ($p) { $p.CreationDate.ToUniversalTime().Ticks }`], { encoding: "utf8", windowsHide: true }).trim();
+    return value || undefined;
+  }
+  if (process.platform === "linux") {
+    try {
+      const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
+      return `${fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim()}:${stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19]}`;
+    } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
+  }
+  return execFileSync("ps", ["-p", String(pid), "-o", "lstart="], { encoding: "utf8" }).trim() || undefined;
+}
+
+/** Only start/reconnect calls this: no background restart and no process killing. */
+export function reclaimStaleDaemon(directory: string): boolean {
+  const lock = path.join(directory, "daemon.lock"), file = path.join(directory, "instance.json");
+  let bytes: string;
+  try { bytes = fs.readFileSync(lock, "utf8"); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return false; throw error; }
+  const owner = JSON.parse(bytes) as DaemonIdentity & { processStartedAt: string };
+  if (!Number.isSafeInteger(owner.pid) || owner.pid < 1 || !owner.processStartedAt) throw new Error("Invalid daemon lock; inspect it before restarting.");
+  if (processStart(owner.pid) === owner.processStartedAt) return false;
+  const record = readDaemonRecord(directory);
+  if (record && !sameInstance(record, owner)) throw new Error("Discovery and lock identity differ; refusing cleanup.");
+  if (fs.readFileSync(lock, "utf8") !== bytes) throw new Error("Daemon lock changed during stale inspection.");
+  if (record) fs.unlinkSync(file);
+  fs.unlinkSync(lock);
+  return true;
+}
+
 /** Keep instance records and locks private to the OS user; this is not HTTP authentication. */
 export function prepareDaemonDirectory(directory: string): void {
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -35,8 +67,11 @@ export function prepareDaemonDirectory(directory: string): void {
 export function readDaemonRecord(directory: string): DaemonRecord | undefined {
   try {
     const record = JSON.parse(fs.readFileSync(path.join(directory, "instance.json"), "utf8"));
-    if (!Number.isSafeInteger(record.pid) || record.pid < 1 || typeof record.startedAt !== "string" || !Number.isFinite(Date.parse(record.startedAt)) ||
-        typeof record.instanceId !== "string" || !record.instanceId || !/^http:\/\/127\.0\.0\.1:\d+$/.test(record.url)) throw new Error("Invalid daemon discovery record.");
+    if (!["desktop", "cli-start", "cli-run"].includes(record.launcher) || !Number.isSafeInteger(record.pid) || record.pid < 1 || typeof record.startedAt !== "string" || !Number.isFinite(Date.parse(record.startedAt)) ||
+        typeof record.instanceId !== "string" || !record.instanceId ||
+        ![record.processStartedAt, record.productVersion, record.protocolVersion, record.daemonHome, record.executable].every(value => typeof value === "string" && value.length > 0) ||
+        !Array.isArray(record.roots) || !record.roots.every((root: unknown) => typeof root === "string") || typeof record.nonLoopback !== "boolean" ||
+        (record.log !== undefined && typeof record.log !== "string") || !/^http:\/\/127\.0\.0\.1:\d+$/.test(record.url)) throw new Error("Invalid daemon discovery record.");
     return record;
   } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
 }
@@ -66,7 +101,9 @@ export async function daemonRpc(record: DaemonRecord, route: string, body?: unkn
 }
 
 export async function inspectDaemon(record: DaemonRecord, productVersion: string, warn: (message: string) => void = console.error): Promise<DaemonHealth> {
-  const health = await daemonRpc(record, "/daemon/health") as DaemonHealth;
+  let health: DaemonHealth;
+  try { health = await daemonRpc(record, "/daemon/health") as DaemonHealth; }
+  catch (error) { throw new Error(`Recorded daemon (pid ${record.pid}, ${record.url}) is not responding or incompatible: ${(error as Error).message}. Inspect its log; use the matching CLI to stop/restart it.`, { cause: error }); }
   if (!sameInstance(record, health)) throw new Error("Daemon identity changed; refusing this discovery record.");
   if (health.protocolVersion !== DAEMON_PROTOCOL) throw new Error("Daemon protocol mismatch. Use the CLI matching the running daemon to stop it, or Ctrl+C in its foreground terminal; then start the desired version.");
   if (health.productVersion !== productVersion) warn(`WARNING: daemon product ${health.productVersion}, client ${productVersion}. Connection retained; restart explicitly with daemon stop --confirm then daemon start. Other clients/jobs may be interrupted.`);

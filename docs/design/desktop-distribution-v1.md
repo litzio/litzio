@@ -1,6 +1,7 @@
 # Desktop distribution and updates v1
 
 - Status: Implemented
+- PR3 verification: 2026-11-04 — CLI 90, Editor 433, Desktop 76 tests; ownership/crash/stale subprocess cases; typecheck and dev build; persistent Chrome Desktop/HTTP scenarios. Windows packaged checks remain CI-only.
 - Lifecycle CI scope verification: 2026-11-03 (#1009 P6; policy/workflow and unit contracts; actual package/install/update/uninstall execution is CI-only).
 - Brand CI policy verification: 2026-11-02 (#888; path/aggregate/release workflow regressions and docs checks; package/install execution remains PR Windows CI).
 - CI artifact policy verification: 2026-10-30 (#808; generated evidence paths compared with packaged/update/uninstall tests, workflow policy regressions and docs check; package/install execution remains required CI).
@@ -25,20 +26,33 @@
 - Start-up/CLI path verification: 2026-10-15 (#287 unit tests for refusal before path I/O and valid Unicode names; Desktop tested without Electron).
 - Scope: Windows x64 per-user Electron/NSIS app, Stable/Beta updates and local/CI packaging. Publication requires an owner-authorized release and manual workflow dispatch from master; no separate environment approval is required after validation succeeds.
 
-Docling conversion uses the shared [Host worker runtime](plugin-runtime-v1.md).
-Its dynamic commands/sidebar/tab view use [Plugin UI contributions](plugin-ui-v1.md)
-through the same in-process origin and CSP (#857); no TCP listener is introduced.
-The CLI distribution ships the self-contained worker beside its Editor assets;
-Desktop copies that trusted bundle to the common user installation before first
-conversion. It forks the installed copy with RunAsNode, retains in-process
-`litzio://app` routing and stops local workers after the ordinary close gate.
-The packaged CI smoke exercises this actual path with synthetic REST.
+Desktop now uses the shared loopback HTTP daemon under [ADR-0016](../adr/0016-shared-local-daemon-host.md). No custom protocol or in-process document Host remains. Document handlers, plugins, Core and official writes run in the CLI-shipped daemon. The persistent Electron origin is the fixed per-user/channel daemon URL; there is no migration from `litzio://app` storage. Host/Origin checks remain; this phase has no authentication (#1145).
 
-Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
+## Shared daemon Desktop (#1142 PR3)
 
-## Approved transition (#1142; not implemented here)
+Desktop discovers only unrestricted local-mode records at the fixed loopback origin. Without a live record it starts the shipped CLI's `daemon run` through a private IPC pipe, using the PR2 lock/HTTP/asset path. A ready identity proves which generation it spawned. Normal close disconnects that pipe and waits for matching record removal; parent death also disconnects the pipe. Other clients/jobs are not counted. A CLI-started daemon survives Desktop close. Explicit start/reconnect reclaims only OS-proven dead/reused process identities, never an HTTP timeout.
 
-[ADR-0016](../adr/0016-shared-local-daemon-host.md)은 인증된 공유 로컬 daemon으로의 Desktop 전환을 승인한다. 아래는 현재 구현 계약이다. 새 daemon·Desktop·플러그인/AI 수명 동작은 #1142의 PR2~PR4에서 구현과 함께 갱신한다. 이 문서 연결은 구현 완료나 배포 검증을 뜻하지 않는다.
+The existing single Desktop instance, native close protection, folder picker and Explorer integration remain. Folder selection has no Root-registration step. Before granting Explorer capability, main asks the connected daemon to validate the supplied opened-root listing and pins it through existing `RootAccess`. IPC accepts only this window's main frame at the exact daemon origin; navigation outside it is refused. Browser links leave through the system browser. The bridge exposes startup file/sample paths, not a second document write API.
+
+The existing sidebar DropdownMenu offers **Open in browser** and **Stop daemon**. Stop always confirms that connected tabs and ongoing work will be interrupted, regardless of launcher. The existing NotificationCenter reports disconnection and offers **Reconnect**, which explicitly repeats discovery/spawn without reloading or discarding local editing state. A five-second health check detects loss; it does not restart anything. About settings reuse SettingsRow and a details disclosure for daemon state, URL, launcher and versions plus process/access/path diagnostics. Product mismatch warns and retains the connection; protocol mismatch refuses. Both direct the user to restart through the CLI, without a Desktop restart button.
+
+Brand defaults and packager overrides follow [the branding guide](../guides/branding.md). Update/uninstall daemon integration remains phase 2; no installer modifications are part of PR3.
+
+### PR3 plugin test exception
+
+Baseline: [CI 41782696099](https://github.com/litzio/litzio/actions/runs/41782696099), head `ff2c2936ab4349d44c81919d6a3292e90be2395a`, measured from job steps and per-test log durations before exclusion.
+
+| Job/scenario | Measured duration | PR3 treatment |
+| --- | ---: | --- |
+| Windows Desktop package/update job | 16m05s; packaged step 60s | All non-plugin package/update/uninstall assertions retained |
+| packaged in-process Host forks shipped Docling worker | 5.669s | Only excluded test; directly requires removed in-process ownership. PR4 restores daemon-owned worker/native comparison coverage |
+| Browser docling-dashboard / plugin-ui | 42.0s / 9.3s | Retained |
+| Browser docling-server / docling-compare | 50.4s / 21.0s | Retained |
+| Browser docling-review / recovery / retry | 36.7s / 23.3s / 26.5s | Retained |
+| Browser plugin-settings / ai-agent / ai-result | 6.9s / 1.2m / 10.7s | Retained |
+| Host close waits admitted workers / partial REST worker kill (Windows) | 1.681s / 6.316s | Retained; existing integration adapters now call HTTP |
+
+No fast unit tests or data-preservation assertions are excluded. Obsolete custom-protocol transport tests are removed with that implementation; shared HTTP tests retain CSP, path, revision, trash, template and plugin protections. Startup/sample behavior is covered at the bridge/client and sample copier boundaries. PR4 must restore the one marked skip and pass all required CI before phase 1 is complete. **No releases while this exception exists.**
 
 ## Open folders in File Explorer (#487)
 
@@ -47,8 +61,7 @@ The Desktop preload exposes `openFolderInExplorer` as the Host capability, plus
 expose neither, so their folder menus omit the action. Root and child-folder More actions menus
 use **Open in File Explorer** / **파일 탐색기에서 열기**. This adds no folder context menu.
 
-Main's existing trusted top-frame IPC wrapper protects both calls. Successful shared Host root
-listings register eligible local roots in main; synchronization accepts only those registered
+Main's existing trusted top-frame IPC wrapper protects both calls. Main verifies shared daemon root listings and registers eligible local roots; synchronization accepts only those registered
 roots and closing a section removes it from the active set. Main reuses pinned `RootAccess`
 validation for lexical containment, real-path containment and root identity, and requires an
 existing local directory before passing its canonical path to `shell.openPath`. Files (including
@@ -64,16 +77,14 @@ boundaries are unchanged; their tests remain Windows CI responsibilities.
 ## File context actions (#505 / #504 PR A)
 
 Desktop uses the same web context menu and dialogs as Vite/HTTP; Electron `Menu.popup` is not
-used. The preload bridge adds only the literal `fileDeletion: "trash"` capability. Paths and file
-content continue through the shared Host transport, not a second IPC filesystem API. The custom
-protocol routes `/api/file` to the existing shared handler and injects `shell.trashItem` as its delete
-adapter after the same root/symlink/regular-file checks. An unavailable or failed trash adapter
+used. `GET /api/host-capabilities` declares `fileDeletion: "trash"` for daemon clients and `"permanent"` for Vite. Paths and file
+content continue through the shared Host transport, not a second IPC filesystem API. The daemon routes `/api/file` to the shared handler and uses its OS trash adapter after the same root/symlink/regular-file checks. An unavailable or failed trash adapter
 returns an error and keeps the file; it never falls back to permanent deletion. Rename reuses the
 same exclusive Host operation. Folder operations and reference rewriting remain out of scope.
 See [filesystem operations](filesystem-host-boundary-v1.md#file-deletion-and-rename-505--504-pr-a)
 and [session/focus behavior](editor-ux-shell-v1.md#file-context-menu-505--504-pr-a).
 
-Local protocol tests cover injected trash success/failure and shared path validation. Packaged
+Shared HTTP tests cover injected trash success/failure and shared path validation. Packaged
 Windows behavior remains a required CI check; no local package/install/update run is required
 because packaging and update boundaries are unchanged.
 
@@ -176,11 +187,7 @@ ship as Korean and English folders, each containing a canonical native `.md`, `a
 document** on the start screen or in Command center, including when an argument document is open.
 Changing UI language does not translate or replace an already open document.
 
-On every startup, Desktop replaces the writable sample folder with the bundled originals.
-Samples are for trying features; edits and added files are discarded on the next app start.
-No ownership marker, version comparison, exact file-set check or historical-folder recognition
-is used. The destination, its ancestors and contents must not contain junctions/symlinks;
-linked or unsupported paths fail preparation without touching their targets.
+Desktop copies samples once into `userData/samples-<encoded-app-version>`. Same-version restarts preserve edits, extra files and directory identity. A different app version uses a new folder and leaves earlier versions untouched. Missing/corrupt files in an existing folder report unavailable; they are never silently replaced. Destination/ancestor/nested junctions remain refused.
 
 Copying finishes in a generated sibling directory before rename installs it. An existing sample
 is moved aside only after staging succeeds; a failed installation rename restores it. Recursive
@@ -200,7 +207,7 @@ operation or CLI command: CLI `check` and `format` use the existing Core contrac
 `apps/editor/document/technical-document.md` remains a regression fixture, not the distributed sample.
 Core read-model feature coverage and canonical round-trip live in the existing Editor browser-fixture
 tests. Desktop first-document unit tests use OS temporary folders outside the repository for
-replacement of edits and added files, destination/ancestor/nested junction safety, copy failure
+preservation of same-version edits and added files, new-version copies, destination/ancestor/nested junction safety, copy failure
 and rename rollback; Host/client tests check that sample problems do not block startup.
 Existing browser Command center checks
 cover the UI entry and live language selection. See [sample capture evidence](editor-ux-shell-v1.md#localized-feature-samples-528).
@@ -214,7 +221,7 @@ not run locally by owner decision. The packaged regression expectations are upda
 
 ## Scope and completion
 
-The Desktop Host lives in `apps/desktop`. It ships the existing Editor production build and directly imports the existing document/asset Host handlers. `litzio://app` serves files and Host requests inside Electron; it starts neither Vite nor a TCP server. Core, File commit and CLI document operations do not change. There is no portable release, remote service, original-file autosave, cloud account or second editor state.
+The Desktop shell lives in `apps/desktop` and loads the existing production Editor from the shared daemon HTTP origin. The shipped CLI owns the document/asset Host handlers; Desktop has no in-process document Host. Core, File commit and CLI document operations do not change. There is no portable release, remote service, original-file autosave, cloud account or second editor state.
 
 Completion requires the Windows installer, channel/state tests, packaged app and actual install/update regressions, the existing Core/CLI/Editor/browser checks, CI configuration and this documentation. Unsigned publication is restricted to exact `vX.Y.Z-beta.N` releases after these checks, with its signature status and possible Windows warnings disclosed. Authenticode credentials are prerequisites for signed releases and Stable publication. All publication requires owner authorization and actual master-only environment protection configured in GitHub; it does not require a second approval of the publish job. Real GitHub update delivery is distinct from the local feed checks.
 
@@ -412,7 +419,7 @@ Electron retains its native **Close without saving / Keep editing** dialog. All-
 the distinction from single-tab Close and recovery retention follow the
 [session protection contract](editing-session-save-v1.md#switching-and-recovery).
 
-Client recovery uses IndexedDB at the stable `litzio://app` origin in Electron's persistent
+Client recovery uses IndexedDB at the fixed per-user/channel HTTP daemon origin in Electron's persistent
 default session, under the app profile. The packaged regression checks identical `userData` and
 `sessionData` paths across new app PIDs, actual forced termination and normal window close, and
 record/Restore/Save/Reload/conflict preservation. It keeps its test profile and resets recovery
@@ -434,7 +441,7 @@ The [client recovery contract](editing-session-save-v1.md#local-recovery-records
 
 ## Verification and signing
 
-The direct-start packaged check identifies its root through the live launched ChildProcess and executable, then follows parent PID edges with consistent creation times. If a first-observed process's recorded parent PID now names a younger owned process, processes older than the root are excluded; processes created at or after the root are owned only with an executable under the launched app's directory, otherwise measurement fails with an ambiguous-ownership diagnostic. Confirmed live child identities (PID plus creation time) persist across the initial and final samples and each sample's enumerations, even if their parent exits or its PID is reused. Collection is asynchronous so the original process handle's exit remains observable. Root and sampled listener identities are confirmed after TCP enumeration; missing/reused identities fail measurement. Both samples assert no TCP listeners. The process/TCP/process sequence is not atomic, cannot reconstruct all unobserved ancestry, and does not assert updater/installer leftovers after exit. CI can encounter ambiguous ownership if an external/unknown image meets these conditions; it must fail rather than omit that process. See [Windows Desktop regression](../test/README.md#windows-desktop-regression) for the #491 ownership regression and diagnostic fields.
+The direct-start packaged check identifies its root through the live launched ChildProcess and executable, then follows parent PID edges with consistent creation times. If a first-observed process's recorded parent PID now names a younger owned process, processes older than the root are excluded; processes created at or after the root are owned only with an executable under the launched app's directory, otherwise measurement fails with an ambiguous-ownership diagnostic. Confirmed live child identities (PID plus creation time) persist across the initial and final samples and each sample's enumerations, even if their parent exits or its PID is reused. Collection is asynchronous so the original process handle's exit remains observable. Root and sampled listener identities are confirmed after TCP enumeration; missing/reused identities fail measurement. Both samples assert the expected loopback daemon listener, with ownership identity checked. The process/TCP/process sequence is not atomic, cannot reconstruct all unobserved ancestry, and does not assert updater/installer leftovers after exit. CI can encounter ambiguous ownership if an external/unknown image meets these conditions; it must fail rather than omit that process. See [Windows Desktop regression](../test/README.md#windows-desktop-regression) for the #491 ownership regression and diagnostic fields.
 
 The updater uses its own SHA-512 download verification. A signed release build additionally uses the public `NsisUpdater.verifyUpdateCodeSignature` hook for strict Windows Authenticode verification: status must be Valid and the publisher must match `app-update.yml`; missing tools/errors refuse the update. It repeats that check before marking the download installable, including cache reuse (6.x skips the fresh-download signature hook for a cached file). Unsigned Betas do not enable this publisher-signature check. Code-signing secrets are supplied only by the release environment, never source/logs.
 

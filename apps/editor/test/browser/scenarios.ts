@@ -106,6 +106,7 @@ export const STABLE_SCENARIOS = [
  * All others assume the floating center is absent (#1003 owner decision).
  */
 export const NOTIFICATION_SCENARIOS = [
+  "desktop-updates",
   "reveal-folder",
   "plugin-ui",
   "color-mode",

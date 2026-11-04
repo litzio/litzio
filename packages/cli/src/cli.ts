@@ -280,10 +280,10 @@ const COMMANDS: CommandSpec[] = [
     summary: "Run and manage the HTTP daemon",
     usage: `${brand.cliCommand} daemon run [--root <folder> ...] [--port <port>] [--host <IP>] [--public-origin <origin>] [--channel <stable|beta|development>]`,
     details: [
-      "run starts the independent HTTP Host in the foreground. daemon alone shows help.",
-      `${brand.cliCommand} daemon start|status [--channel <stable|beta|development>]`,
+      "run executes in this terminal in the foreground. --root/--host/--port/--public-origin configure a server; without them it uses local mode. daemon alone shows help.",
+      `${brand.cliCommand} daemon start|status [--channel <stable|beta|development>] [status: --json]`,
       `${brand.cliCommand} daemon stop --confirm [--channel <stable|beta|development>]`,
-      "start connects or starts one local background daemon; status reports its verified URL and versions.",
+      "start starts a background daemon for this PC; Desktop discovers and connects to it. status prints a table (--json for structured output).",
       "Local mode: 127.0.0.1 with a stable port derived from the OS user identity and channel (20000–44575).",
       "Without --root, the entire server disk is accessible. Repeat --root to restrict folders.",
       "Roots are server filesystem access boundaries,",

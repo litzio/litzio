@@ -41,19 +41,21 @@ test("start-up skips malformed paths before I/O and accepts valid Unicode names"
   }
 });
 
-test("each startup replaces sample edits and added files with the bundled originals", () => sampleFixture(({dir,copy,source,warning,warnings}) => {
-  // No ownership or historical layout is required for this disposable sample directory.
-  fs.mkdirSync(copy);
-  fs.writeFileSync(path.join(copy, "personal.md"), "added file");
+test("same-version restarts preserve sample edits and identity; new versions use a new folder", () => sampleFixture(({dir,copy,source,warning,warnings}) => {
   const first = firstDocument([], dir, dir, warning);
   assert.ok(first.samples);
-  for (const language of ["ko", "en"] as const) fs.writeFileSync(first.samples[language], `edited ${language}`);
-  fs.mkdirSync(path.join(copy, "extra"));
-  fs.writeFileSync(path.join(copy, "extra", "notes.md"), "added notes");
+  const identity = fs.statSync(copy).ino;
+  fs.writeFileSync(first.samples.en, "user edits");
+  fs.writeFileSync(path.join(copy, "personal.md"), "personal");
   assert.deepEqual(firstDocument([], dir, dir, warning), first);
-  assert.deepEqual(snapshot(copy), snapshot(source), "all bundled files restored, extra entries removed");
+  assert.equal(fs.statSync(copy).ino, identity);
+  assert.equal(fs.readFileSync(first.samples.en, "utf8"), "user edits");
+  const next = firstDocument([], dir, dir, warning, "0.2.0");
+  assert.ok(next.samples);
+  assert.notEqual(next.samples.en, first.samples.en);
+  assert.equal(fs.readFileSync(next.samples.en, "utf8"), fs.readFileSync(path.join(source, "en/converter-control.md"), "utf8"));
+  assert.equal(fs.readFileSync(first.samples.en, "utf8"), "user edits");
   assert.deepEqual(warnings, []);
-  assert.deepEqual(fs.readdirSync(dir).sort(), ["document.md", "sample", "sample-native-v1"], "no staging or backup leftovers");
 }));
 
 function sampleFixture(run: (fixture: { dir: string; copy: string; source: string; valid: string; warning: (message: string) => void; warnings: string[] }) => void): void {
@@ -63,7 +65,7 @@ function sampleFixture(run: (fixture: { dir: string; copy: string; source: strin
     const valid = path.join(dir, "document.md");
     fs.writeFileSync(valid, "---\nlitzio: 1\n---\n\n# My document\n");
     const warnings: string[] = [];
-    run({ dir, source: path.join(dir, "sample"), copy: path.join(dir, "sample-native-v1"), valid, warnings, warning: message => warnings.push(message) });
+    run({ dir, source: path.join(dir, "sample"), copy: path.join(dir, "samples-development"), valid, warnings, warning: message => warnings.push(message) });
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 
@@ -84,9 +86,9 @@ test("destination, ancestor and nested junctions stay intact without touching th
     let link = copy;
     if (location === "ancestor") {
       userData = path.join(dir, "linked-parent"); link = userData;
-      fs.mkdirSync(path.join(outside, "sample-native-v1"));
-      fs.writeFileSync(path.join(outside, "sample-native-v1", "technical-document.md"), "edited legacy");
-      fs.writeFileSync(path.join(outside, "sample-native-v1", "diagram.svg"), "diagram");
+      fs.mkdirSync(path.join(outside, "samples-development"));
+      fs.writeFileSync(path.join(outside, "samples-development", "technical-document.md"), "edited legacy");
+      fs.writeFileSync(path.join(outside, "samples-development", "diagram.svg"), "diagram");
     }
     if (location === "nested") {
       assert.ok(firstDocument([], dir, dir, warning).samples);
@@ -109,28 +111,31 @@ test("failed sample copies leave argument documents usable, old edits intact and
       fs.writeFileSync(initial.samples.ko, "edited sample");
     }
     const before = existing ? snapshot(copy) : undefined;
+    if (existing) fs.unlinkSync(path.join(copy, "en/converter-control.md"));
     fs.unlinkSync(path.join(source, "en/references.bib"));
     assert.deepEqual(firstDocument([valid], dir, dir, warning), {document:valid,sampleProblem:"unavailable"});
     assert.deepEqual(firstDocument([], dir, dir, warning), {sampleProblem:"unavailable"}, "empty startup also continues without advertising partial paths");
-    assert.ok(warnings.at(-1)?.includes("references.bib"));
-    if (before) assert.deepEqual(snapshot(copy), before);
+    assert.ok(warnings.at(-1)?.includes(existing ? "converter-control.md" : "references.bib"));
+    if (before) assert.deepEqual(snapshot(copy), before.filter(([name]) => name !== "en\\converter-control.md" && name !== "en/converter-control.md"));
     else assert.equal(fs.existsSync(copy), false);
-    assert.deepEqual(fs.readdirSync(dir).sort(), existing ? ["document.md","sample","sample-native-v1"] : ["document.md","sample"], "incomplete staging folders are cleaned");
+    assert.deepEqual(fs.readdirSync(dir).sort(), existing ? ["document.md","sample","samples-development"] : ["document.md","sample"], "incomplete staging folders are cleaned");
   });
 });
 
-test("failed staged installation restores the old sample and never advertises a failed installation", (t) => sampleFixture(({dir,copy,source,valid,warning}) => {
+test("failed staged installation preserves other versions and leaves no partial offer", t => sampleFixture(({dir,copy,valid,warning}) => {
   assert.ok(firstDocument([], dir, dir, warning).samples);
   const before = snapshot(copy);
+  const destination = path.join(dir, "samples-0.2.0");
   const rename = fs.renameSync;
   const mocked = t.mock.method(fs, "renameSync", (...[from, to]: Parameters<typeof fs.renameSync>) => {
-    if (String(from).includes(".litzio-sample-stage-") && !String(from).endsWith("-previous") && to === copy) throw new Error("injected installation failure");
-    return rename(from,to);
+    if (to === destination) throw new Error("injected installation failure");
+    return rename(from, to);
   });
   syncBuiltinESMExports();
   try {
-    assert.deepEqual(firstDocument([valid], dir, dir, warning), {document:valid,sampleProblem:"unavailable"});
+    assert.deepEqual(firstDocument([valid], dir, dir, warning, "0.2.0"), {document:valid,sampleProblem:"unavailable"});
     assert.deepEqual(snapshot(copy), before);
-    assert.deepEqual(fs.readdirSync(dir).sort(), ["document.md","sample","sample-native-v1"]);
+    assert.equal(fs.existsSync(destination), false);
+    assert.deepEqual(fs.readdirSync(dir).sort(), ["document.md","sample","samples-development"]);
   } finally { mocked.mock.restore(); syncBuiltinESMExports(); }
 }));

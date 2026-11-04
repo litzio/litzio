@@ -26,6 +26,8 @@ import { installedDirectory } from "./installed-app.ts";
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repo = path.resolve(desktop, "../..");
 const work = path.join(repo, "tmp", "desktop-update");
+process.env.LITZIO_DAEMON_DIR = path.join(work, "daemon");
+process.env.LITZIO_DATA_DIR = path.join(work, "host-data");
 const HOST = "127.0.0.1:47320";
 const LIVE = process.argv.includes("--github");
 const BETA = LIVE || process.env.LITZIO_TEST_UPDATE_CHANNEL === "beta";
