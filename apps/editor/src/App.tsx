@@ -1,11 +1,12 @@
+import { AssistantHostChooser } from "./shell/AssistantHostChooser.tsx";
 import { HostContext, HostClientContext } from "./host-context.tsx";
-import { LOCAL_HOST_ID, sameLocator } from "./host-locator.ts";
-import { getHostClient, type HostClient } from "./host-client.ts";
+import { LOCAL_HOST_ID, locatorKey, sameLocator } from "./host-locator.ts";
+import { getHostClient, hostRegistry, hostLabel, type HostClient } from "./host-client.ts";
 import { handleDisplayRequest } from "./assistant-display.ts";
 import { creationUndoNeedsConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
-import { productName } from "../../../brand.ts";
+import { brand, productName } from "../../../brand.ts";
 import { ASSISTANT_SHORTCUT, COMMAND_CENTER_SHORTCUT, EDITOR_SHORTCUTS, SAVE_SHORTCUT, isMac } from "./shortcuts.ts";
 import { usePanelWidth } from "./shell/panel-width.ts";
 import { AssistantPanel, assistantWidth, rememberAssistantWidth } from "./shell/AssistantPanel.tsx";
@@ -28,7 +29,7 @@ import { documentScrollContainer, scrollDocumentFromShell } from "./document-scr
 import { DocumentTabs } from "./shell/DocumentTabs.tsx";
 import { editorGroups, initialEditorGroups, allTabsPendingWork, openedTab, tabLabels, tabNames } from "./document-tabs.ts";
 import { messageOf, NativeOpenError, createDocumentRequests } from "./document-session.ts";
-import { THEME_LABELS, THEMES, writeTheme, type ThemePreference, readDocumentWidth, readOpenTabs, readRecentFolders, rememberRecentFolder, visibleRecentFolders, writeDocumentWidth, writeOpenTabs, type DocumentWidth } from "./preferences.ts";
+import { THEME_LABELS, THEMES, writeTheme, type ThemePreference, readDocumentWidth, readOpenTabs, readOpenFolders, readRecentFolders, rememberRecentFolder, visibleRecentFolders, writeDocumentWidth, writeOpenTabs, type DocumentWidth } from "./preferences.ts";
 import { applyTheme, currentTheme } from "./theme.ts";
 import { DocumentPanel } from "./shell/DocumentPanel.tsx";
 import { DocumentStart } from "./shell/DocumentStart.tsx";
@@ -89,7 +90,7 @@ export function App() {
 
 function EditorApp() {
   useTranslation();
-  const [referenceRequest, setReferenceRequest] = useState<{ path: string }>();
+  const [referenceRequest, setReferenceRequest] = useState<{ hostId: string; path: string }>();
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [sidebarSize, setSidebarSize] = usePanelWidth("sidebar");
   const [documentPanelSize, setDocumentPanelSize] = usePanelWidth("document-panel");
@@ -177,9 +178,13 @@ function EditorApp() {
   const [fileOperationPending, setFileOperationPending] = useState(false);
   const [figureRenamePending, setFigureRenamePending] = useState(false);
   const renameImageRef = useRef<ImageRenamer | undefined>(undefined);
+  const remoteImageRename = useCallback<ImageRenamer>(async () => { throw new Error("Image rename requires Host-specific shell integration."); }, []);
   const renameImage = useCallback<ImageRenamer>((...args) => renameImageRef.current!(...args), []);
   const [tabs, setTabs] = useState<Tab[]>([]);
+  const latestTabs = useRef(tabs); latestTabs.current = tabs;
+  const startupOverrides = useRef(new Set<string>());
   const assistantAvailable = true;
+  const [assistantHost, setAssistantHost] = useState<string | undefined>();
   const [assistantSettingsRevision, setAssistantSettingsRevision] = useState(0);
   // Remove the operation guard before newly mounted Explorer rows restore focus in layout.
   useLayoutEffect(() => {
@@ -202,14 +207,27 @@ function EditorApp() {
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
   const [tabsRestored, setTabsRestored] = useState(false);
-  const [rememberVersion, rememberTabs] = useReducer(version => version + 1, 0);
+  const restoredHosts = useRef(new Set([LOCAL_HOST_ID]));
+  // A startup failure protects old memory until the user navigates this Host explicitly.
+  const navigatedHosts = useRef(new Set<string>());
+  const [rememberVersion, advanceTabMemory] = useReducer(version => version + 1, 0);
+  function rememberTabs(hostId?: string): void {
+    if (hostId) navigatedHosts.current.add(hostId);
+    advanceTabMemory();
+  }
   const serializedTabs = JSON.stringify({ paths: navigation.groups.flatMap(group => group.tabs).flatMap(id => {
     const tab = tabs.find(tab => tab.id === id); return tab ? [tab.path] : [];
   }), activePath: tabs.find(tab => tab.id === activeId)?.path ?? null });
   // Like folder memory, explicit actions remember the live list, even after another tab wrote it.
   // Session reports, Save and restoration alone never write navigation preferences.
   useEffect(() => {
-    if (tabsRestored && rememberVersion > 0) writeOpenTabs(JSON.parse(serializedTabs));
+    if (tabsRestored && rememberVersion > 0) {
+      for (const host of hostRegistry.list()) {
+        if (!restoredHosts.current.has(host.hostId) && !navigatedHosts.current.has(host.hostId)) continue;
+        const paths = navigation.groups.flatMap(group => group.tabs).flatMap(id => tabs.filter(tab => tab.id === id && tab.hostId === host.hostId).map(tab => tab.path));
+        writeOpenTabs({ paths, activePath: tabs.find(tab => tab.id === activeId && tab.hostId === host.hostId)?.path ?? null }, host.hostId);
+      }
+    }
   }, [serializedTabs, tabsRestored, rememberVersion]);
   const sessions = useRef(new Map<string, EditorSession>());
   const [, refreshShell] = useReducer(value => value + 1, 0);
@@ -224,22 +242,22 @@ function EditorApp() {
   const refreshRecovery = useCallback(async () => {
     try {
       const records = await recoveryStorage.list();
-      setRecoveryRecords(records.filter(record => record.hostId === LOCAL_HOST_ID || !record.hostId));
+      setRecoveryRecords(records);
       setRecoveryProblem("");
-      return records.filter(record => record.hostId === LOCAL_HOST_ID);
+      return records;
     } catch (cause) {
       setRecoveryProblem({ key: "Local recovery is unavailable: {{reason}}. Save or copy your work before closing.", values: { reason: messageOf(cause) } });
       return null;
     }
   }, []);
-  function reviewRecovery(record: RecoveryRecord): void {
+  function reviewRecovery(record: RecoveryRecord, preserveCurrent = false): void {
     let reason = "";
-    try { prepareRecovery(record); if (record.hostId !== LOCAL_HOST_ID) throw new Error("This recovery belongs to an unavailable Host."); } catch (cause) { reason = messageOf(cause); }
-    setRecoveryReview({ record, reason });
+    try { prepareRecovery(record); hostRegistry.get(record.hostId); } catch (cause) { reason = messageOf(cause); }
+    setRecoveryReview(previous => preserveCurrent && previous ? previous : { record, reason });
   }
-  async function offerRecovery(file: EditorFileResponse): Promise<void> {
+  async function offerRecovery(file: EditorFileResponse, hostId = LOCAL_HOST_ID): Promise<void> {
     const records = await refreshRecovery();
-    const matching = records?.find(record => sameLocator(record, { hostId: LOCAL_HOST_ID, path: file.path }) && !tabs.some(tab => tab.recoveryId === record.id));
+    const matching = records?.find(record => sameLocator(record, { hostId, path: file.path }) && !tabs.some(tab => tab.recoveryId === record.id));
     if (matching) reviewRecovery(matching);
   }
   async function deleteRecovery(id?: string): Promise<void> {
@@ -249,7 +267,7 @@ function EditorApp() {
   async function restoreRecovery(): Promise<void> {
     if (!recoveryReview) return;
     const record = recoveryReview.record;
-    if (record.hostId !== LOCAL_HOST_ID) throw new Error("This recovery belongs to an unavailable Host.");
+    hostRegistry.get(record.hostId);
     const client = getHostClient(record.hostId);
     client.assertCurrent();
     const restored = prepareRecovery(record);
@@ -259,6 +277,7 @@ function EditorApp() {
       throw new UiError({ key: "This document already has open work. Close its tab before restoring a recovery record." });
     }
     const recoveryId = newRecoveryId();
+    startupOverrides.current.add(locatorKey(record));
     await recoveryStorage.restore(record, recoveryId);
     try { client.assertCurrent(); }
     catch (cause) {
@@ -271,7 +290,7 @@ function EditorApp() {
     setTabs(previous => [...previous.filter(tab => tab.id !== existing?.id), { client, id, hostId: record.hostId, path: record.path, file: restored.file, recoveryId, restored }]);
     if (existing) navigate({ type: "close", id: existing.id });
     navigate({ type: "open", id });
-    rememberTabs();
+    rememberTabs(record.hostId);
     setRecoveryReview(null);
     await refreshRecovery();
   }
@@ -287,7 +306,7 @@ function EditorApp() {
   const operationRef = useRef(true);
   const [error, setError, errorCause] = useMessageState("");
   // Restore folder context before opening tabs, including their bibliography resources.
-  const revisionChecks = () => [...sessions.current.values()].filter(owner => !owner.busyRef.current).map(owner => {
+  const revisionChecks = () => [...sessions.current.values()].filter(owner => owner.hostId === LOCAL_HOST_ID && !owner.busyRef.current).map(owner => {
     const path = owner.openedPath, expected = owner.acknowledgedRevision;
     return { path, accept: (revision: string | null) => owner.observeRevision(revision, expected) };
   });
@@ -332,7 +351,9 @@ function EditorApp() {
     };
   }, []);
   // Tab reporting rerenders the shell; keep this memoized tab prop stable and read live trees.
-  const onAssetChange = useCallback((documentPath: string, assetPath: string) => {
+  const onAssetChange = useCallback((documentPath: string, assetPath: string, hostId = LOCAL_HOST_ID) => {
+    // Remote Explorer checks its own Host; never refresh local paths for remote assets.
+    if (hostId !== LOCAL_HOST_ID) return;
     const { directory } = splitDocumentPath(documentPath);
     const separator = documentPath.includes("\\") ? "\\" : "/";
     foldersRef.current.refreshParents(directory + assetPath.replace(/^\.\//, "").replaceAll("/", separator));
@@ -419,7 +440,7 @@ function EditorApp() {
     // Actual focus always follows a visible document, even while Open/Save is pending.
     // Switching a group's hidden tab still waits for that group's current operation.
     if (group.active !== id && (!explicit || group.active && sessions.current.get(group.active)?.busyRef.current)) return;
-    if (explicit || id !== activeId) rememberTabs();
+    if (explicit || id !== activeId) rememberTabs(tabs.find(tab => tab.id === id)?.hostId);
     if (id === activeId) return;
     navigate({ type: "select", id });
     setError("");
@@ -440,9 +461,9 @@ function EditorApp() {
     }
   }, [activeId, tabs.length, navigation]);
 
-  function placeTab(id: string, group = navigation.focused): void {
+  function placeTab(id: string, group = navigation.focused, hostId = tabs.find(tab => tab.id === id)?.hostId): void {
     navigate({ type: "open", id, group });
-    rememberTabs();
+    rememberTabs(hostId);
   }
   const rightGroup = navigation.groups[1]?.id ?? 1 - navigation.groups[0]!.id;
   function moveTab(id: string, right = false): void {
@@ -469,16 +490,17 @@ function EditorApp() {
     return () => observer.disconnect();
   }, [split]);
 
-  function acceptFile(file: EditorFileResponse, client: HostClient, group = navigation.focused): void {
+  function acceptFile(file: EditorFileResponse, client: HostClient, group = navigation.focused, hostId = LOCAL_HOST_ID): void {
     client.assertCurrent();
-    const existing = openedTab(tabs, file.path);
+    startupOverrides.current.add(locatorKey({ hostId, path: file.path }));
+    const existing = openedTab(latestTabs.current, file.path, hostId);
     const target = splitAvailable.current ? group : navigation.focused;
     if (existing) placeTab(existing.id, target);
     else {
       const id = `document-${++nextId.current}`;
       const recoveryId = newRecoveryId();
-      setTabs(previous => [...previous, { client, id, hostId: LOCAL_HOST_ID, path: file.path, file, recoveryId }]);
-      placeTab(id, target);
+      setTabs(previous => [...previous, { client, id, hostId, path: file.path, file, recoveryId }]);
+      placeTab(id, target, hostId);
     }
   }
   useEffect(() => {
@@ -553,7 +575,37 @@ function EditorApp() {
     return () => { current = false; };
   }, [folders.restored]);
 
+  useEffect(() => {
+    if (!tabsRestored) return;
+    let alive = true;
+    for (const host of hostRegistry.list().filter(host => host.hostId !== LOCAL_HOST_ID)) {
+      const client = getHostClient(host.hostId);
+      let failed = false;
+      void Promise.all((readOpenTabs(host.hostId)?.paths ?? []).map(async path => {
+        try {
+          const records = await refreshRecovery();
+          const recovery = records?.find(record => sameLocator(record, { hostId: host.hostId, path }));
+          if (recovery) { if (alive) reviewRecovery(recovery, true); return; }
+          const file = await createDocumentRequests(client).requestDocument("GET", path);
+          if (!alive || "start" in file) return;
+          if (startupOverrides.current.has(locatorKey({ hostId: host.hostId, path })) ||
+              startupOverrides.current.has(locatorKey({ hostId: host.hostId, path: file.path })) ||
+              openedTab(latestTabs.current, file.path, host.hostId)) return;
+          const id = `document-${++nextId.current}`;
+          const tab = { client, hostId: host.hostId, id, path: file.path, file, recoveryId: newRecoveryId() };
+          // Reserve this admission before another restoration response can allocate a duplicate ID.
+          latestTabs.current = [...latestTabs.current, tab];
+          setTabs(previous => [...previous, tab]);
+          navigate({ type: "open", id });
+        } catch { failed = true; /* Keep Host navigation and recovery records for a later connection. */ }
+      })).then(() => { if (alive && !failed) restoredHosts.current.add(host.hostId); });
+    }
+    return () => { alive = false; };
+  }, [tabsRestored]);
+
   function removeTab(id: string): void {
+    const closing = latestTabs.current.find(tab => tab.id === id);
+    if (closing) startupOverrides.current.add(locatorKey(closing));
     void sessions.current.get(id)?.discardRecovery()?.then(deleted => {
       if (!deleted) setError({ key: "The tab closed, but its local recovery record could not be deleted. Review it on the start screen and try Delete record again." });
     });
@@ -561,18 +613,19 @@ function EditorApp() {
     focusAfterClose.current = true;
     setTabs(previous => previous.filter(tab => tab.id !== id));
     navigate({ type: "close", id });
-    rememberTabs();
+    rememberTabs(tabs.find(tab => tab.id === id)?.hostId);
   }
-  const fileAction = async (action: Parameters<FileActionHandler>[0], chosenRoot: string, entry: FolderEntry, name?: string, figure?: { documentPath: string; imageUrl: string }, creation?: { revision: string; identity?: FileIdentity }) => {
+  const fileAction = async (action: Parameters<FileActionHandler>[0], chosenRoot: string, entry: FolderEntry, name?: string, figure?: { documentPath: string; imageUrl: string }, creation?: { revision: string; identity?: FileIdentity }, hostId = LOCAL_HOST_ID) => {
     if (operationRef.current || [...sessions.current.values()].some(owner => owner.busyRef.current)) throw new Error(i18n.t("Wait for the current file operation to finish."));
+    if (hostId !== LOCAL_HOST_ID && action === "delete" && hostRegistry.get(hostId).capabilities?.fileDeletion !== "trash") throw new Error(i18n.t("The Host trash is unavailable."));
     operationRef.current = true; setFileOperationPending(true);
     if (figure) setFigureRenamePending(true);
-    const localSessions = () => tabs.filter(tab => tab.hostId === LOCAL_HOST_ID)
+    const hostSessions = () => tabs.filter(tab => tab.hostId === hostId)
       .flatMap(tab => { const session = sessions.current.get(tab.id); return session ? [session] : []; });
-    const formSession = figure && localSessions().filter(owner => owner.kind === "native").find(owner => owner.openedPath === figure.documentPath);
-    const tab = tabs.find(tab => sameLocator(tab, { hostId: LOCAL_HOST_ID, path: entry.path }));
+    const formSession = figure && hostSessions().filter(owner => owner.kind === "native").find(owner => owner.openedPath === figure.documentPath);
+    const tab = tabs.find(tab => sameLocator(tab, { hostId, path: entry.path }));
     const owner = tab && sessions.current.get(tab.id);
-    const client = formSession ? formSession.client : owner?.client ?? getHostClient(LOCAL_HOST_ID);
+    const client = formSession ? formSession.client : owner?.client ?? getHostClient(hostId);
     owner?.suspendRecovery();
     let completed = false;
     try {
@@ -581,7 +634,7 @@ function EditorApp() {
         if (figure) throw new Error(i18n.t("The image rename response was interrupted. Files may have changed. Keep your edits and check the files before Reloading."));
         throw cause;
       };
-      const root = figure ? chosenRoot : folders.trees.filter(tree => tree.hostId === LOCAL_HOST_ID).map(tree => tree.root).filter(root => folderChain(root, entry.path).length > 0).sort((a, b) => a.length - b.length)[0] ?? chosenRoot;
+      const root = figure ? chosenRoot : folders.trees.filter(tree => tree.hostId === hostId).map(tree => tree.root).filter(root => folderChain(root, entry.path).length > 0).sort((a, b) => a.length - b.length)[0] ?? chosenRoot;
       let expectedRevision: string | undefined;
       let checkedRecovery: RecoveryRecord[] | undefined;
       if (creation !== undefined) {
@@ -590,9 +643,9 @@ function EditorApp() {
         const state = await check.json();
         if (!check.ok || typeof state.revision !== "string") throw new Error(state.error ?? "Could not check file.");
         expectedRevision = state.revision;
-        const dirty = () => localSessions().some(current => current.openedPath === entry.path && current.editorRef.current?.hasUnsavedChanges());
-        const tabState = () => JSON.stringify(localSessions().filter(current => current.openedPath === entry.path).map(current => [current.getSnapshot(), current.editorRef.current?.hasUnsavedChanges()]));
-        const recoveryForPath = async () => (await recoveryStorage.list()).filter(record => sameLocator(record, { hostId: LOCAL_HOST_ID, path: entry.path })).sort((a, b) => a.id.localeCompare(b.id));
+        const dirty = () => hostSessions().some(current => current.openedPath === entry.path && current.editorRef.current?.hasUnsavedChanges());
+        const tabState = () => JSON.stringify(hostSessions().filter(current => current.openedPath === entry.path).map(current => [current.getSnapshot(), current.editorRef.current?.hasUnsavedChanges()]));
+        const recoveryForPath = async () => (await recoveryStorage.list()).filter(record => sameLocator(record, { hostId, path: entry.path })).sort((a, b) => a.id.localeCompare(b.id));
         checkedRecovery = await recoveryForPath();
         const checkedTabState = tabState();
         if (creationUndoNeedsConfirmation(creation.revision, state.revision, dirty() || checkedRecovery.length > 0)) {
@@ -606,7 +659,7 @@ function EditorApp() {
       }
       const openDocuments = [];
       if (action === "rename" && entry.kind === "image") {
-        for (const current of localSessions()) {
+        for (const current of hostSessions()) {
           if (current.kind !== "native" || current.openedPath === figure?.documentPath) continue;
           if (folderChain(root, current.openedPath).length && current.editorRef.current?.hasUnsavedChanges()) {
             try {
@@ -631,7 +684,7 @@ function EditorApp() {
       // The rename dialog remains modal throughout the request and reloads. No tab can
       // accept new input between the dirty check and installing the new disk checkpoint.
       const reloadErrors: string[] = [];
-      for (const current of localSessions()) {
+      for (const current of hostSessions()) {
         if (current.openedPath === figure?.documentPath && response.ok) continue;
         if (!result.updatedDocuments?.includes(current.openedPath)) continue;
         const message = await current.load(current.openedPath);
@@ -639,15 +692,15 @@ function EditorApp() {
       }
       if (reloadErrors.length) setError({ key: "The files changed, but these tabs could not be reloaded: {{documents}}", values: { documents: reloadErrors.join(", ") } });
       if (result.skippedDocuments?.length) setNotice({ key: "Skipped unreadable or non-{{product}} documents: {{documents}}", values: { documents: result.skippedDocuments.join(", ") } });
-      if (!response.ok || typeof result.path !== "string") { folders.refreshParents(entry.path); throw new Error(result.error ?? `File operation failed (${response.status})`); }
+      if (!response.ok || typeof result.path !== "string") { if (hostId === LOCAL_HOST_ID) folders.refreshParents(entry.path); throw new Error(result.error ?? `File operation failed (${response.status})`); }
       completed = true;
-      try { await recoveryStorage.changePath(entry.path, action === "rename" ? result.path : null, checkedRecovery); }
+      try { await recoveryStorage.changePath(entry.path, action === "rename" ? result.path : null, checkedRecovery, hostId); }
       catch { setError({ key: "The file changed, but local recovery could not be updated. Review local recovery in Settings." }); }
       if (action === "rename") {
-        relocateTableWrap(entry.path, result.path);
+        if (hostId === LOCAL_HOST_ID) relocateTableWrap(entry.path, result.path);
         owner?.relocate(result.path);
         setTabs(previous => previous.map(tab => {
-          if (!sameLocator(tab, { hostId: LOCAL_HOST_ID, path: entry.path })) return tab;
+          if (!sameLocator(tab, { hostId, path: entry.path })) return tab;
           const restored = tab.restored && structuredClone(tab.restored);
           if (restored) restored.file.path = result.path;
           return { ...tab, path: result.path, file: { ...tab.file, path: result.path }, ...(restored ? { restored } : {}) };
@@ -657,8 +710,8 @@ function EditorApp() {
         setTabs(previous => previous.filter(item => item.id !== tab.id));
         navigate({ type: "close", id: tab.id });
       }
-      rememberTabs();
-      folders.refreshParents(entry.path);
+      rememberTabs(hostId);
+      if (hostId === LOCAL_HOST_ID) folders.refreshParents(entry.path);
       await refreshRecovery();
       return result.path;
     } finally {
@@ -764,12 +817,13 @@ function EditorApp() {
     return () => query.removeEventListener("change", change);
   }, []);
 
-  async function openFile(path: string, openedNotice = "", group = navigation.focused): Promise<string | null> {
+  async function openFile(path: string, openedNotice = "", group = navigation.focused, hostId = LOCAL_HOST_ID): Promise<string | null> {
     const requestedPath = unquotePath(path);
     if (!requestedPath) return i18n.t("Enter a Markdown file path.");
     if (!/\.(md|txt)$/i.test(requestedPath)) return i18n.t("Only .md and .txt files can be opened.");
     if (operationRef.current || busy || continuation) return i18n.t("Wait for the current operation to finish.");
-    const existing = openedTab(tabs, requestedPath);
+    startupOverrides.current.add(locatorKey({ hostId, path: requestedPath }));
+    const existing = openedTab(tabs, requestedPath, hostId);
     if (existing) {
       placeTab(existing.id, group);
       setError("");
@@ -781,11 +835,11 @@ function EditorApp() {
     setOperation("opening");
     setError("");
     try {
-      const client = getHostClient(LOCAL_HOST_ID);
-      const next = await createDocumentRequests(client).requestDocument("GET", requestedPath, folders.rootOf(requestedPath));
+      const client = getHostClient(hostId);
+      const next = await createDocumentRequests(client).requestDocument("GET", requestedPath, hostId === LOCAL_HOST_ID ? folders.rootOf(requestedPath) : undefined);
       if ("start" in next) throw new UiError({ key: "The Host did not return a document." });
-      acceptFile(next, client, group);
-      void offerRecovery(next);
+      acceptFile(next, client, group, hostId);
+      void offerRecovery(next, hostId);
       setNotice(openedNotice);
       return "";
     } catch (cause) {
@@ -913,8 +967,8 @@ function EditorApp() {
   // Startup tab restoration lists/reveals child folders but respects remembered section collapse.
   // Only an explicit navigation (rememberVersion) expands and remembers containing sections.
   useEffect(() => {
-    if (openedPath) folders.reveal(openedPath, rememberVersion > 0);
-  }, [openedPath]);
+    if (openedPath && session?.hostId === LOCAL_HOST_ID) folders.reveal(openedPath, rememberVersion > 0);
+  }, [openedPath, session?.hostId]);
 
   // Ctrl/Cmd+S is the Save button: same path, same messages. The browser's own page save
   // never applies. Modal dialogs cover the Save button, so the shortcut waits for them too.
@@ -1185,7 +1239,11 @@ function EditorApp() {
   return (<>
     <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !settingsFocused && !galleryFocused && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
       <Sidebar
-        onAddToChat={assistantAvailable ? (path, returnFocus) => { assistantReturn.current = returnFocus; setReferenceRequest({ path }); setAssistantOpen(true); } : undefined}
+        documentHostId={session?.hostId ?? LOCAL_HOST_ID}
+        onHostOpen={(hostId, path) => openFile(path, "", navigation.focused, hostId).then(message => { if (message) setError(message); })}
+        onHostDirty={(hostId, path) => { const tab = openedTab(tabs, path, hostId); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
+        onHostFileAction={(hostId, ...args) => fileAction(...args, undefined, undefined, hostId)}
+        onAddToChat={assistantAvailable ? (path, returnFocus) => { if (assistantHost && assistantHost !== LOCAL_HOST_ID) { setError({ key: "Start a conversation on the file’s Host to reference it." }); return; } setAssistantHost(LOCAL_HOST_ID); assistantReturn.current = returnFocus; setReferenceRequest({ hostId: LOCAL_HOST_ID, path }); setAssistantOpen(true); } : undefined}
         theme={theme} onThemeChange={changeTheme}
         contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }]}
         onFileAction={fileAction} fileActionsDisabled={busy || Boolean(continuation)}
@@ -1251,6 +1309,7 @@ function EditorApp() {
         <div className="top-bar-container">
           <TopBar onOpenCommandCenter={() => openCommandCenter()} documentPath={openedPath}
             onAssistant={assistantAvailable ? toggleAssistant : undefined} assistantOpen={assistantOpen}
+            hostLabel={session && hostRegistry.list().length > 1 ? hostLabel(session.hostId) : undefined}
             location={documentLocation(openedPath, folders.rootOf(openedPath))} />
         </div>
       </div>
@@ -1337,7 +1396,7 @@ function EditorApp() {
             const group = navigation.groups[groupIndex];
             return <DocumentTab client={tab.client} hostId={tab.hostId} settingsDisabled={Boolean(operation || fileOperationPending || continuationPending)} key={tab.id} id={tab.id} file={tab.file} restored={tab.restored} recoveryId={tab.recoveryId}
               active={group?.active === tab.id} focused={tab.id === activeId} groupIndex={groupIndex} onFocus={focusDocument}
-              report={reportSession} onAssetChange={onAssetChange} renameImage={tab.hostId === LOCAL_HOST_ID ? renameImage : async () => { throw new Error("Image rename requires Host-specific shell integration."); }} onReveal={revealDocument}
+              report={reportSession} onAssetChange={onAssetChange} renameImage={tab.hostId === LOCAL_HOST_ID ? renameImage : remoteImageRename} onReveal={revealDocument}
               onCompare={compareExternal} />;
           })}
           {galleryGroup ? <div className="shell-tab" role="tabpanel" tabIndex={-1} id="panel-templates" aria-labelledby="tab-templates"
@@ -1383,17 +1442,24 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable ? <AssistantPanel onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled} referenceRequest={referenceRequest} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel key={assistantHost} onNewHost={hostRegistry.list().length > 1 ? () => { setReferenceRequest(undefined); setAssistantHost(undefined); } : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={request => setReferenceRequest(previous => previous === request ? undefined : previous)} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
-        onOpen={async path => { await openFolderDocument(path); }}
+        onOpen={async path => { const message = await openFile(path, "", navigation.focused, assistantHost); if (message) throw new Error(message); }}
         onUndo={async result => {
-          const root = folders.rootOf(result.path);
+          const root = assistantHost === LOCAL_HOST_ID ? folders.rootOf(result.path) : readOpenFolders(assistantHost).find(root => folderChain(root, result.path).length > 0);
           if (!root) throw new Error(i18n.t("The created file is outside the opened folders."));
-          return await fileAction("delete", root, { path: result.path, name: splitDocumentPath(result.path).name, kind: "document" }, undefined, undefined, result) !== "";
+          return await fileAction("delete", root, { path: result.path, name: splitDocumentPath(result.path).name, kind: "document" }, undefined, undefined, result, assistantHost) !== "";
         }}
-        documentPath={session?.openedPath ?? ""} folders={openedFolderPaths}
+        documentPath={session?.hostId === assistantHost ? session.openedPath : ""} folders={assistantHost === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(assistantHost)}
         documentDirty={Boolean(session?.documentDirty || session?.draftActive)}
-        onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("assistant"); openSettingsTab(); }} /> : null}
+        onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("assistant"); openSettingsTab(); }} /></HostContext.Provider> : null}
+      {assistantOpen && !assistantHost ? <AssistantHostChooser onChoose={hostId => {
+        if (hostRegistry.get(hostId).state !== "connected") return;
+        if (hostRegistry.list().length > 1) {
+          try { localStorage.removeItem(`${brand.storagePrefix}.assistantConversation:${hostId}`); } catch { /* Page state remains usable. */ }
+        }
+        setAssistantHost(hostId);
+      }} onClose={closeAssistant} /> : null}
       <NotificationSource items={themeProblem && !settingsOpen ? [{ id: "theme-storage", severity: "error", message: i18n.t("Theme could not be saved. This choice applies until you close this page.") }] : []} />
       <CommandCenter open={commandQuery !== null} initialQuery={commandQuery ?? ""} items={commandItems}
         returnFocus={commandReturnFocus} onClose={() => setCommandQuery(null)} />

@@ -1225,3 +1225,31 @@ Verification captures: [1440px English Light](assets/editor-1159/ai-1440-light-e
 The [terminology glossary](../contributing/terminology.md) defines Assistant, AI provider and Permission mode. Current code/API/CLI names remain unchanged pending PR B. UI uses Background service (daemon in the status title), while CLI and documentation retain daemon. Settings use the existing SettingsSelect, native hover and conversation Tooltip without a UI pattern exception. Permission descriptions distinguish sandboxed Codex tools from Copilot permission mediation and inherited preauthorizations. Unused disabled-assistant locale declarations were removed; availability errors retain their actual cause.
 
 Verification (2026-11-04): persistent Chrome `pnpm browser:test assistant --screenshots` passed, along with boundaries/docs checks, full typecheck, Editor tests (411 passed, one skipped) and build. Fake providers verify interface behavior without live model calls. Visual review: [1440px English](assets/terminology-1168/settings-1440-en.png), [640px Korean dark](assets/terminology-1168/settings-640-ko-dark.png), [640px permission control](assets/terminology-1168/permissions-640-ko-dark.png). Existing layout and overflow assertions remain intact.
+
+## Conversation Host selection (#1174 PR4)
+
+The shell selects the Host before mounting a new conversation surface. Once initial connection
+observations settle, one connected candidate is selected directly, even if more Hosts are registered.
+Several connected candidates open the existing Dialog with one Button per registered Host.
+Each row uses the shared HostConnectionStatus dot and localized state name. Unreachable/connecting
+Hosts remain listed but disabled; the focusable tooltip wrapper explains why they cannot start
+a conversation. Connection changes never retarget an existing conversation. Choosing
+another Host requires New conversation; the selector cannot retarget an existing conversation.
+The conversation context always displays its fixed Host label. Its tooltip explains that files
+and AI run in the target Host's OS-account context.
+
+The panel is keyed by Host and uses that Host's bound client for settings/catalog/history,
+references and execution. Active tabs and the Explorer visibility filter cannot change it.
+Only a document from the same Host is included in the current-document context. The local
+Explorer refuses adding a reference to a conversation fixed to another Host. Each queued
+Explorer reference carries its Host ID; a panel accepts only its own Host and acknowledges
+consumption so remounting or choosing a new conversation cannot replay the request. A fresh Host
+selection clears that Host's last-conversation shortcut before creating the new surface;
+the server's history is preserved. New conversation remains available after connection/setup
+failure, while pending or active execution still prevents it.
+
+Common Dialog/Button/Tooltip and existing panel behavior are reused. `pnpm browser:test multi-host`
+checks disabled-unreachable selection and its tooltip, single-available-candidate bypass, visible
+fixed Host and remote settings routing after local tab/filter changes
+using fixture responses; it performs no real AI call. Settings and registration UI integration
+remain PR3b's responsibility; remote panels do not dispatch the local Settings shortcut.

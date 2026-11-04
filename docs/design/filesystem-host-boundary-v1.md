@@ -491,7 +491,7 @@ distinct existing entries (including hard links to the same inode) remain confli
 Ownership checks bound accidental replacement; as with existing file commit, validation/use
 steps are separate and do not sandbox a hostile concurrent filesystem administrator.
 
-Explorer Vite deletion is permanent, after the Editor names the file and confirms. HTTP daemon deletion uses the OS trash adapter (Windows recycle bin, Linux GIO); failure preserves the file. Desktop uses the same daemon adapter; failure never falls back to permanent deletion.
+Explorer Vite deletion is permanent, after the Editor names the file and confirms. HTTP daemon deletion uses the OS trash adapter (Windows recycle bin, Linux freedesktop home trash); failure preserves the file. Desktop uses the same daemon adapter; failure never falls back to permanent deletion.
 Successful operations return `{path, updatedDocuments?, skippedDocuments?}` and the Editor
 refreshes already-loaded parent listings. Updated document locators are absolute; skipped
 unreadable/non-native `.md` names are relative to the requested root and shown in a notice.
@@ -614,3 +614,12 @@ Open, Reload, Save, Source and asset creation share Core's [native contract](doc
 ## Document templates (#936)
 
 The shared handler exposes the [template catalog, preview and save routes](document-templates-v1.md#host-api-for-the-gallery-and-assistant). Existing `PUT /api/document` additionally accepts `template` and `language` to create through Core with the same Root and exclusive-write boundaries. The fixed app-owned template directory is a separate capability, not a caller-selected document Root.
+
+## Multi-Host Explorer (#1174 PR4)
+
+Explorer reads each Host through its registry client and keeps tree preferences scoped by Host.
+Open/rename/delete and local recovery changes retain the original Host. Remote file deletion
+requires the remote trash capability before dispatch; unsupported trash is a failure, never a
+permanent-delete fallback. File Explorer, log-folder and daemon start/stop remain local-only.
+The browser multi-host fixture checks remote Explorer omission; OS trash execution remains
+covered by the existing Host/OS-trash tests rather than a browser fixture claim.

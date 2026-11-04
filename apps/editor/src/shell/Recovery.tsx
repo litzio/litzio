@@ -1,3 +1,4 @@
+import { hostLabel, hostRegistry } from "../host-client.ts";
 import { UiError } from "../ui-message.ts";
 import { useMessageState } from "../ui-message.ts";
 import { useTranslation } from "react-i18next";
@@ -17,7 +18,7 @@ export function RecoveryList({ records, unavailable = false, onReview }: { recor
     <h2 id="recovery-title" className="document-start-label">{i18n.t("Recover unsaved work")}</h2>
     <p className="document-start-text">{unavailable ? i18n.t("Local recovery records could not be read. Open Settings to review storage information.") : records.length ? i18n.t("Local records, newest first. Review a record before restoring or deleting it.") : i18n.t("No local recovery records.")}</p>
     <ul className="recovery-records">{records.map(record => <li key={record.id}>
-      <div><strong>{typeof record.path === "string" ? splitDocumentPath(record.path).name : i18n.t("Unknown document")}</strong>
+      <div>{hostRegistry.list().length > 1 ? <p className="document-start-text">{hostLabel(record.hostId)}</p> : null}<strong>{typeof record.path === "string" ? splitDocumentPath(record.path).name : i18n.t("Unknown document")}</strong>
         <p className="document-start-text">{typeof record.path === "string" ? record.path : i18n.t("Unknown path")}</p>
         <p className="document-start-text">{Number.isFinite(record.recordedAt) ? new Date(record.recordedAt).toLocaleString(i18n.resolvedLanguage) : i18n.t("Unknown recording time")}</p></div>
       <Button size="sm" variant="secondary" onClick={() => onReview(record)}>{i18n.t("Review recovery")}</Button>
@@ -44,6 +45,7 @@ export function RecoveryPrompt({ record, reason, onRestore, onDelete, onClose }:
     <DialogContent showCloseButton={false} data-testid="recovery-prompt" className={comparing ? "recovery-prompt-comparing" : undefined}>
       <DialogHeader><DialogTitle>{reason ? i18n.t("Recovery cannot be restored") : i18n.t("Restore unsaved work?")}</DialogTitle>
         <DialogDescription render={<div />} className="grid gap-3 [overflow-wrap:anywhere]">
+          {record && hostRegistry.list().length > 1 ? <p>{hostLabel(record.hostId)}</p> : null}
           <p>{typeof record?.path === "string" ? record.path : i18n.t("Unknown path")}</p>
           <p>{reason ? recoveryReasonText(reason) : i18n.t("Restore this local record as unsaved work. Your original file is unchanged; Save still checks for external changes. No automatic merge is performed.")}</p>
           <p>{i18n.t("Only the last recorded applied content is available. Unapplied property drafts and image files are not backed up.")}</p>

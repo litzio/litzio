@@ -13,12 +13,13 @@ type TopBarProps = {
   documentPath: string;
   /** Secondary search context; the tab row already names the active document. */
   location?: string[];
+  hostLabel?: string;
   onAssistant?(): void;
   assistantOpen?: boolean;
 };
 
 /** Shared title-strip search. Document actions belong to the owning tab row. */
-export function TopBar({ onOpenCommandCenter, documentPath, location = [], onAssistant, assistantOpen }: TopBarProps) {
+export function TopBar({ onOpenCommandCenter, documentPath, location = [], hostLabel, onAssistant, assistantOpen }: TopBarProps) {
   useTranslation();
   const { name } = splitDocumentPath(documentPath);
   const commandButton = useRef<HTMLButtonElement>(null);
@@ -39,7 +40,8 @@ export function TopBar({ onOpenCommandCenter, documentPath, location = [], onAss
       const icon = button.querySelector("svg")?.getBoundingClientRect().width ?? 0;
       const assistant = button.parentElement?.querySelector(".assistant-trigger");
       button.parentElement?.style.setProperty("--assistant-trigger-width", `${assistant?.getBoundingClientRect().width ?? 0}px`);
-      const withShortcut = icon + action + shortcut + gap * 2;
+      const host = button.querySelector(".command-center-host")?.getBoundingClientRect().width ?? 0;
+      const withShortcut = icon + action + host + shortcut + gap * (hostLabel ? 3 : 2);
       // The secondary location yields first, then the shortcut; the action ellipsizes last.
       setCommandDetail(available >= withShortcut + 70 ? "path" : available >= withShortcut ? "shortcut" : "name");
     };
@@ -50,7 +52,7 @@ export function TopBar({ onOpenCommandCenter, documentPath, location = [], onAss
     measure();
     void document.fonts.ready.then(measure);
     return () => { active = false; observer.disconnect(); };
-  }, [documentPath, name, location.join("/"), i18n.resolvedLanguage, Boolean(onAssistant)]);
+  }, [documentPath, name, location.join("/"), hostLabel, i18n.resolvedLanguage, Boolean(onAssistant)]);
   return (
     <header className="top-bar">
       <Button ref={commandButton} type="button" variant="outline" className="command-center-trigger" data-detail={commandDetail}
@@ -59,6 +61,7 @@ export function TopBar({ onOpenCommandCenter, documentPath, location = [], onAss
         onMouseDown={event => { if (event.button === 0) event.preventDefault(); }}>
         <Search aria-hidden="true" />
         <span ref={commandName} className="command-center-action">{i18n.t("Find documents and commands")}</span>
+        {hostLabel ? <span className="command-center-host" data-testid="current-host" title={hostLabel}>{hostLabel}</span> : null}
         <span className="document-path" title={documentPath || undefined} aria-hidden="true">
           {documentPath ? location.map((folder, index) => (
             <span className="document-path-folder" key={index}>{folder}<span className="document-path-separator" aria-hidden="true">/</span></span>

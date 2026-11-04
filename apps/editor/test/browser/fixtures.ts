@@ -110,6 +110,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "archive.zip", create: () => Buffer.from([0, 1, 2]) },
   ], scenarios: ["file-preview"] },
   "command-center-settings": { files: [{ name: "notes.txt", create: () => "Not a document" }], scenarios: ["command-center"] },
+  "multi-host": { files: [{ name: "same.txt", create: () => "Host fixture" }], scenarios: ["multi-host"] },
   "document-tabs": { files: [
     ...Array.from({ length: 8 }, (_, index) => ({ name: `technical-${index + 1}.md`, create: () => document("technical-document.md").create() })),
     { name: "bulk-1999.md", create: () => document("technical-document.md").create() },

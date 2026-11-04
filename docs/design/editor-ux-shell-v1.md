@@ -3051,3 +3051,54 @@ recovery record or Outline. Reentry selects its owning group; other document tab
 retain their draft and scroll state. The command center also provides Save as
 template… for a saved native document. The [template contract](document-templates-v1.md#editor-gallery-phase-2)
 owns card preview, name errors, folder access and creation behavior.
+
+## Multiple Host shell (#1174 PR4)
+
+Under [ADR-0018](../adr/0018-desktop-remote-hosts.md), the shell consumes the injectable
+Host registry. Explorer retains a section for each Host, including unreachable Hosts.
+The shared SettingsSelect offers All Hosts or one Host; it filters Explorer visibility only.
+Mounted trees, document sessions and assistant conversations retain their original Host.
+Connection state uses the shared [HostConnectionStatus](../../apps/editor/src/components/HostConnectionStatus.tsx)
+component with a token-colored dot and a localized state name; Unreachable does not claim
+that the remote machine is powered off. The state tooltip carries the observed error/origin.
+
+With one Host, one folder keeps its heading while its tree scrolls within the sidebar height;
+several folders scroll together. The Host grouping wrapper preserves that height constraint.
+Multiple Host sections scroll together inside Explorer, keeping the footer outside the list.
+
+Each Host section offers Open folder only while it has no opened folders. With folders open,
+the existing folder menus offer the same action on both local and remote Hosts.
+
+The title-strip search also displays the active tab's Host beside its document context. Its short
+Host label remains visible when the folder context yields at 640px; filter changes do not retarget it.
+
+Document tabs show the Host label. When multiple Hosts are registered, accessible
+names, full-path tooltips and the hidden-tabs menu also include it. Same-path tabs on different Hosts remain separate. Folder
+suffixes disambiguate paths within a Host. Tab tooltips include Host and full path.
+Navigation and folder preferences are read/written for each Host. A failed startup read does
+not overwrite that Host's navigation memory; recovery records remain available for review.
+That startup protection is separate from explicit navigation: selecting, opening, moving,
+restoring, renaming or closing a tab on the affected Host resumes saving its current tab list.
+Navigation on another Host alone does not release the failed Host's startup protection.
+A delayed startup read cannot replace an existing same-Host/path tab or reopen a location
+explicitly opened or closed during restoration; it creates navigation only for a newly admitted tab.
+Requests and recovery barriers for open, rename and delete retain `(hostId, path)`.
+
+Remote Explorer never receives the Desktop Explorer callback. Log-folder and daemon controls
+remain local Desktop actions. Remote deletion requires the target Host's trash capability;
+unavailable/failed trash reports failure and never retries as permanent deletion.
+Registration, settings, removal protection and connection-management menus belong to PR3b.
+No migration or Core document/write-format change is introduced.
+
+Common UI: existing FolderTree, Button, SettingsSelect, Dialog, Tooltip, context menus and
+product state tokens. The compact Explorer filter stacks the shared label/select to fit the
+supported 640px window. No new common interaction or UI framework is introduced.
+
+Verification: persistent Chrome `pnpm browser:test multi-host` exercises independent local/remote
+fixture clients, same-path Explorer opening, distinct saves, page-restart navigation and unsaved remote recovery restoration,
+unreachable Host startup, remote Explorer omission and assistant target isolation. This is a
+browser fixture check, not Windows packaged Desktop/Linux remote execution. Optional
+`pnpm browser:test multi-host --screenshots` is manual review only: `tmp/pr4-1440.png`,
+`tmp/pr4-640.png`, `tmp/pr4-choose-1440.png`, `tmp/pr4-choose-640.png`,
+`tmp/pr4-assistant-1440.png`, `tmp/pr4-assistant-640.png`.
+Remote trash failure is injected and must keep both tabs without a second/permanent-delete request.
