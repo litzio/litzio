@@ -36,7 +36,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
       hostConnection: async () => ({url: location.origin, productVersion: info.version, desktopVersion: info.version}),
       daemonInfo: async () => ({state: window.__desktop.connected ? 'running' : 'unreachable', url:'http://127.0.0.1:25887', launcher:'cli-start', productVersion:'0.2.0', protocolVersion:'1', pid:1234, startedAt:'2026-11-04T00:00:00Z', daemonHome:'C:/temporary/daemon/beta', executable:'C:/Litzio/Litzio.exe', roots:[], nonLoopback:false}),
       checkDaemon: async () => { if (!window.__desktop.connected) throw Error('Disconnected'); },
-      reconnectDaemon: async () => { calls.push(['reconnect']); window.__desktop.connected = true; return {url:location.origin, productVersion:info.version, desktopVersion:info.version}; },
+      reconnectDaemon: async () => { calls.push(['reconnect']); if (window.__desktop.failure) throw Error(window.__desktop.failure); window.__desktop.connected = true; return {url:location.origin, productVersion:info.version, desktopVersion:info.version}; },
       stopDaemon: async () => { calls.push(['daemon-stop']); window.__desktop.connected = false; return true; },
       openInBrowser: async () => { calls.push(['browser']); },
       setTheme: async theme => theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches),
@@ -95,6 +95,16 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   await page.getByTestId('daemon-disconnected').waitFor();
   if (screenshots) { await page.setViewportSize({width:1440,height:1000}); await capture('daemon-disconnected-1440'); await page.setViewportSize({width:640,height:1000}); }
   await capture('daemon-disconnected-640');
+  const raw = "Error invoking remote method 'desktop:host-connection': Error: Recorded daemon (pid 1234) is not responding or incompatible: fetch failed";
+  await page.evaluate(raw => { window.__desktop.failure = raw; }, raw);
+  await page.getByRole('button', {name:'Reconnect',exact:true}).click();
+  const connectionNotice = page.getByTestId('daemon-disconnected');
+  await connectionNotice.getByText('The local daemon is not responding or is incompatible.', {exact:true}).waitFor();
+  check(!await connectionNotice.getByText(`Error: ${raw}`, {exact:true}).isVisible(), 'IPC diagnostic is always visible');
+  await connectionNotice.getByText('Details', {exact:true}).click();
+  await connectionNotice.getByText(`Error: ${raw}`, {exact:true}).waitFor();
+  await connectionNotice.getByText('Details', {exact:true}).click();
+  await page.evaluate(() => { window.__desktop.failure = null; });
   await page.getByRole('button', {name:'Reconnect',exact:true}).click();
   await page.getByTestId('daemon-disconnected').waitFor({state:'detached'});
   check(await page.evaluate(() => window.__desktop.calls.some(call => call[0] === 'reconnect')), 'Reconnect did not use the bridge');
