@@ -175,7 +175,13 @@ async (page, { openPath, withBlockHover }) => {
         await openingFocus.dispose();
         if (movement === 'same-editor') {
           await page.keyboard.type('FocusDestinationProbe');
-          if (!(await prose.innerText()).includes('FocusDestinationProbe') || await field.count() > 0 && await field.inputValue() !== originalDraft) throw new Error(`${fieldId} took subsequent prose typing`);
+          // The figure form may close as prose typing applies it. Observe presence and
+          // draft together rather than waiting for a field that disappeared after count().
+          const afterTyping = await prose.evaluate((node, id) => {
+            const field = document.querySelector(`[data-testid="${id}"]`);
+            return { prose: node.innerText, draft: field ? field.value : null };
+          }, fieldId);
+          if (!afterTyping.prose.includes('FocusDestinationProbe') || afterTyping.draft !== null && afterTyping.draft !== originalDraft) throw new Error(`${fieldId} took subsequent prose typing`);
           await page.keyboard.press('ControlOrMeta+z');
         }
         if (fieldId === 'mermaid-source') await page.locator('[data-testid="mermaid-edit-preview"][aria-busy="false"]').waitFor();

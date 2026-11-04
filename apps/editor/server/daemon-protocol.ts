@@ -2,7 +2,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { readRequestBody } from "./request-body.ts";
 
 // v4 requires assistant routes and permissionMode; v3 daemons expose the old API.
-export const DAEMON_PROTOCOL = "4";
+import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
+export { DAEMON_PROTOCOL };
 export type DaemonIdentity = { pid: number; startedAt: string; instanceId: string };
 export type DaemonLauncher = "desktop" | "cli-start" | "cli-run";
 export type DaemonDetails = { processStartedAt: string; daemonHome: string; executable: string; log?: string; roots: readonly string[]; nonLoopback: boolean };

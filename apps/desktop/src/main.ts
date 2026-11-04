@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import electronUpdater from "electron-updater";
 import { load as loadYaml } from "js-yaml";
-import type { DesktopInfo, RestartCheck } from "../../editor/shared/desktop-bridge.ts";
+import type { DesktopInfo, HostWorkSummary, RestartCheck } from "../../editor/shared/desktop-bridge.ts";
 import { DesktopDaemon } from "./daemon-client.ts";
 import { DESKTOP_ENTRY, trustedDesktopUrl } from "../../editor/shared/desktop-origin.ts";
 import { bundledUiResponse } from "./bundled-ui.ts";
@@ -73,6 +73,10 @@ let first: ReturnType<typeof firstDocument>;
 const explorerFolders = new ExplorerFolders();
 /** Set after the Editor agreed to restart for an update; the installer starts once the window closed. */
 let installing = false;
+let restartingHosts = false;
+const remoteHosts = new RemoteHostRegistry();
+let allowedHostIds: string[] = [];
+let hostWork: HostWorkSummary[] | null = null;
 
 function log(message: string): void {
   try {
@@ -206,6 +210,33 @@ function registerIpc(): void {
     for (const root of roots) { await daemonRpc(daemon.record, `/api/folder?${new URLSearchParams({ root })}`); explorerFolders.listedRoot(root); }
     if (request === folderRequest) explorerFolders.setOpened(roots);
   });
+  handle("desktop:hosts", () => ({ hosts: remoteHosts.list(), allowedHostIds, productVersion: app.getVersion() }));
+  const text = (value: unknown): string => { if (typeof value !== "string") throw new Error("Expected text."); return value; };
+  handle("desktop:host-register", (origin, label) => { remoteHosts.register(text(origin), text(label)); });
+  handle("desktop:host-rename", (id, label) => { remoteHosts.rename(text(id), text(label)); });
+  handle("desktop:host-work", summary => {
+    if (summary !== null && (!Array.isArray(summary) || !summary.every(row => row && typeof row.hostId === "string" && Number.isSafeInteger(row.openWork) && row.openWork >= 0 && Number.isSafeInteger(row.recovery) && row.recovery >= 0))) throw new Error("Invalid Host work summary.");
+    hostWork = null;
+    remoteHosts.desktopWork(app.getPath("userData"), summary as HostWorkSummary[] | null, log);
+    hostWork = summary as HostWorkSummary[] | null;
+  });
+  handle("desktop:host-remove", id => {
+    if (!window || !hostWork) throw new Error("Host work/recovery is not ready. Close Host tabs and resolve recovery first.");
+    const host = remoteHosts.get(text(id));
+    if (hostWork.some(row => row.hostId === host.hostId && (row.openWork || row.recovery))) throw new Error("Close Host tabs and resolve recovery before removing this Host.");
+    if (dialog.showMessageBoxSync(window, { type: "warning", message: `Remove ${host.label}?`, detail: "Remote files and daemon will remain unchanged.", buttons: ["Cancel", "Remove"], defaultId: 0, cancelId: 0, noLink: true }) !== 1) throw new Error("Removal cancelled.");
+    remoteHosts.remove(host.hostId, () => ({ ...remoteHosts.desktopRemovalProof(host.hostId, app.getPath("userData")), confirmed: true }));
+  });
+  handle("desktop:host-restart", async () => {
+    if (!window) return { ok: false, reason: "Editor unavailable." };
+    if (restartAnswers.size) return { ok: false, reason: "Already checking restart." };
+    const target = window;
+    target.setEnabled(false);
+    const check = await askEditorToRestart(target);
+    if (check.ok && !target.isDestroyed()) { restartingHosts = true; target.close(); }
+    else if (!target.isDestroyed()) target.setEnabled(true);
+    return check;
+  });
   handle("desktop:startup", () => first);
   handle("desktop:host-connection", () => hostConnection());
   handle("desktop:browser", () => shell.openExternal(daemon.record.url));
@@ -320,6 +351,11 @@ function createWindow(): void {
   });
   // The Editor's beforeunload asks before losing work; Electron needs the question shown here.
   created.webContents.on("will-prevent-unload", (event) => {
+    if (restartingHosts) {
+      restartingHosts = false;
+      created.setEnabled(true);
+      return;
+    }
     if (installing) {
       // Work appeared after the Editor allowed the restart: keep the window and the update.
       installing = false;
@@ -378,7 +414,13 @@ if (!app.requestSingleInstanceLock()) {
     daemon = new DesktopDaemon(app.getVersion(), process.execPath, path.join(cliRoot, "cli.mjs"));
     const target = `http://127.0.0.1:${daemonPort(daemon.channel)}`;
     // Snapshot once per app start. Registry changes never expand a running window CSP.
-    const remoteOrigins = new RemoteHostRegistry().list().map(host => host.origin);
+    try { remoteHosts.desktopWork(app.getPath("userData"), null, log); }
+    catch (error) { log(`Desktop work summary unavailable; continuing startup: ${String(error)}`); }
+    let registered: ReturnType<RemoteHostRegistry["list"]> = [];
+    try { registered = remoteHosts.list(); }
+    catch (error) { log(`Remote Host registry unavailable; continuing with local Host: ${String(error)}`); }
+    allowedHostIds = registered.map(host => host.hostId);
+    const remoteOrigins = registered.map(host => host.origin);
     protocol.handle("litzio", request => bundledUiResponse(path.join(appRoot, "ui"), request, target, remoteOrigins));
     if (app.isPackaged && process.platform === "win32" && process.env.LOCALAPPDATA) {
       cliIntegration = new CliIntegration(process.execPath, process.env.LOCALAPPDATA, windowsEnvironment());
@@ -427,6 +469,7 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
   app.on("window-all-closed", async () => {
+    if (restartingHosts) app.relaunch();
     updates?.stop();
     try { await daemon?.close(); } catch (error) {
       log(`daemon shutdown failed: ${String(error)}`);

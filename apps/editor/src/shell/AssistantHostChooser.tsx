@@ -2,15 +2,15 @@ import { useEffect, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { hostRegistry, hostLabel } from "../host-client.ts";
 import { i18n } from "../i18n.ts";
-import { HostConnectionStatus } from "../components/HostConnectionStatus.tsx";
+import { HostStatus } from "../components/HostStatus.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
 
 export function AssistantHostChooser({ onChoose, onClose }: { onChoose(hostId: string): void; onClose(): void }) {
   useTranslation();
-  const states = useSyncExternalStore(hostRegistry.subscribe,
-    () => hostRegistry.list().map(host => hostRegistry.get(host.hostId).state).join(","));
+  useSyncExternalStore(hostRegistry.subscribe, hostRegistry.snapshot, hostRegistry.snapshot);
+  const states = hostRegistry.list().map(host => hostRegistry.get(host.hostId).state).join(",");
   const hosts = hostRegistry.list();
   const available = hosts.filter(host => hostRegistry.get(host.hostId).state === "connected");
   // Wait for initial observations before deciding that there is only one available candidate.
@@ -23,7 +23,7 @@ export function AssistantHostChooser({ onChoose, onClose }: { onChoose(hostId: s
         const state = hostRegistry.get(host.hostId).state;
         const disabled = state !== "connected";
         const row = <Button className="host-choice-row" variant="secondary" disabled={disabled} onClick={() => onChoose(host.hostId)}>
-          <span className="sidebar-tree-name">{hostLabel(host.hostId)}</span><HostConnectionStatus state={state} />
+          <span className="sidebar-tree-name">{hostLabel(host.hostId)}</span><HostStatus runtime={hostRegistry.get(host.hostId)} showDetails={false} compact />
         </Button>;
         return disabled ? <Tooltip key={host.hostId}>
           <TooltipTrigger render={<span className="host-choice-trigger" tabIndex={0} />}>

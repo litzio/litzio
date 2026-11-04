@@ -669,7 +669,7 @@ Before: [#1150 disconnected 640px](assets/desktop-bundled-1150/disconnected-640.
 ## Desktop-local remote registry (#1174 PR3a)
 
 `apps/editor/server/remote-host-registry.ts` owns the shared local operations used by CLI and
-future settings. The JSON array at `<LITZIO_DATA_DIR or ~/.litzio>/desktop/remote-hosts.json`
+Desktop Settings → Hosts. The JSON array at `<LITZIO_DATA_DIR or ~/.litzio>/desktop/remote-hosts.json`
 stores immutable UUID hostId, normalized HTTP(S) origin and editable label. Duplicate normalized
 origins, credentials, paths, query/fragment and CSP source syntax are rejected. Validation checks
 both input and normalized origin, including URL-decoded and Unicode-mapped host characters. Address changes
@@ -682,12 +682,48 @@ probes have no renderer privileges and never change this snapshot or restart the
 reports its own observation, never the current window connection state. Protocol differences
 refuse connection; product differences warn. Redirects are refused and probes are bounded.
 
-Removal uses a shared operation requiring the UI owner to confirm removal, clear open work and
-verify no recovery remains while holding that protection through the call. PR3a has no live UI
-protection provider, so CLI removal always refuses; command flags cannot assert safety. PR3b
-must supply the protected settings flow and CLI protection check. Its planned CLI success path
-requires Desktop to be stopped and a Desktop-written per-hostId open-work/recovery summary in
-app data to prove that no work remains for that Host. PR3a does not implement this summary or
-success path; CLI removal currently always refuses and explains that PR3b provides the check. Removal never sends stop or mutates remote files.
-Settings UI, connection indicators, automatic connection/reconnection and protected restart are
-not implemented by PR3a. Existing local daemon lifetime and OS shell restrictions remain.
+Removal uses the shared operation after the user closes Host work, resolves all Host recovery
+records and confirms the native removal dialog. Settings disables other document operations
+while it checks live recovery and removes the registration. The Host list offers a Close Host work
+action using the existing Save / Don't save / Cancel protection, one tab at a time.
+
+Desktop writes per-hostId open-work/recovery counts to one file per profile under
+`remote-hosts.json.work/<profile-hash>.json`. The key is the normalized absolute Electron userData
+path's SHA-256 hash (case-folded on Windows). Each file retains PID, OS process creation identity
+and that profile's summary. A temporary sibling and rename replace only the current profile;
+summary writes never acquire the registry lock or read other profiles. Interrupted temporary
+siblings are not committed summaries or locks and do not block the next start.
+
+Startup rewrites its own entry to unknown, logging damaged own data before replacement. If a
+summary write fails, Desktop logs the failure and still creates its window. If the registry is
+unreadable, startup logs it and uses only the local Host in the fixed CSP snapshot; settings/CLI
+can report the registry error without preventing Desktop startup. Other profiles' files are not
+rewritten. Registration mutations still serialize lost updates with an owner PID/creation-time
+lock; a dead owner or reused PID allows stale lock recovery using the daemon process observation.
+CLI removal examines every owner: any matching live PID/creation identity, unknown summary,
+unreadable/damaged entry or target Host work/recovery refuses. The existing daemon `processStart`
+observation distinguishes a dead process or reused PID from a live owner; query failure refuses.
+Stale entries keep their work/recovery protection rather than being deleted. There is no migration.
+Settings performs the same cross-profile check, allowing only its own live process after its
+existing work/recovery/confirmation guard. Other running profiles must quit; their remaining work
+or recovery must be resolved in those profiles before removal can succeed.
+This is a local safety summary, not a remote registry or audit ledger. Removal never sends stop
+or mutates remote files. Local daemon lifetime and OS shell restrictions remain.
+
+Settings lists registered origins, editable labels, connection state, failure details and product
+version warnings. New registration is saved first and explicitly marked unavailable in the current
+window until restart. Restart uses the existing synchronous all-tab unsaved/draft/busy check with
+native input disabled during the handshake; a late unload refusal cancels restart. Only after the
+window closes does main relaunch, taking a new CSP snapshot.
+
+Applied registered Hosts connect independently at startup. Read-only health/capability checks
+repeat five seconds after each observation, also retrying failed connections. Protocol mismatch
+refuses every attempt; a product difference warns. Requests have bounded timeouts, redirects
+are refused, and no document write is replayed. Removing a registration invalidates its client.
+The remote monitor has no daemon start/stop control.
+
+Verification (2026-11-05): isolated registry/CLI and main IPC tests, Host runtime tests, and
+`pnpm browser:test host-settings --screenshots` with a native bridge stand-in. Captures:
+`tmp/host-settings-1440.png`, `tmp/host-settings-640.png`; shared Settings/Input/Button/Notice
+patterns are reused without a new surface. These do not prove packaged Windows → Linux
+connectivity or the actual native app relaunch.

@@ -33,10 +33,15 @@ Desktop bridge의 daemon 수명·연결 정보·OS shell 호출은 HTTP로 옮�
 
 ## Desktop remote registration (#1174 PR3a)
 
+PR3b verification (2026-11-05): Host runtime protocol/product policy and automatic reconnect,
+isolated CLI removal and main IPC protection tests, Settings and update-restart browser scenarios
+passed. The browser used a native bridge stand-in and the checkout-owned server at port 5187;
+packaged Windows to Linux connectivity remains unverified.
+
 Desktop main reads the Desktop-local registry once at startup. Its CSP allows the local daemon
 and registered exact HTTP(S) origins for connect/img; script remains app-only. Registration never
 changes a running window policy. No main HTTP proxy is provided. Settings, automatic remote
-connections and protected restart belong to PR3b; this change alone does not expose those UI flows.
+connections and protected restart are provided by PR3b as described in [Desktop distribution](desktop-distribution-v1.md#desktop-local-remote-registry-1174-pr3a).
 
 For the exact Desktop origin, OPTIONS `/daemon/health` (without query) allows only GET and
 `X-Litzio-Protocol`. Stop, unknown daemon routes, other methods/headers and foreign origins are

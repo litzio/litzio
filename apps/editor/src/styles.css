@@ -3433,17 +3433,20 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 .notification-center .notification-group > div > ul { padding: var(--space-3) 0 0 var(--space-3); border: 0; border-radius: 0; box-shadow: none; }
 
 .host-heading { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2); min-width: 0; }
-.host-state { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--font-size-xs); flex-shrink: 0; }
-.host-state--connected { color: var(--id-color-interaction); }
-.host-state--connecting { color: var(--id-color-warning); }
-.host-state--disconnected { color: var(--id-color-danger); }
 .document-tab-host { flex-shrink: 0; color: var(--id-color-text-subtle); font-size: var(--font-size-xs); }
 
 .host-filter .settings-section { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); padding: var(--space-2); }
 .host-filter .settings-heading { margin: 0; font-size: var(--font-size-xs); }
 .host-filter select { width: 100%; min-width: 0; }
 
-.host-state-dot { display: inline-block; width: var(--space-2); height: var(--space-2); flex-shrink: 0; background: currentColor; }
 .host-choice-trigger { display: block; min-width: 0; }
 .host-choice-row[data-slot="button"] { width: 100%; justify-content: space-between; }
 .command-center-host { flex-shrink: 0; max-width: 25%; overflow: hidden; text-overflow: ellipsis; font-size: var(--font-size-xs); color: var(--id-color-text-muted); }
+/* Shared Host and provider connection indicators. */
+.agent-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--id-color-text-subtle); flex-shrink: 0; }
+.host-status { display: inline-flex; white-space: nowrap; align-items: center; gap: var(--space-2); color: var(--id-color-text-muted); font-size: var(--font-size-sm); }
+.host-status[data-tone="connected"] { color: var(--id-color-interaction); }
+.host-status[data-tone="warning"] { color: var(--id-color-warning); }
+.host-status[data-tone="danger"] { color: var(--id-color-danger); }
+.host-status .agent-dot { background: currentColor; }
+.host-status[data-compact] { font-size: var(--font-size-xs); gap: var(--space-1); flex-shrink: 0; }

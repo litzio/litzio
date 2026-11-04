@@ -1,3 +1,4 @@
+import { HostSettings } from "./HostSettings.tsx";
 import { AssistantSettings } from "../AssistantSettings.tsx";
 import { useNativeHistoryBoundary } from "../ui/use-native-history-boundary.ts";
 import { DaemonStatus } from "./DesktopDaemon.tsx";
@@ -6,7 +7,7 @@ import { useMessageState } from "../ui-message.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useEffect, useRef, useState } from "react";
-import { FileText, Info, Palette, History } from "lucide-react";
+import { FileText, Info, Palette, History, Server } from "lucide-react";
 import { SettingsRow, SettingsSelect } from "@/components/ui/settings.tsx";
 import { Button } from "@/components/ui/button.tsx";
 import type { CliIntegrationState, DesktopBridge, DesktopInfo, OfferedUpdate, ReleaseChannel, UpdateState } from "../../shared/desktop-bridge.ts";
@@ -55,7 +56,7 @@ export function updateStatusText(info: DesktopInfo): string {
   }
 }
 
-export type SettingsCategory = "appearance" | "recovery" | "assistant" | "about";
+export type SettingsCategory = "appearance" | "recovery" | "assistant" | "about" | "hosts";
 
 function CliSettings({ desktop }: { desktop: DesktopBridge }) {
   const [state, setState] = useState<CliIntegrationState | null>(null);
@@ -99,6 +100,8 @@ function CliSettings({ desktop }: { desktop: DesktopBridge }) {
 }
 
 type SettingsDialogProps = {
+  onCloseHostWork(hostId: string): void;
+  onPrepareHostRemoval(hostId: string): Promise<void>;
   onAssistantSaved(): void;
   theme: ThemePreference;
   themeProblem: boolean;
@@ -117,7 +120,7 @@ type SettingsDialogProps = {
 };
 
 /** Shared local recovery settings; About and update controls require the Desktop bridge. */
-export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
+export function SettingsDialog({ onCloseHostWork, onPrepareHostRemoval, onAssistantSaved, theme, themeProblem, onThemeChange, highlightUpdate = false, category, onCategoryChange, desktop, info, onInfo, onInstall, recoveryCount = 0, recoveryProblem: storageProblem, onClearRecovery }: SettingsDialogProps) {
   useTranslation();
   const [screen, setScreen] = useState<HTMLDivElement | null>(null);
   useNativeHistoryBoundary(screen);
@@ -151,7 +154,7 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
     { id: "appearance", label: i18n.t("Appearance & language"), icon: Palette },
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
     { id: "assistant", label: i18n.t("Assistant"), icon: FileText },
-    ...(desktop ? [{ id: "about" as const, label: i18n.t("About & updates"), icon: Info }] : []),
+    ...(desktop ? [{ id: "hosts" as const, label: i18n.t("Hosts"), icon: Server }, { id: "about" as const, label: i18n.t("About & updates"), icon: Info }] : []),
   ] as const;
 
   return (
@@ -169,6 +172,7 @@ export function SettingsDialog({ onAssistantSaved, theme, themeProblem, onThemeC
           <main className="settings-content" aria-labelledby={`settings-category-${category}`}>
             <div className="settings-content-inner">
               <header className="settings-category-header"><h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2></header>
+              {category === "hosts" && desktop ? <HostSettings desktop={desktop} closeWork={onCloseHostWork} prepareRemoval={onPrepareHostRemoval} /> : null}
               {category === "assistant" ? <AssistantSettings onSaved={onAssistantSaved} /> : null}
               {category === "appearance" ? <>
                 <SettingsSelect label={i18n.t("Theme")} description={i18n.t("Choose a light or dark appearance.")} testId="theme"

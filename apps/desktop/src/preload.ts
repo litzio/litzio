@@ -16,6 +16,12 @@ ipcRenderer.on("desktop:restart-check", (_event, id: number) => {
 });
 
 const bridge: DesktopBridge = {
+  registeredHosts: () => ipcRenderer.invoke("desktop:hosts"),
+  registerHost: (origin, label) => ipcRenderer.invoke("desktop:host-register", origin, label),
+  renameHost: (id, label) => ipcRenderer.invoke("desktop:host-rename", id, label),
+  removeHost: id => ipcRenderer.invoke("desktop:host-remove", id),
+  reportHostWork: summary => ipcRenderer.invoke("desktop:host-work", summary),
+  restartForHosts: () => ipcRenderer.invoke("desktop:host-restart"),
   hostConnection: () => ipcRenderer.invoke("desktop:host-connection"),
   startup: () => ipcRenderer.invoke("desktop:startup"),
   openInBrowser: () => ipcRenderer.invoke("desktop:browser"),

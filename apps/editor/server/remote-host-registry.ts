@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { brand } from "../../../brand.ts";
+import { processStart } from "./daemon-state.ts";
+import type { HostWorkSummary } from "../shared/desktop-bridge.ts";
 import { DAEMON_PROTOCOL } from "./daemon-protocol.ts";
 
 export class RemoteHostRefusal extends Error {}
@@ -25,7 +27,15 @@ function labelText(value: string): string {
   return value.trim();
 }
 
-/** Desktop-local operations shared by CLI and the future settings surface. No daemon control. */
+type DesktopWorkOwner = { pid: number; processStartedAt: string; summary: HostWorkSummary[] | null };
+type DesktopWorkOwners = Record<string, DesktopWorkOwner>;
+let desktopProcessStartedAt: string | undefined;
+const desktopOwnerId = (userData: string) => {
+  const profile = path.resolve(userData);
+  return createHash("sha256").update(process.platform === "win32" ? profile.toLowerCase() : profile).digest("hex");
+};
+
+/** Desktop-local operations shared by CLI and Desktop settings. No daemon control. */
 export class RemoteHostRegistry {
   constructor(readonly file = remoteHostsFile()) {}
   list(): RemoteHost[] {
@@ -44,13 +54,78 @@ export class RemoteHostRegistry {
   private change<T>(operation: (rows: RemoteHost[]) => T): T {
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const lock = this.file + ".lock", temporary = this.file + "." + randomUUID() + ".tmp";
-    const fd = fs.openSync(lock, "wx", 0o600);
+    const processStartedAt = desktopProcessStartedAt ??= processStart(process.pid);
+    if (!processStartedAt) throw new Error("Cannot identify registry lock owner.");
+    let fd;
+    try { fd = fs.openSync(lock, "wx", 0o600); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      const bytes = fs.readFileSync(lock, "utf8"), owner = JSON.parse(bytes);
+      if (!Number.isSafeInteger(owner.pid) || owner.pid < 1 || typeof owner.processStartedAt !== "string" || !owner.processStartedAt) throw new RemoteHostRefusal("Invalid registry lock owner; inspect the lock before changing registrations.");
+      if (processStart(owner.pid) === owner.processStartedAt) throw new RemoteHostRefusal("Registry is being changed by a live owner; retry after it finishes.");
+      if (fs.readFileSync(lock, "utf8") !== bytes) throw new RemoteHostRefusal("Registry lock changed during stale inspection.");
+      fs.unlinkSync(lock);
+      fd = fs.openSync(lock, "wx", 0o600);
+    }
     try {
+      fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, processStartedAt }));
       const rows = this.list(), result = operation(rows);
       fs.writeFileSync(temporary, JSON.stringify(rows, null, 2) + "\n", { flag: "wx", mode: 0o600 });
       fs.renameSync(temporary, this.file);
       return result;
     } finally { fs.rmSync(temporary, { force: true }); fs.closeSync(fd); fs.unlinkSync(lock); }
+  }
+  desktopWorkFile(userData: string): string { return path.join(this.file + ".work", desktopOwnerId(userData) + ".json"); }
+  private readWorkOwner(file: string): DesktopWorkOwner {
+    const owner = JSON.parse(fs.readFileSync(file, "utf8")) as DesktopWorkOwner;
+    if (!owner || !Number.isSafeInteger(owner.pid) || owner.pid < 1 || typeof owner.processStartedAt !== "string" || !owner.processStartedAt ||
+      !(owner.summary === null || (Array.isArray(owner.summary) && owner.summary.every(row => row && typeof row.hostId === "string" && row.hostId && Number.isSafeInteger(row.openWork) && row.openWork >= 0 && Number.isSafeInteger(row.recovery) && row.recovery >= 0) && new Set(owner.summary.map(row => row.hostId)).size === owner.summary.length))) throw new Error("Invalid Desktop owner summary.");
+    return owner;
+  }
+  private workOwners(): DesktopWorkOwners {
+    const owners: DesktopWorkOwners = {};
+    try {
+      for (const name of fs.readdirSync(this.file + ".work")) {
+        // Interrupted temporary siblings are never committed summaries or locks.
+        if (/^[a-f0-9]{64}\.json\.[a-f0-9-]+\.tmp$/.test(name)) continue;
+        if (!/^[a-f0-9]{64}\.json$/.test(name)) throw new Error("Invalid Desktop owner filename.");
+        owners[name.slice(0, -5)] = this.readWorkOwner(path.join(this.file + ".work", name));
+      }
+    } catch (error) { throw new RemoteHostRefusal("Desktop owner summaries cannot be read. Open each Desktop profile to inspect and recover its own summary.", { cause: error }); }
+    return owners;
+  }
+  /** One independent atomic file per profile: never reads another owner or takes the registry lock. */
+  desktopWork(userData: string, summary: HostWorkSummary[] | null, warn: (message: string) => void = () => {}) {
+    const file = this.desktopWorkFile(userData);
+    try { this.readWorkOwner(file); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") warn(`Desktop work summary damaged or unreadable; rewriting own profile: ${String(error)}`); }
+    const processStartedAt = desktopProcessStartedAt ??= processStart(process.pid);
+    if (!processStartedAt) throw new RemoteHostRefusal("Cannot identify the Desktop process creation time.");
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    const temporary = file + "." + randomUUID() + ".tmp";
+    try {
+      fs.writeFileSync(temporary, JSON.stringify({ pid: process.pid, processStartedAt, summary }), { flag: "wx", mode: 0o600 });
+      fs.renameSync(temporary, file);
+    } finally { fs.rmSync(temporary, { force: true }); }
+  }
+  cliRemovalProof(hostId: string) { return this.ownerRemovalProof(hostId); }
+  desktopRemovalProof(hostId: string, userData: string) { return this.ownerRemovalProof(hostId, desktopOwnerId(userData)); }
+  private ownerRemovalProof(hostId: string, currentOwnerId?: string) {
+    const owners = this.workOwners();
+    if (!owners || !Object.keys(owners).length) throw new RemoteHostRefusal("Removal refused: Desktop work/recovery protection cannot be verified. Open Desktop to inspect Host work and recovery, then quit and retry.");
+    let workCleared = true, recoveryCleared = true;
+    for (const [ownerId, owner] of Object.entries(owners)) {
+      let currentStart;
+      try { currentStart = processStart(owner.pid); }
+      catch (error) { throw new RemoteHostRefusal("Cannot verify a Desktop owner's process identity. Inspect that profile before removal.", { cause: error }); }
+      if (currentStart === owner.processStartedAt && (ownerId !== currentOwnerId || owner.pid !== process.pid)) throw new RemoteHostRefusal("A Desktop profile is running. Close Host work and recovery in every profile, quit all Desktops, then retry.");
+      if (!owner.summary) throw new RemoteHostRefusal("Desktop work/recovery protection cannot be verified. Open each Desktop profile to inspect it.");
+      // A dead owner or reused PID never discards that profile's work/recovery records.
+      const work = owner.summary.find(row => row.hostId === hostId);
+      workCleared &&= !work || work.openWork === 0;
+      recoveryCleared &&= !work || work.recovery === 0;
+    }
+    return { confirmed: true, workCleared, recoveryCleared };
   }
   get(hostId: string): RemoteHost {
     const host = this.list().find(row => row.hostId === hostId);
@@ -81,7 +156,7 @@ export class RemoteHostRegistry {
       const index = rows.findIndex(row => row.hostId === hostId);
       if (index < 0) throw new RemoteHostRefusal("Unknown registered hostId.");
       const proof = protection?.(rows[index]);
-      if (!proof?.confirmed || !proof.workCleared || !proof.recoveryCleared) throw new RemoteHostRefusal("Removal refused: Desktop work/recovery protection cannot be verified. CLI removal is unavailable until PR3b provides the protected work/recovery check; keep this registration until then.");
+      if (!proof?.confirmed || !proof.workCleared || !proof.recoveryCleared) throw new RemoteHostRefusal("Removal refused: Desktop work/recovery protection cannot be verified. Close Host tabs, resolve recovery in Desktop, then quit Desktop and try again.");
       const [host] = rows.splice(index, 1);
       return { outcome: "success", host, saved: true, restartRequired: true } as const;
     });

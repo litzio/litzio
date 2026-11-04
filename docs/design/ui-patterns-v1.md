@@ -423,7 +423,7 @@ persistent. Existing tokens and Button variants apply; no public Plugin API is a
 
 Explorer uses the same SettingsSelect value-selection recipe as Settings (P10), stacked within
 the narrow Explorer column. Its All Hosts/one-Host value changes visibility only. Host connection
-state reuses [HostConnectionStatus](../../apps/editor/src/components/HostConnectionStatus.tsx),
+state reuses [HostStatus](../../apps/editor/src/components/HostStatus.tsx),
 a token-colored dot plus a localized status name (P07); error/origin detail uses the existing
 Tooltip rather than permanent explanatory copy. Unreachable Hosts remain visible.
 The assistant's new-conversation Host choice reuses Dialog and Button (P12); its context row
