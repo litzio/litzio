@@ -163,7 +163,7 @@ uses checkout-local `.litzio-dev/` for plugins, settings and agent cwd. In contr
 `node packages/cli/dist/cli.mjs daemon run` is a distributed build and uses the same
 user defaults as installed Desktop. To intentionally share a source HTTP Host with
 Desktop, explicitly set `LITZIO_PLUGINS_DIR`, the required individual
-`LITZIO_<ID>_SETTINGS_FILE` variables and `LITZIO_AI_AGENT_CWD` to the desired
+`LITZIO_<ID>_SETTINGS_FILE` variables and `LITZIO_ASSISTANT_CWD` to the desired
 locations. These overrides take precedence in both execution forms; see
 [runtime paths](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-runtime-v1.md#installation-and-api). No existing store is
 migrated or cleaned automatically.

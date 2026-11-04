@@ -4,7 +4,7 @@ import { hostPaths } from "./host-paths.ts";
 import { folderVersion } from "./folder-watch.ts";
 import { documentRevisions } from "./document-revisions.ts";
 import { readBibliographySources } from "./bibliography.ts";
-import type { createAiHost } from "./ai-host.ts";
+import type { createAssistantHost } from "./assistant-host.ts";
 import { MAX_ASSET_BYTES } from "../shared/asset-policy.ts";
 import { ImageValidationError, validateImage } from "./image-validation.ts";
 import fs, { readFileSync, statSync, writeFileSync } from "node:fs";
@@ -243,7 +243,7 @@ export async function handleDocumentRequest(
   bodyLimit = Infinity,
   removeFile?: (file: string) => void | Promise<void>,
   sampleAvailability?: SampleAvailability,
-  ai?: ReturnType<typeof createAiHost>,
+  assistant?: ReturnType<typeof createAssistantHost>,
   templatesDirectory = hostPaths().templates,
 ): Promise<void> {
   const readBody = async (request: IncomingMessage) => decodeUtf8(await readRequestBody(request, bodyLimit));
@@ -397,14 +397,14 @@ export async function handleDocumentRequest(
     return;
   }
   if (url !== "/api/document") {
-    if (url.startsWith("/api/") && ai) {
+    if (url.startsWith("/api/") && assistant) {
     try {
-      const route = ai.route(url);
+      const route = assistant.route(url);
       if (route) {
         const operation = route[req.method ?? ""];
         if (!operation) { res.statusCode = 405; res.end(); return; }
         const args = req.method === "GET" ? Object.fromEntries(query) : JSON.parse(await readBody(req));
-        sendJson(res, 200, await ai.invoke(operation, args));
+        sendJson(res, 200, await assistant.invoke(operation, args));
         return;
       }
     } catch (error) { failure(error); return; }

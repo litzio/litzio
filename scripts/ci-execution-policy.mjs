@@ -70,7 +70,7 @@ const layoutFullPaths = path => !path.startsWith('apps/editor/src/dev/') && (
     // Shell/Settings consume shared primitives, theme/i18n/preferences and tab/control labels.
     'apps/editor/src/lib/utils.ts', 'apps/editor/src/ui/primitives.tsx',
     ...['theme.ts', 'i18n.ts', 'locales.ts', 'preferences.ts', 'shortcuts.ts', 'document-tabs.ts',
-      'ui-message.ts', 'AiSettings.tsx',
+      'ui-message.ts', 'AssistantSettings.tsx',
       'components/CopyButton.tsx'].map(name => `apps/editor/src/${name}`),
     'apps/editor/public/theme-init.js', 'apps/editor/test/desktop-updates.browser.js',
     'apps/editor/test/layout-rules.browser.js'].includes(path) ||

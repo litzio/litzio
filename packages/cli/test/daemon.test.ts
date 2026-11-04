@@ -23,7 +23,7 @@ test("daemon CLI keeps one local instance, rejects occupied ports and warns for 
   const started = Date.now(), base = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-daemon-"));
   const entry = path.join(base, "cli.mjs"), state = path.join(base, "state");
   const env = { ...process.env, LITZIO_DATA_DIR: path.join(base, "data"), LITZIO_DAEMON_DIR: state,
-    LITZIO_AI_AGENT_CWD: path.join(base, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(base, "ai.json") };
+    LITZIO_ASSISTANT_CWD: path.join(base, "assistant"), LITZIO_ASSISTANT_SETTINGS_FILE: path.join(base, "ai.json") };
   // Real CLI dispatch + detached subprocess/IPC + TCP cannot be proved by in-process lock tests.
   // Use a tiny static Editor fixture; production Save/Reload remains in the existing browser test.
   fs.mkdirSync(path.join(base, "editor")); fs.writeFileSync(path.join(base, "editor/index.html"), "<!doctype html><title>Fixture</title>");

@@ -3,10 +3,10 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   await page.reload();
   const root = fileActionsRoot, sep = root.includes('\\') ? '\\' : '/';
   const paths = ['a.md', 'b.md', 'race-delete.md'].map(name => root + sep + name);
-  const settings = { provider: 'codex', writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium', responseLanguage: 'en' };
-  await page.route('**/api/ai-agent-settings*', route => route.fulfill({ json: settings }));
-  await page.route('**/api/ai-agent-models*', route => route.fulfill({ json: { provider: 'codex', models: [{ id: 'sol', model: settings.model, displayName: 'GPT Sol', defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium' }] }] } }));
-  await page.route('**/api/ai-agent-diagnostics*', route => route.fulfill({ json: { provider: 'codex', connected: true, account: { type: 'chatgpt' } } }));
+  const settings = { provider: 'codex', permissionMode: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium', responseLanguage: 'en' };
+  await page.route('**/api/assistant/settings*', route => route.fulfill({ json: settings }));
+  await page.route('**/api/assistant/models*', route => route.fulfill({ json: { provider: 'codex', models: [{ id: 'sol', model: settings.model, displayName: 'GPT Sol', defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium' }] }] } }));
+  await page.route('**/api/assistant/diagnostics*', route => route.fulfill({ json: { provider: 'codex', connected: true, account: { type: 'chatgpt' } } }));
   // #1128: use an actual template creation receipt through the same result-card/Undo path.
   expect((await page.request.delete(origin + '/api/file', { data: { root, path: paths[0] } })).ok()).toBe(true);
   const templated = await page.request.put(origin + '/api/document', { data: { path: paths[0], template: 'builtin:ai-report', language: 'en' } });
@@ -19,7 +19,7 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
     turns: [{ id: 'created-turn', status: 'completed', items: [{ id: 'answer', kind: 'assistant', text: 'Created documents. A suggestion mentioning /untrusted.md is only text.' },
       ...files.map((file, i) => ({ id: 'created-' + i, kind: 'tool', text: 'create_document', status: 'completed', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ path: file.path, identity: i === 0 ? templateReceipt.identity : identities[i].identity, revision: i === 0 ? templateReceipt.revision : i === 2 ? '0'.repeat(64) : file.revision }) }] } }))] }] };
   let resumes = 0;
-  await page.route('**/api/ai-agent-conversations*', route => {
+  await page.route('**/api/assistant/conversations*', route => {
     if (route.request().method() === 'POST' && route.request().postDataJSON().action === 'resume') resumes++;
     return route.fulfill({ json: route.request().method() === 'GET' && !route.request().url().includes('?id=') ? [conversation] : conversation });
   });

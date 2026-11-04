@@ -9,15 +9,15 @@ import { NOTIFICATION_SCENARIOS, HTTP_SCENARIOS, selectBrowserScenarios, STABLE_
 import { classifyConsoleErrors } from "./browser/console-errors.ts";
 
 test("fault injection permits only its expected network failures", () => {
-  const missingThread = "Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:5173/api/ai-agent-conversations";
-  const missingSkills = "Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://127.0.0.1:5173/api/ai-agent-skills";
+  const missingThread = "Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:5173/api/assistant/conversations";
+  const missingSkills = "Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://127.0.0.1:5173/api/assistant/skills";
   const undoConflict = missingThread.replace("404 (Not Found)", "400 (Bad Request)");
-  const failedSettings = "Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://127.0.0.1:5173/api/ai-agent-settings";
-  assert.deepEqual(classifyConsoleErrors("ai-agent", [missingThread, missingSkills, undoConflict, failedSettings]).unexpected, []);
-  assert.deepEqual(classifyConsoleErrors("ai-agent", [missingThread, missingSkills, undoConflict, failedSettings]).missing, []);
-  assert.equal(classifyConsoleErrors("ai-agent", []).missing.length, 4);
+  const failedSettings = "Failed to load resource: the server responded with a status of 503 (Service Unavailable) @ http://127.0.0.1:5173/api/assistant/settings";
+  assert.deepEqual(classifyConsoleErrors("assistant", [missingThread, missingSkills, undoConflict, failedSettings]).unexpected, []);
+  assert.deepEqual(classifyConsoleErrors("assistant", [missingThread, missingSkills, undoConflict, failedSettings]).missing, []);
+  assert.equal(classifyConsoleErrors("assistant", []).missing.length, 4);
   const unexpectedThreadFailure = missingThread.replace("404 (Not Found)", "500 (Internal Server Error)");
-  assert.deepEqual(classifyConsoleErrors("ai-agent", [unexpectedThreadFailure]).unexpected, [unexpectedThreadFailure]);
+  assert.deepEqual(classifyConsoleErrors("assistant", [unexpectedThreadFailure]).unexpected, [unexpectedThreadFailure]);
   const uncaught = "Uncaught page error: PLUGIN_UI_RENDER_FIXTURE";
 });
 

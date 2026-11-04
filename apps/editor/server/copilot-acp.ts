@@ -4,7 +4,7 @@ import path from "node:path";
 import { Readable, Writable } from "node:stream";
 import { EventEmitter } from "node:events";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION, type RequestPermissionRequest, type RequestPermissionResponse, type NewSessionResponse, type SessionConfigOption } from "@agentclientprotocol/sdk";
-import type { AiCopilotOptions } from "../shared/ai.ts";
+import type { AiCopilotOptions } from "../shared/assistant.ts";
 import { stopAgentProcess } from "./codex-app-server.ts";
 
 /** Concrete Copilot stdio connection, following Paseo's copilot --acp integration. */

@@ -5,18 +5,18 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.evaluate(prefix => localStorage.setItem(prefix + '.uiLanguage', 'ko'), brand.storagePrefix);
   await page.reload();
   // No model or account is used by browser tests; Host lifecycle is covered headlessly.
-  let settings = { provider: 'codex', writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium' };
+  let settings = { provider: 'codex', permissionMode: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium' };
   const models = [{ id: 'sol', model: 'gpt-6.1-sol', displayName: 'GPT Sol', description: 'General model', defaultReasoningEffort: 'medium', supportedReasoningEfforts: ['medium', 'high'].map(reasoningEffort => ({ reasoningEffort })) },
     { id: 'luna', model: 'gpt-6-luna', displayName: 'GPT Luna', description: 'Fast model', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }];
   let skillsFail = false, longSkills = false, skillLookups = 0;
   const skill = { name: 'litzio-guide', path: 'C:/assistant/.agents/skills/litzio-guide/SKILL.md', description: 'Explain Litzio documents and assistant tools' };
-  await page.route('**/api/ai-agent-skills*', route => { skillLookups++; return route.fulfill(skillsFail ? { status: 503, json: { error: 'Skills unavailable' } } : { json: { skills: longSkills ? Array.from({ length: 24 }, (_, index) => ({ ...skill, name: `scroll-skill-${index}`, path: skill.path + index })) : [skill], errors: [] } }); });
+  await page.route('**/api/assistant/skills*', route => { skillLookups++; return route.fulfill(skillsFail ? { status: 503, json: { error: 'Skills unavailable' } } : { json: { skills: longSkills ? Array.from({ length: 24 }, (_, index) => ({ ...skill, name: `scroll-skill-${index}`, path: skill.path + index })) : [skill], errors: [] } }); });
   const copilotOptions = { reasoningEffortSource: 'cli', currentMode: 'agent', modes: [{ id: 'agent', name: 'Agent', description: '' }, { id: 'plan', name: 'Plan', description: '' }] };
   const copilotModels = ['auto', 'copilot-model'].map(id => ({ id, model: id, displayName: id === 'auto' ? 'Auto' : 'Copilot fixture model', description: '', supportedReasoningEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].map(reasoningEffort => ({ reasoningEffort })), defaultReasoningEffort: 'medium' }));
   let refreshes = 0, connectionAvailable = true;
   const settingsWrites = [];
   let settingsGate, writeGate, failSave = false;
-  await page.route('**/api/ai-agent-settings*', async route => {
+  await page.route('**/api/assistant/settings*', async route => {
     if (route.request().method() === 'GET') await settingsGate;
     if (route.request().method() === 'PUT') {
       const next = route.request().postDataJSON(); settingsWrites.push(next);
@@ -27,9 +27,9 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     }
     return route.fulfill({ json: settings });
   });
-  await page.route('**/api/ai-agent-models*', route => { refreshes++; const copilot = route.request().url().includes('provider=copilot') || !route.request().url().includes('provider=') && settings.provider === 'copilot'; return route.fulfill({ json: { provider: copilot ? 'copilot' : 'codex', ...(copilot ? { copilot: copilotOptions } : {}), models: copilot ? copilotModels : models, updatedAt: 1793590000000 } }); });
-  await page.route('**/api/ai-agent-environment*', route => route.fulfill({ json: { cwd: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant', instructions: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant\\AGENTS.md', skills: [] } }));
-  await page.route('**/api/ai-agent-diagnostics*', route => route.fulfill({ json: { provider: 'codex', checkedAt: 1793590000000, path: 'C:\\Codex\\codex.exe', version: 'codex-cli 0.166.0', connected: true,
+  await page.route('**/api/assistant/models*', route => { refreshes++; const copilot = route.request().url().includes('provider=copilot') || !route.request().url().includes('provider=') && settings.provider === 'copilot'; return route.fulfill({ json: { provider: copilot ? 'copilot' : 'codex', ...(copilot ? { copilot: copilotOptions } : {}), models: copilot ? copilotModels : models, updatedAt: 1793590000000 } }); });
+  await page.route('**/api/assistant/environment*', route => route.fulfill({ json: { cwd: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant', instructions: 'C:\\Users\\example\\AppData\\Roaming\\litzio\\assistant\\AGENTS.md', skills: [] } }));
+  await page.route('**/api/assistant/diagnostics*', route => route.fulfill({ json: { provider: 'codex', checkedAt: 1793590000000, path: 'C:\\Codex\\codex.exe', version: 'codex-cli 0.166.0', connected: true,
     account: { type: 'chatgpt', email: 'example@example.invalid', planType: 'plus' }, rateLimits: [{ name: 'Codex', windows: [{ usedPercent: 28, windowDurationMins: 300, resetsAt: 1793600000 }] }], mcp: [{ name: 'docs', status: 'connected', authStatus: 'oAuth' }] } }));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: /^(Settings|설정)$/ }).click();
@@ -105,7 +105,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   failSave = true;
   await page.getByLabel('Permission mode', { exact: true }).selectOption('read-only');
   await expect(page.getByRole('alert')).toHaveText('Could not save Assistant settings.');
-  expect(settings.writeAccess).toBe('opened-folders');
+  expect(settings.permissionMode).toBe('opened-folders');
   failSave = false;
   await page.getByLabel('Permission mode', { exact: true }).selectOption('opened-folders');
   await expect(page.getByRole('alert')).toHaveCount(0);
@@ -124,7 +124,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(settingsWrites.length).toBe(writesBeforeSwitch);
 
   await expect.poll(() => settings.reasoningEffort).toBe('high');
-  expect(settings).toEqual({ provider: 'codex', writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'high', responseLanguage: 'ja' });
+  expect(settings).toEqual({ provider: 'codex', permissionMode: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'high', responseLanguage: 'ja' });
   const aiGeometry = await measure();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/ai-1440-light-en.png' });
   await categories.getByRole('button', { name: 'Appearance & language', exact: true }).click();
@@ -190,11 +190,11 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   let displayRequest, displayReply, displayResolve, displayReceipt, displaySequence = 0;
   let resumeFailure = false;
   let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate, answerGate;
-  await page.unroute('**/api/ai-agent-diagnostics*');
-  await page.route('**/api/ai-agent-diagnostics*', route => route.fulfill({ json: { provider: 'codex', connected: setupMode !== 'missing',
+  await page.unroute('**/api/assistant/diagnostics*');
+  await page.route('**/api/assistant/diagnostics*', route => route.fulfill({ json: { provider: 'codex', connected: setupMode !== 'missing',
     error: setupMode === 'missing' ? 'Codex CLI is unavailable on the Host.' : undefined,
     account: setupMode === 'login' ? null : { type: 'chatgpt' } } }));
-  await page.route('**/api/ai-agent-conversations*', async route => {
+  await page.route('**/api/assistant/conversations*', async route => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
       if (body.action === 'display-result') {
@@ -213,9 +213,9 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
       }
       if (body.action === 'send') {
         sent.push(body);
-        if (!body.id) { selected = { provider: body.provider ?? settings.provider, writeAccess: body.writeAccess ?? settings.writeAccess, id: 'thread-' + (++sequence), title: body.message, folders: body.folders, createdAt: 1793590000000,
+        if (!body.id) { selected = { provider: body.provider ?? settings.provider, permissionMode: body.permissionMode ?? settings.permissionMode, id: 'thread-' + (++sequence), title: body.message, folders: body.folders, createdAt: 1793590000000,
           updatedAt: 1793590000000, model: body.model, reasoningEffort: body.reasoningEffort, turns: [] }; conversations.set(selected.id, selected); }
-        else { selected = conversations.get(body.id); if (!selected.turns.some(turn => turn.status === 'inProgress')) selected.writeAccess = body.writeAccess ?? selected.writeAccess; }
+        else { selected = conversations.get(body.id); if (!selected.turns.some(turn => turn.status === 'inProgress')) selected.permissionMode = body.permissionMode ?? selected.permissionMode; }
         let turn = selected.turns.find(turn => turn.status === 'inProgress');
         if (!turn) { turn = { id: 'turn-' + sent.length, status: 'inProgress', items: [] }; selected.turns.push(turn); }
         turn.items.push({ id: 'user-' + sent.length, kind: 'user', text: body.message, references: [...(body.references ?? []).map(path => ({ path, name: path.split(/[\\/]/).pop(), kind: 'file' })), ...(body.skills ?? []).map(skill => ({ ...skill, kind: 'skill' }))] });
@@ -389,8 +389,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(draftChips).toHaveCount(0);
   await expect(panel.getByRole('button', { name: 'Model settings', exact: true })).toBeDisabled();
   await expect(panel.getByRole('button', {name: 'AI provider settings', exact: true})).toBeDisabled();
-  expect(sent.at(-1).provider).toBe('codex'); expect(sent.at(-1).writeAccess).toBe('read-only');
-  expect(settings.writeAccess).toBe('opened-folders');
+  expect(sent.at(-1).provider).toBe('codex'); expect(sent.at(-1).permissionMode).toBe('read-only');
+  expect(settings.permissionMode).toBe('opened-folders');
   selected.turns[0].items.find(item => item.kind === 'assistant').text = 'The unsaved paragraph adds a clear qualification. Check the stated conditions before using the conclusion.';
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
   // #1108: long lists expose scroll loss across unrelated shell renders/snapshots.

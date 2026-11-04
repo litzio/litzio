@@ -3,7 +3,7 @@
 Role: alignment, spacing, control dimensions and deliberate geometry exceptions; [Visual Language](editor-visual-language-v1.md) owns visual roles and [UI patterns](ui-patterns-v1.md) owns repeated interaction targets.
 
 - Status: Implemented
-- Last verified: 2026-11-03 — #990/#1025; panel-lists and ai-agent browser checks,
+- Last verified: 2026-11-03 — #990/#1025; panel-lists and assistant browser checks,
   Editor 419 tests, typecheck/build; 1440/640px visual review. Before restores only
   #990's list top padding to 0 in the same document; resize handles are invisible at rest.
   1440px [before](assets/panel-layout-990-1025/before-1440.png) /
@@ -298,13 +298,13 @@ Its existing 32px trailing inset and bottom inset remain; the expanded list is
 limited to the space between the sidebar and that boundary. Closing the panel
 restores the window-right placement. The narrow assistant remains modal, with
 the notification center hidden and inert. The composer needs no notification
-clearance. Existing `notification-center` and `ai-agent` browser scenarios cover
+clearance. Existing `notification-center` and `assistant` browser scenarios cover
 panel toggling, list visibility and the modal boundary at 1440px/1024px/640px.
 
 Visual review (2026-11-03): shared notification colors, radius and control sizes
 follow Visual Language; only placement and obsolete composer clearance change.
 The existing Outline surface is the matching right-panel pattern. Captures from
-`pnpm browser:test notification-center --screenshots` and `ai-agent --screenshots`
+`pnpm browser:test notification-center --screenshots` and `assistant --screenshots`
 were inspected for panel overlap, list clipping, control alignment and Korean wrapping.
 Before is `f38eb600`; Outline pairs use the same 1440/1024 × 900 state.
 Assistant before/after uses 1440 × 1000, English Light; the expanded-list capture

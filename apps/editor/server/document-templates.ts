@@ -103,7 +103,7 @@ export const templateTools = [templateOperations.list, templateOperations.read, 
 export type TemplateScope = {
   access: FileAccess; directory?: string;
   /** Absent for local CLI/HTTP; null means a tool turn without opened folders. */
-  folders?: RootAccess | null; writeAccess?: string;
+  folders?: RootAccess | null; permissionMode?: string;
 };
 export function executeTemplateOperation(operation: "list", input: unknown, scope?: TemplateScope): TemplateList;
 export function executeTemplateOperation(operation: "read" | "save", input: unknown, scope?: TemplateScope): TemplateContent;
@@ -119,7 +119,7 @@ export function executeTemplateOperation(operation: keyof typeof templateOperati
   const lang = templateLanguage(value.language);
   if (operation === "list") return listTemplates(lang, scope.directory);
   if (operation === "read") return readTemplate(value.template as string, lang, scope.directory);
-  if (scope.writeAccess !== undefined && scope.writeAccess !== "opened-folders" && scope.writeAccess !== "full-access") throw new Error("Template writes are read-only for this turn.");
+  if (scope.permissionMode !== undefined && scope.permissionMode !== "opened-folders" && scope.permissionMode !== "full-access") throw new Error("Template writes are read-only for this turn.");
   const requested = (operation === "save" ? value.from : value.path) as string;
   const create = operation === "create";
   if (scope.folders !== undefined && (!scope.folders || !path.isAbsolute(requested))) throw new Error("An absolute path inside an opened folder is required.");

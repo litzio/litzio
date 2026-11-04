@@ -110,7 +110,7 @@ Baseline: [CI 41782696099](https://github.com/litzio/litzio/actions/runs/4178269
 | Browser docling-dashboard / plugin-ui | 42.0s / 9.3s | Retained |
 | Browser docling-server / docling-compare | 50.4s / 21.0s | Retained |
 | Browser docling-review / recovery / retry | 36.7s / 23.3s / 26.5s | Retained |
-| Browser plugin-settings / ai-agent / ai-result | 6.9s / 1.2m / 10.7s | Retained |
+| Browser plugin-settings / assistant / assistant-result | 6.9s / 1.2m / 10.7s | Retained |
 | Host close waits admitted workers / partial REST worker kill (Windows) | 1.681s / 6.316s | Retained; existing integration adapters now call HTTP |
 
 Historical PR4 record (before #1150 ③): no fast unit tests or data-preservation assertions were excluded. Obsolete custom-protocol transport tests were removed with that implementation; shared HTTP tests retained CSP, path, revision, trash, template and plugin protections. Startup/sample behavior was covered at the bridge/client and sample copier boundaries. PR4 restored the only skip as `packaged daemon forks its shipped Docling worker and opens a complete native comparison`, checking a separate daemon PID/launcher, shipped worker, notices, native comparison and disable/re-registration. The exception **ended**; all required PR4 CI passing completed phase 1 and lifted this exception's release hold. #1150 ③ removes the plugin/Docling feature tests while preserving Desktop main/CLI notice assertions in the startup/sample smoke. Update/uninstall daemon integration remains phase 2.

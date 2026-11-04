@@ -89,7 +89,7 @@ pnpm editor
 pnpm cli help
 pnpm cli check apps/editor/document/technical-document.md
 pnpm cli inspect apps/editor/samples/ko/converter-control.md --format json
-pnpm cli ai settings
+pnpm cli assistant settings
 ```
 
 문서를 수정할 때는 저장소 밖의 사본을 사용하세요. 단건 명령은 `help <command>`, 여러 수정은 [배치 예제](docs/design/filesystem-host-boundary-v1.md#cli-batch-application-215)를 참고합니다.

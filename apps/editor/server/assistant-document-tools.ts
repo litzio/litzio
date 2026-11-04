@@ -5,7 +5,7 @@ import { executeTemplateOperation, templateOperations } from "./document-templat
 import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
 import { loadEditorFile, listFolder } from "./document-api.ts";
 
-export type DocumentToolScope = { folders: RootAccess | null; writeAccess: string; access: FileAccess; directory?: string };
+export type DocumentToolScope = { folders: RootAccess | null; permissionMode: string; access: FileAccess; directory?: string };
 const string = { type: "string" };
 export const documentTools = [
   { type: "function", name: "create_document", description: "Create a new Litzio .md document inside an opened folder. Never overwrites. Blocks are plain-text paragraphs or headings (level 1–6). Alternatively supply path, template and optional language for an authorized template (without title/blocks). Use this tool instead of shell commands.", inputSchema: { type: "object", properties: { ...templateOperations.create.inputSchema.properties, title: string, blocks: { type: "array", items: { oneOf: [
@@ -27,7 +27,7 @@ export function executeDocumentTool(name: string, input: unknown, scope: Documen
   if (Object.keys(value).some(key => !keys.includes(key))) invalid("Unsupported tool input.");
   if (!scope.folders) throw new Error("No opened folders for this turn.");
   const create = name === "create_document";
-  if (create && scope.writeAccess !== "opened-folders" && scope.writeAccess !== "full-access") throw new Error("Document creation is read-only for this turn.");
+  if (create && scope.permissionMode !== "opened-folders" && scope.permissionMode !== "full-access") throw new Error("Document creation is read-only for this turn.");
   const file = scope.folders.resolve(accessPath(value.path, scope.access, create), create);
   if (name === "read_document") {
     const { path, source, revision } = loadEditorFile(file, scope.access);

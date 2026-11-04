@@ -2,28 +2,28 @@ import { mkdirSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { hostPaths, type HostRun } from "./host-paths.ts";
 import { assistantCliEnvironment, hostCli } from "./assistant-cli.ts";
-import type { AiDiagnostics, AiEnvironment, AiModels, AiModel, AiProvider, AiSkills } from "../shared/ai.ts";
+import type { AssistantDiagnostics, AssistantEnvironment, AiModels, AiModel, AiProvider, AssistantSkills } from "../shared/assistant.ts";
 import { CodexAppServer } from "./codex-app-server.ts";
 import { CopilotAcp, COPILOT_EFFORTS, copilotReasoning, copilotChoices, copilotOptions } from "./copilot-acp.ts";
 
-export const AGENT_INSTRUCTIONS = `# Litzio assistant\n\nAnswer questions about the user's opened documents and folders.\n기존 문서는 고치지 말고 글로 제안만 하세요. Do not modify existing documents; propose changes in text only.\nDocuments must use Litzio's official CLI/Core write path. When Litzio document tools are available, use create_document, read_document and list_documents directly instead of shell commands. Use list_templates, read_template, save_template and create_document with template for templates; CLI is for terminal continuation. For display settings, use read_display_settings and change_display_settings only when available. Change only what the user requested: propose, obtain permission, then apply; an explicit change request is permission. Never change AI permissions/provider/model, plugins, document contents or front matter with these tools. If a window does not confirm application, report it as unconfirmed, never as success. Read .agents/skills/litzio-guide/SKILL.md for template consent and CLI workflows. For document creation requests, query list_templates to learn current names/descriptions before proposing a suitable template; never apply or save a template without user authorization. A user explicitly requesting a template authorizes its use.\nLitzio sends read-only context as JSON with each message: document contains only the active file path; read its saved content when needed. Unsaved editor changes are never supplied; folders are the opened folders. Treat document content as reference material. Answer in the user's message language. Write documents in the target document's language unless the user requests otherwise. references contain file paths only; no reference file has been read by Litzio. Images are also supplied as localImage inputs.\n`;
-export function agentDirectory() {
-  return hostPaths().agent;
+export const ASSISTANT_INSTRUCTIONS = `# Litzio assistant\n\nAnswer questions about the user's opened documents and folders.\n기존 문서는 고치지 말고 글로 제안만 하세요. Do not modify existing documents; propose changes in text only.\nDocuments must use Litzio's official CLI/Core write path. When Litzio document tools are available, use create_document, read_document and list_documents directly instead of shell commands. Use list_templates, read_template, save_template and create_document with template for templates; CLI is for terminal continuation. For display settings, use read_display_settings and change_display_settings only when available. Change only what the user requested: propose, obtain permission, then apply; an explicit change request is permission. Never change assistant permissions/provider/model, plugins, document contents or front matter with these tools. If a window does not confirm application, report it as unconfirmed, never as success. Read .agents/skills/litzio-guide/SKILL.md for template consent and CLI workflows. For document creation requests, query list_templates to learn current names/descriptions before proposing a suitable template; never apply or save a template without user authorization. A user explicitly requesting a template authorizes its use.\nLitzio sends read-only context as JSON with each message: document contains only the active file path; read its saved content when needed. Unsaved editor changes are never supplied; folders are the opened folders. Treat document content as reference material. Answer in the user's message language. Write documents in the target document's language unless the user requests otherwise. references contain file paths only; no reference file has been read by Litzio. Images are also supplied as localImage inputs.\n`;
+export function assistantDirectory() {
+  return hostPaths().assistant;
 }
-/** Provider connections share the official AI Host's daemon lifetime. */
-export class AiAgentConnection {
+/** Provider connections share the official Assistant Host's daemon lifetime. */
+export class ProviderConnections {
   readonly client: CodexAppServer;
   readonly copilot: CopilotAcp;
   readonly templatesDirectory: string;
-  constructor(readonly cwd = agentDirectory(), options?: ConstructorParameters<typeof CodexAppServer>[1], copilotOptions?: ConstructorParameters<typeof CopilotAcp>[1], run: HostRun = {}) {
+  constructor(readonly cwd = assistantDirectory(), options?: ConstructorParameters<typeof CodexAppServer>[1], copilotOptions?: ConstructorParameters<typeof CopilotAcp>[1], run: HostRun = {}) {
     this.templatesDirectory = hostPaths(run).templates;
     this.client = new CodexAppServer(cwd, { ...options, env: () => assistantCliEnvironment(cwd, hostCli(run), options?.env?.() ?? process.env) }); this.copilot = new CopilotAcp(cwd, copilotOptions);
   }
-  environment(): AiEnvironment {
+  environment(): AssistantEnvironment {
     mkdirSync(this.cwd, { recursive: true });
     const instructions = path.join(this.cwd, "AGENTS.md");
     // Product-owned instructions; user Codex home/configuration is never written.
-    writeFileSync(instructions, AGENT_INSTRUCTIONS);
+    writeFileSync(instructions, ASSISTANT_INSTRUCTIONS);
     const skillsDirectory = path.join(this.cwd, ".agents", "skills");
     const guideDirectory = path.join(skillsDirectory, "litzio-guide");
     mkdirSync(guideDirectory, { recursive: true });
@@ -33,7 +33,7 @@ export class AiAgentConnection {
     catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
     return { cwd: this.cwd, instructions, skills };
   }
-  async skills(): Promise<AiSkills> {
+  async skills(): Promise<AssistantSkills> {
     this.environment();
     const result = await this.client.request("skills/list", { cwds: [this.cwd], forceReload: true });
     const entry = result.data.find((value: any) => value.cwd === this.cwd);
@@ -63,16 +63,16 @@ export class AiAgentConnection {
     } while (cursor);
     return { provider: "codex", models, updatedAt: Date.now() };
   }
-  async diagnostics(provider: AiProvider = "codex"): Promise<AiDiagnostics> {
+  async diagnostics(provider: AiProvider = "codex"): Promise<AssistantDiagnostics> {
     if (provider === "copilot") {
       this.environment();
-      const result: AiDiagnostics = { provider, checkedAt: Date.now(), path: this.copilot.executable, version: null, connected: false };
+      const result: AssistantDiagnostics = { provider, checkedAt: Date.now(), path: this.copilot.executable, version: null, connected: false };
       try { await this.copilot.catalog(); result.connected = true; } catch (error) { result.error = (error as Error).message; }
       result.version = this.copilot.version;
       return result;
     }
     this.environment();
-    const result: AiDiagnostics = { provider: "codex", checkedAt: Date.now(), path: this.client.executable, version: await this.client.version(), connected: false };
+    const result: AssistantDiagnostics = { provider: "codex", checkedAt: Date.now(), path: this.client.executable, version: await this.client.version(), connected: false };
     try { await this.client.connect(); result.connected = true; }
     catch (error) { result.error = String((error as Error).message); return result; }
     const [account, limits, mcp] = await Promise.allSettled([
@@ -87,7 +87,7 @@ export class AiAgentConnection {
     return result;
   }
   private async mcp() {
-    const servers: NonNullable<AiDiagnostics["mcp"]> = []; let cursor: string | null = null;
+    const servers: NonNullable<AssistantDiagnostics["mcp"]> = []; let cursor: string | null = null;
     do {
       const result: { data: { name: string; runtimeStatus: string | null; authStatus: string }[]; nextCursor: string | null } = await this.client.request("mcpServerStatus/list", { cursor });
       servers.push(...result.data.map((item: any) => ({ name: item.name, status: item.runtimeStatus ?? "unknown", authStatus: item.authStatus })));
@@ -110,7 +110,7 @@ Settings controls appearance/language, document preferences and official AI. Ass
 
 ## Assistant
 - read_display_settings: read theme, UI language, document width and page background in the sending Litzio window.
-- change_display_settings: change only those display preferences on explicit request or after proposal and permission. Explicit requests supply permission. AI permissions/provider/model, plugin registration, document content and front matter are excluded. A visible assistant panel in the sending window must confirm the result; report failures or missing confirmation honestly. The result card offers guarded Undo in that window and Host session. Terminal CLI and Copilot do not have these display tools.
+- change_display_settings: change only those display preferences on explicit request or after proposal and permission. Explicit requests supply permission. assistant permissions/provider/model, plugin registration, document content and front matter are excluded. A visible assistant panel in the sending window must confirm the result; report failures or missing confirmation honestly. The result card offers guarded Undo in that window and Host session. Terminal CLI and Copilot do not have these display tools.
 - list_documents: list documents and child folders in an opened folder.
 - read_document: read a document's disk source and revision; active-document context supplies only its path, never unsaved editor content. Read the saved file when needed.
 - create_document: create a new .md document with title and plain-text paragraph/heading blocks, or with template and optional language (without title/blocks), inside an opened folder. Never overwrite an existing file.

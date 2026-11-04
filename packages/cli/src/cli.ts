@@ -101,7 +101,7 @@ import {
 import { assertUnicode, commitFile, decodeUtf8, preflightFileCommit, textRevision } from "@litzio/file-commit";
 import { resolveMediaPath } from "../../../apps/editor/server/document-path.ts";
 import { figureMediaPath } from "../../../apps/editor/shared/figure-media-path.ts";
-import { createAiHost } from "../../../apps/editor/server/ai-host.ts";
+import { createAssistantHost } from "../../../apps/editor/server/assistant-host.ts";
 
 const HELP_GROUPS = [
   "Create and inspect",
@@ -187,8 +187,8 @@ const COMMANDS: CommandSpec[] = [
     details: [`${brand.cliCommand} templates read <name|id> [--json] [--language <ko|en>]`,
       `${brand.cliCommand} templates save <name> --from <file> [--description <text>]`,
       "Save never overwrites. Names of app defaults in both languages are reserved."] },
-  { name: "ai", group: "Serve", summary: "Read or configure official AI settings",
-    usage: `${brand.cliCommand} ai settings | ai configure --file <json-file>`, details: ["configure takes the complete AI settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero."] },
+  { name: "assistant", group: "Serve", summary: "Read or configure official Assistant settings",
+    usage: `${brand.cliCommand} assistant settings | assistant configure --file <json-file>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero."] },
   {
     name: "apply-batch",
     group: "Edit — batch",
@@ -1453,7 +1453,7 @@ function topLevelHelp(): string {
 function commandHelp(name: string): string {
   const spec = findCommand(name);
   if (!spec) return topLevelHelp();
-  if (name === "ai") return ["Usage:", `  ${spec.usage}`, "", ...spec.details, ""].join("\n");
+  if (name === "assistant") return ["Usage:", `  ${spec.usage}`, "", ...spec.details, ""].join("\n");
   const editing = isEditCommand(name);
   const addressed = /--(?:at|path|from) <(?:index|heading index|table)/.test(spec.usage);
   return ["Usage:", `  ${spec.usage}${editing ? " [--if-revision <revision>] [--dry-run [--format <text|json>]]" : ""}`, "", ...spec.details,
@@ -1912,11 +1912,11 @@ export function runCli(args: string[]): number {
 
 /** Asynchronous command surface; synchronous commands keep the existing runCli API. */
 export async function runCliAsync(args: string[]): Promise<number> {
-  if (args[0] !== "ai" || args.includes("--version") || isCommandHelpRequest(args.slice(1))) return runCli(args);
+  if (args[0] !== "assistant" || args.includes("--version") || isCommandHelpRequest(args.slice(1))) return runCli(args);
   try {
     const operation = args[1];
-    if (operation === "settings" ? args.length !== 2 : operation !== "configure" || args.length !== 4 || args[2] !== "--file") throw new Error(commandHelp("ai"));
-    const host = createAiHost();
+    if (operation === "settings" ? args.length !== 2 : operation !== "configure" || args.length !== 4 || args[2] !== "--file") throw new Error(commandHelp("assistant"));
+    const host = createAssistantHost();
     try { process.stdout.write(JSON.stringify(await host.invoke(operation, operation === "configure" ? JSON.parse(readFileSync(args[3], "utf8")) : {})) + "\n"); }
     finally { await host.close(); }
     return 0;
