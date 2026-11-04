@@ -1,3 +1,4 @@
+import { hostClient } from "../host-client.ts";
 import { useCallback, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import type { RecoveryPreviewResponse, SaveRequest } from "../../shared/document-protocol.ts";
@@ -16,7 +17,7 @@ export default function SaveCompare({ comparison, returnFocus, onClose }: {
 }) {
   useTranslation();
   const load = useCallback(async (signal: AbortSignal): Promise<Comparison> => {
-    const response = await fetch(`${import.meta.env.BASE_URL}api/document-source?recovery=1`, {
+    const response = await hostClient.request(`/api/document-source?recovery=1`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ path: comparison.path, save: comparison.request }), signal,
     });

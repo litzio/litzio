@@ -1,3 +1,4 @@
+import { hostClient } from "./host-client.ts";
 import { SaveContentError } from "../shared/save-error.ts";
 import type { FigureContent } from "@litzio/core";
 import type { DocumentFileResponse, EditorFileResponse, TextSaveRequest, DocumentStartResponse, DocumentErrorResponse, SaveRequest, SaveResponse, SourceResponse } from "../shared/document-protocol.ts";
@@ -29,7 +30,7 @@ export async function requestDocument(
 ): Promise<DocumentResponse | DocumentStartResponse> {
   const body = method === "PUT" ? { path: filePath, ...template } : undefined;
   const query = method === "GET" && filePath ? `?path=${encodeURIComponent(filePath)}` : "";
-  const response = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/document${query}`, {
+  const response = await hostClient.request(`/api/document${query}`, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -73,7 +74,7 @@ export async function requestBibliography(path: string, revision: string, declar
     try {
       const resourceQuery = new URLSearchParams({ path, revision });
       if (root) resourceQuery.set("root", root);
-      const resourceResponse = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/bibliography?${resourceQuery}`);
+      const resourceResponse = await hostClient.request(`/api/bibliography?${resourceQuery}`);
       const resources = await resourceResponse.json();
       if (!resourceResponse.ok || resources.revision !== revision || !Array.isArray(resources.sources)) throw new Error();
       return resources.sources as import("@litzio/core").BibliographySource[];
@@ -86,7 +87,7 @@ export async function requestSave(body: SaveRequest | TextSaveRequest): Promise<
   let response: Response;
   let payload: Partial<SaveResponse> & Partial<DocumentErrorResponse>;
   try {
-    response = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/document`, {
+    response = await hostClient.request(`/api/document`, {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     });
     payload = await response.json();
@@ -113,7 +114,7 @@ export async function requestSave(body: SaveRequest | TextSaveRequest): Promise<
 
 /** Asks the Host for the canonical Markdown a Save request would write. */
 export async function requestSource(body: SaveRequest): Promise<string> {
-  const response = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/document-source`, {
+  const response = await hostClient.request(`/api/document-source`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -127,7 +128,7 @@ export async function requestSource(body: SaveRequest): Promise<string> {
 
 /** Asks the Host to run Core's persistent Figure validation of an Apply: properties and label. */
 export async function validateFigure(figure: FigureContent, label: string): Promise<string | undefined> {
-  const response = await fetch(`${import.meta.env?.BASE_URL ?? "/"}api/figure-validation`, {
+  const response = await hostClient.request(`/api/figure-validation`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...figure, label }),

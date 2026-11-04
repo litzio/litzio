@@ -1,3 +1,4 @@
+import { hostClient } from "../host-client.ts";
 import { useState, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
@@ -12,7 +13,7 @@ export function FileImagePreview({ entry, root, quiet = false }: { entry: Folder
     {state === "loading" ? <p role="status">{i18n.t("Loading…")}</p> : null}
     {state === "error" ? <p role={quiet ? undefined : "alert"}>{i18n.t("The image could not be previewed. It may be unavailable, damaged, unsupported, or larger than 10 MiB.")}</p> : null}
     <img className="file-preview-image" hidden={state !== "ready"} alt={entry.name}
-      src={`/api/file-preview?${new URLSearchParams({ root, path: entry.path })}`}
+      src={hostClient.url(`/api/file-preview?${new URLSearchParams({ root, path: entry.path })}`)}
       onLoad={() => setState("ready")} onError={() => setState("error")} />
   </>;
 }

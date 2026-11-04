@@ -1,3 +1,4 @@
+import { hostClient } from "./host-client.ts";
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
 import taskLists from "markdown-it-task-lists";
@@ -14,7 +15,7 @@ export function renderPlainMarkdown(source: string, path: string): string {
     const token = tokens[index];
     const src = token.attrGet("src") ?? "";
     const relative = figureMediaPath(src);
-    if (relative !== undefined) token.attrSet("src", `${import.meta.env?.BASE_URL ?? "/"}document/${relative}?path=${encodeURIComponent(path)}`);
+    if (relative !== undefined) token.attrSet("src", hostClient.url(`/document/${relative}?path=${encodeURIComponent(path)}`));
     else if (!/^https?:\/\//i.test(src)) return md.utils.escapeHtml(token.content);
     return image(tokens, index, options, env, renderer);
   };

@@ -1,3 +1,4 @@
+import { hostClient } from "../host-client.ts";
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { NodeViewContent, NodeViewWrapper, useEditorState, type ReactNodeViewProps } from "@tiptap/react";
@@ -600,5 +601,5 @@ export function resolveFigureSource(imageUrl: string, documentPath?: string | ((
   const encodedPath = figureMediaPath(imageUrl);
   if (encodedPath === undefined) return imageUrl;
   const query = locator ? `?path=${encodeURIComponent(locator)}` : "";
-  return `${import.meta.env?.BASE_URL ?? "/"}document/${encodedPath}${query}`;
+  return hostClient.url(`/document/${encodedPath}${query}`);
 }

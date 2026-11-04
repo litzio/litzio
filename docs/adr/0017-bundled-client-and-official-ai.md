@@ -69,7 +69,7 @@ ADR-0016의 고정 HTTP origin은 daemon에 유지한다. Desktop UI는 별도 �
 2. **ADR (이 PR):** 승인 결정과 기능 제거·보관·재개발 경계를 기록한다. 코드 변경 없음.
 3. **③a AI 공식 기능 이전:** AI 에이전트를 daemon 공식 기능으로 이전하여 플러그인 경로 없이 동작하게 한다. 기존 수명·결과 불확실 보호와 프로바이더 가용성 규칙, 남는 설정 공용 작업·CLI를 제공한다.
 4. **③b 플러그인·Docling 기능 제거 및 보관:** 삭제 직전 master를 원격 `archive/plugins-docling-2026-11`로 보관하고 플러그인 런타임·UI·관리 CLI/설정·Docling·관련 테스트·문서를 삭제한다. `@litzio/plugin-api`에서 공식 AI가 사용하지 않는 부분도 삭제한다. 보관 SHA와 삭제 범위·남는 공식 AI 검증을 기록한다.
-5. **④ Host 클라이언트:** 기존 코어 동작을 바꾸지 않고 남는 Host 호출·리소스 URL을 대상 Host 문맥으로 모은다. 브라우저 경로도 유지한다.
+5. **④ Host 클라이언트:** 기존 코어 동작을 바꾸지 않고 남는 Host 호출·리소스 URL을 대상 Host 문맥으로 모은다. 브라우저 경로도 유지한다. ④ 구현은 `apps/editor/src/host-client.ts`로 API와 코어 렌더링 URL을 모으며 기본 대상 `/`는 같은 serving origin을 유지한다. Desktop bridge·번들 UI·CORS는 변경하지 않는다.
 6. **⑤ Desktop 번들 UI + daemon origin 허용:** daemon 중단 상태의 화면·수동 다시 연결, 정확한 Desktop 번들 origin 허용·OPTIONS, 기존 cross-site API/media 거부 및 CORP same-origin 규칙의 전환, 문서 이미지·미리보기와 Electron main-frame IPC 검사, 브라우저 접속을 검증한다. 플러그인 ESM/CSS는 로드하지 않는다. ③과 ⑤를 한 PR로 합치지 않는다.
 7. **소유자 개시 시 컨셉 재개발:** 보관 코드를 참고하여 위 서비스·UI 경계를 결정하고 Docling을 새 구조와 공식 AI에 연결한다. 소스를 그대로 복구하거나 fixture만으로 재개 완료를 선언하지 않는다.
 
