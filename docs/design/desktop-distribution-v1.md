@@ -37,13 +37,46 @@ UI를 `litzio://app/index.html`로 연다. custom scheme은 static UI 전용이�
 
 ## Shared daemon Desktop (#1142 PR3)
 
-Desktop discovers only unrestricted local-mode records at the fixed loopback origin. Without a live record it starts the shipped CLI's `daemon run` through a private IPC pipe, using the PR2 lock/HTTP/asset path. A ready identity proves which generation it spawned. Normal close disconnects that pipe and waits for matching record removal; parent death also disconnects the pipe. Other clients/jobs are not counted. A CLI-started daemon survives Desktop close. Explicit start/reconnect reclaims only OS-proven dead/reused process identities, never an HTTP timeout.
+Desktop discovers only unrestricted local-mode records at the fixed loopback origin. Without a live record it starts the shipped CLI's `daemon run` through a private IPC pipe, using the PR2 lock/HTTP/asset path. A ready identity proves which generation it spawned. Normal close disconnects that pipe and waits for matching record removal and child-process exit; parent death also disconnects the pipe. Other clients/jobs are not counted. A CLI-started daemon survives Desktop close. Explicit start/reconnect reclaims only OS-proven dead/reused process identities, never an HTTP timeout.
 
 The existing single Desktop instance, native close protection, folder picker and Explorer integration remain. Folder selection has no Root-registration step. Before granting Explorer capability, main asks the connected daemon to validate the supplied opened-root listing and pins it through existing `RootAccess`. IPC accepts only this window's main frame at the exact bundled `litzio://app` origin; navigation outside it is refused. Browser links leave through the system browser. The bridge exposes startup file/sample paths, not a second document write API.
 
 The existing sidebar DropdownMenu offers **Open in browser** and **Stop daemon**. Stop always confirms that connected tabs and ongoing work will be interrupted, regardless of launcher. The existing NotificationCenter reports disconnection and offers **Reconnect**, which explicitly repeats discovery/spawn without reloading or discarding local editing state. A five-second health check detects loss; it does not restart anything. About settings reuse SettingsRow and a details disclosure for daemon state, URL, launcher and versions plus process/access/path diagnostics. Launcher labels are localized (Desktop / CLI (start) / CLI (run)); CLI status JSON retains `desktop` / `cli-start` / `cli-run`. The window mounts independently of daemon discovery/startup, including failure. Connecting/disconnected states and explicit Reconnect use the same NotificationCenter/Button. Initial Host work waits for successful connection. Product mismatch warns in that surface and retains the connection; protocol mismatch refuses. Both direct the user to restart through the CLI, without a Desktop restart button.
 
-Brand defaults and packager overrides follow [the branding guide](../guides/branding.md). Update/uninstall daemon integration remains phase 2; no installer modifications are part of PR3.
+Brand defaults and packager overrides follow [the branding guide](../guides/branding.md). PR3 did not modify the installer; the subsequent phase-2 gate is defined below.
+
+### Update and removal daemon gate (#1164)
+
+Before an approved update closes the window, Desktop checks for CLI daemons using the same
+installed executable, across all channel namespaces. Such a daemon blocks installation with
+matching-CLI stop / foreground Ctrl+C guidance; it is never automatically stopped. This preserves
+ADR-0016 ownership without adding another confirmation/force-stop policy. A CLI daemon from
+another installation can stay running. The final owned-daemon close waits for process exit as
+well as record removal; a shutdown failure prevents `quitAndInstall`.
+
+NSIS setup and removal replace electron-builder's image-name process termination with a shared
+installation helper. It selects the exact installed executable path, checks CLI ownership and OS
+creation identity, then requests `WM_CLOSE` only from windows of that installation (rechecking
+path and creation identity before the request). The existing unsaved-work confirmation remains.
+The helper excludes itself and requires all other processes using that executable to exit and
+observed discovery/lock files to disappear before replacement/removal. It fails closed on a
+missing helper, unknown CLI listener, cleanup failure or a window that stays open. Silent
+removal uses the same gate. Optional CLI/PATH cleanup remains a separate best-effort operation.
+There is no image-name kill, automatic restart, stale-record deletion or remote Host handling.
+A same-installation CLI daemon in another channel blocks the operation without being stopped;
+other installations/channels are untouched. A CLI daemon started concurrently after a check can
+still block file replacement; there is no cross-process installation lock in this phase.
+
+The existing Windows Stable/Beta update scenarios now assert old Desktop daemon process exit,
+new generation/version, and preservation of a live opposite-channel daemon from another tree.
+Beta also checks update refusal with a same-installation CLI daemon. The existing uninstall
+scenario adds one representative live Desktop case plus CLI refusal and opposite-channel
+survival, without multiplying startup across optional-CLI fault cases. These exercise real
+Electron/NSIS file locks and cannot be replaced with unit ports. The additional subprocess
+lifetimes are logged in CI; local installation/package tests are explicitly prohibited for this
+work, so their duration is measured by PR CI. Existing deadlines/assertions remain unchanged;
+no retries or fixed sleeps were added. Unit tests cover ownership/refusal, record cleanup and
+updater failure ordering; the existing CLI lifecycle test also checks actual process exit.
 
 ### PR3 plugin test exception
 

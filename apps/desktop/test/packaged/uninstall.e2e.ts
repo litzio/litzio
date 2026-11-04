@@ -5,6 +5,8 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSy
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { _electron as electron } from "@playwright/test";
+import { cliDaemon, desktopRecord, assertExited, assertNoDiscovery } from "./daemon-fixture.ts";
 import { CliIntegration } from "../../src/cli-integration.ts";
 import { windowsEnvironment } from "../../src/windows-environment.ts";
 import { brand } from "../../../../brand.ts";
@@ -12,6 +14,8 @@ import { installedUninstallCommand } from "./installed-app.ts";
 
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const work = path.resolve(desktop, "../../tmp/desktop-uninstall");
+process.env.LITZIO_DAEMON_DIR = path.join(work, "daemon");
+process.env.LITZIO_DATA_DIR = path.join(work, "host-data");
 const local = process.env.LOCALAPPDATA!;
 const logFolder = path.join(local, brand.folders.cli, "uninstall-logs");
 const bin = path.join(local, brand.folders.cli, "bin");
@@ -70,29 +74,59 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
       mkdirSync(temporary, { recursive: true });
       const env = { ...process.env, TEMP: temporary, TMP: temporary,
         ...(fault === "environment" ? { SystemRoot: path.join(work, "missing-windows") } : {}) };
+      let live: Awaited<ReturnType<typeof electron.launch>> | undefined;
+      let owned: ReturnType<typeof desktopRecord> | undefined;
+      let other: Awaited<ReturnType<typeof cliDaemon>> | undefined;
+      const channel = version.includes("-") ? "beta" : "stable";
+      const otherChannel = channel === "beta" ? "stable" : "beta";
       let status: number | null;
-      if (silent) {
-        const result = spawnSync(uninstaller, args, { env, encoding: "utf8", timeout: 60_000 });
-        assert.ifError(result.error);
-        status = result.status;
-      } else {
-        const child = spawn(uninstaller, args, { env, stdio: "ignore" });
-        const completed = new Promise<number | null>((resolve, reject) => { child.once("error", reject); child.once("exit", resolve); });
-        try {
-          const output = execFileSync("powershell.exe", ["-NoProfile", "-File",
-            path.join(desktop, "test/packaged/uninstall-dialogs.ps1"), String(child.pid)], { encoding: "utf8", timeout: 60_000 });
-          writeFileSync(path.join(work, `${label}-dialogs.txt`), output);
-          assert.match(output, /CLI cleanup incomplete/, "interactive uninstall displays the cleanup warning");
-          status = await completed;
-        } catch (error) {
-          const failure = error as Error & { stdout?: string; stderr?: string };
-          writeFileSync(path.join(work, `${label}-dialogs.txt`), `${failure.stdout ?? ""}\n${failure.stderr ?? failure.message}`);
-          spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
-          await completed;
-          throw error;
+      try {
+        if (silent && fault === "empty") {
+          // Exercise real locks once, without repeating Desktop startup for optional-CLI faults.
+          const cli = await cliDaemon(integration.executable, otherChannel);
+          try {
+            const refused = spawnSync(uninstaller, args, { env, encoding: "utf8", timeout: 60_000 });
+            assert.equal(refused.status, 1, "CLI-owned daemon blocks removal");
+            assert.equal(entries(), registration, "blocked removal preserves registration");
+            assert.equal(existsSync(integration.executable), true);
+            await cli.alive();
+          } finally { await cli.stop(); }
+          other = await cliDaemon(path.join(desktop, "release/win-unpacked", `${brand.executableName}.exe`), otherChannel);
+          live = await electron.launch({ executablePath: integration.executable, args: [`--user-data-dir=${path.join(work, "profile")}`, "--lang=en-US"], timeout: 60_000 });
+          const page = await live.firstWindow();
+          await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached", timeout: 30_000 });
+          owned = desktopRecord(channel, version);
         }
+        if (silent) {
+          const result = spawnSync(uninstaller, args, { env, encoding: "utf8", timeout: 60_000 });
+          assert.ifError(result.error);
+          status = result.status;
+        } else {
+          const child = spawn(uninstaller, args, { env, stdio: "ignore" });
+          const completed = new Promise<number | null>((resolve, reject) => { child.once("error", reject); child.once("exit", resolve); });
+          try {
+            const output = execFileSync("powershell.exe", ["-NoProfile", "-File",
+              path.join(desktop, "test/packaged/uninstall-dialogs.ps1"), String(child.pid)], { encoding: "utf8", timeout: 60_000 });
+            writeFileSync(path.join(work, `${label}-dialogs.txt`), output);
+            assert.match(output, /CLI cleanup incomplete/, "interactive uninstall displays the cleanup warning");
+            status = await completed;
+          } catch (error) {
+            const failure = error as Error & { stdout?: string; stderr?: string };
+            writeFileSync(path.join(work, `${label}-dialogs.txt`), `${failure.stdout ?? ""}\n${failure.stderr ?? failure.message}`);
+            spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+            await completed;
+            throw error;
+          }
+        }
+        if (owned) {
+          assertExited(owned); assertNoDiscovery(channel);
+          await other!.alive();
+        }
+      } finally {
+        if (live && live.process().exitCode === null) await live.close();
+        if (other) { await other.alive(); await other.stop(); }
       }
-      assert.equal(status, 0, `${label}: app removal must succeed despite optional cleanup failure`);
+      assert.equal(status!, 0, `${label}: app removal must succeed despite optional cleanup failure`);
       assert.equal(entries(), "", `${label}: uninstall registration removed`);
       assert.equal(existsSync(integration.executable), false, `${label}: app executable removed`);
       if (healthy) {

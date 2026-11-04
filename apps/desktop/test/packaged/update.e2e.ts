@@ -21,6 +21,8 @@ import { readUpdateInfo } from "../../scripts/verify-release.ts";
 import { readPreferences, writePreferences } from "../../src/preferences.ts";
 import { windowsEnvironment } from "../../src/windows-environment.ts";
 import { verifyPackagedCli } from "./cli-check.ts";
+import { daemonDirectory, readDaemonRecord } from "../../../editor/server/daemon-state.ts";
+import { cliDaemon, desktopRecord, assertExited, assertNoDiscovery } from "./daemon-fixture.ts";
 import { installedDirectory } from "./installed-app.ts";
 
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -159,6 +161,9 @@ test("installs per user, then updates from Settings only after the open document
   if (server) await new Promise<void>((resolve) => server.listen(47320, "127.0.0.1", resolve));
   let installedAt = "";
   let ownsData = false;
+  let other: Awaited<ReturnType<typeof cliDaemon>> | undefined;
+  const channel = BETA ? "beta" : "stable";
+  const otherChannel = BETA ? "stable" : "beta";
   try {
     // Per-user and silent: no administrator rights and no wizard.
     const started = Date.now();
@@ -242,9 +247,28 @@ test("installs per user, then updates from Settings only after the open document
     assert.equal(await phase(), "downloaded");
     if (!LIVE) assert.ok(requests.some((url) => url.endsWith(`${brand.executableName}-Setup-${NEW}.exe`)), "the installer was downloaded from the release");
 
+    if (!LIVE) {
+      await t.test("CLI daemon blocks update without stopping either channel", { skip: !BETA }, async () => {
+        const cli = await cliDaemon(exe, otherChannel);
+        try {
+          await page.getByRole("button", { name: "Restart to update" }).click();
+          await page.getByTestId("update-problem").waitFor();
+          assert.match(await page.getByTestId("update-problem").innerText(), /CLI daemon.*Stop it/);
+          await cli.alive();
+          desktopRecord(channel, OLD);
+          assert.equal(await phase(), "downloaded");
+        } finally { await cli.stop(); }
+      });
+      // The other channel uses a DIFFERENT installation; replacing this tree must leave it alive.
+      other = await cliDaemon(path.join(desktop, "release/win-unpacked", `${brand.executableName}.exe`), otherChannel);
+    }
+
     // Normal quit with a downloaded update is not consent to install. Restart the old app,
     // then explicitly download again (the updater may reuse its checksum-verified cache).
+    const quitDaemon = !LIVE ? desktopRecord(channel, OLD) : undefined;
     await app.close();
+    if (quitDaemon) { assertExited(quitDaemon); assertNoDiscovery(channel); }
+    await other?.alive();
     const versionAfterQuit = powershell(`(Get-Item -LiteralPath '${exe.replaceAll("'", "''")}').VersionInfo.FileVersion`);
     assert.equal(versionAfterQuit, OLD, "normal quit did not update the installed app");
     writePreferences(preferencesFile, prefs);
@@ -315,6 +339,7 @@ test("installs per user, then updates from Settings only after the open document
       await page.waitForFunction(() => document.querySelector('[data-testid="status"]')?.textContent === "Saved");
       const savedPreferences = readPreferences(preferencesFile, OLD);
       if (!LIVE) assert.equal(savedPreferences.seenUpdate, NEW, "viewing About acknowledges the offered update");
+      const oldDaemon = !LIVE ? desktopRecord(channel, OLD) : undefined;
       const closed = new Promise<void>((resolve) => app.once("close", () => resolve()));
       await page.getByRole("button", { name: /^Settings/ }).click();
       await page.getByRole("button", { name: "About & updates", exact: true }).click();
@@ -323,10 +348,16 @@ test("installs per user, then updates from Settings only after the open document
       const restarted = Date.now();
       // The installer starts the new version without arguments, so it logs to the default user data.
       const log = path.join(appData, "logs", "desktop.log");
-      const shown = () => existsSync(log) && new RegExp(`started ${NEW.replaceAll(".", "\\.")} [^\\n]*\\n[^\\n]*window shown`).test(readFileSync(log, "utf8"));
+      const shown = () => (!oldDaemon || readDaemonRecord(daemonDirectory(channel))?.productVersion === NEW) && existsSync(log) && new RegExp(`started ${NEW.replaceAll(".", "\\.")} [^\\n]*\\n[^\\n]*window shown`).test(readFileSync(log, "utf8"));
       while (!shown()) {
         if (Date.now() - restarted > 180_000) throw new Error(`The updated app did not start: ${existsSync(log) ? readFileSync(log, "utf8") : "no log"}`);
         await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+      if (oldDaemon) {
+        assertExited(oldDaemon);
+        const current = desktopRecord(channel, NEW);
+        assert.notEqual(current.instanceId, oldDaemon.instanceId);
+        await other?.alive();
       }
       assert.ok(appProcesses(installedAt).some((process) => process.version === NEW), "the new version is running");
       console.log(`installed ${NEW} and showed its window ${Date.now() - restarted} ms after the restart`);
@@ -338,6 +369,17 @@ test("installs per user, then updates from Settings only after the open document
     });
   } finally {
     if (server) await new Promise<void>((resolve) => server.close(() => resolve()));
+    if (installedAt && !LIVE) {
+      const executable = path.join(installedAt, `${brand.executableName}.exe`);
+      const daemon = readDaemonRecord(daemonDirectory(channel));
+      const prepared = spawnSync(executable, [path.join(installedAt, "resources/prepare-installation.cjs"), "--prepare-installation"], {
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" }, timeout: 30_000, encoding: "utf8",
+      });
+      assert.equal(prepared.status, 0, `graceful post-update cleanup: ${prepared.stderr}`);
+      if (daemon) assertExited(daemon);
+      assertNoDiscovery(channel);
+      await other?.alive();
+    }
     for (const process of installedAt ? (() => { try { return appProcesses(installedAt); } catch { return []; } })() : []) {
       spawnSync("taskkill", ["/PID", String(process.pid), "/T", "/F"], { stdio: "ignore" });
     }
@@ -347,6 +389,8 @@ test("installs per user, then updates from Settings only after the open document
       for (let wait = 0; wait < 60 && installedEntry(); wait++) await new Promise((resolve) => setTimeout(resolve, 1000));
       console.log(`uninstall: ${uninstall.status}; entry ${installedEntry() ? "remains" : "removed"}`);
     }
+    await other?.alive();
+    await other?.stop();
     // This test made these folders (it refused to run when they existed).
     if (ownsData) for (const folder of [appData, updaterCache]) rmSync(folder, { recursive: true, force: true });
   }

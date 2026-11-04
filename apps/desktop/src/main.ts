@@ -21,6 +21,7 @@ import { verifyUpdateSignature } from "./signatures.ts";
 import { IeumGitHubProvider } from "./github-provider.ts";
 import { CliIntegration } from "./cli-integration.ts";
 import { windowsEnvironment } from "./windows-environment.ts";
+import { checkInstallation, installationPort } from "./installation-lifecycle.ts";
 
 /** Set by the release build: an update must carry the publisher signature the installed app names. */
 declare const __LITZIO_REQUIRE_SIGNED_UPDATES__: boolean;
@@ -165,6 +166,13 @@ async function installUpdate(): Promise<RestartCheck> {
   // No input reaches the Editor between its answer and the window closing.
   target.setEnabled(false);
   const check = await askEditorToRestart(target);
+  if (check.ok && app.isPackaged && process.platform === "win32") {
+    try { checkInstallation(installationPort(process.execPath)); }
+    catch (error) {
+      if (!target.isDestroyed()) target.setEnabled(true);
+      return { ok: false, reason: (error as Error).message };
+    }
+  }
   const update = check.ok && !target.isDestroyed() ? updates.beginInstall() : null;
   if (!update) {
     if (!target.isDestroyed()) target.setEnabled(true);
@@ -417,7 +425,12 @@ if (!app.requestSingleInstanceLock()) {
   });
   app.on("window-all-closed", async () => {
     updates?.stop();
-    try { await daemon?.close(); } catch (error) { log(`daemon shutdown failed: ${String(error)}`); dialog.showErrorBox(brand.name.en, String(error)); }
+    try { await daemon?.close(); } catch (error) {
+      log(`daemon shutdown failed: ${String(error)}`);
+      dialog.showErrorBox(brand.name.en, String(error));
+      // A timeout is not proof that the installed executable is no longer in use.
+      if (installing) { installing = false; updates.cancelInstall(); }
+    }
     // Only the restart the Editor allowed installs an update; quitting the app never does.
     if (installing) {
       updates.finishInstall();
