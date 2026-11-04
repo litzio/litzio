@@ -120,6 +120,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 ## Verification
 
+- [v0.0.2-beta.7 배포·검증 기록](releases/v0.0.2-beta.7.md) — Draft. #1171 릴리스 준비 후보·사용자 영향과 소유자 결정. 공개·배포 검증은 대기.
 - [v0.0.2-beta.6 배포·검증 기록](releases/v0.0.2-beta.6.md) — Historical. #1088 첫 배포 실행 성공·공개 자산 해시·실제 한국어 Release 본문. LIVE harness 실행 가능하나 실제 GitHub 설치·업데이트는 미실행·미검증. 제3자 고지 R1은 beta.6 보완과 beta.5 Release 안내로 정리(2026-11-04).
 
 - [v0.0.2-beta.5 배포·검증 기록](releases/v0.0.2-beta.5.md) — Historical. #926 공개 결과, 미공개 두 시도와 세 번째 게시 성공·자산 해시·한국어 Release 본문. 브랜드 변경에 따른 새 설치·데이터 미이전, 실제 GitHub 설치·업데이트 미검증.

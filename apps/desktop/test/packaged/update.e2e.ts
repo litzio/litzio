@@ -39,9 +39,9 @@ const BETA = LIVE || PUBLISHED_BASE || process.env.LITZIO_TEST_UPDATE_CHANNEL ==
 const sharedData = path.join(os.homedir(), brand.folders.shared);
 process.env.LITZIO_DAEMON_DIR = LIVE ? path.join(work, "daemon") : path.join(sharedData, "daemon");
 process.env.LITZIO_DATA_DIR = LIVE ? path.join(work, "host-data") : sharedData;
-// Litzio beta.6 candidate pair; IeumDoc beta.4 cannot update to Litzio beta.5.
+// Litzio beta.7 candidate pair; IeumDoc beta.4 cannot update to Litzio beta.5.
 // Both Litzio releases must be public before this opt-in harness can run.
-const [OLD, NEW] = LIVE ? ["0.0.2-beta.5", "0.0.2-beta.6"]
+const [OLD, NEW] = LIVE ? ["0.0.2-beta.6", "0.0.2-beta.7"]
   : BETA ? ["0.1.0-beta.1", "0.1.0-beta.2"] : ["0.0.1", "0.0.2"];
 // The public beta.3 predates native documents (#232) and edits leading frontmatter as a body block.
 const NATIVE_PREFIX = LIVE && OLD === "0.0.1-beta.3" ? "" : "---\nlitzio: 1\n---\n\n";
