@@ -7,6 +7,10 @@
 - Authority: owner approval on 2026-11-02, following the B scope in [Discussion #767](https://github.com/litzio/litzio/discussions/767), under [ADR-0012](0012-plugin-runtime-and-ui-contributions.md).
 - Scope: default-included, removable AI execution plugin; no document semantic operation.
 
+## Amendment (2026-11-04, #1150)
+
+[ADR-0017](0017-bundled-client-and-official-ai.md)은 기본 포함·제거 가능한 AI 플러그인 결정을 daemon 필수 공식 기능과 설정의 AI 사용 스위치로 대체한다. Host 중개 작업 메시지와 검증·UUID·uncertain/no-replay 보호는 유지한다. 아래 플러그인 구현 서술은 전환 전 기록이며 실제 구현 계약은 구현 PR에서 갱신한다.
+
 ## Decision
 
 `plugins/ai-agent` registers an AI task execution service with the Host. Feature

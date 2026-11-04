@@ -2,10 +2,14 @@
 
 - Status: Accepted
 - Decision date: 2026-11-04
-- Last verified: 2026-11-04 — 소유자의 무인증 단계 결정과 #1145 향후 검토를 반영. 구현·검증 범위는 HTTP Host 계약을 따른다.
+- Last verified: 2026-11-04 — #1150·ADR-0017 승인 결정과 전환 범위를 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.
 - Authority: [#1142 소유자 결정](https://github.com/litzio/litzio/issues/1142), [#834 S1 승인 조건](https://github.com/litzio/litzio/discussions/834#discussioncomment-19389153), under [AGENTS.md](../../AGENTS.md).
 - Scope: 같은 PC의 Desktop·브라우저가 사용하는 공유 로컬 HTTP Host로의 1단계 전환. 수동 원격 접근은 ③의 추가 승인을 따른다. PR1은 결정 문서만 작성하며 구현 완료를 뜻하지 않는다.
 - Amends: [ADR-0004](0004-desktop-host-distribution.md), [ADR-0005](0005-http-host.md), [ADR-0012](0012-plugin-runtime-and-ui-contributions.md), [ADR-0015](0015-shared-host-operations.md)의 아래 명시한 경계. 나머지 결정은 유지한다.
+
+## Amendment: Desktop 번들 UI와 Docling 전환 (2026-11-04, #1150)
+
+[ADR-0017](0017-bundled-client-and-official-ai.md)은 PR4 이후 Desktop이 daemon UI를 로드하는 구조를 앱 번들 UI + HTTP Host 클라이언트로 전환하도록 결정한다. daemon의 브라우저 UI·고정 HTTP origin과 기존 수명 정책은 유지한다. AI는 daemon 공식 기능으로 흡수하고 Docling은 전환 기간 분리 후 플러그인으로 재연결한다. 이 결정은 구현 완료 선언이 아니며 아래 PR1~PR4의 기록을 보존한다.
 
 ## Context
 
@@ -62,13 +66,15 @@ PR2는 선택 Root, 로컬 `start/stop/status`, 단일 인스턴스·버전 확�
 
 ### ⑤ Origin과 하위 호환
 
-고정 HTTP origin을 쓴다. 소유자가 기존 사용자 0명을 보증했으므로 이전 `litzio://app` origin 저장소를 이전하지 않는다(하위 호환 없음).
+daemon은 고정 HTTP origin을 쓴다. PR3의 Desktop은 daemon UI를 로드하지만 ADR-0017 전환 뒤에는 앱 번들 UI의 별도 origin에서 HTTP Host API로 연결한다. 소유자가 기존 사용자 0명을 보증했으므로 이전 `litzio://app` origin 저장소를 이전하지 않는다(하위 호환 없음).
 
 ### ⑥ 기간 한정 플러그인 테스트 예외
 
 소유자는 1단계 동안 **느리고 in-process 수명에 묶인 플러그인 테스트만** 일시 제외하도록 승인했다. 제외 전에 CI 시간을 측정한다. 이는 AGENTS.md의 테스트 기준 약화 금지에 대한 기간 한정 예외이며 다른 테스트·문서 유효성·데이터 보존 기준을 완화하지 않는다. PR3의 제외 전 CI 측정·제외 목록과 PR4 복구 대상은 [Desktop 전환 검증](../design/desktop-distribution-v1.md#pr3-plugin-test-exception)에 기록한다.
 
 PR3에서 해당 범위만 일시 제외하고 PR4에서 새 플러그인·AI 수명 계약으로 복구한다. 일시 제외한 테스트 복구와 필수 CI 전체 통과를 1단계 완료 조건으로 삼는다. **예외가 적용되는 기간에는 릴리스하지 않는다.** 복구 전에는 1단계 완료나 릴리스 가능 상태로 보고하지 않는다.
+
+**#1150 소유자 예외 연장:** PR4의 기존 제외 테스트 복구 뒤, [ADR-0017](0017-bundled-client-and-official-ai.md)의 AI 흡수·Docling 분리부터 재연결까지 Docling을 기본 설치와 CI에서 제외할 수 있다. 그 기간 Docling은 사용할 수 없고 플러그인 기반은 fixture로 계속 검증한다. 분리 전 CI 시간·제외 목록·복구 대상을 기록한다. Docling 재연결·관련 테스트 복구·필수 CI 전체 통과를 연장 예외 종료 및 전환 완료 조건으로 삼으며 재연결까지 릴리스하지 않는다. PR4 완료만으로 이 후속 전환의 완료나 릴리스 가능을 선언하지 않는다. 그 밖의 테스트·문서 유효성·데이터 보존 기준은 그대로다.
 
 ## Boundaries retained
 
