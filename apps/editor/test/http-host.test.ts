@@ -271,13 +271,11 @@ test("daemon gates static/API/media, exchanges a browser cookie, checks versions
   assert.equal((await send("/api/document", "GET", undefined, { Cookie: cookie.split(";")[0]! })).status, 401, "a cookie from another protocol cannot reconnect silently");
 });
 
-test("HTTP unrestricted access rejects non-loopback or absent authentication before listening", async () => {
+test("HTTP unrestricted access requires token authentication on local and non-loopback bindings", async () => {
   for (const options of [{}, { host: "0.0.0.0", publicOrigin: "https://docs.example" }]) {
     await assert.rejects(startHttpHost({ roots: [], editorDir: "unused", ...options }), /Unrestricted access requires/);
   }
-  await assert.rejects(startHttpHost({ roots: [], editorDir: "unused", publicOrigin: "https://docs.example",
-    daemon: { token: "valid-token", health: { pid: process.pid, startedAt: new Date().toISOString(), instanceId: "local", productVersion: "test", protocolVersion: DAEMON_PROTOCOL }, stop() {} },
-  }), /Unrestricted access does not allow --public-origin/);
+  await assert.rejects(startHttpHost({ roots: [], editorDir: "unused", host: "0.0.0.0" }), /Non-loopback binding requires --public-origin/);
 });
 
 test("HTTP trash failure preserves the original file without permanent deletion", async t => {

@@ -19,7 +19,7 @@ the adoption conditions below and update the affected contracts.
 
 ## Amendment: 공유 로컬 daemon Host (2026-11-04, #1142)
 
-[ADR-0016](0016-shared-local-daemon-host.md)은 소유자 승인에 따라 Desktop의 custom protocol·in-process Host·TCP 없음 경계를 공유 로컬 HTTP daemon으로 대체하고, 실행 중 daemon 자동 탐색·연결과 수명 정책을 결정한다. 로컬 daemon은 Root 제한 없이 사용자별 토큰 인증(Desktop Bearer·브라우저 쿠키)을 필수로 한다. 제품/프로토콜 버전 분리와 자동 교체 금지, 종료·휴지통·샘플·origin 정책 및 기간 한정 테스트 예외는 해당 ADR을 따른다. 공유 편집 세션과 원격 인증은 계속 보류한다.
+[ADR-0016](0016-shared-local-daemon-host.md)은 소유자 승인에 따라 Desktop의 custom protocol·in-process Host·TCP 없음 경계를 공유 로컬 HTTP daemon으로 대체하고, 실행 중 daemon 자동 탐색·연결과 수명 정책을 결정한다. 로컬 daemon은 Root 제한 없이 사용자별 토큰 인증(Desktop Bearer·브라우저 쿠키)을 필수로 한다. 제품/프로토콜 버전 분리와 자동 교체 금지, 종료·휴지통·샘플·origin 정책 및 기간 한정 테스트 예외는 해당 ADR을 따른다. 2026-11-04의 ADR-0016 ③ 추가 승인에 따라 수동 원격 daemon도 동일한 토큰 링크·쿠키 인증을 사용할 수 있다. 공유 편집 세션과 원격용 HTTPS·계정 체계는 계속 보류한다.
 
 이 개정은 결정이며 PR1에서 제품 동작을 바꾸지 않는다. 아래 기존 transport·Root·인증·수명 서술은 개정 전 결정과 현재 구현의 기록이다. 충돌하는 결정에는 ADR-0016이 우선하며 구현 계약은 PR2~PR4에서 실제 변경과 함께 갱신한다.
 

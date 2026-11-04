@@ -7,9 +7,9 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { build } from "esbuild";
 import { createServer } from "node:net";
-import { acquireDaemonLock, daemonPort, readDaemonRecord, type DaemonRecord } from "../../../apps/editor/server/daemon-state.ts";
+import { acquireDaemonLock, daemonPort, readDaemonRecord, stopDaemon, type DaemonRecord } from "../../../apps/editor/server/daemon-state.ts";
 
-test("daemon CLI concurrent start publishes one authenticated instance, stop verifies it, occupied port fails", async t => {
+test("daemon CLI keeps one local instance, rejects occupied ports and authenticates unrestricted remote mode", async t => {
   const userA = "sid:S-1-5-21-111-222-333-1001", userB = "sid:S-1-5-21-111-222-333-1002";
   const channels = ["stable", "beta", "development"] as const;
   const userPorts = [userA, userB].flatMap(user => channels.map(channel => daemonPort(channel, user)));
@@ -27,15 +27,24 @@ test("daemon CLI concurrent start publishes one authenticated instance, stop ver
   await build({ entryPoints: [fileURLToPath(new URL("../src/cli.ts", import.meta.url))], outfile: entry, bundle: true, platform: "node", format: "esm", logLevel: "silent",
     define: { __LITZIO_CLI_BUILD__: JSON.stringify({ version: "test-version", desktop: false, commit: "test" }) },
     banner: { js: 'import {createRequire as __testCreateRequire} from "node:module"; const require=__testCreateRequire(import.meta.url);' } });
-  const execute = (args: string[]) => new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
+  const execute = (args: string[], inspect?: () => Promise<void>) => new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
     const child = spawn(process.execPath, [entry, "daemon", ...args, "--channel", "development"], { env, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
-    // A refusal regression must fail rather than leave a foreground listener/test hanging.
+    // A startup/inspection regression must fail rather than leave a foreground listener/test hanging.
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; child.kill(); }, 15_000);
-    let stdout = "", stderr = "";
-    child.stdout.on("data", data => { stdout += data; }); child.stderr.on("data", data => { stderr += data; });
+    let stdout = "", stderr = "", inspection: Promise<void> | undefined, inspectionError: unknown;
+    child.stdout.on("data", data => {
+      stdout += data;
+      if (inspect && !inspection && stdout.includes("Litzio HTTP:")) inspection = inspect().catch(error => { inspectionError = error; child.kill(); });
+    });
+    child.stderr.on("data", data => { stderr += data; });
     child.once("error", error => { clearTimeout(timer); reject(error); });
-    child.once("close", code => { clearTimeout(timer); if (timedOut) reject(new Error(`CLI did not exit: ${args.join(" ")}`)); else resolve({ code, stdout, stderr }); });
+    child.once("close", async code => {
+      clearTimeout(timer); await inspection;
+      if (inspectionError) reject(inspectionError);
+      else if (timedOut) reject(new Error(`CLI did not exit: ${args.join(" ")}`));
+      else resolve({ code, stdout, stderr });
+    });
   });
   const directory = path.join(state, "development");
   let stopped = false;
@@ -68,10 +77,24 @@ test("daemon CLI concurrent start publishes one authenticated instance, stop ver
       assert.match(fs.readFileSync(path.join(directory, "daemon.log"), "utf8"), /EADDRINUSE/);
       assert.equal(readDaemonRecord(directory), undefined);
     } finally { await new Promise<void>(resolve => blocker.close(() => resolve())); }
-    const restricted = await execute(["run", "--host", "0.0.0.0", "--public-origin", "https://docs.example"]);
-    assert.equal(restricted.code, 1); assert.match(restricted.stderr, /Unrestricted access requires/);
-    const publicUnrestricted = await execute(["run", "--public-origin", "https://docs.example"]);
-    assert.equal(publicUnrestricted.code, 1); assert.match(publicUnrestricted.stderr, /Unrestricted access does not allow --public-origin/);
+    const remote = await execute(["run", "--host", "0.0.0.0", "--public-origin", first.url], async () => {
+      assert.equal(readDaemonRecord(directory), undefined, "remote unrestricted daemon is not a Desktop discovery candidate");
+      const token = fs.readFileSync(path.join(directory, "token"), "utf8");
+      const headers = { Authorization: `Bearer ${token}`, "X-Litzio-Protocol": "1", Origin: first.url };
+      const folder = first.url + "/api/folder?" + new URLSearchParams({ root: base });
+      assert.equal((await fetch(folder)).status, 401);
+      assert.equal((await fetch(folder, { headers })).status, 200);
+      const session = await fetch(first.url + "/daemon/session", { method: "POST", headers: { ...headers, "Content-Type": "application/json" }, body: "{}" });
+      assert.equal(session.status, 200);
+      const cookie = session.headers.get("set-cookie")!.split(";")[0]!;
+      assert.equal((await fetch(folder, { headers: { Cookie: cookie } })).status, 200);
+      const health = await (await fetch(first.url + "/daemon/health", { headers })).json();
+      await stopDaemon({ ...health, url: first.url }, token, "test-version");
+    });
+    assert.equal(remote.code, 0, remote.stderr);
+    assert.match(remote.stderr, /WARNING: unrestricted daemon on a non-loopback address/);
+    assert.match(remote.stderr, /HTTP.*token.*same network/);
+    assert.match(remote.stderr, /token.*entire disk/);
   } finally {
     owned ??= readDaemonRecord(directory);
     if (!stopped && owned) {

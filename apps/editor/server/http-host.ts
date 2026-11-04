@@ -50,8 +50,7 @@ export async function startHttpHost(options: HttpHostOptions) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("Invalid port.");
   const external = options.publicOrigin === undefined ? undefined : publicOrigin(options.publicOrigin);
   if (!loopback(host) && !external) throw new Error("Non-loopback binding requires --public-origin and an access-controlled proxy/network.");
-  if (!options.roots.length && (!loopback(host) || !options.daemon?.token)) throw new Error("Unrestricted access requires loopback and daemon token authentication.");
-  if (!options.roots.length && external) throw new Error("Unrestricted access does not allow --public-origin. Specify --root for proxy/remote access.");
+  if (!options.roots.length && !options.daemon?.token) throw new Error("Unrestricted access requires daemon token authentication.");
   const access = options.roots.length ? new RootAccess(options.roots) : LOCAL_FILE_ACCESS;
   const editorDir = realpathSync(options.editorDir);
   if (!statSync(path.join(editorDir, "index.html")).isFile()) throw new Error("The production Editor build is missing.");
@@ -94,7 +93,7 @@ export async function startHttpHost(options: HttpHostOptions) {
       return json(res, 415, "Expected application/json.");
     }
     if (options.daemon && await daemonRequest(req, res, url, options.daemon, external ?? `http://${authority(host, req.socket.localPort!)}`)) return;
-    // Full local access must not select Vite's checkout-relative development sample.
+    // Full filesystem access must not select Vite's checkout-relative development sample.
     if (!access && url.pathname === "/api/document" && req.method === "GET" && !url.searchParams.get("path")?.trim()) {
       res.setHeader("Content-Type", "application/json; charset=utf-8"); res.end(JSON.stringify({ start: true })); return;
     }
@@ -136,6 +135,7 @@ export async function startHttpHost(options: HttpHostOptions) {
   }
   if (external) origins.add(external);
   for (const origin of origins) authorities.add(new URL(origin).host.toLowerCase());
+  if (!access && !loopback(host)) console.warn("WARNING: unrestricted daemon on a non-loopback address. Over HTTP, the token can be exposed to others on the same network. Anyone with the token can access the entire disk with this OS user's permissions.");
   return {
     server,
     roots: access?.roots ?? [],

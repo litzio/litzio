@@ -7,7 +7,7 @@
 - Last verified: 2026-10-16 (#296 PR3: Windows production Host with actual Chrome process crashes, same-profile/origin restart, local Restore, real Save/Reload and external 409 preservation; HTTP boundary tests. Linux execution remains required CI).
 - Previous verification: 2026-10-15 (ADR-0006 route/validation cleanup by code/test comparison; no runtime regressions rerun). Previous verification: 2026-10-13 (real TCP boundaries, packaged Node-only execution and production browser Save/Reload; Windows/Linux package and browser checks are required in CI).
 - Authority: [ADR-0005](../adr/0005-http-host.md), [Filesystem Host boundary](filesystem-host-boundary-v1.md), [Editing session and Save](editing-session-save-v1.md).
-- Scope: authenticated same-PC daemon and optionally root-restricted single-operator HTTP Editor ([#186](https://github.com/litzio/litzio/issues/186)).
+- Scope: authenticated local daemon and manual remote single-operator HTTP Editor with optional Root limits ([#186](https://github.com/litzio/litzio/issues/186)).
 
 ## Shared local daemon (#1142 PR2)
 
@@ -77,10 +77,11 @@ HttpOnly, SameSite=Strict, Path=/ cookie namespaced by protocol and SHA-256 endp
 (first 16 hex characters); the token never goes into a request URL. Login HTML
 and its bootstrap script are the only unauthenticated routes. Missing/wrong tokens return 401.
 Port is absent from browser cookie storage keys, so endpoint namespacing keeps concurrent
-channel/manual listeners logged in independently. HTTPS public origins in root-restricted proxy
-mode set `Secure`; local HTTP cookies do not. The login URL and foreground output/daemon log are
+channel/manual listeners logged in independently. HTTPS public origins in proxy
+mode set `Secure`; HTTP cookies do not. The login URL and foreground output/daemon log are
 credentials; do not share them. A fresh
-browser must use that login route. This is local token authentication, not remote accounts.
+browser must use that login route. The same token-link/session path authenticates manual remote
+mode; it does not introduce remote accounts.
 
 Bibliography reads reuse the shared stateless Host and existing Root checks through the dedicated
 `/api/bibliography` endpoint. Only declarations of an admitted, revision-matched document are read;
@@ -138,16 +139,16 @@ migrated or cleaned automatically.
 
 | Option | Contract |
 | --- | --- |
-| `--root <directory>` | Optional, repeatable; omit only for authenticated loopback full local access without `--public-origin`; relative paths use launch cwd. All must exist and be directories. The same real directory (filesystem identity) given twice is deduplicated. Nested roots are allowed. |
+| `--root <directory>` | Optional, repeatable; omit for token-authenticated full server-disk access; relative paths use launch cwd. All must exist and be directories. The same real directory (filesystem identity) given twice is deduplicated. Nested roots are allowed. |
 | `--port <number>` | Default channel port above; integer 1–65535. Port conflicts fail without starting a replacement listener. |
-| `--host <IP>` | Default `127.0.0.1`; IP literal only. A non-loopback bind requires `--root` and `--public-origin`. |
-| `--public-origin <origin>` | Explicit `http(s)://host[:port]`, without path, credentials, query or fragment. Adds that exact origin and Host authority; requires explicit `--root` even when binding to loopback. |
+| `--host <IP>` | Default `127.0.0.1`; IP literal only. A non-loopback bind requires `--public-origin`. Root limits remain optional; token authentication is required. |
+| `--public-origin <origin>` | Explicit `http(s)://host[:port]`, without path, credentials, query or fragment. Adds that exact origin and Host authority; required for non-loopback binding. |
 
 Unknown options, positional arguments and repeated single-value options fail. Invalid configuration is rejected before listening. SIGINT/SIGTERM closes the listener, allows active connections up to five seconds, then closes remaining owned connections. New CLI builds replace the complete package, including Editor assets; do not mix versions.
 
 ## Allowed roots and Open Folder
 
-When configured, Roots are the server's access boundary, fixed until restart. Without roots, the authenticated loopback daemon uses the same full local file policy as Desktop; per-document media and mutation guards still apply. They are neither initial folder selections nor a merged Workspace. Paths refer to the server filesystem, even when a browser runs on another PC.
+When configured, Roots are the server's access boundary, fixed until restart. Without roots, the authenticated daemon uses the same full server-file policy as Desktop; per-document media and mutation guards still apply. They are neither initial folder selections nor a merged Workspace. Paths refer to the server filesystem, even when a browser runs on another PC.
 
 HTTP supplies no default document or development sample. The Editor can still open an explicit path or restore tabs under the [session startup contract](editing-session-save-v1.md#tab-navigation-memory-383). Open Folder offers each allowed root and its descendants. Breadcrumbs start at the most specific containing root; Up cannot leave it. The path field still accepts another allowed root. Recent folders are browser preferences: locations outside current roots are hidden without deleting stored preferences, and every actual request is revalidated by the Host. A root name is compact in breadcrumbs; starting places and the path field retain the full locator.
 
@@ -172,7 +173,28 @@ The operator's OS account and filesystem administrators are trusted. `realpath` 
 
 ## HTTP and remote access
 
-Default local access uses the fixed user/channel origin above. Tokens authenticate requests; Host/Origin checks separately protect browser request boundaries. The root-restricted remote mode still requires operator access controls in addition to the daemon token.
+Default local access uses the fixed user/channel origin above. Tokens authenticate requests;
+Host/Origin checks separately protect browser request boundaries.
+
+**Owner-approved amendment, 2026-11-04 ([ADR-0016 ③](../adr/0016-shared-local-daemon-host.md#③-로컬-접근-범위)):**
+Root-unrestricted mode is also allowed on non-loopback binds with explicit `--host` and
+`--public-origin`, always behind daemon token authentication. A remote browser first opens the
+existing foreground-output login link (`/daemon/login#<token>`) and then uses the session cookie.
+No new link-sharing UI or unauthenticated remote access is provided. Manual remote daemons are
+not published for Desktop discovery; local user/channel ports and discovery rules are unchanged.
+
+Successful non-loopback unrestricted startup emits a warning: over HTTP, others on the same
+network can learn the token, and a token holder can access the entire server disk under the
+Host OS user's permissions. Use only an intentionally trusted network. HTTPS provisioning and
+an account system remain for a separate remote-authentication decision; this change adds neither.
+For example, using the operator's actual LAN address as public origin:
+
+```bash
+litzio daemon run --host 0.0.0.0 --port 5180 --public-origin http://192.168.1.10:5180
+```
+
+The existing Root-specified mode and its operator-controlled proxy/network requirements remain:
+
 
 For an existing access-controlled reverse proxy on the same server, keep the upstream on loopback and configure its browser origin explicitly:
 

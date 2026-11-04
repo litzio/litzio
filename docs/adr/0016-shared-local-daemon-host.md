@@ -2,9 +2,9 @@
 
 - Status: Accepted
 - Decision date: 2026-11-04
-- Last verified: 2026-11-04 — #1142 본문 ①~⑥·소유자의 `--root` 선택 옵션 추가 승인, #834 결정 기록·S1 결과와 기존 문서·현재 `daemon run --root` 코드를 대조. 제품 실행·배포 검증은 하지 않음.
+- Last verified: 2026-11-04 — 소유자의 인증된 원격 무제한 모드 추가 승인을 ③에 반영. 구현·검증 범위는 HTTP Host 계약을 따른다.
 - Authority: [#1142 소유자 결정](https://github.com/litzio/litzio/issues/1142), [#834 S1 승인 조건](https://github.com/litzio/litzio/discussions/834#discussioncomment-19389153), under [AGENTS.md](../../AGENTS.md).
-- Scope: 같은 PC의 Desktop·브라우저가 사용하는 공유 로컬 HTTP Host로의 1단계 전환. PR1은 결정 문서만 작성하며 구현 완료를 뜻하지 않는다.
+- Scope: 같은 PC의 Desktop·브라우저가 사용하는 공유 로컬 HTTP Host로의 1단계 전환. 수동 원격 접근은 ③의 추가 승인을 따른다. PR1은 결정 문서만 작성하며 구현 완료를 뜻하지 않는다.
 - Amends: [ADR-0004](0004-desktop-host-distribution.md), [ADR-0005](0005-http-host.md), [ADR-0012](0012-plugin-runtime-and-ui-contributions.md), [ADR-0015](0015-shared-host-operations.md)의 아래 명시한 경계. 나머지 결정은 유지한다.
 
 ## Context
@@ -13,7 +13,7 @@
 
 ## Decision
 
-Desktop은 custom protocol의 in-process Host 대신 **같은 PC의 공유 daemon(HTTP Host)** 에 연결한다. 실행 중인 daemon을 찾으면 붙고, 없으면 띄워 붙는다. 동시에 시작해도 daemon은 하나이며 단일 인스턴스 lock으로 경합을 제어한다. 사용자별 토큰 인증은 필수다. Desktop은 Bearer, 브라우저는 쿠키로 인증한다. TCP가 없던 Desktop을 무인증 로컬 포트로 전환하지 않는다. 원격 Host는 구조로 막지 않되 이번 지원 범위는 같은 PC뿐이다.
+Desktop은 custom protocol의 in-process Host 대신 **같은 PC의 공유 daemon(HTTP Host)** 에 연결한다. 실행 중인 daemon을 찾으면 붙고, 없으면 띄워 붙는다. 동시에 시작해도 daemon은 하나이며 단일 인스턴스 lock으로 경합을 제어한다. 사용자별 토큰 인증은 필수다. Desktop은 Bearer, 브라우저는 쿠키로 인증한다. TCP가 없던 Desktop을 무인증 로컬 포트로 전환하지 않는다. Desktop 자동 탐색·연결은 같은 PC 범위다. 수동 원격 daemon의 토큰 인증 접근은 아래 ③의 소유자 추가 승인을 따른다.
 
 제품 버전과 프로토콜 버전을 분리한다. 프로토콜 불일치는 연결을 거부하고 안내한다. 제품 버전만 다르면 경고하고 연결을 유지하며 **이 버전으로 daemon 다시 시작**을 명시적으로 선택할 수 있게 한다. 다른 클라이언트·진행 작업이 있으면 확인한다. Desktop이 띄운 daemon도 자동 교체하지 않는다.
 
@@ -29,7 +29,18 @@ daemon이 OS 휴지통을 직접 쓴다. 같은 PC의 모든 클라이언트가 
 
 **로컬 daemon은 Root 제한 없음, 토큰 인증 필수, 중앙 서버의 Workspace 제한은 막지 않음**으로 정한다. Desktop의 전체 로컬 접근을 유지하기 위한 결정이다. S1의 폴더별 Root 누적 등록·철회 모델은 채택하지 않는다. Root 제한 없음이 Core의 valid write, revision 확인이나 기존 파일 교체 보호를 없애지는 않는다.
 
-소유자의 추가 승인에 따라 `daemon run --root`는 전환 후 선택 옵션으로 남긴다. `--root`를 생략하면 Root 제한 없는 로컬 전체 접근이며 Desktop이 띄우는 기본 모드다. 이 모드는 loopback과 토큰 인증이 필수다. `--root`를 지정하면 현재처럼 지정한 폴더만 접근한다. 이는 중앙 서버 Workspace 제한의 출발점이며 테스트와 기존 HTTP Host 사용법을 유지한다. non-loopback 바인딩의 `--public-origin` 및 접근 통제 프록시·네트워크 요구는 바꾸지 않는다.
+소유자의 추가 승인에 따라 `daemon run --root`는 전환 후 선택 옵션으로 남긴다. `--root`를 생략하면 Root 제한 없는 로컬 전체 접근이며 Desktop이 띄우는 기본 모드다. 토큰 인증은 필수다. `--root`를 지정하면 현재처럼 지정한 폴더만 접근한다. 이는 중앙 서버 Workspace 제한의 출발점이며 테스트와 기존 HTTP Host 사용법을 유지한다.
+
+**소유자 추가 승인 (2026-11-04):** Root 제한 없는 모드를 non-loopback 바인딩
+(`--host` + `--public-origin`)에서도 허용한다. 토큰 없는 원격 무제한 접근 경로는 만들지
+않는다. 원격 브라우저는 기존 출력 경로의 토큰 링크로 처음 접속하고 이후 쿠키로 인증한다.
+새 링크 공유 UI는 만들지 않는다. non-loopback 무제한 모드로 시작할 때 HTTP에서는 같은
+네트워크에 토큰이 노출될 수 있고 토큰 보유자가 OS 사용자 권한으로 디스크 전체에 접근할
+수 있음을 경고한다. HTTPS·계정 체계는 별도의 원격 인증 결정 때 다룬다.
+
+`--root` 지정 모드의 기존 동작과 Host/Origin 검사, 고정 포트와 탐색 기록 규칙은 유지한다.
+non-loopback 바인딩은 계속 명시적 `--public-origin`을 요구한다. Desktop 탐색 대상은
+loopback·Root 제한 없음·토큰 인증의 로컬 모드뿐이며 원격 무제한 daemon은 등록하지 않는다.
 
 PR2는 선택 Root, 인증된 로컬 `start/stop/status`, 단일 인스턴스·버전 확인과 OS 휴지통을 구현한다. 사용자/채널별 고정 origin과 로컬 모드만의 탐색 기록, 인증·실패 경계는 [HTTP Host 구현 계약](../design/http-host-v1.md#shared-local-daemon-1142-pr2)을 따른다. Desktop 전환과 플러그인/AI 수명은 계속 PR3/PR4다.
 
@@ -66,7 +77,7 @@ plain-text SSOT, Core의 editor-neutral 문서 의미·valid write와 File commi
 
 - 업데이트·제거 시 daemon 정지와 Windows 설치물 검증.
 - 부팅 자동 시작, 자동 복구, 무중단 업데이트.
-- 원격 인증·사용자 권한.
+- 원격용 HTTPS·계정/사용자 권한 체계(③의 토큰 링크·쿠키 인증은 이번 범위).
 - 공유 편집 세션(미저장 내용·Undo·history 등의 공유 포함).
 
 ## 기존 결정과 구현 문서의 관계

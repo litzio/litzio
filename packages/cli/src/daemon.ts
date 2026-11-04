@@ -63,7 +63,7 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
         fs.renameSync(temp, path.join(directory, "instance.json"));
       }
       process.once("SIGINT", signalStop); process.once("SIGTERM", signalStop);
-      console.log(`${brand.name.en} HTTP: ${host.url}\nAllowed folders: ${host.roots.length ? host.roots.join(", ") : "unrestricted local access"}`);
+      console.log(`${brand.name.en} HTTP: ${host.url}\nAllowed folders: ${host.roots.length ? host.roots.join(", ") : "unrestricted access"}`);
       console.log(`Browser authentication: ${host.url}/daemon/login#${token}`);
       process.send?.({ ready: true }); process.disconnect?.();
     } catch (error) { await stop(); throw error; }
