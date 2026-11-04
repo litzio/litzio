@@ -22,7 +22,8 @@ export type TextSessionSnapshot = { kind: "text"; file: TextFileResponse; text: 
 
 function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot | undefined, recoveryId: string, replaceFile: (file: EditorFileResponse) => void) {
   const hostId = useHostId();
-  const { requestDocument, requestSave } = createDocumentRequests(useHostClient());
+  const client = useHostClient();
+  const { requestDocument, requestSave } = createDocumentRequests(client);
   const [openedPath, setOpenedPath] = useState(initial.path);
   const pathRef = useRef(openedPath); pathRef.current = openedPath;
   const input = useRef<HTMLTextAreaElement>(null);
@@ -104,7 +105,7 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
       const reason = messageOf(cause); setError(reason); setStatus("open-failed"); return reason;
     } finally { if (current()) { busyRef.current = false; setReloadDialog(false); } }
   }
-  return { hostId,
+  return { client, hostId,
     kind: "text" as const, markdown, view: markdown ? view : "visual" as const, setView, currentText: text.current, editorRef, input, initialText: restored?.text ?? initial.source, change, getSnapshot,
     acknowledgedRevision: revision.current,
     externalRevision, externalChanged: externalRevision !== undefined && externalRevision !== revision.current,

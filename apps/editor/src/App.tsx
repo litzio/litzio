@@ -1,6 +1,6 @@
-import { HostContext } from "./host-context.tsx";
+import { HostContext, HostClientContext } from "./host-context.tsx";
 import { LOCAL_HOST_ID, sameLocator } from "./host-locator.ts";
-import { getHostClient } from "./host-client.ts";
+import { getHostClient, type HostClient } from "./host-client.ts";
 import { handleDisplayRequest } from "./assistant-display.ts";
 import { creationUndoNeedsConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
@@ -168,7 +168,7 @@ function EditorApp() {
   const visibleRecent = visibleRecentFolders(recentFolders, allowedRoots);
   const [newTemplate, setNewTemplate] = useState<TemplateSummary>();
   const [templateRevision, setTemplateRevision] = useState(0);
-  const [saveTemplate, setSaveTemplate] = useState<{ hostId: string; path: string; returnFocus: HTMLElement | null }>();
+  const [saveTemplate, setSaveTemplate] = useState<{ client: HostClient; hostId: string; path: string; returnFocus: HTMLElement | null }>();
   const [newDialog, setNewDialog] = useState(false);
   const [newDirectory, setNewDirectory] = useState("");
   const [newFolderDialog, setNewFolderDialog] = useState(false);
@@ -346,8 +346,9 @@ function EditorApp() {
     imageChoice = null, imageReturnFocus = emptyImageRef,
   } = nativeSession ?? {};
   const imageHostId = imageChoice?.hostId ?? LOCAL_HOST_ID;
-  const browseImages = useCallback((path: string) => browseHostFolder(path, "image", imageHostId), [imageHostId]);
-  const imagePlaces = useCallback(() => folderPlaces(imageHostId), [imageHostId]);
+  const imageClient = imageChoice?.client ?? getHostClient(imageHostId);
+  const browseImages = useCallback((path: string) => browseHostFolder(path, "image", imageHostId, imageClient), [imageHostId, imageClient]);
+  const imagePlaces = useCallback(() => folderPlaces(imageHostId, imageClient), [imageHostId, imageClient]);
   const { openedPath = "", draftActive = false, documentDirty = false, reloadDialog = false } = session ?? {};
   const tableWrapPath = nativeSession ? openedPath : "";
   const tableWrap = useTableWrap(tableWrapPath);
@@ -360,14 +361,14 @@ function EditorApp() {
     saveComparisonReturnFocus.current = returnFocus;
     if (owner.kind === "text") {
       const snapshot = owner.getSnapshot();
-      setSaveComparison({ hostId: owner.hostId, path: snapshot.file.path, revision: snapshot.file.revision, text: snapshot.text });
+      setSaveComparison({ client: owner.client, hostId: owner.hostId, path: snapshot.file.path, revision: snapshot.file.revision, text: snapshot.text });
       return;
     }
     const submitted = owner.editorRef.current?.getDocument();
-    try { setSaveComparison({ hostId: owner.hostId, path: owner.openedPath, revision: owner.acknowledgedRevision, submitted, request: owner.savePreviewRequest() }); }
+    try { setSaveComparison({ client: owner.client, hostId: owner.hostId, path: owner.openedPath, revision: owner.acknowledgedRevision, submitted, request: owner.savePreviewRequest() }); }
     catch (cause) {
       const failure = cause instanceof SaveContentError ? cause : new SaveContentError(messageOf(cause), undefined, { phase: "collect", cause });
-      setSaveComparison({ hostId: owner.hostId, path: owner.openedPath, revision: owner.acknowledgedRevision, submitted, failure: new SaveDisplayError([failure], submitted) });
+      setSaveComparison({ client: owner.client, hostId: owner.hostId, path: owner.openedPath, revision: owner.acknowledgedRevision, submitted, failure: new SaveDisplayError([failure], submitted) });
     }
   }
   const save = () => session?.save();
@@ -557,6 +558,7 @@ function EditorApp() {
     const formSession = figure && localSessions().filter(owner => owner.kind === "native").find(owner => owner.openedPath === figure.documentPath);
     const tab = tabs.find(tab => sameLocator(tab, { hostId: LOCAL_HOST_ID, path: entry.path }));
     const owner = tab && sessions.current.get(tab.id);
+    const client = formSession ? formSession.client : owner?.client ?? getHostClient(LOCAL_HOST_ID);
     owner?.suspendRecovery();
     let completed = false;
     try {
@@ -570,7 +572,7 @@ function EditorApp() {
       let checkedRecovery: RecoveryRecord[] | undefined;
       if (creation !== undefined) {
         if (!creation.identity) throw new Error("This creation receipt has no file identity. Undo is unavailable.");
-        const check = await getHostClient(LOCAL_HOST_ID).request(`/api/file`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ root, path: entry.path, checkOnly: true, expectedIdentity: creation.identity }) });
+        const check = await client.request(`/api/file`, { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ root, path: entry.path, checkOnly: true, expectedIdentity: creation.identity }) });
         const state = await check.json();
         if (!check.ok || typeof state.revision !== "string") throw new Error(state.error ?? "Could not check file.");
         expectedRevision = state.revision;
@@ -602,7 +604,7 @@ function EditorApp() {
           }
         }
       }
-      const response = await getHostClient(LOCAL_HOST_ID).request(`/api/file`, {
+      const response = await client.request(`/api/file`, {
         method: action === "delete" ? "DELETE" : "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ root, path: entry.path, ...(expectedRevision !== undefined ? { expectedRevision, expectedIdentity: creation!.identity } : {}), ...(action === "rename" ? { name, openDocuments } : {}),
           ...(figure && formSession ? { figureDocument: { path: figure.documentPath, imageUrl: figure.imageUrl,
@@ -1093,7 +1095,7 @@ function EditorApp() {
       run: () => {
         if (!session || session.kind !== "native") return;
         if (session.editorRef.current?.hasUnsavedChanges()) { setError({ key: "Save the document before saving it as a template." }); return; }
-        setSaveTemplate({ hostId: session.hostId, path: session.openedPath, returnFocus: commandReturnFocus.current });
+        setSaveTemplate({ client: session.client, hostId: session.hostId, path: session.openedPath, returnFocus: commandReturnFocus.current });
       } },
     { id: "new-document", kind: "command", label: i18n.t("New document…"), icon: FileText, takesFocus: true,
       disabled: busy || Boolean(continuation), keywords: ["new document", "new file", "새 문서", "새 파일"],
@@ -1405,7 +1407,7 @@ function EditorApp() {
         finalFocus={() => folderNewReady.current || pendingFolderFocus.current ? false : shellReturnFocus(dialogReturnFocus.current)}
         onClose={() => { setFolderDialog(false); setNewAfterFolder(false); }}
       />
-      <HostContext.Provider value={imageChoice?.hostId ?? LOCAL_HOST_ID}><FolderDialog
+      <HostContext.Provider value={imageChoice?.hostId ?? LOCAL_HOST_ID}><HostClientContext.Provider value={imageClient}><FolderDialog
         open={imageChoice !== null}
         choose="image"
         initialPath={imageChoice ? splitDocumentPath(imageChoice.documentPath).directory : ""}
@@ -1417,7 +1419,7 @@ function EditorApp() {
         onOpen={selectImage}
         returnFocus={imageReturnFocus}
         onClose={closeImageChoice}
-      /></HostContext.Provider>
+      /></HostClientContext.Provider></HostContext.Provider>
       {saveTemplate ? <HostContext.Provider value={saveTemplate.hostId}><SaveTemplateDialog {...saveTemplate} onClose={() => setSaveTemplate(undefined)}
         onSaved={() => { setSaveTemplate(undefined); setTemplateRevision(value => value + 1); setNotice({ key: "Template saved." }); }} /></HostContext.Provider> : null}
       <NewDialog
@@ -1531,8 +1533,8 @@ async function requestFolder(root: string, path?: string, background = false): P
 }
 
 /** Asks the Host for one level of any folder while choosing which folder to open, or an image. */
-async function browseHostFolder(path: string, files?: "image" | "pdf", hostId = LOCAL_HOST_ID): Promise<FolderBrowseResponse> {
-  const response = await getHostClient(hostId).request(`/api/folder-browse?${new URLSearchParams({ path, ...(files ? { files } : {}) })}`);
+async function browseHostFolder(path: string, files?: "image" | "pdf", hostId = LOCAL_HOST_ID, client = getHostClient(hostId)): Promise<FolderBrowseResponse> {
+  const response = await client.request(`/api/folder-browse?${new URLSearchParams({ path, ...(files ? { files } : {}) })}`);
   const payload = (await response.json()) as Partial<FolderBrowseResponse> & Partial<DocumentErrorResponse>;
   if (!response.ok || !Array.isArray(payload.entries) || !Array.isArray(payload.crumbs)) throw new Error(payload.error ?? `request failed (${response.status})`);
   return payload as FolderBrowseResponse;
@@ -1553,8 +1555,8 @@ async function requestCreateFolder(parent: string, name: string): Promise<Folder
 }
 
 /** Asks the Host where choosing a folder can start. */
-async function folderPlaces(hostId = LOCAL_HOST_ID): Promise<FolderPlace[]> {
-  const response = await getHostClient(hostId).request(`/api/folder-places`);
+async function folderPlaces(hostId = LOCAL_HOST_ID, client = getHostClient(hostId)): Promise<FolderPlace[]> {
+  const response = await client.request(`/api/folder-places`);
   const payload = (await response.json()) as Partial<FolderPlacesResponse> & Partial<DocumentErrorResponse>;
   if (!response.ok || !Array.isArray(payload.places)) throw new Error(payload.error ?? `request failed (${response.status})`);
   return payload.places;

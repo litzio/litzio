@@ -1,3 +1,4 @@
+import type { HostClient } from "./host-client.ts";
 import { useHostClient, useHostId } from "./host-context.tsx";
 import type { UiMessage } from "./ui-message.ts";
 import { useMessageState } from "./ui-message.ts";
@@ -96,7 +97,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   const lifetime = useRef(createDocumentSessionLifetime()).current;
   const isCurrent = useMemo(() => lifetime.capture(), [lifetime, editorGeneration]);
   // A Figure's Choose… opens the image picker; its promise settles when the picker closes.
-  const [imageChoice, setImageChoice] = useState<{ hostId: string; documentPath: string; resolve(choice?: ImageChoice): void } | null>(null);
+  const [imageChoice, setImageChoice] = useState<{ client: HostClient; hostId: string; documentPath: string; resolve(choice?: ImageChoice): void } | null>(null);
   const imageChoiceRef = useRef(imageChoice);
   const imageReturnFocus = useRef<HTMLElement | null>(null);
 
@@ -117,7 +118,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     const chooseImage: ImageChooser = (documentPath, returnFocus) => new Promise(resolve => {
       if (!isCurrent()) { resolve(undefined); return; }
       imageReturnFocus.current = returnFocus.current;
-      imageChoiceRef.current = { hostId, documentPath, resolve };
+      imageChoiceRef.current = { client, hostId, documentPath, resolve };
       setImageChoice(imageChoiceRef.current);
     });
     return {
@@ -349,7 +350,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   captureRef.current = () => isCurrent() && editorRef.current?.hasDocumentChanges() ? getSnapshot() : null;
 
   return {
-    hostId, kind: "native" as const,
+    client, hostId, kind: "native" as const,
     recoveryError, discardRecovery: () => recorder?.discard(),
     suspendRecovery: () => recorder?.cancel(),
     resumeRecovery: () => { if (editorRef.current?.hasDocumentChanges()) recorder?.edit(); },

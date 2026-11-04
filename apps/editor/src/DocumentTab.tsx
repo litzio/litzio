@@ -1,4 +1,5 @@
-import { HostContext } from "./host-context.tsx";
+import { getHostClient } from "./host-client.ts";
+import { HostContext, HostClientContext } from "./host-context.tsx";
 import { LOCAL_HOST_ID } from "./host-locator.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "./i18n.ts";
@@ -36,13 +37,14 @@ type TabProps = {
 
 /** Reclassification on Reload starts the corresponding editor; Save never swaps editors. */
 export const DocumentTab = memo(function DocumentTab(props: TabProps) {
+  const [client] = useState(() => getHostClient(props.hostId ?? LOCAL_HOST_ID));
   const [replacement, setReplacement] = useState<{ file: EditorFileResponse; generation: number } | null>(null);
   const replaceFile = (file: EditorFileResponse) => setReplacement(previous => ({ file, generation: (previous?.generation ?? 0) + 1 }));
   const file = replacement?.file ?? props.file;
   const restored = replacement ? undefined : props.restored;
-  if (file.kind === "text") return <HostContext.Provider value={props.hostId ?? LOCAL_HOST_ID}><TextDocumentTab {...props} key={`text-${replacement?.generation ?? 0}`} file={file}
-    restored={restored?.kind === "text" ? restored : undefined} replaceFile={replaceFile} /></HostContext.Provider>;
-  return <HostContext.Provider value={props.hostId ?? LOCAL_HOST_ID}><NativeDocumentTab {...props} key={`native-${replacement?.generation ?? 0}`} file={file} restored={restored?.kind !== "text" ? restored : undefined} replaceFile={replaceFile} /></HostContext.Provider>;
+  if (file.kind === "text") return <HostContext.Provider value={props.hostId ?? LOCAL_HOST_ID}><HostClientContext.Provider value={client}><TextDocumentTab {...props} key={`text-${replacement?.generation ?? 0}`} file={file}
+    restored={restored?.kind === "text" ? restored : undefined} replaceFile={replaceFile} /></HostClientContext.Provider></HostContext.Provider>;
+  return <HostContext.Provider value={props.hostId ?? LOCAL_HOST_ID}><HostClientContext.Provider value={client}><NativeDocumentTab {...props} key={`native-${replacement?.generation ?? 0}`} file={file} restored={restored?.kind !== "text" ? restored : undefined} replaceFile={replaceFile} /></HostClientContext.Provider></HostContext.Provider>;
 });
 
 const NativeDocumentTab = memo(function NativeDocumentTab({ settingsDisabled, id, file, restored, recoveryId, active, focused, groupIndex, onFocus, report, onAssetChange, renameImage, onReveal, replaceFile, onCompare }:

@@ -77,6 +77,23 @@ async (page, { expect, waitForEditorFocus }) => {
     await save.getByRole('button', { name: '저장', exact: true }).click();
     await expect(save).toBeHidden();
     expect(calls).toBe(3);
+    // Reconnection is a Desktop lifecycle event, injected here to test a dialog
+    // opened AFTER the change; it must keep the source document's old client.
+    await page.route('**/api/host-capabilities', route => route.fulfill({ json: { fileDeletion: 'trash' } }));
+    await page.evaluate(async () => (await import('/src/host-client.ts')).setDesktopHost('http://localhost:1'));
+    try {
+      await page.keyboard.press('Control+Slash');
+      await page.getByRole('combobox').fill('템플릿으로 저장');
+      await page.getByRole('option', { name: '템플릿으로 저장…', exact: true }).click();
+      await save.getByLabel('이름', { exact: true }).fill('Previous connection');
+      await save.getByRole('button', { name: '저장', exact: true }).click();
+      await expect(save.getByRole('alert')).toContainText('Host connection changed');
+      expect(calls).toBe(3);
+      await save.getByRole('button', { name: '취소', exact: true }).click();
+    } finally {
+      await page.evaluate(async () => (await import('/src/host-client.ts')).setDesktopHost('/'));
+    }
+
     // Partial catalog failure must leave valid choices available, including a separate empty state.
     const user = { id: 'user:technical-document', name: 'technical-document', description: 'Reading table spacing', kind: 'user' };
     await page.route('**/api/template?*', route => route.fulfill({ json: { ...user, source: loaded.source } }));
