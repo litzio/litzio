@@ -18,7 +18,7 @@ export function recoveryRecords(page: Page): Promise<{ id: string; path: string;
 
 /** Reset initial recovery/tab state between tests, never between a test's crash/restarts. */
 export async function resetRecovery(page: Page): Promise<void> {
-  await page.evaluate(prefix => localStorage.removeItem(`${prefix}.openTabs`), brand.storagePrefix);
+  await page.evaluate(prefix => localStorage.removeItem(JSON.stringify(["local", `${prefix}.openTabs`])), brand.storagePrefix);
   await page.evaluate(database => new Promise<void>((resolve, reject) => {
     const request = indexedDB.deleteDatabase(database);
     request.onsuccess = () => resolve();

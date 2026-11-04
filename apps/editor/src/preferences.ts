@@ -1,3 +1,4 @@
+import { LOCAL_HOST_ID, locatorKey } from "./host-locator.ts";
 import { brand } from "../../../brand.ts";
 /**
  * User display and navigation preferences. They belong to this browser, never to a document: nothing here is
@@ -115,19 +116,14 @@ const RECENT_FOLDER_LIMIT = 5;
 /** Display filtering only; the Host still authorizes each filesystem request. */
 export function visibleRecentFolders(recent: string[], roots?: readonly string[]): string[] {
   if (!roots) return recent;
-  const normalize = (value: string) => {
-    const windows = /^[a-z]:[\\/]|^\\\\/i.test(value);
-    const normalized = value.replaceAll("\\", "/").replace(/\/+$/, "");
-    return windows ? normalized.toLowerCase() : normalized;
-  };
-  return recent.filter(folder => !folder.replaceAll("\\", "/").split("/").some(part => part === ".." || part === ".") &&
-    roots.some(root => normalize(folder) === normalize(root) || normalize(folder).startsWith(`${normalize(root)}/`)));
+  return recent.filter(folder => !folder.split(/[\\/]/).some(part => part === "." || part === "..") && roots.some(root => folder === root ||
+    folder.startsWith(root.endsWith("/") || root.endsWith("\\") ? root : root + (root.includes("\\") ? "\\" : "/"))));
 }
 
 /** Folders opened in this browser, newest first. */
-export function readRecentFolders(): string[] {
+export function readRecentFolders(hostId = LOCAL_HOST_ID): string[] {
   try {
-    const value: unknown = JSON.parse(globalThis.localStorage?.getItem(RECENT_FOLDERS_KEY) ?? "[]");
+    const value: unknown = JSON.parse(globalThis.localStorage?.getItem(locatorKey({ hostId, path: RECENT_FOLDERS_KEY })) ?? "[]");
     return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(0, RECENT_FOLDER_LIMIT) : [];
   } catch {
     return [];
@@ -137,21 +133,21 @@ export function readRecentFolders(): string[] {
 const OPEN_FOLDERS_KEY = `${brand.storagePrefix}.openFolders`;
 
 /**
- * The sidebar's opened folders, in order, for this browser and Host origin. Only paths are stored;
+ * The sidebar's opened folders, in order, for this browser and Host origin. Paths are stored under a Host identity key;
  * each is listed again through the Host on start, which still authorizes it.
  */
-export function readOpenFolders(): string[] {
+export function readOpenFolders(hostId = LOCAL_HOST_ID): string[] {
   try {
-    const value: unknown = JSON.parse(globalThis.localStorage?.getItem(OPEN_FOLDERS_KEY) ?? "[]");
+    const value: unknown = JSON.parse(globalThis.localStorage?.getItem(locatorKey({ hostId, path: OPEN_FOLDERS_KEY })) ?? "[]");
     return Array.isArray(value) ? [...new Set(value.filter((item): item is string => typeof item === "string" && item.length > 0))] : [];
   } catch {
     return [];
   }
 }
 
-export function writeOpenFolders(folders: readonly string[]): void {
+export function writeOpenFolders(folders: readonly string[], hostId = LOCAL_HOST_ID): void {
   try {
-    globalThis.localStorage?.setItem(OPEN_FOLDERS_KEY, JSON.stringify(folders));
+    globalThis.localStorage?.setItem(locatorKey({ hostId, path: OPEN_FOLDERS_KEY }), JSON.stringify(folders));
   } catch {
     // Storage can be disabled; the folders then stay open for this page only.
   }
@@ -160,15 +156,15 @@ export function writeOpenFolders(folders: readonly string[]): void {
 const COLLAPSED_FOLDER_SECTIONS_KEY = `${brand.storagePrefix}.collapsedFolderSections`;
 
 /** Collapsed opened roots only, in the same browser/origin boundary as openFolders. */
-export function readCollapsedFolderSections(): string[] {
+export function readCollapsedFolderSections(hostId = LOCAL_HOST_ID): string[] {
   try {
-    const value: unknown = JSON.parse(globalThis.localStorage?.getItem(COLLAPSED_FOLDER_SECTIONS_KEY) ?? "[]");
+    const value: unknown = JSON.parse(globalThis.localStorage?.getItem(locatorKey({ hostId, path: COLLAPSED_FOLDER_SECTIONS_KEY })) ?? "[]");
     return Array.isArray(value) ? [...new Set(value.filter((item): item is string => typeof item === "string" && item.length > 0))] : [];
   } catch { return []; }
 }
 
-export function writeCollapsedFolderSections(roots: readonly string[]): void {
-  try { globalThis.localStorage?.setItem(COLLAPSED_FOLDER_SECTIONS_KEY, JSON.stringify(roots)); }
+export function writeCollapsedFolderSections(roots: readonly string[], hostId = LOCAL_HOST_ID): void {
+  try { globalThis.localStorage?.setItem(locatorKey({ hostId, path: COLLAPSED_FOLDER_SECTIONS_KEY }), JSON.stringify(roots)); }
   catch { /* Disabled storage leaves section visibility usable for this page. */ }
 }
 
@@ -176,9 +172,9 @@ const OPEN_TABS_KEY = `${brand.storagePrefix}.openTabs`;
 export type OpenTabsPreference = { paths: string[]; activePath: string | null };
 
 /** null means no usable preference; an empty list deliberately starts without a document. */
-export function readOpenTabs(): OpenTabsPreference | null {
+export function readOpenTabs(hostId = LOCAL_HOST_ID): OpenTabsPreference | null {
   try {
-    const value = JSON.parse(globalThis.localStorage?.getItem(OPEN_TABS_KEY) ?? "null") as OpenTabsPreference | null;
+    const value = JSON.parse(globalThis.localStorage?.getItem(locatorKey({ hostId, path: OPEN_TABS_KEY })) ?? "null") as OpenTabsPreference | null;
     if (!value || !Array.isArray(value.paths)) return null;
     const paths = [...new Set(value.paths.filter((item): item is string => typeof item === "string" && item.length > 0))];
     return { paths, activePath: typeof value.activePath === "string" && paths.includes(value.activePath) ? value.activePath : null };
@@ -186,16 +182,17 @@ export function readOpenTabs(): OpenTabsPreference | null {
 }
 
 /** Navigation only: never content, editor snapshots, or Host authorization. */
-export function writeOpenTabs(tabs: OpenTabsPreference): void {
-  try { globalThis.localStorage?.setItem(OPEN_TABS_KEY, JSON.stringify(tabs)); }
+export function writeOpenTabs(tabs: OpenTabsPreference, hostId = LOCAL_HOST_ID): void {
+  try { globalThis.localStorage?.setItem(locatorKey({ hostId, path: OPEN_TABS_KEY }), JSON.stringify(tabs)); }
   catch { /* Disabled storage leaves the current page's tabs usable. */ }
 }
 
 /** Puts a folder first in the recent list; returns the new list. */
-export function rememberRecentFolder(folder: string, previous = readRecentFolders()): string[] {
+export function rememberRecentFolder(folder: string, previous: string[] | undefined = undefined, hostId = LOCAL_HOST_ID): string[] {
+  previous ??= readRecentFolders(hostId);
   const recent = [folder, ...previous.filter(item => item !== folder)].slice(0, RECENT_FOLDER_LIMIT);
   try {
-    globalThis.localStorage?.setItem(RECENT_FOLDERS_KEY, JSON.stringify(recent));
+    globalThis.localStorage?.setItem(locatorKey({ hostId, path: RECENT_FOLDERS_KEY }), JSON.stringify(recent));
   } catch {
     // Storage can be disabled; the list then lasts for this page only.
   }
@@ -209,18 +206,18 @@ export function readTableWrapDefault(): boolean {
   try { return globalThis.localStorage?.getItem(TABLE_WRAP_DEFAULT_KEY) !== "false"; }
   catch { return true; }
 }
-export function readTableWrapDocuments(): Record<string, boolean> {
+export function readTableWrapDocuments(hostId = LOCAL_HOST_ID): Record<string, boolean> {
   try {
-    const value: unknown = JSON.parse(globalThis.localStorage?.getItem(TABLE_WRAP_DOCUMENTS_KEY) ?? "{}");
+    const value: unknown = JSON.parse(globalThis.localStorage?.getItem(locatorKey({ hostId, path: TABLE_WRAP_DOCUMENTS_KEY })) ?? "{}");
     return value && typeof value === "object" && !Array.isArray(value)
       ? Object.fromEntries(Object.entries(value).filter(([, v]) => typeof v === "boolean")) : {};
   } catch { return {}; }
 }
-export function writeTableWrapPreferences(defaultValue: boolean, documents: Record<string, boolean>): boolean {
+export function writeTableWrapPreferences(defaultValue: boolean, documents: Record<string, boolean>, hostId = LOCAL_HOST_ID): boolean {
   try {
     if (!globalThis.localStorage) return false;
     globalThis.localStorage.setItem(TABLE_WRAP_DEFAULT_KEY, String(defaultValue));
-    globalThis.localStorage.setItem(TABLE_WRAP_DOCUMENTS_KEY, JSON.stringify(documents));
+    globalThis.localStorage.setItem(locatorKey({ hostId, path: TABLE_WRAP_DOCUMENTS_KEY }), JSON.stringify(documents));
     return true;
   } catch { return false; }
 }

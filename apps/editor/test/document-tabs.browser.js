@@ -15,13 +15,13 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     await page.waitForFunction(name => document.querySelector('[data-testid="current-file"]')?.textContent === name, name);
     await expect(page).toHaveTitle(`${name} — Litzio`);
   };
-  const memory = () => page.evaluate(() => JSON.parse(localStorage.getItem('litzio.openTabs')));
+  const memory = () => page.evaluate(() => JSON.parse(localStorage.getItem(JSON.stringify(["local", "litzio.openTabs"]))));
   const flush = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   await page.addInitScript(() => {
     window.tabMemoryWrites = 0;
     const write = Storage.prototype.setItem;
     Storage.prototype.setItem = function(key, value) {
-      if (key === 'litzio.openTabs') window.tabMemoryWrites++;
+      if (key === JSON.stringify(["local", "litzio.openTabs"])) window.tabMemoryWrites++;
       return write.call(this,key,value);
     };
   });
@@ -174,14 +174,14 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
       }
     }
     // When the default actually is the fallback, its failure must still be visible.
-    await page.evaluate(() => localStorage.removeItem('litzio.openTabs'));
+    await page.evaluate(() => localStorage.removeItem(JSON.stringify(["local", "litzio.openTabs"])));
     await page.goto(origin);
     await expect(page.getByTestId('error')).toContainText('Default document unavailable');
     check(await page.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').count() === 0 && (await page.getByTestId('error').innerText()).includes('Default document unavailable'), 'A real fallback failure lost its startup error');
   } finally {
     page.off('request',countTarget);
     await page.unroute('**/api/document',failedDefault);
-    await page.evaluate(saved => localStorage.setItem('litzio.openTabs',JSON.stringify(saved)), {paths:[a,b],activePath:a});
+    await page.evaluate(saved => localStorage.setItem(JSON.stringify(["local", "litzio.openTabs"]),JSON.stringify(saved)), {paths:[a,b],activePath:a});
     await page.goto(origin); await ready();
   }
   check(startupFailures.length === 0,startupFailures.join('\n'));
@@ -192,7 +192,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   try {
     await other.goto(origin); await other.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     await other.getByRole('button',{name:'Close technical-1.md',exact:true}).click();
-    await other.waitForFunction(path => JSON.parse(localStorage.getItem('litzio.openTabs')).paths.length === 1 && JSON.parse(localStorage.getItem('litzio.openTabs')).activePath === path, b);
+    await other.waitForFunction(path => JSON.parse(localStorage.getItem(JSON.stringify(["local", "litzio.openTabs"]))).paths.length === 1 && JSON.parse(localStorage.getItem(JSON.stringify(["local", "litzio.openTabs"]))).activePath === path, b);
     await page.getByTestId('save').click();
     await page.locator('[data-testid="status"][data-operation="saved"]').waitFor({state:'attached'});
     check(JSON.stringify(await memory()) === JSON.stringify({paths:[b],activePath:b}), 'Save overwrote another browser tab’s navigation memory');
@@ -207,7 +207,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
   // startup cannot publish a partial list or write it back before all paths are checked.
   const missing = file('missing.md'), denied = file('denied.md'), nonnative = [root,'README.md'].join(sep);
   const saved = {paths:[a,missing,denied,nonnative,b,a.replaceAll(sep,sep === '\\' ? '/' : '\\')],activePath:missing};
-  await page.evaluate(saved => localStorage.setItem('litzio.openTabs',JSON.stringify(saved)), saved);
+  await page.evaluate(saved => localStorage.setItem(JSON.stringify(["local", "litzio.openTabs"]),JSON.stringify(saved)), saved);
   let release, arrived;
   const gate = new Promise(resolve => { release = resolve; });
   const started = new Promise(resolve => { arrived = resolve; });
@@ -255,7 +255,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
         onUpdateState: () => () => {}, onRestartCheck: () => () => {},
       };
     });
-    await page.evaluate(saved => localStorage.setItem('litzio.openTabs',JSON.stringify(saved)), {paths:[a,b],activePath:a});
+    await page.evaluate(saved => localStorage.setItem(JSON.stringify(["local", "litzio.openTabs"]),JSON.stringify(saved)), {paths:[a,b],activePath:a});
     await desktopPage.goto(origin); await desktopPage.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     check(await desktopPage.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').count() === 1 && await desktopPage.getByRole('tab',{name:'technical-document.md',exact:true}).count() === 1, 'Desktop file argument did not take precedence');
     await desktopPage.route('**/api/document',route => route.fulfill({json:{start:true,samples:{ko:loaded.path,en:loaded.path}}}));
@@ -266,7 +266,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     check(await desktopPage.getByRole('tablist', {name:'Documents', exact:true}).getByRole('tab').count() === 1, 'URL did not override Desktop navigation memory');
     await desktopPage.getByRole('button',{name:'Close technical-2.md',exact:true}).click();
     check(await desktopPage.getByTestId('document-start').getByRole('button',{name:'Open sample document',exact:true}).isVisible(), 'URL startup lost Host sample information after the last close');
-    await page.evaluate(saved => localStorage.setItem('litzio.openTabs',JSON.stringify(saved)), {paths:[a,b],activePath:a});
+    await page.evaluate(saved => localStorage.setItem(JSON.stringify(["local", "litzio.openTabs"]),JSON.stringify(saved)), {paths:[a,b],activePath:a});
     await desktopPage.route('**/api/document',failedDefault);
     await desktopPage.goto(origin);
     await expect(desktopPage.getByTestId('error')).toContainText('Default document unavailable');
@@ -275,14 +275,14 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     await desktopPage.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
     check(await desktopPage.getByRole('tab',{name:'technical-2.md',exact:true}).count() === 1 && !await desktopPage.getByTestId('error').count(), 'An explicit URL was blocked by a failed Desktop default');
   } finally { await desktopPage.close(); }
-  await page.evaluate(saved => localStorage.setItem('litzio.openTabs',JSON.stringify(saved)), {paths:[a,b],activePath:a});
+  await page.evaluate(saved => localStorage.setItem(JSON.stringify(["local", "litzio.openTabs"]),JSON.stringify(saved)), {paths:[a,b],activePath:a});
   await page.reload(); await ready();
   for (const name of ['technical-2.md','technical-1.md']) await page.getByRole('button',{name:`Close ${name}`,exact:true}).click();
   // Disabled preference storage must not block ordinary Open/Close.
   await page.evaluate(() => {
     const write = Storage.prototype.setItem;
     Storage.prototype.setItem = function(key,value) {
-      if (key === 'litzio.openTabs') throw new Error('Preference storage disabled');
+      if (key === JSON.stringify(["local", "litzio.openTabs"])) throw new Error('Preference storage disabled');
       return write.call(this,key,value);
     };
   });

@@ -1,3 +1,4 @@
+import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { hostClient } from "../host-client.ts";
 import { useEffect, useReducer, useRef, useState } from "react";
 import type { FolderEntry, FolderResponse } from "../../shared/document-protocol.ts";
@@ -11,6 +12,7 @@ import { readCollapsedFolderSections, readOpenFolders, writeCollapsedFolderSecti
 export const FOLDER_REFRESH = { pollMs: 2_000, fallbackMs: 60_000 } as const;
 
 export type FolderTreeState = {
+  hostId: string;
   /** The chosen folder; every listed folder is inside it. */
   root: string;
   /** Remembered independently of the subfolders' page-only expansion. */
@@ -22,7 +24,7 @@ export type FolderTreeState = {
   pending: ReadonlyMap<string, number>;
 };
 
-export type FolderTreeAction =
+export type FolderTreeAction = (
   | { type: "openRoot"; listing: FolderResponse; sectionExpanded?: boolean }
   | { type: "closeRoot" }
   | { type: "setSectionExpanded"; expanded: boolean }
@@ -30,13 +32,16 @@ export type FolderTreeAction =
   | { type: "collapse"; path: string }
   | { type: "loadStart"; root: string; path: string; request: number }
   | { type: "loadSuccess"; root: string; path: string; request: number; listing: FolderResponse }
-  | { type: "loadFailure"; root: string; path: string; request: number; preserveExpansion?: boolean };
+  | { type: "loadFailure"; root: string; path: string; request: number; preserveExpansion?: boolean }
+) & { hostId?: string };
 
 export function folderTreeReducer(state: FolderTreeState | null, action: FolderTreeAction): FolderTreeState | null {
   if (action.type === "openRoot") {
-    return { root: action.listing.root, sectionExpanded: action.sectionExpanded ?? true, nodes: new Map([[action.listing.path, action.listing]]), expanded: new Set(), pending: new Map() };
+    return { hostId: action.hostId ?? LOCAL_HOST_ID, root: action.listing.root, sectionExpanded: action.sectionExpanded ?? true, nodes: new Map([[action.listing.path, action.listing]]), expanded: new Set(), pending: new Map() };
   }
-  if (!state || action.type === "closeRoot") return null;
+  if (!state) return null;
+  if (state.hostId !== (action.hostId ?? LOCAL_HOST_ID)) return state;
+  if (action.type === "closeRoot") return null;
   switch (action.type) {
     case "setSectionExpanded":
       return state.sectionExpanded === action.expanded ? state : { ...state, sectionExpanded: action.expanded };
@@ -67,19 +72,21 @@ export function folderTreeReducer(state: FolderTreeState | null, action: FolderT
 }
 
 /** Every tree action except opening and closing names the opened folder it belongs to. */
-export type FolderTreesAction =
+export type FolderTreesAction = (
   | { type: "openRoot"; listing: FolderResponse; sectionExpanded?: boolean }
   | { type: "closeRoot"; root: string }
-  | (Exclude<FolderTreeAction, { type: "openRoot" | "closeRoot" }> & { root: string });
+  | (Exclude<FolderTreeAction, { type: "openRoot" | "closeRoot" }> & { root: string })
+) & { hostId?: string };
 
 /** Non-overlapping roots. A wider root takes the first absorbed section's place. */
 export function folderTreesReducer(trees: readonly FolderTreeState[], action: FolderTreesAction): FolderTreeState[] {
+  const hostId = action.hostId ?? LOCAL_HOST_ID;
   if (action.type === "openRoot") {
     const { listing } = action;
-    const parent = trees.find(tree => containsFolder(tree.root, listing.root));
+    const parent = trees.find(tree => tree.hostId === hostId && containsFolder(tree.root, listing.root));
     if (parent) return trees.map(tree => tree === parent
       ? { ...tree, nodes: new Map(tree.nodes).set(listing.path, { ...listing, root: tree.root }) } : tree);
-    const absorbed = trees.filter(tree => containsFolder(listing.root, tree.root));
+    const absorbed = trees.filter(tree => tree.hostId === hostId && containsFolder(listing.root, tree.root));
     const next = folderTreeReducer(null, action)!;
     const nodes = new Map(next.nodes);
     const expanded = new Set(next.expanded);
@@ -93,8 +100,8 @@ export function folderTreesReducer(trees: readonly FolderTreeState[], action: Fo
     if (!absorbed.length) return [...trees, merged];
     return trees.flatMap(tree => tree === absorbed[0] ? [merged] : absorbed.includes(tree) ? [] : [tree]);
   }
-  if (action.type === "closeRoot") return trees.filter(tree => tree.root !== action.root);
-  return trees.map(tree => tree.root === action.root ? folderTreeReducer(tree, action) ?? tree : tree);
+  if (action.type === "closeRoot") return trees.filter(tree => tree.hostId !== hostId || tree.root !== action.root);
+  return trees.map(tree => tree.hostId === hostId && tree.root === action.root ? folderTreeReducer(tree, action) ?? tree : tree);
 }
 
 /** Host-resolved paths compare literally, including case (#372); require a separator boundary. */

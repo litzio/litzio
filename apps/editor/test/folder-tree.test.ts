@@ -202,3 +202,17 @@ test("restoring nested roots in either order reduces them with the same open rul
     assert.equal(trees[0].sectionExpanded, false);
   }
 });
+
+
+test("same-path roots and late listings belong to their Host", () => {
+  const root = listing(ROOT, [doc("/r/local.md")]);
+  let trees = folderTreesReducer([], { type: "openRoot", listing: root });
+  trees = folderTreesReducer(trees, { type: "openRoot", hostId: "remote", listing: { ...root, entries: [doc("/r/remote.md")] } });
+  assert.equal(trees.length, 2);
+  trees = folderTreesReducer(trees, { type: "setSectionExpanded", root: ROOT, expanded: false });
+  assert.deepEqual(trees.map(t => t.sectionExpanded), [false, true]);
+  trees = folderTreesReducer(trees, { type: "closeRoot", root: ROOT });
+  assert.equal(trees[0]!.hostId, "remote");
+  trees = folderTreesReducer(trees, { type: "loadSuccess", root: ROOT, path: ROOT, request: 1, listing: root });
+  assert.equal(visibleTreeItems(trees[0]!)[0]!.entry.path, "/r/remote.md");
+});

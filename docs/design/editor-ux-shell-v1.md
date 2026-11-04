@@ -1,8 +1,17 @@
 # Editor UX Shell v1
 
+#1174 PR1: tab lookup and folder state use `(hostId, Host-returned path)` identity;
+remembered navigation and per-document table preferences are stored per hostId.
+The runtime still exposes only `local`, with the existing surfaces and interactions.
+Host registration, routing and Host sections/labels follow ADR-0018 PR2–4.
+Old path-only preferences are ignored without migration. See the
+[session identity contract](editing-session-save-v1.md#host-scoped-identity-1174-pr1).
+
+
 #1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP Host 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
 
 - Status: Implemented
+- Host identity verification: 2026-11-05 (#1174 PR1: targeted Editor unit tests, workspace typecheck, boundaries/docs and persistent-Chrome recovery/storage/structure, document-tabs, folder-memory and file-actions; no multi-Host connection or packaged Desktop execution).
 - Image-link preview verification: 2026-10-29 (#731; [contract and captures](#relative-image-link-previews-731)).
 - Link opening verification: 2026-10-29 (#725; [contract and captures](#open-ordinary-links-725)).
 - Editor groups verification: 2026-10-29 (#488 phase 1; Editor 341 tests, workspace typecheck/build, related browser regressions and [group/visual evidence](#two-editor-groups-488-phase-1)).
