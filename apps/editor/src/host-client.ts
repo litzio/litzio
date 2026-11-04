@@ -12,6 +12,7 @@ export function createHostClient(base: string, ready: Promise<void> = Promise.re
   const url = (path: string) => `${prefix}/${path.replace(/^\//, "")}`;
   return {
     url,
+    assertCurrent() { /* Immutable registered origin. */ },
     get crossOrigin(): "anonymous" | undefined {
       return typeof window !== "undefined" && new URL(url("/"), window.location.href).origin !== window.location.origin ? "anonymous" : undefined;
     },
@@ -71,14 +72,16 @@ function bindLocalConnection(): HostClient {
   const binding = connectedLocal ? Promise.resolve(connectedLocal) : desktopReady;
   let address = connectedLocal;
   void binding.then(client => { address = client; });
+  const assertCurrent = () => {
+    if (address && connectedLocal && address.url("/") !== connectedLocal.url("/")) throw new HostConnectionChangedError();
+  };
   return {
+    assertCurrent,
     url: path => (address ?? createHostClient("/")).url(path),
     get crossOrigin() { return address?.crossOrigin; },
     async request(path, init) {
       const client = await binding;
-      if (connectedLocal && client.url("/") !== connectedLocal.url("/")) {
-        throw new HostConnectionChangedError();
-      }
+      assertCurrent();
       return client.request(path, init);
     },
   };

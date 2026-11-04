@@ -27,7 +27,7 @@ import { DocumentTab, type EditorSession, type SessionSnapshot } from "./Documen
 import { documentScrollContainer, scrollDocumentFromShell } from "./document-scroll.ts";
 import { DocumentTabs } from "./shell/DocumentTabs.tsx";
 import { editorGroups, initialEditorGroups, allTabsPendingWork, openedTab, tabLabels, tabNames } from "./document-tabs.ts";
-import { messageOf, NativeOpenError, createDocumentRequests, requestDocument } from "./document-session.ts";
+import { messageOf, NativeOpenError, createDocumentRequests } from "./document-session.ts";
 import { THEME_LABELS, THEMES, writeTheme, type ThemePreference, readDocumentWidth, readOpenTabs, readRecentFolders, rememberRecentFolder, visibleRecentFolders, writeDocumentWidth, writeOpenTabs, type DocumentWidth } from "./preferences.ts";
 import { applyTheme, currentTheme } from "./theme.ts";
 import { DocumentPanel } from "./shell/DocumentPanel.tsx";
@@ -78,7 +78,7 @@ const SaveCompare = lazy(() => import("./shell/SaveCompare.tsx"));
 const PANEL_OVERLAY_LAYOUT = "(width < 89rem)";
 // 640px supported viewport - 200px narrow Explorer; two groups plus their boundary.
 const SPLIT_MIN_WIDTH = 440 * 2 + 1;
-type Tab = { hostId: string; id: string; path: string; file: EditorFileResponse; recoveryId: string; restored?: SessionSnapshot };
+type Tab = { client: HostClient; hostId: string; id: string; path: string; file: EditorFileResponse; recoveryId: string; restored?: SessionSnapshot };
 
 /** The Desktop app's bridge; the browser Editor has none and shows no Desktop UI. */
 const desktop = typeof window === "undefined" ? undefined : window.litzioDesktop;
@@ -250,6 +250,8 @@ function EditorApp() {
     if (!recoveryReview) return;
     const record = recoveryReview.record;
     if (record.hostId !== LOCAL_HOST_ID) throw new Error("This recovery belongs to an unavailable Host.");
+    const client = getHostClient(record.hostId);
+    client.assertCurrent();
     const restored = prepareRecovery(record);
     const existing = openedTab(tabs, record.path, record.hostId);
     const owner = existing && sessions.current.get(existing.id);
@@ -258,8 +260,15 @@ function EditorApp() {
     }
     const recoveryId = newRecoveryId();
     await recoveryStorage.restore(record, recoveryId);
+    try { client.assertCurrent(); }
+    catch (cause) {
+      // restore only transfers the durable record to recoveryId; preserve it for review.
+      setRecoveryReview(null);
+      await refreshRecovery();
+      throw cause;
+    }
     const id = `document-${++nextId.current}`;
-    setTabs(previous => [...previous.filter(tab => tab.id !== existing?.id), { id, hostId: record.hostId, path: record.path, file: restored.file, recoveryId, restored }]);
+    setTabs(previous => [...previous.filter(tab => tab.id !== existing?.id), { client, id, hostId: record.hostId, path: record.path, file: restored.file, recoveryId, restored }]);
     if (existing) navigate({ type: "close", id: existing.id });
     navigate({ type: "open", id });
     rememberTabs();
@@ -460,14 +469,15 @@ function EditorApp() {
     return () => observer.disconnect();
   }, [split]);
 
-  function acceptFile(file: EditorFileResponse, group = navigation.focused): void {
+  function acceptFile(file: EditorFileResponse, client: HostClient, group = navigation.focused): void {
+    client.assertCurrent();
     const existing = openedTab(tabs, file.path);
     const target = splitAvailable.current ? group : navigation.focused;
     if (existing) placeTab(existing.id, target);
     else {
       const id = `document-${++nextId.current}`;
       const recoveryId = newRecoveryId();
-      setTabs(previous => [...previous, { id, hostId: LOCAL_HOST_ID, path: file.path, file, recoveryId }]);
+      setTabs(previous => [...previous, { client, id, hostId: LOCAL_HOST_ID, path: file.path, file, recoveryId }]);
       placeTab(id, target);
     }
   }
@@ -476,6 +486,8 @@ function EditorApp() {
     // usable start/default document while folder restoration continues independently.
     if (tabsRestored || !folders.restored && readOpenTabs()?.paths.length) return;
     let current = true;
+    const client = getHostClient(LOCAL_HOST_ID);
+    const { requestDocument } = createDocumentRequests(client);
     void (async () => {
       const path = new URLSearchParams(window.location.search).get("path")?.trim() || undefined;
       const saved = readOpenTabs();
@@ -498,7 +510,8 @@ function EditorApp() {
       if (!current) return;
       const initialTabs: Tab[] = [];
       const add = (file: EditorFileResponse) => {
-        if (!openedTab(initialTabs, file.path)) initialTabs.push({ hostId: LOCAL_HOST_ID, id: `document-${++nextId.current}`, path: file.path, file, recoveryId: newRecoveryId() });
+        client.assertCurrent();
+        if (!openedTab(initialTabs, file.path)) initialTabs.push({ client, hostId: LOCAL_HOST_ID, id: `document-${++nextId.current}`, path: file.path, file, recoveryId: newRecoveryId() });
       };
       // Explicit URL/ Desktop launch documents win over navigation memory. The Vite default
       // is only a fallback when no preference exists; an empty preference keeps the start screen.
@@ -528,6 +541,7 @@ function EditorApp() {
       if (!current) return;
       setStart("start" in first ? first : { start: true, samples: first.samples, sampleProblem: first.sampleProblem });
       if ("start" in first) setAllowedRoots(first.allowedRoots);
+      client.assertCurrent();
       setTabs(initialTabs);
       navigate({ type: "reset", tabs: initialTabs.map(tab => tab.id), active: openedTab(initialTabs, activePath ?? "")?.id ?? initialTabs[0]?.id ?? null });
       // With no clean tabs, the existing start-screen list already offers every record.
@@ -767,9 +781,10 @@ function EditorApp() {
     setOperation("opening");
     setError("");
     try {
-      const next = await requestDocument("GET", requestedPath, folders.rootOf(requestedPath));
+      const client = getHostClient(LOCAL_HOST_ID);
+      const next = await createDocumentRequests(client).requestDocument("GET", requestedPath, folders.rootOf(requestedPath));
       if ("start" in next) throw new UiError({ key: "The Host did not return a document." });
-      acceptFile(next, group);
+      acceptFile(next, client, group);
       void offerRecovery(next);
       setNotice(openedNotice);
       return "";
@@ -795,7 +810,9 @@ function EditorApp() {
     setError("");
     setNotice("");
     try {
-      acceptFile(await createDocumentRequests(newTemplate?.client ?? getHostClient(LOCAL_HOST_ID)).requestDocument("PUT", path, folders.rootOf(path), newTemplate ? { template: newTemplate.id, language: templateLanguage() } : undefined));
+      const client = newTemplate?.client ?? getHostClient(LOCAL_HOST_ID);
+      const file = await createDocumentRequests(client).requestDocument("PUT", path, folders.rootOf(path), newTemplate ? { template: newTemplate.id, language: templateLanguage() } : undefined);
+      acceptFile(file, client);
       return "";
     } catch (cause) { const message = messageOf(cause); setError(message); return message; }
     finally { operationRef.current = false; setOperation(""); }
@@ -1318,7 +1335,7 @@ function EditorApp() {
           {tabs.map(tab => {
             const groupIndex = navigation.groups.findIndex(group => group.tabs.includes(tab.id));
             const group = navigation.groups[groupIndex];
-            return <DocumentTab hostId={tab.hostId} settingsDisabled={Boolean(operation || fileOperationPending || continuationPending)} key={tab.id} id={tab.id} file={tab.file} restored={tab.restored} recoveryId={tab.recoveryId}
+            return <DocumentTab client={tab.client} hostId={tab.hostId} settingsDisabled={Boolean(operation || fileOperationPending || continuationPending)} key={tab.id} id={tab.id} file={tab.file} restored={tab.restored} recoveryId={tab.recoveryId}
               active={group?.active === tab.id} focused={tab.id === activeId} groupIndex={groupIndex} onFocus={focusDocument}
               report={reportSession} onAssetChange={onAssetChange} renameImage={tab.hostId === LOCAL_HOST_ID ? renameImage : async () => { throw new Error("Image rename requires Host-specific shell integration."); }} onReveal={revealDocument}
               onCompare={compareExternal} />;

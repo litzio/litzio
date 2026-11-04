@@ -1,4 +1,4 @@
-import { getHostClient } from "./host-client.ts";
+import type { HostClient } from "./host-client.ts";
 import { HostContext, HostClientContext } from "./host-context.tsx";
 import { LOCAL_HOST_ID } from "./host-locator.ts";
 import { useTranslation } from "react-i18next";
@@ -18,6 +18,7 @@ import { useDocumentSession, type DocumentSession, type DocumentSessionSnapshot 
 export type EditorSession = DocumentSession | TextSession;
 export type SessionSnapshot = DocumentSessionSnapshot | TextSessionSnapshot;
 type TabProps = {
+  client: HostClient;
   hostId?: string;
   settingsDisabled: boolean;
   id: string;
@@ -37,7 +38,7 @@ type TabProps = {
 
 /** Reclassification on Reload starts the corresponding editor; Save never swaps editors. */
 export const DocumentTab = memo(function DocumentTab(props: TabProps) {
-  const [client] = useState(() => getHostClient(props.hostId ?? LOCAL_HOST_ID));
+  const [client] = useState(props.client);
   const [replacement, setReplacement] = useState<{ file: EditorFileResponse; generation: number } | null>(null);
   const replaceFile = (file: EditorFileResponse) => setReplacement(previous => ({ file, generation: (previous?.generation ?? 0) + 1 }));
   const file = replacement?.file ?? props.file;
