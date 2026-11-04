@@ -212,13 +212,14 @@ test("Core rejects persistent inline edits that lose text, marks or block shape"
   const before = structuredClone(document);
   for (const content of [
     [{ kind: "strong", children: [{ kind: "text", text: "AB " }] }],
-    [{ kind: "emphasis", children: [{ kind: "text", text: " AB" }] }],
     [{ kind: "text", text: "A\n\nB" }],
     [],
   ] as InlineContent[][]) {
     assert.throws(() => updateParagraphInlineContent(document, [0], content), /cannot.*(round-trip|saved)/);
     assert.deepEqual(document, before);
   }
+  assert.equal(serialize(updateParagraphInlineContent(document, [0],
+    [{kind:"emphasis",children:[{kind:"text",text:" AB"}]}])), "*AB*\n");
   assert.throws(() => updateNodeTextAtPath(parse("# Original"), [0], "Original", "A\n\nB"), /round-trip/);
   assert.throws(() => updateNodeTextAtPath(document, [0], "Original.", "A\n\nB"), /round-trip/);
 });

@@ -102,6 +102,26 @@ Ordinary Markdown images, task lists, unsupported roles/directives, attributes o
 
 Bare `@name` (including `@kim` and `@param`) is literal text, as is already escaped `\@name`. Core disables MyST's shorthand citation extension at the parse boundary while keeping explicit roles parsed. In accordance with [ADR-0008 decision 3](../adr/0008-citations-and-bibliography.md#3-지원할-인용-형태), unescaped citation-like brackets such as `[@key]`, `[@a; @b]` and `[@key, p. 3]` are refused with `native-content` and guidance to use an explicit citation role or escape the opening bracket or the `@` for literal text. This applies to supported text surfaces including endnote definitions; actual links, code and math retain their syntax. Code or math inside such brackets, as in ``[`@param`]`` or `[$@key$]`, is still refused because default MyST reads the bracket as a citation; `\[` keeps it literal. Explicit `{cite}`, `{cite:t}` and `{cite:p}` roles follow [Citations](citations-v1.md), preserving exact keys, group order and narrative/parenthetical meaning. Prefix/suffix/partial and other unsupported attributes are refused.
 
+## Paragraph leading indentation (#1160)
+
+Core semantic writes and canonical serialization remove an initial run of ASCII
+space (U+0020) and tab (U+0009) before paragraph content, including formatting marks.
+Whitespace-only bodies retain their existing empty-body/admission rules.
+These are Markdown indentation characters; arbitrary lengths in semantic input
+are removed rather than encoded as `&#x20;`. Paragraphs in lists, quotes,
+admonitions and endnote definitions follow the same rule; container indentation
+and list markers remain structural. The run stops at any other character, hard
+break or data-bearing inline atom (code, math, link, reference or citation).
+NBSP and other Unicode spaces are excluded from cleanup: they are explicit text,
+not Markdown indentation. Existing canonical refusal still applies where MyST
+cannot round-trip them; this change does not widen their write support.
+Interior whitespace, space-only tails, code blocks, headings, table cells and
+captions (including Figure captions) retain their existing contracts. Existing
+entities use ordinary parsing and the next canonical write; no migration is added.
+CLI format and Core-backed Host writes share this rule without a new command.
+Editor Save reflects prefix removal with Core's length calculation and ordinary
+engine selection mapping, even when the caret is inside the removed prefix.
+
 ## Paragraph blank-line tails (#1107)
 
 Core semantic writes remove a paragraph's trailing hard breaks or text line

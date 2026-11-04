@@ -681,7 +681,7 @@ export function insertEquation(document: MystDocument, index: number, latex: str
 /** Insert a persistent top-level Figure without a label. */
 export function insertFigure(document: MystDocument, index: number, figure: FigureContent): MystDocument {
   assertFigureContent(figure);
-  figure = { ...figure, caption: paragraphInlineContent(figureCaptionContent(figure.caption)) };
+  figure = { ...figure, caption: paragraphInlineContent(figureCaptionContent(figure.caption), false) };
   const next = insertBlock(document, index, createFigureNode(figure));
   assertFigureRoundTrip(next, index, figure, undefined, undefined);
   return next;
@@ -952,7 +952,7 @@ export function updateFigure(document: MystDocument, path: NodePath, changes: Pa
     caption: changes.caption ?? content.caption,
   };
   assertFigureContent(figure);
-  figure.caption = paragraphInlineContent(figureCaptionContent(figure.caption));
+  figure.caption = paragraphInlineContent(figureCaptionContent(figure.caption), false);
   const next = cloneDocument(document);
   setFigureContent(getNode(next, path), figure);
   assertFigureRoundTrip(next, path[0], figure, current.label, current.identifier);
@@ -1361,17 +1361,23 @@ function replaceInTextNodes(node: MystNode, from: string, to: string): boolean {
 function finishTextEdit(document: MystDocument, next: MystDocument, edited: MystNode): MystDocument {
   // A generic edit can address a body or text leaf. Normalize the owning
   // paragraphs as well, before structural empty-body handling and write guards.
-  const normalizeTails = (node: MystNode, withinEdit = false): boolean => {
+  const normalizeTails = (node: MystNode, trimStart: boolean, withinEdit = false): boolean => {
     const isEdited = withinEdit || node === edited;
-    const children = node.children?.map(child => normalizeTails(child, isEdited)) ?? [];
+    const children = node.children?.map(child => normalizeTails(child, trimStart, isEdited)) ?? [];
     const affected = isEdited || children.some(Boolean);
     if (affected && node.type === "paragraph") {
       const content = projectInlineContent(node);
-      if (content) node.children = inlineContentToNodes(paragraphInlineContent(content));
+      if (content) node.children = inlineContentToNodes(paragraphInlineContent(content, trimStart));
     }
     return affected;
   };
-  next.children.forEach(node => normalizeTails(node));
+  next.children.forEach((node, index) => {
+    const original = document.children[index];
+    const prose = original.type === "paragraph" || supportedAdmonitionContent(original) !== undefined ||
+      supportedQuoteContent(original) !== undefined || supportedListContent(original) !== undefined ||
+      supportedFootnoteContent(original) !== undefined;
+    normalizeTails(node, prose);
+  });
   let removedEditedParagraph = false;
   const normalizeParagraphs = (node: MystNode): void => {
     if (!node.children) return;

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import {parse,serialize,validateStructure,insertHardBreak,splitParagraph,mergeParagraphWithPrevious,getEditableDocument, type MystDocument} from './core-internal.ts';
-import {projectInlineContent,inlineContentText,assertInlineContent,inlineContentToNodes} from '../src/inline.ts';
+import {projectInlineContent,inlineContentText,assertInlineContent,inlineContentToNodes,paragraphLeadingSpaceLength} from '../src/inline.ts';
 import { writeIssueOf } from './core-internal.ts';
 import { insertParagraph, updateParagraphInlineContent, insertQuote, updateQuoteInlineContent,
   insertAdmonition, updateAdmonitionInlineContent, insertList, updateList, insertFigure, updateFigure,
@@ -204,4 +204,28 @@ test("split explicitly preserves both nested marks on each side", () => {
     { kind: "strong", children: [{ kind: "emphasis", children: [{ kind: "text", text: "C" }] }, { kind: "text", text: "D" }] },
   ]);
   stable(document);
+});
+
+// #1160: source entities and semantic inputs use one normalization rule.
+test('paragraph starts remove ASCII indentation and preserve other whitespace contexts', () => {
+  const base = parse('Original.');
+  const input: InlineContent[] = [{kind:'text',text:' \t'}, {kind:'strong',children:[{kind:'text',text:'  Alpha'}]}, {kind:'text',text:'  interior'}, {kind:'break'}, {kind:'text',text:'  next'}];
+  const changed = updateParagraphInlineContent(base,[0],input);
+  assert.equal(text(stable(changed)), 'Alpha  interior\n  next');
+  assert.deepEqual(content(changed)[0], {kind:'strong',children:[{kind:'text',text:'Alpha'}]});
+  for (const source of ['&#x20;&#x9;Alpha', '> &#x20;&#x9;Alpha', '- &#x20;&#x9;Alpha']) {
+    const canonical = serialize(stable(parse(source)));
+    assert.doesNotMatch(canonical, /&#(?:x20|x9);/);
+    assert.match(canonical, /Alpha/);
+  }
+  for (const prefix of ['\u00a0', '\u2003', '\u000b', '\u000c']) {
+    assert.equal(paragraphLeadingSpaceLength([{kind:'text',text:prefix+'Alpha'}]), 0);
+    // Existing canonical writeability guard remains authoritative for these inputs.
+  }
+  for (const atom of [{kind:'code',value:'  code'}, {kind:'link',url:'https://example.com',children:[{kind:'text',text:'  link'}]}] as InlineContent[]) {
+    assert.deepEqual(content(stable(updateParagraphInlineContent(base,[0],[atom]))), [atom]);
+  }
+  const contexts = parse('```text\n  code\n```\n\n| Header |\n| --- |\n| Cell |');
+  assert.match(serialize(stable(contexts)), /  code/);
+  assert.throws(() => updateTableCell(contexts,[1,1,0],[{kind:'text',text:'  Cell'}]), /whitespace/);
 });
