@@ -238,6 +238,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   expect(await editor.evaluate(el => el.editor.getJSON().content.find(node => node.type === 'paragraph').content.at(-1).type)).toBe('hardBreak');
   const submittedAnswers = [];
   const sent = [], conversations = new Map();
+  let displayRequest, displayReply, displayResolve, displayReceipt, displaySequence = 0;
   let resumeFailure = false;
   let selected, sequence = 0, setupMode = 'ready', snapshots = 0, snapshotGate, answerGate;
   await page.unroute('**/api/ai-agent-diagnostics*');
@@ -247,6 +248,16 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.route('**/api/ai-agent-conversations*', async route => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON();
+      if (body.action === 'display-result') {
+        displayReply = body.reply; displayRequest = undefined;
+        if (displayResolve) { displayResolve(body.reply); displayResolve = undefined; }
+        return route.fulfill({ json: { acknowledged: true } });
+      }
+      if (body.action === 'display-undo') {
+        displayRequest = { id: 'undo-display-' + (++displaySequence), validForMs: 10000, changes: displayReceipt.before, expected: displayReceipt.after };
+        const reply = await new Promise(resolve => { displayResolve = resolve; });
+        return route.fulfill(reply.error ? { status: 400, json: { error: reply.error } } : { json: { undone: true } });
+      }
       if (body.action === 'resume') {
         if (resumeFailure || !conversations.has(body.id)) return route.fulfill({ status: 404, json: { error: 'Conversation was not found.' } });
         selected = conversations.get(body.id);
@@ -269,9 +280,9 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
       if (body.action === 'interrupt') selected.turns.at(-1).status = 'interrupted';
       return route.fulfill({ json: selected });
     }
-    const id = route.request().url().split('?id=')[1];
+    const id = decodeURIComponent((route.request().url().split('?id=')[1] ?? '').split('&')[0]);
     if (id) { snapshots++; await snapshotGate; }
-    return route.fulfill({ json: id ? conversations.get(decodeURIComponent(id)) : [...conversations.values()].map(({ turns, tokenUsage, ...info }) => info) });
+    return route.fulfill({ json: id ? { ...conversations.get(id), displayRequest } : [...conversations.values()].map(({ turns, tokenUsage, ...info }) => info) });
   });
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/closed-1440-light-en.png' });
   await editor.locator('p').first().click(); await page.keyboard.press('End');
@@ -792,6 +803,64 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.getByRole('button', { name: '비서', exact: true }).click();
   await expect(panel.getByRole('textbox')).toBeEnabled();
   expect(await panel.locator('.assistant-turn').count(), 'Explicit New conversation survives reload').toBe(0);
+  await panel.getByRole('button', { name: '비서 닫기' }).click();
+  // #1120: the existing poll carries a Host request; actual Settings writers and live UI reply.
+  // Host allowlist/ownership/expiry are covered in the existing fake stdio test.
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: '설정', exact: true }).click();
+  await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
+  await page.getByTestId('page-background').selectOption('paper');
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+  await editor.locator('p').first().click(); await page.keyboard.press('End'); await page.keyboard.type(' display settings draft');
+  const documentBeforeDisplay = await editor.textContent();
+  await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  await expect(panel.getByRole('textbox')).toBeEnabled();
+  await panel.getByRole('textbox').fill('다크 테마, 한국어, 넓은 문서와 평면 배경으로 바꿔 주세요.');
+  await panel.getByRole('textbox').press('Enter');
+  await expect(panel.locator('.assistant-turn')).toHaveCount(1);
+  selected.turns[0].status = 'completed';
+  displayRequest = { id: 'display-read', validForMs: 10000 };
+  await expect.poll(() => displayReply?.after?.theme).toBe('light');
+  const displayBefore = displayReply.after;
+  if (screenshots) for (const width of [1440, 640]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.screenshot({ path: `tmp/1120-evidence/before-${width}.png` });
+  }
+  const aiWritesBeforeDisplay = settingsWrites.length;
+  displayReply = undefined;
+  const displayAfter = { theme: 'dark', uiLanguage: 'ko', documentWidth: 'wide', pageBackground: 'flat' };
+  displayRequest = { id: 'display-change', validForMs: 10000, changes: displayAfter };
+  await expect.poll(() => displayReply?.after).toEqual(displayAfter);
+  expect(displayReply.error).toBeUndefined();
+  displayReceipt = { requestId: 'display-change', before: displayBefore, after: displayAfter, changed: Object.keys(displayAfter).filter(key => displayBefore[key] !== displayAfter[key]) };
+  selected.turns[0].items.push({ id: 'display-card', kind: 'tool', text: 'change_display_settings', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify(displayReceipt) }] } });
+  const displayCard = panel.getByTestId('assistant-display-result');
+  await expect(displayCard).toContainText('표시 설정 변경됨');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
+  await expect(page.locator('html')).toHaveAttribute('data-page', 'flat');
+  expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.documentWidth'), brand.storagePrefix)).toBe('wide');
+  expect(settingsWrites.length, 'Display tools must not save AI settings').toBe(aiWritesBeforeDisplay);
+  if (screenshots) for (const width of [1440, 640]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.screenshot({ path: `tmp/1120-evidence/after-${width}.png` });
+  }
+  // A later manual change makes Undo refuse instead of overwriting it.
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('button', { name: '설정', exact: true }).click();
+  await page.getByTestId('page-background').selectOption('paper');
+  await displayCard.getByRole('button', { name: '표시 설정 되돌리기' }).click();
+  await expect(panel.getByRole('alert')).toHaveText('이 작업 이후 표시 설정이 바뀌어 되돌리지 않았습니다.');
+  await expect(page.locator('html')).toHaveAttribute('data-page', 'paper');
+  await page.getByTestId('page-background').selectOption('flat');
+  await displayCard.getByRole('button', { name: '표시 설정 되돌리기' }).click();
+  await expect(displayCard).toContainText('Display settings restored');
+  await expect(page.getByTestId('theme')).toHaveValue('light');
+  await expect(page.getByTestId('page-background')).toHaveValue('paper');
+  await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
+  await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+  await expect(editor).toHaveText(documentBeforeDisplay);
+  await panel.getByRole('button', { name: '새 대화' }).click();
   await panel.getByRole('button', { name: '비서 닫기' }).click();
   // The existing provider select previews Copilot without a paid model call or settings write.
   await page.setViewportSize({ width: 1440, height: 1000 });

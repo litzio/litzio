@@ -1,6 +1,16 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Document width": "Document width",
+
+  "Display settings restored": "Display settings restored",
+  "Display settings changed": "Display settings changed",
+  "Undo display change": "Undo display change",
+  "Undo is available in the originating window and Host session while these values are unchanged.": "Undo is available in the originating window and Host session while these values are unchanged.",
+  "Display request expired.": "Display request expired.",
+  "Display settings changed since this action. Undo was not applied.": "Display settings changed since this action. Undo was not applied.",
+  "Display changed in this window but could not be saved.": "Display changed in this window but could not be saved.",
+
   "Template gallery": "Template gallery",
   "Save as template…": "Save as template…",
   "Template saved.": "Template saved.",
@@ -1116,6 +1126,16 @@ export const en = {
 } as const;
 
 export const ko: Record<keyof typeof en, string> = {
+  "Document width": "문서 너비",
+
+  "Display settings restored": "표시 설정 복원됨",
+  "Display settings changed": "표시 설정 변경됨",
+  "Undo display change": "표시 설정 되돌리기",
+  "Undo is available in the originating window and Host session while these values are unchanged.": "요청을 보낸 창과 Host 세션에서 변경된 값이 그대로일 때 되돌릴 수 있습니다.",
+  "Display request expired.": "표시 설정 요청이 만료되었습니다.",
+  "Display settings changed since this action. Undo was not applied.": "이 작업 이후 표시 설정이 바뀌어 되돌리지 않았습니다.",
+  "Display changed in this window but could not be saved.": "이 창의 표시 설정은 바뀌었지만 저장하지 못했습니다.",
+
   "Template gallery": "템플릿 갤러리",
   "Save as template…": "템플릿으로 저장…",
   "Template saved.": "템플릿을 저장했습니다.",

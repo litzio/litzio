@@ -1,3 +1,4 @@
+import { handleDisplayRequest } from "./assistant-display.ts";
 import { creationUndoNeedsConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
 import { useTableWrap, setTableWrap, relocateTableWrap } from "./table-wrap.ts";
@@ -1447,7 +1448,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable ? <AssistantPanel settingsRevision={ui.aiSettingsRevision} settingsDisabled={settingsDisabled} referenceRequest={referenceRequest} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable ? <AssistantPanel onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={ui.aiSettingsRevision} settingsDisabled={settingsDisabled} referenceRequest={referenceRequest} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { await openFolderDocument(path); }}
         onUndo={async result => {
