@@ -27,7 +27,7 @@ import { DocumentTab, type EditorSession, type SessionSnapshot } from "./Documen
 import { documentScrollContainer, scrollDocumentFromShell } from "./document-scroll.ts";
 import { DocumentTabs } from "./shell/DocumentTabs.tsx";
 import { editorGroups, initialEditorGroups, allTabsPendingWork, openedTab, tabLabels, tabNames } from "./document-tabs.ts";
-import { messageOf, NativeOpenError, requestDocument } from "./document-session.ts";
+import { messageOf, NativeOpenError, createDocumentRequests, requestDocument } from "./document-session.ts";
 import { THEME_LABELS, THEMES, writeTheme, type ThemePreference, readDocumentWidth, readOpenTabs, readRecentFolders, rememberRecentFolder, visibleRecentFolders, writeDocumentWidth, writeOpenTabs, type DocumentWidth } from "./preferences.ts";
 import { applyTheme, currentTheme } from "./theme.ts";
 import { DocumentPanel } from "./shell/DocumentPanel.tsx";
@@ -166,7 +166,7 @@ function EditorApp() {
   const recentFoldersRef = useRef(recentFolders);
   const [allowedRoots, setAllowedRoots] = useState<string[] | undefined>(undefined);
   const visibleRecent = visibleRecentFolders(recentFolders, allowedRoots);
-  const [newTemplate, setNewTemplate] = useState<TemplateSummary>();
+  const [newTemplate, setNewTemplate] = useState<TemplateSummary & { client: HostClient }>();
   const [templateRevision, setTemplateRevision] = useState(0);
   const [saveTemplate, setSaveTemplate] = useState<{ client: HostClient; hostId: string; path: string; returnFocus: HTMLElement | null }>();
   const [newDialog, setNewDialog] = useState(false);
@@ -795,7 +795,7 @@ function EditorApp() {
     setError("");
     setNotice("");
     try {
-      acceptFile(await requestDocument("PUT", path, folders.rootOf(path), newTemplate ? { template: newTemplate.id, language: templateLanguage() } : undefined));
+      acceptFile(await createDocumentRequests(newTemplate?.client ?? getHostClient(LOCAL_HOST_ID)).requestDocument("PUT", path, folders.rootOf(path), newTemplate ? { template: newTemplate.id, language: templateLanguage() } : undefined));
       return "";
     } catch (cause) { const message = messageOf(cause); setError(message); return message; }
     finally { operationRef.current = false; setOperation(""); }
@@ -804,13 +804,13 @@ function EditorApp() {
   function newDirectoryIn(root: string): string {
     return folderChain(root, openedPath).at(-1) ?? root;
   }
-  function newFile(root: string, exact = false, template?: TemplateSummary): void {
+  function newFile(root: string, exact = false, template?: TemplateSummary & { client: HostClient }): void {
     if (busy || continuation) { setError({ key: "Wait for the current operation to finish." }); return; }
     setNewTemplate(template);
     setNewDirectory(exact ? root : newDirectoryIn(root));
     setNewDialog(true);
   }
-  function newDocument(returnFocus: HTMLElement | null, template?: TemplateSummary): void {
+  function newDocument(returnFocus: HTMLElement | null, template?: TemplateSummary & { client: HostClient }): void {
     if (busy || continuation) return;
     setNewTemplate(template);
     newFileButton.current = returnFocus;
@@ -1328,7 +1328,7 @@ function EditorApp() {
             data-group-index={navigation.groups.indexOf(galleryGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(galleryGroup) } as React.CSSProperties}
             onFocusCapture={() => focusDocument("templates")} onPointerDownCapture={() => focusDocument("templates")}>
             <Suspense fallback={null}><TemplateGallery active={galleryOpen} revision={templateRevision} disabled={busy || Boolean(continuation)}
-              onCreate={(item, focus) => newDocument(focus, item)} onOpenFolder={path => openFolder(path)} /></Suspense>
+              onCreate={(item, focus, client) => newDocument(focus, { ...item, client })} onOpenFolder={path => openFolder(path)} /></Suspense>
           </div> : null}
           {settingsGroup ? <div className="shell-tab settings-tab" role="tabpanel" tabIndex={-1} id="panel-settings" aria-labelledby="tab-settings"
             hidden={!settingsOpen} inert={!settingsOpen} data-document-tab="settings" data-active={settingsFocused ? "true" : "false"}
