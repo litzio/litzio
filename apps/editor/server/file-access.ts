@@ -135,7 +135,11 @@ export function accessPath(value: string, access: FileAccess, create = false): s
 
 /** HTTP errors may describe the request, but must not reveal an out-of-bound resolved path. */
 export function fileErrorMessage(error: unknown, access: FileAccess): string {
-  if (access && error && typeof error === "object" && "code" in error) return "The file operation failed. Check that the file exists and is accessible.";
+  if (access && error && typeof error === "object" && "code" in error) {
+    // Keep diagnostics without echoing fs messages containing resolved outside paths.
+    const code = String(error.code);
+    return `The file operation failed. Check that the file exists and is accessible.${/^[A-Z][A-Z0-9_]+$/.test(code) ? ` (${code})` : ""}`;
+  }
   return error instanceof Error ? error.message : String(error);
 }
 

@@ -33,7 +33,7 @@ union, limits and snapshot policy are specified in [Citations v1](citations-v1.m
 
 ## Shared local daemon transition (#1142)
 
-[ADR-0016](../adr/0016-shared-local-daemon-host.md)의 PR2는 현재 무인증 daemon의 선택 Root와 OS 휴지통 삭제를 구현한다. 인증 보류(#1145)·탐색·인스턴스 수명은 [HTTP Host](http-host-v1.md#shared-local-daemon-1142-pr2)를 따른다. Desktop 연결과 종료 정책·플러그인/AI 수명은 PR3/PR4에서 전환한다.
+[ADR-0016](../adr/0016-shared-local-daemon-host.md)의 PR2는 현재 무인증 daemon의 선택 Root와 OS 휴지통 삭제를 구현한다. Linux는 외부 명령 없이 freedesktop 홈 휴지통(`$XDG_DATA_HOME/Trash`, 미설정·상대 경로면 `~/.local/share/Trash`)의 `files/`와 `info/*.trashinfo`에 충돌 없는 이름, percent-encoded 절대 Path와 로컬 DeletionDate를 기록한다. 다른 디스크로의 이동(EXDEV), 휴지통 폴더 생성·기록 실패는 원본을 보존하며 거부하고 영구 삭제로 대체하지 않는다. 디스크별 `.Trash-$uid`는 지원하지 않는다. 휴지통 실패 이유·오류 코드는 클라이언트에 전달하되, Root 제한의 일반 파일 오류는 범위 밖 resolved path를 숨기고 오류 코드만 노출한다. 인증 보류(#1145)·탐색·인스턴스 수명은 [HTTP Host](http-host-v1.md#shared-local-daemon-1142-pr2)를 따른다. Desktop 연결과 종료 정책·플러그인/AI 수명은 PR3/PR4에서 전환한다.
 
 ## Plain text file boundary (#817)
 
