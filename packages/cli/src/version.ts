@@ -3,6 +3,7 @@ import { brand } from "../../../brand.ts";
 declare const __LITZIO_CLI_BUILD__: { version: string; desktop: boolean; commit: string };
 const identity = typeof __LITZIO_CLI_BUILD__ === "undefined"
   ? { version: "development", desktop: false, commit: "unknown" } : __LITZIO_CLI_BUILD__;
+export const productVersion = identity.version;
 
 export function versionText(build = identity): string {
   return `${brand.cliCommand} ${build.version} (${build.desktop ? "desktop, " : ""}${build.commit})\n`;

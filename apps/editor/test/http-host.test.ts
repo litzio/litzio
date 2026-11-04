@@ -11,6 +11,8 @@ import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
 import { documentRevision, loadDocumentFile } from "../server/document-api.ts";
 import { MAX_JSON_BYTES, startHttpHost } from "../server/http-host.ts";
+import { DAEMON_PROTOCOL } from "../server/daemon-protocol.ts";
+import { inspectDaemon, stopDaemon } from "../server/daemon-state.ts";
 import { RootAccess } from "../server/file-access.ts";
 import { convertDoclingFile } from "../../../plugins/docling/src/index.ts";
 
@@ -118,7 +120,7 @@ test("fetch listener startup and close errors propagate without retries", async 
 });
 
 test("HTTP file mutations reuse shared validation, strict bodies and allowlisted roots", async t => {
-  const { a, b, outside, send } = await fixture(t);
+  const { a, b, outside, send, trashed, base } = await fixture(t);
   const file = path.join(a, "document.md");
   const original = fs.readFileSync(file);
   assert.equal((await send("/api/file", "GET")).status, 405);
@@ -129,6 +131,8 @@ test("HTTP file mutations reuse shared validation, strict bodies and allowlisted
   assert.deepEqual(fs.readFileSync(renamed), original);
   assert.equal((await send("/api/file", "DELETE", {root:a, path:renamed})).status, 200);
   assert.equal(fs.existsSync(renamed), false);
+  assert.deepEqual(trashed, [renamed]);
+  assert.deepEqual(fs.readFileSync(path.join(base, "trashed-renamed.md")), original);
   const source = nativeSource(":::{figure} ./image.png\n\nCaption.\n:::\n");
   fs.writeFileSync(file, source); fs.writeFileSync(path.join(b, "document.md"), source);
   fs.unlinkSync(path.join(b, "image.png")); fs.linkSync(path.join(a, "image.png"), path.join(b, "image.png"));
@@ -191,7 +195,7 @@ test("folder image preview is read-only, root bounded and isolated for GET, HEAD
   assert.equal((await send(route(a, path.join(a, "bad.png")), "HEAD")).status, 413);
 });
 
-async function fixture(t: TestContext, external?: string) {
+async function fixture(t: TestContext, external?: string, authenticated = false) {
   const base = fs.mkdtempSync(path.join(tmpdir(), "litzio-http-"));
   const a = path.join(base, "문서 A"), b = path.join(base, "documents-B");
   const outside = path.join(base, "문서 A-other"), editorDir = path.join(base, "editor");
@@ -204,7 +208,12 @@ async function fixture(t: TestContext, external?: string) {
   fs.writeFileSync(path.join(editorDir, "app.js"), "export {};");
   const previousPlugins = process.env.LITZIO_PLUGINS_DIR;
   process.env.LITZIO_PLUGINS_DIR = path.join(base, "plugins");
-  const host = await startFetchServer(() => startHttpHost({ editorDir, roots: [a, b], port: 0, publicOrigin: external }));
+  const trashed: string[] = [];
+  const token = "test-token", health = { pid: process.pid, startedAt: new Date().toISOString(), instanceId: "test-instance", productVersion: "test-product", protocolVersion: DAEMON_PROTOCOL };
+  let stopped = false;
+  const host = await startFetchServer(() => startHttpHost({ editorDir, roots: authenticated ? [] : [a, b], port: 0, publicOrigin: external,
+    ...(authenticated ? { daemon: { token, health, stop: () => { stopped = true; } } } : {}),
+    removeFile: file => { trashed.push(file); fs.renameSync(file, path.join(base, "trashed-" + path.basename(file))); } }));
   if (previousPlugins === undefined) delete process.env.LITZIO_PLUGINS_DIR; else process.env.LITZIO_PLUGINS_DIR = previousPlugins;
   const address = host.server.address();
   assert.ok(address && typeof address !== "string");
@@ -214,8 +223,51 @@ async function fixture(t: TestContext, external?: string) {
     method, headers: { Origin: url, ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...headers },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  return { base, a, b, outside, editorDir, host, url, send };
+  return { base, a, b, outside, editorDir, host, url, send, trashed, token, health, stopped: () => stopped };
 }
+
+test("daemon gates static/API/media, exchanges a browser cookie, checks versions and only stops its own instance", async t => {
+  const { url, token, health, send, outside, stopped } = await fixture(t, undefined, true);
+  const headers = { Authorization: `Bearer ${token}`, "X-Litzio-Protocol": DAEMON_PROTOCOL };
+  assert.deepEqual(await (await send("/api/document", "GET", undefined, headers)).json(), { start: true });
+  for (const route of ["/", "/api/document", "/daemon/health", "/document/image.png"]) {
+    assert.equal((await send(route)).status, 401);
+    assert.equal((await send(route, "GET", undefined, { ...headers, Authorization: "Bearer wrong" })).status, 401);
+  }
+  assert.equal((await send("/daemon/health", "GET", undefined, { ...headers, "X-Litzio-Protocol": "incompatible" })).status, 409);
+  assert.equal((await send("/daemon/session", "POST", {}, { ...headers, Origin: "https://foreign.invalid" })).status, 403);
+  const session = await send("/daemon/session", "POST", {}, headers);
+  assert.equal(session.status, 200);
+  const cookie = session.headers.get("set-cookie")!;
+  assert.match(cookie, /HttpOnly; SameSite=Strict; Path=\//);
+  assert.equal((await send(`/api/folder?${new URLSearchParams({ root: outside })}`, "GET", undefined, { Cookie: cookie.split(";")[0]! })).status, 200);
+  const warnings: string[] = [], record = { ...health, url };
+  assert.deepEqual(await inspectDaemon(record, token, "new-product", message => warnings.push(message)), health);
+  assert.match(warnings.join(), /WARNING.*restart explicitly/);
+  await assert.rejects(stopDaemon({ ...record, instanceId: "another-instance" }, token, health.productVersion), /identity changed/);
+  const invalidStop = await send("/daemon/stop", "POST", { ...health, startedAt: "other-start", confirm: true }, headers);
+  assert.equal(invalidStop.status, 409); assert.equal(stopped(), false);
+  await stopDaemon(record, token, health.productVersion);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(stopped(), true);
+  health.protocolVersion = "2";
+  assert.equal((await send("/api/document", "GET", undefined, { Cookie: cookie.split(";")[0]! })).status, 401, "a cookie from another protocol cannot reconnect silently");
+});
+
+test("HTTP unrestricted access rejects non-loopback or absent authentication before listening", async () => {
+  for (const options of [{}, { host: "0.0.0.0", publicOrigin: "https://docs.example" }]) {
+    await assert.rejects(startHttpHost({ roots: [], editorDir: "unused", ...options }), /Unrestricted access requires/);
+  }
+});
+
+test("HTTP trash failure preserves the original file without permanent deletion", async t => {
+  const { a, editorDir } = await fixture(t);
+  const host = await startFetchServer(() => startHttpHost({ roots: [a], editorDir, port: 0, removeFile: async () => { throw new Error("OS trash unavailable"); } }));
+  t.after(() => host.close());
+  const file = path.join(a, "document.md"), original = fs.readFileSync(file);
+  const response = await fetch(host.url + "/api/file", { method: "DELETE", headers: { Origin: host.url, "Content-Type": "application/json" }, body: JSON.stringify({ root: a, path: file }) });
+  assert.equal(response.status, 400); assert.deepEqual(fs.readFileSync(file), original);
+});
 
 const documentQuery = (file: string) => `/api/document?${new URLSearchParams({ path: file })}`;
 // fetch normalizes/overrides Host; use an actual Node request to test a forged wire header.

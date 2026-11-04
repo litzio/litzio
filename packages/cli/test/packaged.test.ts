@@ -35,7 +35,7 @@ test("the packed CLI installs offline outside the checkout and serves both roots
   const install = path.join(scratch, "install"), cwd = path.join(scratch, "unrelated cwd");
   const a = path.join(scratch, "문서 A"), b = path.join(scratch, "documents B");
   for (const folder of [install, cwd, a, b]) mkdirSync(folder);
-  const env: NodeJS.ProcessEnv = { ...process.env, LITZIO_AI_AGENT_CWD: path.join(scratch, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(scratch, "ai-agent.json"), LITZIO_PLUGINS_DIR: path.join(scratch, "plugins"), LITZIO_DOCLING_SETTINGS_FILE: path.join(scratch, "docling.json") };
+  const env: NodeJS.ProcessEnv = { ...process.env, LITZIO_DAEMON_DIR: path.join(scratch, "daemon"), LITZIO_AI_AGENT_CWD: path.join(scratch, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(scratch, "ai-agent.json"), LITZIO_PLUGINS_DIR: path.join(scratch, "plugins"), LITZIO_DOCLING_SETTINGS_FILE: path.join(scratch, "docling.json") };
   delete env.NODE_PATH; delete env.NODE_OPTIONS;
   let child: ChildProcess | undefined;
   const fake = await fakeDoclingServer();
@@ -59,7 +59,7 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     const formatted = spawnSync(process.execPath, [entry, "format", path.join(a, "document.md")], { cwd, env, encoding: "utf8" });
     assert.equal(formatted.status, 0, formatted.stderr);
     const port = await freePort(), url = `http://127.0.0.1:${port}`;
-    child = spawn(process.execPath, [entry, "daemon", "run", "--port", String(port), "--root", a, "--root", b], { cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    child = spawn(process.execPath, [entry, "daemon", "run", "--channel", "development", "--port", String(port), "--root", a, "--root", b], { cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
     let output = "", errors = "";
     child.stderr!.on("data", data => { errors += data; });
     await new Promise<void>((resolve, reject) => {
@@ -68,29 +68,31 @@ test("the packed CLI installs offline outside the checkout and serves both roots
       child!.once("exit", code => { clearTimeout(timeout); reject(new Error(`CLI exited ${code}: ${errors}`)); });
       child!.stdout!.on("data", data => { output += data; if (output.includes("Litzio HTTP:")) { clearTimeout(timeout); resolve(); } });
     });
-    assert.equal((await fetch(url)).status, 200);
-    const notices = await fetch(url + "/licenses/THIRD_PARTY_LICENSES.txt");
+    const token = readFileSync(path.join(scratch, "daemon/development/token"), "utf8");
+    const hostFetch = (url: string, init: RequestInit = {}) => fetch(url, { ...init, headers: { Authorization: `Bearer ${token}`, "X-Litzio-Protocol": "1", ...init.headers } });
+    assert.equal((await hostFetch(url)).status, 200);
+    const notices = await hostFetch(url + "/licenses/THIRD_PARTY_LICENSES.txt");
     assert.equal(notices.status, 200);
     assert.match(notices.headers.get("content-type") ?? "", /text\/plain/);
     assert.match(await notices.text(), /Tiptap GmbH/);
     assert.match(readFileSync(path.join(path.dirname(entry), "docling-worker/Docling-schema-LICENSE.txt"), "utf8"), /International Business Machines/);
-    assert.deepEqual((await (await fetch(url + "/api/document")).json()).allowedRoots, [a, b]);
-    await verifyPackagedWorker((endpoint, method = "GET", body) => fetch(`${url}/api/${endpoint}`, { method,
+    assert.deepEqual((await (await hostFetch(url + "/api/document")).json()).allowedRoots, [a, b]);
+    await verifyPackagedWorker((endpoint, method = "GET", body) => hostFetch(`${url}/api/${endpoint}`, { method,
       ...(body === undefined ? {} : { headers: { Origin: url, "Content-Type": "application/json" }, body: JSON.stringify(body) }) }), a, fake.url);
     for (const folder of [a, b]) {
       const file = path.join(folder, "document.md");
-      const loaded = await (await fetch(url + `/api/document?${new URLSearchParams({ path: file })}`)).json();
-      const response = await fetch(url + "/api/document", { method: "POST", headers: { Origin: url, "Content-Type": "application/json" },
+      const loaded = await (await hostFetch(url + `/api/document?${new URLSearchParams({ path: file })}`)).json();
+      const response = await hostFetch(url + "/api/document", { method: "POST", headers: { Origin: url, "Content-Type": "application/json" },
         body: JSON.stringify({ path: file, revision: loaded.revision, base: { source: loaded.source },
           paragraphs: [{ path: [2], content: [{ kind: "text", text: "Packed save." }] }] }) });
       assert.equal(response.status, 200, await response.text());
       assert.equal(readFileSync(file, "utf8"), "---\nlitzio: 1\n---\n\n# Title\n\nPacked save.\n");
     }
-    const conflict = spawnSync(process.execPath, [entry, "daemon", "run", "--port", String(port), "--root", a], { cwd, env, encoding: "utf8", timeout: 10_000 });
+    const conflict = spawnSync(process.execPath, [entry, "daemon", "run", "--channel", "development", "--port", String(port), "--root", a], { cwd, env, encoding: "utf8", timeout: 10_000 });
     assert.notEqual(conflict.status, 0);
-    assert.match(conflict.stderr, /EADDRINUSE/);
+    assert.match(conflict.stderr, /Daemon lock exists/);
     await stop(child);
-    await assert.rejects(fetch(url), /fetch failed/);
+    await assert.rejects(hostFetch(url), /fetch failed/);
   } finally {
     if (child) await stop(child);
     await fake.close();

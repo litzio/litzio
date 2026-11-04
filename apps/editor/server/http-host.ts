@@ -7,7 +7,9 @@ import path from "node:path";
 import { handleAssetRequest } from "./asset-api.ts";
 import { handleDocumentRequest } from "./document-api.ts";
 import { SECURITY_HEADERS, serveEditorFile } from "./editor-static.ts";
-import { RootAccess } from "./file-access.ts";
+import { LOCAL_FILE_ACCESS, RootAccess } from "./file-access.ts";
+import { daemonRequest, type DaemonAuth } from "./daemon-protocol.ts";
+import { trashFile } from "./os-trash.ts";
 import { requestQuery } from "./request-query.ts";
 
 export const MAX_JSON_BYTES = 32 * 1024 * 1024;
@@ -18,6 +20,8 @@ export type HttpHostOptions = {
   port?: number;
   host?: string;
   publicOrigin?: string;
+  daemon?: DaemonAuth;
+  removeFile?: (file: string) => void | Promise<void>;
 };
 
 const loopback = (host: string) => host === "::1" || /^127\./.test(host);
@@ -39,8 +43,6 @@ function json(res: ServerResponse, status: number, message: string): void {
 
 /** The only TCP Host: fixed roots and production assets, without a document/session store. */
 export async function startHttpHost(options: HttpHostOptions) {
-  const access = new RootAccess(options.roots);
-  const plugins = createPluginHost(access);
   const host = options.host ?? "127.0.0.1";
   const port = options.port ?? 5180;
   if (!isIP(host)) throw new Error("--host must be an IP address (default: 127.0.0.1).");
@@ -48,8 +50,11 @@ export async function startHttpHost(options: HttpHostOptions) {
   if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error("Invalid port.");
   const external = options.publicOrigin === undefined ? undefined : publicOrigin(options.publicOrigin);
   if (!loopback(host) && !external) throw new Error("Non-loopback binding requires --public-origin and an access-controlled proxy/network.");
+  if (!options.roots.length && (!loopback(host) || !options.daemon?.token)) throw new Error("Unrestricted access requires loopback and daemon token authentication.");
+  const access = options.roots.length ? new RootAccess(options.roots) : LOCAL_FILE_ACCESS;
   const editorDir = realpathSync(options.editorDir);
   if (!statSync(path.join(editorDir, "index.html")).isFile()) throw new Error("The production Editor build is missing.");
+  const plugins = createPluginHost(access);
   const key = randomBytes(32);
   const origins = new Set<string>();
   const authorities = new Set<string>();
@@ -87,13 +92,18 @@ export async function startHttpHost(options: HttpHostOptions) {
     if (writing && (url.pathname !== "/api/asset" || req.method === "DELETE") && !/^application\/json(?:\s*;|$)/i.test(req.headers["content-type"] ?? "")) {
       return json(res, 415, "Expected application/json.");
     }
+    if (options.daemon && await daemonRequest(req, res, url, options.daemon)) return;
+    // Full local access must not select Vite's checkout-relative development sample.
+    if (!access && url.pathname === "/api/document" && req.method === "GET" && !url.searchParams.get("path")?.trim()) {
+      res.setHeader("Content-Type", "application/json; charset=utf-8"); res.end(JSON.stringify({ start: true })); return;
+    }
     if (media) {
       // User-controlled SVG/HTML must never execute with the application's origin authority.
       res.setHeader("Content-Security-Policy", "sandbox; default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'");
     }
     if (url.pathname === "/api/asset") return handleAssetRequest(req, res, key, access);
     if (api || media) {
-      return handleDocumentRequest(req, res, () => json(res, 404, "Not found."), access, MAX_JSON_BYTES, undefined, undefined, plugins);
+      return handleDocumentRequest(req, res, () => json(res, 404, "Not found."), access, MAX_JSON_BYTES, options.removeFile ?? trashFile, undefined, plugins);
     }
     if (req.method !== "GET" && req.method !== "HEAD") return json(res, 405, "Method not allowed.");
     const response = serveEditorFile(editorDir, url.pathname);
@@ -109,10 +119,10 @@ export async function startHttpHost(options: HttpHostOptions) {
       else res.destroy();
     });
   });
-  await new Promise<void>((resolve, reject) => {
+  try { await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, host, () => { server.off("error", reject); resolve(); });
-  });
+  }); } catch (error) { await plugins.close(); throw error; }
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("The HTTP listener has no address.");
   if (loopback(host)) {
@@ -127,7 +137,7 @@ export async function startHttpHost(options: HttpHostOptions) {
   for (const origin of origins) authorities.add(new URL(origin).host.toLowerCase());
   return {
     server,
-    roots: access.roots,
+    roots: access?.roots ?? [],
     url: external ?? `http://${authority(host, address.port)}`,
     async close(): Promise<void> {
       await plugins.close();

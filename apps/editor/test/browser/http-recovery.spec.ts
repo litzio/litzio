@@ -8,6 +8,7 @@ import path from "node:path";
 import { prepareBrowserFixtures, REPOSITORY_ROOT } from "./fixtures.ts";
 import { openPath, reloadDocument } from "./navigation.ts";
 import { recoveryRecords, resetRecovery } from "./recovery-records.ts";
+import { authenticateDaemon } from "./daemon-auth.ts";
 import type { Editor } from "@tiptap/core";
 
 // Same checkout-owned persistent Chrome profile as the serial HTTP harness. No server restart.
@@ -37,6 +38,7 @@ test("HTTP recovery survives an owned browser process crash, then Save/Reload an
     processes.push(pid);
     await cdp.detach();
     const page = await context.newPage();
+    await authenticateDaemon(page, origin);
     const url = new URL(origin);
     if (startupPath) url.searchParams.set("path", startupPath);
     await page.goto(url.href); await ready(page);

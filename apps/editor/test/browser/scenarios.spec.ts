@@ -20,6 +20,7 @@ import { withBlockHover } from "./hover.ts";
 import { recoveryRecords } from "./recovery-records.ts";
 import { inputEventScript } from "./input-event-script.ts";
 import { verifyBuiltAppearance } from "./desktop-appearance.ts";
+import { authenticateDaemon } from "./daemon-auth.ts";
 
 const url = process.env.LITZIO_BROWSER_URL ?? (process.env.LITZIO_BROWSER_HOST === "http" ? "http://127.0.0.1:5181" : "http://127.0.0.1:5173");
 const scenarios: string[] = process.env.LITZIO_BROWSER_SCENARIOS ? JSON.parse(process.env.LITZIO_BROWSER_SCENARIOS) : [...STABLE_SCENARIOS];
@@ -82,6 +83,7 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
         return writableScratch(file) ? route.continue() : route.fulfill({ status: 403, json: { error: "Browser tests may convert scratch files only." } });
       });
       const initial = await context.newPage();
+      if (process.env.LITZIO_BROWSER_HOST === "http") await authenticateDaemon(initial, url);
       await initial.goto(url);
       await initial.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({ state: "attached" });
       await initial.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
