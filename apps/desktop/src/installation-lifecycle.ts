@@ -28,7 +28,8 @@ export function installationPort(executable: string): InstallationPort {
     processes: () => JSON.parse(ps(
       "$name = $inputText; ConvertTo-Json -Compress -InputObject @(Get-CimInstance Win32_Process | Where-Object { $_.Name -eq $name } | ForEach-Object { " +
       "@{ pid = $_.ProcessId; executable = $_.ExecutablePath; started = [string]$_.CreationDate.ToUniversalTime().Ticks; command = $_.CommandLine; window = ((Get-Process -Id $_.ProcessId -ErrorAction SilentlyContinue).MainWindowHandle -ne 0) } })", path.basename(executable)))
-      .filter((p: InstalledProcess) => p.pid !== process.pid && p.executable && samePath(p.executable)),
+      // A live image whose alias disappeared is uncertain, not evidence of another install.
+      .filter((p: InstalledProcess) => p.pid !== process.pid && p.executable && realpathSync.native(p.executable).toLowerCase() === target),
     records: () => (["stable", "beta", "development"] as const).flatMap(channel => {
       const record = readDaemonRecord(daemonDirectory(channel));
       return record && samePath(record.executable) ? [record] : [];

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtempSync, symlinkSync, unlinkSync, rmdirSync } from "node:fs";
+import { existsSync, mkdtempSync, symlinkSync, unlinkSync, rmdirSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { checkInstallation, prepareInstallation, installationPort, type InstallationPort, type InstalledProcess } from "../src/installation-lifecycle.ts";
@@ -73,10 +73,13 @@ test("Windows identifies the same executable launched through the CLI junction",
     const owner = port.processes().find(p => p.pid === child.pid);
     assert.ok(owner, "canonical executable query includes the junction alias");
     assert.throws(() => checkInstallation({ ...port, records: () => [{ ...record, pid: owner.pid, processStartedAt: owner.started, launcher: "cli-run" }] }), /CLI daemon/);
+    unlinkSync(link); // CLI Turn off can remove its junction while the daemon is still alive.
+    assert.throws(() => port.processes(), { code: "ENOENT" }, "an unresolved live image must block installation, not disappear from its process list");
   } finally {
     clearTimeout(timer);
     if (child.exitCode === null && child.signalCode === null) child.kill();
     await exited;
-    unlinkSync(link); rmdirSync(base);
+    if (existsSync(link)) unlinkSync(link);
+    rmdirSync(base);
   }
 });
