@@ -1045,7 +1045,7 @@ function EditorApp() {
     ? i18n.t("Sample documents could not be prepared. You can still open your documents.") : "";
   const samplePath = start?.samples?.[i18n.language === "ko" ? "ko" : "en"];
   const openSample = () => {
-    if (samplePath) void openFile(samplePath, i18n.t("This is a writable sample copy. Changes are reset the next time the app starts.")).then(message => {
+    if (samplePath) void openFile(samplePath, i18n.t(window.litzioDesktop ? "This is a writable sample copy. Changes are kept after restarting Desktop. A new sample folder is created only when the app version changes." : "This is a writable sample copy. Changes are reset the next time the app starts.")).then(message => {
       if (message) setError(message);
       else if (message === "") setCommandFileFocus(samplePath);
     });

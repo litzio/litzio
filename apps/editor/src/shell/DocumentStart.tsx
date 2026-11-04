@@ -62,7 +62,7 @@ export function DocumentStart({ mark, darkMark, recovery, recent, sample, busy, 
       {sample ? (
         <section className="document-start-section" aria-labelledby="document-start-sample">
           <h2 id="document-start-sample" className="document-start-label">{i18n.t("Sample")}</h2>
-          <p className="document-start-text">{i18n.t("A converter control design note you can edit. Changes are reset the next time the app starts.")}</p>
+          <p className="document-start-text">{i18n.t(window.litzioDesktop ? "A converter control design note you can edit. Changes are kept after restarting Desktop. A new sample folder is created only when the app version changes." : "A converter control design note you can edit. Changes are reset the next time the app starts.")}</p>
           <div className="document-start-actions">
             <Button size="sm" variant="outline" disabled={busy} onClick={() => onOpenSample(sample)}>
               <BookOpen aria-hidden="true" />{i18n.t("Open sample document")}</Button>

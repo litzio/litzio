@@ -9,7 +9,7 @@ export const desktopConnection = {
   subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
 };
 function update(value: Connection) { state = value; listeners.forEach(listener => listener()); }
-export function disconnectDesktop() { update({ ...state, phase: "disconnected" }); }
+export function disconnectDesktop(problem?: string) { update({ ...state, phase: "disconnected", problem }); }
 export async function connectDesktop(reconnect = false): Promise<void> {
   const desktop = window.litzioDesktop;
   if (!desktop) return;
