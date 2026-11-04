@@ -31,6 +31,8 @@
 
 이 원칙을 이유로 미래 구조나 기능을 선제적으로 구현하지 않는다.
 
+용어는 [제품 용어집](docs/contributing/terminology.md)을 따른다.
+
 ## Internal naming
 
 - 내부 코드 이름은 `litzio`다(Discussion #856, #858). 패키지는 `@litzio/*`를 사용한다. 플러그인 API는 ADR-0017에 따라 제거했다. 제품 표시 이름, CLI·Desktop 프로토콜·설치·데이터 경로는 `brand.ts`와 패키저용 안내를 따른다(공식 기본값 Litzio). 저장소 참조는 별도 계약을 따른다.

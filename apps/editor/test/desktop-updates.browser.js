@@ -91,7 +91,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
     await page.getByTestId('settings-dialog').waitFor({state:'detached'});
   }
   await page.getByRole('button', {name:'Desktop menu',exact:true}).click();
-  await page.getByRole('menuitem', {name:'Stop daemon',exact:true}).click();
+  await page.getByRole('menuitem', {name:'Stop background service',exact:true}).click();
   await page.getByTestId('daemon-disconnected').waitFor();
   if (screenshots) { await page.setViewportSize({width:1440,height:1000}); await capture('daemon-disconnected-1440'); await page.setViewportSize({width:640,height:1000}); }
   await capture('daemon-disconnected-640');
@@ -99,7 +99,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   await page.evaluate(raw => { window.__desktop.failure = raw; }, raw);
   await page.getByRole('button', {name:'Reconnect',exact:true}).click();
   const connectionNotice = page.getByTestId('daemon-disconnected');
-  await connectionNotice.getByText('The local daemon is not responding or is incompatible.', {exact:true}).waitFor();
+  await connectionNotice.getByText('The local background service is not responding or is incompatible.', {exact:true}).waitFor();
   check(!await connectionNotice.getByText(`Error: ${raw}`, {exact:true}).isVisible(), 'IPC diagnostic is always visible');
   await connectionNotice.getByText('Details', {exact:true}).click();
   await connectionNotice.getByText(`Error: ${raw}`, {exact:true}).waitFor();

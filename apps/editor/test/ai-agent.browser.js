@@ -95,7 +95,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.getByLabel('Model', { exact: true }).selectOption('gpt-6-luna');
   await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('low');
   await expect(page.getByRole('button', { name: 'Copilot models', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save AI settings', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save Assistant settings', exact: true })).toHaveCount(0);
   expect(settingsWrites.length).toBe(beforeQueue + 1);
   failSave = true; // An older failed snapshot must not leave an error after the queued latest save succeeds.
   writeGate = undefined; releaseWrite();
@@ -103,11 +103,11 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(settings.responseLanguage).toBe('ja');
   await expect(page.getByRole('alert')).toHaveCount(0);
   failSave = true;
-  await page.getByLabel('Write access', { exact: true }).selectOption('read-only');
-  await expect(page.getByRole('alert')).toHaveText('Could not save AI settings.');
+  await page.getByLabel('Permission mode', { exact: true }).selectOption('read-only');
+  await expect(page.getByRole('alert')).toHaveText('Could not save Assistant settings.');
   expect(settings.writeAccess).toBe('opened-folders');
   failSave = false;
-  await page.getByLabel('Write access', { exact: true }).selectOption('opened-folders');
+  await page.getByLabel('Permission mode', { exact: true }).selectOption('opened-folders');
   await expect(page.getByRole('alert')).toHaveCount(0);
   const measure = () => page.locator('.settings-content-inner').evaluate(element => ({ x: element.getBoundingClientRect().x, width: element.getBoundingClientRect().width }));
   await page.getByLabel('Model', { exact: true }).selectOption('gpt-6-luna');
@@ -282,8 +282,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     expect(values.length).toBeGreaterThan(0);
     for (const value of values) { if (value.control) { expect(value.border).toBeGreaterThanOrEqual(1); expect(value.boundary, JSON.stringify(value)).toBeGreaterThanOrEqual(3); } expect(value.alpha).toBe(1); expect(value.text).toBeGreaterThanOrEqual(4.5); }
   };
-  await panel.getByRole('button', {name: 'Provider settings', exact: true}).click();
-  await expect(page.getByRole('menu', {name: 'Provider settings', exact: true}).getByRole('menuitem')).toHaveText(['Codex', 'GitHub Copilot']);
+  await panel.getByRole('button', {name: 'AI provider settings', exact: true}).click();
+  await expect(page.getByRole('menu', {name: 'AI provider settings', exact: true}).getByRole('menuitem')).toHaveText(['Codex', 'GitHub Copilot']);
   await page.keyboard.press('Escape');
   await panel.getByRole('button', {name: 'Close assistant', exact: true}).click();
   await page.getByRole('button', {name: 'Settings', exact: true}).click();
@@ -292,17 +292,17 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.getByRole('button', {name: 'Assistant', exact: true}).click();
   await expect(message).toBeEnabled();
   const defaultWrites = settingsWrites.length;
-  await panel.getByRole('button', {name: 'Provider settings', exact: true}).click();
+  await panel.getByRole('button', {name: 'AI provider settings', exact: true}).click();
   await page.getByRole('menuitem', {name: 'GitHub Copilot', exact: true}).click();
   await expect(panel.getByRole('button', {name: 'Model settings', exact: true})).toHaveText('Auto');
-  await expect(panel.getByRole('button', {name: 'Provider settings', exact: true})).toBeEnabled();
+  await expect(panel.getByRole('button', {name: 'AI provider settings', exact: true})).toBeEnabled();
   await panel.getByRole('button', {name: 'New conversation', exact: true}).click();
-  await expect(panel.getByRole('button', {name: 'Provider settings', exact: true})).toHaveText('Codex');
+  await expect(panel.getByRole('button', {name: 'AI provider settings', exact: true})).toHaveText('Codex');
   await expect(panel.getByRole('button', {name: 'Model settings', exact: true})).toHaveText('GPT Sol');
 
-  await panel.getByRole('button', {name: 'Write access settings', exact: true}).click();
+  await panel.getByRole('button', {name: 'Permission mode settings', exact: true}).click();
   await page.getByRole('menuitem', {name: 'Read-only', exact: true}).click();
-  await expect(panel.getByRole('button', {name: 'Write access settings', exact: true})).toHaveText('Read-only');
+  await expect(panel.getByRole('button', {name: 'Permission mode settings', exact: true})).toHaveText('Read-only');
   expect(settingsWrites.length).toBe(defaultWrites);
 
   await expect(panel.getByRole('button', { name: 'Response language', exact: true })).toHaveCount(0);
@@ -388,7 +388,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.locator('.assistant-user .assistant-reference')).toHaveCount(1);
   await expect(draftChips).toHaveCount(0);
   await expect(panel.getByRole('button', { name: 'Model settings', exact: true })).toBeDisabled();
-  await expect(panel.getByRole('button', {name: 'Provider settings', exact: true})).toBeDisabled();
+  await expect(panel.getByRole('button', {name: 'AI provider settings', exact: true})).toBeDisabled();
   expect(sent.at(-1).provider).toBe('codex'); expect(sent.at(-1).writeAccess).toBe('read-only');
   expect(settings.writeAccess).toBe('opened-folders');
   selected.turns[0].items.find(item => item.kind === 'assistant').text = 'The unsaved paragraph adds a clear qualification. Check the stated conditions before using the conclusion.';
@@ -559,8 +559,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await panel.getByRole('button', { name: 'Conversation history' }).click();
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/history-1440-light-en.png' });
   await panel.getByRole('button', { name: /What changed in the current document/ }).click();
-  await expect(panel.getByRole('button', {name: 'Write access settings', exact: true})).toHaveText('Read-only');
-  await expect(panel.getByRole('button', {name: 'Provider settings', exact: true})).toBeDisabled();
+  await expect(panel.getByRole('button', {name: 'Permission mode settings', exact: true})).toHaveText('Read-only');
+  await expect(panel.getByRole('button', {name: 'AI provider settings', exact: true})).toBeDisabled();
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
   await expect(panel.locator('.assistant-user .assistant-reference').filter({ hasText: '$litzio-guide' })).toHaveCount(1);
   const markdownSource = '# 답변 요약\n\n**중요한 조건**과 $x^2$, \\(x^2\\)를 확인합니다.[^n]\n\n- 첫 번째 항목\n- 두 번째 항목\n\n```js\nconst answer = "' + 'long-code-'.repeat(30) + '";\n```\n\n| 항목 | 설명 |\n| --- | --- |\n| 표 | ' + '긴내용'.repeat(70) + ' |\n\n\\[\na+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z\n\\]\n\n[공식 안내](https://example.com/docs)\n\n[^n]: 답변 각주';
@@ -739,7 +739,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByText('대화를 시작하려면 Codex에 로그인하세요.', { exact: true })).toBeVisible();
   await expect(panel.getByRole('textbox')).toBeDisabled();
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/setup-640-dark-ko.png' });
-  await panel.getByRole('button', { name: 'AI 설정 열기' }).click();
+  await panel.getByRole('button', { name: '비서 설정 열기' }).click();
   await expect(page.getByRole('heading', { name: '비서', exact: true }).last()).toBeVisible();
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await expect(panel).toBeHidden();
@@ -837,7 +837,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(page.locator('html')).toHaveAttribute('lang', 'ko');
   await expect(page.locator('html')).toHaveAttribute('data-page', 'flat');
   expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.documentWidth'), brand.storagePrefix)).toBe('wide');
-  expect(settingsWrites.length, 'Display tools must not save AI settings').toBe(aiWritesBeforeDisplay);
+  expect(settingsWrites.length, 'Display tools must not save Assistant settings').toBe(aiWritesBeforeDisplay);
   if (screenshots) for (const width of [1440, 640]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.screenshot({ path: `tmp/1120-evidence/after-${width}.png` });
@@ -870,7 +870,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
   await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Assistant', exact: true }).click();
   const writesBeforeProvider = settingsWrites.length;
-  await page.getByLabel('Default provider', { exact: true }).selectOption('copilot');
+  await page.getByLabel('Default AI provider', { exact: true }).selectOption('copilot');
   await expect(page.getByLabel('Model', { exact: true })).toHaveValue('auto');
   await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('medium');
   await expect(page.getByText('Litzio skills', { exact: true })).toHaveCount(0);
@@ -897,7 +897,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
     await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Appearance & language', exact: true }).click();
     await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
     await page.getByRole('navigation', { name: '설정 분류' }).getByRole('button', { name: '비서', exact: true }).click();
-    await expect(page.getByLabel('기본 프로바이더', { exact: true })).toHaveValue('copilot');
+    await expect(page.getByLabel('기본 AI 공급자', { exact: true })).toHaveValue('copilot');
     await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-dark-ko.png' });
     await page.setViewportSize({ width: 640, height: 1000 });
     await expect(page.getByLabel('모델', { exact: true })).toHaveValue('auto');
