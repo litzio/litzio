@@ -46,7 +46,11 @@ test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/h
     const address = portServer.address(); assert.ok(address && typeof address !== "string");
     await new Promise<void>(resolve => portServer.close(() => resolve()));
     const child = spawn(process.env.ComSpec ?? "cmd.exe", windowsCommand(integration.shim,
-      ["daemon", "run", "--root", folder, "--port", String(address.port)]), { windowsVerbatimArguments: true, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
+      ["daemon", "run", "--channel", "development", "--root", folder, "--port", String(address.port)]), {
+        env: { ...process.env, LITZIO_DAEMON_DIR: path.join(folder, "daemon"), LITZIO_PLUGINS_DIR: path.join(folder, "plugins"),
+          LITZIO_AI_AGENT_CWD: path.join(folder, "assistant"), LITZIO_AI_AGENT_SETTINGS_FILE: path.join(folder, "ai.json"), LITZIO_DOCLING_SETTINGS_FILE: path.join(folder, "docling.json") },
+        windowsVerbatimArguments: true, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
+      });
     let output = "", errors = "";
     child.stderr.on("data", data => { errors += data; });
     try {
@@ -59,7 +63,8 @@ test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/h
           if (output.includes(`${brand.name.en} HTTP:`)) { clearTimeout(timer); resolve(); }
         });
       });
-      const response = await fetch(`http://127.0.0.1:${address.port}/`);
+      const token = readFileSync(path.join(folder, "daemon/development/token"), "utf8");
+      const response = await fetch(`http://127.0.0.1:${address.port}/`, { headers: { Authorization: `Bearer ${token}`, "X-Litzio-Protocol": "1" } });
       assert.equal(response.status, 200);
       assert.match(await response.text(), /<html/);
       assert.equal(errors, "");
