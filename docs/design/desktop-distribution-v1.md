@@ -3,6 +3,7 @@
 #1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP Host 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
 
 - Status: Implemented
+- Remote registration PR3a verification: 2026-11-05 — temporary-path registry/CLI, exact CSP and health preflight tests; production HTTP persistent Chrome recovery/Save/Reload/conflict (2 passed). Settings/protected restart and live Windows Desktop → Linux remote connection remain unverified and outside PR3a.
 - PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation; restored packaged worker/native comparison is required Windows CI.
 - PR3 verification: 2026-11-04 — CLI 90, Editor 433, Desktop 76 tests; ownership/crash/stale subprocess cases; typecheck and dev build; persistent Chrome Desktop/HTTP scenarios. Windows packaged checks remain CI-only.
 - Lifecycle CI scope verification: 2026-11-03 (#1009 P6; policy/workflow and unit contracts; actual package/install/update/uninstall execution is CI-only).
@@ -315,7 +316,7 @@ The native window enforces a minimum width of **640px** (minimum height 480px), 
 - Windows EXE, NSIS installer/uninstaller, shortcuts and runtime window use the [Litzio wing/document icon](app-icon-v1.md). Its SVG source and generated ICO are tracked together; this does not replace previously published Beta assets.
 - The per-user one-click NSIS installer requires no separate Node.js/pnpm/browser installation. Uninstall keeps user data. The Host supplies the first valid existing `.md` command-line file, or start information with writable samples copied into user data on every app start. Without an accepted argument it supplies no default document; the Editor may still restore tabs. Startup priority and session protection follow [Editing session and Save](editing-session-save-v1.md#tab-navigation-memory-383); if no tabs open, the Editor shows its [start](editor-ux-shell-v1.md#start-without-a-document-174). The sample opens only when chosen, through the same Open path as any file. Opening another argument into an already running instance and OS file association are not implemented.
 - Electron main owns window lifecycle, protocol, preferences and updater. The sandboxed, isolated renderer has no Node integration; its typed preload exposes only update/settings calls and a restart check. Host/Markdown/file writes never pass through this bridge.
-- IPC accepts only the app's main frame. External navigation/new windows are denied; http(s) links open in the system browser. Static paths are confined to the production build, including symlinks. CSP permits own scripts, own/inline styles needed by the editor/KaTeX, and local/data/blob images; no remote code or frames.
+- IPC accepts only the app's main frame. External navigation/new windows are denied; http(s) links open in the system browser. Static paths are confined to the production build, including symlinks. CSP permits own scripts, own/inline styles needed by the editor/KaTeX, and local/data/blob plus registered exact-origin images; no remote code or frames.
 
 ## Integrated Windows title bar (#605)
 
@@ -664,3 +665,29 @@ Desktop bridge scenario; to rerun, copy it to `apps/editor/test/messages-capture
 temporarily include that name in the runner's notification/screenshot allowlists, then run
 `pnpm browser:test messages-capture --screenshots`. It is not a CI capture sweep.
 Before: [#1150 disconnected 640px](assets/desktop-bundled-1150/disconnected-640.png).
+
+## Desktop-local remote registry (#1174 PR3a)
+
+`apps/editor/server/remote-host-registry.ts` owns the shared local operations used by CLI and
+future settings. The JSON array at `<LITZIO_DATA_DIR or ~/.litzio>/desktop/remote-hosts.json`
+stores immutable UUID hostId, normalized HTTP(S) origin and editable label. Duplicate normalized
+origins, credentials, paths, query/fragment and CSP source syntax are rejected. Validation checks
+both input and normalized origin, including URL-decoded and Unicode-mapped host characters. Address changes
+require new registration. An exclusive sibling lock prevents concurrent lost updates; an atomic
+sibling rename commits the list. Invalid stored data fails explicitly; no migration is provided.
+
+Desktop main takes an origin snapshot at startup for connect/img CSP. Scripts remain bundled;
+saving a registration requires a protected restart before the renderer can use it. CLI health
+probes have no renderer privileges and never change this snapshot or restart the app. The CLI
+reports its own observation, never the current window connection state. Protocol differences
+refuse connection; product differences warn. Redirects are refused and probes are bounded.
+
+Removal uses a shared operation requiring the UI owner to confirm removal, clear open work and
+verify no recovery remains while holding that protection through the call. PR3a has no live UI
+protection provider, so CLI removal always refuses; command flags cannot assert safety. PR3b
+must supply the protected settings flow and CLI protection check. Its planned CLI success path
+requires Desktop to be stopped and a Desktop-written per-hostId open-work/recovery summary in
+app data to prove that no work remains for that Host. PR3a does not implement this summary or
+success path; CLI removal currently always refuses and explains that PR3b provides the check. Removal never sends stop or mutates remote files.
+Settings UI, connection indicators, automatic connection/reconnection and protected restart are
+not implemented by PR3a. Existing local daemon lifetime and OS shell restrictions remain.

@@ -3,6 +3,7 @@
 #1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. ④ Host 클라이언트와 ⑤ Desktop 번들 origin은 아래 경계를 구현한다.
 
 - Status: Implemented
+- Remote registration PR3a verification: 2026-11-05 — temporary-path registry/CLI, exact CSP and health preflight tests; production HTTP persistent Chrome recovery/Save/Reload/conflict (2 passed). Settings/protected restart and live Windows Desktop → Linux remote connection remain unverified and outside PR3a.
 - Daemon verification: 2026-11-04 (#1142 PR2: Windows CLI concurrent start/stop, Host/Origin boundaries and production browser Save/Reload/conflict; Linux remains required CI).
 - CI artifact policy verification: 2026-10-30 (#808; tarball upload removed, screen evidence retained on failure; workflow policy regressions and docs check, no local HTTP/browser execution).
 - Documentation verification: 2026-10-26 (pathless Host response versus Editor startup/restoration compared with document-api.ts, App.tsx and the session contract; no new HTTP/browser execution).
@@ -21,6 +22,17 @@ Editor의 API 요청(문서·폴더·복구·템플릿·공식 AI와 폴링)과 
 
 Desktop bridge의 daemon 수명·연결 정보·OS shell 호출은 HTTP로 옮기지 않는다. Desktop 번들 UI와 daemon origin 전환은 아래 ⑤ 계약을 따른다.
 
+## Desktop remote registration (#1174 PR3a)
+
+Desktop main reads the Desktop-local registry once at startup. Its CSP allows the local daemon
+and registered exact HTTP(S) origins for connect/img; script remains app-only. Registration never
+changes a running window policy. No main HTTP proxy is provided. Settings, automatic remote
+connections and protected restart belong to PR3b; this change alone does not expose those UI flows.
+
+For the exact Desktop origin, OPTIONS `/daemon/health` (without query) allows only GET and
+`X-Litzio-Protocol`. Stop, unknown daemon routes, other methods/headers and foreign origins are
+refused. The existing protocol check, write Origin checks and SVG/HTML sandbox remain.
+
 ## Desktop bundled origin (#1150 ⑤)
 
 Desktop은 `litzio://app/index.html`에서 앱에 들어 있는 정적 UI만 제공한다. custom
@@ -32,12 +44,12 @@ NotificationCenter에 원인과 CLI 안내, 수동 Reconnect가 남는다. 재�
 TCP Host authority 목록은 그대로다. UI Origin은 **정확히 `litzio://app` 하나**만 추가한다.
 API/media의 cross-site 거부 예외와 `Access-Control-Allow-Origin`은 그 Origin에만 적용한다.
 OPTIONS는 API/media의 GET/HEAD/POST/PUT/PATCH/DELETE와 Content-Type/X-Litzio-Protocol만
-허용한다. credentials·wildcard·사용자 지정 Origin은 없다. 쓰기 Origin·JSON 검사는 유지한다.
+허용한다. daemon health의 한정 GET/protocol preflight는 위 PR3a 절을 따른다. credentials·wildcard·사용자 지정 Origin은 없다. 쓰기 Origin·JSON 검사는 유지한다.
 Figure·일반 Markdown·파일/읽기 미리보기의 Host 이미지는 UI와 Host origin이 다른 경우에만 anonymous CORS를 사용한다. 같은-origin 브라우저 이미지는 기존 로딩 방식을 유지한다.
 허용 Origin의 CORS 응답만 CORP cross-origin이며 나머지는 same-origin이다. Origin 없는
 cross-site API/media, lookalike/foreign/null origin과 잘못된 TCP Host는 계속 거부한다.
 
-번들 CSP는 script/style/font를 앱에 한정하고 connect/img만 정확한 로컬 daemon 주소에
+번들 CSP는 script/style/font를 앱에 한정하고 connect/img만 정확한 로컬 daemon 및 시작 시 등록된 원격 origin에
 추가 허용한다. daemon이 내보낸 JavaScript/HTML을 앱 코드로 로드하지 않는다. 문서
 SVG/HTML과 파일 미리보기의 sandbox·script-src none, frame 금지는 그대로다.
 브라우저 UI·같은 origin 요청·기존 Core write path는 유지한다. 인증은 #1145에 보류한다.

@@ -258,6 +258,13 @@ const COMMANDS: CommandSpec[] = [
       "Offset must point to an existing citation; it removes the whole group. An unsaveable empty block is refused.", ...PATH_NOTE],
   },
   {
+    name: "host",
+    group: "Serve",
+    summary: "Manage Desktop-local remote Host registrations",
+    usage: `${brand.cliCommand} host list|register <origin> <label>|rename <hostId> <label>|remove <hostId>|connect <hostId>|status <hostId>`,
+    details: ["JSON results. Registration requires Desktop restart; probes do not change window connections. Removal refuses without Desktop work/recovery protection."],
+  },
+  {
     name: "daemon",
     group: "Serve",
     summary: "Run and manage the HTTP daemon",
@@ -1912,6 +1919,10 @@ export function runCli(args: string[]): number {
 
 /** Asynchronous command surface; synchronous commands keep the existing runCli API. */
 export async function runCliAsync(args: string[]): Promise<number> {
+  if (args[0] === "host" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
+    try { return await (await import("./remote-host.ts")).remoteHostCli(args.slice(1)); }
+    catch (error) { return reportError(args, error); }
+  }
   if (args[0] !== "assistant" || args.includes("--version") || isCommandHelpRequest(args.slice(1))) return runCli(args);
   try {
     const operation = args[1];

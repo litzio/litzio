@@ -99,12 +99,13 @@ export async function startHttpHost(options: HttpHostOptions) {
       if (!desktop) return json(res, 405, "Method not allowed.");
       const method = req.headers["access-control-request-method"];
       const headers = String(req.headers["access-control-request-headers"] ?? "").toLowerCase().split(",").map(value => value.trim()).filter(Boolean);
-      if (!method || !["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"].includes(method) ||
-          headers.some(value => !["content-type", "x-litzio-protocol"].includes(value)) || !(api || media)) {
+      const health = !!options.daemon && url.pathname === "/daemon/health" && !url.search;
+      if (!method || (health && (method !== "GET" || headers.some(value => value !== "x-litzio-protocol"))) || !["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"].includes(method) ||
+          headers.some(value => !["content-type", "x-litzio-protocol"].includes(value)) || !(api || media || health)) {
         return json(res, 403, "Preflight is not allowed.");
       }
-      res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, POST, PUT, PATCH, DELETE");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Litzio-Protocol");
+      res.setHeader("Access-Control-Allow-Methods", health ? "GET" : "GET, HEAD, POST, PUT, PATCH, DELETE");
+      res.setHeader("Access-Control-Allow-Headers", health ? "X-Litzio-Protocol" : "Content-Type, X-Litzio-Protocol");
       res.statusCode = 204; res.end(); return;
     }
     if ((req.method === "GET" || req.method === "HEAD") && (Number(req.headers["content-length"]) > 0 || req.headers["transfer-encoding"])) {
