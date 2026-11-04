@@ -1,3 +1,4 @@
+import { DAEMON_PROTOCOL } from "../../../editor/server/daemon-protocol.ts";
 import { DESKTOP_ENTRY, DESKTOP_ORIGIN } from "../../../editor/shared/desktop-origin.ts";
 import { daemonPort } from "../../../editor/server/daemon-state.ts";
 import { brand } from "../../../../brand.ts";
@@ -586,7 +587,7 @@ test("started directly, the app owns one loopback daemon; start time and memory 
 test("bundled screen survives absent daemon and reconnects explicitly", async () => {
   const record = path.join(work,"daemon",appVersion.includes("-") ? "beta" : "stable","instance.json");
   mkdirSync(path.dirname(record),{recursive:true});
-  writeFileSync(record,JSON.stringify({ pid:process.pid, startedAt:new Date().toISOString(), instanceId:"offline-probe", processStartedAt:"probe", launcher:"cli-start", productVersion:appVersion, protocolVersion:"2", daemonHome:work, executable:process.execPath, roots:[], nonLoopback:false, url:origin }));
+  writeFileSync(record,JSON.stringify({ pid:process.pid, startedAt:new Date().toISOString(), instanceId:"offline-probe", processStartedAt:"probe", launcher:"cli-start", productVersion:appVersion, protocolVersion:DAEMON_PROTOCOL, daemonHome:work, executable:process.execPath, roots:[], nonLoopback:false, url:origin }));
   let fake = true;
   let app: ElectronApplication | undefined;
   try {

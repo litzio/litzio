@@ -201,6 +201,7 @@ test("daemon checks protocol/product versions and only stops its own instance", 
   assert.deepEqual(await (await send("/api/document")).json(), { start: true });
   assert.equal((await send("/")).status, 200);
   assert.equal((await send("/daemon/health", "GET", undefined, { "X-Litzio-Protocol": "incompatible" })).status, 409);
+  assert.equal((await send("/daemon/health", "GET", undefined, { "X-Litzio-Protocol": "2" })).status, 409, "pre-bundle daemon protocol must be refused before connection");
   const warnings: string[] = [], record = { ...health, url };
   assert.deepEqual(await inspectDaemon(record, "new-product", message => warnings.push(message)), health);
   assert.match(warnings.join(), /WARNING.*restart explicitly/);

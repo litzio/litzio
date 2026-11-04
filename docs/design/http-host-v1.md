@@ -23,7 +23,7 @@ Desktop은 `litzio://app/index.html`에서 앱에 들어 있는 정적 UI만 제
 scheme은 Core/문서/API handler가 아니다. 최초 Host 요청은 main의 daemon identity·protocol
 확인이 성공할 때까지 기다리며 화면·theme·연결 알림은 기다리지 않는다. 연결 실패 시
 NotificationCenter에 원인과 CLI 안내, 수동 Reconnect가 남는다. 재연결은 같은 편집
-세션을 유지한다. 제품 버전 차이는 경고하며 호환 계층·capability 협상은 없다.
+세션을 유지한다. CORS 미지원 구 daemon을 연결 완료로 오인하지 않도록 프로토콜은 3이다. 제품 버전 차이는 경고하며 호환 계층·capability 협상은 없다.
 
 TCP Host authority 목록은 그대로다. UI Origin은 **정확히 `litzio://app` 하나**만 추가한다.
 API/media의 cross-site 거부 예외와 `Access-Control-Allow-Origin`은 그 Origin에만 적용한다.
@@ -86,7 +86,7 @@ Manual foreground listeners use an endpoint-specific lock in the same directory.
 
 `GET /daemon/health` returns PID, start time, instance ID, **productVersion**
 and **protocolVersion** separately. Clients must verify all identity fields against discovery.
-Daemon health/stop requests require `X-Litzio-Protocol: 2`; mismatch returns 409 before operations. Other requests may omit this header, but an explicit mismatching value is refused. A product
+Daemon health/stop requests require `X-Litzio-Protocol: 3`; mismatch returns 409 before operations. Other requests may omit this header, but an explicit mismatching value is refused. A product
 version difference warns and retains the connection. On a protocol mismatch, use the CLI version
 matching the running daemon to stop it (with that channel), or Ctrl+C in its foreground terminal,
 then start the desired version. The incompatible CLI does not bypass protocol checks to stop it;
