@@ -21,6 +21,7 @@ type FolderDialogProps = {
   initialPath: string;
   recent: string[];
   restricted?: boolean;
+  allowedRoots?: string[];
   browse(path: string): Promise<FolderBrowseResponse>;
   places(): Promise<FolderPlace[]>;
   /** Resolves to an error message, or "" once the folder is open or the image chosen. */
@@ -51,7 +52,7 @@ const folderName = (folder: string) => splitDocumentPath(folder.replace(/(?<=.)[
  * source: the list shows the folder up to its last separator, filtered by typed text after it; Open
  * opens exactly the typed path. Moving into a folder never opens it.
  */
-export function FolderDialog({ open, title, description, showSidebarHint = true, choose = "folder", initialPath, recent, restricted, browse, places, onOpen, onCreateFolder, returnFocus, finalFocus, onClose, onClosed }: FolderDialogProps) {
+export function FolderDialog({ open, title, description, showSidebarHint = true, choose = "folder", initialPath, recent, restricted, allowedRoots, browse, places, onOpen, onCreateFolder, returnFocus, finalFocus, onClose, onClosed }: FolderDialogProps) {
   useTranslation();
   const [input, setInput] = useState("");
   const [pathFromClick, setPathFromClick] = useState(false);
@@ -71,8 +72,10 @@ export function FolderDialog({ open, title, description, showSidebarHint = true,
 
   const path = unquotePath(input);
   const cut = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-  const directory = cut < 0 ? "" : path.slice(0, cut + 1);
-  const partial = path.slice(cut + 1).toLowerCase();
+  // A complete allowed root is a location, not a partial name in its forbidden parent.
+  const atRoot = allowedRoots?.some(root => root.replace(/[\\/]+$/, "") === path.replace(/[\\/]+$/, ""));
+  const directory = atRoot ? inside(path) : cut < 0 ? "" : path.slice(0, cut + 1);
+  const partial = atRoot ? "" : path.slice(cut + 1).toLowerCase();
   const result = listing.directory === directory ? listing.result : undefined;
   const pdf = choose === "pdf";
   const image = choose === "image" || pdf;

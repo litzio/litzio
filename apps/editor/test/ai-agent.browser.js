@@ -62,8 +62,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.reload();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   const categories = page.getByRole('navigation', { name: /^(Settings categories|설정 분류)$/ });
-  await categories.getByRole('button', { name: 'AI agent', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'AI agent', exact: true }).last()).toBeVisible();
+  await categories.getByRole('button', { name: 'Assistant', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Assistant', exact: true }).last()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Codex models', exact: true })).toContainText('Available');
   await page.getByRole('button', { name: 'Codex models', exact: true }).click();
   const modelDialog = page.getByRole('dialog', { name: 'Codex models', exact: true });
@@ -85,7 +85,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(page.getByText('example@example.invalid · plus')).toBeVisible();
   await expect(page.getByText('docs · connected · oAuth', { exact: true })).toBeVisible();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-1440-light-en.png' });
-  await page.getByRole('button', { name: '← AI agent', exact: true }).click();
+  await page.getByRole('button', { name: '← Assistant', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'AI default language', exact: true })).toHaveValue('en');
   // Delayed storage is the regression input: ordinary edits stay usable and queue.
   let releaseWrite;
@@ -130,7 +130,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await categories.getByRole('button', { name: 'Appearance & language', exact: true }).click();
   await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
   await page.setViewportSize({ width: 640, height: 1000 });
-  await categories.getByRole('button', { name: 'AI 에이전트', exact: true }).click();
+  await categories.getByRole('button', { name: '비서', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Codex 모델', exact: true })).toContainText('사용 가능');
   await expect(page.getByLabel('모델', { exact: true })).toHaveValue('gpt-6.1-sol');
   await expect(page.getByLabel('추론 강도', { exact: true })).toHaveValue('high');
@@ -149,7 +149,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(page.getByText('docs · 연결됨 · OAuth', { exact: true })).toBeVisible();
   expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-640-dark-ko.png' });
-  await page.getByRole('button', { name: '← AI 에이전트', exact: true }).click();
+  await page.getByRole('button', { name: '← 비서', exact: true }).click();
   // Official assistant and ordinary unsaved document share the shell.
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   const editor = page.locator('.document-scroll[data-active=true] .ProseMirror');
@@ -287,7 +287,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await page.keyboard.press('Escape');
   await panel.getByRole('button', {name: 'Close assistant', exact: true}).click();
   await page.getByRole('button', {name: 'Settings', exact: true}).click();
-  await page.getByRole('navigation', {name: 'Settings categories'}).getByRole('button', {name: 'AI agent', exact: true}).click();
+  await page.getByRole('navigation', {name: 'Settings categories'}).getByRole('button', {name: 'Assistant', exact: true}).click();
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await page.getByRole('button', {name: 'Assistant', exact: true}).click();
   await expect(message).toBeEnabled();
@@ -740,7 +740,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByRole('textbox')).toBeDisabled();
   if (screenshots) await page.screenshot({ path: 'tmp/931-evidence/setup-640-dark-ko.png' });
   await panel.getByRole('button', { name: 'AI 설정 열기' }).click();
-  await expect(page.getByRole('heading', { name: 'AI 에이전트', exact: true }).last()).toBeVisible();
+  await expect(page.getByRole('heading', { name: '비서', exact: true }).last()).toBeVisible();
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   await expect(panel).toBeHidden();
   expect(await page.locator('.app-main').evaluate(element => element.inert)).toBe(false);
@@ -868,7 +868,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.locator('.assistant-turn[data-status="inProgress"]')).toBeVisible();
   await page.getByRole('button', { name: '설정', exact: true }).click();
   await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
-  await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'AI agent', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Assistant', exact: true }).click();
   const writesBeforeProvider = settingsWrites.length;
   await page.getByLabel('Default provider', { exact: true }).selectOption('copilot');
   await expect(page.getByLabel('Model', { exact: true })).toHaveValue('auto');
@@ -896,7 +896,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   if (screenshots) {
     await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Appearance & language', exact: true }).click();
     await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
-    await page.getByRole('navigation', { name: '설정 분류' }).getByRole('button', { name: 'AI 에이전트', exact: true }).click();
+    await page.getByRole('navigation', { name: '설정 분류' }).getByRole('button', { name: '비서', exact: true }).click();
     await expect(page.getByLabel('기본 프로바이더', { exact: true })).toHaveValue('copilot');
     await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-dark-ko.png' });
     await page.setViewportSize({ width: 640, height: 1000 });

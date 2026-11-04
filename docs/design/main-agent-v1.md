@@ -1,7 +1,7 @@
 # Main agent connection, settings and conversations
 
 - Status: Implemented
-- Official AI transition: 2026-11-04 (#1150 ③). `ai-host.ts` composes connections/conversations directly; no registration, manifest, worker or plugin UI is loaded. Settings use the built-in Settings → AI agent category with the shared Button, SettingsSelect and Dialog components. No UI pattern exception. Protocol version 2 refuses older daemons.
+- Official AI transition: 2026-11-04 (#1150 ③). `ai-host.ts` composes connections/conversations directly; no registration, manifest, worker or plugin UI is loaded. Settings use the built-in Settings → Assistant category with the shared Button, SettingsSelect and Dialog components. No UI pattern exception. Protocol version 2 refuses older daemons.
 - Historical PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation. PR4's packaged worker/native comparison was required Windows CI then; #1150 ③ removed that feature. Current Windows CI retains packaged Desktop and main/CLI license-notice checks in the startup/sample smoke.
 - Saved-file context (#1106): 2026-11-04 owner decision; fake Host/protocol, existing ai-agent browser and Korean 1440px/640px Light/Dark capture checks, no real model turn.
 - Copilot options/full access (#1091): 2026-11-03; fake ACP/Codex/Host checks, existing ai-agent browser and 1440px/640px Korean Dark captures; one real no-prompt catalog session only.
@@ -1208,3 +1208,7 @@ selection. The Host does not prove a browser click or distinguish that trusted
 caller's custom HTTP request from the UI. This change adds no approval service,
 identity system or protection against a hostile operator/administrator. In contrast,
 assistant-writable history is never accepted as authority to elevate a grant.
+
+#1159: User-facing settings and messages consistently use Assistant (비서); provider names remain Codex and GitHub Copilot. Existing Settings components are reused.
+
+Verification captures: [1440px English Light](assets/editor-1159/ai-1440-light-en.png), [640px Korean Dark](assets/editor-1159/ai-640-dark-ko.png).

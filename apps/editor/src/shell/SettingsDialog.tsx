@@ -150,7 +150,7 @@ export function SettingsDialog({ onAiSaved, theme, themeProblem, onThemeChange, 
   const categories = [
     { id: "appearance", label: i18n.t("Appearance & language"), icon: Palette },
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
-    { id: "ai", label: i18n.t("AI agent"), icon: FileText },
+    { id: "ai", label: i18n.t("Assistant"), icon: FileText },
     ...(desktop ? [{ id: "about" as const, label: i18n.t("About & updates"), icon: Info }] : []),
   ] as const;
 

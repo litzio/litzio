@@ -1381,6 +1381,7 @@ function EditorApp() {
         initialPath={folders.rootOf(openedPath) ?? folders.roots.at(-1) ?? splitDocumentPath(openedPath).directory}
         recent={visibleRecent}
         restricted={allowedRoots !== undefined}
+        allowedRoots={allowedRoots}
         browse={browseHostFolder}
         places={folderPlaces}
         onOpen={path => openFolder(path, newAfterFolder)}
@@ -1402,6 +1403,7 @@ function EditorApp() {
         initialPath={imageChoice ? splitDocumentPath(imageChoice.documentPath).directory : ""}
         recent={visibleRecent}
         restricted={allowedRoots !== undefined}
+        allowedRoots={allowedRoots}
         browse={browseHostImages}
         places={folderPlaces}
         onOpen={selectImage}

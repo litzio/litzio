@@ -24,9 +24,10 @@ export function FileActionDialog({ action, entry, trash, dirty, returnFocus, onE
   const pendingRef = useRef(false);
   const execute = async () => {
     if (pendingRef.current) return;
-    if (action === "rename" && !validFileStem(name)) { setError(t("Enter a valid file name without an extension or directory path.")); return; }
+    const stem = extension.toLowerCase() === ".md" && name.toLowerCase().endsWith(".md") ? name.slice(0, -3) : name;
+    if (action === "rename" && !validFileStem(stem)) { setError(t("Enter a valid file name without an extension or directory path.")); return; }
     pendingRef.current = true; setPending(true); setError("");
-    try { await onExecute(action === "rename" ? name : undefined); onClose(); }
+    try { await onExecute(action === "rename" ? stem : undefined); onClose(); }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { pendingRef.current = false; setPending(false); }
   };

@@ -105,9 +105,9 @@ export function AiSettings({ onSaved }: { onSaved(): void }) {
     const date = (value?: number) => value ? new Date(value).toLocaleString() : t("Not checked");
     const filteredModels = models?.models.filter(item => `${item.displayName} ${item.model}`.toLowerCase().includes(search.toLowerCase()));
     const row = (label: string, content: ReactNode) => <div className="agent-diagnostic-row"><span>{label}</span><div>{content}</div></div>;
-    return <section className="agent-settings" aria-label={t("AI agent")}>
+    return <section className="agent-settings" aria-label={t("Assistant")}>
       {view === "diagnostics" ? <>
-        <div><Button variant="ghost" onClick={() => setView("settings")}>← {t("AI agent")}</Button></div>
+        <div><Button variant="ghost" onClick={() => setView("settings")}>← {t("Assistant")}</Button></div>
         <div className="agent-heading"><h3 className="settings-heading">{copilot ? t("Copilot diagnostics") : t("Codex diagnostics")}</h3><Button variant="secondary" disabled={loading} onClick={() => void refresh()}>{t("Run diagnostics")}</Button></div>
         <p className="agent-muted">{t("Last checked")}: {date(diagnostics?.checkedAt)}</p>
         <div className="agent-diagnostics">

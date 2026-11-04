@@ -416,3 +416,5 @@ One retained read-only DocumentEditor replaces preview content, with a short ope
 delay, keyboard-scroll region and Escape focus return. Cards expose creation
 outside the preview. Descriptions stay on hover/focus; only the Built-in badge is
 persistent. Existing tokens and Button variants apply; no public Plugin API is added.
+
+#1159: U22 Settings와 비서 패널의 사용자 표시 이름은 비서(Assistant)로 통일한다. 기존 Settings·Dialog·Input을 유지하며 U23 새 문서와 이름 변경의 `.md` 중복 방지를 확인했다. [현재 비서 계약과 캡처](main-agent-v1.md), [Root picker 계약](http-host-v1.md#allowed-roots-and-open-folder).

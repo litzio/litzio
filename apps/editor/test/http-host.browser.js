@@ -20,7 +20,14 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
     await openFolderPicker(page);
     await picker.waitFor();
   };
+  const browseRequests = [];
+  const trackBrowse = request => { if (request.url().includes('/api/folder-browse?')) browseRequests.push(decodeURIComponent(request.url().split('path=')[1].split('&')[0].replace(/\+/g, ' '))); };
+  page.on('request', trackBrowse);
   await openPicker();
+  await page.getByTestId('folder-path').fill(a);
+  await picker.getByRole('option', {name:'fixture', exact:true}).waitFor();
+  check(browseRequests.every(value => start.allowedRoots.some(root => value === root || value.startsWith(root + sep))), 'Opening and typing an allowed root never lists its parent');
+  page.off('request', trackBrowse);
   const places = picker.getByRole('region', {name:'Server shared folders', exact:true});
   await places.getByTitle(a, {exact:true}).click();
   await picker.getByRole('option', {name:'fixture', exact:true}).waitFor();

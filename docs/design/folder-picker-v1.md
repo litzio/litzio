@@ -318,3 +318,5 @@ Future changes follow the [verification matrix](../../CONTRIBUTING.md#verificati
 Historical local verification (2026-10-07) passed: 441 Core/CLI/Editor tests, all 36 browser regressions,
 typecheck, production build and diff whitespace checks. The folder regression also
 produced 1440px and 375px captures for visual review. Source fixtures remained unchanged.
+
+#1159: Markdown rename accepts an optional `.md` suffix case-insensitively and preserves the existing extension once. New document input already follows this rule. Existing Dialog and Input are reused without a UI pattern exception.
