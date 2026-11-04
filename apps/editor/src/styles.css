@@ -246,6 +246,19 @@ button {
   line-height: var(--line-height-meta);
 }
 
+/* A single Host passes the sidebar's height constraint through its grouping wrapper. */
+.sidebar-content:not(.sidebar-content--multi-host) > .sidebar-host {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+/* Multiple Hosts scroll together; a filter only hides their mounted sections. */
+.sidebar-content--multi-host { overflow-y: auto; }
+.sidebar-content--multi-host > .sidebar-host,
+.sidebar-content--multi-host > .host-filter { flex: none; }
+
 /* The chosen folder takes the remaining sidebar height and scrolls by itself. */
 .sidebar-folder {
   display: flex;
@@ -255,11 +268,11 @@ button {
 }
 
 /* One opened folder keeps its heading while its tree scrolls; several scroll together as one list. */
-.sidebar-content:has(> .sidebar-folder + .sidebar-folder) {
+.sidebar-host:has(> .sidebar-folder + .sidebar-folder) {
   overflow-y: auto;
 }
 
-.sidebar-content:has(> .sidebar-folder + .sidebar-folder) > .sidebar-folder {
+.sidebar-host:has(> .sidebar-folder + .sidebar-folder) > .sidebar-folder {
   flex: none;
 }
 

@@ -3062,6 +3062,10 @@ Connection state uses the shared [HostConnectionStatus](../../apps/editor/src/co
 component with a token-colored dot and a localized state name; Unreachable does not claim
 that the remote machine is powered off. The state tooltip carries the observed error/origin.
 
+With one Host, one folder keeps its heading while its tree scrolls within the sidebar height;
+several folders scroll together. The Host grouping wrapper preserves that height constraint.
+Multiple Host sections scroll together inside Explorer, keeping the footer outside the list.
+
 Each Host section offers Open folder only while it has no opened folders. With folders open,
 the existing folder menus offer the same action on both local and remote Hosts.
 

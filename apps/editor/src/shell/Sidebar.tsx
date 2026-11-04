@@ -106,7 +106,7 @@ export function Sidebar({
         </div>
       </div>
       {/* Keep the tree mounted: collapse retains scroll and keyboard position. */}
-      <div ref={content} id="sidebar-files" className="sidebar-content" hidden={!open}
+      <div ref={content} id="sidebar-files" className={`sidebar-content${hosts.length > 1 ? " sidebar-content--multi-host" : ""}`} hidden={!open}
         onContextMenu={event => {
           if (!event.currentTarget.contains(event.target as Node) || (event.target as Element).closest(".sidebar-folder-header, .sidebar-tree-item")) return;
           event.preventDefault(); event.stopPropagation();
@@ -114,7 +114,7 @@ export function Sidebar({
           blankTrigger.current?.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: event.clientX, clientY: event.clientY }));
         }}>
         {hosts.length > 1 ? <div className="host-filter"><SettingsSelect label={i18n.t("Host")} value={hostFilter} options={[{ value: "", label: i18n.t("All Hosts") }, ...hosts.map(host => ({ value: host.hostId, label: host.label }))]} onChange={setHostFilter} /></div> : null}
-        <section data-host-id="local" hidden={!!hostFilter && hostFilter !== "local"} aria-label={hosts.find(host => host.hostId === "local")?.label ?? "Local"}>
+        <section className="sidebar-host" data-host-id="local" hidden={!!hostFilter && hostFilter !== "local"} aria-label={hosts.find(host => host.hostId === "local")?.label ?? "Local"}>
         {hosts.length > 1 ? <HostStatus hostId="local" /> : null}
         {folders.length > 0 ? folders.map(tree => (
           <FolderTree
@@ -164,7 +164,7 @@ export function Sidebar({
           </section>
         )}
         </section>
-        {hosts.filter(host => host.hostId !== "local").map(host => <div key={host.hostId} hidden={!!hostFilter && hostFilter !== host.hostId}><HostExplorer documentPath={documentHostId === host.hostId ? documentPath : ""} isFileDirty={path => onHostDirty?.(host.hostId, path) ?? false} hostId={host.hostId} onOpen={path => onHostOpen?.(host.hostId, path) ?? Promise.reject(new Error("Host navigation unavailable"))} onFileAction={(...args) => onHostFileAction?.(host.hostId, ...args) ?? Promise.reject(new Error("Host file actions unavailable"))} disabled={fileActionsDisabled} /></div>)}
+        {hosts.filter(host => host.hostId !== "local").map(host => <div className="sidebar-host" key={host.hostId} hidden={!!hostFilter && hostFilter !== host.hostId}><HostExplorer documentPath={documentHostId === host.hostId ? documentPath : ""} isFileDirty={path => onHostDirty?.(host.hostId, path) ?? false} hostId={host.hostId} onOpen={path => onHostOpen?.(host.hostId, path) ?? Promise.reject(new Error("Host navigation unavailable"))} onFileAction={(...args) => onHostFileAction?.(host.hostId, ...args) ?? Promise.reject(new Error("Host file actions unavailable"))} disabled={fileActionsDisabled} /></div>)}
       </div>
       <ContextMenu actions={blankActions} trigger={<div ref={blankTrigger} className="contents" />} />
       {onSettings || onThemeChange || contributions.length ? (
