@@ -7,7 +7,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.evaluate(prefix => localStorage.setItem(prefix + '.uiLanguage', 'ko'), brand.storagePrefix);
   await page.reload();
   // No model or account is used by browser tests; Host lifecycle is covered headlessly.
-  let settings = { provider: 'codex', enabled: true, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium' };
+  let settings = { provider: 'codex', providers: { codex: true, copilot: false }, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium' };
   const models = [{ id: 'sol', model: 'gpt-6.1-sol', displayName: 'GPT Sol', description: 'General model', defaultReasoningEffort: 'medium', supportedReasoningEfforts: ['medium', 'high'].map(reasoningEffort => ({ reasoningEffort })) },
     { id: 'luna', model: 'gpt-6-luna', displayName: 'GPT Luna', description: 'Fast model', defaultReasoningEffort: 'low', supportedReasoningEfforts: [{ reasoningEffort: 'low' }] }];
   let skillsFail = false, longSkills = false, skillLookups = 0;
@@ -17,11 +17,13 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   const copilotModels = ['auto', 'copilot-model'].map(id => ({ id, model: id, displayName: id === 'auto' ? 'Auto' : 'Copilot fixture model', description: '', supportedReasoningEfforts: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'].map(reasoningEffort => ({ reasoningEffort })), defaultReasoningEffort: 'medium' }));
   let refreshes = 0, connectionAvailable = true;
   const settingsWrites = [];
-  let settingsGate;
+  let settingsGate, writeGate, failSave = false;
   await page.route('**/api/ai-agent-settings*', async route => {
     if (route.request().method() === 'GET') await settingsGate;
     if (route.request().method() === 'PUT') {
       const next = route.request().postDataJSON(); settingsWrites.push(next);
+      await writeGate;
+      if (failSave) { failSave = false; return route.fulfill({ status: 503, json: { error: 'Fixture save failure' } }); }
       if (!connectionAvailable && (next.model !== settings.model || next.reasoningEffort !== settings.reasoningEffort)) return route.fulfill({ status: 503, json: { error: 'Codex is disconnected.' } });
       settings = next;
     }
@@ -83,36 +85,50 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.keyboard.press('Escape');
   await expect(modelDialog).toBeHidden();
   await expect(page.getByRole('button', { name: 'Codex models', exact: true })).toBeFocused();
-  await page.getByTestId('settings-dialog').getByRole('button', { name: 'Diagnostics', exact: true }).click();
+  await page.getByTestId('settings-dialog').getByRole('button', { name: 'Diagnostics', exact: true }).first().click();
   await expect(page.getByText('example@example.invalid · plus')).toBeVisible();
   await expect(page.getByText('docs · connected · oAuth', { exact: true })).toBeVisible();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/diagnostics-1440-light-en.png' });
   await page.getByRole('button', { name: '← AI agent', exact: true }).click();
   await expect(page.getByRole('combobox', { name: 'AI default language', exact: true })).toHaveValue('en');
+  // Delayed storage is the regression input: ordinary edits stay usable and queue.
+  let releaseWrite;
+  writeGate = new Promise(resolve => { releaseWrite = resolve; });
+  const beforeQueue = settingsWrites.length;
   await page.getByRole('combobox', { name: 'AI default language', exact: true }).selectOption('ja');
   await page.getByLabel('Model', { exact: true }).selectOption('gpt-6-luna');
   await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('low');
+  await expect(page.getByRole('button', { name: 'Copilot models', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save AI settings', exact: true })).toHaveCount(0);
+  expect(settingsWrites.length).toBe(beforeQueue + 1);
+  failSave = true; // An older failed snapshot must not leave an error after the queued latest save succeeds.
+  writeGate = undefined; releaseWrite();
+  await expect.poll(() => settings.model).toBe('gpt-6-luna');
+  expect(settings.responseLanguage).toBe('ja');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  failSave = true;
+  await page.getByLabel('Write access', { exact: true }).selectOption('read-only');
+  await expect(page.getByRole('alert')).toHaveText('Could not save AI settings.');
+  expect(settings.writeAccess).toBe('opened-folders');
+  failSave = false;
+  await page.getByLabel('Write access', { exact: true }).selectOption('opened-folders');
+  await expect(page.getByRole('alert')).toHaveCount(0);
   connectionAvailable = false;
-  await page.getByRole('switch', { name: 'Use Codex', exact: true }).focus();
   await page.getByRole('switch', { name: 'Use Codex', exact: true }).press('Space');
-  await expect.poll(() => settingsWrites.length).toBe(1);
-  expect(settingsWrites[0]).toEqual({ provider: 'codex', enabled: false, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium' });
-  await expect(page.getByRole('switch', { name: 'Use Codex', exact: true })).not.toBeChecked();
-  await expect(page.getByLabel('Model', { exact: true })).toHaveValue('gpt-6-luna');
-  await expect(page.getByRole('button', { name: 'Save AI settings', exact: true })).toBeDisabled();
+  await expect.poll(() => settings.providers.codex).toBe(false);
+  await expect(page.getByLabel('Model', { exact: true })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Codex models', exact: true })).toContainText('Off');
   connectionAvailable = true;
   await page.getByRole('switch', { name: 'Use Codex', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Codex models', exact: true })).toContainText('Available');
-  expect(settingsWrites[1]).toEqual({ provider: 'codex', enabled: true, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium' });
+  await expect.poll(() => settings.providers.codex).toBe(true);
   await expect(page.getByLabel('Model', { exact: true })).toHaveValue('gpt-6-luna');
-  await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('low');
   const measure = () => page.locator('.settings-content-inner').evaluate(element => ({ x: element.getBoundingClientRect().x, width: element.getBoundingClientRect().width }));
   await page.getByLabel('Model', { exact: true }).selectOption('gpt-6-luna');
   await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('low');
   await expect(page.getByLabel('Reasoning effort', { exact: true }).locator('option')).toHaveText(['low']);
   await page.getByLabel('Model', { exact: true }).selectOption('gpt-6.1-sol');
   await page.getByLabel('Reasoning effort', { exact: true }).selectOption('high');
+  await expect.poll(() => settings.reasoningEffort).toBe('high');
   const writesBeforeSwitch = settingsWrites.length;
   const documentTab = page.getByRole('tab').filter({hasNotText:'Settings'}).first();
   await documentTab.click();
@@ -120,9 +136,8 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(page.getByLabel('Reasoning effort',{exact:true})).toHaveValue('high');
   expect(settingsWrites.length).toBe(writesBeforeSwitch);
 
-  await page.getByRole('button', { name: 'Save AI settings', exact: true }).click();
-  await expect(page.getByText('AI settings saved.', { exact: true })).toBeVisible();
-  expect(settings).toEqual({ provider: 'codex', enabled: true, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'high', responseLanguage: 'ja' });
+  await expect.poll(() => settings.reasoningEffort).toBe('high');
+  expect(settings).toEqual({ provider: 'codex', providers: { codex: true, copilot: false }, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'high', responseLanguage: 'ja' });
   const aiGeometry = await measure();
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/ai-1440-light-en.png' });
     await page.getByTestId('settings-dialog').getByRole('navigation').getByRole('button', { name: /^(Plugins|플러그인)$/, exact: true }).click();
@@ -150,7 +165,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Codex 모델', exact: true })).toBeHidden();
   await expect(page.getByRole('button', { name: 'Codex 모델', exact: true })).toBeFocused();
-  await page.getByTestId('settings-dialog').getByRole('button', { name: '진단', exact: true }).click();
+  await page.getByTestId('settings-dialog').getByRole('button', { name: '진단', exact: true }).first().click();
   await expect(page.getByRole('heading', { name: 'Codex 진단', exact: true })).toBeVisible();
   await expect(page.getByText('docs · 연결됨 · OAuth', { exact: true })).toBeVisible();
   expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
@@ -516,14 +531,14 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   releaseSnapshot(); snapshotGate = undefined;
   await expect.poll(() => snapshots).toBeGreaterThan(resumedSnapshots);
   await panel.getByRole('button', { name: 'Close assistant' }).click();
-  settings.enabled = false;
+  settings.providers.codex = false;
   await page.getByRole('button', { name: 'Assistant', exact: true }).click();
   await expect(panel.getByText('Codex is disabled.', { exact: true })).toBeVisible();
   const offSnapshots = snapshots;
   await page.waitForTimeout(1300);
   expect(snapshots, 'Disabled Codex stops snapshot requests').toBe(offSnapshots);
   await panel.getByRole('button', { name: 'Close assistant' }).click();
-  settings.enabled = true; setupMode = 'login';
+  settings.providers.codex = true; setupMode = 'login';
   await page.getByRole('button', { name: 'Assistant', exact: true }).click();
   await expect(panel.getByText('Sign in to Codex to start a conversation.', { exact: true })).toBeVisible();
   const setupSnapshots = snapshots;
@@ -860,15 +875,16 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
   await expect(page.getByTestId('plugin-settings').getByRole('button', { name: 'AI agent settings', exact: true })).toBeEnabled();
   await page.getByTestId('plugin-settings').getByRole('button', { name: 'AI agent settings', exact: true }).click();
   const writesBeforeProvider = settingsWrites.length;
+  await page.getByRole('switch', { name: 'Use Copilot', exact: true }).click();
+  await expect.poll(() => settings.providers.copilot).toBe(true);
   await page.getByLabel('Default provider', { exact: true }).selectOption('copilot');
   await expect(page.getByLabel('Model', { exact: true })).toHaveValue('auto');
   await expect(page.getByLabel('Reasoning effort', { exact: true })).toHaveValue('medium');
   await expect(page.getByText('Litzio skills', { exact: true })).toHaveCount(0);
-  expect(settingsWrites.length).toBe(writesBeforeProvider);
-  // Keep the dock open: Save must retire the active old-provider conversation.
+  await expect.poll(() => settingsWrites.length).toBe(writesBeforeProvider + 2);
+  // Keep the dock open: autosave must retire the active old-provider conversation.
   await expect(panel).not.toHaveAttribute('role', 'dialog');
-  await page.getByRole('button', { name: 'Save AI settings', exact: true }).click();
-  await expect(page.getByText('AI settings saved.', { exact: true })).toBeVisible();
+  await expect.poll(() => settings.provider).toBe('copilot');
   await expect(panel.getByRole('button', { name: 'Conversation model and effort' })).toHaveText('auto · medium · Agent');
   await expect(panel.getByRole('textbox')).not.toBeFocused();
   await expect(panel.locator('.assistant-turn')).toHaveCount(0);
@@ -901,7 +917,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, pluginFixture, sc
     await expect(page.getByLabel('모델', { exact: true })).toHaveValue('auto');
     expect(await page.locator('.settings-content').evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
     if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/copilot-640-dark-ko.png' });
-    await page.getByRole('button', { name: 'AI 설정 저장', exact: true }).scrollIntoViewIfNeeded();
+    await page.getByLabel('AI 기본 언어', { exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: 'tmp/880-evidence/copilot-640-dark-ko-scrolled.png' });
     await page.locator('[data-tab-id="settings"] .document-tab-close').click();
     await page.getByRole('button', { name: '비서', exact: true }).click();

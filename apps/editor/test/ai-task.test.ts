@@ -161,15 +161,16 @@ test("agent-owned settings persist, reach the worker, and remain pinned in seria
   assert.equal((await (await fetch(url + AI_AGENT.modelsRoute)).json()).models.length, 3);
   assert.equal((await (await fetch(url + AI_AGENT.diagnosticsRoute)).json()).connected, true);
   assert.equal((await (await fetch(url + AI_AGENT.environmentRoute)).json()).cwd, path.join(root, "assistant"));
-  assert.deepEqual(host.invoke(AI_TASK.plugin, "settings"), { responseLanguage: ["ko", "ja"].includes(Intl.DateTimeFormat().resolvedOptions().locale.split("-")[0]!) ? Intl.DateTimeFormat().resolvedOptions().locale.split("-")[0] : "en", provider: "codex", enabled: true, writeAccess: "opened-folders", model: "gpt-6.1-sol", reasoningEffort: "medium" });
+  assert.deepEqual(host.invoke(AI_TASK.plugin, "settings"), { responseLanguage: ["ko", "ja"].includes(Intl.DateTimeFormat().resolvedOptions().locale.split("-")[0]!) ? Intl.DateTimeFormat().resolvedOptions().locale.split("-")[0] : "en", provider: "codex", providers: { codex: true, copilot: false }, writeAccess: "opened-folders", model: "gpt-6.1-sol", reasoningEffort: "medium" });
+  const enablement = { provider: "codex", providers: { codex: true, copilot: false } };
   const execution = { model: "chosen-model", reasoningEffort: "xhigh", responseLanguage: "ja" as const };
-  await host.invoke(AI_TASK.plugin, "configure", { ...execution, responseLanguage: "ja" });
+  await host.invoke(AI_TASK.plugin, "configure", { ...enablement, ...execution, responseLanguage: "ja" });
   assert.equal(host.invoke(AI_TASK.plugin, "settings").responseLanguage, "ja");
-  await assert.rejects(() => host.invoke(AI_TASK.plugin, "configure", { ...execution, responseLanguage: "invalid" }), /Invalid AI/);
-  await assert.rejects(() => host.invoke(AI_TASK.plugin, "configure", { ...execution, reasoningEffort: "invalid" }), /Invalid AI/);
+  await assert.rejects(() => host.invoke(AI_TASK.plugin, "configure", { ...enablement, ...execution, responseLanguage: "invalid" }), /Invalid AI/);
+  await assert.rejects(() => host.invoke(AI_TASK.plugin, "configure", { ...enablement, ...execution, reasoningEffort: "invalid" }), /Invalid AI/);
   const request = { ...message(input), caller: AI_TASK.plugin, schema: { type: "object", properties: { execution: { type: "object" } }, required: ["execution"], additionalProperties: false } };
   await host.aiTasks()!.start(request);
-  await host.invoke(AI_TASK.plugin, "configure", { model: "next-model", reasoningEffort: "low" });
+  await host.invoke(AI_TASK.plugin, "configure", { ...enablement, model: "next-model", reasoningEffort: "low" });
   const done = await finished(() => host.aiTasks()!.current(request.id));
   assert.equal(done.status, "success");
   assert.deepEqual(done.job.result, { execution }); assert.deepEqual(done.job.execution, execution);
@@ -211,14 +212,14 @@ test("agent-owned settings persist, reach the worker, and remain pinned in seria
   const interrupted = await fetch(url + AI_AGENT.conversationsRoute, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "interrupt", id: conversation.id }) });
   assert.equal((await interrupted.json()).turns[0].status, "interrupted");
   await agent.close(); // An enablement-only write must work without a live catalog connection.
-  const disable = await fetch(url + AI_TASK.settingsRoute, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "next-model", reasoningEffort: "low", provider: "codex", enabled: false, writeAccess: "read-only" }) });
+  const disable = await fetch(url + AI_TASK.settingsRoute, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "next-model", reasoningEffort: "low", provider: "codex", providers: { codex: false, copilot: false }, writeAccess: "read-only" }) });
   assert.equal(disable.status, 200);
   assert.throws(() => host.invoke(AI_TASK.plugin, "start", { ...request, id: randomUUID() }), /disabled/);
   assert.deepEqual((await host.invoke(AI_TASK.plugin, "start", request)).job.execution, execution, "disabling does not erase or rerun accepted work");
-  assert.throws(() => host.invoke(AI_TASK.plugin, "agentModels"), /disabled/);
+  // Metadata remains accessible for diagnostics while providers are off.
   assert.equal((await fetch(url + AI_AGENT.conversationsRoute)).status, 400);
-  await host.invoke(AI_TASK.plugin, "configure", { model: "next-model", reasoningEffort: "low", provider: "codex", enabled: true, writeAccess: "opened-folders" });
+  await host.invoke(AI_TASK.plugin, "configure", { model: "next-model", reasoningEffort: "low", provider: "codex", providers: { codex: true, copilot: false }, writeAccess: "opened-folders" });
   const observer = createPluginHost(new RootAccess([root]), path.join(root, "ai-settings.json"), { directory: path.join(root, "plugins") });
-  try { observer.aiTasks(); assert.deepEqual(observer.invoke(AI_TASK.plugin, "settings"), { provider: "codex", enabled: true, writeAccess: "opened-folders", model: "next-model", reasoningEffort: "low" }); }
+  try { observer.aiTasks(); assert.deepEqual(observer.invoke(AI_TASK.plugin, "settings"), { provider: "codex", providers: { codex: true, copilot: false }, writeAccess: "opened-folders", model: "next-model", reasoningEffort: "low" }); }
   finally { await observer.close(); }
 });

@@ -65,7 +65,7 @@ The `ai-agent` plugin's existing settings file stores (installed defaults shown)
 ```json
 {
   "provider": "codex",
-  "enabled": true,
+  "providers": { "codex": true, "copilot": false },
   "model": "gpt-6.1-sol",
   "reasoningEffort": "medium",
   "writeAccess": "opened-folders",
@@ -78,14 +78,15 @@ Changed model/effort pairs must occur in the current `model/list` response; no
 hard-coded effort list or model fallback is used. Save failures retain the UI
 draft. The persisted model may be shown as unavailable until a valid catalog
 selection is saved. Turning the provider off/on does not require a catalog read
-when the model/effort are unchanged. The switch writes only enablement against
-the last stored settings; unsaved model/effort drafts remain in the form until
-explicit Save. A disconnected catalog therefore does not prevent switching off.
-The model dialog's default marker reflects the stored model. Off refuses new
-feature tasks and model or
-diagnostic queries, while retained UUID receipts stay readable/replayable and
+when the model/effort are unchanged. Each change automatically saves a complete
+settings snapshot through a sequential request queue; late writes cannot overwrite
+newer choices. Errors retain the selected values and show a localized alert.
+
+A disconnected catalog therefore does not prevent switching off.
+The model dialog's default marker reflects the stored model. Codex off refuses new feature tasks; both off refuse new conversations.
+Model and diagnostic reads remain available for either provider, while retained UUID receipts stay readable/replayable and
 running tasks retain their existing cancellation path. This Host's app-server
-closes when its settings request disables Codex or `DELETE /api/worker-plugins`
+closes when its settings request disables the default provider or `DELETE /api/worker-plugins`
 unregisters `ai-agent`. The Host awaits process exit before acknowledging that
 unregistration; accepted exec work retains its drain/cancellation path.
 Ordinary editing is unaffected.
@@ -105,7 +106,7 @@ the next turn. Docling's separate execution policy is unchanged.
 
 AI default language offers Korean, English and Japanese. Its initial value follows
 Host OS / browser language, with English fallback, independently of display language.
-Explicit Save persists it; enablement-only writes do not save a language draft.
+Changing the language automatically persists it.
 It applies only to tasks started without a conversation, is pinned in the task's
 execution receipt, and reaches the worker prompt. Conversations follow the user's
 message language; document writing follows the target document language unless
@@ -135,8 +136,8 @@ admitted task or its UUID identity. See [AI task service](plugin-runtime-v1.md#a
 
 ## Settings UI
 
-The v3.1 flow is a Codex row with status dot/summary, diagnostics and enable
-switch; the row opens a searchable model dialog with supported efforts, default
+The flow always shows Codex and GitHub Copilot rows with name/status, diagnostics
+and independent enable switches; the row opens a searchable model dialog with supported efforts, default
 marker, update time and refresh. Diagnostics is a separate subview with return
 navigation. Defaults are provider, model, that model's supported effort and AI default language.
 The common environment shows cwd, `AGENTS.md` and actual Litzio skills.
@@ -145,7 +146,7 @@ The existing Settings content/control widths, colors, type and shared modal
 focus behavior are reused. Model results have a bounded scroll area. Both
 English Light at 1440px and Korean Dark at 640px retain visible controls and
 no horizontal overflow. Relative to the static mockup, the existing product
-Settings shell supplies navigation, and #930's explicit Save remains. Mockup
+Settings shell supplies navigation; #1109 replaces explicit Save with automatic saving. Mockup
 example error rows, further providers, disabled model-add decoration are not presented as functioning features. The common skill list includes the generated `litzio-guide`; this filesystem inventory does not itself prove Codex discovery.
 
 Contribution labels/descriptions are untranslated keys, translated by the shell
@@ -186,7 +187,7 @@ It also disables Codex with its catalog connection already closed.
 The `ai-agent` browser scenario mocks metadata/settings responses, checks
 language-switch regression, model filtering/efforts, refresh, diagnostics,
 provider toggle payloads with unsaved model/effort drafts and a disconnected
-catalog, explicit Save, re-entry, 640px layout and ordinary document preservation.
+catalog, automatic saving, re-entry, 640px layout and ordinary document preservation.
 Browser mocks do not prove account readiness or Host persistence.
 
 Representative captures from that same local browser run (four PNGs, about
@@ -935,9 +936,9 @@ Protocol evidence: [0.141.0 UserMessageItem::message](https://github.com/openai/
   without a thought-level config. No prompt/model call was made. Actual model
   execution and permissions remain owner checks.
 
-The existing Default provider select offers Codex and GitHub Copilot. Changing
-the draft fetches that provider's catalog without saving. Save validates the
-selected model against the provider's current response. Copilot's catalog is
+The Default provider select offers enabled providers. Changing it fetches that
+provider's catalog and automatically saves the first available model/effort.
+Host validates changed model/effort against the provider's current response. Copilot's catalog is
 `session/new.models.availableModels`, deduplicated by ID retaining the first entry.
 If absent, `auto` is prepended as **Auto**, **Let Copilot pick the best model**, matching
 Copilot/Paseo's returned catalog. One no-prompt
@@ -998,7 +999,7 @@ explicitly saves its selected model/effort. `checkedSettings` accepts full-acces
 no migration of earlier saved settings is included.
 
 UI uses #1070 Host SettingsSelect for provider/model/effort/language/write access,
-SettingsSwitch for enablement and SettingsAction for Save. Write access defaults to
+SettingsSwitch for each provider's enablement; all defaults save automatically. Write access defaults to
 opened-folders and also offers read-only and Full access. A native hover description
 explains that Full access removes the sandbox and automatically approves tools,
 paths and network access; no permanent warning is shown. Codex full-access turns use
@@ -1122,3 +1123,35 @@ surface and persistent Chrome profile: [1440 Light list](assets/assistant-skills
 [640 Dark Korean list](assets/assistant-skills-1047/list-640-dark-ko.png),
 [640 Dark Korean chip](assets/assistant-skills-1047/chip-640-dark-ko.png).
 The existing file-reference captures above provide the preceding composer state.
+
+## Independent provider settings (#1109)
+
+`AiAgentSettings` is a public `@litzio/plugin-api/ai` type. `enabled` is replaced
+by required `providers: Record<AiProvider, boolean>`; `provider` remains the default
+provider. Defaults enable Codex and disable Copilot. The default must be enabled
+unless both are off, when the assistant is off. Disabling the default selects the
+other enabled provider and its first advertised model/effort. Codex feature tasks
+(including Docling) follow the Codex flag independently of the assistant default.
+Old files without `providers` return current Host defaults without rewriting or
+migrating the file. New writes require the new shape.
+
+Both providers are always visible. Each row holds name/status, Diagnostics, then
+the existing Host SettingsSwitch with an accessible label. Model browsing and
+diagnostics inspect either provider without changing the default. Defaults reuse
+Host SettingsSelect; no save button or persistent success text remains. Saving
+and failure use existing localized status/alert text. No document semantics or
+CLI operation changes are introduced.
+
+Verification (2026-11-04): full workspace typecheck, Editor build, documentation
+and whitespace checks passed. Existing plugin tests cover old-file fallback and independent
+Codex admission; the existing ai-agent browser scenario covers the settings UI
+and assistant integration with fake providers (1m36s with manual captures).
+Delayed PUT responses (including an older failure followed by a successful latest
+snapshot) and a failed latest write exercise ordered autosave and localized
+error recovery; no new browser scenario or subprocess is added. The ai-result
+fixture uses the same new settings contract. No model calls or user settings
+writes are used. Captures: 1440px English Light and 640px Korean Dark
+[before wide](assets/ai-settings-1109/before/ai-1440-light-en.png),
+[after wide](assets/ai-settings-1109/after/ai-1440-light-en.png),
+[before narrow](assets/ai-settings-1109/before/ai-640-dark-ko.png),
+[after narrow](assets/ai-settings-1109/after/ai-640-dark-ko.png).
