@@ -55,12 +55,16 @@ another installation can stay running. The final owned-daemon close waits for pr
 well as record removal; a shutdown failure prevents `quitAndInstall`.
 
 NSIS setup and removal replace electron-builder's image-name process termination with a shared
-installation helper. It compares canonical installed executable paths (including the CLI shim's junction), checks CLI ownership and OS
+installation helper. Both binaries embed their own built helper, extract it to their temporary
+`$PLUGINSDIR`, and run it with the installed exe as RunAsNode. They never depend on an installed
+copy of the helper. In particular the first update from public `v0.0.2-beta.6` works even though
+that in-process-Host version has no helper or Desktop-owned daemon. No stop check is skipped.
+The installed helper remains available for diagnostics/tests. It compares canonical installed executable paths (including the CLI shim's junction), checks CLI ownership and OS
 creation identity, then requests `WM_CLOSE` only from windows of that installation (rechecking
 path and creation identity before the request). The existing unsaved-work confirmation remains.
 The helper excludes itself and requires all other processes using that executable to exit and
 observed discovery/lock files to disappear before replacement/removal. It fails closed on a
-missing helper, unknown CLI listener, cleanup failure or a window that stays open. Silent
+helper execution failure, unknown CLI listener, cleanup failure or a window that stays open. Silent
 removal uses the same gate. Optional CLI/PATH cleanup remains a separate best-effort operation.
 The mandatory OS-query child uses SystemRoot matching its Windows executable; the parent and optional CLI cleanup keep their original environment and failures. There is no image-name kill, automatic restart, stale-record deletion or remote Host handling.
 A same-installation CLI daemon in another channel blocks the operation without being stopped;
@@ -71,7 +75,8 @@ The existing Windows Stable/Beta update scenarios now assert old Desktop daemon 
 new generation/version, and preservation of a live opposite-channel daemon from another tree.
 Beta also checks update refusal with a same-installation CLI daemon. The existing uninstall
 scenario adds one representative live Desktop case plus CLI refusal and opposite-channel
-survival, without multiplying startup across optional-CLI fault cases. These exercise real
+survival, without multiplying startup across optional-CLI fault cases. That live uninstall case
+removes the installed helper before removal, proving that the uninstaller uses its own payload. These exercise real
 Electron/NSIS file locks and cannot be replaced with unit ports. The additional subprocess
 lifetimes are logged in CI. NSIS shell relaunch does not inherit process-only state overrides,
 so the update fixture uses the disposable account's default shared data directory, refuses an
@@ -81,6 +86,18 @@ Local installation/package tests are explicitly prohibited for this
 work, so their duration is measured by PR CI. Existing deadlines/assertions remain unchanged;
 no retries or fixed sleeps were added. Unit tests cover ownership/refusal, record cleanup and
 updater failure ordering; the existing CLI lifecycle test also checks actual process exit. One owned Node child verifies actual Windows junction identity (about 1.8s locally), which in-memory ports cannot establish. The existing packaged CLI-refusal probes launch through the real integration junction.
+
+CI and release verification run one independent public-beta.6 starting case before the unit suite. It downloads the actual
+GitHub Release installer and metadata, verifies each download's API size/SHA-256 plus the
+metadata's installer SHA-512 and a pinned beta.6 installer SHA-256, and installs/launches that
+unmodified binary. It builds only the candidate (the old version is never rebuilt), then
+executes the same NSIS `--updated /S --force-run` transaction as electron-updater and checks
+new app/daemon startup, file version, document/user-data/preferences/PATH preservation and
+cleanup. It does not duplicate updater UI/dirty guards already covered by the existing cases.
+The same-source Stable/Beta cases remain the proof for subsequent daemon-to-daemon updates.
+The new case is CI-only (including installer download); its additional runtime is recorded in
+the PR after execution. The existing same-source Stable/Beta commands remain unchanged. This is the
+explicitly required first-release update path, not a general historical-data migration policy.
 
 ### PR3 plugin test exception
 

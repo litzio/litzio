@@ -99,6 +99,8 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
           const page = await live.firstWindow();
           await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached", timeout: 30_000 });
           owned = desktopRecord(channel, version);
+          // The uninstaller must carry its own helper even when the installed copy is gone.
+          unlinkSync(path.join(install, "resources/prepare-installation.cjs"));
         }
         if (silent) {
           // Playwright must service stderr and detach its Node inspector when Electron

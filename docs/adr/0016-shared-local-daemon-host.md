@@ -99,6 +99,8 @@ plain-text SSOT, Core의 editor-neutral 문서 의미·valid write와 File commi
 
 업데이트 설치와 제거 전에 Desktop이 띄운 daemon을 정지하며 탐색 기록·lock 정리와 프로세스 종료를 모두 확인한다. 설치 폴더가 같은 실행 파일을 쓰는 CLI daemon은 자동 종료하지 않는다. 사용자가 matching CLI의 `daemon stop --confirm --channel <channel>` 또는 전경 터미널의 Ctrl+C로 종료한 뒤 다시 시도하도록 안내하고 교체·제거를 중단한다. 같은 설치 폴더를 사용하는 다른 채널도 종료 대신 중단하며, 다른 설치 폴더의 Stable·Beta daemon은 건드리지 않는다.
 
+설치기·제거기는 자기 helper를 포함해 실행하므로 helper가 없는 공개 beta.6의 첫 업데이트도 기존 설치 파일에 의존하지 않는다. 같은 소스 간 후속 업데이트의 daemon 정지 검증은 유지한다.
+
 NSIS는 image-name 강제 종료 대신 정확한 설치 경로·OS 생성 identity로 Desktop 창에 닫기를 요청한다. 기존 미저장 작업 확인은 유지하고 종료가 확인되지 않으면 파일을 교체·삭제하지 않는다. Windows 설치물 CI의 기존 Stable/Beta update·uninstall 검사가 실행 중 daemon의 종료·기록 정리와 채널 분리, CLI daemon 보존·중단을 검증한다. 구현 계약과 검증 근거는 [Desktop distribution](../design/desktop-distribution-v1.md#update-and-removal-daemon-gate-1164)을 따른다.
 
 ## Deferred (2단계 이후)
