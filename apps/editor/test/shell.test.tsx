@@ -1,3 +1,4 @@
+import { readOpenFolders, writeOpenFolders, readRecentFolders, rememberRecentFolder } from "../src/preferences.ts";
 import { readTableWrapDefault, readTableWrapDocuments, TABLE_WRAP_DEFAULT_KEY, TABLE_WRAP_DOCUMENTS_KEY } from "../src/preferences.ts";
 import { setTableWrap, setTableWrapDefault, relocateTableWrap } from "../src/table-wrap.ts";
 import assert from "node:assert/strict";
@@ -250,7 +251,7 @@ test("collapsed section preferences contain only root paths and tolerate malform
   try {
     Object.defineProperty(globalThis, "localStorage", { configurable: true, value: {
       getItem: () => saved, setItem: (key: string, value: string) => {
-        assert.equal(key, "litzio.collapsedFolderSections"); saved = value;
+        assert.equal(key, JSON.stringify(["local", "litzio.collapsedFolderSections"])); saved = value;
       },
     } });
     assert.deepEqual(readCollapsedFolderSections(), []);
@@ -415,7 +416,10 @@ const noop = () => {};
 const PATH = String.raw`C:\docs\guide.md`;
 
 test("tabs use Host paths, choose the right then left neighbour, and leave an inactive close alone", () => {
-  const tabs = [{ id: "a", path: "C:/a/guide.md" }, { id: "b", path: "C:/b/guide.md" }, { id: "c", path: "C:/c/readme.md" }];
+  const tabs = [{ hostId: "local", id: "a", path: "C:/a/guide.md" }, { hostId: "local", id: "b", path: "C:/b/guide.md" }, { hostId: "local", id: "c", path: "C:/c/readme.md" }];
+  const remote = { hostId: "remote", id: "remote", path: tabs[1]!.path };
+  assert.equal(openedTab([...tabs, remote], remote.path, "remote"), remote);
+  assert.equal(openedTab([...tabs, remote], remote.path), tabs[1]);
   assert.equal(openedTab(tabs, "C:/b/guide.md"), tabs[1]);
   assert.equal(openedTab(tabs, "C:/b/../b/guide.md"), undefined, "normalization is the Host's job");
   assert.equal(activeAfterClose(tabs, "b", "b"), "c");
@@ -432,7 +436,7 @@ test("same-named files use enough of their parent folders to distinguish them", 
   // The label keeps the folder apart from the name, so the name can give way to it.
   assert.deepEqual(tabLabels([{ path: "C:\\one\\guide.md" }, { path: "C:\\two\\guide.md" }, { path: "/readme.md" }]),
     [{ name: "guide.md", folder: "one" }, { name: "guide.md", folder: "two" }, { name: "readme.md" }]);
-  const allTabs = [{ id: "a", path: "/one/guide.md", dirty: false }, { id: "b", path: "/two/guide.md", dirty: false }];
+  const allTabs = [{ hostId: "local", id: "a", path: "/one/guide.md", dirty: false }, { hostId: "local", id: "b", path: "/two/guide.md", dirty: false }];
   for (const tab of allTabs) {
     const group = renderToStaticMarkup(<DocumentTabs tabs={[tab]} allTabs={allTabs} active={tab.id} disabled={false} onActivate={() => {}} onClose={() => {}} />);
     assert.ok(group.includes(`aria-label="guide.md — ${tab.id === "a" ? "one" : "two"}"`), "Same-named files remain distinguishable across groups");
@@ -500,7 +504,7 @@ test("only the latest document read can open a session, without retiring its cur
 test("restricted Host recent folders hide other roots, parent traversal and prefix siblings", () => {
   const recent = ["C:\\docs", "c:/DOCS/sub", "C:\\docs-other", "C:\\docs\\..\\private", "/srv/docs/a", "/srv/Docs/b"];
   assert.deepEqual(visibleRecentFolders(recent), recent);
-  assert.deepEqual(visibleRecentFolders(recent, ["C:\\docs", "/srv/docs"]), ["C:\\docs", "c:/DOCS/sub", "/srv/docs/a"]);
+  assert.deepEqual(visibleRecentFolders(recent, ["C:\\docs", "/srv/docs"]), ["C:\\docs", "/srv/docs/a"]);
   assert.deepEqual(visibleRecentFolders(recent, []), []);
 });
 
@@ -542,7 +546,7 @@ test("sidebar folder is a tree under the chosen folder that marks the open docum
   const guides = listing(String.raw`C:\docs\guides`, [
     { name: "guide.md", kind: "document", path: String.raw`C:\docs\guides\guide.md` },
   ]);
-  const folder = {
+  const folder = { hostId: "local",
     root: String.raw`C:\docs`,
     sectionExpanded: true,
     nodes: new Map([[root.path, root], [guides.path, guides]]),
@@ -853,7 +857,7 @@ test("table presentation is path-scoped, removes default choices and relocates d
     setTableWrapDefault(false);
     assert.equal(values.get(TABLE_WRAP_DEFAULT_KEY), "false");
     assert.deepEqual(readTableWrapDocuments(), {});
-    values.set(TABLE_WRAP_DOCUMENTS_KEY, '{"/valid.md":true,"/bad.md":42}');
+    values.set(JSON.stringify(["local", TABLE_WRAP_DOCUMENTS_KEY]), '{"/valid.md":true,"/bad.md":42}');
     assert.deepEqual(readTableWrapDocuments(), {"/valid.md":true});
     Object.defineProperty(globalThis, "localStorage", { configurable: true, get() { throw Error("blocked"); } });
     assert.equal(setTableWrap("/a.md", true), false);
@@ -861,6 +865,37 @@ test("table presentation is path-scoped, removes default choices and relocates d
     assert.deepEqual(readTableWrapDocuments(), {});
   } finally {
     setTableWrapDefault(true);
+    if (descriptor) Object.defineProperty(globalThis, "localStorage", descriptor); else Reflect.deleteProperty(globalThis, "localStorage");
+  }
+});
+
+
+test("navigation memory isolates Hosts and ignores path-only legacy storage", () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  const values = new Map<string, string>([["litzio.openTabs", JSON.stringify({ paths: ["/old.md"], activePath: "/old.md" })]]);
+  try {
+    Object.defineProperty(globalThis, "localStorage", { configurable: true, value: {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    } });
+    assert.equal(readOpenTabs(), null);
+    writeOpenTabs({ paths: ["/same.md"], activePath: "/same.md" });
+    writeOpenTabs({ paths: ["/same.md", "/remote.md"], activePath: "/remote.md" }, "remote");
+    assert.deepEqual(readOpenTabs()?.paths, ["/same.md"]);
+    assert.equal(readOpenTabs("remote")?.activePath, "/remote.md");
+    writeCollapsedFolderSections(["/same"]);
+    writeCollapsedFolderSections([], "remote");
+    assert.deepEqual(readCollapsedFolderSections(), ["/same"]);
+    assert.deepEqual(readCollapsedFolderSections("remote"), []);
+    writeOpenFolders(["/same"]);
+    writeOpenFolders(["/same", "/remote"], "remote");
+    assert.deepEqual(readOpenFolders(), ["/same"]);
+    assert.deepEqual(readOpenFolders("remote"), ["/same", "/remote"]);
+    rememberRecentFolder("/local");
+    rememberRecentFolder("/same", undefined, "remote");
+    assert.deepEqual(readRecentFolders("remote"), ["/same"]);
+    assert.deepEqual(readRecentFolders(), ["/local"]);
+  } finally {
     if (descriptor) Object.defineProperty(globalThis, "localStorage", descriptor); else Reflect.deleteProperty(globalThis, "localStorage");
   }
 });

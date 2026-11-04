@@ -2304,7 +2304,7 @@ test("unsupported recovery leaves its plaintext copy and other records available
   const saved = editorDocumentJSON(EditorState.create({ schema, doc: schema.nodeFromJSON(opening) }));
   const filePath = path.join(tmpdir(), "recovery.md");
   const record: RecoveryRecord = {
-    id: "current", version: 1, path: filePath, recordedAt: Date.now(), recoveryText: "",
+    id: "current", version: 2, hostId: "local", path: filePath, recordedAt: Date.now(), recoveryText: "",
     snapshot: { file: { path: filePath, source, document: model, revision: "a".repeat(64), endnotesInPlace: true },
       editor: { editorDocument: structuredClone(saved), savedDocument: saved } },
   };
@@ -2515,7 +2515,8 @@ test("text Save preserves exact UTF-8 text, shares file commit and cannot overwr
 test("text recovery validates its own snapshot and cannot masquerade as native recovery", () => {
   const filePath = path.join(tmpdir(), "notes.txt");
   const snapshot = { kind: "text" as const, file: { kind: "text" as const, path: filePath, source: "saved", revision: documentRevision("saved") }, text: "未保存\n한글", savedSource: "saved" };
-  const record: RecoveryRecord = { id: "text", version: 1, path: filePath, recordedAt: Date.now(), recoveryText: recoveryText(snapshot), snapshot };
+  const record: RecoveryRecord = { id: "text", version: 2, hostId: "local", path: filePath, recordedAt: Date.now(), recoveryText: recoveryText(snapshot), snapshot };
+  assert.throws(() => prepareRecovery({ ...record, version: 1, hostId: undefined } as unknown as RecoveryRecord), /not supported/);
   assert.deepEqual(prepareRecovery(record), snapshot);
   assert.equal(record.recoveryText, snapshot.text);
   const before = structuredClone(record);

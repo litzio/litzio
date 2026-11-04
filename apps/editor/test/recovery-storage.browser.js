@@ -1,11 +1,33 @@
 // Actual IndexedDB transactions and recorder scheduling; no in-memory database substitute.
 async page => {
+  // Same Host-returned path, two registrations: file operations and barriers stay local.
+  await page.evaluate(async () => {
+    const { recoveryStorage: store } = await import('/src/recovery-storage.ts');
+    const path = '/shared.md';
+    const make = (hostId, id) => ({ id, hostId, path, version: 2, recordedAt: Date.now(), recoveryText: id, snapshot: { file: { path } } });
+    const remote = await store.ticket('remote-record', path, 'remote');
+    await store.write('remote-record', remote, () => make('remote', 'remote-record'));
+    const pending = await store.ticket('remote-pending', path, 'remote');
+    const local = await store.ticket('local-record', path);
+    await store.write('local-record', local, () => make('local', 'local-record'));
+    const revoked = await store.ticket('local-pending', path);
+    await store.changePath(path, '/renamed.md');
+    const moved = await store.list();
+    if (!moved.some(r => r.hostId === 'local' && r.path === '/renamed.md') ||
+        !moved.some(r => r.hostId === 'remote' && r.path === path)) throw new Error('Rename crossed Host identity');
+    if (await store.write('local-pending', revoked, () => make('local', 'local-pending'))) throw new Error('Local old-path permission survived rename');
+    await store.changePath(path, null);
+    await store.delete();
+    if (!(await store.list()).some(r => r.id === 'remote-record')) throw new Error('Local deletion removed remote work');
+    if (!await store.write('remote-pending', pending, () => make('remote', 'remote-pending'))) throw new Error('Local barrier revoked remote permission');
+    await store.delete(undefined, 'remote');
+  });
   // A second window has acquired permission but has never persisted its first record.
   // File operations must invalidate that permission for both deletion and rename.
   await page.evaluate(async () => {
     const { recoveryStorage: store } = await import('/src/recovery-storage.ts');
     const path = '/guarded-undo.md', id = 'guarded-undo';
-    const write = async text => store.write(id, await store.ticket(id, path), () => ({ id, path, version: 1, recordedAt: Date.now(), recoveryText: text, snapshot: { file: { path } } }));
+    const write = async text => store.write(id, await store.ticket(id, path), () => ({ id, path, version:2,hostId:"local", recordedAt: Date.now(), recoveryText: text, snapshot: { file: { path } } }));
     await write('checked');
     const checked = (await store.list()).filter(record => record.path === path);
     await write('arrived during deletion');
@@ -30,9 +52,9 @@ async page => {
       await page.evaluate(async next => { const { recoveryStorage } = await import('/src/recovery-storage.ts'); await recoveryStorage.changePath('/pending.md', next); }, next);
       results.push(await other.evaluate(async next => {
         const { recoveryStorage } = await import('/src/recovery-storage.ts');
-        const record = (id, path) => ({ id,version:1,path,recordedAt:Date.now(),recoveryText:'delayed first write',snapshot:{file:{path}} });
+        const record = (id, path) => ({ id,version:2,hostId:"local",path,recordedAt:Date.now(),recoveryText:'delayed first write',snapshot:{file:{path}} });
         const written = await recoveryStorage.write('unrecorded-other-window', window.pendingFileTicket, () => ({
-          id:'unrecorded-other-window',version:1,path:'/pending.md',recordedAt:Date.now(),recoveryText:'delayed first write',
+          id:'unrecorded-other-window',version:2,hostId:"local",path:'/pending.md',recordedAt:Date.now(),recoveryText:'delayed first write',
           snapshot:{file:{path:'/pending.md'}},
         }));
         const count = (await recoveryStorage.list()).filter(record => record.path === '/pending.md').length;
@@ -56,7 +78,7 @@ async page => {
   const list = () => store.list();
   const record = async (id, time = Date.now()) => {
     const token = await store.ticket(id, '/test.md');
-    await store.write(id, token, () => ({id, version:1, path:'/test.md',recordedAt:time,recoveryText:id,snapshot: snapshot(id)}));
+    await store.write(id, token, () => ({id, version:2,hostId:"local", path:'/test.md',recordedAt:time,recoveryText:id,snapshot: snapshot(id)}));
   };
   try {
     // Upgrade only the storage protocol; preserve records and reject old unbounded-ticket clients.
@@ -70,7 +92,7 @@ async page => {
     });
     await new Promise(resolve => {
       const tx = oldDb.transaction(['records','barriers'], 'readwrite');
-      tx.objectStore('records').put({id:'existing',version:1,path:'/test.md',recordedAt:Date.now(),recoveryText:'preserved',snapshot:snapshot('preserved')});
+      tx.objectStore('records').put({id:'existing',version:2,hostId:"local",path:'/test.md',recordedAt:Date.now(),recoveryText:'preserved',snapshot:snapshot('preserved')});
       tx.objectStore('barriers').put(3, ['session','old-session']); tx.oncomplete = resolve;
     });
     let oldClosed = false; oldDb.onversionchange = () => { oldClosed = true; oldDb.close(); };
@@ -188,7 +210,7 @@ async page => {
     live = null; rapid.edit(false);
     live = snapshot('Redo after clean Undo'); rapid.edit();
     const tokenPromise = store.ticket('a', '/test.md');
-    const writing = tokenPromise.then(token => store.write('a', token, () => ({id:'a',version:1,path:'/test.md',recordedAt:Date.now(),recoveryText:live.file.revision,snapshot:live})));
+    const writing = tokenPromise.then(token => store.write('a', token, () => ({id:'a',version:2,hostId:"local",path:'/test.md',recordedAt:Date.now(),recoveryText:live.file.revision,snapshot:live})));
     live = { ...snapshot('newer applied edits after Save'), file: { ...snapshot('').file, revision:'b'.repeat(64) } };
     release = true; await writing; await completed; rapid.cancel(); db.close();
     check((await list()).find(record => record.id === 'rapid')?.recoveryText === 'newer applied edits after Save', 'Queued clean cleanup deleted newer dirty work');
@@ -239,7 +261,7 @@ async page => {
         await store.ticket('acquisition-fence', '/test.md');
         now -= 500;
         const directRecorded = await store.write('negative-age-direct', validBeforeCorrection, () => ({
-          id:'negative-age-direct',version:1,path:'/test.md',recordedAt:now,recoveryText:'valid negative age',snapshot:snapshot('valid negative age'),
+          id:'negative-age-direct',version:2,hostId:"local",path:'/test.md',recordedAt:now,recoveryText:'valid negative age',snapshot:snapshot('valid negative age'),
         }));
         await wait(); // Let the actual 500ms recorder turn run; no subsequent edit/checkpoint.
         const scheduledRecorded = (await list()).some(record => record.id === 'negative-age-recorder' && record.recoveryText.includes('one edit before clock correction'));
@@ -267,7 +289,7 @@ async page => {
       check(!(await metadata()).length, 'Exact rollback reproduction did not collect the barrier');
       now += 60 * 1000;
       const resurrected = await store.write('rollback-before-delete', beforeClockRollback, () => ({
-        id:'rollback-before-delete',version:1,path:'/test.md',recordedAt:now,recoveryText:'must not return',snapshot:snapshot('must not return'),
+        id:'rollback-before-delete',version:2,hostId:"local",path:'/test.md',recordedAt:now,recoveryText:'must not return',snapshot:snapshot('must not return'),
       }));
       check(!resurrected, 'Ticket at 1h resurrected after rollback-to-0 deletion, GC at 10d, write at 10d+1m');
       now = realNow();
@@ -285,7 +307,7 @@ async page => {
       now++;
       await list();
       check(!(await metadata()).some(key => key[1] === 'idle-for-GC'), 'Idle registration survives expiry');
-      const captureRecord = id => () => ({id,version:1,path:'/test.md',recordedAt:now,recoveryText:id,snapshot:snapshot(id)});
+      const captureRecord = id => () => ({id,version:2,hostId:"local",path:'/test.md',recordedAt:now,recoveryText:id,snapshot:snapshot(id)});
       check(!await store.write('collected',ancient,captureRecord('collected')), 'Ancient ticket resurrected a record after metadata GC');
       // Collected permission stays invalid even if the clock returns to its issuance time.
       now -= lifetime;

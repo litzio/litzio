@@ -112,13 +112,13 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
   const cleanFile = [root, 'tmp', 'document-tabs', 'technical-2.md'].join(sep);
   await openPath(page,cleanFile);
   await page.getByRole('tab',{name:'technical-1.md, Unsaved changes',exact:true}).click();
-  const navigation = await page.evaluate(() => localStorage.getItem('litzio.openTabs'));
+  const navigation = await page.evaluate(() => localStorage.getItem(JSON.stringify(["local", "litzio.openTabs"])));
   page.on('dialog', dialog => dialog.accept());
   await page.reload(); await ready(page);
   await page.getByTestId('recovery-prompt').waitFor();
   check(await page.getByRole('tablist',{name:'Documents',exact:true,includeHidden:true}).getByRole('tab',{includeHidden:true}).count() === 1 && await page.getByRole('tab',{name:'technical-2.md',exact:true,includeHidden:true}).count() === 1, 'Tab memory bypassed recovery or failed to restore the clean tab');
   check(JSON.stringify(await records()) === JSON.stringify([first]), 'Automatic tab restoration changed the recovery record');
-  check(await page.evaluate(() => localStorage.getItem('litzio.openTabs')) === navigation, 'Recovery exclusion rewrote navigation memory');
+  check(await page.evaluate(() => localStorage.getItem(JSON.stringify(["local", "litzio.openTabs"]))) === navigation, 'Recovery exclusion rewrote navigation memory');
   await page.keyboard.press('Control+Slash');
   check(await page.getByTestId('recovery-prompt').isVisible() && !await page.getByRole('dialog',{name:'Command center',exact:true}).count(), 'Command center bypassed the startup recovery dialog');
   await page.getByRole('button',{name:'Not now',exact:true}).click();
@@ -491,7 +491,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
   await page.evaluate(async record => {
     const {recoveryStorage: store} = await import('/src/recovery-storage.ts');
     const id = 'malformed';
-    await store.write(id,await store.ticket(id, record.path),() => ({...record,id,version:1,path:{broken:true},snapshot:null,recordedAt:Date.now(),recoveryText:'Malformed record text is still accessible.'}));
+    await store.write(id,await store.ticket(id, record.path),() => ({...record,id,version:2,path:{broken:true},snapshot:null,recordedAt:Date.now(),recoveryText:'Malformed record text is still accessible.'}));
   },unsaveable);
   await page.reload(); await ready(page);
   await page.getByRole('button',{name:'Review recovery'}).click();
@@ -501,7 +501,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
   await page.getByRole('button',{name:'Delete record',exact:true}).click();
   await page.getByRole('dialog',{name:'Delete recovery record?',exact:true}).getByRole('button',{name:'Delete record',exact:true}).click(); await count(0);
   await page.addInitScript(() => Object.defineProperty(window,'indexedDB',{get() { throw new DOMException('Storage access denied','SecurityError'); }}));
-  await page.evaluate(path => localStorage.setItem('litzio.openTabs',JSON.stringify({paths:[path],activePath:path})),file);
+  await page.evaluate(path => localStorage.setItem(JSON.stringify(["local", "litzio.openTabs"]),JSON.stringify({paths:[path],activePath:path})),file);
   await page.reload(); await ready(page);
   await page.getByTestId('writeability-warning').filter({hasText:'Local recovery is unavailable'}).waitFor();
   check(await page.getByRole('tablist', {name:'Documents',exact:true}).getByRole('tab').count() === 0, 'Unavailable recovery was bypassed by automatic tab restoration');

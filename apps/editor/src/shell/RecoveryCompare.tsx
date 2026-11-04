@@ -1,3 +1,4 @@
+import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { hostClient } from "../host-client.ts";
 import { useCallback } from "react";
 import { prepareRecovery } from "../recovery-restore.ts";
@@ -7,6 +8,7 @@ import type { RecoveryPreviewResponse, SaveRequest } from "../../shared/document
 import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 
 async function compare(record: RecoveryRecord, signal: AbortSignal): Promise<Comparison> {
+  if (record.hostId !== LOCAL_HOST_ID) throw new Error("This recovery belongs to an unavailable Host.");
   let save: SaveRequest | undefined;
   let fallback = "";
   try {

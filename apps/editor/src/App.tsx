@@ -1,3 +1,4 @@
+import { LOCAL_HOST_ID, sameLocator } from "./host-locator.ts";
 import { hostClient } from "./host-client.ts";
 import { handleDisplayRequest } from "./assistant-display.ts";
 import { creationUndoNeedsConfirmation, type FileIdentity } from "../shared/file-operations.ts";
@@ -76,7 +77,7 @@ const SaveCompare = lazy(() => import("./shell/SaveCompare.tsx"));
 const PANEL_OVERLAY_LAYOUT = "(width < 89rem)";
 // 640px supported viewport - 200px narrow Explorer; two groups plus their boundary.
 const SPLIT_MIN_WIDTH = 440 * 2 + 1;
-type Tab = { id: string; path: string; file: EditorFileResponse; recoveryId: string; restored?: SessionSnapshot };
+type Tab = { hostId: string; id: string; path: string; file: EditorFileResponse; recoveryId: string; restored?: SessionSnapshot };
 
 /** The Desktop app's bridge; the browser Editor has none and shows no Desktop UI. */
 const desktop = typeof window === "undefined" ? undefined : window.litzioDesktop;
@@ -222,9 +223,9 @@ function EditorApp() {
   const refreshRecovery = useCallback(async () => {
     try {
       const records = await recoveryStorage.list();
-      setRecoveryRecords(records);
+      setRecoveryRecords(records.filter(record => record.hostId === LOCAL_HOST_ID || !record.hostId));
       setRecoveryProblem("");
-      return records;
+      return records.filter(record => record.hostId === LOCAL_HOST_ID);
     } catch (cause) {
       setRecoveryProblem({ key: "Local recovery is unavailable: {{reason}}. Save or copy your work before closing.", values: { reason: messageOf(cause) } });
       return null;
@@ -232,12 +233,12 @@ function EditorApp() {
   }, []);
   function reviewRecovery(record: RecoveryRecord): void {
     let reason = "";
-    try { prepareRecovery(record); } catch (cause) { reason = messageOf(cause); }
+    try { prepareRecovery(record); if (record.hostId !== LOCAL_HOST_ID) throw new Error("This recovery belongs to an unavailable Host."); } catch (cause) { reason = messageOf(cause); }
     setRecoveryReview({ record, reason });
   }
   async function offerRecovery(file: EditorFileResponse): Promise<void> {
     const records = await refreshRecovery();
-    const matching = records?.find(record => record.path === file.path && !tabs.some(tab => tab.recoveryId === record.id));
+    const matching = records?.find(record => sameLocator(record, { hostId: LOCAL_HOST_ID, path: file.path }) && !tabs.some(tab => tab.recoveryId === record.id));
     if (matching) reviewRecovery(matching);
   }
   async function deleteRecovery(id?: string): Promise<void> {
@@ -247,8 +248,9 @@ function EditorApp() {
   async function restoreRecovery(): Promise<void> {
     if (!recoveryReview) return;
     const record = recoveryReview.record;
+    if (record.hostId !== LOCAL_HOST_ID) throw new Error("This recovery belongs to an unavailable Host.");
     const restored = prepareRecovery(record);
-    const existing = openedTab(tabs, record.path);
+    const existing = openedTab(tabs, record.path, record.hostId);
     const owner = existing && sessions.current.get(existing.id);
     if (owner && (owner.busyRef.current || owner.editorRef.current?.hasUnsavedChanges())) {
       throw new UiError({ key: "This document already has open work. Close its tab before restoring a recovery record." });
@@ -256,7 +258,7 @@ function EditorApp() {
     const recoveryId = newRecoveryId();
     await recoveryStorage.restore(record, recoveryId);
     const id = `document-${++nextId.current}`;
-    setTabs(previous => [...previous.filter(tab => tab.id !== existing?.id), { id, path: record.path, file: restored.file, recoveryId, restored }]);
+    setTabs(previous => [...previous.filter(tab => tab.id !== existing?.id), { id, hostId: record.hostId, path: record.path, file: restored.file, recoveryId, restored }]);
     if (existing) navigate({ type: "close", id: existing.id });
     navigate({ type: "open", id });
     rememberTabs();
@@ -460,7 +462,7 @@ function EditorApp() {
     else {
       const id = `document-${++nextId.current}`;
       const recoveryId = newRecoveryId();
-      setTabs(previous => [...previous, { id, path: file.path, file, recoveryId }]);
+      setTabs(previous => [...previous, { id, hostId: LOCAL_HOST_ID, path: file.path, file, recoveryId }]);
       placeTab(id, target);
     }
   }
@@ -491,7 +493,7 @@ function EditorApp() {
       if (!current) return;
       const initialTabs: Tab[] = [];
       const add = (file: EditorFileResponse) => {
-        if (!openedTab(initialTabs, file.path)) initialTabs.push({ id: `document-${++nextId.current}`, path: file.path, file, recoveryId: newRecoveryId() });
+        if (!openedTab(initialTabs, file.path)) initialTabs.push({ hostId: LOCAL_HOST_ID, id: `document-${++nextId.current}`, path: file.path, file, recoveryId: newRecoveryId() });
       };
       // Explicit URL/ Desktop launch documents win over navigation memory. The Vite default
       // is only a fallback when no preference exists; an empty preference keeps the start screen.
@@ -502,21 +504,21 @@ function EditorApp() {
         if (!("start" in next)) {
           add(next);
           activePath = next.path;
-          recovery = records?.find(record => record.path === next.path);
+          recovery = records?.find(record => sameLocator(record, { hostId: LOCAL_HOST_ID, path: next.path }));
         }
       } else if (records) {
         for (const remembered of saved.paths) {
           if (!current) return;
           // Even malformed/unsupported recovery records retain their existing review flow.
-          if (records.some(record => record.path === remembered)) continue;
+          if (records.some(record => sameLocator(record, { hostId: LOCAL_HOST_ID, path: remembered }))) continue;
           try {
             const file = await requestDocument("GET", remembered, folders.rootOf(remembered));
             if (!current) return;
-            if (!("start" in file) && !records.some(record => record.path === file.path)) add(file);
+            if (!("start" in file) && !records.some(record => sameLocator(record, { hostId: LOCAL_HOST_ID, path: file.path }))) add(file);
           } catch { /* Missing, refused and non-native documents are quietly left out. */ }
         }
         activePath = saved.activePath;
-        recovery = records.find(record => saved.paths.includes(record.path));
+        recovery = records.find(record => record.hostId === LOCAL_HOST_ID && saved.paths.includes(record.path));
       }
       if (!current) return;
       setStart("start" in first ? first : { start: true, samples: first.samples, sampleProblem: first.sampleProblem });
@@ -546,8 +548,10 @@ function EditorApp() {
     if (operationRef.current || [...sessions.current.values()].some(owner => owner.busyRef.current)) throw new Error(i18n.t("Wait for the current file operation to finish."));
     operationRef.current = true; setFileOperationPending(true);
     if (figure) setFigureRenamePending(true);
-    const formSession = figure && [...sessions.current.values()].filter(owner => owner.kind === "native").find(owner => owner.openedPath === figure.documentPath);
-    const tab = tabs.find(tab => tab.path === entry.path);
+    const localSessions = () => tabs.filter(tab => tab.hostId === LOCAL_HOST_ID)
+      .flatMap(tab => { const session = sessions.current.get(tab.id); return session ? [session] : []; });
+    const formSession = figure && localSessions().filter(owner => owner.kind === "native").find(owner => owner.openedPath === figure.documentPath);
+    const tab = tabs.find(tab => sameLocator(tab, { hostId: LOCAL_HOST_ID, path: entry.path }));
     const owner = tab && sessions.current.get(tab.id);
     owner?.suspendRecovery();
     let completed = false;
@@ -557,7 +561,7 @@ function EditorApp() {
         if (figure) throw new Error(i18n.t("The image rename response was interrupted. Files may have changed. Keep your edits and check the files before Reloading."));
         throw cause;
       };
-      const root = figure ? chosenRoot : folders.trees.map(tree => tree.root).filter(root => folderChain(root, entry.path).length > 0).sort((a, b) => a.length - b.length)[0] ?? chosenRoot;
+      const root = figure ? chosenRoot : folders.trees.filter(tree => tree.hostId === LOCAL_HOST_ID).map(tree => tree.root).filter(root => folderChain(root, entry.path).length > 0).sort((a, b) => a.length - b.length)[0] ?? chosenRoot;
       let expectedRevision: string | undefined;
       let checkedRecovery: RecoveryRecord[] | undefined;
       if (creation !== undefined) {
@@ -566,9 +570,9 @@ function EditorApp() {
         const state = await check.json();
         if (!check.ok || typeof state.revision !== "string") throw new Error(state.error ?? "Could not check file.");
         expectedRevision = state.revision;
-        const dirty = () => [...sessions.current.values()].some(current => current.openedPath === entry.path && current.editorRef.current?.hasUnsavedChanges());
-        const tabState = () => JSON.stringify([...sessions.current.values()].filter(current => current.openedPath === entry.path).map(current => [current.getSnapshot(), current.editorRef.current?.hasUnsavedChanges()]));
-        const recoveryForPath = async () => (await recoveryStorage.list()).filter(record => record.path === entry.path).sort((a, b) => a.id.localeCompare(b.id));
+        const dirty = () => localSessions().some(current => current.openedPath === entry.path && current.editorRef.current?.hasUnsavedChanges());
+        const tabState = () => JSON.stringify(localSessions().filter(current => current.openedPath === entry.path).map(current => [current.getSnapshot(), current.editorRef.current?.hasUnsavedChanges()]));
+        const recoveryForPath = async () => (await recoveryStorage.list()).filter(record => sameLocator(record, { hostId: LOCAL_HOST_ID, path: entry.path })).sort((a, b) => a.id.localeCompare(b.id));
         checkedRecovery = await recoveryForPath();
         const checkedTabState = tabState();
         if (creationUndoNeedsConfirmation(creation.revision, state.revision, dirty() || checkedRecovery.length > 0)) {
@@ -582,7 +586,7 @@ function EditorApp() {
       }
       const openDocuments = [];
       if (action === "rename" && entry.kind === "image") {
-        for (const current of sessions.current.values()) {
+        for (const current of localSessions()) {
           if (current.kind !== "native" || current.openedPath === figure?.documentPath) continue;
           if (folderChain(root, current.openedPath).length && current.editorRef.current?.hasUnsavedChanges()) {
             try {
@@ -607,7 +611,7 @@ function EditorApp() {
       // The rename dialog remains modal throughout the request and reloads. No tab can
       // accept new input between the dirty check and installing the new disk checkpoint.
       const reloadErrors: string[] = [];
-      for (const current of sessions.current.values()) {
+      for (const current of localSessions()) {
         if (current.openedPath === figure?.documentPath && response.ok) continue;
         if (!result.updatedDocuments?.includes(current.openedPath)) continue;
         const message = await current.load(current.openedPath);
@@ -623,7 +627,7 @@ function EditorApp() {
         relocateTableWrap(entry.path, result.path);
         owner?.relocate(result.path);
         setTabs(previous => previous.map(tab => {
-          if (tab.path !== entry.path) return tab;
+          if (!sameLocator(tab, { hostId: LOCAL_HOST_ID, path: entry.path })) return tab;
           const restored = tab.restored && structuredClone(tab.restored);
           if (restored) restored.file.path = result.path;
           return { ...tab, path: result.path, file: { ...tab.file, path: result.path }, ...(restored ? { restored } : {}) };
@@ -1162,7 +1166,7 @@ function EditorApp() {
         theme={theme} onThemeChange={changeTheme}
         contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }]}
         onFileAction={fileAction} fileActionsDisabled={busy || Boolean(continuation)}
-        isFileDirty={path => { const tab = tabs.find(tab => tab.path === path); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
+        isFileDirty={path => { const tab = tabs.find(tab => sameLocator(tab, { hostId: LOCAL_HOST_ID, path })); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
         onWidth={setSidebarSize}
         open={sidebarOpen}
         documentPath={openedPath}

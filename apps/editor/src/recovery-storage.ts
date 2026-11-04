@@ -1,3 +1,4 @@
+import { LOCAL_HOST_ID, sameLocator } from "./host-locator.ts";
 import { brand } from "../../../brand.ts";
 import type { SessionSnapshot } from "./DocumentTab.tsx";
 
@@ -6,6 +7,7 @@ export const RECOVERY_DB = `${brand.storagePrefix}-recovery`;
 export type RecoveryRecord = {
   id: string;
   version: number;
+  hostId: string;
   path: string;
   recordedAt: number;
   /** Optional for existing v1 records; changes when dirty work follows clean state. */
@@ -15,8 +17,8 @@ export type RecoveryRecord = {
 };
 const TICKET_LIFETIME = RECOVERY_DAYS * 86400000;
 const CLEAN_PREFIX = `${brand.storagePrefix}.recoveryClean.v1.`;
-type Ticket = [number, string | null, number];
-type Barrier = { generation: string; expiresAt: number; path: string };
+type Ticket = [number, string | null, number, string];
+type Barrier = { generation: string; expiresAt: number; path: string; hostId: string };
 
 // A session-local clean acknowledgement must survive a reload before IndexedDB's
 // next turn. It contains no document data. New applied work clears it before writing.
@@ -43,14 +45,14 @@ let connection: Promise<IDBDatabase> | undefined;
 function database(): Promise<IDBDatabase> {
   return connection ??= new Promise<IDBDatabase>((resolve, reject) => {
     let abandoned = false;
-    // v1/v2 writers may accept missing metadata; they must not reopen this protocol.
-    const request = indexedDB.open(RECOVERY_DB, 3);
+    // Older writers must not reopen the Host-scoped ticket protocol.
+    const request = indexedDB.open(RECOVERY_DB, 4);
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains("records")) {
         request.result.createObjectStore("records", { keyPath: "id" });
         request.result.createObjectStore("barriers");
       } else {
-        // Records survive; obsolete tombstones/watermark grant no v3 permission.
+        // Records remain unconverted; old barriers grant no v4 permission.
         request.transaction!.objectStore("barriers").clear();
       }
     };
@@ -76,17 +78,17 @@ async function transaction<T>(run: (records: IDBObjectStore, barriers: IDBObject
   });
 }
 
-function ticket(barriers: IDBObjectStore, id: string, done: (value: Ticket) => void): void {
-  const all = barriers.get("all");
+function ticket(barriers: IDBObjectStore, id: string, hostId: string, done: (value: Ticket) => void): void {
+  const all = barriers.get(`all:${JSON.stringify(hostId)}`);
   const session = barriers.get(["session", id]);
-  session.onsuccess = () => done([Number(all.result ?? 0), (session.result as Barrier | undefined)?.generation ?? null, Date.now()]);
+  session.onsuccess = () => done([Number(all.result ?? 0), (session.result as Barrier | undefined)?.generation ?? null, Date.now(), hostId]);
 }
 
 /** Tickets are captured on an applied edit, never on a later Save or timer turn.
  * IndexedDB transactions order deletion with writes across windows, without relying on messages. */
 export const recoveryStorage = {
   /** File operations invalidate queued writes and move/discard matching records atomically. */
-  changePath(previous: string, next: string | null, expected?: RecoveryRecord[]): Promise<void> {
+  changePath(previous: string, next: string | null, expected?: RecoveryRecord[], hostId = LOCAL_HOST_ID): Promise<void> {
     return transaction((records, barriers, done, fail) => {
       const apply = () => {
         // Permission exists before the first record. Revoke all sessions registered to this
@@ -96,7 +98,7 @@ export const recoveryStorage = {
           const entry = pending.result;
           if (!entry) return;
           try {
-            if (Array.isArray(entry.key) && entry.key[0] === "session" && (entry.value as Barrier).path === previous) entry.delete();
+            if (Array.isArray(entry.key) && entry.key[0] === "session" && sameLocator(entry.value as Barrier, { hostId, path: previous })) entry.delete();
             entry.continue();
           } catch (error) { fail(error); }
         };
@@ -106,7 +108,7 @@ export const recoveryStorage = {
           if (!entry) { done(undefined); return; }
           try {
             const record = entry.value as RecoveryRecord;
-            if (record.path === previous) {
+            if (sameLocator(record, { hostId, path: previous })) {
               barriers.delete(["session", record.id]);
               if (next === null) entry.delete();
               else entry.update({ ...record, path: next, snapshot: { ...record.snapshot, file: { ...record.snapshot.file, path: next } } });
@@ -118,7 +120,7 @@ export const recoveryStorage = {
       if (expected === undefined) { apply(); return; }
       const read = records.getAll();
       read.onsuccess = () => {
-        const matching = (read.result as RecoveryRecord[]).filter(record => record.path === previous).sort((a, b) => a.id.localeCompare(b.id));
+        const matching = (read.result as RecoveryRecord[]).filter(record => sameLocator(record, { hostId, path: previous })).sort((a, b) => a.id.localeCompare(b.id));
         if (JSON.stringify(matching) !== JSON.stringify(expected)) { fail(new Error("Recovery work changed during deletion; the records were preserved.")); return; }
         apply();
       };
@@ -141,22 +143,22 @@ export const recoveryStorage = {
       };
     });
   },
-  async ticket(id: string, path: string): Promise<Ticket> {
+  async ticket(id: string, path: string, hostId = LOCAL_HOST_ID): Promise<Ticket> {
     const db = await database();
     return new Promise<Ticket>((resolve, reject) => {
       const tx = db.transaction("barriers", "readwrite");
       let result: Ticket;
       const barriers = tx.objectStore("barriers");
-      const all = barriers.get("all");
+      const all = barriers.get(`all:${JSON.stringify(hostId)}`);
       const session = barriers.get(["session", id]);
       session.onsuccess = () => {
         try {
           const previous = session.result as Barrier | undefined;
           const issuedAt = Date.now();
-          const generation = previous?.path === path ? previous.generation : newRecoveryId();
+          const generation = previous && sameLocator(previous, { hostId, path }) ? previous.generation : newRecoveryId();
           // A backwards clock must not shorten an earlier pending ticket's registration.
-          barriers.put({ generation, path, expiresAt: Math.max(previous?.expiresAt ?? 0, issuedAt + TICKET_LIFETIME) } satisfies Barrier, ["session", id]);
-          result = [Number(all.result ?? 0), generation, issuedAt];
+          barriers.put({ generation, path, hostId, expiresAt: Math.max(previous?.expiresAt ?? 0, issuedAt + TICKET_LIFETIME) } satisfies Barrier, ["session", id]);
+          result = [Number(all.result ?? 0), generation, issuedAt, hostId];
         } catch (error) { reject(error); tx.abort(); }
       };
       tx.oncomplete = () => resolve(result);
@@ -164,7 +166,7 @@ export const recoveryStorage = {
     });
   },
   write(id: string, expected: Ticket, capture: () => RecoveryRecord | null | undefined): Promise<boolean> {
-    return transaction((records, barriers, done, fail) => ticket(barriers, id, current => {
+    return transaction((records, barriers, done, fail) => ticket(barriers, id, expected[3], current => {
       let written = false;
       const age = Date.now() - expected[2];
       // Clock rollback may delay expiry, but must not drop an otherwise valid edit.
@@ -182,7 +184,7 @@ export const recoveryStorage = {
       done(written);
     }));
   },
-  delete(id?: string): Promise<void> {
+  delete(id?: string, hostId = LOCAL_HOST_ID): Promise<void> {
     return transaction((records, barriers, done, fail) => {
       if (id !== undefined) {
         barriers.delete(["session", id]);
@@ -190,14 +192,27 @@ export const recoveryStorage = {
         done(undefined);
         return;
       }
-      const key = "all";
+      const key = `all:${JSON.stringify(hostId)}`;
       const read = barriers.get(key);
       read.onsuccess = () => {
         try {
-          // Global generation invalidates old tickets, so old per-session barriers can go too.
-          barriers.clear();
+          // Invalidate only this Host's pending tickets. Other Hosts keep their permissions.
+          const sessions = barriers.openCursor();
+          sessions.onsuccess = () => {
+            const entry = sessions.result;
+            if (!entry) return;
+            if (Array.isArray(entry.key) && entry.key[0] === "session" && entry.value.hostId === hostId) entry.delete();
+            entry.continue();
+          };
           barriers.put(Number(read.result ?? 0) + 1, key);
-          records.clear();
+          const cursor = records.openCursor();
+          cursor.onsuccess = () => {
+            const entry = cursor.result;
+            if (!entry) return;
+            // Legacy unknown-Host records are discardable locally, never reassigned.
+            if (entry.value.hostId === hostId || hostId === LOCAL_HOST_ID && !entry.value.hostId) entry.delete();
+            entry.continue();
+          };
           done(undefined);
         } catch (error) { fail(error); }
       };
@@ -276,7 +291,7 @@ export function recoveryText(snapshot: SessionSnapshot): string {
 }
 
 /** One recorder per mounted document session. Recovery never gates editing, Save or closing. */
-export function createRecoveryRecorder(id: string, documentPath: () => string, capture: () => SessionSnapshot | null, failed: (error: unknown) => void, succeeded: () => void = () => {}) {
+export function createRecoveryRecorder(id: string, documentPath: () => string, capture: () => SessionSnapshot | null, failed: (error: unknown) => void, succeeded: () => void = () => {}, hostId = LOCAL_HOST_ID) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let epoch = 0;
   let permit: Promise<Ticket | null> | undefined;
@@ -304,7 +319,7 @@ export function createRecoveryRecorder(id: string, documentPath: () => string, c
           if (current !== epoch) return undefined;
           const snapshot = capture();
           capturedFailures = failures;
-          return snapshot ? { id, version: 1, recordingGeneration: resumeDirty(), path: snapshot.file.path, recordedAt: Date.now(), recoveryText: recoveryText(snapshot), snapshot } : null;
+          return snapshot ? { id, version: 2, hostId, recordingGeneration: resumeDirty(), path: snapshot.file.path, recordedAt: Date.now(), recoveryText: recoveryText(snapshot), snapshot } : null;
         });
         if (written && current === epoch && capturedFailures === failures) succeeded();
       }).catch(error => { if (current === epoch) reportFailure(error); });
@@ -322,7 +337,7 @@ export function createRecoveryRecorder(id: string, documentPath: () => string, c
         cancel(); reportFailure(error); return;
       }
       const current = epoch;
-      permit = recoveryStorage.ticket(id, documentPath()).catch(error => { if (current === epoch) reportFailure(error); return null; });
+      permit = recoveryStorage.ticket(id, documentPath(), hostId).catch(error => { if (current === epoch) reportFailure(error); return null; });
       schedule();
     },
     checkpoint: schedule,

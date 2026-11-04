@@ -1,6 +1,7 @@
 # Editing session and Save v1
 
 - Status: Implemented
+- Host identity verification: 2026-11-05 (#1174 PR1: targeted Editor unit tests, workspace typecheck, boundaries/docs and persistent-Chrome recovery/storage/structure, document-tabs, folder-memory and file-actions; no multi-Host connection or packaged Desktop execution).
 - Diff performance verification: 2026-11-03 (#1009 F09: recovery owns the representative large-input browser measurement; recovery-diff unit and recovery/pre-save browser checks).
 - Editor groups verification: 2026-10-29 (#488 phase 1; one mounted session per document across group moves, group actions/focused shortcuts, dirty-close and navigation-only reload; [contract and evidence](editor-ux-shell-v1.md#two-editor-groups-488-phase-1)).
 - Recovery support verification: 2026-10-29 (#705: current-schema validation and stored plaintext refusal path; Editor tests and typecheck).
@@ -15,6 +16,27 @@
 - Boundaries: ADR-0001, ADR-0002, ADR-0003. Markdown remains the disk SSOT; Core operations and canonical validation remain the write path.
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
+
+## Host-scoped identity (#1174 PR1)
+
+Tabs and recovery locators use `(hostId, path)`. The current runtime has one Host,
+`local`; registration, request multiplexing and multi-Host UI follow in ADR-0018 PR2–4.
+The identity is a client registration, never a daemon instance or a Core document ID.
+Host-returned paths compare literally, without client OS normalization or case folding.
+
+Navigation preferences (open tabs/active path, recent/open folders, collapsed sections and
+per-document table wrapping) use JSON tuple storage keys `[hostId, preferenceName]`.
+Folder trees carry hostId; containment, late responses and section actions only match
+within that Host. Tab session IDs remain opaque per-mount IDs; document lookup compares
+both locator fields. Recovery record v2 adds hostId; IndexedDB protocol v4 stores Host-scoped
+barriers, including the delete-all generation. Rename/delete and checked recovery lists
+match both fields, preserving other Hosts' records and pending first-write permission.
+Recovery comparison and restore cannot route an unavailable/unknown Host to local files.
+
+No migration is performed. Old unscoped navigation preferences are ignored. Existing
+recovery records are not assigned a Host or converted: unsupported records retain the
+plaintext salvage/refusal flow and explicit discard, without a filesystem comparison
+against an inferred Host. Core semantics, disk paths, revisions and receipts are unchanged.
 
 ## Text editing sessions (#817)
 
@@ -56,7 +78,7 @@ and rename in `packages/file-commit`; no daemon, backend state or autosave is ad
 ## File deletion and rename (#505 / #504 PR A)
 
 Confirmed file deletion closes its open tab, discards applied edits/property drafts and deletes
-all recovery records matching its path. Dirty work requires the explicit Delete and discard changes
+all recovery records matching its Host and path. Dirty work requires the explicit Delete and discard changes
 confirmation instead of the ordinary tab Save/Don't save prompt. The file tree receives focus.
 
 Renaming a document file in the same folder keeps the mounted editor, history, selection and drafts. It changes the live
@@ -69,7 +91,7 @@ subsequent dirty recording uses the new locator and a fresh nonce. Other paths a
 keep their permissions. No new store or path tombstone is added. No file reread or semantic rewrite
 occurs. Storage failure after disk success is visible and does not pretend the disk operation failed.
 
-Deletion/rename recovery barriers match path strings. Until [#372](https://github.com/litzio/litzio/issues/372)
+Deletion/rename recovery barriers match hostId and path strings. Until [#372](https://github.com/litzio/litzio/issues/372)
 decides Windows locator identity, case-only aliases (for example, a different spelling in URL
 `?path=`) are treated as separate paths. Another window's delayed first recovery write may then
 leave an old-path record. There is no data loss; the extra record can be discarded.
@@ -145,7 +167,7 @@ draft/asset/dirty flags, heading numbering, outline store and keyed `DocumentEdi
 It handles Save, Source, Reload and image selection. Each mounted `DocumentTab` owns one hook
 and `DocumentEditor`; each [editor group](editor-ux-shell-v1.md#two-editor-groups-488-phase-1)
 shows its active tab. `App` owns startup and Open/New requests,
-the normalized-path tab list, folder tree, preferences, shared header/outline, Desktop integration
+the Host-and-path tab list, folder tree, preferences, shared header/outline, Desktop integration
 and the shared **Save / Don't save / Cancel** close dialog. A tab is added only after Host success.
 Opening a Host-returned path already in the list activates its existing session without replacing it,
 moving that tab into the requested group when needed.

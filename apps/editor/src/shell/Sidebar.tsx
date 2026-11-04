@@ -1,3 +1,4 @@
+import { locatorKey } from "../host-locator.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { usePanelWidthBounds } from "./panel-width.ts";
 import { THEME_LABELS, type ThemePreference } from "../preferences.ts";
@@ -105,7 +106,7 @@ export function Sidebar({
         }}>
         {folders.length > 0 ? folders.map(tree => (
           <FolderTree
-            key={tree.root}
+            key={locatorKey({ hostId: tree.hostId, path: tree.root })}
             onAddToChat={onAddToChat}
             onFileAction={onFileAction} fileActionsDisabled={fileActionsDisabled} isFileDirty={isFileDirty}
             tree={tree}
