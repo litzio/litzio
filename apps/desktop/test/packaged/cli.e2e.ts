@@ -1,8 +1,9 @@
+import { assistantCliEnvironment } from "../../../editor/server/assistant-cli.ts";
 import { brand } from "../../../../brand.ts";
 // Packaged RunAsNode and the shipped CLI, with an isolated integration directory.
 import { listenForFetch } from "../../../../test/helpers/fetch-server.ts";
 import assert from "node:assert/strict";
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
@@ -27,6 +28,16 @@ test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/h
     write: async (_previous, next) => { user = next; }, expand: value => value,
   });
   try {
+    const parentPath = process.env.PATH;
+    const assistant = path.join(folder, "비서 path");
+    const childEnv = assistantCliEnvironment(assistant, { bin: exe, args: [path.join(path.dirname(exe), "resources/cli/cli.mjs")] });
+    assert.equal((await integration.state()).status, "off");
+    const template = spawnSync(process.env.ComSpec ?? "cmd.exe", windowsCommand(path.join((childEnv.PATH ?? childEnv.Path)!.split(path.delimiter)[0]!, `${brand.cliCommand}.cmd`),
+      ["templates", "read", "builtin:ai-report", "--json", "--language", "ko"]), { env: childEnv, windowsVerbatimArguments: true, windowsHide: true, encoding: "utf8" });
+    assert.equal(template.status, 0, template.stderr);
+    assert.equal(JSON.parse(template.stdout).id, "builtin:ai-report");
+    assert.match(JSON.parse(template.stdout).source, /작업 목적/);
+    assert.equal(process.env.PATH, parentPath);
     assert.equal((await integration.setEnabled(true)).status, "installed");
     const version = JSON.parse(readFileSync(path.join(desktop, "package.json"), "utf8")).version;
     verifyPackagedCli(exe, integration.shim, folder, version);

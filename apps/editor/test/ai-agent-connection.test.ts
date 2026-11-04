@@ -1,3 +1,5 @@
+import { assistantCliEnvironment } from "../server/assistant-cli.ts";
+import { brand } from "../../../brand.ts";
 import { AgentDisplayRequests } from "../server/agent-display-tools.ts";
 import { displayRequestCurrent } from "../shared/assistant-display.ts";
 import assert from "node:assert/strict";
@@ -252,18 +254,31 @@ test("one lazy process initializes once, preserves caller home and cwd, pages mo
   // Generated guidance owns consent and CLI routing; CLI tests own actual writes.
   const instructions = readFileSync(env.instructions, "utf8"), generatedGuide = readFileSync(guide, "utf8");
   assert.match(instructions, /Read .*litzio-guide.*SKILL\.md.*template/);
-  assert.match(instructions, /templates list --json/);
+  assert.match(instructions, /query list_templates/);
   assert.match(generatedGuide, /templates list --json --language <ko\|en>/);
   assert.match(generatedGuide, /templates read <id> --json --language <ko\|en>/);
-  assert.match(generatedGuide, /Propose.*user agrees.*create/s);
+  assert.match(generatedGuide, /Propose.*user agrees.*create_document/s);
   assert.match(generatedGuide, /explicitly names a template.*authorization/s);
   assert.match(generatedGuide, /create <new-file> --template <id> --language <ko\|en>/);
   assert.match(generatedGuide, /templates save <name> --from <file> --description <text>/);
   assert.match(generatedGuide, /Confirm.*name.*description.*source.*before saving/s);
-  assert.match(generatedGuide, /unsaved editor changes are not supplied.*saved disk version/s);
+  assert.match(generatedGuide, /Unsaved editor changes are not supplied.*saved disk version/s);
   assert.match(generatedGuide, /CLI creations do not produce.*result card/);
+  const parentPath = process.env.PATH;
   const [models, diagnostics] = await Promise.all([connection.models(), connection.diagnostics()]);
   assert.deepEqual(models.models.map(model => model.model), ["gpt-6.1-sol", "chosen-model", "next-model"]);
+  assert.equal(process.env.PATH, parentPath, "Host process PATH must not change");
+  const cli = await connection.client.request("fixture/cli", { command: brand.cliCommand, args: ["templates", "read", "builtin:technical-document", "--json", "--language", "ko"] });
+  assert.equal(cli.status, 0, cli.stderr);
+  assert.equal(JSON.parse(cli.stdout).id, "builtin:technical-document");
+  assert.match(JSON.parse(cli.stdout).source, /기술 문서/);
+  const ownBin = cli.path.split(path.delimiter)[0];
+  assert.equal(path.dirname(ownBin), path.join(cwd, "bin"));
+  const launcher = readFileSync(path.join(ownBin, "cli.cjs"), "utf8");
+  const other = assistantCliEnvironment(cwd, { bin: process.execPath, args: ["--version"] });
+  assert.notEqual((other.PATH ?? other.Path)!.split(path.delimiter)[0], ownBin);
+  assert.equal(readFileSync(path.join(ownBin, "cli.cjs"), "utf8"), launcher, "Another Host sharing cwd must not replace this CLI");
+  assert.equal(process.env.PATH, parentPath);
   assert.equal(diagnostics.connected, true); assert.equal(diagnostics.accountError, "fixture error");
   assert.equal(diagnostics.rateLimits![0].windows[0].usedPercent, 28);
   assert.deepEqual(diagnostics.mcp, [{ name: "fixture", status: "unknown", authStatus: "notLoggedIn" }]);
@@ -316,7 +331,7 @@ test("installed CLI launcher paths with spaces support version diagnostics and r
 test("dynamic document tools enforce turn scope and preserve results across process resume", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-tools-")), folder = path.join(root, "docs"), outside = path.join(root, "outside"), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");
   mkdirSync(folder); mkdirSync(outside);
-  const connection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
+  const connection = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] }, undefined, { packaged: false, checkoutRoot: root });
   const conversations = new AiAgentConversations(connection, new RootAccess([root]));
   const settings = { provider: "codex" as const, providers: { codex: true, copilot: true }, writeAccess: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "Create Hello", folders: [folder], model: settings.model, reasoningEffort: "medium" };
@@ -364,6 +379,29 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   assert.match(JSON.parse(read.contentItems[0].text).source, /Hello world/);
   const listed = (await call("list_documents", { path: folder })).result;
   assert.equal(listed.success, true); assert.equal(JSON.parse(listed.contentItems[0].text).entries[0].path, file);
+  const catalog = JSON.parse((await call("list_templates", { language: "ko" })).result.contentItems[0].text);
+  assert.equal(catalog.directory, path.join(root, ".litzio-dev", "templates"));
+  assert.ok(catalog.templates.some((item: any) => item.id === "builtin:technical-document"));
+  const templateFile = path.join(folder, "Template.md");
+  const fromTemplate = (await call("create_document", { path: templateFile, template: "builtin:technical-document", language: "ko" })).result;
+  assert.equal(fromTemplate.success, true);
+  const templateReceipt = JSON.parse(fromTemplate.contentItems[0].text);
+  assert.equal(templateReceipt.path, templateFile); assert.ok(templateReceipt.identity.ino);
+  const templateSource = readFileSync(templateFile, "utf8"); assert.ok(!templateSource.includes("template:"));
+  const saved = (await call("save_template", { name: "Reusable", from: templateFile, description: "From saved disk" })).result;
+  assert.equal(saved.success, true, JSON.stringify(saved));
+  const preview = JSON.parse((await call("read_template", { template: "user:Reusable" })).result.contentItems[0].text);
+  assert.equal(preview.description, "From saved disk");
+  assert.equal(readFileSync(templateFile, "utf8"), templateSource);
+  for (const [tool, input] of [
+    ["save_template", { name: "Outside", from: path.join(outside, "escape.md") }],
+    ["create_document", { path: path.join(outside, "escape.md"), template: "builtin:ai-report" }],
+    ["create_document", { path: templateFile, template: "builtin:ai-report" }],
+    ["create_document", { path: path.join(folder, "bad-template.md"), template: "missing" }],
+    ["create_document", { path: path.join(folder, "mixed.md"), template: "builtin:ai-report", title: "Ignored?", blocks: [] }],
+  ] as const) assert.equal((await call(tool, input)).result.success, false);
+  assert.equal(readFileSync(templateFile, "utf8"), templateSource);
+  assert.equal(existsSync(path.join(folder, "bad-template.md")), false);
   const before = readFileSync(file);
   assert.equal((await call("create_document", args)).result.success, false);
   assert.deepEqual(readFileSync(file), before);
@@ -383,7 +421,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   assert.equal((await endingDisplay.response).result.success, false);
   assert.equal((await call("create_document", { ...args, path: path.join(folder, "late.md") })).result.success, false);
   await connection.close();
-  const next = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] });
+  const next = new AiAgentConnection(cwd, { bin: process.execPath, args: [fakeServer, log] }, undefined, { packaged: false, checkoutRoot: root });
   try {
     const history = new AiAgentConversations(next, new RootAccess([root]));
     const resumed = await history.resume(conversation.id, settings);
@@ -396,8 +434,14 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     assert.equal((await readOnlyDisplay as { success: boolean }).success, true, "Display reads do not need document write access or opened folders");
     const denied = await next.client.request("fixture/tool", { threadId: conversation.id, tool: "create_document", arguments: { ...args, path: path.join(folder, "readonly.md") } });
     assert.equal(denied.result.success, false); assert.equal(existsSync(path.join(folder, "readonly.md")), false);
+    const templateDenied = await next.client.request("fixture/tool", { threadId: conversation.id, tool: "save_template", arguments: { name: "Denied", from: templateFile } });
+    assert.equal(templateDenied.result.success, false);
+    const catalogWithoutFolders = await next.client.request("fixture/tool", { threadId: conversation.id, tool: "list_templates", arguments: {} });
+    assert.equal(catalogWithoutFolders.result.success, true);
+    const persistedTemplate = resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success && item.toolResult.contentItems?.some(content => content.type === "inputText" && typeof content.text === "string" && JSON.parse(content.text).path === templateFile));
+    assert.deepEqual(persistedTemplate?.toolResult, fromTemplate);
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings"]);
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
   } finally { await next.close(); }
 });

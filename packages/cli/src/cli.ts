@@ -1,4 +1,5 @@
-import { listTemplates, readTemplate, saveTemplate, templateDocumentSource, templateLanguage } from "../../../apps/editor/server/document-templates.ts";
+import { createDocumentSourceFile } from "../../../apps/editor/server/document-create.ts";
+import { executeTemplateOperation, templateLanguage } from "../../../apps/editor/server/document-templates.ts";
 import { brand } from "../../../brand.ts";
 import { readBibliographySources } from "../../../apps/editor/server/bibliography.ts";
 import { versionText } from "./version.ts";
@@ -224,7 +225,7 @@ const COMMANDS: CommandSpec[] = [
     name: "create",
     group: "Create and inspect",
     summary: `Create a ${brand.name.en} native document, optionally from a template`,
-    usage: `${brand.cliCommand} create <file> [--template <name|id>] [--language <ko|en>]`,
+    usage: `${brand.cliCommand} create <file> [--template <name|id>] [--language <ko|en>] [--format <text|json>]`,
     details: ["Create a new .md file in an existing directory. Existing files are never overwritten."],
   },
   {
@@ -908,13 +909,13 @@ function main(argv: string[]): number {
     }
     const language = templateLanguage(optionalFlag(tokens, "--language"));
     let result: unknown;
-    if (operation === "list") result = listTemplates(language);
-    else if (operation === "read" && name) result = readTemplate(name, language);
-    else if (operation === "save" && name) result = saveTemplate({ name, from: flag(tokens, "--from"), description: optionalFlag(tokens, "--description") });
+    if (operation === "list") result = executeTemplateOperation("list", { language });
+    else if (operation === "read" && name) result = executeTemplateOperation("read", { template: name, language });
+    else if (operation === "save" && name) result = executeTemplateOperation("save", { name, from: flag(tokens, "--from"), description: optionalFlag(tokens, "--description") });
     else throw new Error(commandHelp(command));
     if (operation === "read" && !seen.has("--json")) process.stdout.write((result as { source: string }).source);
     else if (operation === "list" && !seen.has("--json")) {
-      const inventory = result as ReturnType<typeof listTemplates>;
+      const inventory = result as import("../../../apps/editor/shared/template-protocol.ts").TemplateList;
       process.stdout.write(inventory.templates.map(item => `${item.id} (${item.kind}) ${item.name}\n  ${item.description}`).join("\n") + "\n");
       for (const problem of inventory.problems) process.stderr.write(`${problem.file}: ${problem.error}\n`);
     } else process.stdout.write(JSON.stringify(result) + "\n");
@@ -994,7 +995,9 @@ function main(argv: string[]): number {
       if (path.extname(file).toLowerCase() !== ".md") throw new Error("document path must point to a .md file");
       const template = optionalFlag(flags, "--template");
       const language = templateLanguage(optionalFlag(flags, "--language"));
-      writeFileSync(file, template === undefined ? serialize(createDocument()) : templateDocumentSource(template, language), { encoding: "utf8", flag: "wx" });
+      const receipt = template === undefined ? createDocumentSourceFile(file, serialize(createDocument()))
+        : executeTemplateOperation("create", { path: file, template, language });
+      if (format === "json") process.stdout.write(JSON.stringify(receipt) + "\n");
       return 0;
     }
     case "check": {
@@ -1513,7 +1516,7 @@ const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   "insert-hard-break": ["--path", "--offset"],
   "split-paragraph": ["--path", "--offset"],
   "merge-paragraph": ["--path"],
-  create: ["--template", "--language"],
+  create: ["--template", "--language", "--format"],
   check: ["--format"],
   inspect: ["--format"],
   format: [],

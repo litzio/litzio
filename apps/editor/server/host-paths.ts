@@ -5,7 +5,7 @@ import { DEFAULT_AI_SETTINGS, type AiExecutionSettings } from "@litzio/plugin-ap
 import { brand } from "../../../brand.ts";
 
 declare const __LITZIO_CLI_BUILD__: unknown;
-export type HostRun = { packaged?: boolean; checkoutRoot?: string };
+export type HostRun = { packaged?: boolean; checkoutRoot?: string; cli?: import("./assistant-cli.ts").AssistantCli };
 
 /** Known source module location; bundled Desktop supplies its build/app-relative root. */
 export function hostPaths(run: HostRun = {}, env: NodeJS.ProcessEnv = process.env) {

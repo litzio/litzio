@@ -2,7 +2,8 @@
 
 - Status: Implemented
 - Last verified: 2026-11-04 — Phase 1 Core/CLI/Host/Desktop adapter tests; phase 2 gallery, retained reading preview, naming feedback and 1440/640px review; phase 3 generated guidance, CLI path and YAML-comment preservation checks. No real model call; packaged Desktop verification is CI-only.
-- Scope: #936 phases 1–3: Core semantics, thin CLI/Host interfaces, Editor gallery and assistant guidance.
+- Shared-operation verification: 2026-11-04 (#1128: common Host operations, fake Codex tool calls/receipt history and child CLI execution; no real model call, packaged behavior is CI-only).
+- Scope: #1128 and #936 phases 1–3: Core semantics, thin CLI/Host interfaces, Editor gallery and assistant guidance.
 - Authority: [#936 owner decisions](https://github.com/litzio/litzio/issues/936), including the 2026-11-04 approval of optional `template: { name, description }`; [native support](document-support-v1.md), [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md) and [ADR-0006](../adr/0006-native-document-boundary.md).
 
 ## Native document semantics
@@ -100,7 +101,7 @@ valid templates available while reporting individual broken user files.
 The protocol types live in `apps/editor/shared/template-protocol.ts`. Listing,
 preview and saving do not apply a template to an existing document. The gallery
 and assistant use the same ID and source contract. The gallery uses these routes;
-assistant guidance uses the existing CLI without changing them.
+HTTP, CLI and Codex tools use the same template operations described below.
 
 ## Editor gallery (phase 2)
 
@@ -150,45 +151,77 @@ unchanged; this is an Editor interaction, so no new CLI operation is needed.
 litzio templates list [--json] [--language <ko|en>]
 litzio templates read <name|id> [--json] [--language <ko|en>]
 litzio templates save <name> --from <file> [--description <text>]
-litzio create <file> [--template <name|id>] [--language <ko|en>]
+litzio create <file> [--template <name|id>] [--language <ko|en>] [--format <text|json>]
 ```
 
 List JSON matches the Host catalog. Read prints Markdown, or the content record
 with `--json`. Save prints the saved content record as JSON. CLI uses the same
-store and Core operations, strict UTF-8 and existing `create` exclusive write;
-it does not implement YAML/AST semantics.
+Host operations and Core, strict UTF-8 and common exclusive creation;
+it does not implement YAML/AST semantics. Default create remains silent; `--format json` returns the creation receipt including path, source, revision and file identity.
 
-## Assistant guidance (phase 3)
+## Shared Host operations and assistant (#1128)
 
-Litzio's generated assistant `AGENTS.md` directs document-creation requests to
-query `templates list --json` and read the product-owned `litzio-guide` skill.
-The skill queries names/descriptions at request time, rather than embedding a
-catalog that becomes stale after user saves. It proposes a suitable template,
-waits for consent, reads its structure and creates through `create --template`.
-An explicitly named template supplies consent for that template; missing entries
-must not silently fall back to another template.
+`document-templates.ts` owns the template-specific `templateOperations` definitions
+and `executeTemplateOperation`: input validation, result shape and explicit
+`TemplateScope`. HTTP and CLI adapt their existing syntax; Codex reuses those
+specifications through the existing active-turn tool handler. No general registry,
+new plugin API or live CLI-to-Host transport is introduced ([ADR-0015](../adr/0015-shared-host-operations.md)).
 
-New template authoring uses `create`, supported `apply-batch` operations and
-`check`, followed by `templates save`. Saving an existing document leaves it
-unchanged. The user confirms name, description and source before saving; an
-explicit request containing those details suffices. Save reads disk, so unsaved
-editor context must not be represented as saved template content. Built-ins are
-copied under a new user name; collisions never replace entries. Instructions
-require a read-back and refreshed catalog after saving.
+| Operation | Codex input | Result |
+| --- | --- | --- |
+| `list_templates` | `{language?}` | Existing TemplateList with catalog problems |
+| `read_template` | `{template, language?}` | Existing TemplateContent |
+| `create_document` template form | `{path, template, language?}`; no title/blocks | `{path, source, revision, identity}` creation receipt |
+| `save_template` | `{name, from, description?}` | Saved TemplateContent; original unchanged |
 
-No dynamic-tool template argument, Host route or UI is added. Template workflows
-use the CLI in the same environment/catalog as Litzio. CLI creations have no
-structured `create_document` receipt, result card or card Undo; the assistant
-reports the path and validation result in text. Restricted shell/filesystem
-access or an unavailable CLI is reported as a limitation, without bypassing it.
-See [main-agent guidance](main-agent-v1.md#template-workflows-936-phase-3).
+The alternative `create_document` form still accepts title and paragraph/heading
+blocks. Template form removes only template metadata through Core, without model
+reconstruction. HTTP, CLI and ordinary/tool creation share `document-create.ts`:
+canonical admission before `wx`, identity from the opened descriptor and revision
+of the written source. The HTTP adapter adds the native read model; CLI can emit
+the receipt as JSON. CLI stdout does not create a card in another window.
+
+List/read need no opened folder or document write access. Create/save require
+captured write access (`opened-folders` or `full-access`) and an absolute source
+or destination inside the turn's pinned opened folders and Host Roots. Save's
+purpose-built destination is the fixed app-owned template catalog, not arbitrary
+filesystem write access. Host composition pins the catalog to the same source or
+packaged run as HTTP; input cannot select a directory. Existing name, native,
+UTF-8, symlink, no-overwrite and Root checks remain in force.
+
+New Codex conversations acquire the added tools. Existing threads are not
+retrofitted. Template creation uses the existing result card/Open/guarded Undo;
+changed disk content, unsaved edits and recovery keep their existing protection.
+There is no new undo service or shared editor history.
+
+Generated assistant AGENTS.md and `litzio-guide` query `list_templates` at request
+time, propose a suitable template and wait for consent before reading/applying it.
+An explicitly named template supplies consent; a missing entry never silently
+falls back. Saving requires confirmation of name, description and disk source,
+followed by read-back and a refreshed catalog. Unsaved edits must be saved first
+if intended for the template. These consent rules are instructions, not a parser
+of natural-language authorization. Host input and scope checks run independently.
+
+Inside Litzio, templates use Litzio tools. CLI guidance is for terminal Codex
+continuation and richer terminal authoring with existing apply-batch/check.
+Copilot has no Litzio template tools (#1121); it offers text guidance.
+
+Before launching Codex, the Host prepends `<assistant cwd>/bin/<CLI identity>` to that child's
+PATH. A private launcher invokes this Host's CLI with its runtime: source CLI
+and tsx for source runs, bundled `cli.mjs` for distributed HTTP, explicitly supplied
+bundled CLI and Electron RunAsNode for packaged Desktop. The Windows launcher uses
+a runtime-directory junction and JS arguments so Unicode installation paths do not
+enter batch source. It works independently of optional Desktop CLI integration.
+CLI/runtime-specific subdirectories prevent Desktop and HTTP Hosts sharing a cwd
+from replacing one another's launcher. Parent process, system/user PATH and registry are untouched; no executable is
+selected from another installation's PATH. It does not connect CLI to a live Host,
+share drafts or turn a failed Host call into local re-execution.
 
 ## Verification scope
 
 Existing Core native tests own valid/malformed metadata, immutable operations,
 other-metadata/body preservation and canonical repeatability. Existing CLI tests
-exercise in-process command parsing/output, shared storage and create/reopen;
-no new subprocess is added. Existing Editor Host tests own localized default
+exercise in-process command parsing/output, shared storage and create/reopen. Existing Editor Host tests own localized default
 previews, HTTP transport, filesystem collision/no-overwrite, Root refusal and
 broken-file reporting, with one temporary listener closed by test cleanup.
 Host path tests cover source/packaged location calculation without writing the
@@ -213,7 +246,7 @@ Placeholder substitution, folder templates and Docling result formatting (#1103)
 remain outside this contract. Phase 3 extends the existing generated-environment
 test with consent, live catalog and CLI command guidance assertions. Existing CLI
 template tests verify list/read/save/create and refusal paths; no duplicate write
-harness, subprocess or real model call is added. Core preservation assertions also
+harness or real model call was added for phase 3. #1128 extends the existing fake app-server test with tool registration, captured permissions, template save/create/read and receipt history. One real CLI read from that fake child proves PATH execution; the same test asserts parent PATH preservation. The existing ai-result browser case uses an actual template creation receipt for Open/guarded Undo (12 seconds locally). Existing packaged Desktop CLI CI adds one template read through the private launcher while optional CLI integration is off; no new packaging run or local install/update/uninstall is added. Core preservation assertions also
 check the YAML marker comment before and after template creation.
 
 ## Gallery visual review

@@ -31,7 +31,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | Document | Status | Authority / description |
 | --- | --- | --- |
 | [Native document support](design/document-support-v1.md) | Implemented | 현재 계약. 표식·지원 의미·Core 진입/생성/쓰기 경계와 LF/fail-closed 보존. #817 별도 텍스트 종류·저장 경계. |
-| [Document templates](design/document-templates-v1.md) | Implemented | #936 1–3단계. Core template 메타데이터·생성, 공용 CLI/Host, ko/en 기본 2종, Editor 카드 갤러리·사용자 저장과 비서 CLI 안내. |
+| [Document templates](design/document-templates-v1.md) | Implemented | #936 1–3단계. Core template 메타데이터·생성, 공용 CLI/Host, ko/en 기본 2종, Editor 카드 갤러리·사용자 저장. #1128 공용 작업·Codex 템플릿 도구·생성 receipt/Undo와 child CLI PATH. |
 | [Host worker plugins](design/plugin-runtime-v1.md) | Implemented | #853 공용 설치·worker API·UUID/uncertain·OS 잠금 복구·Host 결과 공개 및 #869 플러그인 Host 작업·폴더 분리 절차. |
 | [Main agent connection, settings and conversations](design/main-agent-v1.md) | Implemented | #931 연결·설정·대화: Codex app-server / Copilot ACP, 모델·진단·공통 환경, 무발화 작업의 AI 기본 언어, @·Explorer 파일 참조, / Codex 활성 스킬 선택과 기록 칩 복원, 셸 비서 패널·thread 기록·스티어링·중단·컨텍스트 사용량. |
 | [Plugin UI contributions](design/plugin-ui-v1.md) | Implemented | #857 중립 UI manifest/API, 같은 origin의 검증된 ESM/CSS, React 주입, 명령·탭·사이드바·설정·변환 화면 기여와 비활성 탭·오류 격리·ESM 수명. |

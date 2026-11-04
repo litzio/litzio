@@ -1,3 +1,4 @@
+import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
 import { readFileSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
@@ -47,9 +48,13 @@ export class AiAgentConversations {
       const scope = this.scopes.get(params?.threadId);
       const active = this.conversations.get(params?.threadId)?.turns.find(turn => turn.id === params.turnId && turn.status === "inProgress");
       if (!scope || !active || scope.turnId !== params.turnId || params.namespace != null) throw new Error("No authorized active turn for this tool call.");
+      const templateScope = { ...scope, directory: this.connection.templatesDirectory };
       const result = displayTools.some(tool => tool.name === params.tool)
         ? await this.display.execute(params.tool, params.arguments, params.threadId, scope.displayClient)
-        : executeDocumentTool(params.tool, params.arguments, scope);
+        : params.tool === templateOperations.list.name ? executeTemplateOperation("list", params.arguments, templateScope)
+        : params.tool === templateOperations.read.name ? executeTemplateOperation("read", params.arguments, templateScope)
+        : params.tool === templateOperations.save.name ? executeTemplateOperation("save", params.arguments, templateScope)
+        : executeDocumentTool(params.tool, params.arguments, templateScope);
       return { contentItems: [{ type: "inputText", text: JSON.stringify(result) }], success: !("error" in result && result.error) };
     };
     connection.client.on("notification", (method, params) => this.notification(method, params));
@@ -175,7 +180,7 @@ export class AiAgentConversations {
       }
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
-          approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [...documentTools, ...displayTools] });
+          approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [...documentTools, ...displayTools, ...templateTools] });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
           turns: [], provider: "codex", writeAccess: settings.writeAccess, model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);

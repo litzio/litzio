@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline";
 import { appendFileSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
@@ -24,6 +25,10 @@ createInterface({ input: process.stdin }).on("line", line => {
       turn.items.push(item); persist(); notify("item/completed", { threadId: thread.id, turnId: turn.id, item });
     }
     send({ id: pending.id, result: message }); return;
+  }
+  if (method === "fixture/cli") {
+    const result = spawnSync(params.command, params.args, { encoding: "utf8", shell: process.platform === "win32", windowsHide: true, timeout: 10000 });
+    send({ id, result: { status: result.status, stdout: result.stdout, stderr: result.stderr, path: process.env.PATH } }); return;
   }
   if (method === "fixture/tool") {
     const callId = randomUUID(), turn = threads[params.threadId].turns.at(-1);

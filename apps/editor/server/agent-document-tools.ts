@@ -1,19 +1,17 @@
-import { fileIdentity } from "../shared/file-operations.ts";
-import { writeFileSync, openSync, fstatSync, closeSync } from "node:fs";
 import path from "node:path";
 import { createDocument, updateDocumentTitle, insertParagraph, insertHeading, bodyEndIndex, serialize, validateStructure, DocumentDiagnosticError } from "@litzio/core";
-import { textRevision } from "@litzio/file-commit";
+import { createDocumentSourceFile } from "./document-create.ts";
+import { executeTemplateOperation, templateOperations } from "./document-templates.ts";
 import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
 import { loadEditorFile, listFolder } from "./document-api.ts";
-import { resolveDocumentPath } from "./document-path.ts";
 
-export type DocumentToolScope = { folders: RootAccess | null; writeAccess: string; access: FileAccess };
+export type DocumentToolScope = { folders: RootAccess | null; writeAccess: string; access: FileAccess; directory?: string };
 const string = { type: "string" };
 export const documentTools = [
-  { type: "function", name: "create_document", description: "Create a new Litzio .md document inside an opened folder. Never overwrites. Blocks are plain-text paragraphs or headings (level 1–6). Use this tool instead of shell commands.", inputSchema: { type: "object", properties: { path: string, title: string, blocks: { type: "array", items: { oneOf: [
+  { type: "function", name: "create_document", description: "Create a new Litzio .md document inside an opened folder. Never overwrites. Blocks are plain-text paragraphs or headings (level 1–6). Alternatively supply path, template and optional language for an authorized template (without title/blocks). Use this tool instead of shell commands.", inputSchema: { type: "object", properties: { ...templateOperations.create.inputSchema.properties, title: string, blocks: { type: "array", items: { oneOf: [
     { type: "object", properties: { type: { const: "paragraph" }, text: string }, required: ["type", "text"], additionalProperties: false },
     { type: "object", properties: { type: { const: "heading" }, text: string, level: { type: "integer", minimum: 1, maximum: 6 } }, required: ["type", "text", "level"], additionalProperties: false },
-  ] } } }, required: ["path", "title", "blocks"], additionalProperties: false } },
+  ] } } }, required: ["path"], additionalProperties: false } },
   { type: "function", name: "read_document", description: "Read a document's disk source and revision inside the opened folders.", inputSchema: { type: "object", properties: { path: string }, required: ["path"], additionalProperties: false } },
   { type: "function", name: "list_documents", description: "List documents and child folders one level inside an opened folder; hidden entries and symlinks are omitted.", inputSchema: { type: "object", properties: { path: string }, required: ["path"], additionalProperties: false } },
 ];
@@ -21,6 +19,7 @@ export const documentTools = [
 /** Provider-neutral Host operation. Core alone owns document meaning and serialization. */
 export function executeDocumentTool(name: string, input: unknown, scope: DocumentToolScope) {
   if (!documentTools.some(tool => tool.name === name)) throw new Error("Unknown document tool.");
+  if (name === "create_document" && input && typeof input === "object" && "template" in input) return executeTemplateOperation("create", input, scope);
   const value = input as { path: string; title: string; blocks: { type: string; text: string; level: number }[] };
   const invalid = (message: string): never => { throw new DocumentDiagnosticError("invalid-operation", message); };
   if (!value || typeof value !== "object" || Array.isArray(value) || typeof value.path !== "string" || !path.isAbsolute(value.path)) invalid("An absolute path is required.");
@@ -48,10 +47,5 @@ export function executeDocumentTool(name: string, input: unknown, scope: Documen
   }
   validateStructure(document);
   const source = serialize(document);
-  const target = resolveDocumentPath(scope.folders.resolve(accessPath(file, scope.access, true), true), scope.access, true);
-  const fd = openSync(target, "wx");
-  try {
-    writeFileSync(fd, source, { encoding: "utf8" });
-    return { path: target, revision: textRevision(source), identity: fileIdentity(fstatSync(fd, { bigint: true })) };
-  } finally { closeSync(fd); }
+  return createDocumentSourceFile(scope.folders.resolve(accessPath(file, scope.access, true), true), source, scope.access);
 }
