@@ -2,10 +2,14 @@
 
 - Status: Accepted
 - Decision date: 2026-11-04
-- Last verified: 2026-11-04 — 소유자의 무인증 단계 결정과 #1145 향후 검토를 반영. 구현·검증 범위는 HTTP Host 계약을 따른다.
+- Last verified: 2026-11-04 — #1150·ADR-0017 승인 결정과 전환 범위를 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.
 - Authority: [#1142 소유자 결정](https://github.com/litzio/litzio/issues/1142), [#834 S1 승인 조건](https://github.com/litzio/litzio/discussions/834#discussioncomment-19389153), under [AGENTS.md](../../AGENTS.md).
 - Scope: 같은 PC의 Desktop·브라우저가 사용하는 공유 로컬 HTTP Host로의 1단계 전환. 수동 원격 접근은 ③의 추가 승인을 따른다. PR1은 결정 문서만 작성하며 구현 완료를 뜻하지 않는다.
 - Amends: [ADR-0004](0004-desktop-host-distribution.md), [ADR-0005](0005-http-host.md), [ADR-0012](0012-plugin-runtime-and-ui-contributions.md), [ADR-0015](0015-shared-host-operations.md)의 아래 명시한 경계. 나머지 결정은 유지한다.
+
+## Amendment: Desktop 번들 UI와 Docling 전환 (2026-11-04, #1150)
+
+[ADR-0017](0017-bundled-client-and-official-ai.md)은 PR4 이후 AI를 플러그인 경로 없는 daemon 공식 기능으로 먼저 이전하고 플러그인·Docling 기능을 제거하도록 결정한다. 삭제 직전 master는 원격 `archive/plugins-docling-2026-11`에 보관한다. 이어 Host 클라이언트와 Desktop 앱 번들 UI로 전환하며 daemon의 브라우저 UI·고정 HTTP origin·수명 정책은 유지한다. 이는 구현 완료 선언이 아니며 아래 PR1~PR4의 기록을 보존한다.
 
 ## Context
 
@@ -62,15 +66,19 @@ PR2는 선택 Root, 로컬 `start/stop/status`, 단일 인스턴스·버전 확�
 
 ### ⑤ Origin과 하위 호환
 
-고정 HTTP origin을 쓴다. 소유자가 기존 사용자 0명을 보증했으므로 이전 `litzio://app` origin 저장소를 이전하지 않는다(하위 호환 없음).
+daemon은 고정 HTTP origin을 쓴다. PR3의 Desktop은 daemon UI를 로드하지만 ADR-0017 전환 뒤에는 앱 번들 UI의 별도 origin에서 HTTP Host API로 연결한다. 소유자가 기존 사용자 0명을 보증했으므로 이전 `litzio://app` origin 저장소를 이전하지 않는다(하위 호환 없음).
 
-### ⑥ 기간 한정 플러그인 테스트 예외
+### ⑥ 플러그인 기능 제거와 보관
 
-현재 상태: **종료됨 (PR4 복구, 필수 CI 전체 통과가 1단계 완료의 최종 조건)**.
+**과거 PR3/PR4 승인 이력:** 아래는 기존 예외와 복구 조건의 기록이다. #1150에서 예외를 연장하거나 새 예외를 두지 않는다. 현재 후속 결정은 이 절 마지막의 기능 제거·보관이다.
+
+현재 상태: **종료됨 — PR4(#1151) 병합과 필수 CI 전체 통과로 1단계 완료**.
 
 소유자는 1단계 동안 **느리고 in-process 수명에 묶인 플러그인 테스트만** 일시 제외하도록 승인했다. 제외 전에 CI 시간을 측정한다. 이는 AGENTS.md의 테스트 기준 약화 금지에 대한 기간 한정 예외이며 다른 테스트·문서 유효성·데이터 보존 기준을 완화하지 않는다. PR3의 제외 전 CI 측정·제외 목록과 PR4 복구 대상은 [Desktop 전환 검증](../design/desktop-distribution-v1.md#pr3-plugin-test-exception)에 기록한다.
 
-PR3의 packaged in-process Docling smoke 1개는 PR4에서 공유 daemon 소유 worker·native comparison 검사로 복구했다. 기간 한정 예외는 **종료됨**이며 제외 전 측정 기록을 보존한다. PR4 필수 CI 전체 통과가 1단계 완료의 최종 조건이며, 통과 시 이 예외에 따른 릴리스 중단 조건을 해제한다. 업데이트·제거의 daemon 통합은 계속 2단계다.
+PR3의 packaged in-process Docling smoke 1개는 PR4에서 공유 daemon 소유 worker·native comparison 검사로 복구했다. 기간 한정 예외는 **종료됨**이며 제외 전 측정 기록을 보존한다. PR4 필수 CI 전체 통과로 1단계를 완료했고 이 예외에 따른 릴리스 중단 조건은 해제했다. 후속 #1150 코어 전환의 릴리스 조건은 아래 기능 제거·보관 결정을 따른다. 업데이트·제거의 daemon 통합은 계속 2단계다.
+
+**#1150 기능 제거·보관 결정:** 위 PR3 예외는 PR4의 테스트 복구 이력으로 남기며 연장하지 않는다. ADR-0017 ③a에서 AI를 공식 기능으로 먼저 이전하고 ③b에서 삭제 직전 master를 원격 `archive/plugins-docling-2026-11`에 보관한 뒤 플러그인 런타임·UI·관리 CLI/설정·Docling과 관련 테스트·문서, 공식 AI가 쓰지 않는 plugin-api 부분을 삭제한다. 이는 테스트 기준 약화 예외가 아니라 기능 제거다. 다른 기능의 검증·문서 유효성·데이터 보존 기준은 유지한다. 재개는 소유자가 명시적으로 개시할 때 보관 코드를 참고한 컨셉 재개발로 진행한다. **1단계와 #1150 코어 전환 완료 전에는 릴리스하지 않는다.** 이후 플러그인 없는 제품의 릴리스 여부는 소유자가 정한다.
 
 ## Boundaries retained
 

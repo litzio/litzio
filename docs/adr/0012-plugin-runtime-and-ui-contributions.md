@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Decision date: 2026-10-31
-- Last verified: 2026-11-04 — #1142·ADR-0016 문서 개정 대조. runtime 검증 없음.
+- Last verified: 2026-11-04 — #1150·ADR-0017 승인 결정과 전환 범위를 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.
 - Previous verification: 2026-10-31 (#853 Host worker and #857 UI manifest/assets/contributions, React compatibility, disposal/re-registration and failure-isolation verification; real Docling remains manual).
 - Authority: owner approval in [Discussion #767](https://github.com/litzio/litzio/discussions/767#discussioncomment-19307920), under [AGENTS.md](../../AGENTS.md). Related: [ADR-0011](0011-code-module-boundary.md), [ADR-0004](0004-desktop-host-distribution.md), [ADR-0005](0005-http-host.md), [ADR-0007](0007-editing-session-lifetime.md), [staged Host decision #834](https://github.com/litzio/litzio/discussions/834#discussioncomment-19307667).
 - Supersedes: the static/no-registration/no-dynamic-loading boundary and process-local-only conversion task state in ADR-0011; its Core, package, external-data and thin-interface boundaries remain Accepted.
@@ -16,6 +16,10 @@ implementation. Current behavior remains described by the Implemented
 [Filesystem Host](../design/filesystem-host-boundary-v1.md) and
 [HTTP Host](../design/http-host-v1.md) contracts until implementation PRs satisfy
 the adoption conditions below and update the affected contracts.
+
+## Amendment: 공식 AI·Docling 전환과 Desktop 번들 UI (2026-11-04, #1150)
+
+[ADR-0017](0017-bundled-client-and-official-ai.md)은 AI를 항상 존재하는 daemon 공식 기능으로 먼저 이전한 뒤 플러그인 런타임·UI 기여·관리 CLI/설정·Docling과 관련 테스트·문서를 삭제하도록 결정한다. 공식 AI가 쓰지 않는 `@litzio/plugin-api` 부분도 삭제한다. 삭제 직전 master는 원격 `archive/plugins-docling-2026-11`에 보관한다. 이는 기능 제거이며 테스트 예외가 아니다. 소유자는 이미 검증한 설계여서 재개발 비용이 낮을 것으로 판단했다. 소유자가 명시적으로 재개를 개시할 때 보관 코드를 참고하여 컨셉을 다시 개발하며 그대로 복구하지 않는다. aiTasks 계약 복원·플러그인 UI 신뢰·원격 UI·번들 origin 로드 경계·Docling 재개발은 그때 결정한다. 1단계와 #1150 코어 전환 완료 전에는 릴리스하지 않으며 이후 플러그인 없는 제품의 릴리스 여부는 소유자가 정한다. 아래 구현 기록은 삭제 구현 전 근거이며 실제 코드·관련 문서 제거는 구현 PR에서 한다.
 
 ## Amendment: 공유 로컬 daemon Host (2026-11-04, #1142)
 
@@ -222,7 +226,7 @@ condition 1 remains manual. #869 subsequently migrates the conversion dialog, Do
 into the independently built `plugins/docling` folder through the same contribution
 boundary and a thin installed Host-operation entry. Settings plugin management and
 official plugin install/update/removal remain subsequent work.
-The AI agent framework will be a default-included provider-neutral plugin, and
+Historical decision (superseded in the transition scope by ADR-0017): the AI agent framework would be a default-included provider-neutral plugin, and
 Docling remains bundled until its official installation flow is available, per
 the later decisions in Discussion #767. The AI plugin and official installer are
 not implemented in #857.

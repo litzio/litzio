@@ -7,6 +7,10 @@
 - Authority: owner approval on 2026-11-02, following the B scope in [Discussion #767](https://github.com/litzio/litzio/discussions/767), under [ADR-0012](0012-plugin-runtime-and-ui-contributions.md).
 - Scope: default-included, removable AI execution plugin; no document semantic operation.
 
+## Amendment (2026-11-04, #1150)
+
+[ADR-0017](0017-bundled-client-and-official-ai.md)은 기본 포함·제거 가능한 AI 플러그인 결정을 항상 존재하는 daemon 공식 기능으로 대체한다. AI 켜기/끄기 설정은 없고 프로바이더 가용성으로 신규 대화·aiTasks 요청을 판단한다. 가용 프로바이더가 없으면 이유를 알리며 신규 요청을 거부하고 진행 작업에는 영향을 주지 않는다. 먼저 AI가 플러그인 경로 없이 동작하도록 이전한 뒤 플러그인 시스템·Docling과 관련 코드·테스트·문서를 삭제하며 직전 master는 원격 보관 브랜치에 남긴다. aiTasks 구현을 지금 유지할 필요는 없지만 Host 중개 메시지, caller별 조회·취소·활성 검사, ID/caller/task/baseline receipt와 uncertain/no-replay는 소유자 개시 후 컨셉 재개발 때 복원할 계약으로 기록한다. 아래는 전환 전 기록이며 실제 구현·문서 제거는 구현 PR에서 한다.
+
 ## Decision
 
 `plugins/ai-agent` registers an AI task execution service with the Host. Feature
