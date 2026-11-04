@@ -81,6 +81,7 @@ export class AiAgentConversations {
     const info = this.list().find(entry => entry.id === id);
     if (!info) throw new Error("Conversation was not found.");
     settings = { ...settings, provider: info.provider ?? "codex", writeAccess: turnWriteAccess ?? info.writeAccess ?? settings.writeAccess };
+    if (!settings.providers[settings.provider]) throw new Error("Selected AI provider is disabled.");
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
     if (info.provider === "copilot") await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? this.connection.copilot.reasoningEffort, settings);
     const conversation: AiConversation = { ...info, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
@@ -124,6 +125,7 @@ export class AiAgentConversations {
     if (existing && input.provider !== undefined && input.provider !== (existing.provider ?? "codex")) throw new Error("Provider is locked after a conversation starts.");
     settings = { ...settings, provider: existing?.provider ?? input.provider ?? settings.provider,
       writeAccess: input.writeAccess ?? existing?.writeAccess ?? settings.writeAccess };
+    if (!settings.providers[settings.provider]) throw new Error("Selected AI provider is disabled.");
     const folders = [...new Set(input.folders.map(folder => {
       if (typeof folder !== "string" || !path.isAbsolute(folder)) throw new Error("Invalid opened folder.");
       const resolved = accessPath(folder, this.access);

@@ -25,4 +25,11 @@
 .agent-models article code { display: block; color: var(--id-color-text-muted); font-size: var(--font-size-xs); }
 .agent-models article p { margin: var(--space-2) 0; }
 .agent-updated { margin-right: auto; }
-@media (max-width: 760px) { .agent-provider-open { flex-wrap: wrap; gap: var(--space-2); } .agent-provider-summary { flex-basis: 100%; } }
+/* Keep the Host switch and accessible label inside the provider action row. */
+.agent-provider-toggle { flex-shrink: 0; }
+.agent-provider-toggle .settings-row { display: flex; padding: 0; margin: 0; border: 0; }
+.agent-provider-toggle .settings-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.agent-provider-toggle .settings-row-control { width: auto; min-width: 0; }
+.agent-provider-open { gap: var(--space-2); padding-inline: 0; }
+.agent-provider-open strong { white-space: nowrap; font-size: var(--font-size-sm); }
+.agent-provider-summary { white-space: nowrap; flex-wrap: nowrap; }

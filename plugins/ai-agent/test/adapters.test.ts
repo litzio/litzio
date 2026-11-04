@@ -19,10 +19,30 @@ test("Copilot assistant settings preserve Codex feature-task execution defaults"
   const plugin = activate({ settingsFile: path.join(root, "settings.json"),
     aiExecutor: { current: () => null, start: async (_request: AiTaskRequest, _timeout: number, settings: AiExecutionSettings) => { execution = settings; return {} as never; } },
   } as unknown as PluginHostContext);
-  plugin.operations.configure({ provider: "copilot", enabled: true, model: "auto", reasoningEffort: "max", writeAccess: "full-access", responseLanguage: "ko",
+  plugin.operations.configure({ provider: "copilot", providers: { codex: true, copilot: true }, model: "auto", reasoningEffort: "max", writeAccess: "full-access", responseLanguage: "ko",
     codexTaskSettings: { model: "saved-codex-model", reasoningEffort: "low" } });
   await plugin.aiTaskService!.start({ id: "task", caller: "fixture", task: "inspect", instruction: "Inspect input", materials: [], input: null, schema: { type: "null" }, baseline: "opaque" });
   assert.deepEqual(execution, { model: "saved-codex-model", reasoningEffort: "low", responseLanguage: "ko" });
+  const current = plugin.operations.settings({});
+  plugin.operations.configure({ ...current, providers: { codex: false, copilot: true } });
+  assert.throws(() => plugin.aiTaskService!.start({ id: "another" } as AiTaskRequest), /disabled/);
+});
+
+test("provider enablement gates Codex tasks independently and old files use defaults without rewriting", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "ai-settings-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const settingsFile = path.join(root, "settings.json");
+  const old = JSON.stringify({ provider: "copilot", enabled: false, model: "old", reasoningEffort: "low" });
+  writeFileSync(settingsFile, old);
+  const plugin = activate({ settingsFile, aiExecutor: { current: () => null } } as unknown as PluginHostContext);
+  const defaults = plugin.operations.settings({});
+  assert.equal(defaults.provider, "codex");
+  assert.deepEqual(defaults.providers, { codex: true, copilot: false });
+  assert.equal(readFileSync(settingsFile, "utf8"), old);
+  plugin.operations.configure({ ...defaults, providers: { codex: false, copilot: false } });
+  assert.equal((await plugin.aiTaskService!.status()).available, false);
+  assert.throws(() => plugin.aiTaskService!.start({ id: "new" } as AiTaskRequest), /disabled/);
+  assert.throws(() => plugin.operations.configure({ ...defaults, providers: { codex: false, copilot: true } }), /must be enabled/);
 });
 
 test("snapshot contains only requested, hashed files; control files stay separate and both directories are cleaned on every outcome", async () => {

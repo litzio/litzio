@@ -5,7 +5,7 @@ async (page, { expect, openFolderPicker, pluginFixture, fileActionsRoot, screens
   await page.reload();
   const root = fileActionsRoot, sep = root.includes('\\') ? '\\' : '/';
   const paths = ['a.md', 'b.md', 'race-delete.md'].map(name => root + sep + name);
-  const settings = { provider: 'codex', enabled: true, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium', responseLanguage: 'en' };
+  const settings = { provider: 'codex', providers: { codex: true, copilot: false }, writeAccess: 'opened-folders', model: 'gpt-6.1-sol', reasoningEffort: 'medium', responseLanguage: 'en' };
   await page.route('**/api/ai-agent-settings*', route => route.fulfill({ json: settings }));
   await page.route('**/api/ai-agent-models*', route => route.fulfill({ json: { provider: 'codex', models: [{ id: 'sol', model: settings.model, displayName: 'GPT Sol', defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium' }] }] } }));
   await page.route('**/api/ai-agent-diagnostics*', route => route.fulfill({ json: { provider: 'codex', connected: true, account: { type: 'chatgpt' } } }));

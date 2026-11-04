@@ -10,7 +10,7 @@ import { resolveDocumentPath, resolveMediaPath } from "./document-path.ts";
 import { readModel } from "./document-replay.ts";
 import { readPluginBuild, registrationError } from "./plugin-store.ts";
 import { PluginRuntime } from "./plugin-runtime.ts";
-import { AI_TASK, AI_AGENT, type AiTaskService, type AiProvider, type AiAgentSettings } from "@litzio/plugin-api/ai";
+import { AI_TASK, AI_AGENT, aiAgentEnabled, type AiTaskService, type AiProvider, type AiAgentSettings } from "@litzio/plugin-api/ai";
 import { AiAgentConnection } from "./ai-agent-connection.ts";
 import { AiAgentConversations } from "./ai-agent-conversations.ts";
 
@@ -41,6 +41,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
   };
   const agentOperations = {
     agentSkills: (args?: { provider?: AiProvider }) => {
+      if (!load(AI_TASK.plugin).operations.settings({}).providers.codex) throw new Error("Codex is disabled.");
       if (provider(args) !== "codex") throw new Error("Skill selection is available only with Codex.");
       return (agent ??= new AiAgentConnection(paths.agent)).skills();
     },
@@ -148,7 +149,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
     const plugin = load(id);
     if (id === AI_TASK.plugin && Object.hasOwn(agentOperations, operation)) {
       if (!plugins().list().find(item => item.id === id)?.enabled) throw new Error("Plugin is disabled.");
-      if (operation !== "agentEnvironment" && !plugin.operations.settings({}).enabled) throw new Error("Codex is disabled.");
+      if (["agentSkills", "agentConversations", "agentConversation"].includes(operation) && !aiAgentEnabled(plugin.operations.settings({}))) throw new Error("Codex is disabled.");
       return agentOperations[operation as keyof typeof agentOperations](args) as T;
     }
     if (!Object.hasOwn(plugin.operations, operation)) throw new Error("Unknown plugin operation.");
@@ -164,7 +165,7 @@ export function createPluginHost(access: FileAccess = LOCAL_FILE_ACCESS, setting
       if (!plugins().list().find(item => item.id === id)?.enabled) throw new Error("Plugin is disabled.");
       const stored = plugin.operations.configure(selected === "copilot" ? { ...next,
         codexTaskSettings: current.provider === "codex" ? { model: current.model, reasoningEffort: current.reasoningEffort } : current.codexTaskSettings } : next);
-      if (!stored.enabled || stored.provider !== current.provider) await closeAgent();
+      if (!aiAgentEnabled(stored) || stored.provider !== current.provider) await closeAgent();
       return stored;
     })() as T;
     return plugin.operations[operation](args);
