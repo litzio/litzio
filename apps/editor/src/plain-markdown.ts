@@ -1,4 +1,5 @@
-import { hostClient } from "./host-client.ts";
+import { LOCAL_HOST_ID } from "./host-locator.ts";
+import { getHostClient } from "./host-client.ts";
 import MarkdownIt from "markdown-it";
 import footnote from "markdown-it-footnote";
 import taskLists from "markdown-it-task-lists";
@@ -8,7 +9,7 @@ import katex from "katex";
 import { figureMediaPath } from "../shared/figure-media-path.ts";
 
 /** Display only. No Core admission, rewriting or serialization. Raw HTML stays text. */
-export function renderPlainMarkdown(source: string, path: string): string {
+export function renderPlainMarkdown(source: string, path: string, client = getHostClient(LOCAL_HOST_ID)): string {
   const md = markdownRenderer();
   const image = md.renderer.rules.image!;
   md.renderer.rules.image = (tokens, index, options, env, renderer) => {
@@ -16,8 +17,8 @@ export function renderPlainMarkdown(source: string, path: string): string {
     const src = token.attrGet("src") ?? "";
     const relative = figureMediaPath(src);
     if (relative !== undefined) {
-      token.attrSet("src", hostClient.url(`/document/${relative}?path=${encodeURIComponent(path)}`));
-      if (hostClient.crossOrigin) token.attrSet("crossorigin", hostClient.crossOrigin);
+      token.attrSet("src", client.url(`/document/${relative}?path=${encodeURIComponent(path)}`));
+      if (client.crossOrigin) token.attrSet("crossorigin", client.crossOrigin);
     }
     else if (!/^https?:\/\//i.test(src)) return md.utils.escapeHtml(token.content);
     return image(tokens, index, options, env, renderer);

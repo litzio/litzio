@@ -23,6 +23,13 @@
 The Codex-specific RPCs and policies below apply to Codex. Copilot differences
 are defined in [Copilot conversations](#copilot-conversations-1053).
 
+## Host 대상 고정 (#1174 PR2)
+
+비서 표면은 mount 시 Host client를 고정한다. 생성·resume·poll·발화·중단·표시 결과·모델·진단 요청은 같은 client를 사용하며 활성 탭·필터를 요청 주소로 사용하지 않는다. 마지막 대화 ID도 hostId별로 기억한다. 설정 표면 역시 선택한 Host의 client를 고정한다. 연결 해제나 화면 종료가 원격 실행 취소를 뜻하지 않는다.
+
+현재 운영 비서는 로컬 Host만 사용한다. PR4의 대상 선택 UI는 아직 제공하지 않으며, 다른 Host 참조를 전역 fallback으로 합치지 않는다.
+
+
 ## Connection and environment
 
 The existing Host composition owns a lazy `CodexAppServer`. It resolves Codex

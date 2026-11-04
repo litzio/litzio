@@ -1,7 +1,8 @@
+import { useHostClient, useHostId } from "./host-context.tsx";
 import { memo, useMemo, useLayoutEffect, useEffect, useRef, useState, type CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import type { EditorFileResponse, TextFileResponse } from "../shared/document-protocol.ts";
-import { createDocumentSessionLifetime, messageOf, requestDocument, requestSave, SaveConflictError } from "./document-session.ts";
+import { createDocumentSessionLifetime, messageOf, createDocumentRequests, SaveConflictError } from "./document-session.ts";
 import { createRecoveryRecorder } from "./recovery-storage.ts";
 import { useMessageState } from "./ui-message.ts";
 import { i18n } from "./i18n.ts";
@@ -20,6 +21,8 @@ import { openExternalLink } from "./link-opening.ts";
 export type TextSessionSnapshot = { kind: "text"; file: TextFileResponse; text: string; savedSource: string };
 
 function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot | undefined, recoveryId: string, replaceFile: (file: EditorFileResponse) => void) {
+  const hostId = useHostId();
+  const { requestDocument, requestSave } = createDocumentRequests(useHostClient());
   const [openedPath, setOpenedPath] = useState(initial.path);
   const pathRef = useRef(openedPath); pathRef.current = openedPath;
   const input = useRef<HTMLTextAreaElement>(null);
@@ -41,7 +44,7 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
   const capture = useRef<() => TextSessionSnapshot | null>(() => null);
   const [recorder] = useState(() => createRecoveryRecorder(recoveryId, () => pathRef.current, () => capture.current(),
     cause => setRecoveryError({ key: "Local recovery is unavailable: {{reason}}. Keep this window open and save or copy your work. Changes after the last record may be lost.", values: { reason: messageOf(cause) } }),
-    () => setRecoveryError("")));
+    () => setRecoveryError(""), hostId));
   function getSnapshot(): TextSessionSnapshot {
     return { kind: "text", file: { kind: "text", path: pathRef.current, source: saved.current, revision: revision.current }, text: text.current, savedSource: saved.current };
   }
@@ -101,7 +104,7 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
       const reason = messageOf(cause); setError(reason); setStatus("open-failed"); return reason;
     } finally { if (current()) { busyRef.current = false; setReloadDialog(false); } }
   }
-  return {
+  return { hostId,
     kind: "text" as const, markdown, view: markdown ? view : "visual" as const, setView, currentText: text.current, editorRef, input, initialText: restored?.text ?? initial.source, change, getSnapshot,
     acknowledgedRevision: revision.current,
     externalRevision, externalChanged: externalRevision !== undefined && externalRevision !== revision.current,
@@ -128,8 +131,9 @@ export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restore
   onCompare(session: EditorSession): void;
 }) {
   useTranslation();
+  const client = useHostClient();
   const session = useTextSession(file, restored, recoveryId, replaceFile);
-  const html = useMemo(() => session.markdown && session.view === "read" ? renderPlainMarkdown(session.currentText, session.openedPath) : "", [session.currentText, session.openedPath, session.markdown, session.view]);
+  const html = useMemo(() => session.markdown && session.view === "read" ? renderPlainMarkdown(session.currentText, session.openedPath, client) : "", [session.currentText, session.openedPath, session.markdown, session.view]);
   const reading = useRef<HTMLElement>(null);
   const [blocks, setBlocks] = useState<HTMLElement[]>([]);
   useLayoutEffect(() => { setBlocks(Array.from(reading.current?.querySelectorAll<HTMLElement>(".code-block") ?? [])); }, [html]);

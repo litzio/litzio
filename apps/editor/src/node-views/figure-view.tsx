@@ -1,4 +1,6 @@
-import { hostClient } from "../host-client.ts";
+import { useHostClient } from "../host-context.tsx";
+import { LOCAL_HOST_ID } from "../host-locator.ts";
+import { getHostClient } from "../host-client.ts";
 import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
 import { NodeViewContent, NodeViewWrapper, useEditorState, type ReactNodeViewProps } from "@tiptap/react";
@@ -69,6 +71,7 @@ export function FigureView(props: FigureViewProps) {
 
 function ImageFigureView({ node, editor, selected, getPos, view, documentPath: initialDocumentPath, onDraftChange, validateFigure, chooseImage, onWriteMermaid }: FigureViewProps & { onWriteMermaid(): void }) {
   const renameImage = useContext(ImageRenameContext);
+  const client = useHostClient();
   const documentPath = useContext(DocumentPathContext) ?? (typeof initialDocumentPath === "function" ? initialDocumentPath() : initialDocumentPath);
   useTranslation();
   const placeholder = useCaptionPlaceholder({ editor, getPos }, "figure");
@@ -85,7 +88,7 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
   const [choosing, setChoosing] = useState(false);
   const [replacing, setReplacing] = useState(false);
   const applied = figureAttrs(node);
-  const src = resolveFigureSource(applied.imageUrl, documentPath);
+  const src = resolveFigureSource(applied.imageUrl, documentPath, client);
   const [failedSource, setFailedSource] = useState<string>();
   const imageFailed = !!src && failedSource === src;
   const label = String(node.attrs.label ?? "");
@@ -326,7 +329,7 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
           ? "File name changes require Rename in Advanced. Press Esc to discard them."
           : "Unapplied figure properties are not saved. Choose Done or press Esc to cancel.")}</p>
       ) : null}
-      {src ? <img crossOrigin={src.startsWith(hostClient.url("/document/")) ? hostClient.crossOrigin : undefined} key={src} src={src} alt={applied.imageAlt} hidden={imageFailed} data-testid="figure-image" contentEditable={false} onMouseDown={selectFigure} onDoubleClick={beginEdit}
+      {src ? <img crossOrigin={src.startsWith(client.url("/document/")) ? client.crossOrigin : undefined} key={src} src={src} alt={applied.imageAlt} hidden={imageFailed} data-testid="figure-image" contentEditable={false} onMouseDown={selectFigure} onDoubleClick={beginEdit}
         onError={() => setFailedSource(src)} onLoad={() => setFailedSource(undefined)} /> : null}
       {imageFailed ? (
         <Notice tone="error" className="figure-image-error" data-testid="figure-image-error" contentEditable={false} onMouseDown={selectFigure} onDoubleClick={beginEdit}>{i18n.t("Image could not be loaded. Check the image path or URL.")}</Notice>
@@ -359,7 +362,7 @@ function ImageFigureView({ node, editor, selected, getPos, view, documentPath: i
         onCancel={cancel}
       >
         <div className="figure-property-media">
-          {src && !imageFailed ? <div className="figure-property-thumbnail"><img crossOrigin={src.startsWith(hostClient.url("/document/")) ? hostClient.crossOrigin : undefined} src={src} alt="" /></div> : null}
+          {src && !imageFailed ? <div className="figure-property-thumbnail"><img crossOrigin={src.startsWith(client.url("/document/")) ? client.crossOrigin : undefined} src={src} alt="" /></div> : null}
           <Button ref={replaceButton} type="button" size="sm" variant="outline" disabled={validating || choosing}
             data-testid="figure-replace" onClick={() => setReplacing(value => !value)}>{i18n.t("Replace")}</Button>
         </div>
@@ -596,10 +599,10 @@ function MermaidFigureView({ node, editor, selected, getPos, view, onDraftChange
   </NodeViewWrapper>;
 }
 
-export function resolveFigureSource(imageUrl: string, documentPath?: string | (() => string)): string {
+export function resolveFigureSource(imageUrl: string, documentPath?: string | (() => string), client = getHostClient(LOCAL_HOST_ID)): string {
   const locator = typeof documentPath === "function" ? documentPath() : documentPath;
   const encodedPath = figureMediaPath(imageUrl);
   if (encodedPath === undefined) return imageUrl;
   const query = locator ? `?path=${encodeURIComponent(locator)}` : "";
-  return hostClient.url(`/document/${encodedPath}${query}`);
+  return client.url(`/document/${encodedPath}${query}`);
 }

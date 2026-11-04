@@ -11,6 +11,13 @@
 - Authority: [ADR-0005](../adr/0005-http-host.md), [Filesystem Host boundary](filesystem-host-boundary-v1.md), [Editing session and Save](editing-session-save-v1.md).
 - Scope: local daemon and manual remote single-operator HTTP Editor with optional Root limits ([#186](https://github.com/litzio/litzio/issues/186)).
 
+## Host별 클라이언트 경계 (#1174 PR2)
+
+클라이언트는 hostId별 독립 HTTP 인스턴스·연결 관측·capability를 가진다. 알 수 없는 hostId는 거부하며 로컬 Host로 대체하지 않는다. 문서 세션의 open/save/source/bibliography/Figure 검증, 이미지 생성·선택·rollback과 상대 media URL은 시작한 Host의 client를 유지한다. 늦은 capability 응답은 새 관측을 덮지 않으며 다른 Host의 연결을 기다리지 않는다. 쓰기는 실패·응답 유실 시 자동 재전송하지 않는다.
+
+운영 목록은 아직 로컬 하나다. 주입 가능한 registry와 두 독립 HTTP fixture로 같은 경로의 요청 격리·중단·늦은 응답을 검증한다. 원격 등록·자동 재연결·CSP는 PR3, 여러 Host의 화면 통합은 PR4 범위다. Core·공식 저장 경로·상대 URI는 변경하지 않는다.
+
+
 ## 후속 결정: 원격 Host (#1174, 미구현)
 
 [ADR-0018](../adr/0018-desktop-remote-hosts.md)은 Desktop 원격 등록·자동 연결/재연결·여러 Host 보기를 결정한다. 아래는 현재 구현 계약이며 해당 변경은 #1174 PR1~4에서 실제 구현과 함께 갱신한다. 이 연결은 원격 기능의 제공 완료를 뜻하지 않는다.

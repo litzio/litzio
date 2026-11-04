@@ -770,7 +770,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await older.click();
   await expect(older).toBeHidden();
   await expect(panel.getByRole('textbox')).toBeEnabled();
-  expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.assistantConversation'), brand.storagePrefix)).toBe('history-older');
+  expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.assistantConversation:local'), brand.storagePrefix)).toBe('history-older');
   await panel.getByRole('button', { name: '대화 기록' }).click();
   await panel.getByRole('button', { name: '비서 닫기' }).click();
   await page.getByRole('button', { name: '비서', exact: true }).click();
@@ -790,7 +790,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByRole('textbox')).toBeEnabled();
   expect(await panel.locator('.assistant-turn').count()).toBe(0);
   expect(await panel.getByRole('alert').count()).toBe(0);
-  expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.assistantConversation'), brand.storagePrefix)).toBe(null);
+  expect(await page.evaluate(prefix => localStorage.getItem(prefix + '.assistantConversation:local'), brand.storagePrefix)).toBe(null);
   resumeFailure = false;
   await panel.getByRole('button', { name: '대화 기록' }).click();
   await panel.getByRole('button', { name: /실험 결과 표와 다음 작업 확인/ }).click();
@@ -920,6 +920,6 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   }
   await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   // Restore preferences for the other stable scenarios.
-  await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantWidth'); localStorage.removeItem(prefix + '.assistantConversation'); }, brand.storagePrefix);
+  await page.evaluate(prefix => { localStorage.setItem(prefix + '.uiLanguage', 'en'); localStorage.setItem(prefix + '.theme', 'light'); localStorage.removeItem(prefix + '.assistantWidth'); localStorage.removeItem(prefix + '.assistantConversation:local'); }, brand.storagePrefix);
   return { settings: true, minimumViewport: true, nativeDocumentPreserved: true, conversations: true };
 }

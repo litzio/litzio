@@ -1,3 +1,4 @@
+import { useHostClient } from "../host-context.tsx";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
@@ -7,7 +8,7 @@ import type { TemplateContent, TemplateList, TemplateSummary } from "../../share
 import { DocumentEditor } from "../DocumentEditor.tsx";
 import { i18n } from "../i18n.ts";
 import { messageOf } from "../document-session.ts";
-import { templateLanguage, templateRequest } from "../template-api.ts";
+import { templateLanguage, createTemplateRequest } from "../template-api.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { Popover, PopoverContent } from "@/components/ui/popover.tsx";
 import { Notice } from "../ui/primitives.tsx";
@@ -22,6 +23,7 @@ export function TemplateGallery({ active, revision, disabled, onCreate, onOpenFo
   onOpenFolder(path: string): Promise<string>;
 }) {
   useTranslation();
+  const templateRequest = createTemplateRequest(useHostClient());
   const language = templateLanguage();
   const [catalog, setCatalog] = useState<TemplateList>();
   const [problem, setProblem] = useState("");

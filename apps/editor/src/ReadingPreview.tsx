@@ -1,4 +1,4 @@
-import { hostClient } from "./host-client.ts";
+import { useHostClient } from "./host-context.tsx";
 import type { Editor, EditorEvents } from "@tiptap/core";
 import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { useEffect, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
@@ -14,6 +14,7 @@ import { ReferencePreviewContent } from "./ReferencePreviewContent.tsx";
 export function ReadingPreview({ editor, host, documentPath }: {
   editor: Editor; host: RefObject<HTMLElement | null>; documentPath?: string;
 }) {
+  const client = useHostClient();
   const visible = useEditorVisible();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const [style, setStyle] = useState<CSSProperties>({});
@@ -129,7 +130,7 @@ export function ReadingPreview({ editor, host, documentPath }: {
 
   if (!visible || !anchor) return null;
   const image = anchor.matches("a[href]");
-  const src = image ? resolveFigureSource(anchor.getAttribute("href")!, documentPath) : "";
+  const src = image ? resolveFigureSource(anchor.getAttribute("href")!, documentPath, client) : "";
   return <div ref={bounds} role="tooltip" contentEditable={false} className={`reading-preview ${image ? "image-link-preview" : "reference-preview"}`} style={style} data-testid={image ? "image-link-preview" : "reference-preview"}>
     {image ? <PreviewImage key={src} src={src} label={anchor.textContent ?? ""} />
       : <ReferencePreviewContent editor={editor} anchor={anchor} />}
@@ -137,8 +138,9 @@ export function ReadingPreview({ editor, host, documentPath }: {
 }
 
 function PreviewImage({ src, label }: { src: string; label: string }) {
+  const client = useHostClient();
   const { t } = useTranslation();
   const [failed, setFailed] = useState(false);
   return failed ? <span>{t("Image not found")}</span>
-    : <img crossOrigin={src.startsWith(hostClient.url("/document/")) ? hostClient.crossOrigin : undefined} src={src} alt={label} onError={() => setFailed(true)} />;
+    : <img crossOrigin={src.startsWith(client.url("/document/")) ? client.crossOrigin : undefined} src={src} alt={label} onError={() => setFailed(true)} />;
 }

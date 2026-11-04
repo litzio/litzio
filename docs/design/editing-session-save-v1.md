@@ -17,6 +17,11 @@
 
 Brand defaults and packager overrides follow [the branding guide](../guides/branding.md) (#859). Product identity is separate from the fixed internal Host API; earlier verification records do not establish a migration from old Beta builds.
 
+## Host별 세션 요청 (#1174 PR2)
+
+문서 탭은 hostId를 요청·자산·media 렌더링 문맥으로 전달한다. 세션 mount 시 고정한 client가 Reload·Save·Source·자산 생성과 미사용 자산 rollback을 담당하고, 저장 비교는 비교 소유 세션의 hostId, 복구 비교는 복구 record의 hostId로 요청한다. 다른 탭 활성화로 대상을 바꾸지 않는다. 로컬 Save/Restore/409 계약과 Core 저장 의미는 유지한다.
+
+
 ## Host-scoped identity (#1174 PR1)
 
 Tabs and recovery locators use `(hostId, path)`. The current runtime has one Host,

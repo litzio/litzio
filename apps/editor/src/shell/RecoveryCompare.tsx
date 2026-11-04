@@ -1,5 +1,4 @@
-import { LOCAL_HOST_ID } from "../host-locator.ts";
-import { hostClient } from "../host-client.ts";
+import { getHostClient } from "../host-client.ts";
 import { useCallback } from "react";
 import { prepareRecovery } from "../recovery-restore.ts";
 import { recoveryText, type RecoveryRecord } from "../recovery-storage.ts";
@@ -8,13 +7,13 @@ import type { RecoveryPreviewResponse, SaveRequest } from "../../shared/document
 import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 
 async function compare(record: RecoveryRecord, signal: AbortSignal): Promise<Comparison> {
-  if (record.hostId !== LOCAL_HOST_ID) throw new Error("This recovery belongs to an unavailable Host.");
+  const client = getHostClient(record.hostId);
   let save: SaveRequest | undefined;
   let fallback = "";
   try {
     const snapshot = prepareRecovery(record);
     if (snapshot.kind === "text") {
-      const response = await hostClient.request(`/api/document-source?recovery=1`, {
+      const response = await client.request(`/api/document-source?recovery=1`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: record.path }), signal,
       });
       const result: RecoveryPreviewResponse = await response.json();
@@ -26,7 +25,7 @@ async function compare(record: RecoveryRecord, signal: AbortSignal): Promise<Com
       base: { source: snapshot.file.source, savedEdits: snapshot.savedEdits },
       ...collectSupportedEdits(snapshot.file.document, snapshot.editor.editorDocument) };
   } catch (error) { fallback = error instanceof Error ? error.message : String(error); }
-  const response = await hostClient.request(`/api/document-source?recovery=1`, {
+  const response = await client.request(`/api/document-source?recovery=1`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: record.path, save }), signal,
   });
   const result: RecoveryPreviewResponse = await response.json();

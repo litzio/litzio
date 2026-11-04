@@ -1,3 +1,5 @@
+import type { HostClient } from "./host-client.ts";
+import { createAssetHost } from "./image-assets.ts";
 import type { UiMessage } from "./ui-message.ts";
 import { i18n } from "./i18n.ts";
 import { allocateBlockPath } from "./block-locators.ts";
@@ -717,9 +719,10 @@ export function createEditorExtensions(
   chooseImage?: ImageChooser,
   initialDeletedPaths: readonly string[] = [],
   onAssetChange?: (path: string) => void,
+  client?: HostClient,
 ): Extensions {
   return [...editorExtensions(onDraftChange, documentPath, validateFigure, hasActiveDraft, chooseImage),
-    ...(documentPath ? [imageAssets({ documentPath, reject: onAssetError ?? onReject, pending: onAssetPendingChange, changed: onAssetChange, hasActiveDraft })] : []),
+    ...(documentPath ? [imageAssets({ host: client && createAssetHost(client), documentPath, reject: onAssetError ?? onReject, pending: onAssetPendingChange, changed: onAssetChange, hasActiveDraft })] : []),
     documentInteraction(onReject), structureGuard(baseline, onReject, initialDeletedPaths)];
 }
 

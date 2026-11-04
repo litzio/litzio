@@ -1,5 +1,5 @@
 import { LOCAL_HOST_ID } from "../host-locator.ts";
-import { hostClient } from "../host-client.ts";
+import { getHostClient } from "../host-client.ts";
 import { useEffect, useReducer, useRef, useState } from "react";
 import type { FolderEntry, FolderResponse } from "../../shared/document-protocol.ts";
 import { readCollapsedFolderSections, readOpenFolders, writeCollapsedFolderSections, writeOpenFolders } from "../preferences.ts";
@@ -313,7 +313,7 @@ export function useFolderTrees(request: (root: string, path?: string, background
             const checks = (revisionChecksRef.current?.() ?? []).filter(check => containingRoot(roots, check.path) === root);
             const query = new URLSearchParams({ root });
             if (checks.length) query.set("paths", JSON.stringify(checks.map(check => check.path)));
-            const response = await hostClient.request(`/api/folder-version?${query}`, { signal: controller.signal });
+            const response = await getHostClient(LOCAL_HOST_ID).request(`/api/folder-version?${query}`, { signal: controller.signal });
             if (!response.ok) return;
             const { version, revisions } = await response.json() as { version?: string; revisions?: { path: string; revision: string | null }[] };
             if (!version) return;

@@ -369,7 +369,7 @@ function FolderTree({ onAddToChat, onFileAction, fileActionsDisabled, isFileDirt
         })}
       </ul>
       {fileAction ? <FileActionDialog action={fileAction.action} entry={fileAction.item.entry}
-        trash={fileDeletion === "trash"} dirty={isFileDirty(fileAction.item.entry.path)}
+        trash={fileDeletion() === "trash"} dirty={isFileDirty(fileAction.item.entry.path)}
         returnFocus={actionReturn} onClose={() => setFileAction(undefined)} onExecute={async name => {
           const index = items.findIndex(item => item.entry.path === fileAction.item.entry.path);
           const next = await onFileAction(fileAction.action, tree.root, fileAction.item.entry, name);

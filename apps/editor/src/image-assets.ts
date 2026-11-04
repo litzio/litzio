@@ -1,4 +1,5 @@
-import { hostClient } from "./host-client.ts";
+import { LOCAL_HOST_ID } from "./host-locator.ts";
+import { getHostClient, type HostClient } from "./host-client.ts";
 import { Extension } from "@tiptap/core";
 import { closeHistory } from "@tiptap/pm/history";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
@@ -13,13 +14,13 @@ type AssetHost = {
   create(file: File, documentPath: string, source: "paste" | "drop"): Promise<AssetResponse>;
   rollback(created: AssetResponse, documentPath: string): Promise<void>;
 };
-type Options = { documentPath: string | (() => string); reject(reason: string): void; pending?(active: boolean): void; changed?(path: string): void; host?: AssetHost; hasActiveDraft?(sourcePath: string): boolean };
+type Options = { documentPath: string | (() => string); reject(reason: string): void; pending?(active: boolean): void; changed?(path: string): void; host?: AssetHost; hostId?: string; hasActiveDraft?(sourcePath: string): boolean };
 
-const browserHost: AssetHost = {
+export function createAssetHost(client: HostClient): AssetHost { return {
   async create(file, documentPath, source) {
     let response: Response, body: AssetResponse & { error?: string };
     try {
-      response = await hostClient.request(`/api/asset?path=${encodeURIComponent(documentPath)}&name=${encodeURIComponent(file.name)}&source=${source}`, {
+      response = await client.request(`/api/asset?path=${encodeURIComponent(documentPath)}&name=${encodeURIComponent(file.name)}&source=${source}`, {
         method: "POST", headers: { "Content-Type": file.type }, body: file,
       });
       body = await response.json() as AssetResponse & { error?: string };
@@ -31,7 +32,7 @@ const browserHost: AssetHost = {
     return body;
   },
   async rollback(created, documentPath) {
-    const response = await hostClient.request(`/api/asset`, {
+    const response = await client.request(`/api/asset`, {
       method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentPath, ...created }),
     });
     if (!response.ok) {
@@ -39,11 +40,11 @@ const browserHost: AssetHost = {
       throw new Error(body.error ?? "Host could not remove the asset.");
     }
   },
-};
+}; }
 
 /** Links an image chosen on the Host, or copies it into assets/ with a rollback receipt. */
-export async function chooseHostImage(documentPath: string, source: string): Promise<ImageChoiceResponse> {
-  const response = await hostClient.request(`/api/asset`, {
+export async function chooseHostImage(documentPath: string, source: string, client = getHostClient(LOCAL_HOST_ID)): Promise<ImageChoiceResponse> {
+  const response = await client.request(`/api/asset`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ documentPath, source } satisfies ImageChoiceRequest),
   });
   const body = await response.json() as Partial<ImageChoiceResponse> & { error?: string };
@@ -51,13 +52,13 @@ export async function chooseHostImage(documentPath: string, source: string): Pro
   return { path: body.path, ...(typeof body.rollbackToken === "string" ? { rollbackToken: body.rollbackToken } : {}) };
 }
 
-export const rollbackAsset = (created: AssetResponse, documentPath: string) => browserHost.rollback(created, documentPath);
+export const rollbackAsset = (created: AssetResponse, documentPath: string, client = getHostClient(LOCAL_HOST_ID)) => createAssetHost(client).rollback(created, documentPath);
 
 /** Upload state lives only in the engine plugin; mapped positions are never persistent IDs. */
 export function imageAssetsPlugin(options: Options): Plugin {
   type Pending = { anchor: number | null; selectionMoved: boolean; emptyFigure?: ProseMirrorNode } | null;
   const key = new PluginKey<Pending>("imageAsset");
-  const host = options.host ?? browserHost;
+  const host = options.host ?? createAssetHost(getHostClient(options.hostId ?? LOCAL_HOST_ID));
   let uploading = false, destroyed = false;
   const errorText = (error: unknown) => error instanceof Error ? error.message : String(error);
 
