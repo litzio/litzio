@@ -27,7 +27,6 @@
 .assistant-composer { padding: var(--space-3); border-top: var(--border-width) solid var(--id-color-border-subtle); }
 .assistant-composer textarea { width: 100%; min-height: 80px; max-height: 180px; resize: vertical; padding: var(--space-3); color: var(--id-color-text); background: var(--id-color-surface); border: var(--border-width) solid var(--id-color-border-control); border-radius: var(--id-radius-md); font: inherit; }
 .assistant-controls { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-block: var(--space-2); }
-.assistant-controls select { width: auto; min-width: 0; max-width: 100%; flex: 1 1 90px; font-size: var(--font-size-xs); }
 .assistant-footer { display: flex; align-items: center; gap: var(--space-2); }
 .assistant-footer small { flex: 1; color: var(--id-color-text-muted); font-size: var(--font-size-xs); }
 .assistant-usage { display: inline-flex; cursor: help; }
@@ -40,9 +39,8 @@
 @media (width < 1100px) { .app-shell.app-shell--assistant { --shell-panel: 0px; } }
 @media print { .assistant-panel, .assistant-trigger { display: none; } }
 
-.assistant-choices { gap: var(--space-2); }
-.assistant-choices select { width: 100%; }
-.assistant-choices small { color: var(--id-color-text-muted); }
+.assistant-choices { border-color: var(--id-color-border-control); }
+.assistant-controls > span { min-width: 0; max-width: 100%; display: inline-flex; }
 .assistant-controls button { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; font-size: var(--font-size-xs); }
 /* Preserve the title-strip search center while reserving equal room for the action. */
 .top-bar:has(.assistant-trigger) { position: relative; }
@@ -93,3 +91,6 @@ body:has(.assistant-panel--overlay:not([hidden])) .notification-center { visibil
 .assistant-reference-options button { display: block; height: auto; white-space: normal; width: 100%; padding: var(--space-2); text-align: start; overflow-wrap: anywhere; }
 .assistant-reference-options button[aria-selected="true"], .assistant-reference-options button:hover { background: var(--id-color-surface-hover); }
 .assistant-reference-options small { display: block; color: var(--id-color-text-muted); }
+
+/* Explanations must not block adjacent composer choices or native-select clicks. */
+.ui-portal:has(.assistant-choice-help) { pointer-events: none; }

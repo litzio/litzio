@@ -73,11 +73,11 @@ export class AiAgentConversations {
     return existsSync(this.file) ? JSON.parse(readFileSync(this.file, "utf8")) : [];
   }
   private save(conversation: AiConversation) {
-    const { id, title, folders, createdAt, updatedAt, provider } = conversation;
+    const { id, title, folders, createdAt, updatedAt, provider, writeAccess } = conversation;
     const entries = this.list().filter(entry => entry.id !== id);
     const temporary = `${this.file}.${randomUUID()}.tmp`;
     try {
-      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}),
+      writeFileSync(temporary, JSON.stringify([{ id, title, folders, createdAt, updatedAt, ...(provider ? { provider } : {}), ...(writeAccess ? { writeAccess } : {}),
         ...(provider === "copilot" && conversation.copilot?.reasoningEffortSource === "cli" ? { copilotCliReasoningEffort: conversation.reasoningEffort } : {}) }, ...entries]) + "\n", { flag: "wx" });
       renameSync(temporary, this.file);
     } finally { if (existsSync(temporary)) unlinkSync(temporary); }
@@ -87,14 +87,20 @@ export class AiAgentConversations {
     if (!conversation) throw new Error("Resume the conversation first.");
     return conversation;
   }
-  async resume(id: string, settings: AiAgentSettings) {
+  async resume(id: string, settings: AiAgentSettings, turnWriteAccess?: AiAgentSettings["writeAccess"]) {
     if (typeof id !== "string") throw new Error("Invalid conversation selection.");
     const info = this.list().find(entry => entry.id === id);
     if (!info) throw new Error("Conversation was not found.");
-    if ((info.provider ?? "codex") !== settings.provider) throw new Error("Select this conversation's provider in AI settings first.");
+    // Only this Host's memory can retain a user-approved elevation. The cwd index
+    // is assistant-writable and is never authority for a stronger grant.
+    const grants = ["read-only", "opened-folders", "full-access"];
+    const stored = grants.indexOf(info.writeAccess ?? "");
+    const restored = stored >= 0 && stored <= grants.indexOf(settings.writeAccess) ? info.writeAccess! : settings.writeAccess;
+    settings = { ...settings, provider: info.provider ?? "codex", writeAccess: turnWriteAccess ?? this.conversations.get(id)?.writeAccess ?? restored };
+    if (!settings.providers[settings.provider]) throw new Error("Selected AI provider is disabled.");
     if (this.conversations.get(id)?.turns.some(turn => turn.status === "inProgress")) return this.current(id);
     if (info.provider === "copilot") await this.prepareCopilotLaunch(info.copilotCliReasoningEffort ?? this.connection.copilot.reasoningEffort, settings);
-    const conversation: AiConversation = { ...info, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
+    const conversation: AiConversation = { ...info, writeAccess: settings.writeAccess, turns: [], model: settings.model, reasoningEffort: settings.reasoningEffort,
       tokenUsage: this.conversations.get(id)?.tokenUsage };
     // Install before the RPC so token-usage notifications during resume are retained.
     this.conversations.set(id, conversation);
@@ -129,6 +135,13 @@ export class AiAgentConversations {
   async send(input: AiConversationInput, settings: AiAgentSettings, displayClient?: string) {
     if (!input || typeof input.message !== "string" || (!input.message.trim() && !input.references?.length) ||
       typeof input.model !== "string" || typeof input.reasoningEffort !== "string" || !Array.isArray(input.folders)) throw new Error("Invalid conversation input.");
+    const existing = input.id ? this.current(input.id) : undefined;
+    if (input.provider !== undefined && input.provider !== "codex" && input.provider !== "copilot") throw new Error("Invalid AI provider.");
+    if (input.writeAccess !== undefined && !["opened-folders", "read-only", "full-access"].includes(input.writeAccess)) throw new Error("Invalid write access.");
+    if (existing && input.provider !== undefined && input.provider !== (existing.provider ?? "codex")) throw new Error("Provider is locked after a conversation starts.");
+    settings = { ...settings, provider: existing?.provider ?? input.provider ?? settings.provider,
+      writeAccess: input.writeAccess ?? existing?.writeAccess ?? settings.writeAccess };
+    if (!settings.providers[settings.provider]) throw new Error("Selected AI provider is disabled.");
     const folders = [...new Set(input.folders.map(folder => {
       if (typeof folder !== "string" || !path.isAbsolute(folder)) throw new Error("Invalid opened folder.");
       const resolved = accessPath(folder, this.access);
@@ -151,7 +164,7 @@ export class AiAgentConversations {
         if (input.skills?.length) throw new Error("Skill selection is available only with Codex.");
         return await this.sendCopilot(input, settings, folders, references, conversation);
       }
-      if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings);
+      if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings, settings.writeAccess);
       const active = conversation?.turns.find(turn => turn.status === "inProgress");
       if (active && (input.model !== conversation!.model || input.reasoningEffort !== conversation!.reasoningEffort)) throw new Error("Model and reasoning effort are locked while running.");
       if (!active) {
@@ -169,7 +182,7 @@ export class AiAgentConversations {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
           approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [...documentTools, ...displayTools, ...templateTools] });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
-          turns: [], model: input.model, reasoningEffort: input.reasoningEffort };
+          turns: [], provider: "codex", writeAccess: settings.writeAccess, model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);
         this.loaded.add(conversation.id);
         this.save(conversation);
@@ -182,7 +195,7 @@ export class AiAgentConversations {
       if (active) {
         await this.connection.client.request("turn/steer", { threadId: conversation.id, expectedTurnId: active.id, input: messages });
       } else {
-        conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort;
+        conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort; conversation.writeAccess = settings.writeAccess;
         this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, writeAccess: settings.writeAccess, access: this.access, displayClient });
         const result = await this.connection.client.request("turn/start", { threadId: conversation.id, input: messages,
           cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: "never",
@@ -238,12 +251,12 @@ export class AiAgentConversations {
     const effort = source === "cli" ? input.reasoningEffort : acp.reasoningEffort;
     const fullAccess = settings.writeAccess === "full-access";
     await this.prepareCopilotLaunch(effort, settings);
-    if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings);
+    if (conversation && !this.loaded.has(conversation.id)) conversation = await this.resume(conversation.id, settings, settings.writeAccess);
     const client = await acp.connect();
     if (!conversation) {
       const session = acp.remember(await acp.call(() => client.newSession({ cwd: this.connection.cwd, mcpServers: [] })));
       conversation = { id: session.sessionId, provider: "copilot", title: (input.message.trim() || references.map(file => file.name).join(", ")).slice(0, 80),
-        folders, createdAt: Date.now(), updatedAt: Date.now(), turns: [], model: input.model, reasoningEffort: input.reasoningEffort, copilot: copilotOptions(session) };
+        folders, createdAt: Date.now(), updatedAt: Date.now(), writeAccess: settings.writeAccess, turns: [], model: input.model, reasoningEffort: input.reasoningEffort, copilot: copilotOptions(session) };
       this.conversations.set(conversation.id, conversation); this.loaded.add(conversation.id);
     }
     const id = conversation.id;
@@ -274,7 +287,7 @@ export class AiAgentConversations {
     const context = { folders, document: input.document ? { path: input.document.path } : null, references };
     const turn: AiConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.message, references }] };
     conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort;
-    conversation.folders = folders; conversation.updatedAt = Date.now();
+    conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.writeAccess = settings.writeAccess;
     this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, writeAccess: settings.writeAccess, turnId: turn.id });
     this.save(conversation);
     // ACP prompt resolves at turn completion; return the snapshot immediately for existing panel polling.

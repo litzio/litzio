@@ -81,7 +81,7 @@ Docling·AI 설정과 같은 콘텐츠 정렬을 따르며 경로·version은 �
 
 
 #1053의 Copilot 선택도 #1033의 Host SettingsSelect·모델 Dialog를 사용하며 Codex 전용
-skills·진단 항목은 숨긴다. #1091은 같은 SettingsSelect로 추론 강도·쓰기 범위를 표시하고 기존 비서 Popover에서 Agent/Plan을 고른다([비서 계약](main-agent-v1.md#copilot-conversations-1053)).
+skills·진단 항목은 숨긴다. #1091은 같은 SettingsSelect로 추론 강도·쓰기 범위를 표시하고 기존 비서 DropdownMenu에서 Agent/Plan을 고른다([비서 계약](main-agent-v1.md#copilot-conversations-1053)).
 
 #931의 [AI 설정](main-agent-v1.md)은 Docling 설정과 같은 Settings 콘텐츠·control
 폭과 공용 Input/select/Button을 사용한다. #1109에서 프로바이더별 SettingsSwitch를
@@ -290,8 +290,10 @@ P04의 primary 제외·secondary 해제, P07의 폼 문맥 오류를 사용한�
 현재 동작과 1440px·640px 한국어 다크 Before/After는 [대조 계약](docling-compare-v1.md#manual-page-exclusion-945)에 있다.
 
 비서 패널(#931, #1047 PR A)은 U22 AI 설정과 같은 모델·강도 선택을 공유
-Popover와 select로 제공한다. 설정 기본값은 명시적 Save로 저장하고 패널의
-모델·강도 칩은 해당 대화에만 적용한다. 실행 중 모델·강도는 잠근다.
+개별 outline Button에서 공통 DropdownMenu·DropdownMenuItem 목록을 바로 연다(#1110/#1124).
+현재 값은 기존 Check 아이콘과 aria-current로 표시하며 radio 상호작용을 추가하지 않는다.
+패널의 프로바이더·모델·강도·쓰기 범위·Copilot 모드는 해당 대화에만 적용한다.
+프로바이더는 대화 생성 뒤 잠그고 쓰기 범위는 다음 turn부터 적용한다. 실행 중 모델·강도는 잠근다.
 대화 언어 선택은 없으며 사용자 메시지 언어를 따른다. U22의 AI 기본 언어는
 대화 없이 시작된 작업에만 적용한다. `@`의 파일 후보는 공용 Button의 listbox이며
 Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채팅에 추가**도
