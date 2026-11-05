@@ -77,6 +77,7 @@ let restartingHosts = false;
 const remoteHosts = new RemoteHostRegistry();
 let allowedHostIds: string[] = [];
 let hostWork: HostWorkSummary[] | null = null;
+let cliRemovalProtectionWarning = false;
 
 function log(message: string): void {
   try {
@@ -210,14 +211,15 @@ function registerIpc(): void {
     for (const root of roots) { await daemonRpc(daemon.record, `/api/folder?${new URLSearchParams({ root })}`); explorerFolders.listedRoot(root); }
     if (request === folderRequest) explorerFolders.setOpened(roots);
   });
-  handle("desktop:hosts", () => ({ hosts: remoteHosts.list(), allowedHostIds, productVersion: app.getVersion() }));
+  handle("desktop:hosts", () => ({ hosts: remoteHosts.list(), allowedHostIds, productVersion: app.getVersion(), cliRemovalProtectionWarning }));
   const text = (value: unknown): string => { if (typeof value !== "string") throw new Error("Expected text."); return value; };
   handle("desktop:host-register", (origin, label) => { remoteHosts.register(text(origin), text(label)); });
   handle("desktop:host-rename", (id, label) => { remoteHosts.rename(text(id), text(label)); });
   handle("desktop:host-work", summary => {
     if (summary !== null && (!Array.isArray(summary) || !summary.every(row => row && typeof row.hostId === "string" && Number.isSafeInteger(row.openWork) && row.openWork >= 0 && Number.isSafeInteger(row.recovery) && row.recovery >= 0))) throw new Error("Invalid Host work summary.");
     hostWork = null;
-    remoteHosts.desktopWork(app.getPath("userData"), summary as HostWorkSummary[] | null, log);
+    try { remoteHosts.desktopWork(app.getPath("userData"), summary as HostWorkSummary[] | null, log); }
+    catch (error) { log(`Desktop work summary update failed: ${String(error)}`); throw error; }
     hostWork = summary as HostWorkSummary[] | null;
   });
   handle("desktop:host-remove", id => {
@@ -415,7 +417,10 @@ if (!app.requestSingleInstanceLock()) {
     const target = `http://127.0.0.1:${daemonPort(daemon.channel)}`;
     // Snapshot once per app start. Registry changes never expand a running window CSP.
     try { remoteHosts.desktopWork(app.getPath("userData"), null, log); }
-    catch (error) { log(`Desktop work summary unavailable; continuing startup: ${String(error)}`); }
+    catch (error) {
+      cliRemovalProtectionWarning = true;
+      log(`Could not record CLI removal protection; continuing startup: ${String(error)}`);
+    }
     let registered: ReturnType<RemoteHostRegistry["list"]> = [];
     try { registered = remoteHosts.list(); }
     catch (error) { log(`Remote Host registry unavailable; continuing with local Host: ${String(error)}`); }

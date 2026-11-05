@@ -20,6 +20,7 @@ export function HostSettings({ desktop, closeWork, prepareRemoval }: {
   const [origin, setOrigin] = useState("");
   const [label, setLabel] = useState("");
   const [problem, setProblem] = useState("");
+  const [protectionWarning, setProtectionWarning] = useState(false);
   const [registrationProblem, setRegistrationProblem] = useState("");
   const registrationErrorId = useId();
   const [saved, setSaved] = useState(false);
@@ -27,6 +28,7 @@ export function HostSettings({ desktop, closeWork, prepareRemoval }: {
   useSyncExternalStore(hostRegistry.subscribe, hostRegistry.snapshot, hostRegistry.snapshot);
   const refresh = async () => {
     const data = await desktop.registeredHosts();
+    setProtectionWarning(!!data.cliRemovalProtectionWarning);
     for (const host of data.hosts) if (data.allowedHostIds.includes(host.hostId)) hostRegistry.add(host.hostId, host.origin, host.label);
     setHosts(data.hosts); setAllowed(data.allowedHostIds); setVersion(data.productVersion);
   };
@@ -42,6 +44,7 @@ export function HostSettings({ desktop, closeWork, prepareRemoval }: {
     finally { setBusy(false); }
   };
   return <div data-testid="host-settings" aria-busy={busy}>
+    {protectionWarning ? <Notice tone="warning" role="alert">{t("Could not record CLI removal protection.")}</Notice> : null}
     <Notice tone="warning" className="host-access-warning">
       <span>{t("Host OS access · No auth · Keep ports private")}</span>
       <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={t("Host access details")} />}><Info aria-hidden="true" /></TooltipTrigger>

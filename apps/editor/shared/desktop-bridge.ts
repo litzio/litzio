@@ -61,7 +61,7 @@ export type HostConnection = { url: string; productVersion: string; desktopVersi
 export type HostWorkSummary = { hostId: string; openWork: number; recovery: number };
 export type RegisteredHost = { hostId: string; origin: string; label: string };
 export type DesktopBridge = {
-  registeredHosts(): Promise<{ hosts: RegisteredHost[]; allowedHostIds: string[]; productVersion: string }>;
+  registeredHosts(): Promise<{ hosts: RegisteredHost[]; allowedHostIds: string[]; productVersion: string; cliRemovalProtectionWarning?: boolean }>;
   registerHost(origin: string, label: string): Promise<void>;
   renameHost(hostId: string, label: string): Promise<void>;
   removeHost(hostId: string): Promise<void>;

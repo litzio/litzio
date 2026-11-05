@@ -10,7 +10,7 @@ async (page, { expect, screenshots }) => {
     window.__desktop = {connected:true, calls, info, push(state) { info.update = state; for (const listener of listeners) listener(state); }};
     window.__cli = {state:{status:'off'}, calls:[], pending:false, fail:false};
     window.litzioDesktop = {
-      registeredHosts: async () => ({ hosts, allowedHostIds: applied, productVersion: "0.2.0" }),
+      registeredHosts: async () => ({ hosts, allowedHostIds: applied, productVersion: "0.2.0", cliRemovalProtectionWarning: true }),
       registerHost: async (origin, label) => {
         hosts.push({ hostId: "remote-fixture", origin, label });
         sessionStorage.setItem("host-fixture", JSON.stringify(hosts));
@@ -72,6 +72,7 @@ async (page, { expect, screenshots }) => {
     await page.getByRole("button", { name: "Hosts", exact: true }).click();
   };
   await settings();
+  await expect(page.getByRole("alert").filter({ hasText: "Could not record CLI removal protection." })).toBeVisible();
   await page.getByLabel("Host address", { exact: true }).fill(await page.evaluate(() => location.origin));
   await page.getByLabel("Host label", { exact: true }).fill("Test remote Host");
   await page.getByRole("button", { name: "Register Host", exact: true }).click();

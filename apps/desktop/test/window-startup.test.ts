@@ -35,7 +35,7 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
   const workFile = registry.desktopWorkFile("/fake-user-data");
   if (options.workDamage) {
     mkdirSync(path.dirname(workFile), { recursive: true });
-    if (options.workDamage === "corrupt") writeFileSync(workFile, "{");
+    if (options.workDamage === "corrupt") writeFileSync(path.join(path.dirname(workFile), `${path.basename(workFile).split(".")[0]}.2147483647.previous.json`), "{");
     if (options.workDamage === "unwritable") mkdirSync(workFile);
     if (options.workDamage === "interrupted") {
       const module = new URL("../../editor/server/remote-host-registry.ts", import.meta.url).href;
@@ -462,7 +462,7 @@ test("damaged own summaries recover without blocking window creation; interrupte
     assert.equal(owner.pid, process.pid);
     assert.equal(owner.summary, null, "startup must reset only its own committed summary");
     assert.equal(existsSync(h.registry.file + ".lock"), false);
-    if (workDamage === "corrupt") assert.ok(h.logs.some(message => message.includes("rewriting own profile")));
+    assert.equal((h.invoke("desktop:hosts", []) as { cliRemovalProtectionWarning: boolean }).cliRemovalProtectionWarning, false);
   }
 });
 test("unwritable summary or unreadable registry logs a problem but still creates the Desktop window", async () => {
@@ -471,5 +471,9 @@ test("unwritable summary or unreadable registry logs a problem but still creates
     assert.ok(h.window);
     assert.equal(h.exits(), 0);
     assert.ok(h.logs.some(message => message.includes("continuing")));
+    if (options.workDamage) {
+      assert.ok(h.logs.some(message => message.includes("Could not record CLI removal protection")));
+      assert.equal((h.invoke("desktop:hosts", []) as { cliRemovalProtectionWarning: boolean }).cliRemovalProtectionWarning, true);
+    }
   }
 });

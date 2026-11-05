@@ -687,23 +687,28 @@ records and confirms the native removal dialog. Settings disables other document
 while it checks live recovery and removes the registration. The Host list offers a Close Host work
 action using the existing Save / Don't save / Cancel protection, one tab at a time.
 
-Desktop writes per-hostId open-work/recovery counts to one file per profile under
-`remote-hosts.json.work/<profile-hash>.json`. The key is the normalized absolute Electron userData
-path's SHA-256 hash (case-folded on Windows). Each file retains PID, OS process creation identity
-and that profile's summary. A temporary sibling and rename replace only the current profile;
-summary writes never acquire the registry lock or read other profiles. Interrupted temporary
-siblings are not committed summaries or locks and do not block the next start.
+Desktop writes per-hostId open-work/recovery counts to one file per profile **and process run** under
+`remote-hosts.json.work/<profile-hash>.<pid>.<encoded-process-start>.json`. The profile key is the
+normalized absolute Electron userData path's SHA-256 hash (case-folded on Windows). Startup first
+creates the new run's unknown summary exclusively (`wx`), without replacing a previous run's file.
+It then removes only its own profile's dead-run entries, using PID/OS creation identity from their
+names. Cleanup failure retains the old entry and logs the problem. Other profiles and live runs
+are untouched. Summary updates use a temporary sibling and rename of only the current run's file;
+a sharing violation cannot hide the already-published live owner. Summary writes never acquire
+the registry lock. Interrupted temporary siblings are not committed summaries or locks.
 
-Startup rewrites its own entry to unknown, logging damaged own data before replacement. If a
-summary write fails, Desktop logs the failure and still creates its window. If the registry is
-unreadable, startup logs it and uses only the local Host in the fixed CSP snapshot; settings/CLI
-can report the registry error without preventing Desktop startup. Other profiles' files are not
-rewritten. Registration mutations still serialize lost updates with an owner PID/creation-time
-lock; a dead owner or reused PID allows stale lock recovery using the daemon process observation.
+If even the new run's entry cannot be created, Desktop still opens and warns in Hosts settings
+and logs that CLI removal protection could not be recorded; CLI removal can then miss this run.
+If the registry is unreadable, startup logs it and uses only the local Host in the fixed CSP snapshot;
+settings/CLI can report the registry error without preventing Desktop startup.
+Registration mutations serialize writes with an owner PID/creation-time lock. Stale locks are
+never automatically reclaimed: a dead owner or reused PID refuses with the exact lock path and
+instructions to inspect it, delete it after verification, then retry. This avoids concurrent reclamation.
 CLI removal examines every owner: any matching live PID/creation identity, unknown summary,
 unreadable/damaged entry or target Host work/recovery refuses. The existing daemon `processStart`
 observation distinguishes a dead process or reused PID from a live owner; query failure refuses.
-Stale entries keep their work/recovery protection rather than being deleted. There is no migration.
+Dead entries retain target Host work/recovery protection until that profile next starts; CLI does
+not delete them. A dead entry without target work/recovery may pass. There is no migration.
 Settings performs the same cross-profile check, allowing only its own live process after its
 existing work/recovery/confirmation guard. Other running profiles must quit; their remaining work
 or recovery must be resolved in those profiles before removal can succeed.

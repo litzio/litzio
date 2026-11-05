@@ -37,6 +37,7 @@ const desktopOwnerId = (userData: string) => {
 
 /** Desktop-local operations shared by CLI and Desktop settings. No daemon control. */
 export class RemoteHostRegistry {
+  private startedProfiles = new Set<string>();
   constructor(readonly file = remoteHostsFile()) {}
   list(): RemoteHost[] {
     let source: string;
@@ -63,9 +64,7 @@ export class RemoteHostRegistry {
       const bytes = fs.readFileSync(lock, "utf8"), owner = JSON.parse(bytes);
       if (!Number.isSafeInteger(owner.pid) || owner.pid < 1 || typeof owner.processStartedAt !== "string" || !owner.processStartedAt) throw new RemoteHostRefusal("Invalid registry lock owner; inspect the lock before changing registrations.");
       if (processStart(owner.pid) === owner.processStartedAt) throw new RemoteHostRefusal("Registry is being changed by a live owner; retry after it finishes.");
-      if (fs.readFileSync(lock, "utf8") !== bytes) throw new RemoteHostRefusal("Registry lock changed during stale inspection.");
-      fs.unlinkSync(lock);
-      fd = fs.openSync(lock, "wx", 0o600);
+      throw new RemoteHostRefusal(`Registry lock owner has exited: ${lock}. Inspect the lock, delete it after verification, then retry.`);
     }
     try {
       fs.writeFileSync(fd, JSON.stringify({ pid: process.pid, processStartedAt }));
@@ -75,7 +74,16 @@ export class RemoteHostRegistry {
       return result;
     } finally { fs.rmSync(temporary, { force: true }); fs.closeSync(fd); fs.unlinkSync(lock); }
   }
-  desktopWorkFile(userData: string): string { return path.join(this.file + ".work", desktopOwnerId(userData) + ".json"); }
+  desktopWorkFile(userData: string): string {
+    const started = desktopProcessStartedAt ??= processStart(process.pid);
+    if (!started) throw new RemoteHostRefusal("Cannot identify the Desktop process creation time.");
+    return path.join(this.file + ".work", `${desktopOwnerId(userData)}.${process.pid}.${encodeURIComponent(started)}.json`);
+  }
+  private workIdentity(name: string) {
+    const match = /^([a-f0-9]{64})\.(\d+)\.(.+)\.json$/.exec(name);
+    if (!match || !Number.isSafeInteger(Number(match[2])) || Number(match[2]) < 1) throw new Error("Invalid Desktop owner filename.");
+    return { ownerId: match[1], pid: Number(match[2]), processStartedAt: decodeURIComponent(match[3]) };
+  }
   private readWorkOwner(file: string): DesktopWorkOwner {
     const owner = JSON.parse(fs.readFileSync(file, "utf8")) as DesktopWorkOwner;
     if (!owner || !Number.isSafeInteger(owner.pid) || owner.pid < 1 || typeof owner.processStartedAt !== "string" || !owner.processStartedAt ||
@@ -87,38 +95,51 @@ export class RemoteHostRegistry {
     try {
       for (const name of fs.readdirSync(this.file + ".work")) {
         // Interrupted temporary siblings are never committed summaries or locks.
-        if (/^[a-f0-9]{64}\.json\.[a-f0-9-]+\.tmp$/.test(name)) continue;
-        if (!/^[a-f0-9]{64}\.json$/.test(name)) throw new Error("Invalid Desktop owner filename.");
-        owners[name.slice(0, -5)] = this.readWorkOwner(path.join(this.file + ".work", name));
+        if (/\.json\.[a-f0-9-]+\.tmp$/.test(name)) continue;
+        const identity = this.workIdentity(name);
+        const owner = this.readWorkOwner(path.join(this.file + ".work", name));
+        if (identity.pid !== owner.pid || identity.processStartedAt !== owner.processStartedAt) throw new Error("Desktop owner identity differs from its filename.");
+        owners[name] = owner;
       }
     } catch (error) { throw new RemoteHostRefusal("Desktop owner summaries cannot be read. Open each Desktop profile to inspect and recover its own summary.", { cause: error }); }
     return owners;
   }
-  /** One independent atomic file per profile: never reads another owner or takes the registry lock. */
+  /** Publish this run before touching old entries; a locked previous summary cannot hide us. */
   desktopWork(userData: string, summary: HostWorkSummary[] | null, warn: (message: string) => void = () => {}) {
     const file = this.desktopWorkFile(userData);
-    try { this.readWorkOwner(file); }
-    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") warn(`Desktop work summary damaged or unreadable; rewriting own profile: ${String(error)}`); }
-    const processStartedAt = desktopProcessStartedAt ??= processStart(process.pid);
-    if (!processStartedAt) throw new RemoteHostRefusal("Cannot identify the Desktop process creation time.");
+    const identity = { pid: process.pid, processStartedAt: desktopProcessStartedAt! };
     fs.mkdirSync(path.dirname(file), { recursive: true });
+    if (!this.startedProfiles.has(file)) {
+      fs.writeFileSync(file, JSON.stringify({ ...identity, summary: null }), { flag: "wx", mode: 0o600 });
+      this.startedProfiles.add(file);
+      // Only this profile's next run retires dead entries. A failed cleanup is conservative:
+      // the new live entry already exists, and the old summary still protects recovery.
+      for (const name of fs.readdirSync(path.dirname(file))) {
+        if (!name.startsWith(desktopOwnerId(userData) + ".") || name === path.basename(file) || name.endsWith(".tmp")) continue;
+        try {
+          const previous = this.workIdentity(name);
+          if (processStart(previous.pid) !== previous.processStartedAt) fs.unlinkSync(path.join(path.dirname(file), name));
+        } catch (error) { warn(`Previous Desktop work entry retained: ${String(error)}`); }
+      }
+      if (summary === null) return;
+    }
     const temporary = file + "." + randomUUID() + ".tmp";
     try {
-      fs.writeFileSync(temporary, JSON.stringify({ pid: process.pid, processStartedAt, summary }), { flag: "wx", mode: 0o600 });
+      fs.writeFileSync(temporary, JSON.stringify({ ...identity, summary }), { flag: "wx", mode: 0o600 });
       fs.renameSync(temporary, file);
     } finally { fs.rmSync(temporary, { force: true }); }
   }
   cliRemovalProof(hostId: string) { return this.ownerRemovalProof(hostId); }
-  desktopRemovalProof(hostId: string, userData: string) { return this.ownerRemovalProof(hostId, desktopOwnerId(userData)); }
-  private ownerRemovalProof(hostId: string, currentOwnerId?: string) {
+  desktopRemovalProof(hostId: string, userData: string) { return this.ownerRemovalProof(hostId, path.basename(this.desktopWorkFile(userData))); }
+  private ownerRemovalProof(hostId: string, currentEntry?: string) {
     const owners = this.workOwners();
     if (!owners || !Object.keys(owners).length) throw new RemoteHostRefusal("Removal refused: Desktop work/recovery protection cannot be verified. Open Desktop to inspect Host work and recovery, then quit and retry.");
     let workCleared = true, recoveryCleared = true;
-    for (const [ownerId, owner] of Object.entries(owners)) {
+    for (const [entry, owner] of Object.entries(owners)) {
       let currentStart;
       try { currentStart = processStart(owner.pid); }
       catch (error) { throw new RemoteHostRefusal("Cannot verify a Desktop owner's process identity. Inspect that profile before removal.", { cause: error }); }
-      if (currentStart === owner.processStartedAt && (ownerId !== currentOwnerId || owner.pid !== process.pid)) throw new RemoteHostRefusal("A Desktop profile is running. Close Host work and recovery in every profile, quit all Desktops, then retry.");
+      if (currentStart === owner.processStartedAt && (entry !== currentEntry || owner.pid !== process.pid)) throw new RemoteHostRefusal("A Desktop profile is running. Close Host work and recovery in every profile, quit all Desktops, then retry.");
       if (!owner.summary) throw new RemoteHostRefusal("Desktop work/recovery protection cannot be verified. Open each Desktop profile to inspect it.");
       // A dead owner or reused PID never discards that profile's work/recovery records.
       const work = owner.summary.find(row => row.hostId === hostId);
