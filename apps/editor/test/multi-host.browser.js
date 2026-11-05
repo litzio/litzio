@@ -5,6 +5,14 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   const root = initial.path.split(sep).slice(0, -4).concat('tmp', 'multi-host').join(sep);
   const path = root + sep + 'same.txt';
   const empty = await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(root + sep + 'empty.md'))).json();
+  const nativePath = initial.path.split(sep).slice(0, -4).concat('tmp', 'document-tabs', 'technical-1.md').join(sep);
+  const native = await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(nativePath))).json();
+  let showNative = false;
+  const comparisonHosts = [], previewHosts = [], assetRequests = [];
+  await page.route('**/fixture/remote/document/**', route => {
+    assetRequests.push(route.request().url());
+    return route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="60"><rect width="120" height="60" fill="navy"/></svg>' });
+  });
   const missing = root + sep + 'missing.txt', fresh = root + sep + 'fresh.txt';
   let failRemembered = false, failedReads = 0, showFresh = false;
   let delayStartup = false, releaseStartup;
@@ -17,6 +25,14 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   await page.route('**/api/document**', async route => {
     const url = route.request().url();
     const host = url.includes('/fixture/remote/') ? 'remote' : 'local';
+    if (url.includes('/api/document-compare')) {
+      comparisonHosts.push(host);
+      return route.fulfill({ response: await route.fetch({ url: origin + '/api/document-compare' }) });
+    }
+    if (url.includes('/api/document-source') && route.request().postDataJSON()?.path === nativePath) {
+      previewHosts.push(host);
+      return route.fulfill({ response: await route.fetch({ url: origin + '/api/document-source?recovery=1' }) });
+    }
     if (route.request().method() === 'PUT') {
       const { path: target } = route.request().postDataJSON();
       creations.push({ host, path: target, kind: 'document' });
@@ -26,6 +42,7 @@ async (page, { expect, screenshots, recoveryRecords }) => {
     if (route.request().method() === 'POST') { const body = route.request().postDataJSON(); if (body.revision !== revision(host)) throw new Error("Save used another Host’s revision"); sources[host] = body.source; versions[host]++; saves.push(host); return route.fulfill({ json: { revision: revision(host) } }); }
     if (!url.includes('?path=')) return route.fulfill({ json: { start: true } });
     const requestedPath = decodeURIComponent(url.split('?path=')[1].split('&')[0]);
+    if (requestedPath === nativePath) return route.fulfill({ json: native });
     if (created[host].get(requestedPath) === 'document') return route.fulfill({ json: { ...empty, path: requestedPath } });
     if (host === 'remote' && requestedPath === missing && failRemembered) { failedReads++; return route.fulfill({ status: 503, json: { error: 'Fixture startup read failure' } }); }
     const json = { kind: 'text', path: requestedPath, source: sources[host], revision: revision(host) };
@@ -42,7 +59,7 @@ async (page, { expect, screenshots, recoveryRecords }) => {
     const directory = decodeURIComponent(url.match(/[?&]path=([^&]*)/)?.[1] ?? '') || root;
     const entries = [...created[host]].filter(([target]) => target.slice(0, target.lastIndexOf(sep)) === directory)
       .map(([target, kind]) => ({ path: target, name: target.split(sep).at(-1), kind, native: kind === 'document' }));
-    return route.fulfill({ json: { root, path: directory, entries: [...(directory === root ? [{ path, name: 'same.txt', kind: 'document', native: false }, ...(showFresh ? [{ path: fresh, name: 'fresh.txt', kind: 'document', native: false }] : [])] : []), ...entries] } });
+    return route.fulfill({ json: { root, path: directory, entries: [...(directory === root ? [{ path, name: 'same.txt', kind: 'document', native: false }, ...(showNative ? [{ path: nativePath, name: 'technical-1.md', kind: 'document', native: true }] : []), ...(showFresh ? [{ path: fresh, name: 'fresh.txt', kind: 'document', native: false }] : [])] : []), ...entries] } });
   });
   await page.route('**/api/folder', route => {
     const host = route.request().url().includes('/fixture/remote/') ? 'remote' : 'local';
@@ -325,6 +342,35 @@ async (page, { expect, screenshots, recoveryRecords }) => {
     { host: 'remote', path: newFolder + sep + 'picked', kind: 'folder' },
   ]);
   expect([...created.local]).toEqual([]);
+  // A native remote recovery keeps its captured client for dry-run, semantics and images.
+  showNative = true;
+  await remoteExplorer.locator('[data-folder-menu]').click();
+  await page.getByRole('menuitem', { name: 'Refresh', exact: true }).click();
+  await remoteExplorer.getByRole('treeitem', { name: 'technical-1.md', exact: true }).click();
+  await page.locator('[data-document-tab][data-active="true"] .document-editor h1').first().click();
+  await page.keyboard.press('Home'); await page.keyboard.type('Remote recovery. ');
+  await expect.poll(async () => (await recoveryRecords(page)).some(record => record.hostId === 'remote' && record.path === nativePath && record.recoveryText.includes('Remote recovery.'))).toBe(true);
+  page.once('dialog', dialog => dialog.accept()); await page.reload();
+  const recoveryPrompt = page.getByTestId('recovery-prompt');
+  await expect(recoveryPrompt).toContainText('Remote');
+  const beforeComparison = JSON.stringify(await recoveryRecords(page));
+  await recoveryPrompt.getByRole('button', { name: 'Compare', exact: true }).click();
+  const recoveryVisual = recoveryPrompt.getByTestId('visual-comparison');
+  await expect(recoveryVisual.locator('.document-editor')).toHaveCount(2);
+  await expect.poll(() => recoveryVisual.locator('img[data-testid="figure-image"]').evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0))).toBe(true);
+  const previewImages = await recoveryVisual.locator('img[data-testid="figure-image"]').evaluateAll(images => images.map(image => image.src));
+  expect(previewImages.length).toBeGreaterThan(0);
+  expect(previewImages.every(url => url.includes('/fixture/remote/document/'))).toBe(true);
+  expect(previewHosts).toEqual(['remote']); expect(comparisonHosts).toEqual(['remote']);
+  expect(assetRequests.length).toBeGreaterThan(0);
+  expect(assetRequests.every(url => url.includes('/fixture/remote/document/'))).toBe(true);
+  await recoveryPrompt.getByRole('button', { name: 'Source', exact: true }).click();
+  await expect(recoveryPrompt.getByRole('region', { name: 'Source differences', exact: true })).toBeVisible();
+  expect(JSON.stringify(await recoveryRecords(page))).toBe(beforeComparison);
+  await recoveryPrompt.getByRole('button', { name: 'Delete record', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Delete recovery record?', exact: true }).getByRole('button', { name: 'Delete record', exact: true }).click();
+  await expect(recoveryPrompt).toHaveCount(0);
+  await createdTab.click();
   await localExplorer.locator('[data-folder-menu]').click();
   await page.getByRole('menuitem', { name: 'Refresh', exact: true }).click();
   await expect(localExplorer.getByRole('treeitem', { name: /remote-created|remote-folder|child.md/ })).toHaveCount(0);

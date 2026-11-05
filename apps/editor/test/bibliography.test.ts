@@ -101,4 +101,13 @@ test("bibliography refresh uses only the saved document revision and degrades fa
   const calls = fetch.mock.calls.length;
   assert.deepEqual(await requestBibliography("paper.md", "saved-revision", []), []);
   assert.equal(fetch.mock.calls.length, calls, "disconnecting the last file clears the snapshot without a read");
+  const controller = new AbortController();
+  fetch.mock.mockImplementation(async (_url, init) => {
+    assert.equal(init?.signal, controller.signal, "comparison cancellation must reach the Host request");
+    init.signal.throwIfAborted();
+    throw new Error("Expected cancellation");
+  });
+  const cancelled = requestBibliography("paper.md", "saved-revision", ["refs.bib"], undefined, controller.signal);
+  const reason = new Error("Comparison closed"); controller.abort(reason);
+  await assert.rejects(cancelled, reason);
 });

@@ -176,3 +176,8 @@ spacing/surface/border/focus tokens and aria-expanded. Keeping it in the editor'
 position mapping avoids a second React editor or detached DOM ownership. Its keyboard
 activation is covered by the existing pre-save browser scenario. Details and scope:
 [Editing session and Save](editing-session-save-v1.md#pre-save-visual-comparison-1201).
+
+Recovery Compare reuses the same VisualCompare, ChoiceGroup, diff markers and
+ComparisonInfo Tooltip without adding another renderer. Its existing Restore/Delete/
+Not now controls and plaintext copy retain their behavior. See the
+[recovery display contract](editing-session-save-v1.md#recovery-visual-comparison-1201).

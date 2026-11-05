@@ -1,6 +1,8 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Recovery preview": "Recovery preview",
+  "Read-only preview of the last recorded applied content. Comparison does not restore or save it.": "Read-only preview of the last recorded applied content. Comparison does not restore or save it.",
   "Plugins use Host OS permissions": "Plugins use Host OS permissions",
   "Plugin access details": "Plugin access details",
   "Plugins run on this Host with its OS permissions. Enable only code you trust.": "Plugins run on this Host with its OS permissions. Enable only code you trust.",
@@ -1064,6 +1066,8 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Recovery preview": "복구 미리보기",
+  "Read-only preview of the last recorded applied content. Comparison does not restore or save it.": "마지막으로 기록된 적용 내용의 읽기 전용 미리보기입니다. 비교는 내용을 복원하거나 저장하지 않습니다.",
   "Plugins use Host OS permissions": "플러그인은 Host OS 권한으로 실행됩니다",
   "Plugin access details": "플러그인 접근 권한 자세히",
   "Plugins run on this Host with its OS permissions. Enable only code you trust.": "플러그인은 이 Host의 OS 권한으로 실행됩니다. 신뢰하는 코드만 활성화하세요.",

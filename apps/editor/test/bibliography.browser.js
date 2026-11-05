@@ -205,6 +205,16 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   await page.getByRole('button', { name: 'Not now', exact: true }).click();
   await openPath(page, file);
   await page.getByTestId('recovery-prompt').waitFor();
+  const recoveryBeforeCompare = JSON.stringify(await records());
+  await page.getByRole('button', { name: 'Compare', exact: true }).click();
+  const recoveryVisual = page.getByTestId('recovery-prompt').getByTestId('visual-comparison');
+  await recoveryVisual.locator('.visual-snapshot').nth(1).getByTestId('bibliography').waitFor({ state: 'attached' });
+  for (const snapshot of await recoveryVisual.locator('.visual-snapshot').all()) {
+    assert((await snapshot.getByTestId('bibliography').innerText()).includes('Control Study'), 'Recovery comparison must load current .bib within the recorded common root');
+    assert(await snapshot.locator('[data-citation][data-readiness="complete"]').count() > 0, 'Recovery comparison must evaluate citations using the recorded Host resource context');
+  }
+  await page.getByRole('button', { name: 'Compare', exact: true }).click();
+  assert(JSON.stringify(await records()) === recoveryBeforeCompare && bibliographyFixture.hash() === originalHash, 'Recovery comparison must preserve records and .bib bytes');
   await page.getByRole('button', { name: 'Restore work', exact: true }).click();
   await page.getByTestId('recovery-prompt').waitFor({ state: 'detached' });
   await editor.getByText(/Bibliography recovery draft/).waitFor();
