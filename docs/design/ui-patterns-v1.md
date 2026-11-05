@@ -311,6 +311,13 @@ Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채�
 
 ## P12 모달·파일·복구·설정 범위
 
+#1199의 사이드바 맨 아래 실행 계정 줄은 기존 Host 설정·탐색기의 HostStatus와
+공용 Tooltip을 재사용한다. 설정·테마·메뉴 행은 바로 위에 유지한다.
+계정은 활성 탭의 Host에 고정하며 전체 Host 라벨·실행 계정·권한 설명은
+hover/keyboard focus 툴팁으로 확인한다. `multi-host`의 탭 전환·640px 말줄임·툴팁
+검증과 1440px/640px 캡처를 사용한다. [Shell 계약](editor-ux-shell-v1.md#활성-host-실행-계정-1199)을 따른다.
+
+
 - **목적·사용/비사용:** 파일·복구·파괴 작업은 대상과 결과를 확인한다. metadata의 Done/바깥 적용을 이식하거나 기기 설정을 문서 Save에 묶지 않는다.
 - **목표·현재 기준:** 기존 [UnsavedChangesDialog](../../apps/editor/src/shell/UnsavedChangesDialog.tsx), [DangerConfirmation](../../apps/editor/src/components/ui/danger-confirmation.tsx), 파일 dialog·비교 화면을 유지한다. 제목→대상→설명/문제→명시적 동사 action, 안전한 취소·focus 복귀, busy 중 중복 실행 방지가 기준이다. 앱 Settings는 문서와 오가는 단일 작업 탭, file preview·단축키는 읽기 dialog다.
 - **사용처:** U22 앱 설정, U23 파일/폴더 picker·새 이름, U24 미저장·삭제·저장/복구 비교, U25 미리보기·단축키·참고문헌 연결.

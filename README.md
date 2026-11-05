@@ -86,6 +86,8 @@ CLI remove는 모든 Desktop 프로필이 종료되어 있고 프로필별 요�
 작업·복구가 없을 때만 성공합니다. PID와 프로세스 생성 시각을 함께 확인하며 요약이 손상되거나
 읽을 수 없으면 거부합니다. 그 밖에는 설정에서 작업·복구를 정리하고 앱을 종료하도록 안내합니다.
 
+`litzio daemon status`는 실행 중인 daemon의 실행 계정(`Run as`)을 표시합니다. `--json`은 `identity.runAs`로 같은 값을 제공합니다. Windows는 `DOMAIN\user`, Linux는 사용자 이름이며 접속자 신원이 아닙니다. 연결되지 않은 daemon의 계정은 추측하지 않습니다.
+
 ## CLI·개발 실행·HTTP
 
 개발 checkout의 시작 예입니다. Node.js·pnpm 요구 버전과 검증 절차는 [기여 안내](CONTRIBUTING.md#development-requirements)를 먼저 확인하세요.

@@ -61,7 +61,8 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   await page.route('**/fixture/remote/api/folder-places', route => route.fulfill({ json: { places: [{ kind: 'home', name: 'Fixture home', path: root }] } }));
   await page.route('**/api/folder-version?**', route => route.fulfill({ json: { version: '1', revisions: [] } }));
   let remoteAvailable = true;
-  await page.route('**/fixture/remote/api/host-capabilities', route => route.fulfill(remoteAvailable ? { json: { fileDeletion: 'trash' } } : { status: 503, json: { error: 'Fixture unreachable' } }));
+  await page.route('**/api/host-capabilities', route => route.fulfill({ json: { fileDeletion: 'trash', identity: { runAs: 'WORKSTATION\\local-user' } } }));
+  await page.route('**/fixture/remote/api/host-capabilities', route => route.fulfill(remoteAvailable ? { json: { fileDeletion: 'trash', identity: { runAs: 'remote-user' } } } : { status: 503, json: { error: 'Fixture unreachable' } }));
   await page.route('**/fixture/off/api/host-capabilities', route => route.fulfill({ status: 503, json: { error: 'Unreachable' } }));
   await page.evaluate(({ path, root }) => {
     for (const host of ['local', 'remote']) { localStorage.setItem(JSON.stringify([host, 'litzio.openTabs']), JSON.stringify({ paths: [], activePath: null })); localStorage.setItem(JSON.stringify([host, 'litzio.openFolders']), JSON.stringify([root])); }
@@ -89,11 +90,32 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   await page.getByLabel('Host', { exact: true }).selectOption('remote');
   await expect(page.locator('[data-host-id="remote"]')).toBeVisible();
   await remote.click();
+  await expect(page.locator(".sidebar-host-account")).toContainText("Remote · remote-user");
+  if (screenshots) { for (const width of [1440, 640]) { await page.setViewportSize({ width, height: 900 }); await page.screenshot({ path: `tmp/1199-run-as-${width}.png` }); } await page.setViewportSize({ width: 1440, height: 1000 }); }
   await expect(page.getByTestId("current-host")).toHaveText("Remote");
   await page.getByRole('textbox', { name: 'Text editor' }).fill('Remote saved');
   await page.keyboard.press('Control+s');
   await expect.poll(() => saves.join()).toBe('remote');
   await local.click();
+  await expect(page.locator('.sidebar-host-account')).toContainText('Local · WORKSTATION\\local-user');
+  await page.setViewportSize({ width: 640, height: 900 });
+  const accountRow = page.locator('.sidebar-host-account');
+  const accountText = accountRow.locator('.sidebar-tree-name');
+  await expect(accountText).toHaveCSS('text-overflow', 'ellipsis');
+  const rowBox = await accountRow.boundingBox(), settingsBox = await page.locator('.sidebar-preferences').boundingBox();
+  expect(settingsBox.y + settingsBox.height).toBeLessThanOrEqual(rowBox.y);
+  expect(rowBox.x + rowBox.width).toBeLessThanOrEqual(640);
+  await accountRow.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(accountRow).toBeFocused();
+  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText("Local · Run as: WORKSTATION\\local-user");
+  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText("This Host performs file operations and assistant execution with this account's permissions.");
+  await page.keyboard.press('Tab');
+  await expect(page.locator('[data-slot="tooltip-content"]')).toBeHidden();
+  if (screenshots) await page.screenshot({ path: 'tmp/1199-run-as-local-640.png' });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+
   await expect(page.getByTestId('current-host')).toHaveText('Local');
   await page.getByRole('textbox', { name: 'Text editor' }).fill('Local saved');
   await page.keyboard.press('Control+s');

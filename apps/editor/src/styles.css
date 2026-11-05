@@ -908,7 +908,7 @@ button {
   gap: var(--space-1);
 }
 
-/* The same Settings entry stays bottom-aligned; the collapsed rail shows only its icon. */
+/* Settings sit above the active Host execution account. */
 .sidebar-footer {
   display: flex;
   flex-direction: column;
@@ -919,6 +919,10 @@ button {
 /* Settings and Color mode share footer row geometry in both sidebar states. */
 .sidebar-preferences { display: flex; align-items: center; gap: var(--space-1); }
 .sidebar--collapsed .sidebar-preferences { flex-direction: column; }
+.sidebar-host-account { display: flex; align-items: center; gap: var(--space-1); min-width: 0; height: var(--size-control-compact); padding-inline: var(--space-2); color: var(--id-color-text-muted); font-size: var(--font-size-xs); }
+.sidebar-host-account .host-status { flex-shrink: 0; }
+.sidebar-host-account .sidebar-tree-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar--collapsed .sidebar-host-account { justify-content: center; }
 /* Whole-screen theme crossfade; other controls retain immediate state changes. */
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--duration-theme-transition); }
 @media (prefers-reduced-motion: reduce) {

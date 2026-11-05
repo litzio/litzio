@@ -1,5 +1,7 @@
+import { HostStatus } from "../components/HostStatus.tsx";
+import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
 import { HostExplorer, HostHeading } from "./HostExplorer.tsx";
-import { hostRegistry, type HostClient } from "../host-client.ts";
+import { hostRegistry, hostLabel, type HostClient } from "../host-client.ts";
 import { SettingsSelect } from "@/components/ui/settings.tsx";
 import { locatorKey } from "../host-locator.ts";
 import { PanelResize } from "./PanelResize.tsx";
@@ -184,6 +186,7 @@ export function Sidebar({
             </Button> : null}
             {typeof window !== "undefined" && window.litzioDesktop ? <DesktopMenu desktop={window.litzioDesktop} /> : null}
           </div>
+          <HostAccount hostId={documentHostId} collapsed={!open} />
         </div>
       ) : null}
     </nav>
@@ -399,4 +402,15 @@ export function FolderTree({ onAddToChat, onFileAction, fileActionsDisabled, isF
       {tree.nodes.get(tree.root)?.entries.length === 0 ? <p className="sidebar-folder-empty" hidden={!tree.sectionExpanded}>{i18n.t("No files or folders")}</p> : null}
     </section>
   );
+}
+
+function HostAccount({ hostId, collapsed }: { hostId: string; collapsed: boolean }) {
+  const runtime = hostRegistry.get(hostId);
+  const account = runtime.state === "connected" ? runtime.identity?.runAs : undefined;
+  const label = hostLabel(hostId);
+  const text = `${label}${account ? ` · ${account}` : ""}`;
+  return <Tooltip><TooltipTrigger render={<div tabIndex={0} className="sidebar-host-account" aria-label={`${label} · ${i18n.t("Run as")}${account ? `: ${account}` : ""}`} />}>
+    <HostStatus runtime={runtime} compact showDetails={false} iconOnly={!!account || collapsed} />
+    {!collapsed && account ? <span className="sidebar-tree-name">{text}</span> : null}
+  </TooltipTrigger><TooltipContent><div><div>{label}{account ? ` · ${i18n.t("Run as")}: ${account}` : ""}</div>{account ? <div>{i18n.t("This Host performs file operations and assistant execution with this account's permissions.")}</div> : null}</div></TooltipContent></Tooltip>;
 }

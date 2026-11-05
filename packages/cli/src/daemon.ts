@@ -111,7 +111,7 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
         const started = processStart(candidate.pid);
         const owner = !started ? "exited" : started === candidate.processStartedAt ? "alive but unresponsive/incompatible" : "PID reused";
         process.exitCode = 1;
-        return { ...candidate, state: "unreachable", running: false, owner, error: `${(error as Error).message} Owner: ${owner}. ${owner === "alive but unresponsive/incompatible" ? "Inspect logs or use the matching CLI to stop it; records preserved." : "Recorded generation exited or PID reused; records preserved."}` };
+        return { ...candidate, identity: undefined, state: "unreachable", running: false, owner, error: `${(error as Error).message} Owner: ${owner}. ${owner === "alive but unresponsive/incompatible" ? "Inspect logs or use the matching CLI to stop it; records preserved." : "Recorded generation exited or PID reused; records preserved."}` };
       }
     };
     const local = record ? await inspect(record) : { state: "not-running", running: false, daemonHome: directory, locked: fs.existsSync(path.join(directory, "daemon.lock")) };
@@ -146,8 +146,8 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
   }
 }
 
-function statusTable(status: { state: string; url: string; launcher: string; roots: readonly string[]; nonLoopback: boolean; productVersion: string; protocolVersion: string; pid: number; startedAt: string; daemonHome: string; executable: string; log?: string; error?: string }): string {
-  return [["Status", status.state], ["URL", status.url], ["Launcher", status.launcher], ["Access", status.roots.length ? `Root restricted: ${status.roots.join(", ")}` : "unrestricted"],
+function statusTable(status: { state: string; url: string; launcher: string; roots: readonly string[]; nonLoopback: boolean; productVersion: string; protocolVersion: string; pid: number; startedAt: string; daemonHome: string; executable: string; log?: string; error?: string; identity?: { runAs: string } }): string {
+  return [["Status", status.state], ...(status.state === "running" && status.identity ? [["Run as (실행 계정)", status.identity.runAs]] : []), ["URL", status.url], ["Launcher", status.launcher], ["Access", status.roots.length ? `Root restricted: ${status.roots.join(", ")}` : "unrestricted"],
     ["Non-loopback", String(status.nonLoopback)], ["Product version", status.productVersion], ["Protocol version", status.protocolVersion], ["PID", String(status.pid)],
     ["Started", status.startedAt], ["Daemon home", status.daemonHome], ["Executable", status.executable], ...(status.log ? [["Log", status.log]] : []), ...(status.error ? [["Error", status.error]] : [])]
     .map(([name, value]) => `${name!.padEnd(18)} ${value}`).join("\n");

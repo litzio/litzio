@@ -31,6 +31,7 @@ export type HostRuntime = {
   warning?: string;
   reason?: string;
   failure?: "protocol-mismatch" | "unreachable";
+  identity?: { runAs: string };
   capabilities?: { fileDeletion: "trash" | "permanent" };
 };
 /** A registry can be injected in fixtures; unknown identities fail closed. */
@@ -101,10 +102,12 @@ export function createHostRegistry(hosts: readonly { hostId: string; origin: str
         const body = await response.json();
         if (attempts.get(hostId) !== attempt) return;
         runtime.capabilities = { fileDeletion: body.fileDeletion === "trash" ? "trash" : "permanent" };
+        runtime.identity = typeof body.identity?.runAs === "string" && body.identity.runAs.trim() ? { runAs: body.identity.runAs } : undefined;
         runtime.state = "connected";
       } catch (error) { if (attempts.get(hostId) === attempt) {
         runtime.state = "disconnected";
         runtime.capabilities = undefined;
+        runtime.identity = undefined;
         runtime.failure = error instanceof HostProtocolMismatch ? "protocol-mismatch" : "unreachable";
         runtime.reason = error instanceof Error ? error.message : String(error);
       } }
