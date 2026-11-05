@@ -1,7 +1,13 @@
 import { spawn } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { PLUGIN_ERROR_KINDS, SDK_VERSION, PluginOperationError, pluginErrorKind, type PluginInstance, type PluginManifest } from "@litzio/plugin-sdk";
 
 let sdkUrl: Promise<string> | undefined;
+declare const __LITZIO_CLI_BUILD__: { desktop: boolean };
+// Source Hosts own the checkout; shipped Hosts own their installation bundles.
+const internalRoot = fileURLToPath(new URL(import.meta.url.endsWith(".ts") ? "../../../../"
+  : typeof __LITZIO_CLI_BUILD__ !== "undefined" && __LITZIO_CLI_BUILD__.desktop ? "../" : "./", import.meta.url));
 function hostSdkUrl(): Promise<string> {
   return sdkUrl ??= (async () => {
     if (import.meta.url.endsWith(".ts")) {
@@ -15,8 +21,9 @@ function hostSdkUrl(): Promise<string> {
 // Inline bootstrap keeps source and the relocatable CLI on the same execution path.
 // Only trusted artifact code runs here; a child process is not an OS sandbox.
 const bootstrap = String.raw`
-import { statSync } from 'node:fs';
-import { pathToFileURL } from 'node:url';
+import { statSync, realpathSync } from 'node:fs';
+import { pathToFileURL, fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { registerHooks } from 'node:module';
 let instance;
 process.on('disconnect', () => process.exit(0));
@@ -24,10 +31,30 @@ process.on('message', async ({id, method, args}) => {
   try {
     let result;
     if (method === 'activate') {
+      const canonical = file => {
+        const real = realpathSync.native(path.resolve(file));
+        return process.platform === 'win32' ? real.toLowerCase() : real;
+      };
+      const internalRoot = canonical(args.internalRoot), artifactRoot = canonical(args.artifactDirectory);
+      const inside = (root, file) => {
+        const relative = path.relative(root, file);
+        return relative === '' || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative));
+      };
+      const sdkFile = args.sdkUrl.startsWith('file:') ? canonical(fileURLToPath(args.sdkUrl)) : null;
+      // Only SDK-owned imports may reach its split chunks. An artifact cannot import
+      // those private chunks directly, even if the SDK already loaded them.
+      const sdkModules = new Set([args.sdkUrl]);
       registerHooks({ resolve(specifier, context, nextResolve) {
         if (specifier === '@litzio/plugin-sdk') return {url: args.sdkUrl, format: 'module', shortCircuit: true};
         if (specifier.startsWith('@litzio/')) throw new Error('Use the public plugin SDK');
-        return nextResolve(specifier, context);
+        const resolved = nextResolve(specifier, context);
+        if (resolved.url.startsWith('file:')) {
+          const target = canonical(fileURLToPath(resolved.url));
+          const sdkImport = target === sdkFile || sdkModules.has(context.parentURL);
+          if (inside(internalRoot, target) && !inside(artifactRoot, target) && !sdkImport) throw new Error('Use the public plugin SDK');
+          if (sdkImport) sdkModules.add(resolved.url);
+        }
+        return resolved;
       }});
       if ((await import('@litzio/plugin-sdk')).SDK_VERSION !== args.sdkVersion) throw new Error('Unsupported SDK version');
       const module = await import(pathToFileURL(args.entry).href);
@@ -47,7 +74,7 @@ process.on('message', async ({id, method, args}) => {
 });
 `;
 
-export async function startPluginProcess(entry: string, manifest: PluginManifest, settings: Record<string, unknown>, secrets: Readonly<Record<string, string>>, failed: () => void): Promise<PluginInstance> {
+export async function startPluginProcess(entry: string, manifest: PluginManifest, settings: Record<string, unknown>, secrets: Readonly<Record<string, string>>, failed: () => void, artifactDirectory = path.dirname(entry)): Promise<PluginInstance> {
   const runtimeUrl = await hostSdkUrl();
   const child = spawn(process.execPath, ["--input-type=module", "--eval", bootstrap], {
     stdio: ["ignore", "ignore", "ignore", "ipc"], windowsHide: true, env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
@@ -78,7 +105,7 @@ export async function startPluginProcess(entry: string, manifest: PluginManifest
     child.send({ id, method, args }, error => { if (error) { fail(); child.kill(); } });
   });
   const stop = async () => { stopped = true; child.kill(); await exited; };
-  try { await request("activate", { entry, settings, secrets, sdkUrl: runtimeUrl, sdkVersion: SDK_VERSION, operations: manifest.contributes.operations.map(op => op.id) }); }
+  try { await request("activate", { entry, settings, secrets, artifactDirectory, internalRoot, sdkUrl: runtimeUrl, sdkVersion: SDK_VERSION, operations: manifest.contributes.operations.map(op => op.id) }); }
   catch (error) { await stop(); throw error; }
   return {
     operations: Object.fromEntries(manifest.contributes.operations.map(op => [op.id, (input: unknown) => request("invoke", { operation: op.id, input })])),

@@ -119,7 +119,7 @@ test("started without a document, it opens none; the sample opens with its figur
   writeFileSync(oldSample, "User-modified legacy sample.\n");
   const { app, page, requests } = await launch(userData);
   const external = mkdtempSync(path.join(tmpdir(), "litzio-desktop-sdk-"));
-  try { await verifyExternalPlugin(origin, external); }
+  try { await verifyExternalPlugin(origin, external, path.join(path.dirname(exe), "resources/cli")); }
   catch (error) { await closeApp(app); throw error; }
   finally { rmSync(external, { recursive: true, force: true }); }
 

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
@@ -432,6 +432,53 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
 import { createPluginService } from "../server/plugin-service.ts";
 import { pluginCli } from "../../../packages/cli/src/plugins.ts";
 import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
+
+test("runtime import boundary checks resolved real paths, including aliases into the Host checkout", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-import-boundary-"));
+  const host = new PluginHost(path.join(root, "state.json")), id = "fixture.imports";
+  const source = `import { SDK_VERSION } from '@litzio/plugin-sdk';
+import {basename} from 'node:path'; import {message} from './local.js'; import {value} from 'fixture-dependency';
+export function activate(){return {operations:{},status:()=>({available:true,message:[SDK_VERSION,basename('okay'),message,value].join('/'),folders:[],decorations:[],accounts:[]}),dispose(){}}}`;
+  // A legitimate artifact can itself live under the checkout boundary.
+  const checkoutTmp = fileURLToPath(new URL("../../../tmp/", import.meta.url));
+  mkdirSync(checkoutTmp, { recursive: true });
+  const checkoutScratch = mkdtempSync(path.join(checkoutTmp, "import-boundary-"));
+  const directory = lifecycleFixture(checkoutScratch, id, source), entry = path.join(directory, "host.js");
+  const target = fileURLToPath(new URL("../../../packages/core/src/label.ts", import.meta.url));
+  try {
+    writeFileSync(path.join(directory, "local.js"), "export const message = 'local';");
+    const dependency = path.join(directory, "node_modules/fixture-dependency");
+    mkdirSync(dependency, { recursive: true });
+    writeFileSync(path.join(dependency, "package.json"), JSON.stringify({ type: "module", exports: "./index.js" }));
+    writeFileSync(path.join(dependency, "index.js"), "export const value = 'dependency';");
+    await host.invoke("register", { directory });
+    const trust = async () => host.invoke("trust", { id, digest: (await host.list())[0]!.digest });
+    await trust(); await host.invoke("enable", { id });
+    assert.match((await host.list())[0]!.status!.message, /okay\/local\/dependency$/);
+    // Keep the link outside the artifact: artifact admission independently rejects links.
+    // This reaches the runtime resolver and proves that realpath, not lexical path, is checked.
+    const alias = path.join(root, "host-source-alias");
+    symlinkSync(path.dirname(target), alias, process.platform === "win32" ? "junction" : "dir");
+    const attempts = [
+      path.relative(directory, target).replaceAll("\\", "/"),
+      pathToFileURL(target).href,
+      pathToFileURL(path.join(alias, "label.ts")).href,
+      path.relative(directory, path.join(alias, "label.ts")).replaceAll("\\", "/"),
+      ...(process.platform === "win32" ? [pathToFileURL(target.toUpperCase()).href] : []),
+    ];
+    for (const specifier of attempts) {
+      writeFileSync(entry, `import ${JSON.stringify(specifier)};\n` + source);
+      await trust();
+      await assert.rejects(host.invoke("reload", { id }), /request failed/, specifier);
+      assert.equal((await host.list())[0]!.running, false);
+    }
+    writeFileSync(entry, `import {createRequire} from 'node:module'; createRequire(import.meta.url)(${JSON.stringify(target)});\n` + source);
+    await trust(); await assert.rejects(host.invoke("reload", { id }), /request failed/);
+    // Restore the ordinary SDK + artifact + dependency imports after all refusals.
+    writeFileSync(entry, source); await trust(); await host.invoke("reload", { id });
+    assert.match((await host.list())[0]!.status!.message, /okay\/local\/dependency$/);
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); rmSync(checkoutScratch, { recursive: true, force: true }); }
+});
 
 test("scaffold enforces Host roots and the active assistant turn write scope before creation", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-scaffold-access-"));

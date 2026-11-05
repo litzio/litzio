@@ -128,7 +128,7 @@ export class PluginHost {
     const secrets = await this.runtimeSecrets(id, a.manifest);
     const instance = await startPluginProcess(a.entry, a.manifest, structuredClone(r.settings), secrets, () => {
       this.loaded.delete(id); this.jobs.lost(id); this.errors.set(id, "Plugin process failed; reload to recover");
-    });
+    }, r.directory);
     this.processes.set(id, instance);
     this.loaded.set(id, { manifest: a.manifest, instance, pending: new Set() });
     this.disabling.delete(id);
