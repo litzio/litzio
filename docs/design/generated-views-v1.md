@@ -4,7 +4,7 @@
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Request paths, lazy plugin start, receipts and stored formats are unchanged.
 - Last verified: 2026-11-06 — V3 query forms/states, keyword-specific field errors, public owner persistence and #1266 review entry fixtures; generated-views/HTTP recovery browser 2/2, targeted Host/CLI/plugin checks and visual-tokens. V2 Host/CLI evidence is retained below; external-service UI/CLI acceptance remains separate. Previous 2026-11-05 — #1218 fixture plugin schema Core/Host/CLI and generated-views browser scenario; actual Codex gpt-6-luna low via existing conversation adapter generated status/points grouping, validated and evaluated to open=5. Initial local HTTP recovery companion failed waiting for browser close after owned PID termination; final-build rerun passed 2/2. After separating fixture module paths to prevent import-cache reuse, combined http-plugins/generated-views passed 3/3. No timeout relaxation. Previous #1210 evidence: Core/file-commit and Host/HTTP/CLI tests; provider stdio boundary tests, production browser generation/favourite/reopen/manual refresh/CLI equality and 1440px/640px captures; actual Codex gpt-6-luna low proposal/correction/exhaustion. Copilot generation uses fake ACP/browser evidence, not a paid live Copilot response.
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md), [#1210](https://github.com/litzio/litzio/issues/1210).
-- Scope: V2 query Host/CLI supersedes v1 Host behavior as described below. Existing renderer/assistant call sites now use v2 query envelopes; V3 supplies forms/states and query/InputForm generation; review generation and V6 tools/cards remain gated. Historical Core v1, file-commit exclusive creation, built-in statistics, Host/CLI operations, shared bundled rendering and both assistant adapters. Includes #1218 operation row-schema declarations for active plugin reads; no external API, settings migration or data migration. The final V1 section documents the separately implemented catalog v2 Core/SDK layer, now consumed by the V2 query Host/CLI.
+- Scope: V2 query Host/CLI supersedes v1 Host behavior as described below. Existing renderer/assistant call sites now use v2 query envelopes; V3 supplies forms/states and query/InputForm generation; V6 tools/cards and V4 completed-bundle review generation use the same authoring catalog. Historical Core v1, file-commit exclusive creation, built-in statistics, Host/CLI operations, shared bundled rendering and both assistant adapters. Includes #1218 operation row-schema declarations for active plugin reads; no external API, settings migration or data migration. The final V1 section documents the separately implemented catalog v2 Core/SDK layer, now consumed by the V2 query Host/CLI.
 
 ## V2 query Host and CLI
 
@@ -197,8 +197,7 @@ V2의 `code:"unavailable"`은 삭제된 열·버전/가용성 변경으로 사�
 ### V2/V5 병합 뒤 생성 노출과 진입점
 
 #1264·#1261·#1266 병합 뒤 query 생성 context에 Core query schema의 InputForm과
-원래 inputs 한도를 다시 노출한다. review profile은 V4 Host 통합 전까지 생성 catalog에서
-제외한다. 공통 진입점의 ReviewAdapter 계약은 #1266에서도 같으며 mapping이 없는 snapshot을
+원래 inputs 한도를 다시 노출한다. V4에서는 명시적으로 제공된 같은 Host의 완료 bundle에 대한 review profile도 shared/view-generation.ts의 공용 schema/instruction에서 연다. 공통 진입점의 ReviewAdapter 계약은 #1266에서도 같으며 mapping이 없는 snapshot을
 거부하지 않는다. mapping 없는 review의 제안 표시·허용 동작은 V5가 소유한다.
 
 ## V6 비서 결과 카드
@@ -212,8 +211,7 @@ Generate view는 양 공급자에서 선택 모델을 유지하고 검증 실패
 대화는 turn과 도구 receipt, 카드는 검증 명세와 선택 Root, 열린 탭은 입력 초안·조회·저장 상태를 소유한다.
 중단·패널 닫기·unmount는 생성 요청을 취소하고 늦은 결과를 버린다. 중단된 turn에는 카드를 표시하지 않는다.
 일반 대화의 `view_catalog`도 `shared/view-generation.ts`의 동일 생성 catalog를 반환하며
-Host 전체 schema나 기여 명세는 노출하지 않는다. query/InputForm만 허용하고 review 생성은
-V4 통합 확인 후 이 공통 생성 범위 정의에서 연다.
+공용 query/InputForm·review schema를 같은 생성 범위 정의에서 노출한다. review source는 사용자가 제공한 완료 plugin/review/bundleRef만 쓰며 참조를 발명하거나 다른 Host로 재연결하지 않는다. Host는 validate/propose에서 실제 완료 bundle과 기여 가용성을 재검증한다. view.propose는 문서 변경 제안이나 승인·Undo를 실행하지 않는다.
 
 2026-11-06 검증: stdio fixture의 catalog/propose/교정 cap과 기존 취소 검사를 보완했다.
 브라우저 generated-views fixture는 카드 → 새 탭 → 수동 조회와 일반 대화 도구 카드 경로를 검증한다.
@@ -228,4 +226,4 @@ V6 대화 표시 보완: 생성 명세는 ‘뷰 명세’에 기본 접힘으�
 1440px [교정 없음](assets/catalog-v6/result-card-no-correction-1440.png)과
 [교정 1회](assets/catalog-v6/result-card-1440.png)를 fixture로 확인했다.
 
-V4 review의 Host·CLI·K1 완료 bundle은 [플러그인 1단계 V4 계약](plugin-stage1-v1.md#v4-공용-review-hostcli)에 구현했다. query v2 전환과 review 화면 통합은 각각의 후속 PR 범위다. 공용 자료 읽기·제안·승인·거절·Undo·status는 같은 PluginHost dispatcher를 사용하며 문서 의미를 renderer나 CLI에 구현하지 않는다.
+V4 review의 Host·CLI·K1 완료 bundle은 [플러그인 1단계 V4 계약](plugin-stage1-v1.md#v4-공용-review-hostcli)에 구현했다. V3/V5의 /api/reviews snapshot transport와 연결하며 Core read model은 document-reader 경계를 사용한다. 실제 브라우저·외부 서비스 수락은 별도 검증이다. 공용 자료 읽기·제안·승인·거절·Undo·status는 같은 PluginHost dispatcher를 사용하며 문서 의미를 renderer나 CLI에 구현하지 않는다.

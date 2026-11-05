@@ -130,6 +130,13 @@ export async function executeViewOperation(value: unknown, scope: { access: File
     const ownerOf = (view: QueryView) => operationOwner(view.sources.stats.operation);
     const describe = (view: QueryView) => ({ view, plugin: ownerOf(view), inputState: validateViewInputs(view, operations.find(op => op.operation === view.sources.stats.operation && op.version === view.sources.stats.version)!) });
     if (input.action === "validate" || input.action === "propose") {
+      const parsed = catalogViewSchema.parse(input.view);
+      if (parsed.profile === "review") {
+        const view = validateCatalogView(parsed, operations);
+        if (!scope.plugins) throw new ViewRefusal("unavailable");
+        scope.plugins.reviews.validateSource(parsed.sources.review);
+        return { view, plugin: parsed.sources.review.plugin, canonical: serializeCatalogView(view, operations), receipt: success };
+      }
       const view = query(input.view, operations);
       return { ...describe(view), canonical: serializeCatalogView(view, operations), receipt: success };
     }

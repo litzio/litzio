@@ -9,10 +9,11 @@ import { reviewBundleSchema, reviewPageSchema, reviewMappingSchema, reviewPropos
 import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
 import { validateImage } from "../image-validation.ts";
 import { publicOperationError } from "./operation-result.ts";
+import { loadDocumentFile } from "../document-reader.ts";
 
 const ref = z.string().min(1).max(512);
 export const reviewRequestSchema = z.strictObject({ action: z.enum(["read", "propose", "approve", "reject", "undo", "status"]), plugin: ref, review: ref, root: ref,
-  bundleRef: ref, generation: ref, kind: z.enum(["bundle", "document", "page", "mapping", "proposals", "image"]).optional(), pageNo: z.number().int().positive().optional(),
+  bundleRef: ref, generation: ref.optional(), kind: z.enum(["bundle", "document", "page", "mapping", "proposals", "image", "snapshot"]).optional(), pageNo: z.number().int().positive().optional(),
   continuation: ref.optional(), proposalId: ref.optional(), baseline: reviewBaselineSchema.optional(), requestId: z.string().uuid().optional(), input: z.json().optional() });
 const editSchema = z.strictObject({ kind: z.literal("text"), path: z.array(z.number().int().nonnegative()), from: z.string().min(1).max(32768), to: z.string().min(1).max(32768) });
 type Edit = z.infer<typeof editSchema>;
@@ -65,6 +66,12 @@ export class PluginReviews {
     if (hash(readFileSync(b.source)) !== b.sourceHash || textRevision(decodeUtf8(readFileSync(b.file))) !== b.bundle.documentRevision) throw new Error("Review baseline is stale");
   }
   private baseline(b: Bundle) { return { documentRevision: b.bundle.documentRevision, proposalRevision: b.revision, sourceRevision: b.bundle.sourceRevision, mappingRevision: b.bundle.mappingRevision }; }
+  /** Validate a view reference without querying plugins, publishing materials or changing proposals. */
+  validateSource(source: { plugin: string; review: string; bundleRef: string }) {
+    const b = this.bundles.get(source.bundleRef);
+    if (!b || b.plugin !== source.plugin || b.review !== source.review) throw new Error("Review bundle unavailable on this Host");
+    this.declaration(b.plugin, b.review); this.check(b);
+  }
   private actions(p: ReviewProposal) {
     p.actions = (["approve", "reject", "undo"] as const).map(action => {
       const allowed = action === "undo" ? p.state === "approved" : p.state === "pending" && !!p.actions.find(a => a.action === action)?.allowed;
@@ -74,7 +81,7 @@ export class PluginReviews {
   async execute(raw: unknown): Promise<any> {
     const input = reviewRequestSchema.parse(raw), b = this.bundles.get(input.bundleRef);
     if (!b && input.action === "status") return { state: "unknown", receipt: { requestId: input.requestId ?? randomUUID(), operation: "review.status", version: 1, scope: accessPath(input.root, this.access), outcome: "unknown" } };
-    if (!b || b.plugin !== input.plugin || b.review !== input.review || b.root !== accessPath(input.root, this.access) || b.bundle.generation !== input.generation) throw new Error("Review bundle unavailable on this Host/Root/generation");
+    if (!b || b.plugin !== input.plugin || b.review !== input.review || b.root !== accessPath(input.root, this.access) || input.generation !== undefined && b.bundle.generation !== input.generation) throw new Error("Review bundle unavailable on this Host/Root/generation");
     for (const file of [b.root, b.file, b.source]) accessPath(b.access.resolve(file), this.access);
     const owner = `${input.plugin}/${input.review}/${input.bundleRef}`;
     const receipt = (outcome: string) => ({ requestId: input.requestId ?? randomUUID(), operation: `review.${input.action}`, version: 1, scope: b.root, outcome });
@@ -83,7 +90,18 @@ export class PluginReviews {
     if (input.action === "read") {
       let stale = false; try { this.check(b); } catch { stale = true; }
       if (stale) for (const p of b.proposals.values()) { p.state = "stale"; this.actions(p); }
-      const kind = input.kind ?? "bundle";
+      const kind = input.kind ?? (input.pageNo ? "snapshot" : "bundle");
+      if (kind === "snapshot") {
+        if (input.continuation) throw new Error("Review material unavailable");
+        const page = b.pages.find(p => p.pageNo === (input.pageNo ?? 1));
+        if (!page) throw new Error("Review page unavailable");
+        const document = loadDocumentFile(accessPath(b.file, this.access), b.access);
+        const snapshot = bounded({ bundle: b.bundle, page, mapping: b.mapping, proposals: [...b.proposals.values()],
+          document: document.document, documentRevision: document.revision, documentHash: document.revision, documentPath: document.path,
+          baseline: { ...this.baseline(b), sourceRevision: hash(readFileSync(b.source)) }, pageCount: b.pages.length });
+        const image = page.imageRef ? this.image(b, page.imageRef) : undefined;
+        return { snapshot: structuredClone({ ...snapshot, ...(image ? { imageUrl: `data:${image.mime};base64,${image.data}` } : {}) }), state: stale ? "stale" : "ready", receipt: receipt("success") };
+      }
       const data = kind === "bundle" ? b.bundle : kind === "document" ? { source: b.documentSource, documentRef: b.bundle.documentRef, revision: b.bundle.documentRevision } : kind === "page" ? b.pages.find(p => p.pageNo === input.pageNo) : kind === "mapping" ? b.mapping : kind === "proposals" ? [...b.proposals.values()] : this.image(b, b.pages.find(p => p.pageNo === input.pageNo)?.imageRef ?? "");
       if (input.continuation || data === undefined) throw new Error("Review material unavailable");
       if (kind !== "image") bounded(data);

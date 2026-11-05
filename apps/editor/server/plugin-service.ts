@@ -23,7 +23,7 @@ export function createPluginService(access: FileAccess = LOCAL_FILE_ACCESS, sett
     throw new Error("Unknown plugin operation.");
   };
   const route = (url: string): Record<string, string> | undefined => {
-    if (url === "/api/review") return { POST: "review" };
+    if (url === "/api/reviews") return { POST: "review" };
     if (url === "/api/plugins/secrets") return { POST: "pluginSecretSet" };
     if (url === "/api/plugins") return { GET: "pluginsList", POST: "pluginsManage" };
   };

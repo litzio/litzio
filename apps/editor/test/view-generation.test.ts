@@ -15,7 +15,7 @@ import { i18n } from "../src/i18n.ts";
 
 const validateView = (value: unknown) => queryViewSchema.parse(validateCatalogView(value));
 
-test("generation context accepts fixed args and InputForm queries but rejects review definitions", async () => {
+test("generation context accepts fixed args and InputForm queries and completed-bundle review definitions", async () => {
   const { viewGenerationContext, VIEW_GENERATION_CONTEXT } = await import("../shared/view-generation.ts");
   for (const catalog of [VIEW_GENERATION_CONTEXT.catalog, viewGenerationContext(builtinViewOperations).catalog]) {
     const accepts = compileViewInputSchema(catalog.schema);
@@ -24,7 +24,7 @@ test("generation context accepts fixed args and InputForm queries but rejects re
     assert.equal(accepts({ ...fixed, form: { component: "InputForm", source: "stats", fields: [], submit: { component: "SubmitButton", label: "Search" } } }), true);
     assert.equal(accepts({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
       sources: { review: { plugin: "example.demo", review: "compare", bundleRef: "bundle-1" } },
-      layout: { component: "VerticalPanel", children: [{ component: "PageSurface", title: "Page", source: "review" }] } }), false);
+      layout: { component: "VerticalPanel", children: [{ component: "PageSurface", title: "Page", source: "review" }] } }), true);
     assert.equal(catalog.limits.inputs, VIEW_LIMITS.inputs);
   }
 });

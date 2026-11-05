@@ -6,6 +6,9 @@ import os from "node:os";
 import { randomUUID, createHash } from "node:crypto";
 import { parse, serialize } from "@litzio/core";
 import { textRevision } from "@litzio/file-commit";
+import { createReviewAdapter } from "../src/views/review-api.ts";
+import { createHostClient } from "../src/host-client.ts";
+import { reviewViewSchema } from "@litzio/core/views-v2";
 import { PluginReviews } from "../server/plugins/reviews.ts";
 import { RootAccess } from "../server/file-access.ts";
 import { nativeSource } from "./helpers/document.ts";
@@ -106,7 +109,7 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const source = serialize(parse(nativeSource("Original.\n"))), revision = textRevision(source);
     writeFileSync(path.join(root, "input.txt"), "input");
     const sourceHash = createHash("sha256").update("input").digest("hex");
-    const review = { review: "text", bundle: { generation: "g1", documentRevision: revision, documentHash: revision, sourceRevision: sourceHash }, pages: [], images: [] };
+    const review = { review: "text", bundle: { generation: "g1", documentRevision: revision, documentHash: revision, sourceRevision: sourceHash }, pages: [{ generation: "g1", sourceRevision: sourceHash, pageNo: 1, width: 10, height: 10, unit: "px", origin: "TOPLEFT", regions: [] }], images: [] };
     const artifact = path.join(root, "artifact"); mkdirSync(artifact);
     writeFileSync(path.join(artifact, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
     const operations = ["start", "status", "stop", "read", "propose", "approve", "reject", "undo"].map(id => ({ id, version: 1, effect: ["status", "read"].includes(id) ? "read" : "write", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } }));
@@ -129,7 +132,23 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     for (let i = 0; i < 100; i++) { job = (await send("/api/plugins", { action: "job-status", requestId })).job; if (job.state === "completed") break; await new Promise(r => setTimeout(r, 20)); }
     assert.equal(job.state, "completed", JSON.stringify(job)); assert.ok(job.result.bundle);
     const base = { plugin: "fixture.review", review: "text", root, bundleRef: job.result.bundle.bundleRef, generation: "g1" };
-    const read = () => send("/api/review", { ...base, action: "read", kind: "proposals" });
+    const read = () => send("/api/reviews", { ...base, action: "read", kind: "proposals" });
+    const definition = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
+      sources: { review: { plugin: base.plugin, review: base.review, bundleRef: base.bundleRef } },
+      layout: { component: "VerticalPanel", children: [{ component: "ReviewDetail", title: "Change", source: "review" }] } };
+    for (const action of ["validate", "propose"]) {
+      const proposedView = await send("/api/views", { action, view: definition });
+      assert.equal(proposedView.receipt.outcome, "success"); assert.equal(proposedView.view.profile, "review");
+    }
+    assert.equal((await read()).data.length, 0, "View proposals do not submit document changes");
+    const client = createHostClient(origin);
+    const adapter = createReviewAdapter({ ...client, request: (endpoint, init) => client.request(endpoint, { ...init, headers: { ...init?.headers, Origin: origin } }) }, reviewViewSchema.parse(definition), root, new AbortController().signal, () => {});
+    const snapshotRead = async () => ({ snapshot: await adapter.read(1) });
+    const initial = (await snapshotRead()).snapshot;
+    assert.equal(initial.documentPath, path.join(root, "doc.md")); assert.equal(initial.documentRevision, revision);
+    const invalidView = await fetch(origin + "/api/views", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ action: "propose", view: { ...definition, sources: { review: { ...definition.sources.review, bundleRef: "other-host" } } } }) });
+    assert.equal(invalidView.status, 400); await invalidView.arrayBuffer();
+
     const cli = async (action: string, proposalId?: string) => {
       const inputFile = path.join(root, "request.json"); writeFileSync(inputFile, JSON.stringify({ bundleRef: base.bundleRef, generation: "g1", proposalId, baseline: (await read()).baseline, requestId: randomUUID() }));
       const child = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../../../packages/cli/src/cli.ts", import.meta.url)), "review", action, base.plugin, base.review, "--input", inputFile, "--root", root, "--host", origin, "--json"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
@@ -138,21 +157,26 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     };
     const p = await cli("propose"), id = p.proposals[0].id;
     const approve = await cli("approve", id); assert.equal(approve.receipt.outcome, "success"); assert.match(readFileSync(path.join(root, "doc.md"), "utf8"), /Changed/);
+    const appliedSnapshot = (await snapshotRead()).snapshot;
+    assert.equal(appliedSnapshot.mapping, undefined);
+    assert.deepEqual(appliedSnapshot.proposals[0].baseline, appliedSnapshot.baseline);
+    assert.equal(appliedSnapshot.proposals[0].targets[0].documentHash, appliedSnapshot.documentHash);
     const undo = await cli("undo", id); assert.equal(undo.receipt.outcome, "success"); assert.equal(readFileSync(path.join(root, "doc.md"), "utf8"), source);
     const p2 = await cli("propose"); const rejected = await cli("reject", p2.proposals.at(-1).id); assert.equal(rejected.proposals.at(-1).state, "rejected"); assert.equal(readFileSync(path.join(root, "doc.md"), "utf8"), source);
     assert.equal((await read()).data.at(-1).state, "rejected");
-    const fresh = await send("/api/review", { ...base, action: "propose", requestId: randomUUID(), baseline: (await read()).baseline });
+    const fresh = await send("/api/reviews", { ...base, action: "propose", requestId: randomUUID(), baseline: (await read()).baseline });
     const freshId = fresh.proposals.at(-1).id;
     const lostRequest = { ...base, action: "approve", proposalId: freshId, requestId: randomUUID(), baseline: (await read()).baseline };
     // Discard the successful response: the caller must observe status rather than replay.
-    const lost = await fetch(origin + "/api/review", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify(lostRequest) });
+    const lost = await fetch(origin + "/api/reviews", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify(lostRequest) });
     await lost.arrayBuffer();
-    const observed = await send("/api/review", { ...base, action: "status", requestId: lostRequest.requestId });
+    const observed = await send("/api/reviews", { ...base, action: "status", requestId: lostRequest.requestId });
     assert.equal(observed.receipt.outcome, "success"); assert.equal(observed.proposals.at(-1).state, "approved");
-    const replay = await fetch(origin + "/api/review", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify(lostRequest) });
+    const replay = await fetch(origin + "/api/reviews", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify(lostRequest) });
     assert.equal(replay.status, 400); await replay.arrayBuffer();
-    const restored = await send("/api/review", { ...base, action: "undo", proposalId: freshId, requestId: randomUUID(), baseline: (await read()).baseline });
-    assert.equal(restored.receipt.outcome, "success"); assert.equal(readFileSync(path.join(root, "doc.md"), "utf8"), source);
+    const beforeUndo = await adapter.read(1);
+    await adapter.act("undo", beforeUndo.proposals.find(p => p.id === freshId)!, beforeUndo.baseline);
+    assert.equal((await adapter.read(1)).proposals.at(-1)!.state, "rejected"); assert.equal(readFileSync(path.join(root, "doc.md"), "utf8"), source);
   } finally {
     await host?.close();
     if (previous === undefined) delete process.env.LITZIO_DATA_DIR; else process.env.LITZIO_DATA_DIR = previous;

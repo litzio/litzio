@@ -132,7 +132,7 @@ K1 호출은 등록 시 manifest의 start/status/stop read·write 효과를 기�
 
 K1 완료의 선택 `jobUpdate.review`는 SDK `completedReviewSchema`를 따른다. review, bundle(generation/documentRevision/documentHash/sourceRevision와 선택 mappingRevision), pages, 선택 mapping, images(ref/Root 상대 path/SHA-256 revision)를 전달한다. sourceRevision은 K1 입력 파일 SHA-256, documentRevision/hash는 Core canonical 출력 revision이다. Host는 문서 생성 후 모든 자료를 검증하고 `result.bundle`에 Host 발급 bundleRef/documentRef를 공개한다. Root·generation·revision·이미지 검증 실패 시 bundle은 공개하지 않으며 이미 생성된 결과 문서를 보존하고 uncertain으로 남긴다. 완료 전 자료는 공개하지 않는다.
 
-`POST /api/review`는 PluginHost 소유 dispatcher다. 입력은 action(read/propose/approve/reject/undo/status), plugin/review/root/bundleRef/generation이다. read는 kind(bundle/document/page/mapping/proposals/image)와 pageNo를 선택하고 data/baseline/state/receipt를 반환한다. 문서는 bundle의 canonical source snapshot이며 stale 자료를 현재 파일처럼 반환하지 않는다. image는 검증한 PNG의 mime/base64 data/width/height다. 현재 PNG만 지원하며 다른 형식은 거부한다. Core REVIEW_LIMITS의 JSON·목록·영역·이미지 byte/pixel 상한을 적용하고 초과나 미지원 continuation은 자르지 않고 거부한다. 자료 참조에 임의 파일 경로·URL을 받지 않는다.
+`POST /api/reviews`는 PluginHost 소유 dispatcher다. 입력은 action(read/propose/approve/reject/undo/status), plugin/review/root/bundleRef/generation이다. read는 kind(bundle/document/page/mapping/proposals/image)와 pageNo를 선택하고 data/baseline/state/receipt를 반환한다. 문서는 bundle의 canonical source snapshot이며 stale 자료를 현재 파일처럼 반환하지 않는다. image는 검증한 PNG의 mime/base64 data/width/height다. 현재 PNG만 지원하며 다른 형식은 거부한다. Core REVIEW_LIMITS의 JSON·목록·영역·이미지 byte/pixel 상한을 적용하고 초과나 미지원 continuation은 자르지 않고 거부한다. 자료 참조에 임의 파일 경로·URL을 받지 않는다.
 
 변경에는 requestId(UUID), baseline과 선택 proposalId/input을 더한다. baseline은 문서·제안 revision과 원본/map revision이다. Host는 plugin 실행 전과 commit 직전에 문서·원본·이미지를 재검사하고 bundle별 동시 변경을 거부한다. binding ID/version·가용성·artifact 신뢰를 매번 확인하며 일반 operation invoke로 review binding을 호출할 수 없다. propose 결과는 Core ReviewProposal의 pending만 허용하고 target snapshot·baseline을 검사하며 기여의 action 제한을 유지한다. reject는 문서를 바꾸지 않는다.
 
@@ -155,3 +155,9 @@ CLI는 같은 dispatcher를 호출한다. JSON은 bundleRef/generation과 동작
 승인 후 Undo의 proposal.baseline은 새 documentRevision·proposalRevision과 현재 sourceRevision/mappingRevision으로 비교한다. 이전 map은 여전히 폐기하며 없는 map을 새 문서에 맞는 것처럼 만들지 않는다. V5 통합에서는 문서/bundle/baseline/제안 target의 유효성과 map 탐색 가용성을 분리해야 한다. map 부재/continuation은 원본↔문서 이동을 막되, 현재 문서와 일치하는 제안의 승인·거절·Undo를 일괄 stale로 만들지 않는다. 실제 문서·원본 revision 불일치는 계속 모든 관련 변경을 막는다.
 
 K1 review HTTP fixture는 start에서 running 접수만 반환하고 자료를 공개하지 않는다. 이후 status의 completed 응답을 기존 Host 문서 생성·bundle 검증/공개 경로에 연결한다. #1259 접수·완료 분리의 source-of-truth를 유지하며 별도 수명 규칙을 구현하지 않는다.
+
+### V4·V6 공용 생성과 V3/V5 transport
+
+일반 대화 view_catalog와 Generate view는 shared/view-generation.ts의 단일 schema/instruction을 사용한다. query/InputForm과 함께 명시적으로 제공된 같은 Host 완료 bundle의 review 명세를 허용한다. Host view.validate/propose는 실제 bundle·Root 접근·기여 가용성을 확인하며 저장·자료 반환·plugin 조회·문서 변경을 실행하지 않는다. review 제안의 pending 제출과 뷰 명세 propose를 구별하며 비서 승인/Undo 도구를 추가하지 않는다. 제작 스킬도 같은 범위와 참조 발명 금지를 안내한다.
+
+V3/V5와 CLI는 단일 POST /api/reviews dispatcher를 사용한다. source의 bundleRef는 Host가 보관한 generation에 고정되며 generation을 명시한 요청은 일치해야 한다. read에서 pageNo를 주고 kind를 생략하면 snapshot/receipt를 반환한다. snapshot은 bundle/page/선택 mapping/proposals, document-reader의 Core document/revision/hash/path, baseline/pageCount와 선택 PNG imageUrl을 조립한다. 이미지 byte/pixel 제한과 JSON 자료 제한을 각각 적용하며 imageUrl은 일시적 읽기 결과로만 사용한다. 다른 자료 읽기는 기존 kind 선택을 쓴다. 변경·status는 같은 requestId·baseline 계약을 유지한다. source·문서가 외부에서 바뀌면 snapshot은 실제 revision으로 불일치를 드러내어 V5가 action을 막으며 Host도 commit 직전에 다시 거부한다. 이전 map을 새 문서에 재연결하지 않는다. HTTP/CLI·비서 stdio fixture 통과를 실제 브라우저·외부 서비스·Docling 수락으로 간주하지 않는다.
