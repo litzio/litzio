@@ -2,9 +2,9 @@
 
 - Status: Accepted
 - Decision date: 2026-11-05
-- Last verified: 2026-11-05 — 소유자 승인·정정과 관련 ADR·조사 문서 대조. 생성 UI 스파이크 보고서와 소유자 보완 결정 대조 포함. 제품 실행·설치·인증 재검증 없음.
+- Last verified: 2026-11-05 — 소유자 승인·정정과 관련 ADR·조사 문서 대조. 생성 UI 스파이크·비서 제작 로드맵 원문·Docling UI 조사·Paseo 문서 대조 포함. 제품 실행·설치·인증 재검증 없음.
 - Authority: 2026-11-05 소유자 결정, under [AGENTS.md](../../AGENTS.md). 관련 보류 이슈: [#1075](https://github.com/litzio/litzio/issues/1075).
-- Scope: 재개 시 사용할 저장소·Host·기여·UI·저장 구조의 결정. Accepted는 구현 착수·완료가 아니다. 1단계 OneDrive도 소유자가 따로 개시한다.
+- Scope: 재개 시 사용할 저장소·Host·기여·UI·저장 구조의 결정. Accepted는 구현 완료가 아니다. 별도 개시된 OneDrive 구현과 후속 비서 제작 로드맵을 구분한다.
 - Amends: [ADR-0019](0019-plugin-tiers.md)의 계층·공통 SDK·Host·번들 UI 경계를 구체화한다. [ADR-0012](0012-plugin-runtime-and-ui-contributions.md)·[ADR-0015](0015-shared-host-operations.md)·[ADR-0017](0017-bundled-client-and-official-ai.md)의 재개 시 실행·UI·비서 관리 경계는 아래 관계 절을 따른다.
 
 ## 배경과 근거
@@ -63,15 +63,15 @@ community repository/         # manifest, package.json, src/host.ts, test/, dist
 
 **그래서 무엇이 안 되는가:** manifest 밖 등록, 원격 schema 다운로드·`$ref`, manifest에 PAT 값·trusted/enabled/bundled 상태 저장, 제품 버전의 플러그인 버전 복사는 없다. secret 선언은 OS 권한 제한이나 격리 장치가 아니다.
 
-### ③ 대상 daemon의 in-process 신뢰 코드와 별도 상태
+### ③ 대상 daemon의 하위 프로세스 신뢰 코드와 별도 상태
 
-최초 runtime은 대상 daemon 안의 trusted Node 모듈이다. 설치 목록·상태·일반 설정은 그 Host가 소유하며 임의 폴더 자동 탐색은 하지 않는다. installed/trusted/enabled/available/running을 구분한다. 커뮤니티는 설치 직후 실행 차단하고 **명시적 신뢰와 활성화가 모두 있어야** entry를 import한다. 신뢰는 설치 산출물 digest에 연결하고 변경된 산출물은 다시 확인한다.
+**2026-11-05 개정:** 최초 in-process 결정은 daemon 하위 프로세스의 trusted Node 코드로 대체한다. 아래 비서 제작 로드맵의 reload 계약을 따른다. 설치 목록·상태·일반 설정은 그 Host가 소유하며 임의 폴더 자동 탐색은 하지 않는다. installed/trusted/enabled/available/running을 구분한다. 커뮤니티는 설치 직후 실행 차단하고 **명시적 신뢰와 활성화가 모두 있어야** entry를 import한다. 신뢰는 설치 산출물 digest에 연결하고 변경된 산출물은 다시 확인한다.
 
-활성화는 `activate(context)`와 기여 연결, 비활성화는 신규 작업 차단·기여 숨김 후 이미 받은 작업 drain과 `dispose()`다. 진행 작업을 자동 취소하지 않는다. 설정·secret·저장 뷰·열린 문서는 보존하고 해당 source만 사용 불가로 표시한다. 모듈 unload·폭주 정지는 보장하지 않는다. 실패하면 오류·재시작 필요를 알리며 패키지 교체는 drain 후 daemon 재시작으로 시작한다.
+활성화는 `activate(context)`와 기여 연결, 비활성화는 신규 작업 차단·기여 숨김 후 이미 받은 작업 drain과 `dispose()`다. 진행 작업을 자동 취소하지 않는다. 설정·secret·저장 뷰·열린 문서는 보존하고 해당 source만 사용 불가로 표시한다. reload는 정지 → 정리 → 다시 불러오기 → 시작이며 daemon은 재시작하지 않는다. 실패하면 오류를 표시하고 실패 상태로 남긴다. 안전한 폭주 정지는 보장하지 않는다.
 
 요청·결과·receipt는 [ADR-0018](0018-desktop-remote-hosts.md)의 대상 Host 고정을 따른다. 원격 폴더·계정은 원격 Host OS 계정의 것이다. 제품 버전 차이 경고·프로토콜 불일치 거부도 유지한다.
 
-**그래서 무엇이 안 되는가:** 오류·악성 코드·무한 루프로부터 daemon, OS 파일·네트워크·자격 증명을 격리하지 않는다. 신뢰 후 안전 실행 보증, hot reload, 강제 안전 종료, Desktop 전역 실행·다른 Host fallback은 없다. 비활성화로 비서를 끄거나 저장 데이터를 삭제하지 않는다.
+**그래서 무엇이 안 되는가:** 오류·악성 코드·무한 루프로부터 daemon, OS 파일·네트워크·자격 증명을 격리하지 않는다. 신뢰 후 안전 실행 보증, 무중단 코드 교체, 강제 안전 종료, Desktop 전역 실행·다른 Host fallback은 없다. 비활성화로 비서를 끄거나 저장 데이터를 삭제하지 않는다.
 
 ### ④ 자격 증명은 최초 Windows OS 저장소만 사용한다
 
@@ -81,7 +81,7 @@ community repository/         # manifest, package.json, src/host.ts, test/, dist
 
 **그래서 무엇이 안 되는가:** 평문 fallback, Desktop 전역 토큰, Host 간 자격 증명 동기화, 비서의 secret 값 열람·대화 보관은 없다. Windows 저장소 지원만으로 모든 원격 OS의 PAT 기능을 제공하지 않는다. 신뢰한 코드로부터 secret을 격리한다는 보증이나 #1145 인증 보류 해제도 아니다.
 
-### ⑤ 최소 기여와 공용 작업·CLI·승인받는 비서 관리
+### ⑤ 최소 기여와 공용 작업·CLI·활동 기록을 남기는 비서 관리
 
 [ADR-0015](0015-shared-host-operations.md)에 따라 새 기능과 관리 작업은 입력·결과·범위·receipt의 공용 정의와 CLI를 함께 제공한다. CLI는 공통 invoke를 연결하고 필요한 비서 도구도 같은 정의를 재사용한다. 다음 이름은 계약을 설명하는 후보이며 현재 명령이 아니다.
 
@@ -95,11 +95,11 @@ community repository/         # manifest, package.json, src/host.ts, test/, dist
 | 데이터 뷰 | 읽기 작업 결과 schema와 공통 UI 명세 | 앱 카탈로그의 Table·BarChart·세로 패널부터 |
 | 저장된 뷰 | 공통 `view.validate/save/run`, 선택적 preset | 플러그인별 dashboard DB·별도 저장 API 없음 |
 
-`plugins list/register/trust/enable/disable/settings`, `operation invoke <id> --input <file> --host <target> --json`을 같은 정의로 연결한다. 비서는 **설치·신뢰·활성화·비활성화·설정**을 제어할 수 있어야 한다. 관리 작업은 `assistant` opt-in 여부를 이유로 모두 감추지 않고 공용 정의에서 비서 도구를 제공한다. 다만 **실행할 때마다 사용자의 명시적 허락**을 받으며 기존 비서 쓰기 승인 흐름을 재사용한다. 대상 Host·플러그인·변경 내용을 제시하고 승인받은 작업만 실행한다. 전체 접근·기존 신뢰·이전 승인도 이 매번 승인 조건을 생략하지 않는다. secret 값 변경은 사용자 직접 설정 UI 경로를 따른다.
+`plugins list/register/trust/enable/disable/settings`, `operation invoke <id> --input <file> --host <target> --json`을 같은 정의로 연결한다. 비서는 **설치·신뢰·활성화·비활성화·설정**을 제어할 수 있어야 한다. 관리 작업은 `assistant` opt-in 여부를 이유로 모두 감추지 않고 공용 정의에서 비서 도구를 제공한다. **2026-11-05 개정:** 건마다 받던 명시 승인은 제거하며, 대상 Host·플러그인·변경 내용과 결과를 사용자에게 보이는 활동 기록으로 남긴다. 비서는 digest 신뢰 단계를 실행할 수 있지만 제품에 고정된 공식 공급 목록은 바꾸지 못한다. secret 값 변경은 사용자 직접 설정 UI 경로를 따른다.
 
 기능 작업은 검토된 필요한 작업만 비서에 노출한다. schema 표시만으로 provider 연결이 완성되는 것은 아니며 Codex/Copilot adapter의 실제 호출 검증이 필요하다. 결과·receipt는 성공/거부/실패/결과 불확실, 대상·request ID·작업 version·필요한 path/revision을 구분한다. 쓰기는 공식 write path·revision 보호를 따르고 네트워크 실패 뒤 자동 재전송하지 않는다.
 
-**그래서 무엇이 안 되는가:** 무허가 제어·자동 승인·묵시적 승인·포괄적 사전 승인, secret 도구 공개, UI만의 기능·관리, 별도 문서 의미 구현은 없다. 비서의 플러그인 제작도 장차 명시적 허락 아래 제어할 방향이지만 이번 범위 밖이며 제작·빌드·설치 자동화를 착수하지 않는다.
+**그래서 무엇이 안 되는가:** secret 도구 공개, 공식 목록 변경, UI만의 기능·관리, 별도 문서 의미 구현은 없다. 종전의 제작 범위 밖 결정은 아래 제작 키트와 4단계 로드맵으로 대체한다. 승인 제거로 비서가 사용자 확인 없이 신뢰 코드를 설치·실행할 수 있으며 활동 기록은 이를 사전에 막지 않는다.
 
 ### ⑥ 생성 UI와 저장된 뷰는 같은 명세·같은 앱 렌더러다
 
@@ -133,9 +133,9 @@ Core는 일시적·저장 명세의 구조·바인딩·정적 유효성·canonic
 
 **그래서 무엇이 안 되는가:** 환경 변수·폴더 존재만으로 로그인·이메일·동기화 정상 상태를 확정하지 않는다. 미확인 이메일 추정, Desktop 계정을 원격 계정으로 표시, Linux Host에서 Windows 탐지 지원 표시는 없다. OAuth·동기화 엔진을 선제 구현하지 않는다.
 
-### ⑧ 구조 승인과 구현 착수는 별개다
+### ⑧ 최초 단계 구분과 개정 로드맵
 
-이번 변경은 문서만이며 **1단계 OneDrive는 소유자가 따로 개시한다.** 각 구현 PR은 필요한 최소 기능·Implemented 계약·대상 검사·필수 CI를 함께 완료한다.
+최초 결정은 OneDrive 별도 개시를 요구했다. 이후 소유자가 개시한 현재 구현은 [플러그인 1단계](../design/plugin-stage1-v1.md)를 따른다. 아래 표는 최초 순서를 보존한 기록이며, 후속 작업 순서·수락 기준은 아래 비서 제작 로드맵으로 대체한다. 이번 개정 PR은 문서만 변경한다. 각 구현 PR은 필요한 최소 기능·Implemented 계약·대상 검사·필수 CI를 함께 완료한다.
 
 | 단계 | 최소 범위 | 완료 근거·제한 |
 | --- | --- | --- |
@@ -210,13 +210,64 @@ Core는 일시적·저장 명세의 구조·바인딩·정적 유효성·canonic
 
 **그래서 무엇이 안 되는가:** 열기만으로 최신 데이터가 보장되지 않으며 자동 조회·polling·LLM 재생성·다른 모델 자동 재시도는 없다. 임의 필드 발명·HTML·외부 컴포넌트와 기본 UI의 영구 교체·덮어쓰기는 안 된다. 설정 화면 이전은 동적 UI 안정 후 선택할 보류 사항이다. 내장 통계 성공으로 플러그인 생성 UI·Jira·양 공급자 제품 통합 완료를 선언하지 않는다. 스파이크 코드를 그대로 병합하거나 CopilotKit runtime을 추가하지 않는다.
 
+## 비서 플러그인 제작 로드맵(2026-11-05 개정)
+
+- Amendment date: 2026-11-05 — 소유자 결정으로 실행 모델·제작 범위·관리 승인·후속 순서를 개정한다. Status는 Accepted를 유지한다. 앞의 최초 단계 표와 스파이크 당시 판단은 역사적 근거이며 이 절이 후속 방향의 authority다.
+- 근거: 소유자 원문 `C:\Projects\litzio\tmp\research\authoring-roadmap-brief.md`, 같은 폴더의 `plugin-architecture-proposal.md`, `dynamic-ui-spike.md`, `docling-ui-contracts.md`. 조사 초안의 JSON 키는 확정 API가 아니다.
+- 실행 모델 참고: [Paseo public-docs/plugins/index.md 58행](https://github.com/getpaseo/paseo/blob/66676d49e6336a75837abec247871553a7658c35/public-docs/plugins/index.md#L58) 및 [229–239행](https://github.com/getpaseo/paseo/blob/66676d49e6336a75837abec247871553a7658c35/public-docs/plugins/index.md#L229-L239). 로컬 고정 checkout과 문서를 대조했으며 Paseo runtime을 실행하지 않았다.
+
+### 목표·단계와 수락 시험
+
+최종 목표는 **비서가 Litzio 안에서 Jira·Docling 같은 플러그인을 스스로 만들어 붙이는 것**이다. 다음 수락 시험은 앞으로 구현에서 충족할 기준이며 이 문서 PR의 실행 결과가 아니다. 기존 OneDrive 1단계와 아래 로드맵 1단계는 구분한다.
+
+| 단계 | 범위 | 수락 시험 |
+| --- | --- | --- |
+| 1: 기반(병렬) | (a) 하위 프로세스+reload, (b) [#1218](https://github.com/litzio/litzio/issues/1218)의 작업별 출력 schema 기반 일반화, (c) Windows OS secret 저장, (d) 비서 제작 키트, (e) K1 | daemon 재시작 없이 변경 반영·정리 및 reload 실패 상태 확인; 허용 작업 출력만 바인딩하고 잘못된 schema 거부; secret UI 입력·비서 비노출·평문 fallback 거부; scaffold→validate→reload를 같은 Host 작업과 CLI로 수행; 파일 한 개의 긴 작업 실패/uncertain·대기 중단·완료 결과 열기 확인 |
+| 2: 첫 제작 | 비서가 `C:\Projects\mockup-server`의 목업 Jira 읽기 플러그인 제작, 요구 인터뷰는 대화로 진행 | **비서가 목업 Jira 읽기 플러그인을 만든다**: 제작·검증·등록·신뢰·활성·조회까지 수행하고 기본 UI와 CLI 결과 일치, 활동 기록·오류·secret 비노출을 확인 |
+| 3: 카탈로그 v2 | 2단계에서 막힌 폼·버튼·선 차트·가로 배치와 K2·K3·K4 | 작업 schema 기반 폼/버튼 호출과 차트·배치, 페이지/영역 표시·선택, 양방향 대응·stale 차단, 교정 승인/거절/Undo·원본 보존을 확인 |
+| 4: Docling 최소 흐름 | 비서가 Docling 플러그인 제작, K1~K4 연결 | PDF 입력→변환 상태→완료 결과→페이지 이미지/Read 좌우 대조→교정 검토를 수행; 실제 변환·Core valid write·원본 보존·uncertain/no-replay와 CLI 공용 작업을 확인 |
+
+**그래서 무엇이 안 되는가:** 목업 Jira 성공은 실제 Jira 배포별 인증·권한·pagination이나 Docling 품질의 증명이 아니다. 1단계에서 카탈로그 v2·Docling 전체를 구현하지 않는다. Accepted·문서 PR을 구현 완료·릴리스 승인으로 해석하지 않는다.
+
+### 하위 프로세스 reload와 제작 키트
+
+플러그인은 daemon의 하위 프로세스에서 실행한다. reload는 정지 → 정리 → 다시 불러오기 → 시작이며 daemon을 재시작하지 않는다. reload 실패는 실패 상태와 오류로 남기고 성공으로 숨기지 않는다. 진행 작업의 drain·uncertain/no-replay, 설정·secret·저장 뷰·문서 보존은 유지한다.
+
+제작 키트는 **비서용 플러그인 제작 스킬과 `plugins scaffold/validate/reload` 공용 작업**이다. 스킬은 공개 SDK·manifest·기여·검증·기본 UI·오류 확인 절차를 안내하고 세 작업은 ADR-0015의 입력·결과·범위·receipt 및 CLI를 함께 제공한다. validate는 실행 전 선언·패키지·schema 경계를 확인하며 코드 안전성을 증명하지 않는다.
+
+**그래서 무엇이 안 되는가:** 하위 프로세스는 sandbox가 아니며 신뢰 코드의 OS 파일·네트워크·자격 증명 접근을 격리하지 않는다. 무중단 교체·자동 복구 성공·악성 코드 안전 실행을 보장하지 않는다. 제작 키트를 범용 패키지 배포망이나 자체 parser/editor engine으로 확대하지 않는다.
+
+### 관리 승인 대신 활동 기록
+
+설치·신뢰·활성화·비활성화·설정·reload 등 비서 플러그인 관리에서 건마다 받던 명시 승인을 제거한다. 필요하면 이후 별도 결정으로 다시 붙인다. 대상 Host·플러그인·작업·변경 내용·실행 시각·성공/거부/실패/불확실 및 receipt를 사용자에게 보이는 활동 기록으로 남긴다. 승인 대신 가시성으로 대응한다.
+
+secret 값은 사용자가 설정 UI에서만 입력하며 비서는 읽거나 기록하지 못한다. 공식 목록은 제품에 고정되어 비서가 바꾸지 못한다. digest 신뢰 기록은 유지하며 비서가 신뢰 단계를 실행할 수 있다. 산출물 변경은 새 digest로 신뢰를 다시 기록한다.
+
+**그래서 무엇이 안 되는가:** **비서가 사용자 확인 없이 신뢰 코드를 설치·실행할 수 있게 된다.** 잘못 생성하거나 선택한 코드가 Host OS 권한으로 실행될 위험을 수용하며 활동 기록은 예방 장벽이나 격리가 아니다. 이 결정은 플러그인 관리의 건별 승인만 제거하며 AI 권한·공급자·모델 변경 금지나 아래 K4의 문서 교정 승인을 제거하지 않는다. 현재 구현의 확인 UI 제거·활동 기록 제공은 후속 구현에서 함께 검증한다.
+
+### K1과 카탈로그 v2·Docling 화면
+
+K1은 **파일 입력·긴 작업 상태·결과 열기** 계약이다. 대상 Host Root의 파일을 Host가 재검증하고 start/status/stop/result-read를 공용 작업·CLI·비서에 연결한다. 실행은 빠르게 작업 identity를 반환하고 running/completed/failed/stopped/uncertain, 단계·경과·오류를 구분한다. 실제 진행량이 없으면 가짜 백분율을 만들지 않는다. 대기 중단과 서버 취소 요청·취소 완료를 구분하고 응답 상실은 상태 조회로 확인하며 자동 재전송하지 않는다. 완료 전 부분 결과는 공개하지 않고 완료 결과 참조를 기존 문서/폴더 열기에 연결한다. Core 공식 write path·이름 충돌 보호·원본 보존을 따른다.
+
+**그래서 무엇이 안 되는가(K1):** Desktop 로컬 파일을 원격 Host 경로로 해석하거나 로컬 fallback하지 않는다. 첫 단계에서 로컬→원격 업로드·범용 scheduler/queue/DB를 만들지 않는다. 작업 상태 관찰을 저장 뷰 자동 polling의 허가로 확대하지 않으며 CLI 실행이 앱 탭을 자동으로 만들지는 않는다.
+
+3단계 카탈로그 v2에는 다음 앱 번들 계약을 넣는다. 플러그인은 데이터·참조·작업 binding을 선언하며 원격 React/JS/CSS를 공급하지 않는다.
+
+- **K2 페이지·영역:** Host가 제공하는 페이지 이미지, bbox 좌표 단위·원점, 장식·미지원·제외와 페이지 선택을 표현한다. 제외는 원본 삭제가 아니다.
+- **K3 원본↔문서 대응:** 원본 영역과 Read 문서 블록의 다대다 대응·양방향 선택/강조·필요한 reveal을 제공한다. revision/hash가 맞지 않는 map은 stale로 표시하고 대상 이동·교정 적용을 막는다. 없는 대응을 발명하지 않는다.
+- **K4 교정:** 원본 baseline·근거·전후·pending/stale/inapplicable과 승인/거절/Undo를 표현한다. 비서는 제안하고 사용자 승인 후 적용한다. 원본 JSON을 보존하고 ledger를 사본에 재생하며 문서 의미·valid serialization은 Core가 소유한다.
+
+Docling 화면은 **왼쪽 페이지 이미지, 오른쪽 Read 문서의 좌우 대조**이며 넓은 화면을 전제로 한다([#891](https://github.com/litzio/litzio/issues/891) 방향 유지). 앱의 기존 Read·문서 열기·비서·변경 비교를 재사용한다.
+
+**그래서 무엇이 안 되는가(K2~K4·화면):** PDF 텍스트 검색·주석·좁은 화면 최적화·대조 내 직접 편집은 하지 않는다. 표/차트나 native 문서 diff가 PDF provenance mapping을 대신하지 않는다. stale 자료를 현재 대응으로 표시하거나 관리 승인 제거를 교정 자동 적용으로 확대하지 않는다. 별도 PDF 엔진·Editor·플러그인 React runtime을 만들지 않는다.
+
 ## 네 사례 대응과 남는 요구
 
 | 사례·계층 | 공통 기여·가능한 동작 | 해당 단계에서 남는 요구 |
 | --- | --- | --- |
 | OneDrive·공식 | 폴더 소스/장식·설정·계정 상태, 기본 폴더 후보 | 실제 Windows 감지·확인 가능한 라벨. 폴더 존재는 로그인 증거가 아님 |
 | GitHub/GitLab·공식 후보 | 연결·secret·계정·조회·공통 뷰로 프로젝트/커밋/외부 WorkItem 표시 | PAT/API·pagination 검증. 영속 WorkItem 연결 의미는 Core operation 결정 필요; 자동 양방향 동기화 제외 |
-| Docling·커뮤니티 | 변환·검수 작업·공식 AI·CLI·비서·결과 뷰 | 장기 작업·취소·요청 identity·uncertain/no-replay·부분 결과 비공개·Core 적용·원본 보존. 원본 비교 UI는 표/차트로 충분하지 않아 앱 번들 표면 별도 결정 |
+| Docling·커뮤니티 | 변환·검수 작업·공식 AI·CLI·비서·결과 뷰 | 장기 작업·취소·요청 identity·uncertain/no-replay·부분 결과 비공개·Core 적용·원본 보존. 원본 비교 UI는 표/차트로 충분하지 않으며 개정 로드맵의 K2~K4·페이지 이미지 좌우 대조를 따름 |
 | Jira·커뮤니티 후보 | BaseURL/secret·계정·조회→생성 UI→저장 뷰→LLM 없는 재실행 | 배포별 API·권한·pagination·changelog 검증. 재할당/재오픈/미완료/시간대 등 지표 정의는 typed args와 plugin operation이 소유; chart·LLM 임의 계산 제외 |
 
 후보 계층은 자동 확정하지 않으며 계층을 바꿔도 계약은 같다. 네 사례가 이 문서만으로 모두 구현되거나 검증되었다는 뜻은 아니다.
@@ -229,9 +280,9 @@ Core는 일시적·저장 명세의 구조·바인딩·정적 유효성·canonic
 
 ## 기존 결정과의 관계·검증
 
-- **ADR-0019 구체화:** `pluginTier` 후보 대신 manifest 초안은 `tier`를 사용한다. 같은 SDK·공급 책임·별도 신뢰/활성·Host 소유를 유지하며 실행 모델·Windows secret·공통 UI/저장·관리별 승인을 정한다.
-- **ADR-0012 개정:** 재개 시 별도 worker·same-origin ESM/CSS·live 코드 교체 대신 in-process 신뢰 코드·앱 카탈로그·재시작 교체를 따른다. 과거 구현 기록은 보존하고 Core 의미·공식 쓰기·원본·결과 불확실 보호는 유지한다.
-- **ADR-0017 개정:** ADR-0017의 비서 플러그인 변경 금지를 삭제하고, 재개 시 ⑤의 매번 사용자 명시 승인을 받는 관리로 대체한다. AI 권한·공급자·모델 변경 허용으로 확대하지 않는다. 기능 제거·보관·공식 AI와 별도 재개 조건은 유지한다. 현재 [비서 계약](../design/main-agent-v1.md)은 display 도구에서 플러그인을 제외하며 관리 도구를 제공하지 않는다. 구현 PR에서 별도 관리 도구와 승인 흐름을 함께 반영하고 display 도구의 허용 범위는 넓히지 않는다.
-- **ADR-0015 일부 개정·ADR-0018 유지:** ADR-0015의 비서 플러그인 변경 금지를 삭제하고, 재개 시 ⑤의 매번 명시 승인받는 관리로 대체한다. AI 권한·공급자·모델 변경 금지와 새 기능·관리의 공용 정의·CLI 의무는 유지한다. ADR-0018의 대상 Host·receipt·버전 경계와 번들 script 정책을 따른다. 호환 계층·Host 간 자동 이동·공유 편집을 추가하지 않는다.
+- **ADR-0019 구체화:** `pluginTier` 후보 대신 manifest 초안은 `tier`를 사용한다. 같은 SDK·공급 책임·별도 신뢰/활성·Host 소유를 유지하며 실행 모델·Windows secret·공통 UI/저장·관리 활동 기록을 정한다.
+- **ADR-0012 개정:** 재개 시 별도 worker·same-origin ESM/CSS·live 코드 교체 대신 daemon 하위 프로세스 신뢰 코드·앱 카탈로그·reload를 따른다. 과거 구현 기록은 보존하고 Core 의미·공식 쓰기·원본·결과 불확실 보호는 유지한다.
+- **ADR-0017 개정:** ADR-0017의 비서 플러그인 변경 금지를 삭제하고, 재개 시 ⑤의 건별 승인 없이 활동 기록을 남기는 관리로 대체한다. AI 권한·공급자·모델 변경 허용으로 확대하지 않는다. 기능 제거·보관·공식 AI와 별도 재개 조건은 유지한다. 현재 [비서 계약](../design/main-agent-v1.md)의 별도 관리 도구에는 건별 확인이 남아 있다. 구현 PR에서 승인 제거와 활동 기록을 함께 반영하고 display 도구의 허용 범위는 넓히지 않는다.
+- **ADR-0015 일부 개정·ADR-0018 유지:** ADR-0015의 비서 플러그인 변경 금지를 삭제하고, 재개 시 ⑤의 건별 승인 없이 활동 기록을 남기는 관리로 대체한다. AI 권한·공급자·모델 변경 금지와 새 기능·관리의 공용 정의·CLI 의무는 유지한다. ADR-0018의 대상 Host·receipt·버전 경계와 번들 script 정책을 따른다. 호환 계층·Host 간 자동 이동·공유 편집을 추가하지 않는다.
 
 이 문서 PR은 소유자 결정·비지원 경계·용어·색인을 대조하고 `pnpm docs:check`와 필수 CI로 확인한다. 제품 실행·설치·credential·원격 연결은 수행하지 않는다. 실제 구현 시 기존 테스트를 우선 보완하고 각 단계의 고유 위험을 확인하며, 브라우저 검증은 `pnpm browser:test`와 저장소의 세션 정리 규칙을 따른다.

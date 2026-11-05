@@ -9,6 +9,8 @@
 - Scope: 같은 PC의 로컬 daemon, 공식 AI 이전과 플러그인·Docling 기능 제거·보관, 소유자 개시 후 컨셉 재개발, Desktop 번들 UI 전환. Accepted는 구현 완료를 뜻하지 않는다.
 - Amends: [ADR-0012](0012-plugin-runtime-and-ui-contributions.md), [ADR-0013](0013-ai-agent-task-service.md), [ADR-0015](0015-shared-host-operations.md), [ADR-0016](0016-shared-local-daemon-host.md)의 아래 명시한 경계.
 
+- Amendment date: 2026-11-05 — [ADR-0020 비서 제작 로드맵](0020-plugin-architecture.md#비서-플러그인-제작-로드맵2026-11-05-개정)에 따라 플러그인 관리의 건별 명시 승인을 제거하고 사용자에게 보이는 활동 기록으로 대체한다. secret 비노출·제품 고정 공식 목록·digest 신뢰 기록은 유지한다. AI 권한·공급자·모델 변경 금지와 문서 교정 승인은 그대로다. 현재 구현 변경 완료를 뜻하지 않는다.
+
 ## Amendment: 플러그인 계층 개념 (2026-11-05)
 
 [ADR-0019](0019-plugin-tiers.md)은 공식/커뮤니티 계층과 공통 manifest·SDK·권한, 대상 Host 실행·자격 증명, 앱 번들 UI·공용 작업·CLI 경계를 개념으로 결정한다. 과거 same-origin ESM/CSS 로딩은 최초 UI에서 채택하지 않는다. 비서는 제품 기능이며 Docling은 재개 시 커뮤니티 계층으로 다룰 수 있다. 충돌하는 개념에는 ADR-0019를 우선 적용하되 아래 과거 결정·구현 기록은 보존한다. ADR-0017의 기능 제거·보관과 소유자의 명시적 재개 개시 조건은 유지하며, 이번 개념 결정으로 구현을 재개하지 않는다.
