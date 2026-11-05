@@ -227,3 +227,5 @@ V6 대화 표시 보완: 생성 명세는 ‘뷰 명세’에 기본 접힘으�
 [교정 1회](assets/catalog-v6/result-card-1440.png)를 fixture로 확인했다.
 
 V4 review의 Host·CLI·K1 완료 bundle은 [플러그인 1단계 V4 계약](plugin-stage1-v1.md#v4-공용-review-hostcli)에 구현했다. V3/V5의 /api/reviews snapshot transport와 연결하며 Core read model은 document-reader 경계를 사용한다. 실제 브라우저·외부 서비스 수락은 별도 검증이다. 공용 자료 읽기·제안·승인·거절·Undo·status는 같은 PluginHost dispatcher를 사용하며 문서 의미를 renderer나 CLI에 구현하지 않는다.
+
+이미지가 없거나 로드에 실패한 PageSurface는 영역 좌표계 바깥, 도구줄 아래 별도 줄에 안내를 표시한다. 독립 페이지와 SourceDocumentCompare에 동일하게 적용한다. `review-v5`에서 두 사용처의 안내와 영역이 겹치지 않는지 확인한다(#1278).
