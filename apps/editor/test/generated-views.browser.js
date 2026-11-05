@@ -29,7 +29,8 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
       if (!body.id) conversation = { id: `thread-${body.provider}`, provider: body.provider, model: body.model, reasoningEffort: body.reasoningEffort, folders: [], title: 'View proposal', createdAt: 0, updatedAt: 0, turns: [] };
       const spec = JSON.parse(JSON.stringify(proposal));
       if (sends.length === 1) spec.layout.children[0].columns = ['authorEmail'];
-      conversation.turns.push({ id: `turn-${sends.length}`, status: delayPoll ? 'inProgress' : 'completed', items: [{ id: `user-${sends.length}`, kind: 'user', text: body.message }, { id: `answer-${sends.length}`, kind: 'assistant', text: JSON.stringify(spec) }] });
+      if (!body.viewGeneration) spec.title = 'Chat proposed view';
+      conversation.turns.push({ id: `turn-${sends.length}`, status: delayPoll ? 'inProgress' : 'completed', items: [{ id: `user-${sends.length}`, kind: 'user', text: body.message }, { id: `answer-${sends.length}`, ...(body.viewGeneration ? { kind: 'assistant', text: JSON.stringify(spec) } : { kind: 'tool', text: 'propose_view', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ view: spec, receipt: { operation: 'view.propose', outcome: 'success' } }) }] } }) }] });
     }
     return route.fulfill({ json: conversation });
   });
@@ -65,7 +66,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     const receipt = { operation: `view.${body.action}`, version: 1, requestId: 'fixture-request', outcome: 'success', scope: 'folder', timestamp: '2026-11-06T00:00:00Z' };
     let value = { receipt };
     if (body.action === "catalog") value.catalog = catalog;
-    if (body.action === 'validate') { validates++; if (body.view.layout.children[0].columns.includes('authorEmail')) return route.fulfill({ status: 400, json: { error: 'Invalid binding', receipt: { ...receipt, outcome: 'failure' } } }); value.view = body.view; }
+    if (['validate', 'propose'].includes(body.action)) { validates++; if (body.view.layout.children[0].columns.includes('authorEmail')) return route.fulfill({ status: 400, json: { error: 'Invalid binding', receipt: { ...receipt, outcome: 'failure' } } }); value.view = body.view; }
     if (body.action === 'list') value.favourites = body.plugin === 'fixture.issues' ? [...saved.keys()] : [];
     if (body.action === 'open') { value.view = saved.get(body.name); value.name = body.name; }
     if (body.action === 'save') {
@@ -99,7 +100,13 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await panel.getByRole('textbox', { name: 'Message assistant' }).fill('Show document totals as a table and bar chart grouped by folder.');
   await panel.getByRole('button', { name: 'Generate view', exact: true }).click();
   const generated = () => page.locator('[data-testid="generated-view"]:visible');
-  await expect(generated()).toBeVisible(); expect(validates).toBe(2); expect(sends.length).toBe(2);
+  const card = panel.getByTestId('assistant-view-result');
+  await expect(card).toBeVisible(); expect(validates).toBe(2);
+  const beforeCardOpen = queries;
+  if (screenshots) { await card.scrollIntoViewIfNeeded(); await page.screenshot({ path: 'tmp/1218-evidence/result-card-1440.png' }); }
+  await card.getByRole('button', { name: 'Open view', exact: true }).click();
+  await expect(generated()).toBeVisible(); expect(queries).toBe(beforeCardOpen);
+  if (screenshots) await page.screenshot({ path: 'tmp/1218-evidence/result-tab-1440.png' }); expect(sends.length).toBe(2);
   expect(sends[0].model).toBe('gpt-6-luna'); expect(sends[1].id).toBe('thread-codex'); expect(sends[1].model).toBe(sends[0].model);
   await expect(panel.getByRole('list', { name: 'View generation progress' })).toContainText('Correction 1/2');
   if (await panel.isVisible()) await panel.getByRole('button', { name: 'Close assistant' }).click();
@@ -199,6 +206,16 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect.poll(() => sends.at(-1)?.provider).toBe('copilot');
   await expect(panel.getByRole('list', { name: 'View generation progress' })).toContainText('View validated');
   expect(sends.at(-1).model).toBe('copilot-selected');
+  await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
+  await panel.getByRole('button', { name: 'AI provider settings', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Codex', exact: true }).click();
+  await panel.getByRole('textbox', { name: 'Message assistant' }).fill('Make a common view in ordinary chat.');
+  const chatQueryCount = queries;
+  await panel.getByRole('button', { name: 'Send message', exact: true }).click();
+  await expect(panel.getByTestId('assistant-view-result')).toContainText('Chat proposed view');
+  await panel.getByTestId('assistant-view-result').getByRole('button', { name: 'Open view', exact: true }).click();
+  await expect(page.getByRole('tab', { name: 'Chat proposed view', exact: true })).toBeVisible();
+  expect(queries).toBe(chatQueryCount);
   // Stop must free the composer/model/new-conversation controls while a GET remains held.
   await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'New conversation', exact: true })).toBeEnabled();

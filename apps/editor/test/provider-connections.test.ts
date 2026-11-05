@@ -366,6 +366,17 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const conversation = await conversations.send(input, settings, "window-a");
   const call = async (tool: string, args: unknown, extra = {}) => (await connection.client.request("fixture/tool", { threadId: conversation.id, tool, arguments: args, ...extra }));
+  const catalogReply = (await call("view_catalog", {})).result;
+  assert.equal(catalogReply.success, true);
+  assert.ok(JSON.parse(catalogReply.contentItems[0].text).catalog.operations.length);
+  const view = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", title: "Statistics", refresh: "manual", sources: { stats: { operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Documents", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } };
+  assert.equal((await call("propose_view", { view: {} })).result.success, false);
+  assert.equal((await call("propose_view", { view: {} })).result.success, false);
+  const proposalReply = (await call("propose_view", { view })).result;
+  assert.equal(proposalReply.success, true);
+  assert.equal(JSON.parse(proposalReply.contentItems[0].text).receipt.operation, "view.propose");
+  assert.equal(JSON.parse(proposalReply.contentItems[0].text).view.title, view.title);
+  assert.match(JSON.stringify(await call("propose_view", { view })), /correction limit/);
   const handler = connection.client.toolCall!;
   let arrived: (() => void) | undefined;
   connection.client.toolCall = params => { const reply = handler(params); arrived?.(); return reply; };
@@ -469,7 +480,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     const persistedTemplate = resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success && item.toolResult.contentItems?.some(content => content.type === "inputText" && typeof content.text === "string" && JSON.parse(content.text).path === templateFile));
     assert.deepEqual(persistedTemplate?.toolResult, fromTemplate);
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template"]);
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["view_catalog", "propose_view", "create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
   } finally { await next.close(); }
 });

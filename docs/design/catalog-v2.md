@@ -127,7 +127,7 @@ Host는 공식 write path의 revision 보호와 실패 시 데이터 보존을 �
 
 ## 제작 스킬 개선 목록과 직접 열기
 
-제품에 번들된 [authoring-skill.ts](../../apps/editor/server/plugins/authoring-skill.ts)를 해당 구현 PR에서 보강한다. 이 문서 PR은 제품 문자열도 변경하지 않는다.
+제품에 번들된 [authoring-skill.ts](../../apps/editor/server/plugins/authoring-skill.ts)를 해당 구현 PR에서 보강한다. V6는 번들 안내와 일반 대화의 view_catalog/propose_view, Generate view 결과 카드를 구현한다.
 
 1. **공통 view 경로:** rowSchema 읽기 작업 → Host 카탈로그 → Core validate → 공용 view save/run → 앱 renderer. SDK 기여와 공통 view 지원을 별개로 설명하고 현재 지원 version을 먼저 확인한다. v2 병합 전에 새 `contributes.views/reviews` 예시를 제공하지 않는다.
 2. **한도 사전 확인:** 실제 catalog에서 12열/8패널/폼 8입력/32 KiB와 operation input/output을 읽고 한 번의 대표 명세를 검증한다. v1 Host라면 4열 제한을 정직하게 알리고 5열 수락을 두 표로 대체해 성공 선언하지 않는다. 제거된 필드의 즐겨찾기는 새 명세가 필요하다.
@@ -149,7 +149,7 @@ $viewPath = 'C:\Work\scratch\jira.view.json'
 & node $cliPath view run $viewPath --root 'C:\Work\documents' --host $targetHost --json
 ```
 
-v2 구현 뒤 추가할 예시(현재 CLI에서는 미지원):
+v2 CLI의 추가 호출:
 
 ```powershell
 & node $cliPath view run $viewPath --input $inputPath --root 'C:\Work\documents' --host $targetHost --json
@@ -157,7 +157,9 @@ v2 구현 뒤 추가할 예시(현재 CLI에서는 미지원):
 & node $cliPath view open 'my-issues' --plugin example.jira --host $targetHost --json
 ```
 
-**재붙여넣기 제거:** 일반 제작 대화에서도 공용 `view.propose`로 완성 명세를 검증하고 활동 결과에 ‘뷰 열기’를 제공한다. 입력은 명세, 결과는 검증된 명세·receipt이며 저장·조회는 하지 않는다. CLI `view propose <file> --host <origin> --json`도 같은 결과를 반환하지만 앱 탭을 자동 생성하지 않는다. 앱에서 사용자가 결과 카드의 열기를 누르면 원래 Host에 고정된 새 탭을 연다. 모델이 HTML 링크나 임의 tab action을 출력하지 않는다. 기존 display 도구의 권한을 넓히지 않는다. Generate view도 동일 검증 결과를 소비한다. 실패 진단은 기존 최대 2회 교정 흐름으로 전달하고 그 이상은 중단·수정 안내한다. 저장을 요청받았다면 공용 save 후 같은 카드에 즐겨찾기 열기 대상으로 표시한다. 사용자가 완성 JSON을 채팅에 다시 붙일 필요가 없다. CLI 대안은 스킬 즉시 개선으로 안내 가능하지만 이 카드 경로 완료 전에는 통합 UX가 완료된 것으로 보지 않는다.
+**V6 구현:** Codex 일반 대화는 view_catalog/propose_view 동적 도구를 제공한다. Copilot 일반 대화는 동적 도구 미지원이므로 CLI 대안을 안내하며 Generate view는 양 공급자를 지원한다. Generate view 성공은 대화의 결과 카드로 남고, 카드의 뷰 열기에서만 새 탭을 만든다. 카드는 기존 assistant-result와 공통 Button을 재사용한다(#1241 A안, 새 UI 예외 없음). review 생성 schema/instruction은 shared/view-generation.ts에서 V4 병합과 통합 확인 후 열며 현재 query만 노출한다.
+
+**재붙여넣기 제거:** 일반 제작 대화에서도 공용 `view.propose`로 완성 명세를 검증하고 활동 결과에 ‘뷰 열기’를 제공한다. 앱 도구 이름은 propose_view이며 입력은 명세, 결과는 검증된 명세·receipt이고 저장·조회는 하지 않는다. CLI `view propose <file> --host <origin> --json`도 같은 결과를 반환하지만 앱 탭을 자동 생성하지 않는다. 앱에서 사용자가 결과 카드의 열기를 누르면 원래 Host에 고정된 새 탭을 연다. 모델이 HTML 링크나 임의 tab action을 출력하지 않는다. 기존 display 도구의 권한을 넓히지 않는다. Generate view도 동일 검증 결과를 소비한다. 실패 진단은 기존 최대 2회 교정 흐름으로 전달하고 그 이상은 중단·수정 안내한다. 저장을 요청받았다면 공용 save 후 같은 카드에 즐겨찾기 열기 대상으로 표시한다. 사용자가 완성 JSON을 채팅에 다시 붙일 필요가 없다. CLI 대안은 스킬 즉시 개선으로 안내 가능하지만 이 카드 경로 완료 전에는 통합 UX가 완료된 것으로 보지 않는다.
 
 ## 구현 분할과 검증 책임
 

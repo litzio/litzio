@@ -39,6 +39,8 @@ type Props = { onNewHost?(): void; settingsRevision: number; open: boolean; over
 export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
   useTranslation();
   const client = useHostClient();
+  const cardVersion = useRef(0);
+  useEffect(() => { if (!open) cardVersion.current++; }, [open]);
   const [hostId] = useState(useContext(HostContext));
   const conversationKey = `${brand.storagePrefix}.assistantConversation:${hostId}`;
   const request = createAssistantRequest(client);
@@ -70,9 +72,11 @@ export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, o
   const [ready, setReady] = useState(false);
   const [pending, setPending] = useState(false);
   const [generationStatus, setGenerationStatus] = useState<string[]>([]);
+  const [viewCards, setViewCards] = useState<{ conversation: string; turn: string; view: View; root: string }[]>([]);
   const [viewRoot, setViewRoot] = useState("");
   const generation = useRef<AbortController | null>(null);
   const cancelledViewConversation = useRef<string | undefined>(undefined);
+  useEffect(() => { if (!open) generation.current?.abort(new Error(i18n.t("View generation closed."))); }, [open]);
   useEffect(() => () => generation.current?.abort(new Error(i18n.t("View generation closed."))), []);
   const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
@@ -211,9 +215,9 @@ export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, o
           cancelledViewConversation.current = current.current?.id;
           setConversation(previous => previous ? { ...previous, turns: previous.turns.map(turn => turn.status === "inProgress" ? { ...turn, status: "interrupted" } : turn) } : previous);
         } },
-        validate: async (value, signal) => (await viewRequest(client, { action: "validate", view: value }, signal)).view!,
+        validate: async (value, signal) => (await viewRequest(client, { action: "propose", view: value }, signal)).view!,
       });
-      if (isCurrent() && !controller.signal.aborted) { onGeneratedView(view, root); setMessage(""); setPermissionMode("read-only"); }
+      if (isCurrent() && !controller.signal.aborted) { setViewCards(previous => [...previous, { conversation: current.current!.id, turn: current.current!.turns.at(-1)!.id, view, root }]); setMessage(""); setPermissionMode("read-only"); }
     } finally { generation.current = null; }
   });
   const addReference = (file: AssistantFileReference) => {
@@ -349,8 +353,29 @@ export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, o
           {turn.items.some(isWorkDetail) ? <details key={`${turn.id}-${turn.status}`} open={turn.status === "inProgress"} className="assistant-steps"><summary>{i18n.t(turn.status === "inProgress" ? "Working…" : "Work details")}</summary>
             {turn.items.filter(isWorkDetail).map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}</details> : null}
           <div role="group" aria-label={i18n.t("Assistant response")}>
-            {turn.items.filter(item => item.kind === "assistant").map(item => <AssistantAnswer key={item.id} source={item.text} />)}
+            {turn.items.filter(item => item.kind === "assistant" && !viewCards.some(card => card.conversation === conversation!.id && card.turn === turn.id)).map(item => <AssistantAnswer key={item.id} source={item.text} />)}
           </div>
+          {onGeneratedView && turn.status === "completed" ? [
+            ...viewCards.filter(card => card.conversation === conversation!.id && card.turn === turn.id),
+            ...turn.items.flatMap(item => {
+              if (item.kind !== "tool" || item.text !== "propose_view" || item.toolResult?.success !== true) return [];
+              for (const part of item.toolResult.contentItems) {
+                try {
+                  const result = JSON.parse(part.text ?? "");
+                  if (result.receipt?.operation === "view.propose" && result.receipt.outcome === "success" && result.view?.kind === "litzio-view") return [{ view: result.view as View, root: folders.includes(viewRoot) ? viewRoot : folders[0] }];
+                } catch { /* A partial tool result is not a card. */ }
+              }
+              return [];
+            }),
+          ].map((card, index) => <div key={index} className="assistant-result" data-testid="assistant-view-result">
+            <strong>{i18n.t("View validated")}</strong><span>{card.view.title}</span>
+            <small>{i18n.t("Open without querying. Refresh data in the new tab.")}</small>
+            <div><Button size="sm" disabled={pending || !card.root} onClick={() => void run(async isCurrent => {
+              const version = cardVersion.current;
+              const result = await viewRequest(client, { action: "propose", view: card.view });
+              if (isCurrent() && version === cardVersion.current && current.current?.id === conversation!.id && result.view) onGeneratedView(result.view, card.root);
+            })}>{i18n.t("Open view")}</Button></div>
+          </div>) : null}
           {turn.items.map(item => {
             const result = createdDocument(item);
             if (!result) return null;

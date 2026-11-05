@@ -596,3 +596,10 @@ source/Host가 바뀌거나 탭이 닫히면 해당 adapter 요청을 중단한�
 V2 입력 진단의 field는 JSON Pointer다. 없는 field는 폼 오류이며, 공개된 입력 이름과 대응하지 않는 경로를 임의 필드로 만들지 않는다. V2 unavailable code는 새 뷰 필요 상태로 안내하고 #1233 서비스 unavailable과 구별한다.
 
 V2/V5 병합 후 생성 context는 query InputForm을 허용하며 review 생성은 V4 통합 전까지 제외한다. #1266의 선택적 mapping은 공통 진입점에서 필수로 재해석하지 않고 ReviewRenderer의 제안/대응 탐색 경계를 따른다.
+
+## 비서의 검증된 뷰 결과 (V6)
+
+#1241 A안: 기존 assistant-result 카드와 공통 Button을 쓴다. 제목, 검증 상태, 수동 조회 안내와
+‘뷰 열기’를 표시한다. 클릭으로 새 탭만 만들며 자동 조회·즐겨찾기 저장은 하지 않는다.
+Generate view는 성공 JSON 대신 이 카드를 보여 주며 일반 제작 도구 propose_view도 같은 카드로 연결한다.
+진행·교정·중단 표시는 기존 대화 영역을 쓴다. 새 공통 부품이나 UI 예외는 추가하지 않는다.

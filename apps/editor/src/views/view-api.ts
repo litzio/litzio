@@ -22,7 +22,7 @@ export async function viewRequest(client: HostClient, input: unknown, signal?: A
   signal?.throwIfAborted();
   if (!response.ok || result.receipt?.outcome !== "success") {
     if (result.code === "unavailable") throw new ViewOperationError(result.errorKind, false, "unavailable");
-    const Validation = response.status === 400 && result.receipt?.operation === "view.validate" ? ViewValidationError : Error;
+    const Validation = response.status === 400 && ["view.validate", "view.propose"].includes(result.receipt?.operation) ? ViewValidationError : Error;
     if (Validation === ViewValidationError) throw new ViewValidationError("The view definition is invalid. Check the catalog and bindings.");
     if (result.code === "invalid-input" && Array.isArray(result.inputIssues) && result.inputIssues.every((issue: unknown) => issue && typeof issue === "object" && "keyword" in issue && typeof issue.keyword === "string" && (!("field" in issue) || typeof issue.field === "string"))) {
       throw new ViewInputError("Invalid operation args", result.inputIssues.map((issue: ViewInputIssue) => ({ field: issue.field, keyword: issue.keyword })));

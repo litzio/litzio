@@ -1,3 +1,4 @@
+import { executeViewOperation } from "./views.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
 import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool } from "./assistant-plugin-tools.ts";
 import { viewGenerationContext } from "../shared/view-generation.ts";
@@ -25,7 +26,7 @@ export class AssistantConversations {
   readonly display = new AgentDisplayRequests();
   private conversations = new Map<string, AssistantConversation>();
   private pending = new Set<string>();
-  private scopes = new Map<string, DocumentToolScope & { turnId?: string; displayClient?: string; viewGeneration?: boolean }>();
+  private scopes = new Map<string, DocumentToolScope & { turnId?: string; displayClient?: string; viewGeneration?: boolean; viewProposals?: number }>();
   private answers = new Map<string, (answers: AssistantUserInputAnswers) => void>();
   private loaded = new Set<string>();
   constructor(private connection: ProviderConnections, private access: FileAccess, private plugins?: PluginHost) {
@@ -53,6 +54,16 @@ export class AssistantConversations {
       const active = this.conversations.get(params?.threadId)?.turns.find(turn => turn.id === params.turnId && turn.status === "inProgress");
       if (!scope || !active || scope.turnId !== params.turnId || params.namespace != null) throw new Error("No authorized active turn for this tool call.");
       if (scope.viewGeneration) throw new Error("View generation only proposes a definition; tools are unavailable for this turn.");
+      if (params.tool === "propose_view" || params.tool === "view_catalog") {
+        if (params.tool === "propose_view") {
+          scope.viewProposals = (scope.viewProposals ?? 0) + 1;
+          if (scope.viewProposals > 1 && scope.viewProposals <= 3) active.items.push({ id: randomUUID(), kind: "plan", text: `Correcting view (${scope.viewProposals - 1}/2)` });
+          if (scope.viewProposals > 3) throw new Error("View correction limit reached (2). Start a new turn after revising the request.");
+        }
+        const result = await executeViewOperation(params.tool === "view_catalog" ? { action: "catalog" } : { action: "propose", view: params.arguments?.view }, { access: this.access, plugins: this.plugins });
+        if (active.status !== "inProgress") throw new Error("View proposal arrived after the turn ended.");
+        return { success: result.receipt.outcome === "success", contentItems: [{ type: "inputText", text: JSON.stringify(result) }] };
+      }
       if (params.tool === "plugin_jobs" && this.plugins) {
         const activity: AssistantConversationItem = { id: `plugin-job-${randomUUID()}`, kind: "tool", text: `plugin_jobs · ${String(params.arguments?.action ?? "")}`, status: "inProgress" };
         active.items.push(activity);
@@ -206,7 +217,10 @@ export class AssistantConversations {
       }
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
-          approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [...documentTools, ...displayTools, ...templateTools, ...(this.plugins ? [...pluginTools, ...pluginJobTools] : [])] });
+          approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [
+            { type: "function", name: "view_catalog", description: "Read the current common query view catalog before authoring a view.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
+            { type: "function", name: "propose_view", description: "Validate a common query view and return an Open view result card. Does not save or query. Read view_catalog first. Correct validation errors at most twice, describing each correction to the user. Never ask the user to paste JSON into Generate view.", inputSchema: { type: "object", properties: { view: { type: "object", additionalProperties: true } }, required: ["view"], additionalProperties: false } },
+            ...documentTools, ...displayTools, ...templateTools, ...(this.plugins ? [...pluginTools, ...pluginJobTools] : [])] });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
           turns: [], provider: "codex", permissionMode: settings.permissionMode, model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);

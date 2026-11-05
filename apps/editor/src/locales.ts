@@ -74,6 +74,8 @@ export const en = {
 
   "Proposing view…": "Proposing view…",
   "Correcting view ({{attempt}}/2)": "Correcting view ({{attempt}}/2)",
+  "Open view": "Open view",
+  "Open without querying. Refresh data in the new tab.": "Open without querying. Refresh data in the new tab.",
   "View validated": "View validated",
   "Correction {{attempt}}/2": "Correction {{attempt}}/2",
   "Correction limit reached": "Correction limit reached",
@@ -1249,6 +1251,8 @@ export const ko: Record<keyof typeof en, string> = {
 
   "Proposing view…": "뷰 명세를 제안하고 있습니다…",
   "Correcting view ({{attempt}}/2)": "뷰 명세 수정 중 ({{attempt}}/2)",
+  "Open view": "뷰 열기",
+  "Open without querying. Refresh data in the new tab.": "조회 없이 엽니다. 새 탭에서 직접 조회하세요.",
   "View validated": "뷰 명세 검증 완료",
   "Correction {{attempt}}/2": "수정 {{attempt}}/2",
   "Correction limit reached": "수정 횟수 제한에 도달했습니다",
