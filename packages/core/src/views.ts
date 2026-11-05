@@ -40,7 +40,7 @@ export const viewSchema = z.strictObject({
   sources: z.strictObject({ stats: source }),
   layout: z.strictObject({ component: z.literal("VerticalPanel"), children: z.array(z.discriminatedUnion("component", [table, chart])).min(1).max(VIEW_LIMITS.panels) }),
 });
-function validateBindings(view: View, operations: readonly ViewOperation[]) {
+export function validateQueryBindings(view: Pick<View, "sources" | "layout">, operations: readonly ViewOperation[]) {
   const s = view.sources.stats;
   const op = operations.find(op => op.operation === s.operation && op.version === s.version);
   if (!op) throw new Error("Operation unavailable or missing row schema");
@@ -80,7 +80,7 @@ export function validateView(value: unknown, operations: readonly ViewOperation[
   const text = JSON.stringify(value);
   if (text === undefined) throw new Error("View must be JSON");
   size(text);
-  const view = viewSchema.parse(value); validateBindings(view, operations); return view;
+  const view = viewSchema.parse(value); validateQueryBindings(view, operations); return view;
 }
 export function parseView(text: string, operations: readonly ViewOperation[] = builtinViewOperations): View { size(text); return validateView(JSON.parse(text), operations); }
 function ordered(value: unknown): unknown {
@@ -107,8 +107,12 @@ function dateGroup(value: string, interval: "day" | "week" | "month"): string {
 }
 /** Sole evaluation path for Host, CLI and app. No I/O and no expressions. */
 export function evaluateView(input: unknown, data: unknown, operations: readonly ViewOperation[] = builtinViewOperations): { rows: ViewRow[] } {
-  const view = validateView(input, operations), s = view.sources.stats;
-  const fields = validateBindings(view, operations);
+  return evaluateQueryRows(validateView(input, operations), data, operations);
+}
+/** Shared processing; callers must validate their envelope and execution args first. */
+export function evaluateQueryRows(view: Pick<View, "sources" | "layout">, data: unknown, operations: readonly ViewOperation[]): { rows: ViewRow[] } {
+  const s = view.sources.stats;
+  const fields = validateQueryBindings(view, operations);
   let raw = parseOperationRows(data, operations.find(op => op.operation === s.operation && op.version === s.version)!.rowSchema).filter(row => s.filters.every(f => {
     const value = row[f.field];
     if (f.op === "eq") return value === f.value;
