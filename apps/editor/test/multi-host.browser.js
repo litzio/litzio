@@ -1,4 +1,4 @@
-async (page, { expect, screenshots, recoveryRecords }) => {
+async (page, { expect, screenshots, recoveryRecords, showNotifications }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
   const initial = await (await page.request.get(origin + '/api/document')).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
@@ -8,6 +8,9 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   const nativePath = initial.path.split(sep).slice(0, -4).concat('tmp', 'document-tabs', 'technical-1.md').join(sep);
   const native = await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(nativePath))).json();
   let showNative = false;
+  const hanging = root + sep + "hanging.txt";
+  let hangReads = 0;
+  const heldReads = [];
   const comparisonHosts = [], previewHosts = [], assetRequests = [];
   await page.route('**/fixture/remote/document/**', route => {
     assetRequests.push(route.request().url());
@@ -42,6 +45,11 @@ async (page, { expect, screenshots, recoveryRecords }) => {
     if (route.request().method() === 'POST') { const body = route.request().postDataJSON(); if (body.revision !== revision(host)) throw new Error("Save used another Host’s revision"); sources[host] = body.source; versions[host]++; saves.push(host); return route.fulfill({ json: { revision: revision(host) } }); }
     if (!url.includes('?path=')) return route.fulfill({ json: { start: true } });
     const requestedPath = decodeURIComponent(url.split('?path=')[1].split('&')[0]);
+    if (host === 'remote' && requestedPath === hanging) {
+      hangReads++;
+      await new Promise(resolve => { heldReads.push(async () => { try { await route.fulfill({ json: { kind: 'text', path: hanging, source: 'Late remote response', revision: revision(host) } }); } catch {} resolve(); }); });
+      return;
+    }
     if (requestedPath === nativePath) return route.fulfill({ json: native });
     if (created[host].get(requestedPath) === 'document') return route.fulfill({ json: { ...empty, path: requestedPath } });
     if (host === 'remote' && requestedPath === missing && failRemembered) { failedReads++; return route.fulfill({ status: 503, json: { error: 'Fixture startup read failure' } }); }
@@ -59,7 +67,7 @@ async (page, { expect, screenshots, recoveryRecords }) => {
     const directory = decodeURIComponent(url.match(/[?&]path=([^&]*)/)?.[1] ?? '') || root;
     const entries = [...created[host]].filter(([target]) => target.slice(0, target.lastIndexOf(sep)) === directory)
       .map(([target, kind]) => ({ path: target, name: target.split(sep).at(-1), kind, native: kind === 'document' }));
-    return route.fulfill({ json: { root, path: directory, entries: [...(directory === root ? [{ path, name: 'same.txt', kind: 'document', native: false }, ...(showNative ? [{ path: nativePath, name: 'technical-1.md', kind: 'document', native: true }] : []), ...(showFresh ? [{ path: fresh, name: 'fresh.txt', kind: 'document', native: false }] : [])] : []), ...entries] } });
+    return route.fulfill({ json: { root, path: directory, entries: [...(directory === root ? [{ path, name: 'same.txt', kind: 'document', native: false }, ...(host === 'local' ? [{ path: root + sep + 'responsive.txt', name: 'responsive.txt', kind: 'document', native: false }] : []), ...(host === 'remote' ? [{ path: hanging, name: 'hanging.txt', kind: 'document', native: false }] : []), ...(showNative ? [{ path: nativePath, name: 'technical-1.md', kind: 'document', native: true }] : []), ...(showFresh ? [{ path: fresh, name: 'fresh.txt', kind: 'document', native: false }] : [])] : []), ...entries] } });
   });
   await page.route('**/api/folder', route => {
     const host = route.request().url().includes('/fixture/remote/') ? 'remote' : 'local';
@@ -137,6 +145,47 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   await page.getByRole('textbox', { name: 'Text editor' }).fill('Local saved');
   await page.keyboard.press('Control+s');
   await expect.poll(() => saves.join()).toBe('remote,local');
+  await page.getByLabel('Host', { exact: true }).selectOption('');
+  await local.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Open to the right', exact: true }).click();
+  await remote.click();
+  await page.locator('[data-host-id="remote"]').getByRole('treeitem', { name: /hanging.txt/ }).click();
+  await expect.poll(() => hangReads).toBe(1);
+  // A different group's local tab, Open and Save remain usable while the remote read is pending.
+  await local.click();
+  const localInput = page.locator('#' + await local.getAttribute('aria-controls')).getByRole('textbox', { name: 'Text editor' });
+  await localInput.fill('Local during remote hang');
+  await page.keyboard.press('Control+s');
+  await expect.poll(() => sources.local).toBe('Local during remote hang');
+  await page.locator('[data-host-id="local"]').getByRole('treeitem', { name: /responsive.txt/ }).click();
+  const responsive = page.getByRole('tab', { name: /responsive.txt/ });
+  await expect(responsive).toHaveCount(1);
+  await page.locator('.document-tab').filter({ has: responsive }).locator('.document-tab-close').click();
+  await local.click();
+  await showNotifications(page);
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await heldReads.shift()();
+  await local.click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Move to other group', exact: true }).click();
+  await expect(page.getByRole('tab', { name: /hanging.txt/ })).toHaveCount(0);
+  // Without navigation, the same read is bounded by the production timeout.
+  await page.locator('[data-host-id="remote"]').getByRole('treeitem', { name: /hanging.txt/ }).click();
+  await expect.poll(() => hangReads).toBe(2);
+  await showNotifications(page);
+  await expect(page.getByTestId('error')).toBeVisible({ timeout: 20000 });
+  await heldReads.shift()();
+  await expect(page.getByRole('tab', { name: /hanging.txt/ })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Dismiss error', exact: true }).click();
+  await page.locator('[data-host-id="remote"]').getByRole('treeitem', { name: /hanging.txt/ }).click();
+  await expect.poll(() => hangReads).toBe(3);
+  await page.locator('.document-tab').filter({ has: local }).locator('.document-tab-close').click();
+  await expect(local).toHaveCount(0);
+  await heldReads.shift()();
+  await expect(page.getByRole('tab', { name: /hanging.txt/ })).toHaveCount(0);
+  await page.locator('[data-host-id="local"]').getByRole('treeitem', { name: /same.txt/ }).click();
+  await page.getByRole('textbox', { name: 'Text editor' }).fill('Local saved');
+  await page.keyboard.press('Control+s');
+  await expect.poll(() => sources.local).toBe('Local saved');
   await page.reload();
   await expect(local).toHaveCount(1); await expect(remote).toHaveCount(1);
   await remote.click(); await expect(page.getByRole('textbox', { name: 'Text editor' })).toHaveValue('Remote saved');
@@ -167,7 +216,7 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   await page.getByRole('button', { name: 'Restore work', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Text editor' })).toHaveValue('Remote unsaved recovery');
   await page.keyboard.press('Control+s');
-  await expect.poll(() => saves.join()).toBe('remote,local,remote');
+  await expect.poll(() => saves.join()).toBe('remote,local,local,local,remote');
   await local.click();
   await expect(page.getByRole('textbox', { name: 'Text editor' })).toHaveValue('Local saved');
   if ((await page.evaluate(() => window.__explorerCalls)).length) throw new Error('Remote paths reached the Desktop shell');

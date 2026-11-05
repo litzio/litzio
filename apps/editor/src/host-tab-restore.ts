@@ -69,7 +69,7 @@ export function useHostTabRestore({ memory, folders, desktop, connectedHostIds, 
     if (tabsRestored || !folders.restored && readOpenTabs()?.paths.length) return;
     let current = true;
     const client = getHostClient(LOCAL_HOST_ID);
-    const { requestDocument } = createDocumentRequests(client);
+    const { requestDocument, cancelReads } = createDocumentRequests(client);
     void (async () => {
       const path = new URLSearchParams(window.location.search).get("path")?.trim() || undefined;
       const saved = readOpenTabs();
@@ -78,6 +78,7 @@ export function useHostTabRestore({ memory, folders, desktop, connectedHostIds, 
       let first: EditorFileResponse | DocumentStartResponse;
       try {
         const startup = await desktop?.startup?.();
+        if (!current) return;
         first = await requestDocument("GET", startup?.document);
         if (startup) first = { ...first, samples: startup.samples, sampleProblem: startup.sampleProblem };
       }
@@ -129,27 +130,30 @@ export function useHostTabRestore({ memory, folders, desktop, connectedHostIds, 
     })().catch(cause => { if (current) setError(cause instanceof Error ? cause : String(cause)); }).finally(() => {
       if (current) { operationRef.current = false; setOperation(""); setTabsRestored(true); }
     });
-    return () => { current = false; };
+    return () => { current = false; cancelReads(); };
   }, [folders.restored]);
 
   useEffect(() => {
     if (!tabsRestored) return;
     let alive = true;
+    const requests: ReturnType<typeof createDocumentRequests>[] = [];
     for (const host of hostRegistry.list().filter(host => host.hostId !== LOCAL_HOST_ID && hostRegistry.get(host.hostId).state === "connected" && !restoredHosts.current.has(host.hostId))) {
       const client = getHostClient(host.hostId);
+      const reader = createDocumentRequests(client); requests.push(reader);
       let failed = false;
       void Promise.all((readOpenTabs(host.hostId)?.paths ?? []).map(async path => {
         try {
           const records = await refreshRecovery();
+          if (!alive) return;
           const recovery = records?.find(record => sameLocator(record, { hostId: host.hostId, path }));
           if (recovery) { if (alive) reviewRecovery(recovery, true); return; }
-          const file = await createDocumentRequests(client).requestDocument("GET", path);
+          const file = await reader.requestDocument("GET", path);
           if (!alive || "start" in file) return;
           acceptRestored(file, client, host.hostId, path);
         } catch { failed = true; /* Keep Host navigation and recovery records for a later connection. */ }
       })).then(() => { if (alive && !failed) restoredHosts.current.add(host.hostId); });
     }
-    return () => { alive = false; };
+    return () => { alive = false; for (const reader of requests) reader.cancelReads(); };
   }, [tabsRestored, connectedHostIds]);
 
 }

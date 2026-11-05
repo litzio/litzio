@@ -100,6 +100,7 @@ export const STABLE_SCENARIOS = [
  * All others assume the floating center is absent (#1003 owner decision).
  */
 export const NOTIFICATION_SCENARIOS = [
+  "multi-host",
   "desktop-updates",
   "reveal-folder",
   "color-mode",

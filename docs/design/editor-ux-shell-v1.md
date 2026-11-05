@@ -3167,3 +3167,14 @@ registered Host's protocol/product policy.
 640px 이상에서 한 줄 말줄임을 사용하며 전체 계정은 키보드 focus/hover 툴팁으로 확인한다. 공통 구현은 HostStatus/Tooltip이며 별도 아이콘·팔레트·상호작용 예외는 없다.
 
 검증 캡처: [1440px 원격 Host](assets/host-run-as-1199/1440.png), [640px 로컬 Host](assets/host-run-as-1199/640.png). 두 Host fixture이며 실제 원격 OS 연결 증거가 아니다.
+
+## Document read lifetime and Host isolation (#1243)
+
+Explicit Open is owned by App per destination group with its captured HostClient and path.
+It does not acquire the window operation lock or disable other Hosts' tab navigation, Open or Save.
+Selecting a tab, opening another document in that group, closing its tab, or choosing Cancel
+in the existing notification cancels the pending Open. A superseded response cannot admit a tab.
+Document GET and its bibliography read share a 15-second timeout and AbortSignal.
+Mounted native/text sessions cancel their reads on disposal; startup restoration cancels on effect cleanup.
+Save remains session-owned, never automatically retries, preserves uncertain acknowledgements,
+and keeps input entered after submission unsaved. The opening HostClient remains fixed for the session.

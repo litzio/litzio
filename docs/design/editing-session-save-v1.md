@@ -1196,3 +1196,14 @@ copy and recovery actions outside it. No extra screenshot traversal runs in CI.
 | 1440 dark | [Capture](assets/visual-compare-1201/recovery-visual-1440-dark.png) |
 | 640 light | [Capture](assets/visual-compare-1201/recovery-visual-640-light.png) |
 | 640 dark | [Capture](assets/visual-compare-1201/recovery-visual-640-dark.png) |
+
+## Document read lifetime and Host isolation (#1243)
+
+Explicit Open is owned by App per destination group with its captured HostClient and path.
+It does not acquire the window operation lock or disable other Hosts' tab navigation, Open or Save.
+Selecting a tab, opening another document in that group, closing its tab, or choosing Cancel
+in the existing notification cancels the pending Open. A superseded response cannot admit a tab.
+Document GET and its bibliography read share a 15-second timeout and AbortSignal.
+Mounted native/text sessions cancel their reads on disposal; startup restoration cancels on effect cleanup.
+Save remains session-owned, never automatically retries, preserves uncertain acknowledgements,
+and keeps input entered after submission unsaved. The opening HostClient remains fixed for the session.

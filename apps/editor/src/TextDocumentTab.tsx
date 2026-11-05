@@ -23,7 +23,7 @@ export type TextSessionSnapshot = { kind: "text"; file: TextFileResponse; text: 
 function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot | undefined, recoveryId: string, replaceFile: (file: EditorFileResponse) => void) {
   const hostId = useHostId();
   const client = useHostClient();
-  const { requestDocument, requestSave } = createDocumentRequests(client);
+  const { requestDocument, requestSave, cancelReads } = useMemo(() => createDocumentRequests(client), [client]);
   const [openedPath, setOpenedPath] = useState(initial.path);
   const pathRef = useRef(openedPath); pathRef.current = openedPath;
   const input = useRef<HTMLTextAreaElement>(null);
@@ -54,7 +54,7 @@ function useTextSession(initial: TextFileResponse, restored: TextSessionSnapshot
   useEffect(() => {
     lifetime.activate();
     if (restored) recorder.edit(dirty());
-    return () => { lifetime.dispose(); recorder.cancel(); };
+    return () => { lifetime.dispose(); cancelReads(); recorder.cancel(); };
   }, []);
   // These are the work-protection/focus capabilities the shell shares with native documents.
   const editorRef = useRef({ hasUnsavedChanges: dirty, hasDocumentChanges: dirty,

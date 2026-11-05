@@ -37,7 +37,7 @@ export type DocumentSessionSnapshot = {
 export function useDocumentSession(initial: DocumentFileResponse, restored?: Pick<DocumentSessionSnapshot, "editor" | "savedEdits">, recoveryId?: string, onAssetChange?: (documentPath: string, assetPath: string) => void, renameImage?: ImageRenamer, replaceFile?: (file: EditorFileResponse) => void) {
   const client = useHostClient();
   const hostId = useHostId();
-  const { requestBibliography, requestDocument, requestSave, requestSource, validateFigure } = createDocumentRequests(client);
+  const { requestBibliography, requestDocument, requestSave, requestSource, validateFigure, cancelReads } = useMemo(() => createDocumentRequests(client), [client]);
   const renameRef = useRef(renameImage);
   renameRef.current = renameImage;
   const assetChangeRef = useRef(onAssetChange);
@@ -107,7 +107,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     if (restored) recorder?.edit();
     return () => {
       recorder?.cancel();
-      lifetime.dispose();
+      lifetime.dispose(); cancelReads();
       imageChoiceRef.current?.resolve(undefined);
       imageChoiceRef.current = null;
     };
