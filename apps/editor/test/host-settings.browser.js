@@ -18,7 +18,7 @@ async (page, { expect, screenshots }) => {
       renameHost: async (id, label) => { hosts.find(host => host.hostId === id).label = label; sessionStorage.setItem("host-fixture", JSON.stringify(hosts)); },
       removeHost: async id => { hosts.splice(hosts.findIndex(host => host.hostId === id), 1); sessionStorage.setItem("host-fixture", JSON.stringify(hosts)); },
       restartForHosts: async () => { const result = restartCheck(); window.__restartResult = result; return result; },
-      reportHostWork: async () => {},
+      reportHostWork: async () => { if (window.__failHostWork) throw Error("Error invoking remote method 'desktop:host-work': Error: Invalid Host work summary."); },
       hostConnection: async () => ({url: location.origin, productVersion: info.version, desktopVersion: info.version}),
       daemonInfo: async () => ({state: window.__desktop.connected ? 'running' : 'unreachable', url:'http://127.0.0.1:25887', launcher:'cli-start', productVersion:'0.2.0', protocolVersion:'1', pid:1234, startedAt:'2026-11-04T00:00:00Z', daemonHome:'C:/temporary/daemon/beta', executable:'C:/Litzio/Litzio.exe', roots:[], nonLoopback:false}),
       checkDaemon: async () => { if (!window.__desktop.connected) throw Error('Disconnected'); },
@@ -110,6 +110,12 @@ async (page, { expect, screenshots }) => {
     await expect(page.locator('[data-slot="tooltip-content"]')).toBeHidden();
     if (screenshots) await page.screenshot({ path: `tmp/host-settings-${width}.png` });
   }
+  await page.evaluate(() => { window.__failHostWork = true; });
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Close Host work and resolve recovery records before retrying removal." })).toBeVisible();
+  await expect(page.getByTestId("host-settings")).not.toContainText("Invalid Host work summary");
+  await expect(page.getByRole("heading", { name: "Renamed remote" })).toBeVisible();
+  await page.evaluate(() => { window.__failHostWork = false; });
   await page.getByRole("button", { name: "Remove", exact: true }).click();
   await expect(page.getByTestId("host-settings").getByText("No remote Hosts registered.", { exact: true })).toBeVisible();
 }

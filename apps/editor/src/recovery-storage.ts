@@ -236,6 +236,9 @@ export const recoveryStorage = {
           clean = cleanAcknowledgements();
           const kept: RecoveryRecord[] = [];
           for (const record of read.result as RecoveryRecord[]) {
+            // Unscoped records cannot contribute to Host work or authorize cleanup.
+            // Preserve them verbatim; do not migrate or infer a local Host.
+            if (typeof record.hostId !== "string" || !record.hostId.trim()) continue;
             const expired = Number.isFinite(record.recordedAt) && now - record.recordedAt >= RECOVERY_DAYS * 86400000;
             const recordedGeneration = record.recordingGeneration;
             const cleanGeneration = clean.get(record.id);

@@ -608,3 +608,37 @@ test("bundled screen survives absent daemon and reconnects explicitly", async ()
     assert.equal(page.url(),DESKTOP_ENTRY);
   } finally { if (fake) rmSync(record,{force:true}); if (app) await closeApp(app); }
 });
+
+// Reported data traverses real IndexedDB, App, preload and Electron IPC.
+test("Host removal preserves and ignores unscoped recovery (#1196)", async () => {
+  const { app, page } = await launch(profile("host-removal"), [], { LITZIO_DATA_DIR: path.join(work, `host-removal-data-${Date.now()}`) });
+  try {
+    await page.evaluate(async database => {
+      await new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open(database);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const tx = db.transaction("records", "readwrite");
+          tx.objectStore("records").put({ id: "pre-host-record", version: 1, path: "/old.md", recordedAt: Date.now(), recoveryText: "unscoped work", snapshot: {} });
+          tx.oncomplete = () => { db.close(); resolve(); };
+          tx.onerror = () => { db.close(); reject(tx.error); };
+        };
+      });
+    }, `${brand.storagePrefix}-recovery`);
+    const before = await recoveryRecords(page);
+    await page.reload();
+    await ready(page);
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("button", { name: "Hosts", exact: true }).click();
+    await page.getByLabel("Host address", { exact: true }).fill("http://127.0.0.1:34999");
+    await page.getByLabel("Host label", { exact: true }).fill("Removal regression");
+    await page.getByRole("button", { name: "Register Host", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Removal regression", exact: true })).toBeVisible();
+    await answerClose(app, 1); // Native Remove confirmation.
+    await page.getByRole("button", { name: "Remove", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Removal regression", exact: true })).toHaveCount(0);
+    await expect(page.getByTestId("host-settings").getByText("No remote Hosts registered.", { exact: true })).toBeVisible();
+    assert.deepEqual(await recoveryRecords(page), before);
+  } finally { await answerClose(app, 0); await closeApp(app); }
+});
