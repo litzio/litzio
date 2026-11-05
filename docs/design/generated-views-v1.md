@@ -1,9 +1,9 @@
 # Generated views v1
 
 - Status: Implemented
-- Last verified: 2026-11-05 — Core validation, canonical round-trip and evaluation; exclusive file creation tests. Host, CLI, assistant and browser integration are follow-up work in #1210.
+- Last verified: 2026-11-05 — Core/file-commit tests and Host/HTTP/CLI statistics, favourites and aggregate equality tests. Assistant and browser integration are follow-up work in #1210.
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md), [#1210](https://github.com/litzio/litzio/issues/1210).
-- Scope: Core v1 definition and calculation, and file-commit exclusive creation. No user-facing view command or UI is delivered by this first increment.
+- Scope: Core v1, file-commit exclusive creation, built-in statistics and Host/CLI operations. Assistant and app UI remain follow-up work.
 
 ## Definition and binding
 
@@ -30,3 +30,22 @@ The caller owns allowed-directory checks and safe favourite names. This primitiv
 ## Verification ownership
 
 Core tests cover strict rejection, field/type bindings, canonical reparse, filter order, deterministic aggregates and UTC buckets. File-commit tests cover complete publication, duplicate refusal, competing creators and write/flush/link failures with existing-file preservation. These are different boundaries; future Host/CLI/browser tests verify integration rather than repeat every Core input combination.
+
+## Host operations and CLI
+
+`POST /api/views` takes a strict action input and returns a requestId, operation (`view.validate/save/run/list/open`), version 1, scope, outcome and timestamp receipt. Validation/storage/open/list use Host scope; run uses folder scope and returns the real root target and Core rows. Failure is an error with failure receipt, never empty successful data. The common handler is shared by Vite and HTTP daemon; CLI sends to an explicit Host after protocol checking and never falls back or replays a request. Transport loss after dispatch is uncertain.
+
+```text
+view validate <file> --host <origin> --json
+view save <file> --name <new-name> --host <origin> --json
+view run <file> --root <opened-folder> --host <origin> --json
+view run --name <saved-favourite> --root <opened-folder> --host <origin> --json
+view list --host <origin> --json
+view open <name> --host <origin> --json
+```
+
+The built-in source owns the `litzio.statistics` data namespace. save/list/open require that exact plugin id, and the CLI supplies it. Favourites live in `<Host settings directory>/plugins/litzio.statistics/views/<name>.view.json`; clients cannot choose a storage path. `LITZIO_DATA_DIR` or `LITZIO_PLUGINS_SETTINGS_FILE` isolates this location. Names follow shared safe-file-stem rules, NFC, at most 100 characters; case variants of an existing name are refused. Save always uses exclusive new-file publication. At most 200 favourites are accepted. Open only reads and validates a definition, without a root, query, LLM call or automatic data refresh. List returns names and open returns the definition; no document-folder file appears.
+
+Run requires an explicit root checked against Host file access, then pins a narrower RootAccess for traversal. It recursively reads non-hidden, non-symlink directories and native `.md` files; ordinary Markdown is ignored, malformed UTF-8/native data fails. Each visited folder gets a row, including empty folders; documents/headings count direct children only, modified is their latest mtime (null when no native documents). Nested folder counts are separate rows. Frontmatter titles are not heading blocks. Limits: 1000 examined Markdown files, 1 MiB per file, 5000 directory entries, depth 16 and 2000 output rows; excess fails. This operation uses no network or secret and does not extend plugin SDK scopes.
+
+`apps/editor/test/views.test.ts` checks Host-created favourites, collision and path rejection, definition-only reopen with the root absent, explicit rerun after document changes and identical aggregated HTTP/CLI rows, root and receipt meaning (excluding per-run requestId/time). Its server/data directories are isolated and closed/deleted after the test.
