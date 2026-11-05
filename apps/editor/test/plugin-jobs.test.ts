@@ -5,6 +5,7 @@ import { mkdtempSync, cpSync, writeFileSync, readFileSync, existsSync, rmSync } 
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
+import { createHostServices } from "../server/host-services.ts";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { PLUGIN_ERROR_MESSAGES } from "@litzio/plugin-sdk";
 import { RootAccess } from "../server/file-access.ts";
@@ -160,7 +161,7 @@ test("K1 start/status/stop cannot publish subprocess results rejected by output 
 
 // Real child-process time: short fixtures cannot detect a job lifetime tied to the 10s RPC timer.
 test("K1 accepted work survives the RPC budget; completion, failure, stop and process loss", { concurrency: true, timeout: 35_000 }, async t => {
-  await Promise.all(["complete", "fail", "stop", "reload", "disable", "crash", "bad-start"].map(mode => t.test(mode, async () => {
+  await Promise.all(["complete", "fail", "stop", "reload", "disable", "crash", "bad-start", "host-close"].map(mode => t.test(mode, async () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "litzio-long-job-"));
     const directory = path.join(root, "artifact");
     cpSync(new URL("./fixtures/job-plugin", import.meta.url), directory, { recursive: true });
@@ -194,7 +195,20 @@ test("K1 accepted work survives the RPC budget; completion, failure, stop and pr
         };
       }
     `);
-    const host = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
+    // Compose with an isolated settings path; K1 state remains in the service's PluginHost.
+    let services: ReturnType<typeof createHostServices> | undefined;
+    if (mode === "host-close") {
+      const previous = process.env.LITZIO_PLUGINS_SETTINGS_FILE;
+      try {
+        process.env.LITZIO_PLUGINS_SETTINGS_FILE = path.join(root, "state.json");
+        services = createHostServices(new RootAccess([root]));
+      } finally {
+        if (previous === undefined) delete process.env.LITZIO_PLUGINS_SETTINGS_FILE;
+        else process.env.LITZIO_PLUGINS_SETTINGS_FILE = previous;
+      }
+      await services.plugins.start();
+    }
+    const host = services?.plugins.host ?? new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
     try {
       writeFileSync(path.join(root, "input.txt"), "Original");
       await host.invoke("register", { directory });
@@ -217,6 +231,10 @@ test("K1 accepted work survives the RPC budget; completion, failure, stop and pr
         assert.equal(host.jobs.list().jobs[0]!.state, "running");
         assert.ok(host.jobs.list().jobs[0]!.elapsedMs > 10_000);
         if (mode === "reload" || mode === "disable") await host.invoke(mode, { id: "fixture.jobs" });
+        if (mode === "host-close") {
+          await services!.close();
+          await assert.rejects(services!.plugins.invoke("pluginsList"), /closing/);
+        }
         if (mode === "stop") await host.jobs.execute({ action: "job-stop", requestId });
         const deadline = Date.now() + 5_000;
         let snapshot;
@@ -227,7 +245,7 @@ test("K1 accepted work survives the RPC budget; completion, failure, stop and pr
           await new Promise(resolve => setTimeout(resolve, 100));
         } while (Date.now() < deadline);
         assert.equal(snapshot!.state, mode === "complete" ? "completed" : mode === "fail" ? "failed" : mode === "stop" ? "stopped" : "uncertain");
-        if (["reload", "disable", "crash"].includes(mode)) {
+        if (["reload", "disable", "crash", "host-close"].includes(mode)) {
           assert.match(snapshot!.error!, /do not resend start/);
           assert.equal(snapshot!.errorKind, "unavailable");
           if (mode === "reload") {
@@ -240,6 +258,6 @@ test("K1 accepted work survives the RPC budget; completion, failure, stop and pr
       assert.equal(existsSync(path.join(root, "result.md")), mode === "complete");
       assert.equal(readFileSync(path.join(root, "input.txt"), "utf8"), "Original");
       await assert.rejects(host.jobs.execute({ action: "job-start", ...input }), /Duplicate requestId/);
-    } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+    } finally { if (services) await services.close(); else await host.close(); rmSync(root, { recursive: true, force: true }); }
   })));
 });
