@@ -116,6 +116,8 @@ Codex 비서는 SDK `PLUGIN_JOBS` 공용 정의를 그대로 쓰는 `plugin_jobs
 
 scaffold는 SDK_VERSION과 PluginOperationError import 예시, context용 JSDoc, 외부 편집기의 starter 타입 힌트 `plugin-sdk.d.ts`와 `jsconfig.json`을 포함한다. 선언 파일은 예시용 공개 API 부분집합이며 런타임 사본이 아니다. SDK 자체는 설치·번들하지 않는다. 새 scaffold는 대상 Host의 정확한 SDK_VERSION을 requiresSdk에 기록한다.
 
+`pnpm editor`의 Vite SSR도 같은 개발 SDK 공급 경로를 사용한다. checkout tooling의 동적 import는 Node 런타임에서 실행하며 Vite 분석 대상에서 명시적으로 제외한다. `vite-plugins.test.ts`는 실제 Vite 설정의 HTTP Host에서 저장소 밖 artifact의 SDK import·활성화·상태 반환과 분석 경고 부재를 검사한다. `pnpm browser:test vite-plugins`는 Vite에서 없는 경로·잘못된 artifact의 오류 표시와 정상 OneDrive 등록 후 비활성 목록 표시·활성화를 확인한다. 이 검사는 OneDrive artifact를 먼저 빌드하며 SDK 외부 import 검사는 별도의 임시 artifact로 수행한다.
+
 개발 Host의 외부 임시 artifact 수명 테스트는 로컬 SDK보다 Host 제공본 우선, 비호환 manifest 거부, 내부 import 거부와 reload를 검증한다. CLI offline packaged 검사와 Windows Desktop packaged 검사는 외부 scaffold→validate→등록→trust→enable→invoke를 실행한다. 이는 SDK 공급 경계 fixture이며 Jira·Docling 실제 서비스 수락 완료가 아니다.
 
 ## 비서 제작 키트

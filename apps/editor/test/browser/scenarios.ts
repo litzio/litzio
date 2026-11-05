@@ -3,6 +3,7 @@
  * from CI run 41946600342 (descending duration, least-loaded shard).
  */
 export const STABLE_SCENARIOS = [
+  "vite-plugins",
   "recovery",
   "document-tabs",
   "assistant",
