@@ -186,6 +186,12 @@ for (const name of scenarios) {
       writeFileSync(path.join(pluginDirectory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.drive", secrets: [{ id: "pat", scope: "connection", required: false }], tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Drive fixture", description: "Isolated folder fixture", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { folderSources: ["folders"], folderDecorations: ["folders"], accounts: ["folders"] } }));
       writeFileSync(path.join(pluginDirectory, "host.js"), `export function activate(){return {operations:{},dispose(){},status(){return ${JSON.stringify({ available: true, message: "Folder detected (fixture)", folders: [{ id: "folder", path: pluginFolder, label: "Drive fixture", defaultCandidate: true }], decorations: [{ id: "folder", path: pluginFolder, icon: "onedrive" }], accounts: [{ id: "folder", label: "Fixture account", source: "Isolated fixture" }] })}}}}`);
     }
+    if (name === "generated-views") {
+      mkdirSync(pluginDirectory, { recursive: true });
+      writeFileSync(path.join(pluginDirectory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
+      writeFileSync(path.join(pluginDirectory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.issues", tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Issues fixture", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", additionalProperties: false }, outputSchema: { type: "array", items: { type: "object" } }, rowSchema: { status: { type: "string", label: "Status" }, points: { type: "number", label: "Points" }, token: { type: "string", label: "Token", secret: true } } }] } }));
+      writeFileSync(path.join(pluginDirectory, "host.js"), `export function activate(){return {operations:{read:()=>[{status:"open",points:3,token:"private"},{status:"open",points:2,token:"private"}]},dispose(){},status:()=>({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]})}}`);
+    }
     const pluginFixture = { directory: pluginDirectory, folder: pluginFolder, corruptSecret() {
       const owned = process.env.LITZIO_BROWSER_DAEMON_DIR;
       if (!owned) throw new Error("Secret corruption requires a runner-owned isolated Host");

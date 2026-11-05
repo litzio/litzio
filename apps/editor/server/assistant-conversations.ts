@@ -1,5 +1,5 @@
 import { pluginTools, executePluginTool } from "./assistant-plugin-tools.ts";
-import { VIEW_GENERATION_CONTEXT } from "../shared/view-generation.ts";
+import { viewGenerationContext } from "../shared/view-generation.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
 import { readFileSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from "node:fs";
@@ -203,7 +203,7 @@ export class AssistantConversations {
         this.save(conversation);
       }
       references = checkedReferences(input.references ?? [], folders, this.access);
-      const context = { folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))], ...(input.viewGeneration ? { viewGeneration: VIEW_GENERATION_CONTEXT } : {}) };
+      const context = { folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))], ...(input.viewGeneration ? { viewGeneration: viewGenerationContext(this.plugins?.viewOperations()) } : {}) };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
@@ -302,7 +302,7 @@ export class AssistantConversations {
     }
     conversation.copilot = options;
     references = checkedReferences(input.references ?? [], folders, this.access);
-    const context = { folders, document: input.document ? { path: input.document.path } : null, references, ...(input.viewGeneration ? { viewGeneration: VIEW_GENERATION_CONTEXT } : {}) };
+    const context = { folders, document: input.document ? { path: input.document.path } : null, references, ...(input.viewGeneration ? { viewGeneration: viewGenerationContext(this.plugins?.viewOperations()) } : {}) };
     const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.message, references }] };
     conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort;
     conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;

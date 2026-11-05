@@ -262,7 +262,7 @@ export async function handleDocumentRequest(
     if (req.method !== "POST") { res.statusCode = 405; res.end(); return; }
     try {
       const input = JSON.parse(decodeUtf8(await readRequestBody(req, Math.min(bodyLimit, 65536))));
-      const result = executeViewOperation(input, { access });
+      const result = assistant ? await assistant.executeView(input) : await executeViewOperation(input, { access });
       sendJson(res, result.receipt.outcome === "success" ? 200 : 400, result);
     } catch (error) { failure(error); }
     return;

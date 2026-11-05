@@ -1,6 +1,10 @@
 async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
+  pluginFixture.cli(['plugins', 'register', pluginFixture.directory]);
+  const registered = pluginFixture.cli(['plugins', 'list']).plugins.find(p => p.id === 'fixture.issues');
+  pluginFixture.cli(['plugins', 'trust', 'fixture.issues', '--digest', registered.digest]);
+  pluginFixture.cli(['plugins', 'enable', 'fixture.issues']);
   const root = pluginFixture.folder, favorite = 'Folder document totals';
-  const proposal = { kind: 'litzio-view', schemaVersion: 1, catalog: 'litzio-v1', title: 'Folder document totals', refresh: 'manual', sources: { stats: { operation: 'folder.statistics', version: 1, args: {}, groupBy: { field: 'folder' }, aggregate: { op: 'sum', field: 'documents' }, sort: { field: 'value', direction: 'desc' }, limit: 10 } }, layout: { component: 'VerticalPanel', children: [{ component: 'Table', title: 'Document totals', source: 'stats', data: '/rows', columns: ['group', 'value'] }, { component: 'BarChart', title: 'Document totals chart', source: 'stats', data: '/rows', x: 'group', y: 'value' }] } };
+  const proposal = { kind: 'litzio-view', schemaVersion: 1, catalog: 'litzio-v1', title: 'Folder document totals', refresh: 'manual', sources: { stats: { operation: 'fixture.issues.read', version: 1, args: {}, groupBy: { field: 'status' }, aggregate: { op: 'sum', field: 'points' }, sort: { field: 'value', direction: 'desc' }, limit: 10 } }, layout: { component: 'VerticalPanel', children: [{ component: 'Table', title: 'Document totals', source: 'stats', data: '/rows', columns: ['group', 'value'] }, { component: 'BarChart', title: 'Document totals chart', source: 'stats', data: '/rows', x: 'group', y: 'value' }] } };
   let conversation, sends = [], queries = 0, validates = 0, latestRows, latestReceipt, delayPoll = false;
   const settings = { provider: 'codex', model: 'gpt-6-luna', reasoningEffort: 'low', permissionMode: 'read-only', responseLanguage: 'en' };
   await page.route('**/api/assistant/settings*', route => route.fulfill({ json: settings }));
@@ -47,8 +51,8 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   if (await panel.isVisible()) await panel.getByRole('button', { name: 'Close assistant' }).click();
   await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
   await expect(generated().locator('tbody tr')).not.toHaveCount(0); const rows = latestRows;
-  await expect(generated().getByRole('cell', { name: '(Root)', exact: true })).toBeVisible();
-  await expect(generated().getByRole('meter', { name: '(Root)', exact: true })).toBeVisible();
+  await expect(generated().getByRole('cell', { name: 'open', exact: true })).toBeVisible();
+  await expect(generated().getByRole('meter', { name: 'open', exact: true })).toBeVisible();
   const receipt = generated().getByLabel('View receipt', { exact: true });
   await expect(receipt).toHaveText(/^Queried: \d{2}:\d{2}$/);
   await expect(generated().getByText(latestReceipt.requestId, { exact: false })).not.toBeVisible();
@@ -77,7 +81,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect(generated().locator('tbody tr')).not.toHaveCount(0); expect(latestRows).toEqual(rows);
   const cli = pluginFixture.cli(['view', 'run', '--name', favorite, '--root', root]);
   expect(cli.rows).toEqual(latestRows); expect(cli.receipt.operation).toBe('view.run'); expect(cli.receipt.outcome).toBe('success');
-  expect(cli.rows.some(row => row.group === '.')).toBe(true);
+  expect(cli.rows.some(row => row.group === 'open')).toBe(true);
   if (screenshots) for (const width of [1440, 640]) {
     await page.setViewportSize({ width, height: 1000 }); await expect(generated()).toBeVisible();
     await expect(generated().locator('tbody tr')).not.toHaveCount(0);
@@ -142,5 +146,6 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
   releasePoll(); await expect.poll(() => pollDelivered).toBe(true);
   await expect(page.locator('.document-tabs [role="tab"]')).toHaveCount(tabsAfterStop);
+  pluginFixture.cli(['plugins', 'disable', 'fixture.issues']);
   return { favorite, root, rows, providers: sends.map(send => send.provider) };
 }

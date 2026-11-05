@@ -13,7 +13,7 @@ import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
 import { nativeSource } from "./helpers/document.ts";
 
 const view = { kind: "litzio-view", schemaVersion: 1, catalog: "litzio-v1", title: "Statistics", refresh: "manual", sources: { stats: { operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Documents", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } };
-test("Host favourites create exclusively, open definition without reading root, and run current data", () => {
+test("Host favourites create exclusively, open definition without reading root, and run current data", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-views-"));
   const root = path.join(dir, "documents"), directory = path.join(dir, "data");
   fs.mkdirSync(root); fs.writeFileSync(path.join(root, "one.md"), serialize(createDocument()));
@@ -22,32 +22,32 @@ test("Host favourites create exclusively, open definition without reading root, 
   const invoke = (input: unknown) => executeViewOperation(input, scope);
   const plugin = STATISTICS_PLUGIN_ID;
   try {
-    assert.equal(invoke({ action: "validate", view }).receipt.outcome, "success");
-    assert.equal(invoke({ action: "save", plugin, name: "Documents", view }).receipt.outcome, "success");
-    assert.equal(invoke({ action: "save", plugin, name: "Documents", view }).receipt.outcome, "failure");
-    assert.equal(invoke({ action: "save", plugin, name: "documents", view }).receipt.outcome, "failure");
+    assert.equal((await invoke({ action: "validate", view })).receipt.outcome, "success");
+    assert.equal((await invoke({ action: "save", plugin, name: "Documents", view })).receipt.outcome, "success");
+    assert.equal((await invoke({ action: "save", plugin, name: "Documents", view })).receipt.outcome, "failure");
+    assert.equal((await invoke({ action: "save", plugin, name: "documents", view })).receipt.outcome, "failure");
     const saved = fs.readFileSync(path.join(directory, plugin, "views", "Documents.view.json"), "utf8");
     assert.ok(!saved.includes(root)); assert.ok(!saved.includes('"rows"'));
-    assert.deepEqual(invoke({ action: "list", plugin }).favourites, ["Documents"]);
+    assert.deepEqual((await invoke({ action: "list", plugin })).favourites, ["Documents"]);
     // No document root exists while reopening. Opening still succeeds and never returns rows.
     fs.renameSync(root, `${root}-away`);
-    const opened = invoke({ action: "open", plugin, name: "Documents" });
+    const opened = (await invoke({ action: "open", plugin, name: "Documents" }));
     assert.equal(opened.receipt.outcome, "success"); assert.ok(opened.view); assert.ok(!("rows" in opened));
     fs.renameSync(`${root}-away`, root);
     const running = { ...scope, access: new RootAccess([root]) };
-    const first = executeViewOperation({ action: "run", root, view: opened.view }, running);
+    const first = (await executeViewOperation({ action: "run", root, view: opened.view }, running));
     assert.equal(first.receipt.outcome, "success"); assert.ok("rows" in first); assert.equal(first.rows?.[0].documents, 1);
     fs.writeFileSync(path.join(root, "two.md"), serialize(createDocument()));
-    const second = executeViewOperation({ action: "run", root, view: opened.view }, running);
+    const second = (await executeViewOperation({ action: "run", root, view: opened.view }, running));
     assert.ok("rows" in second); assert.equal(second.rows?.[0].documents, 2);
-    const savedRun = executeViewOperation({ action: "run", root, plugin, name: "Documents" }, running);
+    const savedRun = (await executeViewOperation({ action: "run", root, plugin, name: "Documents" }, running));
     assert.ok("rows" in savedRun); assert.deepEqual(savedRun.rows, second.rows);
     assert.equal(fs.readFileSync(path.join(directory, plugin, "views", "Documents.view.json"), "utf8"), saved);
-    for (const name of ["../escape", "CON", "/absolute", "bad."]) assert.equal(invoke({ action: "save", plugin, name, view }).receipt.outcome, "failure");
-    assert.equal(invoke({ action: "save", plugin: "other", name: "Other", view }).receipt.outcome, "failure");
-    assert.equal(executeViewOperation({ action: "run", root: directory, view }, running).receipt.outcome, "failure");
+    for (const name of ["../escape", "CON", "/absolute", "bad."]) assert.equal((await invoke({ action: "save", plugin, name, view })).receipt.outcome, "failure");
+    assert.equal((await invoke({ action: "save", plugin: "other", name: "Other", view })).receipt.outcome, "failure");
+    assert.equal((await executeViewOperation({ action: "run", root: directory, view }, running)).receipt.outcome, "failure");
     const invalid = structuredClone(view); invalid.sources.stats.args = { folder: "../outside" };
-    assert.equal(executeViewOperation({ action: "run", root, view: invalid }, running).receipt.outcome, "failure");
+    assert.equal((await executeViewOperation({ action: "run", root, view: invalid }, running)).receipt.outcome, "failure");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -66,11 +66,11 @@ test("statistics enforce folder boundary and fail malformed native documents wit
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("favourite list preserves I/O errors instead of empty success", context => {
+test("favourite list preserves I/O errors instead of empty success", async context => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-views-io-"));
   context.mock.method(fs, "readdirSync", () => { throw Object.assign(new Error("Access denied"), { code: "EACCES" }); });
   try {
-    const result = executeViewOperation({ action: "list", plugin: STATISTICS_PLUGIN_ID }, { access: null, directory });
+    const result = (await executeViewOperation({ action: "list", plugin: STATISTICS_PLUGIN_ID }, { access: null, directory }));
     assert.equal(result.receipt.outcome, "failure"); assert.ok(result.error);
   } finally { context.mock.restoreAll(); fs.rmSync(directory, { recursive: true, force: true }); }
 });

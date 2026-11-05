@@ -202,6 +202,12 @@ Core는 일시적·저장 명세의 구조·바인딩·정적 유효성·canonic
 
 여러 필드 조인, 사용자 정의 수식, 백분위 같은 고급 통계, 계산식은 허용하지 않는다. 범용 transform DSL·임의 코드 실행도 도입하지 않는다. #1210은 이 범위를 명세·검증·렌더·CLI 계약에 반영하고 집계 결과의 UI/CLI 일치를 검증한다.
 
+### 작업별 출력 schema 일반화 (#1218)
+
+2026-11-05 구현 범위: Core의 행 schema 선언을 SDK가 재노출하며 내장 `folder.statistics`와 활성 플러그인 읽기 작업이 같은 방식으로 참여한다. 선언은 필드 이름·타입(숫자 포함)·날짜 여부·표시 라벨·nullable·secret을 가진다. 등록 작업 중 선언한 읽기 작업만 source로 허용하고, Core가 필터·groupBy·집계·정렬·제한과 바인딩을 선언으로 검증한다. secret 필드는 비서 카탈로그와 바인딩·결과에서 제외한다. 비서 양 공급자의 카탈로그도 대상 Host의 활성 선언에서 만든다.
+
+구체 계약은 [Generated views v1](../design/generated-views-v1.md#operation-row-schema-1218)을 따른다. 기존 내장 통계의 결과와 카탈로그 v1 컴포넌트를 유지하며 하위 호환·migration은 넣지 않는다. 플러그인 `generatedUi/views` 기여, Jira API와 새 UI 컴포넌트는 이 변경의 범위가 아니다. 카탈로그 v2는 제작 로드맵 3단계다.
+
 ### 보안 거부 목록
 
 - 알 수 없는 component/prop/action, HTML·JS handler·CSS·원격 JS/CSS·외부 컴포넌트, javascript URL·임의 URL fetch·eval·임의 코드 실행을 거부한다. 여러 필드 조인·사용자 정의 수식·백분위 같은 고급 통계·계산식도 거부한다. 텍스트는 escape해 표시한다.

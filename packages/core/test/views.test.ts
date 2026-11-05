@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evaluateView, parseView, serializeView, validateView, VIEW_LIMITS } from "../src/views.ts";
+import { evaluateView, parseView, serializeView, validateView, VIEW_LIMITS, rowSchema, createViewCatalog, type ViewOperation } from "../src/views.ts";
 
 const base = () => ({ kind: "litzio-view", schemaVersion: 1, catalog: "litzio-v1", title: "문서 통계", refresh: "manual", sources: { stats: { operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "통계", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } });
 const rows = [
@@ -65,4 +65,31 @@ test("UTC day, Monday week and month grouping preserve null dates", () => {
     assert.deepEqual(evaluateView(grouped({ field: "modified", interval }, { op: "count" }), rows).rows, expected);
   }
   assert.deepEqual(evaluateView(grouped({ field: "modified", interval: "week" }, { op: "count" }), [{ ...rows[0], modified: "0000-01-01T00:00:00.000Z" }]).rows, [{ group: "-000001-12-27", value: 1 }]);
+});
+
+const pluginOperation: ViewOperation = { operation: "fixture.issues.read", version: 1,
+  inputSchema: { type: "object", additionalProperties: false }, validateArgs: args => JSON.stringify(args) === "{}",
+  rowSchema: rowSchema.parse({ status: { type: "string", label: "Status" }, points: { type: "number", label: "Points" }, opened: { type: "string", date: true, label: "Opened" }, token: { type: "string", label: "Token", secret: true } }) };
+test("operation declarations control all bindings and transforms without revealing secret fields", () => {
+  const spec: any = base(); spec.sources.stats.operation = pluginOperation.operation;
+  spec.layout.children[0].columns = ["status", "points"];
+  const ops = [pluginOperation];
+  const data = [{ status: "open", points: 2, opened: "2026-11-05T00:00:00.000Z", token: "private" }];
+  assert.deepEqual(evaluateView(spec, data, ops).rows, [{ status: "open", points: 2, opened: data[0].opened }]);
+  assert.ok(!JSON.stringify(createViewCatalog(ops)).includes('"token"'));
+  for (const field of ["token", "folder", "unknown"]) { const bad = structuredClone(spec); bad.layout.children[0].columns = [field]; assert.throws(() => validateView(bad, ops)); }
+  assert.throws(() => validateView(spec));
+  for (const op of ["count", "sum", "avg", "min", "max"]) {
+    const grouped = structuredClone(spec); Object.assign(grouped.sources.stats, { filters: [{ op: "contains", field: "status", value: "op" }], groupBy: { field: "status" }, aggregate: op === "count" ? { op } : { op, field: "points" }, sort: { field: "value", direction: "desc" }, limit: 1 });
+    grouped.layout.children[0].columns = ["group", "value"];
+    assert.deepEqual(evaluateView(grouped, data, ops).rows, [{ group: "open", value: op === "count" ? 1 : 2 }]);
+    if (op !== "count") { grouped.sources.stats.aggregate.field = "status"; assert.throws(() => validateView(grouped, ops)); }
+  }
+  const dates = structuredClone(spec); Object.assign(dates.sources.stats, { groupBy: { field: "opened", interval: "month" }, aggregate: { op: "count" } }); dates.layout.children[0].columns = ["group", "value"];
+  assert.deepEqual(evaluateView(dates, data, ops).rows, [{ group: "2026-11", value: 1 }]);
+  for (const patch of [{ filters: [{ op: "eq", field: "unknown", value: "x" }] }, { sort: { field: "unknown", direction: "asc" } }, { groupBy: { field: "unknown" }, aggregate: { op: "count" } }]) {
+    const bad = structuredClone(spec); Object.assign(bad.sources.stats, patch); assert.throws(() => validateView(bad, ops));
+  }
+  spec.layout.children = [{ component: "BarChart", title: "Chart", source: "stats", data: "/rows", x: "status", y: "status" }];
+  assert.throws(() => validateView(spec, ops));
 });
