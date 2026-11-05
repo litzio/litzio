@@ -13,6 +13,7 @@ import { startHttpHost } from "../server/http-host.ts";
 import { startFetchServer } from "../../../test/helpers/fetch-server.ts";
 import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 const declaration = { id: "text", title: "Text review", ...Object.fromEntries(["read", "propose", "approve", "reject", "undo"].map(action => [action, { operation: action, version: 1 }])) } as any;
 test("review baseline, Root/Host/generation, serialized writes, conflict and no replay", async () => {
@@ -131,7 +132,7 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const read = () => send("/api/review", { ...base, action: "read", kind: "proposals" });
     const cli = async (action: string, proposalId?: string) => {
       const inputFile = path.join(root, "request.json"); writeFileSync(inputFile, JSON.stringify({ bundleRef: base.bundleRef, generation: "g1", proposalId, baseline: (await read()).baseline, requestId: randomUUID() }));
-      const child = spawn(process.execPath, ["--import", "tsx", "packages/cli/src/cli.ts", "review", action, base.plugin, base.review, "--input", inputFile, "--root", root, "--host", origin, "--json"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+      const child = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../../../packages/cli/src/cli.ts", import.meta.url)), "review", action, base.plugin, base.review, "--input", inputFile, "--root", root, "--host", origin, "--json"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
       let stdout = "", stderr = ""; child.stdout.on("data", b => stdout += b); child.stderr.on("data", b => stderr += b);
       const code = await new Promise(resolve => child.once("exit", resolve)); assert.equal(code, 0, stdout + stderr); return JSON.parse(stdout);
     };
