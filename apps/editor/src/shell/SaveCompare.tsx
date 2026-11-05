@@ -1,7 +1,9 @@
+import { Info } from "lucide-react";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
 import type { HostClient } from "../host-client.ts";
-import { useCallback, type RefObject } from "react";
+import { useCallback, useRef, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
-import type { RecoveryPreviewResponse, SaveRequest } from "../../shared/document-protocol.ts";
+import type { DocumentFileResponse, RecoveryPreviewResponse, SaveRequest } from "../../shared/document-protocol.ts";
 import { SaveContentError } from "../../shared/save-error.ts";
 import { SaveDisplayError } from "../save-error.ts";
 import type { TiptapJSON } from "../tiptap-document.ts";
@@ -10,12 +12,13 @@ import { Button } from "@/components/ui/button.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog.tsx";
 import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 
-export type SaveComparison = { client: HostClient; hostId?: string; path: string; revision: string; request?: SaveRequest; submitted?: TiptapJSON; failure?: Error; text?: string };
+export type SaveComparison = { client: HostClient; hostId?: string; path: string; revision: string; request?: SaveRequest; submitted?: TiptapJSON; failure?: Error; text?: string; bibliography?: DocumentFileResponse["bibliography"] };
 
 export default function SaveCompare({ comparison, returnFocus, onClose }: {
   comparison: SaveComparison; returnFocus: RefObject<HTMLElement | null>; onClose(): void;
 }) {
   useTranslation();
+  const closeButton = useRef<HTMLButtonElement>(null);
   const load = useCallback(async (signal: AbortSignal): Promise<Comparison> => {
     const response = await comparison.client.request(`/api/document-source?recovery=1`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -31,16 +34,24 @@ export default function SaveCompare({ comparison, returnFocus, onClose }: {
       changed: Boolean(result.disk && result.disk.revision !== comparison.revision), missing: result.disk === null };
   }, [comparison]);
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-    <DialogContent className="recovery-prompt-comparing" finalFocus={returnFocus} data-testid="save-comparison">
+    <DialogContent className="recovery-prompt-comparing" initialFocus={closeButton} finalFocus={returnFocus} data-testid="save-comparison">
       <DialogHeader>
         <DialogTitle>{i18n.t("Changes before saving")}</DialogTitle>
         <DialogDescription render={<div />} className="grid gap-3 [overflow-wrap:anywhere]">
-          <p>{comparison.path}</p>
-          <p>{i18n.t("Read-only preview of applied content. Unapplied drafts are excluded. Close to keep editing.")}</p>
+          <div className="flex items-center gap-2"><p className="min-w-0 flex-1">{comparison.path}</p>
+            <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-xs" aria-label={i18n.t("About this comparison")} />}><Info /></TooltipTrigger>
+              <TooltipContent><div className="grid gap-2">
+                <p>{i18n.t("Read-only preview of applied content. Unapplied drafts are excluded. Close to keep editing.")}</p>
+                <p>{i18n.t("Visual compares block meaning. Formatting-only source changes appear in Source.")}</p>
+                <p>{i18n.t("Images use current Host files. Historical image bytes are not preserved; past appearance cannot be verified.")}</p>
+                <p>{i18n.t("Bibliography uses the current Host resource context. Historical .bib contents are not preserved.")}</p>
+              </div></TooltipContent>
+            </Tooltip>
+          </div>
         </DialogDescription>
       </DialogHeader>
-      <SourceCompare load={load} />
-      <DialogFooter><Button variant="secondary" size="sm" onClick={onClose}>{i18n.t("Close")}</Button></DialogFooter>
+      <SourceCompare load={load} visual={{ client: comparison.client, path: comparison.path, bibliography: comparison.bibliography, unsupported: comparison.text !== undefined ? i18n.t("Text sessions use Source comparison.") : undefined }} />
+      <DialogFooter><Button ref={closeButton} variant="secondary" size="sm" onClick={onClose}>{i18n.t("Close")}</Button></DialogFooter>
     </DialogContent>
   </Dialog>;
 }

@@ -378,8 +378,9 @@ returned only and are not persisted. Neither interface writes documents, recover
 records, acknowledged revisions or assets. Images compare paths/attributes; this
 operation does not preserve historical image bytes or establish pixel equality.
 
-This first PR supplies Core/Host/CLI only. The existing source-only pre-save and
-recovery comparison contracts remain in effect while Editor UI concepts await owner selection.
+The Core foundation PR supplied Core/Host/CLI only. The owner-selected pre-save
+Visual/Source UI is defined in [Editing session and Save](editing-session-save-v1.md#pre-save-visual-comparison-1201).
+Recovery remains source-only.
 
 
 #1203 review measurements (reviewer supplied, 2026-11-05): plain 2000/5000 blocks

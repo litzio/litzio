@@ -76,6 +76,30 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   assert(await editor.locator('[data-citation][data-keys=\'["missing"]\']').getAttribute('data-readiness') === 'unresolved', 'Missing key must differ from unreadable resources');
   assert(await readDocument() === originalSource && bibliographyFixture.hash() === originalHash, 'Open may not write either source');
 
+  // Both frozen comparison editors reuse this tab's existing Read resource context.
+  const expectedReferences = await displayed();
+  const citationStates = await editor.locator('[data-citation]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-readiness')));
+  await editor.locator('p').filter({ hasText: 'Move here.' }).click();
+  await page.keyboard.press('End'); await page.keyboard.type(' Comparison preview.');
+  await page.getByRole('button', { name: 'File actions', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Changes before saving', exact: true }).click();
+  const comparison = page.getByTestId('save-comparison');
+  const snapshots = comparison.locator('.visual-snapshot');
+  await snapshots.nth(1).getByTestId('bibliography').waitFor({ state: 'attached' });
+  assert(await snapshots.count() === 2, 'Comparison owns both bibliography snapshots');
+  for (const snapshot of await snapshots.all()) {
+    const actual = await snapshot.locator('li[data-key]').evaluateAll(elements => elements.map(row => ({
+      text: `${row.querySelector('.bibliography-number').textContent} ${row.querySelector('div > span').textContent}`,
+      status: row.getAttribute('data-readiness'),
+    })));
+    assert(JSON.stringify(actual) === JSON.stringify(expectedReferences), 'Comparison References must match the current Read snapshot');
+    assert(JSON.stringify(await snapshot.locator('[data-citation]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-readiness')))) === JSON.stringify(citationStates), 'Comparison citations must retain evaluated readiness');
+  }
+  await page.keyboard.press('Escape'); await comparison.waitFor({ state: 'detached' });
+  await editor.locator('p').filter({ hasText: 'Comparison preview.' }).click(); await page.keyboard.press('Control+z');
+  assert(!(await editor.innerText()).includes('Comparison preview.'), 'Comparison fixture edit must be undone');
+  assert(await readDocument() === originalSource && bibliographyFixture.hash() === originalHash, 'Comparison must not write document or bibliography');
+
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await editor.evaluate(element => {
     const e = element.editor; let at;

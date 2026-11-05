@@ -56,6 +56,7 @@ async (page, { openPath, activeDocument, removeTabFixture, screenshots, expect }
   await capture('conflict');
   await page.getByTestId('external-change').getByRole('button', { name: 'Compare with disk', exact: true }).click();
   const comparison = page.getByTestId('save-comparison');
+  await comparison.getByRole('button', { name: 'Source', exact: true }).click();
   await comparison.getByRole('region', { name: 'Source differences', exact: true }).waitFor();
   await expect(comparison).toContainText('My local change.');
   await expect(comparison).toContainText('Second disk change.');
