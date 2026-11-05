@@ -1,4 +1,5 @@
 import { executeCompareOperation } from "./document-compare.ts";
+import { executeViewOperation } from "./views.ts";
 import { hostIdentity } from "./host-identity.ts";
 import { executeTemplateOperation } from "./document-templates.ts";
 import { createDocumentSourceFile } from "./document-create.ts";
@@ -257,6 +258,15 @@ export async function handleDocumentRequest(
   try { query = requestQuery(req.url ?? ""); }
   catch (error) { failure(error); return; }
   const url = new URL(req.url ?? "", "http://localhost").pathname;
+  if (url === "/api/views") {
+    if (req.method !== "POST") { res.statusCode = 405; res.end(); return; }
+    try {
+      const input = JSON.parse(decodeUtf8(await readRequestBody(req, Math.min(bodyLimit, 65536))));
+      const result = executeViewOperation(input, { access });
+      sendJson(res, result.receipt.outcome === "success" ? 200 : 400, result);
+    } catch (error) { failure(error); }
+    return;
+  }
   if (url === "/api/host-capabilities" && req.method === "GET") { sendJson(res, 200, { fileDeletion: removeFile ? "trash" : "permanent", identity: hostIdentity() }); return; }
   if (url === "/api/templates" || url === "/api/template") {
     try {
