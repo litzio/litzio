@@ -4,7 +4,7 @@ import { assertUnicode, commitFile, FileChangedError, preflightFileCommit, textR
 import { parse, serialize, updateMediaReferences } from "@litzio/core";
 import { fileIdentity, type FileIdentity, validFileStem, type FileOperationRequest, type RenameFileRequest, type FileOperationResponse } from "../shared/file-operations.ts";
 import { accessPath, FileAccessError, inside, LOCAL_FILE_ACCESS, RootAccess, type FileAccess } from "./file-access.ts";
-import { loadDocumentFile, MEDIA_TYPES } from "./document-api.ts";
+import { loadDocumentFile, MEDIA_TYPES } from "./document-reader.ts";
 import { resolveMediaPath } from "./document-path.ts";
 import { readModel } from "./document-replay.ts";
 import { figureMediaPath } from "../shared/figure-media-path.ts";
