@@ -27,6 +27,7 @@
 | [ADR-0017: Desktop 번들 UI와 daemon 공식 AI](adr/0017-bundled-client-and-official-ai.md) | Accepted | #1150 소유자 결정. 공식 AI·프로바이더 가용성·설정 CLI, 플러그인·Docling 기능 제거·직전 master 원격 보관, Host 클라이언트·번들 UI 전환. 소유자 개시 시 컨셉 재개발. 1단계·코어 전환 전 릴리스 금지, 이후 플러그인 없는 제품 릴리스는 소유자 결정. ③a·③b 구현: 공식 AI·설정 CLI와 플러그인/Docling 삭제. ④ Host 클라이언트·⑤ 앱 번들 UI와 정확한 Desktop origin 허용 구현. |
 | [ADR-0018: Desktop의 원격 Host 등록과 여러 Host 보기](adr/0018-desktop-remote-hosts.md) | Accepted | #1174 소유자 결정 ①~⑨. Desktop 로컬 등록·hostId·원격 자동 연결/재연결, Host별 탐색기·탭·필터·비서, 공용 작업·CLI·CSP 재시작 보호. ADR-0016·0017의 원격 보류 개정. PR1은 로컬 Host 식별·탭/폴더 기억·복구 격리 구현. PR2는 Host별 요청·상태·capability와 비서/템플릿 대상 고정, 두 Host fixture 검증. PR4는 Host별 탐색기·필터·탭과 비서 선택/고정, 로컬 OS 기능 경계를 구현하며 브라우저 fixture로 확인한다. PR3 등록·Settings·보호된 재시작 통합과 PR4를 포함한 PR0~4(#1175~#1180)가 완료했다. #1180의 필수 CI 성공 확인(2026-11-05); 실제 Windows→Linux 연결은 미검증. 템플릿 갤러리 진입은 로컬 전용이다. |
 | [ADR-0019: 공식 플러그인과 커뮤니티 플러그인](adr/0019-plugin-tiers.md) | Accepted | 2026-11-05 소유자 개념 결정. 공식 공급·유지 책임, 공통 manifest·SDK·권한, 커뮤니티 실행 차단·명시 신뢰, Host 실행·자격 증명, 번들 UI·공용 작업·CLI. ADR-0012 개정·0017 보완이며 구현 재개·보류 해제 아님. 비서는 제품 기능, Docling은 재개 시 커뮤니티 계층. |
+| [ADR-0020: 플러그인 구조와 공통 생성 UI·저장 뷰](adr/0020-plugin-architecture.md) | Accepted | 2026-11-05 소유자 구조 결정. ADR-0019 구체화: 공통 SDK·manifest, 공식 monorepo/커뮤니티 독립 저장소·공식 공급 목록, 대상 daemon in-process 신뢰 코드·Windows OS secret, 최소 기여·공용 작업/CLI·매번 명시 승인받는 비서 관리. 생성 UI와 저장 뷰는 같은 명세·앱 렌더러, `.view.json` 수동 재조회·별도 `.snapshot.json`. 구현 재개 아님; OneDrive도 별도 개시. |
 
 ## Current implemented contracts
 

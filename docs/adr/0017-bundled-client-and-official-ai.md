@@ -1,8 +1,9 @@
 # ADR-0017: Desktop 번들 UI와 daemon 공식 AI 기능
 
 - Status: Accepted
+- Amended by: [ADR-0020](0020-plugin-architecture.md)
 - Decision date: 2026-11-04
-- Last verified: 2026-11-05 — #1174·ADR-0018 결정과 문서 대조. 제품 실행 검증 없음.
+- Last verified: 2026-11-05 — #1174·ADR-0018 결정 및 ADR-0020의 재개 시 비서 관리 개정과 문서 대조. 제품 실행 검증 없음.
 - Previous verification: 2026-11-04 — #1150·#1142, 관련 ADR 및 Paseo `bfbd4d5` 사전 정적 조사 대조. 제품 실행 검증 없음.
 - Authority: 2026-11-04 소유자 승인 결정, [#1150](https://github.com/litzio/litzio/issues/1150), under [AGENTS.md](../../AGENTS.md). AI 가용성과 플러그인·Docling 기능 제거·보관은 소유자 최종 결정이다. 플러그인 컨셉 재개발은 소유자가 명시적으로 개시할 때 다룬다.
 - Scope: 같은 PC의 로컬 daemon, 공식 AI 이전과 플러그인·Docling 기능 제거·보관, 소유자 개시 후 컨셉 재개발, Desktop 번들 UI 전환. Accepted는 구현 완료를 뜻하지 않는다.
@@ -34,7 +35,7 @@ Litzio 조사 기준은 master `3ffe557381c250f1a095996761d24de6b232ce86`이다.
 
 AI 에이전트는 기본 포함 플러그인에서 daemon의 공식 기능으로 흡수한다. AI 수명은 daemon 수명이며 [#1142 PR4 (#1151)](https://github.com/litzio/litzio/pull/1151)에서 완료한 연결·실행·중단·종료 계약을 그대로 가져온다. 화면 닫힘이나 연결 해제를 AI 종료 신호로 바꾸지 않는다. daemon 종료로 확정할 수 없는 진행 요청은 uncertain·결과 비공개·UUID 재실행 금지로 남기고, 명시적 사용자 취소와 이미 결정된 timeout은 구분한다. 소유 worker/provider 종료를 기다리며 기존 보호를 유지한다. PR4는 master에 병합되어 #1142가 닫혔으며 이 전환에서 새 수명 정책을 임의로 추가하지 않는다.
 
-**소유자 최종 결정: AI는 항상 존재하는 공식 기능이며 AI를 끄는 버튼·스위치를 제공하지 않는다.** 사용 가능한 프로바이더가 있는지로만 AI 사용 가능 여부를 판단한다. 사용 가능한 프로바이더가 없으면 새 AI 작업(대화·`aiTasks` 요청)은 그 이유를 알리며 거부하고 이미 진행 중인 작업에는 영향을 주지 않는다. Docling 등 플러그인이 확인하던 AI 사용 가능 상태도 프로바이더 가용성으로 대체한다. 기존 “Codex 사용” 같은 켜기/끄기 설정은 남기지 않으며 하위 호환은 제공하지 않는다. #1137의 `plugins configure ai-agent` 등 AI 설정 CLI는 공식 설정 명령으로 옮기고 ADR-0015에 따라 입력·결과·범위·receipt를 공용 Host 작업으로 정의한다. 새 AI 사용자 기능은 공용 작업 + CLI를 제공하되 기존 기능 전체의 CLI화를 요구하지 않는다. 구체 명령 표기는 구현 PR에서 정하며 호환 alias나 과거 데이터 migration은 만들지 않는다. 비서는 AI 권한·프로바이더·모델과 플러그인을 변경하지 못한다는 기존 도구 원칙을 유지한다.
+**소유자 최종 결정: AI는 항상 존재하는 공식 기능이며 AI를 끄는 버튼·스위치를 제공하지 않는다.** 사용 가능한 프로바이더가 있는지로만 AI 사용 가능 여부를 판단한다. 사용 가능한 프로바이더가 없으면 새 AI 작업(대화·`aiTasks` 요청)은 그 이유를 알리며 거부하고 이미 진행 중인 작업에는 영향을 주지 않는다. Docling 등 플러그인이 확인하던 AI 사용 가능 상태도 프로바이더 가용성으로 대체한다. 기존 “Codex 사용” 같은 켜기/끄기 설정은 남기지 않으며 하위 호환은 제공하지 않는다. #1137의 `plugins configure ai-agent` 등 AI 설정 CLI는 공식 설정 명령으로 옮기고 ADR-0015에 따라 입력·결과·범위·receipt를 공용 Host 작업으로 정의한다. 새 AI 사용자 기능은 공용 작업 + CLI를 제공하되 기존 기능 전체의 CLI화를 요구하지 않는다. 구체 명령 표기는 구현 PR에서 정하며 호환 alias나 과거 데이터 migration은 만들지 않는다. 비서는 AI 권한·프로바이더·모델을 변경하지 못한다는 기존 도구 원칙을 유지한다.
 
 ADR-0013의 Host 중개 작업 메시지, provider-neutral 기능 요청, caller의 내용 검증과 baseline 확인, UUID·uncertain/no-replay 보호는 플러그인 컨셉 재개발 때 복원할 계약으로 기록만 한다. 공식 기능 전환을 문서 의미의 Host 이전이나 새 provider framework의 근거로 쓰지 않는다.
 
