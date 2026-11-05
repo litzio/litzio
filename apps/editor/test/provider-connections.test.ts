@@ -41,6 +41,9 @@ test("view proposals pass the finite catalog through both stdio adapters without
   assert.ok(prompt.includes('"viewGeneration"') && prompt.includes('"catalog"'));
   assert.equal(copilot.turns[0]!.items[0]!.text, "Show a document chart");
   assert.equal(copilot.permissionMode, "read-only");
+  assert.deepEqual(copilot.turns[0]!.items[0]!.viewGeneration, { correction: 0 });
+  const resumed = await new AssistantConversations(connection, new RootAccess([root])).resume(codex.id, settings);
+  assert.deepEqual(resumed.turns[0]!.items.find(item => item.kind === "user")!.viewGeneration, { correction: 0 });
 });
 
 test("Copilot ACP lists its models, streams one turn, applies permission scope, cancels and reports a failed turn", async t => {

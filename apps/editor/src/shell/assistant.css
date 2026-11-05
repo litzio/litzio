@@ -16,7 +16,7 @@
 .assistant-answer { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
 .assistant-steps { margin-block: var(--space-3); color: var(--id-color-text-muted); font-size: var(--font-size-xs); }
 .assistant-steps summary { cursor: pointer; padding-block: var(--space-2); }
-.assistant-steps p { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: var(--space-1); }
+.assistant-steps p, .assistant-steps pre { white-space: pre-wrap; overflow-wrap: anywhere; margin-top: var(--space-1); }
 .assistant-steps [data-kind="tool"] p { font-family: var(--font-family-mono); }
 .assistant-notice { padding: var(--space-3); background: var(--id-color-surface-subtle); border-radius: var(--id-radius-md); }
 .assistant-history > button { display: flex; align-items: flex-start; flex-direction: column; width: 100%; height: auto; white-space: normal; text-align: left; padding: var(--space-3); gap: var(--space-1); border-radius: 0; }

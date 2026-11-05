@@ -205,7 +205,7 @@ V2의 `code:"unavailable"`은 삭제된 열·버전/가용성 변경으로 사�
 
 Codex 일반 대화의 `view_catalog` → `propose_view`는 기존 Host `view.propose`를 호출한다.
 Generate view도 같은 propose 검증 결과를 대화 카드에 둔다. 카드는 제목·검증 상태·수동 조회 안내와
-공통 Button의 ‘뷰 열기’를 제공한다. 클릭 시 원래 Host로 재검증하고 새 탭을 열며 조회·저장하지 않는다.
+공통 Button의 ‘뷰 열기’를 제공하며 수동 조회 안내는 tooltip에 둔다. 클릭 시 원래 Host로 재검증하고 새 탭을 열며 조회·저장하지 않는다.
 즐겨찾기 저장은 탭에서 사용자가 요청한다. Copilot 일반 대화는 동적 도구가 없어 CLI 대안을 안내한다.
 Generate view는 양 공급자에서 선택 모델을 유지하고 검증 실패만 최대 두 번 교정하며 진행을 보인다.
 일반 도구도 한 turn에서 최초 제안과 두 번 교정까지만 허용한다. 공급자·전송 실패는 자동 교정하지 않는다.
@@ -219,3 +219,9 @@ review 생성은 V4 통합 확인 후 `shared/view-generation.ts`에서 별도�
 fixture.issues.read로 invoke/catalog/validate/propose/run --input/save를 실행했다.
 
 1440px 수동 검토: [결과 카드](assets/catalog-v6/result-card-1440.png), [열린 탭](assets/catalog-v6/result-tab-1440.png).
+
+V6 대화 표시 보완: 생성 명세는 ‘뷰 명세’에 기본 접힘으로 보관한다. 교정 메타데이터는
+공급자 context와 사용자 item에 연결해 내부 교정 지시를 사용자 메시지로 표시하지 않는다.
+진행은 최신 한 줄과 최종 교정 횟수로 압축하고 검증 실패는 고정 문구로 안내한다.
+1440px [교정 없음](assets/catalog-v6/result-card-no-correction-1440.png)과
+[교정 1회](assets/catalog-v6/result-card-1440.png)를 fixture로 확인했다.

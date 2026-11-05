@@ -112,7 +112,7 @@ test("Korean generation progress and correction errors use bundled translations"
         return { id: "thread", model: "selected", reasoningEffort: "low", turns: [{ status: "completed", items: [{ kind: "assistant", text: JSON.stringify(statisticsView) }] }] } as T;
       }, snapshot: () => {}, status: value => statuses.push(value), validate: async value => { if (sends === 1) throw new ViewValidationError("field"); return validateView(value); },
     });
-    assert.ok(statuses.some(value => value.includes("검증 실패"))); assert.ok(statuses.includes("뷰 명세 검증 완료")); assert.match(messages[1], /수정 1\/2/);
+    assert.ok(statuses.some(value => value.includes("뷰 명세 수정 중"))); assert.ok(statuses.includes("뷰 명세 검증 완료 · 수정: 1/2")); assert.match(messages[1], /수정 1\/2/);
   } finally { await i18n.changeLanguage("en"); }
 });
 
@@ -131,7 +131,9 @@ test("both providers validate only final responses, correct in the same conversa
     assert.ok(sends.every(call => call.model === "selected-model" && call.provider === provider && call.viewGeneration));
     assert.equal(sends[1].id, "same-thread"); assert.equal(sends[2].id, "same-thread");
     assert.match(sends[1].message, /correction 1\/2/); assert.match(sends[2].message, /correction 2\/2/);
-    assert.equal(statuses.filter(s => s.includes("validation failed")).length, 2);
+    assert.equal(statuses.filter(s => s.startsWith("Correcting view")).length, 2);
+    assert.ok(statuses.every(s => !s.includes("Error:") && !s.includes("invalid")));
+    assert.deepEqual(sends.map(call => call.viewGenerationCorrection), [0, 1, 2]);
   }
 });
 

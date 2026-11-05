@@ -169,6 +169,7 @@ export class AssistantConversations {
   }
   async send(input: AssistantConversationInput, settings: AssistantSettings, displayClient?: string) {
     if (input?.viewGeneration !== undefined && typeof input.viewGeneration !== "boolean") throw new Error("Invalid view generation input");
+    if (input?.viewGenerationCorrection !== undefined && (!Number.isInteger(input.viewGenerationCorrection) || input.viewGenerationCorrection < 0 || input.viewGenerationCorrection > 2)) throw new Error("Invalid view correction");
     if (input?.viewGeneration) input = { ...input, permissionMode: "read-only", folders: [], references: [], skills: [], document: undefined };
     if (!input || typeof input.message !== "string" || (!input.message.trim() && !input.references?.length) ||
       typeof input.model !== "string" || typeof input.reasoningEffort !== "string" || !Array.isArray(input.folders)) throw new Error("Invalid conversation input.");
@@ -228,7 +229,7 @@ export class AssistantConversations {
         this.save(conversation);
       }
       references = checkedReferences(input.references ?? [], folders, this.access);
-      const context = { folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))], ...(input.viewGeneration ? { viewGeneration: viewGenerationContext(this.plugins?.viewOperations()) } : {}) };
+      const context = { folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))], ...(input.viewGeneration ? { viewGeneration: { ...viewGenerationContext(this.plugins?.viewOperations()), correction: input.viewGenerationCorrection ?? 0 } } : {}) };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
       if (this.plugins) messages.push({ type: "text", text: PLUGIN_AUTHORING_SKILL, text_elements: [] });
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
@@ -325,8 +326,8 @@ export class AssistantConversations {
     }
     conversation.copilot = options;
     references = checkedReferences(input.references ?? [], folders, this.access);
-    const context = { folders, document: input.document ? { path: input.document.path } : null, references, ...(input.viewGeneration ? { viewGeneration: viewGenerationContext(this.plugins?.viewOperations()) } : {}) };
-    const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.message, references }] };
+    const context = { folders, document: input.document ? { path: input.document.path } : null, references, ...(input.viewGeneration ? { viewGeneration: { ...viewGenerationContext(this.plugins?.viewOperations()), correction: input.viewGenerationCorrection ?? 0 } } : {}) };
+    const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.message, references, ...(input.viewGeneration ? { viewGeneration: { correction: input.viewGenerationCorrection ?? 0 } } : {}) }] };
     conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort;
     conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;
     this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, permissionMode: settings.permissionMode, turnId: turn.id, viewGeneration: input.viewGeneration });
@@ -425,6 +426,7 @@ function itemFrom(item: any): AssistantConversationItem | null {
   if (item.type === "userMessage") {
     const references: import("../shared/assistant.ts").AssistantFileReference[] = [];
     const text: string[] = [];
+    let viewGeneration: { correction: number } | undefined;
     for (const part of item.content ?? []) {
       if (part.type !== "text") continue;
       // Codex's legacy history flattens all text inputs into one string.
@@ -433,6 +435,7 @@ function itemFrom(item: any): AssistantConversationItem | null {
         try {
           const value = JSON.parse(part.text.slice(marker + CONTEXT.length));
           if (value && Array.isArray(value.folders)) {
+            if (value.viewGeneration && Number.isInteger(value.viewGeneration.correction)) viewGeneration = { correction: value.viewGeneration.correction };
             if (Array.isArray(value.references)) references.push(...value.references.filter((file: any) => file && typeof file.path === "string" && typeof file.name === "string" && typeof file.kind === "string"));
             if (marker) text.push(part.text.slice(0, marker));
             continue;
@@ -441,7 +444,7 @@ function itemFrom(item: any): AssistantConversationItem | null {
       }
       text.push(part.text);
     }
-    return { id: item.id, kind: "user", text: text.join("\n"), references };
+    return { id: item.id, kind: "user", text: text.join("\n"), references, ...(viewGeneration ? { viewGeneration } : {}) };
   }
   if (item.type === "agentMessage") return { id: item.id, kind: "assistant", text: item.text };
   if (item.type === "reasoning") return { id: item.id, kind: "reasoning", text: item.summary.join("\n") };

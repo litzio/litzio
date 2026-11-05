@@ -40,7 +40,7 @@ export async function generateView(options: {
       const prepared = await abortable(request<{ requestId: string }>(ASSISTANT.conversationsRoute, { action: "prepare-view-generation" }, signal), signal);
       requestId = prepared.requestId;
       signal.throwIfAborted();
-      let conversation = await abortable(request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "send", ...options.input, id, message, viewGeneration: true, viewGenerationRequest: requestId }, signal), signal);
+      let conversation = await abortable(request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "send", ...options.input, id, message, viewGeneration: true, viewGenerationCorrection: attempt, viewGenerationRequest: requestId }, signal), signal);
       if (id && conversation.id !== id) throw new Error(i18n.t("View generation changed conversation."));
       id = conversation.id;
       while (true) {
@@ -57,14 +57,12 @@ export async function generateView(options: {
             try { proposed = JSON.parse(text.replace(/^\x60\x60\x60(?:json)?\s*\n([\s\S]*?)\n\x60\x60\x60$/i, "$1")); }
             catch { throw new ViewValidationError(i18n.t("Expected a complete JSON view proposal. Provider said: {{text}}", { text: text.slice(0, 400) })); }
             const view = await abortable(options.validate(proposed, signal), signal);
-            signal.throwIfAborted(); options.status(i18n.t("View validated")); return view;
+            signal.throwIfAborted(); options.status(attempt ? i18n.t("View validated · Corrections: {{count}}/2", { count: attempt }) : i18n.t("View validated")); return view;
           } catch (error) {
             signal.throwIfAborted();
             if (!(error instanceof ViewValidationError)) throw error;
             const reason = String(error);
-            const correction = attempt < 2 ? i18n.t("Correction {{attempt}}/2", { attempt: attempt + 1 }) : i18n.t("Correction limit reached");
-            options.status(i18n.t("View validation failed: {{reason}} · {{correction}}", { reason, correction }));
-            if (attempt === 2) throw new Error(i18n.t("View validation failed after 2 corrections: {{reason}}", { reason }));
+            if (attempt === 2) throw new Error(i18n.t("View validation failed. Revise the request and try again."));
             message = i18n.t("View validation failed (correction {{attempt}}/2): {{reason}}", { attempt: attempt + 1, reason }) + "\n" + i18n.t("Return a corrected complete JSON definition using the same catalog and requested view. Do not use tools or change model. Explicitly refuse unsupported requests.");
             break;
           }
