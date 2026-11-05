@@ -157,3 +157,89 @@ test("K1 start/status/stop cannot publish subprocess results rejected by output 
     assert.equal(readFileSync(path.join(root,'input.txt'),'utf8'),'Original');
   } finally {await host.close();rmSync(root,{recursive:true,force:true});}
 });
+
+// Real child-process time: short fixtures cannot detect a job lifetime tied to the 10s RPC timer.
+test("K1 accepted work survives the RPC budget; completion, failure, stop and process loss", { concurrency: true, timeout: 35_000 }, async t => {
+  await Promise.all(["complete", "fail", "stop", "reload", "disable", "crash", "bad-start"].map(mode => t.test(mode, async () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "litzio-long-job-"));
+    const directory = path.join(root, "artifact");
+    cpSync(new URL("./fixtures/job-plugin", import.meta.url), directory, { recursive: true });
+    writeFileSync(path.join(directory, "host.js"), `
+      export function activate() {
+        const jobs = new Map();
+        return {
+          operations: {
+            async start(input) {
+              if (${JSON.stringify(mode)} === "bad-start") await new Promise(resolve => setTimeout(resolve, 11000));
+              const item = { state: "running", phase: "Accepted" };
+              const timer = setTimeout(() => {
+                if (${JSON.stringify(mode)} === "fail") Object.assign(item, {state:"failed",phase:"private",errorKind:"unavailable"});
+                else if (${JSON.stringify(mode)} === "complete") Object.assign(item, {state:"completed",phase:"Complete",document:{source:"---\\nlitzio: 1\\n---\\n\\n# Long result\\n"}});
+              }, 11000);
+              jobs.set(input.requestId, {item,timer});
+              return {...item};
+            },
+            status(input) {
+              if (${JSON.stringify(mode)} === "crash") process.exit(1);
+              return jobs.get(input.requestId).item;
+            },
+            stop(input) {
+              const {item,timer} = jobs.get(input.requestId);
+              if (${JSON.stringify(mode)} === "stop") { clearTimeout(timer); Object.assign(item,{state:"stopped",phase:"Stopped"}); }
+              return item;
+            }
+          },
+          status: () => ({available:true,message:"Ready",folders:[],decorations:[],accounts:[]}),
+          dispose() { for (const {timer} of jobs.values()) clearTimeout(timer); }
+        };
+      }
+    `);
+    const host = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
+    try {
+      writeFileSync(path.join(root, "input.txt"), "Original");
+      await host.invoke("register", { directory });
+      await host.invoke("trust", { id: "fixture.jobs", digest: (await host.list())[0]!.digest });
+      await host.invoke("enable", { id: "fixture.jobs" });
+      const requestId = randomUUID();
+      const input = { plugin: "fixture.jobs", job: "text", requestId, root, file: "input.txt", output: "result.md" };
+      const started = Date.now();
+      const accepted = await host.jobs.execute({ action: "job-start", ...input });
+      assert.ok("job" in accepted);
+      if (mode === "bad-start") {
+        assert.equal(accepted.job.state, "uncertain");
+        assert.equal(accepted.job.errorKind, "timeout");
+        assert.match(accepted.job.error!, /K1 start must accept work and return running within 10 seconds/);
+        assert.match(accepted.job.error!, /do not resend start/);
+      } else {
+        assert.equal(accepted.job.state, "running");
+        assert.ok(Date.now() - started < 10_000, "admission returns within the RPC budget");
+        await new Promise(resolve => setTimeout(resolve, 10_200));
+        assert.equal(host.jobs.list().jobs[0]!.state, "running");
+        assert.ok(host.jobs.list().jobs[0]!.elapsedMs > 10_000);
+        if (mode === "reload" || mode === "disable") await host.invoke(mode, { id: "fixture.jobs" });
+        if (mode === "stop") await host.jobs.execute({ action: "job-stop", requestId });
+        const deadline = Date.now() + 5_000;
+        let snapshot;
+        do {
+          const result = await host.jobs.execute({ action: "job-status", requestId });
+          assert.ok("job" in result); snapshot = result.job;
+          if (snapshot.state !== "running") break;
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } while (Date.now() < deadline);
+        assert.equal(snapshot!.state, mode === "complete" ? "completed" : mode === "fail" ? "failed" : mode === "stop" ? "stopped" : "uncertain");
+        if (["reload", "disable", "crash"].includes(mode)) {
+          assert.match(snapshot!.error!, /do not resend start/);
+          assert.equal(snapshot!.errorKind, "unavailable");
+          if (mode === "reload") {
+            const again = await host.jobs.execute({ action: "job-status", requestId });
+            assert.ok("job" in again); assert.deepEqual(again.job.error, snapshot!.error);
+          }
+        }
+        if (mode === "fail") assert.equal(snapshot!.errorKind, "unavailable");
+      }
+      assert.equal(existsSync(path.join(root, "result.md")), mode === "complete");
+      assert.equal(readFileSync(path.join(root, "input.txt"), "utf8"), "Original");
+      await assert.rejects(host.jobs.execute({ action: "job-start", ...input }), /Duplicate requestId/);
+    } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+  })));
+});

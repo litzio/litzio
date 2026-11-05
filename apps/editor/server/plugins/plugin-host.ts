@@ -116,7 +116,7 @@ export class PluginHost {
     if (!compileSchema(a.manifest.settingsSchema)(r.settings)) throw new Error("Stored settings do not satisfy this artifact schema");
     const secrets = await this.runtimeSecrets(id, a.manifest);
     const instance = await startPluginProcess(a.entry, a.manifest, structuredClone(r.settings), secrets, () => {
-      this.loaded.delete(id); this.errors.set(id, "Plugin process failed; reload to recover");
+      this.loaded.delete(id); this.jobs.lost(id); this.errors.set(id, "Plugin process failed; reload to recover");
     });
     this.processes.set(id, instance);
     this.loaded.set(id, { manifest: a.manifest, instance, pending: new Set() });
