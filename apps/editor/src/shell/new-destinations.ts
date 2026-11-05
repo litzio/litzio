@@ -17,4 +17,3 @@ export function newDestinations(trees: readonly FolderTreeState[]): NewDestinati
     }).map(path => ({ path, label: path === tree.root ? name : base + path.slice(prefix.length) }));
   });
 }
-
