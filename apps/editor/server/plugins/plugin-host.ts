@@ -173,6 +173,13 @@ export class PluginHost {
       .filter(op => op.effect === "read" && op.rowSchema)
       .map(op => ({ operation: `${live.manifest.id}.${op.id}`, version: op.version, rowSchema: op.rowSchema!, inputSchema: op.inputSchema, validateArgs: (args: unknown) => !!compileSchema(op.inputSchema)(args) })))];
   }
+  /** The loaded manifest owns identity; never infer plugin IDs by splitting operation names. */
+  viewOperationOwner(operation: string): string | undefined {
+    return [...this.loaded.values()].find(live => live.manifest.contributes.operations.some(op => `${live.manifest.id}.${op.id}` === operation))?.manifest.id;
+  }
+  viewContributions() {
+    return [...this.loaded.values()].flatMap(live => live.manifest.contributes.views.map(view => ({ plugin: live.manifest.id, ...view })));
+  }
   async invokeOperation(name: string, input: unknown, folder?: string, jobCall = false) {
     const live = [...this.loaded.values()].find(v => v.manifest.contributes.operations.some(op => `${v.manifest.id}.${op.id}` === name));
     const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === name);

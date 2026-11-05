@@ -4,9 +4,11 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getEditableDocument, hasNativeMarker, parse } from "@litzio/core";
-import { evaluateView, parseView, serializeView, validateView, VIEW_LIMITS, builtinViewOperations, type ViewOperation, type StatisticsRow } from "@litzio/core/views";
+import { builtinViewOperations, type ViewOperation, type StatisticsRow } from "@litzio/core/views";
+import { evaluateQueryView, serializeCatalogView, validateCatalogView, validateViewInputs, createCatalogV2, catalogViewSchema, VIEW_LIMITS, type QueryView } from "@litzio/core/views-v2";
+import { publicOperationError } from "./plugins/operation-result.ts";
 import { createFile, decodeUtf8, textRevision } from "@litzio/file-commit";
-import { accessPath, fileErrorMessage, inside, RootAccess, type FileAccess } from "./file-access.ts";
+import { accessPath, inside, RootAccess, type FileAccess } from "./file-access.ts";
 import { hostPaths } from "./host-paths.ts";
 import { validFileStem } from "../shared/file-operations.ts";
 
@@ -14,25 +16,44 @@ import { validFileStem } from "../shared/file-operations.ts";
 export const STATISTICS_PLUGIN_ID = "litzio.statistics";
 export const STATISTICS_LIMITS = { files: 1000, fileBytes: 1048576, entries: 5000, depth: 16, favourites: 200 };
 const name = z.string().min(1).max(100).refine(v => validFileStem(v) && v === v.trim() && v === v.normalize("NFC"), "Invalid favourite name");
-const owner = z.literal(STATISTICS_PLUGIN_ID);
+const owner = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
+const args = z.record(z.string(), z.unknown()).optional();
 export const viewRequestSchema = z.union([
+  z.strictObject({ action: z.literal("catalog") }),
   z.strictObject({ action: z.literal("validate"), view: z.unknown() }),
-  z.strictObject({ action: z.literal("save"), plugin: owner, name, view: z.unknown() }),
+  z.strictObject({ action: z.literal("propose"), view: z.unknown() }),
+  z.strictObject({ action: z.literal("save"), plugin: owner.optional(), name, view: z.unknown(), input: args }),
   z.strictObject({ action: z.literal("list"), plugin: owner }),
   z.strictObject({ action: z.literal("open"), plugin: owner, name }),
-  z.strictObject({ action: z.literal("run"), root: z.string().min(1), view: z.unknown() }),
-  z.strictObject({ action: z.literal("run"), root: z.string().min(1), plugin: owner, name }),
+  z.strictObject({ action: z.literal("run"), root: z.string().min(1), view: z.unknown(), input: args }),
+  z.strictObject({ action: z.literal("run"), root: z.string().min(1), plugin: owner, name, input: args }),
 ]);
+
+class ViewRefusal extends Error {
+  constructor(readonly code: "unavailable" | "needs-input" | "owner-mismatch") { super(code); }
+}
+function query(value: unknown, operations: readonly ViewOperation[], input?: Record<string, unknown>): QueryView {
+  // Replace the entire args object before validation, including when saved args are incomplete.
+  if (input !== undefined) {
+    const envelope = value as QueryView;
+    value = { ...envelope, sources: { ...envelope?.sources, stats: { ...envelope?.sources?.stats, args: input } } };
+  }
+  const parsed = catalogViewSchema.parse(value);
+  if (parsed.profile === "query" && !operations.some(op => op.operation === parsed.sources.stats.operation && op.version === parsed.sources.stats.version)) throw new ViewRefusal("unavailable");
+  const view = validateCatalogView(parsed, operations);
+  if (view.profile !== "query") throw new Error("Query profile required");
+  return view;
+}
 
 function favouritesDirectory(plugin: string, directory?: string): string {
   return path.join(directory ?? path.join(path.dirname(hostPaths().settingsFile("plugins")), "plugins"), plugin, "views");
 }
-function openFavourite(directory: string, name: string, operations: readonly ViewOperation[]) {
+function openFavourite(directory: string, name: string, operations: readonly ViewOperation[], input?: Record<string, unknown>) {
   const boundary = new RootAccess([directory]);
   const file = accessPath(path.join(directory, `${name}.view.json`), boundary);
   if (!inside(fs.realpathSync(directory), fs.realpathSync(file)) || fs.lstatSync(file).isSymbolicLink()) throw new Error("Favourite must be a local regular file");
   if (fs.statSync(file).size > VIEW_LIMITS.bytes) throw new Error("View exceeds byte limit");
-  return parseView(decodeUtf8(fs.readFileSync(file)), operations);
+  return query(JSON.parse(decodeUtf8(fs.readFileSync(file))), operations, input);
 }
 
 export function folderStatistics(root: string, folder: string | undefined, access: FileAccess): StatisticsRow[] {
@@ -80,26 +101,44 @@ export async function executeViewOperation(value: unknown, scope: { access: File
     const operations = scope.plugins?.viewOperations() ?? builtinViewOperations;
     const input = viewRequestSchema.parse(value);
     receipt.operation = `view.${input.action}`;
-    if (input.action === "validate") return { view: validateView(input.view, operations), canonical: serializeView(input.view, operations), receipt: { ...receipt, outcome: "success" as const } };
+    const success = { ...receipt, outcome: "success" as const };
+    const operationOwner = (operation: string) => operation === "folder.statistics" ? STATISTICS_PLUGIN_ID : scope.plugins?.viewOperationOwner(operation);
+    if (input.action === "catalog") {
+      const catalog = createCatalogV2(operations);
+      return { catalog: { ...catalog, operations: catalog.operations.map(op => ({ ...op, plugin: operationOwner(op.operation) })) }, views: scope.plugins?.viewContributions() ?? [], receipt: success };
+    }
+    const ownerOf = (view: QueryView) => operationOwner(view.sources.stats.operation);
+    const describe = (view: QueryView) => ({ view, plugin: ownerOf(view), inputState: validateViewInputs(view, operations.find(op => op.operation === view.sources.stats.operation && op.version === view.sources.stats.version)!) });
+    if (input.action === "validate" || input.action === "propose") {
+      const view = query(input.view, operations);
+      return { ...describe(view), canonical: serializeCatalogView(view, operations), receipt: success };
+    }
     if (input.action === "run") {
       receipt.scope = "folder";
-      const view = "view" in input ? validateView(input.view, operations) : openFavourite(favouritesDirectory(input.plugin, scope.directory), input.name, operations);
+      const view = "view" in input ? query(input.view, operations, input.input) : openFavourite(favouritesDirectory(input.plugin, scope.directory), input.name, operations, input.input);
+      if ("plugin" in input && ownerOf(view) !== input.plugin) throw new ViewRefusal("owner-mismatch");
+      const operation = operations.find(op => op.operation === view.sources.stats.operation && op.version === view.sources.stats.version)!;
+      if (validateViewInputs(view, operation).state === "needs-input") throw new ViewRefusal("needs-input");
+      validateViewInputs(view, operation, "execute");
       const root = fs.realpathSync(accessPath(input.root, scope.access));
       const source = view.sources.stats;
       let data: unknown;
       if (source.operation === "folder.statistics") data = folderStatistics(root, source.args.folder as string | undefined, scope.access);
       else {
         const reply = await scope.plugins!.invokeOperation(source.operation, source.args);
-        if ("error" in reply) return { error: reply.error, errorKind: reply.errorKind, receipt };
+        if ("error" in reply) return { error: reply.error, errorKind: reply.errorKind, sourceReceipt: reply.receipt, receipt };
         data = reply.result;
       }
       const fields = Object.fromEntries(Object.entries(operations.find(op => op.operation === source.operation)!.rowSchema).filter(([, f]) => !f.secret).map(([name, f]) => [name, f.label]));
-      return { fields, ...evaluateView(view, data, operations), target: { root }, receipt: { ...receipt, outcome: "success" as const } };
+      return { args: source.args, fields, ...evaluateQueryView(view, data, operations), target: { root }, receipt: { ...receipt, outcome: "success" as const } };
     }
     // App data is deliberately separate from document Roots, and callers cannot pick a path.
-    const directory = favouritesDirectory(input.plugin, scope.directory);
+    const savedView = input.action === "save" ? query(input.view, operations, input.input) : undefined;
+    const plugin = savedView ? ownerOf(savedView) : input.plugin;
+    if (!plugin || input.plugin !== undefined && input.plugin !== plugin) throw new ViewRefusal("owner-mismatch");
+    const directory = favouritesDirectory(plugin, scope.directory);
     if (input.action === "save") {
-      const canonical = serializeView(input.view, operations);
+      const canonical = serializeCatalogView(savedView, operations);
       fs.mkdirSync(directory, { recursive: true });
       const boundary = new RootAccess([directory]);
       const file = accessPath(path.join(directory, `${input.name}.view.json`), boundary, true);
@@ -108,7 +147,7 @@ export async function executeViewOperation(value: unknown, scope: { access: File
       if (fs.readdirSync(directory).some(item => item.toLowerCase() === `${input.name}.view.json`.toLowerCase())) throw new Error("Favourite name already exists");
       if (fs.readdirSync(directory).length >= STATISTICS_LIMITS.favourites) throw new Error("Favourite count limit exceeded");
       createFile(file, canonical);
-      return { name: input.name, revision: textRevision(canonical), receipt: { ...receipt, outcome: "success" as const } };
+      return { plugin, name: input.name, revision: textRevision(canonical), receipt: { ...receipt, outcome: "success" as const } };
     }
     if (input.action === "list") {
       let entries: fs.Dirent[];
@@ -119,6 +158,11 @@ export async function executeViewOperation(value: unknown, scope: { access: File
       return { favourites, receipt: { ...receipt, outcome: "success" as const } };
     }
     const view = openFavourite(directory, input.name, operations);
-    return { view, name: input.name, receipt: { ...receipt, outcome: "success" as const } };
-  } catch (error) { return { error: fileErrorMessage(error, scope.access), receipt }; }
+    if (ownerOf(view) !== plugin) throw new ViewRefusal("owner-mismatch");
+    return { ...describe(view), name: input.name, receipt: { ...receipt, outcome: "success" as const } };
+  } catch (error) {
+    const code = error instanceof ViewRefusal ? error.code : "invalid-view-request";
+    const messages = { unavailable: "View source unavailable or version changed. Create a new view or check plugin settings.", "needs-input": "Complete required view inputs before running.", "owner-mismatch": "Favourite source does not belong to this plugin.", "invalid-view-request": "View request is invalid or favourite storage is unavailable. Check the definition, inputs and favourite name." };
+    return { ...publicOperationError(undefined, "read"), error: messages[code], code, receipt };
+  }
 }

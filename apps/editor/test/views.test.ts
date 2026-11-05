@@ -12,7 +12,7 @@ import { viewCli } from "../../../packages/cli/src/views.ts";
 import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
 import { nativeSource } from "./helpers/document.ts";
 
-const view = { kind: "litzio-view", schemaVersion: 1, catalog: "litzio-v1", title: "Statistics", refresh: "manual", sources: { stats: { operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Documents", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } };
+const view = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", title: "Statistics", refresh: "manual", sources: { stats: { operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Documents", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } };
 test("Host favourites create exclusively, open definition without reading root, and run current data", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-views-"));
   const root = path.join(dir, "documents"), directory = path.join(dir, "data");
@@ -32,7 +32,7 @@ test("Host favourites create exclusively, open definition without reading root, 
     // No document root exists while reopening. Opening still succeeds and never returns rows.
     fs.renameSync(root, `${root}-away`);
     const opened = (await invoke({ action: "open", plugin, name: "Documents" }));
-    assert.equal(opened.receipt.outcome, "success"); assert.ok(opened.view); assert.ok(!("rows" in opened));
+    assert.equal(opened.receipt.outcome, "success"); assert.ok("view" in opened); assert.ok(opened.view); assert.ok(!("rows" in opened));
     fs.renameSync(`${root}-away`, root);
     const running = { ...scope, access: new RootAccess([root]) };
     const first = (await executeViewOperation({ action: "run", root, view: opened.view }, running));
@@ -75,7 +75,7 @@ test("favourite list preserves I/O errors instead of empty success", async conte
   } finally { context.mock.restoreAll(); fs.rmSync(directory, { recursive: true, force: true }); }
 });
 
-test("HTTP and CLI run return identical aggregated data, target and receipt semantics", async context => {
+test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availability and error receipts", async context => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-view-http-"));
   const previous = process.env.LITZIO_DATA_DIR;
   process.env.LITZIO_DATA_DIR = path.join(dir, "state");
@@ -106,6 +106,93 @@ test("HTTP and CLI run return identical aggregated data, target and receipt sema
     const unavailable = await fetch(`${host.url}/api/assistant/settings`);
     assert.ok(unavailable.status >= 400);
     assert.deepEqual((await manage({ action: "invoke", operation: `${id}.greet`, input: { name: "World" } })).result, { greeting: "Hello, World!" });
+    // Representative Jira-style preset goes through a real plugin child and both transports.
+    const jira = "fixture.jira", artifact = path.join(root, "jira");
+    await manage({ action: "scaffold", directory: artifact, id: jira });
+    const manifestFile = path.join(artifact, "litzio-plugin.json");
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
+    const presets = ["assigned-open", "reported-open", "assigned-all", "reported-all", "recent", "all"];
+    const rowSchema = Object.fromEntries(["key", "summary", "status", "assignee", "updated"].map(key => [key, { type: "string", label: key }]));
+    const jiraView = { ...structuredClone(view), title: "My issues", sources: { stats: { operation: `${jira}.search`, version: 1, args: { preset: presets[0], text: "old" } } },
+      form: { component: "InputForm", source: "stats", fields: [{ component: "Select", field: "preset" }, { component: "TextInput", field: "text" }], submit: { component: "SubmitButton", label: "Search" } },
+      layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Issues", source: "stats", data: "/rows", columns: Object.keys(rowSchema) }] } };
+    manifest.contributes.operations = [{ id: "search", version: 1, effect: "read", scope: "host", rowSchema,
+      inputSchema: { type: "object", properties: { preset: { type: "string", enum: presets }, text: { type: "string" }, credential: { type: "string", writeOnly: true } }, required: ["preset"], additionalProperties: false },
+      outputSchema: { type: "array", items: { type: "object" } } }];
+    manifest.contributes.views = [{ id: "issues", title: "My issues", definition: jiraView }];
+    fs.writeFileSync(manifestFile, JSON.stringify(manifest));
+    fs.writeFileSync(path.join(artifact, "host.js"), `export function activate() { return {
+      operations: { search: ({preset, text}) => { if(text === "fail") throw Object.assign(new Error("PRIVATE SERVICE BODY"), {kind:"auth"}); return [{key:"MOCK-1",summary:preset,status:"Open",assignee:text ?? "me",updated:"2026-11-06"}]; } },
+      status: () => ({available:true,message:"Ready",folders:[],decorations:[],accounts:[]}), dispose() {} }; }`);
+    await manage({ action: "register", directory: artifact });
+    const records = await (await fetch(`${host.url}/api/plugins`)).json();
+    await manage({ action: "trust", id: jira, digest: records.plugins.find((p: any) => p.id === jira).digest });
+    await manage({ action: "enable", id: jira });
+    const request = async (input: unknown) => (await fetch(`${host.url}/api/views`, { method: "POST", headers: { Origin: host.url, "Content-Type": "application/json" }, body: JSON.stringify(input) })).json();
+    const cliRequest = async (args: string[], expected = 0) => {
+      let output = "";
+      context.mock.method(process.stdout, "write", (chunk: string) => { output += chunk; return true; });
+      try { assert.equal(await viewCli([...args, "--host", host.url, "--json"]), expected, output); }
+      finally { context.mock.restoreAll(); }
+      return JSON.parse(output);
+    };
+    const parity = (http: any, cli: any) => {
+      const { receipt: a, ...h } = http, { receipt: b, host: _, ...c } = cli;
+      assert.deepEqual(c, h);
+      for (const key of ["operation", "version", "scope", "outcome"]) assert.equal(a[key], b[key]);
+    };
+    const jiraFile = path.join(dir, "jira.view.json"), inputFile = path.join(dir, "args.json");
+    fs.writeFileSync(jiraFile, JSON.stringify(jiraView));
+    fs.writeFileSync(inputFile, JSON.stringify({ preset: "reported-open" }));
+    const catalog = await request({ action: "catalog" });
+    assert.equal(catalog.views.find((v: any) => v.plugin === jira).definition.layout.children[0].columns.length, 5);
+    parity(catalog, await cliRequest(["catalog"]));
+    parity(await request({ action: "propose", view: jiraView }), await cliRequest(["propose", jiraFile]));
+    // Save uses current unqueried input, replacing rather than merging old text.
+    const saved = await cliRequest(["save", jiraFile, "--name", "issues", "--input", inputFile]);
+    assert.equal(saved.plugin, jira);
+    const opened = await request({ action: "open", plugin: jira, name: "issues" });
+    parity(opened, await cliRequest(["open", "issues", "--plugin", jira]));
+    assert.deepEqual(opened.view.sources.stats.args, { preset: "reported-open" });
+    assert.ok(!("rows" in opened));
+    parity(await request({ action: "list", plugin: jira }), await cliRequest(["list", "--plugin", jira]));
+    const run = await request({ action: "run", plugin: jira, name: "issues", root });
+    parity(run, await cliRequest(["run", "--name", "issues", "--plugin", jira, "--root", root]));
+    assert.deepEqual(run.args, { preset: "reported-open" });
+    assert.equal(run.rows[0].summary, "reported-open"); assert.equal(run.rows[0].assignee, "me");
+    parity(await request({ action: "run", view: jiraView, root, input: { preset: "reported-open" } }), await cliRequest(["run", jiraFile, "--input", inputFile, "--root", root]));
+    const favouriteFile = path.join(dir, "state", "plugins", jira, "views", "issues.view.json");
+    const preserved = fs.readFileSync(favouriteFile, "utf8");
+    const secondSave = await request({ action: "save", view: jiraView, name: "http", input: { preset: "reported-open" } });
+    assert.equal(secondSave.revision, saved.revision);
+    assert.equal((await request({ action: "save", view: jiraView, name: "issues" })).receipt.outcome, "failure");
+    assert.equal((await request({ action: "save", view: jiraView, plugin: STATISTICS_PLUGIN_ID, name: "wrong" })).receipt.outcome, "failure");
+    assert.equal((await request({ action: "save", view: jiraView, name: "secret", input: { preset: "all", credential: "PRIVATE" } })).receipt.outcome, "failure");
+    fs.writeFileSync(inputFile, JSON.stringify({ preset: "all", text: "fail" }));
+    const failed = await request({ action: "run", view: jiraView, root, input: { preset: "all", text: "fail" } });
+    const failedCli = await cliRequest(["run", jiraFile, "--input", inputFile, "--root", root], 1);
+    assert.equal(failedCli.errorKind, failed.errorKind); assert.equal(failed.errorKind, "auth");
+    assert.equal(failedCli.error, failed.error); assert.ok(!JSON.stringify(failed).includes("PRIVATE"));
+    const incomplete = structuredClone(jiraView); incomplete.sources.stats.args = {} as any;
+    const needs = await request({ action: "propose", view: incomplete });
+    assert.equal(needs.inputState.state, "needs-input");
+    assert.equal((await request({ action: "save", view: incomplete, name: "incomplete" })).receipt.outcome, "success");
+    assert.equal((await request({ action: "open", plugin: jira, name: "incomplete" })).inputState.state, "needs-input");
+    assert.equal((await request({ action: "run", plugin: jira, name: "incomplete", root, input: { preset: "all" } })).receipt.outcome, "success");
+    assert.equal((await request({ action: "run", view: incomplete, root })).code, "needs-input");
+    await manage({ action: "disable", id: jira });
+    parity(await request({ action: "open", plugin: jira, name: "issues" }), await cliRequest(["open", "issues", "--plugin", jira], 1));
+    assert.equal((await request({ action: "run", plugin: jira, name: "issues", root })).code, "unavailable");
+    assert.ok(!(await request({ action: "catalog" })).views.some((v: any) => v.plugin === jira));
+    manifest.contributes.operations[0].version = 2;
+    manifest.contributes.views[0].definition.sources.stats.version = 2;
+    fs.writeFileSync(manifestFile, JSON.stringify(manifest));
+    await manage({ action: "register", directory: artifact });
+    const changed = await (await fetch(`${host.url}/api/plugins`)).json();
+    await manage({ action: "trust", id: jira, digest: changed.plugins.find((p: any) => p.id === jira).digest });
+    await manage({ action: "enable", id: jira });
+    parity(await request({ action: "open", plugin: jira, name: "issues" }), await cliRequest(["open", "issues", "--plugin", jira], 1));
+    assert.equal(fs.readFileSync(favouriteFile, "utf8"), preserved);
     const response = await fetch(`${host.url}/api/views`, { method: "POST", headers: { Origin: host.url, "Content-Type": "application/json" }, body: JSON.stringify({ action: "run", root, view: spec }) });
     assert.equal(response.status, 200);
     const http = await response.json();
