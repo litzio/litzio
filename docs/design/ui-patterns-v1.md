@@ -484,9 +484,13 @@ ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의
 - SourceDocumentCompare는 원본 왼쪽, 기존 readOnly preview DocumentEditor 오른쪽이다.
   양방향 클릭은 같은 snapshot의 중립 target path만 강조한다. 전체가 보이는 블록과
   윗끝이 보이는 큰 블록은 스크롤하지 않는다. 연속 동기 스크롤은 하지 않는다.
-- generation, document revision/hash, source/map revision이 다르면 stale이다. 사용 불가
-  응답(unavailable)과 구별한다. stale 자료는 표시할 수 있지만 대응 이동·변경은 막는다.
-  continuation이 남은 mapping은 완전한 대응으로 취급하지 않는다.
+- 문서 revision/hash나 bundle baseline이 맞지 않으면 문서 자료가 stale이며 이동·변경을 막는다.
+  사용 불가 응답(unavailable)과 구별한다. map 부재·continuation·generation/source/map/target 불일치는
+  원본↔문서 대응 탐색만 막는다. 페이지 이동과 유효한 제안의 승인·거절·Undo는 map 가용성에 묶지 않는다.
+  Review action은 현재 문서·제안 baseline·target revision/hash·상태 및 Host action 가용성을 별도로 검사한다.
+  [V4 #1265](https://github.com/litzio/litzio/pull/1265)의 승인·Undo는 이전 map을 제거하고, 성공한 변경마다
+  non-stale 제안 baseline과 해당 target revision/hash를 갱신한다. UI는 그 결과를 다시 읽은 뒤 Undo를 허용하며
+  이전 map을 새 문서에 재연결하지 않는다. 실제 Host adapter 연결과 별개로 fixture가 이 흐름을 검증한다.
 - ReviewList의 선택은 상세 열기다. pending은 “Pending review”, approved는 “Applied”, stale은 “Out of date”로
   표시한다. 제품 UI의 기본 문자열은 영어이며 내부 kind·enum·target path 배열은 사용자 label로 노출하지 않는다.
   제안은 “Change N”, 대상은 해당 문서 본문(없는 경우 “Document content”)으로 표시한다. 승인·거절·Undo는 별도 사용자 버튼이다. 전후 값·근거·대상을 표시하고
