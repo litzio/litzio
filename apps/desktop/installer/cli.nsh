@@ -34,10 +34,12 @@
 !macroend
 
 !macro customUnInstall
+  Var /GLOBAL litzioRemovalLog
   ; Silent one-click uninstall skips checkAppRunning in electron-builder; always gate deletion.
   !insertmacro customCheckAppRunning
   ; Updates replace the application tree, but preserve the external opt-in integration.
   ${ifNot} ${isUpdated}
+    StrCpy $litzioRemovalLog ""
     GetTempFileName $6
     System::Call 'Kernel32::SetEnvironmentVariable(t "ELECTRON_RUN_AS_NODE", t "1") i.r0'
     ${if} ${FileExists} "$INSTDIR\resources\uninstall-cli.cjs"
@@ -75,6 +77,7 @@
       ${ifNot} ${Errors}
         FileWriteUTF16LE $4 "$3$\r$\n"
         FileClose $4
+        StrCpy $litzioRemovalLog $2
         StrCpy $3 "$3$\r$\nDiagnostic: $2"
       ${else}
         StrCpy $3 "$3$\r$\nThe diagnostic file could not be written."
@@ -91,5 +94,74 @@
       ${endif}
       ClearErrors
     ${endif}
+    ; electron-builder's RMDir ignores deletion errors. Remove the app image explicitly
+    ; before its tree/registration removal, with at most 15 waits of 200ms (3 seconds).
+    ; No /REBOOTOK: a remaining image is a failed removal, never a successful one.
+    StrCpy $9 0
+    ${Do}
+      System::Call 'kernel32::DeleteFile(t "$INSTDIR\@EXECUTABLE@.exe") i.r0 ?e'
+      Pop $1
+      StrCpy $7 "Win32 error $1"
+      ${if} $0 != 0
+        StrCpy $1 0
+        ${if} ${FileExists} "$INSTDIR\@EXECUTABLE@.exe"
+          ; DeleteFile can succeed while a delete-sharing handle still keeps it present.
+          StrCpy $1 32
+          StrCpy $7 "DeleteFile succeeded but image is still present (deletion pending)"
+        ${endif}
+      ${endif}
+      ${if} $1 == 2
+      ${orIf} $1 == 3
+        ; Already absent is the same successful outcome.
+        StrCpy $1 0
+      ${endif}
+      ${if} $1 == 0
+        ${if} $9 > 0
+          FileOpen $8 "$litzioRemovalLog" a
+          FileSeek $8 0 END
+          FileWriteUTF16LE $8 "App executable deletion succeeded after $9 retries.$\r$\n"
+          FileClose $8
+          DetailPrint "App executable deletion succeeded after $9 retries."
+        ${endif}
+        ${ExitDo}
+      ${endif}
+      ${if} $litzioRemovalLog == ""
+        CreateDirectory "$LOCALAPPDATA\@CLI_FOLDER@\uninstall-logs"
+        ClearErrors
+        GetTempFileName $litzioRemovalLog "$LOCALAPPDATA\@CLI_FOLDER@\uninstall-logs"
+        ${if} ${Errors}
+          GetTempFileName $litzioRemovalLog "$TEMP"
+        ${endif}
+      ${endif}
+      IntOp $9 $9 + 1
+      StrCpy $3 "App executable deletion attempt $9 failed: $7; $INSTDIR\@EXECUTABLE@.exe"
+      DetailPrint "$3"
+      ClearErrors
+      FileOpen $8 "$litzioRemovalLog" a
+      ${ifNot} ${Errors}
+        FileSeek $8 0 END
+        FileWriteUTF16LE $8 "$3$\r$\n"
+        FileClose $8
+      ${endif}
+      ${if} $9 > 15
+        StrCpy $3 "@PRODUCT@ removal failed: the app executable could not be deleted.$\r$\n$INSTDIR\@EXECUTABLE@.exe$\r$\n$7. Close applications using it and try removal again.$\r$\nDiagnostic: $litzioRemovalLog"
+        FileOpen $8 "$litzioRemovalLog" a
+        FileSeek $8 0 END
+        FileWriteUTF16LE $8 "$3$\r$\n"
+        FileClose $8
+        DetailPrint "$3"
+        ${GetParameters} $4
+        ClearErrors
+        ${GetOptions} $4 "/S" $5
+        ${if} ${Errors}
+          SetSilent normal
+        ${endif}
+        MessageBox MB_OK|MB_ICONEXCLAMATION "$3" /SD IDOK
+        SetErrorLevel 1
+        Quit
+      ${endif}
+      Sleep 200
+    ${Loop}
+    ClearErrors
   ${endif}
 !macroend
