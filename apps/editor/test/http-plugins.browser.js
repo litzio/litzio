@@ -1,4 +1,15 @@
 async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
+  const secretSaves = [];
+  const saveSecret = async () => {
+    const start = Date.now();
+    const saved = page.waitForResponse(response => response.url().endsWith("/api/plugins/secrets") && response.request().method() === "POST");
+    const refreshed = page.waitForResponse(response => response.url().endsWith("/api/plugins") && response.request().method() === "GET");
+    await page.getByRole("button", { name: "Save secret", exact: true }).click();
+    expect((await saved).ok()).toBe(true);
+    const storedMs = Date.now() - start;
+    expect((await refreshed).ok()).toBe(true);
+    secretSaves.push({ storedMs, refreshedMs: Date.now() - start });
+  };
   const openSettings = async () => {
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
@@ -12,7 +23,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await page.getByRole("button", { name: "Drive fixture", exact: true }).click();
   if (registered.secrets.supported) {
     await page.getByLabel("pat: Not configured", { exact: true }).fill("browser-isolated-secret");
-    await page.getByRole("button", { name: "Save secret", exact: true }).click();
+    await saveSecret();
     await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
     const status = pluginFixture.cli(["plugins", "secret-status", "fixture.drive"]);
     expect(status.secrets.declarations[0].configured).toBe(true);
@@ -37,7 +48,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await page.getByRole("button", { name: "Delete secret", exact: true }).click();
     await expect(page.getByLabel("pat: Not configured", { exact: true })).toHaveValue("");
     await page.getByLabel("pat: Not configured", { exact: true }).fill("browser-repaired-secret");
-    await page.getByRole("button", { name: "Save secret", exact: true }).click();
+    await saveSecret();
     await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
     await page.getByRole("button", { name: "Delete secret", exact: true }).click();
     await expect(page.getByLabel("pat: Not configured", { exact: true })).toHaveValue("");
@@ -100,4 +111,5 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     }
   }
 
+  return { secretSaves };
 }
