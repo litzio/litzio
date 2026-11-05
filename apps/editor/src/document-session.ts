@@ -21,23 +21,38 @@ export class SaveConflictError extends SaveContentError {
   }
 }
 
+export const DOCUMENT_READ_TIMEOUT_MS = 15_000;
+
 export function createDocumentRequests(client: HostClient) {
+  const reads = new Set<AbortController>();
+  function cancelReads() { for (const controller of reads) controller.abort(); reads.clear(); }
   function requestDocument(method: "PUT", filePath: string, bibliographyRoot?: string, template?: { template: string; language: "ko" | "en" }): Promise<DocumentFileResponse>;
-  function requestDocument(method: "GET", filePath?: string, bibliographyRoot?: string): Promise<DocumentResponse | DocumentStartResponse>;
-  async function requestDocument(
-    method: "GET" | "PUT",
-    filePath?: string,
-    bibliographyRoot?: string,
-    template?: { template: string; language: "ko" | "en" },
-  ): Promise<DocumentResponse | DocumentStartResponse> {
+  function requestDocument(method: "GET", filePath?: string, bibliographyRoot?: string, signal?: AbortSignal): Promise<DocumentResponse | DocumentStartResponse>;
+  async function requestDocument(method: "GET" | "PUT", filePath?: string, bibliographyRoot?: string, templateOrSignal?: { template: string; language: "ko" | "en" } | AbortSignal): Promise<DocumentResponse | DocumentStartResponse> {
+    if (method === "PUT") return performDocument(method, filePath, bibliographyRoot, templateOrSignal as { template: string; language: "ko" | "en" } | undefined);
+    const controller = new AbortController();
+    reads.add(controller);
+    const timer = setTimeout(() => controller.abort(new DOMException("Document read timed out after 15 seconds.", "TimeoutError")), DOCUMENT_READ_TIMEOUT_MS);
+    const signal = templateOrSignal ? AbortSignal.any([controller.signal, templateOrSignal as AbortSignal]) : controller.signal;
+    let onAbort: () => void = () => {};
+    try {
+      signal.throwIfAborted();
+      return await Promise.race([
+        performDocument(method, filePath, bibliographyRoot, undefined, signal),
+        new Promise<never>((_, reject) => { onAbort = () => reject(signal.reason); signal.addEventListener("abort", onAbort, { once: true }); }),
+      ]);
+    } finally { clearTimeout(timer); signal.removeEventListener("abort", onAbort); reads.delete(controller); }
+  }
+  async function performDocument(method: "GET" | "PUT", filePath?: string, bibliographyRoot?: string, template?: { template: string; language: "ko" | "en" }, signal?: AbortSignal): Promise<DocumentResponse | DocumentStartResponse> {
     const body = method === "PUT" ? { path: filePath, ...template } : undefined;
     const query = method === "GET" && filePath ? `?path=${encodeURIComponent(filePath)}` : "";
     const response = await client.request(`/api/document${query}`, {
-      method,
+      method, signal,
       headers: body ? { "Content-Type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
     const payload = (await response.json()) as Partial<Omit<DocumentFileResponse, "kind">> & { kind?: "native" | "text" } & Partial<DocumentErrorResponse> & Partial<DocumentStartResponse>;
+    signal?.throwIfAborted();
     if (response.status === 409) {
       throw new SaveConflictError(payload.error ?? "Document changed outside the editor. Reload before saving.");
     }
@@ -55,7 +70,8 @@ export function createDocumentRequests(client: HostClient) {
     }
     if (payload.kind === "text") return { ...(payload.samples ? { samples: payload.samples } : {}), ...(payload.sampleProblem ? { sampleProblem: payload.sampleProblem } : {}), kind: "text", path: payload.path, source: payload.source, revision: payload.revision };
     const declarations = payload.bibliography?.declarations ?? [];
-    const sources = await requestBibliography(payload.path, payload.revision, declarations, bibliographyRoot);
+    const sources = await requestBibliography(payload.path, payload.revision, declarations, bibliographyRoot, signal);
+    signal?.throwIfAborted();
     return {
       ...(payload.samples ? { samples: payload.samples } : {}),
       ...(payload.sampleProblem ? { sampleProblem: payload.sampleProblem } : {}),
@@ -144,7 +160,7 @@ export function createDocumentRequests(client: HostClient) {
     return payload.error ?? undefined;
   }
 
-  return { requestDocument, requestBibliography, requestSave, requestSource, validateFigure };
+  return { requestDocument, requestBibliography, requestSave, requestSource, validateFigure, cancelReads };
 }
 // Shell entry points begin a new local operation; sessions use the bound factory above.
 export function requestDocument(method: "PUT", filePath: string, bibliographyRoot?: string, template?: { template: string; language: "ko" | "en" }): Promise<DocumentFileResponse>;

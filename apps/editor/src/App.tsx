@@ -260,6 +260,22 @@ function EditorApp() {
   const focusAfterClose = useRef(false);
   const [operation, setOperation] = useState<Operation | "">("loading");
   const operationRef = useRef(true);
+  // Pending reads belong to their destination group and captured Host, not the window lock.
+  const pendingOpens = useRef(new Map<number, { controller: AbortController; hostId: string; path: string; active: string | null }>());
+  const [, refreshOpens] = useReducer(value => value + 1, 0);
+  function cancelOpen(group: number): void {
+    pendingOpens.current.get(group)?.controller.abort();
+    pendingOpens.current.delete(group);
+    refreshOpens();
+  }
+  useEffect(() => () => { for (const pending of pendingOpens.current.values()) pending.controller.abort(); pendingOpens.current.clear(); }, []);
+  useEffect(() => {
+    for (const [id, pending] of pendingOpens.current) {
+      const group = navigation.groups.find(item => item.id === id);
+      if (!group || group.active !== pending.active) cancelOpen(id);
+    }
+  }, [navigation]);
+
   const [error, setError, errorCause] = useMessageState("");
   const { assistantHost, referenceRequest, addToChat, consumeReference, newConversation, chooseHost } =
     useAssistantReferenceHandoff({ assistantReturn, setAssistantOpen, setError });
@@ -395,6 +411,7 @@ function EditorApp() {
   function activateTab(id: string, explicit = true): void {
     const group = navigation.groups.find(group => group.tabs.includes(id));
     if (!group || explicit && (operationRef.current || continuation)) return;
+    if (explicit) cancelOpen(group.id);
     // Actual focus always follows a visible document, even while Open/Save is pending.
     // Switching a group's hidden tab still waits for that group's current operation.
     if (group.active !== id && (!explicit || group.active && sessions.current.get(group.active)?.busyRef.current)) return;
@@ -420,6 +437,7 @@ function EditorApp() {
   }, [activeId, tabs.length, navigation]);
 
   function placeTab(id: string, group = navigation.focused, hostId = tabs.find(tab => tab.id === id)?.hostId): void {
+    cancelOpen(group);
     navigate({ type: "open", id, group });
     rememberTabs(hostId);
   }
@@ -459,6 +477,8 @@ function EditorApp() {
   });
 
   function removeTab(id: string): void {
+    const closingGroup = navigation.groups.find(group => group.tabs.includes(id));
+    if (closingGroup) cancelOpen(closingGroup.id);
     const closing = latestTabs.current.find(tab => tab.id === id);
     if (closing) markStartupOverride(closing);
     void sessions.current.get(id)?.discardRecovery()?.then(deleted => {
@@ -473,6 +493,12 @@ function EditorApp() {
   const fileAction = async (action: Parameters<FileActionHandler>[0], chosenRoot: string, entry: FolderEntry, name?: string, figure?: { documentPath: string; imageUrl: string }, creation?: { revision: string; identity?: FileIdentity }, hostId = LOCAL_HOST_ID) => {
     if (operationRef.current || [...sessions.current.values()].some(owner => owner.busyRef.current)) throw new Error(i18n.t("Wait for the current file operation to finish."));
     if (hostId !== LOCAL_HOST_ID && action === "delete" && hostRegistry.get(hostId).capabilities?.fileDeletion !== "trash") throw new Error(i18n.t("The Host trash is unavailable."));
+    // Invalidate before any await: the read may already contain the pre-mutation file.
+    // Include descendants for folder operations, with a separator boundary and Host identity.
+    for (const [group, pending] of pendingOpens.current) {
+      if (pending.hostId === hostId && (pending.path === entry.path ||
+          entry.kind === "folder" && folderChain(entry.path, pending.path).length > 0)) cancelOpen(group);
+    }
     operationRef.current = true; setFileOperationPending(true);
     if (figure) setFigureRenamePending(true);
     const hostSessions = () => tabs.filter(tab => tab.hostId === hostId)
@@ -681,7 +707,7 @@ function EditorApp() {
     const requestedPath = unquotePath(path);
     if (!requestedPath) return i18n.t("Enter a Markdown file path.");
     if (!/\.(md|txt)$/i.test(requestedPath)) return i18n.t("Only .md and .txt files can be opened.");
-    if (operationRef.current || busy || continuation) return i18n.t("Wait for the current operation to finish.");
+    if (operationRef.current || fileOperationPending || sessions.current.get(navigation.groups.find(item => item.id === group)?.active ?? "")?.busyRef.current || continuation) return i18n.t("Wait for the current operation to finish.");
     markStartupOverride({ hostId, path: requestedPath });
     const existing = openedTab(tabs, requestedPath, hostId);
     if (existing) {
@@ -691,25 +717,28 @@ function EditorApp() {
       return "";
     }
     const returnFocus = globalThis.document.activeElement instanceof HTMLElement ? globalThis.document.activeElement : null;
-    operationRef.current = true;
-    setOperation("opening");
+    cancelOpen(group);
+    const pending = { controller: new AbortController(), hostId, path: requestedPath, active: navigation.groups.find(item => item.id === group)?.active ?? null };
+    pendingOpens.current.set(group, pending); refreshOpens();
     setError("");
     try {
       const client = getHostClient(hostId);
-      const next = await createDocumentRequests(client).requestDocument("GET", requestedPath, hostId === LOCAL_HOST_ID ? folders.rootOf(requestedPath) : undefined);
+      const next = await createDocumentRequests(client).requestDocument("GET", requestedPath, hostId === LOCAL_HOST_ID ? folders.rootOf(requestedPath) : undefined, pending.controller.signal);
+      if (pending.controller.signal.aborted || pendingOpens.current.get(group) !== pending) return null;
       if ("start" in next) throw new UiError({ key: "The Host did not return a document." });
       acceptFile(next, client, group, hostId);
       void offerRecovery(next, hostId);
       setNotice(openedNotice);
       return "";
     } catch (cause) {
+      if (pending.controller.signal.aborted || pendingOpens.current.get(group) !== pending) return null;
       if (cause instanceof NativeOpenError) {
         openRefusalReturnFocus.current = returnFocus;
         setOpenRefusal({ path: requestedPath, reason: cause.reason, action: cause.action, code: cause.code });
         return null;
       }
       return messageOf(cause);
-    } finally { operationRef.current = false; setOperation(""); }
+    } finally { if (pendingOpens.current.get(group) === pending) { pendingOpens.current.delete(group); refreshOpens(); } }
   }
   function openTemplateGallery(): void {
     if (busy || continuation) return;
@@ -1245,7 +1274,7 @@ function EditorApp() {
               wide={documentWidth === "wide"}
               onToggleWide={owner?.kind === "text" ? undefined : toggleDocumentWidth}
               compact={split}
-              status={operation || (owner?.assetPending ? "adding-image" : owner?.status ?? "ready")}
+              status={operation || (owner?.assetPending ? "adding-image" : owner?.busy ? owner.status : pendingOpens.current.has(group.id) ? "opening" : owner?.status ?? "ready")}
               unsaved={owner?.documentDirty || owner?.draftActive}
               draftNotice={owner?.draftNotice}
               textMode={owner?.kind === "text"}
@@ -1393,6 +1422,7 @@ function EditorApp() {
         documentDirty={Boolean(session?.documentDirty || session?.draftActive)}
         onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("assistant"); openSettingsTab(); }} /></HostContext.Provider> : null}
       {assistantOpen && !assistantHost ? <AssistantHostChooser onChoose={chooseHost} onClose={closeAssistant} /> : null}
+      <NotificationSource items={[...pendingOpens.current].map(([group, pending]) => ({ id: `open-${group}`, severity: "info" as const, message: `${i18n.t("Opening…")} ${hostLabel(pending.hostId)}: ${pending.path}`, render: () => <><p>{i18n.t("Opening…")} {hostLabel(pending.hostId)}: {pending.path}</p><Button variant="ghost" size="sm" onClick={() => cancelOpen(group)}>{i18n.t("Cancel")}</Button></> }))} />
       <NotificationSource items={themeProblem && !settingsOpen ? [{ id: "theme-storage", severity: "error", message: i18n.t("Theme could not be saved. This choice applies until you close this page.") }] : []} />
       <CommandCenter open={commandQuery !== null} initialQuery={commandQuery ?? ""} items={commandItems}
         returnFocus={commandReturnFocus} onClose={() => setCommandQuery(null)} />
