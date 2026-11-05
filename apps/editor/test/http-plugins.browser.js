@@ -62,6 +62,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await page.getByRole("switch", { name: "Enable Drive fixture", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: /^Plugin running$/ })).toBeVisible();
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive").running).toBe(true);
+  const reloaded = pluginFixture.cli(["plugins", "reload", "fixture.drive"]);
+  expect(reloaded.receipt.operation).toBe("plugins.reload");
+  expect(reloaded.plugins.find(p => p.id === "fixture.drive").running).toBe(true);
   await expect(page.getByText("Community plugin", { exact: true })).toBeVisible();
   await expect(page.getByText("Account: Fixture account (Isolated fixture)", { exact: true })).toBeVisible();
   for (const width of [1440, 640]) {

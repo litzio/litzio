@@ -1,14 +1,14 @@
-import { publicOperationResult } from "./operation-result.ts";
+import { publicOperationResult, safePluginValue } from "./operation-result.ts";
 import { builtinViewOperations, type ViewOperation } from "@litzio/core/views";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, lstatSync, realpathSync, statSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
-import { validateManifest, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance, type PluginModule } from "@litzio/plugin-sdk";
+import { startPluginProcess } from "./plugin-process.ts";
+import { validateManifest, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance } from "@litzio/plugin-sdk";
 import { hostPaths } from "../host-paths.ts";
 
 import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store.ts";
-import { rememberSecret, safePluginValue, withPluginCode } from "./secret-redaction.ts";
+import { rememberSecret, withPluginCode } from "./secret-redaction.ts";
 
 import { PluginJobs } from "./jobs.ts";
 import { LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
@@ -19,9 +19,8 @@ type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set
 export const OFFICIAL_PLUGINS = [{ id: "litzio.onedrive", publisher: "litzio", digest: "c49adb338b4c0470f48af3f6a90c8d5d36cc66dd54b9e809de59c3794d0b6a7c" }];
 export class PluginHost {
   private installed: Record<string, Installed>;
-  private imported = new Set<string>();
-  private restartRequired = new Set<string>();
   private loaded = new Map<string, Loaded>();
+  private processes = new Map<string, PluginInstance>();
   private errors = new Map<string, string>();
   private serial: Promise<unknown> = Promise.resolve();
   private closed = false;
@@ -96,25 +95,18 @@ export class PluginHost {
   }
   private async enable(id: string) {
     const r = this.record(id), a = this.artifact(r.directory);
-    if (a.digest !== r.digest) throw new Error("Artifact changed; restart daemon and register/trust again");
+    if (a.digest !== r.digest) throw new Error("Artifact changed; trust the current digest and reload");
     if (!this.official(a.manifest, a.digest) && r.trustedDigest !== a.digest) throw new Error("Explicit digest-bound trust is required");
     if (this.loaded.has(id)) return;
-    if (this.restartRequired.has(id)) throw new Error("Plugin disposal failed; restart daemon before enabling");
-    this.imported.add(id);
     if (!compileSchema(a.manifest.settingsSchema)(r.settings)) throw new Error("Stored settings do not satisfy this artifact schema");
     const secrets = await this.runtimeSecrets(id, a.manifest);
-    try { await withPluginCode(async () => {
-      const module = await withPluginCode(() => import(pathToFileURL(a.entry).href)) as PluginModule;
-      if (typeof module.activate !== "function") throw new Error("Missing activate handler");
-      const instance = await withPluginCode(() => module.activate({ secrets, settings: structuredClone(r.settings), platform: process.platform, env: { ...process.env }, isDirectory(file) { try { return statSync(file).isDirectory(); } catch { return false; } } }));
-      const declared = a.manifest.contributes.operations.map(op => op.id);
-      if (!instance || typeof instance.status !== "function" || typeof instance.dispose !== "function" || !instance.operations || declared.some(key => !Object.hasOwn(instance.operations, key) || typeof instance.operations[key] !== "function") || Object.keys(instance.operations).some(key => !declared.includes(key))) {
-        await withPluginCode(() => instance?.dispose?.()); throw new Error("Missing or undeclared contribution handler");
-      }
-      this.loaded.set(id, { manifest: a.manifest, instance, pending: new Set() });
-      this.disabling.delete(id);
-      this.errors.delete(id);
-    }); } catch { throw new Error("Plugin activation failed"); }
+    const instance = await startPluginProcess(a.entry, a.manifest, structuredClone(r.settings), secrets, () => {
+      this.loaded.delete(id); this.errors.set(id, "Plugin process failed; reload to recover");
+    });
+    this.processes.set(id, instance);
+    this.loaded.set(id, { manifest: a.manifest, instance, pending: new Set() });
+    this.disabling.delete(id);
+    this.errors.delete(id);
   }
   private declaredSecret(id: string, name: string) {
     const m = this.artifact(this.record(id).directory).manifest;
@@ -158,10 +150,12 @@ export class PluginHost {
   private async disable(id: string) {
     this.disabling.add(id);
     await this.jobs.close(id);
-    const live = this.loaded.get(id); this.loaded.delete(id);
-    if (live) {
-      await Promise.allSettled([...live.pending]);
-      try { await withPluginCode(() => live.instance.dispose()); } catch { this.restartRequired.add(id); this.errors.set(id, "Plugin disposal failed; daemon restart required"); throw new Error("Plugin disposal failed; daemon restart required"); }
+    const live = this.loaded.get(id), instance = this.processes.get(id); this.loaded.delete(id);
+    if (live) await Promise.allSettled([...live.pending]);
+    if (instance) {
+      try { await instance.dispose(); }
+      catch { this.errors.set(id, "Plugin disposal failed; reload to recover"); throw new Error("Plugin disposal failed; reload to recover"); }
+      finally { this.processes.delete(id); }
     }
   }
   viewOperations(): ViewOperation[] {
@@ -176,7 +170,7 @@ export class PluginHost {
     if (!jobCall && this.disabling.has(live.manifest.id)) throw new Error("Plugin is stopping");
     if (!jobCall && live.manifest.contributes.jobs.some(job => [job.start, job.status, job.stop].includes(op.id))) throw new Error("Use job start/status/stop with a requestId");
     const record = this.record(live.manifest.id), current = this.artifact(record.directory);
-    if (current.digest !== record.digest || !this.official(current.manifest, current.digest) && record.trustedDigest !== current.digest) throw new Error("Artifact trust changed; restart daemon before invoking");
+    if (current.digest !== record.digest || !this.official(current.manifest, current.digest) && record.trustedDigest !== current.digest) throw new Error("Artifact trust changed; trust the current digest and reload");
     if (op.scope === "folder") throw new Error("Folder-scoped plugin operations are unsupported in stage 1");
     if (!compileSchema(op.inputSchema)(input)) throw new Error("Invalid operation input");
     const requestId = randomUUID();
@@ -204,7 +198,7 @@ export class PluginHost {
           if (otherId !== a.manifest.id && (other.operationNames ?? []).some(name => names.has(name))) throw new Error("Plugin operation ID collision");
         }
         const previous = Object.hasOwn(this.installed, a.manifest.id) ? this.installed[a.manifest.id] : undefined;
-        if (previous?.enabled || this.imported.has(a.manifest.id)) throw new Error("Plugin ID already registered; disable and restart daemon before replacing");
+        if (previous?.enabled) throw new Error("Disable the plugin before replacing its registration");
         this.installed[a.manifest.id] = { directory, digest: a.digest, enabled: false, settings: previous?.settings ?? {}, operationNames: [...names] };
       } else {
         const r = this.record(id);
@@ -220,9 +214,23 @@ export class PluginHost {
           await this.secrets.delete(id, args.name!);
         } else if (action === "trust") {
           const a = this.artifact(r.directory);
-          if (args.digest !== a.digest || a.digest !== r.digest) throw new Error("Artifact digest does not match");
+          if (a.manifest.id !== id || args.digest !== a.digest) throw new Error("Artifact digest does not match");
           r.trustedDigest = a.digest;
-        } else if (action === "enable") { try { await this.enable(id); r.enabled = true; } catch (error) { this.errors.set(id, "Plugin activation failed"); throw error; } }
+        } else if (action === "enable") { try { await this.enable(id); r.enabled = true; } catch (error) { this.errors.set(id, String(error)); throw error; } }
+        else if (action === "reload") {
+          r.enabled = false; this.save();
+          try {
+            await this.disable(id);
+            const a = this.artifact(r.directory);
+            if (a.manifest.id !== id) throw new Error("Artifact ID changed");
+            if (!this.official(a.manifest, a.digest) && r.trustedDigest !== a.digest) throw new Error("Explicit digest-bound trust is required");
+            const names = a.manifest.contributes.operations.map(op => `${id}.${op.id}`);
+            if (builtinViewOperations.some(op => names.includes(op.operation))) throw new Error("Plugin operation ID collides with built-in operation");
+            for (const [otherId, other] of Object.entries(this.installed)) if (otherId !== id && other.operationNames.some(name => names.includes(name))) throw new Error("Plugin operation ID collision");
+            r.digest = a.digest; r.operationNames = names;
+            await this.enable(id); r.enabled = true;
+          } catch (error) { this.errors.set(id, String(error)); this.save(); throw error; }
+        }
         else if (action === "disable") { r.enabled = false; this.save(); await this.disable(id); }
         else if (action === "settings") {
           if (args.settings === undefined) return { id, secrets: await this.secretStatus(id, this.artifact(r.directory).manifest), settings: r.settings, settingsSchema: this.artifact(r.directory).manifest.settingsSchema };
@@ -237,5 +245,10 @@ export class PluginHost {
     });
     this.serial = run.catch(() => {}); return run;
   }
-  async close() { this.closed = true; await this.serial; for (const id of [...this.loaded.keys()]) await this.disable(id); }
+  async close() {
+    this.closed = true; await this.serial;
+    const results = await Promise.allSettled([...this.processes.keys()].map(id => this.disable(id)));
+    const errors = results.filter(result => result.status === "rejected").map(result => result.reason);
+    if (errors.length) throw new AggregateError(errors, "Plugin cleanup failed");
+  }
 }
