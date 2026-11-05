@@ -1068,7 +1068,7 @@ block; the count is the number of Core changes, not source hunks.
 
 Unchanged runs collapse initially except for one block immediately before and after
 a change. The native disclosure button reads “Unchanged N blocks ▸” (ko: “변경 없음
-N개 블록 ▸”), exposes aria-expanded, and supports click/Enter/Space and re-collapse.
+N개 블록 ▸”), exposes aria-expanded, and supports click/Enter/Space and re-collapse while retaining keyboard focus.
 Folding is a decoration-only display state: hidden blocks stay in each full editor,
 so numbering and references keep the complete document context. View switching
 releases both preview editors; reopening Visual resets fold/navigation state.
@@ -1121,7 +1121,7 @@ browser session are stopped after capture; no caller-owned server is stopped.
 | 640 light | [Before](assets/visual-compare-1201/before-640-light.png) | [After](assets/visual-compare-1201/visual-640-light.png) |
 | 640 dark | [Before](assets/visual-compare-1201/before-640-dark.png) | [After](assets/visual-compare-1201/visual-640-dark.png) |
 
-One small-document observation: comparison request round trip 63ms; response to both
+One small-document observation: comparison request round trip 59ms; response to both
 Editor DOMs attached 49ms. This separates the request from attachment, not pure Core
 CPU from pure rendering; it excludes completion of async assets and is not a
 large-document benchmark or a guarantee at the provisional 1000-block limit.

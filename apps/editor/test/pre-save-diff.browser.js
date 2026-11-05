@@ -86,9 +86,13 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   await page.keyboard.press('Control+v');
   check(JSON.stringify(await visual.locator('.document-editor').evaluateAll(nodes => nodes.map(node => JSON.stringify(node.editor.getJSON())))) === JSON.stringify(snapshots), 'Read preview mutated');
   const fold = visual.getByRole('button', { name: /Unchanged .* blocks ▸/ }).first();
-  await fold.waitFor(); await fold.click();
+  await fold.waitFor(); await page.keyboard.press("Tab");
+  check(await fold.evaluate(node => node === document.activeElement), "Tab did not reach the context disclosure");
+  await page.keyboard.press("Enter");
   const collapse = visual.getByRole('button', { name: /Unchanged .* blocks ▾/ }).first();
-  await collapse.focus(); await page.keyboard.press('Enter'); await fold.waitFor();
+  check(await collapse.evaluate(node => node === document.activeElement), "Disclosure lost keyboard focus on expansion");
+  await page.keyboard.press("Space"); await fold.waitFor();
+  check(await fold.evaluate(node => node === document.activeElement), "Disclosure lost keyboard focus on collapse");
   for (const width of [1440, 640]) {
     await page.setViewportSize({ width, height: 900 });
     const positions = await visual.locator('[data-visual-change="1"]').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width}; }));
