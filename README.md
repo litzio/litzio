@@ -36,7 +36,7 @@ Desktop 시작 화면이나 Command center의 **샘플 문서 열기**에서 현
 바뀔 때 앱이 소유를 확인한 경우에만 교체됩니다. 개발 Editor에서도 같은 샘플을 제공하며 HTTP Host는 제외합니다.
 [샘플 배포 계약](docs/design/desktop-distribution-v1.md#native-sample)을 따릅니다.
 
-Settings → About에서 버전·업데이트를 확인합니다. 업데이트 다운로드와 설치는 사용자 요청 후 진행합니다([Desktop 계약](docs/design/desktop-distribution-v1.md)). 공개 설치본의 변경 사항과 검증 범위는 각 Release 본문과 [릴리스 기록](docs/README.md#verification)을 확인하세요. 현재 공개 버전은 Litzio `0.0.2-beta.6`이며 [배포·검증 기록](docs/releases/v0.0.2-beta.6.md)을 확인하세요. 직전 Litzio [beta.5 기록](docs/releases/v0.0.2-beta.5.md)과 이전 IeumDoc beta.4 기록은 보존합니다.
+Settings → About에서 버전·업데이트를 확인합니다. 업데이트 다운로드와 설치는 사용자 요청 후 진행합니다([Desktop 계약](docs/design/desktop-distribution-v1.md)). 공개 설치본의 변경 사항과 검증 범위는 각 Release 본문과 [릴리스 기록](docs/README.md#verification)을 확인하세요. 현재 공개 버전은 Litzio `0.0.2-beta.8`이며 [배포·검증 기록](docs/releases/v0.0.2-beta.8.md)을 확인하세요. 이전 Litzio [beta.7 기록](docs/releases/v0.0.2-beta.7.md)과 이전 IeumDoc beta.4 기록은 보존합니다.
 
 **제품 이름 변경(IeumDoc → Litzio)으로 앱 ID·설치·데이터 경로가 바뀌어, IeumDoc beta.4 설치본은 Litzio로 자동 업데이트되지 않습니다. 새로 설치해야 하며 IeumDoc 데이터·설정·복구 기록은 이전되지 않습니다.**
 
@@ -64,7 +64,7 @@ Settings → About에서 버전·업데이트를 확인합니다. 업데이트 �
 - **로컬 파일 작업:** 여러 폴더·문서 탭, Outline·읽기 전용 Source, 외부 변경 충돌 확인과 미저장 작업 보호.
 - **CLI·자동화:** Editor와 같은 Core를 이용한 문서 검사·의미 기반 수정·검증과 canonical 저장.
 
-블록별 지원 조건은 [현재 계약 색인](docs/README.md#current-implemented-contracts)을 따릅니다. 전용 AI/MCP 인터페이스, 자동 저장, 협업, workspace/Git 관리 UI는 아직 제공하지 않습니다.
+블록별 지원 조건은 [현재 계약 색인](docs/README.md#current-implemented-contracts)을 따릅니다. AI 비서는 daemon의 공식 기능으로 제공하며 같은 Host 공용 작업을 사용합니다. 외부용 MCP 인터페이스, 자동 저장, 협업, workspace/Git 관리 UI는 아직 제공하지 않습니다.
 
 <a id="getting-started"></a>
 <a id="core-and-cli"></a>
@@ -124,13 +124,13 @@ pnpm cli assistant settings
 flowchart LR
     Editor["Editor"] --> Core["Core"]
     CLI["CLI"] --> Core
-    AI["AI (계획)"] -.-> Core
+    AI["AI 비서"] --> Host["Host 공용 작업"] --> Core
     Core --> Document["plain-text 문서"]
 ```
 
 문서가 본체이며 사람이 읽을 수 있는 plain-text를 단일 진실 공급원으로 유지합니다.
 문서의 의미·변경 규칙·검증·canonical 직렬화는 UI에 종속되지 않는 Core가 소유합니다.
-Editor와 CLI는 Core를 연결하며, 향후 AI 인터페이스도 같은 의미 계약을 사용하도록 설계합니다.
+Editor와 CLI는 Core를 연결하며, 공식 AI 비서는 Host 공용 작업을 통해 같은 의미 계약을 사용합니다.
 승인된 결정과 구현 계약은 [문서 색인](docs/README.md)에서 확인합니다.
 
 <a id="documentation"></a>
