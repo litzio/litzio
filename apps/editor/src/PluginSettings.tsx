@@ -1,8 +1,6 @@
 import { i18n } from "./i18n.ts";
 import { Notice } from "./ui/primitives.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
-import "./shell/host-settings.css";
-import "./plugin-settings.css";
 import { useEffect, useState } from "react";
 import { Info } from "lucide-react";
 import { useHostClient } from "./host-context.tsx";
