@@ -501,13 +501,19 @@ jobs:
           path: tmp/desktop-e2e/caption-pixels/
           if-no-files-found: warn
           retention-days: 7
+      - run: pnpm --filter @litzio/desktop test:uninstall
+        if: needs.changes.outputs.update == 'true'
+        env:
+          LITZIO_TEST_LIFECYCLE_SCOPE: ${{ needs.changes.outputs.fullLifecycle == 'true' && 'full' || 'representative' }}
       - name: Diagnose uninstall flake (temporary repetitions for issue 1231)
         run: |
           1..5 | ForEach-Object {
             Write-Host "Uninstall diagnostic iteration $_"
+            $diagnosticFolder = [IO.Path]::GetFullPath("$env:LOCALAPPDATA/litzio/uninstall-logs")
+            if (-not $diagnosticFolder.StartsWith([IO.Path]::GetFullPath($env:LOCALAPPDATA) + [IO.Path]::DirectorySeparatorChar)) { throw 'Invalid diagnostic path' }
+            Remove-Item -LiteralPath $diagnosticFolder -Recurse -Force -ErrorAction SilentlyContinue
             pnpm --filter @litzio/desktop test:uninstall
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Remove-Item -LiteralPath "$env:LOCALAPPDATA/litzio/uninstall-logs" -Recurse -Force -ErrorAction SilentlyContinue
           }
         if: needs.changes.outputs.update == 'true'
         env:

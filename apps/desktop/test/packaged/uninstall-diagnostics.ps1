@@ -7,10 +7,9 @@ Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Ma
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
-using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 public static class RemovalLocks {
-  [StructLayout(LayoutKind.Sequential)] public struct UniqueProcess { public uint pid; public FILETIME start; }
+  [StructLayout(LayoutKind.Sequential)] public struct UniqueProcess { public uint pid; public System.Runtime.InteropServices.ComTypes.FILETIME start; }
   [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)] public struct Info {
     public UniqueProcess process;
     [MarshalAs(UnmanagedType.ByValTStr, SizeConst=256)] public string name;
