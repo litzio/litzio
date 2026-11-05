@@ -10,7 +10,6 @@ import { validateManifest, validatePluginSource, compileSchema, statusSchema, pl
 import { hostPaths } from "../host-paths.ts";
 
 import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store.ts";
-import { rememberSecret, withPluginCode } from "./secret-redaction.ts";
 
 import { PluginJobs } from "./jobs.ts";
 
@@ -28,6 +27,12 @@ export class PluginHost {
   private disabling = new Set<string>();
   readonly jobs: PluginJobs;
   private secrets: PluginSecretStore;
+  private redactionSecrets = new Map<string, Map<string, string>>();
+  private secretValues(id: string) { return [...(this.redactionSecrets.get(id)?.values() ?? [])]; }
+  private rememberSecret(id: string, name: string, value: string) {
+    if (!this.redactionSecrets.has(id)) this.redactionSecrets.set(id, new Map());
+    this.redactionSecrets.get(id)!.set(name, value);
+  }
   private access: FileAccess;
   constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; secrets?: PluginSecretStore } = {}) {
     this.access = options.access ?? LOCAL_FILE_ACCESS;
@@ -81,7 +86,7 @@ export class PluginHost {
     try { return await run; } finally { live.pending.delete(run); }
   }
   private async readStatus(live: Loaded) {
-    const result = statusSchema.parse(safePluginValue(await withPluginCode(() => live.instance.status())));
+    const result = statusSchema.parse(safePluginValue(await live.instance.status(), this.secretValues(live.manifest.id)));
     for (const [key, declaration] of [["folders", "folderSources"], ["decorations", "folderDecorations"], ["accounts", "accounts"]] as const) {
       if (result[key].length && !live.manifest.contributes[declaration].length) throw new Error("Undeclared status contribution");
       if (new Set(result[key].map(item => item.id)).size !== result[key].length) throw new Error("Duplicate status identity");
@@ -134,10 +139,11 @@ export class PluginHost {
       if (m.secrets.some(s => s.required)) throw new Error("Plugin secrets unsupported on this Host (Windows required)");
       return Object.freeze({} as Record<string, string>);
     }
+    this.redactionSecrets.set(id, new Map());
     const secrets: Record<string, string> = {};
     for (const s of m.secrets) {
       const value = await this.secrets.read(id, s.id);
-      if (value !== undefined) { rememberSecret(value); secrets[s.id] = value; }
+      if (value !== undefined) { this.rememberSecret(id, s.id, value); secrets[s.id] = value; }
       else if (s.required) throw new Error("Required plugin secret is not configured");
     }
     return Object.freeze(secrets);
@@ -150,8 +156,8 @@ export class PluginHost {
       if (!this.secrets.supported) throw new Error("Plugin secrets unsupported on this Host (Windows required)");
       if (this.record(id).enabled) throw new Error("Disable the plugin before changing secrets");
       if (typeof value !== "string" || !value.length || Buffer.byteLength(value) > 16384) throw new Error("Invalid secret input");
-      rememberSecret(value);
       await this.secrets.set(id, name, value);
+      this.rememberSecret(id, name, value);
       return { configured: true, receipt: { requestId: randomUUID(), operation: "plugins.secret-set", version: 1, scope: "host", outcome: "success" } };
     });
     this.serial = run.catch(() => {}); return run;
@@ -184,9 +190,9 @@ export class PluginHost {
     if (op.scope === "folder") throw new Error("Folder-scoped plugin operations are unsupported in stage 1");
     if (!compileSchema(op.inputSchema)(input)) throw new Error("Invalid operation input");
     const requestId = randomUUID();
-    const run = Promise.resolve().then(() => withPluginCode(() => live.instance.operations[op.id]!(input))); live.pending.add(run);
+    const run = Promise.resolve().then(() => live.instance.operations[op.id]!(input)); live.pending.add(run);
     try {
-      const result = publicOperationResult(op, await run);
+      const result = publicOperationResult(op, await run, this.secretValues(live.manifest.id));
       return { result, receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: "success" } };
     } catch (error) {
       return { ...publicOperationError(error, op.effect), receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: op.effect === "write" ? "uncertain" : "failure" } };
@@ -234,6 +240,7 @@ export class PluginHost {
         if (action === "unregister") {
           r.enabled = false; this.save(); await this.disable(id);
           if (this.secrets.supported) await this.secrets.delete(id);
+          this.redactionSecrets.delete(id);
           delete this.installed[id]; this.errors.delete(id);
         } else if (action === "secret-status") {
           return { id, secrets: await this.secretStatus(id, this.artifact(r.directory).manifest), receipt: { requestId: randomUUID(), operation: "plugins.secret-status", version: 1, scope: "host", outcome: "success" } };
@@ -241,6 +248,7 @@ export class PluginHost {
           this.declaredSecret(id, args.name!);
           if (r.enabled) throw new Error("Disable the plugin before changing secrets");
           await this.secrets.delete(id, args.name!);
+          this.redactionSecrets.get(id)?.delete(args.name!);
         } else if (action === "trust") {
           const a = this.artifact(r.directory);
           if (a.manifest.id !== id || args.digest !== a.digest) throw new Error("Artifact digest does not match");
@@ -278,6 +286,7 @@ export class PluginHost {
     this.closed = true; await this.serial;
     const results = await Promise.allSettled([...this.processes.keys()].map(id => this.disable(id)));
     const errors = results.filter(result => result.status === "rejected").map(result => result.reason);
+    this.redactionSecrets.clear();
     if (errors.length) throw new AggregateError(errors, "Plugin cleanup failed");
   }
 }

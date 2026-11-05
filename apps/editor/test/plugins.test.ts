@@ -134,7 +134,7 @@ test("Windows DPAPI uses an isolated Host/account namespace, persists ciphertext
 });
 
 test("secret admission, runtime plugin scope, non-disclosure and unregister cleanup", async () => {
-  const { safePluginValue, redactSecrets } = await import("../server/plugins/secret-redaction.ts");
+  const { safePluginValue } = await import("../server/plugins/secret-redaction.ts");
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-secret-host-"));
   const values = new Map<string, string>(), broken = new Set<string>();
   const store = { supported: true, async read(p: string, n: string) { return values.get(`${p}/${n}`); }, async status(p: string, n: string) { if (broken.has(`${p}/${n}`)) throw new Error("raw-store-error-private"); return values.has(`${p}/${n}`); }, async set(p: string, n: string, v: string) { values.set(`${p}/${n}`, v); broken.delete(`${p}/${n}`); }, async delete(p: string, n?: string) { for (const key of values.keys()) if (n ? key === `${p}/${n}` : key.startsWith(`${p}/`)) { values.delete(key); broken.delete(key); } } };
@@ -154,8 +154,8 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
     }
     assert.equal(JSON.stringify(await host.invokeOperation("example.first.read", { fail: true })).includes(value), false);
     assert.equal(JSON.stringify(await host.list()).includes(value), false);
-    assert.deepEqual(safePluginValue({ value }), { value: "[secret]" });
-    assert.equal(redactSecrets(`error ${value}`), "error [secret]");
+    assert.deepEqual(safePluginValue({ value }, [value]), { value: "[secret]" });
+    assert.equal(safePluginValue(`error ${value}`, [value]), "error [secret]");
     assert.equal(readFileSync(path.join(root, "state.json"), "utf8").includes(value), false);
     await assert.rejects(host.setSecret("example.first", "pat", value), /Disable/);
     await host.invoke("disable", { id: "example.first" });
@@ -188,23 +188,28 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
-test("plugin synchronous and asynchronous logs never reach stdout/stderr", async () => {
-  const { execFileSync } = await import("node:child_process");
-  const module = new URL("../server/plugins/secret-redaction.ts", import.meta.url).href;
-  const result = execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `import {withPluginCode} from ${JSON.stringify(module)}; await withPluginCode(async()=>{console.log('log-private'); process.stderr.write('error-private'); await new Promise(r=>setTimeout(r,1));console.log('async-private')}); console.log('host-visible')`], { encoding: "utf8", windowsHide: true });
-  assert.equal(result.trim(), "host-visible");
+test("Host streams stay intact while synchronous and asynchronous plugin output is discarded", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-logs-"));
+  try {
+    const directory = lifecycleFixture(root, "fixture.logs", `export async function activate(){console.log('private-log');process.stderr.write('private-log');await new Promise(r=>setTimeout(r,1));console.log('private-log');return {operations:{},status:()=>({}),dispose(){console.log('private-log')}}}`);
+    const redaction = new URL("../server/plugins/secret-redaction.ts", import.meta.url).href;
+    const transport = new URL("../server/plugins/plugin-process.ts", import.meta.url).href;
+    const script = `import assert from 'node:assert/strict'; const out=process.stdout.write, err=process.stderr.write; await import(${JSON.stringify(redaction)}); assert.equal(process.stdout.write,out); assert.equal(process.stderr.write,err); const {startPluginProcess}=await import(${JSON.stringify(transport)}); const plugin=await startPluginProcess(${JSON.stringify(path.join(directory, "host.js"))},{contributes:{operations:[]}}, {}, {}, ()=>{}); await plugin.dispose(); console.log('host-visible');`;
+    const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], { encoding: "utf8", windowsHide: true });
+    assert.equal(result.status, 0, result.stderr); assert.equal(result.stdout.trim(), "host-visible"); assert.equal(result.stderr, "");
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test("operation invoke publishes declared public rows and refuses row-type mismatches", async () => {
-  const { rememberSecret } = await import("../server/plugins/secret-redaction.ts");
-  const knownSecret = "row-boundary-known-private"; rememberSecret(knownSecret);
+  const knownSecret = "row-boundary-known-private";
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-operation-rows-"));
   const directory = path.join(root, "artifact"); mkdirSync(directory);
-  const manifest = { schemaVersion: 1, id: "fixture.rows", tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Rows", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", properties: { mode: { type: "string" } }, additionalProperties: false }, outputSchema: { type: "array", items: { type: "object" } }, rowSchema: { points: { type: "number", label: "Points" }, caption: { type: "string", label: "Caption" }, token: { type: "string", label: "Token", secret: true } } }] } };
+  const manifest = { secrets: [{ id: "pat", scope: "connection", required: true }], schemaVersion: 1, id: "fixture.rows", tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Rows", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", properties: { mode: { type: "string" } }, additionalProperties: false }, outputSchema: { type: "array", items: { type: "object" } }, rowSchema: { points: { type: "number", label: "Points" }, caption: { type: "string", label: "Caption" }, token: { type: "string", label: "Token", secret: true } } }] } };
   writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify(manifest));
   writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
   writeFileSync(path.join(directory, "host.js"), `export function activate(){return {operations:{read:({mode})=>{if(mode?.startsWith("error:")) throw Object.assign(new Error("raw-response credential-private"), {kind:mode.slice(6),response:"credential-private"}); return [{points:mode==="wrong-number"?"3":-3,caption:"row-boundary-known-private",token:mode==="wrong-secret"?4:"private",extra:"undeclared"}]} },status:()=>({available:true,message:"Rows",folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
-  const host = new PluginHost(path.join(root, "plugins.json"));
+  const host = new PluginHost(path.join(root, "plugins.json"), { secrets: { supported: true, async read() { return knownSecret; }, async set() {}, async status() { return true; }, async delete() {} } });
   try {
     await host.invoke("register", { directory }); const record = (await host.list())[0]!;
     await host.invoke("trust", { id: record.id, digest: record.digest }); await host.invoke("enable", { id: record.id });
@@ -472,4 +477,44 @@ test("validation diagnostics never expose source values through Host, assistant,
     writeFileSync(path.join(directory, "host.js"), source.replace("greet:", `"${secret}":`));
     await check("host entry");
   } finally { stdout.mock.restore(); stderr.mock.restore(); await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+
+test("short secrets preserve keys and leave the plugin scope on replacement, deletion and unregister", async () => {
+  const { safePluginValue } = await import("../server/plugins/secret-redaction.ts");
+  assert.deepEqual(safePluginValue({ id: "id", defaultCandidate: ["secret-long", "a.b"] }, ["id", "secret", "secret-long", "a.b"]), { id: "[secret]", defaultCandidate: ["[secret]", "[secret]"] });
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-redaction-scope-")), values = new Map<string, string>();
+  const store = { supported: true, async read(p: string, n: string) { return values.get(`${p}/${n}`); }, async status(p: string, n: string) { return values.has(`${p}/${n}`); }, async set(p: string, n: string, v: string) { values.set(`${p}/${n}`, v); }, async delete(p: string, n?: string) { for (const key of values.keys()) if (n ? key === `${p}/${n}` : key.startsWith(`${p}/`)) values.delete(key); } };
+  const host = new PluginHost(path.join(root, "state.json"), { secrets: store });
+  try {
+    const dirs: string[] = [];
+    for (const id of ["fixture.a", "fixture.b"]) {
+      const directory = lifecycleFixture(root, id, `export function activate(){return {operations:{read:input=>{if(input.fail)throw Error('raw-log-private');return {id:input.value,defaultCandidate:true}}},status:()=>({available:true,message:'id',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+      dirs.push(directory);
+      const file = path.join(directory, "litzio-plugin.json"), m = JSON.parse(readFileSync(file, "utf8"));
+      m.secrets = [{ id: "pat", scope: "connection", required: false }, { id: "other", scope: "connection", required: false }];
+      m.contributes.operations = [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: {}, outputSchema: { type: "object", required: ["id", "defaultCandidate"], additionalProperties: false, properties: { id: { type: "string" }, defaultCandidate: { type: "boolean" } } } }];
+      writeFileSync(file, JSON.stringify(m));
+      await host.invoke("register", { directory });
+      await host.invoke("trust", { id, digest: (await host.list()).find(p => p.id === id)!.digest });
+    }
+    await host.setSecret("fixture.a", "pat", "id"); await host.setSecret("fixture.a", "other", "raw-log-private");
+    await host.invoke("enable", { id: "fixture.a" }); await host.invoke("enable", { id: "fixture.b" });
+    const check = async (id: string, value: string, expected: string) => assert.deepEqual((await host.invokeOperation(`${id}.read`, { value })).result, { id: expected, defaultCandidate: true });
+    await check("fixture.a", "id", "[secret]"); await check("fixture.b", "id", "id");
+    assert.equal((await host.list()).find(p => p.id === "fixture.a")!.status!.message, "[secret]");
+    await check("fixture.a", "raw-log-private", "[secret]");
+    const activities: unknown[] = [];
+    const tool = await executePluginTool(host, { action: "list" }, e => activities.push(e));
+    const failure = await host.invokeOperation("fixture.a.read", { fail: true });
+    assert.equal(JSON.stringify(failure).includes("raw-log-private"), false);
+    assert.equal(JSON.stringify([tool, activities]).includes("raw-log-private"), false);
+    await host.invoke("disable", { id: "fixture.a" }); await host.setSecret("fixture.a", "pat", "replacement"); await host.invoke("enable", { id: "fixture.a" });
+    await check("fixture.a", "id", "id");
+    await host.invoke("disable", { id: "fixture.a" }); await host.invoke("secret-delete", { id: "fixture.a", name: "pat" }); await host.invoke("enable", { id: "fixture.a" });
+    await check("fixture.a", "replacement", "replacement");
+    await host.invoke("unregister", { id: "fixture.a" });
+    await host.invoke("register", { directory: dirs[0] }); await host.invoke("trust", { id: "fixture.a", digest: (await host.list()).find(p => p.id === "fixture.a")!.digest }); await host.invoke("enable", { id: "fixture.a" });
+    await check("fixture.a", "raw-log-private", "raw-log-private");
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
