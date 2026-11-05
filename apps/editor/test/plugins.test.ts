@@ -288,3 +288,20 @@ test("a stalled write times out as uncertain; failed disposal can recover on the
     assert.match((await host.list())[0]!.error!, /process failed/);
   } finally {await host.close(); rmSync(root, {recursive:true, force:true});}
 });
+
+
+test("Host shutdown closes every child even when one dispose fails", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-close-")), host = new PluginHost(path.join(root, "state.json"));
+  const marker = path.join(root, 'disposed');
+  try {
+    for (const [id, dispose] of [['fixture.bad', "throw new Error('private')"], ['fixture.good', `writeFileSync(${JSON.stringify(marker)},'done')`]]) {
+      const directory = lifecycleFixture(root, id!, `import {writeFileSync} from 'node:fs'; export function activate(){return {operations:{},status:()=>({available:true,message:'ready',folders:[],decorations:[],accounts:[]}),dispose(){${dispose}}}}`);
+      await host.invoke('register', {directory});
+      await host.invoke('trust', {id, digest:(await host.list()).find(p=>p.id===id)!.digest});
+      await host.invoke('enable', {id});
+    }
+    await assert.rejects(host.close(), /cleanup failed/);
+    assert.equal(readFileSync(marker, 'utf8'), 'done');
+    assert.ok((await host.list()).every(p=>!p.running));
+  } finally {await host.close(); rmSync(root, {recursive:true, force:true});}
+});

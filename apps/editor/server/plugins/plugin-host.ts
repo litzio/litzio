@@ -20,6 +20,7 @@ export const OFFICIAL_PLUGINS = [{ id: "litzio.onedrive", publisher: "litzio", d
 export class PluginHost {
   private installed: Record<string, Installed>;
   private loaded = new Map<string, Loaded>();
+  private processes = new Map<string, PluginInstance>();
   private errors = new Map<string, string>();
   private serial: Promise<unknown> = Promise.resolve();
   private closed = false;
@@ -102,6 +103,7 @@ export class PluginHost {
     const instance = await startPluginProcess(a.entry, a.manifest, structuredClone(r.settings), secrets, () => {
       this.loaded.delete(id); this.errors.set(id, "Plugin process failed; reload to recover");
     });
+    this.processes.set(id, instance);
     this.loaded.set(id, { manifest: a.manifest, instance, pending: new Set() });
     this.disabling.delete(id);
     this.errors.delete(id);
@@ -148,10 +150,12 @@ export class PluginHost {
   private async disable(id: string) {
     this.disabling.add(id);
     await this.jobs.close(id);
-    const live = this.loaded.get(id); this.loaded.delete(id);
-    if (live) {
-      await Promise.allSettled([...live.pending]);
-      try { await live.instance.dispose(); } catch { this.errors.set(id, "Plugin disposal failed; reload to recover"); throw new Error("Plugin disposal failed; reload to recover"); }
+    const live = this.loaded.get(id), instance = this.processes.get(id); this.loaded.delete(id);
+    if (live) await Promise.allSettled([...live.pending]);
+    if (instance) {
+      try { await instance.dispose(); }
+      catch { this.errors.set(id, "Plugin disposal failed; reload to recover"); throw new Error("Plugin disposal failed; reload to recover"); }
+      finally { this.processes.delete(id); }
     }
   }
   viewOperations(): ViewOperation[] {
@@ -240,5 +244,10 @@ export class PluginHost {
     });
     this.serial = run.catch(() => {}); return run;
   }
-  async close() { this.closed = true; await this.serial; for (const id of [...this.loaded.keys()]) await this.disable(id); }
+  async close() {
+    this.closed = true; await this.serial;
+    const results = await Promise.allSettled([...this.processes.keys()].map(id => this.disable(id)));
+    const errors = results.filter(result => result.status === "rejected").map(result => result.reason);
+    if (errors.length) throw new AggregateError(errors, "Plugin cleanup failed");
+  }
 }
