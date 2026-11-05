@@ -93,7 +93,7 @@ test("operation declarations control all bindings and transforms without reveali
   spec.layout.children = [{ component: "BarChart", title: "Chart", source: "stats", data: "/rows", x: "status", y: "status" }];
   assert.throws(() => validateView(spec, ops));
 });
-import { createCatalogV2, queryViewSchema, validateCatalogView, serializeCatalogView, parseCatalogView, validateViewInputs, evaluateQueryView, compileViewInputSchema, reviewPageSchema, reviewProposalSchema } from "../src/views-v2.ts";
+import { createCatalogV2, queryViewSchema, validateCatalogView, serializeCatalogView, parseCatalogView, validateViewInputs, evaluateQueryView, compileViewInputSchema, compilePortableViewInputSchema, ViewInputError, reviewPageSchema, reviewProposalSchema } from "../src/views-v2.ts";
 const v2 = (): any => ({ ...base(), schemaVersion: 2, catalog: "litzio-v2", profile: "query" });
 const inputOperation: ViewOperation = { ...pluginOperation, inputSchema: { type: "object", properties: {
   text: { type: "string", maxLength: 8 }, date: { type: "string", format: "date" }, count: { type: "integer", minimum: 1, maximum: 5 },
@@ -198,4 +198,37 @@ test("review neutral data checks page coordinates and proposal action eligibilit
   assert.ok(!reviewProposalSchema.safeParse({ ...proposal, state: "stale" }).success);
   assert.ok(!reviewProposalSchema.safeParse({ ...proposal, actions: [{ action: "execute", allowed: true }] }).success);
   assert.throws(() => compileViewInputSchema({ $ref: "https://external/schema" }));
+});
+
+test("CSP-safe Core input validation preserves schema constraints and field diagnostics without coercion", () => {
+  const schema = { type: "object", additionalProperties: false, required: ["text"], properties: {
+    text: { type: "string", minLength: 3, pattern: "^[a-z]+$" }, date: { type: "string", format: "date" },
+    count: { type: "integer", minimum: 1, maximum: 5 }, preset: { type: "string", enum: ["open", "all"] }, enabled: { type: ["boolean", "null"] },
+  } };
+  const before = structuredClone(schema);
+  const op = { ...inputOperation, inputSchema: schema, validateArgs: () => true };
+  for (const [args, field] of [[{}, "text"], [{ text: "x" }, "text"], [{ text: "abc1" }, "text"], [{ text: "abc", date: "2026-02-31" }, "date"], [{ text: "abc", count: "2" }, "count"], [{ text: "abc", count: 1.5 }, "count"], [{ text: "abc", count: Infinity }, "count"], [{ text: "abc", count: NaN }, "count"], [{ text: "abc", preset: "other" }, "preset"]] as const) {
+    for (const compile of [compileViewInputSchema, compilePortableViewInputSchema]) {
+      const view = queryViewSchema.parse(formView()); view.sources.stats.args = { ...args };
+      assert.throws(() => validateViewInputs(view, op, "execute", compile), error => error instanceof ViewInputError && error.inputIssues.some(issue => issue.field === `/${field}`));
+      if (Object.keys(args).length) assert.throws(() => validateViewInputs(view, op, "static", compile), error => error instanceof ViewInputError && error.inputIssues.some(issue => issue.field === `/${field}`));
+      assert.deepEqual(view.sources.stats.args, args);
+    }
+  }
+  for (const compile of [compileViewInputSchema, compilePortableViewInputSchema]) {
+    const view = queryViewSchema.parse(formView()); view.sources.stats.args = { text: "abc", date: "2024-02-29", count: 2, enabled: false };
+    assert.equal(validateViewInputs(view, op, "execute", compile).state, "ready");
+  }
+  assert.deepEqual(schema, before);
+});
+
+test("portable inputs distinguish optional absence, explicit empty text, null and false", () => {
+  const schema = { type: "object", additionalProperties: false, properties: { text: { type: "string", const: "" }, enabled: { type: ["boolean", "null"] } } };
+  for (const compile of [compileViewInputSchema, compilePortableViewInputSchema]) {
+    const check = compile(schema);
+    for (const args of [{}, { text: "" }, { enabled: false }, { enabled: null }]) {
+      const before = structuredClone(args); assert.equal(check(args), true); assert.deepEqual(args, before);
+    }
+    assert.equal(check({ text: "other" }), false);
+  }
 });

@@ -1,6 +1,7 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "This view is no longer available. Create a new view.": "This view is no longer available. Create a new view.",
   "Yes": "Yes",
   "No": "No",
   "Date format: YYYY-MM-DD": "Date format: YYYY-MM-DD",
@@ -1168,6 +1169,7 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "This view is no longer available. Create a new view.": "이 뷰는 더 이상 사용할 수 없습니다. 새 뷰를 만드세요.",
   "Yes": "예",
   "No": "아니요",
   "Date format: YYYY-MM-DD": "날짜 형식: YYYY-MM-DD",

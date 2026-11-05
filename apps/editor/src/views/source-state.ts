@@ -11,9 +11,10 @@ const messages: Record<string, string> = {
   failed: "View operation failed. Check the settings and target.",
 };
 export class ViewOperationError extends Error {
-  constructor(public kind: unknown, public uncertain = false) { super("View operation failed"); }
+  constructor(public kind: unknown, public uncertain = false, public code?: string) { super("View operation failed"); }
 }
 export function sourceFailure(error: unknown): { state: SourceState; message: string } {
+  if (error instanceof ViewOperationError && error.code === "unavailable") return { state: "unavailable", message: i18n.t("This view is no longer available. Create a new view.") };
   if (error instanceof ViewOperationError && error.uncertain) return { state: "uncertain", message: i18n.t("The outcome is unknown. Check the target before trying again.") };
   const kind = error instanceof ViewOperationError && typeof error.kind === "string" && Object.hasOwn(messages, error.kind) ? error.kind : "failed";
   return { state: kind === "unavailable" ? "unavailable" : "failure", message: i18n.t(messages[kind], { defaultValue: messages[kind] }) };

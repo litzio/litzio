@@ -157,18 +157,37 @@ Existing Core views tests cover v2 canonical round trips, missing versus executa
 
 ## V3 query renderer (catalog v2)
 
-Renderer는 `@litzio/core/views-v2`의 query schema만 받는다. v1 reader나 migration은 없다.
+공통 진입점은 `@litzio/core/views-v2`의 CatalogView를 받고 query/review를 분기한다. QueryViews만 stats args를 읽으며 review는 V5 ReviewRenderer로 전달한다. v1 reader나 migration은 없다.
 폼 8입력·표 12열을 Core 계약대로 소비하고 자료 가공은 Host/Core 결과만 표시한다.
 동작은 [공통 조회 패턴](ui-patterns-v1.md#query-renderer-v3), 조합은 [UI 결정표](ui-decision-table-v1.md#catalog-query-renderer-v3-1241-a안)를 따른다.
 
 V2 Host 연결 전 renderer 검증은 기존 generated-views browser 시나리오의 v2 fixture로 수행한다.
-폼은 대상 Host의 `GET /api/views/catalog`의 operations에서 operation/version에 맞는 공개
+폼은 대상 Host의 `POST /api/views {action:"catalog"}` 응답의 `catalog.operations`에서 operation/version에 맞는 공개
 inputSchema를 읽는다. 실행·신규 저장·열기는 기존 `POST /api/views` envelope를 사용한다.
 V2가 이 adapter를 연결하기 전 실제 plugin namespace 저장/기본 기여·CLI 일치는 미완료다.
-화면은 기본 control validity로 필수·범위·형식 오류를 연결하고, Host/Core가 실행·저장 직전 전체 JSON Schema를 검증한다. Ajv의 동적 컴파일은 CSP가 있는 화면에서 실행하지 않는다.
+화면은 Core의 validateViewInputs(execute)를 사용한다. CSP에서 실행 가능한 @cfworker/json-schema 4.1.6 해석 evaluator를 Core compiler로 주입하고 Host의 기본 Ajv 검증은 유지한다. 날짜·길이·pattern·required 등 같은 schema를 검증하며 값 coercion/default 삽입을 하지 않는다. Core/Host의 ViewInputIssue(field, keyword)를 고정 필드 오류로 표시하고 원문 오류는 표시하지 않는다.
 브라우저 fixture 통과를 실제 서비스·Host·비서 제작 수락으로 계산하지 않는다.
 
 #1263 UI 보완의 입력/표시·폼 행동·스크롤 규칙과 캡처는
 [조회 폼 패턴](ui-patterns-v1.md#query-form-refinement-1263)을 따른다.
 입력 title과 Host field label을 소비하며 현재 v2 form 명세에는 enum 항목별 label slot이 없다.
 renderer가 새 schema나 label DSL을 추가하지 않는다.
+
+### V3 차단 결함 보완
+
+- `POST /api/views {action:"catalog"}` 응답 `catalog.operations`의 operation별 `plugin`은 Host가 확인한 실제 소유자다. 통계만
+  `litzio.statistics`를 사용하고 플러그인 조회의 save는 이 소유자를 보낸다. 소유자 확인 전에는
+  저장을 막는다. 즐겨찾기 list/open도 `(plugin, name)`을 유지한다. operation 이름에서 소유자를 추측하지 않는다.
+- Host의 실행 입력 거부는 실패 응답의 `code:"invalid-input", inputIssues: [{field?, keyword}]`로 전달한다.
+  `field`는 `/text` 같은 JSON Pointer다. 앱은 이를 해석해 선언된 필드에만 오류를 연결하고 나머지는 form 오류로 표시한다. message/value는 소비하지 않는다.
+- optional 입력을 비우면 args 속성을 제거한다. 빈 문자열이 명시적 const/enum 값이거나
+  required 문자열이면 실제 빈 문자열을 유지하고 Core schema를 따른다. 지정된 빈 문자열의 X로 속성을 제거할 수 있다.
+- CatalogView는 탭/비서 생성/즐겨찾기 결과를 그대로 통과한다. review는 `sources.stats`에
+  접근하지 않고 `ReviewRenderer`와 Host별 adapter를 사용한다. adapter의 `POST /api/reviews`
+  read 결과 `{snapshot, receipt}`는 V5의 ReviewSnapshot이며 action은 source/root/requestId,
+  proposalId/baseline을 보낸다. Core read model 조립과 실제 write는 V4 소유이며 renderer에서 재구현하지 않는다.
+
+현재 위 카탈로그 소유자·입력 진단·review transport 연결은 공용 fixture로 검증한다.
+V2/V4의 실제 Host 서비스 통합과 CLI 일치는 별도 gate다. CSP는 완화하지 않는다.
+
+V2의 `code:"unavailable"`은 삭제된 열·버전/가용성 변경으로 사용할 수 없는 뷰이며, service unavailable 작업 오류와 구분해 새 뷰가 필요함을 안내한다. 카탈로그 HTTP 계약은 작은 `readViewCatalog` adapter 한 곳이 소비한다.

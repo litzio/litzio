@@ -7,7 +7,9 @@ import type { AssistantConversation } from "../shared/assistant.ts";
 import { AssistantViewGenerations } from "../server/assistant-view-generations.ts";
 import { createAssistantRequest } from "../src/assistant-api.ts";
 import { createHostClient } from "../src/host-client.ts";
-import { viewRequest } from "../src/views/view-api.ts";
+import { viewRequest, readViewCatalog } from "../src/views/view-api.ts";
+import { ViewInputError } from "@litzio/core/views-v2";
+import { sourceFailure } from "../src/views/source-state.ts";
 import { i18n } from "../src/i18n.ts";
 
 test("send, poll and validation cancellation settle before delayed transports and discard their late results", async () => {
@@ -132,4 +134,23 @@ test("exhausted validation, transport errors, model changes and cancellation do 
     }));
     assert.equal(sends, mode === "invalid" ? 3 : 1);
   }
+});
+
+test("V2 transport uses the sole catalog envelope and distinguishes pointer input, form and unavailable errors", async () => {
+  let reply: unknown = { catalog: { operations: [] }, receipt: { outcome: "success" } };
+  let status = 200;
+  const client = { request: async (path: string, init: RequestInit) => {
+    assert.equal(path, "/api/views");
+    assert.equal(init.method, "POST");
+    assert.deepEqual(JSON.parse(String(init.body)), { action: "catalog" });
+    return new Response(JSON.stringify(reply), { status });
+  } } as unknown as import("../src/host-client.ts").HostClient;
+  assert.deepEqual(await readViewCatalog(client), { operations: [] });
+  status = 400;
+  for (const inputIssues of [[{ field: "/text", keyword: "pattern" }], [{ keyword: "type" }], []]) {
+    reply = { error: "SECRET response body", code: "invalid-input", inputIssues, receipt: { outcome: "failure" } };
+    await assert.rejects(readViewCatalog(client), error => error instanceof ViewInputError && JSON.stringify(error.inputIssues) === JSON.stringify(inputIssues) && !error.message.includes("SECRET"));
+  }
+  reply = { code: "unavailable", errorKind: "failed", error: "SECRET removed field", receipt: { outcome: "failure" } };
+  await assert.rejects(readViewCatalog(client), error => sourceFailure(error).state === "unavailable" && !sourceFailure(error).message.includes("SECRET"));
 });

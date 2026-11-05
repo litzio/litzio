@@ -571,3 +571,18 @@ camelCase·구분자를 읽기 쉬운 기본 표기로만 바꾸고 바인딩 �
 (1440/960/640)이며 최종 이미지는 수동 검토한다.
 
 수동 `--screenshots` 실행에서는 Playwright headless의 기본 `--hide-scrollbars`만 제외해 실제 scrollbar도 캡처한다. persistent profile·시나리오 격리·검증 단언은 동일하다.
+
+### V3 입력 검증과 공통 profile 진입점
+
+입력 오류의 주 판정은 Core validateViewInputs(execute)다. 앱은 CSP-safe 해석 compiler로
+같은 원본 JSON Schema를 검사하고 Host는 기본 compiler로 적용 직전 다시 검사한다.
+입력 오류가 있으면 실행 요청을 보내지 않고 선언된 필드의 FieldError/aria-invalid/describedby와
+첫 오류 focus를 사용한다. Host의 구조화된 입력 거부도 같은 경로로 표시하며 일반 작업 실패 Notice로 바꾸지 않는다.
+optional 입력을 비우면 속성을 제거한다. schema const/enum이 빈 문자열을 값으로 명시하거나
+required 문자열이면 빈 문자열을 보존하고 지정 값의 X로 명시적 제거를 제공한다.
+
+CatalogView의 query/review 분기는 상태를 가진 각 renderer를 mount하기 전에 수행한다.
+review는 V5의 선택·stale·승인/Undo·갱신 패턴을 재사용하고 query의 초안 args를 생성하지 않는다.
+source/Host가 바뀌거나 탭이 닫히면 해당 adapter 요청을 중단한다. 실제 Host integration은 V2/V4 gate로 남긴다.
+
+V2 입력 진단의 field는 JSON Pointer다. 없는 field는 폼 오류이며, 공개된 입력 이름과 대응하지 않는 경로를 임의 필드로 만들지 않는다. V2 unavailable code는 새 뷰 필요 상태로 안내하고 #1233 서비스 unavailable과 구별한다.

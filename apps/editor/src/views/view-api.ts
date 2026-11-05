@@ -1,5 +1,5 @@
 import type { ViewRow } from "@litzio/core/views";
-import type { QueryView as View } from "@litzio/core/views-v2";
+import { ViewInputError, type ViewInputIssue, type CatalogView as View, type ViewOperation } from "@litzio/core/views-v2";
 import { ViewOperationError } from "./source-state.ts";
 import type { HostClient } from "../host-client.ts";
 export const STATISTICS_PLUGIN = "litzio.statistics";
@@ -14,16 +14,28 @@ export class ViewValidationError extends Error {
   }
 }
 export const statisticsView = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", title: "Document statistics", refresh: "manual", sources: { stats: { operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Documents by folder", source: "stats", data: "/rows", columns: ["folder", "documents", "headings", "modified"] }] } } as const;
-export type ViewResult = { fields?: Record<string, string>; view?: View; rows?: ViewRow[]; favourites?: string[]; name?: string; target?: { root: string }; receipt: { requestId: string; operation: string; version: number; scope: string; outcome: string; timestamp: string } };
+export type ViewResult = { catalog?: { operations: PublicViewOperation[] }; fields?: Record<string, string>; view?: View; rows?: ViewRow[]; favourites?: string[]; name?: string; target?: { root: string }; receipt: { requestId: string; operation: string; version: number; scope: string; outcome: string; timestamp: string } };
 export async function viewRequest(client: HostClient, input: unknown, signal?: AbortSignal): Promise<ViewResult> {
   signal?.throwIfAborted();
   const response = await client.request("/api/views", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input), signal });
   const result = await response.json();
   signal?.throwIfAborted();
   if (!response.ok || result.receipt?.outcome !== "success") {
+    if (result.code === "unavailable") throw new ViewOperationError(result.errorKind, false, "unavailable");
     const Validation = response.status === 400 && result.receipt?.operation === "view.validate" ? ViewValidationError : Error;
     if (Validation === ViewValidationError) throw new ViewValidationError("The view definition is invalid. Check the catalog and bindings.");
+    if (result.code === "invalid-input" && Array.isArray(result.inputIssues) && result.inputIssues.every((issue: unknown) => issue && typeof issue === "object" && "keyword" in issue && typeof issue.keyword === "string" && (!("field" in issue) || typeof issue.field === "string"))) {
+      throw new ViewInputError("Invalid operation args", result.inputIssues.map((issue: ViewInputIssue) => ({ field: issue.field, keyword: issue.keyword })));
+    }
     throw new ViewOperationError(result.errorKind, result.receipt?.outcome === "uncertain");
   }
   return result;
+}
+
+export type PublicViewOperation = Omit<ViewOperation, "validateArgs"> & { plugin?: string };
+/** V2 owns the HTTP envelope. Keep its catalog path/shape at this single boundary. */
+export async function readViewCatalog(client: HostClient, signal?: AbortSignal): Promise<{ operations: PublicViewOperation[] }> {
+  const result = await viewRequest(client, { action: "catalog" }, signal);
+  if (!result.catalog || !Array.isArray(result.catalog.operations)) throw new ViewOperationError("unavailable");
+  return result.catalog;
 }

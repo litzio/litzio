@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { Validator as InterpretedValidator } from "@cfworker/json-schema";
 import { Ajv } from "ajv";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { VIEW_LIMITS as V1_LIMITS, viewSchema, validateQueryBindings, evaluateQueryRows, builtinViewOperations, type ViewOperation } from "./views.ts";
@@ -33,6 +34,36 @@ export type QueryView = z.infer<typeof queryViewSchema>;
 export type ReviewView = z.infer<typeof reviewViewSchema>;
 export type CatalogView = z.infer<typeof catalogViewSchema>;
 export type ViewInputState = { state: "ready" | "needs-input"; missing: string[] };
+
+type InputCheck = ((value: unknown) => boolean) & { errors?: readonly { instancePath: string; keyword: string; params: Record<string, any> }[] | null };
+type InputCompiler = (schema: Record<string, unknown>) => InputCheck;
+/** CSP-safe JSON Schema evaluator; same Core validation/diagnostics, no generated code. */
+export function compilePortableViewInputSchema(schema: Record<string, unknown>): InputCheck {
+  assertPersistableInputSchema(schema);
+  const validator = new InterpretedValidator(structuredClone(schema), schema.$schema === "https://json-schema.org/draft/2020-12/schema" ? "2020-12" : "7", false);
+  const check: InputCheck = value => {
+    const nonFinite: NonNullable<InputCheck["errors"]>[number][] = [];
+    const inspect = (v: unknown, path: string) => {
+      if (typeof v === "number" && !Number.isFinite(v)) nonFinite.push({ instancePath: path, keyword: "type", params: {} });
+      if (v && typeof v === "object") for (const [key, child] of Object.entries(v)) inspect(child, `${path}/${key.replaceAll("~", "~0").replaceAll("/", "~1")}`);
+    };
+    inspect(value, "");
+    if (nonFinite.length) { check.errors = nonFinite; return false; }
+    const result = validator.validate(value);
+    check.errors = result.errors.filter(error => error.keyword !== "properties" && error.keyword !== "items").flatMap(error => {
+      const instancePath = error.instanceLocation.slice(1);
+      if (error.keyword !== "required") return [{ instancePath, keyword: error.keyword, params: {} }];
+      let node = schema, input = value;
+      for (const part of instancePath.split("/").slice(1).map(p => p.replaceAll("~1", "/").replaceAll("~0", "~"))) {
+        node = record(node.type === "array" ? node.items : record(node.properties)[part]);
+        input = input && typeof input === "object" ? (input as Record<string, unknown>)[part] : undefined;
+      }
+      return (Array.isArray(node.required) ? node.required as string[] : []).filter(name => !input || !Object.hasOwn(input, name)).map(missingProperty => ({ instancePath, keyword: "required", params: { missingProperty } }));
+    });
+    return result.valid;
+  };
+  return check;
+}
 
 /** Compile without coercion/default insertion. The caller's original schema remains authoritative. */
 export function compileViewInputSchema(schema: Record<string, unknown>) {
@@ -87,7 +118,7 @@ export class ViewInputError extends Error {
   constructor(message: string, readonly inputIssues: ViewInputIssue[]) { super(message); }
 }
 /** Only declared public field paths and validator keywords can leave input validation. */
-function inputIssues(validator: ReturnType<typeof compileViewInputSchema>, schema: Record<string, unknown>): ViewInputIssue[] {
+function inputIssues(validator: InputCheck, schema: Record<string, unknown>): ViewInputIssue[] {
   return (validator.errors ?? []).map(error => {
     const parts = error.instancePath.split("/").slice(1).map(p => p.replaceAll("~1", "/").replaceAll("~0", "~"));
     if (error.keyword === "required") parts.push(error.params.missingProperty);
@@ -102,13 +133,13 @@ function inputIssues(validator: ReturnType<typeof compileViewInputSchema>, schem
     return { ...(field ? { field } : {}), keyword: error.keyword };
   });
 }
-function validateInputArgs(schema: Record<string, unknown>, args: unknown): void {
-  const validator = compileViewInputSchema(schema);
+function validateInputArgs(schema: Record<string, unknown>, args: unknown, compile: InputCompiler): void {
+  const validator = compile(schema);
   if (!validator(args)) throw new ViewInputError("Invalid operation args", inputIssues(validator, schema));
 }
 
 /** Static mode tolerates only missing required fields explicitly bound by the form. */
-export function validateViewInputs(view: QueryView, operation: ViewOperation, mode: "static" | "execute" = "static"): ViewInputState {
+export function validateViewInputs(view: QueryView, operation: ViewOperation, mode: "static" | "execute" = "static", compile: InputCompiler = compileViewInputSchema): ViewInputState {
   const schema = operation.inputSchema, properties = record(schema.properties), args = view.sources.stats.args;
   assertPersistableInputSchema(schema);
   for (const name of Object.keys(args)) {
@@ -142,13 +173,13 @@ export function validateViewInputs(view: QueryView, operation: ViewOperation, mo
   const required = Array.isArray(schema.required) ? schema.required as string[] : [];
   const missing = required.filter(name => !Object.hasOwn(args, name));
   if (mode === "execute") {
-    validateInputArgs(schema, args);
+    validateInputArgs(schema, args, compile);
     if (!operation.validateArgs(args)) throw new ViewInputError("Invalid operation args", []);
   } else {
     if (missing.some(name => !fields.some(f => f.field === name))) throw new ViewInputError("Missing required operation input", missing.map(field => !Object.hasOwn(properties, field) || secret(record(properties[field])) ? { keyword: "required" } : { field: "/" + field.replaceAll("~", "~0").replaceAll("/", "~1"), keyword: "required" }));
     // Remove only the form-bound missing requirements; preserve every other JSON Schema constraint.
     const partial = { ...schema, required: required.filter(name => !missing.includes(name)) };
-    validateInputArgs(partial, args);
+    validateInputArgs(partial, args, compile);
     if (!missing.length && !operation.validateArgs(args)) throw new ViewInputError("Invalid operation args", []);
   }
   return { state: missing.length ? "needs-input" : "ready", missing };

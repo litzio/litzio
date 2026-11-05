@@ -200,3 +200,7 @@ Plugin jobs는 기존 Notice/Button/공통 progress, Settings는 SettingsSelect/
 SettingsSelect 레시피의 Any/Yes/No, 날짜는 공통 Input의 ISO 텍스트/형식 tooltip을 사용한다.
 폼 행동은 기존 `.form-actions`, 가로 스크롤 발견성은 문서 표의 thin scrollbar recipe를 재사용한다.
 `view-label.ts`는 label이 없는 식별자의 표시 fallback만 맡으며 schema/바인딩을 확장하지 않는다.
+
+#1263 차단 결함 보완: 공통 Views는 CatalogView를 query/review로 분기해 각각 QueryViews와
+V5 ReviewRenderer를 mount한다. Core ViewInputError의 field diagnostics를 기존 FieldError에
+연결한다. JSON Schema 의미를 UI에 복제하지 않으며 Core의 CSP-safe 해석 compiler를 사용한다.
