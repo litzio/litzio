@@ -116,7 +116,7 @@ test('release browser shards match CI while preserving trusted checkout and publ
   const ci = load(readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8'));
   const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
   const { browser, publish } = release.jobs;
-  assert.deepEqual(browser.strategy.matrix.shard, [1, 2, 3, 4]);
+  assert.deepEqual(browser.strategy.matrix.shard, ci.jobs.browser.strategy.matrix.shard);
   assert.equal(browser.strategy['fail-fast'], false);
   assert.deepEqual(browser.container, ci.jobs.browser.container);
   assert.equal(browser['runs-on'], ci.jobs.browser['runs-on']);
@@ -200,14 +200,13 @@ test('workflow consumes event policy outputs and preserves selected-job gates', 
   assert.ok(unitTests, 'Windows PR and merge queue CI must run the release unit-test suite');
   assert.equal(unitTests.if, undefined);
   assert.ok(release.jobs.build.steps.some(step => step.run === unitTests.run));
-  assert.deepEqual(browser.strategy.matrix.shard, [1, 2, 3, 4]);
   assert.deepEqual(http.strategy.matrix.os, ['ubuntu-latest', 'windows-latest']);
   assert.equal(aggregate.name, 'Core, CLI, Editor, and browser regressions');
   assert.deepEqual(new Set(aggregate.needs), new Set(['changes', 'quality', 'browser', 'http', 'desktop', 'desktop-unit', 'desktop-published', 'desktop-stable', 'desktop-beta', 'cache-warm']));
   assert.equal(aggregate.if, '${{ always() }}');
 });
 
-test('ordinary CI retains small diagnostics and screen evidence without distribution binaries', () => {
+test('ordinary CI retains failure diagnostics without manual captures or distribution binaries', () => {
   const ci = load(readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8'));
   const uploads = job => job.steps.filter(step => step.uses?.startsWith('actions/upload-artifact@'));
   const browser = uploads(ci.jobs.browser);
@@ -216,10 +215,10 @@ test('ordinary CI retains small diagnostics and screen evidence without distribu
   assert.ok(!browser.some(step => step.with.path.includes('tmp/document-scroll-capture/')),
     'manual-only layout captures must not have a dedicated CI upload');
   const http = uploads(ci.jobs.http);
-  const captures = http.find(step => step.with.path.trim() === 'tmp/http-host-capture/');
-  assert.equal(captures.if, 'always()', 'captures produced before a failure must still be retained');
-  assert.equal(captures.with.path.trim(), 'tmp/http-host-capture/');
-  assert.equal(captures.with['if-no-files-found'], 'ignore', 'early failures may produce no captures');
+  const httpDiagnostics = http.find(step => step.with.path.trim() === 'tmp/browser-results/');
+  assert.equal(httpDiagnostics.if, 'failure()');
+  assert.ok(!http.some(step => step.with.path.includes('tmp/http-host-capture/')),
+    'manual-only HTTP captures must not have a dedicated CI upload');
   const desktop = uploads(ci.jobs.desktop);
   assert.ok(!desktop.some(step => step.with.name === 'desktop-windows-unsigned'));
   const diagnostics = desktop.find(step => step.with.name === 'desktop-windows-diagnostics');
