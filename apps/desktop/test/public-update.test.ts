@@ -26,12 +26,12 @@ test("published update starting installer verifies GitHub digest, size and updat
     const written: Buffer[] = [];
     const module = { exports: {} as { publicBeta(versions: string[], start: string): Promise<string> } };
     const source = transformSync(readFileSync(file, "utf8") + "\nexport { publicBeta };", { loader: "ts", format: "cjs", define: { "import.meta.url": JSON.stringify(file.href) } }).code;
-    runInNewContext(source, { module, exports: module.exports, Buffer, console,
-      process: { argv: [], env: { APPDATA: "fixture", LOCALAPPDATA: "fixture" } },
-      async fetch(url: string) {
+    const fetchFixture = async (url: string) => {
         if (url.startsWith("https://api.github.com/")) return { status: 200, json: async () => ({ tag_name: `v${version}`, draft: false, prerelease: true, assets }) };
         return { status: 200, arrayBuffer: async () => url.endsWith(installer) ? executable : metadata };
-      },
+    };
+    runInNewContext(source, { module, exports: module.exports, Buffer, console,
+      process: { argv: [], env: { APPDATA: "fixture", LOCALAPPDATA: "fixture" } },
       require(name: string) {
         // JSON from the fake network crosses VM realms; compare its data, not Array prototypes.
         if (name === "node:assert/strict") return { ...assert, deepEqual: (a: unknown, b: unknown) => assert.deepEqual(JSON.parse(JSON.stringify(a)), JSON.parse(JSON.stringify(b))) };
@@ -39,6 +39,7 @@ test("published update starting installer verifies GitHub digest, size and updat
         if (name === "node:test") return { test() {} };
         if (name === "@playwright/test") return {};
         if (name === "../../scripts/verify-release.ts") return { readUpdateInfo };
+        if (name === "./public-download.ts") return { fetchPublicRelease: fetchFixture };
         return require(name);
       },
     });
