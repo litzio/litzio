@@ -12,7 +12,8 @@
     "zod": "4.6.7",
     "semver": "7.7.3",
     "ajv": "8.20.0",
-    "@litzio/core": "workspace:*"
+    "@litzio/core": "workspace:*",
+    "@babel/parser": "7.29.9"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",

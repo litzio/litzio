@@ -3,8 +3,9 @@ import { builtinViewOperations, type ViewOperation } from "@litzio/core/views";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, lstatSync, realpathSync, statSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import path from "node:path";
+import { scaffoldPlugin } from "./plugin-authoring.ts";
 import { startPluginProcess } from "./plugin-process.ts";
-import { validateManifest, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance } from "@litzio/plugin-sdk";
+import { validateManifest, validatePluginSource, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance } from "@litzio/plugin-sdk";
 import { hostPaths } from "../host-paths.ts";
 
 import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store.ts";
@@ -189,9 +190,20 @@ export class PluginHost {
     pluginManagementSchema.parse({ action, ...args });
     if (action === "list") return this.list().then(plugins => ({ plugins }));
     const run = this.serial.then(async () => {
-      const id = args.id!;
+      let id = args.id!;
+      const receipt = (outcome: "success" | "failure") => ({ requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome });
+      if (action === "scaffold") return { ...scaffoldPlugin(args.directory!, id), receipt: receipt("success") };
+      if (action === "validate") {
+        const errors: string[] = []; let manifestId: string | undefined;
+        try {
+          const a = this.artifact(args.directory!); manifestId = a.manifest.id;
+          errors.push(...validatePluginSource(readFileSync(a.entry, "utf8"), a.manifest));
+        } catch (error) { errors.push(String(error)); }
+        return { id: manifestId, valid: errors.length === 0, errors, limitations: "Static literal handlers only; computed output and activation behavior are checked at runtime.", receipt: receipt(errors.length ? "failure" : "success") };
+      }
       if (action === "register") {
         const directory = realpathSync(args.directory!), a = this.artifact(directory);
+        id = a.manifest.id;
         const names = new Set(a.manifest.contributes.operations.map(operation => `${a.manifest.id}.${operation.id}`));
         if (builtinViewOperations.some(op => names.has(op.operation))) throw new Error("Plugin operation ID collides with built-in operation");
         for (const [otherId, other] of Object.entries(this.installed)) {
@@ -241,7 +253,7 @@ export class PluginHost {
         } else throw new Error("Unknown plugin management action");
       }
       this.save();
-      return { plugins: await this.list(), receipt: { requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome: "success" } };
+      return { id, plugins: await this.list(), receipt: { requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome: "success" } };
     });
     this.serial = run.catch(() => {}); return run;
   }

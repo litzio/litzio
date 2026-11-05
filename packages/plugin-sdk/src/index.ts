@@ -58,6 +58,8 @@ export const pluginManagementSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("secret-status"), id }),
   z.strictObject({ action: z.literal("secret-delete"), id, name: id }),
   z.strictObject({ action: z.literal("list") }),
+  z.strictObject({ action: z.literal("scaffold"), directory: z.string().min(1), id }),
+  z.strictObject({ action: z.literal("validate"), directory: z.string().min(1) }),
   z.strictObject({ action: z.literal("register"), directory: z.string().min(1) }),
   z.strictObject({ action: z.literal("trust"), id, digest: z.string().regex(/^[a-f0-9]{64}$/) }),
   z.strictObject({ action: z.literal("unregister"), id }),
@@ -82,3 +84,4 @@ export const jobRequestSchema = z.discriminatedUnion("action", [
 ]);
 
 export const PLUGIN_JOBS = { version: 1, scope: "host", inputSchema: z.toJSONSchema(jobRequestSchema) } as const;
+export { validatePluginSource } from "./authoring.ts";

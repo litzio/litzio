@@ -346,3 +346,40 @@ test("secret IPC admission is per plugin at activation, and reload reads fresh v
     assert.equal((await host.list())[0]!.running,false);
   } finally {await host.close();rmSync(root,{recursive:true,force:true});}
 });
+
+test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh reload", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-"));
+  const host = new PluginHost(path.join(root, "state.json")), directory = path.join(root, "greeting"), id = "local.greeting";
+  const activity: any[] = [];
+  try {
+    await executePluginTool(host, { action: "scaffold", directory, id }, e => activity.push(e));
+    const entry = path.join(directory, "host.js"), source = readFileSync(entry, "utf8");
+    await assert.rejects(host.invoke("scaffold", { directory, id }));
+    assert.equal(readFileSync(entry, "utf8"), source);
+    const validate = () => host.invoke("validate", { directory }) as Promise<any>;
+    assert.equal((await validate()).valid, true);
+    const marker = path.join(root, "executed");
+    writeFileSync(entry, `import {writeFileSync} from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'bad');\n` + source);
+    assert.equal((await validate()).valid, true); assert.equal(existsSync(marker), false);
+    writeFileSync(entry, source.replace('greet:', 'undeclared:'));
+    const invalid = await executePluginTool(host, { action: "validate", directory }, e => activity.push(e));
+    assert.equal(invalid.activity.outcome, "failure");
+    assert.match(JSON.stringify(invalid), /Missing handler: greet/); assert.match(JSON.stringify(invalid), /Undeclared operation handler/);
+    writeFileSync(entry, source.replace('({ greeting: "Hello, " + name + "!" })', '({ greeting: 42 })'));
+    assert.match(JSON.stringify(await validate()), /Output schema mismatch/);
+    const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = readFileSync(manifestFile, "utf8");
+    writeFileSync(manifestFile, manifest.replace('"type": "string"', '"type": "invalid"'));
+    assert.equal((await validate()).valid, false);
+    writeFileSync(manifestFile, manifest); writeFileSync(entry, source);
+    await executePluginTool(host, { action: "register", directory }, e => activity.push(e));
+    assert.deepEqual(activity.at(-1), { action: "register", id, outcome: "success" });
+    const trust = async () => host.invoke("trust", { id, digest: (await host.list())[0]!.digest });
+    await trust(); await host.invoke("enable", { id });
+    assert.deepEqual((await host.invokeOperation(`${id}.greet`, { name: "World" })).result, { greeting: "Hello, World!" });
+    writeFileSync(entry, source.replace('Hello, ', 'Welcome, '));
+    assert.equal((await validate()).valid, true);
+    await trust(); await host.invoke("reload", { id });
+    assert.deepEqual((await host.invokeOperation(`${id}.greet`, { name: "World" })).result, { greeting: "Welcome, World!" });
+    assert.equal(existsSync(marker), false);
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});

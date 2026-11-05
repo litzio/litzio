@@ -1,3 +1,4 @@
+import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
 import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool } from "./assistant-plugin-tools.ts";
 import { viewGenerationContext } from "../shared/view-generation.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
@@ -215,6 +216,7 @@ export class AssistantConversations {
       references = checkedReferences(input.references ?? [], folders, this.access);
       const context = { folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))], ...(input.viewGeneration ? { viewGeneration: viewGenerationContext(this.plugins?.viewOperations()) } : {}) };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
+      if (this.plugins) messages.push({ type: "text", text: PLUGIN_AUTHORING_SKILL, text_elements: [] });
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
       if (active) {
