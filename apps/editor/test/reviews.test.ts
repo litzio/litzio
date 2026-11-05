@@ -27,9 +27,11 @@ test("review baseline, Root/Host/generation, serialized writes, conflict and no 
     Object.assign(data.bundle, { mappingRevision: "map1" });
     Object.assign(data, { mapping: { generation: "g1", documentRevision: revision, documentHash: revision, sourceRevision: sourceHash, mappingRevision: "map1", entries: [] } });
     let calls = 0, lose = false;
+    let approvalOverride: { kind: string; path: number[]; from: string; to: string } | undefined;
     let gate: Promise<void> | undefined, began: (() => void) | undefined;
     const reviews = new PluginReviews(new RootAccess([root]), () => declaration, async (name, input: any) => {
       calls++; began?.(); if (gate) await gate; if (lose) throw new Error("private-service-body");
+      if (name.endsWith("approve") && approvalOverride) { input.proposal.after.text = approvalOverride.to; input.proposal.targets[0].path = approvalOverride.path; return { result: approvalOverride }; }
       return { result: name.endsWith("propose") ? { id: randomUUID(), kind: "text", targets: [{ path: [1], documentRevision: input.baseline.documentRevision, documentHash: input.baseline.documentRevision }], evidence: ["fixture"], before: { type: "plain", text: "Original." }, after: { type: "plain", text: "Changed." }, baseline: input.baseline, state: "pending", actions: [{ action: "approve", allowed: true }, { action: "reject", allowed: true }] } : { kind: "text", path: [1], from: "Original.", to: "Changed." } };
     });
     const bundle = reviews.publish("fixture", root, file, source, data);
@@ -48,9 +50,33 @@ test("review baseline, Root/Host/generation, serialized writes, conflict and no 
     assert.throws(() => reviews.publish("fixture", root, file, source, { ...data, mapping: { ...(data as any).mapping, generation: "g2" } }));
     const proposed = await mutate("propose"), id = proposed.proposals[0].id;
     assert.equal(readFileSync(file, "utf8"), original);
+    const assertActionSnapshot = (snapshot: any, proposalId: string, action: string) => {
+      const proposal = snapshot.proposals.find((p: any) => p.id === proposalId);
+      assert.deepEqual(proposal.baseline, snapshot.baseline, "V5 baseline equality for the returned snapshot");
+      assert.ok(proposal.actions.some((a: any) => a.action === action && a.allowed));
+      for (const target of proposal.targets) {
+        assert.equal(target.documentRevision, snapshot.baseline.documentRevision);
+        assert.equal(target.documentHash, textRevision(readFileSync(file, "utf8")), "V5 target hash matches the actual Read snapshot");
+      }
+    };
+    assertActionSnapshot(proposed, id, "approve"); assertActionSnapshot(proposed, id, "reject");
+    for (const mismatch of [{ to: "Other." }, { from: "Original" }, { path: [2] }]) {
+      approvalOverride = { kind: "text", path: [1], from: "Original.", to: "Changed.", ...mismatch };
+      const refused = await mutate("approve", id);
+      assert.equal(refused.receipt.outcome, "uncertain"); assert.equal(readFileSync(file, "utf8"), original, "An approval cannot replace the reviewed content or target");
+      const observed = await read();
+      assert.deepEqual(observed.data[0].before, { type: "plain", text: "Original." });
+      assert.deepEqual(observed.data[0].after, { type: "plain", text: "Changed." });
+    }
+    approvalOverride = undefined;
     const approved = await mutate("approve", id); assert.equal(approved.receipt.outcome, "success"); assert.match(readFileSync(file, "utf8"), /Changed/);
+    assertActionSnapshot(approved, id, "undo");
     const undone = await mutate("undo", id); assert.equal(undone.receipt.outcome, "success"); assert.equal(readFileSync(file, "utf8"), original);
-    const p2 = await mutate("propose"); const rejected = await mutate("reject", p2.proposals.at(-1).id); assert.equal(rejected.receipt.outcome, "success"); assert.equal(readFileSync(file, "utf8"), original);
+    const p2 = await mutate("propose");
+    const p3 = await mutate("propose");
+    for (const p of p3.proposals.filter((p: any) => p.state === "pending")) { assertActionSnapshot(p3, p.id, "approve"); assertActionSnapshot(p3, p.id, "reject"); }
+    const rejected = await mutate("reject", p3.proposals.at(-1).id); assert.equal(rejected.receipt.outcome, "success"); assert.equal(readFileSync(file, "utf8"), original);
+    assertActionSnapshot(rejected, p2.proposals.at(-1).id, "approve");
     const request = { ...base, action: "propose", requestId: randomUUID(), baseline: (await read()).baseline }; lose = true;
     const uncertain = await reviews.execute(request); const count = calls;
     assert.equal(uncertain.receipt.outcome, "uncertain"); assert.ok(!JSON.stringify(uncertain).includes("private-service-body"));
@@ -84,7 +110,7 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     writeFileSync(path.join(artifact, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
     const operations = ["start", "status", "stop", "read", "propose", "approve", "reject", "undo"].map(id => ({ id, version: 1, effect: ["status", "read"].includes(id) ? "read" : "write", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } }));
     writeFileSync(path.join(artifact, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.review", name: "Review fixture", tier: "community", publisher: { id: "fixture", name: "Fixture" }, version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations, reviews: [{ ...declaration, ...Object.fromEntries(["read", "propose", "approve", "reject", "undo"].map(action => [action, { operation: `fixture.review.${action}`, version: 1 }])) }], jobs: [{ id: "text", title: "Import", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" }] } }));
-    writeFileSync(path.join(artifact, "host.js"), `export function activate() { const completed = ${JSON.stringify({ state: "completed", phase: "Done", document: { source }, review })}; return { operations: { start: async () => completed, status: async () => completed, stop: async () => completed, read: async () => ({}), propose: async input => ({ id: input.requestId, kind: 'text', targets: [{path:[1],documentRevision:input.baseline.documentRevision,documentHash:input.baseline.documentRevision}], evidence:['fixture'],before:{type:'plain',text:'Original.'},after:{type:'plain',text:'Changed.'},baseline:input.baseline,state:'pending',actions:[{action:'approve',allowed:true},{action:'reject',allowed:true}] }), approve: async () => ({kind:'text',path:[1],from:'Original.',to:'Changed.'}), reject: async () => ({}), undo: async () => ({}) }, status: async () => ({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}), dispose: async () => {} }; }`);
+    writeFileSync(path.join(artifact, "host.js"), `export function activate() { const completed = ${JSON.stringify({ state: "completed", phase: "Done", document: { source }, review })}; return { operations: { start: async () => ({state:"running",phase:"Accepted"}), status: async () => completed, stop: async () => ({state:"stopped",phase:"Stopped"}), read: async () => ({}), propose: async input => ({ id: input.requestId, kind: 'text', targets: [{path:[1],documentRevision:input.baseline.documentRevision,documentHash:input.baseline.documentRevision}], evidence:['fixture'],before:{type:'plain',text:'Original.'},after:{type:'plain',text:'Changed.'},baseline:input.baseline,state:'pending',actions:[{action:'approve',allowed:true},{action:'reject',allowed:true}] }), approve: async () => ({kind:'text',path:[1],from:'Original.',to:'Changed.'}), reject: async () => ({}), undo: async () => ({}) }, status: async () => ({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}), dispose: async () => {} }; }`);
     writeFileSync(path.join(root, "index.html"), "<html></html>");
     host = await startFetchServer(() => startHttpHost({ port: 0, roots: [root], editorDir: root, daemon: { health: { pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), processStartedAt: new Date().toISOString(), daemonHome: root, executable: process.execPath, roots: [root], nonLoopback: false, launcher: "cli-run", productVersion: "0.0.0", protocolVersion: DAEMON_PROTOCOL }, stop() {} } }));
     const address = host.server.address(); assert.ok(address && typeof address !== "string"); const origin = `http://127.0.0.1:${address.port}`;
@@ -96,7 +122,8 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const listing = await send("/api/plugins", { action: "list" });
     await send("/api/plugins", { action: "trust", id: "fixture.review", digest: listing.plugins[0].digest });
     await send("/api/plugins", { action: "enable", id: "fixture.review" });
-    const requestId = randomUUID(); await send("/api/plugins", { action: "job-start", plugin: "fixture.review", job: "text", root, file: "input.txt", output: "doc.md", requestId });
+    const requestId = randomUUID(); const admitted = await send("/api/plugins", { action: "job-start", plugin: "fixture.review", job: "text", root, file: "input.txt", output: "doc.md", requestId });
+    assert.equal(admitted.job.state, "running"); assert.equal(admitted.job.result, undefined);
     let job: any;
     for (let i = 0; i < 100; i++) { job = (await send("/api/plugins", { action: "job-status", requestId })).job; if (job.state === "completed") break; await new Promise(r => setTimeout(r, 20)); }
     assert.equal(job.state, "completed", JSON.stringify(job)); assert.ok(job.result.bundle);

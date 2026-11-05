@@ -18,7 +18,7 @@ const editSchema = z.strictObject({ kind: z.literal("text"), path: z.array(z.num
 type Edit = z.infer<typeof editSchema>;
 type Bundle = { plugin: string; review: string; root: string; access: RootAccess; file: string; documentSource: string; source: string; sourceHash: string; bundle: ReviewBundle;
   pages: z.infer<typeof reviewPageSchema>[]; mapping?: z.infer<typeof reviewMappingSchema>; images: z.infer<typeof completedReviewSchema>["images"];
-  proposals: Map<string, ReviewProposal>; revision: string; undo: Map<string, { edit: Edit; before: string }> };
+  proposals: Map<string, ReviewProposal>; edits: Map<string, Edit>; revision: string; undo: Map<string, { edit: Edit; before: string }> };
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 function bounded<T>(value: T): T { if (Buffer.byteLength(JSON.stringify(value)) > REVIEW_LIMITS.jsonBytes) throw new Error("Review JSON exceeds limit"); return value; }
 /** Daemon-owned completed artifacts and no-replay observations, scoped to one PluginHost. */
@@ -39,7 +39,7 @@ export class PluginReviews {
     if (data.mapping && (data.mapping.generation !== data.bundle.generation || data.mapping.sourceRevision !== sourceHash || data.mapping.documentRevision !== revision || data.mapping.documentHash !== revision || data.mapping.mappingRevision !== data.bundle.mappingRevision)) throw new Error("Mixed review mapping");
     if (!!data.mapping !== !!data.bundle.mappingRevision) throw new Error("Missing review mapping");
     const bundle: ReviewBundle = { ...data.bundle, bundleRef: randomUUID(), documentRef: randomUUID() };
-    const record: Bundle = { plugin, review: data.review, root: boundary.resolve(root), access: boundary, file, documentSource: decodeUtf8(readFileSync(file)), source, sourceHash, bundle, pages: data.pages, mapping: data.mapping, images: data.images, proposals: new Map(), revision: randomUUID(), undo: new Map() };
+    const record: Bundle = { plugin, review: data.review, root: boundary.resolve(root), access: boundary, file, documentSource: decodeUtf8(readFileSync(file)), source, sourceHash, bundle, pages: data.pages, mapping: data.mapping, images: data.images, proposals: new Map(), edits: new Map(), revision: randomUUID(), undo: new Map() };
     for (const image of data.images) this.image(record, image.ref);
     for (const page of data.pages) if (page.imageRef && !data.images.some(i => i.ref === page.imageRef)) throw new Error("Missing image");
     const regions = new Set(data.pages.flatMap(p => p.regions.map(r => r.id)));
@@ -99,7 +99,7 @@ export class PluginReviews {
       const action = input.action;
       const proposal = action === "propose" ? undefined : b.proposals.get(input.proposalId ?? "");
       if (action !== "propose" && (!proposal || !proposal.actions.some(a => a.action === action && a.allowed))) throw new Error("Proposal action unavailable");
-      const result = await this.invoke(binding[action].operation, { bundle: b.bundle, baseline: this.baseline(b), requestId: input.requestId, proposal: proposal ?? null, input: input.input ?? null }, binding[action].version);
+      const result = await this.invoke(binding[action].operation, structuredClone({ bundle: b.bundle, baseline: this.baseline(b), requestId: input.requestId, proposal: proposal ?? null, input: input.input ?? null }), binding[action].version);
       if (result.error) throw Object.assign(new Error("Review operation failed"), { kind: result.errorKind });
       // Recheck after plugin execution, immediately before any mutation.
       this.declaration(b.plugin, b.review); this.check(b);
@@ -107,17 +107,25 @@ export class PluginReviews {
         const p = reviewProposalSchema.parse(result.result);
         if (p.state !== "pending" || b.proposals.has(p.id) || JSON.stringify(p.baseline) !== JSON.stringify(input.baseline) || p.targets.some(t => t.documentRevision !== b.bundle.documentRevision || t.documentHash !== b.bundle.documentHash)) throw new Error("Invalid pending proposal");
         if (b.proposals.size >= REVIEW_LIMITS.items) throw new Error("Proposal limit exceeded");
+        // Pin the reviewed change at admission. An approve response cannot redefine it.
+        const edit = p.targets.length === 1 && p.before.type === "plain" && p.after.type === "plain"
+          ? editSchema.safeParse({ kind: "text", path: p.targets[0]!.path, from: p.before.text, to: p.after.text }) : undefined;
+        if (edit?.success) b.edits.set(p.id, structuredClone(edit.data));
+        else p.actions = p.actions.map(a => a.action === "approve" ? { action: a.action, allowed: false, reason: "Unsupported review edit" } : a);
         this.actions(p); b.proposals.set(p.id, p);
       } else if (action === "reject") { proposal!.state = "rejected"; }
       else {
         const old = decodeUtf8(readFileSync(b.file));
         const saved = b.undo.get(proposal!.id);
-        const edit = action === "undo" ? saved?.edit : editSchema.parse(result.result);
+        const edit = action === "undo" ? saved?.edit : b.edits.get(proposal!.id);
+        if (action === "approve" && JSON.stringify(editSchema.parse(result.result)) !== JSON.stringify(edit)) throw new Error("Approval differs from the reviewed change");
         if (!edit || !proposal!.targets.some(t => JSON.stringify(t.path) === JSON.stringify(edit.path))) { proposal!.state = "inapplicable"; this.actions(proposal!); throw new Error("Unsupported review edit target"); }
         const next = serialize(updateNodeTextAtPath(parse(old), edit.path, edit.from, edit.to));
         if (action === "undo" && next !== saved!.before) throw new Error("Undo no longer applies");
         this.check(b); commitFile(accessPath(b.access.resolve(b.file), this.access), next, b.bundle.documentRevision);
         b.documentSource = next; b.bundle.documentRevision = textRevision(next); b.bundle.documentHash = textRevision(next);
+        // A text operation preserves the path; bind the acted-on target to the committed snapshot for Undo.
+        proposal!.targets = proposal!.targets.map(t => ({ ...t, documentRevision: b.bundle.documentRevision, documentHash: b.bundle.documentHash }));
         if (action === "approve") b.undo.set(proposal!.id, { before: old, edit: { ...edit, from: edit.to, to: edit.from } });
         proposal!.state = action === "approve" ? "approved" : "rejected";
         for (const p of b.proposals.values()) if (p !== proposal) { p.state = "stale"; this.actions(p); }
@@ -125,7 +133,7 @@ export class PluginReviews {
         b.mapping = undefined; b.bundle.mappingRevision = undefined;
       }
       b.revision = randomUUID();
-      for (const p of b.proposals.values()) { this.actions(p); if (p.state === "approved") p.baseline = this.baseline(b); }
+      for (const p of b.proposals.values()) { this.actions(p); if (p.state !== "stale") p.baseline = this.baseline(b); }
       pending.value = { baseline: this.baseline(b), changedDocumentRefs: ["approve", "undo"].includes(action) ? [b.bundle.documentRef] : [], proposals: structuredClone([...b.proposals.values()]), receipt: receipt("success") };
     } catch (cause) { pending.value = { state: "uncertain", ...publicOperationError(cause, "write"), receipt: receipt("uncertain") }; }
     this.busy.delete(owner);

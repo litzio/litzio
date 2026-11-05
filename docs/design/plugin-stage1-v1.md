@@ -2,7 +2,8 @@
 
 - Status: Implemented
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Request paths, lazy plugin start, receipts and stored formats are unchanged.
-- Last verified: 2026-11-06 — #1244 플러그인별 값 마스킹·키 보존·삭제·로그 비노출과 #1245 접수/작업 수명 분리·실제 10초 초과 subprocess 회귀. 기존 검증: 2026-11-05 SDK·Host·OneDrive fixture, 제작 lifecycle·CLI·실제 Codex 두 모델 및 http-plugins 검사. 필수 CI 결과는 구현 PR에 기록한다.
+- Last verified: 2026-11-06 — V4 승인 내용 고정·snapshot baseline·K1 status 완료 fixture와 대상 회귀 검사, 전체 typecheck 확인. V5 브라우저 통합은 미검증.
+- Previous verification: 2026-11-06 — #1244 플러그인별 값 마스킹·키 보존·삭제·로그 비노출과 #1245 접수/작업 수명 분리·실제 10초 초과 subprocess 회귀. 기존 검증: 2026-11-05 SDK·Host·OneDrive fixture, 제작 lifecycle·CLI·실제 Codex 두 모델 및 http-plugins 검사. 필수 CI 결과는 구현 PR에 기록한다.
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md)의 소유자 1단계 개시. [ADR-0019](../adr/0019-plugin-tiers.md), [ADR-0015](../adr/0015-shared-host-operations.md), [ADR-0018](../adr/0018-desktop-remote-hosts.md)을 따른다.
 - Scope: 최소 SDK, 명시적 로컬 등록·신뢰·활성화, 공용 작업·CLI·설정과 OneDrive, 비서 제작 키트. Jira와 동적 UI 스파이크는 후속이다.
 
@@ -144,3 +145,13 @@ review <read|propose|approve|reject|undo|status> <pluginId> <reviewId> --input <
 ```
 
 CLI는 같은 dispatcher를 호출한다. JSON은 bundleRef/generation과 동작별 kind/pageNo 또는 requestId/baseline/proposalId/input을 담는다. 명시 CLI의 action/plugin/review/root가 적용되며 응답 유실을 자동 재전송하지 않는다. `reviews.test.ts`는 제품 HTTP Host·실제 CLI·plugin subprocess·K1 완료·파일 승인/거절/Undo와 Root/Host/generation·stale·no-replay를 검증한다. 공용 fixture이며 실제 Docling 제작·변환 품질이나 V5 브라우저 통합의 완료 근거가 아니다.
+
+### V4 승인 내용 고정과 snapshot baseline
+
+제안 접수 시 Host는 단일 target과 plain before/after에서 지원하는 text 연산의 path/from/to를 별도 보관한다. 승인 응답의 세 값이 이 고정 연산과 정확히 일치해야 하며 실제 저장에도 Host 보관 연산만 쓴다. plugin에 전달하는 문서·제안 입력은 복사본이다. 지원하지 않는 typed/다중 target 제안은 읽기·거절을 유지하되 승인을 허용하지 않는다. before/after와 고정 연산은 baseline 갱신으로 변경하지 않는다.
+
+성공한 propose/reject/approve/undo마다 proposalRevision을 한 번 갱신하고, 반환 snapshot의 stale이 아닌 모든 제안 baseline을 응답 baseline과 동일하게 갱신한다. propose/reject는 documentRevision/sourceRevision/mappingRevision을 바꾸지 않는다. approve/undo는 commit한 canonical source의 documentRevision/hash를 bundle과 해당 제안 target에 함께 반영한다. 현재 text 연산은 대상 path를 유지하므로 해당 제안의 target만 새 문서 snapshot에 연결한다. 다른 제안은 stale로 남기며 이전 baseline/target을 최신 문서에 임의 연결하지 않는다. 재조회한 proposals와 변경 응답은 같은 baseline 계약을 따른다. 이전 requestId status는 당시 결과 snapshot을 보존하며 최신 snapshot 대신 사용하지 않는다.
+
+승인 후 Undo의 proposal.baseline은 새 documentRevision·proposalRevision과 현재 sourceRevision/mappingRevision으로 비교한다. 이전 map은 여전히 폐기하며 없는 map을 새 문서에 맞는 것처럼 만들지 않는다. V5 통합에서는 문서/bundle/baseline/제안 target의 유효성과 map 탐색 가용성을 분리해야 한다. map 부재/continuation은 원본↔문서 이동을 막되, 현재 문서와 일치하는 제안의 승인·거절·Undo를 일괄 stale로 만들지 않는다. 실제 문서·원본 revision 불일치는 계속 모든 관련 변경을 막는다.
+
+K1 review HTTP fixture는 start에서 running 접수만 반환하고 자료를 공개하지 않는다. 이후 status의 completed 응답을 기존 Host 문서 생성·bundle 검증/공개 경로에 연결한다. #1259 접수·완료 분리의 source-of-truth를 유지하며 별도 수명 규칙을 구현하지 않는다.
