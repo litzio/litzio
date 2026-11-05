@@ -118,12 +118,17 @@ Manual foreground listeners use an endpoint-specific lock in the same directory,
 
 `GET /daemon/health` returns PID, start time, instance ID, **productVersion**
 and **protocolVersion** separately. Clients must verify all identity fields against discovery.
-Daemon health/stop requests require `X-Litzio-Protocol: 3`; mismatch returns 409 before operations. Other requests may omit this header, but an explicit mismatching value is refused. A product
+Daemon health/stop requests require `X-Litzio-Protocol: 4`; mismatch returns 409 before operations. Other requests may omit this header, but an explicit mismatching value is refused. A product
 version difference warns and retains the connection. On a protocol mismatch, use the CLI version
 matching the running daemon to stop it (with that channel), or Ctrl+C in its foreground terminal,
 then start the desired version. The incompatible CLI does not bypass protocol checks to stop it;
 never kill a PID alone. `POST /daemon/stop` requires
 allowed-origin JSON, all three identity fields and `confirm:true`. No OS kill based on a PID.
+
+CLI/Desktop daemon control RPCs use a fresh connection per request, with a 10-second
+deadline and no automatic retry. They do not reuse idle pooled connections, including
+after synchronous installation checks delay socket-close processing. A lost stop response
+remains a failure; the client never replays the stop request. Identity/version checks are unchanged.
 
 `start` and Desktop's explicit reconnect reclaim records/locks only after OS creation identity proves the owner exited or its PID was reused. They recheck lock/discovery ownership before cleanup. Malformed records and live but unresponsive owners fail closed with recorded PID/URL and log guidance. `status` distinguishes running, not running and recorded-but-unreachable; it never deletes state. No background restart or PID-based process killing is introduced. Repeated `start` reports the existing PID, URL and launcher.
 
