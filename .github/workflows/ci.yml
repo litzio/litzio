@@ -505,21 +505,6 @@ jobs:
         if: needs.changes.outputs.update == 'true'
         env:
           LITZIO_TEST_LIFECYCLE_SCOPE: ${{ needs.changes.outputs.fullLifecycle == 'true' && 'full' || 'representative' }}
-      - name: Diagnose uninstall flake (temporary repetitions for issue 1231)
-        run: |
-          $env:LITZIO_DIAG_ENVIRONMENT_ONLY = '1'
-          1..40 | ForEach-Object {
-            Write-Host "Uninstall diagnostic iteration $_"
-            $env:LITZIO_DIAG_ROUND = "$_"
-            $diagnosticFolder = [IO.Path]::GetFullPath("$env:LOCALAPPDATA/litzio/uninstall-logs")
-            if (-not $diagnosticFolder.StartsWith([IO.Path]::GetFullPath($env:LOCALAPPDATA) + [IO.Path]::DirectorySeparatorChar)) { throw 'Invalid diagnostic path' }
-            Remove-Item -LiteralPath $diagnosticFolder -Recurse -Force -ErrorAction SilentlyContinue
-            pnpm --filter @litzio/desktop test:uninstall
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          }
-        if: needs.changes.outputs.update == 'true'
-        env:
-          LITZIO_TEST_LIFECYCLE_SCOPE: ${{ needs.changes.outputs.fullLifecycle == 'true' && 'full' || 'representative' }}
       - name: Upload Desktop diagnostics on failure
         if: always() && (failure() || cancelled())
         uses: actions/upload-artifact@v6

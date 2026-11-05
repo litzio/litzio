@@ -43,13 +43,12 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
     await assert.rejects(environment.write(original, original), /User PATH changed/);
     assert.deepEqual((await environment.read()).user, longPath);
     for (const silent of [false, true]) for (const fault of ["empty", "user", "owner", "foreign", "helper", "environment"] as const) {
-      if (process.env.LITZIO_DIAG_ENVIRONMENT_ONLY === "1" && (silent || fault !== "environment")) continue;
       const healthy = fault === "empty" || fault === "user";
       if (healthy && !silent) continue;
       // Full is the default for direct invocation and release verification.
       if (process.env.LITZIO_TEST_LIFECYCLE_SCOPE === "representative" &&
         (!silent || !["empty", "user", "foreign"].includes(fault))) continue;
-      const label = `${silent ? "silent" : "interactive"}-${fault}${process.env.LITZIO_DIAG_ROUND ? `-${process.env.LITZIO_DIAG_ROUND}` : ""}`;
+      const label = `${silent ? "silent" : "interactive"}-${fault}`;
       const install = path.join(work, label);
       const setup = spawnSync(installer, ["/S", `/D=${install}`], { timeout: 60_000, encoding: "utf8" });
       assert.equal(setup.status, 0, `${label}: ${setup.stderr}`);
