@@ -314,7 +314,7 @@ test("secret IPC admission is per plugin at activation, and reload reads fresh v
   const values = new Map([['fixture.secret/pat', 'first-private-token'], ['fixture.other/pat', 'other-private-token']]);
   const reads: string[] = [];
   const store = { supported: true, async read(id: string, name: string) { reads.push(`${id}/${name}`); return values.get(`${id}/${name}`); }, async status(id: string, name: string) {return values.has(`${id}/${name}`);}, async set(id: string, name: string, value: string) {values.set(`${id}/${name}`,value);}, async delete() {} };
-  const host = new PluginHost(path.join(root, 'state.json'), store);
+  const host = new PluginHost(path.join(root, 'state.json'), { secrets: store });
   try {
     const directory = lifecycleFixture(root, 'fixture.secret', `export function activate(c){
       console.log(c.secrets.pat); process.stderr.write(c.secrets.pat);

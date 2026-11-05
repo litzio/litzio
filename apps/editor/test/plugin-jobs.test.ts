@@ -75,6 +75,7 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
     const pending = await start("# Disable"); await host.invoke("disable", { id: "fixture.jobs" });
     assert.equal(existsSync(path.join(root, pending.output)), false);
     await host.invoke("enable", { id: "fixture.jobs" });
+    await host.invoke("reload", { id: "fixture.jobs" });
     const interrupted = await start("# Restart while active");
     await host.close();
     const restarted = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
@@ -85,4 +86,30 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
       assert.equal(existsSync(path.join(root, interrupted.output)), false);
     } finally { await restarted.close(); }
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+
+test("K1 start/status/stop cannot publish subprocess results rejected by output schema", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-publication-"));
+  const directory = path.join(root, "artifact"); cpSync(new URL("./fixtures/job-plugin", import.meta.url), directory, {recursive:true});
+  const file = path.join(directory, 'litzio-plugin.json'), manifest = JSON.parse(readFileSync(file, 'utf8'));
+  for (const operation of manifest.contributes.operations) operation.outputSchema = {type:'object',properties:{validated:{type:'boolean'}},required:['validated']};
+  writeFileSync(file, JSON.stringify(manifest));
+  const complete = {state:'completed',phase:'Complete',document:{source:'---\nlitzio: 1\n---\n\n# Private partial result\n'}};
+  writeFileSync(path.join(directory, 'host.js'), `export function activate(){const complete=()=>(${JSON.stringify(complete)});return {operations:{start:complete,status:complete,stop:complete},status:()=>({available:true,message:'ready',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+  const host = new PluginHost(path.join(root, 'state.json'), {access:new RootAccess([root])});
+  try {
+    writeFileSync(path.join(root, 'input.txt'), 'Original');
+    await host.invoke('register',{directory});
+    await host.invoke('trust',{id:'fixture.jobs',digest:(await host.list())[0]!.digest});
+    await host.invoke('enable',{id:'fixture.jobs'});
+    const requestId = randomUUID();
+    await host.invoke('job-start',{plugin:'fixture.jobs',job:'text',requestId,root,file:'input.txt',output:'result.md'});
+    for (const action of ['job-status','job-stop']) {
+      const reply = await host.jobs.execute({action,requestId});
+      assert.ok('job' in reply); assert.equal(reply.job.state,'uncertain');
+      assert.equal('result' in reply.job,false); assert.equal(existsSync(path.join(root,'result.md')),false);
+    }
+    assert.equal(readFileSync(path.join(root,'input.txt'),'utf8'),'Original');
+  } finally {await host.close();rmSync(root,{recursive:true,force:true});}
 });
