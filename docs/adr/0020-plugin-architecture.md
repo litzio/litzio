@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Decision date: 2026-11-05
-- Last verified: 2026-11-05 — 소유자 승인·정정과 관련 ADR·조사 문서 대조. 카탈로그 v2 개정안은 `d2b87e97` 코드·2단계 수락 보고서·Paseo/VS Code/A2UI/CopilotKit 공식 문서 정적 대조. 제품 실행·설치·인증 재검증 없음.
+- Last verified: 2026-11-06 — 소유자 정정으로 카탈로그 v2의 K2~K4를 공용 요소에 한정하고 4단계는 비서 제작 수락 시험임을 명시. 코드·2단계 수락 보고서·외부 공식 문서 대조는 2026-11-05 `d2b87e97` 기준. 제품 실행·설치·인증 재검증 없음.
 - Authority: 2026-11-05 소유자 결정, under [AGENTS.md](../../AGENTS.md). 관련 보류 이슈: [#1075](https://github.com/litzio/litzio/issues/1075).
 - Scope: 재개 시 사용할 저장소·Host·기여·UI·저장 구조의 결정. Accepted는 구현 완료가 아니다. 별도 개시된 OneDrive 구현과 후속 비서 제작 로드맵을 구분한다.
 - Amends: [ADR-0019](0019-plugin-tiers.md)의 계층·공통 SDK·Host·번들 UI 경계를 구체화한다. [ADR-0012](0012-plugin-runtime-and-ui-contributions.md)·[ADR-0015](0015-shared-host-operations.md)·[ADR-0017](0017-bundled-client-and-official-ai.md)의 재개 시 실행·UI·비서 관리 경계는 아래 관계 절을 따른다.
@@ -233,7 +233,7 @@ Core는 일시적·저장 명세의 구조·바인딩·정적 유효성·canonic
 | 1: 기반(병렬) | (a) 하위 프로세스+reload, (b) [#1218](https://github.com/litzio/litzio/issues/1218)의 작업별 출력 schema 기반 일반화, (c) Windows OS secret 저장, (d) 비서 제작 키트, (e) K1 | daemon 재시작 없이 변경 반영·정리 및 reload 실패 상태 확인; 허용 작업 출력만 바인딩하고 잘못된 schema 거부; secret UI 입력·비서 비노출·평문 fallback 거부; scaffold→validate→reload를 같은 Host 작업과 CLI로 수행; 파일 한 개의 긴 작업 실패/uncertain·대기 중단·완료 결과 열기 확인 |
 | 2: 첫 제작 | 비서가 `C:\Projects\mockup-server`의 목업 Jira 읽기 플러그인 제작, 요구 인터뷰는 대화로 진행 | **비서가 목업 Jira 읽기 플러그인을 만든다**: 제작·검증·등록·신뢰·활성·조회까지 수행하고 기본 UI와 CLI 결과 일치, 활동 기록·오류·secret 비노출을 확인 |
 | 3: 카탈로그 v2 | 2단계에서 막힌 폼·버튼·선 차트·가로 배치와 K2·K3·K4 | 작업 schema 기반 폼/버튼 호출과 차트·배치, 페이지/영역 표시·선택, 양방향 대응·stale 차단, 교정 승인/거절/Undo·원본 보존을 확인 |
-| 4: Docling 최소 흐름 | 비서가 Docling 플러그인 제작, K1~K4 연결 | PDF 입력→변환 상태→완료 결과→페이지 이미지/Read 좌우 대조→교정 검토를 수행; 실제 변환·Core valid write·원본 보존·uncertain/no-replay와 CLI 공용 작업을 확인 |
+| 4: 비서 제작 수락 시험 | 비서가 Docling 플러그인 제작, K1~K4 연결. 제품 구현 지시 아님 | PDF 입력→변환 상태→완료 결과→페이지 이미지/Read 좌우 대조→교정 검토를 수행; 실제 변환·Core valid write·원본 보존·uncertain/no-replay와 CLI 공용 작업을 확인 |
 
 **그래서 무엇이 안 되는가:** 목업 Jira 성공은 실제 Jira 배포별 인증·권한·pagination이나 Docling 품질의 증명이 아니다. 1단계에서 카탈로그 v2·Docling 전체를 구현하지 않는다. Accepted·문서 PR을 구현 완료·릴리스 승인으로 해석하지 않는다.
 
@@ -263,9 +263,9 @@ K1은 **파일 입력·긴 작업 상태·결과 열기** 계약이다. 대상 H
 
 - **K2 페이지·영역:** Host가 제공하는 페이지 이미지, bbox 좌표 단위·원점, 장식·미지원·제외와 페이지 선택을 표현한다. 제외는 원본 삭제가 아니다.
 - **K3 원본↔문서 대응:** 원본 영역과 Read 문서 블록의 다대다 대응·양방향 선택/강조·필요한 reveal을 제공한다. revision/hash가 맞지 않는 map은 stale로 표시하고 대상 이동·교정 적용을 막는다. 없는 대응을 발명하지 않는다.
-- **K4 교정:** 원본 baseline·근거·전후·pending/stale/inapplicable과 승인/거절/Undo를 표현한다. 비서는 제안하고 사용자 승인 후 적용한다. K4 교정 컴포넌트는 3단계 카탈로그 v2에 포함한다. 문서 의미·valid serialization은 기존 Core 경계를 따른다.
+- **K4 문서 변경 검토:** 문서·제안 baseline과 참조 자료의 revision, 근거·전후·pending/stale/inapplicable 및 승인/거절/Undo를 표현하는 공용 번들 화면과 Host 계약이다. 비서는 제안하고 사용자 승인 후 적용한다. 변경 적용·되돌리기는 Core operation과 공식 write path를 사용하며 적용 직전 baseline/stale 검사와 결과를 다시 읽는 동안의 갱신 중 표시를 유지한다. 특정 플러그인의 저장·재처리 방식이나 교정 종류를 가정하지 않는다.
 
-**후속 설계 후보(K4):** 조사 문서가 제안한 원본 JSON 보존과 ledger의 사본 재생은 구현 방식 후보이며 이번 소유자 결정으로 승인된 계약이 아니다. [카탈로그 v2의 O1](../design/catalog-v2.md#소유자-결정과-직접-정한-사항)에서 원본 불변·ledger 재생·heading 한 종류를 추천하며 소유자 수락 전 구현하지 않는다.
+Docling 교정의 저장·재처리 방식은 4단계로 미룸.
 
 Docling 화면은 **왼쪽 페이지 이미지, 오른쪽 Read 문서의 좌우 대조**이며 넓은 화면을 전제로 한다([#891](https://github.com/litzio/litzio/issues/891) 방향 유지). 앱의 기존 Read·문서 열기·비서·변경 비교를 재사용한다.
 
@@ -273,7 +273,7 @@ Docling 화면은 **왼쪽 페이지 이미지, 오른쪽 Read 문서의 좌우 
 
 ## 카탈로그 v2 개정안 — 2단계 수락 결과 반영
 
-- Amendment status: Proposed. 이 절의 새 API·동작은 소유자 수락 대기이며 ADR의 기존 Accepted 결정과 구분한다. 상세 [카탈로그 v2 설계](../design/catalog-v2.md)는 Draft다. 문서 PR 병합만으로 제품 구현 완료를 주장하지 않는다.
+- Amendment status: Proposed. 이 절의 새 API·동작은 소유자 수락 대기이며 ADR의 기존 Accepted 결정과 구분한다. 상세 [카탈로그 v2 설계](../design/catalog-v2.md)는 Draft다. 2026-11-06 소유자 정정으로 K2~K4를 공용 요소로 한정했으며, 4단계는 비서가 Docling을 만드는 수락 시험이지 제품 구현 지시가 아니다. 문서 PR 병합만으로 제품 구현 완료를 주장하지 않는다.
 - 근거: 2026-11-05 2단계 보고서(`C:\Projects\litzio\tmp\research\stage2-jira-acceptance.md`, 시험 HEAD `d2b87e97`). 제작·등록·무재시작 수정은 성공했으나 검색 폼·5열 단일 표·안전한 오류 구분을 충족하지 못해 전체 수락 실패다. 선 차트·가로 배치는 실제 실패로 계수하지 않는다.
 
 제안은 앱 번들 카탈로그·기본 UI 항상 제공·동적 UI 새 탭·Host 플러그인별 `.view.json`·수동 조회·선택 모델의 가시적인 최대 2회 교정·Core의 제한된 가공을 유지한다. v2는 다음을 구체화한다.
@@ -282,10 +282,12 @@ Docling 화면은 **왼쪽 페이지 이미지, 오른쪽 Read 문서의 좌우 
 2. **표와 배치:** Table 최대 12열, 640~1440px에서 모든 열을 유지하고 패널 내부 가로 스크롤. LineChart·두 자식 HorizontalPanel도 3단계 범위에 남기되 Docling 최소 흐름의 진입 조건에서는 분리한다.
 3. **실패:** [#1233](https://github.com/litzio/litzio/issues/1233)이 안전한 인증 필요·권한 없음·대상 없음·서비스 오류·시간 초과 계약을 소유하고, 번들 상태 요소가 같은 분류와 다음 행동을 표시한다. 원문·secret을 숨기며 uncertain write는 재전송하지 않는다.
 4. **기여:** 플러그인 기본 진입점과 query 정의·review binding을 제한적으로 선언한다. Paseo의 기여 ID·Host·작업 탭 구조를 따르되 실행 가능한 client 코드 공급은 기존 결정에 따라 금지한다. 일반 query의 버튼이 임의 write를 호출하게 하지 않는다.
-5. **K2~K4:** 완료 bundle의 Host 검증 자료 참조, 페이지 이미지·bbox, 기존 Read와 양방향 대응, baseline 검증·명시 승인/거절/Undo를 같은 번들 렌더 체계로 제공한다. K1의 native 문서 결과만으로는 부족하므로 완료 자료 연결도 구현 분할에 포함한다. 원본 불변·ledger 재생의 저장 의미는 설계 O1 수락을 별도로 요구한다.
+5. **K2~K4:** 완료 자료의 Host 검증 참조, 일반 페이지 이미지·영역 표시, 기존 Read와 원본의 양방향 대응, 문서 변경 제안의 명시 승인/거절/Undo를 공용 번들 화면과 Host 계약으로 제공한다. 변경은 Core operation과 공식 write path로 적용하며 baseline/stale 검사·갱신 중 표시를 유지한다. K1 완료 자료 연결도 구현 분할에 포함하되 특정 플러그인의 저장·재처리 방식은 정하지 않는다.
 6. **제작:** 공통 view 지원과 SDK 기여를 구별하고 현재 catalog 제한·Windows 호출·일반 채팅/Generate view 경계를 스킬에 안내한다. 검증된 완성 명세의 결과 카드에서 새 탭을 열도록 하여 채팅 재붙여넣기를 제거한다. CLI는 같은 제안 결과를 반환하고 앱을 자동 조작하지 않는다.
 
 정확한 입력·저장·자료 상한·오류 경계·수락 시나리오·병렬 PR 소유권은 [설계](../design/catalog-v2.md)를 따른다. 구현 전 기준은 [현재 생성 뷰 v1](../design/generated-views-v1.md)과 [플러그인·K1](../design/plugin-stage1-v1.md)이며, v2 구현 PR마다 해당 현재 계약을 갱신한다. 기존 v1 명세/즐겨찾기 migration이나 호환 코드는 만들지 않는다.
+
+4단계 전에는 실제 교정 저장·재처리를 검증하지 않는다.
 
 **그래서 무엇이 안 되는가:** 이번 설계만으로 Jira 전체 수락이나 Docling 실제 변환·교정이 완료되지는 않는다. 원격 JS/CSS, 대조 내 자유 편집, PDF 검색·주석, 좁은 화면 대조 최적화, 설정 화면 이전, 자동 조회·숨은 모델 재시도는 추가하지 않는다. 기본 입력/표의 640px 지원과 넓은 대조 화면의 전제를 혼동하지 않는다.
 

@@ -1,9 +1,9 @@
 # 카탈로그 v2 — 검색 입력과 원본 대조·교정
 
 - Status: Draft
-- Last verified: 2026-11-05 — `d2b87e97b4845aeba1ddc65cedcbc74495e0cd84`의 Core/Host/CLI·제작 스킬, ADR, 2단계 보고서 및 외부 공식 문서 정적 대조. 제품 실행·시각 검증은 하지 않았다.
+- Last verified: 2026-11-06 — 소유자 정정에 따라 K2~K4를 공용 요소로 한정하고 4단계를 비서 제작 수락 시험으로 명확화. 코드·외부 문서 대조는 2026-11-05의 `d2b87e97b4845aeba1ddc65cedcbc74495e0cd84` 기준이며 제품 실행·시각 검증은 하지 않았다.
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md)의 카탈로그 v2 개정안. 기존 Accepted 결정을 유지하며, 아래 새 계약은 구현 전 제안이다.
-- Scope: 로드맵 3단계 설계와 4단계 Docling 진입 조건. 제품 코드·플러그인 제작·설치·migration은 이 문서 PR에 포함하지 않는다.
+- Scope: 로드맵 3단계 공용 카탈로그 설계와 4단계 비서 제작 수락 시험의 진입 조건. Docling 구현 지시가 아니며 제품 코드·플러그인 제작·설치·migration은 이 문서 PR에 포함하지 않는다.
 - Related: [현재 생성 뷰](generated-views-v1.md), [플러그인·K1](plugin-stage1-v1.md), [ADR-0015](../adr/0015-shared-host-operations.md), [오류 계약 #1233](https://github.com/litzio/litzio/issues/1233).
 
 ## 근거와 현재 부족한 것
@@ -34,7 +34,7 @@ v2는 `kind:litzio-view`, `schemaVersion:2`, `catalog:litzio-v2`, `refresh:manua
 - Core: 명세 strict schema, 입력 binding, typed 자료 계약, 정적 검증·canonical JSON·기존 가공 의미. SDK는 중립 타입을 재노출한다.
 - Host: 실제 등록 operation과 effect/schema/가용성 검증, Root·자료 참조 검증, 실행·오류 정리·receipt·저장. 앱은 결과를 다시 계산하지 않는다.
 - 앱: 번들 renderer·일시적 입력/선택·focus·scroll. 같은 명세는 기본 UI·생성 탭·즐겨찾기에서 같은 renderer를 쓴다.
-- 플러그인: 서비스별 인자 의미와 조회, Docling 해석·자료·교정 제안. Editor 내부 타입·DOM·ProseMirror position을 공개 계약으로 쓰지 않는다.
+- 플러그인: 서비스별 인자 의미와 조회, 원본 자료 해석·문서 변경 제안. Editor 내부 타입·DOM·ProseMirror position을 공개 계약으로 쓰지 않는다.
 
 단일 source 제한을 유지한다. `profile:query`는 기존 `sources.stats` 읽기 작업과 `/rows`만 사용한다. `profile:review`는 등록된 한 review 기여의 완료 bundle을 source로 사용한다. review 자료를 row 배열에 억지로 넣지 않는다. 두 profile은 같은 envelope·저장·렌더 체계를 쓰되 허용 컴포넌트/동작이 다르다. 여러 작업 조인·의존 DAG·범용 화면 DSL은 없다.
 
@@ -117,16 +117,16 @@ container 실제 폭을 기준으로 처리하며 Explorer/비서 패널이 열�
 
 #1233이 **분류 타입·안전한 고정 메시지/행동 코드·publicOperationResult 정리·receipt 및 CLI/비서 일치**를 소유한다. 이 문서는 이름이 확정되지 않은 별도 error enum을 구현시키지 않는다. HTTP 401 등을 renderer에서 추측하거나 예외 문자열에서 분류하지 않는다. 미분류 오류는 안전한 일반 실패 안내를 쓰며 원문 body·stack·secret·인증 헤더·서비스 URL을 표시하지 않는다. 사용자에게 보이는 상세에는 operation/version·시각·request ID 같은 안전한 receipt만 둔다. validation/버전 불일치/비활성 플러그인은 서비스 5종과 별도로 안내한다. 연결 상실 후 write 성공 여부를 모르면 분류가 timeout이어도 outcome은 uncertain이고 자동 재전송하지 않는다.
 
-## K2·K3·K4와 Docling 최소 흐름
+## K2·K3·K4 공용 요소
 
-4단계 수락 ID는 D1 PDF 선택·변환 관찰, D2 완성 결과·페이지 대조, D3 원본↔문서 탐색, D4 heading 한 건 제안·승인·거절·Undo·재대조다. 실제 PDF 한 개로 사람이 오류를 발견하고 교정 결과를 확인한다. fixture 검증은 변환 품질 판정이 아니다.
+공용 요소의 검증 ID는 G1 파일 작업 완료 자료 연결, G2 페이지·영역 대조, G3 원본↔문서 탐색, G4 문서 변경 제안·승인·거절·Undo·갱신이다. 아래는 특정 플러그인의 저장·재처리 방식이나 변경 종류를 가정하지 않는 번들 화면과 Host 계약이다. 4단계는 비서가 Docling 플러그인을 만들어 이 요소들을 연결하는 수락 시험이며 Docling 제품 구현 단계가 아니다. 공용 fixture 검증은 그 실제 제작·변환 품질 판정이 아니다.
 
 | 요소 | 최소 입력/출력 계약 | 막히는 수락 시나리오 |
 | --- | --- | --- |
-| K1 연결 보완 | 완료 결과에 Host가 검증한 `bundleRef`, document/source/map revision 참조. start/status/stop/result 및 no-replay 유지 | D1→D2: 현재 K1은 native 문서만 반환하므로 원본 이미지/map 전달이 없음 |
-| K2 `PageSurface` | pageNo, width/height, imageRef, sourceRevision, regions(id/bbox/category/status/reason). bbox는 source page 좌표·TOPLEFT/BOTTOMLEFT와 단위 명시. 출력은 region/page 선택 | D2: 전체 페이지 이미지·bbox·장식/미지원/이미지 없음 확인 불가 |
-| K3 `SourceDocumentCompare` | K2 + 기존 Read. 동일 generation의 documentRef/revision/hash, mappingRevision, 다대다 sourceIds→Core 중립 target refs | D3: 선택·강조/reveal 및 stale 거부가 없음 |
-| K4 `ReviewList`/`ReviewDetail` | proposal id/kind/targets, 근거·plain/typed before/after, baseline, 상태, 허용 action과 불가 사유. 사용자 approve/reject/undo → 새 baseline·receipt | D4: 어떤 근거로 무엇이 적용됐는지·충돌·Undo를 검증할 수 없음 |
+| K1 연결 보완 | 완료 결과에 Host가 검증한 `bundleRef`, document/source/map revision 참조. start/status/stop/result 및 no-replay 유지 | G1→G2: 현재 K1은 native 문서만 반환하므로 원본 이미지/map 전달이 없음 |
+| K2 `PageSurface` | pageNo, width/height, imageRef, sourceRevision, regions(id/bbox/category/status/reason). bbox는 source page 좌표·TOPLEFT/BOTTOMLEFT와 단위 명시. 출력은 region/page 선택 | G2: 전체 페이지 이미지·bbox·장식/미지원/이미지 없음 확인 불가 |
+| K3 `SourceDocumentCompare` | K2 + 기존 Read. 동일 generation의 documentRef/revision/hash, mappingRevision, 다대다 sourceIds→Core 중립 target refs | G3: 선택·강조/reveal 및 stale 거부가 없음 |
+| K4 `ReviewList`/`ReviewDetail` | proposal id/kind/targets, 근거·plain/typed before/after, baseline, 상태, 허용 action과 불가 사유. 사용자 approve/reject/undo → 새 baseline·receipt | G4: 어떤 근거로 무엇이 적용됐는지·충돌·Undo를 검증할 수 없음 |
 
 review source는 `{plugin,review,bundleRef}`만 영속한다. bundleRef는 Host가 발급하고 같은 Host의 현재 Root/완료 결과에 대해 해석하는 불투명 참조다. 파일 URL·원격 서비스 URL·image data URL이 아니다. 다른 Host에 복사한 즐겨찾기는 자동 재바인딩하지 않는다. 페이지·문서·map 읽기는 Host가 경로와 결과 소유 범위를 매번 확인한다. 자료 read에 revision을 포함해 다른 generation을 섞지 않는다. 완료 bundle의 원본 자료는 검토에 필요한 최소 파일만 보존하며 범용 자산 서버·DB를 만들지 않는다.
 
@@ -136,15 +136,15 @@ review source는 `{plugin,review,bundleRef}`만 영속한다. bundleRef는 Host�
 
 넓은 화면 전제는 **대조 콘텐츠 최소 폭 1024px**로 구체화한다. 1440px에서는 사이드 패널을 접어 확보하며 640~1023px에서는 기본 상태/오류·결과 문서 열기를 유지하고 ‘대조하려면 창을 넓히세요’를 표시한다. 좌우 대조를 세로/모바일 편집기로 바꾸지 않는다. 이 예외는 일반 검색 폼/표의 640px 지원을 낮추지 않는다.
 
-**K4:** baseline은 `{sourceHash,documentRevision,mappingRevision,ledgerRevision}`으로 잡는다. proposal은 `pending/approved/rejected/inapplicable/stale`을 구별하고 pending의 유효한 항목만 승인할 수 있다. Host는 화면 검증과 별개로 적용 직전 baseline을 다시 검사한다. 변경된 문서/map을 이전 proposal과 섞어 적용하지 않는다. 거절은 문서 변경 없이 기록을 남긴다. 승인/Undo는 바뀐 문서와 map·목록을 같은 generation으로 다시 읽기 전까지 ‘갱신 중’으로 두고 이전 내용을 최신으로 표시하지 않는다. 비서는 pending 제안만 제출하며 사용자 명시 승인 전 적용하지 않는다. 플러그인 관리의 승인 제거와 별개다.
+**K4:** 문서 변경 제안을 승인·거절·되돌리기 하는 공용 번들 화면과 Host 계약이다. baseline은 문서·제안 revision을 필수로, 제안이 참조한 원본·map revision을 해당 자료가 있을 때 포함한다. proposal은 `pending/approved/rejected/inapplicable/stale`을 구별하고 pending의 유효한 항목만 승인할 수 있다. Host는 화면 검증과 별개로 적용 직전 baseline을 다시 검사한다. 변경된 문서나 참조 자료를 이전 proposal과 섞어 적용하지 않는다. 거절은 문서 변경 없이 기록을 남긴다. 승인/Undo는 문서·제안 목록과 관련 자료를 같은 결과에 맞춰 다시 읽기 전까지 ‘갱신 중’으로 두고 이전 내용을 최신으로 표시하지 않는다. 비서는 pending 제안만 제출하며 사용자 명시 승인 전 적용하지 않는다. 플러그인 관리의 승인 제거와 별개다.
 
-첫 수동 제안은 대조에서 heading 하나 선택 → ReviewDetail의 현재/제안 level(1~6)과 근거 입력 → ‘제안 만들기’다. 이 입력은 `review.propose`를 호출해 pending을 만들 뿐 문서를 바꾸지 않는다. 이어 전후·근거를 검토하고 승인 또는 거절한다. 승인 기록에서 한 항목을 골라 Undo할 수 있으며 불가능한 항목은 이유를 표시한다. 제안 입력과 승인 선택·baseline은 즐겨찾기에 저장하지 않는다. 이 제한된 교정 폼은 query InputForm의 SubmitButton에 write 권한을 주는 방식으로 구현하지 않는다.
+ReviewList에서 제안을 고르면 ReviewDetail이 대상·전후·근거와 허용 동작을 표시한다. `review.propose`는 pending 제안을 만들 뿐 문서를 바꾸지 않는다. 사용자는 전후·근거를 검토하고 승인 또는 거절하며, 적용된 변경은 되돌리기 가능 여부와 불가 사유를 확인한다. 변경 적용과 되돌리기는 Host가 Core operation과 공식 write path로 수행하며 플러그인의 직접 문서 쓰기는 허용하지 않는다. 제안 입력과 승인 선택·baseline은 즐겨찾기에 저장하지 않는다. query InputForm의 SubmitButton에 임의 write 권한을 주지 않는다.
 
 공용 작업 후보는 `review.read/propose/approve/reject/undo/status`다. read는 bundle과 자료 종류/page/continuation을 입력받고 데이터·baseline·receipt를 반환한다. 변경은 bundle/proposal 또는 entry ID, baseline, requestId를 입력받고 새 baseline·changedDocumentRefs·receipt를 반환한다. status는 같은 requestId 결과를 확인한다. CLI `review <action> <pluginId> <reviewId> --input <file> --root <root> --host <origin> --json`를 같은 정의로 제공한다. 승인 CLI는 사용자의 명시 실행이며 비서에는 approve/undo 자동 실행 도구를 노출하지 않는다. 선택·hover·zoom·scroll은 parity 대상이 아니지만 자료 읽기·제안·승인·거절·Undo는 대상이다.
 
-**교정 저장 추천 — 소유자 결정 전:** 원본 JSON/이미지를 불변으로 보존하고 승인 ledger를 원본의 사본에 재생한 뒤 Core의 중립 operation·공식 write path로 결과를 생성한다. 첫 교정은 heading level 한 종류다. Undo는 반대 patch 추측이 아니라 해당 승인 항목을 비활성화한 ledger 재생이며 의존 항목 때문에 불가능하면 이유를 반환한다. native 문서 수동 편집과 교정 재생 자동 병합은 하지 않고 revision 충돌로 거부한다. 별도 파생 문서 편집은 기존 Editor에서 한다. 아래 소유자 결정 O1이 승인되기 전에는 이 저장 의미를 구현하지 않는다.
+Docling 교정의 저장·재처리 방식은 4단계로 미룸.
 
-문서·map·ledger의 중간 성공을 현재로 노출하면 안 된다. O1 채택 시 Host는 완성된 후보 generation을 검증한 뒤 현재 참조를 revision 보호된 공식 경로로 교체한다. 플러그인은 자료와 교정 결과를 반환하고 Host가 검증·공개하며 플러그인의 직접 문서 쓰기는 허용하지 않는다. 실패 시 이전 generation을 유지하고, 확정 여부를 알 수 없으면 uncertain으로 상태 확인만 허용한다. 영속 검토 metadata·문서·ledger는 plain-text 파일이며 원본 PDF·페이지 이미지는 자산으로 보존한다. 범용 트랜잭션 DB는 만들지 않는다. daemon 재시작 후 request 결과를 확인할 수 없으면 unknown이지 재실행 허가가 아니다. 구현 PR에서 다중 산출물 공개·실패 복구의 최소 계약과 시험을 명시한다.
+Host는 공식 write path의 revision 보호와 실패 시 데이터 보존을 유지한다. 결과를 확인하지 못하면 uncertain으로 표시하고 같은 requestId의 상태만 확인하며 변경을 자동 재전송하지 않는다. daemon 재시작 후 request 결과를 확인할 수 없으면 unknown이지 재실행 허가가 아니다. 공용 검토 계약은 특정 플러그인의 저장 구조나 재처리 알고리즘을 정하지 않는다.
 
 ## 제작 스킬 개선 목록과 직접 열기
 
@@ -189,22 +189,22 @@ v2 구현 뒤 추가할 예시(현재 CLI에서는 미지원):
 | V1 Core·SDK v2 계약 | Core views의 query/review 명세·입력·한도·중립 refs, SDK views/reviews 타입. 실제 화면·Docling 없음 | Core에서 canonical 왕복, input 타입/누락, 12열 경계, unknown action·secret binding·cross-profile 거부. SDK entry 전 기여 검증 | 설계 수락 후 첫 PR. 4단계 전 필수 |
 | V2 Host·CLI 조회/저장·기본 기여 | server/views·plugin view 등록, CLI views. plugin namespace·input 대체·view.propose | HTTP/CLI 같은 args/rows/receipt, 신규 저장·입력 복원·조회 없는 open, 가용성 재검사. renderer 계산 없음 | V1. V3/V4/V5와 병렬. 4단계 전 필수 |
 | V3 폼·12열·상태 renderer | apps/editor/src/views 및 공통 상태 adapter | 실제 조작으로 6프리셋 중 대표 전환·5열/12열·입력 저장/열기, 640/960/1440 폭. #1233 5종 고정 상태·secret 원문 비노출. 기존 generated-views 시나리오 보완 | V1; 통합 완료는 V2 + #1233 필요. 4단계 전 필수 |
-| V4 review Host·CLI/K1 완료 자료 | plugin review dispatcher·자료 읽기·K1 bundle 공개, CLI review | Root 밖/다른 Host·혼합 generation 거부, stale/충돌·응답 유실 no-replay. 완료된 이미지/map refs만 공개. 제품 fixture, Docling 자체 없음 | V1 + O1. #1233 오류 타입 소비. V5와 병렬. 4단계 전 필수 |
-| V5 K2/K3/K4 번들 화면 | PageSurface/SourceDocumentCompare/ReviewList·Detail, 기존 Read 연결 | fixture로 이미지/bbox·양방향 선택·불필요 점프 없음·stale 차단·승인/거절/Undo/갱신 중 표시. 실제 1440px 대조, 좁은 창 안내 | V1; fixture로 병렬 진행, 통합 완료는 V4. 4단계 전 필수 |
+| V4 review Host·CLI/K1 완료 자료 | 공용 review dispatcher·자료 읽기·K1 bundle 공개, CLI review | 공용 fixture로 Core operation·공식 write path 연결, Root 밖/다른 Host·혼합 자료 거부, baseline/stale·충돌·응답 유실 no-replay 확인. 완료된 이미지/map refs만 공개 | V1. #1233 오류 타입 소비. V5와 병렬. 4단계 전 필수 |
+| V5 K2/K3/K4 번들 화면 | 공용 PageSurface/SourceDocumentCompare/ReviewList·Detail, 기존 Read 연결 | 공용 fixture로 이미지/bbox·양방향 선택·불필요 점프 없음·stale 차단·승인/거절/Undo/갱신 중 표시. 실제 1440px 대조, 좁은 창 안내 | V1; 공용 fixture로 병렬 진행, 통합 완료는 V4. 4단계 전 필수 |
 | V6 제작 스킬·비서 결과 카드 | authoring-skill·assistant view 결과 연결·관련 계약 | 일반 제작→validated 결과 카드→새 탭에 재붙여넣기 없음. Generate view와 도구 범위 구별, 2회 cap·중단/닫기/늦은 결과 폐기. 스킬 PowerShell 예시 확인 | V2/V3. 문안 초안은 병렬 가능. 4단계 전 필수 |
 | V7 LineChart·HorizontalPanel | chart/layout renderer와 Core 해당 union 보완 | 순서·중복 x·null 단절은 Core, 실제 접근성·두 열→세로 전환은 browser. 라이브러리는 기존 자산 우선 | V1 이후 병렬 가능, **4단계 진입 뒤 가능**. 로드맵 3단계 전체 완료에는 필요 |
 
 V1에서 공통 contract/schema를 소유하고, V2는 조회용 Host/CLI, V4는 review/K1용 Host/CLI를 소유한다. V3·V5는 별도 renderer 파일을 쓰며 공통 Views 진입점 통합은 V3 소유다. V6가 비서·스킬 파일을 단독 수정한다. `docs/README.md`·기존 Implemented 계약의 각 절은 해당 동작 구현 PR에서 갱신한다. 아직 미구현인 이 문서 전체를 첫 PR만으로 Implemented로 바꾸지 않는다.
 
-4단계 시작 gate는 V1~V6 + #1233 + O1이다. Jira 재수락에서 검색 폼·5열 단일 표·오류 구분·즐겨찾기 입력 복원·수동 run·CLI rows 일치를 확인하고, review fixture가 D1~D4를 연결해야 한다. 기존 Root picker 결함으로 runner가 실패하면 별도 수정/원인 확인이 필요하며 통과로 계산하지 않는다. 이후 **비서가 실제 Docling을 만드는 4단계**에서 PDF 변환·한 heading 교정·Undo·Core 재처리·원본 보존·불확실 결과 확인을 수행한다. V4/V5 fixture 통과를 그 실제 수락으로 대체하지 않는다.
+4단계 시작 gate는 V1~V6 + #1233이다. Jira 재수락에서 검색 폼·5열 단일 표·오류 구분·즐겨찾기 입력 복원·수동 run·CLI rows 일치를 확인하고, 공용 review fixture가 G1~G4를 연결해야 한다. 기존 Root picker 결함으로 runner가 실패하면 별도 수정/원인 확인이 필요하며 통과로 계산하지 않는다. 이후 **4단계는 비서가 Docling 플러그인을 만드는 수락 시험**이며 이 구현 분할에 Docling 제품 구현을 추가하지 않는다. V4/V5 공용 fixture 통과를 그 실제 수락으로 대체하지 않는다.
+
+4단계 전에는 실제 교정 저장·재처리를 검증하지 않는다.
 
 다중 페이지 검수 grid/제외 승인·AI 자동 검수 연결·연속 동기 스크롤·다중 PDF/queue·압축 bundle·템플릿 재구성·다중 series/축·설정 동적 UI 이전은 4단계 최소 흐름 뒤로 미룬다. K4 자료 계약의 선택 페이지/제외 표시는 미래 action을 미리 실행시키는 권한이 아니다.
 
 ## 소유자 결정과 직접 정한 사항
 
-| ID | 소유자에게 필요한 결정 | 추천 | 그래서 무엇이 안 되는가 |
-| --- | --- | --- | --- |
-| O1 | ADR에 미확정으로 남은 Docling 교정 저장 의미 | 원본 불변 + 승인 ledger 사본 재생, 첫 교정 heading level. Undo는 ledger 재생, native 수동 편집과 자동 병합 없음 | 첫 판에서 대조 내 자유 편집·임의 patch Undo·교정과 별도 수동 편집의 자동 병합은 안 됨. 수락 전 V4의 교정 저장 구현과 4단계 교정 수락은 막힘 |
+소유자 결정 필요 항목: 없음.
 
 나머지 작은 결정은 직접 정했다: 12열 상한(5열 요구와 표시 비용), 8필드 단일 form·전체 args 대체(별도 상태 DSL 불필요), 단일 source 유지(조인 요구 없음), 1024px 대조 최소 폭(확정된 넓은 화면 전제), 앱 기존 작업 탭·공통 control 재사용, V7을 Docling 선행 조건에서 분리(시험에서 요구되지 않음). 이 PR의 제안 수락으로 함께 검토할 공개 API/상호작용이며 별도 선호 질문으로 쪼개지 않는다. 이미 결정된 기본 UI·새 탭·저장 위치·수동 조회·모델 선택·2회 교정·원격 코드 금지·migration 없음은 재결정 항목이 아니다.
 
