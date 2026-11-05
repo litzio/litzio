@@ -117,6 +117,16 @@ test('release browser shards match CI while preserving trusted checkout and publ
   const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
   const { browser, publish } = release.jobs;
   assert.deepEqual(browser.strategy.matrix.shard, ci.jobs.browser.strategy.matrix.shard);
+  for (const [name, job] of [['CI', ci.jobs.browser], ['release', browser]]) {
+    const shard = /^\$\{\{ matrix\.shard \}\}\/([1-9]\d*)$/.exec(job.env.LITZIO_BROWSER_SHARD);
+    assert.ok(shard, `${name}: shard environment must declare the executed denominator`);
+    const count = Number(shard[1]);
+    assert.ok(Number.isSafeInteger(count), `${name}: shard count must be a safe integer`);
+    assert.equal(job.strategy.matrix.shard.length, count, `${name}: every executed shard must be scheduled`);
+    assert.deepEqual([...job.strategy.matrix.shard].sort((a, b) => a - b),
+      Array.from({ length: count }, (_, index) => index + 1),
+      `${name}: matrix must schedule shards 1..N exactly once`);
+  }
   assert.equal(browser.strategy['fail-fast'], false);
   assert.deepEqual(browser.container, ci.jobs.browser.container);
   assert.equal(browser['runs-on'], ci.jobs.browser['runs-on']);
