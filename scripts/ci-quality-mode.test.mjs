@@ -175,11 +175,11 @@ test('workflow consumes event policy outputs and preserves selected-job gates', 
     for (const job of [browser, http, desktop]) {
       assert.equal(evaluate(job.if, context), selected, job.name);
     }
-    const updateSteps = desktop.steps.filter(step => step.run === 'pnpm --filter @litzio/desktop test:update');
+    const updateSteps = ['desktop-published', 'desktop-stable', 'desktop-beta'].flatMap(id => workflow.jobs[id].steps).filter(step => step.run === 'pnpm --filter @litzio/desktop test:update');
     const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
     const releaseUpdateSteps = release.jobs.build.steps.filter(step => step.run === 'pnpm --filter @litzio/desktop test:update');
     assert.deepEqual(updateSteps.map(step => step.env?.LITZIO_TEST_PUBLISHED_BASE ? 'public-beta6' : step.env?.LITZIO_TEST_UPDATE_CHANNEL ?? 'stable'), ['public-beta6', 'stable', 'beta'],
-      'Public beta.6, Stable and Beta each clean up before the next starting point on the same runner');
+      'Public beta.6, Stable and Beta retain their independent cleanup');
     assert.deepEqual(updateSteps.map(step => step.env), releaseUpdateSteps.map(step => step.env),
       'PR CI must preserve the release workflow channel order');
     for (const step of [...updateSteps, desktop.steps.find(step => step.run?.endsWith(' test:uninstall'))]) {
@@ -196,14 +196,14 @@ test('workflow consumes event policy outputs and preserves selected-job gates', 
   assert.equal(desktop.steps.find(step => step.name === 'Validate installer and update metadata').if, undefined);
   const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
   assert.equal(desktop['runs-on'], release.jobs.build['runs-on']);
-  const unitTests = desktop.steps.find(step => step.run === 'pnpm test');
+  const unitTests = workflow.jobs['desktop-unit'].steps.find(step => step.run === 'pnpm test');
   assert.ok(unitTests, 'Windows PR and merge queue CI must run the release unit-test suite');
   assert.equal(unitTests.if, undefined);
   assert.ok(release.jobs.build.steps.some(step => step.run === unitTests.run));
   assert.deepEqual(browser.strategy.matrix.shard, [1, 2, 3, 4]);
   assert.deepEqual(http.strategy.matrix.os, ['ubuntu-latest', 'windows-latest']);
   assert.equal(aggregate.name, 'Core, CLI, Editor, and browser regressions');
-  assert.deepEqual(new Set(aggregate.needs), new Set(['changes', 'quality', 'browser', 'http', 'desktop', 'cache-warm']));
+  assert.deepEqual(new Set(aggregate.needs), new Set(['changes', 'quality', 'browser', 'http', 'desktop', 'desktop-unit', 'desktop-published', 'desktop-stable', 'desktop-beta', 'cache-warm']));
   assert.equal(aggregate.if, '${{ always() }}');
 });
 
