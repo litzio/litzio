@@ -13,9 +13,11 @@ export class ViewValidationError extends Error {
 }
 export const statisticsView = { kind: "litzio-view", schemaVersion: 1, catalog: "litzio-v1", title: "Document statistics", refresh: "manual", sources: { stats: { operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Documents by folder", source: "stats", data: "/rows", columns: ["folder", "documents", "headings", "modified"] }] } } as const;
 export type ViewResult = { view?: View; rows?: ViewRow[]; favourites?: string[]; name?: string; target?: { root: string }; receipt: { requestId: string; operation: string; version: number; scope: string; outcome: string; timestamp: string } };
-export async function viewRequest(client: HostClient, input: unknown): Promise<ViewResult> {
-  const response = await client.request("/api/views", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+export async function viewRequest(client: HostClient, input: unknown, signal?: AbortSignal): Promise<ViewResult> {
+  signal?.throwIfAborted();
+  const response = await client.request("/api/views", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input), signal });
   const result = await response.json();
+  signal?.throwIfAborted();
   if (!response.ok || result.receipt?.outcome !== "success") {
     const Validation = response.status === 400 && result.receipt?.operation === "view.validate" ? ViewValidationError : Error;
     throw new Validation(result.error ?? "View operation failed");

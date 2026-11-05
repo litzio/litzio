@@ -6,6 +6,7 @@ import { ASSISTANT, type AiProvider } from "../shared/assistant.ts";
 import { createAssistantSettings, checkedAssistantSettings } from "./assistant-settings.ts";
 import { ProviderConnections } from "./provider-connections.ts";
 import { AssistantConversations } from "./assistant-conversations.ts";
+import { AssistantViewGenerations } from "./assistant-view-generations.ts";
 
 /** Official daemon feature. Connections and turns live until daemon shutdown. */
 export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { agent?: ProviderConnections; run?: HostRun }) {
@@ -18,6 +19,9 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   let agent = options?.agent;
   let conversations: AssistantConversations | undefined;
   const history = () => conversations ??= new AssistantConversations(agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run), access, plugins);
+  const viewGenerations = new AssistantViewGenerations(async (id, turnId) => {
+    if (history().current(id).turns.some(turn => turn.id === turnId && turn.status === "inProgress")) await history().interrupt(id);
+  });
   const provider = (args?: { provider?: AiProvider }): AiProvider => {
     const value = args?.provider ?? settings().provider;
     if (value !== "codex" && value !== "copilot") throw new Error("Invalid AI provider.");
@@ -36,7 +40,14 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       const conversation = history().current(args.id);
       return { ...conversation, displayRequest: history().display.snapshot(args.id, args.displayClient) };
     },
-    assistantConversation: async (args: any) => {
+    assistantConversation: async (args: any): Promise<any> => {
+      if (args.action === "prepare-view-generation") return viewGenerations.prepare();
+      if (args.action === "cancel-view-generation") return viewGenerations.cancel(args.requestId);
+      if (args.action === "send" && args.viewGeneration) return viewGenerations.run(args.viewGenerationRequest, () => sendConversation(args));
+      return sendConversation(args);
+    },
+  };
+  const sendConversation = async (args: any): Promise<any> => {
       if (args.action === "send") await readyPlugins();
       const currentSettings = settings();
       if (args.action === "display-result") { history().display.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
@@ -56,7 +67,6 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       if (args.action === "answer") return history().answer(args.id, args.turnId, args.requestId, args.answers);
       if (args.action === "interrupt") return history().interrupt(args.id);
       throw new Error("Unknown conversation action.");
-    },
   };
   const invoke = async (operation: string, args: any = {}): Promise<any> => {
     if (closed) throw new Error("The Assistant Host is closing.");
@@ -87,6 +97,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   };
   const close = () => {
     closed = true;
+    viewGenerations.close();
     conversations?.display.cancel();
     return closing ??= Promise.all([agent?.close(), Promise.resolve(pluginsReady).then(() => plugins.close())]).then(() => {});
   };

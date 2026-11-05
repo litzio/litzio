@@ -80,3 +80,25 @@ test("unavailable provider rejects new work with a reason; settings do not close
   assert.throws(() => process.kill(pid!, 0), "daemon shutdown waits for its exact provider process");
   await assert.rejects(host.invoke("assistantConversations", {}), /closing/);
 });
+
+test("a cancelled view request interrupts its eventual provider turn when admission was delayed", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-view-cancel-"));
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath,
+    args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
+  const host = createAssistantHost(null, path.join(root, "ai.json"), { agent: connection });
+  t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
+  let release!: () => void, entered!: () => void;
+  const waiting = new Promise<void>(resolve => { entered = resolve; });
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const diagnostics = connection.diagnostics.bind(connection);
+  t.mock.method(connection, "diagnostics", async (provider?: "codex" | "copilot") => { entered(); await gate; return diagnostics(provider); });
+  const { requestId } = await host.invoke("assistantConversation", { action: "prepare-view-generation" });
+  const sending = host.invoke("assistantConversation", { action: "send", viewGeneration: true, viewGenerationRequest: requestId,
+    message: "Show document totals", folders: [], model: "gpt-6.1-sol", reasoningEffort: "medium" });
+  await waiting;
+  assert.deepEqual(await host.invoke("assistantConversation", { action: "cancel-view-generation", requestId }), { acknowledged: true });
+  release(); await assert.rejects(sending, /cancelled/);
+  const [info] = await host.invoke("assistantConversations", {});
+  const conversation = await host.invoke("assistantConversations", { id: info.id });
+  assert.equal(conversation.turns.at(-1).status, "interrupted");
+});

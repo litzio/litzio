@@ -17,5 +17,9 @@
 .view-bars meter::-webkit-meter-bar { background: var(--id-color-surface-subtle); border-color: var(--id-color-border-subtle); }
 .view-bars meter::-webkit-meter-optimum-value { background: var(--id-color-accent); }
 .view-bars meter::-moz-meter-bar { background: var(--id-color-accent); }
-.view-favourites { border-top: 1px solid var(--id-color-border-subtle); padding-top: var(--space-4); }
-.view-favourites ul { list-style: none; padding: 0; }
+.view-favorites { border-top: var(--border-width) solid var(--id-color-border-subtle); padding-top: var(--space-4); }
+.view-favorites-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.view-favorites ul { list-style: none; padding: 0; }
+.view-favorites li > button { max-width: 100%; }
+.view-favorite-icon { fill: currentColor; flex-shrink: 0; }
+.view-favorite-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }

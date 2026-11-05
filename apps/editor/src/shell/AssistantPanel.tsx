@@ -72,7 +72,8 @@ export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, o
   const [generationStatus, setGenerationStatus] = useState<string[]>([]);
   const [viewRoot, setViewRoot] = useState("");
   const generation = useRef<AbortController | null>(null);
-  useEffect(() => () => generation.current?.abort(new Error("View generation closed")), []);
+  const cancelledViewConversation = useRef<string | undefined>(undefined);
+  useEffect(() => () => generation.current?.abort(new Error(i18n.t("View generation closed."))), []);
   const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
   const referenceCaret = useRef<number | null>(null);
@@ -135,7 +136,7 @@ export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, o
     }
   }, [open, ready, enabled, setup]);
   useEffect(() => {
-    if (!open || !conversation?.id || pending || !ready || !enabled || setup) return;
+    if (!open || !conversation?.id || conversation.id === cancelledViewConversation.current || pending || !ready || !enabled || setup) return;
     let alive = true, polling = false, timer: ReturnType<typeof setTimeout> | undefined;
     const id = conversation.id;
     const schedule = () => {
@@ -186,6 +187,7 @@ export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, o
   };
   const send = () => run(async isCurrent => {
     if (active && provider === "copilot") return;
+    cancelledViewConversation.current = undefined;
     const value = message.trim(); if (!value && !references.length) return;
     const document = documentPath ? { path: documentPath } : undefined;
     const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "send", displayClient, id: conversation?.id, message: value,
@@ -197,15 +199,19 @@ export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, o
   const proposeView = () => run(async isCurrent => {
     if (active || !onGeneratedView || !model || !message.trim()) return;
     const root = folders.includes(viewRoot) ? viewRoot : folders[0];
-    if (!root) throw new Error("Choose an opened folder first");
-    const controller = new AbortController(); generation.current = controller;
+    if (!root) throw new Error(i18n.t("Choose a folder"));
+    const controller = new AbortController(); generation.current = controller; cancelledViewConversation.current = undefined;
     setGenerationStatus([]); setHistory(null);
     try {
       const view = await generateView({ request, signal: controller.signal,
         input: { id: conversation?.id, provider, model, reasoningEffort: effort, mode: provider === "copilot" ? mode : undefined, permissionMode: "read-only", folders: [], message: message.trim() },
         snapshot: next => { if (isCurrent()) { current.current = next; setConversation(next); setPermissionMode("read-only"); rememberConversation(conversationKey, next.id); } },
         status: value => { if (isCurrent()) setGenerationStatus(previous => [...previous, value]); },
-        validate: async value => (await viewRequest(client, { action: "validate", view: value })).view!,
+        cancelled: () => { if (isCurrent()) {
+          cancelledViewConversation.current = current.current?.id;
+          setConversation(previous => previous ? { ...previous, turns: previous.turns.map(turn => turn.status === "inProgress" ? { ...turn, status: "interrupted" } : turn) } : previous);
+        } },
+        validate: async (value, signal) => (await viewRequest(client, { action: "validate", view: value }, signal)).view!,
       });
       if (isCurrent() && !controller.signal.aborted) { onGeneratedView(view, root); setMessage(""); setPermissionMode("read-only"); }
     } finally { generation.current = null; }
@@ -463,7 +469,7 @@ export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, o
         <Tooltip><TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
         </TooltipTrigger><TooltipContent>{usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}</TooltipContent></Tooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
-        {generation.current ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} onClick={() => { generation.current?.abort(new Error("View generation stopped")); }}><Square /></Button> : active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async isCurrent => { const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); })}><Square /></Button> : null}
+        {generation.current ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} onClick={() => { generation.current?.abort(new Error(i18n.t("View cancellation requested."))); }}><Square /></Button> : active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async isCurrent => { const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); })}><Square /></Button> : null}
         <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || active && provider === "copilot" || !ready || (!message.trim() && !references.length) || !catalogModel || !enabled || !!setup}><ArrowUp /></Button>
       </div>
     </form>
