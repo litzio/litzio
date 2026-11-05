@@ -510,6 +510,7 @@ jobs:
           $env:LITZIO_DIAG_ENVIRONMENT_ONLY = '1'
           1..40 | ForEach-Object {
             Write-Host "Uninstall diagnostic iteration $_"
+            $env:LITZIO_DIAG_ROUND = "$_"
             $diagnosticFolder = [IO.Path]::GetFullPath("$env:LOCALAPPDATA/litzio/uninstall-logs")
             if (-not $diagnosticFolder.StartsWith([IO.Path]::GetFullPath($env:LOCALAPPDATA) + [IO.Path]::DirectorySeparatorChar)) { throw 'Invalid diagnostic path' }
             Remove-Item -LiteralPath $diagnosticFolder -Recurse -Force -ErrorAction SilentlyContinue
