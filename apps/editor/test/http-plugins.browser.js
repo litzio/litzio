@@ -21,7 +21,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await page.setViewportSize({ width, height: 900 });
       if (screenshots) {
         // Before baseline removes only the new additive secret section; no source checkout changes.
-        const section = page.getByRole("region", { name: "Plugin secrets", exact: true });
+        const section = await page.getByRole("region", { name: "Plugin secrets", exact: true }).elementHandle();
         await section.evaluate(el => { el.style.display = "none"; });
         await page.screenshot({ path: `tmp/plugin-stage1/secrets-before-${width}.png` });
         await section.evaluate(el => { el.style.removeProperty("display"); });
