@@ -19,7 +19,7 @@ class PreviewBoundary extends Component<{ children: ReactNode; fail(reason: stri
 }
 function Snapshot({ document, path, layout }: { document: EditableDocument; path: string; layout: ComparisonLayout }) {
   return <section className="visual-snapshot" data-side={layout.side} aria-label={i18n.t(layout.side === "before" ? "Current disk file" : "Save preview")}>
-    <div className="visual-snapshot-title">{i18n.t(layout.side === "before" ? "Current disk file" : "Save preview")}{document.title ? ` · ${document.title}` : ""}</div>
+    <div className="visual-snapshot-title">{i18n.t(layout.side === "before" ? "Current disk file" : "Save preview")}</div>
     <DocumentEditor readOnly preview document={document} documentPath={path} comparison={layout} onStructuralReject={() => {}} />
   </section>;
 }
@@ -66,7 +66,17 @@ export default function VisualCompare({ result, client, path, onUnavailable }: {
     const next = current === 0 ? (direction > 0 ? 1 : count) : (current - 1 + direction + count) % count + 1;
     setCurrent(next);
     const target = region.current?.querySelector<HTMLElement>(`[data-visual-change="${next}"]`);
-    target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: "nearest" });
+    target?.focus({ preventScroll: true });
+    if (target && region.current) {
+      const pair = Array.from(region.current.querySelectorAll<HTMLElement>(`[data-visual-change="${next}"]`));
+      const top = Math.min(...pair.map(node => (node.previousElementSibling?.classList.contains("visual-block-label") ? node.previousElementSibling : node).getBoundingClientRect().top));
+      const bottom = Math.max(...pair.map(node => node.getBoundingClientRect().bottom));
+      const frame = region.current.getBoundingClientRect();
+      if (top < frame.top || bottom > frame.bottom) {
+        const padding = parseFloat(getComputedStyle(region.current.querySelector(".visual-comparison-grid")!).paddingTop);
+        region.current.scrollTop += top - frame.top - padding;
+      }
+    }
   }
   if (!comparison) return <p role="status">{i18n.t("Loading comparison…")}</p>;
   return <HostClientContext.Provider value={client}>

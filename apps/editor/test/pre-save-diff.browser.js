@@ -6,6 +6,7 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   const root = loaded.path.split(sep).slice(0, -4).join(sep);
   const file = [root, 'tmp', 'document-tabs', 'technical-1.md'].join(sep);
   await openPath(page, file);
+  await activeDocument(page).locator(".document-title-input").fill("Converter report");
   await page.getByTestId('save').click();
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor();
   const editor = () => activeDocument(page).locator('.document-editor');
@@ -74,6 +75,8 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   await visual.locator('.document-editor').nth(1).waitFor({ state: 'attached' });
   const twoEditorsReady = Date.now();
   check(await visual.locator('.document-editor').count() === 2, 'Visual must own two full snapshots');
+  check(await visual.locator('.document-title-input').count() === 2, 'Preview lost the Read title components');
+  check(await visual.locator('.document-title-input').first().inputValue() === 'Converter report', 'Preview title changed');
   const snapshots = await visual.locator('.document-editor').evaluateAll(nodes => nodes.map(node => JSON.stringify(node.editor.getJSON())));
   const instances = await visual.evaluateHandle(root => Array.from(root.querySelectorAll('.document-editor'), node => node.editor));
   await dialog().getByRole('button', { name: 'Next change', exact: true }).click();

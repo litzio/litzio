@@ -3482,3 +3482,9 @@ html[data-theme="dark"] [data-brand-dark] { display: block; }
 }
 
 .recovery-comparison > .view-toggle { justify-self: start; }
+
+.visual-snapshot .document-title-input { grid-column: var(--compare-column); grid-row: 2; min-width: 0; max-width: 100%; }
+@media (max-width: 800px) {
+  .visual-snapshot .document-title-input { grid-column: 1; grid-row: 3; }
+  .visual-snapshot[data-side="after"] .document-title-input { grid-row: 4; }
+}

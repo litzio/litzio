@@ -1108,7 +1108,7 @@ runs, at `tmp/pre-save-diff/visual-{1440,640}-{light,dark}.png`.
 ### Visual comparison captures and observed timing
 
 Manual Windows persistent Chrome, 1440/640 × 900, English, light/dark, same technical
-document and applied “Preview. 미리보기.” heading edit. Before is source-only baseline
+document, unchanged frontmatter title “Converter report”, and applied “Preview. 미리보기.” heading edit. Before is source-only baseline
 `c1f8f2a8`; after is the selected Visual comparison with one adjacent context block
 and the remaining 11 blocks collapsed. Baseline and final capture use a task-owned
 5191 Vite server to avoid another checkout's default-port server. The server and
@@ -1121,7 +1121,7 @@ browser session are stopped after capture; no caller-owned server is stopped.
 | 640 light | [Before](assets/visual-compare-1201/before-640-light.png) | [After](assets/visual-compare-1201/visual-640-light.png) |
 | 640 dark | [Before](assets/visual-compare-1201/before-640-dark.png) | [After](assets/visual-compare-1201/visual-640-dark.png) |
 
-One small-document observation: comparison request round trip 52ms; response to both
-Editor DOMs attached 50ms. This separates the request from attachment, not pure Core
+One small-document observation: comparison request round trip 63ms; response to both
+Editor DOMs attached 49ms. This separates the request from attachment, not pure Core
 CPU from pure rendering; it excludes completion of async assets and is not a
 large-document benchmark or a guarantee at the provisional 1000-block limit.

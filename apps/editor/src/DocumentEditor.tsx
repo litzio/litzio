@@ -913,7 +913,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         onToggleHeadingNumbering={toggleHeadingNumbering} onReferenceStyleChange={setReferenceStyle}
         onConnectBibliography={target => bibliographyControls.current?.connect(target)} /> : null}
       {!comparison ? <NumberingNotice editor={editor} onReveal={revealBlock} disabled={settingsDisabled} /> : null}
-      {!comparison && (!preview || editor.state.doc.attrs.title) ? <DocumentTitle editor={editor} /> : null}
+      {!preview || editor.state.doc.attrs.title ? <DocumentTitle editor={editor} /> : null}
       <DocumentPathContext.Provider value={documentPath}><ImageRenameContext.Provider value={renameImage}>
         <BibliographyContent ref={bibliographyControls} editor={editor} bibliography={bibliography} documentPath={documentPath}>
           <EditorContent className={comparison ? "visual-engine-content" : undefined} editor={editor} />

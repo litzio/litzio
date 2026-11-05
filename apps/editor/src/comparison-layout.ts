@@ -24,21 +24,21 @@ export function comparisonLayout(initial: ComparisonLayout) {
           const row = layout.rows[index], folded = row.fold !== undefined && !layout.expanded.has(row.fold);
           const attrs = { "data-compare-row": String(index), "data-compare-side": layout.side,
             "data-visual-change": row.number ? String(row.number) : "", "data-change-kind": row.change?.kind ?? "context",
-            style: folded ? "display:none" : `--compare-row:${slots.get(index)! * 2 + 3};--compare-narrow-row:${slots.get(index)! * 4 + (layout.side === "before" ? 4 : 6)}`,
+            style: folded ? "display:none" : `--compare-row:${slots.get(index)! * 2 + 4};--compare-narrow-row:${slots.get(index)! * 4 + (layout.side === "before" ? 6 : 8)}`,
             tabindex: "-1", "aria-label": layout.descriptions[index] };
           decorations.push(Decoration.node(pos, pos + node.nodeSize, attrs));
           if (row.fold !== undefined && layout.side === "before" && layout.rows.findIndex(item => item.fold === row.fold) === index) {
             const count = layout.rows.filter(item => item.fold === row.fold).length;
             decorations.push(Decoration.widget(pos, () => {
               const button = document.createElement("button"); button.type = "button"; button.className = "visual-fold";
-              button.style.cssText = `--compare-row:${foldSlots.get(row.fold!)! * 2 + 2};--compare-narrow-row:${foldSlots.get(row.fold!)! * 4 + 3}`;
+              button.style.cssText = `--compare-row:${foldSlots.get(row.fold!)! * 2 + 3};--compare-narrow-row:${foldSlots.get(row.fold!)! * 4 + 5}`;
               button.textContent = i18n.t(layout.expanded.has(row.fold!) ? "Unchanged {{count}} blocks ▾" : "Unchanged {{count}} blocks ▸", { count }); button.setAttribute("aria-expanded", String(layout.expanded.has(row.fold!)));
               button.onclick = () => layout.toggle(row.fold!); return button;
             }, { key: `fold:${row.fold}:${layout.expanded.has(row.fold!)}:${foldSlots.get(row.fold!)}:${i18n.resolvedLanguage}`, side: -1, stopEvent: () => true }));
           }
           if (!folded) decorations.push(Decoration.widget(pos, () => {
             const label = document.createElement("span"); label.className = "visual-block-label";
-            label.style.cssText = `--compare-row:${slots.get(index)! * 2 + 2};--compare-narrow-row:${slots.get(index)! * 4 + (layout.side === "before" ? 3 : 5)}`;
+            label.style.cssText = `--compare-row:${slots.get(index)! * 2 + 3};--compare-narrow-row:${slots.get(index)! * 4 + (layout.side === "before" ? 5 : 7)}`;
             label.textContent = `${i18n.t(layout.side === "before" ? "Current disk file" : "Save preview")} · ${layout.descriptions[index]}`;
             return label;
           }, { key: `label:${layout.side}:${index}:${slots.get(index)}:${layout.descriptions[index]}`, side: -1 }));
