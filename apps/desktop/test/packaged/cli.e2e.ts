@@ -66,7 +66,11 @@ test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/h
       });
       const response = await fetch(`http://127.0.0.1:${address.port}/`);
       assert.equal(response.status, 200);
-      assert.equal((await (await fetch(`http://127.0.0.1:${address.port}` + "/api/plugins")).json()).plugins[0].id, "fixture.isolated", "packaged Host reads only the isolated plugin registry");
+      const plugins = (await (await fetch(`http://127.0.0.1:${address.port}` + "/api/plugins")).json()).plugins;
+      assert.ok(plugins.some((p: any) => p.id === "fixture.isolated"));
+      const onedrive = plugins.find((p: any) => p.id === "litzio.onedrive");
+      assert.equal(onedrive.official, true); assert.equal(onedrive.enabled, false);
+
       assert.match(await response.text(), /<html/);
       assert.equal(errors, "");
     } finally {

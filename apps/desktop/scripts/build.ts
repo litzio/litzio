@@ -36,6 +36,7 @@ export async function buildDesktop(): Promise<string> {
   const editorBuild = path.join(cliBuild, "editor");
   if (!existsSync(path.join(cliBuild, "plugin-sdk.mjs"))) throw new Error("The CLI build has no Host SDK runtime");
   if (!existsSync(path.join(editorBuild, "index.html"))) throw new Error("The Editor build has no index.html");
+  if (!existsSync(path.join(cliBuild, "official-plugins/onedrive/artifact/litzio-plugin.json")) || !existsSync(path.join(cliBuild, "official-plugins/onedrive/digest.json"))) throw new Error("The CLI build has no official OneDrive supply");
   // Independent app-owned UI; the CLI still serves its own browser copy.
   cpSync(editorBuild, path.join(stage, "ui"), { recursive: true });
   const stagedCli = path.join(desktop, "build", "cli");

@@ -21,7 +21,7 @@
 
 대상 daemon의 Host 설정 루트에 별도 plugins.json을 기록한다. `LITZIO_DATA_DIR` 또는 `LITZIO_PLUGINS_SETTINGS_FILE`로 격리할 수 있다. 임의 디렉터리 자동 탐색, SQLite, migration과 자동 파일 감시 reload는 없다. 로컬 artifact 안의 파일을 digest로 묶고 패키지 밖 참조를 거부한다. 공식 공급 목록은 id·publisher와 제품이 검토한 artifact digest를 대조한다. 자칭 official 또는 변경 artifact는 공식 신뢰를 얻지 않는다.
 
-등록 직후는 비활성이다. 기본 활성 정책은 미정이며 모든 플러그인은 명시적으로 활성화한다. 커뮤니티는 list에서 확인한 digest를 trust한 뒤 enable한다. 사용자와 비서 모두 digest 신뢰 작업을 실행할 수 있다. artifact가 달라지면 새 digest를 trust한 뒤 reload한다. 자동 교체하지 않는다. 비활성화는 신규 호출을 먼저 차단하고 상태 기여를 숨긴 뒤 이미 접수한 호출을 drain하고 dispose한다. 설정과 열린 폴더·탭은 삭제하지 않는다. OS 권한 격리는 보장하지 않는다.
+외부 artifact는 등록 직후 비활성이다. 공식 번들은 아래 #1279 공급 기본값과 명시적 선택을 따른다. 기본 활성 정책은 미정이며 모든 플러그인은 명시적으로 활성화한다. 커뮤니티는 list에서 확인한 digest를 trust한 뒤 enable한다. 사용자와 비서 모두 digest 신뢰 작업을 실행할 수 있다. artifact가 달라지면 새 digest를 trust한 뒤 reload한다. 자동 교체하지 않는다. 비활성화는 신규 호출을 먼저 차단하고 상태 기여를 숨긴 뒤 이미 접수한 호출을 drain하고 dispose한다. 설정과 열린 폴더·탭은 삭제하지 않는다. OS 권한 격리는 보장하지 않는다.
 
 플러그인마다 daemon의 Node 하위 프로세스 하나를 사용한다. Node IPC 채널의 요청 ID로 activate·invoke·status·dispose와 응답을 연결하며 stdout/stderr와 플러그인 예외 원문은 전달하지 않는다. 별도 bootstrap 파일 없이 번들 안의 고정 코드로 시작하므로 설치된 CLI도 같은 경로를 쓴다. 각 RPC 응답은 10초 후 실패하며 프로세스를 종료한다. 접수된 K1 백그라운드 작업 수명에는 이 제한이 적용되지 않는다. 읽기 실패는 failure, 쓰기 실패는 기존 uncertain receipt를 유지하고 자동 재전송하지 않는다.
 
@@ -47,7 +47,7 @@ settings는 --file 없이 현재 일반 설정을 조회하며 변경은 비활�
 
 ## OneDrive
 
-`plugins/onedrive`는 SDK 타입과 Node API만 사용한다. `pnpm --filter @litzio/onedrive build`가 자체 실행 의존성을 포함한 artifact 디렉터리를 만든다. Host와 CLI는 OneDrive source를 import하지 않는다. artifact를 명시 등록·활성화한다.
+`plugins/onedrive`는 SDK 타입과 Node API만 사용한다. `pnpm --filter @litzio/onedrive build`가 자체 실행 의존성을 포함한 artifact 디렉터리를 만든다. Host와 CLI는 OneDrive source를 import하지 않는다. 공식 artifact는 앱에 포함해 자동 표시하며 사용자가 토글로 활성화한다.
 
 Windows 환경 변수 OneDrive/OneDriveConsumer/OneDriveCommercial과 실재 폴더를 우선한다. HKCU Software/Microsoft/OneDrive/Accounts 직하위 계정의 UserFolder를 best-effort로 보완하며 중복 경로를 합친다. 조회 실패·불완전/없는 경로 수와 출처를 보존한다. UserEmail/DisplayName이 실제 조회된 경우만 표시하고, 그 밖에는 경로 기반 중립 라벨을 쓴다. raw 레지스트리 출력은 로그에 쓰지 않는다. SyncEngines, ini, WinRT, Graph/OAuth와 동기화 엔진은 사용하지 않는다. Linux 등 다른 OS에서는 지원하지 않음을 표시한다.
 
@@ -192,3 +192,13 @@ Host가 verification을 소유한다. 아직 원래 호출이 진행 중이면 p
 화면은 unavailable일 때 “Status checks cannot resolve this outcome. Do not repeat this change.”를 짧게 표시하고 기존 결과 문서 열기 동작을 “Open result document” 버튼으로 제공한다. Tooltip에는 공용 고정 guidance “Status checks cannot resolve this outcome. Do not repeat this change. Open the result document and inspect it.”를 둔다. 불필요한 status 반복은 하지 않으며 변경 권한도 복구하지 않는다. 기존 snapshot의 결과 경로로 문서를 열고, Host가 모르는 경로를 발명하지 않는다. CLI JSON도 같은 verification/guidance/nextAction을 그대로 전달하고 Host가 확인한 documentPath가 있으면 함께 제공한다. daemon 재시작으로 경로까지 모르면 경로는 반환하지 않는다.
 
 제품 fixture는 진행 중 pending, 종료된 uncertain의 unavailable, 재시작 unknown의 unavailable과 잠금 유지를 검증한다. 실제 CLI status에서 unknown/uncertain의 공용 안내·행동 코드를 확인한다. review-v5 브라우저 검사는 unavailable 안내·tooltip·결과 문서 열기와 이후 변경 버튼 잠금 유지, status 재조회 중단을 확인한다.
+
+## 공식 번들 공급과 외부 폴더 추가 (#1279)
+
+공식 OneDrive는 개발 실행·CLI·Desktop에 artifact를 포함하고 Host 시작 때 등록 없이 Settings → Plugins 및 공용 `plugins list`/비서 `manage_plugins` 목록에 표시한다. 기본은 꺼짐이다. 제품 공급 목록 `OFFICIAL_PLUGINS` 항목의 `defaultEnabled` 하나로 기본값을 바꾼다. Host는 사용자 선택 `enabledChoice`를 저장해 기본값보다 우선하고, 선택 전에는 설정 저장·재시작을 거쳐도 공급 기본값을 따른다. 기본값이 켜짐으로 바뀌면 선택하지 않은 사용자만 자동 활성화한다.
+
+OneDrive 빌드는 공용 artifact digest 계산으로 artifact 밖 `digest.json`을 생성한다. CLI 빌드는 매번 OneDrive를 빌드해 artifact와 digest를 함께 복사하고 npm 배포 파일 목록에 포함한다. Desktop은 이 CLI 산출물 전체를 사용한다. 개발 `pnpm editor`도 OneDrive를 먼저 빌드한다. Host는 공급 목록 id·publisher·digest를 대조하며 불일치·누락은 오류 행으로 남기고 실행·trust 우회를 막는다. 공식 플러그인은 앱 업데이트와 함께만 갱신하며 등록 교체·unregister는 불가하고 끄기만 제공한다. 비활성화의 설정·secret·열린 폴더 보존 계약은 유지한다.
+
+외부 플러그인은 “플러그인 추가…”에서 기존 Host 측 `FolderDialog`로 artifact 폴더를 선택한다. Settings의 별도 절대 경로 입력란은 제거한다. 기존 Button·FolderDialog·설정 행과 토글을 재사용하며 새 공통 UI 패턴은 없다. 폴더 탐색은 현재 Host client를 통해 수행하고 로컬 PC 파일 선택 창으로 대체하지 않는다. 1단계 설정 UI의 로컬 Host 범위는 유지하며 원격 UI를 새로 개방하지 않는다. CLI `plugins register <directory>`와 비서 도구의 외부 경로·trust·enable·unregister는 기존 공용 작업을 유지한다.
+
+기본값 전환·명시적 선택·변조 차단은 Host 단위 검사, 첫 실행 표시·토글·외부 폴더 선택 연결은 `http-plugins`, 배포물 안 공급·실행은 CI packaged 검사에서 확인한다. 수동 1440 캡처는 `pnpm browser:test http-plugins --screenshots`의 `docs/design/assets/bundled-plugins-1279/bundled-1440.png`에 남긴다. 이는 localhost와 fixture 검증이며 실제 OneDrive 계정 동기화의 증거는 아니다.

@@ -33,3 +33,5 @@ temp/
 /.litzio-dev/
 
 /plugins/onedrive/artifact/
+
+/plugins/onedrive/digest.json

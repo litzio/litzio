@@ -26,7 +26,7 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
   const host = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
   try {
     await host.invoke("register", { directory });
-    await host.invoke("trust", { id: "fixture.jobs", digest: (await host.list())[0]!.digest });
+    await host.invoke("trust", { id: "fixture.jobs", digest: (await host.list()).find(p => p.id === "fixture.jobs")!.digest });
     await host.invoke("enable", { id: "fixture.jobs" });
     const start = async (text: string) => {
       const requestId = randomUUID(); const file = `${requestId}.txt`, output = `${requestId}.md`;
@@ -146,7 +146,7 @@ test("K1 start/status/stop cannot publish subprocess results rejected by output 
   try {
     writeFileSync(path.join(root, 'input.txt'), 'Original');
     await host.invoke('register',{directory});
-    await host.invoke('trust',{id:'fixture.jobs',digest:(await host.list())[0]!.digest});
+    await host.invoke('trust',{id:'fixture.jobs',digest:(await host.list()).find(p => p.id === "fixture.jobs")!.digest});
     await host.invoke('enable',{id:'fixture.jobs'});
     const requestId = randomUUID();
     await host.invoke('job-start',{plugin:'fixture.jobs',job:'text',requestId,root,file:'input.txt',output:'result.md'});
@@ -212,7 +212,7 @@ test("K1 accepted work survives the RPC budget; completion, failure, stop and pr
     try {
       writeFileSync(path.join(root, "input.txt"), "Original");
       await host.invoke("register", { directory });
-      await host.invoke("trust", { id: "fixture.jobs", digest: (await host.list())[0]!.digest });
+      await host.invoke("trust", { id: "fixture.jobs", digest: (await host.list()).find(p => p.id === "fixture.jobs")!.digest });
       await host.invoke("enable", { id: "fixture.jobs" });
       const requestId = randomUUID();
       const input = { plugin: "fixture.jobs", job: "text", requestId, root, file: "input.txt", output: "result.md" };

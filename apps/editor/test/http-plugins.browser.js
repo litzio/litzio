@@ -15,8 +15,18 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
   };
   await openSettings();
-  await page.getByLabel("Local plugin artifact", { exact: true }).fill(pluginFixture.directory);
-  await page.getByRole("button", { name: "Register plugin", exact: true }).click();
+  const official = page.getByRole("switch", { name: "Enable OneDrive", exact: true });
+  await expect(official).not.toBeChecked();
+  expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "litzio.onedrive").official).toBe(true);
+  if (screenshots) { await page.setViewportSize({ width: 1440, height: 900 }); await page.screenshot({ path: "docs/design/assets/bundled-plugins-1279/bundled-1440.png", mask: [page.locator(".sidebar-host-account")] }); }
+  await official.click(); await expect(official).toBeChecked();
+  await page.reload(); await openSettings(); await expect(official).toBeChecked();
+  await official.click(); await expect(official).not.toBeChecked();
+  await page.reload(); await openSettings(); await expect(official).not.toBeChecked();
+  await page.getByRole("button", { name: "Add plugin…", exact: true }).click();
+  await page.getByTestId("folder-path").fill(pluginFixture.directory);
+  await page.getByTestId("folder-open").click();
+  await expect(page.getByTestId("folder-path")).not.toBeVisible();
   await expect(page.getByText("Trust required", { exact: false })).toBeVisible();
   const registered = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
   expect(registered.running).toBe(false);
@@ -88,7 +98,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   }
   await openSettings();
   await page.getByRole("switch", { name: "Enable Drive fixture", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: /^Plugin disabled$/ })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Drive fixture", exact: true }).getByRole("status").filter({ hasText: /^Plugin disabled$/ })).toBeVisible();
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive").running).toBe(false);
   await page.keyboard.press("Escape");
   await expect(page.getByLabel("OneDrive", { exact: true })).toHaveCount(0);

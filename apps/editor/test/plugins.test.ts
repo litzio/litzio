@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { artifactDigest } from "../server/plugins/artifact-digest.mjs";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { executePluginTool } from "../server/assistant-plugin-tools.ts";
 test("local artifact trust, activation, admission, drain, settings persistence and assistant activity", async () => {
@@ -12,7 +13,7 @@ test("local artifact trust, activation, admission, drain, settings persistence a
   writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify(manifest));
   writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
   writeFileSync(path.join(directory, "host.js"), `export function activate(){return {operations:{read:async()=>{await new Promise(r=>setTimeout(r,50));return "done"}},status:()=>({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
-  const host = new PluginHost(path.join(root, "state.json"));
+  const host = new PluginHost(path.join(root, "state.json"), { officialPlugins: [] });
   try {
     await host.invoke("register", { directory });
     const collision = path.join(root, "collision"); mkdirSync(collision);
@@ -597,5 +598,40 @@ test("short secrets preserve keys and leave the plugin scope on replacement, del
     await host.invoke("unregister", { id: "fixture.a" });
     await host.invoke("register", { directory: dirs[0] }); await host.invoke("trust", { id: "fixture.a", digest: (await host.list()).find(p => p.id === "fixture.a")!.digest }); await host.invoke("enable", { id: "fixture.a" });
     await check("fixture.a", "raw-log-private", "raw-log-private");
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+// Host policy combinations belong here; browser coverage owns the folder picker and toggle wiring.
+test("bundled defaults follow supply until an explicit choice; update verification cannot be bypassed", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-bundled-"));
+  const directory = lifecycleFixture(root, "fixture.bundled");
+  const file = path.join(directory, "litzio-plugin.json");
+  const manifest = JSON.parse(readFileSync(file, "utf8")); manifest.tier = "official";
+  writeFileSync(file, JSON.stringify(manifest));
+  const supply = [{ id: manifest.id, publisher: "fixture", directory, digest: artifactDigest(directory), defaultEnabled: false }];
+  const state = path.join(root, "state.json");
+  let host = new PluginHost(state, { officialPlugins: supply });
+  try {
+    await host.start(); assert.equal((await host.list())[0]!.enabled, false);
+    // Saving unrelated settings must not turn a default into an explicit choice.
+    await host.invoke("settings", { id: manifest.id, settings: {} }); await host.close();
+    supply[0]!.defaultEnabled = true;
+    host = new PluginHost(state, { officialPlugins: supply }); await host.start();
+    assert.equal((await host.list())[0]!.running, true);
+    await host.invoke("disable", { id: manifest.id }); await host.close();
+    host = new PluginHost(state, { officialPlugins: supply }); await host.start();
+    assert.equal((await host.list())[0]!.enabled, false);
+    await host.invoke("enable", { id: manifest.id }); await host.close();
+    supply[0]!.defaultEnabled = false;
+    host = new PluginHost(state, { officialPlugins: supply }); await host.start();
+    assert.equal((await host.list())[0]!.running, true);
+    await assert.rejects(host.invoke("unregister", { id: manifest.id }), /disabled/);
+    await assert.rejects(host.invoke("register", { directory }), /app only/);
+    await host.close(); writeFileSync(path.join(directory, "tampered.js"), "changed");
+    host = new PluginHost(state, { officialPlugins: supply }); await host.start();
+    const status = (await host.list())[0]!;
+    assert.equal(status.official, false); assert.equal(status.running, false); assert.match(status.error!, /verification/);
+    await assert.rejects(host.invoke("trust", { id: manifest.id, digest: status.digest }), /disabled/);
+    await assert.rejects(host.invoke("enable", { id: manifest.id }), /verification/);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });

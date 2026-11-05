@@ -224,7 +224,6 @@ for (const name of scenarios) {
     }, cli: (args: string[]) => JSON.parse(execFileSync(process.execPath, [path.join(REPOSITORY_ROOT, "packages/cli/dist/cli.mjs"), ...args, "--host", url, "--json"], { encoding: "utf8", windowsHide: true })) };
     const realCapture = screenshots && process.env.LITZIO_CAPTURE_ONEDRIVE === "1" && process.platform === "win32";
     const realSnapshot = realCapture && name === "http-plugins" ? () => {
-      pluginFixture.cli(["plugins", "register", path.join(REPOSITORY_ROOT, "plugins/onedrive/artifact")]);
       pluginFixture.cli(["plugins", "enable", "litzio.onedrive"]);
       const state = pluginFixture.cli(["plugins", "list"]);
       const plugin = state.plugins.find((p: any) => p.id === "litzio.onedrive");
