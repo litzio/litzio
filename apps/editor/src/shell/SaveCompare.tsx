@@ -39,7 +39,7 @@ export default function SaveCompare({ comparison, returnFocus, onClose }: {
           <p>{i18n.t("Read-only preview of applied content. Unapplied drafts are excluded. Close to keep editing.")}</p>
         </DialogDescription>
       </DialogHeader>
-      <SourceCompare load={load} />
+      <SourceCompare load={load} visual={{ client: comparison.client, path: comparison.path, unsupported: comparison.text !== undefined ? i18n.t("Text sessions use Source comparison.") : undefined }} />
       <DialogFooter><Button variant="secondary" size="sm" onClick={onClose}>{i18n.t("Close")}</Button></DialogFooter>
     </DialogContent>
   </Dialog>;

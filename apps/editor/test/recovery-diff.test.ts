@@ -40,3 +40,28 @@ test("extreme character or line counts reject the whole comparison instead of re
   assert.throws(() => recoveryDiff("a".repeat(1_000_001), ""), DiffBudgetError);
   assert.throws(() => recoveryDiff("\n".repeat(6000), "\n".repeat(6000)), DiffBudgetError);
 });
+
+import { comparisonRows } from "../src/comparison-rows.ts";
+import type { EditableDocument } from "@litzio/core";
+const model = (count: number): EditableDocument => ({ blocks: Array.from({ length: count }, (_, index) => ({ block: "paragraph", path: [index], text: "", content: [], editable: true })) });
+test("visual layout keeps context on both sides and folds only the rest", () => {
+  const rows = comparisonRows(model(10), model(10), [{ kind: "changed", before: [5], after: [5], details: [] }]);
+  assert.deepEqual(rows.filter(row => row.fold === undefined).map(row => row.before), [[4], [5], [6]]);
+  assert.equal(new Set(rows.flatMap(row => row.fold === undefined ? [] : [row.fold])).size, 2);
+  assert.equal(rows[5].number, 1);
+});
+test("visual layout aligns unchanged gaps around unpaired insertions and deletions", () => {
+  const added = comparisonRows(model(4), model(5), [{ kind: "added", after: [2], details: [] }]);
+  assert.deepEqual(added.map(row => [row.before, row.after]), [[[0], [0]], [[1], [1]], [undefined, [2]], [[2], [3]], [[3], [4]]]);
+  const removed = comparisonRows(model(5), model(4), [{ kind: "removed", before: [2], details: [] }]);
+  assert.deepEqual(removed.map(row => [row.before, row.after]), [[[0], [0]], [[1], [1]], [[2], undefined], [[3], [2]], [[4], [3]]]);
+});
+
+import { comparisonDescription } from "../src/comparison-description.ts";
+test("visual explanations render hidden levels and link targets without raw projection JSON", () => {
+  const before: EditableDocument = { blocks: [{ block: "paragraph", path: [1], editable: true, text: "Same", content: [{ kind: "link", url: "https://example.test/v1", children: [{ kind: "text", text: "Same" }] }] }] };
+  const after: EditableDocument = { blocks: [{ block: "paragraph", path: [1], editable: true, text: "Same", content: [{ kind: "link", url: "https://example.test/v2", children: [{ kind: "text", text: "Same" }] }] }] };
+  const description = comparisonDescription({ before: [1], after: [1], number: 1, change: { kind: "changed", details: ['content: opaque Core-selected field'] } }, before, after);
+  assert.match(description, /https:\/\/example.test\/v1.*→.*https:\/\/example.test\/v2/);
+  assert.doesNotMatch(description, /"kind"|"children"/);
+});

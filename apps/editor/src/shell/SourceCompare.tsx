@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import VisualCompare from "./VisualCompare.tsx";
+import type { HostClient } from "../host-client.ts";
+import { ChoiceGroup } from "@/components/ui/choice-group.tsx";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { RecoveryDiff, RecoveryDiffReply } from "../recovery-diff.ts";
 import { Button } from "@/components/ui/button.tsx";
@@ -6,8 +9,11 @@ import { i18n } from "../i18n.ts";
 
 export type Comparison = { before: string; after: string; fallback?: string; changed: boolean; missing: boolean; failure?: Error };
 
-export default function SourceCompare({ load, recovery = false }: { load(signal: AbortSignal): Promise<Comparison>; recovery?: boolean }) {
+export default function SourceCompare({ load, recovery = false, visual }: { load(signal: AbortSignal): Promise<Comparison>; recovery?: boolean; visual?: { client: HostClient; path: string; unsupported?: string } }) {
   useTranslation();
+  const [view, setView] = useState<"visual" | "source">(visual && !visual.unsupported ? "visual" : "source");
+  const [visualError, setVisualError] = useState("");
+  const unavailable = useCallback((reason: string) => { setVisualError(reason); setView("source"); }, []);
   const [result, setResult] = useState<Comparison>();
   const [diff, setDiff] = useState<RecoveryDiff>();
   const [error, setError] = useState("");
@@ -21,7 +27,7 @@ export default function SourceCompare({ load, recovery = false }: { load(signal:
     let computationTimeout: ReturnType<typeof setTimeout> | undefined;
     const stopWorker = () => { worker?.terminate(); worker = undefined; clearTimeout(computationTimeout); };
     const budgetError = () => i18n.t(recovery ? "Comparison is too large. Use the plaintext recovery copy." : "Comparison is too large. Narrow the changes and try again.");
-    setResult(undefined); setDiff(undefined); setError(""); setCurrent(0);
+    setVisualError(""); setResult(undefined); setDiff(undefined); setError(""); setCurrent(0);
     const timeout = setTimeout(() => controller.abort(), 15000);
     void load(controller.signal).then(value => {
       clearTimeout(timeout);
@@ -51,15 +57,21 @@ export default function SourceCompare({ load, recovery = false }: { load(signal:
     target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: "nearest" });
   }
   return <section className="recovery-comparison" aria-label={i18n.t(recovery ? "Recovery comparison" : "Changes before saving")}>
-    <p>{i18n.t("Current disk file → content Save would write. Canonical formatting changes are included.")}</p>
-    {!diff && !error && !result?.failure ? <p role="status">{result ? i18n.t("Calculating differences…") : i18n.t("Loading comparison…")}</p> : null}
+    {view === "source" ? <p>{i18n.t("Current disk file → content Save would write. Canonical formatting changes are included.")}</p> : null}
+    {(!result || view === "source" && !diff) && !error && !result?.failure ? <p role="status">{result ? i18n.t("Calculating differences…") : i18n.t("Loading comparison…")}</p> : null}
     {result?.failure ? <p role="alert">{i18n.t("Save preview unavailable: {{reason}}", { reason: result.failure.message })}</p> : null}
-    {error ? <p role="alert">{i18n.t("Comparison unavailable: {{reason}}", { reason: error })}</p> : null}
-    {error ? <Button size="sm" variant="secondary" onClick={() => setAttempt(attempt + 1)}>{i18n.t("Retry comparison")}</Button> : null}
+    {(view === "source" || !result) && error ? <p role="alert">{i18n.t("Comparison unavailable: {{reason}}", { reason: error })}</p> : null}
+    {(view === "source" || !result) && error ? <Button size="sm" variant="secondary" onClick={() => setAttempt(attempt + 1)}>{i18n.t("Retry comparison")}</Button> : null}
     {result?.changed ? <p role="status">{i18n.t(recovery ? "The file changed after this record. Comparing with the current disk file." : "The file changed outside {{product}}. Comparing with the current disk file; Save will still report a conflict.")}</p> : null}
     <MissingFileNotice result={result} diff={diff} recovery={recovery} />
     {result?.fallback ? <p role="status">{i18n.t("Plaintext comparison instead of Save preview: {{reason}}", { reason: result.fallback })}</p> : null}
-    {diff ? <>
+    {visual ? <ChoiceGroup<"visual" | "source"> aria-label={i18n.t("Comparison view")} value={view} onValueChange={setView} options={[
+      { value: "visual", label: i18n.t("Visual"), disabled: !!visualError || !!visual?.unsupported || !!result?.failure },
+      { value: "source", label: i18n.t("Source") },
+    ]} /> : null}
+    {visualError || visual?.unsupported || visual && result?.failure ? <p role="status">{i18n.t("Visual unavailable: {{reason}}. Use Source comparison.", { reason: visualError || visual?.unsupported || result?.failure?.message || "" })}</p> : null}
+    {view === "visual" && result && !result.failure && visual ? <VisualCompare result={result} client={visual.client} path={visual.path} onUnavailable={unavailable} /> : null}
+    {view === "source" && diff ? <>
       {diff.wordsOmitted ? <p role="status">{i18n.t("Word highlighting omitted to keep comparison responsive.")}</p> : null}
       <div className="recovery-diff-toolbar">
         <span role="status">{i18n.t("{{count}} changes", { count: diff.count })}</span>

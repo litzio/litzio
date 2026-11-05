@@ -1,3 +1,5 @@
+import { comparisonLayout, comparisonLayoutKey, type ComparisonLayout } from "./comparison-layout.ts";
+import { ReadOnlyBoundary } from "./read-only-boundary.ts";
 import { useHostClient } from "./host-context.tsx";
 import { useTableWrap, setTableWrap } from "./table-wrap.ts";
 import { DocumentSettings, type DocumentSettingsHandle } from "./shell/DocumentSettings.tsx";
@@ -116,6 +118,7 @@ type DocumentEditorProps = ReadingCallbacks & {
   readOnly?: boolean;
   /** Isolated read-only preview: replace the displayed model without recreating the editor. Never used by document sessions. */
   preview?: boolean;
+  comparison?: ComparisonLayout;
   showHeadingLevels?: boolean;
   settingsExpanded?: boolean;
   onSettingsExpandedChange?(expanded: boolean): void;
@@ -147,10 +150,11 @@ type DocumentEditorProps = ReadingCallbacks & {
 };
 
 export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorProps>(function DocumentEditor(
-  { readOnly = false, preview = false, showHeadingLevels = !readOnly, onReadingLayout, onReadingSelection, settingsExpanded = false, onSettingsExpandedChange, settingsDisabled = false, document, bibliography, initialSnapshot, documentPath, onStructuralReject, onNotice, onDraftChange, onAssetPendingChange, onAssetError, onAssetChange, onDirtyChange, onAppliedEdit, onSaveLocationsChange, onHeadingNumberingChange, onReferenceTemplatesChange, validateFigure, chooseImage, renameImage, onOutlineChange },
+  { readOnly = false, preview = false, comparison, showHeadingLevels = !readOnly, onReadingLayout, onReadingSelection, settingsExpanded = false, onSettingsExpandedChange, settingsDisabled = false, document, bibliography, initialSnapshot, documentPath, onStructuralReject, onNotice, onDraftChange, onAssetPendingChange, onAssetError, onAssetChange, onDirtyChange, onAppliedEdit, onSaveLocationsChange, onHeadingNumberingChange, onReferenceTemplatesChange, validateFigure, chooseImage, renameImage, onOutlineChange },
   ref,
 ) {
   useTranslation();
+  if (comparison && (!readOnly || !preview)) throw new Error("Comparison decorations require an isolated read-only preview.");
   const visible = useEditorVisible();
   const tableWrap = useTableWrap(documentPath ?? "");
   // Each tab keeps its editor; only Reload remounts it. Save keeps its opening projection.
@@ -242,73 +246,10 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
       shouldRerenderOnTransaction: true,
       extensions: [
         ...extensions,
+        ...(comparison ? [comparisonLayout(comparison)] : []),
         // editable:false stops native input. Explicit keymaps, commands and async form
         // completions also dispatch transactions, so reject every content change here.
-        Extension.create({
-          name: "readOnlyBoundary",
-          priority: 10000,
-          addProseMirrorPlugins() {
-            const current = this.editor;
-            return [new Plugin({
-              filterTransaction: tr => current.isEditable || !tr.docChanged,
-              props: {
-                // ProseMirror skips its editable keydown handler in Read. Route
-                // navigation/copy through the existing keymaps, retaining its state.
-                handleDOMEvents: { keydown: (view, event) => {
-                  if (current.isEditable) return false;
-                  const navigation = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown", "Tab", "Escape"].includes(event.key);
-                  const copy = (event.ctrlKey || event.metaKey) && ["a", "c"].includes(event.key.toLowerCase());
-                  if (!navigation && !copy) {
-                    const modified = event.ctrlKey || event.metaKey;
-                    const mutation = ["Enter", "Backspace", "Delete"].includes(event.key) ||
-                      (!modified && !event.altKey && event.key.length === 1) ||
-                      (modified && ["b", "i", "u", "x", "v", "z", "y"].includes(event.key.toLowerCase()));
-                    // Do not forward authoring shortcuts to keymaps. Browser Find,
-                    // Print, zoom and other native commands retain their defaults.
-                    if (mutation) event.preventDefault();
-                    return mutation;
-                  }
-                  // Edit's document-end command may append a writable paragraph.
-                  // Reading document edges must only move/extend engine selection.
-                  if ((event.ctrlKey || event.metaKey) && ["Home", "End"].includes(event.key)) {
-                    const target = event.key === "Home" ? Selection.atStart(view.state.doc) : Selection.atEnd(view.state.doc);
-                    const next = event.shiftKey ? TextSelection.between(view.state.doc.resolve(view.state.selection.anchor), target.$head) : target;
-                    view.dispatch(view.state.tr.setSelection(next).scrollIntoView());
-                    event.preventDefault(); return true;
-                  }
-                  if (view.someProp("handleKeyDown", handler => handler(view, event))) {
-                    event.preventDefault(); return true;
-                  }
-                  const { selection } = view.state;
-                  if (selection instanceof NodeSelection && /^Arrow/.test(event.key) && !event.shiftKey) {
-                    const backward = event.key === "ArrowLeft" || event.key === "ArrowUp";
-                    view.dispatch(view.state.tr.setSelection(Selection.near(backward ? selection.$from : selection.$to, backward ? -1 : 1)).scrollIntoView());
-                    event.preventDefault(); return true;
-                  }
-                  // Chromium does not move a caret on a noneditable surface by
-                  // default. Delegate movement/extension to its native Selection;
-                  // ProseMirror maps the result and owns selection/scrolling.
-                  if (selection instanceof TextSelection && /^(Arrow(Left|Right|Up|Down)|Home|End)$/.test(event.key)) {
-                    const native = view.dom.ownerDocument.getSelection();
-                    const backward = ["ArrowLeft", "ArrowUp", "Home"].includes(event.key);
-                    const granularity = event.key === "Home" || event.key === "End" ? (event.ctrlKey || event.metaKey ? "documentboundary" : "lineboundary")
-                      : event.key === "ArrowUp" || event.key === "ArrowDown" ? "line"
-                      : event.ctrlKey || event.altKey ? "word" : "character";
-                    native?.modify(event.shiftKey ? "extend" : "move", backward ? "backward" : "forward", granularity);
-                    if (native?.anchorNode && native.focusNode && view.dom.contains(native.anchorNode) && view.dom.contains(native.focusNode)) {
-                      view.dispatch(view.state.tr.setSelection(TextSelection.between(
-                        view.state.doc.resolve(view.posAtDOM(native.anchorNode, native.anchorOffset)),
-                        view.state.doc.resolve(view.posAtDOM(native.focusNode, native.focusOffset)),
-                      )).scrollIntoView());
-                    }
-                    event.preventDefault(); return true;
-                  }
-                  return false;
-                } },
-              },
-            })];
-          },
-        }),
+        ReadOnlyBoundary,
         Placeholder.configure({ placeholder: () => i18n.t("Start writing, or type / to add a block.") }),
         // Tab from a text selection enters its formatting toolbar, after table and list Tab keys.
         Extension.create({
@@ -410,6 +351,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   const editor = useEditor(editorOptions);
   // A gallery owns one disposable reading state, with no drafts, saving or history to retain.
   // Replace state directly rather than authoring a transaction through the document write guard.
+  useEffect(() => { if (editor && comparison) editor.view.dispatch(editor.state.tr.setMeta(comparisonLayoutKey, comparison)); }, [editor, comparison]);
   const previewModel = useRef(document);
   useLayoutEffect(() => {
     if (!editor || !preview || !readOnly || previewModel.current === document) return;
@@ -970,15 +912,15 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
         onNumberingModeChange={mode => changeEditorNumbering(editor, mode)}
         onToggleHeadingNumbering={toggleHeadingNumbering} onReferenceStyleChange={setReferenceStyle}
         onConnectBibliography={target => bibliographyControls.current?.connect(target)} /> : null}
-      <NumberingNotice editor={editor} onReveal={revealBlock} disabled={settingsDisabled} />
-      {!preview || editor.state.doc.attrs.title ? <DocumentTitle editor={editor} /> : null}
+      {!comparison ? <NumberingNotice editor={editor} onReveal={revealBlock} disabled={settingsDisabled} /> : null}
+      {!comparison && (!preview || editor.state.doc.attrs.title) ? <DocumentTitle editor={editor} /> : null}
       <DocumentPathContext.Provider value={documentPath}><ImageRenameContext.Provider value={renameImage}>
         <BibliographyContent ref={bibliographyControls} editor={editor} bibliography={bibliography} documentPath={documentPath}>
-          <EditorContent editor={editor} />
-          <ReadingPreview editor={editor} host={host} documentPath={documentPath} />
+          <EditorContent className={comparison ? "visual-engine-content" : undefined} editor={editor} />
+          {!comparison ? <ReadingPreview editor={editor} host={host} documentPath={documentPath} /> : null}
         </BibliographyContent>
       </ImageRenameContext.Provider></DocumentPathContext.Provider>
-      {visible ? <BlockHandles
+      {visible && !comparison ? <BlockHandles
         readOnly={readOnly} showHeadingLevels={showHeadingLevels} editor={editor}
         saveLocations={saveLocations}
         menuIndex={blockMenu?.index}
