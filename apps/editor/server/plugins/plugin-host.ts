@@ -1,3 +1,4 @@
+import { publicOperationResult } from "./operation-result.ts";
 import { builtinViewOperations, type ViewOperation } from "@litzio/core/views";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, lstatSync, realpathSync, statSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
@@ -168,8 +169,7 @@ export class PluginHost {
     const requestId = randomUUID();
     const run = Promise.resolve().then(() => withPluginCode(() => live.instance.operations[op.id]!(input))); live.pending.add(run);
     try {
-      const result = safePluginValue(await run);
-      if (!compileSchema(op.outputSchema)(result)) throw new Error("Invalid operation result");
+      const result = publicOperationResult(op, await run);
       return { result, receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: "success" } };
     } catch {
       return { error: "Plugin operation did not return a valid result. Check the target before retrying a write.", receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: op.effect === "write" ? "uncertain" : "failure" } };

@@ -1,12 +1,9 @@
 import { z } from "zod";
+import { rowSchema, parseOperationRows, OPERATION_ROW_LIMIT, type RowSchema } from "./operation-rows.ts";
+export { rowSchema, parseOperationRows, type RowSchema } from "./operation-rows.ts";
 
-export const VIEW_LIMITS = { bytes: 32768, panels: 8, rows: 2000 } as const;
+export const VIEW_LIMITS = { bytes: 32768, panels: 8, rows: OPERATION_ROW_LIMIT } as const;
 const label = z.string().min(1).max(160).refine(v => !/[<>\u0000-\u001f]|(?:https?:|javascript:|data:)/i.test(v), "Plain label required");
-export const rowSchema = z.record(z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]*$/), z.strictObject({
-  type: z.enum(["string", "number", "boolean"]), label,
-  date: z.boolean().default(false), nullable: z.boolean().default(false), secret: z.boolean().default(false),
-})).refine(fields => Object.keys(fields).length > 0 && Object.keys(fields).length <= 64 && Object.values(fields).every(f => !f.date || f.type === "string"), "Invalid row schema");
-export type RowSchema = z.infer<typeof rowSchema>;
 export type ViewOperation = { operation: string; version: number; rowSchema: RowSchema; inputSchema: Record<string, unknown>; validateArgs(args: unknown): boolean };
 const field = z.string().min(1).max(80);
 const scalar = z.union([z.string().max(512), z.number().finite(), z.boolean(), z.null()]);
@@ -112,13 +109,7 @@ function dateGroup(value: string, interval: "day" | "week" | "month"): string {
 export function evaluateView(input: unknown, data: unknown, operations: readonly ViewOperation[] = builtinViewOperations): { rows: ViewRow[] } {
   const view = validateView(input, operations), s = view.sources.stats;
   const fields = validateBindings(view, operations);
-  const columns = Object.fromEntries(Object.entries(fields).map(([name, f]) => {
-    let type: z.ZodType = f.date ? isoDate : f.type === "number" ? z.number().finite() : f.type === "boolean" ? z.boolean() : z.string().max(512);
-    if (f.nullable) type = type.nullable(); return [name, type];
-  }));
-  // Project public declared fields before returning rows; secrets never reach UI or snapshots.
-  const dataSchema = z.array(z.object(columns)).max(VIEW_LIMITS.rows);
-  let raw = (dataSchema.parse(data) as ViewRow[]).filter(row => s.filters.every(f => {
+  let raw = parseOperationRows(data, operations.find(op => op.operation === s.operation && op.version === s.version)!.rowSchema).filter(row => s.filters.every(f => {
     const value = row[f.field];
     if (f.op === "eq") return value === f.value;
     if (f.op === "contains") return typeof value === "string" && value.includes(f.value);

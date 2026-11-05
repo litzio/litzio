@@ -13,6 +13,21 @@ import { STATISTICS_PLUGIN, statisticsView, viewRequest, type ViewResult } from 
 import "./views.css";
 
 export type ViewTab = { id: string; hostId: string; root: string; view?: View; basic?: boolean; label?: string };
+function ViewBars({ rows, x, y, label }: { rows: ViewRow[]; x: string; y: string; label(field: string, value: ViewRow[string]): string }) {
+  const values = rows.map(row => Number(row[y]));
+  const min = Math.min(0, ...values), max = Math.max(0, ...values);
+  const scale = Math.max(1, Math.abs(min), Math.abs(max));
+  const range = (max / scale - min / scale) || 1;
+  const position = (value: number) => (value / scale - min / scale) / range * 100;
+  const zero = position(0);
+  return <div className="view-bars">{rows.map((row, i) => {
+    const value = values[i], end = position(value);
+    return <div key={i}><span>{label(x, row[x])}</span><div className="view-bar-track" role="meter" aria-label={label(x, row[x])} aria-valuemin={min} aria-valuemax={max || (min === 0 ? 1 : 0)} aria-valuenow={value}>
+      <span className="view-bar-zero" style={{ left: `${zero}%` }} />
+      <span className="view-bar-value" style={{ left: `${Math.min(zero, end)}%`, width: `${Math.abs(end - zero)}%` }} />
+    </div><output>{String(row[y])}</output></div>;
+  })}{!rows.length ? <p>{i18n.t("No matching rows.")}</p> : null}</div>;
+}
 export function ViewRenderer({ view, rows, fields }: { view: View; rows?: ViewRow[]; fields?: Record<string, string> }) {
   // Target Host validates operation semantics; renderer checks catalog structure.
   const valid = viewSchema.parse(view);
@@ -20,7 +35,7 @@ export function ViewRenderer({ view, rows, fields }: { view: View; rows?: ViewRo
     ? i18n.t("(Root)") : value === null ? "—" : String(value);
   return <div className="view-panels">{valid.layout.children.map((panel, index) => <section key={index} className="view-panel" aria-label={panel.title}>
     <h3>{panel.title}</h3>
-    {rows === undefined ? <p>{i18n.t("Data has not been queried. Refresh manually.")}</p> : panel.component === "Table" ? <div className="view-table-scroll"><table><thead><tr>{panel.columns.map(column => <th key={column} scope="col">{fields?.[column] ?? column}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={i}>{panel.columns.map(column => <td key={column}>{label(column, row[column])}</td>)}</tr>)}</tbody></table>{!rows.length ? <p>{i18n.t("No matching rows.")}</p> : null}</div> : <div className="view-bars">{rows.map((row, i) => <div key={i}><span>{label(panel.x, row[panel.x])}</span><meter aria-label={label(panel.x, row[panel.x])} min={0} max={Math.max(1, ...rows.map(r => Number(r[panel.y])))} value={Number(row[panel.y])} /><output>{String(row[panel.y])}</output></div>)}{!rows.length ? <p>{i18n.t("No matching rows.")}</p> : null}</div>}
+    {rows === undefined ? <p>{i18n.t("Data has not been queried. Refresh manually.")}</p> : panel.component === "Table" ? <div className="view-table-scroll"><table><thead><tr>{panel.columns.map(column => <th key={column} scope="col">{fields?.[column] ?? column}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={i}>{panel.columns.map(column => <td key={column}>{label(column, row[column])}</td>)}</tr>)}</tbody></table>{!rows.length ? <p>{i18n.t("No matching rows.")}</p> : null}</div> : <ViewBars rows={rows} x={panel.x} y={panel.y} label={label} />}
   </section>)}</div>;
 }
 export function Views({ tab, client, roots, onOpen, onRoot }: { tab: ViewTab; client: HostClient; roots: string[]; onOpen(view: View, root: string, hostId: string, label?: string): void; onRoot(root: string): void }) {

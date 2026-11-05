@@ -1,0 +1,50 @@
+{
+  "scope": "Renderer-only comparison: exact pre-review Views.tsx/views.css built with revised Host and the same signed fixture. Not a full-base Host comparison.",
+  "baselineRendererCommit": "be501687d89038050a1b17e19f0425d42f72239b",
+  "afterRendererSha256": {
+    "Views.tsx": "561d6065c9826a4acdb14cdf586f27dc0f11a1638274885f5becefedb0b3932e",
+    "views.css": "932ec287d2681a575c7f80aee2c42569d051a7e46dc1b64103ad5b2c3b609dfb"
+  },
+  "data": [
+    {
+      "group": "open",
+      "value": 5
+    },
+    {
+      "group": "idle",
+      "value": 0
+    },
+    {
+      "group": "closed",
+      "value": -2
+    }
+  ],
+  "viewports": [
+    {
+      "width": 1440,
+      "height": 1000
+    },
+    {
+      "width": 640,
+      "height": 1000
+    }
+  ],
+  "environment": {
+    "dpr": 1,
+    "zoom": 1,
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+    "scrollTop": 0,
+    "fontStackFromRepository": "\"Pretendard Variable\", Pretendard, \"Noto Sans KR\", \"Apple SD Gothic Neo\", \"Malgun Gothic\", \"Segoe UI\", sans-serif"
+  },
+  "theme": "light",
+  "locale": "en",
+  "state": "Generated tab after manual refresh, assistant closed, no hover, scrollTop 0. Receipt timestamp differs.",
+  "baselineRegression": "New signed-value assertion fails against legacy min=0 meter as expected; baseline is manual evidence, not a passing verification.",
+  "afterVerification": "pnpm browser:test generated-views --screenshots: 2 passed including HTTP recovery.",
+  "images": {
+    "after-1440.png": "51609adb39b7720c9cc2925c3f810f2ea6fae11fb9fbb4732219cf231e801771",
+    "after-640.png": "8c70099831eed5e037d03b0c400b4e13921756f55a61d7d75f3750a54f9fcd65",
+    "before-1440.png": "0d5e20f9d4004dae80139b7992e86fe50e944547f6dfbb07c4b1dcb185dfce50",
+    "before-640.png": "b39287d8ebf96f9a96f67b595193bfe2f17308c0ed0192ac0f7dcbba5ec6e3e6"
+  }
+}

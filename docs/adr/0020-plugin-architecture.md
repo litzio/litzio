@@ -204,7 +204,7 @@ Core는 일시적·저장 명세의 구조·바인딩·정적 유효성·canonic
 
 ### 작업별 출력 schema 일반화 (#1218)
 
-2026-11-05 구현 범위: Core의 행 schema 선언을 SDK가 재노출하며 내장 `folder.statistics`와 활성 플러그인 읽기 작업이 같은 방식으로 참여한다. 선언은 필드 이름·타입(숫자 포함)·날짜 여부·표시 라벨·nullable·secret을 가진다. 등록 작업 중 선언한 읽기 작업만 source로 허용하고, Core가 필터·groupBy·집계·정렬·제한과 바인딩을 선언으로 검증한다. secret 필드는 비서 카탈로그와 바인딩·결과에서 제외한다. 비서 양 공급자의 카탈로그도 대상 Host의 활성 선언에서 만든다.
+2026-11-05 구현 범위: Core의 행 schema 선언을 SDK가 재노출하며 내장 `folder.statistics`와 활성 플러그인 읽기 작업이 같은 방식으로 참여한다. 선언은 필드 이름·타입(숫자 포함)·날짜 여부·표시 라벨·nullable·secret을 가진다. 등록 작업 중 선언한 읽기 작업만 source로 허용하고, Core가 필터·groupBy·집계·정렬·제한과 바인딩을 선언으로 검증한다. secret 필드는 비서 카탈로그와 바인딩·결과에서 제외한다. 플러그인 공용 작업 반환 경계의 독립 함수가 출력 타입을 검증하고 secret을 제거하므로 일반 operation invoke·CLI·비서·뷰 모두 같은 공개 결과를 받는다. 필드 이름은 80자 이하이며 group/value는 예약한다. 비서 양 공급자의 카탈로그도 대상 Host의 활성 선언에서 만든다.
 
 구체 계약은 [Generated views v1](../design/generated-views-v1.md#operation-row-schema-1218)을 따른다. 기존 내장 통계의 결과와 카탈로그 v1 컴포넌트를 유지하며 하위 호환·migration은 넣지 않는다. 플러그인 `generatedUi/views` 기여, Jira API와 새 UI 컴포넌트는 이 변경의 범위가 아니다. 카탈로그 v2는 제작 로드맵 3단계다.
 

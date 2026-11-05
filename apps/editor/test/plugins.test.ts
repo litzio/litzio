@@ -203,3 +203,24 @@ test("plugin synchronous and asynchronous logs never reach stdout/stderr", async
   const result = execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `import {withPluginCode} from ${JSON.stringify(module)}; await withPluginCode(async()=>{console.log('log-private'); process.stderr.write('error-private'); await new Promise(r=>setTimeout(r,1));console.log('async-private')}); console.log('host-visible')`], { encoding: "utf8", windowsHide: true });
   assert.equal(result.trim(), "host-visible");
 });
+
+test("operation invoke publishes declared public rows and refuses row-type mismatches", async () => {
+  const { rememberSecret } = await import("../server/plugins/secret-redaction.ts");
+  const knownSecret = "row-boundary-known-private"; rememberSecret(knownSecret);
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-operation-rows-"));
+  const directory = path.join(root, "artifact"); mkdirSync(directory);
+  const manifest = { schemaVersion: 1, id: "fixture.rows", tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Rows", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", properties: { mode: { type: "string" } }, additionalProperties: false }, outputSchema: { type: "array", items: { type: "object" } }, rowSchema: { points: { type: "number", label: "Points" }, caption: { type: "string", label: "Caption" }, token: { type: "string", label: "Token", secret: true } } }] } };
+  writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify(manifest));
+  writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
+  writeFileSync(path.join(directory, "host.js"), `export function activate(){return {operations:{read:({mode})=>[{points:mode==="wrong-number"?"3":-3,caption:"row-boundary-known-private",token:mode==="wrong-secret"?4:"private",extra:"undeclared"}]},status:()=>({available:true,message:"Rows",folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+  const host = new PluginHost(path.join(root, "plugins.json"));
+  try {
+    await host.invoke("register", { directory }); const record = (await host.list())[0]!;
+    await host.invoke("trust", { id: record.id, digest: record.digest }); await host.invoke("enable", { id: record.id });
+    const invoke = (mode?: string) => host.invoke("invoke", { operation: "fixture.rows.read", input: mode ? { mode } : {} }) as Promise<any>;
+    const valid = await invoke(); assert.equal(valid.receipt.outcome, "success"); assert.deepEqual(valid.result, [{ points: -3, caption: "[secret]" }]);
+    for (const mode of ["wrong-number", "wrong-secret"]) {
+      const refused = await invoke(mode); assert.equal(refused.receipt.outcome, "failure"); assert.ok(!("result" in refused)); assert.ok(!JSON.stringify(refused).includes("private"));
+    }
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
