@@ -1,3 +1,4 @@
+import { useHostId } from "./host-context.tsx";
 import { comparisonLayout, comparisonLayoutKey, type ComparisonLayout } from "./comparison-layout.ts";
 import { ReadOnlyBoundary } from "./read-only-boundary.ts";
 import { useHostClient } from "./host-context.tsx";
@@ -156,7 +157,8 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
   useTranslation();
   if (comparison && (!readOnly || !preview)) throw new Error("Comparison decorations require an isolated read-only preview.");
   const visible = useEditorVisible();
-  const tableWrap = useTableWrap(documentPath ?? "");
+  const hostId = useHostId();
+  const tableWrap = useTableWrap(documentPath ?? "", hostId);
   // Each tab keeps its editor; only Reload remounts it. Save keeps its opening projection.
   const [projection] = useState(() => {
     const projected = toTiptapDocument(document);
@@ -1054,7 +1056,7 @@ export const DocumentEditor = forwardRef<DocumentEditorHandle, DocumentEditorPro
           style={blockMenuStyle}
           onSelect={id => {
             if (id === "table-wrap") {
-              setTableWrap(documentPath ?? "", !tableWrap);
+              setTableWrap(documentPath ?? "", !tableWrap, hostId);
               closeBlockMenu(); editor.view.focus();
             } else runBlockCommand(id, blockMenu.index);
           }}

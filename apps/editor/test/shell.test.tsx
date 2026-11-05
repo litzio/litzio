@@ -848,9 +848,13 @@ test("table presentation is path-scoped, removes default choices and relocates d
     } });
     assert.equal(readTableWrapDefault(), true);
     setTableWrap("/a.md", false);
-    assert.deepEqual(readTableWrapDocuments(), {"/a.md": false});
+    assert.deepEqual(readTableWrapDocuments(), {[JSON.stringify(["local", "/a.md"])]: false});
+    setTableWrap("/a.md", false, "remote");
+    assert.equal(readTableWrapDocuments()[JSON.stringify(["remote", "/a.md"])], false);
     relocateTableWrap("/a.md", "/renamed.md");
-    assert.deepEqual(readTableWrapDocuments(), {"/renamed.md": false});
+    assert.equal(readTableWrapDocuments()[JSON.stringify(["remote", "/a.md"])], false);
+    setTableWrap("/a.md", true, "remote");
+    assert.deepEqual(readTableWrapDocuments(), {[JSON.stringify(["local", "/renamed.md"])]: false});
     setTableWrap("/renamed.md", true);
     assert.deepEqual(readTableWrapDocuments(), {});
     setTableWrap("/b.md", false);

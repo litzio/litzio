@@ -339,7 +339,7 @@ function EditorApp() {
   const imagePlaces = useCallback(() => folderPlaces(imageHostId, imageClient), [imageHostId, imageClient]);
   const { openedPath = "", draftActive = false, documentDirty = false, reloadDialog = false } = session ?? {};
   const tableWrapPath = nativeSession ? openedPath : "";
-  const tableWrap = useTableWrap(tableWrapPath);
+  const tableWrap = useTableWrap(tableWrapPath, session?.hostId);
   const busy = Boolean(operation || fileOperationPending || session?.busy || continuationPending);
   // Match the window-level navigation guard; a tab-owned Save still permits Settings diagnostics.
   const settingsDisabled = Boolean(operation || fileOperationPending || continuation);
@@ -552,7 +552,7 @@ function EditorApp() {
       try { await recoveryStorage.changePath(entry.path, action === "rename" ? result.path : null, checkedRecovery, hostId); }
       catch { setError({ key: "The file changed, but local recovery could not be updated. Review local recovery in Settings." }); }
       if (action === "rename") {
-        if (hostId === LOCAL_HOST_ID) relocateTableWrap(entry.path, result.path);
+        relocateTableWrap(entry.path, result.path, hostId);
         owner?.relocate(result.path);
         setTabs(previous => previous.map(tab => {
           if (!sameLocator(tab, { hostId, path: entry.path })) return tab;
@@ -1115,7 +1115,7 @@ function EditorApp() {
       run: () => { sidebarFocus.current = "sidebar"; setSidebarOpen(value => !value); } },
     { id: "table-wrap", kind: "command", label: i18n.t("This document’s tables: wrap long text"), icon: FileText,
       detail: i18n.t(tableWrap ? "Current: wrap" : "Current: single line"), disabled: !tableWrapPath || busy,
-      run: () => { setTableWrap(tableWrapPath, !tableWrap); } },
+      run: () => { setTableWrap(tableWrapPath, !tableWrap, session?.hostId); } },
     { id: "width", kind: "command", label: i18n.t(documentWidth === "wide" ? "Standard document width" : "Wide document"), icon: documentWidth === "wide" ? Columns3 : StretchHorizontal, disabled: session?.kind === "text",
       keywords: ["document width", "문서 너비"], run: toggleDocumentWidth },
     ...THEMES.map(value => ({ id: `theme-${value}`, kind: "command" as const,

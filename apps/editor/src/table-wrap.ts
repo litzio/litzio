@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { locatorKey } from "./host-locator.ts";
 import { readTableWrapDefault, readTableWrapDocuments, writeTableWrapPreferences } from "./preferences.ts";
 
 let defaultValue = readTableWrapDefault();
@@ -10,13 +11,14 @@ function publish(): boolean {
   for (const listener of listeners) listener();
   return saved;
 }
-export function useTableWrap(path: string): boolean {
-  return useSyncExternalStore(subscribe, () => documents[path] ?? defaultValue);
+export function useTableWrap(path: string, hostId = "local"): boolean {
+  return useSyncExternalStore(subscribe, () => documents[locatorKey({ hostId, path })] ?? defaultValue);
 }
 export function useTableWrapDefault(): boolean {
   return useSyncExternalStore(subscribe, () => defaultValue);
 }
-export function setTableWrap(path: string, value: boolean): boolean {
+export function setTableWrap(path: string, value: boolean, hostId = "local"): boolean {
+  path = locatorKey({ hostId, path });
   if (value === defaultValue) delete documents[path];
   else documents[path] = value;
   return publish();
@@ -26,7 +28,9 @@ export function setTableWrapDefault(value: boolean): boolean {
   documents = Object.fromEntries(Object.entries(documents).filter(([, choice]) => choice !== value));
   return publish();
 }
-export function relocateTableWrap(previous: string, next: string): void {
+export function relocateTableWrap(previous: string, next: string, hostId = "local"): void {
+  previous = locatorKey({ hostId, path: previous });
+  next = locatorKey({ hostId, path: next });
   const choice = documents[previous];
   delete documents[previous];
   delete documents[next];
