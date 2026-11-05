@@ -22,7 +22,7 @@ Brand defaults and packager overrides follow [the branding guide](../guides/bran
 
 로컬 재연결로 origin이 바뀌면 기존 세션·receipt의 후속 요청(저장·rollback·비서·템플릿)은 전송 전에 명시적으로 거부한다. 새 작업만 새 client를 얻으며 같은 origin으로 다시 연결한 경우에는 기존 세션을 유지한다. 이미 전송한 요청은 재전송하지 않는다.
 
-탭 admission과 복구 복원은 `apps/editor/src/tab-admission.ts`가 담당한다. 작업 UI, Host별 시작 복원 effect와 탐색 기억 수명은 App에 남긴다.
+탭 admission과 복구 복원은 `apps/editor/src/tab-admission.ts`가 담당한다. Host별 시작 복원 effect와 탐색 기억 수명은 `apps/editor/src/host-tab-restore.ts`의 훅이 담당하며, 작업 UI는 App에 남긴다.
 
 모든 탭 레코드는 hostId와 작업 시작 시점의 client를 함께 가진다. 열기·새 문서/갤러리 생성·복구 복원·시작 시 기억 탭 복원은 같은 client를 탭까지 전달하고, 탭 생성 직전에 assertCurrent로 연결을 확인한다. 늦은 응답의 연결이 달라졌으면 host-connection-changed로 거부하며 열린 작업·기억·복구 데이터는 버리지 않는다. DocumentTab은 현재 client를 다시 조회하지 않는다. 세션 mount 시 고정한 client가 Reload·Save·Source·자산 생성과 미사용 자산 rollback을 담당하고, 저장 비교·템플릿 저장·이미지 선택기의 목록·시작 위치·미리보기는 소유 세션의 고정 client를 전달받고, 복구 비교는 복구 record의 hostId로 요청한다. 다른 탭 활성화로 대상을 바꾸지 않는다. 로컬 Save/Restore/409 계약과 Core 저장 의미는 유지한다.
 
@@ -176,7 +176,8 @@ source, acknowledged revision and `savedEdits`, Source content/view, status/erro
 draft/asset/dirty flags, heading numbering, outline store and keyed `DocumentEditor` lifetime.
 It handles Save, Source, Reload and image selection. Each mounted `DocumentTab` owns one hook
 and `DocumentEditor`; each [editor group](editor-ux-shell-v1.md#two-editor-groups-488-phase-1)
-shows its active tab. `App` owns startup and Open/New requests,
+shows its active tab. `host-tab-restore.ts` owns startup requests and tab navigation memory;
+`App` owns Open/New requests,
 the Host-and-path tab list, folder tree, preferences, shared header/outline, Desktop integration
 and the shared **Save / Don't save / Cancel** close dialog. A tab is added only after Host success.
 Opening a Host-returned path already in the list activates its existing session without replacing it,
