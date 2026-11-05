@@ -1203,6 +1203,9 @@ Explicit Open is owned by App per destination group with its captured HostClient
 It does not acquire the window operation lock or disable other Hosts' tab navigation, Open or Save.
 Selecting a tab, opening another document in that group, closing its tab, or choosing Cancel
 in the existing notification cancels the pending Open. A superseded response cannot admit a tab.
+File rename/delete invalidates pending Open on the same Host and path before any asynchronous work,
+including descendant paths for a folder target. Other Hosts remain independent, even at the same path.
+A failed or uncertain mutation does not revive an invalidated read; opening again is explicit.
 Document GET and its bibliography read share a 15-second timeout and AbortSignal.
 Mounted native/text sessions cancel their reads on disposal; startup restoration cancels on effect cleanup.
 Save remains session-owned, never automatically retries, preserves uncertain acknowledgements,

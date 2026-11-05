@@ -493,6 +493,12 @@ function EditorApp() {
   const fileAction = async (action: Parameters<FileActionHandler>[0], chosenRoot: string, entry: FolderEntry, name?: string, figure?: { documentPath: string; imageUrl: string }, creation?: { revision: string; identity?: FileIdentity }, hostId = LOCAL_HOST_ID) => {
     if (operationRef.current || [...sessions.current.values()].some(owner => owner.busyRef.current)) throw new Error(i18n.t("Wait for the current file operation to finish."));
     if (hostId !== LOCAL_HOST_ID && action === "delete" && hostRegistry.get(hostId).capabilities?.fileDeletion !== "trash") throw new Error(i18n.t("The Host trash is unavailable."));
+    // Invalidate before any await: the read may already contain the pre-mutation file.
+    // Include descendants for folder operations, with a separator boundary and Host identity.
+    for (const [group, pending] of pendingOpens.current) {
+      if (pending.hostId === hostId && (pending.path === entry.path ||
+          entry.kind === "folder" && folderChain(entry.path, pending.path).length > 0)) cancelOpen(group);
+    }
     operationRef.current = true; setFileOperationPending(true);
     if (figure) setFigureRenamePending(true);
     const hostSessions = () => tabs.filter(tab => tab.hostId === hostId)
