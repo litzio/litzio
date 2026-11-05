@@ -46,6 +46,7 @@ async (page, { expect, screenshots }) => {
   const undoReason = page.getByText('There is no applied change to undo.', { exact: true });
   await expect(undoReason).toHaveCount(0);
   const undoTrigger = page.getByLabel('Undo unavailable', { exact: true });
+  await page.mouse.move(0, 0);
   await undoTrigger.hover();
   await expect(undoReason).toHaveText('There is no applied change to undo.');
   await page.mouse.move(0, 0);
@@ -210,6 +211,7 @@ async (page, { expect, screenshots }) => {
   await expect(page.getByRole('status').filter({ hasText: 'Status checks cannot resolve this outcome. Do not repeat this change.' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Check request status', exact: true })).toHaveCount(0);
   const resultDocument = page.getByRole('button', { name: 'Open result document', exact: true });
+  await page.mouse.move(0, 0);
   await resultDocument.hover();
   await expect(page.getByText('Status checks cannot resolve this outcome. Do not repeat this change. Open the result document and inspect it.', { exact: true })).toBeVisible();
   const statusCount = await page.getByText(/^Status checks:/).innerText();
