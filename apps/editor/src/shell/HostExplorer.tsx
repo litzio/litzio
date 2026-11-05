@@ -2,7 +2,7 @@ import { HostStatus } from "../components/HostStatus.tsx";
 import { i18n } from "../i18n.ts";
 import { useTranslation } from "react-i18next";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { hostRegistry, hostLabel, getHostClient, type HostClient } from "../host-client.ts";
 import { folderChain, useFolderTrees } from "./folder-tree.ts";
 import { FolderTree } from "./Sidebar.tsx";
@@ -32,12 +32,15 @@ export function HostExplorer({ hostId, documentPath, isFileDirty, onOpen, onFile
   const [creation, setCreation] = useState<{ open: boolean; kind: "file" | "folder"; directory: string; client: HostClient }>();
   const createReturn = useRef<HTMLElement | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
-  async function request<T>(route: string): Promise<T> {
+  const request = useCallback(async <T,>(route: string): Promise<T> => {
     const response = await client.request(route);
     const result = await response.json();
     if (!response.ok) throw new Error(result.error ?? `HTTP ${response.status}`);
     return result as T;
-  }
+  }, [client]);
+  // FolderDialog resets on places changes; tree refreshes must not reset its navigation.
+  const browse = useCallback((path: string) => request<FolderBrowseResponse>(`/api/folder-browse?${new URLSearchParams({ path })}`), [request]);
+  const places = useCallback(() => request<FolderPlacesResponse>("/api/folder-places").then(value => value.places), [request]);
   const folders = useFolderTrees((root, path, background) => request<FolderResponse>(`/api/folder?${new URLSearchParams({ root, ...(path ? { path } : {}), ...(background ? { background: "1" } : {}) })}`), setProblem, undefined, hostId);
   function beginCreate(kind: "file" | "folder", root: string, button: HTMLElement, path?: string) {
     if (disabled) return;
@@ -78,6 +81,6 @@ export function HostExplorer({ hostId, documentPath, isFileDirty, onOpen, onFile
         if (!message) { folders.refreshParents(path); folders.reveal(path); }
         return message;
       }} onClose={() => setCreation({ ...creation, open: false })} /> : null}
-    <FolderDialog onCreateFolder={createFolder} open={picker} recent={[]} returnFocus={returnFocus} initialPath={folders.roots.at(-1) ?? ""} browse={path => request<FolderBrowseResponse>(`/api/folder-browse?${new URLSearchParams({ path })}`)} places={() => request<FolderPlacesResponse>("/api/folder-places").then(value => value.places)} onOpen={async path => { try { folders.open(await request<FolderResponse>(`/api/folder?${new URLSearchParams({ root: path })}`), ""); return ""; } catch (cause) { return String(cause); } }} onClose={() => setPicker(false)} />
+    <FolderDialog onCreateFolder={createFolder} open={picker} recent={[]} returnFocus={returnFocus} initialPath={folders.roots.at(-1) ?? ""} browse={browse} places={places} onOpen={async path => { try { folders.open(await request<FolderResponse>(`/api/folder?${new URLSearchParams({ root: path })}`), ""); return ""; } catch (cause) { return String(cause); } }} onClose={() => setPicker(false)} />
   </section></HostContext.Provider>;
 }

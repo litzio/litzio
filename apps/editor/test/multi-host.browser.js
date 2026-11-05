@@ -47,11 +47,18 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   await page.route('**/api/folder', route => {
     const host = route.request().url().includes('/fixture/remote/') ? 'remote' : 'local';
     const { parent, name } = route.request().postDataJSON();
+    if (name === 'conflict') return route.fulfill({ status: 409, json: { error: 'Fixture folder conflict' } });
+    if (name === 'disconnected') return route.fulfill({ status: 503, json: { error: 'Fixture folder unavailable' } });
     const target = parent + sep + name;
     creations.push({ host, path: target, kind: 'folder' });
     created[host].set(target, 'folder');
     return route.fulfill({ json: { path: target } });
   });
+  await page.route('**/fixture/remote/api/folder-browse?**', route => {
+    const directory = decodeURIComponent(route.request().url().split('?path=')[1]).replace(/[\\/]+$/, '');
+    return route.fulfill({ json: { path: directory, crumbs: [{ path: root, name: 'multi-host' }, ...(directory === root ? [] : [{ path: directory, name: directory.split(sep).at(-1) }])], entries: [...created.remote].filter(([target]) => target.slice(0, target.lastIndexOf(sep)) === directory).map(([target, kind]) => ({ path: target, name: target.split(sep).at(-1), kind })) } });
+  });
+  await page.route('**/fixture/remote/api/folder-places', route => route.fulfill({ json: { places: [{ kind: 'home', name: 'Fixture home', path: root }] } }));
   await page.route('**/api/folder-version?**', route => route.fulfill({ json: { version: '1', revisions: [] } }));
   let remoteAvailable = true;
   await page.route('**/fixture/remote/api/host-capabilities', route => route.fulfill(remoteAvailable ? { json: { fileDeletion: 'trash' } } : { status: 503, json: { error: 'Fixture unreachable' } }));
@@ -266,11 +273,34 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   await page.getByTestId('new-folder-name').fill('nested');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(remoteExplorer.getByRole('treeitem', { name: 'nested', exact: true })).toBeVisible();
+  // Creating inside the folder picker must retain its new location when Explorer refreshes.
+  await remoteExplorer.locator('[data-folder-menu]').click();
+  await page.getByRole('menuitem', { name: 'Open folder…', exact: true }).click();
+  const picker = page.getByRole('dialog');
+  await picker.getByRole('option', { name: 'remote-folder', exact: true }).click();
+  await expect(page.getByTestId('folder-path')).toHaveValue(newFolder + sep);
+  await picker.getByRole('button', { name: 'New folder', exact: true }).click();
+  for (const [name, message] of [['conflict', 'Fixture folder conflict'], ['disconnected', 'Fixture folder unavailable']]) {
+    await page.getByTestId('new-folder-name').fill(name);
+    await picker.getByRole('button', { name: 'Create', exact: true }).click();
+    await expect(page.getByTestId('new-error')).toHaveText(message);
+    await expect(page.getByTestId('new-folder-name')).toHaveValue(name);
+    await expect(page.getByTestId('folder-path')).toHaveValue(newFolder + sep);
+  }
+  await page.getByTestId('new-folder-name').fill('picked');
+  await picker.getByRole('button', { name: 'Create', exact: true }).click();
+  const picked = newFolder + sep + 'picked';
+  await expect(remoteExplorer.getByRole('treeitem', { name: 'picked', exact: true, includeHidden: true })).toBeVisible();
+  await expect(page.getByTestId('folder-path')).toHaveValue(picked + sep);
+  await expect(page.getByTestId('folder-open')).toContainText('picked');
+  await picker.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.getByRole('tab', { name: /child.md.*Remote/ })).toHaveAttribute('aria-selected', 'true');
   expect(creations).toEqual([
     { host: 'remote', path: newPath, kind: 'document' },
     { host: 'remote', path: newFolder, kind: 'folder' },
     { host: 'remote', path: newFolder + sep + 'child.md', kind: 'document' },
     { host: 'remote', path: newFolder + sep + 'nested', kind: 'folder' },
+    { host: 'remote', path: newFolder + sep + 'picked', kind: 'folder' },
   ]);
   expect([...created.local]).toEqual([]);
   await localExplorer.locator('[data-folder-menu]').click();
