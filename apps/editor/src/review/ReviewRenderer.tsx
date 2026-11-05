@@ -98,14 +98,49 @@ export function SourceDocumentCompare({ snapshot: s, disabled, onPage }: { snaps
 export function ReviewList({ proposals, selected, onSelect }: { proposals: ReviewProposal[]; selected?: string; onSelect(id: string): void }) {
   return <nav aria-label="Changes" className="review-list">{!proposals.length && <Notice>No changes to review.</Notice>}{proposals.map((p, index) => <Button key={p.id} variant={selected === p.id ? "secondary" : "ghost"} aria-pressed={selected === p.id} onClick={() => onSelect(p.id)}>Change {index + 1} · {proposalStatus[p.state]}</Button>)}</nav>;
 }
+const fieldLabels: Record<string, string> = { title: "Title", name: "Name", description: "Description", count: "Count", value: "Value", date: "Date", enabled: "Enabled" };
+type Scalar = string | number | boolean | null;
+function isPreviewScalar(value: unknown): value is Scalar {
+  return value === null || typeof value === "boolean" || typeof value === "number" && Number.isFinite(value)
+    || typeof value === "string" && value.length <= 512;
+}
+function displayScalar(value: Scalar): string {
+  if (value === null) return "No value";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return new Intl.NumberFormat("en", { maximumSignificantDigits: 21 }).format(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const date = new Date(`${value}T00:00:00Z`);
+    if (Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value)
+      return new Intl.DateTimeFormat("en", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" }).format(date);
+  }
+  return value || "Empty text";
+}
+/** V1 kind IDs carry no public display schema. Never guess labels from arbitrary object keys. */
+function ReviewContent({ content }: { content: ReviewProposal["before"] }) {
+  let preview;
+  if (content.type === "plain") preview = content.text;
+  else if (isPreviewScalar(content.value)) preview = displayScalar(content.value);
+  else if (Array.isArray(content.value) && content.value.length <= 16 && content.value.every(isPreviewScalar)) {
+    preview = content.value.length ? <ul>{content.value.map((value, index) => <li key={index}>{displayScalar(value)}</li>)}</ul> : "No items";
+  } else if (content.value && typeof content.value === "object" && !Array.isArray(content.value)) {
+    const fields = Object.entries(content.value);
+    if (fields.length <= 8 && fields.every(([key, value]) => Object.hasOwn(fieldLabels, key) && isPreviewScalar(value)))
+      preview = fields.length ? <dl>{fields.map(([key, value]) => <div key={key}><dt>{fieldLabels[key]}</dt><dd>{displayScalar(value as Scalar)}</dd></div>)}</dl> : "No fields";
+  }
+  return <div className="review-value">{preview ?? "Structured content preview unavailable."}</div>;
+}
+function ReviewPagePanel({ snapshot, disabled, onPage }: { snapshot: ReviewSnapshot; disabled: boolean; onPage(n: number): void }) {
+  const [selected, setSelected] = useState<string[]>([]);
+  useEffect(() => setSelected([]), [snapshot]);
+  return <PageSurface snapshot={snapshot} selected={selected} onSelect={id => setSelected([id])} onPage={onPage} disabled={disabled} />;
+}
 export function ReviewDetail({ proposal: p, document, baseline, disabled, onAction }: { proposal: ReviewProposal; document: EditableDocument; baseline: ReviewBaseline; disabled: boolean; onAction(a: ReviewAction): void }) {
-  const content = (v: ReviewProposal["before"]) => v.type === "plain" ? v.text : JSON.stringify(v.value, null, 2);
   const targetNames = p.targets.map(t => {
     const block = document.blocks.find(b => JSON.stringify(b.path) === JSON.stringify(t.path));
     return block && "text" in block && block.text ? block.text : "Document content";
   });
   return <section aria-label="Change details" className="review-detail"><strong>{proposalStatus[p.state]}</strong><p>Target: {targetNames.join(" · ")}</p>
-    <div className="review-before-after"><div>Before<pre>{content(p.before)}</pre></div><div>After<pre>{content(p.after)}</pre></div></div>
+    <div className="review-before-after"><div>Before<ReviewContent content={p.before} /></div><div>After<ReviewContent content={p.after} /></div></div>
     <ul>{p.evidence.map((e,i) => <li key={i}>{e}</li>)}</ul><div className="review-toolbar">{(["approve", "reject", "undo"] as const).map(action => {
       const availability = p.actions.find(a => a.action === action), allowed = !disabled && sameBaseline(p.baseline, baseline) && availability?.allowed && (action === "undo" ? p.state === "approved" : p.state === "pending");
       const Icon = action === "approve" ? Check : action === "reject" ? X : Undo2;
@@ -121,7 +156,6 @@ export function ReviewDetail({ proposal: p, document, baseline, disabled, onActi
 /** Mount with a new key on Host/source changes. Adapter is scoped to that mounted source. */
 export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: ReviewAdapter }) {
   const [snapshot, setSnapshot] = useState<ReviewSnapshot>(), [selected, setSelected] = useState<string>();
-  const [pageSelection, setPageSelection] = useState<string[]>([]);
   const [state, setState] = useState<"loading" | "ready" | "refreshing" | "unavailable" | "uncertain">("loading");
   const host = useRef<HTMLDivElement>(null), [wide, setWide] = useState(false), epoch = useRef(0), busy = useRef(false);
   useEffect(() => { const observer = new ResizeObserver(entries => setWide(entries[0].contentRect.width >= 1024)); if (host.current) observer.observe(host.current); return () => observer.disconnect(); }, []);
@@ -137,7 +171,6 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
   const stale = snapshot && (!coherent(snapshot) || snapshot.bundle.bundleRef !== view.sources.review.bundleRef || !!snapshot.mapping.continuation);
   const disabled = state !== "ready" || !!stale;
   const proposal = snapshot?.proposals.find(p => p.id === selected);
-  const components = new Set(view.layout.children.map(child => child.component));
   const act = async (action: ReviewAction) => {
     if (busy.current || disabled || !snapshot || !proposal || !sameBaseline(proposal.baseline, snapshot.baseline) || !proposal.actions.some(a => a.action === action && a.allowed)) return;
     busy.current = true; const token = ++epoch.current; setState("refreshing");
@@ -153,13 +186,14 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
     {state !== "ready" && <Notice tone={state === "unavailable" || state === "uncertain" ? "warning" : "info"}>{state === "refreshing" ? "Refreshing data…" : state === "loading" ? "Loading data…" : state === "uncertain" ? "Outcome unknown. Check the status before trying again." : "Data unavailable."}</Notice>}
     {stale && <Notice tone="warning">Data is out of date. Refresh data to navigate or apply changes.</Notice>}
     {!wide && <Notice>Widen the window to compare. Comparison requires at least 1024px.</Notice>}
-    {snapshot && wide && <>
-      {components.has("SourceDocumentCompare") ? <SourceDocumentCompare snapshot={snapshot} disabled={disabled} onPage={n => void read(n)} />
-        : components.has("PageSurface") && <PageSurface snapshot={snapshot} selected={pageSelection} onSelect={id => setPageSelection([id])} onPage={n => void read(n)} disabled={disabled} />}
-      {(components.has("ReviewList") || components.has("ReviewDetail")) && <div className="review-proposals">
-        <ReviewList proposals={snapshot.proposals} selected={selected} onSelect={setSelected} />
-        {proposal && <ReviewDetail proposal={proposal} document={snapshot.document} baseline={snapshot.baseline} disabled={disabled || proposal.targets.some(t => t.documentRevision !== snapshot.documentRevision || t.documentHash !== snapshot.documentHash)} onAction={a => void act(a)} />}
-      </div>}
-    </>}
+    {snapshot && wide && <div className="review-panels">{view.layout.children.map((child, index) => <section key={index} aria-label={child.title} className="review-panel">
+      <h3>{child.title}</h3>
+      {child.component === "PageSurface" && <ReviewPagePanel snapshot={snapshot} disabled={disabled} onPage={n => void read(n)} />}
+      {child.component === "SourceDocumentCompare" && <SourceDocumentCompare snapshot={snapshot} disabled={disabled} onPage={n => void read(n)} />}
+      {child.component === "ReviewList" && <ReviewList proposals={snapshot.proposals} selected={selected} onSelect={setSelected} />}
+      {child.component === "ReviewDetail" && (proposal
+        ? <ReviewDetail proposal={proposal} document={snapshot.document} baseline={snapshot.baseline} disabled={disabled || proposal.targets.some(t => t.documentRevision !== snapshot.documentRevision || t.documentHash !== snapshot.documentHash)} onAction={a => void act(a)} />
+        : <Notice>Select a change to view its details.</Notice>)}
+    </section>)}</div>}
   </div>;
 }

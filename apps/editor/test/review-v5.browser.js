@@ -40,7 +40,7 @@ async (page, { expect, screenshots }) => {
   const proseFont = await read.locator('.document-editor p').first().evaluate(e => {
     const s = getComputedStyle(e); return [s.fontFamily, s.fontSize, s.letterSpacing, s.lineHeight];
   });
-  expect(await page.locator('.review-before-after pre').first().evaluate(e => {
+  expect(await page.locator('.review-before-after .review-value').first().evaluate(e => {
     const s = getComputedStyle(e); return [s.fontFamily, s.fontSize, s.letterSpacing, s.lineHeight];
   })).toEqual(proseFont);
   const undoReason = page.getByText('There is no applied change to undo.', { exact: true });
@@ -88,4 +88,44 @@ async (page, { expect, screenshots }) => {
   await expect(page.getByText('Widen the window to compare.', { exact: false })).toBeVisible();
   await expect(read).toHaveCount(0);
   if (screenshots) await page.screenshot({ path: 'tmp/review-v5-narrow.png', fullPage: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  // V1 allows arbitrary typed kinds, but the UI must never expose their JSON structure.
+  await page.getByRole('button', { name: 'typed-object', exact: true }).click();
+  await page.getByRole('button', { name: /Change 1/ }).click();
+  const before = page.locator('.review-before-after .review-value').first();
+  await expect(before.locator('dt')).toHaveText(['Title', 'Count', 'Date', 'Enabled']);
+  await expect(before.locator('dd')).toHaveText(['Original title', '1,250', 'Nov 6, 2026', 'No']);
+  if (screenshots) await page.screenshot({ path: 'tmp/review-v5-typed-1440.png', fullPage: true });
+  await page.getByRole('button', { name: 'typed-array', exact: true }).click();
+  await page.getByRole('button', { name: /Change 1/ }).click();
+  await expect(before.getByRole('listitem')).toHaveText(['First item', '1,250', 'Yes', 'No value']);
+  await page.getByRole('button', { name: 'typed-unsupported', exact: true }).click();
+  await page.getByRole('button', { name: /Change 1/ }).click();
+  await expect(page.locator('.review-value')).toHaveText(['Structured content preview unavailable.', 'Structured content preview unavailable.']);
+  await expect(page.getByRole('region', { name: 'Change details' })).not.toContainText('internal_key');
+  // List and detail are independent declarations; only a declared detail can show actions.
+  await page.getByRole('button', { name: 'List only', exact: true }).click();
+  await page.getByRole('button', { name: /Change 1/ }).click();
+  await expect(page.locator('.review-panels > section > h3')).toHaveText(['List alone']);
+  await expect(page.getByRole('region', { name: 'Change details' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Approve', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Detail only', exact: true }).click();
+  await expect(page.locator('.review-panels > section > h3')).toHaveText(['Detail alone']);
+  await expect(page.getByRole('navigation', { name: 'Changes' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Change details' })).toBeVisible();
+  await page.getByRole('button', { name: 'normal', exact: true }).click();
+  await expect(page.getByText('Select a change to view its details.')).toBeVisible();
+  await page.getByRole('button', { name: 'Mixed layout', exact: true }).click();
+  await expect(page.locator('.review-panels > section > h3')).toHaveText(['First: changes', 'Second: page', 'Third: details', 'Fourth: compare']);
+  await expect(page.getByRole('region', { name: 'Second: page', exact: true }).getByRole('img')).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Fourth: compare', exact: true }).getByRole('img')).toBeVisible();
+  await page.getByRole('button', { name: /Change 1/ }).click();
+  await expect(page.getByRole('region', { name: 'Third: details', exact: true }).getByRole('button', { name: 'Approve', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Repeated panels', exact: true }).click();
+  await expect(page.locator('.review-panels > section > h3')).toHaveText(['First page', 'Second page']);
+  const firstRegion = page.getByRole('region', { name: 'First page', exact: true }).getByRole('button', { name: 'Sentence · Supported', exact: true });
+  await firstRegion.click();
+  await expect(firstRegion).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('region', { name: 'Second page', exact: true }).getByRole('button', { name: 'Sentence · Supported', exact: true })).toHaveAttribute('aria-pressed', 'false');
+
 }

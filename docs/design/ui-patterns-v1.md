@@ -469,6 +469,14 @@ ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의
 실제 review Host·CLI 연결과 공통 Views 진입점은 V4/V3 통합 후 확인한다.
 명세는 자료 binding과 조합만 소유하며 아래 동작은 앱 코드가 소유한다.
 
+- review layout은 V1 children의 순서·제목·반복을 그대로 표시한다. PageSurface와 SourceDocumentCompare는
+  함께 선언할 수 있다. ReviewList는 선택만 소유하고 ReviewDetail은 명시적으로 선언한 위치에서만 보인다.
+  여러 List/Detail은 같은 제안 선택을 공유한다. Detail 단독·선택 전에는 선택 안내를 표시하며 List를 추가하지 않는다.
+- typed 값의 kind ID는 공개 표시 schema가 아니다. scalar는 텍스트·영어 숫자·Yes/No·No value로,
+  유효한 ISO 날짜는 UTC 기준 날짜로 표시한다. 최대 16개의 scalar 배열은 항목 목록으로 표시한다.
+  최대 8필드의 flat 객체는 title/name/description/count/value/date/enabled에 정한 사용자 label을 쓴다.
+  알 수 없는 키·중첩 구조·큰 값은 “Structured content preview unavailable.”로 표시하고 JSON이나 내부 키를 노출하지 않는다.
+  이러한 fallback은 원래 제안 데이터나 Host의 작업 가용성을 변경하지 않는다.
 - PageSurface는 페이지 비율과 원점(TOPLEFT/BOTTOMLEFT)을 보존한다. inspect 영역 선택과
   페이지 이동은 화면 상태이며 승인·제외·문서 쓰기를 호출하지 않는다. 미지원·장식·제외는
   텍스트로 구별하고 이미지가 없어도 영역과 안내를 유지한다.

@@ -8,9 +8,17 @@ import { TooltipProvider } from "../../../src/components/ui/tooltip.tsx";
 import "../../../src/index.css";
 import "../../../src/styles.css";
 import "katex/dist/katex.min.css";
-const view: ReviewView = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review changes", refresh: "manual", sources: { review: { plugin: "fixture.review", review: "sample", bundleRef: "bundle" } }, layout: { component: "VerticalPanel", children: [{ component: "SourceDocumentCompare", title: "Compare", source: "review" }, { component: "ReviewList", title: "Changes", source: "review" }] } };
+const view: ReviewView = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review changes", refresh: "manual", sources: { review: { plugin: "fixture.review", review: "sample", bundleRef: "bundle" } }, layout: { component: "VerticalPanel", children: [{ component: "SourceDocumentCompare", title: "Compare", source: "review" }, { component: "ReviewList", title: "Changes", source: "review" }, { component: "ReviewDetail", title: "Details", source: "review" }] } };
 function Fixture() {
   const [mode, setMode] = useState("normal"), [held, setHeld] = useState(false), [count, setCount] = useState(0);
+  const [layout, setLayout] = useState("Default layout");
+  const panel = (component: ReviewView["layout"]["children"][number]["component"], title: string) => ({ component, title, source: "review" as const });
+  const children = layout === "List only" ? [panel("ReviewList", "List alone")]
+    : layout === "Detail only" ? [panel("ReviewDetail", "Detail alone")]
+    : layout === "Mixed layout" ? [panel("ReviewList", "First: changes"), panel("PageSurface", "Second: page"), panel("ReviewDetail", "Third: details"), panel("SourceDocumentCompare", "Fourth: compare")]
+    : layout === "Repeated panels" ? [panel("PageSurface", "First page"), panel("PageSurface", "Second page")]
+    : view.layout.children;
+  const currentView: ReviewView = { ...view, layout: { component: "VerticalPanel", children } };
   const adapter = useMemo<ReviewAdapter>(() => {
     let state: "pending" | "approved" | "rejected" = "pending", revision = "r1", release: (() => void) | undefined;
     function snapshot(pageNo: number): ReviewSnapshot {
@@ -27,7 +35,14 @@ function Fixture() {
           { id: "unknown", bbox: [45,400,300,450], category: "Unknown region", status: "unsupported", reason: "Unsupported content" },
           { id: "excluded", bbox: [45,500,300,550], category: "Header", status: "excluded" }] },
         mapping: { generation: "g1", documentRevision: revision, documentHash: revision, sourceRevision: "s1", mappingRevision: "m1", entries: [{ sourceIds: ["text"], targets: [target] }] },
-        proposals: [{ id: "p1", kind: "text.replace", targets: [target], evidence: ["Checked against the source page."], before: { type: "plain", text: "검토할 문장입니다." }, after: { type: "plain", text: "정정된 문장입니다." }, baseline, state,
+        proposals: [{ id: "p1", kind: "text.replace", targets: [target], evidence: ["Checked against the source page."], before: mode === "typed-object" ? { type: "typed", kind: "fixture.fields", value: { title: "Original title", count: 1250, date: "2026-11-06", enabled: false } }
+            : mode === "typed-array" ? { type: "typed", kind: "fixture.items", value: ["First item", 1250, true, null] }
+            : mode === "typed-unsupported" ? { type: "typed", kind: "fixture.internal", value: { internal_key: { private_state: [1, 2] } } }
+            : { type: "plain", text: "검토할 문장입니다." },
+          after: mode === "typed-object" ? { type: "typed", kind: "fixture.fields", value: { title: "Updated title", count: 1500, date: "2026-11-07", enabled: true } }
+            : mode === "typed-array" ? { type: "typed", kind: "fixture.items", value: ["Second item", "2026-11-07", false] }
+            : mode === "typed-unsupported" ? { type: "typed", kind: "fixture.internal", value: [{ internal_key: "hidden" }] }
+            : { type: "plain", text: "정정된 문장입니다." }, baseline, state,
           actions: [{ action: "approve", allowed: state === "pending", reason: "Only pending changes can be approved." }, { action: "reject", allowed: state === "pending", reason: "Only pending changes can be rejected." }, { action: "undo", allowed: state === "approved" && mode !== "no-undo", reason: "There is no applied change to undo." }] }] };
     }
     return { read: async pageNo => { if (mode === "unavailable") throw Error("Unavailable"); if (release) await new Promise<void>(resolve => { release = resolve; }); return snapshot(pageNo); },
@@ -37,6 +52,6 @@ function Fixture() {
       release: () => { const resolve = release; release = undefined; resolve?.(); setHeld(false); },
     } as ReviewAdapter;
   }, [mode]);
-  return <TooltipProvider><div style={{ padding: 16 }}><div className="review-toolbar" aria-label="Fixture controls">{["normal", "stale", "unavailable", "no-image", "no-undo", "hold"].map(v => <Button key={v} variant="outline" onClick={() => { setMode(v); setHeld(false); }}>{v}</Button>)}<span>Actions: {count}</span>{held && <Button onClick={() => (adapter as ReviewAdapter & { release(): void }).release()}>Complete refresh</Button>}</div><ReviewRenderer key={mode} view={view} adapter={adapter} /></div></TooltipProvider>;
+  return <TooltipProvider><div style={{ padding: 16 }}><div className="review-toolbar" aria-label="Fixture controls">{["normal", "stale", "unavailable", "no-image", "no-undo", "hold", "typed-object", "typed-array", "typed-unsupported"].map(v => <Button key={v} variant="outline" onClick={() => { setMode(v); setHeld(false); }}>{v}</Button>)}<span>Actions: {count}</span>{held && <Button onClick={() => (adapter as ReviewAdapter & { release(): void }).release()}>Complete refresh</Button>}</div><div className="review-toolbar" aria-label="Layout fixtures">{["Default layout", "List only", "Detail only", "Mixed layout", "Repeated panels"].map(v => <Button key={v} variant="outline" onClick={() => setLayout(v)}>{v}</Button>)}</div><ReviewRenderer key={mode} view={currentView} adapter={adapter} /></div></TooltipProvider>;
 }
 createRoot(document.getElementById("root")!).render(<Fixture />);

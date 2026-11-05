@@ -13,9 +13,15 @@
 .review-reading-content { position: relative; }
 .review-highlights { position: absolute; inset: 0; pointer-events: none; }
 .review-highlights > div { position: absolute; left: 0; right: 0; border-left: 3px solid var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); }
-.review-proposals { display: grid; grid-template-columns: 16rem minmax(0,1fr); gap: var(--space-4); margin-top: var(--space-4); }
+.review-panels { display: flex; flex-direction: column; gap: var(--space-4); }
+.review-panel { min-width: 0; }
+.review-panel > h3 { margin-bottom: var(--space-2); font-weight: 600; }
 .review-list { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-2); }
 .review-detail { border: 1px solid var(--border); padding: var(--space-3); border-radius: var(--radius); }
 .review-before-after { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
-.review-detail pre { font-family: var(--font-family-document); font-size: var(--font-size-document); line-height: var(--line-height-document); letter-spacing: normal; word-break: var(--word-break-document); white-space: pre-wrap; overflow-wrap: anywhere; background: var(--muted); padding: var(--space-2); }
+.review-value { font-family: var(--font-family-document); font-size: var(--font-size-document); line-height: var(--line-height-document); letter-spacing: normal; word-break: var(--word-break-document); white-space: pre-wrap; overflow-wrap: anywhere; background: var(--muted); padding: var(--space-2); }
 .review-action-trigger { display: inline-flex; }
+.review-value ul { list-style: disc; padding-left: var(--space-4); }
+.review-value dl > div { display: flex; gap: var(--space-3); }
+.review-value dt { font-weight: 600; }
+.review-value dd { margin: 0; }
