@@ -255,7 +255,9 @@ K1은 **파일 입력·긴 작업 상태·결과 열기** 계약이다. 대상 H
 
 - **K2 페이지·영역:** Host가 제공하는 페이지 이미지, bbox 좌표 단위·원점, 장식·미지원·제외와 페이지 선택을 표현한다. 제외는 원본 삭제가 아니다.
 - **K3 원본↔문서 대응:** 원본 영역과 Read 문서 블록의 다대다 대응·양방향 선택/강조·필요한 reveal을 제공한다. revision/hash가 맞지 않는 map은 stale로 표시하고 대상 이동·교정 적용을 막는다. 없는 대응을 발명하지 않는다.
-- **K4 교정:** 원본 baseline·근거·전후·pending/stale/inapplicable과 승인/거절/Undo를 표현한다. 비서는 제안하고 사용자 승인 후 적용한다. 원본 JSON을 보존하고 ledger를 사본에 재생하며 문서 의미·valid serialization은 Core가 소유한다.
+- **K4 교정:** 원본 baseline·근거·전후·pending/stale/inapplicable과 승인/거절/Undo를 표현한다. 비서는 제안하고 사용자 승인 후 적용한다. K4 교정 컴포넌트는 3단계 카탈로그 v2에 포함한다. 문서 의미·valid serialization은 기존 Core 경계를 따른다.
+
+**후속 설계 후보(K4):** 조사 문서가 제안한 원본 JSON 보존과 ledger의 사본 재생은 구현 방식 후보이며 이번 소유자 결정으로 승인된 계약이 아니다. 후속 설계에서 검토·확정한다.
 
 Docling 화면은 **왼쪽 페이지 이미지, 오른쪽 Read 문서의 좌우 대조**이며 넓은 화면을 전제로 한다([#891](https://github.com/litzio/litzio/issues/891) 방향 유지). 앱의 기존 Read·문서 열기·비서·변경 비교를 재사용한다.
 
