@@ -480,19 +480,6 @@ an explicit user change request supplies permission. Consent is an agent
 instruction, rather than a natural-language permission parser. The fixed Host
 allowlist is enforced independently of those instructions.
 
-**Decision amendment (2026-11-05, not implemented):**
-[ADR-0020 ⑤](../adr/0020-plugin-architecture.md#⑤-최소-기여와-공용-작업cli승인받는-비서-관리)
-replaces the earlier assistant plugin-change prohibition on resumption with
-shared-operation management tools for install, trust, enable, disable and
-configuration, requiring explicit user approval before every execution, including
-in full access mode. Secrets are entered directly by the user in app settings;
-the assistant cannot read their values. The display-tool exclusion above is
-preserved: this decision requires separate management tools, not a wider display
-allowlist. Those tools are not currently provided; their implementation PR must
-update this contract together with the approval flow. This amendment does not
-start plugin implementation or permit AI permission/provider/model changes.
-
-
 `AgentDisplayRequests` owns provider-neutral validation, volatile pending requests
 and change receipts. Codex's `item/tool/call` is only its current adapter. The
 Host never reads browser storage or writes a settings file. Each send supplies

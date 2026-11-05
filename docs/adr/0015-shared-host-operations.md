@@ -1,6 +1,7 @@
 # ADR-0015: Shared Host operations for UI, HTTP, CLI and assistant tools
 
 - Status: Accepted
+- Amended by: [ADR-0020](0020-plugin-architecture.md)
 - Decision date: 2026-11-04
 - Last verified: 2026-11-05 — #1150·ADR-0017 전환과 ADR-0020의 재개 시 비서 관리 개정을 문서 대조. 제품 실행 검증 없음. 기존 구현 근거는 아래 기록과 Implemented 계약을 따른다.
 - Previous verification: 2026-11-04 — #1132 승인·Discussion 기록과 관련 ADR/Implemented 계약의 문서 대조. 제품 실행이나 기능 이행 검증은 포함하지 않는다.
@@ -40,9 +41,7 @@ The [owner-approved terminology amendment](https://github.com/litzio/litzio/issu
 
 cursor, focus, selection, toolbar, hover 등 Editor 전용 interaction은 기존대로 CLI parity 대상이 아니다. 특정 화면의 상태가 필요한 명령은 그 대상·필요 조건을 명시하며, 공용 작업을 정의했다는 이유로 상태를 Host 전역으로 옮기지 않는다. 기존 기능의 빈칸을 이번 결정 PR에서 모두 채우지는 않는다. 과거의 “문서 의미 연산이 아니므로 CLI 생략”을 새 사용자 기능의 생략 근거로 사용하지 않는다.
 
-AI가 daemon 공식 기능으로 옮겨가는 결정은 [ADR-0017](0017-bundled-client-and-official-ai.md)을 따른다. #1137의 `plugins configure ai-agent` 등 AI 설정 CLI도 플러그인 명령에서 공식 설정 명령으로 옮기고 같은 공용 작업(입력·결과·범위·receipt)을 호출한다. AI 켜기/끄기 설정은 제공하지 않는다. AI 가용성은 사용 가능한 프로바이더로만 판단하며, 가용 프로바이더가 없으면 이유와 함께 신규 대화·aiTasks 요청을 거부하고 진행 작업에는 영향을 주지 않는다. 남는 공식 AI 설정은 공용 작업과 CLI로 제공하며, 비서의 AI 권한·프로바이더·모델 및 플러그인 변경 금지는 유지한다. ③a에서 AI가 플러그인 경로 없이 동작하게 한 뒤 ③b에서 `plugins` CLI·설정의 플러그인 영역을 관련 기능과 함께 삭제한다. 이는 기능 제거이며 남는 공식 기능의 CLI 요구는 유지한다. 구체 명령 표기는 구현 PR에서 정하고 이 문서가 제공 완료를 뜻하지는 않는다.
-
-**개정 안내 (2026-11-05):** [ADR-0020 ⑤](0020-plugin-architecture.md#⑤-최소-기여와-공용-작업cli승인받는-비서-관리)는 위 플러그인 변경 금지를 **재개 시 실행마다 사용자의 명시적 승인을 받는 설치·신뢰·활성화·비활성화·설정 관리**로 대체한다. 자동·묵시적 승인은 없으며 secret은 사용자가 앱 설정 UI에서 직접 입력한다. AI 권한·공급자·모델 변경 금지는 유지한다. 위 원문은 당시 결정 기록으로 보존하며, 이번 개정은 구현 재개나 현재 관리 도구 제공을 뜻하지 않는다.
+AI가 daemon 공식 기능으로 옮겨가는 결정은 [ADR-0017](0017-bundled-client-and-official-ai.md)을 따른다. #1137의 `plugins configure ai-agent` 등 AI 설정 CLI도 플러그인 명령에서 공식 설정 명령으로 옮기고 같은 공용 작업(입력·결과·범위·receipt)을 호출한다. AI 켜기/끄기 설정은 제공하지 않는다. AI 가용성은 사용 가능한 프로바이더로만 판단하며, 가용 프로바이더가 없으면 이유와 함께 신규 대화·aiTasks 요청을 거부하고 진행 작업에는 영향을 주지 않는다. 남는 공식 AI 설정은 공용 작업과 CLI로 제공하며, 비서의 AI 권한·프로바이더·모델 변경 금지는 유지한다. ③a에서 AI가 플러그인 경로 없이 동작하게 한 뒤 ③b에서 `plugins` CLI·설정의 플러그인 영역을 관련 기능과 함께 삭제한다. 이는 기능 제거이며 남는 공식 기능의 CLI 요구는 유지한다. 구체 명령 표기는 구현 PR에서 정하고 이 문서가 제공 완료를 뜻하지는 않는다.
 
 ### 2. 같은 작업 정의와 실행 중 Host 연결은 구분한다
 
