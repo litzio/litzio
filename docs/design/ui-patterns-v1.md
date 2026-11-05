@@ -109,6 +109,14 @@ skills·진단 항목은 숨긴다. #1091은 같은 SettingsSelect로 추론 강
 
 ## P07 입력 오류와 알림 센터
 
+조회 입력의 구체 오류 안내는 validator keyword와 이미 가진 공개 schema만 사용한다.
+required는 값 입력, date format은 유효한 YYYY-MM-DD 날짜, minimum/maximum은 해당
+하한/상한, minLength/maxLength는 해당 최소/최대 글자 수를 짧게 안내한다. pattern은
+지정 형식 사용을 안내하며 정규식 원문을 표시하지 않는다. 제약값이 없거나 그 밖의 keyword면
+기존 일반 입력 오류 안내를 유지한다. 입력값·Host/schema 오류 메시지 원문은 문구에 넣지 않는다.
+같은 필드에 여러 오류가 있으면 첫 진단을 표시하고, 수정 후 다시 검증한다. 필드 오류와 공통 오류는 별도 상태로 관리한다. 공통 오류는 입력 폼 유무와 무관하게 화면에 한 번 표시하며 실제 필드 이름을 공통 오류의 예약 키로 사용하지 않는다.
+
+
 #1210 생성 뷰는 기존 Notice와 새 이름 Dialog의 `aria-invalid`·연결된 오류문을 사용한다. 이름 충돌은 입력과 기존 파일을 유지하며, 조회 실패는 빈 성공으로 바꾸지 않는다. 비서의 명세 오류와 수정 횟수는 같은 대화와 생성 과정 목록에 표시한다([Generated views](generated-views-v1.md)).
 
 - **목적·사용/비사용:** 고칠 입력과 문서·앱 문제를 구별하고 문제 위치로 이동시킨다. 입력칸 오류를 알림 센터만으로 대체하지 않으며 저장 거부/허용 정책을 바꾸지 않는다.
@@ -512,3 +520,79 @@ ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의
 검증 경로: `pnpm browser:test review-v5`. `--screenshots`는 수동 시각 검토용
 `tmp/review-v5-1440.png`, `tmp/review-v5-narrow.png`를 남긴다. fixture는 서비스별
 저장 의미를 정의하지 않으며 Docling 수락이나 V4 통합 완료 증거가 아니다.
+
+## Query renderer V3
+
+#1241 A안에 따라 제품 화면은 코드로 유지하고, 생성/기여/즐겨찾기 조회 화면은
+제품 공통 Input·Button·Dialog·Notice·FieldError·SettingsSelect 레시피·Lucide를 조합한다.
+입력 오류는 P07의 필드 인접 FieldError와 aria-invalid/describedby로 연결하고 실행을 막는다.
+작업 오류는 해당 화면 Notice, 저장 오류는 열린 이름 Dialog의 FieldError 하나에만 표시한다.
+오류 본문·stack·서비스 응답은 표시하지 않으며 #1233 고정 분류 안내만 사용한다.
+unknown 분류는 일반 실패로, uncertain은 결과 확인 안내로 표시하고 자동 재전송하지 않는다.
+
+첫 조회 중에는 미조회 문구 대신 loading Notice와 aria-busy를 표시한다.
+같은 source의 표·차트는 미조회/조회 중/빈 결과/실패 상태 Notice를 공유한다.
+이전 rows를 남기는 재조회·실패·조건 변경 상태에는 이전 결과와 조회 시각을 함께 표시한다.
+입력은 조회 중에도 고칠 수 있고 요청에는 제출 시점 args를 고정한다.
+닫힌 탭·Root 변경 전 요청의 늦은 결과를 폐기한다.
+즐겨찾기는 현재 초안 입력만 저장하며 다시 열 때 자동 조회하지 않는다.
+
+입력 수정은 탭의 초안 args만 바꾼다. 실행 시 그 값을 고정해 Host로 보내고 receipt는 그 요청에 대응한다. 실행 중 추가 입력은 금지하지 않되 이전 결과에 ‘검색 조건 변경됨’을 표시한다. 늦은 응답은 새 요청 결과를 덮지 못하며 새 데이터 조회를 자동 시작하지 않는다. 조회 실패 시 이전 결과를 남길 경우 ‘이전 조회 결과’와 조회 시각을 반드시 표시한다.
+
+Lucide Star를 쓰는 즐겨찾기에 추가는 **현재 폼 입력**을 args로 저장한다. 조회 결과·오류·선택·requestId는 저장하지 않는다. 아직 실행하지 않은 조건도 저장할 수 있음을 이름 dialog에 알린다. 다시 열면 입력값만 복원하며 조회하지 않는다. 영속 가능 입력은 공개 비밀 아닌 값에 한정하고 secret 선언/credential 입력은 폼·명세·비서 문맥에 넣지 않는다.
+
+조회 폼은 콘텐츠 가용 폭 640px 이하에서 한 열, 그 이상에서 두 열을 사용한다. 표는 모든 열을 보존하며 패널 내부에서 가로 스크롤한다. 기본 열 최소 폭은 기존 간격 토큰의 8배(128px)이고 긴 값은 줄바꿈하며 생략하지 않는다. 640/960/1440 창에서 페이지 전체 overflow 없이 키보드·포인터로 모든 값에 접근한다.
+
+`SourceState`는 명세가 임의 문구/색을 공급하는 패널이 아니라 Host 실행 결과를 표시하는 앱 번들 상태 요소다. `idle / needs-input / loading / success / empty / failure / uncertain / unavailable`을 구분한다. 실패를 empty로 바꾸지 않는다. source 하나의 실패는 표·차트 양쪽에 같은 원인으로 연결하되 상단에 중복 없이 한 번 표시한다.
+
+| #1233의 의미 범주 | 앱 고정 안내와 동작 |
+| --- | --- |
+| 인증 필요 | ‘인증 정보를 확인하세요’ — 대상 Host의 기존 Plugins 설정 확인 안내. 채팅에서 secret을 묻지 않음 |
+| 권한 없음 | ‘이 작업에 필요한 권한을 확인하세요’. 권한 요청 대행·자동 재시도 없음 |
+| 대상 없음 | ‘대상 또는 검색 조건을 확인하세요’. 입력을 보존 |
+| 서비스 오류 | ‘서비스에서 요청을 처리하지 못했습니다’. 읽기만 명시적 재조회 가능 |
+| 시간 초과 | ‘제한 시간 안에 응답을 확인하지 못했습니다’. read는 수동 재조회, write/결과 불확실은 상태 확인 안내 |
+
+#1233이 **분류 타입·안전한 고정 메시지/행동 코드·publicOperationResult 정리·receipt 및 CLI/비서 일치**를 소유한다. 이 문서는 이름이 확정되지 않은 별도 error enum을 구현시키지 않는다. HTTP 401 등을 renderer에서 추측하거나 예외 문자열에서 분류하지 않는다. 미분류 오류는 안전한 일반 실패 안내를 쓰며 원문 body·stack·secret·인증 헤더·서비스 URL을 표시하지 않는다. 사용자에게 보이는 상세에는 operation/version·시각·request ID 같은 안전한 receipt만 둔다. validation/버전 불일치/비활성 플러그인은 서비스 5종과 별도로 안내한다. 연결 상실 후 write 성공 여부를 모르면 분류가 timeout이어도 outcome은 uncertain이고 자동 재전송하지 않는다.
+
+### Query form refinement (#1263)
+
+조회 폼에는 label·현재 값·행동만 상시 표시한다. 빈 입력에 Unset 문구를 덧붙이지 않는다.
+입력 설명·날짜 형식은 공통 Tooltip에 두며, optional 값이 지정된 경우에만 입력 안의
+Lucide X + ghost/icon-sm Button으로 속성을 지운다. 버튼에는 접근성 이름과 같은 tooltip을
+제공하고 지운 뒤 입력으로 focus를 돌린다. 빈 문자열과 속성 제거의 Core 의미는 유지한다.
+optional boolean은 공통 select의 Any/Yes/No로 미지정/true/false를 명시한다.
+nullable 입력의 null은 별도 값 없음 선택으로 보존하며 false로 치환하지 않는다.
+
+제품 공통 날짜 picker는 없으므로 공통 Input의 ISO `YYYY-MM-DD` 텍스트와
+UI 언어로 번역된 형식 tooltip을 쓴다. 브라우저 locale의 native date placeholder를 노출하지
+않고 timezone 변환·날짜 parser를 화면에 추가하지 않는다. 전체 유효성 판정은 Host/Core다.
+입력 label은 schema title, 열 머리글은 Host의 공개 label을 우선한다. 없으면 식별자의
+camelCase·구분자를 읽기 쉬운 기본 표기로만 바꾸고 바인딩 값은 바꾸지 않는다.
+현재 v2 form/enum에는 항목별 label을 선언할 자리가 없으므로 enum 문자열도 같은 기본 표기를 쓴다.
+
+실행 버튼은 입력 grid 전체 너비를 차지하는 마지막 행의 기존 `.form-actions` 오른쪽 축에
+둔다. 조회 표는 문서 표와 같은 thin scrollbar·border-strong thumb 규칙으로 내부 가로
+스크롤을 드러낸다. 모든 열을 유지하며, 폭별 시작/끝 캡처로 12열과 마지막 열 도달을 확인한다.
+검증 근거는 `pnpm browser:test generated-views --screenshots`의
+`tmp/v3-review/{table12-<width>-start,table12-<width>-end,reopened-<width>,error-<width>}.png`
+(1440/960/640)이며 최종 이미지는 수동 검토한다.
+
+수동 `--screenshots` 실행에서는 Playwright headless의 기본 `--hide-scrollbars`만 제외해 실제 scrollbar도 캡처한다. persistent profile·시나리오 격리·검증 단언은 동일하다.
+
+### V3 입력 검증과 공통 profile 진입점
+
+입력 오류의 주 판정은 Core validateViewInputs(execute)다. 앱은 CSP-safe 해석 compiler로
+같은 원본 JSON Schema를 검사하고 Host는 기본 compiler로 적용 직전 다시 검사한다.
+입력 오류가 있으면 실행 요청을 보내지 않고 선언된 필드의 FieldError/aria-invalid/describedby와
+첫 오류 focus를 사용한다. Host의 구조화된 입력 거부도 같은 경로로 표시하며 일반 작업 실패 Notice로 바꾸지 않는다.
+optional 입력을 비우면 속성을 제거한다. schema const/enum이 빈 문자열을 값으로 명시하거나
+required 문자열이면 빈 문자열을 보존하고 지정 값의 X로 명시적 제거를 제공한다.
+
+CatalogView의 query/review 분기는 상태를 가진 각 renderer를 mount하기 전에 수행한다.
+review는 V5의 선택·stale·승인/Undo·갱신 패턴을 재사용하고 query의 초안 args를 생성하지 않는다.
+source/Host가 바뀌거나 탭이 닫히면 해당 adapter 요청을 중단한다. 실제 Host integration은 V2/V4 gate로 남긴다.
+
+V2 입력 진단의 field는 JSON Pointer다. 없는 field는 폼 오류이며, 공개된 입력 이름과 대응하지 않는 경로를 임의 필드로 만들지 않는다. V2 unavailable code는 새 뷰 필요 상태로 안내하고 #1233 서비스 unavailable과 구별한다.
+
+V2/V5 병합 후 생성 context는 query InputForm을 허용하며 review 생성은 V4 통합 전까지 제외한다. #1266의 선택적 mapping은 공통 진입점에서 필수로 재해석하지 않고 ReviewRenderer의 제안/대응 탐색 경계를 따른다.

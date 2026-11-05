@@ -233,7 +233,7 @@ test("operation invoke publishes declared public rows and refuses row-type misma
     const failedView = await executeViewOperation({ action: "run", root, view }, { access: new RootAccess([root]), plugins: host });
     assert.equal(failedView.errorKind, "auth", failedView.error); assert.equal(failedView.error, PLUGIN_ERROR_MESSAGES.auth);
     const client = { request: async () => new Response(JSON.stringify(failedView)) } as unknown as import("../src/host-client.ts").HostClient;
-    await assert.rejects(viewRequest(client, {}), /\[auth\] Authentication required/);
+    await assert.rejects(viewRequest(client, {}), error => error instanceof Error && "kind" in error && error.kind === "auth" && !error.message.includes("private"));
     for (const mode of ["wrong-number", "wrong-secret"]) {
       const refused = await invoke(mode); assert.equal(refused.receipt.outcome, "failure"); assert.ok(!("result" in refused)); assert.ok(!JSON.stringify(refused).includes("private")); assert.equal(refused.errorKind, "failed"); assert.ok(!refused.error.includes("retrying a write"));
     }

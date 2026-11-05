@@ -1,4 +1,4 @@
-import type { QueryView as View } from "@litzio/core/views-v2";
+import type { CatalogView as View } from "@litzio/core/views-v2";
 import { ASSISTANT, type AssistantConversation, type AssistantConversationInput } from "../../shared/assistant.ts";
 import { VIEW_GENERATION_TIMEOUT_MS } from "../../shared/view-generation.ts";
 import { i18n } from "../i18n.ts";

@@ -81,9 +81,7 @@ JQL 프리셋은 예를 들어 `preset: assigned-open | reported-open | assigned
 }
 ```
 
-입력 수정은 탭의 초안 args만 바꾼다. 실행 시 그 값을 고정해 Host로 보내고 receipt는 그 요청에 대응한다. 실행 중 추가 입력은 금지하지 않되 이전 결과에 ‘검색 조건 변경됨’을 표시한다. 늦은 응답은 새 요청 결과를 덮지 못하며 새 데이터 조회를 자동 시작하지 않는다. 조회 실패 시 이전 결과를 남길 경우 ‘이전 조회 결과’와 조회 시각을 반드시 표시한다.
-
-★ 즐겨찾기에 추가는 **현재 폼 입력**을 args로 저장한다. 조회 결과·오류·선택·requestId는 저장하지 않는다. 아직 실행하지 않은 조건도 저장할 수 있음을 이름 dialog에 알린다. 다시 열면 입력값만 복원하며 조회하지 않는다. 영속 가능 입력은 공개 비밀 아닌 값에 한정하고 secret 선언/credential 입력은 폼·명세·비서 문맥에 넣지 않는다.
+입력 초안·수동 조회·즐겨찾기 복원·조회 상태의 동작은 [UI 패턴의 조회 화면](ui-patterns-v1.md#query-renderer-v3)을 따른다. 명세는 구성·label·자료와 작업 binding만 소유한다.
 
 CLI 확장: `view run <file> --input <args.json> --root <root> --host <origin> --json`. `--input`이 있으면 source args **전체를 대체**한다(부분 merge 없음). 생략하면 저장 args를 사용한다. UI와 같은 Host 입력 해석·검증·Core 가공·receipt를 사용한다. `operation invoke`에 같은 args 파일을 주면 가공 전 원자료, `view run`은 그 자료에 명세 가공을 적용한 결과다. `view save ... --input <args.json>`도 같은 전체 대체 규칙으로 새 즐겨찾기를 만들며 원파일을 바꾸지 않는다.
 
@@ -91,13 +89,7 @@ CLI 확장: `view run <file> --input <args.json> --root <root> --host <origin> -
 
 Table은 **1~12개의 고유 공개 열**을 허용한다. 5열 Jira 요구와 제한적인 상세 조회 여유를 함께 충족하고, 64개 schema 필드 전체를 기본 표시하는 것을 피하는 상한이다. 숨은 열·자동 열 삭제·두 표 분할은 하지 않는다. 상한은 schema 하드코딩 대신 공개 `VIEW_LIMITS.columns`와 생성 context에 함께 노출한다.
 
-| 가용 폭 | 동작 |
-| --- | --- |
-| 640px 창 | 폼은 한 열로 접고 실행 버튼을 유지. 표는 패널 안 가로 스크롤, 페이지 전체 overflow 금지. 모든 열을 키보드/포인터로 도달 가능 |
-| 960px 창 | 가용 패널 폭이 충분할 때 폼은 두 열. 표의 긴 요약은 줄바꿈, 식별자·날짜는 읽을 수 있는 폭을 유지하고 부족하면 내부 스크롤 |
-| 1440px 창 | Jira 5열은 일반적인 값으로 한 표에서 읽기 가능. 12열/긴 값은 여전히 내부 스크롤 허용. 창 폭만 보고 강제로 축소하지 않음 |
-
-container 실제 폭을 기준으로 처리하며 Explorer/비서 패널이 열린 경우도 포함한다. 열 최소 폭은 식별자/일반 값 8rem, 요약 같은 긴 텍스트 16rem, timestamp 12rem의 앱 기본 정책으로 시작한다. 숫자 단위는 토큰으로 두고 구현 PR에서 대표 자료로 확인한다. 명세가 CSS 폭을 주입하지 않는다. 행 높이는 내용에 따라 늘고 생략된 값은 키보드 접근 가능한 기존 Tooltip/상세 표시로 전체를 읽을 수 있어야 한다.
+조회 폼·표의 폭·스크롤·긴 값 표시는 [공통 조회 패턴](ui-patterns-v1.md#query-renderer-v3)이 소유한다. 명세는 CSS 폭을 공급하지 않는다.
 
 `HorizontalPanel`은 최대 두 자식, 한 단계만 허용하고 가용 폭 960px 미만에서 세로 순서로 접는다. 전체 leaf panel 8개 제한은 유지한다. `LineChart`는 단일 series, 숫자 또는 날짜 x와 숫자 y만 허용한다. Core의 명시 sort 후 순서대로 그리며 중복 x는 거부, null은 단절로 표시한다. 보간·누적·다중 축·추세 계산은 없다. Table/BarChart와 동일 데이터 및 접근 가능한 값 목록을 쓴다. 선 차트·가로 배치는 로드맵 범위에 남기되 2단계 실패로 계수하지 않으며 Docling 진입의 선행 조건으로 삼지 않는다.
 
@@ -105,17 +97,7 @@ container 실제 폭을 기준으로 처리하며 Explorer/비서 패널이 열�
 
 ## 안전한 오류와 화면 상태
 
-`SourceState`는 명세가 임의 문구/색을 공급하는 패널이 아니라 Host 실행 결과를 표시하는 앱 번들 상태 요소다. `idle / needs-input / loading / success / empty / failure / uncertain / unavailable`을 구분한다. 실패를 empty로 바꾸지 않는다. source 하나의 실패는 표·차트 양쪽에 같은 원인으로 연결하되 상단에 중복 없이 한 번 표시한다.
-
-| #1233의 의미 범주 | 앱 고정 안내와 동작 |
-| --- | --- |
-| 인증 필요 | ‘인증 정보를 확인하세요’ + 대상 Host의 기존 Plugins 설정 열기. 채팅에서 secret을 묻지 않음 |
-| 권한 없음 | ‘이 작업에 필요한 권한을 확인하세요’. 권한 요청 대행·자동 재시도 없음 |
-| 대상 없음 | ‘대상 또는 검색 조건을 확인하세요’. 입력을 보존 |
-| 서비스 오류 | ‘서비스에서 요청을 처리하지 못했습니다’. 읽기만 명시적 재조회 가능 |
-| 시간 초과 | ‘제한 시간 안에 응답을 확인하지 못했습니다’. read는 수동 재조회, write/결과 불확실은 상태 확인 안내 |
-
-#1233이 **분류 타입·안전한 고정 메시지/행동 코드·publicOperationResult 정리·receipt 및 CLI/비서 일치**를 소유한다. 이 문서는 이름이 확정되지 않은 별도 error enum을 구현시키지 않는다. HTTP 401 등을 renderer에서 추측하거나 예외 문자열에서 분류하지 않는다. 미분류 오류는 안전한 일반 실패 안내를 쓰며 원문 body·stack·secret·인증 헤더·서비스 URL을 표시하지 않는다. 사용자에게 보이는 상세에는 operation/version·시각·request ID 같은 안전한 receipt만 둔다. validation/버전 불일치/비활성 플러그인은 서비스 5종과 별도로 안내한다. 연결 상실 후 write 성공 여부를 모르면 분류가 timeout이어도 outcome은 uncertain이고 자동 재전송하지 않는다.
+`SourceState`는 앱이 Host 결과를 표시하는 상태 adapter다. 허용 상태 타입은 Core가 소유하며 고정 안내·중복 제거·재조회 동작은 [공통 조회 패턴](ui-patterns-v1.md#query-renderer-v3)을 따른다. 오류 분류·안전한 결과와 receipt는 #1233 계약을 소비한다.
 
 ## K2·K3·K4 공용 요소
 
@@ -212,4 +194,4 @@ V1에서 공통 contract/schema를 소유하고, V2는 조회용 Host/CLI, V4는
 [공용 review renderer](../../apps/editor/src/review/ReviewRenderer.tsx)가 V1 중립 자료 계약과
 기존 Read를 조합한다. 선택·승인·pending/applied·stale/unavailable·Undo·갱신 중·폭 안내의
 동작 소유권은 [UI 패턴](ui-patterns-v1.md#공용-원본-대조와-변경-제안-catalog-v5-1241-a안)에 둔다.
-명세에는 자료와 binding만 남긴다. V4 Host·CLI 통합과 V3 진입점 연결은 아직 검증하지 않았다.
+명세에는 자료와 binding만 남긴다. V3 공통 진입점의 query/review 분기와 V5 연결은 #1263의 공용 fixture로 검증한다. V4 실제 Host·CLI 통합은 아직 검증하지 않았다.

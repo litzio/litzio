@@ -222,5 +222,9 @@
   "spdx-license-ids@3.0.24": {
     "file": "jslicense-spdx-license-ids-dc0dd99cfb7b38c9159f3baa2804a4d3fd2632e1.txt",
     "source": "https://github.com/jslicense/spdx-license-ids/blob/dc0dd99cfb7b38c9159f3baa2804a4d3fd2632e1/README.md"
+  },
+  "@cfworker/json-schema@4.1.6": {
+    "file": "cfworker-1a0aa37471850c28a4673e12e871e010ea6c26e0.txt",
+    "source": "https://github.com/cfworker/cfworker/blob/1a0aa37471850c28a4673e12e871e010ea6c26e0/LICENSE.md"
   }
 }

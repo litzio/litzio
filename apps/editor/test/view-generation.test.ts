@@ -2,28 +2,30 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { generateView } from "../src/views/generate-view.ts";
 import { statisticsView, ViewValidationError } from "../src/views/view-api.ts";
-import { compileViewInputSchema } from "@litzio/core/views-v2";
+import { queryViewSchema, validateCatalogView, compileViewInputSchema, VIEW_LIMITS } from "@litzio/core/views-v2";
 import { builtinViewOperations } from "@litzio/core/views";
-import { VIEW_GENERATION_CONTEXT, viewGenerationContext } from "../shared/view-generation.ts";
-import { queryViewSchema, validateCatalogView } from "@litzio/core/views-v2";
-const validateView = (value: unknown) => queryViewSchema.parse(validateCatalogView(value));
 import type { AssistantConversation } from "../shared/assistant.ts";
 import { AssistantViewGenerations } from "../server/assistant-view-generations.ts";
 import { createAssistantRequest } from "../src/assistant-api.ts";
 import { createHostClient } from "../src/host-client.ts";
-import { viewRequest } from "../src/views/view-api.ts";
+import { viewRequest, readViewCatalog } from "../src/views/view-api.ts";
+import { ViewInputError } from "@litzio/core/views-v2";
+import { sourceFailure, inputIssueMessage } from "../src/views/source-state.ts";
 import { i18n } from "../src/i18n.ts";
 
-test("generation context advertises only executable fixed-input query definitions", () => {
+const validateView = (value: unknown) => queryViewSchema.parse(validateCatalogView(value));
+
+test("generation context accepts fixed args and InputForm queries but rejects review definitions", async () => {
+  const { viewGenerationContext, VIEW_GENERATION_CONTEXT } = await import("../shared/view-generation.ts");
   for (const catalog of [VIEW_GENERATION_CONTEXT.catalog, viewGenerationContext(builtinViewOperations).catalog]) {
     const accepts = compileViewInputSchema(catalog.schema);
-    const fixed = queryViewSchema.parse(statisticsView);
+    const fixed = validateView(statisticsView);
     assert.equal(accepts(fixed), true);
-    assert.equal(accepts({ ...fixed, form: { component: "InputForm", source: "stats", fields: [], submit: { component: "SubmitButton", label: "Search" } } }), false);
+    assert.equal(accepts({ ...fixed, form: { component: "InputForm", source: "stats", fields: [], submit: { component: "SubmitButton", label: "Search" } } }), true);
     assert.equal(accepts({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
       sources: { review: { plugin: "example.demo", review: "compare", bundleRef: "bundle-1" } },
       layout: { component: "VerticalPanel", children: [{ component: "PageSurface", title: "Page", source: "review" }] } }), false);
-    assert.equal(catalog.limits.inputs, 0);
+    assert.equal(catalog.limits.inputs, VIEW_LIMITS.inputs);
   }
 });
 
@@ -149,4 +151,39 @@ test("exhausted validation, transport errors, model changes and cancellation do 
     }));
     assert.equal(sends, mode === "invalid" ? 3 : 1);
   }
+});
+
+test("V2 transport uses the sole catalog envelope and distinguishes pointer input, form and unavailable errors", async () => {
+  let reply: unknown = { catalog: { operations: [] }, receipt: { outcome: "success" } };
+  let status = 200;
+  const client = { request: async (path: string, init: RequestInit) => {
+    assert.equal(path, "/api/views");
+    assert.equal(init.method, "POST");
+    assert.deepEqual(JSON.parse(String(init.body)), { action: "catalog" });
+    return new Response(JSON.stringify(reply), { status });
+  } } as unknown as import("../src/host-client.ts").HostClient;
+  assert.deepEqual(await readViewCatalog(client), { operations: [] });
+  status = 400;
+  for (const inputIssues of [[{ field: "/text", keyword: "pattern" }], [{ keyword: "type" }], []]) {
+    reply = { error: "SECRET response body", code: "invalid-input", inputIssues, receipt: { outcome: "failure" } };
+    await assert.rejects(readViewCatalog(client), error => error instanceof ViewInputError && JSON.stringify(error.inputIssues) === JSON.stringify(inputIssues) && !error.message.includes("SECRET"));
+  }
+  reply = { code: "unavailable", errorKind: "failed", error: "SECRET removed field", receipt: { outcome: "failure" } };
+  await assert.rejects(readViewCatalog(client), error => sourceFailure(error).state === "unavailable" && !sourceFailure(error).message.includes("SECRET"));
+});
+
+test("field advice uses keywords and public limits without echoing input or pattern text", async () => {
+  const language = i18n.language;
+  try {
+    await i18n.changeLanguage("en");
+    const schema = { format: "date", minimum: 1, maximum: 20, minLength: 3, maxLength: 12, pattern: "SECRET" };
+    for (const [keyword, message] of [["format", "Enter a valid date (YYYY-MM-DD)."], ["minimum", "Enter a value of at least 1."], ["maximum", "Enter a value of at most 20."], ["minLength", "Use at least 3 characters."], ["maxLength", "Use at most 12 characters."], ["pattern", "Use the required format."], ["required", "Enter a value."], ["unknown", "Check this value against the operation requirements."]]) {
+      assert.equal(inputIssueMessage(keyword, schema), message);
+      assert.ok(!inputIssueMessage(keyword, schema).includes("SECRET"));
+    }
+    assert.equal(inputIssueMessage("minimum"), "Check this value against the operation requirements.");
+    assert.equal(inputIssueMessage("format", { format: "email" }), "Check this value against the operation requirements.");
+    await i18n.changeLanguage("ko");
+    assert.equal(inputIssueMessage("minimum", schema), "1 이상의 값을 입력하세요.");
+  } finally { await i18n.changeLanguage(language); }
 });

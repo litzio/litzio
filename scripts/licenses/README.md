@@ -38,3 +38,5 @@ Other verified mappings:
 data or type source to bundle. The collector records this non-code reason explicitly.
 This inventory is deliberately a dependency closure; build/type-only dependencies
 can appear without being browser code. It is not a legal compliance certification.
+
+- `@cfworker/json-schema@4.1.6`: npm gitHead `1a0aa37471850c28a4673e12e871e010ea6c26e0`의 루트 `LICENSE.md`를 보존한다. 배포 npm에는 license text가 없어 기존 supplement collector를 사용한다.

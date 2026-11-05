@@ -1,7 +1,7 @@
 import { hostLabel } from "../host-client.ts";
 import { generateView } from "../views/generate-view.ts";
 import { viewRequest } from "../views/view-api.ts";
-import type { QueryView as View } from "@litzio/core/views-v2";
+import type { CatalogView as View } from "@litzio/core/views-v2";
 import { createAssistantRequest } from "../assistant-api.ts";
 import { useHostClient, HostContext } from "../host-context.tsx";
 import { displayRequestCurrent, displayValues, type DisplayRequest, type DisplayReply, type DisplayReceipt, type DisplaySnapshot, type DisplaySettings } from "../../shared/assistant-display.ts";

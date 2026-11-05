@@ -13,7 +13,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
 
   let captureEnvironment;
   const root = pluginFixture.folder, favorite = 'Folder document totals';
-  const proposal = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', title: 'Folder document totals', refresh: 'manual', sources: { stats: { operation: 'fixture.issues.read', version: 1, args: {}, groupBy: { field: 'status' }, aggregate: { op: 'sum', field: 'points' }, sort: { field: 'value', direction: 'desc' }, limit: 10 } }, layout: { component: 'VerticalPanel', children: [{ component: 'Table', title: 'Document totals', source: 'stats', data: '/rows', columns: ['group', 'value'] }, { component: 'BarChart', title: 'Document totals chart', source: 'stats', data: '/rows', x: 'group', y: 'value' }] } };
+  const proposal = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', title: 'Folder document totals', refresh: 'manual', sources: { stats: { operation: 'fixture.issues.read', version: 1, args: { preset: 'assigned-open' }, groupBy: { field: 'status' }, aggregate: { op: 'sum', field: 'points' }, sort: { field: 'value', direction: 'desc' }, limit: 10 } }, layout: { component: 'VerticalPanel', children: [{ component: 'Table', title: 'Document totals', source: 'stats', data: '/rows', columns: ['group', 'value'] }, { component: 'BarChart', title: 'Document totals chart', source: 'stats', data: '/rows', x: 'group', y: 'value' }] } };
   let conversation, sends = [], queries = 0, validates = 0, latestRows, latestReceipt, delayPoll = false;
   const settings = { provider: 'codex', model: 'gpt-6-luna', reasoningEffort: 'low', permissionMode: 'read-only', responseLanguage: 'en' };
   await page.route('**/api/assistant/settings*', route => route.fulfill({ json: settings }));
@@ -33,12 +33,57 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     }
     return route.fulfill({ json: conversation });
   });
+  // V3 uses a v2 Host fixture until V2 lands. This is renderer proof, not Host integration.
+  const saved = new Map();
+  let hostCommonRefusal = false;
+  let hostInputRefusal = false, unavailableView = false;
+  let fault, empty = false, hold, started = false;
+  const columns = ['key', 'summary', 'status', 'assignee', 'updated', 'project', 'priority', 'type', 'reporter', 'created', 'points', 'link'];
+  const formView = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', title: 'Issue search', refresh: 'manual', sources: { stats: { operation: 'fixture.issues.read', version: 1, args: { preset: 'assigned-open' } } }, form: { component: 'InputForm', source: 'stats', fields: [{ component: 'Select', field: 'preset' }, { component: 'TextInput', field: 'text' }, { component: 'DateInput', field: 'since' }, { component: 'NumberInput', field: 'limit' }, { component: 'Checkbox', field: 'closed' }], submit: { component: 'SubmitButton', label: 'Search' } }, layout: { component: 'VerticalPanel', children: [{ component: 'Table', title: 'Issues', source: 'stats', data: '/rows', columns: columns.slice(0, 5) }] } };
+  const reviewView = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'review', title: 'Review entry', refresh: 'manual', sources: { review: { plugin: 'fixture.issues', review: 'sample', bundleRef: 'bundle' } }, layout: { component: 'VerticalPanel', children: [{ component: 'ReviewList', title: 'Changes', source: 'review' }, { component: 'ReviewDetail', title: 'Details', source: 'review' }] } };
+  saved.set('Review entry', reviewView);
+  saved.set('Form name input', { ...formView, title: 'Form name input', sources: { stats: { ...formView.sources.stats, args: { preset: 'assigned-open', form: 'valid' } } }, form: { ...formView.form, fields: [{ component: 'TextInput', field: 'form' }] } });
+  saved.set('Issue search', formView);
+  saved.set('Twelve columns', { ...formView, title: 'Twelve columns', layout: { component: 'VerticalPanel', children: [{ ...formView.layout.children[0], columns }] } });
+  const catalog = { operations: [{ operation: 'fixture.issues.read', version: 1, plugin: 'fixture.issues', rowSchema: Object.fromEntries(columns.map(c => [c, { type: 'string', label: c }])), inputSchema: { type: 'object', additionalProperties: false, required: ['preset'], properties: { preset: { type: 'string', title: 'Preset', description: 'Choose which issues to include.', enum: ['assigned-open', 'reported-open', 'assigned-all', 'reported-all', 'recent', 'all'] }, text: { type: 'string', title: 'Text', minLength: 3, pattern: '^[A-Za-z ]+$', maxLength: 20 }, since: { type: 'string', format: 'date', title: 'Since' }, limit: { type: 'integer', minimum: 1, maximum: 100 }, closed: { type: 'boolean', title: 'Closed' }, form: { type: 'string', title: 'Form value', minLength: 3 } } } }] };
+  let reviewReads = 0, missingReviewMapping = false;
+  const baseline = { documentRevision: 'r1', proposalRevision: 'p1', sourceRevision: 's1', mappingRevision: 'm1' };
+  await page.route('**/api/reviews', route => {
+    const body = route.request().postDataJSON();
+    expect(body.plugin).toBe('fixture.issues'); expect(body.review).toBe('sample'); expect(body.bundleRef).toBe('bundle'); expect(body.root).toBe(root);
+    expect(body.action).toBe('read'); reviewReads++;
+    const snapshot = { baseline, bundle: { bundleRef: 'bundle', generation: 'g1', documentRef: 'doc', documentRevision: 'r1', documentHash: 'h1', sourceRevision: 's1', mappingRevision: 'm1' },
+      document: pluginFixture.reviewDocument, documentRevision: 'r1', documentHash: 'h1', documentPath: `${root}/a.md`, pageCount: 1,
+      page: { generation: 'g1', sourceRevision: 's1', pageNo: 1, width: 600, height: 800, origin: 'TOPLEFT', unit: 'px', regions: [] },
+      mapping: { generation: 'g1', documentRevision: 'r1', documentHash: 'h1', sourceRevision: 's1', mappingRevision: 'm1', entries: [] },
+      proposals: [{ id: 'change', kind: 'text.replace', targets: [{ path: pluginFixture.reviewDocument.blocks[0].path, documentRevision: 'r1', documentHash: 'h1' }], before: { type: 'plain', text: 'Original content' }, after: { type: 'plain', text: 'Reviewed content' }, evidence: ['Checked source'], baseline, state: 'pending', actions: [{ action: 'approve', allowed: true }, { action: 'reject', allowed: true }] }] };
+    if (missingReviewMapping) delete snapshot.mapping;
+    return route.fulfill({ json: { snapshot, receipt: { outcome: 'success' } } });
+  });
   await page.route('**/api/views', async route => {
     const body = route.request().postDataJSON();
-    if (body.action === 'run') queries++; if (body.action === 'validate') validates++;
-    const response = await route.fetch(), value = await response.json();
-    if (body.action === 'run' && value.receipt.outcome === 'success') { latestRows = value.rows; latestReceipt = value.receipt; }
-    await route.fulfill({ response, json: value });
+    const receipt = { operation: `view.${body.action}`, version: 1, requestId: 'fixture-request', outcome: 'success', scope: 'folder', timestamp: '2026-11-06T00:00:00Z' };
+    let value = { receipt };
+    if (body.action === "catalog") value.catalog = catalog;
+    if (body.action === 'validate') { validates++; if (body.view.layout.children[0].columns.includes('authorEmail')) return route.fulfill({ status: 400, json: { error: 'Invalid binding', receipt: { ...receipt, outcome: 'failure' } } }); value.view = body.view; }
+    if (body.action === 'list') value.favourites = body.plugin === 'fixture.issues' ? [...saved.keys()] : [];
+    if (body.action === 'open') { value.view = saved.get(body.name); value.name = body.name; }
+    if (body.action === 'save') {
+      expect(body.plugin).toBe(body.view.profile === 'review' ? body.view.sources.review.plugin : 'fixture.issues');
+      if (saved.has(body.name)) return route.fulfill({ status: 400, json: { error: 'SECRET duplicate detail', receipt: { ...receipt, outcome: 'failure' } } });
+      saved.set(body.name, body.view);
+    }
+    if (body.action === 'run') {
+      queries++; started = true; if (hold) await hold;
+      if (unavailableView) return route.fulfill({ status: 400, json: { code: 'unavailable', errorKind: 'failed', error: 'SECRET removed column detail', receipt: { ...receipt, outcome: 'failure' } } });
+      if (hostCommonRefusal) return route.fulfill({ status: 400, json: { code: 'invalid-input', inputIssues: [{ keyword: 'type' }], receipt: { ...receipt, outcome: 'failure' } } });
+      if (hostInputRefusal) return route.fulfill({ status: 400, json: { code: 'invalid-input', inputIssues: [{ field: '/text', keyword: 'pattern' }], error: 'SECRET upstream rejected input', receipt: { ...receipt, outcome: 'failure' } } });
+      if (fault) return route.fulfill({ status: 400, json: { errorKind: fault, error: 'SECRET token password upstream-body', receipt: { ...receipt, outcome: fault === 'uncertain' ? 'uncertain' : 'failure' } } });
+      value.rows = empty ? [] : body.view.form ? [Object.fromEntries(columns.map(c => [c, c === 'summary' ? 'Review shared query controls' : c === 'key' ? 'ISSUE-42' : c === 'status' ? 'Open' : c === 'assignee' || c === 'reporter' ? 'Alex Kim' : c === 'updated' || c === 'created' ? '2026-11-06' : c === 'points' ? 5 : c === 'priority' ? 'High' : c === 'project' ? 'Editor' : c === 'type' ? 'Task' : 'ISSUE-42']))] : body.view.sources.stats.operation === 'folder.statistics' ? [{ folder: '.', documents: 1, headings: 2, modified: null }] : [{ group: 'open', value: 5 }, { group: 'idle', value: 0 }, { group: 'closed', value: -2 }];
+      if (body.view.form) value.fields = { key: 'Issue key', summary: 'Summary', status: 'Status', assignee: 'Assignee', updated: 'Updated on', project: 'Project', priority: 'Priority', type: 'Type', reporter: 'Reporter', created: 'Created on', points: 'Points', link: 'Link' };
+      latestRows = value.rows; latestReceipt = receipt; value.target = { root };
+    }
+    await route.fulfill({ json: value });
   });
   await page.reload(); await page.setViewportSize({ width: 1440, height: 1000 });
   await openFolderPicker(page); await page.getByTestId('folder-path').fill(root); await page.getByTestId('folder-open').click();
@@ -89,7 +134,14 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect(page.locator('[data-slot=tooltip-content]')).toContainText(latestReceipt.requestId);
   await expect(page.locator('[data-slot=tooltip-content]')).toContainText(root);
   await page.mouse.move(0, 0); await expect(page.locator('[data-slot=tooltip-content]')).not.toBeVisible();
-  const save = async () => { await generated().getByRole('button', { name: '★ Add to favorites', exact: true }).click(); const dialog = page.getByRole('dialog', { name: '★ Add to favorites', exact: true }); await expect(dialog.getByRole('textbox', { name: 'New favorite name' })).toHaveValue(proposal.title); await dialog.getByRole('textbox', { name: 'New favorite name' }).fill(favorite); await dialog.getByRole('button', { name: 'Add favorite', exact: true }).click(); return dialog; };
+  // Fixed-args queries have no form, but Host input refusals must remain visible.
+  hostInputRefusal = true;
+  await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
+  await expect(generated().getByRole('alert')).toHaveText('Use the required format.');
+  hostInputRefusal = false;
+  await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
+  await expect(generated().getByRole('alert')).toHaveCount(0);
+  const save = async () => { await generated().getByRole('button', { name: 'Add to favorites', exact: true }).click(); const dialog = page.getByRole('dialog', { name: 'Add to favorites', exact: true }); await expect(dialog.getByRole('textbox', { name: 'New favorite name' })).toHaveValue(proposal.title); await dialog.getByRole('textbox', { name: 'New favorite name' }).fill(favorite); await dialog.getByRole('button', { name: 'Add favorite', exact: true }).click(); return dialog; };
   await expect(await save()).not.toBeVisible();
   const duplicate = await save(); await expect(duplicate.getByRole('alert')).toBeVisible(); await duplicate.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
@@ -108,9 +160,6 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   expect(queries).toBe(before.queries);
   await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
   await expect(generated().locator('tbody tr')).not.toHaveCount(0); expect(latestRows).toEqual(rows);
-  const cli = pluginFixture.cli(['view', 'run', '--name', favorite, '--plugin', 'fixture.issues', '--root', root]);
-  expect(cli.rows).toEqual(latestRows); expect(cli.receipt.operation).toBe('view.run'); expect(cli.receipt.outcome).toBe('success');
-  expect(cli.rows.some(row => row.group === 'open')).toBe(true);
   if (screenshots) for (const width of [1440, 640]) {
     await page.setViewportSize({ width, height: 1000 }); await expect(generated()).toBeVisible();
     await expect(generated().locator('tbody tr')).not.toHaveCount(0);
@@ -127,7 +176,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   let releaseOpen, openStarted = false, openDelivered = false;
   const openGate = new Promise(resolve => { releaseOpen = resolve; });
   await page.route('**/api/views', async route => {
-    if (route.request().postDataJSON().action !== 'open') return route.fallback();
+    if (route.request().postDataJSON().action !== 'open' || route.request().postDataJSON().name !== favorite) return route.fallback();
     const response = await route.fetch(); openStarted = true; await openGate;
     try { await route.fulfill({ response }); } finally { openDelivered = true; }
   });
@@ -175,6 +224,177 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
   releasePoll(); await expect.poll(() => pollDelivered).toBe(true);
   await expect(page.locator('.document-tabs [role="tab"]')).toHaveCount(tabsAfterStop);
+  // User interaction coverage for the shared query renderer.
+  if (await panel.isVisible()) await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
+  await page.keyboard.press('Control+Slash'); await page.getByRole('combobox').fill('> Document statistics');
+  await page.getByRole('option', { name: 'Document statistics', exact: true }).click();
+  const statistics = page.getByTestId('statistics-view');
+  await statistics.getByRole('combobox', { name: 'Statistics folder' }).selectOption(root);
+  await statistics.getByRole('button', { name: 'Issue search', exact: true }).click();
+  await expect(generated().getByRole('combobox', { name: 'Preset *', exact: true })).toHaveValue('0');
+  await expect(generated().getByRole('combobox', { name: 'Preset *', exact: true }).locator('option:checked')).toHaveText('Assigned open');
+  await expect(generated().getByText('Unset', { exact: true })).toHaveCount(0);
+  await expect(generated().getByRole('button', { name: 'Clear Text', exact: true })).toHaveCount(0);
+  const countBeforeInput = queries;
+  await generated().getByRole('combobox', { name: 'Preset *', exact: true }).selectOption('1');
+  await generated().getByLabel('Text', { exact: true }).fill('');
+  await expect(generated().getByRole('button', { name: 'Clear Text', exact: true })).toHaveCount(0);
+  await generated().getByLabel('Text', { exact: true }).fill('needle');
+  await generated().getByRole('button', { name: 'Clear Text', exact: true }).click();
+  await expect(generated().getByLabel('Text', { exact: true })).toBeEmpty();
+  await expect(generated().getByLabel('Text', { exact: true })).toBeFocused();
+  await expect(generated().getByRole('button', { name: 'Clear Text', exact: true })).toHaveCount(0);
+  await generated().getByLabel('Text', { exact: true }).fill('needle');
+  await generated().getByLabel('Text', { exact: true }).fill('x1');
+  await generated().getByLabel('Since', { exact: true }).fill('2026-02-31');
+  await generated().getByLabel('Limit', { exact: true }).fill('0');
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  for (const field of ['Text', 'Since', 'Limit']) await expect(generated().getByLabel(field, { exact: true })).toHaveAttribute('aria-invalid', 'true');
+  expect(queries).toBe(countBeforeInput);
+  for (const message of ['Use at least 3 characters.', 'Enter a valid date (YYYY-MM-DD).', 'Enter a value of at least 1.']) await expect(generated().getByRole('alert').filter({ hasText: message })).toBeVisible();
+  if (screenshots) await page.screenshot({ path: 'tmp/v3-review/input-errors-1440.png' });
+  await generated().getByLabel('Text', { exact: true }).fill('needle');
+  await generated().getByLabel('Limit', { exact: true }).fill('12');
+  await generated().getByLabel('Since', { exact: true }).fill('2026-11-01');
+  await expect(generated().getByLabel('Closed', { exact: true })).toHaveValue('any');
+  await generated().getByLabel('Closed', { exact: true }).selectOption('false');
+  await expect(generated().getByLabel('Closed', { exact: true })).toHaveValue('false');
+  await generated().getByLabel('Closed', { exact: true }).selectOption('true');
+  let release;
+  hold = new Promise(resolve => { release = resolve; }); started = false;
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect.poll(() => started).toBe(true);
+  await expect(generated().getByText('Loading data…')).toBeVisible();
+  await expect(generated().getByText('Data has not been queried. Refresh manually.')).toHaveCount(0);
+  await generated().getByLabel('Text', { exact: true }).fill('changed');
+  release(); hold = undefined;
+  await expect(generated().locator('th')).toHaveCount(5);
+  await expect(generated().getByText(/Search conditions changed/)).toBeVisible();
+  for (const width of [640, 960, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await generated().evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    if (screenshots) await page.screenshot({ path: `tmp/v3-evidence/form-${width}.png` });
+  }
+  hostInputRefusal = true;
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(generated().getByLabel('Text', { exact: true })).toHaveAttribute('aria-invalid', 'true');
+  await expect(generated()).not.toContainText('SECRET');
+  await expect(generated().getByText('View operation failed.', { exact: false })).toHaveCount(0);
+  await expect(generated().getByRole('alert').filter({ hasText: 'Use the required format.' })).toBeVisible();
+  hostInputRefusal = false;
+  unavailableView = true;
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(generated().getByText('This view is no longer available. Create a new view.')).toBeVisible();
+  await expect(generated()).not.toContainText('SECRET');
+  if (screenshots) { await page.setViewportSize({ width: 1440, height: 1000 }); await page.screenshot({ path: 'tmp/v3-review/unavailable-1440.png' }); }
+  unavailableView = false;
+  hold = new Promise(resolve => { release = resolve; }); started = false;
+  await generated().getByRole('combobox', { name: 'Preset *', exact: true }).selectOption('2');
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect.poll(() => started).toBe(true);
+  await expect(generated().getByText(/Previous query result/)).toBeVisible();
+  await expect(generated().getByText('Loading data…')).toBeVisible();
+  release(); hold = undefined;
+  await expect(generated().getByText('Loading data…')).toHaveCount(0);
+  const captureStates = async state => {
+    if (!screenshots) return;
+    for (const width of [1440, 960, 640]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await generated().getByRole('heading', { level: 2 }).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `tmp/v3-review/${state}-${width}.png` });
+    }
+  };
+  for (const [kind, message] of [['auth', 'Authentication required.'], ['forbidden', 'Access denied.'], ['not_found', 'Target not found.'], ['unavailable', 'Service unavailable.'], ['timeout', 'Operation timed out.'], ['uncertain', 'The outcome is unknown.']]) {
+    fault = kind;
+    await generated().getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(generated().getByText(message, { exact: false })).toBeVisible();
+    if (kind === 'auth') await captureStates('error');
+    await expect(generated()).not.toContainText('SECRET');
+    await expect(generated().getByText(/Previous query result/)).toBeVisible();
+  }
+  fault = undefined; empty = true;
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(generated().getByText('No matching rows.', { exact: true })).toHaveCount(1);
+  empty = false;
+  await generated().getByRole('button', { name: 'Add to favorites', exact: true }).click();
+  const inputSave = page.getByRole('dialog', { name: 'Add to favorites', exact: true });
+  await inputSave.getByRole('textbox', { name: 'New favorite name' }).fill('Saved inputs');
+  await inputSave.getByRole('button', { name: 'Add favorite', exact: true }).click();
+  await expect(inputSave).not.toBeVisible();
+  expect(saved.get('Saved inputs').sources.stats.args.closed).toBe(true);
+  expect(saved.get('Saved inputs').sources.stats.args.limit).toBe(12);
+  await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
+  const beforeOpen = queries;
+  await statistics.getByRole('button', { name: 'Saved inputs', exact: true }).click();
+  await expect(generated().getByLabel('Text', { exact: true })).toHaveValue('changed'); expect(queries).toBe(beforeOpen);
+  await generated().getByLabel('Text', { exact: true }).fill('');
+  await generated().getByRole('button', { name: 'Add to favorites', exact: true }).click();
+  const emptySave = page.getByRole('dialog', { name: 'Add to favorites', exact: true });
+  await emptySave.getByRole('textbox', { name: 'New favorite name' }).fill('Without text');
+  await emptySave.getByRole('button', { name: 'Add favorite', exact: true }).click();
+  await expect(emptySave).not.toBeVisible();
+  expect(Object.hasOwn(saved.get('Without text').sources.stats.args, 'text')).toBe(false);
+  await generated().getByLabel('Text', { exact: true }).fill('changed');
+  await expect(generated().getByRole('combobox', { name: 'Preset *', exact: true })).toHaveValue('2');
+  await expect(generated().getByLabel('Since', { exact: true })).toHaveValue('2026-11-01');
+  await expect(generated().getByLabel('Closed', { exact: true })).toHaveValue('true');
+  await expect(generated().getByText('Data has not been queried. Refresh manually.')).toBeVisible();
+  await captureStates('reopened');
+  await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
+  await statistics.getByRole('button', { name: 'Twelve columns', exact: true }).click();
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(generated().locator('th')).toHaveCount(12);
+  await expect(generated().locator('th').first()).toHaveText('Issue key');
+  await expect(generated().locator('th').last()).toHaveText('Link');
+  for (const width of [640, 960, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await generated().evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    const scroller = generated().locator('.view-table-scroll');
+    await scroller.scrollIntoViewIfNeeded(); await scroller.hover(); await page.mouse.wheel(2500, 0);
+    await expect.poll(() => scroller.evaluate(el => el.scrollLeft > 0)).toBe(true);
+    await expect.poll(() => generated().locator('th').last().evaluate(el => el.getBoundingClientRect().right <= el.closest('.view-table-scroll').getBoundingClientRect().right)).toBe(true);
+    if (screenshots) await page.screenshot({ path: `tmp/v3-review/table12-${width}-end.png` });
+    await page.mouse.wheel(-2500, 0);
+    await expect.poll(() => scroller.evaluate(el => el.scrollLeft)).toBe(0);
+    if (screenshots) await page.screenshot({ path: `tmp/v3-review/table12-${width}-start.png` });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
+  await statistics.getByRole('button', { name: 'Form name input', exact: true }).click();
+  await generated().getByLabel('Form value', { exact: true }).fill('x');
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(generated().getByLabel('Form value', { exact: true })).toHaveAttribute('aria-invalid', 'true');
+  await expect(generated().getByRole('alert')).toHaveCount(1);
+  await expect(generated().getByRole('alert')).toHaveText('Use at least 3 characters.');
+  await generated().getByLabel('Form value', { exact: true }).fill('valid');
+  hostCommonRefusal = true;
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(generated().getByRole('alert')).toHaveCount(1);
+  await expect(generated().getByRole('alert')).toHaveText('Check this value against the operation requirements.');
+  await expect(generated().getByLabel('Form value', { exact: true })).toHaveAttribute('aria-invalid', 'false');
+  await expect(generated().getByLabel('Form value', { exact: true })).not.toHaveAttribute('aria-describedby');
+  hostCommonRefusal = false;
+  await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
+  const queriesBeforeReview = queries;
+  await statistics.getByRole('button', { name: 'Review entry', exact: true }).click();
+  const review = page.getByTestId('review-view');
+  await expect(review.getByRole('heading', { name: 'Review entry', exact: true })).toBeVisible();
+  await expect.poll(() => reviewReads).toBeGreaterThan(0);
+  expect(queries).toBe(queriesBeforeReview);
+  await page.getByRole('button', { name: 'Collapse Explorer', exact: true }).click();
+  await expect(review.getByRole('region', { name: 'Changes', exact: true })).toBeVisible();
+  await review.getByRole('button', { name: 'Change 1', exact: false }).click();
+  await expect(review.getByText('Reviewed content', { exact: true })).toBeVisible();
+  missingReviewMapping = true;
+  const readsBeforeMissingMapping = reviewReads;
+  await review.getByRole('button', { name: 'Refresh data', exact: true }).click();
+  await expect.poll(() => reviewReads).toBeGreaterThan(readsBeforeMissingMapping);
+  await expect(review.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled();
+  await expect(review.getByText('Reviewed content', { exact: true })).toBeVisible();
+  if (screenshots) for (const width of [1440, 960, 640]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.screenshot({ path: `tmp/v3-review/review-entry-${width}.png` });
+  }
   pluginFixture.cli(['plugins', 'disable', 'fixture.issues']);
   return { favorite, root, rows, captureEnvironment, providers: sends.map(send => send.provider) };
 }
