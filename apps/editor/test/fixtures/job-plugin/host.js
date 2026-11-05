@@ -9,6 +9,10 @@ export function activate() {
         const job = { state: "running", phase: "Reading", progress: { done: 0, total: 3 } };
         const control = { job, text, wake: undefined, timer: undefined }; jobs.set(input.requestId, control);
         void (async () => {
+          if (text.startsWith("HOLD")) {
+            await new Promise(resolve => { control.wake = resolve; });
+            return;
+          }
           for (let step = 1; step <= 3; step++) {
             await new Promise(resolve => { control.wake = resolve; control.timer = setTimeout(resolve, text.startsWith("SLOW") ? 1500 : 700); });
             if (job.state !== "running") return { ...job };

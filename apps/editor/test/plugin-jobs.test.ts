@@ -108,7 +108,7 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
     assert.ok(!JSON.stringify(await host.jobs.execute({ action: "job-status", requestId: uncertain.requestId })).includes("raw-service-private"));
     assert.ok(!JSON.stringify(await host.jobs.execute({ action: "job-list" })).includes("raw-service-private"));
     assert.equal(existsSync(path.join(root, uncertain.output)), false);
-    const stopped = await start("# Stop"); const acknowledgement = await host.jobs.execute({ action: "job-stop", requestId: stopped.requestId });
+    const stopped = await start("HOLD # Stop"); const acknowledgement = await host.jobs.execute({ action: "job-stop", requestId: stopped.requestId });
     assert.ok("job" in acknowledgement);
     assert.equal(acknowledgement.job!.stopRequested, true); assert.equal(acknowledgement.job!.state, "running");
     await wait(stopped.requestId, "stopped"); assert.equal(existsSync(path.join(root, stopped.output)), false);
@@ -116,11 +116,11 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
     await assert.rejects(host.invoke("job-start", { ...input, requestId: randomUUID(), output: "../outside.md" }));
     const collision = await start("# Collision"); writeFileSync(path.join(root, collision.output), "keep");
     await wait(collision.requestId, "uncertain"); assert.equal(readFileSync(path.join(root, collision.output), "utf8"), "keep");
-    const pending = await start("# Disable"); await host.invoke("disable", { id: "fixture.jobs" });
+    const pending = await start("HOLD # Disable"); await host.invoke("disable", { id: "fixture.jobs" });
     assert.equal(existsSync(path.join(root, pending.output)), false);
     await host.invoke("enable", { id: "fixture.jobs" });
     await host.invoke("reload", { id: "fixture.jobs" });
-    const interrupted = await start("# Restart while active");
+    const interrupted = await start("HOLD # Restart while active");
     await host.close();
     const restarted = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
     try {
