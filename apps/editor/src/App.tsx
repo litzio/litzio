@@ -1274,7 +1274,7 @@ function EditorApp() {
               wide={documentWidth === "wide"}
               onToggleWide={owner?.kind === "text" ? undefined : toggleDocumentWidth}
               compact={split}
-              status={operation || (owner?.assetPending ? "adding-image" : owner?.status ?? "ready")}
+              status={operation || (owner?.assetPending ? "adding-image" : owner?.busy ? owner.status : pendingOpens.current.has(group.id) ? "opening" : owner?.status ?? "ready")}
               unsaved={owner?.documentDirty || owner?.draftActive}
               draftNotice={owner?.draftNotice}
               textMode={owner?.kind === "text"}

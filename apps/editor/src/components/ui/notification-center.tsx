@@ -104,6 +104,8 @@ export function NotificationCenter({ items }: { items: RegisteredNotification[] 
   const accessibleLabel = visible.length ? i18n.t("Notifications: {{severity}}, {{count}}", { severity: label, count: visible.length }) : i18n.t("Notifications: none");
   const causes = JSON.stringify(items.map(item => [item.id, item.severity]));
   useLayoutEffect(() => {
+    // Removed producers must not leave their transient progress in the live region.
+    if (!items.length) setAnnouncement(undefined);
     const ids = items.map(item => item.id);
     setHidden(value => value.filter(id => ids.includes(id)));
     if (items.some(item => (item.severity !== "info" || !!item.actionLabel) && !previous.current.includes(item.id))) setExpanded(true);

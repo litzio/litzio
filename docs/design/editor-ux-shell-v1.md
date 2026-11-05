@@ -3172,6 +3172,11 @@ registered Host's protocol/product policy.
 
 Explicit Open is owned by App per destination group with its captured HostClient and path.
 It does not acquire the window operation lock or disable other Hosts' tab navigation, Open or Save.
+The destination group's status reports Opening until the read finishes or is cancelled, instead of
+leaving the previous document's Ready status visible. An in-flight session Save/Source/asset operation
+retains its own status priority. This presentation does not acquire a group navigation or Save lock.
+When all notification producers have been removed, the notification center clears its live-region
+announcement too; a completed or cancelled Open leaves no obsolete progress announcement.
 Selecting a tab, opening another document in that group, closing its tab, or choosing Cancel
 in the existing notification cancels the pending Open. A superseded response cannot admit a tab.
 File rename/delete invalidates pending Open on the same Host and path before any asynchronous work,
