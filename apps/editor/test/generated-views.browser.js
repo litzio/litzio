@@ -46,7 +46,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   saved.set('Issue search', formView);
   saved.set('Twelve columns', { ...formView, title: 'Twelve columns', layout: { component: 'VerticalPanel', children: [{ ...formView.layout.children[0], columns }] } });
   const catalog = { operations: [{ operation: 'fixture.issues.read', version: 1, plugin: 'fixture.issues', rowSchema: Object.fromEntries(columns.map(c => [c, { type: 'string', label: c }])), inputSchema: { type: 'object', additionalProperties: false, required: ['preset'], properties: { preset: { type: 'string', title: 'Preset', description: 'Choose which issues to include.', enum: ['assigned-open', 'reported-open', 'assigned-all', 'reported-all', 'recent', 'all'] }, text: { type: 'string', title: 'Text', minLength: 3, pattern: '^[A-Za-z ]+$', maxLength: 20 }, since: { type: 'string', format: 'date', title: 'Since' }, limit: { type: 'integer', minimum: 1, maximum: 100 }, closed: { type: 'boolean', title: 'Closed' }, form: { type: 'string', title: 'Form value', minLength: 3 } } } }] };
-  let reviewReads = 0;
+  let reviewReads = 0, missingReviewMapping = false;
   const baseline = { documentRevision: 'r1', proposalRevision: 'p1', sourceRevision: 's1', mappingRevision: 'm1' };
   await page.route('**/api/reviews', route => {
     const body = route.request().postDataJSON();
@@ -57,6 +57,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
       page: { generation: 'g1', sourceRevision: 's1', pageNo: 1, width: 600, height: 800, origin: 'TOPLEFT', unit: 'px', regions: [] },
       mapping: { generation: 'g1', documentRevision: 'r1', documentHash: 'h1', sourceRevision: 's1', mappingRevision: 'm1', entries: [] },
       proposals: [{ id: 'change', kind: 'text.replace', targets: [{ path: pluginFixture.reviewDocument.blocks[0].path, documentRevision: 'r1', documentHash: 'h1' }], before: { type: 'plain', text: 'Original content' }, after: { type: 'plain', text: 'Reviewed content' }, evidence: ['Checked source'], baseline, state: 'pending', actions: [{ action: 'approve', allowed: true }, { action: 'reject', allowed: true }] }] };
+    if (missingReviewMapping) delete snapshot.mapping;
     return route.fulfill({ json: { snapshot, receipt: { outcome: 'success' } } });
   });
   await page.route('**/api/views', async route => {
@@ -383,6 +384,12 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await page.getByRole('button', { name: 'Collapse Explorer', exact: true }).click();
   await expect(review.getByRole('region', { name: 'Changes', exact: true })).toBeVisible();
   await review.getByRole('button', { name: 'Change 1', exact: false }).click();
+  await expect(review.getByText('Reviewed content', { exact: true })).toBeVisible();
+  missingReviewMapping = true;
+  const readsBeforeMissingMapping = reviewReads;
+  await review.getByRole('button', { name: 'Refresh data', exact: true }).click();
+  await expect.poll(() => reviewReads).toBeGreaterThan(readsBeforeMissingMapping);
+  await expect(review.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled();
   await expect(review.getByText('Reviewed content', { exact: true })).toBeVisible();
   if (screenshots) for (const width of [1440, 960, 640]) {
     await page.setViewportSize({ width, height: 1000 });

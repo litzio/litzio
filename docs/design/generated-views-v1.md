@@ -2,9 +2,9 @@
 
 - Status: Implemented
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Request paths, lazy plugin start, receipts and stored formats are unchanged.
-- Last verified: 2026-11-06 — V2 Host/CLI query fixture, Core tests, typecheck and production HTTP Save/Reload/conflict regression. Renderer v2 acceptance is pending. Previous 2026-11-05 — #1218 fixture plugin schema Core/Host/CLI and generated-views browser scenario; actual Codex gpt-6-luna low via existing conversation adapter generated status/points grouping, validated and evaluated to open=5. Initial local HTTP recovery companion failed waiting for browser close after owned PID termination; final-build rerun passed 2/2. After separating fixture module paths to prevent import-cache reuse, combined http-plugins/generated-views passed 3/3. No timeout relaxation. Previous #1210 evidence: Core/file-commit and Host/HTTP/CLI tests; provider stdio boundary tests, production browser generation/favourite/reopen/manual refresh/CLI equality and 1440px/640px captures; actual Codex gpt-6-luna low proposal/correction/exhaustion. Copilot generation uses fake ACP/browser evidence, not a paid live Copilot response.
+- Last verified: 2026-11-06 — V3 query forms/states, keyword-specific field errors, public owner persistence and #1266 review entry fixtures; generated-views/HTTP recovery browser 2/2, targeted Host/CLI/plugin checks and visual-tokens. V2 Host/CLI evidence is retained below; external-service UI/CLI acceptance remains separate. Previous 2026-11-05 — #1218 fixture plugin schema Core/Host/CLI and generated-views browser scenario; actual Codex gpt-6-luna low via existing conversation adapter generated status/points grouping, validated and evaluated to open=5. Initial local HTTP recovery companion failed waiting for browser close after owned PID termination; final-build rerun passed 2/2. After separating fixture module paths to prevent import-cache reuse, combined http-plugins/generated-views passed 3/3. No timeout relaxation. Previous #1210 evidence: Core/file-commit and Host/HTTP/CLI tests; provider stdio boundary tests, production browser generation/favourite/reopen/manual refresh/CLI equality and 1440px/640px captures; actual Codex gpt-6-luna low proposal/correction/exhaustion. Copilot generation uses fake ACP/browser evidence, not a paid live Copilot response.
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md), [#1210](https://github.com/litzio/litzio/issues/1210).
-- Scope: V2 query Host/CLI supersedes v1 Host behavior as described below. Existing renderer/assistant call sites now use v2 query envelopes; V3 forms/states and V6 tools/cards remain pending. Historical Core v1, file-commit exclusive creation, built-in statistics, Host/CLI operations, shared bundled rendering and both assistant adapters. Includes #1218 operation row-schema declarations for active plugin reads; no external API, settings migration or data migration. The final V1 section documents the separately implemented catalog v2 Core/SDK layer, now consumed by the V2 query Host/CLI.
+- Scope: V2 query Host/CLI supersedes v1 Host behavior as described below. Existing renderer/assistant call sites now use v2 query envelopes; V3 supplies forms/states and query/InputForm generation; review generation and V6 tools/cards remain gated. Historical Core v1, file-commit exclusive creation, built-in statistics, Host/CLI operations, shared bundled rendering and both assistant adapters. Includes #1218 operation row-schema declarations for active plugin reads; no external API, settings migration or data migration. The final V1 section documents the separately implemented catalog v2 Core/SDK layer, now consumed by the V2 query Host/CLI.
 
 ## V2 query Host and CLI
 
@@ -16,7 +16,7 @@ The existing statistics definition, renderer structural check and assistant gene
 
 CI diagnosis: `generated-views` first failed at the basic statistics table because its old v1 definition was refused by the v2 Host. The later invalid-binding correction/duplicate-save steps never ran, hence the secondary missing-HTTP-failures error. The browser fixture now supplies a v2 proposal and explicitly selects the plugin namespace in CLI run. All interaction/row/correction/cancellation assertions and the expected two HTTP 400 failures remain unchanged. Verification: production `pnpm browser:test http-host http-plugins plugin-jobs generated-views` passed 5/5 on Windows (about 1.3 minutes), including Save/Reload/conflict/reconnect. No actual external service or live model was used.
 
-Generation exposure is deliberately narrower than the full Host/Core catalog: `shared/view-generation.ts` uses `queryViewSchema.omit({form:true})` with strict unknown-property refusal and advertises `limits.inputs:0`. Both the default context and per-plugin context allow only fixed-args query definitions; InputForm and review are not exposed to either provider. This does not narrow the Host catalog or its tested form persistence/input contracts. Reopen InputForm at `generationSchema`/`generationCatalog` in that file only after V3's input renderer is integrated (restore the Core input limit); review exposure must wait for V4/V5 Host and screen integration. The generation-context test rejects otherwise valid form/review specifications against the actual published schema.
+Generation exposure is deliberately narrower than the full Host/Core catalog: `shared/view-generation.ts` publishes the complete `queryViewSchema`, including InputForm and the Core input limit. Both the default context and per-plugin context accept fixed-args and InputForm query definitions. Review generation remains excluded until V4/V5 Host and screen integration. The generation-context test accepts both query forms and rejects an otherwise valid review definition against the actual published schema.
 
 ### Catalog HTTP contract (V2 authority)
 
@@ -135,7 +135,9 @@ Each attempt is bounded to 180 seconds, including awaited HTTP responses. Stop, 
 
 Successful validation opens a new tab with the definition. Rendering authorizes no save or document mutation. The user separately refreshes data or adds a favourite. Opening favourites never invokes the assistant.
 
-## Integration evidence
+## Historical integration evidence (v1)
+
+The following records v1 acceptance. Current V3 renderer regression uses v2 fixtures as stated below; the V2 Host/CLI tests remain separate.
 
 `pnpm browser:test generated-views` is a production HTTP scenario, included in both platform HTTP CI jobs. Assistant replies are fixtures for deterministic UI testing; actual Host validation, built-in statistics and a registered fixture plugin with status/points schema, safe favorite storage and CLI execution are real. It checks a deliberately bad binding → visible correction on the same model → new tab → data refresh → save → duplicate refusal → basic list → definition-only reopen without new model/query calls → manual refresh → CLI aggregate equality. Both provider choices pass through the same app path. Delayed favorite-open and generation-poll responses verify fetch cancellation, immediate control recovery and no late tab creation. `--screenshots` separately saves `tmp/1210-evidence/captures/generated-{1440,640}.png` and `favorites-{1440,640}.png` for manual review.
 
@@ -161,10 +163,10 @@ Existing Core views tests cover v2 canonical round trips, missing versus executa
 폼 8입력·표 12열을 Core 계약대로 소비하고 자료 가공은 Host/Core 결과만 표시한다.
 동작은 [공통 조회 패턴](ui-patterns-v1.md#query-renderer-v3), 조합은 [UI 결정표](ui-decision-table-v1.md#catalog-query-renderer-v3-1241-a안)를 따른다.
 
-V2 Host 연결 전 renderer 검증은 기존 generated-views browser 시나리오의 v2 fixture로 수행한다.
+V2 Host가 병합된 상태에서 renderer 회귀는 generated-views browser 시나리오의 v2 fixture로 검증한다. Host/CLI 계약은 별도 대상 검사로 확인한다.
 폼은 대상 Host의 `POST /api/views {action:"catalog"}` 응답의 `catalog.operations`에서 operation/version에 맞는 공개
 inputSchema를 읽는다. 실행·신규 저장·열기는 기존 `POST /api/views` envelope를 사용한다.
-V2가 이 adapter를 연결하기 전 실제 plugin namespace 저장/기본 기여·CLI 일치는 미완료다.
+V2의 실제 plugin namespace·입력·Host/CLI 검사는 유지하며, 외부 서비스까지 포함한 UI/CLI 동시 수락은 별도 gate다.
 화면은 Core의 validateViewInputs(execute)를 사용한다. CSP에서 실행 가능한 @cfworker/json-schema 4.1.6 해석 evaluator를 Core compiler로 주입하고 Host의 기본 Ajv 검증은 유지한다. 날짜·길이·pattern·required 등 같은 schema를 검증하며 값 coercion/default 삽입을 하지 않는다. Core/Host의 ViewInputIssue(field, keyword)를 고정 필드 오류로 표시하고 원문 오류는 표시하지 않는다.
 브라우저 fixture 통과를 실제 서비스·Host·비서 제작 수락으로 계산하지 않는다.
 
@@ -191,3 +193,10 @@ renderer가 새 schema나 label DSL을 추가하지 않는다.
 V2/V4의 실제 Host 서비스 통합과 CLI 일치는 별도 gate다. CSP는 완화하지 않는다.
 
 V2의 `code:"unavailable"`은 삭제된 열·버전/가용성 변경으로 사용할 수 없는 뷰이며, service unavailable 작업 오류와 구분해 새 뷰가 필요함을 안내한다. 카탈로그 HTTP 계약은 작은 `readViewCatalog` adapter 한 곳이 소비한다.
+
+### V2/V5 병합 뒤 생성 노출과 진입점
+
+#1264·#1261·#1266 병합 뒤 query 생성 context에 Core query schema의 InputForm과
+원래 inputs 한도를 다시 노출한다. review profile은 V4 Host 통합 전까지 생성 catalog에서
+제외한다. 공통 진입점의 ReviewAdapter 계약은 #1266에서도 같으며 mapping이 없는 snapshot을
+거부하지 않는다. mapping 없는 review의 제안 표시·허용 동작은 V5가 소유한다.

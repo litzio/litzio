@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { generateView } from "../src/views/generate-view.ts";
 import { statisticsView, ViewValidationError } from "../src/views/view-api.ts";
-import { queryViewSchema } from "@litzio/core/views-v2";
+import { queryViewSchema, validateCatalogView, compileViewInputSchema, VIEW_LIMITS } from "@litzio/core/views-v2";
+import { builtinViewOperations } from "@litzio/core/views";
 import type { AssistantConversation } from "../shared/assistant.ts";
 import { AssistantViewGenerations } from "../server/assistant-view-generations.ts";
 import { createAssistantRequest } from "../src/assistant-api.ts";
@@ -11,6 +12,22 @@ import { viewRequest, readViewCatalog } from "../src/views/view-api.ts";
 import { ViewInputError } from "@litzio/core/views-v2";
 import { sourceFailure, inputIssueMessage } from "../src/views/source-state.ts";
 import { i18n } from "../src/i18n.ts";
+
+const validateView = (value: unknown) => queryViewSchema.parse(validateCatalogView(value));
+
+test("generation context accepts fixed args and InputForm queries but rejects review definitions", async () => {
+  const { viewGenerationContext, VIEW_GENERATION_CONTEXT } = await import("../shared/view-generation.ts");
+  for (const catalog of [VIEW_GENERATION_CONTEXT.catalog, viewGenerationContext(builtinViewOperations).catalog]) {
+    const accepts = compileViewInputSchema(catalog.schema);
+    const fixed = validateView(statisticsView);
+    assert.equal(accepts(fixed), true);
+    assert.equal(accepts({ ...fixed, form: { component: "InputForm", source: "stats", fields: [], submit: { component: "SubmitButton", label: "Search" } } }), true);
+    assert.equal(accepts({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
+      sources: { review: { plugin: "example.demo", review: "compare", bundleRef: "bundle-1" } },
+      layout: { component: "VerticalPanel", children: [{ component: "PageSurface", title: "Page", source: "review" }] } }), false);
+    assert.equal(catalog.limits.inputs, VIEW_LIMITS.inputs);
+  }
+});
 
 test("send, poll and validation cancellation settle before delayed transports and discard their late results", async () => {
   for (const phase of ["send", "poll", "validate"] as const) {
@@ -27,14 +44,14 @@ test("send, poll and validation cancellation settle before delayed transports an
         return (phase === "poll" ? { ...complete, turns: [{ id: "turn", status: "inProgress", items: [] }] } : complete) as T;
       }, snapshot: () => {}, status: () => {}, validate: async (_value, requestSignal) => {
         if (phase === "validate") { signal = requestSignal; entered(); return gate; }
-        return queryViewSchema.parse(statisticsView);
+        return validateView(statisticsView);
       },
     }).then(() => { published++; });
     await waiting;
     controller.abort(new Error("cancelled"));
     await assert.rejects(running, /cancelled/);
     assert.equal(signal?.aborted, true); assert.deepEqual(cancellations, ["prepared"]);
-    release(phase === "validate" ? queryViewSchema.parse(statisticsView) : complete);
+    release(phase === "validate" ? validateView(statisticsView) : complete);
     await new Promise(resolve => setImmediate(resolve));
     assert.equal(published, 0);
   }
@@ -49,7 +66,7 @@ test("the generation deadline aborts a send that never settles", async () => {
       if (body.action === "prepare-view-generation") return { requestId: "deadline" } as T;
       if (body.action === "cancel-view-generation") { cancellations.push(body.requestId); return {} as T; }
       received = signal; return new Promise<T>(() => {});
-    }, snapshot: () => assert.fail("late result"), status: () => {}, validate: async value => queryViewSchema.parse(value),
+    }, snapshot: () => assert.fail("late result"), status: () => {}, validate: async value => validateView(value),
   }), /timed out/);
   assert.equal(received?.aborted, true); assert.deepEqual(cancellations, ["deadline"]);
 });
@@ -93,7 +110,7 @@ test("Korean generation progress and correction errors use bundled translations"
         if (body?.action === "prepare-view-generation") return { requestId: "prepared" } as T;
         sends++; messages.push(body.message);
         return { id: "thread", model: "selected", reasoningEffort: "low", turns: [{ status: "completed", items: [{ kind: "assistant", text: JSON.stringify(statisticsView) }] }] } as T;
-      }, snapshot: () => {}, status: value => statuses.push(value), validate: async value => { if (sends === 1) throw new ViewValidationError("field"); return queryViewSchema.parse(value); },
+      }, snapshot: () => {}, status: value => statuses.push(value), validate: async value => { if (sends === 1) throw new ViewValidationError("field"); return validateView(value); },
     });
     assert.ok(statuses.some(value => value.includes("검증 실패"))); assert.ok(statuses.includes("뷰 명세 검증 완료")); assert.match(messages[1], /수정 1\/2/);
   } finally { await i18n.changeLanguage("en"); }
@@ -107,7 +124,7 @@ test("both providers validate only final responses, correct in the same conversa
       turns: [{ id: `turn-${attempt}`, status: polls ? "completed" : "inProgress", items: [{ id: "answer", kind: "assistant", text: polls ? JSON.stringify(attempt < 3 ? { invalid: true } : statisticsView) : '{"partial":' }] }] });
     const result = await generateView({ input: { provider, model: "selected-model", reasoningEffort: "low", folders: [], message: "Documents" }, signal: new AbortController().signal, pollMs: 0,
       request: async <T>(_url: string, body?: any): Promise<T> => { if (body?.action === "prepare-view-generation") return { requestId: "prepared" } as T; calls.push(body); if (body) { attempt++; polls = 0; } else polls++; return snapshot() as T; },
-      snapshot: () => {}, status: message => statuses.push(message), validate: async value => { try { return queryViewSchema.parse(value); } catch (error) { throw new ViewValidationError(String(error)); } },
+      snapshot: () => {}, status: message => statuses.push(message), validate: async value => { try { return validateView(value); } catch (error) { throw new ViewValidationError(String(error)); } },
     });
     assert.equal(result.schemaVersion, 2); assert.equal(attempt, 3);
     const sends = calls.filter(Boolean);
