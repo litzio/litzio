@@ -63,6 +63,7 @@ export function validateViewInputs(view: QueryView, operation: ViewOperation, mo
   }
   const inspectSecrets = (value: unknown, definition: Record<string, any>): void => {
     if (secret(definition)) throw new Error("Secret input cannot be persisted");
+    if (typeof value === "string" && value.length > 512) throw new Error("Input string exceeds limit");
     if (Array.isArray(value)) for (const item of value) inspectSecrets(item, record(definition.items));
     else if (value && typeof value === "object") for (const [name, item] of Object.entries(value)) inspectSecrets(item, record(record(definition.properties)[name]));
   };

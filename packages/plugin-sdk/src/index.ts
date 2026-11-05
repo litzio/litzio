@@ -119,4 +119,3 @@ export const PLUGIN_ERROR_MESSAGES: Readonly<Record<PluginErrorKind, string>> = 
 };
 
 export type ViewContribution = PluginManifest["contributes"]["views"][number];
-

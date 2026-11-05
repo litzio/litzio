@@ -128,6 +128,8 @@ test("v2 form validates type/enum/date/range/secret and separates saved missing 
   }
   for (const field of ["token", "unknown"]) { const bad = formView(); bad.form.fields[0].field = field; assert.throws(() => validateCatalogView(bad, operations)); }
   const noForm = formView(); delete noForm.form; assert.throws(() => validateCatalogView(noForm, operations));
+  const fixed = formView(); delete fixed.form; fixed.sources.stats.args = { text: "a".repeat(513) };
+  assert.throws(() => validateCatalogView(fixed, [{ ...inputOperation, inputSchema: { type: "object", properties: { text: { type: "string" } } } }]));
   const tooMany = formView(); tooMany.form.fields = Array(9).fill(tooMany.form.fields[0]); assert.throws(() => validateCatalogView(tooMany, operations));
   const wrongControl = formView(); wrongControl.form.fields[0].component = "Checkbox"; assert.throws(() => validateCatalogView(wrongControl, operations));
 });
