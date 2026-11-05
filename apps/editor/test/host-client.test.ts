@@ -20,7 +20,7 @@ test("Host-bound operations retain origin, isolate outage, and never replay writ
       if (req.url?.startsWith("/api/document") && req.method === "GET") value = { kind: "text", path: "/same.md", source: name, revision: name };
       else if (req.url === "/api/document") value = { revision: `${name}-saved` };
       else if (req.url?.startsWith("/api/asset")) value = { path: "assets/image.png", rollbackToken: name };
-      else if (req.url === "/api/host-capabilities") value = { fileDeletion: name === "a" ? "trash" : "permanent" };
+      else if (req.url === "/api/host-capabilities") value = { fileDeletion: name === "a" ? "trash" : "permanent", identity: { runAs: `${name}-user` } };
       res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(value));
     });
     server.listen(0, "127.0.0.1"); await once(server, "listening");
@@ -34,6 +34,8 @@ test("Host-bound operations retain origin, isolate outage, and never replay writ
   await Promise.all([registry.connect("a"), registry.connect("b")]);
   assert.equal(registry.get("a").capabilities?.fileDeletion, "trash");
   assert.equal(registry.get("b").capabilities?.fileDeletion, "permanent");
+  assert.deepEqual(registry.get("a").identity, { runAs: "a-user" });
+  assert.deepEqual(registry.get("b").identity, { runAs: "b-user" });
   for (const [id, fixture] of [["a", a], ["b", b]] as const) {
     const client = registry.get(id).client;
     const docs = createDocumentRequests(client), assets = createAssetHost(client);
@@ -63,6 +65,7 @@ test("Host-bound operations retain origin, isolate outage, and never replay writ
   await assert.rejects(createDocumentRequests(registry.get("a").client).requestSave({ kind: "text", path: "/same.md", revision: "a", source: "unsure" }), /may already have been saved/);
   await registry.connect("a");
   assert.equal(registry.get("a").state, "disconnected");
+  assert.equal(registry.get("a").identity, undefined);
   assert.equal(registry.get("b").state, "connected");
   const before = b.requests.length;
   assert.equal((await createDocumentRequests(registry.get("b").client).requestSave({ kind: "text", path: "/same.md", revision: "b", source: "ok" })).revision, "b-saved");

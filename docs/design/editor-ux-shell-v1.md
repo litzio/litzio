@@ -11,6 +11,7 @@ Old path-only preferences are ignored without migration. See the
 #1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP Host 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
 
 - Status: Implemented
+- Run-as verification: 2026-11-05 — #1199 Windows Host health/capability·CLI lifecycle and two-Host persistent Chrome fixture; 1440px/640px footer captures. Actual Windows Desktop to Linux connection remains unverified.
 - Host identity verification: 2026-11-05 (#1174 PR1: targeted Editor unit tests, workspace typecheck, boundaries/docs and persistent-Chrome recovery/storage/structure, document-tabs, folder-memory and file-actions; no multi-Host connection or packaged Desktop execution).
 - Image-link preview verification: 2026-10-29 (#731; [contract and captures](#relative-image-link-previews-731)).
 - Link opening verification: 2026-10-29 (#725; [contract and captures](#open-ordinary-links-725)).
@@ -173,8 +174,8 @@ The sidebar opens the read-only module tab described in
 Its entry sits in the sidebar footer above Settings, separate from Explorer's
 empty-state help and folder navigation. Collapse Explorer → Open folder retains
 its existing Tab order; the collapsed rail exposes Explorer, Color mode and Settings.
-After Explorer's file navigation, the footer's Tab order is Docling comparison → Settings → Color mode.
-The rail keeps Settings bottom-aligned and places Color mode immediately above it.
+After Explorer's file navigation, the footer's Tab order is Template gallery → Settings → Color mode → Desktop menu (Desktop only) → active Host execution account → TopBar. The account stop exposes the full value and permission explanation through the shared tooltip.
+The rail keeps Settings, Color mode and Desktop menu above the bottom execution-account status.
 It shares tab navigation/closing while remaining outside document editing,
 Save/recovery sessions and startup tab restoration.
 
@@ -3156,3 +3157,13 @@ existing small typography. Registry metadata and runtime observations publish th
 subscription; registered Host labels/removal update shell surfaces, and startup tab restoration
 waits for the corresponding Host to connect. Subsequent shell connection checks retain the
 registered Host's protocol/product policy.
+
+## 활성 Host 실행 계정 (#1199)
+
+사이드바 맨 아래 한 줄은 현재 활성 문서 탭의 Host 라벨과 실행 계정을 함께 표시한다(예: `workstation · DOMAIN\user`). 문서 탭이 없으면 로컬 Host를 기준으로 한다. 기존 설정·테마·메뉴 행은 그 바로 위에 둔다. 탐색기의 Host 필터는 이 실행 대상을 바꾸지 않는다.
+
+공통 HostStatus 상태 점·Tooltip과 기존 control 높이·간격·문자색 토큰을 사용한다. 연결된 Host의 `identity.runAs`만 표시하며 연결되지 않거나 계정이 없는 Host는 상태만 표시한다. 축소된 사이드바에서는 상태 점과 툴팁을 사용한다. 전체 Host 라벨·실행 계정과 설명은 툴팁으로 제공한다. 한국어 명칭은 **실행 계정**, 설명은 “이 Host의 파일 작업과 비서 실행은 이 계정 권한으로 수행됩니다”이다. 접속자 신원은 제공하지 않는다.
+
+640px 이상에서 한 줄 말줄임을 사용하며 전체 계정은 키보드 focus/hover 툴팁으로 확인한다. 공통 구현은 HostStatus/Tooltip이며 별도 아이콘·팔레트·상호작용 예외는 없다.
+
+검증 캡처: [1440px 원격 Host](assets/host-run-as-1199/1440.png), [640px 로컬 Host](assets/host-run-as-1199/640.png). 두 Host fixture이며 실제 원격 OS 연결 증거가 아니다.

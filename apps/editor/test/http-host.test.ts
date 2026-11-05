@@ -1,3 +1,4 @@
+import { hostIdentity } from "../server/host-identity.ts";
 import { EventEmitter, once } from "node:events";
 import { randomUUID } from "node:crypto";
 import { folderVersion } from "../server/folder-watch.ts";
@@ -6,7 +7,7 @@ import { nativeSource } from "./helpers/document.ts";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { createServer, request } from "node:http";
-import { tmpdir } from "node:os";
+import { tmpdir, userInfo } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
@@ -204,7 +205,11 @@ test("daemon checks protocol/product versions and only stops its own instance", 
   assert.equal((await send("/daemon/health", "GET", undefined, { "X-Litzio-Protocol": "incompatible" })).status, 409);
   assert.equal((await send("/daemon/health", "GET", undefined, { "X-Litzio-Protocol": "3" })).status, 409, "pre-assistant daemon protocol must be refused before connection");
   const warnings: string[] = [], record = { ...health, url };
-  assert.deepEqual(await inspectDaemon(record, "new-product", message => warnings.push(message)), health);
+  assert.deepEqual(await inspectDaemon(record, "new-product", message => warnings.push(message)), { ...health, identity: hostIdentity() });
+  const runAs = hostIdentity().runAs;
+  if (process.platform === "win32") assert.match(runAs, /^[^\\]+\\[^\\]+$/);
+  assert.equal(runAs.split("\\").at(-1)!.toLowerCase(), userInfo().username.toLowerCase());
+
   assert.match(warnings.join(), /WARNING.*restart explicitly/);
   await assert.rejects(stopDaemon({ ...record, instanceId: "another-instance" }, health.productVersion), /identity changed/);
   const invalidStop = await send("/daemon/stop", "POST", { ...health, startedAt: "other-start", confirm: true }, headers);
@@ -269,7 +274,7 @@ test("HTTP trash failure preserves the original file without permanent deletion"
       throw Object.assign(new Error("rename outside-secret-path"), { code: "EXDEV" });
     } }) }));
   t.after(() => host.close());
-  assert.deepEqual(await (await fetch(host.url + "/api/host-capabilities")).json(), { fileDeletion: "trash" });
+  assert.deepEqual(await (await fetch(host.url + "/api/host-capabilities")).json(), { fileDeletion: "trash", identity: hostIdentity() });
   const file = path.join(a, "document.md"), original = fs.readFileSync(file);
   const response = await fetch(host.url + "/api/file", { method: "DELETE", headers: { Origin: host.url, "Content-Type": "application/json" }, body: JSON.stringify({ root: a, path: file }) });
   assert.equal(response.status, 400); assert.deepEqual(fs.readFileSync(file), original);

@@ -1,3 +1,4 @@
+import { hostIdentity } from "../../../apps/editor/server/host-identity.ts";
 import { DAEMON_PROTOCOL } from "../../../apps/editor/server/daemon-protocol.ts";
 import { DesktopDaemon } from "../../../apps/desktop/src/daemon-client.ts";
 import { once } from "node:events";
@@ -64,6 +65,9 @@ test("daemon CLI keeps one local instance, rejects occupied ports and warns for 
     const status = await execute(["status", "--json"]); assert.equal(status.code, 0, status.stderr);
     assert.equal(JSON.parse(status.stdout).instanceId, first.instanceId);
     assert.equal(JSON.parse(status.stdout).launcher, "cli-start");
+    assert.deepEqual(JSON.parse(status.stdout).identity, hostIdentity());
+    assert.ok((await execute(["status"])).stdout.includes(hostIdentity().runAs));
+    assert.match((await execute(["status"])).stdout, /Run as/);
     assert.match((await execute(["status"])).stdout, /Launcher\s+cli-start/);
     assert.equal((await execute(["stop"])).code, 1);
     const record = readDaemonRecord(directory)!;
