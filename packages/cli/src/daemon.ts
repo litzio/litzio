@@ -1,13 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { spawn } from "node:child_process";
 import { parseArgs } from "node:util";
 import { isIP } from "node:net";
 import { brand } from "../../../brand.ts";
 import { startHttpHost } from "../../../apps/editor/server/http-host.ts";
 import { DAEMON_PROTOCOL, sameInstance } from "../../../apps/editor/server/daemon-protocol.ts";
-import { acquireDaemonLock, processStart, reclaimStaleDaemon, daemonDirectory, daemonPort, inspectDaemon, prepareDaemonDirectory, readDaemonRecord, stopDaemon, type DaemonChannel, type DaemonRecord } from "../../../apps/editor/server/daemon-state.ts";
+import { daemonChannel, startDaemonChild, acquireDaemonLock, processStart, reclaimStaleDaemon, daemonDirectory, daemonPort, inspectDaemon, prepareDaemonDirectory, readDaemonRecord, stopDaemon, type DaemonChannel, type DaemonRecord } from "../../../apps/editor/server/daemon-state.ts";
 import { productVersion } from "./version.ts";
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -25,7 +24,7 @@ function options(action: string, args: string[]) {
     if (seen.has(token.name)) throw new Error(`Specify --${token.name} only once.`);
     seen.add(token.name);
   }
-  const channel = (values.channel ?? (productVersion === "development" ? "development" : productVersion.includes("-") ? "beta" : "stable")) as DaemonChannel;
+  const channel = (values.channel ?? daemonChannel(productVersion)) as DaemonChannel;
   if (!["stable", "beta", "development"].includes(channel)) throw new Error("--channel must be stable, beta or development.");
   if (values.host !== undefined && !isIP(values.host)) throw new Error("--host must be an IP address (default: 127.0.0.1).");
   const port = values.port === undefined ? daemonPort(channel) : Number(values.port);
@@ -89,30 +88,12 @@ export async function daemonCli(action: string, args: string[], editorDir: strin
   let record = readDaemonRecord(directory);
   const alreadyRunning = action === "start" && !!record;
   if (action === "start" && !record) {
-    prepareDaemonDirectory(directory);
-    const log = path.join(directory, "daemon.log"), fd = fs.openSync(log, "a", 0o600);
-    try {
-      const child = spawn(process.execPath, [...(entry.endsWith(".ts") ? ["--import", "tsx"] : []), entry, "daemon", "run", "--channel", config.channel], {
-        cwd: process.cwd(), detached: true, windowsHide: true, stdio: ["ignore", fd, fd, "ipc"], env: { ...process.env, ELECTRON_RUN_AS_NODE: "1", LITZIO_DAEMON_START: "1" },
-      });
-      await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => { child.disconnect(); reject(new Error(`Daemon startup was not confirmed. Inspect ${log}`)); }, 15_000);
-        const done = () => { clearTimeout(timer); resolve(); };
-        child.once("error", error => { clearTimeout(timer); reject(error); });
-        child.once("message", done);
-        child.once("exit", done); // A concurrent candidate may own the lock; inspect its record below.
-        child.unref();
-      });
-    } finally { fs.closeSync(fd); }
-    for (let i = 0; i < 100; i++) {
-      record = readDaemonRecord(directory);
-      if (record) break;
-      // A failed candidate leaves its reason in the log; do not retry spawning or change ports.
-      if (!fs.existsSync(path.join(directory, "daemon.lock"))) throw new Error(`Daemon startup failed. Inspect ${log}`);
-      await delay(100);
-    }
-    if (!record) throw new Error(`Daemon startup was not confirmed. Inspect ${log}; lock is not automatically replaced.`);
+    ({ record } = await startDaemonChild({ directory, bin: process.execPath,
+      args: [...(entry.endsWith(".ts") ? ["--import", "tsx"] : []), entry, "daemon", "run", "--channel", config.channel],
+      launcher: "cli-start" }));
+    if (!record) throw new Error(`Daemon startup was not confirmed. Inspect ${path.join(directory, "daemon.log")}; lock is not automatically replaced.`);
   }
+
   if (action === "status") {
     const manual: DaemonRecord[] = [];
     for (const name of fs.existsSync(directory) ? fs.readdirSync(directory).sort() : []) {
