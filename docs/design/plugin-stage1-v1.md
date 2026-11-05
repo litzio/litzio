@@ -21,7 +21,7 @@
 
 대상 daemon의 Host 설정 루트에 별도 plugins.json을 기록한다. `LITZIO_DATA_DIR` 또는 `LITZIO_PLUGINS_SETTINGS_FILE`로 격리할 수 있다. 임의 디렉터리 자동 탐색, SQLite, migration과 자동 파일 감시 reload는 없다. 로컬 artifact 안의 파일을 digest로 묶고 패키지 밖 참조를 거부한다. 공식 공급 목록은 id·publisher와 제품이 검토한 artifact digest를 대조한다. 자칭 official 또는 변경 artifact는 공식 신뢰를 얻지 않는다.
 
-외부 artifact는 등록 직후 비활성이다. 공식 번들은 아래 #1279 공급 기본값과 명시적 선택을 따른다. 기본 활성 정책은 미정이며 모든 플러그인은 명시적으로 활성화한다. 커뮤니티는 list에서 확인한 digest를 trust한 뒤 enable한다. 사용자와 비서 모두 digest 신뢰 작업을 실행할 수 있다. artifact가 달라지면 새 digest를 trust한 뒤 reload한다. 자동 교체하지 않는다. 비활성화는 신규 호출을 먼저 차단하고 상태 기여를 숨긴 뒤 이미 접수한 호출을 drain하고 dispose한다. 설정과 열린 폴더·탭은 삭제하지 않는다. OS 권한 격리는 보장하지 않는다.
+공식 번들 플러그인은 목록에 자동 표시되고 기본 상태는 공급 항목의 `defaultEnabled`(현재 `false`)를 따르며, 사용자의 명시적 선택이 우선한다. 외부 플러그인은 명시적으로 등록하고 list에서 확인한 digest를 trust한 뒤 enable한다. 사용자와 비서 모두 digest 신뢰 작업을 실행할 수 있다. 외부 artifact가 달라지면 새 digest를 trust한 뒤 reload한다. 자동 교체하지 않는다. 비활성화는 신규 호출을 먼저 차단하고 상태 기여를 숨긴 뒤 이미 접수한 호출을 drain하고 dispose한다. 설정과 열린 폴더·탭은 삭제하지 않는다. OS 권한 격리는 보장하지 않는다.
 
 플러그인마다 daemon의 Node 하위 프로세스 하나를 사용한다. Node IPC 채널의 요청 ID로 activate·invoke·status·dispose와 응답을 연결하며 stdout/stderr와 플러그인 예외 원문은 전달하지 않는다. 별도 bootstrap 파일 없이 번들 안의 고정 코드로 시작하므로 설치된 CLI도 같은 경로를 쓴다. 각 RPC 응답은 10초 후 실패하며 프로세스를 종료한다. 접수된 K1 백그라운드 작업 수명에는 이 제한이 적용되지 않는다. 읽기 실패는 failure, 쓰기 실패는 기존 uncertain receipt를 유지하고 자동 재전송하지 않는다.
 
