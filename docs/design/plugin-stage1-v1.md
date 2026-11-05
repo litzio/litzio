@@ -94,3 +94,5 @@ start 파일은 job/requestId/root/file/output을 담는다. CLI는 앱과 같�
 K1 기본 UI는 `SettingsSelect`/`SettingsInput`의 라벨·control 높이·간격과 `HostStatus`의 점·톤을 재사용한다. 상태를 지역화해 한 번만 표시하고 진행 중 phase와 경과 시간을 옆에 둔다. 취소 버튼은 실행 중에만, 접수 뒤에는 취소 요청됨, 실제 stopped 뒤에는 취소됨으로 구분한다. 상위 폴더 복귀는 하위 폴더를 탐색한 경우에만 명확한 라벨로 보인다. 공용 `components/ui/Progress`는 ARIA progressbar와 제품 surface/accent·간격 토큰을 쓰며 기본 브라우저 progress를 사용하지 않는다. 숫자 진행량과 결과 열기는 별도 간격·행으로 분리한다.
 
 Codex 비서는 SDK `PLUGIN_JOBS` 공용 정의를 그대로 쓰는 `plugin_jobs` 도구로 start/status/stop/result/list를 호출한다. 건별 확인은 없고 기존 turn 활동 목록에 작업·성공/실패·결과를 남긴다. start/stop은 기존 대화의 쓰기 모드·열린 폴더 범위를 지키며 secret이나 공식 목록 변경 권한은 추가하지 않는다. 실제 모델 호출 없이 app-server fixture로 도구 노출·승인 없음·활동 기록을 검증한다. Copilot의 별도 dynamic-tool 공급은 이 단계에서 추가하지 않는다. `plugin-jobs.test.ts`는 Editor 기본 test 명령에 포함하며 동시 동일 ID/별도 ID 시작, 완료와 Stop 경합, daemon 재시작 뒤 unknown/no replay를 보호한다.
+
+입력 선택은 `(Root, 상대 경로)` 쌍이다. 파일·폴더 선택은 해당 Host가 반환한 자식 이름으로 상대 경로를 구성하며 절대 경로 문자열을 잘라 재해석하지 않는다. Root 선택이나 최근 작업 이동으로 Root가 바뀌면 파일·탐색 폴더·이전 목록을 초기화하며, 새 Root에서 명시적으로 다시 선택하기 전에는 실행하지 않는다. 같은 이름의 파일이 다른 Root에 존재해도 자동 재바인딩하지 않는다.

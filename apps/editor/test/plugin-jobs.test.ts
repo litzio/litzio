@@ -77,7 +77,7 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
     await host.invoke("enable", { id: "fixture.jobs" });
     const interrupted = await start("# Restart while active");
     await host.close();
-    const restarted = new PluginHost(path.join(root, "state.json"), new RootAccess([root]));
+    const restarted = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
     try {
       await restarted.start();
       assert.equal(restarted.jobs.list("fixture.jobs").jobs.length, 0);

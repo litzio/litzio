@@ -12,12 +12,17 @@ import "./views/views.css";
 class JobRefused extends Error {}
 const stateLabels = { running: "In progress", completed: "Completed", failed: "Failed", stopped: "Cancelled", uncertain: "Outcome uncertain" } as const;
 
+type FileSelection = { root: string; relativePath: string };
+
 type Plugin = { id: string; name: string; running: boolean; jobs?: JobContribution[] };
 export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: HostClient; hostId: string; roots: string[]; active: boolean; onOpen(path: string): Promise<unknown> }) {
   const [plugins, setPlugins] = useState<Plugin[]>([]), [selected, setSelected] = useState("");
   const [root, setRoot] = useState(roots[0] ?? ""), [folder, setFolder] = useState("");
-  const [entries, setEntries] = useState<{ path: string; name: string; kind: string }[]>([]), [file, setFile] = useState(""), [output, setOutput] = useState("result.md");
+  const [entries, setEntries] = useState<{ path: string; name: string; kind: string }[]>([]), [file, setFile] = useState<FileSelection>(), [output, setOutput] = useState("result.md");
   const [job, setJob] = useState<JobSnapshot>(), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false);
+  const changeRoot = (next: string) => {
+    if (next !== root) { setRoot(next); setFolder(""); setFile(undefined); setEntries([]); }
+  };
   const requestId = job?.requestId;
   const [recent, setRecent] = useState<JobSnapshot[]>([]);
   useEffect(() => { if (job) setRecent(previous => [job, ...previous.filter(item => item.requestId !== job.requestId)]); }, [job]);
@@ -33,7 +38,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
     void Promise.all([request(), request({ action: "job-list" })]).then(([catalog, history]) => {
       setPlugins(catalog.plugins); setRecent(history.jobs);
       const latest = history.jobs.find((item: JobSnapshot) => ["running", "uncertain"].includes(item.state)) ?? history.jobs[0];
-      if (latest) { setJob(latest); setRoot(latest.root); setSelected(`${latest.plugin}/${latest.job}`); }
+      if (latest) { setJob(latest); changeRoot(latest.root); setSelected(`${latest.plugin}/${latest.job}`); }
     }).catch(error => { if (!lifetime.current?.signal.aborted) setProblem(String(error)); });
   }, [client]);
   const choices = plugins.filter(plugin => plugin.running).flatMap(plugin => (plugin.jobs ?? []).map(binding => ({ plugin, binding, key: `${plugin.id}/${binding.id}` })));
@@ -41,7 +46,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
   const locked = busy || !!job && ["running", "uncertain"].includes(job.state);
   useEffect(() => {
     const controller = new AbortController();
-    if (root && active && !locked) void client.request(`/api/folder?${new URLSearchParams({ root, path: folder || root })}`, { signal: controller.signal }).then(async response => { if (!response.ok) throw new Error("Cannot list Host folder"); return response.json(); }).then(value => { if (!controller.signal.aborted) setEntries(value.entries); }).catch(error => { if (!controller.signal.aborted) setProblem(String(error)); });
+    if (root && active && !locked) void client.request(`/api/folder?${new URLSearchParams({ root, path: folder ? `${root.replace(/[\\/]$/, "")}/${folder}` : root })}`, { signal: controller.signal }).then(async response => { if (!response.ok) throw new Error("Cannot list Host folder"); return response.json(); }).then(value => { if (!controller.signal.aborted) setEntries(value.entries); }).catch(error => { if (!controller.signal.aborted) setProblem(String(error)); });
     return () => controller.abort();
   }, [client, root, folder, active, locked]);
   useEffect(() => {
@@ -51,21 +56,27 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
     timer = setTimeout(poll, 1000); return () => { controller.abort(); clearTimeout(timer); };
   }, [active, requestId, job?.state, busy, client]);
   const run = async (action: () => Promise<void>) => { setBusy(true); setProblem(""); try { await action(); } catch (error) { if (!lifetime.current?.signal.aborted) { setProblem(String(error)); setJob(previous => previous?.state === "running" ? { ...previous, state: "uncertain", result: undefined } : previous); } } finally { if (!lifetime.current?.signal.aborted) setBusy(false); } };
-  const relative = (value: string) => value.slice(root.length).replace(/^[\\/]/, "").replaceAll("\\", "/");
   return <div className="views-page" data-testid="plugin-jobs"><header><h2>{i18n.t("Plugin jobs")}</h2><p>{hostLabel(hostId)}</p></header>
     <div>
-      {recent.length ? <SettingsSelect label={i18n.t("Recent jobs")} value={requestId ?? ""} disabled={busy} onChange={id => { const item = recent.find(item => item.requestId === id); if (item) { setJob(item); setRoot(item.root); setSelected(`${item.plugin}/${item.job}`); setProblem(""); } }} options={recent.map(item => ({ value: item.requestId, label: `${plugins.find(plugin => plugin.id === item.plugin)?.name ?? item.plugin} · ${i18n.t(stateLabels[item.state])} · ${Math.floor(item.elapsedMs / 1000)}s` }))} /> : null}
+      {recent.length ? <SettingsSelect label={i18n.t("Recent jobs")} value={requestId ?? ""} disabled={busy} onChange={id => { const item = recent.find(item => item.requestId === id); if (item) { setJob(item); changeRoot(item.root); setSelected(`${item.plugin}/${item.job}`); setProblem(""); } }} options={recent.map(item => ({ value: item.requestId, label: `${plugins.find(plugin => plugin.id === item.plugin)?.name ?? item.plugin} · ${i18n.t(stateLabels[item.state])} · ${Math.floor(item.elapsedMs / 1000)}s` }))} /> : null}
       <SettingsSelect label={i18n.t("Job")} value={selected} disabled={locked} onChange={setSelected} options={[{ value: "", label: "—" }, ...choices.map(item => ({ value: item.key, label: `${item.plugin.name} · ${item.binding.title}` }))]} />
-      <SettingsSelect label={i18n.t("Opened folder")} description={i18n.t("Select a file on this Host. No Desktop upload.")} value={root} disabled={locked} onChange={value => { setRoot(value); setFolder(""); setFile(""); }} options={[{ value: "", label: "—" }, ...roots.map(value => ({ value, label: value }))]} />
-      <SettingsSelect label={i18n.t("Input file")} description={folder || undefined} value={file} disabled={locked || !choice} onChange={value => { const entry = entries.find(item => item.path === value); if (entry?.kind === "folder") { setFolder(entry.path); setFile(""); } else setFile(value); }} options={[{ value: "", label: "—" }, ...entries.filter(entry => entry.kind === "folder" || choice?.binding.accept.some(extension => entry.name.toLowerCase().endsWith(extension))).map(entry => ({ value: entry.path, label: `${entry.kind === "folder" ? "▸ " : ""}${entry.name}` }))]} />
-      {folder ? <Button size="sm" variant="secondary" disabled={locked} onClick={() => { setFolder(""); setFile(""); }}>{i18n.t("Return to opened folder")}</Button> : null}
+      <SettingsSelect label={i18n.t("Opened folder")} description={i18n.t("Select a file on this Host. No Desktop upload.")} value={root} disabled={locked} onChange={changeRoot} options={[{ value: "", label: "—" }, ...roots.map(value => ({ value, label: value }))]} />
+      <SettingsSelect label={i18n.t("Input file")} description={folder || undefined} value={file?.root === root ? file.relativePath.split("/").at(-1)! : ""} disabled={locked || !choice} onChange={name => {
+        const entry = entries.find(item => item.name === name);
+        if (!entry) { setFile(undefined); return; }
+        const relativePath = folder ? `${folder}/${entry.name}` : entry.name;
+        if (entry.kind === "folder") { setFolder(relativePath); setFile(undefined); setEntries([]); }
+        else setFile({ root, relativePath });
+      }} options={[{ value: "", label: "—" }, ...entries.filter(entry => entry.kind === "folder" || choice?.binding.accept.some(extension => entry.name.toLowerCase().endsWith(extension))).map(entry => ({ value: entry.name, label: `${entry.kind === "folder" ? "▸ " : ""}${entry.name}` }))]} />
+      {folder ? <Button size="sm" variant="secondary" disabled={locked} onClick={() => { setFolder(""); setFile(undefined); setEntries([]); }}>{i18n.t("Return to opened folder")}</Button> : null}
       <SettingsInput label={i18n.t("Result path in Root")} value={output} disabled={locked} onChange={setOutput} />
     </div>
     <div className="view-controls">
-    <Button disabled={locked || !choice || !file || !output} onClick={() => void run(async () => {
+    <Button disabled={locked || !choice || !file || file.root !== root || !output} onClick={() => void run(async () => {
+      if (!file || file.root !== root) return;
       const id = crypto.randomUUID();
       const initial: JobSnapshot = { requestId: id, plugin: choice!.plugin.id, job: choice!.binding.id, root, elapsedMs: 0, state: "running", phase: "Starting", stopRequested: false }; setJob(initial);
-      try { const value = await request({ action: "job-start", plugin: initial.plugin, job: initial.job, requestId: id, root, file: relative(file), output }); setJob(value.job); }
+      try { const value = await request({ action: "job-start", plugin: initial.plugin, job: initial.job, requestId: id, root, file: file.relativePath, output }); setJob(value.job); }
       catch (error) { if (!lifetime.current?.signal.aborted) {
         if (error instanceof JobRefused) { setProblem(error.message); setJob({ ...initial, state: "failed", phase: "", error: undefined }); }
         else setJob({ ...initial, state: "uncertain" });
