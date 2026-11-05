@@ -1,5 +1,5 @@
 import { HostExplorer, HostHeading } from "./HostExplorer.tsx";
-import { hostRegistry } from "../host-client.ts";
+import { hostRegistry, type HostClient } from "../host-client.ts";
 import { SettingsSelect } from "@/components/ui/settings.tsx";
 import { locatorKey } from "../host-locator.ts";
 import { PanelResize } from "./PanelResize.tsx";
@@ -20,6 +20,8 @@ import { splitDocumentPath } from "./document-path.ts";
 import { treeKey, visibleTreeItems, type FolderTreeState, type TreeItem } from "./folder-tree.ts";
 
 type SidebarProps = {
+  onHostCreate?(hostId: string, client: HostClient, path: string, root?: string): Promise<string>;
+  createdDocumentFocus?(): HTMLElement | null;
   documentHostId?: string;
   onHostDirty?(hostId: string, path: string): boolean;
   onHostOpen?(hostId: string, path: string): Promise<void>;
@@ -66,7 +68,7 @@ type SidebarProps = {
 
 /** File navigation stays mounted when collapsed. Outline remains independent on the right. */
 export function Sidebar({
-  documentHostId = "local", onHostDirty, onHostOpen, onHostFileAction, onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
+  documentHostId = "local", onHostCreate, createdDocumentFocus, onHostDirty, onHostOpen, onHostFileAction, onFileAction, fileActionsDisabled, isFileDirty, onWidth, open, documentPath, onToggle, toggleRef, onOpenFolder, onNewDocument, recent = [], onOpenRecent, onNew, onNewFolder,
   folders = [], focusFolder, onFolderFocused, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onCloseFolder, onRefreshFolder, onRevealFolder, onSettings, settingsDisabled, updateVersion,
   theme = "light", onThemeChange, contributions = [], onAddToChat,
 }: SidebarProps) {
@@ -165,7 +167,7 @@ export function Sidebar({
           </section>
         )}
         </section>
-        {hosts.filter(host => host.hostId !== "local").map(host => <div className="sidebar-host" key={host.hostId} hidden={!!hostFilter && hostFilter !== host.hostId}><HostExplorer documentPath={documentHostId === host.hostId ? documentPath : ""} isFileDirty={path => onHostDirty?.(host.hostId, path) ?? false} hostId={host.hostId} onOpen={path => onHostOpen?.(host.hostId, path) ?? Promise.reject(new Error("Host navigation unavailable"))} onFileAction={(...args) => onHostFileAction?.(host.hostId, ...args) ?? Promise.reject(new Error("Host file actions unavailable"))} disabled={fileActionsDisabled} /></div>)}
+        {hosts.filter(host => host.hostId !== "local").map(host => <div className="sidebar-host" key={host.hostId} hidden={!!hostFilter && hostFilter !== host.hostId}><HostExplorer onCreate={(client, path, root) => onHostCreate?.(host.hostId, client, path, root) ?? Promise.resolve("Host creation unavailable")} createdDocumentFocus={createdDocumentFocus} documentPath={documentHostId === host.hostId ? documentPath : ""} isFileDirty={path => onHostDirty?.(host.hostId, path) ?? false} hostId={host.hostId} onOpen={path => onHostOpen?.(host.hostId, path) ?? Promise.reject(new Error("Host navigation unavailable"))} onFileAction={(...args) => onHostFileAction?.(host.hostId, ...args) ?? Promise.reject(new Error("Host file actions unavailable"))} disabled={fileActionsDisabled} /></div>)}
       </div>
       <ContextMenu actions={blankActions} trigger={<div ref={blankTrigger} className="contents" />} />
       {onSettings || onThemeChange || contributions.length ? (

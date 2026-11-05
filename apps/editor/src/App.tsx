@@ -37,14 +37,15 @@ import { DocumentPanel } from "./shell/DocumentPanel.tsx";
 import { DocumentStart } from "./shell/DocumentStart.tsx";
 import productMark from "@brand-icon";
 import { MessageArea } from "./shell/MessageArea.tsx";
-import { NewDialog, type NewDestination } from "./shell/NewDialog.tsx";
+import { newDestinations } from "./shell/new-destinations.ts";
+import { NewDialog } from "./shell/NewDialog.tsx";
 import { FolderDialog } from "./shell/FolderDialog.tsx";
 import { SettingsDialog, type SettingsCategory } from "./shell/SettingsDialog.tsx";
 import { UnsavedChangesDialog } from "./shell/UnsavedChangesDialog.tsx";
 import type { FileActionHandler } from "./shell/FileActionDialog.tsx";
 import type { ImageRenamer } from "./image-rename.ts";
 import { Sidebar } from "./shell/Sidebar.tsx";
-import { folderChain, knownFolders, useFolderTrees, type FolderTreeState } from "./shell/folder-tree.ts";
+import { folderChain, knownFolders, useFolderTrees } from "./shell/folder-tree.ts";
 import { childPath, documentLocation, splitDocumentPath, unquotePath } from "./shell/document-path.ts";
 import { DocumentActions } from "./shell/DocumentActions.tsx";
 import { TopBar } from "./shell/TopBar.tsx";
@@ -706,16 +707,16 @@ function EditorApp() {
     focusAfterClose.current = true;
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
   }
-  async function createFile(path: string): Promise<string> {
+  async function createFile(path: string, target?: { hostId: string; client: HostClient; root?: string }): Promise<string> {
     if (operationRef.current || busy || continuation) return i18n.t("Wait for the current operation to finish.");
     operationRef.current = true;
     setOperation("creating");
     setError("");
     setNotice("");
     try {
-      const client = newTemplate?.client ?? getHostClient(LOCAL_HOST_ID);
-      const file = await createDocumentRequests(client).requestDocument("PUT", path, folders.rootOf(path), newTemplate ? { template: newTemplate.id, language: templateLanguage() } : undefined);
-      acceptFile(file, client);
+      const client = target?.client ?? newTemplate?.client ?? getHostClient(LOCAL_HOST_ID);
+      const file = await createDocumentRequests(client).requestDocument("PUT", path, target ? target.root : folders.rootOf(path), !target && newTemplate ? { template: newTemplate.id, language: templateLanguage() } : undefined);
+      acceptFile(file, client, navigation.focused, target?.hostId ?? LOCAL_HOST_ID);
       return "";
     } catch (cause) { const message = messageOf(cause); setError(message); return message; }
     finally { operationRef.current = false; setOperation(""); }
@@ -1115,6 +1116,8 @@ function EditorApp() {
       <Sidebar
         documentHostId={session?.hostId ?? LOCAL_HOST_ID}
         onHostOpen={(hostId, path) => openFile(path, "", navigation.focused, hostId).then(message => { if (message) setError(message); })}
+        onHostCreate={(hostId, client, path, root) => createFile(path, { hostId, client, root })}
+        createdDocumentFocus={() => editorRef.current?.getFocusTarget() ?? null}
         onHostDirty={(hostId, path) => { const tab = openedTab(tabs, path, hostId); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
         onHostFileAction={(hostId, ...args) => fileAction(...args, undefined, undefined, hostId)}
         onAddToChat={assistantAvailable ? (path, returnFocus) => { if (assistantHost && assistantHost !== LOCAL_HOST_ID) { setError({ key: "Start a conversation on the file’s Host to reference it." }); return; } setAssistantHost(LOCAL_HOST_ID); assistantReturn.current = returnFocus; setReferenceRequest({ hostId: LOCAL_HOST_ID, path }); setAssistantOpen(true); } : undefined}
@@ -1477,22 +1480,6 @@ function EditorApp() {
       ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
       : panelOpen && !settingsFocused && !galleryFocused && session?.kind !== "text" ? "var(--document-panel-effective-width)" : "0px"} />
   </>);
-}
-
-/** Unique New locations in opened-folder/tree order; the first tree supplies each path's label. */
-function newDestinations(trees: readonly FolderTreeState[]): NewDestination[] {
-  const seen = new Set<string>();
-  return trees.flatMap(tree => {
-    const separator = tree.root.includes("\\") ? "\\" : "/";
-    const name = splitDocumentPath(tree.root).name || tree.root;
-    const prefix = tree.root.endsWith(separator) ? tree.root : tree.root + separator;
-    const base = name.endsWith(separator) ? name : name + separator;
-    return knownFolders(tree).filter(path => {
-      if (seen.has(path)) return false;
-      seen.add(path);
-      return true;
-    }).map(path => ({ path, label: path === tree.root ? name : base + path.slice(prefix.length) }));
-  });
 }
 
 /** Asks the Host for one level of a folder inside the folder the user chose. */

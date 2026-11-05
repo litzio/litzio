@@ -3069,6 +3069,21 @@ Multiple Host sections scroll together inside Explorer, keeping the footer outsi
 Each Host section offers Open folder only while it has no opened folders. With folders open,
 the existing folder menus offer the same action on both local and remote Hosts.
 
+Remote folders expose the same New document (+), New folder menu entry and contextual creation,
+child-folder creation, Refresh and Close folder actions as local folders (#1190).
+Both use FolderTree, NewDialog and the same destination-list calculation. A folder heading
+starts at the active document's directory only when that document belongs to this Host and
+is inside the root; a child-folder menu selects that exact folder. Location lists contain only
+this Host's known folders. The folder picker also supports creating a folder on that Host. Its browse/places callbacks
+remain stable through Explorer refreshes so successful creation keeps the picker inside
+the created folder; conflict/unavailable responses retain the location and entered name.
+The dialog retains its originating client through submission; creation never follows the
+active tab or the Explorer filter to another Host. Document creation uses the shared Host
+write path and tab-admission with `(hostId, path)`, then opens and focuses the created document.
+Folder creation refreshes/reveals its location without switching the document. Errors retain
+the dialog and input. File rename/delete continue using the same FileActionDialog as local.
+The remote template-gallery entry remains separate work (#1185).
+
 The title-strip search also displays the active tab's Host beside its document context. Its short
 Host label remains visible when the folder context yields at 640px; filter changes do not retarget it.
 
@@ -3102,6 +3117,15 @@ browser fixture check, not Windows packaged Desktop/Linux remote execution. Opti
 `tmp/pr4-640.png`, `tmp/pr4-choose-1440.png`, `tmp/pr4-choose-640.png`,
 `tmp/pr4-assistant-1440.png`, `tmp/pr4-assistant-640.png`.
 Remote trash failure is injected and must keep both tabs without a second/permanent-delete request.
+The #1190 extension creates a remote document and folder, creates a document through the
+child-folder menu, checks Host-specific tabs/listings and absence of local writes, and closes
+only the remote folder. The picker extension checks creation below a navigated subfolder,
+position retention after the Explorer refresh, and 409/503 input preservation. It extends the existing two-Host browser fixture because the defect
+is missing UI wiring and request routing, rather than Core creation semantics.
+Manual `--screenshots` also records the remote + control and menu at 1440px and 640px:
+`tmp/1190-plus-1440.png`, `tmp/1190-menu-1440.png`, `tmp/1190-plus-640.png`,
+`tmp/1190-menu-640.png`. Base comparison uses the same names prefixed with
+`1190-before-` (instead of `1190-`) against `35ad01eb`. These screenshots are not CI assertions.
 ## Remote Host settings (#1174 PR3b)
 
 Desktop Settings has a Hosts category using the shared settings content, Input, Button and Notice
