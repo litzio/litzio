@@ -65,4 +65,3 @@ test("comparison explicitly refuses excessive block and fingerprint budgets", ()
   const large = parse(native("a".repeat(1000100)));
   assert.throws(() => compareDocuments(large, large), /semantic size budget/);
 });
-
