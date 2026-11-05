@@ -1,3 +1,4 @@
+import { hostIdentity } from "./host-identity.ts";
 import { executeTemplateOperation } from "./document-templates.ts";
 import { createDocumentSourceFile } from "./document-create.ts";
 import { hostPaths } from "./host-paths.ts";
@@ -255,7 +256,7 @@ export async function handleDocumentRequest(
   try { query = requestQuery(req.url ?? ""); }
   catch (error) { failure(error); return; }
   const url = new URL(req.url ?? "", "http://localhost").pathname;
-  if (url === "/api/host-capabilities" && req.method === "GET") { sendJson(res, 200, { fileDeletion: removeFile ? "trash" : "permanent" }); return; }
+  if (url === "/api/host-capabilities" && req.method === "GET") { sendJson(res, 200, { fileDeletion: removeFile ? "trash" : "permanent", identity: hostIdentity() }); return; }
   if (url === "/api/templates" || url === "/api/template") {
     try {
       if (req.method === "GET") {

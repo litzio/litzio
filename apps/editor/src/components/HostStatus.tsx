@@ -10,10 +10,11 @@ export type HostStatusProps = {
   restartRequired?: boolean;
   showDetails?: boolean;
   compact?: boolean;
+  iconOnly?: boolean;
 };
 
 /** Shared Host status for settings and other Host surfaces, independent of the registry. */
-export function HostStatus({ runtime, restartRequired = false, showDetails = true, compact = false }: HostStatusProps) {
+export function HostStatus({ runtime, restartRequired = false, showDetails = true, compact = false, iconOnly = false }: HostStatusProps) {
   const { t } = useTranslation();
   let status: string = t("Connecting"), tone = "warning";
   const detail = runtime?.reason ?? runtime?.warning;
@@ -24,7 +25,7 @@ export function HostStatus({ runtime, restartRequired = false, showDetails = tru
   else if (runtime.warning) { status = t("Version warning"); tone = "warning"; }
   else { status = t("Connected"); tone = "connected"; }
   return <span className="host-status" data-tone={tone} data-compact={compact || undefined} role="status">
-    <span className="agent-dot" aria-hidden="true" />{status}
+    <span className="agent-dot" aria-hidden="true" /><span className={iconOnly ? "sr-only" : undefined}>{status}</span>
     {showDetails && detail ? <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={t("Connection details")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{detail}</TooltipContent></Tooltip> : null}
   </span>;
 }
