@@ -83,7 +83,7 @@ Windows PowerShell의 기본 .NET ProtectedData를 통해 DPAPI CurrentUser를 �
 
 `POST /api/plugins`의 job-start는 plugin/job/requestId(UUID)/root/file/output을 받는다. file과 output은 대상 Host Root 상대 경로다. Host의 접근 정책과 real-path Root 검사를 모두 통과해야 하며 입력은 accept와 일치하는 실제 파일이어야 한다. Desktop 파일 업로드나 로컬 fallback은 없다. 결과는 새 `.md` 문서로만 생성하며 기존 파일·입력 원본을 덮어쓰지 않는다.
 
-Host는 실행 전에 requestId를 메모리에 기록하고 중복 start를 거부한다. running/completed/failed/stopped/uncertain, phase, 선택적 done/total, stopRequested를 유지한다. start handler는 긴 Promise를 반환할 수 있다. status/stop handler는 같은 requestId/root/file/output을 받는다. handler 결과는 state/phase/progress/error와 완료 시 document.source다. Host가 완료 결과의 native source를 Core 기반 공식 생성 경로로 검증·생성한 뒤에만 path/revision을 공개한다. 완료 전 document/source/부분 결과는 UI·CLI로 공개하지 않는다. 결과 문서 생성 실패도 uncertain으로 남겨 확인 없이 다시 쓰지 않는다.
+Host는 실행 전에 requestId를 메모리에 기록하고 중복 start를 거부한다. running/completed/failed/stopped/uncertain, phase, 선택적 done/total, stopRequested를 유지한다. start handler는 긴 Promise를 반환할 수 있다. status/stop handler는 같은 requestId/root/file/output을 받는다. handler 결과는 state/phase/progress/errorKind와 완료 시 document.source다. Host가 완료 결과의 native source를 Core 기반 공식 생성 경로로 검증·생성한 뒤에만 path/revision을 공개한다. 완료 전 document/source/부분 결과는 UI·CLI로 공개하지 않는다. 결과 문서 생성 실패도 uncertain으로 남겨 확인 없이 다시 쓰지 않는다.
 
 job-status/job-stop/job-result는 같은 requestId만 받는다. stopRequested는 취소 요청이며 stopped와 다르다. 플러그인이 stopped를 확인할 때만 실제 중단으로 표시한다. disable/종료는 작업에 중단을 요청하고 진행 start 호출을 drain한 뒤 기존 dispose를 수행한다. 하위 프로세스 IPC 요청은 앞 절의 10초 제한을 따르며 초과하면 프로세스를 종료하고 관찰을 uncertain으로 남긴다. start/status/stop도 `invokeOperation → publicOperationResult`를 통해 같은 결과 검증·secret 정리를 받는다. 메모리 기록은 daemon 수명에 한정된다. 재시작 후 unknown ID는 재실행 근거가 아니다. 영속 queue/DB/scheduler는 없다.
 
@@ -121,3 +121,5 @@ Codex 비서는 SDK `PLUGIN_JOBS` 공용 정의를 그대로 쓰는 `plugin_jobs
 SDK `PluginOperationError(kind)` 또는 같은 `kind` 속성의 예외로 `auth`(인증 확인), `forbidden`(권한 문의), `not_found`(주소·ID 확인), `unavailable`(나중에 재시도), `timeout`(연결 확인), `failed`(설정·대상 확인)를 전달한다. HTTP 상태 매핑은 플러그인이 담당한다. 알 수 없는 kind, 일반 예외와 출력 검증 실패는 `failed`다. 하위 프로세스 제한 시간 초과는 `timeout`, 그 외 프로세스 실패는 `failed`다.
 
 Host의 `publicOperationError`는 `errorKind`와 SDK의 고정 `PLUGIN_ERROR_MESSAGES`만 공개한다. 예외 원문·stack·응답 본문·임의 안내는 IPC와 공개 결과에 전달하지 않는다. 읽기 실패 receipt는 failure, 쓰기는 uncertain이며 쓰기에만 대상 확인 후 쓰기 재시도 안내를 덧붙인다. CLI·비서 도구는 동일 결과를 반환하고, 현재 뷰 새로고침 오류는 `[errorKind]`와 같은 고정 문구를 표시한다. 기존 Notice를 재사용하며 새 카탈로그 요소는 만들지 않는다.
+
+K1 반환형 실패도 같은 공개 오류 경계를 따른다. handler는 오류 문자열 대신 `errorKind`만 지정하며 알 수 없거나 누락된 분류는 `failed`다. `failed`·`uncertain`의 phase와 오류 안내는 Host 고정값이며 plugin phase·예외 원문을 복사하지 않는다. 기존 `error` 필드는 허용하지 않으며 잘못된 결과는 고정 `failed` 안내의 uncertain으로 남긴다. job-status·job-list·화면·비서가 같은 정규화된 snapshot을 받는다.

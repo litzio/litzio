@@ -1,3 +1,4 @@
+import { publicOperationError } from "./operation-result.ts";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { statSync } from "node:fs";
@@ -26,10 +27,12 @@ export class PluginJobs {
       current.result = { path: created.path, revision: created.revision };
     }
     if (["completed", "failed", "stopped"].includes(update.state)) record.finishedAt = Date.now();
-    Object.assign(current, { state: update.state, phase: update.phase, progress: update.progress, errorKind: undefined, error: update.error });
+    const failure = update.state === "failed" || update.state === "uncertain";
+    Object.assign(current, { state: update.state, phase: failure ? (update.state === "failed" ? "Failed" : "Observation lost") : update.phase, progress: update.progress,
+      ...(failure ? publicOperationError({ kind: update.errorKind }, "read") : { errorKind: undefined, error: undefined }) });
   }
   private uncertain(record: Record, cause?: unknown) {
-    if (!["completed", "failed", "stopped"].includes(record.snapshot.state)) Object.assign(record.snapshot, { state: "uncertain", errorKind: (cause as { kind?: PluginErrorKind } | undefined)?.kind, error: `Observation lost. Query the same requestId; do not resend start. ${cause instanceof Error ? cause.message : ""}` });
+    if (!["completed", "failed", "stopped"].includes(record.snapshot.state)) Object.assign(record.snapshot, { state: "uncertain", phase: "Observation lost", ...publicOperationError(cause, "read") });
   }
   async execute(raw: unknown) {
     const input = jobRequestSchema.parse(raw);

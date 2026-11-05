@@ -73,7 +73,7 @@ export const PLUGIN_MANAGEMENT = { version: 1, scope: "host", inputSchema: z.toJ
 export const jobUpdateSchema = z.strictObject({
   state: z.enum(["running", "completed", "failed", "stopped", "uncertain"]), phase: z.string(),
   progress: z.strictObject({ done: z.number().nonnegative(), total: z.number().positive() }).refine(p => p.done <= p.total).optional(),
-  error: z.string().optional(), document: z.strictObject({ source: z.string() }).optional(),
+  errorKind: z.unknown().transform(pluginErrorKind).optional(), document: z.strictObject({ source: z.string() }).optional(),
 });
 export type JobContribution = PluginManifest["contributes"]["jobs"][number];
 export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { path: string; revision: string } };
