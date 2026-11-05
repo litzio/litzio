@@ -1,4 +1,7 @@
 import { hostLabel } from "../host-client.ts";
+import { generateView } from "../views/generate-view.ts";
+import { viewRequest } from "../views/view-api.ts";
+import type { View } from "@litzio/core/views";
 import { createAssistantRequest } from "../assistant-api.ts";
 import { useHostClient, HostContext } from "../host-context.tsx";
 import { displayRequestCurrent, displayValues, type DisplayRequest, type DisplayReply, type DisplayReceipt, type DisplaySnapshot, type DisplaySettings } from "../../shared/assistant-display.ts";
@@ -25,6 +28,7 @@ const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
 type Props = { onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
+  onGeneratedView?(view: View, root: string): void;
   onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
   referenceRequest?: { hostId: string; path: string };
@@ -32,7 +36,7 @@ type Props = { onNewHost?(): void; settingsRevision: number; open: boolean; over
   documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
+export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
   useTranslation();
   const client = useHostClient();
   const [hostId] = useState(useContext(HostContext));
@@ -65,6 +69,11 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
   const [setup, setSetup] = useState("");
   const [ready, setReady] = useState(false);
   const [pending, setPending] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState<string[]>([]);
+  const [viewRoot, setViewRoot] = useState("");
+  const generation = useRef<AbortController | null>(null);
+  const cancelledViewConversation = useRef<string | undefined>(undefined);
+  useEffect(() => () => generation.current?.abort(new Error(i18n.t("View generation closed."))), []);
   const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
   const referenceCaret = useRef<number | null>(null);
@@ -127,7 +136,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
     }
   }, [open, ready, enabled, setup]);
   useEffect(() => {
-    if (!open || !conversation?.id || pending || !ready || !enabled || setup) return;
+    if (!open || !conversation?.id || conversation.id === cancelledViewConversation.current || pending || !ready || !enabled || setup) return;
     let alive = true, polling = false, timer: ReturnType<typeof setTimeout> | undefined;
     const id = conversation.id;
     const schedule = () => {
@@ -178,6 +187,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
   };
   const send = () => run(async isCurrent => {
     if (active && provider === "copilot") return;
+    cancelledViewConversation.current = undefined;
     const value = message.trim(); if (!value && !references.length) return;
     const document = documentPath ? { path: documentPath } : undefined;
     const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "send", displayClient, id: conversation?.id, message: value,
@@ -185,6 +195,26 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
     if (!isCurrent()) return;
     setConversation(next); rememberConversation(conversationKey, next.id); setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
+  });
+  const proposeView = () => run(async isCurrent => {
+    if (active || !onGeneratedView || !model || !message.trim()) return;
+    const root = folders.includes(viewRoot) ? viewRoot : folders[0];
+    if (!root) throw new Error(i18n.t("Choose a folder"));
+    const controller = new AbortController(); generation.current = controller; cancelledViewConversation.current = undefined;
+    setGenerationStatus([]); setHistory(null);
+    try {
+      const view = await generateView({ request, signal: controller.signal,
+        input: { id: conversation?.id, provider, model, reasoningEffort: effort, mode: provider === "copilot" ? mode : undefined, permissionMode: "read-only", folders: [], message: message.trim() },
+        snapshot: next => { if (isCurrent()) { current.current = next; setConversation(next); setPermissionMode("read-only"); rememberConversation(conversationKey, next.id); } },
+        status: value => { if (isCurrent()) setGenerationStatus(previous => [...previous, value]); },
+        cancelled: () => { if (isCurrent()) {
+          cancelledViewConversation.current = current.current?.id;
+          setConversation(previous => previous ? { ...previous, turns: previous.turns.map(turn => turn.status === "inProgress" ? { ...turn, status: "interrupted" } : turn) } : previous);
+        } },
+        validate: async (value, signal) => (await viewRequest(client, { action: "validate", view: value }, signal)).view!,
+      });
+      if (isCurrent() && !controller.signal.aborted) { onGeneratedView(view, root); setMessage(""); setPermissionMode("read-only"); }
+    } finally { generation.current = null; }
   });
   const addReference = (file: AssistantFileReference) => {
     setReferences(previous => {
@@ -292,7 +322,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
         let catalog = models;
         if (settings && provider !== settings.provider) catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${settings.provider}`);
         if (!isCurrent()) return;
-        setConversation(undefined); rememberConversation(conversationKey, ); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null);
+        setConversation(undefined); setGenerationStatus([]); rememberConversation(conversationKey, ); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null);
         setModels(catalog); if (settings) defaults(settings);
         setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); input.current?.focus();
       }); }}><Plus /></Button>
@@ -373,6 +403,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
       {!history && !conversation ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Changes to existing documents are suggested in text.")}</p></div> : null}
       {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
       {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
+      {generationStatus.length ? <ol className="assistant-notice" aria-label={i18n.t("View generation progress")} aria-live="polite">{generationStatus.map((status, index) => <li key={index}>{status}</li>)}</ol> : null}
     </div>
     <form className="assistant-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
       {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
@@ -393,7 +424,7 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
         if (match?.[1] === "/" && !skillOpen) { setSkillCatalog(undefined); setSkillProblem(""); }
         setMention(match && (match[1] !== "/" || provider === "codex") ? { start: end - match[2].length - 1, end, query: match[2], skill: match[1] === "/" } : null); setCandidateIndex(0);
       }}
-        disabled={!ready || !enabled || !!setup} onKeyDown={event => {
+        disabled={!!generation.current || !ready || !enabled || !!setup} onKeyDown={event => {
           if (mention && !event.nativeEvent.isComposing) {
             if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setMention(null); return; }
             if (["ArrowDown", "ArrowUp"].includes(event.key)) { event.preventDefault(); setCandidateIndex(index => matches.length ? (index + (event.key === "ArrowDown" ? 1 : -1) + matches.length) % matches.length : 0); return; }
@@ -432,11 +463,13 @@ export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, wid
 
         {provider === "copilot" && copilot?.modes.length ? <AssistantChoice label={i18n.t("Session mode")} value={copilot.modes.find(value => value.id === mode)?.name ?? mode} help={i18n.t("Model, reasoning effort and mode changes apply to the next message.")} disabled={active || pending} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={mode} options={copilot.modes.map(value => ({ value: value.id, label: value.name }))} onSelect={setMode} /> : null}
       </div>
+        {onGeneratedView ? <div className="assistant-view-controls"><select aria-label={i18n.t("View folder")} disabled={pending || active} value={folders.includes(viewRoot) ? viewRoot : folders[0] ?? ""} onChange={event => setViewRoot(event.target.value)} className="settings-select" ><option value="">{i18n.t("Choose a folder")}</option>{folders.map(folder => <option key={folder} value={folder}>{pathName(folder)}</option>)}</select><Button type="button" variant="secondary" size="sm" disabled={pending || active || !ready || !model || !folders.length || !message.trim() || !!setup} onClick={() => void proposeView()}>{i18n.t("Generate view")}</Button></div> : null}
       <div className="assistant-footer">
+
         <Tooltip><TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
         </TooltipTrigger><TooltipContent>{usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}</TooltipContent></Tooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
-        {active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async isCurrent => { const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); })}><Square /></Button> : null}
+        {generation.current ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} onClick={() => { generation.current?.abort(new Error(i18n.t("View cancellation requested."))); }}><Square /></Button> : active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async isCurrent => { const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); })}><Square /></Button> : null}
         <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || active && provider === "copilot" || !ready || (!message.trim() && !references.length) || !catalogModel || !enabled || !!setup}><ArrowUp /></Button>
       </div>
     </form>

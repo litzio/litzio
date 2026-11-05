@@ -343,13 +343,16 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
     document.querySelector('[data-testid="update-status"]')?.textContent === text, expected, {timeout:5000});
   const notice = page.getByTestId('update-notice');
 
-  // The Host gallery entry precedes plugin actions; retain the real keyboard route to Settings.
+  // Built-in task entries precede Settings; retain the real keyboard route through both.
   await page.keyboard.press('Tab');
   const gallery = page.getByTestId('sidebar').getByRole('button', {name:'Template gallery', exact:true});
   check(await gallery.evaluate(node => node === document.activeElement), 'Tab from the Explorer document did not reach Template gallery');
+  await page.keyboard.press('Tab');
+  const statistics = page.getByTestId('sidebar').getByRole('button', {name:'Document statistics', exact:true});
+  check(await statistics.evaluate(node => node === document.activeElement), 'Tab from Template gallery did not reach Document statistics');
   // Settings → About, by keyboard: version, the Stable default, a channel change, and focus back.
   await page.keyboard.press('Tab');
-  check(await settings.evaluate(node => node === document.activeElement), 'Tab from Template gallery did not reach Settings');
+  check(await settings.evaluate(node => node === document.activeElement), 'Tab from Document statistics did not reach Settings');
   await page.keyboard.press('Enter');
   await dialog.waitFor();
   await page.getByRole('tab',{name:'Settings',exact:true}).and(page.locator(':focus')).waitFor();

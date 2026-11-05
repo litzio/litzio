@@ -1,0 +1,78 @@
+import type { View } from "@litzio/core/views";
+import { ASSISTANT, type AssistantConversation, type AssistantConversationInput } from "../../shared/assistant.ts";
+import { VIEW_GENERATION_TIMEOUT_MS } from "../../shared/view-generation.ts";
+import { i18n } from "../i18n.ts";
+import { ViewValidationError } from "./view-api.ts";
+
+export type GenerationRequest = <T>(url: string, body?: unknown, signal?: AbortSignal) => Promise<T>;
+/** Protect against a transport that completes after cancellation as well as native fetch. */
+function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    work.then(value => { signal.removeEventListener("abort", abort); signal.aborted ? reject(signal.reason) : resolve(value); }, error => { signal.removeEventListener("abort", abort); reject(error); });
+    if (signal.aborted) abort();
+  });
+}
+
+export async function generateView(options: {
+  request: GenerationRequest; input: AssistantConversationInput; signal: AbortSignal;
+  snapshot(value: AssistantConversation): void; status(value: string): void;
+  cancelled?(): void;
+  validate(value: unknown, signal: AbortSignal): Promise<View>;
+  pollMs?: number; timeoutMs?: number;
+}): Promise<View> {
+  const { request } = options;
+  let id = options.input.id, message = options.input.message;
+  for (let attempt = 0; attempt <= 2; attempt++) {
+    options.signal.throwIfAborted();
+    const deadline = new AbortController();
+    const timer = setTimeout(() => deadline.abort(new Error(i18n.t("View generation timed out."))), options.timeoutMs ?? VIEW_GENERATION_TIMEOUT_MS);
+    const signal = AbortSignal.any([options.signal, deadline.signal]);
+    let requestId: string | undefined;
+    const cancel = () => {
+      options.cancelled?.();
+      if (requestId) void request(ASSISTANT.conversationsRoute, { action: "cancel-view-generation", requestId }).catch(() => {});
+    };
+    signal.addEventListener("abort", cancel, { once: true });
+    try {
+      options.status(attempt ? i18n.t("Correcting view ({{attempt}}/2)", { attempt }) : i18n.t("Proposing view…"));
+      const prepared = await abortable(request<{ requestId: string }>(ASSISTANT.conversationsRoute, { action: "prepare-view-generation" }, signal), signal);
+      requestId = prepared.requestId;
+      signal.throwIfAborted();
+      let conversation = await abortable(request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "send", ...options.input, id, message, viewGeneration: true, viewGenerationRequest: requestId }, signal), signal);
+      if (id && conversation.id !== id) throw new Error(i18n.t("View generation changed conversation."));
+      id = conversation.id;
+      while (true) {
+        signal.throwIfAborted();
+        if (conversation.id !== id || conversation.model !== options.input.model || conversation.reasoningEffort !== options.input.reasoningEffort || (conversation.provider ?? "codex") !== (options.input.provider ?? "codex")) throw new Error(i18n.t("View generation changed conversation, provider, model or reasoning effort."));
+        options.snapshot(conversation);
+        const turn = conversation.turns.at(-1);
+        if (!turn) throw new Error(i18n.t("Provider returned no turn."));
+        if (turn.status !== "inProgress") {
+          if (turn.status !== "completed") throw new Error(turn.error ?? i18n.t("View generation did not complete."));
+          const text = turn.items.filter(item => item.kind === "assistant").map(item => item.text).join("\n").trim();
+          try {
+            let proposed: unknown;
+            try { proposed = JSON.parse(text.replace(/^\x60\x60\x60(?:json)?\s*\n([\s\S]*?)\n\x60\x60\x60$/i, "$1")); }
+            catch { throw new ViewValidationError(i18n.t("Expected a complete JSON view proposal. Provider said: {{text}}", { text: text.slice(0, 400) })); }
+            const view = await abortable(options.validate(proposed, signal), signal);
+            signal.throwIfAborted(); options.status(i18n.t("View validated")); return view;
+          } catch (error) {
+            signal.throwIfAborted();
+            if (!(error instanceof ViewValidationError)) throw error;
+            const reason = String(error);
+            const correction = attempt < 2 ? i18n.t("Correction {{attempt}}/2", { attempt: attempt + 1 }) : i18n.t("Correction limit reached");
+            options.status(i18n.t("View validation failed: {{reason}} · {{correction}}", { reason, correction }));
+            if (attempt === 2) throw new Error(i18n.t("View validation failed after 2 corrections: {{reason}}", { reason }));
+            message = i18n.t("View validation failed (correction {{attempt}}/2): {{reason}}", { attempt: attempt + 1, reason }) + "\n" + i18n.t("Return a corrected complete JSON definition using the same catalog and requested view. Do not use tools or change model. Explicitly refuse unsupported requests.");
+            break;
+          }
+        }
+        await abortable(new Promise<void>(resolve => setTimeout(resolve, options.pollMs ?? 600)), signal);
+        conversation = await abortable(request<AssistantConversation>(`${ASSISTANT.conversationsRoute}?id=${encodeURIComponent(id)}`, undefined, signal), signal);
+      }
+    } finally { clearTimeout(timer); signal.removeEventListener("abort", cancel); }
+  }
+  throw new Error(i18n.t("No view proposal."));
+}

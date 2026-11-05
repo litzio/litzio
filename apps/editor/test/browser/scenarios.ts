@@ -134,7 +134,7 @@ export const NOTIFICATION_SCENARIOS = [
 ];
 
 /** Production HTTP has a different startup and filesystem policy; run it against its own Host. */
-export const HTTP_SCENARIOS = ["http-host", "http-plugins"];
+export const HTTP_SCENARIOS = ["http-host", "http-plugins", "generated-views"];
 
 /** Select before starting a server probe or browser; an invalid/empty shard must fail. */
 export function selectBrowserScenarios(args: readonly string[]): {

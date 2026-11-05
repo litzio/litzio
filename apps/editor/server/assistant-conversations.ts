@@ -1,4 +1,5 @@
 import { pluginTools, executePluginTool } from "./assistant-plugin-tools.ts";
+import { VIEW_GENERATION_CONTEXT } from "../shared/view-generation.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
 import { readFileSync, writeFileSync, renameSync, existsSync, statSync, unlinkSync } from "node:fs";
@@ -23,7 +24,7 @@ export class AssistantConversations {
   readonly display = new AgentDisplayRequests();
   private conversations = new Map<string, AssistantConversation>();
   private pending = new Set<string>();
-  private scopes = new Map<string, DocumentToolScope & { turnId?: string; displayClient?: string }>();
+  private scopes = new Map<string, DocumentToolScope & { turnId?: string; displayClient?: string; viewGeneration?: boolean }>();
   private pluginConfirmations = new Set<string>();
   private answers = new Map<string, (answers: AssistantUserInputAnswers) => void>();
   private loaded = new Set<string>();
@@ -51,6 +52,7 @@ export class AssistantConversations {
       const scope = this.scopes.get(params?.threadId);
       const active = this.conversations.get(params?.threadId)?.turns.find(turn => turn.id === params.turnId && turn.status === "inProgress");
       if (!scope || !active || scope.turnId !== params.turnId || params.namespace != null) throw new Error("No authorized active turn for this tool call.");
+      if (scope.viewGeneration) throw new Error("View generation only proposes a definition; tools are unavailable for this turn.");
       const templateScope = { ...scope, directory: this.connection.templatesDirectory };
       const result = params.tool === "manage_plugins" && this.plugins
         ? await executePluginTool(this.plugins, params.arguments, async description => {
@@ -144,9 +146,12 @@ export class AssistantConversations {
     return conversation;
   }
   async send(input: AssistantConversationInput, settings: AssistantSettings, displayClient?: string) {
+    if (input?.viewGeneration !== undefined && typeof input.viewGeneration !== "boolean") throw new Error("Invalid view generation input");
+    if (input?.viewGeneration) input = { ...input, permissionMode: "read-only", folders: [], references: [], skills: [], document: undefined };
     if (!input || typeof input.message !== "string" || (!input.message.trim() && !input.references?.length) ||
       typeof input.model !== "string" || typeof input.reasoningEffort !== "string" || !Array.isArray(input.folders)) throw new Error("Invalid conversation input.");
     const existing = input.id ? this.current(input.id) : undefined;
+    if (input.viewGeneration && existing?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the response before generating a view.");
     if (input.provider !== undefined && input.provider !== "codex" && input.provider !== "copilot") throw new Error("Invalid AI provider.");
     if (input.permissionMode !== undefined && !["opened-folders", "read-only", "full-access"].includes(input.permissionMode)) throw new Error("Invalid permission mode.");
     if (existing && input.provider !== undefined && input.provider !== (existing.provider ?? "codex")) throw new Error("Provider is locked after a conversation starts.");
@@ -198,7 +203,7 @@ export class AssistantConversations {
         this.save(conversation);
       }
       references = checkedReferences(input.references ?? [], folders, this.access);
-      const context = { folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))] };
+      const context = { folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))], ...(input.viewGeneration ? { viewGeneration: VIEW_GENERATION_CONTEXT } : {}) };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
@@ -206,7 +211,7 @@ export class AssistantConversations {
         await this.connection.client.request("turn/steer", { threadId: conversation.id, expectedTurnId: active.id, input: messages });
       } else {
         conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort; conversation.permissionMode = settings.permissionMode;
-        this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, permissionMode: settings.permissionMode, access: this.access, displayClient });
+        this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, permissionMode: settings.permissionMode, access: this.access, displayClient, viewGeneration: input.viewGeneration });
         const result = await this.connection.client.request("turn/start", { threadId: conversation.id, input: messages,
           cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: "never",
           sandboxPolicy: settings.permissionMode === "full-access" ? { type: "dangerFullAccess" } : settings.permissionMode === "opened-folders" ? { type: "workspaceWrite", writableRoots: folders,
@@ -297,11 +302,11 @@ export class AssistantConversations {
     }
     conversation.copilot = options;
     references = checkedReferences(input.references ?? [], folders, this.access);
-    const context = { folders, document: input.document ? { path: input.document.path } : null, references };
+    const context = { folders, document: input.document ? { path: input.document.path } : null, references, ...(input.viewGeneration ? { viewGeneration: VIEW_GENERATION_CONTEXT } : {}) };
     const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.message, references }] };
     conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort;
     conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;
-    this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, permissionMode: settings.permissionMode, turnId: turn.id });
+    this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, permissionMode: settings.permissionMode, turnId: turn.id, viewGeneration: input.viewGeneration });
     this.save(conversation);
     // ACP prompt resolves at turn completion; return the snapshot immediately for existing panel polling.
     void client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] }).then(result => {
@@ -319,7 +324,7 @@ export class AssistantConversations {
   }
   private copilotPermission(request: RequestPermissionRequest): RequestPermissionResponse {
     const scope = this.scopes.get(request.sessionId), tool = request.toolCall;
-    const active = this.conversations.get(request.sessionId)?.turns.some(turn => turn.id === scope?.turnId && turn.status === "inProgress");
+    const active = !scope?.viewGeneration && this.conversations.get(request.sessionId)?.turns.some(turn => turn.id === scope?.turnId && turn.status === "inProgress");
     let allowed = !!scope && !!active && (tool.kind === "read" || tool.kind === "edit" && scope.permissionMode === "opened-folders");
     if (!tool.locations?.length) allowed = false;
     if (allowed) try {

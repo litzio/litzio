@@ -277,6 +277,7 @@ The `cross-reference` record-removal wait and #407 observation are retained in [
 ```bash
 pnpm --filter @litzio/cli build
 pnpm browser:test http-host
+pnpm browser:test generated-views
 # CLI 패키징·배포 경계 변경 시 추가 실행
 pnpm --filter @litzio/cli package
 pnpm --filter @litzio/cli test:packaged

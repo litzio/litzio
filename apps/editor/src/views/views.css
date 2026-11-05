@@ -1,0 +1,25 @@
+.views-page { padding: var(--space-6); overflow: auto; height: 100%; color: var(--id-color-text); display: flex; flex-direction: column; gap: var(--space-4); }
+.views-page h2 { font-size: var(--font-size-md); font-weight: 600; }
+.views-page h3 { font-size: var(--font-size-sm); font-weight: 600; }
+.views-page p, .view-receipt { font-size: var(--font-size-sm); color: var(--id-color-text-muted); overflow-wrap: anywhere; }
+.view-controls { display: flex; align-items: end; flex-wrap: wrap; gap: var(--space-3); }
+.view-controls label { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; max-width: 100%; font-size: var(--font-size-sm); }
+.view-controls select { max-width: 100%; border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); padding: var(--space-2); background: var(--id-color-surface); }
+.view-panels { display: flex; flex-direction: column; gap: var(--space-4); }
+.view-panel { min-width: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.view-table-scroll { overflow: auto; border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); }
+.view-panel table { width: 100%; border-collapse: collapse; font-size: var(--font-size-sm); }
+.view-panel th, .view-panel td { padding: var(--space-2) var(--space-3); text-align: left; border-bottom: 1px solid var(--id-color-border-subtle); white-space: nowrap; }
+.view-panel th { background: var(--id-color-surface-subtle); font-weight: 500; }
+.view-bars { display: flex; flex-direction: column; gap: var(--space-2); }
+.view-bars > div { display: grid; grid-template-columns: minmax(4rem, 1fr) minmax(4rem, 3fr) auto; gap: var(--space-3); align-items: center; font-size: var(--font-size-sm); }
+.view-bars meter { width: 100%; accent-color: var(--id-color-accent); }
+.view-bars meter::-webkit-meter-bar { background: var(--id-color-surface-subtle); border-color: var(--id-color-border-subtle); }
+.view-bars meter::-webkit-meter-optimum-value { background: var(--id-color-accent); }
+.view-bars meter::-moz-meter-bar { background: var(--id-color-accent); }
+.view-favorites { border-top: var(--border-width) solid var(--id-color-border-subtle); padding-top: var(--space-4); }
+.view-favorites-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.view-favorites ul { list-style: none; padding: 0; }
+.view-favorites li > button { max-width: 100%; }
+.view-favorite-icon { fill: currentColor; flex-shrink: 0; }
+.view-favorite-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
