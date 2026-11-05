@@ -4,6 +4,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| 원본과 Read를 대조하고 변경 제안을 검토한다 | 별도 review 작업 탭 (V3/V4 연결 대기) | [ReviewRenderer](../../apps/editor/src/review/ReviewRenderer.tsx), Button·Notice·Lucide·DocumentEditor readOnly preview | [공용 대조·승인 패턴](ui-patterns-v1.md#공용-원본-대조와-변경-제안-catalog-v5-1241-a안) | K2/K3/K4 fixture | bbox·강조 overlay와 1024px 최소 대조 폭은 원본 좌표·읽기 대응에 필요하다. |
 | 플러그인 파일 작업의 진행·결과를 확인한다 | 기존 작업 탭 | SettingsSelect/SettingsInput/Button/Notice + 공용 Progress + HostStatus 점·톤 | 진행 화면 한정 polling · uncertain에서만 다시 확인 · Host 목록으로 재진입 · 완료 결과만 열기 | [K1](plugin-stage1-v1.md#k1-파일-작업) | 범용 작업 UI 엔진은 만들지 않는다. Progress는 재사용할 기존 공용 막대가 없어 작은 ARIA·토큰 컴포넌트로 추가한다. |
 | 내장 통계와 생성·즐겨찾기 뷰를 연다 | 기존 작업 탭 | DocumentTabs + Views/ViewRenderer, Button/Input/Dialog/Notice, native table/meter와 제품 토큰 | 기본 표 유지 · 제안은 새 탭 · 새 이름 저장 · 목록 열기는 명세만 · 수동 새로고침 | [Generated views](generated-views-v1.md) | 읽기 전용 뷰는 문서 Save/복구 세션이 없다. SDK 기여 확장은 하지 않는다. |
 | 문서 내용을 읽고 편집한다 | 문서 본문 | 기존 Tiptap editor / NodeView와 Core operation | 직접 입력은 즉시 적용·Undo · 디스크는 Save · 미저장 닫기는 Save/Don't save/Cancel ([저장 계약](editing-session-save-v1.md#switching-and-recovery), [P04](ui-patterns-v1.md#p04-적용취소완료)) | [DocumentEditor](../../apps/editor/src/DocumentEditor.tsx) | 별도 editor engine을 만들지 않는다. [미적용 초안](editing-session-save-v1.md#applied-content-and-drafts)은 직접 본문 입력과 다르다. |

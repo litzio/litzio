@@ -130,15 +130,12 @@ container 실제 폭을 기준으로 처리하며 Explorer/비서 패널이 열�
 
 review source는 `{plugin,review,bundleRef}`만 영속한다. bundleRef는 Host가 발급하고 같은 Host의 현재 Root/완료 결과에 대해 해석하는 불투명 참조다. 파일 URL·원격 서비스 URL·image data URL이 아니다. 다른 Host에 복사한 즐겨찾기는 자동 재바인딩하지 않는다. 페이지·문서·map 읽기는 Host가 경로와 결과 소유 범위를 매번 확인한다. 자료 read에 revision을 포함해 다른 generation을 섞지 않는다. 완료 bundle의 원본 자료는 검토에 필요한 최소 파일만 보존하며 범용 자산 서버·DB를 만들지 않는다.
 
-**K2:** 좌표는 page width/height와 같은 단위로 검증하고 원점 변환은 앱이 한 번 수행한다. 이미지 확대에도 bbox가 같은 비율로 움직이며 페이지 번호는 이미지 좌표 밖에 표시한다. 미지원/장식/제외는 색만으로 구별하지 않는다. 전체 페이지 비율을 보존한다. `inspect`와 `select-pages`를 구분하고 선택은 UI 임시 상태다. v2 최소는 단일 페이지 선택/전후 이동·영역 선택이며 다중 페이지 grid와 제외 승인은 후속이다. 제외 표시 데이터는 처음부터 읽을 수 있지만 선택만으로 제외하거나 원본을 삭제하지 않는다.
-
-**K3:** 원본 왼쪽, Read 오른쪽의 두 영역을 유지한다. 대응은 Core read model의 snapshot-local target ref이고 해당 document hash/revision이 맞을 때만 이동한다. 다대다·caption/그림 묶음·미주·미지원/대응 없음도 표현한다. 이미 전체가 보이면 강조만, 큰 블록은 윗끝이 보이면 유지하고 그 밖에는 reveal한다. 처음에는 클릭 기반 양방향 대응만 제공하고 연속 동기 스크롤·모든 연결선은 미룬다. `stale/unavailable`이면 이미지·오래된 자료임을 표시할 수 있으나 target 이동·교정 적용은 막는다. Host 전환·닫기 뒤 늦은 응답은 버린다. 대조 내 직접 편집은 없다.
-
-넓은 화면 전제는 **대조 콘텐츠 최소 폭 1024px**로 구체화한다. 1440px에서는 사이드 패널을 접어 확보하며 640~1023px에서는 기본 상태/오류·결과 문서 열기를 유지하고 ‘대조하려면 창을 넓히세요’를 표시한다. 좌우 대조를 세로/모바일 편집기로 바꾸지 않는다. 이 예외는 일반 검색 폼/표의 640px 지원을 낮추지 않는다.
-
-**K4:** 문서 변경 제안을 승인·거절·되돌리기 하는 공용 번들 화면과 Host 계약이다. baseline은 문서·제안 revision을 필수로, 제안이 참조한 원본·map revision을 해당 자료가 있을 때 포함한다. proposal은 `pending/approved/rejected/inapplicable/stale`을 구별하고 pending의 유효한 항목만 승인할 수 있다. Host는 화면 검증과 별개로 적용 직전 baseline을 다시 검사한다. 변경된 문서나 참조 자료를 이전 proposal과 섞어 적용하지 않는다. 거절은 문서 변경 없이 기록을 남긴다. 승인/Undo는 문서·제안 목록과 관련 자료를 같은 결과에 맞춰 다시 읽기 전까지 ‘갱신 중’으로 두고 이전 내용을 최신으로 표시하지 않는다. 비서는 pending 제안만 제출하며 사용자 명시 승인 전 적용하지 않는다. 플러그인 관리의 승인 제거와 별개다.
-
-ReviewList에서 제안을 고르면 ReviewDetail이 대상·전후·근거와 허용 동작을 표시한다. `review.propose`는 pending 제안을 만들 뿐 문서를 바꾸지 않는다. 사용자는 전후·근거를 검토하고 승인 또는 거절하며, 적용된 변경은 되돌리기 가능 여부와 불가 사유를 확인한다. 변경 적용과 되돌리기는 Host가 Core operation과 공식 write path로 수행하며 플러그인의 직접 문서 쓰기는 허용하지 않는다. 제안 입력과 승인 선택·baseline은 즐겨찾기에 저장하지 않는다. query InputForm의 SubmitButton에 임의 write 권한을 주지 않는다.
+K2는 원본 좌표·단위·원점과 페이지 자료를, K3는 동일 generation의 documentRef/revision/hash와
+mappingRevision·중립 target ref를, K4는 proposal·baseline·action 가용성과 receipt를 binding한다.
+페이지 선택·원점 변환·대응 강조/reveal·최소 대조 폭·승인/Undo·갱신 중·stale/unavailable의
+동작은 [공용 review UI 패턴](ui-patterns-v1.md#공용-원본-대조와-변경-제안-catalog-v5-1241-a안)을 따른다.
+명세는 이러한 동작을 재정의하지 않는다. Host는 baseline을 적용 직전 재검사하고 Core operation과
+공식 write path로 적용한다. review.propose는 pending만 제출하며 승인과 Undo는 사용자만 실행한다.
 
 공용 작업 후보는 `review.read/propose/approve/reject/undo/status`다. read는 bundle과 자료 종류/page/continuation을 입력받고 데이터·baseline·receipt를 반환한다. 변경은 bundle/proposal 또는 entry ID, baseline, requestId를 입력받고 새 baseline·changedDocumentRefs·receipt를 반환한다. status는 같은 requestId 결과를 확인한다. CLI `review <action> <pluginId> <reviewId> --input <file> --root <root> --host <origin> --json`를 같은 정의로 제공한다. 승인 CLI는 사용자의 명시 실행이며 비서에는 approve/undo 자동 실행 도구를 노출하지 않는다. 선택·hover·zoom·scroll은 parity 대상이 아니지만 자료 읽기·제안·승인·거절·Undo는 대상이다.
 
@@ -209,3 +206,10 @@ V1에서 공통 contract/schema를 소유하고, V2는 조회용 Host/CLI, V4는
 나머지 작은 결정은 직접 정했다: 12열 상한(5열 요구와 표시 비용), 8필드 단일 form·전체 args 대체(별도 상태 DSL 불필요), 단일 source 유지(조인 요구 없음), 1024px 대조 최소 폭(확정된 넓은 화면 전제), 앱 기존 작업 탭·공통 control 재사용, V7을 Docling 선행 조건에서 분리(시험에서 요구되지 않음). 이 PR의 제안 수락으로 함께 검토할 공개 API/상호작용이며 별도 선호 질문으로 쪼개지 않는다. 이미 결정된 기본 UI·새 탭·저장 위치·수동 조회·모델 선택·2회 교정·원격 코드 금지·migration 없음은 재결정 항목이 아니다.
 
 공통 구현은 DocumentTabs/ViewRenderer, SettingsSelect/SettingsInput/Button/Notice/Dialog 및 기존 Read를 재사용한다. [UI 결정표](ui-decision-table-v1.md)·[UI 패턴](ui-patterns-v1.md)의 입력 오류·적용·범위 규칙과 [Layout Rules](editor-layout-rules-v1.md)·[Visual Language](editor-visual-language-v1.md)의 높이/간격/톤을 따른다. 새 번들 PageSurface와 대조/교정 조합은 기존 표로 표현할 수 없는 K2~K4 때문에 필요한 예외다. 새 색·임의 CSS·별도 Editor를 도입하지 않는다. 구현 PR에서 생성 뷰·Plugin jobs·설정 입력의 같은 패턴 사용처를 함께 확인하고 Before/After 수동 근거를 남긴다.
+
+### V5 fixture 구현 상태
+
+[공용 review renderer](../../apps/editor/src/review/ReviewRenderer.tsx)가 V1 중립 자료 계약과
+기존 Read를 조합한다. 선택·승인·pending/applied·stale/unavailable·Undo·갱신 중·폭 안내의
+동작 소유권은 [UI 패턴](ui-patterns-v1.md#공용-원본-대조와-변경-제안-catalog-v5-1241-a안)에 둔다.
+명세에는 자료와 binding만 남긴다. V4 Host·CLI 통합과 V3 진입점 연결은 아직 검증하지 않았다.
