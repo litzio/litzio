@@ -55,9 +55,37 @@ function record(value: unknown): Record<string, any> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {};
 }
 function secret(schema: Record<string, any>): boolean { return schema.secret === true || schema.writeOnly === true || schema.format === "password"; }
+// This is a persistence capability check, not another JSON Schema evaluator.
+// Ajv still validates the unchanged original schema. Fail closed whenever its
+// applicators could attach secrecy outside the properties/items tree we inspect.
+const persistedInputKeywords = new Set([
+  "$schema", "$id", "$comment", "title", "description", "default", "examples", "deprecated", "readOnly", "writeOnly", "secret",
+  "type", "enum", "const", "format", "minLength", "maxLength", "pattern", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf",
+  "minItems", "maxItems", "uniqueItems", "minProperties", "maxProperties", "required", "additionalProperties", "properties", "items",
+]);
+function assertPersistableInputSchema(schema: Record<string, unknown>): void {
+  const ancestors = new Set<object>();
+  const inspect = (node: unknown): void => {
+    if (!node || typeof node !== "object" || Array.isArray(node) || ancestors.has(node)) throw new Error("Unsupported persisted input schema");
+    ancestors.add(node);
+    for (const [keyword, value] of Object.entries(node)) {
+      if (!persistedInputKeywords.has(keyword)) throw new Error("Unsupported persisted input schema");
+      if (keyword === "additionalProperties" && typeof value !== "boolean") throw new Error("Unsupported persisted input schema");
+      if (keyword === "items") inspect(value);
+      if (keyword === "properties") {
+        if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Unsupported persisted input schema");
+        for (const child of Object.values(value)) inspect(child);
+      }
+    }
+    ancestors.delete(node);
+  };
+  inspect(schema);
+}
+
 /** Static mode tolerates only missing required fields explicitly bound by the form. */
 export function validateViewInputs(view: QueryView, operation: ViewOperation, mode: "static" | "execute" = "static"): ViewInputState {
   const schema = operation.inputSchema, properties = record(schema.properties), args = view.sources.stats.args;
+  assertPersistableInputSchema(schema);
   for (const name of Object.keys(args)) {
     if (!Object.hasOwn(properties, name) || secret(record(properties[name]))) throw new Error("Unknown or secret input binding");
   }
@@ -129,8 +157,10 @@ export function evaluateQueryView(value: unknown, data: unknown, operations: rea
   return evaluateQueryRows(view, data, operations);
 }
 function publicInputSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  assertPersistableInputSchema(schema);
+  if (secret(schema)) throw new Error("Secret input cannot be published");
   const properties = record(schema.properties), hidden = Object.keys(properties).filter(k => secret(record(properties[k])));
-  return { ...schema, ...(schema.properties ? { properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !hidden.includes(k)).map(([k, p]) => [k, publicInputSchema(record(p))])) } : {}),
+  return { ...schema, ...(schema.items ? { items: publicInputSchema(record(schema.items)) } : {}), ...(schema.properties ? { properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !hidden.includes(k)).map(([k, p]) => [k, publicInputSchema(record(p))])) } : {}),
     ...(Array.isArray(schema.required) ? { required: schema.required.filter(k => !hidden.includes(k)) } : {}) };
 }
 export function createCatalogV2(operations: readonly ViewOperation[] = builtinViewOperations) {

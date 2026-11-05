@@ -93,7 +93,7 @@ test("operation declarations control all bindings and transforms without reveali
   spec.layout.children = [{ component: "BarChart", title: "Chart", source: "stats", data: "/rows", x: "status", y: "status" }];
   assert.throws(() => validateView(spec, ops));
 });
-import { queryViewSchema, validateCatalogView, serializeCatalogView, parseCatalogView, validateViewInputs, evaluateQueryView, compileViewInputSchema, reviewPageSchema, reviewProposalSchema } from "../src/views-v2.ts";
+import { createCatalogV2, queryViewSchema, validateCatalogView, serializeCatalogView, parseCatalogView, validateViewInputs, evaluateQueryView, compileViewInputSchema, reviewPageSchema, reviewProposalSchema } from "../src/views-v2.ts";
 const v2 = (): any => ({ ...base(), schemaVersion: 2, catalog: "litzio-v2", profile: "query" });
 const inputOperation: ViewOperation = { ...pluginOperation, inputSchema: { type: "object", properties: {
   text: { type: "string", maxLength: 8 }, date: { type: "string", format: "date" }, count: { type: "integer", minimum: 1, maximum: 5 },
@@ -132,6 +132,35 @@ test("v2 form validates type/enum/date/range/secret and separates saved missing 
   assert.throws(() => validateCatalogView(fixed, [{ ...inputOperation, inputSchema: { type: "object", properties: { text: { type: "string" } } } }]));
   const tooMany = formView(); tooMany.form.fields = Array(9).fill(tooMany.form.fields[0]); assert.throws(() => validateCatalogView(tooMany, operations));
   const wrongControl = formView(); wrongControl.form.fields[0].component = "Checkbox"; assert.throws(() => validateCatalogView(wrongControl, operations));
+  // Ajv accepts these valid inputs, but secret annotations behind schema applicators
+  // must never reach persisted args or the public catalog.
+  const indirectSchemas = [
+    { type: "object", properties: { token: { $ref: "#/$defs/token" } }, $defs: { token: { type: "string", writeOnly: true } } },
+    ...["allOf", "anyOf", "oneOf"].map(keyword => ({ type: "object", properties: { token: { [keyword]: [{ type: "string", secret: true }] } } })),
+    { type: "object", properties: { token: { type: "string" } }, allOf: [{ properties: { token: { type: "string", format: "password" } } }] },
+    { type: "object", properties: { token: { type: "string" } }, if: { required: ["token"] }, then: { properties: { token: { writeOnly: true } } } },
+    { type: "object", properties: { token: { $ref: "#/properties/token" } } },
+    { type: "object", properties: { token: { $ref: "https://example.test/token" } } },
+    { type: "object", patternProperties: { token: { writeOnly: true } } },
+    { type: "object", additionalProperties: { writeOnly: true } },
+  ];
+  for (const [index, inputSchema] of indirectSchemas.entries()) {
+    const op = { ...inputOperation, inputSchema };
+    if (index < 4) assert.equal(compileViewInputSchema(inputSchema)({ token: "credential" }), true);
+    const bad = formView(); delete bad.form; bad.sources.stats.args = { token: "credential" };
+    assert.throws(() => serializeCatalogView(bad, [op]), /Unsupported persisted input schema/);
+    assert.throws(() => createCatalogV2([op]), /Unsupported persisted input schema/);
+  }
+  const nestedSchema = { type: "object", properties: { data: { type: "array", items: { type: "object", properties: {
+    public: { type: "string" }, credential: { type: "string", writeOnly: true },
+  }, required: ["public"] } } } };
+  const nestedOp = { ...inputOperation, inputSchema: nestedSchema };
+  const fixedNested = formView(); delete fixedNested.form; fixedNested.sources.stats.args = { data: [{ public: "visible" }] };
+  assert.doesNotThrow(() => serializeCatalogView(fixedNested, [nestedOp]));
+  assert.ok(!JSON.stringify(createCatalogV2([nestedOp])).includes('"credential"'));
+  fixedNested.sources.stats.args.data[0].credential = "credential";
+  assert.throws(() => serializeCatalogView(fixedNested, [nestedOp]), /Secret input/);
+
 });
 test("v2 permits exactly 12 public columns and rejects duplicates/secrets/13 columns", () => {
   const fields = Object.fromEntries(Array.from({ length: 13 }, (_, i) => [`col${i}`, { type: "string", label: `Column ${i}` }]));
