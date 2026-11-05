@@ -35,6 +35,8 @@ pnpm --filter @litzio/cli package
 pnpm --filter @litzio/desktop package
 ```
 
+`pnpm --filter @litzio/cli package`는 npm 배포용 CLI tarball을 만들 때만 필요하며 Desktop 빌드에는 필요 없다. Desktop 빌드가 CLI와 Editor를 직접 빌드한다.
+
 이미지를 교체할 때 기본·small·어두운 배경용 두 SVG와 생성 ICO 경로를 설정하고 `pnpm --filter @litzio/desktop icons`를 실행한다. 16·24·32px는 small, 48·64·128·256px는 기본 SVG를 Electron Chromium으로 직접 래스터화한다. 매 크기의 luminance mask 틈을 픽셀 비교로 검사한다. 새 의존성은 없다. 원본 SVG와 생성 ICO·public favicon을 함께 커밋한다. 패키징은 커밋된 ICO를 사용한다. Editor의 상단·시작 표시는 SVG를 쓰며 Editor 테마에 맞는 원본을 고른다. 웹 favicon은 `prefers-color-scheme`을 포함한 32KB 이하의 `apps/editor/public/favicon.svg`를 우선하고 ICO를 대체로 둔다. Vite는 brand.ts 경로에서 favicon을 제공·빌드하므로 경로만 교체해도 리브랜딩된다. 공개 파일 갱신은 생성 명령이 맡는다. Paseo의 실제 자동 인식은 검사하지 않는다. 상세는 [아이콘 계약](../design/app-icon-v1.md)을 따른다.
 소스 개발용 `pnpm cli`는 고정 개발 도구 진입점이며, 배포 CLI 이름은 생성 manifest에서 정한다.
 
