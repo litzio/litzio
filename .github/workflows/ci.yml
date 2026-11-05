@@ -507,7 +507,8 @@ jobs:
           LITZIO_TEST_LIFECYCLE_SCOPE: ${{ needs.changes.outputs.fullLifecycle == 'true' && 'full' || 'representative' }}
       - name: Diagnose uninstall flake (temporary repetitions for issue 1231)
         run: |
-          1..5 | ForEach-Object {
+          $env:LITZIO_DIAG_ENVIRONMENT_ONLY = '1'
+          1..40 | ForEach-Object {
             Write-Host "Uninstall diagnostic iteration $_"
             $diagnosticFolder = [IO.Path]::GetFullPath("$env:LOCALAPPDATA/litzio/uninstall-logs")
             if (-not $diagnosticFolder.StartsWith([IO.Path]::GetFullPath($env:LOCALAPPDATA) + [IO.Path]::DirectorySeparatorChar)) { throw 'Invalid diagnostic path' }
