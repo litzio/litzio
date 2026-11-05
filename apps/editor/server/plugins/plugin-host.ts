@@ -32,7 +32,11 @@ export class PluginHost {
   constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; secrets?: PluginSecretStore } = {}) {
     this.access = options.access ?? LOCAL_FILE_ACCESS;
     this.secrets = options.secrets ?? new WindowsPluginSecretStore(`${file}.secrets`);
-    this.jobs = new PluginJobs(options.access ?? LOCAL_FILE_ACCESS, (plugin, job) => { if (this.closed || this.disabling.has(plugin)) throw new Error("Plugin is stopping"); const binding = this.loaded.get(plugin)?.manifest.contributes.jobs.find(item => item.id === job); if (!binding) throw new Error("Job unavailable"); return binding; }, (name, input) => this.invokeOperation(name, input, undefined, true));
+    this.jobs = new PluginJobs(options.access ?? LOCAL_FILE_ACCESS, (plugin, job) => { if (this.closed || this.disabling.has(plugin)) throw new Error("Plugin is stopping"); const binding = this.loaded.get(plugin)?.manifest.contributes.jobs.find(item => item.id === job); if (!binding) throw new Error("Job unavailable"); return binding; }, (name, input) => this.invokeOperation(name, input, undefined, true), name => {
+      const operation = [...this.loaded.values()].flatMap(live => live.manifest.contributes.operations.map(op => ({ name: `${live.manifest.id}.${op.id}`, effect: op.effect }))).find(op => op.name === name);
+      if (!operation) throw new Error("Job operation unavailable");
+      return operation.effect;
+    });
     this.installed = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
   }
   private save() {

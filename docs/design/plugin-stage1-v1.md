@@ -123,3 +123,5 @@ SDK `PluginOperationError(kind)` 또는 같은 `kind` 속성의 예외로 `auth`
 Host의 `publicOperationError`는 `errorKind`와 SDK의 고정 `PLUGIN_ERROR_MESSAGES`만 공개한다. 예외 원문·stack·응답 본문·임의 안내는 IPC와 공개 결과에 전달하지 않는다. 읽기 실패 receipt는 failure, 쓰기는 uncertain이며 쓰기에만 대상 확인 후 쓰기 재시도 안내를 덧붙인다. CLI·비서 도구는 동일 결과를 반환하고, 현재 뷰 새로고침 오류는 `[errorKind]`와 같은 고정 문구를 표시한다. 기존 Notice를 재사용하며 새 카탈로그 요소는 만들지 않는다.
 
 K1 반환형 실패도 같은 공개 오류 경계를 따른다. handler는 오류 문자열 대신 `errorKind`만 지정하며 알 수 없거나 누락된 분류는 `failed`다. `failed`·`uncertain`의 phase와 오류 안내는 Host 고정값이며 plugin phase·예외 원문을 복사하지 않는다. 기존 `error` 필드는 허용하지 않으며 잘못된 결과는 고정 `failed` 안내의 uncertain으로 남긴다. job-status·job-list·화면·비서가 같은 정규화된 snapshot을 받는다.
+
+K1 호출은 등록 시 manifest의 start/status/stop read·write 효과를 기록하고 오류 정규화에도 유지한다. 쓰기 실패에는 고정 대상 확인 안내와 `Query the same requestId; do not resend start.`를 함께 붙인다. 쓰기 결과가 uncertain인 동안 후속 읽기 조회도 실패하거나 uncertain을 반환하면 이 안전 안내를 유지한다. 원문·stack은 복사하지 않는다.

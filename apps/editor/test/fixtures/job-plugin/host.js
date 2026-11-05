@@ -5,6 +5,7 @@ export function activate() {
     operations: {
       async start(input) {
         const text = readFileSync(input.file, "utf8");
+        if (text.startsWith("THROW")) throw Object.assign(new Error("raw-write-private"), {kind:"unavailable"});
         const job = { state: "running", phase: "Reading", progress: { done: 0, total: 3 } };
         const control = { job, text, wake: undefined, timer: undefined }; jobs.set(input.requestId, control);
         for (let step = 1; step <= 3; step++) {
