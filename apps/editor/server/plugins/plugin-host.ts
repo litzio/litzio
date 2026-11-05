@@ -3,15 +3,16 @@ import { builtinViewOperations, type ViewOperation } from "@litzio/core/views";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, lstatSync, realpathSync, statSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import path from "node:path";
+import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
+import { scaffoldPlugin } from "./plugin-authoring.ts";
 import { startPluginProcess } from "./plugin-process.ts";
-import { validateManifest, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance } from "@litzio/plugin-sdk";
+import { validateManifest, validatePluginSource, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance } from "@litzio/plugin-sdk";
 import { hostPaths } from "../host-paths.ts";
 
 import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store.ts";
 import { rememberSecret, withPluginCode } from "./secret-redaction.ts";
 
 import { PluginJobs } from "./jobs.ts";
-import { LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
 
 type Installed = { directory: string; digest: string; trustedDigest?: string; enabled: boolean; settings: Record<string, unknown>; operationNames: string[] };
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>> };
@@ -27,7 +28,9 @@ export class PluginHost {
   private disabling = new Set<string>();
   readonly jobs: PluginJobs;
   private secrets: PluginSecretStore;
+  private access: FileAccess;
   constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; secrets?: PluginSecretStore } = {}) {
+    this.access = options.access ?? LOCAL_FILE_ACCESS;
     this.secrets = options.secrets ?? new WindowsPluginSecretStore(`${file}.secrets`);
     this.jobs = new PluginJobs(options.access ?? LOCAL_FILE_ACCESS, (plugin, job) => { if (this.closed || this.disabling.has(plugin)) throw new Error("Plugin is stopping"); const binding = this.loaded.get(plugin)?.manifest.contributes.jobs.find(item => item.id === job); if (!binding) throw new Error("Job unavailable"); return binding; }, (name, input) => this.invokeOperation(name, input, undefined, true));
     this.installed = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
@@ -38,7 +41,7 @@ export class PluginHost {
     try { writeFileSync(temporary, JSON.stringify(this.installed, null, 2) + "\n", { flag: "wx" }); renameSync(temporary, this.file); }
     finally { if (existsSync(temporary)) unlinkSync(temporary); }
   }
-  private artifact(directory: string) {
+  private artifact(directory: string, inspecting: (file: string) => void = () => {}) {
     directory = realpathSync(directory);
     const hash = createHash("sha256");
     const walk = (dir: string) => { for (const name of readdirSync(dir).sort()) {
@@ -51,8 +54,11 @@ export class PluginHost {
       if (metadata.isDirectory()) walk(file); else hash.update(readFileSync(file));
     } };
     walk(directory);
+    inspecting("litzio-plugin.json");
     const manifest = validateManifest(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")));
+    inspecting("package.json");
     if (JSON.parse(readFileSync(path.join(directory, "package.json"), "utf8")).version !== manifest.version) throw new Error("Package and manifest versions differ");
+    inspecting("host entry");
     const entry = realpathSync(path.join(directory, manifest.entry));
     if (path.relative(directory, entry).startsWith("..") || !statSync(entry).isFile()) throw new Error("Invalid entry");
     compileSchema(manifest.settingsSchema);
@@ -182,16 +188,35 @@ export class PluginHost {
       return { error: "Plugin operation did not return a valid result. Check the target before retrying a write.", receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: op.effect === "write" ? "uncertain" : "failure" } };
     } finally { live.pending.delete(run); }
   }
-  invoke(action: string, args: { id?: string; directory?: string; digest?: string; settings?: Record<string, unknown>; operation?: string; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; output?: string; requestId?: string } = {}): Promise<unknown> {
+  invoke(action: string, args: { id?: string; directory?: string; digest?: string; settings?: Record<string, unknown>; operation?: string; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; output?: string; requestId?: string } = {}, creationScope: FileAccess = LOCAL_FILE_ACCESS): Promise<unknown> {
     if (this.closed) return Promise.reject(new Error("Plugin Host is closing"));
     if (action.startsWith("job-")) return this.jobs.execute({ action, ...args });
     if (action === "invoke") return this.invokeOperation(args.operation!, args.input);
     pluginManagementSchema.parse({ action, ...args });
     if (action === "list") return this.list().then(plugins => ({ plugins }));
     const run = this.serial.then(async () => {
-      const id = args.id!;
+      let id = args.id!;
+      const receipt = (outcome: "success" | "failure") => ({ requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome });
+      if (action === "scaffold") return { ...scaffoldPlugin(args.directory!, id, this.access, creationScope), receipt: receipt("success") };
+      if (action === "validate") {
+        const errors: { file: string; line: number | null; column: number | null; kind: string }[] = []; let manifestId: string | undefined;
+        let file = "artifact";
+        try {
+          const a = this.artifact(accessPath(args.directory!, this.access), current => { file = current; }); manifestId = a.manifest.id;
+          errors.push(...validatePluginSource(readFileSync(a.entry, "utf8"), a.manifest).map(issue => ({ file: "host entry", ...issue })));
+        } catch (error) {
+          // Read only numeric location metadata. Parser/Ajv/Zod/fs messages may contain source or secret values.
+          const value = error as { loc?: { line?: number; column?: number }; message?: string; name?: string };
+          const location = typeof value?.message === "string" ? /line (\d+) column (\d+)/.exec(value.message) : null;
+          const line = Number.isInteger(value?.loc?.line) ? value.loc!.line! : location ? Number(location[1]) : null;
+          const column = Number.isInteger(value?.loc?.column) ? value.loc!.column! + 1 : location ? Number(location[2]) : null;
+          errors.push({ file, line, column, kind: error instanceof SyntaxError ? file === "host entry" ? "JavaScript syntax error" : "JSON syntax error" : value?.name === "ZodError" ? "Manifest schema violation" : "Artifact or SDK/schema validation failed" });
+        }
+        return { id: manifestId, valid: errors.length === 0, errors, limitations: "Static literal handlers only; computed output and activation behavior are checked at runtime.", receipt: receipt(errors.length ? "failure" : "success") };
+      }
       if (action === "register") {
         const directory = realpathSync(args.directory!), a = this.artifact(directory);
+        id = a.manifest.id;
         const names = new Set(a.manifest.contributes.operations.map(operation => `${a.manifest.id}.${operation.id}`));
         if (builtinViewOperations.some(op => names.has(op.operation))) throw new Error("Plugin operation ID collides with built-in operation");
         for (const [otherId, other] of Object.entries(this.installed)) {
@@ -241,7 +266,7 @@ export class PluginHost {
         } else throw new Error("Unknown plugin management action");
       }
       this.save();
-      return { plugins: await this.list(), receipt: { requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome: "success" } };
+      return { id, plugins: await this.list(), receipt: { requestId: randomUUID(), operation: `plugins.${action}`, version: 1, scope: "host", outcome: "success" } };
     });
     this.serial = run.catch(() => {}); return run;
   }

@@ -188,3 +188,16 @@ test("a locked previous summary and EPERM updating this run cannot bypass CLI re
     assert.deepEqual(registry.list(), [host]);
   } finally { renameMock.mock.restore(); unlinkMock.mock.restore(); }
 });
+
+
+test("plugin authoring CLI forwards Host directory/id and preserves validation failure", async t => {
+  const bodies: unknown[] = [];
+  t.mock.method(globalThis, "fetch", async (url: URL, init?: RequestInit) => {
+    if (url.pathname === "/daemon/health") return new Response(JSON.stringify({ protocolVersion: DAEMON_PROTOCOL }));
+    bodies.push(JSON.parse(init!.body as string));
+    return new Response(JSON.stringify({ valid: false, errors: ["Missing handler: greet"], receipt: { outcome: "failure" } }));
+  });
+  assert.equal(await runCliAsync(["plugins", "scaffold", "C:/host/greeting", "--id", "local.greeting", "--host", "http://127.0.0.1:5180", "--json"]), 1);
+  assert.equal(await runCliAsync(["plugins", "validate", "C:/host/greeting", "--host", "http://127.0.0.1:5180", "--json"]), 1);
+  assert.deepEqual(bodies, [{ action: "scaffold", directory: "C:/host/greeting", id: "local.greeting" }, { action: "validate", directory: "C:/host/greeting" }]);
+});

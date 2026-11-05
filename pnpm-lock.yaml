@@ -464,6 +464,9 @@ importers:
       '@litzio/core':
         specifier: workspace:*
         version: link:../core
+      '@babel/parser':
+        specifier: 7.29.9
+        version: 7.29.9
       ajv:
         specifier: 8.20.0
         version: 8.20.0
