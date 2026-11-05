@@ -8,6 +8,8 @@
 - Authority: [#1132 소유자 승인](https://github.com/litzio/litzio/issues/1132#issuecomment-6618888405), [종합과 결정 제안](https://github.com/litzio/litzio/issues/1132#issuecomment-6618863609), [Discussion #767 결정 기록](https://github.com/litzio/litzio/discussions/767#discussioncomment-19386313), under [AGENTS.md](../../AGENTS.md).
 - Scope: 새 사용자 기능의 공용 작업·CLI·비서 도구 계약. 기존 기능은 아래 순서로 이행한다. 로컬 daemon 연결·수명은 ADR-0016에서 결정하며 편집 상태 공유는 계속 보류한다.
 
+- Amendment date: 2026-11-05 — [ADR-0020 비서 제작 로드맵](0020-plugin-architecture.md#비서-플러그인-제작-로드맵2026-11-05-개정)에 따라 플러그인 관리의 건별 명시 승인을 제거하고 사용자에게 보이는 활동 기록으로 대체한다. secret 비노출·제품 고정 공식 목록·digest 신뢰 기록은 유지한다. AI 권한·공급자·모델 변경 금지와 문서 교정 승인은 그대로다. 현재 구현 변경 완료를 뜻하지 않는다.
+
 ## Amendment: 공유 로컬 daemon Host (2026-11-04, #1142)
 
 [ADR-0016](0016-shared-local-daemon-host.md)은 소유자 승인에 따라 Desktop의 custom protocol·in-process Host·TCP 없음 경계를 공유 로컬 HTTP daemon으로 대체하고, 실행 중 daemon 자동 탐색·연결과 수명 정책을 결정한다. 로컬 daemon은 Root 제한 없이 동작한다. 2026-11-04 소유자의 최종 승인에 따라 현재 단계는 별도 인증이 없으며 인증 방식과 시점은 #1145에서 향후 검토한다. 제품/프로토콜 버전 분리와 자동 교체 금지, 종료·휴지통·샘플·origin 정책 및 기간 한정 테스트 예외는 해당 ADR을 따른다. ADR-0016 ③에 따라 수동 원격 daemon도 Root 제한 없이 실행할 수 있고 non-loopback 시작 시 무인증 접근 위험을 경고한다. Desktop daemon은 loopback 전용이다. 공유 편집 세션과 원격용 HTTPS·계정 체계는 계속 보류한다.
