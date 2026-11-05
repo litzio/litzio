@@ -1,3 +1,5 @@
+import { documentRevision, loadDocumentFile, loadEditorFile, editorFile, MEDIA_TYPES } from "./document-reader.ts";
+export { documentRevision, loadDocumentFile, loadEditorFile, MEDIA_TYPES } from "./document-reader.ts";
 import { executeCompareOperation } from "./document-compare.ts";
 import { executeViewOperation } from "./views.ts";
 import { hostIdentity } from "./host-identity.ts";
@@ -15,7 +17,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { createDocument, parse, hasNativeMarker, serialize, NativeDocumentError, writeIssueOf } from "@litzio/core";
-import { assertUnicode, commitFile, decodeUtf8, FileChangedError, textRevision } from "@litzio/file-commit";
+import { assertUnicode, commitFile, decodeUtf8, FileChangedError } from "@litzio/file-commit";
 import { accessPath, FileAccessError, fileErrorMessage, fileErrorStatus, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 import { readRequestBody, RequestBodyError } from "./request-body.ts";
 import { requestQuery } from "./request-query.ts";
@@ -35,7 +37,6 @@ import type {
   SaveRequest,
   SupportedEdits,
   DocumentFileResponse,
-  EditorFileResponse,
   TextSaveRequest,
   SaveResponse,
   SourceResponse,
@@ -82,38 +83,11 @@ export const DOCUMENT_CONFLICT_MESSAGE = "Document changed outside the editor. Y
 
 const EMPTY_DOCUMENT_MARKDOWN = serialize(createDocument());
 
-/** Media a document can show from beside it, by extension; also what choosing an image lists. */
-export const MEDIA_TYPES: Record<string, string> = {
-  ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
-};
-
 export class DocumentConflictError extends Error {
   constructor() {
     super(DOCUMENT_CONFLICT_MESSAGE);
     this.name = "DocumentConflictError";
   }
-}
-
-export const documentRevision = textRevision;
-
-export function loadDocumentFile(requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS): DocumentFileResponse {
-  const filePath = resolveDocumentPath(requestedPath, access);
-  const source = decodeUtf8(readFileSync(filePath));
-  return { kind: "native", path: filePath, source, ...readModel(source), revision: documentRevision(source) };
-}
-
-function editorFile(filePath: string, source: string): EditorFileResponse {
-  const file = { path: filePath, source, revision: documentRevision(source) };
-  if (path.extname(filePath).toLowerCase() === ".md") {
-    try { return { ...file, kind: "native", ...readModel(source) }; }
-    catch { /* Core's existing admission is the only Markdown support decision. */ }
-  }
-  return { ...file, kind: "text" };
-}
-
-export function loadEditorFile(requestedPath?: string, access: FileAccess = LOCAL_FILE_ACCESS): EditorFileResponse {
-  const filePath = resolveEditorPath(requestedPath, access);
-  return editorFile(filePath, decodeUtf8(readFileSync(filePath)));
 }
 
 /** The request tag cannot grant raw writes to a native document. Recheck disk on every Save. */

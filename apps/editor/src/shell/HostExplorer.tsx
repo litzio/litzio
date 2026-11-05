@@ -5,7 +5,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { hostRegistry, hostLabel, getHostClient, type HostClient } from "../host-client.ts";
 import { folderChain, useFolderTrees } from "./folder-tree.ts";
-import { FolderTree } from "./Sidebar.tsx";
+import { FolderTree } from "./FolderTree.tsx";
 import { FolderDialog } from "./FolderDialog.tsx";
 import type { FileActionHandler } from "./FileActionDialog.tsx";
 import { Button } from "@/components/ui/button.tsx";
