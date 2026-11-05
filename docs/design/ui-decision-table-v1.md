@@ -184,3 +184,14 @@ Recovery Compare reuses the same VisualCompare, ChoiceGroup, diff markers and
 ComparisonInfo Tooltip without adding another renderer. Its existing Restore/Delete/
 Not now controls and plaintext copy retain their behavior. See the
 [recovery display contract](editing-session-save-v1.md#recovery-visual-comparison-1201).
+
+## Catalog query renderer V3 (#1241 A안)
+
+공통 구현: `views/Views.tsx`의 조회 상태 조합과 `views/source-state.ts`의 고정 오류 adapter,
+`views/QueryInputs.tsx`의 scalar binding. 별도 동적 UI 부품군 없이 Input/Button/Notice/
+FieldError/Dialog, SettingsSelect의 `form-select settings-select` 레시피와 Lucide Star를 쓴다.
+사용처는 기본 통계·생성 탭·즐겨찾기다. 폴더 선택 자체 CSS 제거, 첫 조회/loading·이전 결과
+표시, 원문 오류/중복 오류 제거, source별 단일 빈 상태, 문자 별 아이콘 제거를 함께 적용한다.
+SettingsSelect wrapper는 설정 행 배치이므로 조회 form은 같은 control 레시피를 직접 조합한다.
+Plugin jobs는 기존 Notice/Button/공통 progress, Settings는 SettingsSelect/SettingsInput을
+유지하며 조회 입력을 저장 설정으로 취급하지 않는다. 동작 규칙은 [조회 패턴](ui-patterns-v1.md#query-renderer-v3)이 소유한다.

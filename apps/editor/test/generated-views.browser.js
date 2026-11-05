@@ -33,12 +33,32 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     }
     return route.fulfill({ json: conversation });
   });
+  // V3 uses a v2 Host fixture until V2 lands. This is renderer proof, not Host integration.
+  const saved = new Map();
+  let fault, empty = false, hold, started = false;
+  const columns = ['key', 'summary', 'status', 'assignee', 'updated', 'project', 'priority', 'type', 'reporter', 'created', 'points', 'link'];
+  const formView = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', title: 'Issue search', refresh: 'manual', sources: { stats: { operation: 'fixture.issues.read', version: 1, args: { preset: 'assigned-open' } } }, form: { component: 'InputForm', source: 'stats', fields: [{ component: 'Select', field: 'preset' }, { component: 'TextInput', field: 'text' }, { component: 'DateInput', field: 'since' }, { component: 'NumberInput', field: 'limit' }, { component: 'Checkbox', field: 'closed' }], submit: { component: 'SubmitButton', label: 'Search' } }, layout: { component: 'VerticalPanel', children: [{ component: 'Table', title: 'Issues', source: 'stats', data: '/rows', columns: columns.slice(0, 5) }] } };
+  saved.set('Issue search', formView);
+  saved.set('Twelve columns', { ...formView, title: 'Twelve columns', layout: { component: 'VerticalPanel', children: [{ ...formView.layout.children[0], columns }] } });
+  await page.route('**/api/views/catalog', route => route.fulfill({ json: { operations: [{ operation: 'fixture.issues.read', version: 1, inputSchema: { type: 'object', additionalProperties: false, required: ['preset'], properties: { preset: { type: 'string', title: 'Preset', enum: ['assigned-open', 'reported-open', 'assigned-all', 'reported-all', 'recent', 'all'] }, text: { type: 'string', title: 'Text', maxLength: 20 }, since: { type: 'string', format: 'date', title: 'Since' }, limit: { type: 'integer', minimum: 1, maximum: 100, title: 'Limit' }, closed: { type: 'boolean', title: 'Closed' } } } }] } }));
   await page.route('**/api/views', async route => {
     const body = route.request().postDataJSON();
-    if (body.action === 'run') queries++; if (body.action === 'validate') validates++;
-    const response = await route.fetch(), value = await response.json();
-    if (body.action === 'run' && value.receipt.outcome === 'success') { latestRows = value.rows; latestReceipt = value.receipt; }
-    await route.fulfill({ response, json: value });
+    const receipt = { operation: `view.${body.action}`, version: 1, requestId: 'fixture-request', outcome: 'success', scope: 'folder', timestamp: '2026-11-06T00:00:00Z' };
+    let value = { receipt };
+    if (body.action === 'validate') { validates++; if (body.view.layout.children[0].columns.includes('authorEmail')) return route.fulfill({ status: 400, json: { error: 'Invalid binding', receipt: { ...receipt, outcome: 'failure' } } }); value.view = body.view; }
+    if (body.action === 'list') value.favourites = [...saved.keys()];
+    if (body.action === 'open') { value.view = saved.get(body.name); value.name = body.name; }
+    if (body.action === 'save') {
+      if (saved.has(body.name)) return route.fulfill({ status: 400, json: { error: 'SECRET duplicate detail', receipt: { ...receipt, outcome: 'failure' } } });
+      saved.set(body.name, body.view);
+    }
+    if (body.action === 'run') {
+      queries++; started = true; if (hold) await hold;
+      if (fault) return route.fulfill({ status: 400, json: { errorKind: fault, error: 'SECRET token password upstream-body', receipt: { ...receipt, outcome: fault === 'uncertain' ? 'uncertain' : 'failure' } } });
+      value.rows = empty ? [] : body.view.form ? [Object.fromEntries(columns.map(c => [c, c === 'summary' ? body.view.sources.stats.args.preset : c === 'points' ? 5 : c]))] : body.view.sources.stats.operation === 'folder.statistics' ? [{ folder: '.', documents: 1, headings: 2, modified: null }] : [{ group: 'open', value: 5 }, { group: 'idle', value: 0 }, { group: 'closed', value: -2 }];
+      latestRows = value.rows; latestReceipt = receipt; value.target = { root };
+    }
+    await route.fulfill({ json: value });
   });
   await page.reload(); await page.setViewportSize({ width: 1440, height: 1000 });
   await openFolderPicker(page); await page.getByTestId('folder-path').fill(root); await page.getByTestId('folder-open').click();
@@ -89,7 +109,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect(page.locator('[data-slot=tooltip-content]')).toContainText(latestReceipt.requestId);
   await expect(page.locator('[data-slot=tooltip-content]')).toContainText(root);
   await page.mouse.move(0, 0); await expect(page.locator('[data-slot=tooltip-content]')).not.toBeVisible();
-  const save = async () => { await generated().getByRole('button', { name: '★ Add to favorites', exact: true }).click(); const dialog = page.getByRole('dialog', { name: '★ Add to favorites', exact: true }); await expect(dialog.getByRole('textbox', { name: 'New favorite name' })).toHaveValue(proposal.title); await dialog.getByRole('textbox', { name: 'New favorite name' }).fill(favorite); await dialog.getByRole('button', { name: 'Add favorite', exact: true }).click(); return dialog; };
+  const save = async () => { await generated().getByRole('button', { name: 'Add to favorites', exact: true }).click(); const dialog = page.getByRole('dialog', { name: 'Add to favorites', exact: true }); await expect(dialog.getByRole('textbox', { name: 'New favorite name' })).toHaveValue(proposal.title); await dialog.getByRole('textbox', { name: 'New favorite name' }).fill(favorite); await dialog.getByRole('button', { name: 'Add favorite', exact: true }).click(); return dialog; };
   await expect(await save()).not.toBeVisible();
   const duplicate = await save(); await expect(duplicate.getByRole('alert')).toBeVisible(); await duplicate.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
@@ -108,9 +128,6 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   expect(queries).toBe(before.queries);
   await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
   await expect(generated().locator('tbody tr')).not.toHaveCount(0); expect(latestRows).toEqual(rows);
-  const cli = pluginFixture.cli(['view', 'run', '--name', favorite, '--plugin', 'fixture.issues', '--root', root]);
-  expect(cli.rows).toEqual(latestRows); expect(cli.receipt.operation).toBe('view.run'); expect(cli.receipt.outcome).toBe('success');
-  expect(cli.rows.some(row => row.group === 'open')).toBe(true);
   if (screenshots) for (const width of [1440, 640]) {
     await page.setViewportSize({ width, height: 1000 }); await expect(generated()).toBeVisible();
     await expect(generated().locator('tbody tr')).not.toHaveCount(0);
@@ -127,7 +144,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   let releaseOpen, openStarted = false, openDelivered = false;
   const openGate = new Promise(resolve => { releaseOpen = resolve; });
   await page.route('**/api/views', async route => {
-    if (route.request().postDataJSON().action !== 'open') return route.fallback();
+    if (route.request().postDataJSON().action !== 'open' || route.request().postDataJSON().name !== favorite) return route.fallback();
     const response = await route.fetch(); openStarted = true; await openGate;
     try { await route.fulfill({ response }); } finally { openDelivered = true; }
   });
@@ -175,6 +192,85 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
   releasePoll(); await expect.poll(() => pollDelivered).toBe(true);
   await expect(page.locator('.document-tabs [role="tab"]')).toHaveCount(tabsAfterStop);
+  // User interaction coverage for the shared query renderer.
+  if (await panel.isVisible()) await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
+  await page.keyboard.press('Control+Slash'); await page.getByRole('combobox').fill('> Document statistics');
+  await page.getByRole('option', { name: 'Document statistics', exact: true }).click();
+  const statistics = page.getByTestId('statistics-view');
+  await statistics.getByRole('combobox', { name: 'Statistics folder' }).selectOption(root);
+  await statistics.getByRole('button', { name: 'Issue search', exact: true }).click();
+  await expect(generated().getByLabel('Preset')).toHaveValue('0');
+  const countBeforeInput = queries;
+  await generated().getByLabel('Preset').selectOption('1');
+  await generated().getByLabel('Text', { exact: true }).fill('needle');
+  await generated().getByLabel('Limit', { exact: true }).fill('0');
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(generated().getByRole('alert')).toBeVisible(); expect(queries).toBe(countBeforeInput);
+  await generated().getByLabel('Limit', { exact: true }).fill('12');
+  await generated().getByLabel('Since', { exact: true }).fill('2026-11-01');
+  await generated().getByLabel('Closed', { exact: true }).check();
+  let release;
+  hold = new Promise(resolve => { release = resolve; }); started = false;
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect.poll(() => started).toBe(true);
+  await expect(generated().getByText('Loading data…')).toBeVisible();
+  await expect(generated().getByText('Data has not been queried. Refresh manually.')).toHaveCount(0);
+  await generated().getByLabel('Text', { exact: true }).fill('changed');
+  release(); hold = undefined;
+  await expect(generated().locator('th')).toHaveCount(5);
+  await expect(generated().getByText(/Search conditions changed/)).toBeVisible();
+  for (const width of [640, 960, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await generated().evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    if (screenshots) await page.screenshot({ path: `tmp/v3-evidence/form-${width}.png` });
+  }
+  hold = new Promise(resolve => { release = resolve; }); started = false;
+  await generated().getByLabel('Preset').selectOption('2');
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect.poll(() => started).toBe(true);
+  await expect(generated().getByText(/Previous query result/)).toBeVisible();
+  await expect(generated().getByText('Loading data…')).toBeVisible();
+  release(); hold = undefined;
+  await expect(generated().getByText('Loading data…')).toHaveCount(0);
+  for (const [kind, message] of [['auth', 'Authentication required.'], ['forbidden', 'Access denied.'], ['not_found', 'Target not found.'], ['unavailable', 'Service unavailable.'], ['timeout', 'Operation timed out.'], ['uncertain', 'The outcome is unknown.']]) {
+    fault = kind;
+    await generated().getByRole('button', { name: 'Search', exact: true }).click();
+    await expect(generated().getByText(message, { exact: false })).toBeVisible();
+    await expect(generated()).not.toContainText('SECRET');
+    await expect(generated().getByText(/Previous query result/)).toBeVisible();
+  }
+  fault = undefined; empty = true;
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(generated().getByText('No matching rows.', { exact: true })).toHaveCount(1);
+  empty = false;
+  await generated().getByRole('button', { name: 'Add to favorites', exact: true }).click();
+  const inputSave = page.getByRole('dialog', { name: 'Add to favorites', exact: true });
+  await inputSave.getByRole('textbox', { name: 'New favorite name' }).fill('Saved inputs');
+  await inputSave.getByRole('button', { name: 'Add favorite', exact: true }).click();
+  await expect(inputSave).not.toBeVisible();
+  await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
+  const beforeOpen = queries;
+  await statistics.getByRole('button', { name: 'Saved inputs', exact: true }).click();
+  await expect(generated().getByLabel('Text', { exact: true })).toHaveValue('changed'); expect(queries).toBe(beforeOpen);
+  await expect(generated().getByLabel('Preset')).toHaveValue('2');
+  await expect(generated().getByLabel('Since', { exact: true })).toHaveValue('2026-11-01');
+  await expect(generated().getByLabel('Closed', { exact: true })).toBeChecked();
+  await expect(generated().getByText('Data has not been queried. Refresh manually.')).toBeVisible();
+  await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
+  await statistics.getByRole('button', { name: 'Twelve columns', exact: true }).click();
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(generated().locator('th')).toHaveCount(12);
+  for (const width of [640, 960, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    expect(await generated().evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    const scroller = generated().locator('.view-table-scroll');
+    await scroller.scrollIntoViewIfNeeded(); await scroller.hover(); await page.mouse.wheel(2500, 0);
+    await expect.poll(() => scroller.evaluate(el => el.scrollLeft > 0)).toBe(true);
+    await expect.poll(() => generated().locator('th').last().evaluate(el => el.getBoundingClientRect().right <= el.closest('.view-table-scroll').getBoundingClientRect().right)).toBe(true);
+    await page.mouse.wheel(-2500, 0);
+    await expect.poll(() => scroller.evaluate(el => el.scrollLeft)).toBe(0);
+    if (screenshots) await page.screenshot({ path: `tmp/v3-evidence/table12-${width}.png` });
+  }
   pluginFixture.cli(['plugins', 'disable', 'fixture.issues']);
   return { favorite, root, rows, captureEnvironment, providers: sends.map(send => send.provider) };
 }

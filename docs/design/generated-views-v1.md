@@ -154,3 +154,16 @@ Query retains sources.stats and /rows. `VIEW_LIMITS.columns` is 12 unique public
 Review persists only sources.review `{plugin,review,bundleRef}`. PageSurface/SourceDocumentCompare/ReviewList/ReviewDetail are allowed, query controls and arbitrary actions are not. `reviewBundleSchema`, `reviewPageSchema`, `reviewMappingSchema`, `reviewProposalSchema`, `reviewBaselineSchema` and their inferred types describe neutral completed data. Opaque references cannot be URLs. A document target uses a snapshot-local Core NodePath plus document revision/hash, never Editor positions. Page bbox bounds, pt/px units, TOPLEFT/BOTTOMLEFT origin and proposal action eligibility are validated. `REVIEW_LIMITS` publishes resource limits; V4 must enforce Host/Root ownership, generation consistency, list/image byte limits, baseline rechecks and official writes. Schema validation alone does not prove those runtime properties. `SourceState` supplies the shared state vocabulary without adding a service error classification.
 
 Existing Core views tests cover v2 canonical round trips, missing versus executable inputs, scalar type/enum/date/range failures, 12/13 columns and unknown action/secret/cross-profile rejection. Secret regression cases cover `$ref`, allOf/anyOf/oneOf, conditional/pattern/additional-property paths, cyclic/external references, and nested array redaction; safe fixed nested inputs still round trip. SDK manifest tests check same-plugin operation/version/effect bindings before entry execution. No browser, external service or Docling acceptance is claimed.
+
+## V3 query renderer (catalog v2)
+
+Renderer는 `@litzio/core/views-v2`의 query schema만 받는다. v1 reader나 migration은 없다.
+폼 8입력·표 12열을 Core 계약대로 소비하고 자료 가공은 Host/Core 결과만 표시한다.
+동작은 [공통 조회 패턴](ui-patterns-v1.md#query-renderer-v3), 조합은 [UI 결정표](ui-decision-table-v1.md#catalog-query-renderer-v3-1241-a안)를 따른다.
+
+V2 Host 연결 전 renderer 검증은 기존 generated-views browser 시나리오의 v2 fixture로 수행한다.
+폼은 대상 Host의 `GET /api/views/catalog`의 operations에서 operation/version에 맞는 공개
+inputSchema를 읽는다. 실행·신규 저장·열기는 기존 `POST /api/views` envelope를 사용한다.
+V2가 이 adapter를 연결하기 전 실제 plugin namespace 저장/기본 기여·CLI 일치는 미완료다.
+화면은 기본 control validity로 필수·범위·형식 오류를 연결하고, Host/Core가 실행·저장 직전 전체 JSON Schema를 검증한다. Ajv의 동적 컴파일은 CSP가 있는 화면에서 실행하지 않는다.
+브라우저 fixture 통과를 실제 서비스·Host·비서 제작 수락으로 계산하지 않는다.
