@@ -1,3 +1,4 @@
+import { createTabAdmission, type Tab } from "./tab-admission.ts";
 import { AssistantHostChooser } from "./shell/AssistantHostChooser.tsx";
 import { HostContext, HostClientContext } from "./host-context.tsx";
 import { LOCAL_HOST_ID, locatorKey, sameLocator } from "./host-locator.ts";
@@ -16,7 +17,7 @@ import { useMessageState } from "./ui-message.ts";
 import { useTranslation } from "react-i18next";
 import { i18n, type MessageKey } from "./i18n.ts";
 import { type Operation } from "./operation.ts";
-import { newRecoveryId, recoveryStorage, type RecoveryRecord } from "./recovery-storage.ts";
+import { recoveryStorage, type RecoveryRecord } from "./recovery-storage.ts";
 import { prepareRecovery } from "./recovery-restore.ts";
 import type { SaveComparison } from "./shell/SaveCompare.tsx";
 import { SaveDisplayError } from "./save-error.ts";
@@ -24,7 +25,7 @@ import { SaveContentError } from "../shared/save-error.ts";
 import { RecoveryList, RecoveryPrompt } from "./shell/Recovery.tsx";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import type { DocumentEditorHandle } from "./DocumentEditor.tsx";
-import { DocumentTab, type EditorSession, type SessionSnapshot } from "./DocumentTab.tsx";
+import { DocumentTab, type EditorSession } from "./DocumentTab.tsx";
 import { documentScrollContainer, scrollDocumentFromShell } from "./document-scroll.ts";
 import { DocumentTabs } from "./shell/DocumentTabs.tsx";
 import { editorGroups, initialEditorGroups, allTabsPendingWork, openedTab, tabLabels, tabNames } from "./document-tabs.ts";
@@ -79,7 +80,7 @@ const SaveCompare = lazy(() => import("./shell/SaveCompare.tsx"));
 const PANEL_OVERLAY_LAYOUT = "(width < 89rem)";
 // 640px supported viewport - 200px narrow Explorer; two groups plus their boundary.
 const SPLIT_MIN_WIDTH = 440 * 2 + 1;
-type Tab = { client: HostClient; hostId: string; id: string; path: string; file: EditorFileResponse; recoveryId: string; restored?: SessionSnapshot };
+
 
 /** The Desktop app's bridge; the browser Editor has none and shows no Desktop UI. */
 const desktop = typeof window === "undefined" ? undefined : window.litzioDesktop;
@@ -265,36 +266,6 @@ function EditorApp() {
   async function deleteRecovery(id?: string): Promise<void> {
     try { await recoveryStorage.delete(id); await refreshRecovery(); }
     catch (cause) { setRecoveryProblem({ key: "Could not delete local recovery: {{reason}}", values: { reason: messageOf(cause) } }); throw cause; }
-  }
-  async function restoreRecovery(): Promise<void> {
-    if (!recoveryReview) return;
-    const record = recoveryReview.record;
-    hostRegistry.get(record.hostId);
-    const client = getHostClient(record.hostId);
-    client.assertCurrent();
-    const restored = prepareRecovery(record);
-    const existing = openedTab(tabs, record.path, record.hostId);
-    const owner = existing && sessions.current.get(existing.id);
-    if (owner && (owner.busyRef.current || owner.editorRef.current?.hasUnsavedChanges())) {
-      throw new UiError({ key: "This document already has open work. Close its tab before restoring a recovery record." });
-    }
-    const recoveryId = newRecoveryId();
-    startupOverrides.current.add(locatorKey(record));
-    await recoveryStorage.restore(record, recoveryId);
-    try { client.assertCurrent(); }
-    catch (cause) {
-      // restore only transfers the durable record to recoveryId; preserve it for review.
-      setRecoveryReview(null);
-      await refreshRecovery();
-      throw cause;
-    }
-    const id = `document-${++nextId.current}`;
-    setTabs(previous => [...previous.filter(tab => tab.id !== existing?.id), { client, id, hostId: record.hostId, path: record.path, file: restored.file, recoveryId, restored }]);
-    if (existing) navigate({ type: "close", id: existing.id });
-    navigate({ type: "open", id });
-    rememberTabs(record.hostId);
-    setRecoveryReview(null);
-    await refreshRecovery();
   }
   useEffect(() => {
     void refreshRecovery();
@@ -492,19 +463,10 @@ function EditorApp() {
     return () => observer.disconnect();
   }, [split]);
 
-  function acceptFile(file: EditorFileResponse, client: HostClient, group = navigation.focused, hostId = LOCAL_HOST_ID): void {
-    client.assertCurrent();
-    startupOverrides.current.add(locatorKey({ hostId, path: file.path }));
-    const existing = openedTab(latestTabs.current, file.path, hostId);
-    const target = splitAvailable.current ? group : navigation.focused;
-    if (existing) placeTab(existing.id, target);
-    else {
-      const id = `document-${++nextId.current}`;
-      const recoveryId = newRecoveryId();
-      setTabs(previous => [...previous, { client, id, hostId, path: file.path, file, recoveryId }]);
-      placeTab(id, target, hostId);
-    }
-  }
+  const { acceptFile, restoreRecovery, addInitial, acceptRestored } = createTabAdmission({
+    tabs, latestTabs, nextId, startupOverrides, splitAvailable, focused: navigation.focused,
+    sessions, setTabs, navigate, placeTab, rememberTabs, setRecoveryReview, refreshRecovery,
+  });
   useEffect(() => {
     // Only remembered tabs need restored folder context. Without them, retain the existing
     // usable start/default document while folder restoration continues independently.
@@ -533,10 +495,7 @@ function EditorApp() {
       const records = await refreshRecovery();
       if (!current) return;
       const initialTabs: Tab[] = [];
-      const add = (file: EditorFileResponse) => {
-        client.assertCurrent();
-        if (!openedTab(initialTabs, file.path)) initialTabs.push({ client, hostId: LOCAL_HOST_ID, id: `document-${++nextId.current}`, path: file.path, file, recoveryId: newRecoveryId() });
-      };
+      const add = (file: EditorFileResponse) => addInitial(initialTabs, file, client);
       // Explicit URL/ Desktop launch documents win over navigation memory. The Vite default
       // is only a fallback when no preference exists; an empty preference keeps the start screen.
       const explicit = Boolean(path || desktop && !("start" in next));
@@ -590,15 +549,7 @@ function EditorApp() {
           if (recovery) { if (alive) reviewRecovery(recovery, true); return; }
           const file = await createDocumentRequests(client).requestDocument("GET", path);
           if (!alive || "start" in file) return;
-          if (startupOverrides.current.has(locatorKey({ hostId: host.hostId, path })) ||
-              startupOverrides.current.has(locatorKey({ hostId: host.hostId, path: file.path })) ||
-              openedTab(latestTabs.current, file.path, host.hostId)) return;
-          const id = `document-${++nextId.current}`;
-          const tab = { client, hostId: host.hostId, id, path: file.path, file, recoveryId: newRecoveryId() };
-          // Reserve this admission before another restoration response can allocate a duplicate ID.
-          latestTabs.current = [...latestTabs.current, tab];
-          setTabs(previous => [...previous, tab]);
-          navigate({ type: "open", id });
+          acceptRestored(file, client, host.hostId, path);
         } catch { failed = true; /* Keep Host navigation and recovery records for a later connection. */ }
       })).then(() => { if (alive && !failed) restoredHosts.current.add(host.hostId); });
     }
@@ -1509,7 +1460,7 @@ function EditorApp() {
       {saveComparison ? <Suspense fallback={null}><SaveCompare comparison={saveComparison}
         returnFocus={saveComparisonReturnFocus} onClose={() => setSaveComparison(null)} /></Suspense> : null}
       <RecoveryPrompt key={recoveryReview?.record.id ?? "closed"} record={recoveryReview?.record ?? null} reason={recoveryReview?.reason ?? ""}
-        onRestore={restoreRecovery} onDelete={async () => { if (recoveryReview) await deleteRecovery(recoveryReview.record.id); setRecoveryReview(null); }}
+        onRestore={async () => { if (recoveryReview) await restoreRecovery(recoveryReview.record); }} onDelete={async () => { if (recoveryReview) await deleteRecovery(recoveryReview.record.id); setRecoveryReview(null); }}
         onClose={() => setRecoveryReview(null)} />
       <FolderDialog
         open={folderDialog}
