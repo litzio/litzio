@@ -145,8 +145,8 @@ test("Windows DPAPI uses an isolated Host/account namespace, persists ciphertext
 test("secret admission, runtime plugin scope, non-disclosure and unregister cleanup", async () => {
   const { safePluginValue, redactSecrets } = await import("../server/plugins/secret-redaction.ts");
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-secret-host-"));
-  const values = new Map<string, string>();
-  const store = { supported: true, async read(p: string, n: string) { return values.get(`${p}/${n}`); }, async status(p: string, n: string) { return values.has(`${p}/${n}`); }, async set(p: string, n: string, v: string) { values.set(`${p}/${n}`, v); }, async delete(p: string, n?: string) { for (const key of values.keys()) if (n ? key === `${p}/${n}` : key.startsWith(`${p}/`)) values.delete(key); } };
+  const values = new Map<string, string>(), broken = new Set<string>();
+  const store = { supported: true, async read(p: string, n: string) { return values.get(`${p}/${n}`); }, async status(p: string, n: string) { if (broken.has(`${p}/${n}`)) throw new Error("raw-store-error-private"); return values.has(`${p}/${n}`); }, async set(p: string, n: string, v: string) { values.set(`${p}/${n}`, v); broken.delete(`${p}/${n}`); }, async delete(p: string, n?: string) { for (const key of values.keys()) if (n ? key === `${p}/${n}` : key.startsWith(`${p}/`)) { values.delete(key); broken.delete(key); } } };
   const host = new PluginHost(path.join(root, "state.json"), store), value = 'fixture-PAT-"-private';
   try {
     for (const id of ["example.first", "example.second"]) {
@@ -168,6 +168,16 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
     assert.equal(readFileSync(path.join(root, "state.json"), "utf8").includes(value), false);
     await assert.rejects(host.setSecret("example.first", "pat", value), /Disable/);
     await host.invoke("disable", { id: "example.first" });
+    broken.add("example.first/pat");
+    const damaged = (await host.list()).find(p => p.id === "example.first")!;
+    assert.equal(damaged.name, "example.first"); assert.equal(damaged.digest?.length, 64);
+    assert.deepEqual(damaged.secrets?.declarations, [{ id: "pat", scope: "connection", required: true, configured: false, error: "Secret unavailable or damaged" }]);
+    assert.equal((await host.list()).find(p => p.id === "example.second")!.secrets?.declarations[0]?.configured, true);
+    assert.equal(JSON.stringify(await host.invoke("secret-status", { id: "example.first" })).includes("raw-store-error-private"), false);
+    await host.invoke("secret-delete", { id: "example.first", name: "pat" });
+    assert.equal("error" in (await host.list()).find(p => p.id === "example.first")!.secrets!.declarations[0]!, false);
+    await host.setSecret("example.first", "pat", value);
+    assert.equal((await host.list()).find(p => p.id === "example.first")!.secrets?.declarations[0]?.configured, true);
     await host.invoke("secret-delete", { id: "example.first", name: "pat" });
     assert.equal(await store.status("example.first", "pat"), false);
     await assert.rejects(host.invoke("enable", { id: "example.first" }), /not configured/);

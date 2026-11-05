@@ -10,7 +10,7 @@ import { SettingsSwitch } from "./components/ui/settings.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./components/ui/dialog.tsx";
 export { OneDriveIcon } from "./OneDriveIcon.tsx";
 import type { PluginStatus } from "@litzio/plugin-sdk";
-type SecretStatus = { supported: boolean; declarations: { id: string; configured: boolean }[] };
+type SecretStatus = { supported: boolean; declarations: { id: string; configured: boolean; error?: string }[] };
 type Plugin = { secrets?: SecretStatus; id: string; name?: string; description?: string; version?: string; digest?: string; official?: boolean; publisher?: { id: string; name: string }; trusted?: boolean; enabled: boolean; running: boolean; error?: string; status?: PluginStatus | null; settings?: Record<string, unknown>; settingsSchema?: { properties?: Record<string, { type?: string; title?: string }> } };
 export function usePlugins() {
   const client = useHostClient(), [plugins, setPlugins] = useState<Plugin[]>([]), [error, setError] = useState("");
@@ -89,9 +89,10 @@ function PluginSecrets({ plugin, busy, run }: { plugin?: Plugin; busy: boolean; 
         window.dispatchEvent(new Event("plugins-changed"));
       } catch { setProblem(i18n.t("Unable to store plugin secret")); } finally { setSaving(false); }
     }}>
-      <label>{secret.id}: {i18n.t(secret.configured ? "Configured" : "Not configured")}<Input type="password" autoComplete="new-password" disabled={!supported || busy || saving || plugin.enabled} value={values[secret.id] ?? ""} onChange={e => setValues(v => ({ ...v, [secret.id]: e.target.value }))} /></label>
+      <label>{secret.id}: {i18n.t(secret.error ? "Unavailable or damaged" : secret.configured ? "Configured" : "Not configured")}<Input type="password" autoComplete="new-password" disabled={!supported || busy || saving || plugin.enabled} value={values[secret.id] ?? ""} onChange={e => setValues(v => ({ ...v, [secret.id]: e.target.value }))} /></label>
+      {secret.error ? <Notice tone="error">{i18n.t("Unable to read this secret. Delete or replace it.")}</Notice> : null}
       <div className="settings-actions"><Button type="submit" size="sm" variant="secondary" disabled={!supported || busy || saving || plugin.enabled || !values[secret.id]}>{i18n.t("Save secret")}</Button>
-      <Button type="button" size="sm" variant="ghost" disabled={!supported || busy || saving || plugin.enabled || !secret.configured} onClick={() => void run("secret-delete", { id: plugin.id, name: secret.id })}>{i18n.t("Delete secret")}</Button></div>
+      <Button type="button" size="sm" variant="ghost" disabled={!supported || busy || saving || plugin.enabled || !secret.configured && !secret.error} onClick={() => void run("secret-delete", { id: plugin.id, name: secret.id })}>{i18n.t("Delete secret")}</Button></div>
     </form>)}
   </section>;
 }

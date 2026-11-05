@@ -51,11 +51,11 @@ SDK 검사는 manifest와 미지원 확장·외부 schema를, Host 검사는 dig
 
 ## Secret 저장과 실행 전달 (로드맵 1c)
 
-입력은 앱 번들 Plugins 설정 Dialog의 password Input과 명시적 저장 버튼만 제공한다. 설정 변경처럼 비활성 상태에서 저장·삭제하며 입력은 전송 직후 비운다. `POST /api/plugins/secrets`는 id/name/value를 받아 configured만 반환하는 사용자 설정 전용 경계다. 비서 도구·공용 관리 schema·CLI에 값 입력/조회 작업을 공급하지 않는다. CLI는 `plugins secret-status <id>`와 `plugins secret-delete <id> <name>`에 명시적 `--host <origin> --json`을 붙인다. receipt에는 값이 없다. 목록은 supported와 선언별 configured만 반환한다. 비Windows는 지원하지 않음으로 표시하고 값 저장/필요 기능 활성화를 거부한다.
+입력은 앱 번들 Plugins 설정 Dialog의 password Input과 명시적 저장 버튼만 제공한다. 설정 변경처럼 비활성 상태에서 저장·삭제하며 입력은 전송 직후 비운다. `POST /api/plugins/secrets`는 id/name/value를 받아 configured만 반환하는 사용자 설정 전용 경계다. 비서 도구·공용 관리 schema·CLI에 값 입력/조회 작업을 공급하지 않는다. CLI는 `plugins secret-status <id>`와 `plugins secret-delete <id> <name>`에 명시적 `--host <origin> --json`을 붙인다. receipt에는 값이 없다. 목록은 supported와 선언별 configured를 반환한다. 읽기/복호화 실패는 해당 선언의 configured=false와 값 없는 일반 오류로 표시하며 다른 선언·플러그인 정보는 유지한다. 설정 UI는 이름과 사용 불가/손상 상태를 남기고, 비활성 상태에서 삭제·재입력할 수 있다. 비Windows는 지원하지 않음으로 표시하고 값 저장/필요 기능 활성화를 거부한다.
 
 Windows PowerShell의 기본 .NET ProtectedData를 통해 DPAPI CurrentUser를 사용한다. 새 Node 네이티브 addon이나 Electron API 의존은 없다. 상수 스크립트 argv에는 값이 없고 JSON stdin/파이프로만 전달한다. 호출마다 프로세스 시작 비용이 있으므로 저장·상태 확인·활성화 시에만 사용하며 기능 작업마다 호출하지 않는다. Windows API 실패는 일반 오류로 바꾸고 평문 fallback은 없다. 비대화형 daemon의 실행 OS 계정에서 동작하며 사용자 프로필/DPAPI 접근 실패 시 사용 불가다.
 
-암호문은 해당 Host의 plugins 설정 파일 옆 `.secrets` 디렉터리에 플러그인 id·secret id 해시 파일로 원자 교체한다. 이 Host 저장 경로와 id/name을 추가 entropy로 묶으므로 Host 간 자동 동기화/복사는 지원하지 않는다. 현재 연결은 플러그인당 하나다. 여러 연결별 secret은 후속 계약이며 일반 설정에 값을 넣지 않는다. unregister는 artifact 유무와 무관하게 해당 플러그인 저장소를 지운 뒤 등록을 해제한다. 비활성화는 보존한다.
+암호문 파일 ACL은 부모 디렉터리에서 상속되며, 별도 ACL은 설정하지 않는다. 암호문은 해당 Host의 plugins 설정 파일 옆 `.secrets` 디렉터리에 플러그인 id·secret id 해시 파일로 원자 교체한다. 이 Host 저장 경로와 id/name을 추가 entropy로 묶으므로 Host 간 자동 동기화/복사는 지원하지 않는다. 현재 연결은 플러그인당 하나다. 여러 연결별 secret은 후속 계약이며 일반 설정에 값을 넣지 않는다. unregister는 artifact 유무와 무관하게 해당 플러그인 저장소를 지운 뒤 등록을 해제한다. 비활성화는 보존한다.
 
 내부 `PluginSecretStore`만 read를 가지며 실행 직전 해당 manifest 선언만 읽어 `activate(context).secrets`의 읽기 전용 map에 전달한다. 하위 프로세스 구현은 이 map을 내부 IPC에 연결할 수 있다. required 값이 없으면 실행을 거부한다. Plugin 코드의 import/activate/status/operation/dispose와 그 비동기 문맥에서 stdout/stderr를 버려 값이 로그로 흐르지 않게 한다. Host로 나가는 상태·결과는 알려진 값을 정리하고 activation/operation 오류 원문은 공개하지 않는다. 신뢰 코드의 직접 파일 쓰기·직접 OS 접근·변형된 값 유출을 막는 sandbox는 아니다.
 

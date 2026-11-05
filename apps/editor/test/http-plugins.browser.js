@@ -28,6 +28,17 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
         await page.screenshot({ path: `tmp/plugin-stage1/secrets-${width}.png` });
       }
     }
+    pluginFixture.corruptSecret();
+    await page.reload(); await openSettings();
+    await page.getByRole("button", { name: "Drive fixture", exact: true }).click();
+    await expect(page.getByLabel("pat: Unavailable or damaged", { exact: true })).toHaveValue("");
+    await expect(page.getByText("Unable to read this secret. Delete or replace it.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Delete secret", exact: true })).toBeEnabled();
+    await page.getByRole("button", { name: "Delete secret", exact: true }).click();
+    await expect(page.getByLabel("pat: Not configured", { exact: true })).toHaveValue("");
+    await page.getByLabel("pat: Not configured", { exact: true }).fill("browser-repaired-secret");
+    await page.getByRole("button", { name: "Save secret", exact: true }).click();
+    await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
     await page.getByRole("button", { name: "Delete secret", exact: true }).click();
     await expect(page.getByLabel("pat: Not configured", { exact: true })).toHaveValue("");
   } else {

@@ -111,7 +111,10 @@ export class PluginHost {
     return m;
   }
   private async secretStatus(id: string, m: PluginManifest) {
-    return { supported: this.secrets.supported, declarations: await Promise.all(m.secrets.map(async s => ({ ...s, configured: this.secrets.supported && await this.secrets.status(id, s.id) }))) };
+    return { supported: this.secrets.supported, declarations: await Promise.all(m.secrets.map(async s => {
+      try { return { ...s, configured: this.secrets.supported && await this.secrets.status(id, s.id) }; }
+      catch { return { ...s, configured: false, error: "Secret unavailable or damaged" }; }
+    })) };
   }
   private async runtimeSecrets(id: string, m: PluginManifest) {
     if (!this.secrets.supported) {

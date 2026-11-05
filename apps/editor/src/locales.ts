@@ -1,6 +1,8 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Unable to read this secret. Delete or replace it.": "Unable to read this secret. Delete or replace it.",
+  "Unavailable or damaged": "Unavailable or damaged",
   "Delete secret": "Delete secret",
   "Save secret": "Save secret",
   "Not configured": "Not configured",
@@ -1112,6 +1114,8 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Unable to read this secret. Delete or replace it.": "이 자격 증명을 읽을 수 없습니다. 삭제하거나 다시 입력하세요.",
+  "Unavailable or damaged": "사용 불가 또는 손상됨",
   "Delete secret": "자격 증명 삭제",
   "Save secret": "자격 증명 저장",
   "Not configured": "설정되지 않음",
