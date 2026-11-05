@@ -63,3 +63,29 @@ export function commitFile(filePath: string, text: string, revision: string): vo
     fs.rmSync(temporary, { force: true });
   }
 }
+
+/**
+ * Publish completed UTF-8 text under a new name, atomically refusing any existing
+ * directory entry (including a symlink). Requires same-filesystem hard links;
+ * unsupported filesystems fail without falling back to a non-exclusive rename.
+ * A process crash may leave a temporary sibling, never an empty reserved target.
+ * fsync completes before publication; power-loss directory durability is not promised.
+ */
+export function createFile(filePath: string, text: string): void {
+  assertUnicode(filePath);
+  assertUnicode(text);
+  const target = path.join(fs.realpathSync(path.dirname(filePath)), path.basename(filePath));
+  const temporary = path.join(path.dirname(target), `.${path.basename(target)}.${randomUUID()}.tmp`);
+  let descriptor: number | undefined;
+  try {
+    descriptor = fs.openSync(temporary, "wx", 0o600);
+    fs.writeFileSync(descriptor, text, "utf8");
+    fs.fsyncSync(descriptor);
+    fs.closeSync(descriptor);
+    descriptor = undefined;
+    fs.linkSync(temporary, target);
+  } finally {
+    if (descriptor !== undefined) fs.closeSync(descriptor);
+    fs.rmSync(temporary, { force: true });
+  }
+}
