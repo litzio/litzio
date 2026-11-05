@@ -234,9 +234,9 @@ export class AssistantConversations {
         this.save(conversation);
       }
       references = checkedReferences(input.references ?? [], folders, this.access);
-      const context = { folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))], ...(input.viewGeneration ? { viewGeneration: { ...viewGenerationContext(this.plugins?.viewOperations()), correction: input.viewGenerationCorrection ?? 0 } } : {}) };
+      // Keep all injected text inside the envelope: Codex may flatten text inputs in history.
+      const context = { userMessage: input.viewGenerationCorrection ? "" : input.message, ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))], ...(input.viewGeneration ? { viewGeneration: { ...viewGenerationContext(this.plugins?.viewOperations()), correction: input.viewGenerationCorrection ?? 0 } } : {}) };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
-      if (this.plugins) messages.push({ type: "text", text: PLUGIN_AUTHORING_SKILL, text_elements: [] });
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
       if (active) {
@@ -331,8 +331,8 @@ export class AssistantConversations {
     }
     conversation.copilot = options;
     references = checkedReferences(input.references ?? [], folders, this.access);
-    const context = { folders, document: input.document ? { path: input.document.path } : null, references, ...(input.viewGeneration ? { viewGeneration: { ...viewGenerationContext(this.plugins?.viewOperations()), correction: input.viewGenerationCorrection ?? 0 } } : {}) };
-    const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.message, references, ...(input.viewGeneration ? { viewGeneration: { correction: input.viewGenerationCorrection ?? 0 } } : {}) }] };
+    const context = { userMessage: input.viewGenerationCorrection ? "" : input.message, ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references, ...(input.viewGeneration ? { viewGeneration: { ...viewGenerationContext(this.plugins?.viewOperations()), correction: input.viewGenerationCorrection ?? 0 } } : {}) };
+    const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.viewGenerationCorrection ? "" : input.message, references, ...(input.viewGeneration ? { viewGeneration: { correction: input.viewGenerationCorrection ?? 0 } } : {}) }] };
     conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort;
     conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;
     this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, permissionMode: settings.permissionMode, turnId: turn.id, viewGeneration: input.viewGeneration });
@@ -442,7 +442,8 @@ function itemFrom(item: any): AssistantConversationItem | null {
           if (value && Array.isArray(value.folders)) {
             if (value.viewGeneration && Number.isInteger(value.viewGeneration.correction)) viewGeneration = { correction: value.viewGeneration.correction };
             if (Array.isArray(value.references)) references.push(...value.references.filter((file: any) => file && typeof file.path === "string" && typeof file.name === "string" && typeof file.kind === "string"));
-            if (marker) text.push(part.text.slice(0, marker));
+            if (typeof value.userMessage === "string") { text.length = 0; text.push(value.userMessage); }
+            else if (marker) text.push(part.text.slice(0, marker));
             continue;
           }
         } catch { /* Ordinary CLI text need not contain valid Litzio context. */ }

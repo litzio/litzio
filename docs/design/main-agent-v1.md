@@ -1270,3 +1270,7 @@ K1 플러그인 파일 작업은 Codex dynamic tool `plugin_jobs`로 SDK 공용 
 ### 플러그인 제작 문맥
 
 Codex의 Host 플러그인 관리 도구는 `scaffold`와 `validate`를 포함한다. 각 turn에 번들 제작 스킬을 함께 제공하며 별도 설치 없이 제작 요청에서 사용한다. register 활동은 실제 manifest ID를 기록한다. 관리별 승인은 없으며 설정값·secret은 활동에 기록하지 않는다. 현재 SDK 규격과 정적 검증 한계·생성/수정 후 reload 절차는 [플러그인 1단계 계약](plugin-stage1-v1.md#비서-제작-키트)을 따른다.
+
+## Model input and visible history (#1270)
+
+Both providers carry the exact user message in the structured Litzio context. File/document paths, selected skill references, plugin authoring instructions and Generate view catalog/correction context are model input only. Live and resumed conversation API user items restore only the original message and reference chips, including when provider history flattens text inputs. Internal instruction bodies are never conversation bubbles. Generate view correction continues to use the existing short correction status. Provider-owned transcripts retain model inputs; Litzio does not copy them into its conversation index. No migration or historical-format compatibility is provided.

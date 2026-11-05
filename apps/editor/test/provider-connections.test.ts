@@ -46,12 +46,22 @@ test("view proposals pass the finite catalog through both stdio adapters without
   assert.deepEqual(copilot.turns[0]!.items[0]!.viewGeneration, { correction: 0 });
   const resumed = await new AssistantConversations(connection, new RootAccess([root])).resume(codex.id, settings);
   assert.deepEqual(resumed.turns[0]!.items.find(item => item.kind === "user")!.viewGeneration, { correction: 0 });
+  for (const conversation of [codex, copilot]) {
+    const provider = conversation.provider ?? "codex";
+    const corrected = await conversations.send({ id: conversation.id, provider, model: conversation.model!, reasoningEffort: conversation.reasoningEffort!, viewGeneration: true, viewGenerationCorrection: 1, folders: [], message: "INTERNAL CORRECTION: return complete JSON" }, settings);
+    assert.equal(JSON.stringify(corrected).includes("INTERNAL CORRECTION"), false);
+    await conversations.interrupt(conversation.id);
+    const history = await new AssistantConversations(connection, new RootAccess([root])).resume(conversation.id, settings);
+    assert.equal(JSON.stringify(history).includes("INTERNAL CORRECTION"), false);
+    assert.equal(JSON.stringify(history).includes('"catalog"'), false);
+  }
+
 });
 
 test("Copilot ACP lists its models, streams one turn, applies permission scope, cancels and reports a failed turn", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "copilot-connection-")), log = path.join(root, "acp.jsonl");
   const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), log] });
-  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  const conversations = new AssistantConversations(connection, new RootAccess([root]), {} as any);
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const catalog = await connection.models("copilot");
   assert.deepEqual(catalog.models.map(model => model.model), ["auto", "copilot-model"]);
@@ -91,8 +101,10 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
     assert.match(conversation.turns.at(-1)!.error!, /quota fixture/);
   });
   assert.equal(conversations.list()[0]!.provider, "copilot");
+  assert.equal(JSON.stringify(conversation).includes("Litzio plugin authoring skill"), false);
   assert.equal((await conversations.resume(conversation.id, { ...settings, provider: "codex" })).provider, "copilot");
   const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  assert.match(rpc.find(message => message.method === "session/prompt").params.prompt[0].text, /Litzio plugin authoring skill/);
   assert.ok(rpc.some(message => message.args?.includes("high")), "CLI fallback receives the selected effort at startup");
   assert.ok(rpc.some(message => message.method === "session/set_mode" && message.params.modeId === "plan"));
   await assert.rejects(conversations.send({ ...input, id: conversation.id, reasoningEffort: "low" }, settings), /new conversation/);
@@ -165,7 +177,7 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
 test("conversation streams summaries, steers and interrupts one Codex thread; only its index is stored by Litzio", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "ai-conversation-")), cwd = path.join(root, "assistant"), log = path.join(root, "rpc.jsonl");
   const connection = new ProviderConnections(cwd, { bin: process.execPath, args: [fakeServer, log] });
-  const conversations = new AssistantConversations(connection, new RootAccess([root]));
+  const conversations = new AssistantConversations(connection, new RootAccess([root]), {} as any);
   const settings = { provider: "codex" as const, permissionMode: "opened-folders" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
   const input = { message: "What changed?", folders: [root], model: settings.model, reasoningEffort: "medium", references: [path.join(root, "notes.md"), path.join(root, "image.png"), path.join(root, "report.pdf"), path.join(root, "notes.md")],
     document: { path: path.join(root, "notes.md"), source: "UNSAVED DOCUMENT TEXT" } };
@@ -178,6 +190,7 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
     if (method === "item/reasoning/summaryTextDelta") streamed.push(conversations.current(params.threadId).turns[0]!.items.find(item => item.kind === "reasoning")!.text);
   });
   const conversation = await conversations.send(input, settings);
+  assert.equal(JSON.stringify(conversation).includes("Litzio plugin authoring skill"), false);
   assert.deepEqual(streamed, ["Checking the opened ", "Checking the opened document."]);
   assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "reasoning").map(item => item.text), ["Checking the opened document.\nChecking folders.", ""]);
   assert.equal(conversation.turns[0]!.status, "inProgress");
@@ -200,13 +213,14 @@ test("conversation streams summaries, steers and interrupts one Codex thread; on
   const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   const start = rpc.find(item => item.method === "turn/start").params;
   assert.equal(start.summary, "auto");
+  assert.match(start.input[1].text, /Litzio plugin authoring skill/);
   const refs = [{ path: input.document.path, name: "notes.md", kind: "document" }, { path: path.join(root, "image.png"), name: "image.png", kind: "image" }, { path: path.join(root, "report.pdf"), name: "report.pdf", kind: "file" }];
   assert.deepEqual(JSON.parse(start.input[1].text.split("(JSON):\n")[1]).references, refs);
   assert.equal(JSON.stringify(start.input).includes("REFERENCE CONTENT MUST NOT BE IN INPUT"), false);
   assert.equal(start.input.length, 3);
   assert.deepEqual(start.input[2], { type: "localImage", path: path.join(root, "image.png") });
   assert.deepEqual(conversation.turns[0]!.items.filter(item => item.kind === "user").map(item => item.references), [refs, refs]);
-  assert.deepEqual(rpc.find(item => item.method === "turn/steer").params.input.slice(1), start.input.slice(1));
+  assert.deepEqual(JSON.parse(rpc.find(item => item.method === "turn/steer").params.input[1].text.split("(JSON):\n")[1]), { ...JSON.parse(start.input[1].text.split("(JSON):\n")[1]), userMessage: "Only summarize." });
   assert.deepEqual(start.sandboxPolicy, { type: "workspaceWrite", writableRoots: [root], networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true });
   assert.deepEqual(JSON.parse(start.input[1].text.slice(start.input[1].text.indexOf("{"))).document, { path: input.document.path });
   assert.equal(start.input[1].text.includes("ON DISK"), false, "document content is read on demand, not injected");
