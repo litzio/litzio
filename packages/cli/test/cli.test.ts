@@ -648,7 +648,7 @@ test("litzio help exits successfully", () => {
       "Edit — tables": ["insert-table", "insert-table-row", "insert-table-column", "remove-table-row", "remove-table-column", "move-table-row", "move-table-column", "update-table-alignment", "update-table-caption", "update-table-cell"],
       "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-numbering-mode", "update-reference-templates", "update-title"],
       "Format": ["format"],
-      "Serve": ["assistant", "daemon", "host", "operation", "plugins", "view"],
+      "Serve": ["assistant", "daemon", "host", "jobs", "operation", "plugins", "view"],
     };
     const expectedCommands = Object.values(expectedGroups).flat();
     const listed: string[] = [];
@@ -688,6 +688,9 @@ test("litzio help exits successfully", () => {
 });
 
 test("command help is available from help and --help", () => {
+  const jobs = run(["jobs", "--help"]);
+  assert.equal(jobs.status, 0, jobs.stderr);
+  assert.match(jobs.stdout, /jobs list \[pluginId\] --host <origin> --json/);
   const fromHelp = run(["help", "check"]);
   const fromFlag = run(["check", "--help"]);
   const fromShort = run(["check", "-h"]);
