@@ -71,4 +71,3 @@ export function GeneratedViewExamples({ state }: { state: string }) {
     </div> : <ReviewRenderer key={reviewState} view={review} adapter={adapter} />}
   </section>;
 }
-
