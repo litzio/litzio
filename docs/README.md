@@ -85,7 +85,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
-| [카탈로그 v2](design/catalog-v2.md) | Draft | ADR-0020 개정안. 2단계 Jira 수락 부족 대응: 입력·12열 표·안전한 오류·공용 K2/K3/K4·제작 스킬과 병렬 구현 PR 분할. 소유자 결정 필요 항목 없음. 4단계는 비서 제작 수락 시험이며 현재 구현 계약 아님. |
+| [카탈로그 v2](design/catalog-v2.md) | Draft | ADR-0020 개정안. 2단계 Jira 수락 부족 대응: 입력·12열 표·안전한 오류·공용 K2/K3/K4·제작 스킬과 병렬 구현 PR 분할. 소유자 결정 필요 항목 없음. V5 공용 번들 renderer는 독립 fixture 구현이며 Host·진입점 통합은 대기. 4단계는 비서 제작 수락 시험이며 문서 전체는 현재 구현 계약 아님. |
 
 ## UI pattern targets awaiting implementation
 

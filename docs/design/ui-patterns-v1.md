@@ -463,3 +463,36 @@ now also offers New folder. The multi-host browser scenario and manual 1440/640p
 captures are recorded in [Editor UX Shell](editor-ux-shell-v1.md#multiple-host-shell-1174-pr4).
 
 ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의 host-summary 행과 공용 Notice·Tooltip·Button·Dialog·settings-switch 및 HostStatus 점/톤 스타일을 재사용한다. 이름·공급자/계층/신뢰 배지·설명을 왼쪽에 묶고 토글을 같은 행 오른쪽 끝에 둔다. 상태와 계정은 별도 줄이며 1단계 UI는 로컬 Host만 지원한다.
+## 공용 원본 대조와 변경 제안 (catalog V5, #1241 A안)
+
+현재 [번들 renderer](../../apps/editor/src/review/ReviewRenderer.tsx)는 독립 fixture로 검증한다.
+실제 review Host·CLI 연결과 공통 Views 진입점은 V4/V3 통합 후 확인한다.
+명세는 자료 binding과 조합만 소유하며 아래 동작은 앱 코드가 소유한다.
+
+- PageSurface는 페이지 비율과 원점(TOPLEFT/BOTTOMLEFT)을 보존한다. inspect 영역 선택과
+  페이지 이동은 화면 상태이며 승인·제외·문서 쓰기를 호출하지 않는다. 미지원·장식·제외는
+  텍스트로 구별하고 이미지가 없어도 영역과 안내를 유지한다.
+- SourceDocumentCompare는 원본 왼쪽, 기존 readOnly preview DocumentEditor 오른쪽이다.
+  양방향 클릭은 같은 snapshot의 중립 target path만 강조한다. 전체가 보이는 블록과
+  윗끝이 보이는 큰 블록은 스크롤하지 않는다. 연속 동기 스크롤은 하지 않는다.
+- generation, document revision/hash, source/map revision이 다르면 stale이다. 사용 불가
+  응답(unavailable)과 구별한다. stale 자료는 표시할 수 있지만 대응 이동·변경은 막는다.
+  continuation이 남은 mapping은 완전한 대응으로 취급하지 않는다.
+- ReviewList의 선택은 상세 열기다. pending은 검토 대기, approved는 applied(적용됨)로
+  표시한다. 승인·거절·Undo는 별도 사용자 버튼이다. 전후 값·근거·대상을 표시하고
+  Host action 가용성과 불가 사유를 유지한다. Undo는 적용됨 상태의 허용된 항목만 가능하다.
+- 승인·거절·Undo 요청부터 문서·제안·자료를 다시 읽을 때까지 ‘갱신 중’이다. 이전
+  자료는 최신으로 표시하지 않으며 대응 이동과 변경 버튼을 잠근다. 실패한 write는
+  자동 재전송하지 않고 결과 불확실과 상태 확인 안내를 표시한다. 다시 읽기는 read만 한다.
+- Host/source별 별도 mount를 사용한다. 닫기·Host 전환 뒤 늦은 응답은 버린다.
+  비서는 pending 제안 제출만 하며 승인·Undo 권한은 Host도 사용자 경계에서 검증한다.
+- 대조 콘텐츠 1024px 미만에서는 안내와 상태·결과 문서 열기를 유지한다. 두 영역을
+  세로 편집기로 바꾸지 않는다. 1440px 검토 시 주변 패널을 접어 가용 폭을 확보한다.
+
+공통 구현은 기존 Button, Notice, Lucide와 Read이다. 비교 전용 bbox와 강조 overlay만
+추가하며 별도 editor engine은 없다. 생성 뷰의 명시 조회와 Settings/VisualCompare의
+명시 적용·격리 preview 패턴을 대조했다. 공유 상태 adapter는 V3 소유이므로 수정하지 않는다.
+
+검증 경로: `pnpm browser:test review-v5`. `--screenshots`는 수동 시각 검토용
+`tmp/review-v5-1440.png`, `tmp/review-v5-narrow.png`를 남긴다. fixture는 서비스별
+저장 의미를 정의하지 않으며 Docling 수락이나 V4 통합 완료 증거가 아니다.
