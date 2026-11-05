@@ -3,11 +3,12 @@
 #1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. ④ Host 클라이언트와 ⑤ Desktop 번들 origin은 아래 경계를 구현한다.
 
 - Status: Implemented
+- Last verified: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
 - Remote registration PR3a verification: 2026-11-05 — temporary-path registry/CLI, exact CSP and health preflight tests; production HTTP persistent Chrome recovery/Save/Reload/conflict (2 passed). Settings/protected restart and live Windows Desktop → Linux remote connection remain unverified and outside PR3a.
 - Daemon verification: 2026-11-04 (#1142 PR2: Windows CLI concurrent start/stop, Host/Origin boundaries and production browser Save/Reload/conflict; Linux remains required CI).
 - CI artifact policy verification: 2026-10-30 (#808; tarball upload removed, screen evidence retained on failure; workflow policy regressions and docs check, no local HTTP/browser execution).
 - Documentation verification: 2026-10-26 (pathless Host response versus Editor startup/restoration compared with document-api.ts, App.tsx and the session contract; no new HTTP/browser execution).
-- Last verified: 2026-10-16 (#296 PR3: Windows production Host with actual Chrome process crashes, same-profile/origin restart, local Restore, real Save/Reload and external 409 preservation; HTTP boundary tests. Linux execution remains required CI).
+- Previous execution verification: 2026-10-16 (#296 PR3: Windows production Host with actual Chrome process crashes, same-profile/origin restart, local Restore, real Save/Reload and external 409 preservation; HTTP boundary tests. Linux execution remains required CI).
 - Previous verification: 2026-10-15 (ADR-0006 route/validation cleanup by code/test comparison; no runtime regressions rerun). Previous verification: 2026-10-13 (real TCP boundaries, packaged Node-only execution and production browser Save/Reload; Windows/Linux package and browser checks are required in CI).
 - Authority: [ADR-0005](../adr/0005-http-host.md), [Filesystem Host boundary](filesystem-host-boundary-v1.md), [Editing session and Save](editing-session-save-v1.md).
 - Scope: local daemon and manual remote single-operator HTTP Editor with optional Root limits ([#186](https://github.com/litzio/litzio/issues/186)).
@@ -18,12 +19,12 @@
 
 클라이언트는 hostId별 독립 HTTP 인스턴스·연결 관측·capability를 가진다. 알 수 없는 hostId는 거부하며 로컬 Host로 대체하지 않는다. 문서 세션의 open/save/source/bibliography/Figure 검증, 이미지 생성·선택·rollback과 상대 media URL은 시작한 Host의 client를 유지한다. 늦은 capability 응답은 새 관측을 덮지 않으며 다른 Host의 연결을 기다리지 않는다. 쓰기는 실패·응답 유실 시 자동 재전송하지 않는다.
 
-운영 목록은 아직 로컬 하나다. 주입 가능한 registry와 두 독립 HTTP fixture로 같은 경로의 요청 격리·중단·늦은 응답을 검증한다. 원격 등록·자동 재연결·CSP는 PR3, 여러 Host의 화면 통합은 PR4 범위다. Core·공식 저장 경로·상대 URI는 변경하지 않는다.
+운영 목록은 로컬 Host와 Desktop에 등록한 원격 Host를 포함한다. 주입 가능한 registry와 두 독립 HTTP fixture로 같은 경로의 요청 격리·중단·늦은 응답을 검증한다. 원격 등록·자동 재연결·CSP는 PR3, 여러 Host의 화면 통합은 PR4에서 구현했다. Core·공식 저장 경로·상대 URI는 변경하지 않는다.
 
 
-## 후속 결정: 원격 Host (#1174, 미구현)
+## 원격 Host (#1174 PR0~4 완료)
 
-[ADR-0018](../adr/0018-desktop-remote-hosts.md)은 Desktop 원격 등록·자동 연결/재연결·여러 Host 보기를 결정한다. 아래는 현재 구현 계약이며 해당 변경은 #1174 PR1~4에서 실제 구현과 함께 갱신한다. 이 연결은 원격 기능의 제공 완료를 뜻하지 않는다.
+[ADR-0018](../adr/0018-desktop-remote-hosts.md)의 PR0~4(#1175~#1180)는 완료했다. Desktop 원격 등록·자동 연결/재연결·Host별 탐색기·탭·필터·비서 선택을 제공한다. 실제 Windows Desktop → Linux 연결은 미검증이며, 템플릿 갤러리 진입은 [템플릿 계약](document-templates-v1.md)의 로컬 전용 경계를 따른다.
 
 ## Editor Host client (#1150 ④)
 

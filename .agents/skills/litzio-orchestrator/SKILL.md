@@ -85,7 +85,7 @@ description: Orchestrate several Litzio GitHub issues end to end by planning wav
 
 ## 5. 독립 리뷰
 
-- 붙이는 기준은 CONTRIBUTING 2단계의 위험 PR이다. editor schema·직렬화·저장 경로, 미저장 draft·복구, 셸 구조 변경, 성능·상태 경합, 문서 데이터가 바뀌는 연산, 보안·릴리스·CI workflow, 공개 Plugin API와 파일 접근 범위가 여기에 해당한다. CI 경로 정책(`ci-execution-policy.mjs`)의 전체 실행 경로 목록은 손으로 고르는 목록이라 누락이 반복됐으므로 항상 리뷰한다. 작은 UI·CSS·문구·테스트만·문서만의 수정은 오케스트레이터 확인으로 대신한다.
+- 붙이는 기준은 CONTRIBUTING 2단계의 위험 PR이다. editor schema·직렬화·저장 경로, 미저장 draft·복구, 셸 구조 변경, 성능·상태 경합, 문서 데이터가 바뀌는 연산, 보안·릴리스·CI workflow, 파일 접근 범위가 여기에 해당한다. CI 경로 정책(`ci-execution-policy.mjs`)의 전체 실행 경로 목록은 손으로 고르는 목록이라 누락이 반복됐으므로 항상 리뷰한다. 작은 UI·CSS·문구·테스트만·문서만의 수정은 오케스트레이터 확인으로 대신한다.
 - 시각 변경은 캡처가 나오는 즉시 CI를 기다리지 않고 직접 본다. `git fetch origin pull/<N>/head:pr-<N>` 뒤 `git show pr-<N>:<캡처 경로> > <scratch>/x.png`로 꺼내 이미지로 확인한다.
 - 리뷰어는 구현에 참여하지 않은 새 agent이고, 프롬프트는 [reviewer-prompt.md](references/reviewer-prompt.md)를 쓴다. 이 PR에서 특히 위험한 지점을 중점 확인 항목으로 구체적으로 적는다.
 - 리뷰 중 구현자가 head를 바꾸면 리뷰어에게 최종 head 기준으로 판정하라고 알린다.

@@ -1,6 +1,7 @@
 # Editing session and Save v1
 
 - Status: Implemented
+- Last verified: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
 - Host identity verification: 2026-11-05 (#1174 PR1: targeted Editor unit tests, workspace typecheck, boundaries/docs and persistent-Chrome recovery/storage/structure, document-tabs, folder-memory and file-actions; no multi-Host connection or packaged Desktop execution).
 - Diff performance verification: 2026-11-03 (#1009 F09: recovery owns the representative large-input browser measurement; recovery-diff unit and recovery/pre-save browser checks).
 - Editor groups verification: 2026-10-29 (#488 phase 1; one mounted session per document across group moves, group actions/focused shortcuts, dirty-close and navigation-only reload; [contract and evidence](editor-ux-shell-v1.md#two-editor-groups-488-phase-1)).
@@ -11,7 +12,7 @@
 - File operations verification: 2026-10-27 (#505 / #504 PR A: Editor/Host/Desktop unit tests, workspace typecheck, production Editor build and targeted persistent-Chrome browser checks; packaged Desktop is CI-only).
 - Property Apply verification: 2026-10-27 (#576: shared Ctrl/Cmd+Enter submission, validation/busy guards, IME/modifier exclusions and prose hard-break isolation; Editor tests and targeted Windows Chrome browser regressions, with Apple platform emulation rather than native macOS).
 
-- Last verified: 2026-10-27 (#557 Editor tests/typecheck/build and inline-math property draft regressions: outside focus, independent instances, applied-only Save/Source, tab switching and discard/close guards).
+- Previous execution verification: 2026-10-27 (#557 Editor tests/typecheck/build and inline-math property draft regressions: outside focus, independent instances, applied-only Save/Source, tab switching and discard/close guards).
 
 - Boundaries: ADR-0001, ADR-0002, ADR-0003. Markdown remains the disk SSOT; Core operations and canonical validation remain the write path.
 
@@ -26,8 +27,8 @@ Brand defaults and packager overrides follow [the branding guide](../guides/bran
 
 ## Host-scoped identity (#1174 PR1)
 
-Tabs and recovery locators use `(hostId, path)`. The current runtime has one Host,
-`local`; registration, request multiplexing and multi-Host UI follow in ADR-0018 PR2–4.
+Tabs and recovery locators use `(hostId, path)`. The current runtime supports local and registered remote Hosts.
+Registration, request isolation and multi-Host UI are implemented under ADR-0018 PR2–4.
 The identity is a client registration, never a daemon instance or a Core document ID.
 Host-returned paths compare literally, without client OS normalization or case folding.
 

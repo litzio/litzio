@@ -1,7 +1,8 @@
 # Assistant connection, settings and conversations
 
 - Status: Implemented
-- Terminology: [제품 용어집](../contributing/terminology.md); PR A preserves current code/API names pending PR B.
+- Last verified: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
+- Terminology: [제품 용어집](../contributing/terminology.md); PR B completed the assistant code/API naming transition.
 - Official AI transition: 2026-11-04 (#1150 ③). `assistant-host.ts` composes connections/conversations directly; no registration, manifest, worker or plugin UI is loaded. Settings use the built-in Settings → Assistant category with the shared Button, SettingsSelect and Dialog components. No UI pattern exception. Protocol version 4 refuses older daemons.
 - Historical PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation. PR4's packaged worker/native comparison was required Windows CI then; #1150 ③ removed that feature. Current Windows CI retains packaged Desktop and main/CLI license-notice checks in the startup/sample smoke.
 - Assistant naming (#1168 PR B): 2026-11-05. CLI, HTTP routes, feature types/files and settings use assistant; `permissionMode` retains the same values and behavior. Settings use `assistant.json`, `LITZIO_ASSISTANT_SETTINGS_FILE` and `LITZIO_ASSISTANT_CWD`. There are no aliases, old-key acceptance or data migrations. Protocol 4 rejects v3 before connecting because its settings/routes differ.
@@ -13,7 +14,7 @@
 - Provider Save verification: 2026-11-03 (#1069 review correction; reproduced stale dock state before the fix, then existing fake browser case passed with Save/new conversation).
 - Composer input verification: 2026-11-03 (#1087; delayed-caret ordering reproduced before the fix; existing fixture browser scenario, no real model call).
 - Copilot verification: 2026-11-03 (#1053; fake ACP and task-default boundary, existing assistant browser scenario and 1440px Light / 640px Dark Korean captures; no real Copilot session or model call).
-- Last verified: 2026-11-03 (#1047 PR A/B / #984 / #952: fake stdio/Host, worker prompt, browser and manual 1440 Light / 640 Dark Korean captures; no real model turn).
+- Previous execution verification: 2026-11-03 (#1047 PR A/B / #984 / #952: fake stdio/Host, worker prompt, browser and manual 1440 Light / 640 Dark Korean captures; no real model turn).
 - Previous verification: 2026-11-02 (#931 implementation 2, PR 2: 409 Editor tests, real Codex creation/card undo and skill discovery; earlier connection/Q&A evidence retained below).
 - Display settings (#1120): 2026-11-04; fixed Host/screen allowlist, fake stdio/HTTP and browser checks; no real model call.
 - Template operations verification: 2026-11-04 (#1128: shared Host operations, fake dynamic-tool/receipt-history and child PATH execution; no real model call; packaged behavior is CI-only).
@@ -27,7 +28,7 @@ are defined in [Copilot conversations](#copilot-conversations-1053).
 
 비서 표면은 mount 시 Host client를 고정한다. 생성·resume·poll·발화·중단·표시 결과·모델·진단 요청은 같은 client를 사용하며 활성 탭·필터를 요청 주소로 사용하지 않는다. 마지막 대화 ID도 hostId별로 기억한다. 설정 표면 역시 선택한 Host의 client를 고정한다. 연결 해제나 화면 종료가 원격 실행 취소를 뜻하지 않는다.
 
-현재 운영 비서는 로컬 Host만 사용한다. PR4의 대상 선택 UI는 아직 제공하지 않으며, 다른 Host 참조를 전역 fallback으로 합치지 않는다.
+운영 비서는 로컬·등록된 원격 Host를 선택할 수 있다. PR4의 AssistantHostChooser에서 대상을 선택하고 Host별 패널에 고정한다. 다른 Host 참조를 전역 fallback으로 합치지 않는다.
 
 
 ## Connection and environment

@@ -25,9 +25,9 @@
 - Visual Editor는 ADR-0001에 따라 Tiptap/ProseMirror 기반의 single-document editor state를 사용한다. Litzio가 selection, history, cursor, clipboard 등을 포함한 자체 rich-text editor engine을 재구현하지 않는다.
 - Editor-engine-specific types and document models stay inside `apps/editor`. Core exposes editor-neutral document semantics.
 - Editor는 ADR-0010에 따라 최소 640px의 데스크톱급 창과 키보드·포인터 입력을 지원 대상으로 한다. 휴대폰 폭·터치 전용 레이아웃이나 검증은 실제 사용자가 확인되어 별도 결정이 나기 전까지 계획하지 않는다.
-- [ADR-0016](docs/adr/0016-shared-local-daemon-host.md)에 따라 Desktop은 같은 PC의 공유 daemon(HTTP Host; 현재 단계는 인증 없음, #1145에서 방식·시점 선택)에 연결하는 방향으로 전환한다. `apps/editor/server`의 공용 파일 Host handler와 Core 의미·공식 write path를 재사용한다. 화면과 독립된 daemon 수명 및 ADR-0012의 플러그인 등록·요청 기록을 허용하되, 이를 범용 persistence/backend나 공유 편집 세션의 근거로 확장하지 않는다. Desktop은 PR3부터 공유 daemon에만 연결하며 띄운 주체별 종료·명시적 종료·수동 다시 연결을 ADR-0016에 따른다. 플러그인·AI는 daemon 수명을 따르며 PR4가 수명 계약과 한정 테스트 복구를 완료했다.
+- [ADR-0016](docs/adr/0016-shared-local-daemon-host.md)에 따라 Desktop은 같은 PC의 공유 daemon(HTTP Host; 현재 단계는 인증 없음, #1145에서 방식·시점 선택)에 연결한다. `apps/editor/server`의 공용 파일 Host handler와 Core 의미·공식 write path를 재사용한다. 화면과 독립된 daemon 수명을 허용하되, 이를 범용 persistence/backend나 공유 편집 세션의 근거로 확장하지 않는다. Desktop의 로컬 연결은 PR3부터 공유 daemon을 사용하며 띄운 주체별 종료·명시적 종료·수동 다시 연결을 ADR-0016에 따른다. AI는 daemon 수명을 따른다. PR4가 수명 계약과 한정 테스트 복구를 완료했으며, 이후 ADR-0017에서 플러그인 기능을 제거·보관했다.
 
-[ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)에 따라 PR4(완료) → ADR → ③a AI 공식 기능 이전 → ③b 플러그인·Docling 기능 제거와 보관 → ④ Host 클라이언트 → ⑤ Desktop 번들 UI 순으로 진행한다. 소유자가 명시적으로 재개를 개시할 때 보관 코드를 참고해 플러그인 컨셉을 다시 개발하며 그대로 복구하지 않는다. ADR-0017 전환 당시 보류한 원격 Host 설정·여러 Host 동시 보기는 [ADR-0018](docs/adr/0018-desktop-remote-hosts.md)의 #1174 소유자 결정과 PR0~4를 따른다. PR0은 결정 문서만 작성하며 구현 완료를 뜻하지 않는다.
+[ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)에 따라 PR4(완료) → ADR → ③a AI 공식 기능 이전 → ③b 플러그인·Docling 기능 제거와 보관 → ④ Host 클라이언트 → ⑤ Desktop 번들 UI 순으로 완료했다. 소유자가 명시적으로 재개를 개시할 때 보관 코드를 참고해 플러그인 컨셉을 다시 개발하며 그대로 복구하지 않는다. ADR-0017 전환 당시 보류한 원격 Host 설정·여러 Host 동시 보기는 [ADR-0018](docs/adr/0018-desktop-remote-hosts.md)의 #1174 소유자 결정과 PR0~4를 따른다. PR0은 결정 문서이며 PR1~4(#1176~#1180)에서 구현을 완료했다.
 
 이 원칙을 이유로 미래 구조나 기능을 선제적으로 구현하지 않는다.
 
@@ -54,7 +54,7 @@
 - `apps/editor/server` — 공용 HTTP Host handler. ADR-0017에서 AI는 플러그인에서 daemon 공식 기능으로 옮기며 AI 수명은 daemon을 따른다. `assistant-host.ts`가 공식 AI를 직접 구성하고 `shared/assistant.ts`가 중립 계약을 소유한다. 플러그인·Docling 기능은 제거했으며 소유자 재개 개시 때 보관 코드를 참고해 다시 개발한다.
 - `apps/editor/` — Core-backed Visual Editor. MyST AST를 직접 다루지 않고 Core read model과 Core operations만 사용한다.
 - `apps/desktop/` — Electron Windows shell, NSIS 패키징과 Stable/Beta 업데이트. ADR-0016의 공유 로컬 daemon 수명을 따르고 ADR-0017에서 앱 번들 UI + 대상 Host를 아는 HTTP 클라이언트로 전환한다. 문서 의미를 구현하지 않는다.
-- [UI 결정표와 갤러리](docs/design/ui-decision-table-v1.md) — UI 작업의 진입점. 기존 토큰·variant·아이콘 관례 안의 선택은 묻지 않고 정한다. 새 표면 구조·기존 계약 변경·새 공통 상호작용·공개 Plugin API 변경만 소유자에게 올린다. 결과에는 선택한 공통 구현과 예외 이유를 적는다.
+- [UI 결정표와 갤러리](docs/design/ui-decision-table-v1.md) — UI 작업의 진입점. 기존 토큰·variant·아이콘 관례 안의 선택은 묻지 않고 정한다. 새 표면 구조·기존 계약 변경·새 공통 상호작용 변경만 소유자에게 올린다. 결과에는 선택한 공통 구현과 예외 이유를 적는다.
 - `docs/design/ui-patterns-v1.md` — UI 작업 전에 읽는 반복 패턴 기준. 소유자가 확정한 목표, 현재 기준 구현·사용처와 미구현 불일치·후속 이슈를 구분하며, 같은 패턴의 다른 화면도 확인한다.
 - `docs/design/editor-layout-rules-v1.md` — Editor UI 변경 시 정렬, 간격 및 control 치수 기준으로 참고한다.
 - `docs/design/editor-visual-language-v1.md` — Editor 토큰·팔레트, typography, 표면·테마와 상태 표현 기준. 배치·control 치수는 Layout Rules, 반복 동작 목표는 UI 패턴 문서를 따른다.
