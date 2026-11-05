@@ -74,12 +74,15 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
     await wait(collision.requestId, "uncertain"); assert.equal(readFileSync(path.join(root, collision.output), "utf8"), "keep");
     const pending = await start("# Disable"); await host.invoke("disable", { id: "fixture.jobs" });
     assert.equal(existsSync(path.join(root, pending.output)), false);
+    await host.invoke("enable", { id: "fixture.jobs" });
+    const interrupted = await start("# Restart while active");
     await host.close();
     const restarted = new PluginHost(path.join(root, "state.json"), new RootAccess([root]));
     try {
+      await restarted.start();
       assert.equal(restarted.jobs.list("fixture.jobs").jobs.length, 0);
-      await assert.rejects(restarted.jobs.execute({ action: "job-status", requestId: pending.requestId }), /Unknown requestId/);
-      assert.equal(existsSync(path.join(root, pending.output)), false);
+      await assert.rejects(restarted.jobs.execute({ action: "job-status", requestId: interrupted.requestId }), /Unknown requestId/);
+      assert.equal(existsSync(path.join(root, interrupted.output)), false);
     } finally { await restarted.close(); }
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
