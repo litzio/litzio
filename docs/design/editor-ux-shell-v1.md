@@ -174,8 +174,8 @@ The sidebar opens the read-only module tab described in
 Its entry sits in the sidebar footer above Settings, separate from Explorer's
 empty-state help and folder navigation. Collapse Explorer → Open folder retains
 its existing Tab order; the collapsed rail exposes Explorer, Color mode and Settings.
-After Explorer's file navigation, the footer's Tab order is Docling comparison → Settings → Color mode.
-The rail keeps Settings bottom-aligned and places Color mode immediately above it.
+After Explorer's file navigation, the footer's Tab order is Template gallery → Settings → Color mode → Desktop menu (Desktop only) → active Host execution account → TopBar. The account stop exposes the full value and permission explanation through the shared tooltip.
+The rail keeps Settings, Color mode and Desktop menu above the bottom execution-account status.
 It shares tab navigation/closing while remaining outside document editing,
 Save/recovery sessions and startup tab restoration.
 
