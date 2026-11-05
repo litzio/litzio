@@ -15,6 +15,11 @@ test("local artifact trust, activation, admission, drain, settings persistence a
   const host = new PluginHost(path.join(root, "state.json"));
   try {
     await host.invoke("register", { directory });
+    const collision = path.join(root, "collision"); mkdirSync(collision);
+    writeFileSync(path.join(collision, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
+    writeFileSync(path.join(collision, "host.js"), "throw new Error('Must not import conflicting plugin')");
+    writeFileSync(path.join(collision, "litzio-plugin.json"), JSON.stringify({ ...manifest, id: "litzio", contributes: { operations: [{ ...manifest.contributes.operations[0], id: "onedrive.read" }] } }));
+    await assert.rejects(host.invoke("register", { directory: collision }), /collision/);
     const registered = (await host.list())[0]!;
     assert.equal(registered.running, false); assert.equal(registered.official, false);
     await assert.rejects(host.invoke("enable", { id: manifest.id }), /trust/);

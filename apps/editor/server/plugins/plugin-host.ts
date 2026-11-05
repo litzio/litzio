@@ -127,6 +127,10 @@ export class PluginHost {
       const id = args.id!;
       if (action === "register") {
         const directory = realpathSync(args.directory!), a = this.artifact(directory);
+        const names = new Set(a.manifest.contributes.operations.map(operation => `${a.manifest.id}.${operation.id}`));
+        for (const [otherId, other] of Object.entries(this.installed)) {
+          if (otherId !== a.manifest.id && this.artifact(other.directory).manifest.contributes.operations.some(operation => names.has(`${otherId}.${operation.id}`))) throw new Error("Plugin operation ID collision");
+        }
         const previous = Object.hasOwn(this.installed, a.manifest.id) ? this.installed[a.manifest.id] : undefined;
         if (previous && (previous.enabled || this.imported.has(a.manifest.id))) throw new Error("Plugin ID already registered; disable and restart daemon before replacing");
         this.installed[a.manifest.id] = { directory, digest: a.digest, enabled: false, settings: previous?.settings ?? {} };
