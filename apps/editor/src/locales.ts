@@ -1,6 +1,15 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Unable to read this secret. Delete or replace it.": "Unable to read this secret. Delete or replace it.",
+  "Unavailable or damaged": "Unavailable or damaged",
+  "Delete secret": "Delete secret",
+  "Save secret": "Save secret",
+  "Not configured": "Not configured",
+  "Configured": "Configured",
+  "Unable to store plugin secret": "Unable to store plugin secret",
+  "Plugin secrets require a Windows Host": "Plugin secrets require a Windows Host",
+  "Plugin secrets": "Plugin secrets",
   "Proposing view…": "Proposing view…",
   "Correcting view ({{attempt}}/2)": "Correcting view ({{attempt}}/2)",
   "View validated": "View validated",
@@ -1105,6 +1114,15 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Unable to read this secret. Delete or replace it.": "이 자격 증명을 읽을 수 없습니다. 삭제하거나 다시 입력하세요.",
+  "Unavailable or damaged": "사용 불가 또는 손상됨",
+  "Delete secret": "자격 증명 삭제",
+  "Save secret": "자격 증명 저장",
+  "Not configured": "설정되지 않음",
+  "Configured": "설정됨",
+  "Unable to store plugin secret": "자격 증명을 저장하지 못했습니다",
+  "Plugin secrets require a Windows Host": "자격 증명 저장은 Windows Host에서만 지원합니다",
+  "Plugin secrets": "플러그인 자격 증명",
   "Proposing view…": "뷰 명세를 제안하고 있습니다…",
   "Correcting view ({{attempt}}/2)": "뷰 명세 수정 중 ({{attempt}}/2)",
   "View validated": "뷰 명세 검증 완료",

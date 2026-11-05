@@ -1,4 +1,15 @@
 async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
+  const secretSaves = [];
+  const saveSecret = async () => {
+    const start = Date.now();
+    const saved = page.waitForResponse(response => response.url().endsWith("/api/plugins/secrets") && response.request().method() === "POST");
+    const refreshed = page.waitForResponse(response => response.url().endsWith("/api/plugins") && response.request().method() === "GET");
+    await page.getByRole("button", { name: "Save secret", exact: true }).click();
+    expect((await saved).ok()).toBe(true);
+    const storedMs = Date.now() - start;
+    expect((await refreshed).ok()).toBe(true);
+    secretSaves.push({ storedMs, refreshedMs: Date.now() - start });
+  };
   const openSettings = async () => {
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
@@ -9,6 +20,43 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(page.getByText("Trust required", { exact: false })).toBeVisible();
   const registered = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
   expect(registered.running).toBe(false);
+  await page.getByRole("button", { name: "Drive fixture", exact: true }).click();
+  if (registered.secrets.supported) {
+    await page.getByLabel("pat: Not configured", { exact: true }).fill("browser-isolated-secret");
+    await saveSecret();
+    await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
+    const status = pluginFixture.cli(["plugins", "secret-status", "fixture.drive"]);
+    expect(status.secrets.declarations[0].configured).toBe(true);
+    expect(JSON.stringify(status)).not.toContain("browser-isolated-secret");
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 900 });
+      if (screenshots) {
+        // Before baseline removes only the new additive secret section; no source checkout changes.
+        const section = await page.getByRole("region", { name: "Plugin secrets", exact: true }).elementHandle();
+        await section.evaluate(el => { el.style.display = "none"; });
+        await page.screenshot({ path: `tmp/plugin-stage1/secrets-before-${width}.png` });
+        await section.evaluate(el => { el.style.removeProperty("display"); });
+        await page.screenshot({ path: `tmp/plugin-stage1/secrets-${width}.png` });
+      }
+    }
+    pluginFixture.corruptSecret();
+    await page.reload(); await openSettings();
+    await page.getByRole("button", { name: "Drive fixture", exact: true }).click();
+    await expect(page.getByLabel("pat: Unavailable or damaged", { exact: true })).toHaveValue("");
+    await expect(page.getByText("Unable to read this secret. Delete or replace it.", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Delete secret", exact: true })).toBeEnabled();
+    await page.getByRole("button", { name: "Delete secret", exact: true }).click();
+    await expect(page.getByLabel("pat: Not configured", { exact: true })).toHaveValue("");
+    await page.getByLabel("pat: Not configured", { exact: true }).fill("browser-repaired-secret");
+    await saveSecret();
+    await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
+    await page.getByRole("button", { name: "Delete secret", exact: true }).click();
+    await expect(page.getByLabel("pat: Not configured", { exact: true })).toHaveValue("");
+  } else {
+    await expect(page.getByText("Plugin secrets require a Windows Host", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save secret", exact: true })).toBeDisabled();
+  }
+  await page.keyboard.press("Escape");
   pluginFixture.cli(["plugins", "trust", "fixture.drive", "--digest", registered.digest]);
   await page.reload(); await openSettings();
   await page.getByRole("switch", { name: "Enable Drive fixture", exact: true }).click();
@@ -63,4 +111,5 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     }
   }
 
+  return { secretSaves };
 }

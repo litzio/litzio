@@ -313,6 +313,9 @@ Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채�
 
 ## P12 모달·파일·복구·설정 범위
 
+로드맵 1c: Plugins 설정의 secret 입력은 기존 Dialog·Input(password)·Button·Notice를 재사용한다. AI 설정·일반 플러그인 설정과 같은 설정 표면이며, 민감 값은 blur 자동 저장 대신 명시적 저장 후 즉시 비운다. 값 재조회와 비서 입력은 없다. 현재 계약·검증은 [Plugin stage 1](plugin-stage1-v1.md#secret-저장과-실행-전달-로드맵-1c)을 따른다.
+
+
 #1210 내장 통계·생성/즐겨찾기 뷰는 DocumentTabs 작업 탭을 재사용한다. 기본 표를 유지하고 새 뷰는 새 탭으로 열며, 문서 Save/복구 세션은 갖지 않는다. 즐겨찾기는 공통 Dialog에서 뷰 제목을 제안하고 사용자가 새 이름을 확정해 추가한다. 목록 머리의 새로고침은 공통 icon-sm ghost Button과 Tooltip을, 항목은 Star 아이콘을 쓴다. 조회 receipt는 시각만 표시하고 상세는 공통 Tooltip에 둔다. 설정 화면은 이전하지 않는다([Generated views](generated-views-v1.md)).
 
 #1199의 사이드바 맨 아래 실행 계정 줄은 기존 Host 설정·탐색기의 HostStatus와

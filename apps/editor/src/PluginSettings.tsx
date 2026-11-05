@@ -10,7 +10,8 @@ import { SettingsSwitch } from "./components/ui/settings.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./components/ui/dialog.tsx";
 export { OneDriveIcon } from "./OneDriveIcon.tsx";
 import type { PluginStatus } from "@litzio/plugin-sdk";
-type Plugin = { id: string; name?: string; description?: string; version?: string; digest?: string; official?: boolean; publisher?: { id: string; name: string }; trusted?: boolean; enabled: boolean; running: boolean; error?: string; status?: PluginStatus | null; settings?: Record<string, unknown>; settingsSchema?: { properties?: Record<string, { type?: string; title?: string }> } };
+type SecretStatus = { supported: boolean; declarations: { id: string; configured: boolean; error?: string }[] };
+type Plugin = { secrets?: SecretStatus; id: string; name?: string; description?: string; version?: string; digest?: string; official?: boolean; publisher?: { id: string; name: string }; trusted?: boolean; enabled: boolean; running: boolean; error?: string; status?: PluginStatus | null; settings?: Record<string, unknown>; settingsSchema?: { properties?: Record<string, { type?: string; title?: string }> } };
 export function usePlugins() {
   const client = useHostClient(), [plugins, setPlugins] = useState<Plugin[]>([]), [error, setError] = useState("");
   const refresh = async () => {
@@ -59,7 +60,7 @@ export function PluginSettings() {
       {plugin.status?.accounts.map(account => <p key={account.id} className="settings-description plugin-account">{i18n.t("Account: {{label}} ({{source}})", { label: account.label, source: account.source })}</p>)}
     </section>)}
     <Dialog open={!!trust} onOpenChange={open => { if (!open) setTrust(undefined); }}><DialogContent><DialogHeader><DialogTitle>Trust {trust?.name ?? trust?.id}?</DialogTitle><DialogDescription>This code runs with the Host OS account permissions. Trust only an artifact you have reviewed.</DialogDescription></DialogHeader><p style={{ overflowWrap: "anywhere" }}>{trust?.digest}</p><Button disabled={busy} onClick={() => { if (trust) void run("trust", { id: trust.id, digest: trust.digest }).then(() => setTrust(undefined)); }}>Trust this artifact</Button><Button variant="secondary" onClick={() => setTrust(undefined)}>Cancel</Button></DialogContent></Dialog>
-    <Dialog open={!!current} onOpenChange={open => { if (!open) setSelected(undefined); }}><DialogContent><DialogHeader><DialogTitle>{current?.name ?? current?.id}</DialogTitle><DialogDescription>{current?.description}</DialogDescription></DialogHeader><p>{current?.version}</p>{Object.entries(current?.settingsSchema?.properties ?? {}).map(([key, field]) => field.type === "boolean" ? <SettingsSwitch key={key} label={field.title ?? key} disabled={busy || current?.enabled} checked={current?.settings?.[key] === true} onChange={value => void run("settings", { id: current?.id, settings: { ...current?.settings, [key]: value } })} /> : ["string", "number", "integer"].includes(field.type ?? "") ? <label key={key}>{field.title ?? key}<Input disabled={busy || current?.enabled} type={field.type === "string" ? "text" : "number"} defaultValue={String(current?.settings?.[key] ?? "")} onBlur={event => { const value = field.type === "string" ? event.target.value : Number(event.target.value); if (current?.settings?.[key] !== value) void run("settings", { id: current?.id, settings: { ...current?.settings, [key]: value } }); }} /></label> : <p key={key}>Use plugins settings for {key}.</p>)}<p className="settings-status" style={{ overflowWrap: "anywhere" }}>{current?.digest}</p></DialogContent></Dialog>
+    <Dialog open={!!current} onOpenChange={open => { if (!open) setSelected(undefined); }}><DialogContent><DialogHeader><DialogTitle>{current?.name ?? current?.id}</DialogTitle><DialogDescription>{current?.description}</DialogDescription></DialogHeader><p>{current?.version}</p>{Object.entries(current?.settingsSchema?.properties ?? {}).map(([key, field]) => field.type === "boolean" ? <SettingsSwitch key={key} label={field.title ?? key} disabled={busy || current?.enabled} checked={current?.settings?.[key] === true} onChange={value => void run("settings", { id: current?.id, settings: { ...current?.settings, [key]: value } })} /> : ["string", "number", "integer"].includes(field.type ?? "") ? <label key={key}>{field.title ?? key}<Input disabled={busy || current?.enabled} type={field.type === "string" ? "text" : "number"} defaultValue={String(current?.settings?.[key] ?? "")} onBlur={event => { const value = field.type === "string" ? event.target.value : Number(event.target.value); if (current?.settings?.[key] !== value) void run("settings", { id: current?.id, settings: { ...current?.settings, [key]: value } }); }} /></label> : <p key={key}>Use plugins settings for {key}.</p>)}<PluginSecrets key={current?.id} plugin={current} busy={busy} run={run} /><p className="settings-status" style={{ overflowWrap: "anywhere" }}>{current?.digest}</p></DialogContent></Dialog>
   </section>;
 }
 function PluginState({ tone, label, detail }: { tone: string; label: string; detail?: string }) {
@@ -69,4 +70,29 @@ export function defaultFolderCandidate(plugins: Plugin[], existing: { folders: n
   if (existing.folders || existing.recent || existing.documentPath) return undefined;
   const candidates = plugins.flatMap(p => p.running ? p.status?.folders.filter(f => f.defaultCandidate) ?? [] : []);
   return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+function PluginSecrets({ plugin, busy, run }: { plugin?: Plugin; busy: boolean; run: (action: string, args: Record<string, unknown>) => Promise<void> }) {
+  const client = useHostClient();
+  const [values, setValues] = useState<Record<string, string>>({}), [problem, setProblem] = useState(""), [saving, setSaving] = useState(false);
+  useEffect(() => { setValues({}); setProblem(""); }, [client, plugin?.id]);
+  if (!plugin?.secrets?.declarations.length) return null;
+  const supported = plugin.secrets.supported;
+  return <section className="settings-section settings-section--stacked" aria-label={i18n.t("Plugin secrets")}>
+    {!supported ? <Notice tone="warning">{i18n.t("Plugin secrets require a Windows Host")}</Notice> : null}
+    {problem ? <Notice tone="error">{problem}</Notice> : null}
+    {plugin.secrets.declarations.map(secret => <form key={secret.id} className="plugin-secret-form" onSubmit={async event => {
+      event.preventDefault(); setSaving(true); setProblem(""); const value = values[secret.id]; setValues(v => ({ ...v, [secret.id]: "" }));
+      try {
+        const response = await client.request("/api/plugins/secrets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: plugin.id, name: secret.id, value }) });
+        if (!response.ok) throw new Error();
+        window.dispatchEvent(new Event("plugins-changed"));
+      } catch { setProblem(i18n.t("Unable to store plugin secret")); } finally { setSaving(false); }
+    }}>
+      <label>{secret.id}: {i18n.t(secret.error ? "Unavailable or damaged" : secret.configured ? "Configured" : "Not configured")}<Input type="password" autoComplete="new-password" disabled={!supported || busy || saving || plugin.enabled} value={values[secret.id] ?? ""} onChange={e => setValues(v => ({ ...v, [secret.id]: e.target.value }))} /></label>
+      {secret.error ? <Notice tone="error">{i18n.t("Unable to read this secret. Delete or replace it.")}</Notice> : null}
+      <div className="settings-actions"><Button type="submit" size="sm" variant="secondary" disabled={!supported || busy || saving || plugin.enabled || !values[secret.id]}>{i18n.t("Save secret")}</Button>
+      <Button type="button" size="sm" variant="ghost" disabled={!supported || busy || saving || plugin.enabled || !secret.configured && !secret.error} onClick={() => void run("secret-delete", { id: plugin.id, name: secret.id })}>{i18n.t("Delete secret")}</Button></div>
+    </form>)}
+  </section>;
 }
