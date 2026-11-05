@@ -9,7 +9,7 @@ import { createAssistantRequest } from "../src/assistant-api.ts";
 import { createHostClient } from "../src/host-client.ts";
 import { viewRequest, readViewCatalog } from "../src/views/view-api.ts";
 import { ViewInputError } from "@litzio/core/views-v2";
-import { sourceFailure } from "../src/views/source-state.ts";
+import { sourceFailure, inputIssueMessage } from "../src/views/source-state.ts";
 import { i18n } from "../src/i18n.ts";
 
 test("send, poll and validation cancellation settle before delayed transports and discard their late results", async () => {
@@ -153,4 +153,20 @@ test("V2 transport uses the sole catalog envelope and distinguishes pointer inpu
   }
   reply = { code: "unavailable", errorKind: "failed", error: "SECRET removed field", receipt: { outcome: "failure" } };
   await assert.rejects(readViewCatalog(client), error => sourceFailure(error).state === "unavailable" && !sourceFailure(error).message.includes("SECRET"));
+});
+
+test("field advice uses keywords and public limits without echoing input or pattern text", async () => {
+  const language = i18n.language;
+  try {
+    await i18n.changeLanguage("en");
+    const schema = { format: "date", minimum: 1, maximum: 20, minLength: 3, maxLength: 12, pattern: "SECRET" };
+    for (const [keyword, message] of [["format", "Enter a valid date (YYYY-MM-DD)."], ["minimum", "Enter a value of at least 1."], ["maximum", "Enter a value of at most 20."], ["minLength", "Use at least 3 characters."], ["maxLength", "Use at most 12 characters."], ["pattern", "Use the required format."], ["required", "Enter a value."], ["unknown", "Check this value against the operation requirements."]]) {
+      assert.equal(inputIssueMessage(keyword, schema), message);
+      assert.ok(!inputIssueMessage(keyword, schema).includes("SECRET"));
+    }
+    assert.equal(inputIssueMessage("minimum"), "Check this value against the operation requirements.");
+    assert.equal(inputIssueMessage("format", { format: "email" }), "Check this value against the operation requirements.");
+    await i18n.changeLanguage("ko");
+    assert.equal(inputIssueMessage("minimum", schema), "1 이상의 값을 입력하세요.");
+  } finally { await i18n.changeLanguage(language); }
 });

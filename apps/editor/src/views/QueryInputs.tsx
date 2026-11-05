@@ -8,7 +8,7 @@ import { FieldError } from "../ui/primitives.tsx";
 import { Info, X, CircleOff } from "lucide-react";
 import { readableLabel } from "./view-label.ts";
 
-type Property = { const?: unknown; title?: string; description?: string; type?: string | string[]; enum?: (string | number | boolean | null)[]; minLength?: number; pattern?: string; maxLength?: number; minimum?: number; maximum?: number };
+type Property = { format?: string; const?: unknown; title?: string; description?: string; type?: string | string[]; enum?: (string | number | boolean | null)[]; minLength?: number; pattern?: string; maxLength?: number; minimum?: number; maximum?: number };
 export type InputSchema = { properties?: Record<string, Property>; required?: string[] };
 /** Bind scalar controls only. Core/Host own schema validation and all data processing. */
 export function QueryInputs({ view, schema, errors, change }: { view: QueryView; schema: InputSchema; errors: Record<string, string>; change(field: string, value: unknown, remove?: boolean): void }) {

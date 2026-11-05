@@ -1,6 +1,13 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Enter a valid date (YYYY-MM-DD).": "Enter a valid date (YYYY-MM-DD).",
+  "Enter a value of at least {{n}}.": "Enter a value of at least {{n}}.",
+  "Enter a value of at most {{n}}.": "Enter a value of at most {{n}}.",
+  "Use at least {{n}} characters.": "Use at least {{n}} characters.",
+  "Use at most {{n}} characters.": "Use at most {{n}} characters.",
+  "Use the required format.": "Use the required format.",
+  "Enter a value.": "Enter a value.",
   "This view is no longer available. Create a new view.": "This view is no longer available. Create a new view.",
   "Yes": "Yes",
   "No": "No",
@@ -1169,6 +1176,13 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Enter a valid date (YYYY-MM-DD).": "올바른 날짜를 입력하세요 (YYYY-MM-DD).",
+  "Enter a value of at least {{n}}.": "{{n}} 이상의 값을 입력하세요.",
+  "Enter a value of at most {{n}}.": "{{n}} 이하의 값을 입력하세요.",
+  "Use at least {{n}} characters.": "{{n}}자 이상 입력하세요.",
+  "Use at most {{n}} characters.": "{{n}}자 이하로 입력하세요.",
+  "Use the required format.": "지정된 형식으로 입력하세요.",
+  "Enter a value.": "값을 입력하세요.",
   "This view is no longer available. Create a new view.": "이 뷰는 더 이상 사용할 수 없습니다. 새 뷰를 만드세요.",
   "Yes": "예",
   "No": "아니요",

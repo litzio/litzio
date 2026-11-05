@@ -12,7 +12,7 @@ import type { HostClient } from "../host-client.ts";
 import { hostLabel } from "../host-client.ts";
 import { STATISTICS_PLUGIN, statisticsView, viewRequest, readViewCatalog, type ViewResult } from "./view-api.ts";
 import { QueryInputs, type InputSchema } from "./QueryInputs.tsx";
-import { sourceFailure } from "./source-state.ts";
+import { sourceFailure, inputIssueMessage } from "./source-state.ts";
 import { ReviewRenderer, type ReviewAdapter } from "../review/ReviewRenderer.tsx";
 import { createReviewAdapter } from "./review-api.ts";
 import { readableLabel } from "./view-label.ts";
@@ -43,6 +43,8 @@ export function ViewRenderer({ view, rows, fields }: { view: View; rows?: ViewRo
     {!rows?.length ? null : panel.component === "Table" ? <div className="view-table-scroll" tabIndex={0} aria-label={panel.title}><table><thead><tr>{panel.columns.map(column => <th key={column} scope="col">{fields?.[column] ?? readableLabel(column)}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={i}>{panel.columns.map(column => <td key={column}>{label(column, row[column])}</td>)}</tr>)}</tbody></table></div> : <ViewBars rows={rows} x={panel.x} y={panel.y} label={label} />}
   </section>)}</div>;
 }
+const emptyInputErrors = () => ({ fields: Object.create(null) as Record<string, string> });
+
 type ViewsProps = { tab: ViewTab; client: HostClient; roots: string[]; onOpen(view: CatalogView, root: string, hostId: string, label?: string): void; onRoot(root: string): void; onOpenDocument?(path: string, hostId: string): void };
 export function Views(props: ViewsProps) {
   return props.tab.view?.profile === "review" ? <ReviewViewPage key={`${props.tab.hostId}:${props.tab.root}:${props.tab.view.sources.review.plugin}:${props.tab.view.sources.review.review}:${props.tab.view.sources.review.bundleRef}`} {...props} view={props.tab.view} /> : <QueryViews {...props} tab={{ ...props.tab, view: props.tab.view }} />;
@@ -68,8 +70,8 @@ function QueryViews({ tab, client, roots, onOpen, onRoot }: Omit<ViewsProps, "ta
   const operation = catalogOperation ?? (builtin ? { ...builtin, plugin: STATISTICS_PLUGIN } : undefined);
   const schema = operation?.inputSchema as InputSchema | undefined;
   const owner = base.sources.stats.operation === "folder.statistics" ? STATISTICS_PLUGIN : operation?.plugin;
-  const [inputErrors, setInputErrors] = useState<Record<string, string>>({});
-  useEffect(() => { if (Object.keys(inputErrors).length) formElement.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(); }, [inputErrors]);
+  const [inputErrors, setInputErrors] = useState<{ fields: Record<string, string>; common?: string }>(emptyInputErrors);
+  useEffect(() => { if (Object.keys(inputErrors.fields).length) formElement.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(); }, [inputErrors]);
   const [state, setState] = useState<SourceState>("idle");
   const [result, setResult] = useState<ViewResult>(), [problem, setProblem] = useState("");
   const [queriedArgs, setQueriedArgs] = useState<string>();
@@ -110,18 +112,19 @@ function QueryViews({ tab, client, roots, onOpen, onRoot }: Omit<ViewsProps, "ta
   }, [client, tab.basic, tab.hostId]);
   const run = async (action: () => Promise<void>, save = false) => { if (busy) return; setBusy(true); (save ? setSaveProblem : setProblem)(""); try { await action(); } catch (error) { if (!lifetime.current?.signal.aborted) (save ? setSaveProblem : setProblem)(sourceFailure(error).message); } finally { if (!lifetime.current?.signal.aborted) setBusy(false); } };
   const showInputErrors = (error: unknown) => {
-    const errors: Record<string, string> = {};
+    const fields: Record<string, string> = Object.create(null);
+    let common: string | undefined;
     if (error instanceof ViewInputError) for (const issue of error.inputIssues) {
       const name = issue.field?.startsWith("/") ? issue.field.split("/")[1].replaceAll("~1", "/").replaceAll("~0", "~") : undefined;
-      const field = name && view.form?.fields.some(f => f.field === name) ? name : "form";
-      errors[field] = i18n.t("Check this value against the operation requirements.");
+      if (name && view.form?.fields.some(f => f.field === name)) fields[name] ??= inputIssueMessage(issue.keyword, schema?.properties?.[name]);
+      else common ??= inputIssueMessage(issue.keyword);
     }
-    if (!Object.keys(errors).length) errors.form = i18n.t("Check this value against the operation requirements.");
-    setInputErrors(errors); setProblem(""); setState("needs-input");
+    if (!Object.keys(fields).length && !common) common = i18n.t("Check this value against the operation requirements.");
+    setInputErrors({ fields, common }); setProblem(""); setState("needs-input");
   };
   const query = async () => {
     if (busy) return;
-    setInputErrors({});
+    setInputErrors(emptyInputErrors());
     {
       if (!operation) return;
       try { validateViewInputs(view, operation, "execute", compilePortableViewInputSchema); }
@@ -145,10 +148,10 @@ function QueryViews({ tab, client, roots, onOpen, onRoot }: Omit<ViewsProps, "ta
       {!tab.basic ? <Button variant="secondary" size="sm" disabled={busy || !owner} onClick={() => { setName(view.title); setSaving(true); setSaveProblem(""); }}><Star aria-hidden="true" />{i18n.t("Add to favorites", { defaultValue: "Add to favorites" })}</Button> : <p>{i18n.t("Ask the assistant to generate a view. The basic table stays here.")}</p>}
     </div>
     {view.form ? <form ref={formElement} className="view-query-form" noValidate onSubmit={event => { event.preventDefault(); void query(); }}>
-      {schema ? <QueryInputs view={view} schema={schema} errors={inputErrors} change={(field, value, remove) => { setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; }); setInputErrors({}); }} /> : null}
-      <FieldError id={`view-form-error-${tab.id}`}>{inputErrors.form}</FieldError>
+      {schema ? <QueryInputs view={view} schema={schema} errors={inputErrors.fields} change={(field, value, remove) => { setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; }); setInputErrors(emptyInputErrors()); }} /> : null}
       <div className="form-actions view-query-actions"><Button type="submit" disabled={busy || !root || !schema}>{view.form.submit.label}</Button></div>
     </form> : null}
+    <FieldError id={`view-input-error-${tab.id}`}>{inputErrors.common}</FieldError>
     {state === "loading" ? <Notice>{i18n.t("Loading data…")}</Notice> : state === "idle" ? <Notice>{i18n.t("Data has not been queried. Refresh manually.")}</Notice> : state === "empty" ? <Notice>{i18n.t("No matching rows.")}</Notice> : null}
     {result && (state === "loading" || state === "needs-input" || !!problem || JSON.stringify(args) !== queriedArgs) ? <Notice tone="warning">{i18n.t("Previous query result")} · {queriedAt}{JSON.stringify(args) !== queriedArgs ? ` · ${i18n.t("Search conditions changed")}` : ""}</Notice> : null}
     {problem ? <Notice tone={state === "uncertain" ? "warning" : "error"}>{problem}</Notice> : null}

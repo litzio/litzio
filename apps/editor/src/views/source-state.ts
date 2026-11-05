@@ -19,3 +19,18 @@ export function sourceFailure(error: unknown): { state: SourceState; message: st
   const kind = error instanceof ViewOperationError && typeof error.kind === "string" && Object.hasOwn(messages, error.kind) ? error.kind : "failed";
   return { state: kind === "unavailable" ? "unavailable" : "failure", message: i18n.t(messages[kind], { defaultValue: messages[kind] }) };
 }
+
+/** Fixed advice from the validator keyword and public constraints; never from input values/messages. */
+export function inputIssueMessage(keyword: string, schema?: { format?: string; minimum?: number; maximum?: number; minLength?: number; maxLength?: number }): string {
+  if (keyword === "required") return i18n.t("Enter a value.");
+  if (keyword === "pattern") return i18n.t("Use the required format.");
+  if (keyword === "format" && schema?.format === "date") return i18n.t("Enter a valid date (YYYY-MM-DD).");
+  const limit = schema?.[keyword as "minimum" | "maximum" | "minLength" | "maxLength"];
+  if (typeof limit === "number" && Number.isFinite(limit)) {
+    if (keyword === "minimum") return i18n.t("Enter a value of at least {{n}}.", { n: limit });
+    if (keyword === "maximum") return i18n.t("Enter a value of at most {{n}}.", { n: limit });
+    if (keyword === "minLength") return i18n.t("Use at least {{n}} characters.", { n: limit });
+    if (keyword === "maxLength") return i18n.t("Use at most {{n}} characters.", { n: limit });
+  }
+  return i18n.t("Check this value against the operation requirements.");
+}

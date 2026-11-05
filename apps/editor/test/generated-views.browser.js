@@ -35,15 +35,17 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   });
   // V3 uses a v2 Host fixture until V2 lands. This is renderer proof, not Host integration.
   const saved = new Map();
+  let hostCommonRefusal = false;
   let hostInputRefusal = false, unavailableView = false;
   let fault, empty = false, hold, started = false;
   const columns = ['key', 'summary', 'status', 'assignee', 'updated', 'project', 'priority', 'type', 'reporter', 'created', 'points', 'link'];
   const formView = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', title: 'Issue search', refresh: 'manual', sources: { stats: { operation: 'fixture.issues.read', version: 1, args: { preset: 'assigned-open' } } }, form: { component: 'InputForm', source: 'stats', fields: [{ component: 'Select', field: 'preset' }, { component: 'TextInput', field: 'text' }, { component: 'DateInput', field: 'since' }, { component: 'NumberInput', field: 'limit' }, { component: 'Checkbox', field: 'closed' }], submit: { component: 'SubmitButton', label: 'Search' } }, layout: { component: 'VerticalPanel', children: [{ component: 'Table', title: 'Issues', source: 'stats', data: '/rows', columns: columns.slice(0, 5) }] } };
   const reviewView = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'review', title: 'Review entry', refresh: 'manual', sources: { review: { plugin: 'fixture.issues', review: 'sample', bundleRef: 'bundle' } }, layout: { component: 'VerticalPanel', children: [{ component: 'ReviewList', title: 'Changes', source: 'review' }, { component: 'ReviewDetail', title: 'Details', source: 'review' }] } };
   saved.set('Review entry', reviewView);
+  saved.set('Form name input', { ...formView, title: 'Form name input', sources: { stats: { ...formView.sources.stats, args: { preset: 'assigned-open', form: 'valid' } } }, form: { ...formView.form, fields: [{ component: 'TextInput', field: 'form' }] } });
   saved.set('Issue search', formView);
   saved.set('Twelve columns', { ...formView, title: 'Twelve columns', layout: { component: 'VerticalPanel', children: [{ ...formView.layout.children[0], columns }] } });
-  const catalog = { operations: [{ operation: 'fixture.issues.read', version: 1, plugin: 'fixture.issues', rowSchema: Object.fromEntries(columns.map(c => [c, { type: 'string', label: c }])), inputSchema: { type: 'object', additionalProperties: false, required: ['preset'], properties: { preset: { type: 'string', title: 'Preset', description: 'Choose which issues to include.', enum: ['assigned-open', 'reported-open', 'assigned-all', 'reported-all', 'recent', 'all'] }, text: { type: 'string', title: 'Text', minLength: 3, pattern: '^[A-Za-z ]+$', maxLength: 20 }, since: { type: 'string', format: 'date', title: 'Since' }, limit: { type: 'integer', minimum: 1, maximum: 100 }, closed: { type: 'boolean', title: 'Closed' } } } }] };
+  const catalog = { operations: [{ operation: 'fixture.issues.read', version: 1, plugin: 'fixture.issues', rowSchema: Object.fromEntries(columns.map(c => [c, { type: 'string', label: c }])), inputSchema: { type: 'object', additionalProperties: false, required: ['preset'], properties: { preset: { type: 'string', title: 'Preset', description: 'Choose which issues to include.', enum: ['assigned-open', 'reported-open', 'assigned-all', 'reported-all', 'recent', 'all'] }, text: { type: 'string', title: 'Text', minLength: 3, pattern: '^[A-Za-z ]+$', maxLength: 20 }, since: { type: 'string', format: 'date', title: 'Since' }, limit: { type: 'integer', minimum: 1, maximum: 100 }, closed: { type: 'boolean', title: 'Closed' }, form: { type: 'string', title: 'Form value', minLength: 3 } } } }] };
   let reviewReads = 0;
   const baseline = { documentRevision: 'r1', proposalRevision: 'p1', sourceRevision: 's1', mappingRevision: 'm1' };
   await page.route('**/api/reviews', route => {
@@ -73,6 +75,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     if (body.action === 'run') {
       queries++; started = true; if (hold) await hold;
       if (unavailableView) return route.fulfill({ status: 400, json: { code: 'unavailable', errorKind: 'failed', error: 'SECRET removed column detail', receipt: { ...receipt, outcome: 'failure' } } });
+      if (hostCommonRefusal) return route.fulfill({ status: 400, json: { code: 'invalid-input', inputIssues: [{ keyword: 'type' }], receipt: { ...receipt, outcome: 'failure' } } });
       if (hostInputRefusal) return route.fulfill({ status: 400, json: { code: 'invalid-input', inputIssues: [{ field: '/text', keyword: 'pattern' }], error: 'SECRET upstream rejected input', receipt: { ...receipt, outcome: 'failure' } } });
       if (fault) return route.fulfill({ status: 400, json: { errorKind: fault, error: 'SECRET token password upstream-body', receipt: { ...receipt, outcome: fault === 'uncertain' ? 'uncertain' : 'failure' } } });
       value.rows = empty ? [] : body.view.form ? [Object.fromEntries(columns.map(c => [c, c === 'summary' ? 'Review shared query controls' : c === 'key' ? 'ISSUE-42' : c === 'status' ? 'Open' : c === 'assignee' || c === 'reporter' ? 'Alex Kim' : c === 'updated' || c === 'created' ? '2026-11-06' : c === 'points' ? 5 : c === 'priority' ? 'High' : c === 'project' ? 'Editor' : c === 'type' ? 'Task' : 'ISSUE-42']))] : body.view.sources.stats.operation === 'folder.statistics' ? [{ folder: '.', documents: 1, headings: 2, modified: null }] : [{ group: 'open', value: 5 }, { group: 'idle', value: 0 }, { group: 'closed', value: -2 }];
@@ -130,6 +133,13 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect(page.locator('[data-slot=tooltip-content]')).toContainText(latestReceipt.requestId);
   await expect(page.locator('[data-slot=tooltip-content]')).toContainText(root);
   await page.mouse.move(0, 0); await expect(page.locator('[data-slot=tooltip-content]')).not.toBeVisible();
+  // Fixed-args queries have no form, but Host input refusals must remain visible.
+  hostInputRefusal = true;
+  await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
+  await expect(generated().getByRole('alert')).toHaveText('Use the required format.');
+  hostInputRefusal = false;
+  await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
+  await expect(generated().getByRole('alert')).toHaveCount(0);
   const save = async () => { await generated().getByRole('button', { name: 'Add to favorites', exact: true }).click(); const dialog = page.getByRole('dialog', { name: 'Add to favorites', exact: true }); await expect(dialog.getByRole('textbox', { name: 'New favorite name' })).toHaveValue(proposal.title); await dialog.getByRole('textbox', { name: 'New favorite name' }).fill(favorite); await dialog.getByRole('button', { name: 'Add favorite', exact: true }).click(); return dialog; };
   await expect(await save()).not.toBeVisible();
   const duplicate = await save(); await expect(duplicate.getByRole('alert')).toBeVisible(); await duplicate.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -240,6 +250,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await generated().getByRole('button', { name: 'Search', exact: true }).click();
   for (const field of ['Text', 'Since', 'Limit']) await expect(generated().getByLabel(field, { exact: true })).toHaveAttribute('aria-invalid', 'true');
   expect(queries).toBe(countBeforeInput);
+  for (const message of ['Use at least 3 characters.', 'Enter a valid date (YYYY-MM-DD).', 'Enter a value of at least 1.']) await expect(generated().getByRole('alert').filter({ hasText: message })).toBeVisible();
   if (screenshots) await page.screenshot({ path: 'tmp/v3-review/input-errors-1440.png' });
   await generated().getByLabel('Text', { exact: true }).fill('needle');
   await generated().getByLabel('Limit', { exact: true }).fill('12');
@@ -268,6 +279,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect(generated().getByLabel('Text', { exact: true })).toHaveAttribute('aria-invalid', 'true');
   await expect(generated()).not.toContainText('SECRET');
   await expect(generated().getByText('View operation failed.', { exact: false })).toHaveCount(0);
+  await expect(generated().getByRole('alert').filter({ hasText: 'Use the required format.' })).toBeVisible();
   hostInputRefusal = false;
   unavailableView = true;
   await generated().getByRole('button', { name: 'Search', exact: true }).click();
@@ -346,6 +358,21 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     if (screenshots) await page.screenshot({ path: `tmp/v3-review/table12-${width}-start.png` });
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
+  await statistics.getByRole('button', { name: 'Form name input', exact: true }).click();
+  await generated().getByLabel('Form value', { exact: true }).fill('x');
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(generated().getByLabel('Form value', { exact: true })).toHaveAttribute('aria-invalid', 'true');
+  await expect(generated().getByRole('alert')).toHaveCount(1);
+  await expect(generated().getByRole('alert')).toHaveText('Use at least 3 characters.');
+  await generated().getByLabel('Form value', { exact: true }).fill('valid');
+  hostCommonRefusal = true;
+  await generated().getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(generated().getByRole('alert')).toHaveCount(1);
+  await expect(generated().getByRole('alert')).toHaveText('Check this value against the operation requirements.');
+  await expect(generated().getByLabel('Form value', { exact: true })).toHaveAttribute('aria-invalid', 'false');
+  await expect(generated().getByLabel('Form value', { exact: true })).not.toHaveAttribute('aria-describedby');
+  hostCommonRefusal = false;
   await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
   const queriesBeforeReview = queries;
   await statistics.getByRole('button', { name: 'Review entry', exact: true }).click();
