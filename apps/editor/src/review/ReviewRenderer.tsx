@@ -53,8 +53,8 @@ export function PageSurface({ snapshot: s, selected, onSelect, onPage, disabled 
       <Button variant="outline" onClick={() => setZoom(v => v === 1 ? 1.5 : 1)}>{zoom === 1 ? "Zoom in" : "Fit to width"}</Button></div>
     <div className="review-page-scroll"><div className="review-page" style={{ width: `${zoom * 100}%`, aspectRatio: `${p.width}/${p.height}` }}>
       {s.imageUrl && !failed ? <img src={s.imageUrl} alt={`Source page ${p.pageNo}`} onError={() => setFailed(true)} /> : <Notice>No image available. Showing regions only.</Notice>}
-      {p.regions.map(r => { const [x1,y1,x2,y2] = r.bbox; return <button key={r.id} className="review-region" aria-label={`${r.category} · ${regionStatus[r.status]}${r.reason ? ` · ${r.reason}` : ""}`} aria-pressed={selected.includes(r.id)} disabled={disabled}
-        style={{ left: `${x1/p.width*100}%`, top: `${(p.origin === "TOPLEFT" ? y1 : p.height-y2)/p.height*100}%`, width: `${(x2-x1)/p.width*100}%`, height: `${(y2-y1)/p.height*100}%` }} onClick={() => onSelect(r.id)}><span>{r.category} · {regionStatus[r.status]}</span></button>; })}
+      {p.regions.map(r => { const [x1,y1,x2,y2] = r.bbox; return <Button key={r.id} variant="ghost" className="review-region p-0 rounded-none" aria-label={`${r.category} · ${regionStatus[r.status]}${r.reason ? ` · ${r.reason}` : ""}`} aria-pressed={selected.includes(r.id)} disabled={disabled}
+        style={{ left: `${x1/p.width*100}%`, top: `${(p.origin === "TOPLEFT" ? y1 : p.height-y2)/p.height*100}%`, width: `${(x2-x1)/p.width*100}%`, height: `${(y2-y1)/p.height*100}%` }} onClick={() => onSelect(r.id)}><span>{r.category} · {regionStatus[r.status]}</span></Button>; })}
     </div></div>
   </section>;
 }
