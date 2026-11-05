@@ -305,3 +305,42 @@ test("Host shutdown closes every child even when one dispose fails", async () =>
     assert.ok((await host.list()).every(p=>!p.running));
   } finally {await host.close(); rmSync(root, {recursive:true, force:true});}
 });
+
+
+test("secret IPC admission is per plugin at activation, and reload reads fresh values without exposing errors", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-secret-ipc-"));
+  const values = new Map([['fixture.secret/pat', 'first-private-token'], ['fixture.other/pat', 'other-private-token']]);
+  const reads: string[] = [];
+  const store = { supported: true, async read(id: string, name: string) { reads.push(`${id}/${name}`); return values.get(`${id}/${name}`); }, async status(id: string, name: string) {return values.has(`${id}/${name}`);}, async set(id: string, name: string, value: string) {values.set(`${id}/${name}`,value);}, async delete() {} };
+  const host = new PluginHost(path.join(root, 'state.json'), store);
+  try {
+    const directory = lifecycleFixture(root, 'fixture.secret', `export function activate(c){
+      console.log(c.secrets.pat); process.stderr.write(c.secrets.pat);
+      if (!Object.isFrozen(c.secrets) || Object.keys(c.secrets).join() !== 'pat') throw Error('scope');
+      if(c.secrets.pat === 'throw-private-token') throw Error(c.secrets.pat);
+      return {operations:{read:(input)=>{if(input.fail)throw Error(c.secrets.pat);return {version:c.secrets.pat==='first-private-token'?1:c.secrets.pat==='second-private-token'?2:0}}},status:()=>({available:true,message:c.secrets.pat,folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+    const file = path.join(directory,'litzio-plugin.json'), manifest = JSON.parse(readFileSync(file,'utf8'));
+    manifest.secrets = [{id:'pat',scope:'connection',required:true}];
+    manifest.contributes.operations = [{id:'read',version:1,effect:'read',scope:'host',inputSchema:{},outputSchema:{}}];
+    writeFileSync(file,JSON.stringify(manifest));
+    await host.invoke('register',{directory});
+    await assert.rejects(host.invoke('enable',{id:'fixture.secret'}),/trust/);
+    await host.invoke('trust',{id:'fixture.secret',digest:(await host.list())[0]!.digest});
+    assert.deepEqual(reads, []);
+    await host.invoke('enable',{id:'fixture.secret'});
+    assert.deepEqual((await host.invokeOperation('fixture.secret.read',{})).result,{version:1});
+    assert.deepEqual(reads,['fixture.secret/pat']);
+    assert.equal(JSON.stringify(await host.invokeOperation('fixture.secret.read',{fail:true})).includes('first-private-token'),false);
+    assert.equal(JSON.stringify(await host.list()).includes('first-private-token'),false);
+    await host.invoke('disable',{id:'fixture.secret'});
+    await host.setSecret('fixture.secret','pat','second-private-token');
+    await host.invoke('reload',{id:'fixture.secret'});
+    assert.deepEqual((await host.invokeOperation('fixture.secret.read',{})).result,{version:2});
+    assert.deepEqual(reads,['fixture.secret/pat','fixture.secret/pat']);
+    await host.invoke('disable',{id:'fixture.secret'});
+    await host.setSecret('fixture.secret','pat','throw-private-token');
+    await assert.rejects(host.invoke('reload',{id:'fixture.secret'}), error => error instanceof Error && error.message === 'Plugin request failed');
+    assert.equal(JSON.stringify(await host.list()).includes('throw-private-token'),false);
+    assert.equal((await host.list())[0]!.running,false);
+  } finally {await host.close();rmSync(root,{recursive:true,force:true});}
+});
