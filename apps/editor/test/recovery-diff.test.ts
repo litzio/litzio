@@ -58,6 +58,14 @@ test("visual layout aligns unchanged gaps around unpaired insertions and deletio
 });
 
 import { comparisonDescription } from "../src/comparison-description.ts";
+import { i18n } from "../src/i18n.ts";
+
+test("comparison counts follow English plural rules and Korean invariant forms", () => {
+  assert.equal(i18n.t("{{count}} changes", { lng: "en", count: 1 }), "1 change");
+  assert.equal(i18n.t("{{count}} changes", { lng: "en", count: 2 }), "2 changes");
+  assert.equal(i18n.t("{{count}} changes", { lng: "ko", count: 1 }), "변경 1개");
+  assert.equal(i18n.t("{{count}} changes", { lng: "ko", count: 2 }), "변경 2개");
+});
 test("visual explanations render hidden levels and link targets without raw projection JSON", () => {
   const before: EditableDocument = { blocks: [{ block: "paragraph", path: [1], editable: true, text: "Same", content: [{ kind: "link", url: "https://example.test/v1", children: [{ kind: "text", text: "Same" }] }] }] };
   const after: EditableDocument = { blocks: [{ block: "paragraph", path: [1], editable: true, text: "Same", content: [{ kind: "link", url: "https://example.test/v2", children: [{ kind: "text", text: "Same" }] }] }] };

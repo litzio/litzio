@@ -1,3 +1,4 @@
+import type { DocumentFileResponse } from "../../shared/document-protocol.ts";
 import VisualCompare from "./VisualCompare.tsx";
 import type { HostClient } from "../host-client.ts";
 import { ChoiceGroup } from "@/components/ui/choice-group.tsx";
@@ -9,7 +10,7 @@ import { i18n } from "../i18n.ts";
 
 export type Comparison = { before: string; after: string; fallback?: string; changed: boolean; missing: boolean; failure?: Error };
 
-export default function SourceCompare({ load, recovery = false, visual }: { load(signal: AbortSignal): Promise<Comparison>; recovery?: boolean; visual?: { client: HostClient; path: string; unsupported?: string } }) {
+export default function SourceCompare({ load, recovery = false, visual }: { load(signal: AbortSignal): Promise<Comparison>; recovery?: boolean; visual?: { client: HostClient; path: string; bibliography?: DocumentFileResponse["bibliography"]; unsupported?: string } }) {
   useTranslation();
   const [view, setView] = useState<"visual" | "source">(visual && !visual.unsupported ? "visual" : "source");
   const [visualError, setVisualError] = useState("");
@@ -70,7 +71,7 @@ export default function SourceCompare({ load, recovery = false, visual }: { load
       { value: "source", label: i18n.t("Source") },
     ]} /> : null}
     {visualError || visual?.unsupported || visual && result?.failure ? <p role="status">{i18n.t("Visual unavailable: {{reason}}. Use Source comparison.", { reason: visualError || visual?.unsupported || result?.failure?.message || "" })}</p> : null}
-    {view === "visual" && result && !result.failure && visual ? <VisualCompare result={result} client={visual.client} path={visual.path} onUnavailable={unavailable} /> : null}
+    {view === "visual" && result && !result.failure && visual ? <VisualCompare result={result} client={visual.client} path={visual.path} bibliography={visual.bibliography} onUnavailable={unavailable} /> : null}
     {view === "source" && diff ? <>
       {diff.wordsOmitted ? <p role="status">{i18n.t("Word highlighting omitted to keep comparison responsive.")}</p> : null}
       <div className="recovery-diff-toolbar">

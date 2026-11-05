@@ -77,6 +77,21 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   check(await visual.locator('.document-editor').count() === 2, 'Visual must own two full snapshots');
   check(await visual.locator('.document-title-input').count() === 2, 'Preview lost the Read title components');
   check(await visual.locator('.document-title-input').first().inputValue() === 'Converter report', 'Preview title changed');
+  await dialog().getByText('1 change', { exact: true }).waitFor();
+  check(await visual.getByTestId('visual-change-summary').count() === 1, 'Changed pair must have one shared description');
+  check(await visual.getByTestId('visual-change-summary').innerText() === '1 · Text changed', 'Shared description must be brief');
+  check(await visual.locator('[data-visual-change="1"][data-kind="removed"]').count() === 1 && await visual.locator('[data-visual-change="1"][data-kind="added"]').count() === 1, 'Visual must reuse Source deletion/addition states');
+  check(JSON.stringify(await visual.locator('.visual-diff-marker').allTextContents()) === JSON.stringify(['−', '+']), 'Changed pair needs textual deletion/addition markers');
+  await visual.getByTestId('visual-change-summary').hover();
+  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText(/Text, formatting and links:.*Converter Control.*→/);
+  await dialog().getByRole('button', { name: 'About this comparison', exact: true }).hover();
+  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('Historical .bib contents are not preserved');
+  await page.mouse.move(0, 0);
+  await expect(page.locator('[data-slot="tooltip-content"]')).toBeHidden();
+  await page.evaluate(async () => (await import('/src/i18n.ts')).i18n.changeLanguage('ko'));
+  await dialog().getByText('변경 1개', { exact: true }).waitFor();
+  check(await visual.getByTestId('visual-change-summary').innerText() === '1 · 텍스트 변경', 'Korean summary must translate');
+  await page.evaluate(async () => (await import('/src/i18n.ts')).i18n.changeLanguage('en'));
   const snapshots = await visual.locator('.document-editor').evaluateAll(nodes => nodes.map(node => JSON.stringify(node.editor.getJSON())));
   const instances = await visual.evaluateHandle(root => Array.from(root.querySelectorAll('.document-editor'), node => node.editor));
   await dialog().getByRole('button', { name: 'Next change', exact: true }).click();
@@ -97,8 +112,14 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
     await page.setViewportSize({ width, height: 900 });
     const positions = await visual.locator('[data-visual-change="1"]').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width}; }));
     check(positions.length === 2 && (width === 640 ? positions[0].y < positions[1].y : Math.abs(positions[0].y - positions[1].y) < 2), 'Changed blocks lost correspondence');
+    check(await visual.evaluate(root => Array.from(root.querySelectorAll('[data-visual-change="1"]')).every(node => {
+      const range = document.createRange(); range.selectNodeContents(node);
+      const marker = document.createRange(); marker.selectNodeContents(node.previousSibling);
+      return marker.getBoundingClientRect().right < range.getBoundingClientRect().left;
+    })), 'Deletion/addition markers must not overlap changed text');
     if (screenshots) for (const theme of ['light','dark']) {
       await page.evaluate(async theme => (await import('/src/theme.ts')).applyTheme(theme,false), theme);
+      await dialog().getByRole('button', { name: 'Next change', exact: true }).click();
       await page.screenshot({ path: `tmp/pre-save-diff/visual-${width}-${theme}.png` });
     }
   }
@@ -144,6 +165,17 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   await dialog().getByText('Visual unavailable: Preview refused by test.. Use Source comparison.', { exact: true }).waitFor();
   await dialog().getByRole('region', { name: 'Source differences', exact: true }).waitFor();
   await close();
+  // A renderer path mismatch must not silently hide a changed block.
+  await page.route('**/api/document-compare', async route => {
+    const response = await route.fetch(); const body = await response.json();
+    body.changes[0].before = [99999];
+    await route.fulfill({ response, json: body });
+  }, { times: 1 });
+  await compare();
+  await dialog().getByText(/Visual block cannot be mapped. Check Source comparison/).waitFor();
+  await dialog().getByRole('region', { name: 'Source differences', exact: true }).waitFor();
+  await dialog().getByRole('button', { name: 'Close', exact: true }).last().click();
+  await dialog().waitFor({ state: 'detached' });
   // An opaque equation can parse natively but fail the Read NodeView preview.
   await page.route('**/api/document-source?recovery=1', async route => {
     const response = await route.fetch(); const body = await response.json();

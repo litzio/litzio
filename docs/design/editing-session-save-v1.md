@@ -7,6 +7,7 @@
 - Editor groups verification: 2026-10-29 (#488 phase 1; one mounted session per document across group moves, group actions/focused shortcuts, dirty-close and navigation-only reload; [contract and evidence](editor-ux-shell-v1.md#two-editor-groups-488-phase-1)).
 - Recovery support verification: 2026-10-29 (#705: current-schema validation and stored plaintext refusal path; Editor tests and typecheck).
 - Pre-save comparison verification: 2026-10-28 (#655 stage 2: Save parity, read-only state, external revisions, refusal locations and missing files; [visual evidence](../reviews/editor-visual-language-history-2026-10-30.md#pre-save-comparison-655)).
+- Visual comparison verification: 2026-11-05 (#1201: persistent-Chrome pre-save and bibliography regressions, paired 1440/640 light/dark captures, locale counts, mapping-failure Source fallback, Editor unit/type/build and documentation/boundary checks; [contract and captures](#pre-save-visual-comparison-1201)).
 - Save refusal verification: 2026-10-28 (#578 phase 2: structured Core codes and bilingual cause/action in the alert and badge; [diagnostic guidance](#diagnostic-guidance-578-phase-2). Phase 1: localized summaries and collapsed original details, block/cell highlighting and keyboard reveal, list-shaped state with conservative submitted-snapshot invalidation; no Host/Core validation policy change).
 - Image rename verification: 2026-10-27 (#504: file-actions browser checks inactive dirty/property-draft refusal, clean active/inactive tabs, Source-to-Visual reload, subsequent Save and other-window revision conflict).
 - File operations verification: 2026-10-27 (#505 / #504 PR A: Editor/Host/Desktop unit tests, workspace typecheck, production Editor build and targeted persistent-Chrome browser checks; packaged Desktop is CI-only).
@@ -1075,14 +1076,23 @@ releases both preview editors; reopening Visual resets fold/navigation state.
 
 Descriptions format Core-selected properties from the neutral read models: heading
 level, text/marks/link destinations, image path, equation/Mermaid source and captions.
+Each changed pair has one short shared summary; detailed before/after values use
+the existing Tooltip. Column names appear only in the headers. Before and after
+reuse Source's removed/added surface colors and explicit `−`/`+` markers; navigation
+outlines both corresponding blocks. The change count uses locale plural rules and
+incorporates the current position when there is more than one change.
 Long values retain their beginning/end with an ellipsis; Source is the full fidelity
 comparison. Frontmatter changes are announced separately and refer to Source.
 Assets resolve through the captured Host client and document path. They use current
 Host files; historical image bytes are not preserved and past pixels are explicitly
-unverified. No historical-image restoration is implied.
+unverified. Both comparison editors also receive the active Read view's captured
+bibliography resource context, preserving citation readiness and derived References.
+The `.bib` file is outside the save target; historical `.bib` contents are not
+preserved. The information-icon Tooltip explains the read-only scope and both
+resource limitations. No historical-resource restoration is implied.
 
 Missing disk files and text sessions explain that Source must be used. Core/transport,
-image/equation/Mermaid preview failures or renderer exceptions display a reason and
+image/equation/Mermaid preview failures, failed PM path mapping or renderer exceptions display a reason and
 switch to Source rather than silently certifying a failed Visual. There is no local
 Host replay fallback. Host request timeout is 15 seconds; closing aborts the request,
 terminates the source worker, disconnects the preview observer, destroys both editor
@@ -1098,7 +1108,10 @@ does not weaken source limits or admission. Exceeding it explains Source fallbac
 Verification: existing pre-save browser scenario checks Visual/Source, paired geometry
 at 1440/640, disclosure keyboard interaction, input/paste/Undo/Ctrl+S document/disk/
 recovery invariance, instance destruction, request abort on close, and explicit
-transport-refusal and KaTeX NodeView-failure fallback. Pure layout tests protect unchanged context around
+transport-refusal, failed path mapping and KaTeX NodeView-failure fallback. The
+existing bibliography scenario verifies both comparison citation states and
+References against the active Read context without writing Markdown or `.bib`.
+Pure layout tests protect unchanged context around
 insertions/deletions without repeating Core semantic tests. Existing Read-view,
 external-change and text-mode regressions protect surrounding behavior. Captures
 are manual `pnpm browser:test pre-save-diff --screenshots`, separate from CI success

@@ -36,3 +36,15 @@ export function comparisonDescription(row: CompareRow, before: EditableDocument,
   });
   return `${row.number}. ${i18n.t("changed")}: ${details.join("; ")}`;
 }
+
+
+/** Short label for the fields Core selected; detailed values stay in the tooltip. */
+export function comparisonSummary(row: CompareRow): string {
+  if (!row.change) return "";
+  if (row.change.kind === "added") return i18n.t("Block added");
+  if (row.change.kind === "removed") return i18n.t("Block removed");
+  const fields = row.change.details.map(detail => detail.split(":", 1)[0]);
+  if (fields.length === 1 && fields[0] === "content") return i18n.t("Text changed");
+  if (fields.length === 1 && fields[0] === "level") return i18n.t("Heading level changed");
+  return i18n.t("Block changed");
+}

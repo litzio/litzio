@@ -167,7 +167,10 @@ Windows dev Electron, English/Light, 앱 번들 `litzio://app/index.html`, 1440�
 
 Visual/Source uses the existing ChoiceGroup; Previous/Next and Close use Button and
 the existing comparison Dialog. Both snapshots reuse DocumentEditor with the shared
-Read boundary and Read NodeViews. The sole control exception is the unchanged-run
+Read boundary and Read NodeViews. One shared compact summary per changed pair and
+the comparison information icon use the existing Button/Tooltip components. Removed
+and added surfaces and `−`/`+` markers reuse the Source comparison convention.
+The sole control exception is the unchanged-run
 disclosure: a native button owned by a ProseMirror decoration widget, using existing
 spacing/surface/border/focus tokens and aria-expanded. Keeping it in the editor's
 position mapping avoids a second React editor or detached DOM ownership. Its keyboard

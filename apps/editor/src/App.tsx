@@ -349,10 +349,10 @@ function EditorApp() {
       return;
     }
     const submitted = owner.editorRef.current?.getDocument();
-    try { setSaveComparison({ client: owner.client, hostId: owner.hostId, path: owner.openedPath, revision: owner.acknowledgedRevision, submitted, request: owner.savePreviewRequest() }); }
+    try { setSaveComparison({ client: owner.client, hostId: owner.hostId, path: owner.openedPath, revision: owner.acknowledgedRevision, bibliography: structuredClone(owner.bibliography), submitted, request: owner.savePreviewRequest() }); }
     catch (cause) {
       const failure = cause instanceof SaveContentError ? cause : new SaveContentError(messageOf(cause), undefined, { phase: "collect", cause });
-      setSaveComparison({ client: owner.client, hostId: owner.hostId, path: owner.openedPath, revision: owner.acknowledgedRevision, submitted, failure: new SaveDisplayError([failure], submitted) });
+      setSaveComparison({ client: owner.client, hostId: owner.hostId, path: owner.openedPath, revision: owner.acknowledgedRevision, bibliography: structuredClone(owner.bibliography), submitted, failure: new SaveDisplayError([failure], submitted) });
     }
   }
   const save = () => session?.save();
