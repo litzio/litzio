@@ -73,7 +73,7 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     assert.ok(plugins.some((p: any) => p.id === "fixture.isolated"));
     const onedrive = plugins.find((p: any) => p.id === "litzio.onedrive");
     assert.equal(onedrive.official, true); assert.equal(onedrive.enabled, false);
-    const enabled = await fetch(url + "/api/plugins", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "enable", id: onedrive.id }) });
+    const enabled = await fetch(url + "/api/plugins", { method: "POST", headers: { Origin: url, "Content-Type": "application/json" }, body: JSON.stringify({ action: "enable", id: onedrive.id }) });
     assert.equal(enabled.status, 200); assert.equal((await enabled.json()).plugins.find((p: any) => p.id === onedrive.id).running, true);
 
     const notices = await fetch(url + "/licenses/THIRD_PARTY_LICENSES.txt");
