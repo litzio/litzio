@@ -44,9 +44,11 @@ match both fields, preserving other Hosts' records and pending first-write permi
 Recovery comparison and restore cannot route an unavailable/unknown Host to local files.
 
 No migration is performed. Old unscoped navigation preferences are ignored. Existing
-recovery records are not assigned a Host or converted: unsupported records retain the
-plaintext salvage/refusal flow and explicit discard, without a filesystem comparison
-against an inferred Host. Core semantics, disk paths, revisions and receipts are unchanged.
+recovery records are not assigned a Host or converted. Records without a nonempty string
+hostId are ignored by listing before expiry/clean cleanup and remain unchanged in storage;
+they never enter recovery UI or Host work summaries (#1196). Host-scoped unsupported records
+retain the plaintext salvage/refusal flow and explicit discard, without a filesystem
+comparison against an inferred Host. Core semantics, disk paths, revisions and receipts are unchanged.
 
 ## Text editing sessions (#817)
 

@@ -36,11 +36,11 @@ export function HostSettings({ desktop, closeWork, prepareRemoval }: {
     void refresh().catch(error => setProblem(String(error)));
 
   }, []);
-  const run = async (action: () => Promise<void>, registration = false) => {
+  const run = async (action: () => Promise<void>, registration = false, refusal?: string) => {
     setBusy(true); setProblem("");
     if (registration) setRegistrationProblem("");
     try { await action(); await refresh(); }
-    catch (error) { (registration ? setRegistrationProblem : setProblem)(error instanceof Error ? error.message : String(error)); }
+    catch (error) { (registration ? setRegistrationProblem : setProblem)(refusal ?? (error instanceof Error ? error.message : String(error))); }
     finally { setBusy(false); }
   };
   return <div data-testid="host-settings" aria-busy={busy}>
@@ -73,7 +73,7 @@ export function HostSettings({ desktop, closeWork, prepareRemoval }: {
       rename={value => run(async () => { await desktop.renameHost(host.hostId, value); })}
       reconnect={() => run(() => hostRegistry.connect(host.hostId, version))}
       closeWork={() => closeWork(host.hostId)}
-      remove={() => run(async () => { await prepareRemoval(host.hostId); hostRegistry.remove(host.hostId); })} />)}
+      remove={() => run(async () => { await prepareRemoval(host.hostId); hostRegistry.remove(host.hostId); }, false, t("Close Host work and resolve recovery records before retrying removal."))} />)}
   </div>;
 }
 function HostRow({ host, applied, busy, rename, reconnect, closeWork, remove }: {

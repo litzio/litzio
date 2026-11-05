@@ -1,5 +1,31 @@
 // Actual IndexedDB transactions and recorder scheduling; no in-memory database substitute.
 async page => {
+  // Pre-Host records must never enter Host work summaries or be deleted by listing.
+  await page.evaluate(async () => {
+    const { recoveryStorage: store, RECOVERY_DB } = await import('/src/recovery-storage.ts');
+    await store.list();
+    const record = { id: 'unscoped-v1', version: 1, path: '/old.md', recordedAt: Date.now(), recoveryText: 'preserve me', snapshot: {} };
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open(RECOVERY_DB);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    try {
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('records', 'readwrite');
+        tx.objectStore('records').put(record);
+        tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+      });
+      if ((await store.list()).some(r => r.id === record.id)) throw new Error('Unscoped recovery entered Host work summary');
+      await store.list(Date.now() + 11 * 86400000); // Expiry must not delete unidentified records either.
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction('records', 'readonly');
+        const request = tx.objectStore('records').get(record.id);
+        tx.oncomplete = () => JSON.stringify(request.result) === JSON.stringify(record) ? resolve() : reject(new Error('Unscoped recovery was changed or deleted'));
+        tx.onerror = () => reject(tx.error);
+      });
+    } finally { db.close(); await store.delete(record.id); }
+  });
   // Same Host-returned path, two registrations: file operations and barriers stay local.
   await page.evaluate(async () => {
     const { recoveryStorage: store } = await import('/src/recovery-storage.ts');

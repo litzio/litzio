@@ -733,3 +733,11 @@ Verification (2026-11-05): isolated registry/CLI and main IPC tests, Host runtim
 `tmp/host-settings-1440.png`, `tmp/host-settings-640.png`; shared Settings/Input/Button/Notice
 patterns are reused without a new surface. These do not prove packaged Windows → Linux
 connectivity or the actual native app relaunch.
+
+### Host removal failure guidance (#1196)
+
+Settings → Hosts uses the existing error Notice to ask users to close Host work and resolve
+recovery records before retrying a refused removal. IPC validation/transport exceptions
+are not displayed verbatim. Removal still requires the main-process work/recovery proof
+and native confirmation. Recovery records without a Host identity are ignored without
+conversion or deletion, as defined in [Editing session and Save](editing-session-save-v1.md).
