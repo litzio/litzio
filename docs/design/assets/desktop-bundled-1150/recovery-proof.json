@@ -1,7 +1,7 @@
 {
   "platform": "win32",
-  "exe": "C:\\Users\\swBaek\\.paseo\\worktrees\\0xvmt5pp\\1150-bundled-ui\\node_modules\\.pnpm\\electron@44.7.0_supports-color@9.4.0\\node_modules\\electron\\dist\\electron.exe",
-  "userData": "C:\\Users\\swBaek\\.paseo\\worktrees\\0xvmt5pp\\1150-bundled-ui\\tmp\\desktop-dev-1150\\profiles\\recovery",
+  "exe": "<worktree>\\node_modules\\.pnpm\\electron@44.7.0_supports-color@9.4.0\\node_modules\\electron\\dist\\electron.exe",
+  "userData": "<worktree>\\tmp\\desktop-dev-1150\\profiles\\recovery",
   "origin": "litzio://app",
   "hostOrigin": "http://127.0.0.1:25887",
   "processes": [

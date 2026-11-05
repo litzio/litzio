@@ -4,6 +4,8 @@
 
 이 색인은 자신을 제외한 모든 유지되는 `docs/**/*.md`를 직접 연결한다. `pnpm docs:check`가 누락과 local link/heading anchor를 검사한다. 제품 개요와 사용자 경로는 [README](../README.md), 일반 사용자 설치는 [Windows Desktop](../README.md#windows-desktop), 현재 master 실행은 [Getting started](../README.md#getting-started), CLI 예제는 [Core and CLI](../README.md#core-and-cli)에서 시작한다. 기여와 검증 절차는 [CONTRIBUTING](../CONTRIBUTING.md)이다.
 
+과거 검증 자료의 로컬 계정·PC 이름·개인 경로는 placeholder로 치환하거나 캡처에서 단색으로 가렸다. 측정 수치와 당시 결론은 유지하며, 가려진 캡처는 재촬영한 결과가 아니다.
+
 ## Architecture decisions
 
 | Document | Status | Authority / description |

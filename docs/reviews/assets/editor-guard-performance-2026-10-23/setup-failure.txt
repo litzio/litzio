@@ -11,15 +11,15 @@ Running 1 test using 1 worker
 
     Error: Input did not reach editor: plain/2000/4
         at evalmachine.<anonymous>:32:112
-        at file:///C:/Users/swBaek/.paseo/worktrees/3icu9gjp/stabilize-performance/apps/editor/test/browser/scenarios.spec.ts:154:20
-        at C:\Users\swBaek\.paseo\worktrees\3icu9gjp\stabilize-performance\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1654:9
-        at C:\Users\swBaek\.paseo\worktrees\3icu9gjp\stabilize-performance\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1134:11
-        at TimeoutManager.withRunnable (C:\Users\swBaek\.paseo\worktrees\3icu9gjp\stabilize-performance\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:403:14)
-        at TestInfoImpl._runWithTimeout (C:\Users\swBaek\.paseo\worktrees\3icu9gjp\stabilize-performance\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1132:7)
-        at C:\Users\swBaek\.paseo\worktrees\3icu9gjp\stabilize-performance\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1652:7
-        at WorkerMain._runTest (C:\Users\swBaek\.paseo\worktrees\3icu9gjp\stabilize-performance\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1625:5)
-        at WorkerMain.runTestGroup (C:\Users\swBaek\.paseo\worktrees\3icu9gjp\stabilize-performance\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1520:9)
-        at process.<anonymous> (C:\Users\swBaek\.paseo\worktrees\3icu9gjp\stabilize-performance\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\common\index.js:1944:25)
+        at file:///<worktree>/apps/editor/test/browser/scenarios.spec.ts:154:20
+        at <worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1654:9
+        at <worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1134:11
+        at TimeoutManager.withRunnable (<worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:403:14)
+        at TestInfoImpl._runWithTimeout (<worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1132:7)
+        at <worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1652:7
+        at WorkerMain._runTest (<worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1625:5)
+        at WorkerMain.runTestGroup (<worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1520:9)
+        at process.<anonymous> (<worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\common\index.js:1944:25)
 
   1 failed
     apps\editor\test\browser\scenarios.spec.ts:142:3 › .performance ────────────────────────────────

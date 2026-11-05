@@ -309,7 +309,7 @@
         "percent": 0.21
       },
       {
-        "name": "endnoteOrder http://127.0.0.1:5193/@fs/C:/Users/swBaek/.paseo/worktrees/3icu9gjp/stabilize-performance/packages/core/src/numbering.ts:99",
+        "name": "endnoteOrder http://127.0.0.1:5193/@fs/<worktree>/packages/core/src/numbering.ts:99",
         "ms": 1.583,
         "percent": 0.21
       },
@@ -1411,7 +1411,7 @@
         "percent": 0.21
       },
       {
-        "name": "endnoteOrder http://127.0.0.1:5193/@fs/C:/Users/swBaek/.paseo/worktrees/3icu9gjp/stabilize-performance/packages/core/src/numbering.ts:99",
+        "name": "endnoteOrder http://127.0.0.1:5193/@fs/<worktree>/packages/core/src/numbering.ts:99",
         "ms": 1.583,
         "percent": 0.21
       },
@@ -2337,7 +2337,7 @@
         "percent": 0.09
       },
       {
-        "name": "(anonymous) http://127.0.0.1:5193/@fs/C:/Users/swBaek/.paseo/worktrees/3icu9gjp/stabilize-performance/packages/core/src/numbering.ts:72",
+        "name": "(anonymous) http://127.0.0.1:5193/@fs/<worktree>/packages/core/src/numbering.ts:72",
         "ms": 1.646,
         "percent": 0.09
       },
@@ -2352,7 +2352,7 @@
         "percent": 0.09
       },
       {
-        "name": "endnoteOrder http://127.0.0.1:5193/@fs/C:/Users/swBaek/.paseo/worktrees/3icu9gjp/stabilize-performance/packages/core/src/numbering.ts:99",
+        "name": "endnoteOrder http://127.0.0.1:5193/@fs/<worktree>/packages/core/src/numbering.ts:99",
         "ms": 1.636,
         "percent": 0.08
       },
@@ -3929,12 +3929,12 @@
         "percent": 0.09
       },
       {
-        "name": "(anonymous) http://127.0.0.1:5193/@fs/C:/Users/swBaek/.paseo/worktrees/3icu9gjp/stabilize-performance/packages/core/src/numbering.ts:72",
+        "name": "(anonymous) http://127.0.0.1:5193/@fs/<worktree>/packages/core/src/numbering.ts:72",
         "ms": 1.646,
         "percent": 0.09
       },
       {
-        "name": "targetNumbers http://127.0.0.1:5193/@fs/C:/Users/swBaek/.paseo/worktrees/3icu9gjp/stabilize-performance/packages/core/src/numbering.ts:66",
+        "name": "targetNumbers http://127.0.0.1:5193/@fs/<worktree>/packages/core/src/numbering.ts:66",
         "ms": 1.646,
         "percent": 0.09
       },
@@ -3949,7 +3949,7 @@
         "percent": 0.09
       },
       {
-        "name": "endnoteOrder http://127.0.0.1:5193/@fs/C:/Users/swBaek/.paseo/worktrees/3icu9gjp/stabilize-performance/packages/core/src/numbering.ts:99",
+        "name": "endnoteOrder http://127.0.0.1:5193/@fs/<worktree>/packages/core/src/numbering.ts:99",
         "ms": 1.636,
         "percent": 0.08
       },

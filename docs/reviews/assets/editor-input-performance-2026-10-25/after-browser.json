@@ -8,7 +8,7 @@
     {
       "kind": "plain",
       "n": 2000,
-      "file": "C:\\Users\\swBaek\\.paseo\\worktrees\\3icu9gjp\\perf-mixed-2000-input-latency\\tmp\\perf-362\\documents\\plain-2000.md",
+      "file": "<worktree>\\tmp\\perf-362\\documents\\plain-2000.md",
       "warmupsMs": [
         63.199999928474426,
         33.700000047683716,
@@ -68,7 +68,7 @@
     {
       "kind": "plain",
       "n": 5000,
-      "file": "C:\\Users\\swBaek\\.paseo\\worktrees\\3icu9gjp\\perf-mixed-2000-input-latency\\tmp\\perf-362\\documents\\plain-5000.md",
+      "file": "<worktree>\\tmp\\perf-362\\documents\\plain-5000.md",
       "warmupsMs": [
         105,
         74.89999997615814,
@@ -128,7 +128,7 @@
     {
       "kind": "mixed",
       "n": 2000,
-      "file": "C:\\Users\\swBaek\\.paseo\\worktrees\\3icu9gjp\\perf-mixed-2000-input-latency\\tmp\\perf-362\\documents\\mixed-2000.md",
+      "file": "<worktree>\\tmp\\perf-362\\documents\\mixed-2000.md",
       "warmupsMs": [
         214.19999992847443,
         83.79999995231628,
@@ -188,7 +188,7 @@
     {
       "kind": "mixed",
       "n": 5000,
-      "file": "C:\\Users\\swBaek\\.paseo\\worktrees\\3icu9gjp\\perf-mixed-2000-input-latency\\tmp\\perf-362\\documents\\mixed-5000.md",
+      "file": "<worktree>\\tmp\\perf-362\\documents\\mixed-5000.md",
       "warmupsMs": [
         642.1000000238419,
         402.10000002384186,

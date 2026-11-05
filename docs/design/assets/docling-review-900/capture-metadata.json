@@ -23,7 +23,7 @@
       "Reject proposal"
     ],
     "exampleAction": "Reject proposal",
-    "error": "EPERM: operation not permitted, rename 'C:\\Users\\swBaek\\.paseo\\worktrees\\0xvmt5pp\\900-docling-review-ui\\tmp\\docling-server\\.paper.docling.corrections-6Jiibj' -> 'C:\\Users\\swBaek\\.paseo\\worktrees\\0xvmt5pp\\900-docling-review-ui\\tmp\\docling-server\\paper.docling'",
+    "error": "EPERM: operation not permitted, rename '<worktree>\\tmp\\docling-server\\.paper.docling.corrections-6Jiibj' -> '<worktree>\\tmp\\docling-server\\paper.docling'",
     "scope": "Observed in earlier local runs. No C1 publication or retry change in this copy revision; separate orchestrator investigation."
   }
 }

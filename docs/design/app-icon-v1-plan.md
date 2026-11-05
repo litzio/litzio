@@ -11,7 +11,7 @@ On 2026-11-02, #905 selected candidate E soft-knot SVGs, replacing the later #86
 
 ## Working state
 
-Worktree: `C:\Projects\litzio-170-icon`; branch: `design/170-app-icon`; starting commit: `980f60e7b8d0dfb9caedc5150039ae7a616f5cb4`.
+Worktree: `<worktree>`; branch: `design/170-app-icon`; starting commit: `980f60e7b8d0dfb9caedc5150039ae7a616f5cb4`.
 
 This stage prepared three alternatives. The user selected **B — 날개와 문서 결합** on 2026-10-13 without additional modifications. Existing application assets, packaging behavior and public releases are unchanged.
 
