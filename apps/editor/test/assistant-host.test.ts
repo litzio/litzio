@@ -17,7 +17,7 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
   const agent = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath,
     args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
   const host = createAssistantHost(null, file, { agent });
-  const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, null, Infinity, undefined, undefined, host); });
+  const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, null, Infinity, undefined, undefined, { assistant: host }); });
   await listenForFetch(server);
   const url = `http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
   t.after(async () => { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await host.close(); rmSync(root, { recursive: true, force: true }); });
@@ -101,4 +101,31 @@ test("a cancelled view request interrupts its eventual provider turn when admiss
   const [info] = await host.invoke("assistantConversations", {});
   const conversation = await host.invoke("assistantConversations", { id: info.id });
   assert.equal(conversation.turns.at(-1).status, "interrupted");
+});
+
+
+test("plugin and view services work without an assistant and survive assistant shutdown failure", async t => {
+  const { createHostServices } = await import("../server/host-services.ts");
+  const { STATISTICS_PLUGIN_ID } = await import("../server/views.ts");
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-services-"));
+  const previous = process.env.LITZIO_DATA_DIR;
+  process.env.LITZIO_DATA_DIR = root;
+  const services = createHostServices(null);
+  if (previous === undefined) delete process.env.LITZIO_DATA_DIR; else process.env.LITZIO_DATA_DIR = previous;
+  // Pass only these services: no assistant exists in the HTTP handler.
+  const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, null, Infinity, undefined, undefined, { plugins: services.plugins, views: services.views }); });
+  await listenForFetch(server);
+  const url = `http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
+  t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await services.plugins.close(); rmSync(root, { recursive: true, force: true }); });
+  assert.equal((await fetch(`${url}/api/plugins`)).status, 200);
+  assert.equal((await fetch(`${url}/api/assistant/settings`)).status, 404);
+  const response = await fetch(`${url}/api/views`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "list", plugin: STATISTICS_PLUGIN_ID }) });
+  assert.equal(response.status, 200);
+  await services.assistant.close();
+  assert.deepEqual(await services.plugins.invoke("pluginsList"), { plugins: [] });
+  assert.equal((await services.views.execute({ action: "list", plugin: STATISTICS_PLUGIN_ID })).receipt.outcome, "success");
+  // A service failure still lets Host shutdown close the independent runtime.
+  t.mock.method(services.assistant, "close", async () => { throw new Error("fixture close failed"); });
+  await assert.rejects(services.close(), /could not close/);
+  await assert.rejects(services.plugins.invoke("pluginsList"), /closing/);
 });

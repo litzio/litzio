@@ -1,5 +1,5 @@
 import { DESKTOP_ORIGIN } from "../shared/desktop-origin.ts";
-import { createAssistantHost } from "./assistant-host.ts";
+import { createHostServices } from "./host-services.ts";
 import { randomBytes } from "node:crypto";
 import { realpathSync, statSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -56,7 +56,7 @@ export async function startHttpHost(options: HttpHostOptions) {
   if (!statSync(path.join(editorDir, "index.html")).isFile()) throw new Error("The production Editor build is missing.");
   // One runtime per daemon. HTTP client/window disconnects never close its
   // workers or AI connections; only Host shutdown does.
-  const assistant = createAssistantHost(access);
+  const services = createHostServices(access);
   const key = randomBytes(32);
   const origins = new Set<string>();
   const authorities = new Set<string>();
@@ -125,7 +125,7 @@ export async function startHttpHost(options: HttpHostOptions) {
     }
     if (url.pathname === "/api/asset") return handleAssetRequest(req, res, key, access);
     if (api || media) {
-      return handleDocumentRequest(req, res, () => json(res, 404, "Not found."), access, MAX_JSON_BYTES, options.removeFile ?? trashFile, undefined, assistant);
+      return handleDocumentRequest(req, res, () => json(res, 404, "Not found."), access, MAX_JSON_BYTES, options.removeFile ?? trashFile, undefined, services);
     }
     if (req.method !== "GET" && req.method !== "HEAD") return json(res, 405, "Method not allowed.");
     const response = serveEditorFile(editorDir, url.pathname);
@@ -144,7 +144,7 @@ export async function startHttpHost(options: HttpHostOptions) {
   try { await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, host, () => { server.off("error", reject); resolve(); });
-  }); } catch (error) { await assistant.close(); throw error; }
+  }); } catch (error) { await services.close(); throw error; }
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("The HTTP listener has no address.");
   if (loopback(host)) {
@@ -163,12 +163,14 @@ export async function startHttpHost(options: HttpHostOptions) {
     roots: access?.roots ?? [],
     url: external ?? `http://${authority(host, address.port)}`,
     async close(): Promise<void> {
-      await assistant.close();
-      if (!server.listening) return;
-      const forced = setTimeout(() => server.closeAllConnections(), 5_000);
-      forced.unref();
-      try { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
-      finally { clearTimeout(forced); }
+      try { await services.close(); } finally {
+        if (server.listening) {
+          const forced = setTimeout(() => server.closeAllConnections(), 5_000);
+          forced.unref();
+          try { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
+          finally { clearTimeout(forced); }
+        }
+      }
     },
   };
 }

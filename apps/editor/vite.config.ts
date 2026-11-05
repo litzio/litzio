@@ -55,9 +55,9 @@ export default defineConfig({
       name: "litzio-document",
       async configureServer(server: ViteDevServer) {
         const assetSigningKey = randomBytes(32);
-        let assistant: Promise<ReturnType<typeof import("./server/assistant-host.ts").createAssistantHost>> | undefined;
-        const assistantHost = () => assistant ??= server.ssrLoadModule("/server/assistant-host.ts").then(mod => mod.createAssistantHost());
-        server.httpServer?.once("close", () => { void assistant?.then(host => host.close()); });
+        let services: Promise<ReturnType<typeof import("./server/host-services.ts").createHostServices>> | undefined;
+        const hostServices = () => services ??= server.ssrLoadModule("/server/host-services.ts").then(mod => mod.createHostServices());
+        server.httpServer?.once("close", () => { void services?.then(host => host.close()); });
         const sampleAvailability = prepareSampleDocuments(fileURLToPath(new URL("./samples", import.meta.url)), fileURLToPath(new URL("../../tmp/sample-native-v1", import.meta.url)));
         server.middlewares.use((req, res, next) => {
           const requestUrl = req.url ?? "";
@@ -80,7 +80,7 @@ export default defineConfig({
           void server.ssrLoadModule("/server/document-api.ts").then(async (mod) => {
             const handle = (mod as { handleDocumentRequest: typeof import("./server/document-api.ts").handleDocumentRequest })
               .handleDocumentRequest;
-            return handle(req, res, next, LOCAL_FILE_ACCESS, Infinity, undefined, sampleAvailability, await assistantHost());
+            return handle(req, res, next, LOCAL_FILE_ACCESS, Infinity, undefined, sampleAvailability, await hostServices());
           }).catch((error: unknown) => {
             res.statusCode = 500;
             res.setHeader("Content-Type", "application/json; charset=utf-8");

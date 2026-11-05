@@ -88,6 +88,24 @@ test("HTTP and CLI run return identical aggregated data, target and receipt sema
   const file = path.join(dir, "input.view.json"); fs.writeFileSync(file, JSON.stringify(spec));
   const host = await startFetchServer(() => startHttpHost({ roots: [root], editorDir: path.join(dir, "editor"), port: 0, daemon: { health: { pid: process.pid, startedAt: new Date().toISOString(), instanceId: "view-test", launcher: "cli-run", productVersion: "test", protocolVersion: DAEMON_PROTOCOL, processStartedAt: "test", daemonHome: dir, executable: process.execPath, roots: [root], nonLoopback: false }, stop() {} } }));
   try {
+    // A broken assistant settings file must not block execution on plugin/view requests.
+    fs.mkdirSync(path.join(dir, "state"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "state", "assistant.json"), "invalid JSON");
+    const manage = async (input: unknown) => {
+      const response = await fetch(`${host.url}/api/plugins`, { method: "POST", headers: { Origin: host.url, "Content-Type": "application/json" }, body: JSON.stringify(input) });
+      assert.equal(response.status, 200, await response.clone().text());
+      return response.json();
+    };
+    const id = "local.independent", directory = path.join(root, "plugin");
+    await manage({ action: "scaffold", directory, id });
+    await manage({ action: "register", directory });
+    const { plugins } = await (await fetch(`${host.url}/api/plugins`)).json();
+    await manage({ action: "trust", id, digest: plugins[0].digest });
+    await manage({ action: "enable", id });
+    assert.deepEqual((await manage({ action: "invoke", operation: `${id}.greet`, input: { name: "World" } })).result, { greeting: "Hello, World!" });
+    const unavailable = await fetch(`${host.url}/api/assistant/settings`);
+    assert.ok(unavailable.status >= 400);
+    assert.deepEqual((await manage({ action: "invoke", operation: `${id}.greet`, input: { name: "World" } })).result, { greeting: "Hello, World!" });
     const response = await fetch(`${host.url}/api/views`, { method: "POST", headers: { Origin: host.url, "Content-Type": "application/json" }, body: JSON.stringify({ action: "run", root, view: spec }) });
     assert.equal(response.status, 200);
     const http = await response.json();
