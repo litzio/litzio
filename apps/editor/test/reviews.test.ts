@@ -113,6 +113,18 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const undo = await cli("undo", id); assert.equal(undo.receipt.outcome, "success"); assert.equal(readFileSync(path.join(root, "doc.md"), "utf8"), source);
     const p2 = await cli("propose"); const rejected = await cli("reject", p2.proposals.at(-1).id); assert.equal(rejected.proposals.at(-1).state, "rejected"); assert.equal(readFileSync(path.join(root, "doc.md"), "utf8"), source);
     assert.equal((await read()).data.at(-1).state, "rejected");
+    const fresh = await send("/api/review", { ...base, action: "propose", requestId: randomUUID(), baseline: (await read()).baseline });
+    const freshId = fresh.proposals.at(-1).id;
+    const lostRequest = { ...base, action: "approve", proposalId: freshId, requestId: randomUUID(), baseline: (await read()).baseline };
+    // Discard the successful response: the caller must observe status rather than replay.
+    const lost = await fetch(origin + "/api/review", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify(lostRequest) });
+    await lost.arrayBuffer();
+    const observed = await send("/api/review", { ...base, action: "status", requestId: lostRequest.requestId });
+    assert.equal(observed.receipt.outcome, "success"); assert.equal(observed.proposals.at(-1).state, "approved");
+    const replay = await fetch(origin + "/api/review", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify(lostRequest) });
+    assert.equal(replay.status, 400); await replay.arrayBuffer();
+    const restored = await send("/api/review", { ...base, action: "undo", proposalId: freshId, requestId: randomUUID(), baseline: (await read()).baseline });
+    assert.equal(restored.receipt.outcome, "success"); assert.equal(readFileSync(path.join(root, "doc.md"), "utf8"), source);
   } finally {
     await host?.close();
     if (previous === undefined) delete process.env.LITZIO_DATA_DIR; else process.env.LITZIO_DATA_DIR = previous;
