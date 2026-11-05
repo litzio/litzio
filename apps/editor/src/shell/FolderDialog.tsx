@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input.tsx";
 import type { FolderBrowseResponse, FolderEntry, FolderPlace } from "../../shared/document-protocol.ts";
 import { childPath, splitDocumentPath, unquotePath } from "./document-path.ts";
 import { FileImagePreview } from "./FilePreviewDialog.tsx";
+import { visibleRecentFolders } from "../preferences.ts";
 
 type FolderDialogProps = {
   open: boolean;
@@ -110,7 +111,7 @@ export function FolderDialog({ open, title, description, showSidebarHint = true,
 
   // The listing follows the folder part of the path; a slower earlier answer never replaces it.
   useEffect(() => {
-    if (!open || !directory) {
+    if (!open || !directory || (restricted && visibleRecentFolders([directory], allowedRoots).length === 0)) {
       setListing({ directory: "" });
       return;
     }
@@ -121,7 +122,7 @@ export function FolderDialog({ open, title, description, showSidebarHint = true,
       (cause: unknown) => { if (active) setListing({ directory, error: cause instanceof Error ? cause.message : String(cause) }); },
     );
     return () => { active = false; };
-  }, [open, directory, browse]);
+  }, [open, directory, browse, restricted, allowedRoots]);
 
   useEffect(() => {
     if (highlight >= 0) list.current?.children[highlight]?.scrollIntoView({ block: "nearest" });

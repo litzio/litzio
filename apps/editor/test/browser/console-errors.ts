@@ -48,7 +48,6 @@ const EXPECTED_CONSOLE_ERRORS: Record<string, ExpectedConsoleErrorRule[]> = {
     {status: 403, pathname: "/api/document", minimum: 1, description: "non-native Open permission failure"},
   ],
   "http-host": [
-    { status: 403, pathname: "/api/folder-browse", minimum: 1, description: "HTTP picker refuses a path outside all allowed roots" },
     { status: 409, pathname: "/api/document", minimum: 1, description: "HTTP Save preserves local input after another writer commits" },
   ],
   "image-assets": [
