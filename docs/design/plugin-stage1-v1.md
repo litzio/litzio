@@ -108,9 +108,9 @@ Codex 비서는 SDK `PLUGIN_JOBS` 공용 정의를 그대로 쓰는 `plugin_jobs
 
 ## 비서 제작 키트
 
-`scaffold`는 대상 Host의 새 절대 디렉터리에 manifest·package.json·ESM host.js를 생성한다. 부모 디렉터리는 존재해야 하며, 이미 있는 디렉터리(빈 디렉터리 포함)는 거부하고 덮어쓰지 않는다. 최소 greet 읽기 작업과 inline 입력·출력 schema 예시를 포함한다. SDK 0.1.0 호환 범위, 패키지/manifest 버전 일치와 community 계층을 사용하며 자동 등록·신뢰·실행은 하지 않는다.
+`scaffold`는 대상 Host의 새 절대 디렉터리에 manifest·package.json·ESM host.js를 생성한다. 생성 직전 Host RootAccess의 새 경로 검사를 적용한다. 비서 호출은 turn의 opened folders와 Host Root를 모두 검사하며 read-only turn·열린 폴더 없는 turn을 거부한다. full-access도 이 공용 생성 경로의 Root/열린 폴더 제약을 생략하지 않는다. 부모 디렉터리는 존재해야 하며, 이미 있는 디렉터리(빈 디렉터리 포함)는 거부하고 덮어쓰지 않는다. 최소 greet 읽기 작업과 inline 입력·출력 schema 예시를 포함한다. SDK 0.1.0 호환 범위, 패키지/manifest 버전 일치와 community 계층을 사용하며 자동 등록·신뢰·실행은 하지 않는다.
 
-`validate`는 artifact 경계·manifest/SDK 범위·버전·JSON Schema 컴파일과 entry 구문, 선언 작업과 literal handler 일치를 검사한다. 결과는 `valid`, 사람이 읽을 수 있는 `errors`, 검사 한계와 Host receipt다. 실패는 failure receipt와 CLI 종료 코드 1로 반환한다. 코드를 import/실행하지 않으며 등록 상태도 바꾸지 않는다. 정적 검사를 위해 entry는 named `export function activate`의 직접 return 객체 안에 하나의 literal `operations` 객체와 literal 함수 handler를 둔다. 동적 등록은 검증 불가 오류다. 정적으로 알려진 JSON 반환값은 출력 schema와 비교하지만, 계산된 반환값·activation·dispose 동작은 실제 enable/invoke/reload에서만 검증된다. validate 통과는 실행 성공의 보증이 아니다.
+`validate`는 artifact 경계·manifest/SDK 범위·버전·JSON Schema 컴파일과 entry 구문, 선언 작업과 literal handler 일치를 검사한다. 결과는 `valid`, 원문 없는 `errors`(고정 파일 역할, 1-based 줄/열 또는 위치 불명 null, 고정 오류 종류), 검사 한계와 Host receipt다. 실패는 failure receipt와 CLI 종료 코드 1로 반환한다. 코드를 import/실행하지 않으며 등록 상태도 바꾸지 않는다. JSON/JavaScript/schema/parser/fs 예외 원문·stack·파일 내용·사용자 정의 handler 이름을 진단에 복사하지 않는다. 같은 정리된 결과를 비서 도구와 CLI가 반환하고, 활동에는 결과 요약만 남긴다. 정적 검사를 위해 entry는 named `export function activate`의 직접 return 객체 안에 하나의 literal `operations` 객체와 literal 함수 handler를 둔다. 동적 등록은 검증 불가 오류다. 정적으로 알려진 JSON 반환값은 출력 schema와 비교하지만, 계산된 반환값·activation·dispose 동작은 실제 enable/invoke/reload에서만 검증된다. validate 통과는 실행 성공의 보증이 아니다.
 
 `manage_plugins`도 scaffold/validate를 같은 정의로 호출한다. register 활동에는 인자로 받지 않는 실제 manifest ID를 결과에서 가져와 남긴다. validation 오류는 결과에서 읽되 활동 요약에는 원문을 쓰지 않는다. Codex의 각 대화 turn에 앱 번들의 제한된 제작 스킬을 문맥으로 제공한다(전역 Codex 스킬 설치 없음). 스킬은 SDK·manifest·공용 작업/schema 예시, 파일 수정 권한·secret 비노출, validate/register/trust/enable/invoke 및 수정 후 validate/trust/reload/invoke 절차와 금지 항목을 설명한다. 현재 미지원 secret·K1·schema 조회 확장은 API 예시로 제공하지 않는다. Copilot 도구 공급 범위는 그대로다.
 

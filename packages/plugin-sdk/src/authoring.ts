@@ -4,8 +4,9 @@ import type { PluginManifest } from "./index.ts";
 
 // Inspect syntax only. Never import, evaluate, or activate an untrusted artifact.
 // Dynamic registration cannot be proven statically and is reported, not guessed.
-export function validatePluginSource(source: string, manifest: PluginManifest): string[] {
-  const errors: string[] = [];
+export function validatePluginSource(source: string, manifest: PluginManifest): { kind: string; line: number | null; column: number | null }[] {
+  const errors: { kind: string; line: number | null; column: number | null }[] = [];
+  const report = (kind: string, node?: any) => errors.push({ kind, line: node?.loc?.start.line ?? null, column: node?.loc ? node.loc.start.column + 1 : null });
   const ast = parse(source, { sourceType: "module" });
   const candidates: any[] = [];
   for (const statement of ast.program.body) {
@@ -17,33 +18,33 @@ export function validatePluginSource(source: string, manifest: PluginManifest): 
       for (const name of ["status", "dispose"]) {
         const property = returned.argument.properties.find((p: any) => !p.computed && (p.key?.name ?? p.key?.value) === name) as any;
         const fn = property?.type === "ObjectMethod" ? property : property?.value;
-        if (!fn || !["ObjectMethod", "ArrowFunctionExpression", "FunctionExpression"].includes(fn.type)) errors.push(`SDK instance requires a literal ${name} function.`);
+        if (!fn || !["ObjectMethod", "ArrowFunctionExpression", "FunctionExpression"].includes(fn.type)) report(name === "status" ? "Missing literal SDK status function" : "Missing literal SDK dispose function", returned);
       }
-      if (returned.argument.properties.some(p => p.type === "SpreadElement" || p.computed)) errors.push("Dynamic instance properties cannot be validated.");
+      if (returned.argument.properties.some(p => p.type === "SpreadElement" || p.computed)) report("Dynamic instance properties cannot be validated", returned);
       for (const property of returned.argument.properties) {
         if (property.type === "ObjectProperty" && !property.computed && (property.key.type === "Identifier" ? property.key.name : property.key.type === "StringLiteral" ? property.key.value : null) === "operations") candidates.push(property.value);
       }
     }
   }
-  if (candidates.length !== 1 || candidates[0].type !== "ObjectExpression") return ["Use one literal operations object in the host entry so handlers can be checked without execution."];
+  if (candidates.length !== 1 || candidates[0].type !== "ObjectExpression") { report("Use one literal operations object in the host entry so handlers can be checked without execution"); return errors; }
   const handlers = new Map<string, any>();
   for (const property of candidates[0].properties) {
-    if (property.type === "SpreadElement" || property.computed) { errors.push("Dynamic operations keys cannot be validated."); continue; }
+    if (property.type === "SpreadElement" || property.computed) { report("Dynamic operations keys cannot be validated", property); continue; }
     const key = property.key.name ?? property.key.value;
     const fn = property.type === "ObjectMethod" ? property : property.value;
-    if (handlers.has(key)) errors.push(`Duplicate handler: ${key}`);
+    if (handlers.has(key)) report("Duplicate handler", property);
     handlers.set(key, fn);
-    if (!["ObjectMethod", "ArrowFunctionExpression", "FunctionExpression"].includes(fn.type)) errors.push(`Handler ${key} must be a literal function.`);
+    if (!["ObjectMethod", "ArrowFunctionExpression", "FunctionExpression"].includes(fn.type)) report("Handler must be a literal function", property);
   }
-  for (const key of handlers.keys()) if (!manifest.contributes.operations.some(op => op.id === key)) errors.push(`Undeclared operation handler: ${key}`);
+  for (const key of handlers.keys()) if (!manifest.contributes.operations.some(op => op.id === key)) report("Undeclared operation handler", handlers.get(key));
   for (const op of manifest.contributes.operations) {
     const fn = handlers.get(op.id);
-    if (!fn) { errors.push(`Missing handler: ${op.id}`); continue; }
+    if (!fn) { report("Missing handler", candidates[0]); continue; }
     // JSON literals can be checked; computed responses remain subject to runtime output validation.
     const returned = fn.body?.type === "BlockStatement" ? fn.body.body.filter((n: any) => n.type === "ReturnStatement").map((n: any) => n.argument) : [fn.body];
     for (const expression of returned) {
       const literal = jsonLiteral(expression);
-      if (literal.known && !compileSchema(op.outputSchema)(literal.value)) errors.push(`Output schema mismatch: ${op.id}`);
+      if (literal.known && !compileSchema(op.outputSchema)(literal.value)) report("Output schema mismatch", expression);
     }
   }
   return errors;

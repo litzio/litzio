@@ -73,7 +73,7 @@ export class AssistantConversations {
       const result = params.tool === "manage_plugins" && this.plugins
         ? await executePluginTool(this.plugins, params.arguments, entry => {
           active.items.push({ id: randomUUID(), kind: "tool", text: `plugins.${entry.action}${entry.id ? ` (${entry.id})` : ""}: ${entry.outcome}`, status: entry.outcome });
-        })
+        }, scope)
         : displayTools.some(tool => tool.name === params.tool)
         ? await this.display.execute(params.tool, params.arguments, params.threadId, scope.displayClient)
         : params.tool === templateOperations.list.name ? executeTemplateOperation("list", params.arguments, templateScope)

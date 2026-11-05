@@ -54,10 +54,10 @@ test("Codex management runs without approval and exposes activity in the existin
   try {
     const settings = { provider: "codex" as const, permissionMode: "full-access" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
     const conversation = await conversations.send({ message: "Inspect plugins", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings, "window-a");
-    for (const action of ["list", "reload"]) {
-      const response: any = await connection.client.request("fixture/tool", { threadId: conversation.id, tool: "manage_plugins", arguments: action === "list" ? { action } : { action, id: "missing.plugin" } });
+    for (const action of ["list", "scaffold", "reload"]) {
+      const response: any = await connection.client.request("fixture/tool", { threadId: conversation.id, tool: "manage_plugins", arguments: action === "list" ? { action } : action === "scaffold" ? { action, directory: path.join(root, "scaffolded"), id: "local.fixture" } : { action, id: "missing.plugin" } });
       assert.equal(conversations.current(conversation.id).userInput, undefined);
-      assert.equal(response.result.success, action === "list");
+      assert.equal(response.result.success, action !== "reload");
       assert.match(response.result.contentItems[0].text, /activity/);
       assert.ok(conversations.current(conversation.id).turns.flatMap(t => t.items).some(item => item.text.includes(`plugins.${action}`)));
     }
@@ -351,8 +351,9 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-authoring-"));
   const host = new PluginHost(path.join(root, "state.json")), directory = path.join(root, "greeting"), id = "local.greeting";
   const activity: any[] = [];
+  const scope = { folders: new RootAccess([root]), access: new RootAccess([root]), permissionMode: "opened-folders" };
   try {
-    await executePluginTool(host, { action: "scaffold", directory, id }, e => activity.push(e));
+    await executePluginTool(host, { action: "scaffold", directory, id }, e => activity.push(e), scope);
     const entry = path.join(directory, "host.js"), source = readFileSync(entry, "utf8");
     await assert.rejects(host.invoke("scaffold", { directory, id }));
     assert.equal(readFileSync(entry, "utf8"), source);
@@ -364,7 +365,7 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
     writeFileSync(entry, source.replace('greet:', 'undeclared:'));
     const invalid = await executePluginTool(host, { action: "validate", directory }, e => activity.push(e));
     assert.equal(invalid.activity.outcome, "failure");
-    assert.match(JSON.stringify(invalid), /Missing handler: greet/); assert.match(JSON.stringify(invalid), /Undeclared operation handler/);
+    assert.match(JSON.stringify(invalid), /Missing handler/); assert.match(JSON.stringify(invalid), /Undeclared operation handler/);
     writeFileSync(entry, source.replace('({ greeting: "Hello, " + name + "!" })', '({ greeting: 42 })'));
     assert.match(JSON.stringify(await validate()), /Output schema mismatch/);
     const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = readFileSync(manifestFile, "utf8");
@@ -382,4 +383,74 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
     assert.deepEqual((await host.invokeOperation(`${id}.greet`, { name: "World" })).result, { greeting: "Welcome, World!" });
     assert.equal(existsSync(marker), false);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+
+import { createAssistantHost } from "../server/assistant-host.ts";
+import { pluginCli } from "../../../packages/cli/src/plugins.ts";
+import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
+
+test("scaffold enforces Host roots and the active assistant turn write scope before creation", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-scaffold-access-"));
+  const allowed = path.join(root, "allowed"), opened = path.join(allowed, "opened");
+  mkdirSync(allowed); mkdirSync(opened);
+  const access = new RootAccess([allowed]);
+  const assistant = createAssistantHost(access, path.join(root, "assistant.json"));
+  const host = new PluginHost(path.join(root, "turn-plugins.json"), { access });
+  const scope = { access, folders: new RootAccess([opened]), permissionMode: "opened-folders" };
+  const activities: unknown[] = [];
+  try {
+    const outside = path.join(root, "outside");
+    await assert.rejects(assistant.invoke("pluginsManage", { action: "scaffold", directory: outside, id: "local.outside" }), /outside/);
+    assert.equal(existsSync(outside), false);
+    const attempt = async (directory: string, turnScope: typeof scope | undefined) => {
+      const result = await executePluginTool(host, { action: "scaffold", directory, id: "local.scope" }, e => activities.push(e), turnScope);
+      assert.equal(result.activity.outcome, "failure"); assert.equal(existsSync(directory), false);
+    };
+    await attempt(path.join(allowed, "not-opened"), scope);
+    await attempt(path.join(opened, "readonly"), { ...scope, permissionMode: "read-only" });
+    await attempt(path.join(opened, "no-scope"), undefined);
+    await attempt(outside, { ...scope, permissionMode: "full-access" });
+    const directory = path.join(opened, "valid");
+    const result = await executePluginTool(host, { action: "scaffold", directory, id: "local.valid" }, e => activities.push(e), scope);
+    assert.equal(result.activity.outcome, "success"); assert.equal(existsSync(path.join(directory, "host.js")), true);
+  } finally { await assistant.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("validation diagnostics never expose source values through Host, assistant, CLI or logs", async t => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-validation-redaction-"));
+  const host = new PluginHost(path.join(root, "state.json"));
+  const directory = path.join(root, "artifact"), secret = "SYNTHETIC_SECRET_MUST_NOT_ESCAPE_91";
+  const captured: string[] = [];
+  const stdout = t.mock.method(process.stdout, "write", ((value: string) => { captured.push(String(value)); return true; }) as typeof process.stdout.write);
+  const stderr = t.mock.method(process.stderr, "write", ((value: string) => { captured.push(String(value)); return true; }) as typeof process.stderr.write);
+  t.mock.method(globalThis, "fetch", async (url: URL, init?: RequestInit) => {
+    if (url.pathname === "/daemon/health") return new Response(JSON.stringify({ protocolVersion: DAEMON_PROTOCOL }));
+    const { action, ...args } = JSON.parse(init!.body as string);
+    return new Response(JSON.stringify(await host.invoke(action, args)));
+  });
+  try {
+    await host.invoke("scaffold", { directory, id: "local.redaction" });
+    const manifest = readFileSync(path.join(directory, "litzio-plugin.json"), "utf8");
+    const source = readFileSync(path.join(directory, "host.js"), "utf8");
+    const activities: unknown[] = [];
+    const check = async (file: string) => {
+      const result: any = await host.invoke("validate", { directory });
+      assert.equal(result.valid, false); assert.ok(result.errors.length);
+      assert.equal(result.errors[0].file, file);
+      assert.ok(Object.hasOwn(result.errors[0], "line")); assert.ok(Object.hasOwn(result.errors[0], "column"));
+      assert.equal(JSON.stringify(result).includes(secret), false);
+      const tool = await executePluginTool(host, { action: "validate", directory }, e => activities.push(e));
+      assert.equal(tool.activity.outcome, "failure"); assert.equal(JSON.stringify(tool).includes(secret), false);
+      assert.equal(await pluginCli(["plugins", "validate", directory, "--host", "http://127.0.0.1:5180", "--json"]), 1);
+      assert.equal(captured.join("").includes(secret), false); assert.equal(JSON.stringify(activities).includes(secret), false);
+    };
+    writeFileSync(path.join(directory, "litzio-plugin.json"), `{ "token": "${secret}", broken }`);
+    await check("litzio-plugin.json");
+    writeFileSync(path.join(directory, "litzio-plugin.json"), manifest);
+    writeFileSync(path.join(directory, "host.js"), `const ${secret} = ;`);
+    await check("host entry");
+    writeFileSync(path.join(directory, "host.js"), source.replace("greet:", `"${secret}":`));
+    await check("host entry");
+  } finally { stdout.mock.restore(); stderr.mock.restore(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
