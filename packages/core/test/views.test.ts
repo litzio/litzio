@@ -93,3 +93,62 @@ test("operation declarations control all bindings and transforms without reveali
   spec.layout.children = [{ component: "BarChart", title: "Chart", source: "stats", data: "/rows", x: "status", y: "status" }];
   assert.throws(() => validateView(spec, ops));
 });
+import { queryViewSchema, validateCatalogView, serializeCatalogView, parseCatalogView, validateViewInputs, evaluateQueryView, compileViewInputSchema, reviewPageSchema, reviewProposalSchema } from "../src/views-v2.ts";
+const v2 = (): any => ({ ...base(), schemaVersion: 2, catalog: "litzio-v2", profile: "query" });
+const inputOperation: ViewOperation = { ...pluginOperation, inputSchema: { type: "object", properties: {
+  text: { type: "string", maxLength: 8 }, date: { type: "string", format: "date" }, count: { type: "integer", minimum: 1, maximum: 5 },
+  preset: { type: "string", enum: ["open", "all"] }, enabled: { type: ["boolean", "null"] }, token: { type: "string", writeOnly: true },
+}, required: ["text"], additionalProperties: false }, validateArgs: () => true };
+const formView = (): any => { const v = v2(); v.sources.stats.operation = inputOperation.operation; v.layout.children[0].columns = ["status"];
+  v.form = { component: "InputForm", source: "stats", fields: [{ component: "TextInput", field: "text" }, { component: "DateInput", field: "date" },
+    { component: "NumberInput", field: "count" }, { component: "Select", field: "preset" }, { component: "Checkbox", field: "enabled" }], submit: { component: "SubmitButton", label: "Search" } }; return v; };
+test("v2 canonical query/review profiles reject v1 and cross-profile/action injection", () => {
+  const review: any = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
+    sources: { review: { plugin: "example.demo", review: "compare", bundleRef: "bundle-1" } },
+    layout: { component: "VerticalPanel", children: [{ component: "SourceDocumentCompare", title: "Compare", source: "review" }] } };
+  for (const v of [v2(), review]) { const text = serializeCatalogView(v); assert.equal(serializeCatalogView(parseCatalogView(text)), text); }
+  assert.throws(() => validateCatalogView(base()));
+  for (const change of [(v: any) => v.form = formView().form, (v: any) => v.sources.review.bundleRef = "https://other/asset", (v: any) => v.layout.children[0].action = "approve", (v: any) => v.layout.children[0].component = "Table"]) {
+    const v = structuredClone(review); change(v); assert.throws(() => validateCatalogView(v));
+  }
+  const q = v2(); q.layout.children[0].component = "ReviewList"; assert.throws(() => validateCatalogView(q));
+});
+test("v2 form validates type/enum/date/range/secret and separates saved missing inputs from execution", () => {
+  const operations = [inputOperation];
+  const v = formView(), parsed = queryViewSchema.parse(v);
+  assert.deepEqual(validateViewInputs(parsed, inputOperation), { state: "needs-input", missing: ["text"] });
+  assert.doesNotThrow(() => validateCatalogView(v, operations));
+  assert.throws(() => evaluateQueryView(v, [], operations), /args/);
+  v.sources.stats.args = { text: "", date: "2026-11-06", count: 2, preset: "open", enabled: null };
+  assert.equal(validateViewInputs(queryViewSchema.parse(v), inputOperation, "execute").state, "ready");
+  assert.deepEqual(evaluateQueryView(v, [], operations), { rows: [] });
+  assert.equal(serializeCatalogView(parseCatalogView(serializeCatalogView(v, operations), operations), operations), serializeCatalogView(v, operations));
+  for (const args of [{ text: 1 }, { text: "long text" }, { text: "a", date: "2026-02-30" }, { text: "a", count: 1.5 }, { text: "a", count: 6 }, { text: "a", preset: "bad" }, { text: "a", enabled: "false" }, { text: "a", token: "secret" }, { text: "a", unknown: 1 }]) {
+    const bad = structuredClone(v); bad.sources.stats.args = args; assert.throws(() => validateCatalogView(bad, operations));
+  }
+  for (const field of ["token", "unknown"]) { const bad = formView(); bad.form.fields[0].field = field; assert.throws(() => validateCatalogView(bad, operations)); }
+  const noForm = formView(); delete noForm.form; assert.throws(() => validateCatalogView(noForm, operations));
+  const tooMany = formView(); tooMany.form.fields = Array(9).fill(tooMany.form.fields[0]); assert.throws(() => validateCatalogView(tooMany, operations));
+  const wrongControl = formView(); wrongControl.form.fields[0].component = "Checkbox"; assert.throws(() => validateCatalogView(wrongControl, operations));
+});
+test("v2 permits exactly 12 public columns and rejects duplicates/secrets/13 columns", () => {
+  const fields = Object.fromEntries(Array.from({ length: 13 }, (_, i) => [`col${i}`, { type: "string", label: `Column ${i}` }]));
+  const op = { ...inputOperation, inputSchema: { type: "object" }, rowSchema: rowSchema.parse(fields) };
+  const v = v2(); v.sources.stats.operation = op.operation; v.layout.children[0].columns = Object.keys(fields).slice(0, 12);
+  assert.equal(validateCatalogView(v, [op]).profile, "query");
+  v.layout.children[0].columns.push("col12"); assert.throws(() => validateCatalogView(v, [op]));
+  v.layout.children[0].columns = ["col0", "col0"]; assert.throws(() => validateCatalogView(v, [op]));
+  v.layout.children[0].columns = ["token"]; assert.throws(() => validateCatalogView(v, [pluginOperation]));
+});
+test("review neutral data checks page coordinates and proposal action eligibility", () => {
+  const page = { generation: "g1", sourceRevision: "s1", pageNo: 1, width: 100, height: 200, origin: "BOTTOMLEFT", unit: "pt",
+    regions: [{ id: "r1", bbox: [0, 10, 100, 200], category: "text", status: "supported" }] };
+  assert.ok(reviewPageSchema.safeParse(page).success);
+  assert.ok(!reviewPageSchema.safeParse({ ...page, width: 99 }).success);
+  const proposal = { id: "p1", kind: "replace", targets: [{ path: [0, 1], documentRevision: "d1", documentHash: "hash" }], evidence: ["Original"],
+    before: { type: "plain", text: "before" }, after: { type: "plain", text: "after" }, baseline: { documentRevision: "d1", proposalRevision: "p1" }, state: "pending", actions: [{ action: "approve", allowed: true }] };
+  assert.ok(reviewProposalSchema.safeParse(proposal).success);
+  assert.ok(!reviewProposalSchema.safeParse({ ...proposal, state: "stale" }).success);
+  assert.ok(!reviewProposalSchema.safeParse({ ...proposal, actions: [{ action: "execute", allowed: true }] }).success);
+  assert.throws(() => compileViewInputSchema({ $ref: "https://external/schema" }));
+});

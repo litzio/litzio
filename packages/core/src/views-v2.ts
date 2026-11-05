@@ -1,0 +1,175 @@
+import { z } from "zod";
+import { Ajv } from "ajv";
+import { Ajv2020 } from "ajv/dist/2020.js";
+import { VIEW_LIMITS as V1_LIMITS, viewSchema, validateQueryBindings, evaluateQueryRows, builtinViewOperations, type ViewOperation } from "./views.ts";
+export const VIEW_LIMITS = { ...V1_LIMITS, columns: 12, inputs: 8 } as const;
+export type { ViewOperation } from "./views.ts";
+export type SourceState = "idle" | "needs-input" | "loading" | "success" | "empty" | "failure" | "uncertain" | "unavailable";
+const id = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
+const label = viewSchema.shape.title;
+const opaque = z.string().min(1).max(512).regex(/^[a-zA-Z0-9_.-]+$/, "Opaque Host reference required");
+const operationBinding = z.strictObject({ operation: id, version: z.number().int().positive() });
+export const reviewContributionSchema = z.strictObject({ id, title: label,
+  read: operationBinding, propose: operationBinding, approve: operationBinding, reject: operationBinding, undo: operationBinding });
+export type ReviewContribution = z.infer<typeof reviewContributionSchema>;
+export const REVIEW_ACTIONS = ["read", "propose", "approve", "reject", "undo"] as const;
+export const reviewSourceSchema = z.strictObject({ plugin: id, review: id, bundleRef: opaque });
+const form = z.strictObject({ component: z.literal("InputForm"), source: z.literal("stats"),
+  fields: z.array(z.strictObject({ component: z.enum(["Select", "TextInput", "DateInput", "NumberInput", "Checkbox"]), field: z.string().min(1).max(80) })).max(VIEW_LIMITS.inputs)
+    .refine(v => new Set(v.map(f => f.field)).size === v.length, "Duplicate input field"),
+  submit: z.strictObject({ component: z.literal("SubmitButton"), label }) });
+const [oldTable, chart] = viewSchema.shape.layout.shape.children.element.options;
+export const queryViewSchema = viewSchema.extend({ schemaVersion: z.literal(2), catalog: z.literal("litzio-v2"), profile: z.literal("query"), form: form.optional(),
+  layout: z.strictObject({ component: z.literal("VerticalPanel"), children: z.array(z.discriminatedUnion("component", [
+    oldTable.extend({ columns: z.array(z.string().min(1).max(80)).min(1).max(VIEW_LIMITS.columns).refine(v => new Set(v).size === v.length, "Duplicate columns") }), chart,
+  ])).min(1).max(VIEW_LIMITS.panels) }) });
+export const reviewViewSchema = z.strictObject({ kind: z.literal("litzio-view"), schemaVersion: z.literal(2), catalog: z.literal("litzio-v2"),
+  profile: z.literal("review"), title: label, refresh: z.literal("manual"), sources: z.strictObject({ review: reviewSourceSchema }),
+  layout: z.strictObject({ component: z.literal("VerticalPanel"), children: z.array(z.strictObject({
+    component: z.enum(["PageSurface", "SourceDocumentCompare", "ReviewList", "ReviewDetail"]), title: label, source: z.literal("review"),
+  })).min(1).max(VIEW_LIMITS.panels) }) });
+export const catalogViewSchema = z.discriminatedUnion("profile", [queryViewSchema, reviewViewSchema]);
+export type QueryView = z.infer<typeof queryViewSchema>;
+export type ReviewView = z.infer<typeof reviewViewSchema>;
+export type CatalogView = z.infer<typeof catalogViewSchema>;
+export type ViewInputState = { state: "ready" | "needs-input"; missing: string[] };
+
+/** Compile without coercion/default insertion. The caller's original schema remains authoritative. */
+export function compileViewInputSchema(schema: Record<string, unknown>) {
+  const inspect = (v: unknown): void => {
+    if (!v || typeof v !== "object") return;
+    for (const [k, item] of Object.entries(v)) {
+      if (k === "$ref" && (typeof item !== "string" || !item.startsWith("#/"))) throw new Error("Only local JSON Schema references are supported");
+      inspect(item);
+    }
+  };
+  inspect(schema);
+  const Validator = schema.$schema === "https://json-schema.org/draft/2020-12/schema" ? Ajv2020 : Ajv;
+  const ajv = new Validator({ strict: true, allErrors: true });
+  ajv.addKeyword({ keyword: "secret", schemaType: "boolean", valid: true });
+  ajv.addFormat("date", v => z.iso.date().safeParse(v).success);
+  ajv.addFormat("password", () => true);
+  return ajv.compile(schema);
+}
+function record(value: unknown): Record<string, any> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : {};
+}
+function secret(schema: Record<string, any>): boolean { return schema.secret === true || schema.writeOnly === true || schema.format === "password"; }
+/** Static mode tolerates only missing required fields explicitly bound by the form. */
+export function validateViewInputs(view: QueryView, operation: ViewOperation, mode: "static" | "execute" = "static"): ViewInputState {
+  const schema = operation.inputSchema, properties = record(schema.properties), args = view.sources.stats.args;
+  for (const name of Object.keys(args)) {
+    if (!Object.hasOwn(properties, name) || secret(record(properties[name]))) throw new Error("Unknown or secret input binding");
+  }
+  const inspectSecrets = (value: unknown, definition: Record<string, any>): void => {
+    if (secret(definition)) throw new Error("Secret input cannot be persisted");
+    if (Array.isArray(value)) for (const item of value) inspectSecrets(item, record(definition.items));
+    else if (value && typeof value === "object") for (const [name, item] of Object.entries(value)) inspectSecrets(item, record(record(definition.properties)[name]));
+  };
+  inspectSecrets(args, schema);
+  const fields = view.form?.fields ?? [];
+  if (fields.length && (schema.type !== "object" || ["allOf", "anyOf", "oneOf", "if", "$ref", "dependentSchemas", "dependentRequired", "dependencies"].some(k => k in schema))) throw new Error("Unsupported form schema");
+  for (const f of fields) {
+    if (!Object.hasOwn(properties, f.field)) throw new Error("Unknown input binding");
+    const p = record(properties[f.field]);
+    if (secret(p) || ["$ref", "allOf", "anyOf", "oneOf", "if"].some(k => k in p)) throw new Error("Unsupported or secret input binding");
+    const types = Array.isArray(p.type) ? p.type.filter((t: unknown) => t !== "null") : [p.type];
+    if (types.length !== 1) throw new Error("Scalar input required");
+    const type = types[0];
+    const valid = f.component === "Select" ? Array.isArray(p.enum) && p.enum.length > 0 && p.enum.length <= 32 && ["string", "number", "integer", "boolean"].includes(type) && p.enum.every((v: unknown) => v === null ? Array.isArray(p.type) && p.type.includes("null") : typeof v === (type === "integer" ? "number" : type))
+      : f.component === "TextInput" ? type === "string" && !p.format
+      : f.component === "DateInput" ? type === "string" && p.format === "date"
+      : f.component === "NumberInput" ? type === "number" || type === "integer" : type === "boolean";
+    if (!valid) throw new Error("Input control/schema mismatch");
+    const value = args[f.field];
+    if (typeof value === "string" && value.length > 512) throw new Error("Input string exceeds limit");
+    if (f.component === "TextInput" && typeof value === "string" && /[\r\n]/.test(value)) throw new Error("Single line input required");
+  }
+  const required = Array.isArray(schema.required) ? schema.required as string[] : [];
+  const missing = required.filter(name => !Object.hasOwn(args, name));
+  if (mode === "execute") {
+    if (!compileViewInputSchema(schema)(args) || !operation.validateArgs(args)) throw new Error("Invalid operation args");
+  } else {
+    if (missing.some(name => !fields.some(f => f.field === name))) throw new Error("Missing required operation input");
+    // Remove only the form-bound missing requirements; preserve every other JSON Schema constraint.
+    const partial = { ...schema, required: required.filter(name => !missing.includes(name)) };
+    if (!missing.length && !operation.validateArgs(args)) throw new Error("Invalid operation args");
+    if (!compileViewInputSchema(partial)(args)) throw new Error("Invalid operation args");
+  }
+  return { state: missing.length ? "needs-input" : "ready", missing };
+}
+function size(text: string) { if (new TextEncoder().encode(text).length > VIEW_LIMITS.bytes) throw new Error("View exceeds byte limit"); }
+export function validateCatalogView(value: unknown, operations: readonly ViewOperation[] = builtinViewOperations): CatalogView {
+  const text = JSON.stringify(value); if (text === undefined) throw new Error("View must be JSON"); size(text);
+  const view = catalogViewSchema.parse(value);
+  if (view.profile === "query") {
+    const s = view.sources.stats, op = operations.find(op => op.operation === s.operation && op.version === s.version);
+    if (!op) throw new Error("Operation unavailable or missing row schema");
+    validateViewInputs(view, op);
+    // Input validation above permits incomplete forms. Reuse the sole output/transform binding validator.
+    validateQueryBindings(view, [{ ...op, validateArgs: () => true }]);
+  }
+  return view;
+}
+export function parseCatalogView(text: string, operations?: readonly ViewOperation[]): CatalogView { size(text); return validateCatalogView(JSON.parse(text), operations); }
+function ordered(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(ordered);
+  if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([k, item]) => [k, ordered(item)]));
+  return v;
+}
+export function serializeCatalogView(value: unknown, operations?: readonly ViewOperation[]): string {
+  const text = JSON.stringify(ordered(validateCatalogView(value, operations)), null, 2) + "\n"; size(text); return text;
+}
+export function evaluateQueryView(value: unknown, data: unknown, operations: readonly ViewOperation[] = builtinViewOperations) {
+  const view = validateCatalogView(value, operations);
+  if (view.profile !== "query") throw new Error("Query profile required");
+  const s = view.sources.stats, op = operations.find(op => op.operation === s.operation && op.version === s.version)!;
+  validateViewInputs(view, op, "execute");
+  return evaluateQueryRows(view, data, operations);
+}
+function publicInputSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  const properties = record(schema.properties), hidden = Object.keys(properties).filter(k => secret(record(properties[k])));
+  return { ...schema, ...(schema.properties ? { properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !hidden.includes(k)).map(([k, p]) => [k, publicInputSchema(record(p))])) } : {}),
+    ...(Array.isArray(schema.required) ? { required: schema.required.filter(k => !hidden.includes(k)) } : {}) };
+}
+export function createCatalogV2(operations: readonly ViewOperation[] = builtinViewOperations) {
+  return { schema: z.toJSONSchema(catalogViewSchema), limits: VIEW_LIMITS, operations: operations.map(op => ({ operation: op.operation, version: op.version,
+    inputSchema: publicInputSchema(op.inputSchema),
+    rowSchema: Object.fromEntries(Object.entries(op.rowSchema).filter(([, p]) => !p.secret)) })) };
+}
+// Snapshot-local Core read-model path; never a DOM node or ProseMirror position.
+export const documentTargetRefSchema = z.strictObject({ path: z.array(z.number().int().nonnegative()), documentRevision: opaque, documentHash: opaque });
+export const reviewBaselineSchema = z.strictObject({ documentRevision: opaque, proposalRevision: opaque, sourceRevision: opaque.optional(), mappingRevision: opaque.optional() });
+export const reviewBundleSchema = z.strictObject({ bundleRef: opaque, generation: opaque, documentRef: opaque,
+  documentRevision: opaque, documentHash: opaque, sourceRevision: opaque.optional(), mappingRevision: opaque.optional() });
+const bbox = z.tuple([z.number().finite(), z.number().finite(), z.number().finite(), z.number().finite()]);
+export const reviewPageSchema = z.strictObject({ generation: opaque, sourceRevision: opaque, pageNo: z.number().int().positive(),
+  width: z.number().positive().finite(), height: z.number().positive().finite(), imageRef: opaque.optional(),
+  origin: z.enum(["TOPLEFT", "BOTTOMLEFT"]), unit: z.enum(["pt", "px"]),
+  regions: z.array(z.strictObject({ id: opaque, bbox, category: label, status: z.enum(["supported", "unsupported", "decoration", "excluded"]), reason: label.optional() })).max(2000),
+}).superRefine((page, ctx) => {
+  if (new Set(page.regions.map(r => r.id)).size !== page.regions.length) ctx.addIssue({ code: "custom", message: "Duplicate region" });
+  for (const r of page.regions) {
+    const [x1, y1, x2, y2] = r.bbox;
+    if (x1 < 0 || y1 < 0 || x2 < x1 || y2 < y1 || x2 > page.width || y2 > page.height) ctx.addIssue({ code: "custom", message: "Region outside page" });
+  }
+});
+export const reviewMappingSchema = z.strictObject({ generation: opaque, documentRevision: opaque, documentHash: opaque, sourceRevision: opaque, mappingRevision: opaque,
+  entries: z.array(z.strictObject({ sourceIds: z.array(opaque).min(1), targets: z.array(documentTargetRefSchema) })).max(2000), continuation: opaque.optional() });
+const actionAvailability = z.strictObject({ action: z.enum(["approve", "reject", "undo"]), allowed: z.boolean(), reason: label.optional() })
+  .refine(v => v.allowed || !!v.reason, "Unavailable action requires reason");
+const content = z.discriminatedUnion("type", [z.strictObject({ type: z.literal("plain"), text: z.string().max(32768) }),
+  z.strictObject({ type: z.literal("typed"), kind: id, value: z.json() })]);
+export const reviewProposalSchema = z.strictObject({ id: opaque, kind: id, targets: z.array(documentTargetRefSchema).min(1), evidence: z.array(label),
+  before: content, after: content, baseline: reviewBaselineSchema,
+  state: z.enum(["pending", "approved", "rejected", "inapplicable", "stale"]), actions: z.array(actionAvailability).max(3),
+}).superRefine((p, ctx) => {
+  if (new Set(p.actions.map(a => a.action)).size !== p.actions.length || p.actions.some(a => a.allowed && (a.action === "approve" || a.action === "reject") && p.state !== "pending" || a.allowed && a.action === "undo" && p.state !== "approved")) ctx.addIssue({ code: "custom", message: "Action incompatible with proposal state" });
+});
+export const REVIEW_LIMITS = { pageRegions: 2000, items: 2000, jsonBytes: 1048576, imageBytes: 16777216, imagePixels: 25000000 } as const;
+export type DocumentTargetRef = z.infer<typeof documentTargetRefSchema>;
+export type ReviewBaseline = z.infer<typeof reviewBaselineSchema>;
+export type ReviewBundle = z.infer<typeof reviewBundleSchema>;
+export type ReviewPage = z.infer<typeof reviewPageSchema>;
+export type ReviewMapping = z.infer<typeof reviewMappingSchema>;
+export type ReviewProposal = z.infer<typeof reviewProposalSchema>;

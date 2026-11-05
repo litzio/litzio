@@ -1,4 +1,6 @@
-import { rowSchema } from "@litzio/core/views";
+import { queryViewSchema, reviewContributionSchema, validateCatalogView, compileViewInputSchema } from "@litzio/core/views-v2";
+export * from "@litzio/core/views-v2";
+import { rowSchema, type ViewOperation } from "@litzio/core/views";
 export { rowSchema, type RowSchema } from "@litzio/core/views";
 import { compileSchema } from "./schema.ts";
 import { z } from "zod";
@@ -14,7 +16,8 @@ export const manifestSchema = z.strictObject({
   contributes: z.strictObject({ operations: z.array(operation).default([]), jobs: z.array(z.strictObject({ id, title: z.string().min(1), accept: z.array(z.string().regex(/^\.[a-z0-9]+$/)).min(1), start: id, status: id, stop: id, resultKind: z.literal("native-document") })).default([]), folderSources: z.array(id).default([]), folderDecorations: z.array(id).default([]), accounts: z.array(id).default([]),
     dataViews: z.array(z.strictObject({ id, operation: id, version: z.number().int().positive() })).default([]),
     generatedUi: z.array(z.strictObject({ id, catalog: z.string(), schemaVersion: z.number().int().positive() })).default([]),
-    views: z.array(z.strictObject({ id, definition: z.string().min(1) })).default([]),
+    views: z.array(z.strictObject({ id, title: z.string().min(1), definition: queryViewSchema })).default([]),
+    reviews: z.array(reviewContributionSchema).default([]),
     secretUses: z.array(z.strictObject({ operation: id, secret: id })).default([]) }),
   settingsSchema: schema.default({ type: "object", additionalProperties: false }),
   secrets: z.array(z.strictObject({ id, scope: z.literal("connection"), required: z.boolean() })).default([]),
@@ -31,14 +34,25 @@ export function validateManifest(input: unknown): PluginManifest {
   }
   if (m.contributes.operations.some(op => op.scope === "folder")) throw new Error("Folder-scoped plugin operations are unsupported in stage 1");
   if (new Set(m.secrets.map(s => s.id)).size !== m.secrets.length) throw new Error("Duplicate secret ID");
-  if (m.contributes.dataViews.length || m.contributes.generatedUi.length || m.contributes.views.length || m.contributes.secretUses.length) throw new Error("Unsupported stage-1 contribution: views, generated UI and secrets");
+  if (m.contributes.dataViews.length || m.contributes.generatedUi.length || m.contributes.secretUses.length) throw new Error("Unsupported contribution: dataViews, generatedUi and secretUses");
   for (const job of m.contributes.jobs) {
     for (const binding of [job.start, job.status, job.stop]) if (!m.contributes.operations.some(op => op.id === binding)) throw new Error("Undeclared job operation");
     if (new Set([job.start, job.status, job.stop]).size !== 3) throw new Error("Job bindings must be distinct");
     if (m.contributes.operations.find(op => op.id === job.start)?.effect !== "write") throw new Error("Job start must be a write operation");
   }
   compileSchema(m.settingsSchema);
-  for (const operation of m.contributes.operations) { if (operation.rowSchema && operation.effect !== "read") throw new Error("Only read operations can declare row schema"); compileSchema(operation.inputSchema); compileSchema(operation.outputSchema); }
+  for (const operation of m.contributes.operations) { if (operation.rowSchema && operation.effect !== "read") throw new Error("Only read operations can declare row schema"); compileViewInputSchema(operation.inputSchema); compileSchema(operation.outputSchema); }
+  const viewOperations: ViewOperation[] = m.contributes.operations.filter(op => op.effect === "read" && op.rowSchema).map(op => ({
+    operation: `${m.id}.${op.id}`, version: op.version, rowSchema: op.rowSchema!, inputSchema: op.inputSchema, validateArgs: compileViewInputSchema(op.inputSchema),
+  }));
+  for (const view of m.contributes.views) validateCatalogView(view.definition, viewOperations);
+  for (const review of m.contributes.reviews) {
+    for (const action of ["read", "propose", "approve", "reject", "undo"] as const) {
+      const binding = review[action];
+      const op = m.contributes.operations.find(op => `${m.id}.${op.id}` === binding.operation && op.version === binding.version);
+      if (!op || op.effect !== (action === "read" ? "read" : "write")) throw new Error("Invalid review operation binding");
+    }
+  }
   return m;
 }
 export type FolderSource = { id: string; path: string; label: string; defaultCandidate: boolean };
@@ -103,3 +117,6 @@ export const PLUGIN_ERROR_MESSAGES: Readonly<Record<PluginErrorKind, string>> = 
   timeout: "Operation timed out. Check the service connection.",
   failed: "Plugin operation failed. Check plugin settings and the target.",
 };
+
+export type ViewContribution = PluginManifest["contributes"]["views"][number];
+

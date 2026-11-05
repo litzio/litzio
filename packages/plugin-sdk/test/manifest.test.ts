@@ -25,3 +25,22 @@ test("read operation row schema is normalized and rejects invalid declarations",
 
   assert.throws(() => validateManifest(withOperation({ ...operation, rowSchema: { points: { type: "number", label: "Points", date: true } } })));
 });
+
+test("v2 view and review contributions validate local bindings before entry execution", () => {
+  const inputSchema = { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false };
+  const read = { id: "search", version: 1, effect: "read", scope: "host", inputSchema, outputSchema: { type: "array" }, rowSchema: { title: { type: "string", label: "Title" } } };
+  const write = { ...read, id: "change", effect: "write", rowSchema: undefined };
+  const binding = (operation: string) => ({ operation: `example.demo.${operation}`, version: 1 });
+  const review = { id: "review", title: "Review", read: binding("search"), propose: binding("change"), approve: binding("change"), reject: binding("change"), undo: binding("change") };
+  const definition = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", title: "Search", refresh: "manual",
+    sources: { stats: { operation: "example.demo.search", version: 1, args: { query: "hello" } } },
+    layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Results", source: "stats", data: "/rows", columns: ["title"] }] } };
+  const m = { ...manifest(), contributes: { operations: [read, write], views: [{ id: "search", title: "Search", definition }], reviews: [review] } };
+  assert.equal(validateManifest(m).contributes.views[0]!.definition.profile, "query");
+  for (const change of [(v: any) => v.contributes.views[0].definition.profile = "review", (v: any) => v.contributes.views[0].definition.sources.stats.operation = "other.plugin.search",
+    (v: any) => v.contributes.reviews[0].approve = binding("search"), (v: any) => v.contributes.reviews[0].read = binding("change"),
+    (v: any) => v.contributes.reviews[0].approve.operation = "other.plugin.change", (v: any) => v.contributes.reviews[0].undo.version = 2,
+    (v: any) => v.contributes.reviews[0].execute = binding("change")]) {
+    const bad = structuredClone(m); change(bad); assert.throws(() => validateManifest(bad));
+  }
+});
