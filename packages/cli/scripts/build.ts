@@ -22,7 +22,7 @@ execSync("pnpm --filter @litzio/editor build", { cwd: repo, stdio: "inherit" });
 cpSync(path.join(repo, "apps/editor/dist"), path.join(destination, "editor"), { recursive: true });
 const result = await build({
   absWorkingDir: repo,
-  entryPoints: { cli: path.join(cli, "src/cli.ts") }, outdir: destination, outExtension: { ".js": ".mjs" },
+  entryPoints: { cli: path.join(cli, "src/cli.ts"), "plugin-sdk": path.join(repo, "packages/plugin-sdk/src/index.ts") }, outdir: destination, outExtension: { ".js": ".mjs" },
   bundle: true, splitting: true, platform: "node", format: "esm", target: "node24", metafile: true,
   define: { __LITZIO_CLI_BUILD__: JSON.stringify({ version: desktopVersion ?? manifest.version, desktop: desktopVersion !== undefined, commit }) },
   banner: { js: 'import { createRequire as __litzioCreateRequire } from "node:module"; const require = __litzioCreateRequire(import.meta.url);' },

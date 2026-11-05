@@ -379,6 +379,14 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
   try {
     await executePluginTool(host, { action: "scaffold", directory, id }, e => activity.push(e), scope);
     const entry = path.join(directory, "host.js"), source = readFileSync(entry, "utf8");
+    assert.match(source, /import .* from "@litzio\/plugin-sdk"/);
+    assert.match(readFileSync(path.join(directory, "plugin-sdk.d.ts"), "utf8"), /PluginContext/);
+    // Even an artifact-local SDK must never replace the Host's public runtime.
+    const localSdk = path.join(directory, "node_modules/@litzio/plugin-sdk");
+    mkdirSync(localSdk, { recursive: true });
+    writeFileSync(path.join(localSdk, "package.json"), JSON.stringify({ type: "module", exports: "./index.js" }));
+    writeFileSync(path.join(localSdk, "index.js"), 'throw new Error("Artifact SDK must not load");');
+
     await assert.rejects(host.invoke("scaffold", { directory, id }));
     assert.equal(readFileSync(entry, "utf8"), source);
     const validate = () => host.invoke("validate", { directory }) as Promise<any>;
@@ -395,6 +403,10 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
     const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = readFileSync(manifestFile, "utf8");
     writeFileSync(manifestFile, manifest.replace('"type": "string"', '"type": "invalid"'));
     assert.equal((await validate()).valid, false);
+
+    writeFileSync(manifestFile, manifest.replace(/"requiresSdk": "[^"]+"/, '"requiresSdk": "999.0.0"'));
+    assert.equal((await validate()).valid, false);
+    await assert.rejects(host.invoke("register", { directory }));
     writeFileSync(manifestFile, manifest); writeFileSync(entry, source);
     await executePluginTool(host, { action: "register", directory }, e => activity.push(e));
     assert.deepEqual(activity.at(-1), { action: "register", id, outcome: "success" });
@@ -405,6 +417,13 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
     assert.equal((await validate()).valid, true);
     await trust(); await host.invoke("reload", { id });
     assert.deepEqual((await host.invokeOperation(`${id}.greet`, { name: "World" })).result, { greeting: "Welcome, World!" });
+    // Internal package imports fail even if an artifact supplies a matching package.
+    const internal = path.join(directory, "node_modules/@litzio/core");
+    mkdirSync(internal, { recursive: true });
+    writeFileSync(path.join(internal, "package.json"), JSON.stringify({ type: "module", exports: "./index.js" }));
+    writeFileSync(path.join(internal, "index.js"), 'export const forbidden = true;');
+    writeFileSync(entry, 'import "@litzio/core";\n' + source);
+    await trust(); await assert.rejects(host.invoke("reload", { id }), /request failed/);
     assert.equal(existsSync(marker), false);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });

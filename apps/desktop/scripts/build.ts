@@ -34,6 +34,7 @@ export async function buildDesktop(): Promise<string> {
     env: { ...process.env, LITZIO_CLI_DESKTOP_VERSION: appVersion() } });
   const cliBuild = path.join(repo, "packages", "cli", "dist");
   const editorBuild = path.join(cliBuild, "editor");
+  if (!existsSync(path.join(cliBuild, "plugin-sdk.mjs"))) throw new Error("The CLI build has no Host SDK runtime");
   if (!existsSync(path.join(editorBuild, "index.html"))) throw new Error("The Editor build has no index.html");
   // Independent app-owned UI; the CLI still serves its own browser copy.
   cpSync(editorBuild, path.join(stage, "ui"), { recursive: true });

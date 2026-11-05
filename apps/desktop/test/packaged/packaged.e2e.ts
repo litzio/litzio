@@ -18,6 +18,9 @@ import { openDocument, openFolderPicker, reloadDocument } from "../../../editor/
 import { recoveryRecords, resetRecovery } from "../../../editor/test/browser/recovery-records.ts";
 import { processTree } from "./process-tree.ts";
 import { captionPixels } from "./caption-pixels.ts";
+import { verifyExternalPlugin } from "../../../../test/helpers/external-plugin.ts";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repo = path.resolve(desktop, "../..");
@@ -115,6 +118,11 @@ test("started without a document, it opens none; the sample opens with its figur
   mkdirSync(path.dirname(oldSample), { recursive: true });
   writeFileSync(oldSample, "User-modified legacy sample.\n");
   const { app, page, requests } = await launch(userData);
+  const external = mkdtempSync(path.join(tmpdir(), "litzio-desktop-sdk-"));
+  try { await verifyExternalPlugin(origin, external); }
+  catch (error) { await closeApp(app); throw error; }
+  finally { rmSync(external, { recursive: true, force: true }); }
+
   try {
     const locations = await app.evaluate(({ app }) => ({ archive: app.getAppPath(), resources: process.resourcesPath }));
     const require = createRequire(import.meta.url);
