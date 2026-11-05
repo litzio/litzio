@@ -111,8 +111,12 @@ export function FolderDialog({ open, title, description, showSidebarHint = true,
 
   // The listing follows the folder part of the path; a slower earlier answer never replaces it.
   useEffect(() => {
-    if (!open || !directory || (restricted && visibleRecentFolders([directory], allowedRoots).length === 0)) {
+    if (!open || !directory) {
       setListing({ directory: "" });
+      return;
+    }
+    if (restricted && visibleRecentFolders([directory], allowedRoots).length === 0) {
+      setListing({ directory, error: "Path is outside the allowed folders." });
       return;
     }
     let active = true;

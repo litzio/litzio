@@ -74,6 +74,8 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   browseRequests.length = 0;
   page.on('request', trackBrowse);
   await page.getByTestId('folder-path').fill(stale + sep);
+  await page.getByTestId('folder-picker-meta').getByText('Path is outside the allowed folders.', {exact:true}).waitFor();
+  check(await page.getByTestId('folder-open').isEnabled(), 'A typed outside path keeps Open enabled');
   await page.getByTestId('folder-path').blur();
   check(browseRequests.length === 0, 'Outside paths are not listed');
   page.off('request', trackBrowse);
