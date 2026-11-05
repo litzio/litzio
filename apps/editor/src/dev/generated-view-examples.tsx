@@ -18,6 +18,12 @@ const schema: InputSchema = { properties: { preset: { type: "string", title: "Pr
 const rows = [1, 2, 3].map(n => Object.fromEntries(columns.map(c => [c, c === "count" ? n * 3 : c === "key" ? `ISSUE-${n}` : c === "summary" ? `Example issue ${n}: a readable summary` : c === "status" ? "Open" : c === "updated" ? "2026-11-06" : `${c} example`])));
 const review = reviewViewSchema.parse({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review changes", refresh: "manual", sources: { review: { plugin: "fixture.review", review: "sample", bundleRef: "bundle" } }, layout: { component: "VerticalPanel", children: ["PageSurface", "SourceDocumentCompare", "ReviewList", "ReviewDetail"].map(component => ({ component, title: component, source: "review" })) } });
 const queryStates = ["success", "idle", "loading", "loading-previous", "empty", "auth", "forbidden", "not_found", "unavailable", "timeout", "new-view", "inputIssues", "common-input"];
+const stateLabels: Record<string, string> = {
+ success: "Results", idle: "Not queried", loading: "Loading", "loading-previous": "Loading (previous data)", empty: "Empty results",
+ auth: "Authentication required", forbidden: "Access denied", not_found: "Not found", unavailable: "Unavailable", timeout: "Timed out",
+ "new-view": "Needs new view", inputIssues: "Field errors", "common-input": "Form error", pending: "Pending review", applied: "Applied",
+ stale: "Out of date", refreshing: "Refreshing", uncertain: "Outcome unknown", unverifiable: "Cannot verify request", "no-undo": "Undo unavailable", "no-pages": "No pages",
+};
 const reviewStates = ["pending", "applied", "stale", "unavailable", "refreshing", "uncertain", "unverifiable", "no-undo", "no-pages"];
 
 function reviewAdapter(mode: string): ReviewAdapter {
@@ -54,9 +60,9 @@ export function GeneratedViewExamples({ state }: { state: string }) {
   return <section className="ui-gallery-section" aria-label="Generated views examples"><h2>Generated views</h2>
     <p>Production catalog v2 renderers. Fixtures and actions stay in memory; no Host calls or persistence. For refreshing review, press Refresh data.</p>
     <ChoiceGroup aria-label="View profile" value={profile} onValueChange={setProfile} options={["query", "review"].map(value => ({ value, label: value }))} />
-    <div className="ui-gallery-row"><ChoiceGroup aria-label="Generated view state" value={profile === "query" ? mode : reviewState} onValueChange={profile === "query" ? setQueryState : setReviewState} options={(profile === "query" ? queryStates : reviewStates).map(value => ({ value, label: value }))} /></div>
+    <div className="ui-gallery-row"><ChoiceGroup aria-label="Generated view state" value={profile === "query" ? mode : reviewState} onValueChange={profile === "query" ? setQueryState : setReviewState} options={(profile === "query" ? queryStates : reviewStates).map(value => ({ value, label: stateLabels[value] }))} /></div>
     {profile === "query" ? <div className="views-page">
-      <form className="view-query-form" onSubmit={event => { event.preventDefault(); setQueryState("success"); }}><QueryInputs view={view} schema={schema} errors={mode === "inputIssues" ? { text: inputIssueMessage("required") } : {}} change={(field, value, remove) => setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; })} /><Button type="submit" disabled={loading || mode === "new-view"}>Search</Button></form>
+      <form className="view-query-form" onSubmit={event => { event.preventDefault(); setQueryState("success"); }}><QueryInputs view={view} schema={schema} errors={mode === "inputIssues" ? { text: inputIssueMessage("required") } : {}} change={(field, value, remove) => setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; })} /><div className="form-actions view-query-actions"><Button type="submit" disabled={loading || mode === "new-view"}>Search</Button></div></form>
       <FieldError id="gallery-query-common-error">{mode === "common-input" ? inputIssueMessage("additionalProperties") : undefined}</FieldError>
       {loading ? <Notice>Loading data…</Notice> : mode === "idle" ? <Notice>Data has not been queried. Refresh manually.</Notice> : mode === "empty" ? <Notice>No matching rows.</Notice> : null}
       {mode === "loading-previous" ? <Notice tone="warning">Previous query result · 09:00</Notice> : null}

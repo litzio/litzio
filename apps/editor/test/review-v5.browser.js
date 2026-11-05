@@ -83,6 +83,21 @@ async (page, { expect, screenshots }) => {
   await expect(page.getByText('Data unavailable.')).toBeVisible();
   await page.getByRole('button', { name: 'no-image', exact: true }).click();
   await expect(page.getByText('No image available.', { exact: false })).toBeVisible();
+  // Fallback advice stays outside region coordinates in standalone and compare panels.
+  await page.getByRole('button', { name: 'Mixed layout', exact: true }).click();
+  const sourcesWithoutImages = page.getByRole('region', { name: 'Source page', exact: true });
+  await expect(sourcesWithoutImages).toHaveCount(2);
+  for (const source of await sourcesWithoutImages.all()) {
+    const notice = source.getByText('No image available. Showing regions only.', { exact: true });
+    await expect(notice).toBeVisible();
+    await expect.poll(async () => {
+      const message = await notice.boundingBox();
+      const canvas = await source.locator('.review-page').boundingBox();
+      return !!message && !!canvas && message.y + message.height <= canvas.y;
+    }).toBe(true);
+    await expect(source.getByRole('button', { name: 'Sentence · Supported', exact: true })).toBeVisible();
+  }
+  await page.getByRole('button', { name: 'Default layout', exact: true }).click();
   await page.getByRole('button', { name: 'no-undo', exact: true }).click();
   await page.getByRole('button', { name: /Change 1/ }).click();
   await page.getByRole('button', { name: 'Approve', exact: true }).click();
