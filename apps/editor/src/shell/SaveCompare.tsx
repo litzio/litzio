@@ -1,5 +1,4 @@
-import { Info } from "lucide-react";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
+import ComparisonInfo from "./ComparisonInfo.tsx";
 import type { HostClient } from "../host-client.ts";
 import { useCallback, useRef, type RefObject } from "react";
 import { useTranslation } from "react-i18next";
@@ -39,14 +38,7 @@ export default function SaveCompare({ comparison, returnFocus, onClose }: {
         <DialogTitle>{i18n.t("Changes before saving")}</DialogTitle>
         <DialogDescription render={<div />} className="grid gap-3 [overflow-wrap:anywhere]">
           <div className="flex items-center gap-2"><p className="min-w-0 flex-1">{comparison.path}</p>
-            <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-xs" aria-label={i18n.t("About this comparison")} />}><Info /></TooltipTrigger>
-              <TooltipContent><div className="grid gap-2">
-                <p>{i18n.t("Read-only preview of applied content. Unapplied drafts are excluded. Close to keep editing.")}</p>
-                <p>{i18n.t("Visual compares block meaning. Formatting-only source changes appear in Source.")}</p>
-                <p>{i18n.t("Images use current Host files. Historical image bytes are not preserved; past appearance cannot be verified.")}</p>
-                <p>{i18n.t("Bibliography uses the current Host resource context. Historical .bib contents are not preserved.")}</p>
-              </div></TooltipContent>
-            </Tooltip>
+            <ComparisonInfo />
           </div>
         </DialogDescription>
       </DialogHeader>

@@ -1,4 +1,4 @@
-async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) => {
+async (page, { openPath, reloadDocument, activeDocument, screenshots = false, expect }) => {
   page.setDefaultTimeout(15000);
   const check = (ok, why) => { if (!ok) throw new Error(why); };
   const origin = page.url().split('/').slice(0,3).join('/');
@@ -46,7 +46,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
     const layoutFailures = [];
     for (const width of [1440,640]) {
       await page.setViewportSize({width,height:900});
-      await page.evaluate(async () => { await document.fonts.ready; document.querySelector('.document-scroll[data-active="true"]').scrollTo(0,0); });
+      await page.evaluate(async () => { await document.fonts.ready; document.querySelector('.document-scroll[data-active="true"]')?.scrollTo(0,0); });
       if (screenshots) await page.screenshot({path:`tmp/296/${name}-${width}.png`});
       const prompt = page.getByTestId('recovery-prompt');
       if (reviewLayout) {
@@ -136,6 +136,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
   // Source comparison does not restore/acknowledge or modify this record.
   const compareButton = page.getByRole('button',{name:'Compare',exact:true});
   const diffRegion = () => page.getByRole('region',{name:'Source differences',exact:true});
+  const sourceView = () => page.getByTestId('recovery-prompt').getByRole('button', { name: 'Source', exact: true }).click();
   const firstBeforeCompare = JSON.stringify(await records());
   const comparisonURL = '**/api/document-source?recovery=1';
   let releasePreview;
@@ -159,6 +160,50 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
   const previewResponse = page.waitForResponse(response => response.url().includes('/api/document-source?recovery=1'));
   await compareButton.click();
   previewMarkdown = (await (await previewResponse).json()).markdown;
+  const prompt = page.getByTestId('recovery-prompt');
+  const visual = prompt.getByTestId('visual-comparison');
+  await visual.locator('.document-editor').nth(1).waitFor({ state: 'attached' });
+  check(await visual.getByRole('region', { name: 'Recovery preview', exact: true }).count() === 1, 'Recovery must identify the recovered dry-run side');
+  const diskBeforeVisual = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json();
+  const liveEditors = page.locator('[data-document-tab] .document-editor');
+  const liveBeforeVisual = await liveEditors.evaluateAll(nodes => nodes.map(node => JSON.stringify(node.editor.getJSON())));
+  const readonlyDocuments = await visual.locator('.document-editor').evaluateAll(nodes => nodes.map(node => JSON.stringify(node.editor.getJSON())));
+  const visualInstances = await visual.evaluateHandle(root => Array.from(root.querySelectorAll('.document-editor'), node => node.editor));
+  await prompt.getByRole('button', { name: 'Next change', exact: true }).click();
+  await page.keyboard.type('No recovery input'); await page.keyboard.press('Control+z'); await page.keyboard.press('Control+s');
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.evaluate(() => navigator.clipboard.writeText('No recovery paste')); await page.keyboard.press('Control+v');
+  check(JSON.stringify(await visual.locator('.document-editor').evaluateAll(nodes => nodes.map(node => JSON.stringify(node.editor.getJSON())))) === JSON.stringify(readonlyDocuments), 'Recovery preview must reject content transactions');
+  for (const width of [1440, 640]) {
+    await page.setViewportSize({ width, height: 900 });
+    await prompt.getByRole('button', { name: 'Previous change', exact: true }).click();
+    await prompt.getByRole('button', { name: 'Next change', exact: true }).click();
+    const pairs = await visual.evaluate(root => {
+      const rows = new Map();
+      for (const node of root.querySelectorAll('[data-compare-row]')) {
+        if (!node.getClientRects().length) continue;
+        const r = node.getBoundingClientRect(), row = rows.get(node.dataset.compareRow) ?? [];
+        row.push({ x: r.x, y: r.y }); rows.set(node.dataset.compareRow, row);
+      }
+      return [...rows.values()].filter(row => row.length === 2);
+    });
+    check(pairs.length > 0 && pairs.every(pair => width === 640 ? pair[0].y < pair[1].y : Math.abs(pair[0].y - pair[1].y) < 2), 'Recovery corresponding blocks must stay paired');
+    check(await prompt.evaluate(node => node.scrollWidth <= node.clientWidth), 'Recovery Visual must fit the dialog');
+    if (screenshots) for (const theme of ['light', 'dark']) {
+      await page.evaluate(async theme => { (await import('/src/theme.ts')).applyTheme(theme, false); await document.fonts.ready; }, theme);
+      await visual.evaluate(node => { node.scrollTop = 0; });
+      await page.screenshot({ path: `tmp/296/visual-${width}-${theme}.png` });
+    }
+  }
+  await page.evaluate(async () => (await import('/src/theme.ts')).applyTheme('light', false));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await compareButton.click();
+  await expect.poll(() => visualInstances.evaluate(editors => editors.every(editor => editor.isDestroyed))).toBe(true); await visualInstances.dispose();
+  check(JSON.stringify(await records()) === firstBeforeCompare, 'Visual comparison changed the recovery record');
+  check(JSON.stringify(await liveEditors.evaluateAll(nodes => nodes.map(node => JSON.stringify(node.editor.getJSON())))) === JSON.stringify(liveBeforeVisual), 'Visual comparison changed or registered a live session');
+  const diskAfterVisual = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json();
+  check(diskAfterVisual.source === diskBeforeVisual.source && diskAfterVisual.revision === diskBeforeVisual.revision, 'Visual comparison wrote disk');
+  await compareButton.click(); await sourceView();
   await diffRegion().waitFor();
   const changeCount = await diffRegion().locator('[data-change-start]').count();
   // Exactly three separated regions: modified title, deleted paragraph, appended paragraph.
@@ -188,7 +233,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
   const workerURL='**/src/recovery-diff.worker.ts*';
   const delayedWorker=async route=>{const response=await route.fetch();await workerGate;await route.fulfill({response});};
   await page.route(workerURL,delayedWorker);
-  await compareButton.click(); await page.getByText('Calculating differences…',{exact:true}).waitFor();
+  await compareButton.click(); await sourceView(); await page.getByText('Calculating differences…',{exact:true}).waitFor();
   let actionStart=Date.now();
   await page.getByRole('button',{name:'Delete record',exact:true}).click();
   const calculationDelete=page.getByRole('dialog',{name:'Delete recovery record?',exact:true});
@@ -204,7 +249,9 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
   // Reviewer regression: 50 changed code lines, 1000 words each (~337 KiB per side).
   const largeSource = word => '---\nlitzio: 1\n---\n\n```text\n' + Array(50).fill(Array.from({length:1000},(_,i)=>word+i).join(' ')).join('\n') + '\n```\n';
   const largePair = {disk:{source:largeSource('old'),revision:first.snapshot.file.revision},markdown:largeSource('new')};
-  const largePreview = route=>route.fulfill({json:largePair});
+  let releaseLarge;
+  const largeGate = new Promise(resolve => { releaseLarge = resolve; });
+  const largePreview = async route=>{ await largeGate; await route.fulfill({json:largePair}); };
   await page.route(comparisonURL,largePreview);
   await page.evaluate(()=>{
     const started=performance.now(); let previous=started;
@@ -216,6 +263,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
     window.comparisonObserver.observe(document.body,{childList:true,subtree:true});
   });
   await compareButton.click();
+  await sourceView(); releaseLarge();
   // A fixed observation window, with direct assertions afterwards; no readiness polling/reload.
   const largeComparisonMetrics = await page.evaluate(async()=>{
     await new Promise(resolve=>setTimeout(resolve,2000));
@@ -228,8 +276,11 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
   check(largeComparisonMetrics.omitted,'Large comparison did not explain omitted word highlighting');
   check((await diffRegion().innerText()).includes('new999'),'Cancelled comparison overwrote the new result');
   await compareButton.click(); await page.unroute(comparisonURL,largePreview);
-  const oversizedPreview=route=>route.fulfill({json:{disk:{...largePair.disk,source:'x'.repeat(1_000_001)},markdown:''}});
+  let releaseOversized;
+  const oversizedGate = new Promise(resolve => { releaseOversized = resolve; });
+  const oversizedPreview=async route=>{ await oversizedGate; await route.fulfill({json:{disk:{...largePair.disk,source:'x'.repeat(1_000_001)},markdown:''}}); };
   await page.route(comparisonURL,oversizedPreview); await compareButton.click();
+  await sourceView(); releaseOversized();
   await page.getByText('Comparison unavailable: Comparison is too large. Use the plaintext recovery copy.',{exact:true}).waitFor();
   for(const name of ['Restore work','Delete record','Not now']) check(await page.getByRole('button',{name,exact:true}).isEnabled(),'Computation budget failure blocked recovery actions');
   await page.getByText('Plaintext recovery copy',{exact:true}).click();
@@ -326,7 +377,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
   } finally { await other.close(); }
   await page.reload(); await ready(page); await count(1);
   await page.getByRole('button',{name:'Review recovery'}).click();
-  await page.getByRole('button',{name:'Compare',exact:true}).click(); await diffRegion().waitFor();
+  await page.getByRole('button',{name:'Compare',exact:true}).click(); await sourceView(); await diffRegion().waitFor();
   await page.getByText('The file changed after this record. Comparing with the current disk file.',{exact:true}).waitFor();
   await page.getByRole('button',{name:'Restore work',exact:true}).click();
   await page.getByTestId('recovery-prompt').waitFor({state:'detached'});
@@ -355,6 +406,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false }) 
   await page.getByRole('button',{name:'Review recovery'}).click();
   await page.getByRole('button',{name:'Compare',exact:true}).click(); await diffRegion().waitFor();
   await page.getByText(/^Plaintext comparison instead of Save preview:/).waitFor();
+  check(await page.getByRole('button', { name: 'Visual', exact: true }).isDisabled(), 'Core-refused recovery must not certify a Visual preview');
   check(!(await diffRegion().innerText()).includes('litzio:'),'Fallback compared Markdown to plaintext');
   await page.getByRole('button',{name:'Restore work',exact:true}).click();
   await page.getByTestId('recovery-prompt').waitFor({state:'detached'});

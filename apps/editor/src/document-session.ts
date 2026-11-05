@@ -71,16 +71,19 @@ export function createDocumentRequests(client: HostClient) {
   }
 
   /** Only the saved document's declarations can be read by the existing Host endpoint. */
-  async function requestBibliography(path: string, revision: string, declarations: string[], root?: string) {
+  async function requestBibliography(path: string, revision: string, declarations: string[], root?: string, signal?: AbortSignal) {
     if (declarations.length) {
       try {
         const resourceQuery = new URLSearchParams({ path, revision });
         if (root) resourceQuery.set("root", root);
-        const resourceResponse = await client.request(`/api/bibliography?${resourceQuery}`);
+        const resourceResponse = await client.request(`/api/bibliography?${resourceQuery}`, { signal });
         const resources = await resourceResponse.json();
         if (!resourceResponse.ok || resources.revision !== revision || !Array.isArray(resources.sources)) throw new Error();
         return resources.sources as import("@litzio/core").BibliographySource[];
-      } catch { return declarations.map(source => ({ source, status: "error" as const, code: "bibliography-unreadable" as const })); }
+      } catch (error) {
+        if (signal?.aborted) throw error;
+        return declarations.map(source => ({ source, status: "error" as const, code: "bibliography-unreadable" as const }));
+      }
     }
     return [];
   }

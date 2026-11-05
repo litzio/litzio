@@ -380,7 +380,8 @@ operation does not preserve historical image bytes or establish pixel equality.
 
 The Core foundation PR supplied Core/Host/CLI only. The owner-selected pre-save
 Visual/Source UI is defined in [Editing session and Save](editing-session-save-v1.md#pre-save-visual-comparison-1201).
-Recovery remains source-only.
+Recovery reuses that same Visual/Source display with its existing dry-run contract
+([recovery Visual comparison](editing-session-save-v1.md#recovery-visual-comparison-1201)).
 
 
 #1203 review measurements (reviewer supplied, 2026-11-05): plain 2000/5000 blocks

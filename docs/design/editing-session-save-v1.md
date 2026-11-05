@@ -8,6 +8,7 @@
 - Recovery support verification: 2026-10-29 (#705: current-schema validation and stored plaintext refusal path; Editor tests and typecheck).
 - Pre-save comparison verification: 2026-10-28 (#655 stage 2: Save parity, read-only state, external revisions, refusal locations and missing files; [visual evidence](../reviews/editor-visual-language-history-2026-10-30.md#pre-save-comparison-655)).
 - Visual comparison verification: 2026-11-05 (#1201: persistent-Chrome pre-save and bibliography regressions, paired 1440/640 light/dark captures, locale counts, mapping-failure Source fallback, Editor unit/type/build and documentation/boundary checks; [contract and captures](#pre-save-visual-comparison-1201)).
+- Recovery Visual verification: 2026-11-05 (#1201: recovery, bibliography, multi-Host, pre-save and text browser regressions; 1440/640 light/dark captures; workspace typecheck, targeted unit, production build and documentation/boundary checks; [contract](#recovery-visual-comparison-1201)).
 - Save refusal verification: 2026-10-28 (#578 phase 2: structured Core codes and bilingual cause/action in the alert and badge; [diagnostic guidance](#diagnostic-guidance-578-phase-2). Phase 1: localized summaries and collapsed original details, block/cell highlighting and keyboard reveal, list-shaped state with conservative submitted-snapshot invalidation; no Host/Core validation policy change).
 - Image rename verification: 2026-10-27 (#504: file-actions browser checks inactive dirty/property-draft refusal, clean active/inactive tabs, Source-to-Visual reload, subsequent Save and other-window revision conflict).
 - File operations verification: 2026-10-27 (#505 / #504 PR A: Editor/Host/Desktop unit tests, workspace typecheck, production Editor build and targeted persistent-Chrome browser checks; packaged Desktop is CI-only).
@@ -407,22 +408,24 @@ The review prompt wraps full paths with `overflow-wrap: anywhere`, consistently 
 confirmation. The shared Dialog and compact footer controls remain available while comparison loads
 or fails. Supported review widths start at 640px (ADR-0010).
 
-**Compare (#655, stage 1)** lazily loads a read-only unified source diff: the current disk bytes
+**Compare (#655 / #672 / #1201)** lazily loads the shared read-only Visual/Source comparison: the current disk bytes
 against the canonical Markdown Save would write after restoring the record. The existing Host
 Save/Source replay validates the acknowledged revision from the opening source and `savedEdits`,
 then applies the same collected edits through Core. Comparison neither restores the record nor
 changes its snapshot, acknowledged revision, local storage or any file. An external disk revision
 change is reported; comparison still uses the current disk, and does not merge or bypass Save's
-existing conflict protection. Canonical formatting differences are shown with a short notice.
+existing conflict protection. Native records default to Visual, with Source available through
+the same ChoiceGroup as pre-save comparison. Canonical formatting differences remain visible
+in Source with a short notice. Text records use Source and explain why Visual is unavailable.
 
-The diff uses jsdiff (`diff`, BSD-3-Clause), with line numbers for disk/recovery, −/+ signs,
+The Source diff uses jsdiff (`diff`, BSD-3-Clause), with line numbers for disk/recovery, −/+ signs,
 word changes, contiguous change-region counts and keyboard-operable Previous/Next buttons.
 Navigation focuses and scrolls to the region and wraps at either end. Long lines wrap while the
 source pane scrolls vertically; the review grows to at most 72rem and fits the 640px viewport.
 Long unchanged ranges are currently retained. CRLF and missing final newlines remain observable.
 
 When restoration/collection or canonical preview is rejected, its reason accompanies a **plaintext
-comparison**. The disk's existing Core read model is projected with `toTiptapDocument`, then passed
+comparison** and Visual is disabled. The disk's existing Core read model is projected with `toTiptapDocument`, then passed
 through the exact same `recoveryText` traversal used when recording. Thus both sides use the same
 salvage rules (text, atoms, captions, link destinations), rather than comparing Markdown to salvage
 text. If the disk cannot supply that read model, the comparison reports its error and retains the
@@ -1041,12 +1044,12 @@ commit → 앱 강제 종료/재시작 → Restore → Save/Reload, 일반 닫�
 
 The read-only [Core/Host/CLI semantic comparison](document-support-v1.md#block-semantic-comparison-1201)
 is available independently of the Editor. That foundation PR did not introduce UI. The owner-selected Visual UI now reuses
-the captured Save replay as described below; recovery remains source-only.
+the captured Save replay as described below; recovery reuses it through the same display.
 
 ## Pre-save Visual comparison (#1201)
 
 The default native pre-save comparison is Visual; Source remains available through
-the shared ChoiceGroup. Recovery remains source-only. The same captured Save replay
+the shared ChoiceGroup. Recovery uses the same component as described below. The same captured Save replay
 still provides current disk source and canonical content Save would write. Neither
 switching views nor folding content changes that snapshot, the live document,
 acknowledged revision or Save conflict check. Unapplied drafts stay excluded.
@@ -1138,3 +1141,58 @@ One small-document observation: comparison request round trip 59ms; response to 
 Editor DOMs attached 49ms. This separates the request from attachment, not pure Core
 CPU from pure rendering; it excludes completion of async assets and is not a
 large-document benchmark or a guarantee at the provisional 1000-block limit.
+
+## Recovery Visual comparison (#1201)
+
+Recovery Compare reuses `SourceCompare` / `VisualCompare` from pre-save review; no
+second diff engine or projection is introduced. The left snapshot is the current
+disk file and the right **Recovery preview** is the existing restore-then-Save dry
+run. The Core comparison operation, full independent Read editors, folded unchanged
+context, shared per-pair descriptions, Source −/+ colors/markers and responsive
+1440/640 layout follow the pre-save contract above. The information Tooltip is also
+shared and identifies the last recorded applied content and resource limitations.
+
+The dry run keeps the recorded opening revision/source/savedEdits and the existing
+Core collector. Revision mismatches remain visible in both views and never advance
+an acknowledgement. A restoration/collector/Core refusal keeps its reason and
+plaintext fallback, disables Visual and selects Source. Missing disk, text sessions,
+transport/parse/preview/mapping errors retain the existing reasons and Source
+fallback. The independent plaintext copy and Restore/Delete/Not now remain available.
+
+A comparison captures the client for `record.hostId`; dry-run, semantic comparison
+and image URLs use that same client and recorded document path. Unknown or
+unavailable Hosts fail rather than using local files. Native records carry the
+original `bibliographyRoot` and declarations but no `.bib` bytes. Comparison uses the
+existing Read bibliography request with the current disk revision and recorded
+resource boundary, and passes the same returned context to both Read editors.
+Unavailable or changed resources remain unverified under the existing citation
+policy. Historical images and `.bib` contents are not preserved or reconstructed.
+
+Comparison never restores a tab, registers a session, saves, records recovery or
+changes dirty/checkpoint state. Hiding Compare, changing views and closing the
+review release the shared editor instances, observers, NodeView effects and worker;
+closing also aborts the dry-run and optional bibliography request. No data migration,
+new Host operation or CLI command is needed: the existing dry-run and Core/Host/CLI
+comparison are reused unchanged.
+
+The existing recovery browser scenario verifies Visual/Source, 1440/640 pair layout,
+input/paste/Undo/Ctrl+S rejection, document/disk/record/session invariance and editor
+destruction. Existing revision, Core-refusal, missing-file and source-worker budget
+checks remain. Bibliography covers the recorded common root and current dependency
+context; multi-Host covers a real recorded native snapshot through its remote client,
+semantic endpoint and remote image URLs. Captures are manual only:
+`pnpm browser:test recovery --screenshots`,
+`tmp/296/visual-{1440,640}-{light,dark}.png`.
+
+Manual Windows persistent Chrome captures use the existing native technical fixture,
+with a recorded heading edit, removed paragraph and appended paragraph. Core leaves
+the adjacent ambiguous heading/paragraph replacement as removed+added; the display
+preserves that result. The comparison pane scrolls, retaining the existing plaintext
+copy and recovery actions outside it. No extra screenshot traversal runs in CI.
+
+| Width/theme | Recovery Visual |
+| --- | --- |
+| 1440 light | [Capture](assets/visual-compare-1201/recovery-visual-1440-light.png) |
+| 1440 dark | [Capture](assets/visual-compare-1201/recovery-visual-1440-dark.png) |
+| 640 light | [Capture](assets/visual-compare-1201/recovery-visual-640-light.png) |
+| 640 dark | [Capture](assets/visual-compare-1201/recovery-visual-640-dark.png) |
