@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import type { RecoveryRecord } from "../recovery-storage.ts";
 import { splitDocumentPath } from "./document-path.ts";
 import { recoveryReasonText } from "../recovery-message.ts";
+import ComparisonInfo from "./ComparisonInfo.tsx";
 
 const RecoveryCompare = lazy(() => import("./RecoveryCompare.tsx"));
 
@@ -46,7 +47,7 @@ export function RecoveryPrompt({ record, reason, onRestore, onDelete, onClose }:
       <DialogHeader><DialogTitle>{reason ? i18n.t("Recovery cannot be restored") : i18n.t("Restore unsaved work?")}</DialogTitle>
         <DialogDescription render={<div />} className="grid gap-3 [overflow-wrap:anywhere]">
           {record && hostRegistry.list().length > 1 ? <p>{hostLabel(record.hostId)}</p> : null}
-          <p>{typeof record?.path === "string" ? record.path : i18n.t("Unknown path")}</p>
+          <div className="flex items-center gap-2"><p className="min-w-0 flex-1">{typeof record?.path === "string" ? record.path : i18n.t("Unknown path")}</p>{comparing ? <ComparisonInfo recovery /> : null}</div>
           <p>{reason ? recoveryReasonText(reason) : i18n.t("Restore this local record as unsaved work. Your original file is unchanged; Save still checks for external changes. No automatic merge is performed.")}</p>
           <p>{i18n.t("Only the last recorded applied content is available. Unapplied property drafts and image files are not backed up.")}</p>
         </DialogDescription></DialogHeader>

@@ -66,7 +66,7 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
         return route.continue();
       });
       await context.route("**/api/document**", route => {
-        if (route.request().method() === "GET") return route.continue();
+        if (route.request().method() === "GET" || new URL(route.request().url()).pathname === "/api/document-compare") return route.continue();
         const file = String(route.request().postDataJSON()?.path ?? "").replaceAll("\\", "/");
         if (!writableScratch(file)) {
           return route.fulfill({ status: 403, json: { error: "Browser tests may write scratch files only." } });

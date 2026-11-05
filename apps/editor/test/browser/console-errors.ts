@@ -25,6 +25,7 @@ const EXPECTED_CONSOLE_ERRORS: Record<string, ExpectedConsoleErrorRule[]> = {
     {status:400, pathname:"/api/document", minimum:1, description:"final Save refuses a fixed number on an empty equation"},
   ],
   "pre-save-diff": [
+    {status:503, pathname:"/api/document-compare", minimum:1, description:"an explicitly refused Visual request explains fallback to Source"},
     {status:409, pathname:"/api/document", minimum:1, description:"comparison preserves the acknowledged revision and Save still conflicts"},
   ],
   "save-error": [

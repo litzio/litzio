@@ -1,4 +1,4 @@
-async (page, { openPath, activeDocument, screenshots = false, removeTabFixture }) => {
+async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, expect }) => {
   const check = (ok, why) => { if (!ok) throw new Error(why); };
   const origin = page.url().split('/').slice(0, 3).join('/');
   const loaded = await (await page.request.get(`${origin}/api/document`)).json();
@@ -6,6 +6,7 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture }
   const root = loaded.path.split(sep).slice(0, -4).join(sep);
   const file = [root, 'tmp', 'document-tabs', 'technical-1.md'].join(sep);
   await openPath(page, file);
+  await activeDocument(page).locator(".document-title-input").fill("Converter report");
   await page.getByTestId('save').click();
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor();
   const editor = () => activeDocument(page).locator('.document-editor');
@@ -41,10 +42,12 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture }
   await menu().click();
   check(await page.getByRole('menuitem', { name: 'Changes before saving', exact: true }).isDisabled(), 'Clean document can compare');
   await page.keyboard.press('Escape');
-  await editor().evaluate(node => { node.editor.commands.insertContentAt(1, 'Preview changes. 미리보기. '); });
+  await editor().locator('h1').first().click();
+  await page.keyboard.press('Home');
+  await page.keyboard.type('Preview. 미리보기. ');
   // Wait only for the existing recovery recorder to settle before observing its invariance.
   for (let attempt = 0; attempt < 100; attempt++) {
-    if ((await records()).some(record => record.recoveryText.includes('Preview changes.'))) break;
+    if ((await records()).some(record => record.recoveryText.includes('Preview.'))) break;
     if (attempt === 99) throw new Error('Applied edit was not recorded');
     await page.waitForTimeout(50);
   }
@@ -57,11 +60,74 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture }
   const observe = async route => { const response = await route.fetch(); preview = await response.json(); await route.fulfill({ response }); };
   await page.route(url, observe);
   await compare();
+  await dialog().getByRole('button', { name: 'Source', exact: true }).click();
   await dialog().getByRole('region', { name: 'Source differences', exact: true }).waitFor();
   check((await dialog().innerText()).includes('Canonical formatting changes are included.'), 'Canonical changes are hidden');
   check(await dialog().locator('mark').count() > 0, 'Missing word highlights');
   await dialog().getByRole('button', { name: 'Next change', exact: true }).click();
   check(await dialog().locator('[data-change-start="1"]').evaluate(node => node === document.activeElement), 'Next did not focus change');
+  const requestStarted = Date.now();
+  const visualResponse = page.waitForResponse(response => response.url().endsWith('/api/document-compare'));
+  await dialog().getByRole('button', { name: 'Visual', exact: true }).click();
+  await visualResponse;
+  const responseReady = Date.now();
+  const visual = dialog().getByTestId('visual-comparison');
+  await visual.locator('.document-editor').nth(1).waitFor({ state: 'attached' });
+  const twoEditorsReady = Date.now();
+  check(await visual.locator('.document-editor').count() === 2, 'Visual must own two full snapshots');
+  check(await visual.locator('.document-title-input').count() === 2, 'Preview lost the Read title components');
+  check(await visual.locator('.document-title-input').first().inputValue() === 'Converter report', 'Preview title changed');
+  await dialog().getByText('1 change', { exact: true }).waitFor();
+  check(await visual.getByTestId('visual-change-summary').count() === 1, 'Changed pair must have one shared description');
+  check(await visual.getByTestId('visual-change-summary').innerText() === '1 · Text changed', 'Shared description must be brief');
+  check(await visual.locator('[data-visual-change="1"][data-kind="removed"]').count() === 1 && await visual.locator('[data-visual-change="1"][data-kind="added"]').count() === 1, 'Visual must reuse Source deletion/addition states');
+  check(JSON.stringify(await visual.locator('.visual-diff-marker').allTextContents()) === JSON.stringify(['−', '+']), 'Changed pair needs textual deletion/addition markers');
+  await visual.getByTestId('visual-change-summary').hover();
+  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText(/Text, formatting and links:.*Converter Control.*→/);
+  await dialog().getByRole('button', { name: 'About this comparison', exact: true }).hover();
+  await expect(page.locator('[data-slot="tooltip-content"]')).toContainText('Historical .bib contents are not preserved');
+  await page.mouse.move(0, 0);
+  await expect(page.locator('[data-slot="tooltip-content"]')).toBeHidden();
+  await page.evaluate(async () => (await import('/src/i18n.ts')).i18n.changeLanguage('ko'));
+  await dialog().getByText('변경 1개', { exact: true }).waitFor();
+  check(await visual.getByTestId('visual-change-summary').innerText() === '1 · 텍스트 변경', 'Korean summary must translate');
+  await page.evaluate(async () => (await import('/src/i18n.ts')).i18n.changeLanguage('en'));
+  const snapshots = await visual.locator('.document-editor').evaluateAll(nodes => nodes.map(node => JSON.stringify(node.editor.getJSON())));
+  const instances = await visual.evaluateHandle(root => Array.from(root.querySelectorAll('.document-editor'), node => node.editor));
+  await dialog().getByRole('button', { name: 'Next change', exact: true }).click();
+  check(await visual.locator('[data-visual-change="1"]').first().evaluate(node => node === document.activeElement), 'Visual next did not reveal the paired change');
+  await page.keyboard.type('No input'); await page.keyboard.press('Control+z'); await page.keyboard.press('Control+s');
+  await page.evaluate(() => navigator.clipboard.writeText('No pasted input'));
+  await page.keyboard.press('Control+v');
+  check(JSON.stringify(await visual.locator('.document-editor').evaluateAll(nodes => nodes.map(node => JSON.stringify(node.editor.getJSON())))) === JSON.stringify(snapshots), 'Read preview mutated');
+  const fold = visual.getByRole('button', { name: /Unchanged .* blocks ▸/ }).first();
+  await fold.waitFor(); await page.keyboard.press("Tab");
+  check(await fold.evaluate(node => node === document.activeElement), "Tab did not reach the context disclosure");
+  await page.keyboard.press("Enter");
+  const collapse = visual.getByRole('button', { name: /Unchanged .* blocks ▾/ }).first();
+  check(await collapse.evaluate(node => node === document.activeElement), "Disclosure lost keyboard focus on expansion");
+  await page.keyboard.press("Space"); await fold.waitFor();
+  check(await fold.evaluate(node => node === document.activeElement), "Disclosure lost keyboard focus on collapse");
+  for (const width of [1440, 640]) {
+    await page.setViewportSize({ width, height: 900 });
+    const positions = await visual.locator('[data-visual-change="1"]').evaluateAll(nodes => nodes.map(node => { const r = node.getBoundingClientRect(); return {x:r.x,y:r.y,width:r.width}; }));
+    check(positions.length === 2 && (width === 640 ? positions[0].y < positions[1].y : Math.abs(positions[0].y - positions[1].y) < 2), 'Changed blocks lost correspondence');
+    check(await visual.evaluate(root => Array.from(root.querySelectorAll('[data-visual-change="1"]')).every(node => {
+      const range = document.createRange(); range.selectNodeContents(node);
+      const marker = document.createRange(); marker.selectNodeContents(node.previousSibling);
+      return marker.getBoundingClientRect().right < range.getBoundingClientRect().left;
+    })), 'Deletion/addition markers must not overlap changed text');
+    if (screenshots) for (const theme of ['light','dark']) {
+      await page.evaluate(async theme => (await import('/src/theme.ts')).applyTheme(theme,false), theme);
+      await dialog().getByRole('button', { name: 'Next change', exact: true }).click();
+      await page.screenshot({ path: `tmp/pre-save-diff/visual-${width}-${theme}.png` });
+    }
+  }
+  await page.setViewportSize({width:1440,height:900});
+  await page.evaluate(async () => (await import('/src/theme.ts')).applyTheme('light',false));
+  await dialog().getByRole('button', { name: 'Source', exact: true }).click();
+  await expect.poll(() => instances.evaluate(editors => editors.every(editor => editor.isDestroyed))).toBe(true);
+  await instances.dispose();
   await capture('comparison');
   await page.keyboard.press('Control+s');
   check((await read()).revision === disk.revision && (await read()).source === disk.source, 'Comparison or shortcut wrote disk');
@@ -89,9 +155,47 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture }
   await page.keyboard.press('Control+Slash');
   await page.getByRole('combobox').fill('Changes before saving');
   await page.getByRole('option', { name: /Changes before saving/ }).click();
+  await dialog().getByRole('button', { name: 'Source', exact: true }).click();
   await dialog().getByRole('region', { name: 'Source differences', exact: true }).waitFor();
   check(!(await dialog().innerText()).includes('The file changed outside Litzio.'), 'Acknowledged revision treated as external');
   await close();
+  // A failed Visual request keeps the source comparison and does not touch the session.
+  await page.route('**/api/document-compare', route => route.fulfill({ status: 503, json: { error: 'Preview refused by test.' } }), { times: 1 });
+  await compare();
+  await dialog().getByText('Visual unavailable: Preview refused by test.. Use Source comparison.', { exact: true }).waitFor();
+  await dialog().getByRole('region', { name: 'Source differences', exact: true }).waitFor();
+  await close();
+  // A renderer path mismatch must not silently hide a changed block.
+  await page.route('**/api/document-compare', async route => {
+    const response = await route.fetch(); const body = await response.json();
+    body.changes[0].before = [99999];
+    await route.fulfill({ response, json: body });
+  }, { times: 1 });
+  await compare();
+  await dialog().getByText(/Visual block cannot be mapped. Check Source comparison/).waitFor();
+  await dialog().getByRole('region', { name: 'Source differences', exact: true }).waitFor();
+  await dialog().getByRole('button', { name: 'Close', exact: true }).last().click();
+  await dialog().waitFor({ state: 'detached' });
+  // An opaque equation can parse natively but fail the Read NodeView preview.
+  await page.route('**/api/document-source?recovery=1', async route => {
+    const response = await route.fetch(); const body = await response.json();
+    body.markdown += '\n\n```{math}\n\\unknowncommand{}\n```\n';
+    await route.fulfill({ response, json: body });
+  }, { times: 1 });
+  await compare();
+  await dialog().getByRole('region', { name: 'Source differences', exact: true }).waitFor();
+  check((await dialog().innerText()).includes('Equation preview unavailable:'), 'NodeView failure lost its reason');
+  check(await dialog().getByRole('button', { name: 'Visual', exact: true }).isDisabled(), 'Failed preview still offered Visual');
+  await close();
+  // Close while the request is held, then require the actual fetch to abort.
+  let held;
+  const hold = route => { held = route; };
+  await page.route('**/api/document-compare', hold);
+  await compare(); await expect.poll(() => !!held).toBe(true);
+  const aborted = page.waitForEvent('requestfailed', { predicate: request => request.url().endsWith('/api/document-compare') });
+  await close(); await held.continue().catch(() => {});
+  check((await aborted).failure().errorText.includes('ERR_ABORTED'), 'Closing did not abort comparison request');
+  await page.unroute('**/api/document-compare', hold);
   const external = await read();
   const target = external.document.blocks.find(block => block.block === 'paragraph');
   const written = await page.request.post(`${origin}/api/document`, { data: { path: file, revision: external.revision,
@@ -114,5 +218,5 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture }
   await compare();
   await dialog().getByText('File missing. All content Save would write is shown as added.', { exact: true }).waitFor();
   await close();
-  return { layouts };
+  return { layouts, timing: { requestMs: responseReady - requestStarted, responseToTwoEditorsMs: twoEditorsReady - responseReady } };
 }

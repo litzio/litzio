@@ -76,6 +76,30 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   assert(await editor.locator('[data-citation][data-keys=\'["missing"]\']').getAttribute('data-readiness') === 'unresolved', 'Missing key must differ from unreadable resources');
   assert(await readDocument() === originalSource && bibliographyFixture.hash() === originalHash, 'Open may not write either source');
 
+  // Both frozen comparison editors reuse this tab's existing Read resource context.
+  const expectedReferences = await displayed();
+  const citationStates = await editor.locator('[data-citation]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-readiness')));
+  await editor.locator('p').filter({ hasText: 'Move here.' }).click();
+  await page.keyboard.press('End'); await page.keyboard.type(' Comparison preview.');
+  await page.getByRole('button', { name: 'File actions', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Changes before saving', exact: true }).click();
+  const comparison = page.getByTestId('save-comparison');
+  const snapshots = comparison.locator('.visual-snapshot');
+  await snapshots.nth(1).getByTestId('bibliography').waitFor({ state: 'attached' });
+  assert(await snapshots.count() === 2, 'Comparison owns both bibliography snapshots');
+  for (const snapshot of await snapshots.all()) {
+    const actual = await snapshot.locator('li[data-key]').evaluateAll(elements => elements.map(row => ({
+      text: `${row.querySelector('.bibliography-number').textContent} ${row.querySelector('div > span').textContent}`,
+      status: row.getAttribute('data-readiness'),
+    })));
+    assert(JSON.stringify(actual) === JSON.stringify(expectedReferences), 'Comparison References must match the current Read snapshot');
+    assert(JSON.stringify(await snapshot.locator('[data-citation]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-readiness')))) === JSON.stringify(citationStates), 'Comparison citations must retain evaluated readiness');
+  }
+  await page.keyboard.press('Escape'); await comparison.waitFor({ state: 'detached' });
+  await editor.locator('p').filter({ hasText: 'Comparison preview.' }).click(); await page.keyboard.press('Control+z');
+  assert(!(await editor.innerText()).includes('Comparison preview.'), 'Comparison fixture edit must be undone');
+  assert(await readDocument() === originalSource && bibliographyFixture.hash() === originalHash, 'Comparison must not write document or bibliography');
+
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
   await editor.evaluate(element => {
     const e = element.editor; let at;
@@ -181,6 +205,16 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   await page.getByRole('button', { name: 'Not now', exact: true }).click();
   await openPath(page, file);
   await page.getByTestId('recovery-prompt').waitFor();
+  const recoveryBeforeCompare = JSON.stringify(await records());
+  await page.getByRole('button', { name: 'Compare', exact: true }).click();
+  const recoveryVisual = page.getByTestId('recovery-prompt').getByTestId('visual-comparison');
+  await recoveryVisual.locator('.visual-snapshot').nth(1).getByTestId('bibliography').waitFor({ state: 'attached' });
+  for (const snapshot of await recoveryVisual.locator('.visual-snapshot').all()) {
+    assert((await snapshot.getByTestId('bibliography').innerText()).includes('Control Study'), 'Recovery comparison must load current .bib within the recorded common root');
+    assert(await snapshot.locator('[data-citation][data-readiness="complete"]').count() > 0, 'Recovery comparison must evaluate citations using the recorded Host resource context');
+  }
+  await page.getByRole('button', { name: 'Compare', exact: true }).click();
+  assert(JSON.stringify(await records()) === recoveryBeforeCompare && bibliographyFixture.hash() === originalHash, 'Recovery comparison must preserve records and .bib bytes');
   await page.getByRole('button', { name: 'Restore work', exact: true }).click();
   await page.getByTestId('recovery-prompt').waitFor({ state: 'detached' });
   await editor.getByText(/Bibliography recovery draft/).waitFor();

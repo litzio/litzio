@@ -159,8 +159,12 @@ test("HTTP recovery survives browser crash and daemon reconnect, then Save/Reloa
     expect(await recoveryRecords(page)).toEqual(recorded);
     await expect(page.getByTestId("recovery-prompt")).toBeVisible();
     await expect(page.getByTestId("recovery-prompt")).toContainText(file);
-    // The built worker asset must load under the production Host's self-only CSP.
+    // Both the shared Visual editors and built Source worker must load under production CSP.
     await page.getByRole("button", { name: "Compare", exact: true }).click();
+    const comparison = page.getByTestId("recovery-prompt").getByTestId("visual-comparison");
+    await expect(comparison.locator(".document-editor")).toHaveCount(2);
+    await expect(comparison.getByRole("region", { name: "Recovery preview", exact: true })).toContainText("HTTP crash recorded.");
+    await page.getByTestId("recovery-prompt").getByRole("button", { name: "Source", exact: true }).click();
     await expect(page.getByRole("region", { name: "Source differences", exact: true })).toContainText("HTTP crash recorded.");
     expect(await recoveryRecords(page)).toEqual(recorded);
     await page.getByRole("button", { name: "Restore work", exact: true }).click();

@@ -1,14 +1,16 @@
 import { getHostClient } from "../host-client.ts";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
+import { createDocumentRequests } from "../document-session.ts";
+import { i18n } from "../i18n.ts";
 import { prepareRecovery } from "../recovery-restore.ts";
 import { recoveryText, type RecoveryRecord } from "../recovery-storage.ts";
 import { collectSupportedEdits, toTiptapDocument } from "../tiptap-document.ts";
-import type { RecoveryPreviewResponse, SaveRequest } from "../../shared/document-protocol.ts";
+import type { DocumentFileResponse, RecoveryPreviewResponse, SaveRequest } from "../../shared/document-protocol.ts";
 import SourceCompare, { type Comparison } from "./SourceCompare.tsx";
 
-async function compare(record: RecoveryRecord, signal: AbortSignal): Promise<Comparison> {
-  const client = getHostClient(record.hostId);
+async function compare(record: RecoveryRecord, signal: AbortSignal, client = getHostClient(record.hostId)): Promise<Comparison> {
   let save: SaveRequest | undefined;
+  let bibliography: DocumentFileResponse["bibliography"], bibliographyRoot: string | undefined;
   let fallback = "";
   try {
     const snapshot = prepareRecovery(record);
@@ -21,6 +23,8 @@ async function compare(record: RecoveryRecord, signal: AbortSignal): Promise<Com
       return { before: result.disk?.source ?? "", after: snapshot.text, fallback: "",
         changed: Boolean(result.disk && result.disk.revision !== snapshot.file.revision), missing: result.disk === null };
     }
+    bibliography = snapshot.file.bibliography;
+    bibliographyRoot = snapshot.file.bibliographyRoot;
     save = { path: record.path, revision: snapshot.file.revision,
       base: { source: snapshot.file.source, savedEdits: snapshot.savedEdits },
       ...collectSupportedEdits(snapshot.file.document, snapshot.editor.editorDocument) };
@@ -43,11 +47,18 @@ async function compare(record: RecoveryRecord, signal: AbortSignal): Promise<Com
     }
     after = record.recoveryText;
   }
+  if (!fallback && result.disk && bibliography?.declarations.length) {
+    // Recovery stores declarations, never .bib bytes. Reuse the Read dependency boundary.
+    bibliography = { ...bibliography, sources: await createDocumentRequests(client).requestBibliography(
+      record.path, result.disk.revision, bibliography.declarations, bibliographyRoot, signal) };
+  }
   const acknowledged = record.snapshot?.file?.revision;
-  return { before, after, fallback, changed: Boolean(result.disk && acknowledged && result.disk.revision !== acknowledged), missing: result.disk === null };
+  return { before, after, fallback, bibliography, changed: Boolean(result.disk && acknowledged && result.disk.revision !== acknowledged), missing: result.disk === null };
 }
 
 export default function RecoveryCompare({ record }: { record: RecoveryRecord }) {
-  const load = useCallback((signal: AbortSignal) => compare(record, signal), [record]);
-  return <SourceCompare load={load} recovery />;
+  const client = useMemo(() => { try { return getHostClient(record.hostId); } catch { return undefined; } }, [record.hostId]);
+  const load = useCallback((signal: AbortSignal) => compare(record, signal, client), [record, client]);
+  return <SourceCompare load={load} recovery visual={client ? { client, path: record.path,
+    unsupported: record.snapshot?.kind === "text" ? i18n.t("Text sessions use Source comparison.") : undefined } : undefined} />;
 }

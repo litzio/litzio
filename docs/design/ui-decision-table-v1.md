@@ -162,3 +162,23 @@ Windows dev Electron, English/Light, 앱 번들 `litzio://app/index.html`, 1440�
 앱 프로세스 강제 종료·일반 닫기/재시작 → Restore → Save/Reload·외부 409를 기록한다.
 패키징/설치 검증이 아니다. 패키지 검사는 PR CI가 담당한다. 촬영은 일회성 dev 수동
 검토이며 CI 성공 캡처용 순회를 추가하지 않았다.
+
+
+## Pre-save comparison (#1201)
+
+Visual/Source uses the existing ChoiceGroup; Previous/Next and Close use Button and
+the existing comparison Dialog. Both snapshots reuse DocumentEditor with the shared
+Read boundary and Read NodeViews. One shared compact summary per changed pair and
+the comparison information icon use the existing Button/Tooltip components. Removed
+and added surfaces and `−`/`+` markers reuse the Source comparison convention.
+The sole control exception is the unchanged-run
+disclosure: a native button owned by a ProseMirror decoration widget, using existing
+spacing/surface/border/focus tokens and aria-expanded. Keeping it in the editor's
+position mapping avoids a second React editor or detached DOM ownership. Its keyboard
+activation is covered by the existing pre-save browser scenario. Details and scope:
+[Editing session and Save](editing-session-save-v1.md#pre-save-visual-comparison-1201).
+
+Recovery Compare reuses the same VisualCompare, ChoiceGroup, diff markers and
+ComparisonInfo Tooltip without adding another renderer. Its existing Restore/Delete/
+Not now controls and plaintext copy retain their behavior. See the
+[recovery display contract](editing-session-save-v1.md#recovery-visual-comparison-1201).
