@@ -28,6 +28,8 @@ are defined in [Copilot conversations](#copilot-conversations-1053).
 
 비서 표면은 mount 시 Host client를 고정한다. 생성·resume·poll·발화·중단·표시 결과·모델·진단 요청은 같은 client를 사용하며 활성 탭·필터를 요청 주소로 사용하지 않는다. 마지막 대화 ID도 hostId별로 기억한다. 설정 표면 역시 선택한 Host의 client를 고정한다. 연결 해제나 화면 종료가 원격 실행 취소를 뜻하지 않는다.
 
+`assistant-reference-handoff.ts`의 훅은 App의 참조 요청 생성·소비 확인·새 대화 초기화와 대화 Host 선택을 소유한다. AssistantPanel은 요청의 hostId가 대화 Host와 일치할 때만 참조를 추가하고, 처리한 요청을 원래 객체로 확인한다. 훅은 현재 요청과 같은 객체의 확인만 초기화하므로 이전 요청의 확인이 새 요청을 지우지 않는다.
+
 운영 비서는 로컬·등록된 원격 Host를 선택할 수 있다. PR4의 AssistantHostChooser에서 대상을 선택하고 Host별 패널에 고정한다. 다른 Host 참조를 전역 fallback으로 합치지 않는다.
 
 

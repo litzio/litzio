@@ -1,3 +1,4 @@
+import { useAssistantReferenceHandoff } from "./assistant-reference-handoff.ts";
 import { useHostTabRestore, useTabNavigationMemory } from "./host-tab-restore.ts";
 import { createTabAdmission, type Tab } from "./tab-admission.ts";
 import { AssistantHostChooser } from "./shell/AssistantHostChooser.tsx";
@@ -95,7 +96,6 @@ function EditorApp() {
   useSyncExternalStore(hostRegistry.subscribe, hostRegistry.snapshot, hostRegistry.snapshot);
   const connectedHostIds = hostRegistry.list().filter(host => hostRegistry.get(host.hostId).state === "connected").map(host => host.hostId).join(",");
   useTranslation();
-  const [referenceRequest, setReferenceRequest] = useState<{ hostId: string; path: string }>();
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [sidebarSize, setSidebarSize] = usePanelWidth("sidebar");
   const [documentPanelSize, setDocumentPanelSize] = usePanelWidth("document-panel");
@@ -188,7 +188,6 @@ function EditorApp() {
   const [tabs, setTabs] = useState<Tab[]>([]);
   const latestTabs = useRef(tabs); latestTabs.current = tabs;
   const assistantAvailable = true;
-  const [assistantHost, setAssistantHost] = useState<string | undefined>();
   const [assistantSettingsRevision, setAssistantSettingsRevision] = useState(0);
   // Remove the operation guard before newly mounted Explorer rows restore focus in layout.
   useLayoutEffect(() => {
@@ -258,6 +257,8 @@ function EditorApp() {
   const [operation, setOperation] = useState<Operation | "">("loading");
   const operationRef = useRef(true);
   const [error, setError, errorCause] = useMessageState("");
+  const { assistantHost, referenceRequest, addToChat, consumeReference, newConversation, chooseHost } =
+    useAssistantReferenceHandoff({ assistantReturn, setAssistantOpen, setError });
   // Restore folder context before opening tabs, including their bibliography resources.
   const revisionChecks = () => [...sessions.current.values()].filter(owner => owner.hostId === LOCAL_HOST_ID && !owner.busyRef.current).map(owner => {
     const path = owner.openedPath, expected = owner.acknowledgedRevision;
@@ -1120,7 +1121,7 @@ function EditorApp() {
         createdDocumentFocus={() => editorRef.current?.getFocusTarget() ?? null}
         onHostDirty={(hostId, path) => { const tab = openedTab(tabs, path, hostId); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
         onHostFileAction={(hostId, ...args) => fileAction(...args, undefined, undefined, hostId)}
-        onAddToChat={assistantAvailable ? (path, returnFocus) => { if (assistantHost && assistantHost !== LOCAL_HOST_ID) { setError({ key: "Start a conversation on the file’s Host to reference it." }); return; } setAssistantHost(LOCAL_HOST_ID); assistantReturn.current = returnFocus; setReferenceRequest({ hostId: LOCAL_HOST_ID, path }); setAssistantOpen(true); } : undefined}
+        onAddToChat={assistantAvailable ? addToChat : undefined}
         theme={theme} onThemeChange={changeTheme}
         contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }]}
         onFileAction={fileAction} fileActionsDisabled={busy || Boolean(continuation)}
@@ -1334,7 +1335,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel key={assistantHost} onNewHost={hostRegistry.list().length > 1 ? () => { setReferenceRequest(undefined); setAssistantHost(undefined); } : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={request => setReferenceRequest(previous => previous === request ? undefined : previous)} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel key={assistantHost} onNewHost={hostRegistry.list().length > 1 ? newConversation : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { const message = await openFile(path, "", navigation.focused, assistantHost); if (message) throw new Error(message); }}
         onUndo={async result => {
@@ -1345,13 +1346,7 @@ function EditorApp() {
         documentPath={session?.hostId === assistantHost ? session.openedPath : ""} folders={assistantHost === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(assistantHost)}
         documentDirty={Boolean(session?.documentDirty || session?.draftActive)}
         onSettings={() => { settingsReturnFocus.current = globalThis.document.activeElement as HTMLElement; setSettingsCategory("assistant"); openSettingsTab(); }} /></HostContext.Provider> : null}
-      {assistantOpen && !assistantHost ? <AssistantHostChooser onChoose={hostId => {
-        if (hostRegistry.get(hostId).state !== "connected") return;
-        if (hostRegistry.list().length > 1) {
-          try { localStorage.removeItem(`${brand.storagePrefix}.assistantConversation:${hostId}`); } catch { /* Page state remains usable. */ }
-        }
-        setAssistantHost(hostId);
-      }} onClose={closeAssistant} /> : null}
+      {assistantOpen && !assistantHost ? <AssistantHostChooser onChoose={chooseHost} onClose={closeAssistant} /> : null}
       <NotificationSource items={themeProblem && !settingsOpen ? [{ id: "theme-storage", severity: "error", message: i18n.t("Theme could not be saved. This choice applies until you close this page.") }] : []} />
       <CommandCenter open={commandQuery !== null} initialQuery={commandQuery ?? ""} items={commandItems}
         returnFocus={commandReturnFocus} onClose={() => setCommandQuery(null)} />
