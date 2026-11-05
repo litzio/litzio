@@ -135,6 +135,14 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
       }
       assert.equal(status!, 0, `${label}: app removal must succeed despite optional cleanup failure`);
       assert.equal(entries(), "", `${label}: uninstall registration removed`);
+      if (existsSync(integration.executable)) {
+        const diagnostic = spawnSync("powershell.exe", ["-NoProfile", "-File",
+          path.join(desktop, "test/packaged/uninstall-diagnostics.ps1"), integration.executable],
+          { encoding: "utf8", timeout: 30_000 });
+        const output = diagnostic.stdout + diagnostic.stderr;
+        writeFileSync(path.join(work, `${label}-cleanup.txt`), output);
+        console.error(output);
+      }
       assert.equal(existsSync(integration.executable), false, `${label}: app executable removed`);
       if (healthy) {
         assert.deepEqual((await environment.read()).user, longPath, `${label}: only the CLI PATH entry was removed`);
