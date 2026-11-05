@@ -565,6 +565,10 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await expect(panel.getByRole('button', {name: 'AI provider settings', exact: true})).toBeDisabled();
   await expect(panel.getByText('The unsaved paragraph adds a clear qualification.', { exact: false })).toBeVisible();
   await expect(panel.locator('.assistant-user .assistant-reference').filter({ hasText: '$litzio-guide' })).toHaveCount(1);
+  // #1270: the history surface renders the API's original utterance and chips only.
+  await expect(panel.locator('.assistant-user').first()).toContainText('What changed in the current document');
+  await expect(panel).not.toContainText('# Litzio plugin authoring skill');
+  await expect(panel).not.toContainText('Litzio read-only context (JSON):');
   const markdownSource = '# 답변 요약\n\n**중요한 조건**과 $x^2$, \\(x^2\\)를 확인합니다.[^n]\n\n- 첫 번째 항목\n- 두 번째 항목\n\n```js\nconst answer = "' + 'long-code-'.repeat(30) + '";\n```\n\n| 항목 | 설명 |\n| --- | --- |\n| 표 | ' + '긴내용'.repeat(70) + ' |\n\n\\[\na+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z\n\\]\n\n[공식 안내](https://example.com/docs)\n\n[^n]: 답변 각주';
   selected.turns[0].status = 'inProgress';
   const streamingAnswer = selected.turns[0].items.find(item => item.kind === 'assistant');
