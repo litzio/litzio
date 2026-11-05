@@ -27,6 +27,7 @@ import { DAEMON_PROTOCOL, sameInstance } from "../../../editor/server/daemon-pro
 import { cliDaemon, desktopRecord, assertExited, assertNoDiscovery } from "./daemon-fixture.ts";
 import { installedDirectory } from "./installed-app.ts";
 import { installationPort } from "../../src/installation-lifecycle.ts";
+import { fetchPublicRelease } from "./public-download.ts";
 
 const desktop = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const repo = path.resolve(desktop, "../..");
@@ -79,7 +80,7 @@ async function publicBeta(versions = [OLD, NEW], startVersion = OLD): Promise<st
   const folder = path.join(work, `public-${startVersion}`);
   mkdirSync(folder, { recursive: true });
   for (const version of versions) {
-    const result = await fetch(`https://api.github.com/repos/${owner}/${name}/releases/tags/v${version}`, process.env.GH_TOKEN ? { headers: { Authorization: `Bearer ${process.env.GH_TOKEN}` } } : {});
+    const result = await fetchPublicRelease(`https://api.github.com/repos/${owner}/${name}/releases/tags/v${version}`, process.env.GH_TOKEN ? { headers: { Authorization: `Bearer ${process.env.GH_TOKEN}` } } : {});
     assert.equal(result.status, 200, `Public v${version} is required; real GitHub update validation remains Pending`);
     const release = await result.json() as { tag_name: string; draft: boolean; prerelease: boolean; assets: { name: string; size: number; digest: string; browser_download_url: string }[] };
     assert.equal(release.tag_name, `v${version}`); assert.equal(release.draft, false); assert.equal(release.prerelease, true);
@@ -88,7 +89,7 @@ async function publicBeta(versions = [OLD, NEW], startVersion = OLD): Promise<st
     const download = async (assetName: string) => {
       const asset = release.assets.find((asset) => asset.name === assetName)!;
       assert.equal(asset.browser_download_url, `https://github.com/${owner}/${name}/releases/download/v${version}/${assetName}`);
-      const response = await fetch(asset.browser_download_url); assert.equal(response.status, 200);
+      const response = await fetchPublicRelease(asset.browser_download_url); assert.equal(response.status, 200);
       const bytes = Buffer.from(await response.arrayBuffer());
       assert.equal(bytes.length, asset.size);
       assert.equal(`sha256:${createHash("sha256").update(bytes).digest("hex")}`, asset.digest);

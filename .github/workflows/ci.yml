@@ -262,6 +262,10 @@ jobs:
     if: needs.changes.outputs.desktop == 'true' && needs.changes.outputs.update == 'true'
     runs-on: windows-latest
     timeout-minutes: 35
+    env:
+      ELECTRON_CACHE: ${{ runner.temp }}/electron-cache
+      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/electron-builder-cache
+      DEBUG: '@electron/get*'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -272,6 +276,13 @@ jobs:
           version: 12.5.1
           cache: true
           run_install: false
+      - name: Cache Electron and installer tool downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ env.ELECTRON_CACHE }}
+            ${{ env.ELECTRON_BUILDER_CACHE }}
+          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v1-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm install --frozen-lockfile
       - name: Published beta.6 first-update regression
         if: needs.changes.outputs.update == 'true'
@@ -314,6 +325,10 @@ jobs:
     if: needs.changes.outputs.desktop == 'true' && needs.changes.outputs.fullLifecycle == 'true'
     runs-on: windows-latest
     timeout-minutes: 35
+    env:
+      ELECTRON_CACHE: ${{ runner.temp }}/electron-cache
+      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/electron-builder-cache
+      DEBUG: '@electron/get*'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -324,6 +339,13 @@ jobs:
           version: 12.5.1
           cache: true
           run_install: false
+      - name: Cache Electron and installer tool downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ env.ELECTRON_CACHE }}
+            ${{ env.ELECTRON_BUILDER_CACHE }}
+          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v1-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm install --frozen-lockfile
       - name: Stable install/update regression before the final package
         if: needs.changes.outputs.fullLifecycle == 'true'
@@ -363,6 +385,10 @@ jobs:
     if: needs.changes.outputs.desktop == 'true' && needs.changes.outputs.update == 'true'
     runs-on: windows-latest
     timeout-minutes: 35
+    env:
+      ELECTRON_CACHE: ${{ runner.temp }}/electron-cache
+      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/electron-builder-cache
+      DEBUG: '@electron/get*'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -373,6 +399,13 @@ jobs:
           version: 12.5.1
           cache: true
           run_install: false
+      - name: Cache Electron and installer tool downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ env.ELECTRON_CACHE }}
+            ${{ env.ELECTRON_BUILDER_CACHE }}
+          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v1-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm install --frozen-lockfile
       - name: Beta install/update regression before the final package
         if: needs.changes.outputs.update == 'true'
@@ -414,6 +447,10 @@ jobs:
     if: needs.changes.outputs.desktop == 'true'
     runs-on: windows-latest
     timeout-minutes: 35
+    env:
+      ELECTRON_CACHE: ${{ runner.temp }}/electron-cache
+      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/electron-builder-cache
+      DEBUG: '@electron/get*'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -424,6 +461,13 @@ jobs:
           version: 12.5.1
           cache: true
           run_install: false
+      - name: Cache Electron and installer tool downloads
+        uses: actions/cache@v6
+        with:
+          path: |
+            ${{ env.ELECTRON_CACHE }}
+            ${{ env.ELECTRON_BUILDER_CACHE }}
+          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v1-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @litzio/desktop typecheck
       - name: Build a clean package from the actual app version
