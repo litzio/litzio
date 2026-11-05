@@ -210,6 +210,8 @@ test("operation invoke publishes declared public rows and refuses row-type misma
     await host.invoke("trust", { id: record.id, digest: record.digest }); await host.invoke("enable", { id: record.id });
     const invoke = (mode?: string) => host.invoke("invoke", { operation: "fixture.rows.read", input: mode ? { mode } : {} }) as Promise<any>;
     const valid = await invoke(); assert.equal(valid.receipt.outcome, "success"); assert.deepEqual(valid.result, [{ points: -3, caption: "[secret]" }]);
+    await host.invoke("reload", { id: record.id });
+    assert.deepEqual((await invoke()).result, valid.result);
     for (const mode of ["wrong-number", "wrong-secret"]) {
       const refused = await invoke(mode); assert.equal(refused.receipt.outcome, "failure"); assert.ok(!("result" in refused)); assert.ok(!JSON.stringify(refused).includes("private"));
     }

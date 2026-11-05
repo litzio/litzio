@@ -3,6 +3,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   const registered = pluginFixture.cli(['plugins', 'list']).plugins.find(p => p.id === 'fixture.issues');
   pluginFixture.cli(['plugins', 'trust', 'fixture.issues', '--digest', registered.digest]);
   pluginFixture.cli(['plugins', 'enable', 'fixture.issues']);
+  expect(pluginFixture.cli(['plugins', 'reload', 'fixture.issues']).receipt.operation).toBe('plugins.reload');
   const invoked = pluginFixture.cli(['operation', 'invoke', 'fixture.issues.read', '--input', `${pluginFixture.directory}/input.json`]);
   expect(invoked.receipt.outcome).toBe('success'); expect(invoked.result.every(row => !('token' in row))).toBe(true);
   let refused;

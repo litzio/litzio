@@ -1,4 +1,4 @@
-import { publicOperationResult } from "./operation-result.ts";
+import { publicOperationResult, safePluginValue } from "./operation-result.ts";
 import { builtinViewOperations, type ViewOperation } from "@litzio/core/views";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, lstatSync, realpathSync, statSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
@@ -8,7 +8,7 @@ import { validateManifest, compileSchema, statusSchema, pluginManagementSchema, 
 import { hostPaths } from "../host-paths.ts";
 
 import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store.ts";
-import { rememberSecret, safePluginValue, withPluginCode } from "./secret-redaction.ts";
+import { rememberSecret, withPluginCode } from "./secret-redaction.ts";
 
 import { PluginJobs } from "./jobs.ts";
 import { LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
@@ -225,6 +225,7 @@ export class PluginHost {
             if (a.manifest.id !== id) throw new Error("Artifact ID changed");
             if (!this.official(a.manifest, a.digest) && r.trustedDigest !== a.digest) throw new Error("Explicit digest-bound trust is required");
             const names = a.manifest.contributes.operations.map(op => `${id}.${op.id}`);
+            if (builtinViewOperations.some(op => names.includes(op.operation))) throw new Error("Plugin operation ID collides with built-in operation");
             for (const [otherId, other] of Object.entries(this.installed)) if (otherId !== id && other.operationNames.some(name => names.includes(name))) throw new Error("Plugin operation ID collision");
             r.digest = a.digest; r.operationNames = names;
             await this.enable(id); r.enabled = true;

@@ -73,6 +73,8 @@ Windows PowerShell의 기본 .NET ProtectedData를 통해 DPAPI CurrentUser를 �
 
 읽기 작업의 선택적 `rowSchema`는 [Generated views v1](generated-views-v1.md#operation-row-schema-1218)을 따른다. 이는 일반 읽기 작업의 출력 선언이며 `generatedUi/views` 기여나 SDK folder scope를 개방하지 않는다. Core가 타입·날짜·표시 라벨·secret 제한과 가공을 소유한다.
 
+하위 프로세스 invoke 결과도 공용 `PluginHost.invokeOperation → publicOperationResult`에서 알려진 값 정리(`safePluginValue`)·outputSchema 검증·Core `parseOperationRows`의 타입 검증과 secret 필드 제거를 거친 뒤에만 공개한다. CLI·비서·view·즐겨찾기는 이 경로를 재사용하며 reload도 이 경계를 바꾸지 않는다. status 결과는 `safePluginValue → statusSchema`를 거친다.
+
 ## K1 파일 작업
 
 2026-11-05 로드맵 1(e): `contributes.jobs`에 id/title, 확장자 accept(예: `.txt`), start/status/stop 작업 ID와 `resultKind: native-document`를 선언한다. 세 binding은 등록된 operation이어야 하며 start는 write다. 일반 `operation invoke`로 이 binding을 직접 실행할 수 없다. 입력·결과 JSON schema 검사는 기존 기능 호출과 동일하다. SDK `jobRequestSchema`, `jobUpdateSchema`, `JobSnapshot`이 공용 작업의 정의다.
@@ -81,7 +83,7 @@ Windows PowerShell의 기본 .NET ProtectedData를 통해 DPAPI CurrentUser를 �
 
 Host는 실행 전에 requestId를 메모리에 기록하고 중복 start를 거부한다. running/completed/failed/stopped/uncertain, phase, 선택적 done/total, stopRequested를 유지한다. start handler는 긴 Promise를 반환할 수 있다. status/stop handler는 같은 requestId/root/file/output을 받는다. handler 결과는 state/phase/progress/error와 완료 시 document.source다. Host가 완료 결과의 native source를 Core 기반 공식 생성 경로로 검증·생성한 뒤에만 path/revision을 공개한다. 완료 전 document/source/부분 결과는 UI·CLI로 공개하지 않는다. 결과 문서 생성 실패도 uncertain으로 남겨 확인 없이 다시 쓰지 않는다.
 
-job-status/job-stop/job-result는 같은 requestId만 받는다. stopRequested는 취소 요청이며 stopped와 다르다. 플러그인이 stopped를 확인할 때만 실제 중단으로 표시한다. disable/종료는 작업에 중단을 요청하고 진행 start 호출을 drain한 뒤 기존 dispose를 수행한다. 협조하지 않는 신뢰 코드의 강제 종료는 보장하지 않는다. 메모리 기록은 daemon 수명에 한정된다. 재시작 후 unknown ID는 재실행 근거가 아니다. 영속 queue/DB/scheduler는 없다.
+job-status/job-stop/job-result는 같은 requestId만 받는다. stopRequested는 취소 요청이며 stopped와 다르다. 플러그인이 stopped를 확인할 때만 실제 중단으로 표시한다. disable/종료는 작업에 중단을 요청하고 진행 start 호출을 drain한 뒤 기존 dispose를 수행한다. 하위 프로세스 IPC 요청은 앞 절의 10초 제한을 따르며 초과하면 프로세스를 종료하고 관찰을 uncertain으로 남긴다. start/status/stop도 `invokeOperation → publicOperationResult`를 통해 같은 결과 검증·secret 정리를 받는다. 메모리 기록은 daemon 수명에 한정된다. 재시작 후 unknown ID는 재실행 근거가 아니다. 영속 queue/DB/scheduler는 없다.
 
 ```text
 plugins start <pluginId> --input <json-file> --host <origin> --json

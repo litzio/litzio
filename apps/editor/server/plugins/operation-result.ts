@@ -1,4 +1,5 @@
 import { safePluginValue } from "./secret-redaction.ts";
+export { safePluginValue };
 import { compileSchema, type OperationDefinition } from "@litzio/plugin-sdk";
 import { parseOperationRows } from "@litzio/core/views";
 
