@@ -5,7 +5,7 @@
 - Last verified: 2026-11-05 — 소유자 승인·정정과 관련 ADR·조사 문서 대조. 제품 실행·설치·인증 검증 없음.
 - Authority: 2026-11-05 소유자 결정, under [AGENTS.md](../../AGENTS.md). 관련 보류 이슈: [#1075](https://github.com/litzio/litzio/issues/1075).
 - Scope: 재개 시 사용할 저장소·Host·기여·UI·저장 구조의 결정. Accepted는 구현 착수·완료가 아니다. 1단계 OneDrive도 소유자가 따로 개시한다.
-- Amends: [ADR-0019](0019-plugin-tiers.md)의 계층·공통 SDK·Host·번들 UI 경계를 구체화한다. [ADR-0012](0012-plugin-runtime-and-ui-contributions.md)와 [ADR-0017](0017-bundled-client-and-official-ai.md)의 재개 시 실행·UI·비서 관리 경계는 아래 관계 절을 따른다.
+- Amends: [ADR-0019](0019-plugin-tiers.md)의 계층·공통 SDK·Host·번들 UI 경계를 구체화한다. [ADR-0012](0012-plugin-runtime-and-ui-contributions.md)·[ADR-0015](0015-shared-host-operations.md)·[ADR-0017](0017-bundled-client-and-official-ai.md)의 재개 시 실행·UI·비서 관리 경계는 아래 관계 절을 따른다.
 
 ## 배경과 근거
 
@@ -165,7 +165,7 @@ Core는 일시적·저장 명세의 구조·바인딩·정적 유효성·canonic
 
 - **ADR-0019 구체화:** `pluginTier` 후보 대신 manifest 초안은 `tier`를 사용한다. 같은 SDK·공급 책임·별도 신뢰/활성·Host 소유를 유지하며 실행 모델·Windows secret·공통 UI/저장·관리별 승인을 정한다.
 - **ADR-0012 개정:** 재개 시 별도 worker·same-origin ESM/CSS·live 코드 교체 대신 in-process 신뢰 코드·앱 카탈로그·재시작 교체를 따른다. 과거 구현 기록은 보존하고 Core 의미·공식 쓰기·원본·결과 불확실 보호는 유지한다.
-- **ADR-0017 개정:** 재개 시 비서의 플러그인 변경 금지를 ⑤의 매번 명시 승인받는 관리로 대체한다. AI 권한·공급자·모델 변경 허용으로 확대하지 않는다. 기능 제거·보관·공식 AI와 별도 재개 조건은 유지한다. 현재 [비서 계약](../design/main-agent-v1.md)의 관리 금지는 아직 구현된 동작이며 해당 구현 PR에서 승인 흐름과 함께 갱신한다.
-- **ADR-0015·0018 유지:** 새 기능·관리의 공용 정의와 CLI, 대상 Host·receipt·버전 경계, 번들 script 정책을 따른다. 호환 계층·Host 간 자동 이동·공유 편집을 추가하지 않는다.
+- **ADR-0017 개정:** 재개 시 비서의 플러그인 변경 금지를 ⑤의 매번 명시 승인받는 관리로 대체한다. AI 권한·공급자·모델 변경 허용으로 확대하지 않는다. 기능 제거·보관·공식 AI와 별도 재개 조건은 유지한다. 현재 [비서 계약](../design/main-agent-v1.md)은 display 도구에서 플러그인을 제외하며 관리 도구를 제공하지 않는다. 구현 PR에서 별도 관리 도구와 승인 흐름을 함께 반영하고 display 도구의 허용 범위는 넓히지 않는다.
+- **ADR-0015 일부 개정·ADR-0018 유지:** ADR-0015의 비서 플러그인 변경 금지는 재개 시 ⑤의 매번 사용자 명시 승인을 받는 관리로 대체한다. AI 권한·공급자·모델 변경 금지와 새 기능·관리의 공용 정의·CLI 의무는 유지한다. ADR-0018의 대상 Host·receipt·버전 경계와 번들 script 정책을 따른다. 호환 계층·Host 간 자동 이동·공유 편집을 추가하지 않는다.
 
 이 문서 PR은 소유자 결정·비지원 경계·용어·색인을 대조하고 `pnpm docs:check`와 필수 CI로 확인한다. 제품 실행·설치·credential·원격 연결은 수행하지 않는다. 실제 구현 시 기존 테스트를 우선 보완하고 각 단계의 고유 위험을 확인하며, 브라우저 검증은 `pnpm browser:test`와 저장소의 세션 정리 규칙을 따른다.
