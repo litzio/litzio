@@ -78,8 +78,8 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   await dialog.waitFor({state:'hidden'}); await row('renamed.md').waitFor();
   await expect(activeDocument(page).getByTestId('document-editor')).toHaveAttribute('data-table-wrap','false');
   const rememberedWrap = await page.evaluate(()=>JSON.parse(localStorage.getItem(JSON.stringify(["local", "litzio.tableWrapDocuments"]))));
-  expect(rememberedWrap[file('a.md')]).toBeUndefined();
-  expect(rememberedWrap[file('renamed.md')]).toBe(false);
+  expect(rememberedWrap[JSON.stringify(['local', file('a.md')])]).toBeUndefined();
+  expect(rememberedWrap[JSON.stringify(['local', file('renamed.md')])]).toBe(false);
   expect(reads).toBe(0); page.off('request',track);
   expect(await editor.evaluate(node => node === document.querySelector('[data-document-tab][data-active="true"] .tiptap'))).toBe(true);
   await expect(page.getByRole('tab',{name:'renamed.md, Unsaved changes',exact:true})).toBeVisible();
