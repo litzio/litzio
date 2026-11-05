@@ -671,3 +671,21 @@ test("only the bundled Desktop origin receives CORS API/media access and bounded
   assert.equal((await fetch(url + media, { headers: { "Sec-Fetch-Site":"cross-site" } })).status, 403);
   assert.equal(await rawStatus(url + "/api/document", { ...headers, Host:"app" }), 403);
 });
+
+test("document comparison accepts only supplied native snapshots and returns read-only receipts", async t => {
+  const { a, send } = await fixture(t);
+  const before = nativeSource("## Title\n"), after = nativeSource("### Title\n");
+  const disk = fs.readFileSync(path.join(a, "document.md"), "utf8");
+  assert.equal((await send("/api/document-compare")).status, 405);
+  const result = await send("/api/document-compare", "POST", { before, after });
+  assert.equal(result.status, 200);
+  const body = await result.json();
+  assert.equal(body.changes[0].kind, "changed");
+  assert.deepEqual(body.receipt, { beforeRevision: documentRevision(before), afterRevision: documentRevision(after) });
+  for (const input of [{ before, after: false }, { before, after: "plain text" }, { before: "x".repeat(1000001), after }]) {
+    const response = await send("/api/document-compare", "POST", input);
+    assert.equal(response.ok, false);
+    assert.equal(typeof (await response.json()).error, "string");
+  }
+  assert.equal(fs.readFileSync(path.join(a, "document.md"), "utf8"), disk);
+});

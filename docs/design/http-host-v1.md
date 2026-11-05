@@ -309,3 +309,15 @@ a changed scheme/host/port/profile has a different IndexedDB store. See the
 [recovery contract](editing-session-save-v1.md#host-persistence-verification-296-pr3) for durability limits.
 
 The 2026-10-13 dependency audit still reports 16 existing transitive advisories (5 high, 10 moderate, 1 low). This change reuses the already locked esbuild build tool and changes no resolved dependency versions; it does not remediate those advisories. Core parser configuration and the local markdown-it patch remain unchanged, and build-only tooling is not a Host runtime. MyST remediation remains tracked in [#11](https://github.com/litzio/litzio/issues/11); the historical [dependency review](../reviews/myst-security-alignment-v1.md) is context, not current security assurance.
+
+## Read-only document comparison (#1201)
+
+`POST /api/document-compare` accepts `{ before: string, after: string }` native source
+snapshots and invokes the shared `executeCompareOperation` executor. It does not read
+file paths, call Save, write recovery records or share client editing state. Results
+include Core block changes, document metadata change status, two editable projections
+and source revision receipts. Invalid/oversize/unsupported input returns the existing
+JSON error response; methods other than POST return 405. See the
+[Core and CLI comparison contract](document-support-v1.md#block-semantic-comparison-1201)
+for bounds, pairing and receipt semantics. CLI `compare <before> <after> --json` calls
+the same executor in its own process, rather than contacting the running daemon.

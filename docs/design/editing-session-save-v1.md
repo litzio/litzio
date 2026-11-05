@@ -1035,3 +1035,10 @@ commit → 앱 강제 종료/재시작 → Restore → Save/Reload, 일반 닫�
 409와 원본·복구 기록 보존을 확인했다. native 닫기 답변만 기존 seam으로 지정했다.
 기존 packaged 복구 시나리오도 `litzio://app/index.html`과 별도 Host API URL을 단언하도록
 보완했으며 패키지 실행은 CI에 맡긴다. 같은 세션의 daemon 재연결/Undo 검증과 별개다.
+
+### #1201 Core comparison foundation
+
+The read-only [Core/Host/CLI semantic comparison](document-support-v1.md#block-semantic-comparison-1201)
+is available independently of the Editor. The pre-save comparison UI still uses
+SourceCompare and the existing captured Save replay; no Visual UI or recovery UI is
+introduced by that foundation PR. Editor concepts require owner selection first.

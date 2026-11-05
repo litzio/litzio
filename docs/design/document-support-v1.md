@@ -343,3 +343,39 @@ Desktop supplies localized native sample folders in `sample-native-v1`, replacin
 ## Verification
 
 Core tests own marker/YAML/support and semantic round-trip rejection. CLI tests own exclusive creation, structured failures and unchanged bytes. Shared Host tests own admission, revision conflicts and atomic file replacement. Browser tests own real Save → Reload, native admission state retention, Source, numbering and independent property drafts. Production HTTP and packaged Desktop tests exercise their deployment boundaries. Parser security and whole-document semantic-loss guards remain in place.
+
+## Block semantic comparison (#1201)
+
+`compareDocuments(before, after)` accepts two opaque native Core Documents and returns
+`{ changes, documentChanged }`. Each change has `kind: added | removed | changed`,
+optional `before` / `after` snapshot-local NodePaths, and textual `details` including
+changed level, inline content/marks/link destinations, equation source and attributes,
+figure path/caption or Mermaid source. A table is one block, including all rows/cells.
+No engine types, source edits, persistent block identity or write operation are involved.
+
+Comparison reuses the canonical round-trip semantic fingerprint and jsdiff block
+sequence matching. Source whitespace, mark nesting order and canonical table syntax
+are not changes in meaning. Moves remain removal plus addition; equal-length adjacent
+replacement runs are paired only for equal block kinds whose fingerprints do not occur
+on the other side. Ambiguous replacement runs remain removed/added. Frontmatter YAML
+values compare separately (`documentChanged`); comments and key order do not count.
+Paths are valid only within their own input snapshot and never identify a persistent block.
+
+Bounds: at most 10000 blocks total, 2000000 UTF-16 fingerprint units, and a 500ms
+jsdiff timeout. Refusal throws; callers must explain the failure and retain source
+comparison. Fingerprinting/parsing are outside the jsdiff timeout. This is a bounded
+first implementation, not a measured two-Editor rendering budget.
+
+The shared Host operation `executeCompareOperation({ before, after })` takes supplied
+native source strings (combined maximum 1000000 UTF-16 units), without reading paths
+or accessing a live editing session. `POST /api/document-compare` and
+`litzio compare <before> <after> --json` use this same executor. CLI reads both UTF-8
+files and prints the complete result; HTTP takes source strings. Both preserve Core
+refusals and return `before` / `after` editable projections plus
+`receipt: { beforeRevision, afterRevision }` (source revision hashes). Receipts are
+returned only and are not persisted. Neither interface writes documents, recovery
+records, acknowledged revisions or assets. Images compare paths/attributes; this
+operation does not preserve historical image bytes or establish pixel equality.
+
+This first PR supplies Core/Host/CLI only. The existing source-only pre-save and
+recovery comparison contracts remain in effect while Editor UI concepts await owner selection.

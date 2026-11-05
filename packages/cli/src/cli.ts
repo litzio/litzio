@@ -1,3 +1,4 @@
+import { executeCompareOperation } from "../../../apps/editor/server/document-compare.ts";
 import { createDocumentSourceFile } from "../../../apps/editor/server/document-create.ts";
 import { executeTemplateOperation, templateLanguage } from "../../../apps/editor/server/document-templates.ts";
 import { brand } from "../../../brand.ts";
@@ -182,6 +183,7 @@ const CODE_NOTE = [
 ];
 const ADMONITION_KIND_NOTE = `Kinds: ${ADMONITION_VARIANTS.join(", ")}.`;
 const COMMANDS: CommandSpec[] = [
+  { name: "compare", group: "Create and inspect", summary: "Compare native document block meaning (read-only)", usage: `${brand.cliCommand} compare <before> <after> --json`, details: ["Read-only native source snapshots; block paths are snapshot-local. Moves are removed + added. Returns source revision receipts; does not contact a live daemon."] },
   { name: "templates", group: "Create and inspect", summary: "List, read or save document templates",
     usage: `${brand.cliCommand} templates list [--json] [--language <ko|en>]`,
     details: [`${brand.cliCommand} templates read <name|id> [--json] [--language <ko|en>]`,
@@ -891,6 +893,11 @@ function main(argv: string[]): number {
   }
   if (isCommandHelpRequest(rest)) {
     process.stdout.write(commandHelp(command));
+    return 0;
+  }
+  if (command === "compare") {
+    if (rest.length !== 3 || rest[2] !== "--json" || rest[0].startsWith("--") || rest[1].startsWith("--")) throw new Error(commandHelp(command));
+    process.stdout.write(JSON.stringify(executeCompareOperation({ before: readFile(rest[0]), after: readFile(rest[1]) })) + "\n");
     return 0;
   }
   if (command === "templates") {

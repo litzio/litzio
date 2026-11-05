@@ -1,3 +1,4 @@
+import { executeCompareOperation } from "./document-compare.ts";
 import { executeTemplateOperation } from "./document-templates.ts";
 import { createDocumentSourceFile } from "./document-create.ts";
 import { hostPaths } from "./host-paths.ts";
@@ -321,6 +322,12 @@ export async function handleDocumentRequest(
     } catch (error) {
       failure(error);
     }
+    return;
+  }
+  if (url === "/api/document-compare") {
+    if (req.method !== "POST") { res.statusCode = 405; res.end(); return; }
+    try { sendJson(res, 200, executeCompareOperation(JSON.parse(await readBody(req)))); }
+    catch (error) { failure(error); }
     return;
   }
   if (url === "/api/document-source") {
