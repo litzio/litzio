@@ -499,6 +499,7 @@ ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의
   [V4 #1265](https://github.com/litzio/litzio/pull/1265)의 승인·Undo는 이전 map을 제거하고, 성공한 변경마다
   non-stale 제안 baseline과 해당 target revision/hash를 갱신한다. UI는 그 결과를 다시 읽은 뒤 Undo를 허용하며
   이전 map을 새 문서에 재연결하지 않는다. 실제 Host adapter 연결과 별개로 fixture가 이 흐름을 검증한다.
+- pages가 없는 K4 snapshot도 유효하다. page는 optional이고 pageCount는 0이다. PageSurface는 페이지 없음 안내만 표시하고 원본↔문서 탐색을 막되 ReviewList/ReviewDetail과 문서·baseline·target이 유효한 변경 동작은 유지한다.
 - ReviewList의 선택은 상세 열기다. pending은 “Pending review”, approved는 “Applied”, stale은 “Out of date”로
   표시한다. 제품 UI의 기본 문자열은 영어이며 내부 kind·enum·target path 배열은 사용자 label로 노출하지 않는다.
   제안은 “Change N”, 대상은 해당 문서 본문(없는 경우 “Document content”)으로 표시한다. 승인·거절·Undo는 별도 사용자 버튼이다. 전후 값·근거·대상을 표시하고
@@ -507,7 +508,7 @@ ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의
   영역 label은 bbox 바깥 위쪽에 두어 원본 내용을 가리지 않는다. 변경 전후 본문은 Read와 같은 document typography 토큰을 사용한다.
 - 승인·거절·Undo 요청부터 문서·제안·자료를 다시 읽을 때까지 “Refreshing data…”다. 이전
   자료는 최신으로 표시하지 않으며 대응 이동과 변경 버튼을 잠근다. 실패한 write는
-  자동 재전송하지 않고 결과 불확실과 상태 확인 안내를 표시한다. 다시 읽기는 read만 한다.
+  자동 재전송하지 않고 결과 불확실과 상태 확인 안내를 표시한다. 화면의 ReviewObservation은 변경 requestId와 receipt를 같은 Host/Root/bundle 탭 수명 동안 보관한다. 미확인 요청이 있으면 Refresh 대신 Check request status를 제공하고 같은 ID의 status를 먼저 조회한다. unknown/uncertain·통신 실패는 변경 버튼과 새 요청을 계속 막으며, 확정 status 뒤에만 snapshot을 읽는다. adapter가 다시 만들어져도 이 관찰 상태를 유지한다.
 - Host/source별 별도 mount를 사용한다. 닫기·Host 전환 뒤 늦은 응답은 버린다.
   비서는 pending 제안 제출만 하며 승인·Undo 권한은 Host도 사용자 경계에서 검증한다.
 - 대조 콘텐츠 1024px 미만에서는 안내와 상태·결과 문서 열기를 유지한다. 두 영역을

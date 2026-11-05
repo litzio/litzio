@@ -14,7 +14,7 @@ import { STATISTICS_PLUGIN, statisticsView, viewRequest, readViewCatalog, type V
 import { QueryInputs, type InputSchema } from "./QueryInputs.tsx";
 import { sourceFailure, inputIssueMessage } from "./source-state.ts";
 import { ReviewRenderer, type ReviewAdapter } from "../review/ReviewRenderer.tsx";
-import { createReviewAdapter } from "./review-api.ts";
+import { createReviewAdapter, type ReviewObservation } from "./review-api.ts";
 import { readableLabel } from "./view-label.ts";
 import "./views.css";
 
@@ -51,11 +51,12 @@ export function Views(props: ViewsProps) {
 }
 function ReviewViewPage({ tab, view, client, onOpenDocument }: ViewsProps & { view: Extract<CatalogView, { profile: "review" }> }) {
   const [adapter, setAdapter] = useState<ReviewAdapter>();
+  const observation = useRef<ReviewObservation>({});
   const openDocument = useRef(onOpenDocument);
   openDocument.current = onOpenDocument;
   useEffect(() => {
     const controller = new AbortController();
-    setAdapter(createReviewAdapter(client, view, tab.root, controller.signal, path => openDocument.current?.(path, tab.hostId)));
+    setAdapter(createReviewAdapter(client, view, tab.root, controller.signal, path => openDocument.current?.(path, tab.hostId), observation.current));
     return () => controller.abort();
   }, [client, tab.root, tab.hostId, view]);
   return <div className="views-page" data-testid="review-view">{adapter ? <ReviewRenderer key={`${tab.hostId}:${tab.root}:${view.sources.review.bundleRef}`} view={view} adapter={adapter} /> : <Notice>{i18n.t("Loading data…")}</Notice>}</div>;

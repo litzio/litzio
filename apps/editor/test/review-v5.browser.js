@@ -168,4 +168,31 @@ async (page, { expect, screenshots }) => {
   await expect(firstRegion).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('region', { name: 'Second page', exact: true }).getByRole('button', { name: 'Sentence · Supported', exact: true })).toHaveAttribute('aria-pressed', 'false');
 
+  await page.getByRole('button', { name: 'Default layout', exact: true }).click();
+  await page.getByRole('button', { name: 'no-pages', exact: true }).click();
+  await expect(page.getByText('No source pages available.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Next page', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: /Change 1/ }).click();
+  await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'uncertain', exact: true }).click();
+  await page.getByRole('button', { name: /Change 1/ }).click();
+  const actionCount = Number((await page.getByText(/^Actions:/).innerText()).split(':')[1]);
+  await page.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect(page.getByText('Outcome unknown.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled();
+  const requestNotice = await page.getByText('Outcome unknown.', { exact: false }).innerText();
+  await page.getByRole('button', { name: 'Check request status', exact: true }).click();
+  await expect(page.getByText('Outcome unknown.', { exact: false })).toHaveText(requestNotice);
+  await expect(page.getByText(/^Actions:/)).toHaveText(`Actions: ${actionCount + 1}`);
+  await expect(page.getByText(/^Status checks:/)).toHaveText('Status checks: 1');
+  await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Resolve request', exact: true }).click();
+  await page.getByRole('button', { name: 'Check request status', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
+  await expect(page.getByText(/^Actions:/)).toHaveText(`Actions: ${actionCount + 1}`);
+
 }

@@ -161,3 +161,11 @@ K1 review HTTP fixture는 start에서 running 접수만 반환하고 자료를 �
 일반 대화 view_catalog와 Generate view는 shared/view-generation.ts의 단일 schema/instruction을 사용한다. query/InputForm과 함께 명시적으로 제공된 같은 Host 완료 bundle의 review 명세를 허용한다. Host view.validate/propose는 실제 bundle·Root 접근·기여 가용성을 확인하며 저장·자료 반환·plugin 조회·문서 변경을 실행하지 않는다. review 제안의 pending 제출과 뷰 명세 propose를 구별하며 비서 승인/Undo 도구를 추가하지 않는다. 제작 스킬도 같은 범위와 참조 발명 금지를 안내한다.
 
 V3/V5와 CLI는 단일 POST /api/reviews dispatcher를 사용한다. source의 bundleRef는 Host가 보관한 generation에 고정되며 generation을 명시한 요청은 일치해야 한다. read에서 pageNo를 주고 kind를 생략하면 snapshot/receipt를 반환한다. snapshot은 bundle/page/선택 mapping/proposals, document-reader의 Core document/revision/hash/path, baseline/pageCount와 선택 PNG imageUrl을 조립한다. 이미지 byte/pixel 제한과 JSON 자료 제한을 각각 적용하며 imageUrl은 일시적 읽기 결과로만 사용한다. 다른 자료 읽기는 기존 kind 선택을 쓴다. 변경·status는 같은 requestId·baseline 계약을 유지한다. source·문서가 외부에서 바뀌면 snapshot은 실제 revision으로 불일치를 드러내어 V5가 action을 막으며 Host도 commit 직전에 다시 거부한다. 이전 map을 새 문서에 재연결하지 않는다. HTTP/CLI·비서 stdio fixture 통과를 실제 브라우저·외부 서비스·Docling 수락으로 간주하지 않는다.
+
+### 화면의 변경 결과 관찰과 페이지 없는 K4
+
+화면의 ReviewViewPage가 Host/Root/bundle 탭 수명의 ReviewObservation을 소유한다. 변경 전 requestId를 저장하고 adapter가 receipt를 보관한다. adapter 재생성은 이 관찰 상태를 지우지 않는다. pending 관찰이 있으면 새 approve/reject/undo를 보내지 못하며 read/Refresh는 같은 requestId의 status부터 확인한다. 네트워크 실패, unknown, uncertain, 다른 ID의 응답은 관찰을 유지하고 버튼을 잠근다. 확정 success/failure status 뒤에만 관찰을 해제하고 snapshot을 읽는다. snapshot의 pending 제안을 새 변경 허가로 해석하지 않는다. 관찰 ID를 고정 안내에 표시하며 자동 재전송하지 않는다. Host 결과 기록은 기존 PluginReviews/daemon 수명 소유로 유지한다.
+
+SDK pages:[] 완료 bundle도 snapshot을 제공한다. 이 경우 page는 없고 pageCount는 0이며 문서·baseline·제안은 그대로 반환한다. 화면은 페이지 controls와 원본↔문서 탐색만 비활성으로 두고 K4의 목록·상세·유효한 승인/거절/Undo는 유지한다. 존재하는 페이지 목록에서 잘못된 pageNo를 요청하면 계속 거부한다. 공용 Button/Notice/Tooltip과 기존 Read를 쓰며 새 surface나 스타일 예외를 추가하지 않는다.
+
+회귀: 제품 HTTP/CLI fixture는 페이지 없는 K4와 세 변경의 응답 유실, 같은 ID의 unknown/uncertain 확인 및 확정 결과 복구를 검증한다. review-v5 브라우저 fixture는 실제 createReviewAdapter를 사용해 불확실 요청의 status 확인 전 버튼 잠금과 같은 ID 유지, 정상 복구 뒤 Undo, 페이지 없는 review의 승인/Undo를 확인한다. 실제 외부 서비스·Docling 수락은 별도다.

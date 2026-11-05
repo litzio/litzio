@@ -11,12 +11,14 @@ import "./review.css";
 
 /** Host supplies one coherent snapshot, including the identity of the actual Read model. */
 export type ReviewSnapshot = {
-  bundle: ReviewBundle; page: ReviewPage; mapping?: ReviewMapping; proposals: ReviewProposal[];
+  bundle: ReviewBundle; page?: ReviewPage; mapping?: ReviewMapping; proposals: ReviewProposal[];
   document: EditableDocument; documentRevision: string; documentHash: string; documentPath: string;
   baseline: ReviewBaseline; pageCount: number; imageUrl?: string;
 };
 export type ReviewAction = "approve" | "reject" | "undo";
 export type ReviewAdapter = {
+  /** Source-scoped observation retained until the same requestId has a definitive status. */
+  readonly pending?: { requestId: string; receipt?: { requestId: string; outcome: string } };
   read(pageNo: number): Promise<ReviewSnapshot>;
   act(action: ReviewAction, proposal: ReviewProposal, baseline: ReviewBaseline): Promise<void>;
   openDocument(): void;
@@ -30,7 +32,7 @@ function documentCoherent(s: ReviewSnapshot) {
 /** Mapping validity controls correspondence navigation, never proposal action availability. */
 export function coherent(s: ReviewSnapshot) {
   const { bundle: b, page: p, mapping: m } = s;
-  return documentCoherent(s) && !!m && !m.continuation && b.generation === p.generation && b.generation === m.generation
+  return documentCoherent(s) && !!p && !!m && !m.continuation && b.generation === p.generation && b.generation === m.generation
     && b.documentRevision === m.documentRevision && b.documentHash === m.documentHash
     && b.sourceRevision === p.sourceRevision && b.sourceRevision === m.sourceRevision && b.mappingRevision === m.mappingRevision
     && m.entries.every(e => e.targets.every(t => t.documentRevision === b.documentRevision && t.documentHash === b.documentHash));
@@ -56,6 +58,7 @@ export function PageSurface({ snapshot: s, selected, onSelect, onPage, disabled 
   const [zoom, setZoom] = useState(1), [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [s.imageUrl]);
   const p = s.page;
+  if (!p) return <section aria-label="Source page" className="review-source"><Notice>No source pages available. Page controls are disabled.</Notice></section>;
   return <section aria-label="Source page" className="review-source">
     <div className="review-toolbar"><Button variant="ghost" aria-label="Previous page" disabled={disabled || p.pageNo <= 1} onClick={() => onPage(p.pageNo - 1)}><ChevronLeft /></Button>
       <span>Page {p.pageNo} of {s.pageCount}</span><Button variant="ghost" aria-label="Next page" disabled={disabled || p.pageNo >= s.pageCount} onClick={() => onPage(p.pageNo + 1)}><ChevronRight /></Button>
@@ -171,16 +174,16 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
   const host = useRef<HTMLDivElement>(null), [wide, setWide] = useState(false), epoch = useRef(0), busy = useRef(false);
   useEffect(() => { const observer = new ResizeObserver(entries => setWide(entries[0].contentRect.width >= 1024)); if (host.current) observer.observe(host.current); return () => observer.disconnect(); }, []);
   useEffect(() => { const token = ++epoch.current; busy.current = true; setState("loading"); setSnapshot(undefined); setSelected(undefined);
-    adapter.read(1).then(s => { if (epoch.current === token) { setSnapshot(s); setState("ready"); busy.current = false; } }, () => { if (epoch.current === token) { setState("unavailable"); busy.current = false; } });
+    adapter.read(1).then(s => { if (epoch.current === token) { setSnapshot(s); setState("ready"); busy.current = false; } }, () => { if (epoch.current === token) { setState(adapter.pending ? "uncertain" : "unavailable"); busy.current = false; } });
     return () => { ++epoch.current; };
   }, [adapter, view.sources.review.bundleRef]);
   const read = async (pageNo: number) => {
     if (busy.current) return; busy.current = true; const token = ++epoch.current; setState("refreshing");
     try { const next = await adapter.read(pageNo); if (token === epoch.current) { setSnapshot(next); setState("ready"); } }
-    catch { if (token === epoch.current) setState("unavailable"); } finally { if (token === epoch.current) busy.current = false; }
+    catch { if (token === epoch.current) setState(adapter.pending ? "uncertain" : "unavailable"); } finally { if (token === epoch.current) busy.current = false; }
   };
   const stale = snapshot && (!documentCoherent(snapshot) || snapshot.bundle.bundleRef !== view.sources.review.bundleRef);
-  const disabled = state !== "ready" || !!stale;
+  const disabled = state !== "ready" || !!stale || !!adapter.pending;
   const proposal = snapshot?.proposals.find(p => p.id === selected);
   const act = async (action: ReviewAction) => {
     if (busy.current || disabled || !snapshot || !proposal || !sameBaseline(proposal.baseline, snapshot.baseline) || !targetsMatch(snapshot, proposal) || (action === "undo" ? proposal.state !== "approved" : proposal.state !== "pending") || !proposal.actions.some(a => a.action === action && a.allowed)) return;
@@ -188,13 +191,13 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
     try {
       await adapter.act(action, proposal, snapshot.baseline);
       if (token !== epoch.current) return;
-      const next = await adapter.read(snapshot.page.pageNo);
+      const next = await adapter.read(snapshot.page?.pageNo ?? 1);
       if (token === epoch.current) { setSnapshot(next); setState("ready"); }
     } catch { if (token === epoch.current) setState("uncertain"); }
     finally { if (token === epoch.current) busy.current = false; }
   };
-  return <div ref={host} className="review-renderer"><header className="review-toolbar"><h2>{view.title}</h2><Button variant="outline" onClick={adapter.openDocument}>Open document</Button><Button variant="outline" disabled={state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page.pageNo ?? 1)}>Refresh data</Button></header>
-    {state !== "ready" && <Notice tone={state === "unavailable" || state === "uncertain" ? "warning" : "info"}>{state === "refreshing" ? "Refreshing data…" : state === "loading" ? "Loading data…" : state === "uncertain" ? "Outcome unknown. Check the status before trying again." : "Data unavailable."}</Notice>}
+  return <div ref={host} className="review-renderer"><header className="review-toolbar"><h2>{view.title}</h2><Button variant="outline" onClick={adapter.openDocument}>Open document</Button><Button variant="outline" disabled={state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page?.pageNo ?? 1)}>{adapter.pending ? "Check request status" : "Refresh data"}</Button></header>
+    {state !== "ready" && <Notice tone={state === "unavailable" || state === "uncertain" ? "warning" : "info"}>{state === "refreshing" ? "Refreshing data…" : state === "loading" ? "Loading data…" : state === "uncertain" ? "Outcome unknown. Check the same request ID; do not resend this change." : "Data unavailable."}{adapter.pending && <span> Request: {adapter.pending.requestId}</span>}</Notice>}
     {stale && <Notice tone="warning">Data is out of date. Refresh data to navigate or apply changes.</Notice>}
     {!wide && <Notice>Widen the window to compare. Comparison requires at least 1024px.</Notice>}
     {snapshot && wide && <div className="review-panels">{view.layout.children.map((child, index) => <section key={index} aria-label={child.title} className="review-panel">

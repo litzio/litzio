@@ -94,12 +94,12 @@ export class PluginReviews {
       if (kind === "snapshot") {
         if (input.continuation) throw new Error("Review material unavailable");
         const page = b.pages.find(p => p.pageNo === (input.pageNo ?? 1));
-        if (!page) throw new Error("Review page unavailable");
+        if (!page && b.pages.length) throw new Error("Review page unavailable");
         const document = loadDocumentFile(accessPath(b.file, this.access), b.access);
         const snapshot = bounded({ bundle: b.bundle, page, mapping: b.mapping, proposals: [...b.proposals.values()],
           document: document.document, documentRevision: document.revision, documentHash: document.revision, documentPath: document.path,
           baseline: { ...this.baseline(b), sourceRevision: hash(readFileSync(b.source)) }, pageCount: b.pages.length });
-        const image = page.imageRef ? this.image(b, page.imageRef) : undefined;
+        const image = page?.imageRef ? this.image(b, page.imageRef) : undefined;
         return { snapshot: structuredClone({ ...snapshot, ...(image ? { imageUrl: `data:${image.mime};base64,${image.data}` } : {}) }), state: stale ? "stale" : "ready", receipt: receipt("success") };
       }
       const data = kind === "bundle" ? b.bundle : kind === "document" ? { source: b.documentSource, documentRef: b.bundle.documentRef, revision: b.bundle.documentRevision } : kind === "page" ? b.pages.find(p => p.pageNo === input.pageNo) : kind === "mapping" ? b.mapping : kind === "proposals" ? [...b.proposals.values()] : this.image(b, b.pages.find(p => p.pageNo === input.pageNo)?.imageRef ?? "");

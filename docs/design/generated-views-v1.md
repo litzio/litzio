@@ -16,7 +16,7 @@ The existing statistics definition, renderer structural check and assistant gene
 
 CI diagnosis: `generated-views` first failed at the basic statistics table because its old v1 definition was refused by the v2 Host. The later invalid-binding correction/duplicate-save steps never ran, hence the secondary missing-HTTP-failures error. The browser fixture now supplies a v2 proposal and explicitly selects the plugin namespace in CLI run. All interaction/row/correction/cancellation assertions and the expected two HTTP 400 failures remain unchanged. Verification: production `pnpm browser:test http-host http-plugins plugin-jobs generated-views` passed 5/5 on Windows (about 1.3 minutes), including Save/Reload/conflict/reconnect. No actual external service or live model was used.
 
-Generation exposure is deliberately narrower than the full Host/Core catalog: `shared/view-generation.ts` publishes the complete `queryViewSchema`, including InputForm and the Core input limit. Both the default context and per-plugin context accept fixed-args and InputForm query definitions. Review generation remains excluded until V4/V5 Host and screen integration. The generation-context test accepts both query forms and rejects an otherwise valid review definition against the actual published schema.
+Generation exposure uses the common query/review schema in `shared/view-generation.ts`. Default and per-plugin contexts accept fixed-args/InputForm queries and review definitions for explicitly supplied completed bundles on the same Host. Context tests accept both profiles; Host validate/propose additionally checks the actual review source before returning a result card.
 
 ### Catalog HTTP contract (V2 authority)
 

@@ -109,7 +109,7 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const source = serialize(parse(nativeSource("Original.\n"))), revision = textRevision(source);
     writeFileSync(path.join(root, "input.txt"), "input");
     const sourceHash = createHash("sha256").update("input").digest("hex");
-    const review = { review: "text", bundle: { generation: "g1", documentRevision: revision, documentHash: revision, sourceRevision: sourceHash }, pages: [{ generation: "g1", sourceRevision: sourceHash, pageNo: 1, width: 10, height: 10, unit: "px", origin: "TOPLEFT", regions: [] }], images: [] };
+    const review = { review: "text", bundle: { generation: "g1", documentRevision: revision, documentHash: revision, sourceRevision: sourceHash }, pages: [], images: [] };
     const artifact = path.join(root, "artifact"); mkdirSync(artifact);
     writeFileSync(path.join(artifact, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
     const operations = ["start", "status", "stop", "read", "propose", "approve", "reject", "undo"].map(id => ({ id, version: 1, effect: ["status", "read"].includes(id) ? "read" : "write", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } }));
@@ -142,9 +142,20 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     }
     assert.equal((await read()).data.length, 0, "View proposals do not submit document changes");
     const client = createHostClient(origin);
-    const adapter = createReviewAdapter({ ...client, request: (endpoint, init) => client.request(endpoint, { ...init, headers: { ...init?.headers, Origin: origin } }) }, reviewViewSchema.parse(definition), root, new AbortController().signal, () => {});
+    let loseResponse = false, statusOverride: string | undefined;
+    const requests: any[] = [];
+    const observation = {};
+    const faultClient = { ...client, request: async (endpoint: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)); requests.push(body);
+      if (body.action === "status" && statusOverride) return new Response(JSON.stringify({ state: statusOverride, receipt: { requestId: body.requestId, outcome: statusOverride } }));
+      const response = await client.request(endpoint, { ...init, headers: { ...init?.headers, Origin: origin } });
+      if (loseResponse && ["approve", "reject", "undo"].includes(body.action)) { await response.arrayBuffer(); throw new Error("Lost write response"); }
+      return response;
+    } };
+    const adapter = createReviewAdapter(faultClient, reviewViewSchema.parse(definition), root, new AbortController().signal, () => {}, observation);
     const snapshotRead = async () => ({ snapshot: await adapter.read(1) });
     const initial = (await snapshotRead()).snapshot;
+    assert.equal(initial.page, undefined); assert.equal(initial.pageCount, 0);
     assert.equal(initial.documentPath, path.join(root, "doc.md")); assert.equal(initial.documentRevision, revision);
     const invalidView = await fetch(origin + "/api/views", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ action: "propose", view: { ...definition, sources: { review: { ...definition.sources.review, bundleRef: "other-host" } } } }) });
     assert.equal(invalidView.status, 400); await invalidView.arrayBuffer();
@@ -176,7 +187,33 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     assert.equal(replay.status, 400); await replay.arrayBuffer();
     const beforeUndo = await adapter.read(1);
     await adapter.act("undo", beforeUndo.proposals.find(p => p.id === freshId)!, beforeUndo.baseline);
-    assert.equal((await adapter.read(1)).proposals.at(-1)!.state, "rejected"); assert.equal(readFileSync(path.join(root, "doc.md"), "utf8"), source);
+    assert.equal((await adapter.read(1)).proposals.at(-1)!.state, "rejected");
+    // Lost responses for all screen writes retain one ID, including across adapter recreation.
+    const recover = async (action: "approve" | "reject" | "undo", proposalId: string) => {
+      const current = await adapter.read(1), writesBefore = requests.filter(r => ["approve", "reject", "undo"].includes(r.action)).length;
+      loseResponse = true;
+      await assert.rejects(adapter.act(action, current.proposals.find(p => p.id === proposalId)!, current.baseline));
+      const requestId = adapter.pending!.requestId;
+      const reattached = createReviewAdapter(faultClient, reviewViewSchema.parse(definition), root, new AbortController().signal, () => {}, observation);
+      for (const outcome of ["unknown", "uncertain"]) {
+        statusOverride = outcome;
+        await assert.rejects(reattached.read(1));
+        assert.equal(reattached.pending!.requestId, requestId); assert.equal(reattached.pending!.receipt!.outcome, outcome);
+        await assert.rejects(reattached.act(action, current.proposals.find(p => p.id === proposalId)!, current.baseline));
+      }
+      loseResponse = false; statusOverride = undefined;
+      const recovered = await reattached.read(1);
+      assert.equal(reattached.pending, undefined);
+      assert.equal(requests.filter(r => ["approve", "reject", "undo"].includes(r.action)).length, writesBefore + 1);
+      assert.ok(requests.filter(r => r.action === "status").slice(-3).every(r => r.requestId === requestId));
+      return recovered;
+    };
+    const nextProposal = async () => (await send("/api/reviews", { ...base, action: "propose", requestId: randomUUID(), baseline: (await read()).baseline })).proposals.at(-1).id;
+    const recoverId = await nextProposal();
+    assert.equal((await recover("approve", recoverId)).proposals.at(-1)!.state, "approved");
+    await recover("undo", recoverId);
+    await recover("reject", await nextProposal());
+ assert.equal(readFileSync(path.join(root, "doc.md"), "utf8"), source);
   } finally {
     await host?.close();
     if (previous === undefined) delete process.env.LITZIO_DATA_DIR; else process.env.LITZIO_DATA_DIR = previous;
