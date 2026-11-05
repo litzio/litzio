@@ -1,7 +1,7 @@
 import { PluginJobs } from "./PluginJobs.tsx";
 import { useAssistantReferenceHandoff } from "./assistant-reference-handoff.ts";
 import { Views, type ViewTab } from "./views/Views.tsx";
-import type { View } from "@litzio/core/views";
+import type { QueryView as View } from "@litzio/core/views-v2";
 import { useHostTabRestore, useTabNavigationMemory } from "./host-tab-restore.ts";
 import { createTabAdmission, type Tab } from "./tab-admission.ts";
 import { AssistantHostChooser } from "./shell/AssistantHostChooser.tsx";

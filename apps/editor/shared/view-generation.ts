@@ -1,4 +1,5 @@
-import { viewCatalog, createViewCatalog, type ViewOperation } from "@litzio/core/views";
+import { createCatalogV2, type ViewOperation } from "@litzio/core/views-v2";
+const viewCatalog = createCatalogV2();
 export const VIEW_GENERATION_TIMEOUT_MS = 180_000;
 /** Provider context, kept out of the human message/transcript by the existing context boundary. */
 export const VIEW_GENERATION_CONTEXT = {
@@ -6,4 +7,6 @@ export const VIEW_GENERATION_CONTEXT = {
   catalog: viewCatalog,
 };
 
-export function viewGenerationContext(operations?: readonly ViewOperation[]) { return { ...VIEW_GENERATION_CONTEXT, catalog: createViewCatalog(operations) }; }
+export function viewGenerationContext(operations?: readonly ViewOperation[]) { return { ...VIEW_GENERATION_CONTEXT, catalog: createCatalogV2(operations?.filter(operation => {
+  try { createCatalogV2([operation]); return true; } catch { return false; }
+})) }; }

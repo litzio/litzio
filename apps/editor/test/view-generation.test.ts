@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { generateView } from "../src/views/generate-view.ts";
 import { statisticsView, ViewValidationError } from "../src/views/view-api.ts";
-import { validateView } from "@litzio/core/views";
+import { queryViewSchema, validateCatalogView } from "@litzio/core/views-v2";
+const validateView = (value: unknown) => queryViewSchema.parse(validateCatalogView(value));
 import type { AssistantConversation } from "../shared/assistant.ts";
 import { AssistantViewGenerations } from "../server/assistant-view-generations.ts";
 import { createAssistantRequest } from "../src/assistant-api.ts";
@@ -107,7 +108,7 @@ test("both providers validate only final responses, correct in the same conversa
       request: async <T>(_url: string, body?: any): Promise<T> => { if (body?.action === "prepare-view-generation") return { requestId: "prepared" } as T; calls.push(body); if (body) { attempt++; polls = 0; } else polls++; return snapshot() as T; },
       snapshot: () => {}, status: message => statuses.push(message), validate: async value => { try { return validateView(value); } catch (error) { throw new ViewValidationError(String(error)); } },
     });
-    assert.equal(result.schemaVersion, 1); assert.equal(attempt, 3);
+    assert.equal(result.schemaVersion, 2); assert.equal(attempt, 3);
     const sends = calls.filter(Boolean);
     assert.ok(sends.every(call => call.model === "selected-model" && call.provider === provider && call.viewGeneration));
     assert.equal(sends[1].id, "same-thread"); assert.equal(sends[2].id, "same-thread");
