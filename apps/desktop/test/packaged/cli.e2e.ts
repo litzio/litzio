@@ -45,9 +45,10 @@ test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/h
     await listenForFetch(portServer);
     const address = portServer.address(); assert.ok(address && typeof address !== "string");
     await new Promise<void>(resolve => portServer.close(() => resolve()));
+    writeFileSync(path.join(folder, "plugins.json"), JSON.stringify({ "fixture.isolated": { directory: path.join(folder, "absent-plugin"), enabled: false, settings: {}, operationNames: [] } }));
     const child = spawn(process.env.ComSpec ?? "cmd.exe", windowsCommand(integration.shim,
       ["daemon", "run", "--channel", "development", "--root", folder, "--port", String(address.port)]), {
-        env: { ...process.env, LITZIO_DAEMON_DIR: path.join(folder, "daemon"),
+        env: { ...process.env, LITZIO_DATA_DIR: path.join(folder, "data"), LITZIO_PLUGINS_SETTINGS_FILE: path.join(folder, "plugins.json"), LITZIO_DAEMON_DIR: path.join(folder, "daemon"),
           LITZIO_ASSISTANT_CWD: path.join(folder, "assistant"), LITZIO_ASSISTANT_SETTINGS_FILE: path.join(folder, "ai.json") },
         windowsVerbatimArguments: true, windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
       });
@@ -65,6 +66,7 @@ test("packaged RunAsNode satisfies CLI engines and the shim runs version/check/h
       });
       const response = await fetch(`http://127.0.0.1:${address.port}/`);
       assert.equal(response.status, 200);
+      assert.equal((await (await fetch(`http://127.0.0.1:${address.port}` + "/api/plugins")).json()).plugins[0].id, "fixture.isolated", "packaged Host reads only the isolated plugin registry");
       assert.match(await response.text(), /<html/);
       assert.equal(errors, "");
     } finally {

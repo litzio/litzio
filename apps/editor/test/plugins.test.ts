@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
@@ -43,7 +43,7 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     assert.equal(new PluginHost(path.join(root, "state.json")) instanceof PluginHost, true);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { ProviderConnections } from "../server/provider-connections.ts";
 import { AssistantConversations } from "../server/assistant-conversations.ts";
 import { RootAccess } from "../server/file-access.ts";
@@ -73,4 +73,47 @@ test("Codex management adapter requires fresh confirmation even with full access
     await received; await conversations.interrupt(conversation.id); await response;
     assert.equal(conversations.current(conversation.id).userInput, undefined);
   } finally { await connection.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+function lifecycleFixture(root: string, id: string, code = "export function activate(){return {operations:{},status:()=>({available:true,message:'Fixture',folders:[],decorations:[],accounts:[]}),dispose(){}}}") {
+  const directory = path.join(root, id); mkdirSync(directory);
+  writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
+  writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id, tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: id, version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: {} }));
+  writeFileSync(path.join(directory, "host.js"), code);
+  return directory;
+}
+test("missing artifact affects only its registration; unregister remains approved and leaves artifact files alone", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-missing-plugin-")), host = new PluginHost(path.join(root, "state.json"));
+  try {
+    const a = lifecycleFixture(root, "fixture.a"), b = lifecycleFixture(root, "fixture.b");
+    await host.invoke("register", { directory: a }); rmSync(a, { recursive: true });
+    await host.invoke("register", { directory: b });
+    assert.match((await host.list()).find(p => p.id === "fixture.a")!.error!, /artifact missing/);
+    await assert.rejects(executePluginTool(host, { action: "unregister", id: "fixture.a" }, async () => false), /not approved/);
+    assert.equal((await host.list()).length, 2);
+    await executePluginTool(host, { action: "unregister", id: "fixture.a" }, async () => true);
+    await host.invoke("unregister", { id: "fixture.b" });
+    assert.equal((await host.list()).length, 0);
+    assert.doesNotThrow(() => readFileSync(path.join(b, "host.js")));
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+test("disable drains admitted status observations and their late results cannot restore contributions", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-status-drain-")), host = new PluginHost(path.join(root, "state.json"));
+  try {
+    const directory = lifecycleFixture(root, "fixture.slow", `let calls=0, begin, release; export let disposed=false; export const started=new Promise(r=>begin=r); const blocked=new Promise(r=>release=r); export function finish(){release()} export function activate(){return {operations:{},async status(){if(calls++>0){begin();await blocked}return {available:true,message:'Fixture',folders:[],decorations:[],accounts:[]}},dispose(){disposed=true}}}`);
+    await host.invoke("register", { directory });
+    await host.invoke("trust", { id: "fixture.slow", digest: (await host.list())[0]!.digest });
+    await host.invoke("enable", { id: "fixture.slow" });
+    const control = await import(pathToFileURL(path.join(directory, "host.js")).href);
+    const observation = host.list(); await control.started;
+    let disabled = false;
+    const stopping = host.invoke("disable", { id: "fixture.slow" }).then(() => { disabled = true; });
+    await new Promise(r => setImmediate(r));
+    assert.equal(disabled, false); assert.equal(control.disposed, false);
+    assert.equal((await host.list())[0]!.status, null);
+    control.finish(); await stopping;
+    assert.equal(control.disposed, true);
+    const late = (await observation)[0]!;
+    assert.equal(late.running, false); assert.equal(late.enabled, false); assert.equal(late.status, null);
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });

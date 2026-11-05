@@ -10,13 +10,18 @@ import { createServer, request } from "node:http";
 import { tmpdir, userInfo } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import test, { type TestContext } from "node:test";
+import test, { after, type TestContext } from "node:test";
 import { documentRevision, loadDocumentFile } from "../server/document-api.ts";
 import { MAX_JSON_BYTES, startHttpHost } from "../server/http-host.ts";
 import { DAEMON_PROTOCOL } from "../server/daemon-protocol.ts";
 import { daemonRpc, inspectDaemon, stopDaemon, type DaemonRecord } from "../server/daemon-state.ts";
 import { RootAccess } from "../server/file-access.ts";
 import { trashFile } from "../server/os-trash.ts";
+
+const isolatedData = fs.mkdtempSync(path.join(tmpdir(), "litzio-http-unit-data-"));
+process.env.LITZIO_DATA_DIR = isolatedData;
+process.env.LITZIO_PLUGINS_SETTINGS_FILE = path.join(isolatedData, "plugins.json");
+after(() => fs.rmSync(isolatedData, { recursive: true, force: true }));
 
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
 

@@ -452,3 +452,5 @@ keeps its Host client and offers only that Host's folders. No common interaction
 is added. Existing local New/FolderDialog surfaces were compared; the remote folder picker
 now also offers New folder. The multi-host browser scenario and manual 1440/640px +/menu
 captures are recorded in [Editor UX Shell](editor-ux-shell-v1.md#multiple-host-shell-1174-pr4).
+
+ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의 host-summary 행과 공용 Notice·Tooltip·Button·Dialog·settings-switch 및 HostStatus 점/톤 스타일을 재사용한다. 이름·공급자/계층/신뢰 배지·설명을 왼쪽에 묶고 토글을 같은 행 오른쪽 끝에 둔다. 상태와 계정은 별도 줄이며 1단계 UI는 로컬 Host만 지원한다.

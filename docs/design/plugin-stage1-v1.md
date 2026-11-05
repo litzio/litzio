@@ -25,6 +25,7 @@ CLI는 반드시 `--host <http(s) origin>`을 명시하고 daemon 프로토콜�
 
 ```text
 plugins list --host <origin> --json
+plugins unregister <id> --host <origin> --json
 plugins register <artifact-directory> --host <origin> --json
 plugins trust <id> --digest <digest> --host <origin> --json
 plugins enable|disable <id> --host <origin> --json
@@ -32,7 +33,7 @@ plugins settings <id> [--file <json>] --host <origin> --json
 operation invoke <pluginId.operationId> --input <json> --host <origin> --json
 ```
 
-settings는 --file 없이 현재 일반 설정을 조회하며 변경은 비활성 상태에서만 받는다. 설정 UI는 기존 Settings 콘텐츠·Button·Input·SettingsSwitch·Dialog를 재사용한다. 목록은 공급 책임·신뢰·활성·실행과 오류를 구별하고 설명 창은 version·artifact digest를 표시한다. 비서는 별도 `manage_plugins` 도구로 같은 Host 함수를 호출한다. Codex dynamic tools에 연결하며 매 호출 기존 질문·답변 UI에서 대상과 내용을 확인하고 한 번 승인해야 한다. full-access도 생략하지 않는다. 중단·만료 시 실행하지 않는다. display 도구의 범위는 확대하지 않는다. 기존 Copilot adapter에는 새 도구 공급을 추가하지 않는다.
+settings는 --file 없이 현재 일반 설정을 조회하며 변경은 비활성 상태에서만 받는다. 설정 UI는 기존 Settings 콘텐츠·Button·Input·SettingsSwitch·Dialog를 재사용한다. 목록은 Hosts 설정의 host-summary 행, 공통 settings-switch·Notice·Tooltip·Dialog와 HostStatus의 점/톤 스타일을 재사용한다. 이름·공급자/계층/신뢰 배지·설명을 왼쪽에 묶고 활성 토글은 같은 행 오른쪽 끝에 둔다. 상태는 지역화된 실행/감지 이름으로 표시하며 계정은 `계정: 라벨 (출처)`로 표시한다. 상단은 한 줄 경고와 상세 Tooltip이다. 목록은 공급 책임·신뢰·활성·실행과 오류를 구별하고 설명 창은 version·artifact digest를 표시한다. 비서는 별도 `manage_plugins` 도구로 같은 Host 함수를 호출한다. Codex dynamic tools에 연결하며 매 호출 기존 질문·답변 UI에서 대상과 내용을 확인하고 한 번 승인해야 한다. full-access도 생략하지 않는다. 중단·만료 시 실행하지 않는다. display 도구의 범위는 확대하지 않는다. 기존 Copilot adapter에는 새 도구 공급을 추가하지 않는다.
 
 ## OneDrive
 
@@ -40,8 +41,10 @@ settings는 --file 없이 현재 일반 설정을 조회하며 변경은 비활�
 
 Windows 환경 변수 OneDrive/OneDriveConsumer/OneDriveCommercial과 실재 폴더를 우선한다. HKCU Software/Microsoft/OneDrive/Accounts 직하위 계정의 UserFolder를 best-effort로 보완하며 중복 경로를 합친다. 조회 실패·불완전/없는 경로 수와 출처를 보존한다. UserEmail/DisplayName이 실제 조회된 경우만 표시하고, 그 밖에는 경로 기반 중립 라벨을 쓴다. raw 레지스트리 출력은 로그에 쓰지 않는다. SyncEngines, ini, WinRT, Graph/OAuth와 동기화 엔진은 사용하지 않는다. Linux 등 다른 OS에서는 지원하지 않음을 표시한다.
 
-폴더 감지는 로그인이나 동기화 상태의 증거가 아니다. 유효 후보가 하나이고 기존 폴더·최근 폴더·문서 선택이 없을 때만 Explorer에서 열기 후보를 제안한다. 사용자가 기존 폴더 열기 경로로 연다. 복수 후보는 자동 선택하지 않으며 기존 폴더·탭을 덮지 않는다. 장식은 정확한 루트에 번들 Cloud 아이콘을 사용하고 자식에게 전파하지 않는다.
+폴더 감지는 로그인이나 동기화 상태의 증거가 아니다. 유효 후보가 하나이고 기존 폴더·최근 폴더·문서 선택이 없을 때만 Explorer에서 열기 후보를 제안한다. 사용자가 기존 폴더 열기 경로로 연다. 복수 후보는 자동 선택하지 않으며 기존 폴더·탭을 덮지 않는다. 장식은 정확한 루트에 번들 Microsoft Fluent UI OneDrive 로고을 사용하고 자식에게 전파하지 않는다.
 
 ## 검증 경계
 
 SDK 검사는 manifest와 미지원 확장·외부 schema를, Host 검사는 digest 신뢰·disable drain·설정 보존과 관리별 승인을 소유한다. OneDrive 검사는 주입한 환경·디렉터리·레지스트리로 단일/복수/없음/잔존을 검증하며 실제 계정에 의존하지 않는다. `pnpm browser:test http-plugins`는 격리된 production HTTP Host와 CLI·설정 UI 일치 및 비활성화 뒤 열린 폴더 보존을 확인한다. `--screenshots`는 수동 검토용 1440px·640px 설정·장식 캡처를 tmp/plugin-stage1에 남긴다. 필수 CI는 기존 전체 제품 판정을 유지한다.
+
+1단계 UI는 로컬 Host만 지원한다. 원격 HostExplorer의 폴더 후보·장식 및 원격 Plugins 설정 UI는 이번 범위에 포함하지 않는다. CLI의 명시 대상 Host 계약과 구별한다. 누락된 artifact는 해당 플러그인만 artifact 없음으로 표시하며 다른 등록은 차단하지 않는다. unregister는 신규 요청 차단·진행 상태 조회/기능 작업 drain·dispose 뒤 등록과 일반 설정을 해제하고 artifact 파일은 삭제하지 않는다. 비서 unregister도 매 호출 명시 승인을 받는다. 상태 조회도 drain에 포함하며 비활성화 후 늦은 조회는 이전 폴더/장식을 반환하지 않는다.

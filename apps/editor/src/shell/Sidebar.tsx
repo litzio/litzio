@@ -154,7 +154,7 @@ export function Sidebar({
             {onNewDocument ? <Button type="button" size="sm" variant="ghost" className="w-full justify-start"
               onClick={event => onNewDocument(event.currentTarget)}>
               <Plus aria-hidden="true" />{i18n.t("New document…")}</Button> : null}
-            {candidate && onOpenRecent ? <Button variant="ghost" onClick={() => onOpenRecent(candidate.path)}><OneDriveIcon />Open {candidate.label}</Button> : null}
+            {candidate && onOpenRecent ? <Button type="button" size="sm" variant="ghost" className="w-full justify-start" title={candidate.path} onClick={() => onOpenRecent(candidate.path)}><OneDriveIcon />{i18n.t("Open {{name}}", { name: candidate.label })}</Button> : null}
             {recent.length > 0 && onOpenRecent ? (
               <section className="sidebar-recent" aria-labelledby="sidebar-recent-label">
                 <p className="sidebar-recent-label" id="sidebar-recent-label">{i18n.t("Recent")}</p>

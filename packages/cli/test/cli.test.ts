@@ -33,6 +33,8 @@ import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 const cliRoot = fileURLToPath(new URL("..", import.meta.url));
 const nativeSource = (body: string): string => `---\nlitzio: 1\n---\n\n${body}`;
 const fixtures = mkdtempSync(path.join(tmpdir(), "litzio-cli-native-fixtures-"));
+process.env.LITZIO_DATA_DIR = fixtures;
+process.env.LITZIO_PLUGINS_SETTINGS_FILE = path.join(fixtures, "plugins.json");
 process.env.LITZIO_ASSISTANT_SETTINGS_FILE = path.join(fixtures, "assistant.json");
 process.env.LITZIO_ASSISTANT_CWD = path.join(fixtures, "assistant");
 

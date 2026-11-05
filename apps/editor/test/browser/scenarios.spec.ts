@@ -168,7 +168,7 @@ for (const name of scenarios) {
   test(name, async ({ page }) => {
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; pluginFixture: { directory: string; folder: string; cli(args: string[]): any }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
+    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; pluginFixture: { directory: string; folder: string; cli(args: string[]): any; realSnapshot?: () => any }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
@@ -187,8 +187,25 @@ for (const name of scenarios) {
       writeFileSync(path.join(pluginDirectory, "host.js"), `export function activate(){return {operations:{},dispose(){},status(){return ${JSON.stringify({ available: true, message: "Folder detected (fixture)", folders: [{ id: "folder", path: pluginFolder, label: "Drive fixture", defaultCandidate: true }], decorations: [{ id: "folder", path: pluginFolder, icon: "onedrive" }], accounts: [{ id: "folder", label: "Fixture account", source: "Isolated fixture" }] })}}}}`);
     }
     const pluginFixture = { directory: pluginDirectory, folder: pluginFolder, cli: (args: string[]) => JSON.parse(execFileSync(process.execPath, [path.join(REPOSITORY_ROOT, "packages/cli/dist/cli.mjs"), ...args, "--host", url, "--json"], { encoding: "utf8", windowsHide: true })) };
+    const realCapture = screenshots && process.env.LITZIO_CAPTURE_ONEDRIVE === "1" && process.platform === "win32";
+    const realSnapshot = realCapture && name === "http-plugins" ? () => {
+      pluginFixture.cli(["plugins", "register", path.join(REPOSITORY_ROOT, "plugins/onedrive/artifact")]);
+      pluginFixture.cli(["plugins", "enable", "litzio.onedrive"]);
+      const state = pluginFixture.cli(["plugins", "list"]);
+      const plugin = state.plugins.find((p: any) => p.id === "litzio.onedrive");
+      if (!plugin?.official || !plugin.running) throw new Error("Real OneDrive artifact is not running as official");
+      pluginFixture.cli(["plugins", "disable", "litzio.onedrive"]);
+      const masked = "C:\\Users\\Example\\OneDrive";
+      if (plugin.status) {
+        plugin.status.accounts = plugin.status.accounts.map((a: any) => ({ ...a, label: "Masked account", source: "HKCU Accounts (masked)" }));
+        plugin.status.folders = plugin.status.folders.map((f: any) => ({ ...f, path: masked, label: "OneDrive" }));
+        plugin.status.decorations = plugin.status.decorations.map((d: any) => ({ ...d, path: masked }));
+      }
+      writeFileSync(path.join(REPOSITORY_ROOT, "tmp/plugin-stage1/real-capture-metadata.json"), JSON.stringify({ plugin: plugin.id, official: true, detection: "actual Windows Host", folderCount: plugin.status?.folders.length, masking: "account labels, sources, paths and Host identity replaced before browser capture", runtimeDisabledAfterRead: true }, null, 2));
+      return { plugins: [plugin] };
+    } : undefined;
     let result;
-    result = await scenario(page, { pluginFixture, fullLayout: process.env.LITZIO_TEST_LAYOUT_SCOPE !== "representative", brand, assistantFixture: { document: path.join(REPOSITORY_ROOT, "tmp/assistant/document.md") }, assertSavedSource: savedSourceAssertion(test.info()), screenshots, showNotifications, fileActionsRoot: FILE_ACTIONS_ROOT, expect, recoveryRecords, openFolderPicker, openDocument, openPath, waitForActivePath, reloadDocument, waitForEditorFocus, activeDocument, withBlockHover, bibliographyFixture,
+    result = await scenario(page, { pluginFixture: { ...pluginFixture, realSnapshot }, fullLayout: process.env.LITZIO_TEST_LAYOUT_SCOPE !== "representative", brand, assistantFixture: { document: path.join(REPOSITORY_ROOT, "tmp/assistant/document.md") }, assertSavedSource: savedSourceAssertion(test.info()), screenshots, showNotifications, fileActionsRoot: FILE_ACTIONS_ROOT, expect, recoveryRecords, openFolderPicker, openDocument, openPath, waitForActivePath, reloadDocument, waitForEditorFocus, activeDocument, withBlockHover, bibliographyFixture,
       folderFixture: {
         change: (mode: string) => {
           const dir = path.join(REPOSITORY_ROOT, "tmp/folder-navigation/guides");

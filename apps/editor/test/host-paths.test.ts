@@ -35,6 +35,7 @@ test("source and packaged paths retain overrides and the packaged user locations
   assert.equal(packaged.assistant, path.join(data, brand.folders.desktopData, "assistant"));
   for (const run of [{ packaged: true }, { packaged: false, checkoutRoot: root }]) {
     const paths = hostPaths(run, { LITZIO_ASSISTANT_SETTINGS_FILE: "settings-override", LITZIO_ASSISTANT_CWD: "cwd-override" });
+    assert.equal(paths.settingsFile("plugins"), path.join(run.packaged ? path.join(os.homedir(), brand.folders.shared) : path.join(root, ".litzio-dev"), "plugins.json"));
     assert.equal(paths.settingsFile("assistant"), "settings-override"); assert.equal(paths.assistant, "cwd-override");
   }
 });
@@ -42,6 +43,8 @@ test("source and packaged paths retain overrides and the packaged user locations
 test("Host pins official settings and lazy agent cwd after environment restoration", async t => {
   const root = mkdtempSync(path.join(os.tmpdir(), "official-ai-paths-"));
   const previous = { ...process.env };
+  process.env.LITZIO_DATA_DIR = root;
+  process.env.LITZIO_PLUGINS_SETTINGS_FILE = path.join(root, "plugins.json");
   process.env.LITZIO_ASSISTANT_SETTINGS_FILE = path.join(root, "settings.json");
   process.env.LITZIO_ASSISTANT_CWD = path.join(root, "assistant");
   const host = createAssistantHost(); process.env = previous;

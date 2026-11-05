@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import { validateManifest, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance, type PluginModule } from "@litzio/plugin-sdk";
 import { hostPaths } from "../host-paths.ts";
 
-type Installed = { directory: string; digest: string; trustedDigest?: string; enabled: boolean; settings: Record<string, unknown> };
+type Installed = { directory: string; digest: string; trustedDigest?: string; enabled: boolean; settings: Record<string, unknown>; operationNames: string[] };
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>> };
 // Product-maintained supply list. Publisher metadata alone never establishes official supply.
 export const OFFICIAL_PLUGINS = [{ id: "litzio.onedrive", publisher: "litzio", digest: "c49adb338b4c0470f48af3f6a90c8d5d36cc66dd54b9e809de59c3794d0b6a7c" }];
@@ -54,6 +54,11 @@ export class PluginHost {
     }
   }
   private async status(live: Loaded) {
+    const run = this.readStatus(live);
+    live.pending.add(run);
+    try { return await run; } finally { live.pending.delete(run); }
+  }
+  private async readStatus(live: Loaded) {
     const result = statusSchema.parse(await live.instance.status());
     for (const [key, declaration] of [["folders", "folderSources"], ["decorations", "folderDecorations"], ["accounts", "accounts"]] as const) {
       if (result[key].length && !live.manifest.contributes[declaration].length) throw new Error("Undeclared status contribution");
@@ -69,9 +74,11 @@ export class PluginHost {
     return Promise.all(Object.entries(this.installed).map(async ([id, r]) => {
       try {
         const { manifest: m, digest } = this.artifact(r.directory), live = this.loaded.get(id);
-        return { id, name: m.name, description: m.description, version: m.version, installed: true, official: this.official(m, digest), trusted: this.official(m, digest) || r.trustedDigest === digest, enabled: r.enabled, running: !!live,
-          settings: r.settings, settingsSchema: m.settingsSchema, status: live ? await this.status(live) : null, error: this.errors.get(id), digest };
-      } catch (e) { return { id, installed: true, enabled: r.enabled, running: false, error: String(e) }; }
+        const observed = live ? await this.status(live) : null;
+        const current = live && this.loaded.get(id) === live;
+        return { id, publisher: m.publisher, name: m.name, description: m.description, version: m.version, installed: true, official: this.official(m, digest), trusted: this.official(m, digest) || r.trustedDigest === digest, enabled: r.enabled, running: !!current,
+          settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest };
+      } catch (e) { return { id, installed: true, enabled: r.enabled, running: false, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : String(e), status: null }; }
     }));
   }
   private async enable(id: string) {
@@ -129,14 +136,17 @@ export class PluginHost {
         const directory = realpathSync(args.directory!), a = this.artifact(directory);
         const names = new Set(a.manifest.contributes.operations.map(operation => `${a.manifest.id}.${operation.id}`));
         for (const [otherId, other] of Object.entries(this.installed)) {
-          if (otherId !== a.manifest.id && this.artifact(other.directory).manifest.contributes.operations.some(operation => names.has(`${otherId}.${operation.id}`))) throw new Error("Plugin operation ID collision");
+          if (otherId !== a.manifest.id && (other.operationNames ?? []).some(name => names.has(name))) throw new Error("Plugin operation ID collision");
         }
         const previous = Object.hasOwn(this.installed, a.manifest.id) ? this.installed[a.manifest.id] : undefined;
-        if (previous && (previous.enabled || this.imported.has(a.manifest.id))) throw new Error("Plugin ID already registered; disable and restart daemon before replacing");
-        this.installed[a.manifest.id] = { directory, digest: a.digest, enabled: false, settings: previous?.settings ?? {} };
+        if (previous?.enabled || this.imported.has(a.manifest.id)) throw new Error("Plugin ID already registered; disable and restart daemon before replacing");
+        this.installed[a.manifest.id] = { directory, digest: a.digest, enabled: false, settings: previous?.settings ?? {}, operationNames: [...names] };
       } else {
         const r = this.record(id);
-        if (action === "trust") {
+        if (action === "unregister") {
+          r.enabled = false; this.save(); await this.disable(id);
+          delete this.installed[id]; this.errors.delete(id);
+        } else if (action === "trust") {
           const a = this.artifact(r.directory);
           if (args.digest !== a.digest || a.digest !== r.digest) throw new Error("Artifact digest does not match");
           r.trustedDigest = a.digest;
