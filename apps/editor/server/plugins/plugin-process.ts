@@ -41,18 +41,15 @@ process.on('message', async ({id, method, args}) => {
         return relative === '' || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative));
       };
       const sdkFile = args.sdkUrl.startsWith('file:') ? canonical(fileURLToPath(args.sdkUrl)) : null;
-      // Only SDK-owned imports may reach its split chunks. An artifact cannot import
-      // those private chunks directly, even if the SDK already loaded them.
-      const sdkModules = new Set([args.sdkUrl]);
+      // The SDK is one self-contained bundle. parentURL is caller-controlled
+      // (createRequire), so it must never grant access to private Host files.
       registerHooks({ resolve(specifier, context, nextResolve) {
         if (specifier === '@litzio/plugin-sdk') return {url: args.sdkUrl, format: 'module', shortCircuit: true};
         if (specifier.startsWith('@litzio/')) throw new Error('Use the public plugin SDK');
         const resolved = nextResolve(specifier, context);
         if (resolved.url.startsWith('file:')) {
           const target = canonical(fileURLToPath(resolved.url));
-          const sdkImport = target === sdkFile || sdkModules.has(context.parentURL);
-          if (inside(internalRoot, target) && !inside(artifactRoot, target) && !sdkImport) throw new Error('Use the public plugin SDK');
-          if (sdkImport) sdkModules.add(resolved.url);
+          if (inside(internalRoot, target) && !inside(artifactRoot, target) && target !== sdkFile) throw new Error('Use the public plugin SDK');
         }
         return resolved;
       }});

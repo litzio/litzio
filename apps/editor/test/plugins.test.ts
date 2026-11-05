@@ -433,6 +433,21 @@ import { createPluginService } from "../server/plugin-service.ts";
 import { pluginCli } from "../../../packages/cli/src/plugins.ts";
 import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
 
+test("Host SDK runtime is one self-contained JavaScript module with only Node builtin imports", async () => {
+  const { buildSdkRuntime } = await import("../../../packages/cli/scripts/plugin-sdk.ts");
+  const { isBuiltin } = await import("node:module");
+  const result = await buildSdkRuntime();
+  assert.equal(result.outputFiles!.length, 1, "SDK must not emit shared chunks");
+  for (const output of Object.values(result.metafile.outputs)) {
+    for (const dependency of output.imports) {
+      assert.ok(dependency.external && isBuiltin(dependency.path), `SDK must be self-contained: ${dependency.path}`);
+    }
+  }
+  const runtime = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles![0]!.contents).toString("base64")}`);
+  assert.equal(runtime.SDK_VERSION, "0.1.0");
+  assert.equal(typeof runtime.PluginOperationError, "function");
+});
+
 test("runtime import boundary checks resolved real paths, including aliases into the Host checkout", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-import-boundary-"));
   const host = new PluginHost(path.join(root, "state.json")), id = "fixture.imports";

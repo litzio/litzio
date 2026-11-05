@@ -23,17 +23,24 @@ export async function verifyExternalPlugin(url: string, parent: string, hostBund
     const invoked = await manage({ action: "invoke", operation: `${id}.greet`, input: { name: "External" } });
     assert.deepEqual(invoked.result, { greeting: "Hello, External!" });
     assert.equal(invoked.receipt.outcome, "success");
-    // The SDK itself can import its split chunks, but artifact code cannot reuse
-    // their file URLs to reach private Host modules, even after SDK activation.
-    const chunk = readdirSync(hostBundleDirectory).find(name => /^chunk-.*\.mjs$/.test(name));
-    assert.ok(chunk, "The distribution contains private split chunks");
+    // A caller-selected SDK parent must grant no access to private Host files.
+    // CLI-only chunks may exist; the SDK itself is built without shared chunks.
+    const privateFile = path.join(hostBundleDirectory,
+      readdirSync(hostBundleDirectory).find(name => /^chunk-.*\.mjs$/.test(name)) ?? "cli.mjs");
     const entry = path.join(directory, "host.js");
-    writeFileSync(entry, `import ${JSON.stringify(pathToFileURL(path.join(hostBundleDirectory, chunk)).href)};\n` + readFileSync(entry, "utf8"));
-    const current = (await (await fetch(url + "/api/plugins")).json()).plugins.find((p: any) => p.id === id);
-    await manage({ action: "trust", id, digest: current.digest });
-    const refused = await fetch(url + "/api/plugins", { method: "POST", headers: { Origin: url, "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "reload", id }) });
-    assert.equal(refused.status, 400, await refused.text());
-    assert.equal((await (await fetch(url + "/api/plugins")).json()).plugins.find((p: any) => p.id === id).running, false);
+    const source = readFileSync(entry, "utf8");
+    for (const prefix of [
+      `import ${JSON.stringify(pathToFileURL(privateFile).href)};`,
+      ...["sdkRequire.resolve", "sdkRequire"].map(call =>
+        `import {createRequire} from 'node:module'; const sdkRequire = createRequire(import.meta.resolve('@litzio/plugin-sdk')); ${call}(${JSON.stringify(privateFile)});`),
+    ]) {
+      writeFileSync(entry, prefix + "\n" + source);
+      const current = (await (await fetch(url + "/api/plugins")).json()).plugins.find((p: any) => p.id === id);
+      await manage({ action: "trust", id, digest: current.digest });
+      const refused = await fetch(url + "/api/plugins", { method: "POST", headers: { Origin: url, "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reload", id }) });
+      assert.equal(refused.status, 400, await refused.text());
+      assert.equal((await (await fetch(url + "/api/plugins")).json()).plugins.find((p: any) => p.id === id).running, false);
+    }
   } finally { await manage({ action: "unregister", id }); }
 }
