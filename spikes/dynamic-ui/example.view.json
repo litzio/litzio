@@ -1,0 +1,40 @@
+{
+  "catalog": "litzio-spike-v0",
+  "kind": "litzio-view",
+  "layout": {
+    "children": [
+      {
+        "columns": [
+          "folder",
+          "documents"
+        ],
+        "component": "Table",
+        "data": "/rows",
+        "source": "stats",
+        "title": "폴더별 문서 수"
+      },
+      {
+        "component": "BarChart",
+        "data": "/rows",
+        "source": "stats",
+        "title": "폴더별 문서 수",
+        "x": "folder",
+        "y": "documents"
+      }
+    ],
+    "component": "VerticalPanel"
+  },
+  "refresh": "manual",
+  "schemaVersion": 0,
+  "sources": {
+    "stats": {
+      "args": {
+        "descending": false,
+        "sort": "folder"
+      },
+      "operation": "folder.statistics",
+      "version": 1
+    }
+  },
+  "title": "폴더별 문서 수"
+}

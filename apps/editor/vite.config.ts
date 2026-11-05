@@ -23,6 +23,13 @@ export default defineConfig({
     },
   },
   plugins: [
+    { name: "dynamic-ui-spike", configureServer(server) {
+      if (process.env.LITZIO_VIEW_SPIKE !== "1") return;
+      server.middlewares.use("/api/view-spike", async (req, res) => {
+        const mod = await server.ssrLoadModule("/server/view-spike.ts");
+        await mod.viewSpikeRequest(req, res);
+      });
+    } },
     {
       name: "third-party-notices",
       generateBundle() {

@@ -148,3 +148,4 @@ export type { TemplateMetadata } from "./myst/template.ts";
 export const getTemplateMetadata = fence(templates.getTemplateMetadata);
 export const updateTemplateMetadata = fence(templates.updateTemplateMetadata);
 export const createDocumentFromTemplate = fence(templates.createDocumentFromTemplate);
+export { validateView, parseView, serializeView, viewCatalog, rowsSchema, fields, type View, type ViewRow } from "./views/index.ts";

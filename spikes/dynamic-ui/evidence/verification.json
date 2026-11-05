@@ -1,0 +1,103 @@
+{
+  "bindingChecks": "8/8 correct (includes 2 refusals)",
+  "repairChecks": "2/2",
+  "cliUiRowsEqual": true,
+  "cli": {
+    "rows": [
+      {
+        "folder": "alpha",
+        "documents": 1,
+        "headings": 5,
+        "modified": "2026-11-05T05:39:13.540Z"
+      },
+      {
+        "folder": "beta",
+        "documents": 2,
+        "headings": 10,
+        "modified": "2026-11-05T05:39:13.540Z"
+      }
+    ],
+    "errors": [],
+    "receipt": {
+      "requestId": "ea33a189-acd2-438b-a80b-25c44a9f7212",
+      "operation": "view.run",
+      "version": 0,
+      "host": "local-spike",
+      "scope": "C:\\Users\\swBaek\\.paseo\\worktrees\\0xvmt5pp\\dynamic-ui-spike\\tmp\\dynamic-ui\\fixture",
+      "outcome": "success",
+      "at": "2026-11-05T05:48:56.273Z"
+    }
+  },
+  "browser": {
+    "file": "C:\\Users\\swBaek\\.paseo\\worktrees\\0xvmt5pp\\dynamic-ui-spike\\tmp\\dynamic-ui\\fixture/demo-1793857729821.view.json",
+    "generated": {
+      "request": "폴더별 문서 수를 표와 막대 차트로 보여줘. 표 열은 folder, documents만.",
+      "model": "gpt-6-luna",
+      "proposal": {
+        "view": {
+          "kind": "litzio-view",
+          "schemaVersion": 0,
+          "catalog": "litzio-spike-v0",
+          "title": "폴더별 문서 수",
+          "refresh": "manual",
+          "sources": {
+            "stats": {
+              "operation": "folder.statistics",
+              "version": 1,
+              "args": {
+                "sort": "folder",
+                "descending": false
+              }
+            }
+          },
+          "layout": {
+            "component": "VerticalPanel",
+            "children": [
+              {
+                "component": "Table",
+                "title": "폴더별 문서 수",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "folder",
+                  "documents"
+                ]
+              },
+              {
+                "component": "BarChart",
+                "title": "폴더별 문서 수",
+                "source": "stats",
+                "data": "/rows",
+                "x": "folder",
+                "y": "documents"
+              }
+            ]
+          }
+        },
+        "unsupported": null
+      },
+      "error": null,
+      "ms": 6882,
+      "usage": {
+        "input_tokens": 19333,
+        "cached_input_tokens": 0,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 143,
+        "reasoning_output_tokens": 0
+      },
+      "commands": 0
+    },
+    "identicalText": "폴더별 문서 수\n폴더별 문서 수\nfolder\tdocuments\nalpha\t1\nbeta\t2\n폴더별 문서 수\nalpha\n1\nbeta\n2",
+    "actions": [
+      "catalog",
+      "catalog",
+      "proposal",
+      "validate",
+      "run",
+      "save",
+      "open",
+      "run",
+      "run"
+    ]
+  }
+}

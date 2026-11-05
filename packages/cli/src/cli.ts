@@ -1921,6 +1921,10 @@ export function runCli(args: string[]): number {
 
 /** Asynchronous command surface; synchronous commands keep the existing runCli API. */
 export async function runCliAsync(args: string[]): Promise<number> {
+  if (args[0] === "view") {
+    try { (await import("./view.ts")).viewCli(args); return 0; }
+    catch (error) { return reportError(args, error); }
+  }
   if (["plugins", "operation"].includes(args[0]) && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./plugins.ts")).pluginCli(args);
   if (args[0] === "host" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
     try { return await (await import("./remote-host.ts")).remoteHostCli(args.slice(1)); }

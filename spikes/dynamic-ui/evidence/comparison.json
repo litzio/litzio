@@ -1,0 +1,540 @@
+[
+  {
+    "model": "gpt-6-luna",
+    "request": "폴더별 문서 수를 표만으로 보여줘. 열은 folder, documents만.",
+    "first": {
+      "proposal": {
+        "view": {
+          "kind": "litzio-view",
+          "schemaVersion": 0,
+          "catalog": "litzio-spike-v0",
+          "title": "폴더별 문서 수",
+          "refresh": "manual",
+          "sources": {
+            "stats": {
+              "operation": "folder.statistics",
+              "version": 1,
+              "args": {
+                "sort": "folder",
+                "descending": false
+              }
+            }
+          },
+          "layout": {
+            "component": "VerticalPanel",
+            "children": [
+              {
+                "component": "Table",
+                "title": "폴더별 문서 수",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "folder",
+                  "documents"
+                ]
+              }
+            ]
+          }
+        },
+        "unsupported": null
+      },
+      "error": null,
+      "ms": 7332,
+      "usage": {
+        "input_tokens": 23387,
+        "cached_input_tokens": 11776,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 111,
+        "reasoning_output_tokens": 0
+      },
+      "commands": 0
+    },
+    "retry": null
+  },
+  {
+    "model": "gpt-6-luna",
+    "request": "폴더별 문서 수를 표와 막대 차트로 보여줘. 표 열은 folder, documents만.",
+    "first": {
+      "proposal": {
+        "view": {
+          "kind": "litzio-view",
+          "schemaVersion": 0,
+          "catalog": "litzio-spike-v0",
+          "title": "폴더별 문서 수",
+          "refresh": "manual",
+          "sources": {
+            "stats": {
+              "operation": "folder.statistics",
+              "version": 1,
+              "args": {
+                "sort": "folder",
+                "descending": false
+              }
+            }
+          },
+          "layout": {
+            "component": "VerticalPanel",
+            "children": [
+              {
+                "component": "Table",
+                "title": "폴더별 문서 수",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "folder",
+                  "documents"
+                ]
+              },
+              {
+                "component": "BarChart",
+                "title": "폴더별 문서 수",
+                "source": "stats",
+                "data": "/rows",
+                "x": "folder",
+                "y": "documents"
+              }
+            ]
+          }
+        },
+        "unsupported": null
+      },
+      "error": null,
+      "ms": 8480,
+      "usage": {
+        "input_tokens": 23392,
+        "cached_input_tokens": 0,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 143,
+        "reasoning_output_tokens": 0
+      },
+      "commands": 0
+    },
+    "retry": null
+  },
+  {
+    "model": "gpt-6-luna",
+    "request": "beta 폴더만 제목(heading) 수를 표로 보여줘. 열은 folder, headings. headings 내림차순으로 정렬해.",
+    "first": {
+      "proposal": {
+        "view": {
+          "kind": "litzio-view",
+          "schemaVersion": 0,
+          "catalog": "litzio-spike-v0",
+          "title": "Beta 폴더 제목 수",
+          "refresh": "manual",
+          "sources": {
+            "stats": {
+              "operation": "folder.statistics",
+              "version": 1,
+              "args": {
+                "folder": "beta",
+                "sort": "headings",
+                "descending": true
+              }
+            }
+          },
+          "layout": {
+            "component": "VerticalPanel",
+            "children": [
+              {
+                "component": "Table",
+                "title": "Beta 폴더 제목 수",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "folder",
+                  "headings"
+                ]
+              }
+            ]
+          }
+        },
+        "unsupported": null
+      },
+      "error": null,
+      "ms": 7061,
+      "usage": {
+        "input_tokens": 23398,
+        "cached_input_tokens": 11776,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 117,
+        "reasoning_output_tokens": 0
+      },
+      "commands": 0
+    },
+    "retry": null
+  },
+  {
+    "model": "gpt-6-luna",
+    "request": "폴더별 authorEmail을 표로 보여줘. 지원하지 않으면 unsupported에 이유를 쓰고 view는 null로 해.",
+    "first": {
+      "proposal": {
+        "view": null,
+        "unsupported": "authorEmail은 지원되는 결과 필드가 아니며, 노출된 스키마에 authorEmail을 제공하는 읽기 작업도 없습니다."
+      },
+      "error": null,
+      "ms": 5995,
+      "usage": {
+        "input_tokens": 23394,
+        "cached_input_tokens": 11776,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 42,
+        "reasoning_output_tokens": 0
+      },
+      "commands": 0
+    },
+    "retry": null
+  },
+  {
+    "model": "gpt-6-luna",
+    "faultInjection": true,
+    "invalid": {
+      "kind": "litzio-view",
+      "schemaVersion": 0,
+      "catalog": "litzio-spike-v0",
+      "title": "폴더별 문서 수",
+      "refresh": "manual",
+      "sources": {
+        "stats": {
+          "operation": "folder.statistics",
+          "version": 1,
+          "args": {
+            "sort": "folder",
+            "descending": false
+          }
+        }
+      },
+      "layout": {
+        "component": "VerticalPanel",
+        "children": [
+          {
+            "component": "Table",
+            "title": "폴더별 문서 수",
+            "source": "stats",
+            "data": "/rows",
+            "columns": [
+              "authorEmail"
+            ]
+          }
+        ]
+      }
+    },
+    "error": "[\n  {\n    \"code\": \"invalid_value\",\n    \"values\": [\n      \"folder\",\n      \"documents\",\n      \"headings\",\n      \"modified\",\n      \"setting\",\n      \"value\"\n    ],\n    \"path\": [\n      \"layout\",\n      \"children\",\n      0,\n      \"columns\",\n      0\n    ],\n    \"message\": \"Invalid option: expected one of \\\"folder\\\"|\\\"documents\\\"|\\\"headings\\\"|\\\"modified\\\"|\\\"setting\\\"|\\\"value\\\"\"\n  }\n]",
+    "repaired": {
+      "proposal": {
+        "view": {
+          "kind": "litzio-view",
+          "schemaVersion": 0,
+          "catalog": "litzio-spike-v0",
+          "title": "폴더별 문서 수",
+          "refresh": "manual",
+          "sources": {
+            "stats": {
+              "operation": "folder.statistics",
+              "version": 1,
+              "args": {
+                "sort": "folder",
+                "descending": false
+              }
+            }
+          },
+          "layout": {
+            "component": "VerticalPanel",
+            "children": [
+              {
+                "component": "Table",
+                "title": "폴더별 문서 수",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "folder",
+                  "documents"
+                ]
+              }
+            ]
+          }
+        },
+        "unsupported": null
+      },
+      "error": null,
+      "ms": 6230,
+      "usage": {
+        "input_tokens": 19551,
+        "cached_input_tokens": 11776,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 111,
+        "reasoning_output_tokens": 0
+      },
+      "commands": 0
+    }
+  },
+  {
+    "model": "gpt-6.1-sol",
+    "request": "폴더별 문서 수를 표만으로 보여줘. 열은 folder, documents만.",
+    "first": {
+      "proposal": {
+        "view": {
+          "kind": "litzio-view",
+          "schemaVersion": 0,
+          "catalog": "litzio-spike-v0",
+          "title": "폴더별 문서 수",
+          "refresh": "manual",
+          "sources": {
+            "stats": {
+              "operation": "folder.statistics",
+              "version": 1,
+              "args": {
+                "sort": "folder",
+                "descending": false
+              }
+            }
+          },
+          "layout": {
+            "component": "VerticalPanel",
+            "children": [
+              {
+                "component": "Table",
+                "title": "폴더별 문서 수",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "folder",
+                  "documents"
+                ]
+              }
+            ]
+          }
+        },
+        "unsupported": null
+      },
+      "error": null,
+      "ms": 7176,
+      "usage": {
+        "input_tokens": 20019,
+        "cached_input_tokens": 12416,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 111,
+        "reasoning_output_tokens": 0
+      },
+      "commands": 0
+    },
+    "retry": null
+  },
+  {
+    "model": "gpt-6.1-sol",
+    "request": "폴더별 문서 수를 표와 막대 차트로 보여줘. 표 열은 folder, documents만.",
+    "first": {
+      "proposal": {
+        "view": {
+          "kind": "litzio-view",
+          "schemaVersion": 0,
+          "catalog": "litzio-spike-v0",
+          "title": "폴더별 문서 수",
+          "refresh": "manual",
+          "sources": {
+            "stats": {
+              "operation": "folder.statistics",
+              "version": 1,
+              "args": {
+                "sort": "folder",
+                "descending": false
+              }
+            }
+          },
+          "layout": {
+            "component": "VerticalPanel",
+            "children": [
+              {
+                "component": "Table",
+                "title": "폴더별 문서 수",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "folder",
+                  "documents"
+                ]
+              },
+              {
+                "component": "BarChart",
+                "title": "폴더별 문서 수",
+                "source": "stats",
+                "data": "/rows",
+                "x": "folder",
+                "y": "documents"
+              }
+            ]
+          }
+        },
+        "unsupported": null
+      },
+      "error": null,
+      "ms": 8041,
+      "usage": {
+        "input_tokens": 20024,
+        "cached_input_tokens": 12416,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 143,
+        "reasoning_output_tokens": 0
+      },
+      "commands": 0
+    },
+    "retry": null
+  },
+  {
+    "model": "gpt-6.1-sol",
+    "request": "beta 폴더만 제목(heading) 수를 표로 보여줘. 열은 folder, headings. headings 내림차순으로 정렬해.",
+    "first": {
+      "proposal": {
+        "view": {
+          "kind": "litzio-view",
+          "schemaVersion": 0,
+          "catalog": "litzio-spike-v0",
+          "title": "beta 폴더 제목 수",
+          "refresh": "manual",
+          "sources": {
+            "stats": {
+              "operation": "folder.statistics",
+              "version": 1,
+              "args": {
+                "folder": "beta",
+                "sort": "headings",
+                "descending": true
+              }
+            }
+          },
+          "layout": {
+            "component": "VerticalPanel",
+            "children": [
+              {
+                "component": "Table",
+                "title": "beta 폴더 제목 수",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "folder",
+                  "headings"
+                ]
+              }
+            ]
+          }
+        },
+        "unsupported": null
+      },
+      "error": null,
+      "ms": 8313,
+      "usage": {
+        "input_tokens": 24089,
+        "cached_input_tokens": 12416,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 117,
+        "reasoning_output_tokens": 0
+      },
+      "commands": 0
+    },
+    "retry": null
+  },
+  {
+    "model": "gpt-6.1-sol",
+    "request": "폴더별 authorEmail을 표로 보여줘. 지원하지 않으면 unsupported에 이유를 쓰고 view는 null로 해.",
+    "first": {
+      "proposal": {
+        "view": null,
+        "unsupported": "폴더별 authorEmail은 지원하지 않습니다. folder.statistics는 folder, documents, headings, modified 필드만 제공합니다."
+      },
+      "error": null,
+      "ms": 7291,
+      "usage": {
+        "input_tokens": 24085,
+        "cached_input_tokens": 12416,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 37,
+        "reasoning_output_tokens": 0
+      },
+      "commands": 0
+    },
+    "retry": null
+  },
+  {
+    "model": "gpt-6.1-sol",
+    "faultInjection": true,
+    "invalid": {
+      "kind": "litzio-view",
+      "schemaVersion": 0,
+      "catalog": "litzio-spike-v0",
+      "title": "폴더별 문서 수",
+      "refresh": "manual",
+      "sources": {
+        "stats": {
+          "operation": "folder.statistics",
+          "version": 1,
+          "args": {
+            "sort": "folder",
+            "descending": false
+          }
+        }
+      },
+      "layout": {
+        "component": "VerticalPanel",
+        "children": [
+          {
+            "component": "Table",
+            "title": "폴더별 문서 수",
+            "source": "stats",
+            "data": "/rows",
+            "columns": [
+              "authorEmail"
+            ]
+          }
+        ]
+      }
+    },
+    "error": "[\n  {\n    \"code\": \"invalid_value\",\n    \"values\": [\n      \"folder\",\n      \"documents\",\n      \"headings\",\n      \"modified\",\n      \"setting\",\n      \"value\"\n    ],\n    \"path\": [\n      \"layout\",\n      \"children\",\n      0,\n      \"columns\",\n      0\n    ],\n    \"message\": \"Invalid option: expected one of \\\"folder\\\"|\\\"documents\\\"|\\\"headings\\\"|\\\"modified\\\"|\\\"setting\\\"|\\\"value\\\"\"\n  }\n]",
+    "repaired": {
+      "proposal": {
+        "view": {
+          "kind": "litzio-view",
+          "schemaVersion": 0,
+          "catalog": "litzio-spike-v0",
+          "title": "폴더별 문서 수",
+          "refresh": "manual",
+          "sources": {
+            "stats": {
+              "operation": "folder.statistics",
+              "version": 1,
+              "args": {
+                "sort": "folder",
+                "descending": false
+              }
+            }
+          },
+          "layout": {
+            "component": "VerticalPanel",
+            "children": [
+              {
+                "component": "Table",
+                "title": "폴더별 문서 수",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "folder",
+                  "documents"
+                ]
+              }
+            ]
+          }
+        },
+        "unsupported": null
+      },
+      "error": null,
+      "ms": 7048,
+      "usage": {
+        "input_tokens": 20242,
+        "cached_input_tokens": 18816,
+        "cache_write_input_tokens": 0,
+        "output_tokens": 111,
+        "reasoning_output_tokens": 0
+      },
+      "commands": 0
+    }
+  }
+]
