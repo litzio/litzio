@@ -13,7 +13,7 @@ import { AssistantViewGenerations } from "./assistant-view-generations.ts";
 export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { agent?: ProviderConnections; run?: HostRun }) {
   const paths = hostPaths(options?.run, { ...process.env });
   const { settings, configure } = createAssistantSettings(settingsFile ?? paths.settingsFile("assistant"), paths.assistantDefaults);
-  const plugins = new PluginHost(settingsFile ? path.join(path.dirname(settingsFile), "plugins.json") : paths.settingsFile("plugins"));
+  const plugins = new PluginHost(settingsFile ? path.join(path.dirname(settingsFile), "plugins.json") : paths.settingsFile("plugins"), { access });
   let pluginsReady: Promise<void> | undefined;
   const readyPlugins = () => pluginsReady ??= plugins.start();
   let closed = false, closing: Promise<void> | undefined;

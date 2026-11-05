@@ -1,3 +1,4 @@
+import { cpSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { brand } from "../../../../brand.ts";
 import { randomUUID } from "node:crypto";
@@ -178,7 +179,7 @@ for (const name of scenarios) {
         mode === "updated" ? initialBibliography.replace("Control Study", "Updated Study") : mode === "invalid" ? "@article{broken" : initialBibliography),
       report: (markdown: string, text: string) => citationReport(parse(markdown), [{ source: "../refs.bib", status: "ok", text }]),
     };
-    const pluginDirectory = path.join(REPOSITORY_ROOT, "tmp", "http-host-a", name === "generated-views" ? "issues-artifact" : "plugin-artifact");
+    const pluginDirectory = path.join(REPOSITORY_ROOT, "tmp", "http-host-a", name === "plugin-jobs" ? "job-artifact" : name === "generated-views" ? "issues-artifact" : "plugin-artifact");
     const pluginFolder = path.join(REPOSITORY_ROOT, "tmp", "http-host-a", "fixture");
     if (name === "http-plugins") {
       mkdirSync(pluginDirectory, { recursive: true });
@@ -193,6 +194,15 @@ for (const name of scenarios) {
       writeFileSync(path.join(pluginDirectory, "host.js"), `export function activate(){return {operations:{read:(input)=>[{status:"open",points:input.invalid?"bad":3,token:"private"},{status:"open",points:2,token:"private"},{status:"closed",points:-2,token:"private"},{status:"idle",points:0,token:"private"}]},dispose(){},status:()=>({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]})}}`);
       writeFileSync(path.join(pluginDirectory, "input.json"), "{}");
       writeFileSync(path.join(pluginDirectory, "invalid-input.json"), JSON.stringify({ invalid: true }));
+    }
+    if (name === "plugin-jobs") {
+      rmSync(pluginDirectory, { recursive: true, force: true });
+      cpSync(path.join(REPOSITORY_ROOT, "apps/editor/test/fixtures/job-plugin"), pluginDirectory, { recursive: true });
+      mkdirSync(pluginFolder, { recursive: true });
+      writeFileSync(path.join(pluginFolder, "input.txt"), "# Imported\n\nJob result.\n");
+      for (const name of ["browser-result.md", "stopped-result.md", "closed-result.md"]) rmSync(path.join(pluginFolder, name), { force: true });
+      writeFileSync(path.join(pluginFolder, "fail.txt"), "FAIL");
+      writeFileSync(path.join(pluginFolder, "uncertain.txt"), "UNCERTAIN");
     }
     const pluginFixture = { directory: pluginDirectory, folder: pluginFolder, corruptSecret() {
       const owned = process.env.LITZIO_BROWSER_DAEMON_DIR;

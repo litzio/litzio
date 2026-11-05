@@ -11,7 +11,7 @@ export const manifestSchema = z.strictObject({
   schemaVersion: z.literal(1), id, tier: z.enum(["official", "community"]),
   publisher: z.strictObject({ id, name: z.string().min(1) }), name: z.string().min(1), description: z.string().default(""),
   version: z.string().refine(v => !!semver.valid(v), "Invalid SemVer"), requiresSdk: z.string().refine(v => !!semver.validRange(v), "Invalid SDK range"), entry: z.string().min(1),
-  contributes: z.strictObject({ operations: z.array(operation).default([]), folderSources: z.array(id).default([]), folderDecorations: z.array(id).default([]), accounts: z.array(id).default([]),
+  contributes: z.strictObject({ operations: z.array(operation).default([]), jobs: z.array(z.strictObject({ id, title: z.string().min(1), accept: z.array(z.string().regex(/^\.[a-z0-9]+$/)).min(1), start: id, status: id, stop: id, resultKind: z.literal("native-document") })).default([]), folderSources: z.array(id).default([]), folderDecorations: z.array(id).default([]), accounts: z.array(id).default([]),
     dataViews: z.array(z.strictObject({ id, operation: id, version: z.number().int().positive() })).default([]),
     generatedUi: z.array(z.strictObject({ id, catalog: z.string(), schemaVersion: z.number().int().positive() })).default([]),
     views: z.array(z.strictObject({ id, definition: z.string().min(1) })).default([]),
@@ -32,6 +32,11 @@ export function validateManifest(input: unknown): PluginManifest {
   if (m.contributes.operations.some(op => op.scope === "folder")) throw new Error("Folder-scoped plugin operations are unsupported in stage 1");
   if (new Set(m.secrets.map(s => s.id)).size !== m.secrets.length) throw new Error("Duplicate secret ID");
   if (m.contributes.dataViews.length || m.contributes.generatedUi.length || m.contributes.views.length || m.contributes.secretUses.length) throw new Error("Unsupported stage-1 contribution: views, generated UI and secrets");
+  for (const job of m.contributes.jobs) {
+    for (const binding of [job.start, job.status, job.stop]) if (!m.contributes.operations.some(op => op.id === binding)) throw new Error("Undeclared job operation");
+    if (new Set([job.start, job.status, job.stop]).size !== 3) throw new Error("Job bindings must be distinct");
+    if (m.contributes.operations.find(op => op.id === job.start)?.effect !== "write") throw new Error("Job start must be a write operation");
+  }
   compileSchema(m.settingsSchema);
   for (const operation of m.contributes.operations) { if (operation.rowSchema && operation.effect !== "read") throw new Error("Only read operations can declare row schema"); compileSchema(operation.inputSchema); compileSchema(operation.outputSchema); }
   return m;
@@ -61,3 +66,16 @@ export const pluginManagementSchema = z.discriminatedUnion("action", [
 ]);
 export type PluginManagementInput = z.infer<typeof pluginManagementSchema>;
 export const PLUGIN_MANAGEMENT = { version: 1, scope: "host", inputSchema: z.toJSONSchema(pluginManagementSchema) } as const;
+
+/** K1 handlers receive Host-validated absolute paths; source is published only by Host. */
+export const jobUpdateSchema = z.strictObject({
+  state: z.enum(["running", "completed", "failed", "stopped", "uncertain"]), phase: z.string(),
+  progress: z.strictObject({ done: z.number().nonnegative(), total: z.number().positive() }).refine(p => p.done <= p.total).optional(),
+  error: z.string().optional(), document: z.strictObject({ source: z.string() }).optional(),
+});
+export type JobContribution = PluginManifest["contributes"]["jobs"][number];
+export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; error?: string; result?: { path: string; revision: string } };
+export const jobRequestSchema = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("job-start"), plugin: id, job: id, requestId: z.string().uuid(), root: z.string().min(1), file: z.string().min(1), output: z.string().min(1) }),
+  ...(["job-status", "job-stop", "job-result"] as const).map(action => z.strictObject({ action: z.literal(action), requestId: z.string().uuid() })),
+]);
