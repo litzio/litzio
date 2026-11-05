@@ -107,7 +107,7 @@ test("K1 start/status/stop cannot publish subprocess results rejected by output 
     await host.invoke('job-start',{plugin:'fixture.jobs',job:'text',requestId,root,file:'input.txt',output:'result.md'});
     for (const action of ['job-status','job-stop']) {
       const reply = await host.jobs.execute({action,requestId});
-      assert.ok('job' in reply); assert.equal(reply.job.state,'uncertain');
+      assert.ok('job' in reply); assert.equal(reply.job.state,'uncertain'); assert.equal(reply.job.errorKind,'failed');
       assert.equal('result' in reply.job,false); assert.equal(existsSync(path.join(root,'result.md')),false);
     }
     assert.equal(readFileSync(path.join(root,'input.txt'),'utf8'),'Original');

@@ -76,7 +76,7 @@ export const jobUpdateSchema = z.strictObject({
   error: z.string().optional(), document: z.strictObject({ source: z.string() }).optional(),
 });
 export type JobContribution = PluginManifest["contributes"]["jobs"][number];
-export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; error?: string; result?: { path: string; revision: string } };
+export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { path: string; revision: string } };
 export const jobRequestSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("job-list"), plugin: id.optional() }),
   z.strictObject({ action: z.literal("job-start"), plugin: id, job: id, requestId: z.string().uuid(), root: z.string().min(1), file: z.string().min(1), output: z.string().min(1) }),
@@ -85,3 +85,21 @@ export const jobRequestSchema = z.discriminatedUnion("action", [
 
 export const PLUGIN_JOBS = { version: 1, scope: "host", inputSchema: z.toJSONSchema(jobRequestSchema) } as const;
 export { validatePluginSource } from "./authoring.ts";
+
+/** Only these kinds cross the plugin error boundary; messages are Host-owned. */
+export const PLUGIN_ERROR_KINDS = ["auth", "forbidden", "not_found", "unavailable", "timeout", "failed"] as const;
+export type PluginErrorKind = typeof PLUGIN_ERROR_KINDS[number];
+export function pluginErrorKind(value: unknown): PluginErrorKind {
+  return PLUGIN_ERROR_KINDS.includes(value as PluginErrorKind) ? value as PluginErrorKind : "failed";
+}
+export class PluginOperationError extends Error {
+  constructor(public readonly kind: PluginErrorKind) { super("Plugin request failed"); }
+}
+export const PLUGIN_ERROR_MESSAGES: Readonly<Record<PluginErrorKind, string>> = {
+  auth: "Authentication required. Check credentials in plugin settings.",
+  forbidden: "Access denied. Ask the service administrator for permission.",
+  not_found: "Target not found. Check the target address or identifier.",
+  unavailable: "Service unavailable. Try again later.",
+  timeout: "Operation timed out. Check the service connection.",
+  failed: "Plugin operation failed. Check plugin settings and the target.",
+};

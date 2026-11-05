@@ -20,7 +20,7 @@ export async function viewRequest(client: HostClient, input: unknown, signal?: A
   signal?.throwIfAborted();
   if (!response.ok || result.receipt?.outcome !== "success") {
     const Validation = response.status === 400 && result.receipt?.operation === "view.validate" ? ViewValidationError : Error;
-    throw new Validation(result.error ?? "View operation failed");
+    throw new Validation(result.errorKind ? `[${result.errorKind}] ${result.error}` : result.error ?? "View operation failed");
   }
   return result;
 }

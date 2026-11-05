@@ -90,7 +90,7 @@ export async function executeViewOperation(value: unknown, scope: { access: File
       if (source.operation === "folder.statistics") data = folderStatistics(root, source.args.folder as string | undefined, scope.access);
       else {
         const reply = await scope.plugins!.invokeOperation(source.operation, source.args);
-        if (reply.receipt.outcome !== "success") throw new Error("View source failed");
+        if ("error" in reply) return { error: reply.error, errorKind: reply.errorKind, receipt };
         data = reply.result;
       }
       const fields = Object.fromEntries(Object.entries(operations.find(op => op.operation === source.operation)!.rowSchema).filter(([, f]) => !f.secret).map(([name, f]) => [name, f.label]));

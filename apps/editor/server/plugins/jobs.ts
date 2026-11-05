@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { statSync } from "node:fs";
-import { jobRequestSchema, jobUpdateSchema, type JobContribution, type JobSnapshot } from "@litzio/plugin-sdk";
+import { jobRequestSchema, jobUpdateSchema, type PluginErrorKind, type JobContribution, type JobSnapshot } from "@litzio/plugin-sdk";
 import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
 import { createDocumentSourceFile } from "../document-create.ts";
 
@@ -10,10 +10,10 @@ type Record = { startedAt: number; finishedAt?: number; snapshot: JobSnapshot; b
 export class PluginJobs {
   private records = new Map<string, Record>();
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => JobContribution,
-    private invoke: (name: string, input: unknown) => Promise<{ result?: unknown; error?: string }>) {}
+    private invoke: (name: string, input: unknown) => Promise<{ result?: unknown; error?: string; errorKind?: PluginErrorKind }>) {}
   private async call(record: Record, operation: string) {
     const value = await this.invoke(`${record.snapshot.plugin}.${operation}`, record.input);
-    if (value.error) throw new Error(value.error);
+    if (value.error) throw Object.assign(new Error(value.error), { kind: value.errorKind });
     return jobUpdateSchema.parse(value.result);
   }
   private update(record: Record, update: ReturnType<typeof jobUpdateSchema.parse>) {
@@ -26,10 +26,10 @@ export class PluginJobs {
       current.result = { path: created.path, revision: created.revision };
     }
     if (["completed", "failed", "stopped"].includes(update.state)) record.finishedAt = Date.now();
-    Object.assign(current, { state: update.state, phase: update.phase, progress: update.progress, error: update.error });
+    Object.assign(current, { state: update.state, phase: update.phase, progress: update.progress, errorKind: undefined, error: update.error });
   }
   private uncertain(record: Record, cause?: unknown) {
-    if (!["completed", "failed", "stopped"].includes(record.snapshot.state)) Object.assign(record.snapshot, { state: "uncertain", error: `Observation lost. Query the same requestId; do not resend start. ${cause instanceof Error ? cause.message : ""}` });
+    if (!["completed", "failed", "stopped"].includes(record.snapshot.state)) Object.assign(record.snapshot, { state: "uncertain", errorKind: (cause as { kind?: PluginErrorKind } | undefined)?.kind, error: `Observation lost. Query the same requestId; do not resend start. ${cause instanceof Error ? cause.message : ""}` });
   }
   async execute(raw: unknown) {
     const input = jobRequestSchema.parse(raw);
