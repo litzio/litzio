@@ -11,7 +11,7 @@
     "apps/editor/test/folder-navigation.browser.js": "d85b71c81cbfa8b205af70cac545e6271ebe89a0cafcf864863348b3f89967b9"
   },
   "origin": "http://127.0.0.1:5173",
-  "worktree": "C:\\Users\\swBaek\\.paseo\\worktrees\\3icu9gjp\\feat-sidebar-collapse-folder-section",
+  "worktree": "<worktree>",
   "browser": "headless installed Windows Chrome; same checkout-owned persistent profile",
   "captures": [
     {

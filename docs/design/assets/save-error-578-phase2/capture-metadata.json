@@ -591,7 +591,7 @@
   "date": "2026-10-28",
   "base": "a4504c9d0ece3be81de9ae4fa47209668efcb124",
   "command": "pnpm browser:test save-error --screenshots",
-  "serverDocumentPath": "C:\\Users\\swBaek\\.paseo\\worktrees\\3icu9gjp\\feat-578-save-diagnostic-codes\\apps\\editor\\document\\technical-document.md",
+  "serverDocumentPath": "<worktree>\\apps\\editor\\document\\technical-document.md",
   "fixture": "tmp/table-authoring/tables.md; real empty title and unpreservable table-cell inline math",
   "badPasswordAttempts": {
     "initial": 3,

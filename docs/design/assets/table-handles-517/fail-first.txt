@@ -30,10 +30,10 @@ Failure diagnostics incomplete: [
       12 |   await sidebar.getByRole("button", { name: "Open folder…", exact: true }).click();
       13 |   await page.getByTestId("folder-path").fill(path.dirname(file));
       14 |   await page.getByTestId("folder-open").click();
-        at openDocument (C:\Users\swBaek\.paseo\worktrees\3icu9gjp\feat-light-table-handles\apps\editor\test\browser\navigation.ts:11:69)
-        at openPath (C:\Users\swBaek\.paseo\worktrees\3icu9gjp\feat-light-table-handles\apps\editor\test\browser\navigation.ts:52:3)
+        at openDocument (<worktree>\apps\editor\test\browser\navigation.ts:11:69)
+        at openPath (<worktree>\apps\editor\test\browser\navigation.ts:52:3)
         at evalmachine.<anonymous>:16:5
-        at C:\Users\swBaek\.paseo\worktrees\3icu9gjp\feat-light-table-handles\apps\editor\test\browser\scenarios.spec.ts:148:20
+        at <worktree>\apps\editor\test\browser\scenarios.spec.ts:148:20
 
     attachment #1: input-events.json (application/json) ────────────────────────────────────────────
     tmp\browser-results\scenarios-table-handles-capture\attachments\input-events-json-7d1c333d0a31dc08db0fb540fd43776c27f04945.json
@@ -61,15 +61,15 @@ Failure diagnostics incomplete: [
 
     Error: Light table handles need an icon without visible address text, matching localized name/tooltip, transparent rest and 28px targets: [{"name":"Column A actions","title":"","text":"A","icon":false,"width":279.5,"height":28,"background":"rgb(246, 247, 249)"},{"name":"Column B actions","title":"","text":"B","icon":false,"width":279.5,"height":28,"background":"rgb(246, 247, 249)"},{"name":"Row 1 actions (header)","title":"","text":"1","icon":false,"width":28,"height":28,"background":"rgb(246, 247, 249)"},{"name":"Row 2 actions","title":"","text":"2","icon":false,"width":28,"height":28,"background":"rgb(246, 247, 249)"}]
         at evalmachine.<anonymous>:65:11
-        at file:///C:/Users/swBaek/.paseo/worktrees/3icu9gjp/feat-light-table-handles/apps/editor/test/browser/scenarios.spec.ts:148:20
-        at C:\Users\swBaek\.paseo\worktrees\3icu9gjp\feat-light-table-handles\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1654:9
-        at C:\Users\swBaek\.paseo\worktrees\3icu9gjp\feat-light-table-handles\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1134:11
-        at TimeoutManager.withRunnable (C:\Users\swBaek\.paseo\worktrees\3icu9gjp\feat-light-table-handles\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:403:14)
-        at TestInfoImpl._runWithTimeout (C:\Users\swBaek\.paseo\worktrees\3icu9gjp\feat-light-table-handles\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1132:7)
-        at C:\Users\swBaek\.paseo\worktrees\3icu9gjp\feat-light-table-handles\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1652:7
-        at WorkerMain._runTest (C:\Users\swBaek\.paseo\worktrees\3icu9gjp\feat-light-table-handles\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1625:5)
-        at WorkerMain.runTestGroup (C:\Users\swBaek\.paseo\worktrees\3icu9gjp\feat-light-table-handles\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1520:9)
-        at process.<anonymous> (C:\Users\swBaek\.paseo\worktrees\3icu9gjp\feat-light-table-handles\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\common\index.js:1944:25)
+        at file:///<worktree>/apps/editor/test/browser/scenarios.spec.ts:148:20
+        at <worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1654:9
+        at <worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1134:11
+        at TimeoutManager.withRunnable (<worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:403:14)
+        at TestInfoImpl._runWithTimeout (<worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1132:7)
+        at <worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1652:7
+        at WorkerMain._runTest (<worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1625:5)
+        at WorkerMain.runTestGroup (<worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\worker\workerProcessEntry.js:1520:9)
+        at process.<anonymous> (<worktree>\node_modules\.pnpm\playwright@1.64.0-alpha-1789764292000\node_modules\playwright\lib\common\index.js:1944:25)
 
     attachment #1: input-events.json (application/json) ────────────────────────────────────────────
     tmp\browser-results\scenarios-table-authoring\attachments\input-events-json-8562237ef4dc0f1f282e4fcf9dc77596620590aa.json

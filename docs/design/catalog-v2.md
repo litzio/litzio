@@ -8,7 +8,7 @@
 
 ## 근거와 현재 부족한 것
 
-소유자 조사 파일은 `C:\Projects\litzio\tmp\research\`의 `stage2-jira-acceptance.md`, `authoring-roadmap-brief.md`, `docling-ui-contracts.md`, `dynamic-ui-spike.md`, `plugin-arch-b-genui.md`다. 로컬 조사 파일은 현재 계약이 아니다. 다른 checkout의 검토자도 판단할 수 있도록 필요한 결과를 아래에 요약한다.
+소유자 조사 파일은 `<local-research>/`의 `stage2-jira-acceptance.md`, `authoring-roadmap-brief.md`, `docling-ui-contracts.md`, `dynamic-ui-spike.md`, `plugin-arch-b-genui.md`다. 로컬 조사 파일은 현재 계약이 아니다. 다른 checkout의 검토자도 판단할 수 있도록 필요한 결과를 아래에 요약한다.
 
 2단계는 부분 성공·전체 수락 실패다. 비서 제작·등록·신뢰·활성·조회·무재시작 수정은 성공했으나 검색 폼과 키/요약/상태/담당자/갱신일의 5열 단일 표를 표현하지 못했다. 401/403/404/500은 같은 `View source failed`였다. CLI 저장 → 즐겨찾기 새 탭 → 수동 조회 → CLI/UI 데이터 일치는 확인했으나 원래 채팅의 Generate view 진입은 미검증이다. delay는 약 1.9초 후 성공했으므로 timeout 수락 증거가 아니다. 실패 활동 10개를 모델 교정 10회나 제품 결함 10개로 계산하지 않는다.
 
@@ -138,7 +138,7 @@ Host는 공식 write path의 revision 보호와 실패 시 데이터 보존을 �
 현재 지원 경로의 예시(자리표시자는 실제 대상·존재하는 CLI로 교체, 이 문서에서 실행하지 않음):
 
 ```powershell
-$cliPath = 'C:\Projects\litzio\packages\cli\dist\cli.mjs'
+$cliPath = '<repo>\packages\cli\dist\cli.mjs'
 $targetHost = 'http://127.0.0.1:5197'
 $inputPath = 'C:\Work\scratch\jira-input.json'
 $viewPath = 'C:\Work\scratch\jira.view.json'

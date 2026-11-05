@@ -201,7 +201,7 @@
     "os": "Windows",
     "browser": "headless installed Chrome",
     "origin": "http://127.0.0.1:5173",
-    "worktree": "C:\\Users\\swBaek\\.paseo\\worktrees\\3icu9gjp\\feat-sidebar-collapse-folder-section",
+    "worktree": "<worktree>",
     "profile": "checkout-owned persistent profile reused by pnpm browser:test",
     "viewport": [
       [

@@ -11,7 +11,7 @@
 
 네 사례(OneDrive, GitHub/GitLab, Docling, Jira)를 같은 제작·실행·표시·저장 계약으로 설명한다. 특정 기능을 먼저 제품에 심고 나중에 플러그인으로 일반화하지 않는다. 문서 의미는 Core, 실행·연결·자격 증명은 대상 Host, 렌더러는 앱이 소유한다.
 
-입력은 2026-11-05의 `C:\Projects\litzio\tmp\research\plugin-architecture-proposal.md` 및 같은 폴더의 `plugin-arch-a-structure.md`, `plugin-arch-b-genui.md`다. 제안·정적 조사이며 실행 증명이 아니다. 보관 소스 기준은 `archive/plugins-docling-2026-11`의 `ce90560aacaee2482d37c4b25e36e93060ed156c`다. 제안서의 비서 관리 금지 추천과 저장 설명은 아래 소유자 정정으로 대체한다. 외부 프레임워크의 기능·안전성·직접 호환을 이 ADR로 보증하지 않는다.
+입력은 2026-11-05의 `<local-research>/plugin-architecture-proposal.md` 및 같은 폴더의 `plugin-arch-a-structure.md`, `plugin-arch-b-genui.md`다. 제안·정적 조사이며 실행 증명이 아니다. 보관 소스 기준은 `archive/plugins-docling-2026-11`의 `ce90560aacaee2482d37c4b25e36e93060ed156c`다. 제안서의 비서 관리 금지 추천과 저장 설명은 아래 소유자 정정으로 대체한다. 외부 프레임워크의 기능·안전성·직접 호환을 이 ADR로 보증하지 않는다.
 
 ## 결정
 
@@ -152,7 +152,7 @@ Core는 일시적·저장 명세의 구조·바인딩·정적 유효성·canonic
 ## 생성 UI 스파이크 결과에 따른 보완
 
 - Amendment date: 2026-11-05 — 소유자 결정 1~7과 추가 결정(설정 이전 보류·기본 UI/동적 UI 관계) 반영. 독립 검토 후 신규 저장 전용과 제한된 동일 모델 오류 수정 규칙을 명확히 했다. 후속 소유자 결정으로 가공 (나), 즐겨찾기 용어, Host의 플러그인별 데이터 폴더 저장과 1단계 새 탭 표시를 확정했다. Status는 Accepted를 유지한다.
-- 근거: [동적 UI 스파이크 브랜치](https://github.com/litzio/litzio/tree/spike/dynamic-ui), 확인 head `28b298cd01b13e1b1cf7711c54e89ce7195f4d14`의 조사 보고서 `tmp/research/dynamic-ui-spike.md`. 스파이크는 역사적 실험이며 제품 구현 계약이 아니다.
+- 근거: [동적 UI 스파이크 브랜치](https://github.com/litzio/litzio/tree/spike/dynamic-ui), 확인 head `28b298cd01b13e1b1cf7711c54e89ce7195f4d14`의 조사 보고서 `<local-research>/dynamic-ui-spike.md`. 스파이크는 역사적 실험이며 제품 구현 계약이 아니다.
 - 검증 범위: 독립 화면의 실제 Codex 호출, 같은 Core 명세·앱 렌더러, 생성→저장→재열기→수동 조회와 CLI 데이터 일치를 보고서로 대조했다. 이번 문서 작업에서 재실행하지 않았다. 기존 비서 통합·실제 Copilot·원격 Host·외부 API·설치 제품·필수 PR CI의 실행 증거로 사용하지 않는다.
 
 ### 확정한 결정
@@ -223,7 +223,7 @@ Core는 일시적·저장 명세의 구조·바인딩·정적 유효성·canonic
 ## 비서 플러그인 제작 로드맵(2026-11-05 개정)
 
 - Amendment date: 2026-11-05 — 소유자 결정으로 실행 모델·제작 범위·관리 승인·후속 순서를 개정한다. Status는 Accepted를 유지한다. 앞의 최초 단계 표와 스파이크 당시 판단은 역사적 근거이며 이 절이 후속 방향의 authority다.
-- 근거: 소유자 원문 `C:\Projects\litzio\tmp\research\authoring-roadmap-brief.md`, 같은 폴더의 `plugin-architecture-proposal.md`, `dynamic-ui-spike.md`, `docling-ui-contracts.md`. 조사 초안의 JSON 키는 확정 API가 아니다.
+- 근거: 소유자 원문 `<local-research>/authoring-roadmap-brief.md`, 같은 폴더의 `plugin-architecture-proposal.md`, `dynamic-ui-spike.md`, `docling-ui-contracts.md`. 조사 초안의 JSON 키는 확정 API가 아니다.
 - 실행 모델 참고: [Paseo public-docs/plugins/index.md 58행](https://github.com/getpaseo/paseo/blob/66676d49e6336a75837abec247871553a7658c35/public-docs/plugins/index.md#L58) 및 [229–239행](https://github.com/getpaseo/paseo/blob/66676d49e6336a75837abec247871553a7658c35/public-docs/plugins/index.md#L229-L239). 로컬 고정 checkout과 문서를 대조했으며 Paseo runtime을 실행하지 않았다.
 
 ### 목표·단계와 수락 시험
@@ -233,7 +233,7 @@ Core는 일시적·저장 명세의 구조·바인딩·정적 유효성·canonic
 | 단계 | 범위 | 수락 시험 |
 | --- | --- | --- |
 | 1: 기반(병렬) | (a) 하위 프로세스+reload, (b) [#1218](https://github.com/litzio/litzio/issues/1218)의 작업별 출력 schema 기반 일반화, (c) Windows OS secret 저장, (d) 비서 제작 키트, (e) K1 | daemon 재시작 없이 변경 반영·정리 및 reload 실패 상태 확인; 허용 작업 출력만 바인딩하고 잘못된 schema 거부; secret UI 입력·비서 비노출·평문 fallback 거부; scaffold→validate→reload를 같은 Host 작업과 CLI로 수행; 파일 한 개의 긴 작업 실패/uncertain·대기 중단·완료 결과 열기 확인 |
-| 2: 첫 제작 | 비서가 `C:\Projects\mockup-server`의 목업 Jira 읽기 플러그인 제작, 요구 인터뷰는 대화로 진행 | **비서가 목업 Jira 읽기 플러그인을 만든다**: 제작·검증·등록·신뢰·활성·조회까지 수행하고 기본 UI와 CLI 결과 일치, 활동 기록·오류·secret 비노출을 확인 |
+| 2: 첫 제작 | 비서가 `<mockup-server-repo>`의 목업 Jira 읽기 플러그인 제작, 요구 인터뷰는 대화로 진행 | **비서가 목업 Jira 읽기 플러그인을 만든다**: 제작·검증·등록·신뢰·활성·조회까지 수행하고 기본 UI와 CLI 결과 일치, 활동 기록·오류·secret 비노출을 확인 |
 | 3: 카탈로그 v2 | 2단계에서 막힌 폼·버튼·선 차트·가로 배치와 K2·K3·K4 | 작업 schema 기반 폼/버튼 호출과 차트·배치, 페이지/영역 표시·선택, 양방향 대응·stale 차단, 교정 승인/거절/Undo·원본 보존을 확인 |
 | 4: 비서 제작 수락 시험 | 비서가 Docling 플러그인 제작, K1~K4 연결. 제품 구현 지시 아님 | PDF 입력→변환 상태→완료 결과→페이지 이미지/Read 좌우 대조→교정 검토를 수행; 실제 변환·Core valid write·원본 보존·uncertain/no-replay와 CLI 공용 작업을 확인 |
 
@@ -276,7 +276,7 @@ Docling 화면은 **왼쪽 페이지 이미지, 오른쪽 Read 문서의 좌우 
 ## 카탈로그 v2 개정안 — 2단계 수락 결과 반영
 
 - Amendment status: Proposed. 이 절의 새 API·동작은 소유자 수락 대기이며 ADR의 기존 Accepted 결정과 구분한다. 상세 [카탈로그 v2 설계](../design/catalog-v2.md)는 Draft다. 2026-11-06 소유자 정정으로 K2~K4를 공용 요소로 한정했으며, 4단계는 비서가 Docling을 만드는 수락 시험이지 제품 구현 지시가 아니다. 문서 PR 병합만으로 제품 구현 완료를 주장하지 않는다.
-- 근거: 2026-11-05 2단계 보고서(`C:\Projects\litzio\tmp\research\stage2-jira-acceptance.md`, 시험 HEAD `d2b87e97`). 제작·등록·무재시작 수정은 성공했으나 검색 폼·5열 단일 표·안전한 오류 구분을 충족하지 못해 전체 수락 실패다. 선 차트·가로 배치는 실제 실패로 계수하지 않는다.
+- 근거: 2026-11-05 2단계 보고서(`<local-research>/stage2-jira-acceptance.md`, 시험 HEAD `d2b87e97`). 제작·등록·무재시작 수정은 성공했으나 검색 폼·5열 단일 표·안전한 오류 구분을 충족하지 못해 전체 수락 실패다. 선 차트·가로 배치는 실제 실패로 계수하지 않는다.
 
 제안은 앱 번들 카탈로그·기본 UI 항상 제공·동적 UI 새 탭·Host 플러그인별 `.view.json`·수동 조회·선택 모델의 가시적인 최대 2회 교정·Core의 제한된 가공을 유지한다. v2는 다음을 구체화한다.
 

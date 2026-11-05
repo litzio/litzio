@@ -5,7 +5,7 @@
     {
       "kind": "plain",
       "n": 2000,
-      "file": "C:\\Users\\swBaek\\.paseo\\worktrees\\3icu9gjp\\perf-mixed-2000-input-latency\\tmp\\perf-362\\documents\\plain-2000.md",
+      "file": "<worktree>\\tmp\\perf-362\\documents\\plain-2000.md",
       "keyFrameMs": [
         31.300000071525574,
         25.899999976158142,
@@ -168,7 +168,7 @@
     {
       "kind": "mixed",
       "n": 2000,
-      "file": "C:\\Users\\swBaek\\.paseo\\worktrees\\3icu9gjp\\perf-mixed-2000-input-latency\\tmp\\perf-362\\documents\\mixed-2000.md",
+      "file": "<worktree>\\tmp\\perf-362\\documents\\mixed-2000.md",
       "keyFrameMs": [
         112.5,
         89.60000002384186,

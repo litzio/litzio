@@ -11,7 +11,7 @@
 
 [Discussion #767](https://github.com/litzio/litzio/discussions/767)의 사용 형태 ②는 Desktop이 주소로 원격 Host에 연결해 로컬·원격 데이터를 한 화면에서 보는 형태다. ADR-0017에서 UI를 앱에 번들하고 Host API와 분리했지만, 단일 전역 클라이언트와 경로만의 식별로는 서로 다른 Host의 같은 경로를 안전하게 구별할 수 없다. 탭뿐 아니라 복구·폴더·자산·비서·설정·capability에도 Host 문맥이 필요하다. 문서 포맷에 Host 주소를 넣는 변경은 필요하지 않다.
 
-사전 조사 `C:\Projects\litzio\tmp\research\remote-hosts.md`(2026-11-05)는 Litzio `4e093f156ea3d53d80a2652da90dd50c80a5c64e`, Paseo `5d1a2c10f8a493e2329f3f9bee51dfb94ccd28af`의 정적 소스 조사다. 제품 실행이나 Windows Desktop·Linux 원격 연결의 증명이 아니다. 조사 원본의 수동 연결 추천과 자동 재연결 보류는 #1174의 결정 ②로 대체한다. 승인 범위의 authority는 조사 제안이 아니라 이 ADR과 소유자 결정이다.
+사전 조사 `<local-research>/remote-hosts.md`(2026-11-05)는 Litzio `4e093f156ea3d53d80a2652da90dd50c80a5c64e`, Paseo `5d1a2c10f8a493e2329f3f9bee51dfb94ccd28af`의 정적 소스 조사다. 제품 실행이나 Windows Desktop·Linux 원격 연결의 증명이 아니다. 조사 원본의 수동 연결 추천과 자동 재연결 보류는 #1174의 결정 ②로 대체한다. 승인 범위의 authority는 조사 제안이 아니라 이 ADR과 소유자 결정이다.
 
 Paseo에서 다음 원리를 참고한다. Litzio의 identity는 Paseo의 serverId를 그대로 가져오지 않고 아래 hostId로 정의한다.
 

@@ -176,7 +176,7 @@
         "percent": 0.89
       },
       {
-        "name": "endnoteOrder http://127.0.0.1:5193/@fs/C:/Users/swBaek/.paseo/worktrees/3icu9gjp/stabilize-performance/packages/core/src/numbering.ts:99",
+        "name": "endnoteOrder http://127.0.0.1:5193/@fs/<worktree>/packages/core/src/numbering.ts:99",
         "ms": 1.573,
         "percent": 0.89
       },
