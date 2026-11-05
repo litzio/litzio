@@ -11,7 +11,7 @@ import "./review.css";
 
 /** Host supplies one coherent snapshot, including the identity of the actual Read model. */
 export type ReviewSnapshot = {
-  bundle: ReviewBundle; page: ReviewPage; mapping: ReviewMapping; proposals: ReviewProposal[];
+  bundle: ReviewBundle; page: ReviewPage; mapping?: ReviewMapping; proposals: ReviewProposal[];
   document: EditableDocument; documentRevision: string; documentHash: string; documentPath: string;
   baseline: ReviewBaseline; pageCount: number; imageUrl?: string;
 };
@@ -21,13 +21,22 @@ export type ReviewAdapter = {
   act(action: ReviewAction, proposal: ReviewProposal, baseline: ReviewBaseline): Promise<void>;
   openDocument(): void;
 };
+function documentCoherent(s: ReviewSnapshot) {
+  const b = s.bundle;
+  return b.documentRevision === s.documentRevision && b.documentHash === s.documentHash
+    && s.baseline.documentRevision === b.documentRevision && s.baseline.sourceRevision === b.sourceRevision
+    && s.baseline.mappingRevision === b.mappingRevision;
+}
+/** Mapping validity controls correspondence navigation, never proposal action availability. */
 export function coherent(s: ReviewSnapshot) {
   const { bundle: b, page: p, mapping: m } = s;
-  return b.generation === p.generation && b.generation === m.generation && b.documentRevision === s.documentRevision
-    && b.documentHash === s.documentHash && b.documentRevision === m.documentRevision && b.documentHash === m.documentHash
+  return documentCoherent(s) && !!m && !m.continuation && b.generation === p.generation && b.generation === m.generation
+    && b.documentRevision === m.documentRevision && b.documentHash === m.documentHash
     && b.sourceRevision === p.sourceRevision && b.sourceRevision === m.sourceRevision && b.mappingRevision === m.mappingRevision
-    && s.baseline.documentRevision === b.documentRevision && s.baseline.sourceRevision === b.sourceRevision && s.baseline.mappingRevision === b.mappingRevision
     && m.entries.every(e => e.targets.every(t => t.documentRevision === b.documentRevision && t.documentHash === b.documentHash));
+}
+function targetsMatch(s: ReviewSnapshot, p: ReviewProposal) {
+  return p.targets.every(t => t.documentRevision === s.documentRevision && t.documentHash === s.documentHash);
 }
 function sameBaseline(a: ReviewBaseline, b: ReviewBaseline) {
   return a.documentRevision === b.documentRevision && a.proposalRevision === b.proposalRevision
@@ -41,8 +50,8 @@ function reveal(scroll: HTMLElement, top: number, height: number) {
 }
 const regionStatus = { supported: "Supported", unsupported: "Unsupported", decoration: "Decoration", excluded: "Excluded" };
 const proposalStatus = { pending: "Pending review", approved: "Applied", rejected: "Rejected", inapplicable: "Cannot apply", stale: "Out of date" };
-export function PageSurface({ snapshot: s, selected, onSelect, onPage, disabled = false }: {
-  snapshot: ReviewSnapshot; selected: string[]; onSelect(id: string): void; onPage(page: number): void; disabled?: boolean;
+export function PageSurface({ snapshot: s, selected, onSelect, onPage, disabled = false, selectionDisabled = false }: {
+  snapshot: ReviewSnapshot; selected: string[]; onSelect(id: string): void; onPage(page: number): void; disabled?: boolean; selectionDisabled?: boolean;
 }) {
   const [zoom, setZoom] = useState(1), [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [s.imageUrl]);
@@ -53,7 +62,7 @@ export function PageSurface({ snapshot: s, selected, onSelect, onPage, disabled 
       <Button variant="outline" onClick={() => setZoom(v => v === 1 ? 1.5 : 1)}>{zoom === 1 ? "Zoom in" : "Fit to width"}</Button></div>
     <div className="review-page-scroll"><div className="review-page" style={{ width: `${zoom * 100}%`, aspectRatio: `${p.width}/${p.height}` }}>
       {s.imageUrl && !failed ? <img src={s.imageUrl} alt={`Source page ${p.pageNo}`} onError={() => setFailed(true)} /> : <Notice>No image available. Showing regions only.</Notice>}
-      {p.regions.map(r => { const [x1,y1,x2,y2] = r.bbox; return <Button key={r.id} variant="ghost" className="review-region p-0 rounded-none" aria-label={`${r.category} · ${regionStatus[r.status]}${r.reason ? ` · ${r.reason}` : ""}`} aria-pressed={selected.includes(r.id)} disabled={disabled}
+      {p.regions.map(r => { const [x1,y1,x2,y2] = r.bbox; return <Button key={r.id} variant="ghost" className="review-region p-0 rounded-none" aria-label={`${r.category} · ${regionStatus[r.status]}${r.reason ? ` · ${r.reason}` : ""}`} aria-pressed={selected.includes(r.id)} disabled={disabled || selectionDisabled}
         style={{ left: `${x1/p.width*100}%`, top: `${(p.origin === "TOPLEFT" ? y1 : p.height-y2)/p.height*100}%`, width: `${(x2-x1)/p.width*100}%`, height: `${(y2-y1)/p.height*100}%` }} onClick={() => onSelect(r.id)}><span>{r.category} · {regionStatus[r.status]}</span></Button>; })}
     </div></div>
   </section>;
@@ -66,7 +75,7 @@ export function SourceDocumentCompare({ snapshot: s, disabled, onPage }: { snaps
   const valid = !disabled && coherent(s);
   useEffect(() => { setSources([]); setTargets([]); setUnmapped(false); }, [s]);
   const selectSource = (id: string) => {
-    if (!valid) return;
+    if (!valid || !s.mapping) return;
     const entries = s.mapping.entries.filter(e => e.sourceIds.includes(id));
     const keys = entries.flatMap(e => e.targets.map(t => JSON.stringify(t.path)));
     setSources([id]); setTargets(keys); setUnmapped(!keys.length);
@@ -74,7 +83,7 @@ export function SourceDocumentCompare({ snapshot: s, disabled, onPage }: { snaps
     if (first && scroll.current && content.current) reveal(scroll.current, content.current.offsetTop + first.top, first.height);
   };
   const selectDocument = (key: string | undefined) => {
-    if (!valid || !key) return;
+    if (!valid || !key || !s.mapping) return;
     const ids = s.mapping.entries.filter(e => e.targets.some(t => JSON.stringify(t.path) === key)).flatMap(e => e.sourceIds);
     setTargets([key]); setSources(ids); setUnmapped(!ids.length);
 
@@ -87,13 +96,15 @@ export function SourceDocumentCompare({ snapshot: s, disabled, onPage }: { snaps
     if (container && region) { const a = container.getBoundingClientRect(), b = region.getBoundingClientRect(); reveal(container, container.scrollTop + b.top-a.top, b.height); }
   }, [sources]);
   return <><div className="review-compare">
-    <div ref={source}><PageSurface snapshot={s} selected={sources} onSelect={selectSource} onPage={onPage} disabled={disabled} /></div>
+    <div ref={source}><PageSurface snapshot={s} selected={sources} onSelect={selectSource} onPage={onPage} disabled={disabled} selectionDisabled={!valid} /></div>
     <section aria-label="Document preview" className="review-read" ref={scroll} tabIndex={0}>
       <div className="review-reading-content" ref={content}>
         <DocumentEditor readOnly preview document={s.document} documentPath={s.documentPath} onStructuralReject={() => {}} onReadingLayout={setPositions} onReadingSelection={selectDocument} />
         <div className="review-highlights" aria-hidden="true">{positions.blocks.filter(b => targets.includes(b.key)).map(b => <div key={b.key} style={{ top: b.top, height: b.height }} />)}</div>
       </div>
-    </section></div>{unmapped && <Notice>No matching content.</Notice>}{s.mapping.continuation && <Notice>Mappings are incomplete. Refresh data before reviewing.</Notice>}</>;
+    </section></div>{unmapped && <Notice>No matching content.</Notice>}{!disabled && !valid && <Notice tone="warning">{!s.mapping ? "Correspondence unavailable. Source-to-document navigation is disabled."
+      : s.mapping.continuation ? "Mappings are incomplete. Source-to-document navigation is disabled."
+      : "Mappings are out of date. Source-to-document navigation is disabled."}</Notice>}</>;
 }
 export function ReviewList({ proposals, selected, onSelect }: { proposals: ReviewProposal[]; selected?: string; onSelect(id: string): void }) {
   return <nav aria-label="Changes" className="review-list">{!proposals.length && <Notice>No changes to review.</Notice>}{proposals.map((p, index) => <Button key={p.id} variant={selected === p.id ? "secondary" : "ghost"} aria-pressed={selected === p.id} onClick={() => onSelect(p.id)}>Change {index + 1} · {proposalStatus[p.state]}</Button>)}</nav>;
@@ -168,11 +179,11 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
     try { const next = await adapter.read(pageNo); if (token === epoch.current) { setSnapshot(next); setState("ready"); } }
     catch { if (token === epoch.current) setState("unavailable"); } finally { if (token === epoch.current) busy.current = false; }
   };
-  const stale = snapshot && (!coherent(snapshot) || snapshot.bundle.bundleRef !== view.sources.review.bundleRef || !!snapshot.mapping.continuation);
+  const stale = snapshot && (!documentCoherent(snapshot) || snapshot.bundle.bundleRef !== view.sources.review.bundleRef);
   const disabled = state !== "ready" || !!stale;
   const proposal = snapshot?.proposals.find(p => p.id === selected);
   const act = async (action: ReviewAction) => {
-    if (busy.current || disabled || !snapshot || !proposal || !sameBaseline(proposal.baseline, snapshot.baseline) || !proposal.actions.some(a => a.action === action && a.allowed)) return;
+    if (busy.current || disabled || !snapshot || !proposal || !sameBaseline(proposal.baseline, snapshot.baseline) || !targetsMatch(snapshot, proposal) || (action === "undo" ? proposal.state !== "approved" : proposal.state !== "pending") || !proposal.actions.some(a => a.action === action && a.allowed)) return;
     busy.current = true; const token = ++epoch.current; setState("refreshing");
     try {
       await adapter.act(action, proposal, snapshot.baseline);
@@ -192,7 +203,7 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
       {child.component === "SourceDocumentCompare" && <SourceDocumentCompare snapshot={snapshot} disabled={disabled} onPage={n => void read(n)} />}
       {child.component === "ReviewList" && <ReviewList proposals={snapshot.proposals} selected={selected} onSelect={setSelected} />}
       {child.component === "ReviewDetail" && (proposal
-        ? <ReviewDetail proposal={proposal} document={snapshot.document} baseline={snapshot.baseline} disabled={disabled || proposal.targets.some(t => t.documentRevision !== snapshot.documentRevision || t.documentHash !== snapshot.documentHash)} onAction={a => void act(a)} />
+        ? <ReviewDetail proposal={proposal} document={snapshot.document} baseline={snapshot.baseline} disabled={disabled || !targetsMatch(snapshot, proposal)} onAction={a => void act(a)} />
         : <Notice>Select a change to view its details.</Notice>)}
     </section>)}</div>}
   </div>;

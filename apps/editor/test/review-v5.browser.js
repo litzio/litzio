@@ -60,7 +60,16 @@ async (page, { expect, screenshots }) => {
   await page.getByRole('button', { name: 'Approve', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
   await expect(read.getByText('정정된 문장입니다.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Correspondence unavailable.', { exact: false })).toBeVisible();
+  await expect(region).toBeDisabled();
+  await read.locator('.document-editor p').first().click();
+  await expect(page.locator('.review-highlights > div')).toHaveCount(0);
+  if (screenshots) await page.screenshot({ path: 'tmp/review-mapless-undo-1440.png', fullPage: true });
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await expect(read.getByText('검토할 문장입니다.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'no-map', exact: true }).click();
+  await page.getByRole('button', { name: /Change 1/ }).click();
   await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Reject', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled();
@@ -89,6 +98,37 @@ async (page, { expect, screenshots }) => {
   await expect(read).toHaveCount(0);
   if (screenshots) await page.screenshot({ path: 'tmp/review-v5-narrow.png', fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
+  // Missing/incomplete mappings disable only correspondence, while current proposals remain actionable.
+  for (const mode of ['no-map', 'continuation']) {
+    await page.getByRole('button', { name: mode, exact: true }).click();
+    await page.getByRole('button', { name: /Change 1/ }).click();
+    await expect(region).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Next page', exact: true })).toBeEnabled();
+    await read.locator('.document-editor p').first().click();
+    await expect(page.locator('.review-highlights > div')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Reject', exact: true })).toBeEnabled();
+    await page.getByRole('button', { name: 'Approve', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await expect(read.getByText('검토할 문장입니다.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
+  }
+  // Reject also succeeds with an incomplete mapping, without applying the proposed text.
+  await page.getByRole('button', { name: 'normal', exact: true }).click();
+  await page.getByRole('button', { name: 'continuation', exact: true }).click();
+  await page.getByRole('button', { name: /Change 1/ }).click();
+  await page.getByRole('button', { name: 'Reject', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Change details' })).toContainText('Rejected');
+  await expect(read.getByText('검토할 문장입니다.', { exact: true })).toBeVisible();
+  // Separating map availability must not bypass baseline or target validation.
+  for (const mode of ['stale-baseline', 'stale-target']) {
+    await page.getByRole('button', { name: mode, exact: true }).click();
+    await page.getByRole('button', { name: /Change 1/ }).click();
+    await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Reject', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
+  }
   // V1 allows arbitrary typed kinds, but the UI must never expose their JSON structure.
   await page.getByRole('button', { name: 'typed-object', exact: true }).click();
   await page.getByRole('button', { name: /Change 1/ }).click();
