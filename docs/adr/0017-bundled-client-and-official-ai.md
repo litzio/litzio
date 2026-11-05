@@ -8,6 +8,10 @@
 - Scope: 같은 PC의 로컬 daemon, 공식 AI 이전과 플러그인·Docling 기능 제거·보관, 소유자 개시 후 컨셉 재개발, Desktop 번들 UI 전환. Accepted는 구현 완료를 뜻하지 않는다.
 - Amends: [ADR-0012](0012-plugin-runtime-and-ui-contributions.md), [ADR-0013](0013-ai-agent-task-service.md), [ADR-0015](0015-shared-host-operations.md), [ADR-0016](0016-shared-local-daemon-host.md)의 아래 명시한 경계.
 
+## Amendment: 플러그인 계층 개념 (2026-11-05)
+
+[ADR-0019](0019-plugin-tiers.md)은 공식/커뮤니티 계층과 공통 manifest·SDK·권한, 대상 Host 실행·자격 증명, 앱 번들 UI·공용 작업·CLI 경계를 개념으로 결정한다. 과거 same-origin ESM/CSS 로딩은 최초 UI에서 채택하지 않는다. 비서는 제품 기능이며 Docling은 재개 시 커뮤니티 계층으로 다룰 수 있다. 충돌하는 개념에는 ADR-0019를 우선 적용하되 아래 과거 결정·구현 기록은 보존한다. ADR-0017의 기능 제거·보관과 소유자의 명시적 재개 개시 조건은 유지하며, 이번 개념 결정으로 구현을 재개하지 않는다.
+
 ## Amendment: Desktop 원격 Host와 여러 Host 보기 (2026-11-04, #1174)
 
 [ADR-0018](0018-desktop-remote-hosts.md)은 소유자 결정 ①~⑨에 따라 Desktop 로컬 등록 목록·불변 hostId, 등록한 원격 Host의 자동 연결·재연결, Host별 탐색기·필터·탭·비서 대상과 공용 등록 작업·CLI를 결정한다. 기존의 원격 Host 보류를 이 범위에서 해제한다. 로컬 daemon의 자동 탐색·spawn·수동 다시 연결·종료 정책은 유지하며 원격 daemon 제어는 제공하지 않는다. 구현은 #1174 PR1~4에서 진행하고 아래 단일 로컬 Host 구현·당시 조사 기록은 보존한다. Accepted는 구현 완료 선언이 아니다.
