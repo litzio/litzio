@@ -117,12 +117,16 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
       form: { component: "InputForm", source: "stats", fields: [{ component: "Select", field: "preset" }, { component: "TextInput", field: "text" }], submit: { component: "SubmitButton", label: "Search" } },
       layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Issues", source: "stats", data: "/rows", columns: Object.keys(rowSchema) }] } };
     manifest.contributes.operations = [{ id: "search", version: 1, effect: "read", scope: "host", rowSchema,
-      inputSchema: { type: "object", properties: { preset: { type: "string", enum: presets }, text: { type: "string" }, credential: { type: "string", writeOnly: true } }, required: ["preset"], additionalProperties: false },
+      inputSchema: { type: "object", properties: { preset: { type: "string", enum: presets }, text: { type: "string", minLength: 2, pattern: "^[A-Za-z]+$" }, credential: { type: "string", writeOnly: true } }, required: ["preset"], additionalProperties: false },
       outputSchema: { type: "array", items: { type: "object" } } }];
+    // SDK-valid runtime schema, intentionally unsupported for persisted view input.
+    manifest.contributes.operations.push({ ...manifest.contributes.operations[0], id: "advanced", inputSchema: {
+      type: "object", properties: { term: { anyOf: [{ type: "string" }, { type: "number" }] } }, additionalProperties: false,
+    } });
     manifest.contributes.views = [{ id: "issues", title: "My issues", definition: jiraView }];
     fs.writeFileSync(manifestFile, JSON.stringify(manifest));
     fs.writeFileSync(path.join(artifact, "host.js"), `export function activate() { return {
-      operations: { search: ({preset, text}) => { if(text === "fail") throw Object.assign(new Error("PRIVATE SERVICE BODY"), {kind:"auth"}); return [{key:"MOCK-1",summary:preset,status:"Open",assignee:text ?? "me",updated:"2026-11-06"}]; } },
+      operations: { advanced: () => [], search: ({preset, text}) => { if(text === "fail") throw Object.assign(new Error("PRIVATE SERVICE BODY"), {kind:"auth"}); return [{key:"MOCK-1",summary:preset,status:"Open",assignee:text ?? "me",updated:"2026-11-06"}]; } },
       status: () => ({available:true,message:"Ready",folders:[],decorations:[],accounts:[]}), dispose() {} }; }`);
     await manage({ action: "register", directory: artifact });
     const records = await (await fetch(`${host.url}/api/plugins`)).json();
@@ -145,6 +149,14 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     fs.writeFileSync(jiraFile, JSON.stringify(jiraView));
     fs.writeFileSync(inputFile, JSON.stringify({ preset: "reported-open" }));
     const catalog = await request({ action: "catalog" });
+    assert.equal(catalog.receipt.outcome, "success");
+    assert.ok(catalog.catalog.schema); assert.equal(catalog.catalog.limits.columns, 12);
+    assert.ok(!("operations" in catalog)); // One response contract: catalog.operations.
+    assert.ok(catalog.catalog.operations.some((op: any) => op.operation === "folder.statistics"));
+    assert.ok(catalog.catalog.operations.some((op: any) => op.operation === `${jira}.search` && op.plugin === jira));
+    assert.ok(!catalog.catalog.operations.some((op: any) => op.operation === `${jira}.advanced`));
+    // The excluded operation remains available through ordinary runtime invocation.
+    assert.deepEqual((await manage({ action: "invoke", operation: `${jira}.advanced`, input: { term: 1 } })).result, []);
     assert.equal(catalog.views.find((v: any) => v.plugin === jira).definition.layout.children[0].columns.length, 5);
     parity(catalog, await cliRequest(["catalog"]));
     parity(await request({ action: "propose", view: jiraView }), await cliRequest(["propose", jiraFile]));
@@ -173,17 +185,49 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     const failedCli = await cliRequest(["run", jiraFile, "--input", inputFile, "--root", root], 1);
     assert.equal(failedCli.errorKind, failed.errorKind); assert.equal(failed.errorKind, "auth");
     assert.equal(failedCli.error, failed.error); assert.ok(!JSON.stringify(failed).includes("PRIVATE"));
+    for (const [args, keyword, field] of [
+      [{ preset: "all", text: "x" }, "minLength", "/text"],
+      [{ preset: "all", text: "PRIVATE-123" }, "pattern", "/text"],
+      [{ preset: "INVALID-PRIVATE" }, "enum", "/preset"],
+      [{ preset: "all", credential: "PRIVATE" }, "secret", undefined],
+      [[], "type", undefined],
+    ] as const) {
+      fs.writeFileSync(inputFile, JSON.stringify(args));
+      const rejected = await request({ action: "run", view: jiraView, root, input: args });
+      assert.equal(rejected.code, "invalid-input"); assert.ok(!("errorKind" in rejected));
+      assert.ok(rejected.inputIssues.some((issue: any) => issue.keyword === keyword && issue.field === field));
+      assert.ok(!JSON.stringify(rejected).includes("PRIVATE"));
+      parity(rejected, await cliRequest(["run", jiraFile, "--input", inputFile, "--root", root], 1));
+    }
+    assert.ok(!("inputIssues" in failed)); // Source errors retain only #1233 classification.
     const incomplete = structuredClone(jiraView); incomplete.sources.stats.args = {} as any;
     const needs = await request({ action: "propose", view: incomplete });
     assert.equal(needs.inputState.state, "needs-input");
     assert.equal((await request({ action: "save", view: incomplete, name: "incomplete" })).receipt.outcome, "success");
     assert.equal((await request({ action: "open", plugin: jira, name: "incomplete" })).inputState.state, "needs-input");
     assert.equal((await request({ action: "run", plugin: jira, name: "incomplete", root, input: { preset: "all" } })).receipt.outcome, "success");
-    assert.equal((await request({ action: "run", view: incomplete, root })).code, "needs-input");
+    const missingInput = await request({ action: "run", view: incomplete, root });
+    assert.equal(missingInput.code, "invalid-input");
+    assert.deepEqual(missingInput.inputIssues, [{ field: "/preset", keyword: "required" }]);
     await manage({ action: "disable", id: jira });
     parity(await request({ action: "open", plugin: jira, name: "issues" }), await cliRequest(["open", "issues", "--plugin", jira], 1));
     assert.equal((await request({ action: "run", plugin: jira, name: "issues", root })).code, "unavailable");
     assert.ok(!(await request({ action: "catalog" })).views.some((v: any) => v.plugin === jira));
+    // Keep version 1, but remove a previously bound column. The stored file must
+    // be reported unavailable (with new-view advice), not as a generic bad request.
+    delete manifest.contributes.operations[0].rowSchema.updated;
+    manifest.contributes.views[0].definition.layout.children[0].columns = ["key", "summary", "status", "assignee"];
+    fs.writeFileSync(manifestFile, JSON.stringify(manifest));
+    await manage({ action: "register", directory: artifact });
+    const removed = await (await fetch(`${host.url}/api/plugins`)).json();
+    await manage({ action: "trust", id: jira, digest: removed.plugins.find((p: any) => p.id === jira).digest });
+    await manage({ action: "enable", id: jira });
+    const missingColumn = await request({ action: "open", plugin: jira, name: "issues" });
+    assert.equal(missingColumn.code, "unavailable"); assert.match(missingColumn.error, /Create a new view/);
+    parity(missingColumn, await cliRequest(["open", "issues", "--plugin", jira], 1));
+    assert.equal((await request({ action: "run", plugin: jira, name: "issues", root })).code, "unavailable");
+    assert.equal(fs.readFileSync(favouriteFile, "utf8"), preserved);
+    await manage({ action: "disable", id: jira });
     manifest.contributes.operations[0].version = 2;
     manifest.contributes.views[0].definition.sources.stats.version = 2;
     fs.writeFileSync(manifestFile, JSON.stringify(manifest));

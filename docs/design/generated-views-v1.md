@@ -12,13 +12,41 @@ Implemented 2026-11-06: `server/views.ts` accepts catalog v2 query definitions t
 
 `POST /api/views` adds `catalog` (public Core schema, limits, current operations with their Host-owned `plugin` identity and `{plugin,id,title,definition}` contributed views) and `propose` (same validated definition, canonical JSON, inputState and receipt as validate; no query/save/UI action). SDK validates contributed query definitions against the same plugin's operations before executing its entry. PluginHost owns loaded declarations and operation identity; view-service has no state or independent lifetime. Disabling removes contributed views from catalog. Open/validate/run recheck current operations and versions. Base UI can consume catalog operations independently of explicit views; fallback forms and unsupported-input presentation belong to V3.
 
+### Catalog HTTP contract (V2 authority)
+
+The single catalog endpoint is **`POST /api/views`**, with `Content-Type: application/json` and body **`{"action":"catalog"}`**. It follows the same action/receipt dispatch as the other view operations. `GET /api/views/catalog` is not a supported API. V3 must consume **`response.catalog.operations`**, not `response.operations`.
+
+A successful response (HTTP 200) has this structure:
+
+```json
+{
+  "catalog": {
+    "schema": {},
+    "limits": {},
+    "operations": [
+      {"plugin":"example.jira","operation":"example.jira.search","version":1,"inputSchema":{},"rowSchema":{}}
+    ]
+  },
+  "views": [{"plugin":"example.jira","id":"issues","title":"My issues","definition":{}}],
+  "receipt": {"requestId":"...","operation":"view.catalog","version":1,"scope":"host","outcome":"success","timestamp":"..."}
+}
+```
+
+The empty objects above stand for Core's actual public schema, limits, row/input schema and validated definition. A read operation whose input schema cannot pass Core's persistence/public-schema check (for example `anyOf`) is omitted individually from `catalog.operations`; it does not fail the catalog or hide built-in statistics/other supported operations. Its ordinary plugin operation remains callable through the operation API. No unsupported schema or exception text is published. CLI `view catalog` returns this exact envelope with an added `host` field.
+
 Save resolves the owner from the registered source operation; only `folder.statistics` uses `litzio.statistics`. An optional supplied plugin must match. New files use file-commit exclusive creation at `<Host settings directory>/plugins/<plugin>/views/<name>.view.json` with the existing 200-file limit per collection. List/open/named run select a plugin namespace. Duplicate names never overwrite. Only canonical definition/args are persisted.
 
-Run/save accept optional `input`, replacing the entire source args object before Core validation. Missing form-bound required inputs may be saved/proposed with `inputState: {state:"needs-input",missing:[...]}` but cannot execute. Run applies the original full input validator before invoking. Secret/writeOnly/password input remains fail-closed. Open restores the definition/args and inputState without querying or requiring a document Root. Run returns effective `args`, Core rows, public fields, root target and receipt. Plugin results use `publicOperationResult`; failures preserve #1233 fixed errorKind/message and safe source receipt. Local refusals use fixed messages and code (`unavailable`, `needs-input`, `owner-mismatch`, `invalid-view-request`) without publishing exception/schema-input text. Unavailable/version-changed favorites remain on disk.
+Run/save accept optional `input`, replacing the entire source args object before Core validation. Missing form-bound required inputs may be saved/proposed with `inputState: {state:"needs-input",missing:[...]}` but cannot execute. Run applies the original full input validator before invoking. Secret/writeOnly/password input remains fail-closed. Open restores the definition/args and inputState without querying or requiring a document Root. Run returns effective `args`, Core rows, public fields, root target and receipt. Plugin results use `publicOperationResult`; failures preserve #1233 fixed errorKind/message and safe source receipt. Local refusals use fixed messages and code (`unavailable`, `owner-mismatch`, `invalid-view-request`) without publishing exception/schema-input text. Unavailable/version-changed favorites remain on disk. A removed, secret or incompatible bound output field also returns `code: unavailable` and fixed new-view advice; binding checks remain Core-owned.
+
+### Input refusal contract
+
+Input-value rejection returns HTTP 400 with `{error, code:"invalid-input", inputIssues: {field?: string; keyword: string}[], receipt}`. `error` is fixed Host advice; receipt has failure outcome and the requested view operation. `field`, when present, is a JSON Pointer relative to the effective args object (for example `/preset` or `/filters/0/name`). Required-field errors use the missing declared public field's path. `keyword` is the validator keyword, such as `required`, `type`, `enum`, `minLength`, `pattern` or `format`. Core persistence limits also use `maxLength`, `additionalProperties` or `secret`. Secret/unknown field names are omitted, as are their values; no raw schema message, pattern, enum candidates or validator params are published. A semantic validator refusal without schema diagnostics has an empty array.
+
+For example: `{"error":"View inputs are invalid. Check the indicated fields.","code":"invalid-input","inputIssues":[{"field":"/preset","keyword":"required"}],"receipt":{...}}`. Missing form-bound input is still allowed in static validate/save/open (`inputState: needs-input`); executing it produces this input refusal. A non-object replacement `input` produces `[{keyword:"type"}]`. CLI preserves the identical inputIssues structure. Input refusals do not carry #1233 `errorKind`; plugin execution errors keep their fixed #1233 `errorKind` and have no inputIssues. Invalid view structure/storage and unavailable source remain separate refusal categories.
 
 CLI `view catalog`, `view propose <file>`, `view run <file> --input <args.json> --root <root>`, `view save <file> --input <args.json> --name <name>`, `view list --plugin <id>`, `view open <name> --plugin <id>` and `view run --name <name> --plugin <id> --root <root>` use the same Host handler. Explicit `--host` is required. CLI adds only `host`; independent requests have different receipt IDs/timestamps. Save infers the plugin; list/open/named run default to built-in statistics when plugin is omitted.
 
-The existing `views.test.ts` now checks HTTP/CLI over one real Host/plugin child with a six-value preset schema and one representative changed preset: five-column Jira-style rows, whole-args replacement, propose/catalog, new storage, definition-only open, input restoration, manual run, authentication classification, disable/version-change refusal and file preservation. This fixture does not claim actual Jira, browser renderer or assistant acceptance. Existing statistics/file tests remain; Core input combinations are not duplicated.
+The existing `views.test.ts` now checks HTTP/CLI over one real Host/plugin child with a six-value preset schema and one representative changed preset: five-column Jira-style rows, whole-args replacement, propose/catalog, new storage, definition-only open, input restoration, manual run, safe input diagnostics, authentication classification, per-operation catalog exclusion, removed-column/disable/version-change refusal and file preservation. This fixture does not claim actual Jira, browser renderer or assistant acceptance. Existing statistics/file tests remain; Core input combinations are not duplicated.
 
 ## Definition and binding
 

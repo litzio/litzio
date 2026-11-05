@@ -4,8 +4,8 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getEditableDocument, hasNativeMarker, parse } from "@litzio/core";
-import { builtinViewOperations, type ViewOperation, type StatisticsRow } from "@litzio/core/views";
-import { evaluateQueryView, serializeCatalogView, validateCatalogView, validateViewInputs, createCatalogV2, catalogViewSchema, VIEW_LIMITS, type QueryView } from "@litzio/core/views-v2";
+import { validateQueryBindings, builtinViewOperations, type ViewOperation, type StatisticsRow } from "@litzio/core/views";
+import { ViewInputError, evaluateQueryView, serializeCatalogView, validateCatalogView, validateViewInputs, createCatalogV2, catalogViewSchema, VIEW_LIMITS, type QueryView } from "@litzio/core/views-v2";
 import { publicOperationError } from "./plugins/operation-result.ts";
 import { createFile, decodeUtf8, textRevision } from "@litzio/file-commit";
 import { accessPath, inside, RootAccess, type FileAccess } from "./file-access.ts";
@@ -30,7 +30,7 @@ export const viewRequestSchema = z.union([
 ]);
 
 class ViewRefusal extends Error {
-  constructor(readonly code: "unavailable" | "needs-input" | "owner-mismatch") { super(code); }
+  constructor(readonly code: "unavailable" | "owner-mismatch") { super(code); }
 }
 function query(value: unknown, operations: readonly ViewOperation[], input?: Record<string, unknown>): QueryView {
   // Replace the entire args object before validation, including when saved args are incomplete.
@@ -39,7 +39,14 @@ function query(value: unknown, operations: readonly ViewOperation[], input?: Rec
     value = { ...envelope, sources: { ...envelope?.sources, stats: { ...envelope?.sources?.stats, args: input } } };
   }
   const parsed = catalogViewSchema.parse(value);
-  if (parsed.profile === "query" && !operations.some(op => op.operation === parsed.sources.stats.operation && op.version === parsed.sources.stats.version)) throw new ViewRefusal("unavailable");
+  if (parsed.profile === "query") {
+    const operation = operations.find(op => op.operation === parsed.sources.stats.operation && op.version === parsed.sources.stats.version);
+    if (!operation) throw new ViewRefusal("unavailable");
+    // Core owns binding semantics. A removed/private or incompatible output field
+    // makes the source unavailable to this definition, including saved favorites.
+    try { validateQueryBindings(parsed, [{ ...operation, validateArgs: () => true }]); }
+    catch { throw new ViewRefusal("unavailable"); }
+  }
   const view = validateCatalogView(parsed, operations);
   if (view.profile !== "query") throw new Error("Query profile required");
   return view;
@@ -99,13 +106,26 @@ export async function executeViewOperation(value: unknown, scope: { access: File
   const receipt = { requestId: randomUUID(), operation: "view", version: 1, scope: "host" as string, outcome: "failure" as "failure" | "success", timestamp: new Date().toISOString() };
   try {
     const operations = scope.plugins?.viewOperations() ?? builtinViewOperations;
+    // Replacement args must be an object; classify its envelope error as input,
+    // without serializing Zod diagnostics or the rejected value.
+    const supplied = value as { action?: unknown; input?: unknown } | null;
+    if ((supplied?.action === "run" || supplied?.action === "save") && supplied.input !== undefined && !z.record(z.string(), z.unknown()).safeParse(supplied.input).success) {
+      receipt.operation = `view.${supplied.action}`;
+      throw new ViewInputError("Invalid operation args", [{ keyword: "type" }]);
+    }
     const input = viewRequestSchema.parse(value);
     receipt.operation = `view.${input.action}`;
     const success = { ...receipt, outcome: "success" as const };
     const operationOwner = (operation: string) => operation === "folder.statistics" ? STATISTICS_PLUGIN_ID : scope.plugins?.viewOperationOwner(operation);
     if (input.action === "catalog") {
-      const catalog = createCatalogV2(operations);
-      return { catalog: { ...catalog, operations: catalog.operations.map(op => ({ ...op, plugin: operationOwner(op.operation) })) }, views: scope.plugins?.viewContributions() ?? [], receipt: success };
+      const catalog = createCatalogV2([]);
+      // Runtime operations may use schemas that cannot safely persist view input.
+      // Isolate that refusal to the individual operation, preserving Core's check.
+      const available = operations.flatMap(operation => {
+        try { return createCatalogV2([operation]).operations.map(op => ({ ...op, plugin: operationOwner(op.operation) })); }
+        catch { return []; }
+      });
+      return { catalog: { ...catalog, operations: available }, views: scope.plugins?.viewContributions() ?? [], receipt: success };
     }
     const ownerOf = (view: QueryView) => operationOwner(view.sources.stats.operation);
     const describe = (view: QueryView) => ({ view, plugin: ownerOf(view), inputState: validateViewInputs(view, operations.find(op => op.operation === view.sources.stats.operation && op.version === view.sources.stats.version)!) });
@@ -118,7 +138,6 @@ export async function executeViewOperation(value: unknown, scope: { access: File
       const view = "view" in input ? query(input.view, operations, input.input) : openFavourite(favouritesDirectory(input.plugin, scope.directory), input.name, operations, input.input);
       if ("plugin" in input && ownerOf(view) !== input.plugin) throw new ViewRefusal("owner-mismatch");
       const operation = operations.find(op => op.operation === view.sources.stats.operation && op.version === view.sources.stats.version)!;
-      if (validateViewInputs(view, operation).state === "needs-input") throw new ViewRefusal("needs-input");
       validateViewInputs(view, operation, "execute");
       const root = fs.realpathSync(accessPath(input.root, scope.access));
       const source = view.sources.stats;
@@ -161,8 +180,9 @@ export async function executeViewOperation(value: unknown, scope: { access: File
     if (ownerOf(view) !== plugin) throw new ViewRefusal("owner-mismatch");
     return { ...describe(view), name: input.name, receipt: { ...receipt, outcome: "success" as const } };
   } catch (error) {
+    if (error instanceof ViewInputError) return { error: "View inputs are invalid. Check the indicated fields.", code: "invalid-input" as const, inputIssues: error.inputIssues, receipt };
     const code = error instanceof ViewRefusal ? error.code : "invalid-view-request";
-    const messages = { unavailable: "View source unavailable or version changed. Create a new view or check plugin settings.", "needs-input": "Complete required view inputs before running.", "owner-mismatch": "Favourite source does not belong to this plugin.", "invalid-view-request": "View request is invalid or favourite storage is unavailable. Check the definition, inputs and favourite name." };
+    const messages = { unavailable: "View source unavailable, version changed or output fields incompatible. Create a new view or check plugin settings.", "owner-mismatch": "Favourite source does not belong to this plugin.", "invalid-view-request": "View request is invalid or favourite storage is unavailable. Check the definition, inputs and favourite name." };
     return { ...publicOperationError(undefined, "read"), error: messages[code], code, receipt };
   }
 }
