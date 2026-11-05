@@ -3,7 +3,7 @@
 - Status: Implemented
 - Last verified: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
 - Terminology: [제품 용어집](../contributing/terminology.md); PR B completed the assistant code/API naming transition.
-- Official AI transition: 2026-11-04 (#1150 ③). `assistant-host.ts` composes connections/conversations directly; no registration, manifest, worker or plugin UI is loaded. Settings use the built-in Settings → Assistant category with the shared Button, SettingsSelect and Dialog components. No UI pattern exception. Protocol version 4 refuses older daemons.
+- Official AI transition: 2026-11-04 (#1150 ③). `assistant-host.ts` composes connections/conversations directly; the official AI itself requires no registration, manifest or plugin worker. Owner-initiated ADR-0020 plugin management is a separate Host feature (see Plugin stage 1 below). Settings use the built-in Settings → Assistant category with the shared Button, SettingsSelect and Dialog components. No UI pattern exception. Protocol version 4 refuses older daemons.
 - Historical PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation. PR4's packaged worker/native comparison was required Windows CI then; #1150 ③ removed that feature. Current Windows CI retains packaged Desktop and main/CLI license-notice checks in the startup/sample smoke.
 - Assistant naming (#1168 PR B): 2026-11-05. CLI, HTTP routes, feature types/files and settings use assistant; `permissionMode` retains the same values and behavior. Settings use `assistant.json`, `LITZIO_ASSISTANT_SETTINGS_FILE` and `LITZIO_ASSISTANT_CWD`. There are no aliases, old-key acceptance or data migrations. Protocol 4 rejects v3 before connecting because its settings/routes differ.
 - Saved-file context (#1106): 2026-11-04 owner decision; fake Host/protocol, existing assistant browser and Korean 1440px/640px Light/Dark capture checks, no real model turn.
@@ -1256,3 +1256,7 @@ checks disabled-unreachable selection and its tooltip, single-available-candidat
 fixed Host and remote settings routing after local tab/filter changes
 using fixture responses; it performs no real AI call. Settings and registration UI integration
 remain PR3b's responsibility; remote panels do not dispatch the local Settings shortcut.
+
+## Plugin stage 1 (ADR-0020)
+
+Owner-initiated stage 1 provides [the shared plugin management contract](plugin-stage1-v1.md). Management is a separate Codex tool with a fresh explicit confirmation for each call, including full access. Display tools remain restricted to their existing fields. Plugin execution belongs to the target Host; secret and view runtimes are unsupported.

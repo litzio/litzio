@@ -33,6 +33,8 @@ import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
 const cliRoot = fileURLToPath(new URL("..", import.meta.url));
 const nativeSource = (body: string): string => `---\nlitzio: 1\n---\n\n${body}`;
 const fixtures = mkdtempSync(path.join(tmpdir(), "litzio-cli-native-fixtures-"));
+process.env.LITZIO_DATA_DIR = fixtures;
+process.env.LITZIO_PLUGINS_SETTINGS_FILE = path.join(fixtures, "plugins.json");
 process.env.LITZIO_ASSISTANT_SETTINGS_FILE = path.join(fixtures, "assistant.json");
 process.env.LITZIO_ASSISTANT_CWD = path.join(fixtures, "assistant");
 
@@ -646,7 +648,7 @@ test("litzio help exits successfully", () => {
       "Edit — tables": ["insert-table", "insert-table-row", "insert-table-column", "remove-table-row", "remove-table-column", "move-table-row", "move-table-column", "update-table-alignment", "update-table-caption", "update-table-cell"],
       "Edit — labels, footnotes and numbering": ["insert-citation", "insert-footnote", "insert-target", "remove-citation", "remove-footnote", "update-bibliography", "update-citation", "update-enumerator", "update-footnote", "update-heading-numbering", "update-label", "update-numbering-mode", "update-reference-templates", "update-title"],
       "Format": ["format"],
-      "Serve": ["assistant", "daemon", "host"],
+      "Serve": ["assistant", "daemon", "host", "operation", "plugins"],
     };
     const expectedCommands = Object.values(expectedGroups).flat();
     const listed: string[] = [];

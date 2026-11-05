@@ -82,3 +82,5 @@
 | 플러그인의 연결별 설정 단위 | 연결 | Connection | `connectionId` | 플러그인 연결; Host 등록·AI 공급자 연결과 맥락을 구별 |
 
 고정 UI는 동적 UI를 멈춰 놓은 것이다. 저장은 같은 UI 명세를 파일로 고정하며 데이터 고정은 별도 스냅샷으로 구분한다. 여기서 뷰 데이터 스냅샷은 ADR-0013의 작업 입력 자료 스냅샷이나 문서 read model snapshot과 다른 산출물이다. 비서 관리 작업의 매번 명시 승인 조건은 기존 권한 모드의 자동 승인과 구별하며 전체 접근에서도 생략하지 않는다. secret 값은 사용자가 앱 설정 UI로 직접 입력한다.
+
+ADR-0020의 별도 소유자 개시로 [플러그인 1단계](../design/plugin-stage1-v1.md)를 구현한다. 현재 manifest 기여 필드는 `contributes`, 계층은 `tier`이며 생성 UI·저장 뷰·secret runtime은 계속 후속 범위다. 전체 접근의 자동 승인에서도 `manage_plugins`의 매 호출 명시 확인은 생략하지 않는다.

@@ -29,6 +29,8 @@
 
 [ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)에 따라 PR4(완료) → ADR → ③a AI 공식 기능 이전 → ③b 플러그인·Docling 기능 제거와 보관 → ④ Host 클라이언트 → ⑤ Desktop 번들 UI 순으로 완료했다. 소유자가 명시적으로 재개를 개시할 때 보관 코드를 참고해 플러그인 컨셉을 다시 개발하며 그대로 복구하지 않는다. 계층 개념은 [ADR-0019](docs/adr/0019-plugin-tiers.md)·[ADR-0020](docs/adr/0020-plugin-architecture.md)를 따르며 개념 결정은 구현 재개가 아니다. ADR-0017 전환 당시 보류한 원격 Host 설정·여러 Host 동시 보기는 [ADR-0018](docs/adr/0018-desktop-remote-hosts.md)의 #1174 소유자 결정과 PR0~4를 따른다. PR0은 결정 문서이며 PR1~4(#1176~#1180)에서 구현을 완료했다.
 
+2026-11-05 소유자가 ADR-0020 1단계를 별도로 개시했다. 현재 최소 SDK·로컬 artifact 관리·OneDrive의 범위와 미지원 확장은 [플러그인 1단계 계약](docs/design/plugin-stage1-v1.md)을 따른다. Jira·동적 UI 스파이크는 이번 구현에 포함하지 않는다.
+
 이 원칙을 이유로 미래 구조나 기능을 선제적으로 구현하지 않는다.
 
 용어는 [제품 용어집](docs/contributing/terminology.md)을 따른다.

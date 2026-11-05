@@ -1,3 +1,4 @@
+import { PluginSettings } from "../PluginSettings.tsx";
 import { HostSettings } from "./HostSettings.tsx";
 import { AssistantSettings } from "../AssistantSettings.tsx";
 import { useNativeHistoryBoundary } from "../ui/use-native-history-boundary.ts";
@@ -56,7 +57,7 @@ export function updateStatusText(info: DesktopInfo): string {
   }
 }
 
-export type SettingsCategory = "appearance" | "recovery" | "assistant" | "about" | "hosts";
+export type SettingsCategory = "plugins" | "appearance" | "recovery" | "assistant" | "about" | "hosts";
 
 function CliSettings({ desktop }: { desktop: DesktopBridge }) {
   const [state, setState] = useState<CliIntegrationState | null>(null);
@@ -153,6 +154,7 @@ export function SettingsDialog({ onCloseHostWork, onPrepareHostRemoval, onAssist
   const categories = [
     { id: "appearance", label: i18n.t("Appearance & language"), icon: Palette },
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
+    { id: "plugins", label: i18n.t("Plugins"), icon: Server },
     { id: "assistant", label: i18n.t("Assistant"), icon: FileText },
     ...(desktop ? [{ id: "hosts" as const, label: i18n.t("Hosts"), icon: Server }, { id: "about" as const, label: i18n.t("About & updates"), icon: Info }] : []),
   ] as const;
@@ -173,6 +175,7 @@ export function SettingsDialog({ onCloseHostWork, onPrepareHostRemoval, onAssist
             <div className="settings-content-inner">
               <header className="settings-category-header"><h2 id={`settings-category-${category}`}>{categories.find(item => item.id === category)?.label}</h2></header>
               {category === "hosts" && desktop ? <HostSettings desktop={desktop} closeWork={onCloseHostWork} prepareRemoval={onPrepareHostRemoval} /> : null}
+              {category === "plugins" ? <PluginSettings /> : null}
               {category === "assistant" ? <AssistantSettings onSaved={onAssistantSaved} /> : null}
               {category === "appearance" ? <>
                 <SettingsSelect label={i18n.t("Theme")} description={i18n.t("Choose a light or dark appearance.")} testId="theme"

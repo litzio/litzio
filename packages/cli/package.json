@@ -13,7 +13,8 @@
   },
   "dependencies": {
     "@litzio/core": "workspace:*",
-    "@litzio/file-commit": "workspace:*"
+    "@litzio/file-commit": "workspace:*",
+    "@litzio/plugin-sdk": "workspace:*"
   },
   "devDependencies": {
     "@babel/parser": "7.29.9",

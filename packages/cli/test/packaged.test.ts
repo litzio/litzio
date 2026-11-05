@@ -33,7 +33,8 @@ test("the packed CLI installs offline outside the checkout and serves both roots
   const install = path.join(scratch, "install"), cwd = path.join(scratch, "unrelated cwd");
   const a = path.join(scratch, "문서 A"), b = path.join(scratch, "documents B");
   for (const folder of [install, cwd, a, b]) mkdirSync(folder);
-  const env: NodeJS.ProcessEnv = { ...process.env, LITZIO_DAEMON_DIR: path.join(scratch, "daemon"), LITZIO_ASSISTANT_CWD: path.join(scratch, "assistant"), LITZIO_ASSISTANT_SETTINGS_FILE: path.join(scratch, "assistant.json") };
+  const env: NodeJS.ProcessEnv = { ...process.env, LITZIO_DATA_DIR: path.join(scratch, "data"), LITZIO_PLUGINS_SETTINGS_FILE: path.join(scratch, "plugins.json"), LITZIO_DAEMON_DIR: path.join(scratch, "daemon"), LITZIO_ASSISTANT_CWD: path.join(scratch, "assistant"), LITZIO_ASSISTANT_SETTINGS_FILE: path.join(scratch, "assistant.json") };
+  writeFileSync(path.join(scratch, "plugins.json"), JSON.stringify({ "fixture.isolated": { directory: path.join(scratch, "absent-plugin"), enabled: false, settings: {}, operationNames: [] } }));
   delete env.NODE_PATH; delete env.NODE_OPTIONS;
   let child: ChildProcess | undefined;
   try {
@@ -66,6 +67,7 @@ test("the packed CLI installs offline outside the checkout and serves both roots
       child!.stdout!.on("data", data => { output += data; if (output.includes("Litzio HTTP:")) { clearTimeout(timeout); resolve(); } });
     });
     assert.equal((await fetch(url)).status, 200);
+    assert.equal((await (await fetch(url + "/api/plugins")).json()).plugins[0].id, "fixture.isolated", "packaged Host reads only the isolated plugin registry");
     const notices = await fetch(url + "/licenses/THIRD_PARTY_LICENSES.txt");
     assert.equal(notices.status, 200);
     assert.match(notices.headers.get("content-type") ?? "", /text\/plain/);
