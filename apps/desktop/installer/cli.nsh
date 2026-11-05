@@ -101,11 +101,13 @@ Var litzioRemovalLog
     ${Do}
       System::Call 'kernel32::DeleteFile(t "$INSTDIR\@EXECUTABLE@.exe") i.r0 ?e'
       Pop $1
+      StrCpy $7 "Win32 error $1"
       ${if} $0 != 0
         StrCpy $1 0
         ${if} ${FileExists} "$INSTDIR\@EXECUTABLE@.exe"
           ; DeleteFile can succeed while a delete-sharing handle still keeps it present.
           StrCpy $1 32
+          StrCpy $7 "DeleteFile succeeded but image is still present (deletion pending)"
         ${endif}
       ${endif}
       ${if} $1 == 2
@@ -131,7 +133,7 @@ Var litzioRemovalLog
         ${endif}
       ${endif}
       IntOp $9 $9 + 1
-      StrCpy $3 "App executable deletion attempt $9 failed: Win32 error $1; $INSTDIR\@EXECUTABLE@.exe"
+      StrCpy $3 "App executable deletion attempt $9 failed: $7; $INSTDIR\@EXECUTABLE@.exe"
       DetailPrint "$3"
       ClearErrors
       FileOpen $8 "$litzioRemovalLog" a
@@ -140,7 +142,7 @@ Var litzioRemovalLog
         FileClose $8
       ${endif}
       ${if} $9 > 15
-        StrCpy $3 "@PRODUCT@ removal failed: the app executable could not be deleted.$\r$\n$INSTDIR\@EXECUTABLE@.exe$\r$\nWin32 error $1. Close applications using it and try removal again.$\r$\nDiagnostic: $litzioRemovalLog"
+        StrCpy $3 "@PRODUCT@ removal failed: the app executable could not be deleted.$\r$\n$INSTDIR\@EXECUTABLE@.exe$\r$\n$7. Close applications using it and try removal again.$\r$\nDiagnostic: $litzioRemovalLog"
         FileOpen $8 "$litzioRemovalLog" a
         FileWriteUTF16LE $8 "$3$\r$\n"
         FileClose $8
