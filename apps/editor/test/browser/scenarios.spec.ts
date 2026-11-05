@@ -129,6 +129,7 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
         localStorage.removeItem(JSON.stringify(["local", "litzio.openFolders"]));
         localStorage.removeItem(JSON.stringify(["local", "litzio.collapsedFolderSections"]));
         localStorage.removeItem(JSON.stringify(["local", "litzio.openTabs"]));
+        localStorage.removeItem("litzio.uiLanguage");
         localStorage.removeItem("litzio.accentColor");
         localStorage.removeItem("litzio.theme");
         localStorage.removeItem("litzio.pageBackground");
