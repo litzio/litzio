@@ -7,7 +7,7 @@
     "node": ">=24.21.0 <25"
   },
   "scripts": {
-    "boundaries:check": "tsx scripts/check-boundaries.ts",
+    "boundaries:check": "tsx --test scripts/editor-engine-boundary.test.ts && tsx scripts/check-boundaries.ts",
     "issues:forms": "node scripts/issues.mjs forms",
     "issues:check": "node scripts/issues.mjs check",
     "issues:test": "node --test scripts/issue-policy.test.mjs",

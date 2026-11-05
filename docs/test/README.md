@@ -36,6 +36,8 @@ pnpm browser:test --shard=1/4         # CI의 4개 shard 중 하나
 
 CI의 4개 shard는 stable 목록을 순환 분배하며 각 시나리오는 전체 shard에서 정확히 한 번 실행된다. `pnpm --filter @litzio/editor exec tsx --test test/browser-fixtures.test.ts`가 누락·중복·빈 shard 없이 분할되는지 검사한다. CI 로그에는 각 shard의 시나리오 배정이 출력되고 실패 artifact는 `editor-browser-ci-logs-1`부터 `editor-browser-ci-logs-4`까지 구분된다. 로컬에서 전체를 분할 실행하려면 `1/4`부터 `4/4`까지 순서대로 실행한다.
 
+2026-11-05 재배치: [CI run 41946600342](https://github.com/litzio/litzio/actions/runs/41946600342)의 반올림된 시나리오 시간을 기준으로 긴 시나리오부터 합계가 가장 작은 shard에 배치했다. 같은 91개 시나리오의 합계는 413.0/375.9/498.6/263.5초에서 388.7/388.6/388.6/385.1초로 바뀐다. setup과 실행 변동은 제외한 예상치다. Playwright 다운로드 캐시는 OS·아키텍처와 설치된 `playwright-core/browsers.json` 해시를 사용하고, Chromium 설치 검증은 매번 유지한다.
+
 runner는 원본 fixture의 scratch 사본을 준비한다. `file-actions`의 실제 파일 삭제·이름 변경은 저장소 밖 OS 임시 폴더의 checkout별 사본에서만 실행하며, runner의 `/api/file` guard가 저장소 내부 경로를 거부하는지도 확인한다. 테스트 실행을 위해 `apps/editor/document/`나 `apps/editor/test/browser/fixtures/`의 원본을 직접 수정하지 않는다. fixture 자체를 바꾸는 작업이라면 의도한 변경으로 검토하고 관련 regression을 실행한다. Windows에서는 [persistent profile과 session 규칙](../contributing/windows-browser-automation.md)을 따른다. 작업 후 직접 시작한 서버와 세션을 종료한다.
 
 `numbering-mode`의 언어·너비별 촬영 순회와 `document-scroll`의 geometry 상태별 PNG는 각각 `pnpm browser:test numbering-mode --screenshots`, `pnpm browser:test document-scroll --screenshots`에서만 생성한다. 기본 실행은 번호·Undo·Save/Reload와 scroll geometry·wheel·keyboard·drag·source·print 단언을 유지하며, 실패 진단 캡처도 유지한다. 성공 캡처 전용 CI 업로드는 하지 않는다.

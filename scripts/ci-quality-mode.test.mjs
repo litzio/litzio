@@ -125,6 +125,12 @@ test('release browser shards match CI while preserving trusted checkout and publ
   for (const name of ['Cache Playwright browsers', 'Install pinned Chromium']) {
     assert.deepEqual(browser.steps.find(step => step.name === name), ci.jobs.browser.steps.find(step => step.name === name));
   }
+  for (const job of [browser, ci.jobs.browser, ci.jobs.http, ci.jobs['cache-warm']]) {
+    const install = job.steps.findIndex(step => step.run === 'pnpm install --frozen-lockfile');
+    const cache = job.steps.findIndex(step => step.name === 'Cache Playwright browsers');
+    assert.ok(install >= 0 && install < cache, 'installed browser revision manifest must exist before cache hashing');
+    assert.ok(job.steps[cache].with.key.includes('playwright-core/browsers.json'));
+  }
   const run = browser.steps.find(step => step.run?.startsWith('pnpm browser:test'));
   const ciRun = ci.jobs.browser.steps.find(step => step.run?.startsWith('pnpm browser:test'));
   assert.equal(run.run, ciRun.run);

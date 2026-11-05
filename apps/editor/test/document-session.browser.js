@@ -73,6 +73,8 @@ async page => {
         release();
         await page.evaluate(() => window.pendingSessionOperation);
         const after = await snapshot();
+        // Tiptap defers unmount destruction to its next timer tick.
+        await page.waitForFunction(() => window.oldSession.editor.isDestroyed);
         const old = await page.evaluate(() => ({destroyed: window.oldSession.editor.isDestroyed, finishes: window.oldSession.finishes}));
         if (before.busy || after.busy || !before.dirty || JSON.stringify(before) !== JSON.stringify(after) || !old.destroyed || old.finishes) {
           throw new Error(`${operation} changed a replaced session: ${JSON.stringify({before, after, old})}`);
