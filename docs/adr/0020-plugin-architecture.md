@@ -2,7 +2,7 @@
 
 - Status: Accepted
 - Decision date: 2026-11-05
-- Last verified: 2026-11-05 — 소유자 승인·정정과 관련 ADR·조사 문서 대조. 제품 실행·설치·인증 검증 없음.
+- Last verified: 2026-11-05 — 소유자 승인·정정과 관련 ADR·조사 문서 대조. 생성 UI 스파이크 보고서와 소유자 보완 결정 대조 포함. 제품 실행·설치·인증 재검증 없음.
 - Authority: 2026-11-05 소유자 결정, under [AGENTS.md](../../AGENTS.md). 관련 보류 이슈: [#1075](https://github.com/litzio/litzio/issues/1075).
 - Scope: 재개 시 사용할 저장소·Host·기여·UI·저장 구조의 결정. Accepted는 구현 착수·완료가 아니다. 1단계 OneDrive도 소유자가 따로 개시한다.
 - Amends: [ADR-0019](0019-plugin-tiers.md)의 계층·공통 SDK·Host·번들 UI 경계를 구체화한다. [ADR-0012](0012-plugin-runtime-and-ui-contributions.md)·[ADR-0015](0015-shared-host-operations.md)·[ADR-0017](0017-bundled-client-and-official-ai.md)의 재개 시 실행·UI·비서 관리 경계는 아래 관계 절을 따른다.
@@ -143,6 +143,51 @@ Core는 일시적·저장 명세의 구조·바인딩·정적 유효성·canonic
 | 3: 외부 제작·사례 확장 | 독립 checkout의 SDK build/register, Docling 최소 변환·검수, GitHub/GitLab 한 조회씩 | 내부 import 없는 설치·실행, valid write·원본 보존, 장기 작업 실패/uncertain·실제 변환 품질. 부족 계약만 그때 추가 |
 
 **그래서 무엇이 안 되는가:** Accepted·#1075 참조를 구현 재개·보류 해제·릴리스 승인으로 해석하지 않는다. OneDrive 성공으로 전체 SDK·저장 뷰·외부 제작 가능성을 완료 선언하지 않는다. CopilotKit/AG-UI/A2UI 전체 채택도 이번에 결정하지 않는다.
+
+## 생성 UI 스파이크 결과에 따른 보완
+
+- Amendment date: 2026-11-05 — 소유자 결정 1~7 반영. Status는 Accepted를 유지한다.
+- 근거: [동적 UI 스파이크 브랜치](https://github.com/litzio/litzio/tree/spike/dynamic-ui), 확인 head `28b298cd01b13e1b1cf7711c54e89ce7195f4d14`의 조사 보고서 `tmp/research/dynamic-ui-spike.md`. 스파이크는 역사적 실험이며 제품 구현 계약이 아니다.
+- 검증 범위: 독립 화면의 실제 Codex 호출, 같은 Core 명세·앱 렌더러, 생성→저장→재열기→수동 조회와 CLI 데이터 일치를 보고서로 대조했다. 이번 문서 작업에서 재실행하지 않았다. 기존 비서 통합·실제 Copilot·원격 Host·외부 API·설치 제품·필수 PR CI의 실행 증거로 사용하지 않는다.
+
+### 확정한 결정
+
+1. 저장 뷰를 열면 **명세만 표시**한다. LLM 재생성·데이터 조회는 하지 않으며, 데이터는 사용자가 수동 실행(새로고침)할 때 조회한다. 저장은 정의 고정이며 데이터 고정이 아니다.
+2. 바인딩과 카탈로그는 **작업별 출력 schema의 정해진 필드만** 허용한다. source·결과 path·Table 열·BarChart 축의 타입을 검증한다. 임의 계산·HTML·외부 컴포넌트는 허용하지 않는다.
+3. **설정 화면은 이전하지 않는다.** 스파이크는 읽기 정보만 표현했고 버튼·선택·진행률·재시도 같은 조작을 표현하지 못했다. 조작 컴포넌트(버튼 → 공용 작업 호출, 필요 시 승인)를 추가하는 시점에 다시 검토한다.
+4. **생성 UI는 비서 기능**이다. 본 구현에서 기존 Codex·Copilot 공급자 adapter가 최종 명세 이벤트와 검증 오류를 공유하고 같은 앱 렌더러로 연결한다. 부분 스트리밍 명세는 검증 완료로 취급하지 않는다. 독립 Codex CLI 스파이크는 이 통합을 완료하지 않았다.
+5. **file-commit에 새 파일 안전 생성을 추가**한다. 임시 파일에 완성된 내용을 쓴 뒤 같은 이름이 없을 때만 확정한다. 중복이면 기존 파일을 보존하고 실패하며 예약용 빈 파일을 남기지 않는다. 기존 파일 변경의 expected revision·공식 write path도 유지한다. 스파이크의 빈 파일 예약 방식을 그대로 채택하지 않는다.
+6. **모델은 사용자가 비서 창에서 고른다.** 생성 UI만의 별도 기본 모델 정책은 없다. 실패하면 명시적 오류를 표시하며 다른 모델로 자동 재시도하지 않는다. 스파이크 보고서의 luna low 기본값 권고는 채택하지 않는다.
+7. **CopilotKit은 개념만 차용하고 라이브러리는 도입하지 않는다.** 앱이 렌더 컴포넌트를 소유하고 에이전트는 명세만 제안한다. 최소 상태만 노출하고 검증 후 표시하며, 렌더와 사용자 실행·승인을 구분한다. 문서 SSOT를 agent shared state로 대체하지 않는다.
+
+### 명세 v0 예시와 본 구현 경계
+
+아래는 스파이크의 축약 예시이며 제품 v1이나 저장 호환성 약속이 아니다. v1 검증·canonical 의미는 Core에서 확정한다.
+
+```json
+{
+  "kind": "litzio-view", "schemaVersion": 0, "catalog": "litzio-spike-v0",
+  "title": "폴더별 문서 수", "refresh": "manual",
+  "sources": {"stats": {"operation": "folder.statistics", "version": 1, "args": {}}},
+  "layout": {"component": "VerticalPanel", "children": [
+    {"component": "Table", "source": "stats", "data": "/rows", "columns": ["folder", "documents"]}
+  ]}
+}
+```
+
+생성 UI [본 구현 1단계 #1210](https://github.com/litzio/litzio/issues/1210)는 Core 명세 v1(검증·canonical), Host 공용 작업과 CLI `view validate/save/run`, file-commit 새 파일 안전 생성, 비서 양 공급자 adapter, `.view.json` 저장 뷰 탭과 수동 새로고침이다. 데이터는 폴더 문서 통계 같은 **내장 읽기 작업**으로 시작한다. 이는 위 ⑧의 플러그인 1단계 OneDrive와 별도 범위이며 Jira·SDK folder scope·플러그인 generatedUi/views 확장을 선행 조건으로 삼지 않는다. 현재 [플러그인 1단계 계약](../design/plugin-stage1-v1.md)의 미지원 선언은 그대로 유효하다.
+
+완료 기준은 비서 창에서 생성 → 저장 → 다시 열기 → 새로고침 → CLI 결과 일치와 아래 보안 거부 회귀다. 실행별 request ID·시각 차이는 구분하고 데이터·패널 오류·대상·receipt 의미를 비교한다. 구현 PR에서 [비서 계약](../design/main-agent-v1.md)과 새 동작 계약을 함께 갱신한다.
+
+### 보안 거부 목록
+
+- 알 수 없는 component/prop/action, HTML·JS handler·CSS·원격 JS/CSS·외부 컴포넌트, javascript URL·임의 URL fetch·eval·수식·transform을 거부한다. 텍스트는 escape해 표시한다.
+- 미등록 작업·미지원 schema/catalog/operation version·typed args 위반, 출력 schema 밖 필드·다른 작업 필드와의 교차 바인딩·잘못된 result path·비숫자 chart 축을 거부한다.
+- 명세·패널·결과·파일·순회 크기 제한을 두고 초과를 거부한다. v0의 측정용 한도를 제품 v1의 고정값으로 삼지 않는다.
+- Root 밖 읽기/쓰기·신규 중복 저장·stale revision을 거부한다. secret·Host URL·Desktop hostId를 명세나 결과 스냅샷에 저장하지 않으며 Host 간 자동 fallback·재바인딩을 하지 않는다.
+- 검증 실패·일부 source 실패를 성공이나 빈 데이터로 숨기지 않는다. 렌더 완료를 실행·저장 승인으로 취급하지 않는다. 신뢰한 Node 코드의 OS sandbox나 악성 코드 격리를 보장하지 않는다.
+
+**그래서 무엇이 안 되는가:** 열기만으로 최신 데이터가 보장되지 않으며 자동 조회·polling·LLM 재생성·다른 모델 자동 재시도는 없다. 임의 필드 발명·계산·HTML·외부 컴포넌트와 전체 설정 화면 대체는 안 된다. 내장 통계 성공으로 플러그인 생성 UI·Jira·양 공급자 제품 통합 완료를 선언하지 않는다. 스파이크 코드를 그대로 병합하거나 CopilotKit runtime을 추가하지 않는다.
 
 ## 네 사례 대응과 남는 요구
 
