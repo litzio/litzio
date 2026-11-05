@@ -214,6 +214,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @litzio/cli package
       - run: pnpm --filter @litzio/cli test:packaged
+      - name: Plugin secret storage (isolated OS account store)
+        run: pnpm exec tsx --test apps/editor/test/plugins.test.ts
       - name: Cache Playwright browsers
         if: runner.os == 'Linux'
         uses: actions/cache@v6

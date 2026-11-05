@@ -117,3 +117,79 @@ test("disable drains admitted status observations and their late results cannot 
     assert.equal(late.running, false); assert.equal(late.enabled, false); assert.equal(late.status, null);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
+
+test("Windows DPAPI uses an isolated Host/account namespace, persists ciphertext and rejects other OSes", async () => {
+  const { WindowsPluginSecretStore } = await import("../server/plugins/secret-store.ts");
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-secrets-"));
+  const unsupported = new WindowsPluginSecretStore(root, "linux");
+  try {
+    assert.equal(unsupported.supported, false);
+    await assert.rejects(unsupported.set("p", "token", "value"), /unsupported/);
+    await assert.rejects(unsupported.read("p", "token"), /unsupported/);
+    await assert.rejects(unsupported.delete("p"), /unsupported/);
+    if (process.platform !== "win32") return;
+    const store = new WindowsPluginSecretStore(root), value = 'isolated-token-"-한글';
+    await store.set("p", "token", value);
+    assert.equal(await store.status("p", "token"), true);
+    assert.equal(await store.read("p", "token"), value);
+    assert.equal(await store.read("q", "token"), undefined);
+    assert.equal(await new WindowsPluginSecretStore(path.join(root, "other-host")).read("p", "token"), undefined);
+    assert.equal(await new WindowsPluginSecretStore(root).read("p", "token"), value);
+    const { readdirSync } = await import("node:fs");
+    for (const name of readdirSync(root, { recursive: true, withFileTypes: true })) if (name.isFile()) assert.equal(readFileSync(path.join(name.parentPath, name.name)).includes(Buffer.from(value)), false);
+    await store.delete("p", "token"); assert.equal(await store.status("p", "token"), false);
+    await store.set("p", "token", "new-value"); await store.delete("p"); assert.equal(await store.status("p", "token"), false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("secret admission, runtime plugin scope, non-disclosure and unregister cleanup", async () => {
+  const { safePluginValue, redactSecrets } = await import("../server/plugins/secret-redaction.ts");
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-secret-host-"));
+  const values = new Map<string, string>();
+  const store = { supported: true, async read(p: string, n: string) { return values.get(`${p}/${n}`); }, async status(p: string, n: string) { return values.has(`${p}/${n}`); }, async set(p: string, n: string, v: string) { values.set(`${p}/${n}`, v); }, async delete(p: string, n?: string) { for (const key of values.keys()) if (n ? key === `${p}/${n}` : key.startsWith(`${p}/`)) values.delete(key); } };
+  const host = new PluginHost(path.join(root, "state.json"), store), value = 'fixture-PAT-"-private';
+  try {
+    for (const id of ["example.first", "example.second"]) {
+      const directory = path.join(root, id); mkdirSync(directory);
+      writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
+      writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id, tier: "community", publisher: { id: "example", name: "Example" }, name: id, version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: {}, outputSchema: {} }] }, secrets: [{ id: "pat", scope: "connection", required: true }] }));
+      writeFileSync(path.join(directory, "host.js"), `export function activate(c){ if(Object.keys(c.secrets).join()!=='pat')throw Error('scope');return {operations:{read:(input)=>{if(input.fail)throw Error(c.secrets.pat);return {echo:c.secrets.pat}}},status:()=>({available:true,message:c.secrets.pat,folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+      await host.invoke("register", { directory });
+      await assert.rejects(host.setSecret(id, "undeclared", value), /Undeclared/);
+      await host.setSecret(id, "pat", id === "example.first" ? value : "second-private-PAT");
+      const plugin = (await host.list()).find(p => p.id === id)!;
+      await host.invoke("trust", { id, digest: plugin.digest }); await host.invoke("enable", { id });
+      assert.equal(JSON.stringify(await host.invokeOperation(`${id}.read`, {})).includes(id === "example.first" ? value : "second-private-PAT"), false);
+    }
+    assert.equal(JSON.stringify(await host.invokeOperation("example.first.read", { fail: true })).includes(value), false);
+    assert.equal(JSON.stringify(await host.list()).includes(value), false);
+    assert.deepEqual(safePluginValue({ value }), { value: "[secret]" });
+    assert.equal(redactSecrets(`error ${value}`), "error [secret]");
+    assert.equal(readFileSync(path.join(root, "state.json"), "utf8").includes(value), false);
+    await assert.rejects(host.setSecret("example.first", "pat", value), /Disable/);
+    await host.invoke("disable", { id: "example.first" });
+    await host.invoke("secret-delete", { id: "example.first", name: "pat" });
+    assert.equal(await store.status("example.first", "pat"), false);
+    await assert.rejects(host.invoke("enable", { id: "example.first" }), /not configured/);
+    assert.equal(await store.status("example.second", "pat"), true);
+    await host.invoke("unregister", { id: "example.second" }); assert.equal(values.size, 0);
+    const { WindowsPluginSecretStore } = await import("../server/plugins/secret-store.ts");
+    const unsupportedHost = new PluginHost(path.join(root, "unsupported.json"), new WindowsPluginSecretStore(path.join(root, "unsupported-secrets"), "linux"));
+    try {
+      await unsupportedHost.invoke("register", { directory: path.join(root, "example.first") });
+      const p = (await unsupportedHost.list())[0]!;
+      await unsupportedHost.invoke("trust", { id: p.id, digest: p.digest });
+      await assert.rejects(unsupportedHost.setSecret(p.id, "pat", value), /unsupported/);
+      await assert.rejects(unsupportedHost.invoke("enable", { id: p.id }), /unsupported/);
+      assert.equal((await unsupportedHost.list())[0]!.secrets?.supported, false);
+    } finally { await unsupportedHost.close(); }
+
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("plugin synchronous and asynchronous logs never reach stdout/stderr", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const module = new URL("../server/plugins/secret-redaction.ts", import.meta.url).href;
+  const result = execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `import {withPluginCode} from ${JSON.stringify(module)}; await withPluginCode(async()=>{console.log('log-private'); process.stderr.write('error-private'); await new Promise(r=>setTimeout(r,1));console.log('async-private')}); console.log('host-visible')`], { encoding: "utf8", windowsHide: true });
+  assert.equal(result.trim(), "host-visible");
+});

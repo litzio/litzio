@@ -70,6 +70,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   };
   const invoke = async (operation: string, args: any = {}): Promise<any> => {
     if (closed) throw new Error("The Assistant Host is closing.");
+    if (operation === "pluginSecretSet") { await readyPlugins(); try { return await plugins.setSecret(args.id, args.name, args.value); } catch { throw new Error("Unable to store plugin secret. Disable the plugin and check Windows store support."); } }
     if (operation === "pluginsList") { await readyPlugins(); return { plugins: await plugins.list() }; }
     if (operation === "pluginsManage") { await readyPlugins(); const { action, ...input } = args; return plugins.invoke(action, input); }
     if (operation === "settings") return settings();
@@ -89,6 +90,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     return assistantOperations[operation as keyof typeof assistantOperations](args);
   };
   const route = (url: string): Record<string, string> | undefined => {
+    if (url === "/api/plugins/secrets") return { POST: "pluginSecretSet" };
     if (url === "/api/plugins") return { GET: "pluginsList", POST: "pluginsManage" };
     if (url === ASSISTANT.settingsRoute) return { GET: "settings", PUT: "configure" };
     if (url === ASSISTANT.conversationsRoute) return { GET: "assistantConversations", POST: "assistantConversation" };

@@ -5,6 +5,9 @@ import { pathToFileURL } from "node:url";
 import { validateManifest, compileSchema, statusSchema, pluginManagementSchema, type PluginManifest, type PluginInstance, type PluginModule } from "@litzio/plugin-sdk";
 import { hostPaths } from "../host-paths.ts";
 
+import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store.ts";
+import { rememberSecret, safePluginValue, withPluginCode } from "./secret-redaction.ts";
+
 type Installed = { directory: string; digest: string; trustedDigest?: string; enabled: boolean; settings: Record<string, unknown>; operationNames: string[] };
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>> };
 // Product-maintained supply list. Publisher metadata alone never establishes official supply.
@@ -17,7 +20,7 @@ export class PluginHost {
   private errors = new Map<string, string>();
   private serial: Promise<unknown> = Promise.resolve();
   private closed = false;
-  constructor(private file = hostPaths().settingsFile("plugins")) {
+  constructor(private file = hostPaths().settingsFile("plugins"), private secrets: PluginSecretStore = new WindowsPluginSecretStore(`${file}.secrets`)) {
     this.installed = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
   }
   private save() {
@@ -50,7 +53,7 @@ export class PluginHost {
   private official(m: PluginManifest, digest: string) { return m.tier === "official" && OFFICIAL_PLUGINS.some(p => p.id === m.id && p.publisher === m.publisher.id && p.digest === digest); }
   async start() {
     for (const [id, record] of Object.entries(this.installed)) if (record.enabled) {
-      try { await this.enable(id); } catch (error) { this.errors.set(id, String(error)); }
+      try { await this.enable(id); } catch (error) { this.errors.set(id, "Plugin activation failed"); }
     }
   }
   private async status(live: Loaded) {
@@ -59,7 +62,7 @@ export class PluginHost {
     try { return await run; } finally { live.pending.delete(run); }
   }
   private async readStatus(live: Loaded) {
-    const result = statusSchema.parse(await live.instance.status());
+    const result = statusSchema.parse(safePluginValue(await withPluginCode(() => live.instance.status())));
     for (const [key, declaration] of [["folders", "folderSources"], ["decorations", "folderDecorations"], ["accounts", "accounts"]] as const) {
       if (result[key].length && !live.manifest.contributes[declaration].length) throw new Error("Undeclared status contribution");
       if (new Set(result[key].map(item => item.id)).size !== result[key].length) throw new Error("Duplicate status identity");
@@ -77,8 +80,8 @@ export class PluginHost {
         const observed = live ? await this.status(live) : null;
         const current = live && this.loaded.get(id) === live;
         return { id, publisher: m.publisher, name: m.name, description: m.description, version: m.version, installed: true, official: this.official(m, digest), trusted: this.official(m, digest) || r.trustedDigest === digest, enabled: r.enabled, running: !!current,
-          settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest };
-      } catch (e) { return { id, installed: true, enabled: r.enabled, running: false, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : String(e), status: null }; }
+          secrets: await this.secretStatus(id, m), settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest };
+      } catch (e) { return { id, installed: true, enabled: r.enabled, running: false, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : "Plugin status unavailable", status: null }; }
     }));
   }
   private async enable(id: string) {
@@ -89,22 +92,60 @@ export class PluginHost {
     if (this.restartRequired.has(id)) throw new Error("Plugin disposal failed; restart daemon before enabling");
     this.imported.add(id);
     if (!compileSchema(a.manifest.settingsSchema)(r.settings)) throw new Error("Stored settings do not satisfy this artifact schema");
-    const module = await import(pathToFileURL(a.entry).href) as PluginModule;
-    if (typeof module.activate !== "function") throw new Error("Missing activate handler");
-    const instance = await module.activate({ settings: structuredClone(r.settings), platform: process.platform, env: { ...process.env }, isDirectory(file) { try { return statSync(file).isDirectory(); } catch { return false; } } });
-    const declared = a.manifest.contributes.operations.map(op => op.id);
-    if (!instance || typeof instance.status !== "function" || typeof instance.dispose !== "function" || !instance.operations || declared.some(key => !Object.hasOwn(instance.operations, key) || typeof instance.operations[key] !== "function") || Object.keys(instance.operations).some(key => !declared.includes(key))) {
-      await instance?.dispose?.(); throw new Error("Missing or undeclared contribution handler");
+    const secrets = await this.runtimeSecrets(id, a.manifest);
+    try { await withPluginCode(async () => {
+      const module = await withPluginCode(() => import(pathToFileURL(a.entry).href)) as PluginModule;
+      if (typeof module.activate !== "function") throw new Error("Missing activate handler");
+      const instance = await withPluginCode(() => module.activate({ secrets, settings: structuredClone(r.settings), platform: process.platform, env: { ...process.env }, isDirectory(file) { try { return statSync(file).isDirectory(); } catch { return false; } } }));
+      const declared = a.manifest.contributes.operations.map(op => op.id);
+      if (!instance || typeof instance.status !== "function" || typeof instance.dispose !== "function" || !instance.operations || declared.some(key => !Object.hasOwn(instance.operations, key) || typeof instance.operations[key] !== "function") || Object.keys(instance.operations).some(key => !declared.includes(key))) {
+        await withPluginCode(() => instance?.dispose?.()); throw new Error("Missing or undeclared contribution handler");
+      }
+      this.loaded.set(id, { manifest: a.manifest, instance, pending: new Set() });
+      this.errors.delete(id);
+    }); } catch { throw new Error("Plugin activation failed"); }
+  }
+  private declaredSecret(id: string, name: string) {
+    const m = this.artifact(this.record(id).directory).manifest;
+    if (!m.secrets.some(s => s.id === name)) throw new Error("Undeclared plugin secret");
+    return m;
+  }
+  private async secretStatus(id: string, m: PluginManifest) {
+    return { supported: this.secrets.supported, declarations: await Promise.all(m.secrets.map(async s => ({ ...s, configured: this.secrets.supported && await this.secrets.status(id, s.id) }))) };
+  }
+  private async runtimeSecrets(id: string, m: PluginManifest) {
+    if (!this.secrets.supported) {
+      if (m.secrets.some(s => s.required)) throw new Error("Plugin secrets unsupported on this Host (Windows required)");
+      return Object.freeze({} as Record<string, string>);
     }
-    this.loaded.set(id, { manifest: a.manifest, instance, pending: new Set() });
-    this.errors.delete(id);
+    const secrets: Record<string, string> = {};
+    for (const s of m.secrets) {
+      const value = await this.secrets.read(id, s.id);
+      if (value !== undefined) { rememberSecret(value); secrets[s.id] = value; }
+      else if (s.required) throw new Error("Required plugin secret is not configured");
+    }
+    return Object.freeze(secrets);
+  }
+  /** App settings input only. Deliberately absent from management/assistant schemas. */
+  setSecret(id: string, name: string, value: string): Promise<unknown> {
+    const run = this.serial.then(async () => {
+      if (this.closed) throw new Error("Plugin Host is closing");
+      this.declaredSecret(id, name);
+      if (!this.secrets.supported) throw new Error("Plugin secrets unsupported on this Host (Windows required)");
+      if (this.record(id).enabled) throw new Error("Disable the plugin before changing secrets");
+      if (typeof value !== "string" || !value.length || Buffer.byteLength(value) > 16384) throw new Error("Invalid secret input");
+      rememberSecret(value);
+      await this.secrets.set(id, name, value);
+      return { configured: true, receipt: { requestId: randomUUID(), operation: "plugins.secret-set", version: 1, scope: "host", outcome: "success" } };
+    });
+    this.serial = run.catch(() => {}); return run;
   }
   private record(id: string) { if (!Object.hasOwn(this.installed, id)) throw new Error("Plugin is not registered"); return this.installed[id]!; }
   private async disable(id: string) {
     const live = this.loaded.get(id); this.loaded.delete(id);
     if (live) {
       await Promise.allSettled([...live.pending]);
-      try { await live.instance.dispose(); } catch { this.restartRequired.add(id); this.errors.set(id, "Plugin disposal failed; daemon restart required"); throw new Error("Plugin disposal failed; daemon restart required"); }
+      try { await withPluginCode(() => live.instance.dispose()); } catch { this.restartRequired.add(id); this.errors.set(id, "Plugin disposal failed; daemon restart required"); throw new Error("Plugin disposal failed; daemon restart required"); }
     }
   }
   async invokeOperation(name: string, input: unknown, folder?: string) {
@@ -116,16 +157,16 @@ export class PluginHost {
     if (op.scope === "folder") throw new Error("Folder-scoped plugin operations are unsupported in stage 1");
     if (!compileSchema(op.inputSchema)(input)) throw new Error("Invalid operation input");
     const requestId = randomUUID();
-    const run = Promise.resolve().then(() => live.instance.operations[op.id]!(input)); live.pending.add(run);
+    const run = Promise.resolve().then(() => withPluginCode(() => live.instance.operations[op.id]!(input))); live.pending.add(run);
     try {
-      const result = await run;
+      const result = safePluginValue(await run);
       if (!compileSchema(op.outputSchema)(result)) throw new Error("Invalid operation result");
       return { result, receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: "success" } };
     } catch {
       return { error: "Plugin operation did not return a valid result. Check the target before retrying a write.", receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: op.effect === "write" ? "uncertain" : "failure" } };
     } finally { live.pending.delete(run); }
   }
-  invoke(action: string, args: { id?: string; directory?: string; digest?: string; settings?: Record<string, unknown>; operation?: string; input?: unknown } = {}): Promise<unknown> {
+  invoke(action: string, args: { id?: string; directory?: string; digest?: string; settings?: Record<string, unknown>; operation?: string; input?: unknown; name?: string } = {}): Promise<unknown> {
     if (this.closed) return Promise.reject(new Error("Plugin Host is closing"));
     if (action === "invoke") return this.invokeOperation(args.operation!, args.input);
     pluginManagementSchema.parse({ action, ...args });
@@ -145,15 +186,22 @@ export class PluginHost {
         const r = this.record(id);
         if (action === "unregister") {
           r.enabled = false; this.save(); await this.disable(id);
+          if (this.secrets.supported) await this.secrets.delete(id);
           delete this.installed[id]; this.errors.delete(id);
+        } else if (action === "secret-status") {
+          return { id, secrets: await this.secretStatus(id, this.artifact(r.directory).manifest), receipt: { requestId: randomUUID(), operation: "plugins.secret-status", version: 1, scope: "host", outcome: "success" } };
+        } else if (action === "secret-delete") {
+          this.declaredSecret(id, args.name!);
+          if (r.enabled) throw new Error("Disable the plugin before changing secrets");
+          await this.secrets.delete(id, args.name!);
         } else if (action === "trust") {
           const a = this.artifact(r.directory);
           if (args.digest !== a.digest || a.digest !== r.digest) throw new Error("Artifact digest does not match");
           r.trustedDigest = a.digest;
-        } else if (action === "enable") { try { await this.enable(id); r.enabled = true; } catch (error) { this.errors.set(id, String(error)); throw error; } }
+        } else if (action === "enable") { try { await this.enable(id); r.enabled = true; } catch (error) { this.errors.set(id, "Plugin activation failed"); throw error; } }
         else if (action === "disable") { r.enabled = false; this.save(); await this.disable(id); }
         else if (action === "settings") {
-          if (args.settings === undefined) return { id, settings: r.settings, settingsSchema: this.artifact(r.directory).manifest.settingsSchema };
+          if (args.settings === undefined) return { id, secrets: await this.secretStatus(id, this.artifact(r.directory).manifest), settings: r.settings, settingsSchema: this.artifact(r.directory).manifest.settingsSchema };
           const m = this.artifact(r.directory).manifest;
           if (!args.settings || !compileSchema(m.settingsSchema)(args.settings)) throw new Error("Invalid settings; secrets are unsupported");
           if (this.loaded.has(id)) throw new Error("Disable the plugin before changing settings");

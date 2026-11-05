@@ -28,7 +28,8 @@ export function validateManifest(input: unknown): PluginManifest {
     if (new Set(ids).size !== ids.length) throw new Error("Duplicate contribution ID");
   }
   if (m.contributes.operations.some(op => op.scope === "folder")) throw new Error("Folder-scoped plugin operations are unsupported in stage 1");
-  if (m.secrets.length || m.contributes.dataViews.length || m.contributes.generatedUi.length || m.contributes.views.length || m.contributes.secretUses.length) throw new Error("Unsupported stage-1 contribution: views, generated UI and secrets");
+  if (new Set(m.secrets.map(s => s.id)).size !== m.secrets.length) throw new Error("Duplicate secret ID");
+  if (m.contributes.dataViews.length || m.contributes.generatedUi.length || m.contributes.views.length || m.contributes.secretUses.length) throw new Error("Unsupported stage-1 contribution: views, generated UI and secrets");
   compileSchema(m.settingsSchema);
   for (const operation of m.contributes.operations) { compileSchema(operation.inputSchema); compileSchema(operation.outputSchema); }
   return m;
@@ -37,7 +38,7 @@ export type FolderSource = { id: string; path: string; label: string; defaultCan
 export type FolderDecoration = { id: string; path: string; icon: "onedrive" };
 export type AccountStatus = { id: string; label: string; source: string };
 export type PluginStatus = { available: boolean; message: string; folders: FolderSource[]; decorations: FolderDecoration[]; accounts: AccountStatus[] };
-export type PluginContext = { settings: Readonly<Record<string, unknown>>; platform: string; env: Readonly<Record<string, string | undefined>>; isDirectory(path: string): boolean };
+export type PluginContext = { secrets?: Readonly<Record<string, string>>; settings: Readonly<Record<string, unknown>>; platform: string; env: Readonly<Record<string, string | undefined>>; isDirectory(path: string): boolean };
 export type PluginInstance = { operations: Record<string, (input: unknown) => unknown | Promise<unknown>>; status(): PluginStatus | Promise<PluginStatus>; dispose(): void | Promise<void> };
 export type PluginModule = { activate(context: PluginContext): PluginInstance | Promise<PluginInstance> };
 export type OperationReceipt = { requestId: string; operation: string; version: number; scope: string; outcome: "success" | "refused" | "failure" | "uncertain" };
@@ -47,6 +48,8 @@ export const statusSchema = z.strictObject({ available: z.boolean(), message: z.
   decorations: z.array(z.strictObject({ id, path: z.string().min(1), icon: z.literal("onedrive") })),
   accounts: z.array(z.strictObject({ id, label: z.string().min(1), source: z.string().min(1) })) });
 export const pluginManagementSchema = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("secret-status"), id }),
+  z.strictObject({ action: z.literal("secret-delete"), id, name: id }),
   z.strictObject({ action: z.literal("list") }),
   z.strictObject({ action: z.literal("register"), directory: z.string().min(1) }),
   z.strictObject({ action: z.literal("trust"), id, digest: z.string().regex(/^[a-f0-9]{64}$/) }),
