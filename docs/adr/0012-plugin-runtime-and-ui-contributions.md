@@ -17,6 +17,10 @@ implementation. Current behavior remains described by the Implemented
 [HTTP Host](../design/http-host-v1.md) contracts until implementation PRs satisfy
 the adoption conditions below and update the affected contracts.
 
+## Amendment: 플러그인 계층 개념 (2026-11-05)
+
+[ADR-0019](0019-plugin-tiers.md)은 공식/커뮤니티 계층과 공통 manifest·SDK·권한, 대상 Host 실행·자격 증명, 앱 번들 UI·공용 작업·CLI 경계를 개념으로 결정한다. 과거 same-origin ESM/CSS 로딩은 최초 UI에서 채택하지 않는다. 비서는 제품 기능이며 Docling은 재개 시 커뮤니티 계층으로 다룰 수 있다. 충돌하는 개념에는 ADR-0019를 우선 적용하되 아래 과거 결정·구현 기록은 보존한다. ADR-0017의 기능 제거·보관과 소유자의 명시적 재개 개시 조건은 유지하며, 이번 개념 결정으로 구현을 재개하지 않는다.
+
 ## Amendment: 공식 AI·Docling 전환과 Desktop 번들 UI (2026-11-04, #1150)
 
 [ADR-0017](0017-bundled-client-and-official-ai.md)은 AI를 항상 존재하는 daemon 공식 기능으로 먼저 이전한 뒤 플러그인 런타임·UI 기여·관리 CLI/설정·Docling과 관련 테스트·문서를 삭제하도록 결정한다. 공식 AI가 쓰지 않는 `@litzio/plugin-api` 부분도 삭제한다. 삭제 직전 master는 원격 `archive/plugins-docling-2026-11`에 보관한다. 이는 기능 제거이며 테스트 예외가 아니다. 소유자는 이미 검증한 설계여서 재개발 비용이 낮을 것으로 판단했다. 소유자가 명시적으로 재개를 개시할 때 보관 코드를 참고하여 컨셉을 다시 개발하며 그대로 복구하지 않는다. aiTasks 계약 복원·플러그인 UI 신뢰·원격 UI·번들 origin 로드 경계·Docling 재개발은 그때 결정한다. 1단계와 #1150 코어 전환 완료 전에는 릴리스하지 않으며 이후 플러그인 없는 제품의 릴리스 여부는 소유자가 정한다. 아래 구현 기록은 삭제 구현 전 근거이며 실제 코드·관련 문서 제거는 구현 PR에서 한다.
