@@ -167,3 +167,8 @@ inputSchema를 읽는다. 실행·신규 저장·열기는 기존 `POST /api/vie
 V2가 이 adapter를 연결하기 전 실제 plugin namespace 저장/기본 기여·CLI 일치는 미완료다.
 화면은 기본 control validity로 필수·범위·형식 오류를 연결하고, Host/Core가 실행·저장 직전 전체 JSON Schema를 검증한다. Ajv의 동적 컴파일은 CSP가 있는 화면에서 실행하지 않는다.
 브라우저 fixture 통과를 실제 서비스·Host·비서 제작 수락으로 계산하지 않는다.
+
+#1263 UI 보완의 입력/표시·폼 행동·스크롤 규칙과 캡처는
+[조회 폼 패턴](ui-patterns-v1.md#query-form-refinement-1263)을 따른다.
+입력 title과 Host field label을 소비하며 현재 v2 form 명세에는 enum 항목별 label slot이 없다.
+renderer가 새 schema나 label DSL을 추가하지 않는다.

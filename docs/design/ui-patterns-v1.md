@@ -546,3 +546,28 @@ Lucide Star를 쓰는 즐겨찾기에 추가는 **현재 폼 입력**을 args로
 | 시간 초과 | ‘제한 시간 안에 응답을 확인하지 못했습니다’. read는 수동 재조회, write/결과 불확실은 상태 확인 안내 |
 
 #1233이 **분류 타입·안전한 고정 메시지/행동 코드·publicOperationResult 정리·receipt 및 CLI/비서 일치**를 소유한다. 이 문서는 이름이 확정되지 않은 별도 error enum을 구현시키지 않는다. HTTP 401 등을 renderer에서 추측하거나 예외 문자열에서 분류하지 않는다. 미분류 오류는 안전한 일반 실패 안내를 쓰며 원문 body·stack·secret·인증 헤더·서비스 URL을 표시하지 않는다. 사용자에게 보이는 상세에는 operation/version·시각·request ID 같은 안전한 receipt만 둔다. validation/버전 불일치/비활성 플러그인은 서비스 5종과 별도로 안내한다. 연결 상실 후 write 성공 여부를 모르면 분류가 timeout이어도 outcome은 uncertain이고 자동 재전송하지 않는다.
+
+### Query form refinement (#1263)
+
+조회 폼에는 label·현재 값·행동만 상시 표시한다. 빈 입력에 Unset 문구를 덧붙이지 않는다.
+입력 설명·날짜 형식은 공통 Tooltip에 두며, optional 값이 지정된 경우에만 입력 안의
+Lucide X + ghost/icon-sm Button으로 속성을 지운다. 버튼에는 접근성 이름과 같은 tooltip을
+제공하고 지운 뒤 입력으로 focus를 돌린다. 빈 문자열과 속성 제거의 Core 의미는 유지한다.
+optional boolean은 공통 select의 Any/Yes/No로 미지정/true/false를 명시한다.
+nullable 입력의 null은 별도 값 없음 선택으로 보존하며 false로 치환하지 않는다.
+
+제품 공통 날짜 picker는 없으므로 공통 Input의 ISO `YYYY-MM-DD` 텍스트와
+UI 언어로 번역된 형식 tooltip을 쓴다. 브라우저 locale의 native date placeholder를 노출하지
+않고 timezone 변환·날짜 parser를 화면에 추가하지 않는다. 전체 유효성 판정은 Host/Core다.
+입력 label은 schema title, 열 머리글은 Host의 공개 label을 우선한다. 없으면 식별자의
+camelCase·구분자를 읽기 쉬운 기본 표기로만 바꾸고 바인딩 값은 바꾸지 않는다.
+현재 v2 form/enum에는 항목별 label을 선언할 자리가 없으므로 enum 문자열도 같은 기본 표기를 쓴다.
+
+실행 버튼은 입력 grid 전체 너비를 차지하는 마지막 행의 기존 `.form-actions` 오른쪽 축에
+둔다. 조회 표는 문서 표와 같은 thin scrollbar·border-strong thumb 규칙으로 내부 가로
+스크롤을 드러낸다. 모든 열을 유지하며, 폭별 시작/끝 캡처로 12열과 마지막 열 도달을 확인한다.
+검증 근거는 `pnpm browser:test generated-views --screenshots`의
+`tmp/v3-review/{table12-<width>-start,table12-<width>-end,reopened-<width>,error-<width>}.png`
+(1440/960/640)이며 최종 이미지는 수동 검토한다.
+
+수동 `--screenshots` 실행에서는 Playwright headless의 기본 `--hide-scrollbars`만 제외해 실제 scrollbar도 캡처한다. persistent profile·시나리오 격리·검증 단언은 동일하다.

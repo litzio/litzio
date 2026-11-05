@@ -1,6 +1,12 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Yes": "Yes",
+  "No": "No",
+  "Date format: YYYY-MM-DD": "Date format: YYYY-MM-DD",
+  "Any": "Any",
+  "About {{field}}": "About {{field}}",
+  "No value for {{field}}": "No value for {{field}}",
   "Add to favorites": "Add to favorites",
   "Save the current inputs, including conditions not yet queried. Reopening restores inputs without querying.": "Save the current inputs, including conditions not yet queried. Reopening restores inputs without querying.",
   "Loading data…": "Loading data…",
@@ -1162,6 +1168,12 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Yes": "예",
+  "No": "아니요",
+  "Date format: YYYY-MM-DD": "날짜 형식: YYYY-MM-DD",
+  "Any": "모두",
+  "About {{field}}": "{{field}} 설명",
+  "No value for {{field}}": "{{field}} 값 없음",
   "Add to favorites": "즐겨찾기에 추가",
   "Save the current inputs, including conditions not yet queried. Reopening restores inputs without querying.": "조회하지 않은 조건을 포함해 현재 입력을 저장합니다. 다시 열면 조회 없이 입력만 복원합니다.",
   "Loading data…": "자료 조회 중…",

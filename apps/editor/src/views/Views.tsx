@@ -13,6 +13,7 @@ import { hostLabel } from "../host-client.ts";
 import { STATISTICS_PLUGIN, statisticsView, viewRequest, type ViewResult } from "./view-api.ts";
 import { QueryInputs, type InputSchema } from "./QueryInputs.tsx";
 import { sourceFailure } from "./source-state.ts";
+import { readableLabel } from "./view-label.ts";
 import "./views.css";
 
 export type ViewTab = { id: string; hostId: string; root: string; view?: View; basic?: boolean; jobs?: boolean; label?: string };
@@ -37,7 +38,7 @@ export function ViewRenderer({ view, rows, fields }: { view: View; rows?: ViewRo
     ? i18n.t("(Root)") : value === null ? "—" : String(value);
   return <div className="view-panels">{valid.layout.children.map((panel, index) => <section key={index} className="view-panel" aria-label={panel.title}>
     <h3>{panel.title}</h3>
-    {!rows?.length ? null : panel.component === "Table" ? <div className="view-table-scroll" tabIndex={0} aria-label={panel.title}><table><thead><tr>{panel.columns.map(column => <th key={column} scope="col">{fields?.[column] ?? column}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={i}>{panel.columns.map(column => <td key={column}>{label(column, row[column])}</td>)}</tr>)}</tbody></table></div> : <ViewBars rows={rows} x={panel.x} y={panel.y} label={label} />}
+    {!rows?.length ? null : panel.component === "Table" ? <div className="view-table-scroll" tabIndex={0} aria-label={panel.title}><table><thead><tr>{panel.columns.map(column => <th key={column} scope="col">{fields?.[column] ?? readableLabel(column)}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={i}>{panel.columns.map(column => <td key={column}>{label(column, row[column])}</td>)}</tr>)}</tbody></table></div> : <ViewBars rows={rows} x={panel.x} y={panel.y} label={label} />}
   </section>)}</div>;
 }
 export function Views({ tab, client, roots, onOpen, onRoot }: { tab: ViewTab; client: HostClient; roots: string[]; onOpen(view: View, root: string, hostId: string, label?: string): void; onRoot(root: string): void }) {
@@ -114,7 +115,7 @@ export function Views({ tab, client, roots, onOpen, onRoot }: { tab: ViewTab; cl
     {view.form ? <form ref={formElement} className="view-query-form" noValidate onSubmit={event => { event.preventDefault(); void query(); }}>
       {schema ? <QueryInputs view={view} schema={schema} errors={inputErrors} change={(field, value, remove) => { setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; }); setInputErrors({}); }} /> : null}
       <FieldError id={`view-form-error-${tab.id}`}>{inputErrors.form}</FieldError>
-      <Button type="submit" disabled={busy || !root || !schema}>{view.form.submit.label}</Button>
+      <div className="form-actions view-query-actions"><Button type="submit" disabled={busy || !root || !schema}>{view.form.submit.label}</Button></div>
     </form> : null}
     {state === "loading" ? <Notice>{i18n.t("Loading data…")}</Notice> : state === "idle" ? <Notice>{i18n.t("Data has not been queried. Refresh manually.")}</Notice> : state === "empty" ? <Notice>{i18n.t("No matching rows.")}</Notice> : null}
     {result && (state === "loading" || !!problem || JSON.stringify(args) !== queriedArgs) ? <Notice tone="warning">{i18n.t("Previous query result")} · {queriedAt}{JSON.stringify(args) !== queriedArgs ? ` · ${i18n.t("Search conditions changed")}` : ""}</Notice> : null}

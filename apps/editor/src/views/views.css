@@ -27,11 +27,21 @@
 .plugin-job-progress { display: flex; align-items: center; gap: var(--space-3); font-size: var(--font-size-sm); color: var(--id-color-text-muted); }
 .plugin-job-progress > [role="progressbar"] { flex: 1; }
 .view-query-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--space-3); }
-.view-query-form > button { justify-self: start; align-self: end; }
+.view-query-actions { grid-column: 1 / -1; }
 .views-page { container-type: inline-size; }
 @container (max-width: 640px) { .view-query-form { grid-template-columns: minmax(0, 1fr); } }
 .view-input { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; max-width: 100%; font-size: var(--font-size-sm); }
-.view-input > span { color: var(--id-color-text-muted); }
+
 .view-panels, .view-table-scroll { min-width: 0; max-width: 100%; }
 
 .view-panel th, .view-panel td { min-width: calc(var(--space-4) * 8); max-width: calc(var(--space-4) * 24); white-space: normal; overflow-wrap: anywhere; }
+
+.view-input-control { position: relative; }
+.view-input-control > select { width: 100%; }
+.view-input-clear, .view-select-clear { position: absolute; top: 50%; transform: translateY(-50%); }
+.view-input-clear { right: var(--space-1); }
+.view-select-clear { right: var(--size-control); }
+.view-table-scroll { scrollbar-width: thin; scrollbar-color: var(--id-color-border-strong) transparent; }
+
+.view-input > div:first-child { min-height: var(--size-control-compact); }
+.view-input-control:has(.view-select-clear) > select { padding-right: calc(var(--size-control) * 2); }
