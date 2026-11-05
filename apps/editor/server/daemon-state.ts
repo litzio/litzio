@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { spawn, type ChildProcess, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { Agent } from "undici";
 import { brand } from "../../../brand.ts";
@@ -9,6 +9,49 @@ import { DAEMON_PROTOCOL, sameInstance, type DaemonHealth, type DaemonIdentity }
 
 export type DaemonRecord = DaemonHealth & { url: string };
 export type DaemonChannel = "stable" | "beta" | "development";
+export function daemonChannel(version: string): DaemonChannel {
+  return version === "development" ? "development" : version.includes("-") ? "beta" : "stable";
+}
+
+/** Shared launch handshake; the caller retains Desktop ownership and shutdown policy. */
+export async function startDaemonChild(options: {
+  directory: string; bin: string; args: string[];
+  launcher: "desktop" | "cli-start";
+  onChild?: (child: ChildProcess) => void;
+}): Promise<{ record: DaemonRecord | undefined; identity: DaemonIdentity | undefined }> {
+  const { directory, launcher } = options;
+  prepareDaemonDirectory(directory);
+  const log = path.join(directory, "daemon.log"), fd = fs.openSync(log, "a", 0o600);
+  let identity: DaemonIdentity | undefined;
+  try {
+    const child = spawn(options.bin, options.args, {
+      detached: true, windowsHide: true, stdio: ["ignore", fd, fd, "ipc"],
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1",
+        ...(launcher === "desktop" ? { LITZIO_DESKTOP_DAEMON: "1" } : { LITZIO_DAEMON_START: "1" }) },
+    });
+    options.onChild?.(child);
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (child.connected) child.disconnect();
+        reject(new Error(`Daemon startup was not confirmed. Inspect ${log}`));
+      }, 15_000);
+      const done = () => { clearTimeout(timer); resolve(); };
+      child.once("error", error => { clearTimeout(timer); reject(error); });
+      child.once("message", (message: any) => { if (message?.ready === true) identity = message.identity; done(); });
+      child.once("exit", done); // A concurrent candidate may own the lock.
+      if (launcher === "cli-start") child.unref();
+    });
+  } finally { fs.closeSync(fd); }
+  let record: DaemonRecord | undefined;
+  for (let i = 0; i < 100; i++) {
+    record = readDaemonRecord(directory);
+    if (record) break;
+    if (!fs.existsSync(path.join(directory, "daemon.lock"))) throw new Error(`Daemon startup failed. Inspect ${log}`);
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  return { record, identity };
+}
+
 export function daemonUser(): string {
   if (process.platform !== "win32") return `uid:${os.userInfo().uid}`;
   const result = execFileSync("whoami", ["/user", "/fo", "csv", "/nh"], { encoding: "utf8", windowsHide: true });
