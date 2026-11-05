@@ -83,12 +83,12 @@ jobs:
           version: 12.5.1
           cache: true
           run_install: false
+      - run: pnpm install --frozen-lockfile
       - name: Cache Playwright browsers
         uses: actions/cache@v6
         with:
           path: /github/home/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
-      - run: pnpm install --frozen-lockfile
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ hashFiles('node_modules/.pnpm/playwright-core@*/node_modules/playwright-core/browsers.json') }}
       - name: Install pinned Chromium
         timeout-minutes: 2
         run: |
