@@ -63,7 +63,7 @@ export class AssistantConversations {
         const result = await executeViewOperation(params.tool === "view_catalog" ? { action: "catalog" } : { action: "propose", view: params.arguments?.view }, { access: this.access, plugins: this.plugins });
         if (active.status !== "inProgress") throw new Error("View proposal arrived after the turn ended.");
         // Authoring exposes the same finite generation scope as Generate view,
-        // not the Host's full query/review catalog or contributed definitions.
+        // not contributed definitions or live review materials.
         const toolResult = params.tool === "view_catalog"
           ? { catalog: viewGenerationContext(this.plugins?.viewOperations()).catalog, receipt: result.receipt }
           : result;
@@ -224,8 +224,8 @@ export class AssistantConversations {
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
           approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [
-            { type: "function", name: "view_catalog", description: "Read the current common query view catalog before authoring a view.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
-            { type: "function", name: "propose_view", description: "Validate a common query view and return an Open view result card. Does not save or query. Read view_catalog first. Correct validation errors at most twice, describing each correction to the user. Never ask the user to paste JSON into Generate view.", inputSchema: { type: "object", properties: { view: { type: "object", additionalProperties: true } }, required: ["view"], additionalProperties: false } },
+            { type: "function", name: "view_catalog", description: "Read the current common view catalog before authoring a view.", inputSchema: { type: "object", properties: {}, additionalProperties: false } },
+            { type: "function", name: "propose_view", description: "Validate a common view and return an Open view result card. Does not save or query. Read view_catalog first. Correct validation errors at most twice, describing each correction to the user. Never ask the user to paste JSON into Generate view.", inputSchema: { type: "object", properties: { view: { type: "object", additionalProperties: true } }, required: ["view"], additionalProperties: false } },
             ...documentTools, ...displayTools, ...templateTools, ...(this.plugins ? [...pluginTools, ...pluginJobTools] : [])] });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
           turns: [], provider: "codex", permissionMode: settings.permissionMode, model: input.model, reasoningEffort: input.reasoningEffort };

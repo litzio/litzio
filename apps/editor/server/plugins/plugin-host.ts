@@ -12,6 +12,7 @@ import { hostPaths } from "../host-paths.ts";
 import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store.ts";
 
 import { PluginJobs } from "./jobs.ts";
+import { PluginReviews } from "./reviews.ts";
 
 type Installed = { directory: string; digest: string; trustedDigest?: string; enabled: boolean; settings: Record<string, unknown>; operationNames: string[] };
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>> };
@@ -26,6 +27,7 @@ export class PluginHost {
   private closed = false;
   private disabling = new Set<string>();
   readonly jobs: PluginJobs;
+  readonly reviews: PluginReviews;
   private secrets: PluginSecretStore;
   private redactionSecrets = new Map<string, Map<string, string>>();
   private secretValues(id: string) { return [...(this.redactionSecrets.get(id)?.values() ?? [])]; }
@@ -37,11 +39,20 @@ export class PluginHost {
   constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; secrets?: PluginSecretStore } = {}) {
     this.access = options.access ?? LOCAL_FILE_ACCESS;
     this.secrets = options.secrets ?? new WindowsPluginSecretStore(`${file}.secrets`);
+    this.reviews = new PluginReviews(this.access, (plugin, review) => {
+      if (this.closed || this.disabling.has(plugin)) throw new Error("Plugin is stopping");
+      const binding = this.loaded.get(plugin)?.manifest.contributes.reviews.find(r => r.id === review);
+      if (!binding) throw new Error("Review unavailable");
+      const live = this.loaded.get(plugin)!, record = this.record(plugin), current = this.artifact(record.directory);
+      if (current.digest !== record.digest || !this.official(current.manifest, current.digest) && record.trustedDigest !== current.digest) throw new Error("Review artifact trust changed");
+      if ([binding.read, binding.propose, binding.approve, binding.reject, binding.undo].some(b => !live.manifest.contributes.operations.some(op => `${plugin}.${op.id}` === b.operation && op.version === b.version))) throw new Error("Review operation unavailable");
+      return binding;
+    }, (name, input, version) => this.invokeOperation(name, input, undefined, true, version));
     this.jobs = new PluginJobs(options.access ?? LOCAL_FILE_ACCESS, (plugin, job) => { if (this.closed || this.disabling.has(plugin)) throw new Error("Plugin is stopping"); const binding = this.loaded.get(plugin)?.manifest.contributes.jobs.find(item => item.id === job); if (!binding) throw new Error("Job unavailable"); return binding; }, (name, input) => this.invokeOperation(name, input, undefined, true), name => {
       const operation = [...this.loaded.values()].flatMap(live => live.manifest.contributes.operations.map(op => ({ name: `${live.manifest.id}.${op.id}`, effect: op.effect }))).find(op => op.name === name);
       if (!operation) throw new Error("Job operation unavailable");
       return operation.effect;
-    });
+    }, (plugin, root, file, source, data) => this.reviews.publish(plugin, root, file, source, data));
     this.installed = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
   }
   private save() {
@@ -186,10 +197,12 @@ export class PluginHost {
   viewContributions() {
     return [...this.loaded.values()].flatMap(live => live.manifest.contributes.views.map(view => ({ plugin: live.manifest.id, ...view })));
   }
-  async invokeOperation(name: string, input: unknown, folder?: string, jobCall = false) {
+  async invokeOperation(name: string, input: unknown, folder?: string, jobCall = false, version?: number) {
     const live = [...this.loaded.values()].find(v => v.manifest.contributes.operations.some(op => `${v.manifest.id}.${op.id}` === name));
     const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === name);
     if (!live || !op) throw new Error("Operation unavailable or plugin disabled");
+    if (version !== undefined && op.version !== version) throw new Error("Review operation version unavailable");
+    if (version === undefined && live.manifest.contributes.reviews.some(r => [r.read, r.propose, r.approve, r.reject, r.undo].some(b => b.operation === name))) throw new Error("Use the common review dispatcher");
     if (!jobCall && this.disabling.has(live.manifest.id)) throw new Error("Plugin is stopping");
     if (!jobCall && live.manifest.contributes.jobs.some(job => [job.start, job.status, job.stop].includes(op.id))) throw new Error("Use job start/status/stop with a requestId");
     const record = this.record(live.manifest.id), current = this.artifact(record.directory);

@@ -13,6 +13,7 @@ export function createPluginService(access: FileAccess = LOCAL_FILE_ACCESS, sett
   };
   const invoke = async (operation: string, args: any = {}): Promise<any> => {
     await start();
+    if (operation === "review") return host.reviews.execute(args);
     if (operation === "pluginSecretSet") {
       try { return await host.setSecret(args.id, args.name, args.value); }
       catch { throw new Error("Unable to store plugin secret. Disable the plugin and check Windows store support."); }
@@ -22,6 +23,7 @@ export function createPluginService(access: FileAccess = LOCAL_FILE_ACCESS, sett
     throw new Error("Unknown plugin operation.");
   };
   const route = (url: string): Record<string, string> | undefined => {
+    if (url === "/api/reviews") return { POST: "review" };
     if (url === "/api/plugins/secrets") return { POST: "pluginSecretSet" };
     if (url === "/api/plugins") return { GET: "pluginsList", POST: "pluginsManage" };
   };

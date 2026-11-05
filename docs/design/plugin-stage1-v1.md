@@ -2,7 +2,8 @@
 
 - Status: Implemented
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Request paths, lazy plugin start, receipts and stored formats are unchanged.
-- Last verified: 2026-11-06 — #1244 플러그인별 값 마스킹·키 보존·삭제·로그 비노출과 #1245 접수/작업 수명 분리·실제 10초 초과 subprocess 회귀. 기존 검증: 2026-11-05 SDK·Host·OneDrive fixture, 제작 lifecycle·CLI·실제 Codex 두 모델 및 http-plugins 검사. 필수 CI 결과는 구현 PR에 기록한다.
+- Last verified: 2026-11-06 — V4 승인 내용 고정·snapshot baseline·K1 status 완료 fixture와 대상 회귀 검사, 전체 typecheck 확인. V5 브라우저 통합은 미검증.
+- Previous verification: 2026-11-06 — #1244 플러그인별 값 마스킹·키 보존·삭제·로그 비노출과 #1245 접수/작업 수명 분리·실제 10초 초과 subprocess 회귀. 기존 검증: 2026-11-05 SDK·Host·OneDrive fixture, 제작 lifecycle·CLI·실제 Codex 두 모델 및 http-plugins 검사. 필수 CI 결과는 구현 PR에 기록한다.
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md)의 소유자 1단계 개시. [ADR-0019](../adr/0019-plugin-tiers.md), [ADR-0015](../adr/0015-shared-host-operations.md), [ADR-0018](../adr/0018-desktop-remote-hosts.md)을 따른다.
 - Scope: 최소 SDK, 명시적 로컬 등록·신뢰·활성화, 공용 작업·CLI·설정과 OneDrive, 비서 제작 키트. Jira와 동적 UI 스파이크는 후속이다.
 
@@ -126,3 +127,56 @@ Host의 `publicOperationError`는 `errorKind`와 SDK의 고정 `PLUGIN_ERROR_MES
 K1 반환형 실패도 같은 공개 오류 경계를 따른다. handler는 오류 문자열 대신 `errorKind`만 지정하며 알 수 없거나 누락된 분류는 `failed`다. `failed`·`uncertain`의 phase와 오류 안내는 Host 고정값이며 plugin phase·예외 원문을 복사하지 않는다. 기존 `error` 필드는 허용하지 않으며 잘못된 결과는 고정 `failed` 안내의 uncertain으로 남긴다. job-status·job-list·화면·비서가 같은 정규화된 snapshot을 받는다.
 
 K1 호출은 등록 시 manifest의 start/status/stop read·write 효과를 기록하고 오류 정규화에도 유지한다. 쓰기 실패에는 고정 대상 확인 안내와 `Query the same requestId; do not resend start.`를 함께 붙인다. 쓰기 결과가 uncertain인 동안 후속 읽기 조회도 실패하거나 uncertain을 반환하면 이 안전 안내를 유지한다. 원문·stack은 복사하지 않는다.
+
+## V4 공용 review Host·CLI
+
+K1 완료의 선택 `jobUpdate.review`는 SDK `completedReviewSchema`를 따른다. review, bundle(generation/documentRevision/documentHash/sourceRevision와 선택 mappingRevision), pages, 선택 mapping, images(ref/Root 상대 path/SHA-256 revision)를 전달한다. sourceRevision은 K1 입력 파일 SHA-256, documentRevision/hash는 Core canonical 출력 revision이다. Host는 문서 생성 후 모든 자료를 검증하고 `result.bundle`에 Host 발급 bundleRef/documentRef를 공개한다. Root·generation·revision·이미지 검증 실패 시 bundle은 공개하지 않으며 이미 생성된 결과 문서를 보존하고 uncertain으로 남긴다. 완료 전 자료는 공개하지 않는다.
+
+`POST /api/reviews`는 PluginHost 소유 dispatcher다. 입력은 action(read/propose/approve/reject/undo/status), plugin/review/root/bundleRef/generation이다. read는 kind(bundle/document/page/mapping/proposals/image)와 pageNo를 선택하고 data/baseline/state/receipt를 반환한다. 문서는 bundle의 canonical source snapshot이며 stale 자료를 현재 파일처럼 반환하지 않는다. image는 검증한 PNG의 mime/base64 data/width/height다. 현재 PNG만 지원하며 다른 형식은 거부한다. Core REVIEW_LIMITS의 JSON·목록·영역·이미지 byte/pixel 상한을 적용하고 초과나 미지원 continuation은 자르지 않고 거부한다. 자료 참조에 임의 파일 경로·URL을 받지 않는다.
+
+변경에는 requestId(UUID), baseline과 선택 proposalId/input을 더한다. baseline은 문서·제안 revision과 원본/map revision이다. Host는 plugin 실행 전과 commit 직전에 문서·원본·이미지를 재검사하고 bundle별 동시 변경을 거부한다. binding ID/version·가용성·artifact 신뢰를 매번 확인하며 일반 operation invoke로 review binding을 호출할 수 없다. propose 결과는 Core ReviewProposal의 pending만 허용하고 target snapshot·baseline을 검사하며 기여의 action 제한을 유지한다. reject는 문서를 바꾸지 않는다.
+
+현재 공용 적용 결과는 `{kind:"text",path,from,to}`다. Host가 proposal target과 일치하는 Core snapshot path에 기존 `updateNodeTextAtPath`를 호출하고 canonical serialize 후 file-commit의 revision 보호·temporary sibling·rename으로 저장한다. 임의 source·파일 쓰기 요청은 받지 않는다. Undo는 Host가 보관한 역연산을 같은 Core operation으로 수행하고 승인 전 canonical source와 정확히 일치할 때만 commit한다. 빈 문자열 역연산·지원하지 않는 변경 종류는 거부한다. 승인/Undo 뒤 다른 제안은 stale, 이전 map은 unavailable이며 새 baseline/changedDocumentRefs/proposals/receipt를 반환한다. Docling 저장·재처리 방식은 정하지 않는다.
+
+requestId는 plugin 호출 전에 기록한다. 관찰 유실은 고정 오류 안내와 uncertain이며 같은 ID 변경은 재실행하지 않고 status로 결과만 확인한다. daemon 재시작 뒤 확인할 수 없는 결과는 unknown이며 실행 허가가 아니다. bundle·제안·Undo·요청 관찰은 PluginHost/daemon 수명 소유다. 다른 Host/Root/generation으로 재바인딩하지 않는다. 비서에 approve/undo 전용 도구를 추가하지 않는다.
+
+```text
+review <read|propose|approve|reject|undo|status> <pluginId> <reviewId> --input <json-file> --root <root> --host <origin> --json
+```
+
+CLI는 같은 dispatcher를 호출한다. JSON은 bundleRef/generation과 동작별 kind/pageNo 또는 requestId/baseline/proposalId/input을 담는다. 명시 CLI의 action/plugin/review/root가 적용되며 응답 유실을 자동 재전송하지 않는다. `reviews.test.ts`는 제품 HTTP Host·실제 CLI·plugin subprocess·K1 완료·파일 승인/거절/Undo와 Root/Host/generation·stale·no-replay를 검증한다. 공용 fixture이며 실제 Docling 제작·변환 품질이나 V5 브라우저 통합의 완료 근거가 아니다.
+
+### V4 승인 내용 고정과 snapshot baseline
+
+제안 접수 시 Host는 단일 target과 plain before/after에서 지원하는 text 연산의 path/from/to를 별도 보관한다. 승인 응답의 세 값이 이 고정 연산과 정확히 일치해야 하며 실제 저장에도 Host 보관 연산만 쓴다. plugin에 전달하는 문서·제안 입력은 복사본이다. 지원하지 않는 typed/다중 target 제안은 읽기·거절을 유지하되 승인을 허용하지 않는다. before/after와 고정 연산은 baseline 갱신으로 변경하지 않는다.
+
+성공한 propose/reject/approve/undo마다 proposalRevision을 한 번 갱신하고, 반환 snapshot의 stale이 아닌 모든 제안 baseline을 응답 baseline과 동일하게 갱신한다. propose/reject는 documentRevision/sourceRevision/mappingRevision을 바꾸지 않는다. approve/undo는 commit한 canonical source의 documentRevision/hash를 bundle과 해당 제안 target에 함께 반영한다. 현재 text 연산은 대상 path를 유지하므로 해당 제안의 target만 새 문서 snapshot에 연결한다. 다른 제안은 stale로 남기며 이전 baseline/target을 최신 문서에 임의 연결하지 않는다. 재조회한 proposals와 변경 응답은 같은 baseline 계약을 따른다. 이전 requestId status는 당시 결과 snapshot을 보존하며 최신 snapshot 대신 사용하지 않는다.
+
+승인 후 Undo의 proposal.baseline은 새 documentRevision·proposalRevision과 현재 sourceRevision/mappingRevision으로 비교한다. 이전 map은 여전히 폐기하며 없는 map을 새 문서에 맞는 것처럼 만들지 않는다. V5 통합에서는 문서/bundle/baseline/제안 target의 유효성과 map 탐색 가용성을 분리해야 한다. map 부재/continuation은 원본↔문서 이동을 막되, 현재 문서와 일치하는 제안의 승인·거절·Undo를 일괄 stale로 만들지 않는다. 실제 문서·원본 revision 불일치는 계속 모든 관련 변경을 막는다.
+
+K1 review HTTP fixture는 start에서 running 접수만 반환하고 자료를 공개하지 않는다. 이후 status의 completed 응답을 기존 Host 문서 생성·bundle 검증/공개 경로에 연결한다. #1259 접수·완료 분리의 source-of-truth를 유지하며 별도 수명 규칙을 구현하지 않는다.
+
+### V4·V6 공용 생성과 V3/V5 transport
+
+일반 대화 view_catalog와 Generate view는 shared/view-generation.ts의 단일 schema/instruction을 사용한다. query/InputForm과 함께 명시적으로 제공된 같은 Host 완료 bundle의 review 명세를 허용한다. Host view.validate/propose는 실제 bundle·Root 접근·기여 가용성을 확인하며 저장·자료 반환·plugin 조회·문서 변경을 실행하지 않는다. review 제안의 pending 제출과 뷰 명세 propose를 구별하며 비서 승인/Undo 도구를 추가하지 않는다. 제작 스킬도 같은 범위와 참조 발명 금지를 안내한다.
+
+V3/V5와 CLI는 단일 POST /api/reviews dispatcher를 사용한다. source의 bundleRef는 Host가 보관한 generation에 고정되며 generation을 명시한 요청은 일치해야 한다. read에서 pageNo를 주고 kind를 생략하면 snapshot/receipt를 반환한다. snapshot은 bundle/page/선택 mapping/proposals, document-reader의 Core document/revision/hash/path, baseline/pageCount와 선택 PNG imageUrl을 조립한다. 이미지 byte/pixel 제한과 JSON 자료 제한을 각각 적용하며 imageUrl은 일시적 읽기 결과로만 사용한다. 다른 자료 읽기는 기존 kind 선택을 쓴다. 변경·status는 같은 requestId·baseline 계약을 유지한다. source·문서가 외부에서 바뀌면 snapshot은 실제 revision으로 불일치를 드러내어 V5가 action을 막으며 Host도 commit 직전에 다시 거부한다. 이전 map을 새 문서에 재연결하지 않는다. HTTP/CLI·비서 stdio fixture 통과를 실제 브라우저·외부 서비스·Docling 수락으로 간주하지 않는다.
+
+### 화면의 변경 결과 관찰과 페이지 없는 K4
+
+미확정 변경의 소유자는 Host의 PluginReviews이며 bundle/proposal별로 관리한다. 유효한 approve/reject/undo를 접수할 때 requestId와 action/receipt를 plugin 호출 전에 잠근다. 결과가 확정되지 않은 동안 같은 제안의 모든 후속 변경은 다른 requestId라도 code:confirmation-required, Verification required 안내와 기존 pending.requestId를 반환한다. status 조회나 탭 종료만으로 이 잠금을 해제하지 않는다. 성공한 변경 결과가 확정될 때만 잠금을 해제하고 이후에는 제안 상태·baseline으로 중복을 거부한다. plugin/저장 관찰 실패는 기존 uncertain 결과와 잠금을 유지한다.
+
+snapshot.unresolved는 proposalId/action/requestId/receipt/verification와 고정 guidance 목록이며, 미확정 제안의 published actions는 모두 allowed:false다. 따라서 다른 탭·재개방·앱 새로고침도 Host가 반환한 같은 잠금과 ID를 받는다. 화면의 ReviewObservation은 전송 중 표시와 Host 관찰의 임시 cache일 뿐 잠금의 권한 원본이 아니다. read는 snapshot의 Host 잠금을 복원한다. verification:pending인 요청만 Check request status에서 같은 ID를 조회하며, verification:unavailable은 결과 문서 직접 확인으로 안내한다. unknown/uncertain·통신 실패·다른 ID 응답은 새 변경을 허용하지 않는다. 화면 저장소는 쓰지 않는다. daemon 재시작 후 요청 결과는 unknown이고 이전 bundle/제안은 복원하지 않으므로 해당 변경의 새 ID 재접수도 거부한다. unknown을 실행 허가로 해석하지 않는다.
+
+SDK pages:[] 완료 bundle도 snapshot을 제공한다. 이 경우 page는 없고 pageCount는 0이며 문서·baseline·제안은 그대로 반환한다. 화면은 페이지 controls와 원본↔문서 탐색만 비활성으로 두고 K4의 목록·상세·유효한 승인/거절/Undo는 유지한다. 존재하는 페이지 목록에서 잘못된 pageNo를 요청하면 계속 거부한다. 공용 Button/Notice/Tooltip과 기존 Read를 쓰며 새 surface나 스타일 예외를 추가하지 않는다.
+
+회귀: 제품 HTTP/CLI fixture는 페이지 없는 K4와 세 변경의 응답 유실, 같은 ID의 unknown/uncertain 확인 및 확정 결과 복구를 검증한다. review-v5 브라우저 fixture는 실제 createReviewAdapter를 사용해 불확실 요청의 status 확인 전 버튼 잠금과 같은 ID 유지, 정상 복구 뒤 Undo, 페이지 없는 review의 승인/Undo를 확인한다. 실제 외부 서비스·Docling 수락은 별도다.
+
+
+### 미확정 결과의 확인 가능 여부
+
+Host가 verification을 소유한다. 아직 원래 호출이 진행 중이면 pending과 nextAction:check-status, 같은 ID 조회/no-replay 안내를 반환한다. 호출이 끝났으나 결과를 확정하지 못한 실패와 결과 기록이 없는 unknown은 unavailable과 nextAction:open-document를 반환한다. unavailable은 재조회로 해결되는 진행 상태가 아니며 잠금은 그대로 유지한다. status와 snapshot.unresolved, 후속 변경 거부가 이 구분을 동일하게 전달한다.
+
+화면은 unavailable일 때 “Status checks cannot resolve this outcome. Do not repeat this change.”를 짧게 표시하고 기존 결과 문서 열기 동작을 “Open result document” 버튼으로 제공한다. Tooltip에는 공용 고정 guidance “Status checks cannot resolve this outcome. Do not repeat this change. Open the result document and inspect it.”를 둔다. 불필요한 status 반복은 하지 않으며 변경 권한도 복구하지 않는다. 기존 snapshot의 결과 경로로 문서를 열고, Host가 모르는 경로를 발명하지 않는다. CLI JSON도 같은 verification/guidance/nextAction을 그대로 전달하고 Host가 확인한 documentPath가 있으면 함께 제공한다. daemon 재시작으로 경로까지 모르면 경로는 반환하지 않는다.
+
+제품 fixture는 진행 중 pending, 종료된 uncertain의 unavailable, 재시작 unknown의 unavailable과 잠금 유지를 검증한다. 실제 CLI status에서 unknown/uncertain의 공용 안내·행동 코드를 확인한다. review-v5 브라우저 검사는 unavailable 안내·tooltip·결과 문서 열기와 이후 변경 버튼 잠금 유지, status 재조회 중단을 확인한다.

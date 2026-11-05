@@ -391,7 +391,7 @@ export async function handleDocumentRequest(
   if (url !== "/api/document") {
     if (url.startsWith("/api/")) {
     try {
-      const service = url.startsWith("/api/plugins") ? services?.plugins : url.startsWith("/api/assistant/") ? services?.assistant : undefined;
+      const service = (url.startsWith("/api/plugins") || url === "/api/reviews") ? services?.plugins : url.startsWith("/api/assistant/") ? services?.assistant : undefined;
       const route = service?.route(url);
       if (route) {
         const operation = route[req.method ?? ""];

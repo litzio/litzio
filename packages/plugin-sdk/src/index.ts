@@ -1,3 +1,4 @@
+import { reviewBundleSchema, reviewPageSchema, reviewMappingSchema, type ReviewBundle } from "@litzio/core/views-v2";
 import { queryViewSchema, reviewContributionSchema, validateCatalogView, compileViewInputSchema } from "@litzio/core/views-v2";
 export * from "@litzio/core/views-v2";
 import { rowSchema, type ViewOperation } from "@litzio/core/views";
@@ -89,13 +90,20 @@ export const PLUGIN_MANAGEMENT = { version: 1, scope: "host", inputSchema: z.toJ
  * Host-validated absolute paths are provided; only Host publishes source.
  */
 export const JOB_START_CONTRACT_MESSAGE = "K1 start must accept work and return running within 10 seconds. Keep background work in the child process and report completion through status.";
+
+/** K1 handlers receive Host-validated absolute paths; source is published only by Host. */
+/** Completed K1 review materials are admitted and assigned opaque refs by the Host. */
+export const completedReviewSchema = z.strictObject({ review: z.string().min(1).max(512),
+  bundle: reviewBundleSchema.omit({ bundleRef: true, documentRef: true }), pages: z.array(reviewPageSchema).max(2000),
+  mapping: reviewMappingSchema.optional(), images: z.array(z.strictObject({ ref: z.string().min(1).max(512), path: z.string().min(1), revision: z.string().min(1).max(512) })).max(2000) });
+export type CompletedReview = z.infer<typeof completedReviewSchema>;
 export const jobUpdateSchema = z.strictObject({
   state: z.enum(["running", "completed", "failed", "stopped", "uncertain"]), phase: z.string(),
   progress: z.strictObject({ done: z.number().nonnegative(), total: z.number().positive() }).refine(p => p.done <= p.total).optional(),
-  errorKind: z.unknown().transform(pluginErrorKind).optional(), document: z.strictObject({ source: z.string() }).optional(),
+  errorKind: z.unknown().transform(pluginErrorKind).optional(), document: z.strictObject({ source: z.string() }).optional(), review: completedReviewSchema.optional(),
 });
 export type JobContribution = PluginManifest["contributes"]["jobs"][number];
-export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { path: string; revision: string } };
+export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { path: string; revision: string; bundle?: ReviewBundle } };
 export const jobRequestSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("job-list"), plugin: id.optional() }),
   z.strictObject({ action: z.literal("job-start"), plugin: id, job: id, requestId: z.string().uuid(), root: z.string().min(1), file: z.string().min(1), output: z.string().min(1) }),
