@@ -81,7 +81,7 @@ function PluginSecrets({ plugin, busy, run }: { plugin?: Plugin; busy: boolean; 
   return <section className="settings-section settings-section--stacked" aria-label={i18n.t("Plugin secrets")}>
     {!supported ? <Notice tone="warning">{i18n.t("Plugin secrets require a Windows Host")}</Notice> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
-    {plugin.secrets.declarations.map(secret => <form key={secret.id} onSubmit={async event => {
+    {plugin.secrets.declarations.map(secret => <form key={secret.id} className="plugin-secret-form" onSubmit={async event => {
       event.preventDefault(); setSaving(true); setProblem(""); const value = values[secret.id]; setValues(v => ({ ...v, [secret.id]: "" }));
       try {
         const response = await client.request("/api/plugins/secrets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: plugin.id, name: secret.id, value }) });
@@ -90,8 +90,8 @@ function PluginSecrets({ plugin, busy, run }: { plugin?: Plugin; busy: boolean; 
       } catch { setProblem(i18n.t("Unable to store plugin secret")); } finally { setSaving(false); }
     }}>
       <label>{secret.id}: {i18n.t(secret.configured ? "Configured" : "Not configured")}<Input type="password" autoComplete="new-password" disabled={!supported || busy || saving || plugin.enabled} value={values[secret.id] ?? ""} onChange={e => setValues(v => ({ ...v, [secret.id]: e.target.value }))} /></label>
-      <Button type="submit" size="sm" variant="secondary" disabled={!supported || busy || saving || plugin.enabled || !values[secret.id]}>{i18n.t("Save secret")}</Button>
-      <Button type="button" size="sm" variant="ghost" disabled={!supported || busy || saving || plugin.enabled || !secret.configured} onClick={() => void run("secret-delete", { id: plugin.id, name: secret.id })}>{i18n.t("Delete secret")}</Button>
+      <div className="settings-actions"><Button type="submit" size="sm" variant="secondary" disabled={!supported || busy || saving || plugin.enabled || !values[secret.id]}>{i18n.t("Save secret")}</Button>
+      <Button type="button" size="sm" variant="ghost" disabled={!supported || busy || saving || plugin.enabled || !secret.configured} onClick={() => void run("secret-delete", { id: plugin.id, name: secret.id })}>{i18n.t("Delete secret")}</Button></div>
     </form>)}
   </section>;
 }

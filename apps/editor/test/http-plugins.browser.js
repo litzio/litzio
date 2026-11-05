@@ -19,7 +19,14 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     expect(JSON.stringify(status)).not.toContain("browser-isolated-secret");
     for (const width of [1440, 640]) {
       await page.setViewportSize({ width, height: 900 });
-      if (screenshots) await page.screenshot({ path: `tmp/plugin-stage1/secrets-${width}.png` });
+      if (screenshots) {
+        // Before baseline removes only the new additive secret section; no source checkout changes.
+        const section = page.getByRole("region", { name: "Plugin secrets", exact: true });
+        await section.evaluate(el => { el.style.display = "none"; });
+        await page.screenshot({ path: `tmp/plugin-stage1/secrets-before-${width}.png` });
+        await section.evaluate(el => { el.style.removeProperty("display"); });
+        await page.screenshot({ path: `tmp/plugin-stage1/secrets-${width}.png` });
+      }
     }
     await page.getByRole("button", { name: "Delete secret", exact: true }).click();
     await expect(page.getByLabel("pat: Not configured", { exact: true })).toHaveValue("");
