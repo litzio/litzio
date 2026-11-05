@@ -5,6 +5,7 @@ import { mkdtempSync, cpSync, writeFileSync, readFileSync, existsSync, rmSync } 
 import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
+import { createHostServices } from "../server/host-services.ts";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { PLUGIN_ERROR_MESSAGES } from "@litzio/plugin-sdk";
 import { RootAccess } from "../server/file-access.ts";
@@ -108,7 +109,7 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
     assert.ok(!JSON.stringify(await host.jobs.execute({ action: "job-status", requestId: uncertain.requestId })).includes("raw-service-private"));
     assert.ok(!JSON.stringify(await host.jobs.execute({ action: "job-list" })).includes("raw-service-private"));
     assert.equal(existsSync(path.join(root, uncertain.output)), false);
-    const stopped = await start("# Stop"); const acknowledgement = await host.jobs.execute({ action: "job-stop", requestId: stopped.requestId });
+    const stopped = await start("HOLD # Stop"); const acknowledgement = await host.jobs.execute({ action: "job-stop", requestId: stopped.requestId });
     assert.ok("job" in acknowledgement);
     assert.equal(acknowledgement.job!.stopRequested, true); assert.equal(acknowledgement.job!.state, "running");
     await wait(stopped.requestId, "stopped"); assert.equal(existsSync(path.join(root, stopped.output)), false);
@@ -116,11 +117,11 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
     await assert.rejects(host.invoke("job-start", { ...input, requestId: randomUUID(), output: "../outside.md" }));
     const collision = await start("# Collision"); writeFileSync(path.join(root, collision.output), "keep");
     await wait(collision.requestId, "uncertain"); assert.equal(readFileSync(path.join(root, collision.output), "utf8"), "keep");
-    const pending = await start("# Disable"); await host.invoke("disable", { id: "fixture.jobs" });
+    const pending = await start("HOLD # Disable"); await host.invoke("disable", { id: "fixture.jobs" });
     assert.equal(existsSync(path.join(root, pending.output)), false);
     await host.invoke("enable", { id: "fixture.jobs" });
     await host.invoke("reload", { id: "fixture.jobs" });
-    const interrupted = await start("# Restart while active");
+    const interrupted = await start("HOLD # Restart while active");
     await host.close();
     const restarted = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
     try {
@@ -156,4 +157,157 @@ test("K1 start/status/stop cannot publish subprocess results rejected by output 
     }
     assert.equal(readFileSync(path.join(root,'input.txt'),'utf8'),'Original');
   } finally {await host.close();rmSync(root,{recursive:true,force:true});}
+});
+
+// Real child-process time: short fixtures cannot detect a job lifetime tied to the 10s RPC timer.
+test("K1 accepted work survives the RPC budget; completion, failure, stop and process loss", { concurrency: true, timeout: 35_000 }, async t => {
+  await Promise.all(["complete", "fail", "stop", "reload", "disable", "crash", "bad-start", "host-close"].map(mode => t.test(mode, async () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "litzio-long-job-"));
+    const directory = path.join(root, "artifact");
+    cpSync(new URL("./fixtures/job-plugin", import.meta.url), directory, { recursive: true });
+    writeFileSync(path.join(directory, "host.js"), `
+      export function activate() {
+        const jobs = new Map();
+        return {
+          operations: {
+            async start(input) {
+              if (${JSON.stringify(mode)} === "bad-start") await new Promise(resolve => setTimeout(resolve, 11000));
+              const item = { state: "running", phase: "Accepted" };
+              const timer = setTimeout(() => {
+                if (${JSON.stringify(mode)} === "fail") Object.assign(item, {state:"failed",phase:"private",errorKind:"unavailable"});
+                else if (${JSON.stringify(mode)} === "complete") Object.assign(item, {state:"completed",phase:"Complete",document:{source:"---\\nlitzio: 1\\n---\\n\\n# Long result\\n"}});
+              }, 11000);
+              jobs.set(input.requestId, {item,timer});
+              return {...item};
+            },
+            status(input) {
+              if (${JSON.stringify(mode)} === "crash") process.exit(1);
+              return jobs.get(input.requestId).item;
+            },
+            stop(input) {
+              const {item,timer} = jobs.get(input.requestId);
+              if (${JSON.stringify(mode)} === "stop") { clearTimeout(timer); Object.assign(item,{state:"stopped",phase:"Stopped"}); }
+              return item;
+            }
+          },
+          status: () => ({available:true,message:"Ready",folders:[],decorations:[],accounts:[]}),
+          dispose() { for (const {timer} of jobs.values()) clearTimeout(timer); }
+        };
+      }
+    `);
+    // Compose with an isolated settings path; K1 state remains in the service's PluginHost.
+    let services: ReturnType<typeof createHostServices> | undefined;
+    if (mode === "host-close") {
+      const previous = process.env.LITZIO_PLUGINS_SETTINGS_FILE;
+      try {
+        process.env.LITZIO_PLUGINS_SETTINGS_FILE = path.join(root, "state.json");
+        services = createHostServices(new RootAccess([root]));
+      } finally {
+        if (previous === undefined) delete process.env.LITZIO_PLUGINS_SETTINGS_FILE;
+        else process.env.LITZIO_PLUGINS_SETTINGS_FILE = previous;
+      }
+      await services.plugins.start();
+    }
+    const host = services?.plugins.host ?? new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
+    try {
+      writeFileSync(path.join(root, "input.txt"), "Original");
+      await host.invoke("register", { directory });
+      await host.invoke("trust", { id: "fixture.jobs", digest: (await host.list())[0]!.digest });
+      await host.invoke("enable", { id: "fixture.jobs" });
+      const requestId = randomUUID();
+      const input = { plugin: "fixture.jobs", job: "text", requestId, root, file: "input.txt", output: "result.md" };
+      const started = Date.now();
+      const accepted = await host.jobs.execute({ action: "job-start", ...input });
+      assert.ok("job" in accepted);
+      if (mode === "bad-start") {
+        assert.equal(accepted.job.state, "uncertain");
+        assert.equal(accepted.job.errorKind, "timeout");
+        assert.match(accepted.job.error!, /K1 start must accept work and return running within 10 seconds/);
+        assert.match(accepted.job.error!, /do not resend start/);
+      } else {
+        assert.equal(accepted.job.state, "running");
+        assert.ok(Date.now() - started < 10_000, "admission returns within the RPC budget");
+        await new Promise(resolve => setTimeout(resolve, 10_200));
+        assert.equal(host.jobs.list().jobs[0]!.state, "running");
+        assert.ok(host.jobs.list().jobs[0]!.elapsedMs > 10_000);
+        if (mode === "reload" || mode === "disable") await host.invoke(mode, { id: "fixture.jobs" });
+        if (mode === "host-close") {
+          await services!.close();
+          await assert.rejects(services!.plugins.invoke("pluginsList"), /closing/);
+        }
+        if (mode === "stop") await host.jobs.execute({ action: "job-stop", requestId });
+        const deadline = Date.now() + 5_000;
+        let snapshot;
+        do {
+          const result = await host.jobs.execute({ action: "job-status", requestId });
+          assert.ok("job" in result); snapshot = result.job;
+          if (snapshot.state !== "running") break;
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } while (Date.now() < deadline);
+        assert.equal(snapshot!.state, mode === "complete" ? "completed" : mode === "fail" ? "failed" : mode === "stop" ? "stopped" : "uncertain");
+        if (["reload", "disable", "crash", "host-close"].includes(mode)) {
+          assert.match(snapshot!.error!, /do not resend start/);
+          assert.equal(snapshot!.errorKind, "unavailable");
+          if (mode === "reload") {
+            const again = await host.jobs.execute({ action: "job-status", requestId });
+            assert.ok("job" in again); assert.deepEqual(again.job.error, snapshot!.error);
+          }
+        }
+        if (mode === "fail") assert.equal(snapshot!.errorKind, "unavailable");
+      }
+      assert.equal(existsSync(path.join(root, "result.md")), mode === "complete");
+      assert.equal(readFileSync(path.join(root, "input.txt"), "utf8"), "Original");
+      await assert.rejects(host.jobs.execute({ action: "job-start", ...input }), /Duplicate requestId/);
+    } finally { if (services) await services.close(); else await host.close(); rmSync(root, { recursive: true, force: true }); }
+  })));
+});
+
+test("K1 snapshots preserve keys and redact only the publishing plugin's secret values", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-redaction-"));
+  const values = new Map([["fixture.a", "phase"], ["fixture.b", "foreign-private"]]);
+  const host = new PluginHost(path.join(root, "state.json"), {
+    access: new RootAccess([root]),
+    secrets: { supported: true, async read(id) { return values.get(id); }, async status(id) { return values.has(id); }, async set() {}, async delete() {} },
+  });
+  const stdout = process.stdout.write, stderr = process.stderr.write;
+  try {
+    writeFileSync(path.join(root, "input.txt"), "Original");
+    for (const id of values.keys()) {
+      const directory = path.join(root, id);
+      cpSync(new URL("./fixtures/job-plugin", import.meta.url), directory, { recursive: true });
+      const manifestFile = path.join(directory, "litzio-plugin.json");
+      const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+      manifest.id = id;
+      manifest.secrets = [{ id: "pat", scope: "connection", required: true }];
+      for (const operation of manifest.contributes.operations) operation.outputSchema = {
+        type: "object", required: ["state", "phase"], additionalProperties: false,
+        properties: { state: { type: "string" }, phase: { type: "string" } },
+      };
+      writeFileSync(manifestFile, JSON.stringify(manifest));
+      writeFileSync(path.join(directory, "host.js"), `export function activate() {
+        return { operations: {
+          start: () => ({state:"running",phase:"phase foreign-private"}),
+          status: () => ({state:"running",phase:"phase foreign-private"}),
+          stop: () => ({state:"stopped",phase:"phase foreign-private"})
+        }, status: () => ({available:true,message:"Ready",folders:[],decorations:[],accounts:[]}), dispose() {} };
+      }`);
+      await host.invoke("register", { directory });
+      await host.invoke("trust", { id, digest: (await host.list()).find(plugin => plugin.id === id)!.digest });
+      await host.invoke("enable", { id });
+    }
+    for (const [plugin, expected] of [["fixture.a", "[secret] foreign-private"], ["fixture.b", "phase [secret]"]]) {
+      const requestId = randomUUID();
+      const start = await host.jobs.execute({ action: "job-start", plugin, job: "text", requestId, root, file: "input.txt", output: `${plugin}.md` });
+      assert.ok("job" in start); assert.equal(start.job.phase, expected); assert.equal(start.job.state, "running");
+      const status = await host.jobs.execute({ action: "job-status", requestId });
+      assert.ok("job" in status); assert.equal(status.job.phase, expected); assert.equal(status.job.state, "running");
+      const listed = await host.jobs.execute({ action: "job-list", plugin });
+      assert.ok("jobs" in listed); assert.equal(listed.jobs[0]!.phase, expected); assert.equal(listed.jobs[0]!.plugin, plugin);
+      const stop = await host.jobs.execute({ action: "job-stop", requestId });
+      assert.ok("job" in stop); assert.equal(stop.job.phase, expected); assert.equal(stop.job.state, "stopped");
+      assert.equal(host.jobs.list(plugin).jobs[0]!.phase, expected);
+    }
+    assert.equal(process.stdout.write, stdout);
+    assert.equal(process.stderr.write, stderr);
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });

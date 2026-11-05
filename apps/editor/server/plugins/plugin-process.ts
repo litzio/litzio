@@ -53,6 +53,7 @@ export async function startPluginProcess(entry: string, manifest: PluginManifest
   const request = (method: string, args?: unknown) => new Promise<any>((resolve, reject) => {
     if (dead) { reject(new Error("Plugin process unavailable")); return; }
     const id = ++sequence;
+    // This deadline bounds one RPC response, never an accepted background job.
     const timer = setTimeout(() => { fail("timeout"); child.kill(); }, 10_000);
     pending.set(id, { resolve, reject, timer });
     child.send({ id, method, args }, error => { if (error) { fail(); child.kill(); } });

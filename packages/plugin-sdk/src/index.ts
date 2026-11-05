@@ -83,7 +83,12 @@ export const pluginManagementSchema = z.discriminatedUnion("action", [
 export type PluginManagementInput = z.infer<typeof pluginManagementSchema>;
 export const PLUGIN_MANAGEMENT = { version: 1, scope: "host", inputSchema: z.toJSONSchema(pluginManagementSchema) } as const;
 
-/** K1 handlers receive Host-validated absolute paths; source is published only by Host. */
+/** K1 start accepts work and returns running within the 10s RPC budget.
+ * Keep background work in the child, catch its failures, and expose it via status.
+ * There is no Host job lifetime timeout. stop/dispose must cancel owned resources.
+ * Host-validated absolute paths are provided; only Host publishes source.
+ */
+export const JOB_START_CONTRACT_MESSAGE = "K1 start must accept work and return running within 10 seconds. Keep background work in the child process and report completion through status.";
 export const jobUpdateSchema = z.strictObject({
   state: z.enum(["running", "completed", "failed", "stopped", "uncertain"]), phase: z.string(),
   progress: z.strictObject({ done: z.number().nonnegative(), total: z.number().positive() }).refine(p => p.done <= p.total).optional(),

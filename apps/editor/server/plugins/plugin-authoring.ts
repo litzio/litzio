@@ -20,6 +20,9 @@ export function scaffoldPlugin(directory: string, id: string, access: FileAccess
     operations: {
       // External service failure example: throw Object.assign(new Error(), { kind: "auth" });
       // SDK equivalent (bundle dependency): throw new PluginOperationError("auth");
+      // K1 start: create requestId state, launch background work with a catch handler,
+      // then return {state:"running",phase:"Accepted"} within 10s. Never await completion.
+      // status reports completion/failure; stop/dispose cancel all owned resources.
       greet: ({ name }) => ({ greeting: "Hello, " + name + "!" }),
     },
     status: () => ({ available: true, message: "Ready", folders: [], decorations: [], accounts: [] }),
