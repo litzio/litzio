@@ -244,8 +244,180 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  desktop-unit:
+    name: Windows Desktop unit
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.21.0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.5.1
+          cache: true
+          run_install: false
+      - run: pnpm install --frozen-lockfile
+      - name: Run all unit tests (same as release build)
+        run: pnpm test
+
+  desktop-published:
+    name: Windows Desktop published beta.6
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true' && needs.changes.outputs.update == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.21.0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.5.1
+          cache: true
+          run_install: false
+      - run: pnpm install --frozen-lockfile
+      - name: Published beta.6 first-update regression
+        if: needs.changes.outputs.update == 'true'
+        env:
+          LITZIO_TEST_PUBLISHED_BASE: '1'
+          GH_TOKEN: ${{ github.token }}
+        run: pnpm --filter @litzio/desktop test:update
+      - name: Upload Desktop diagnostics on failure
+        if: always() && (failure() || cancelled())
+        uses: actions/upload-artifact@v6
+        with:
+          name: desktop-published-windows-diagnostics
+          path: |
+            tmp/desktop-e2e/profiles/*/logs/desktop.log*
+            tmp/desktop-e2e/recovery-proof.json
+            tmp/desktop-update/*-diagnostics.json
+            tmp/desktop-update/v*/latest.yml
+            tmp/desktop-update/v*/beta.yml
+            tmp/desktop-uninstall/*-dialogs.txt
+            tmp/desktop-uninstall/*-cleanup.txt
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Locate brand uninstall diagnostics
+        if: failure()
+        id: uninstall_logs
+        run: node --input-type=module -e "import { brand } from './brand.ts'; import path from 'node:path'; import { appendFileSync } from 'node:fs'; appendFileSync(process.env.GITHUB_OUTPUT, 'path=' + path.join(process.env.LOCALAPPDATA, brand.folders.cli, 'uninstall-logs', '*.tmp') + '\n');"
+      # The runner's C: user folder cannot share an artifact root with its D: checkout.
+      - name: Upload durable uninstall diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: desktop-published-uninstall-logs
+          path: ${{ steps.uninstall_logs.outputs.path }}
+          if-no-files-found: ignore
+          retention-days: 7
+
+  desktop-stable:
+    name: Windows Desktop Stable update
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true' && needs.changes.outputs.fullLifecycle == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.21.0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.5.1
+          cache: true
+          run_install: false
+      - run: pnpm install --frozen-lockfile
+      - name: Stable install/update regression before the final package
+        if: needs.changes.outputs.fullLifecycle == 'true'
+        run: pnpm --filter @litzio/desktop test:update
+      - name: Upload Desktop diagnostics on failure
+        if: always() && (failure() || cancelled())
+        uses: actions/upload-artifact@v6
+        with:
+          name: desktop-stable-windows-diagnostics
+          path: |
+            tmp/desktop-e2e/profiles/*/logs/desktop.log*
+            tmp/desktop-e2e/recovery-proof.json
+            tmp/desktop-update/*-diagnostics.json
+            tmp/desktop-update/v*/latest.yml
+            tmp/desktop-update/v*/beta.yml
+            tmp/desktop-uninstall/*-dialogs.txt
+            tmp/desktop-uninstall/*-cleanup.txt
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Locate brand uninstall diagnostics
+        if: failure()
+        id: uninstall_logs
+        run: node --input-type=module -e "import { brand } from './brand.ts'; import path from 'node:path'; import { appendFileSync } from 'node:fs'; appendFileSync(process.env.GITHUB_OUTPUT, 'path=' + path.join(process.env.LOCALAPPDATA, brand.folders.cli, 'uninstall-logs', '*.tmp') + '\n');"
+      # The runner's C: user folder cannot share an artifact root with its D: checkout.
+      - name: Upload durable uninstall diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: desktop-stable-uninstall-logs
+          path: ${{ steps.uninstall_logs.outputs.path }}
+          if-no-files-found: ignore
+          retention-days: 7
+
+  desktop-beta:
+    name: Windows Desktop Beta update
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true' && needs.changes.outputs.update == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.21.0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.5.1
+          cache: true
+          run_install: false
+      - run: pnpm install --frozen-lockfile
+      - name: Beta install/update regression before the final package
+        if: needs.changes.outputs.update == 'true'
+        env:
+          LITZIO_TEST_UPDATE_CHANNEL: beta
+        run: pnpm --filter @litzio/desktop test:update
+      - name: Upload Desktop diagnostics on failure
+        if: always() && (failure() || cancelled())
+        uses: actions/upload-artifact@v6
+        with:
+          name: desktop-beta-windows-diagnostics
+          path: |
+            tmp/desktop-e2e/profiles/*/logs/desktop.log*
+            tmp/desktop-e2e/recovery-proof.json
+            tmp/desktop-update/*-diagnostics.json
+            tmp/desktop-update/v*/latest.yml
+            tmp/desktop-update/v*/beta.yml
+            tmp/desktop-uninstall/*-dialogs.txt
+            tmp/desktop-uninstall/*-cleanup.txt
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Locate brand uninstall diagnostics
+        if: failure()
+        id: uninstall_logs
+        run: node --input-type=module -e "import { brand } from './brand.ts'; import path from 'node:path'; import { appendFileSync } from 'node:fs'; appendFileSync(process.env.GITHUB_OUTPUT, 'path=' + path.join(process.env.LOCALAPPDATA, brand.folders.cli, 'uninstall-logs', '*.tmp') + '\n');"
+      # The runner's C: user folder cannot share an artifact root with its D: checkout.
+      - name: Upload durable uninstall diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: desktop-beta-uninstall-logs
+          path: ${{ steps.uninstall_logs.outputs.path }}
+          if-no-files-found: ignore
+          retention-days: 7
+
   desktop:
-    name: Windows Desktop package and update regressions
+    name: Windows Desktop package and uninstall regressions
     needs: changes
     if: needs.changes.outputs.desktop == 'true'
     runs-on: windows-latest
@@ -262,22 +434,6 @@ jobs:
           run_install: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @litzio/desktop typecheck
-      - name: Published beta.6 first-update regression
-        if: needs.changes.outputs.update == 'true'
-        env:
-          LITZIO_TEST_PUBLISHED_BASE: '1'
-          GH_TOKEN: ${{ github.token }}
-        run: pnpm --filter @litzio/desktop test:update
-      - name: Run all unit tests (same as release build)
-        run: pnpm test
-      - name: Stable install/update regression before the final package
-        if: needs.changes.outputs.fullLifecycle == 'true'
-        run: pnpm --filter @litzio/desktop test:update
-      - name: Beta install/update regression before the final package
-        if: needs.changes.outputs.update == 'true'
-        env:
-          LITZIO_TEST_UPDATE_CHANNEL: beta
-        run: pnpm --filter @litzio/desktop test:update
       - name: Build a clean package from the actual app version
         run: pnpm --filter @litzio/desktop package
       - name: Validate installer and update metadata
@@ -374,7 +530,7 @@ jobs:
 
   quality-and-browser:
     name: Core, CLI, Editor, and browser regressions
-    needs: [changes, quality, browser, desktop, http, cache-warm]
+    needs: [changes, quality, browser, desktop, desktop-unit, desktop-published, desktop-stable, desktop-beta, http, cache-warm]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -387,6 +543,14 @@ jobs:
           QUALITY_RESULT: ${{ needs.quality.result }}
           BROWSER_RESULT: ${{ needs.browser.result }}
           DESKTOP_RESULT: ${{ needs.desktop.result }}
+          DESKTOP_UNIT_RESULT: ${{ needs.desktop-unit.result }}
+          DESKTOP_UNIT_SELECTED: ${{ needs.changes.outputs.desktop == 'true' && needs.changes.outputs.desktop == 'true' }}
+          DESKTOP_PUBLISHED_RESULT: ${{ needs.desktop-published.result }}
+          DESKTOP_PUBLISHED_SELECTED: ${{ needs.changes.outputs.desktop == 'true' && needs.changes.outputs.update == 'true' }}
+          DESKTOP_STABLE_RESULT: ${{ needs.desktop-stable.result }}
+          DESKTOP_STABLE_SELECTED: ${{ needs.changes.outputs.desktop == 'true' && needs.changes.outputs.fullLifecycle == 'true' }}
+          DESKTOP_BETA_RESULT: ${{ needs.desktop-beta.result }}
+          DESKTOP_BETA_SELECTED: ${{ needs.changes.outputs.desktop == 'true' && needs.changes.outputs.update == 'true' }}
           HTTP_RESULT: ${{ needs.http.result }}
           BROWSER_SELECTED: ${{ needs.changes.outputs.browser }}
           DESKTOP_SELECTED: ${{ needs.changes.outputs.desktop }}
@@ -399,7 +563,7 @@ jobs:
             exit 1
           fi
           # A selected job must succeed; only a job the path rules left out may be skipped.
-          for check in "browser:$BROWSER_SELECTED:$BROWSER_RESULT" "http:$HTTP_SELECTED:$HTTP_RESULT" "desktop:$DESKTOP_SELECTED:$DESKTOP_RESULT" "cache:$CACHE_SELECTED:$CACHE_RESULT"; do
+          for check in "browser:$BROWSER_SELECTED:$BROWSER_RESULT" "http:$HTTP_SELECTED:$HTTP_RESULT" "desktop:$DESKTOP_SELECTED:$DESKTOP_RESULT" "desktop-unit:$DESKTOP_UNIT_SELECTED:$DESKTOP_UNIT_RESULT" "desktop-published:$DESKTOP_PUBLISHED_SELECTED:$DESKTOP_PUBLISHED_RESULT" "desktop-stable:$DESKTOP_STABLE_SELECTED:$DESKTOP_STABLE_RESULT" "desktop-beta:$DESKTOP_BETA_SELECTED:$DESKTOP_BETA_RESULT" "cache:$CACHE_SELECTED:$CACHE_RESULT"; do
             IFS=: read -r name selected result <<< "$check"
             if [[ "$selected" == "true" && "$result" != "success" ]] || [[ "$selected" != "true" && "$result" != "skipped" ]]; then
               echo "$name: selected=$selected result=$result"

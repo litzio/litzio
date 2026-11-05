@@ -99,7 +99,7 @@ test('HTTP selection always retains Windows unit coverage in Desktop', () => {
     assert.ok(!jobs.http || jobs.desktop, `${event}: mixed diff`);
   }
   const { jobs } = workflow();
-  assert.ok(jobs.desktop.steps.some(step => step.run === 'pnpm test' && !step.if));
+  assert.ok(jobs['desktop-unit'].steps.some(step => step.run === 'pnpm test' && !step.if));
   for (const run of ['pnpm --filter @litzio/cli package', 'pnpm --filter @litzio/cli test:packaged']) {
     assert.ok(jobs.http.steps.some(step => step.run === run && !step.if));
   }
@@ -240,11 +240,12 @@ test('aggregate accepts unselected skips but rejects failed, cancelled or skippe
   const bash = process.platform === 'win32' ? path.join(process.env.ProgramFiles, 'Git/bin/bash.exe') : 'bash';
   const defaults = { CHANGES_RESULT: 'success', QUALITY_RESULT: 'success', BROWSER_SELECTED: 'false', BROWSER_RESULT: 'skipped',
     HTTP_SELECTED: 'false', HTTP_RESULT: 'skipped', DESKTOP_SELECTED: 'false', DESKTOP_RESULT: 'skipped',
-    CACHE_SELECTED: 'false', CACHE_RESULT: 'skipped' };
+    CACHE_SELECTED: 'false', CACHE_RESULT: 'skipped',
+    ...Object.fromEntries(['UNIT', 'PUBLISHED', 'STABLE', 'BETA'].flatMap(name => [[`DESKTOP_${name}_SELECTED`, 'false'], [`DESKTOP_${name}_RESULT`, 'skipped']])) };
   const run = env => spawnSync(bash, ['-c', script], { env: { ...process.env, ...defaults, ...env }, encoding: 'utf8' });
   assert.equal(run({}).status, 0, 'docs group');
   assert.equal(run({ CACHE_SELECTED: 'true', CACHE_RESULT: 'success' }).status, 0, 'reused push');
-  for (const name of ['BROWSER', 'HTTP', 'DESKTOP', 'CACHE']) {
+  for (const name of ['BROWSER', 'HTTP', 'DESKTOP', 'DESKTOP_UNIT', 'DESKTOP_PUBLISHED', 'DESKTOP_STABLE', 'DESKTOP_BETA', 'CACHE']) {
     assert.equal(run({ [`${name}_SELECTED`]: 'true', [`${name}_RESULT`]: 'success' }).status, 0);
     for (const result of ['failure', 'cancelled', 'skipped']) {
       assert.equal(run({ [`${name}_SELECTED`]: 'true', [`${name}_RESULT`]: result }).status, 1, `${name}: ${result}`);
@@ -308,12 +309,12 @@ test('lifecycle scope keeps representative Beta and removal but selects full for
   }
   const ci = workflow();
   assert.equal(ci.jobs.changes.outputs.fullLifecycle, '${{ steps.policy.outputs.fullLifecycle }}');
-  const steps = ci.jobs.desktop.steps;
+  const steps = Object.values(ci.jobs).flatMap(job => job.steps ?? []);
   const allUpdates = steps.filter(step => step.run === 'pnpm --filter @litzio/desktop test:update');
   const published = allUpdates.find(step => step.env?.LITZIO_TEST_PUBLISHED_BASE === '1');
   assert.equal(published.if, "needs.changes.outputs.update == 'true'");
   assert.equal(published.env.GH_TOKEN, '${{ github.token }}');
-  assert.ok(steps.indexOf(published) < steps.findIndex(step => step.run === 'pnpm test'));
+  assert.equal(ci.jobs['desktop-published'].needs, 'changes');
   const updates = allUpdates.filter(step => !step.env?.LITZIO_TEST_PUBLISHED_BASE);
   assert.equal(updates[0].if, "needs.changes.outputs.fullLifecycle == 'true'");
   assert.equal(updates[1].if, "needs.changes.outputs.update == 'true'");

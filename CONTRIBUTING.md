@@ -98,6 +98,9 @@ gh run list --event merge_group --json databaseId,headSha,status,conclusion,url
 
 ## Verification matrix
 
+Windows Desktop CI는 artifact 전달 없는 독립 Windows runner 5개로 실행한다: unit(`desktop`), published beta.6(`desktop && update`), Stable update(`desktop && fullLifecycle`), Beta update(`desktop && update`), package+verify+packaged+uninstall(`desktop`; uninstall은 `update`). 각 설치 검사의 정리 단언과 `fullLayout`/`fullLifecycle` 범위를 유지하며, 필수 aggregate는 선택된 다섯 job 모두의 성공을 요구한다. 진단 artifact는 job별 고유 이름을 사용한다.
+
+
 테스트 작성·확대와 PR 기록 기준은 [테스트 설계 지침](docs/contributing/test-design.md)을 따른다.
 
 로컬에서는 변경의 고유한 위험에 맞는 관련 패키지 테스트·browser 시나리오를 지정해 실행한다. 영향 범위가 여러 계층에 걸치는 경우가 아니면 전체 `pnpm test`와 전체 `pnpm browser:test`는 로컬 필수가 아니다. 아래 표는 로컬 최소 검증이며, PR의 필수 CI 검사는 모두 통과해야 한다.
@@ -170,7 +173,7 @@ Linux Editor 4개 shard와 HTTP browser job은 공식 `mcr.microsoft.com/playwri
 
 `pnpm --filter @litzio/cli package`는 Node CLI 번들과 production Editor를 `packages/cli/dist/*.tgz`로 만든다. `pnpm --filter @litzio/cli test:packaged`는 checkout 밖에 offline 설치해 Node만으로 실행·저장·종료를 검사한다. 이어 `pnpm browser:test http-host`가 production Host를 직접 시작하고 정리한다. Vite 시나리오와 한 호출에 섞지 않는다.
 
-Windows/Linux CI는 이 세 검사를 수행하되 tarball은 Artifact로 보관하지 않는다. Windows의 Editor·CLI 단위/통합 검사는 Desktop job의 전체 `pnpm test`에서 실행한다. 경로 정책은 `http ⇒ desktop`을 보장하므로 HTTP job의 중복 실행 없이 Windows 보호를 유지한다. 생성된 화면 근거는 성공·실패 모두 7일 보관하고, 실패 시 browser diagnostics도 7일 보관한다. 앞선 단계가 실패해 아직 생성되지 않은 화면 근거는 업로드하지 않는다. 로컬에서는 관련 boundary tests와 HTTP browser 회귀를 실행한다 (`pnpm --filter @litzio/cli build` 선행). `package`·`test:packaged`는 CLI 패키징·배포 경계를 변경할 때 실행한다. 공개 registry 게시·버전 release는 수행하지 않는다. 설치/실행과 원격 프록시 전제는 [HTTP Host contract](docs/design/http-host-v1.md)를 따른다.
+Windows/Linux CI는 이 세 검사를 수행하되 tarball은 Artifact로 보관하지 않는다. Windows의 Editor·CLI 단위/통합 검사는 Desktop unit job의 전체 `pnpm test`에서 실행한다. 경로 정책은 `http ⇒ desktop`을 보장하므로 HTTP job의 중복 실행 없이 Windows 보호를 유지한다. 생성된 화면 근거는 성공·실패 모두 7일 보관하고, 실패 시 browser diagnostics도 7일 보관한다. 앞선 단계가 실패해 아직 생성되지 않은 화면 근거는 업로드하지 않는다. 로컬에서는 관련 boundary tests와 HTTP browser 회귀를 실행한다 (`pnpm --filter @litzio/cli build` 선행). `package`·`test:packaged`는 CLI 패키징·배포 경계를 변경할 때 실행한다. 공개 registry 게시·버전 release는 수행하지 않는다. 설치/실행과 원격 프록시 전제는 [HTTP Host contract](docs/design/http-host-v1.md)를 따른다.
 
 ## Windows Desktop builds and releases
 
