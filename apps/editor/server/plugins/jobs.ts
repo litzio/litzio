@@ -1,22 +1,24 @@
+import { publicOperationError } from "./operation-result.ts";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { statSync } from "node:fs";
-import { jobRequestSchema, jobUpdateSchema, type JobContribution, type JobSnapshot } from "@litzio/plugin-sdk";
+import { jobRequestSchema, jobUpdateSchema, type PluginErrorKind, type JobContribution, type JobSnapshot } from "@litzio/plugin-sdk";
 import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
 import { createDocumentSourceFile } from "../document-create.ts";
 
-type Record = { startedAt: number; finishedAt?: number; snapshot: JobSnapshot; binding: JobContribution; input: { requestId: string; root: string; file: string; output: string }; access: RootAccess; pending: Promise<void>; stopping?: Promise<void> };
+type Record = { effects: Map<string, "read" | "write">; uncertainWrite?: boolean; startedAt: number; finishedAt?: number; snapshot: JobSnapshot; binding: JobContribution; input: { requestId: string; root: string; file: string; output: string }; access: RootAccess; pending: Promise<void>; stopping?: Promise<void> };
 /** Daemon-lifetime observations only; no queue, scheduler or replay ledger. */
 export class PluginJobs {
   private records = new Map<string, Record>();
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => JobContribution,
-    private invoke: (name: string, input: unknown) => Promise<{ result?: unknown; error?: string }>) {}
+    private invoke: (name: string, input: unknown) => Promise<{ result?: unknown; error?: string; errorKind?: PluginErrorKind }>,
+    private effect: (name: string) => "read" | "write") {}
   private async call(record: Record, operation: string) {
     const value = await this.invoke(`${record.snapshot.plugin}.${operation}`, record.input);
-    if (value.error) throw new Error(value.error);
+    if (value.error) throw Object.assign(new Error(value.error), { kind: value.errorKind });
     return jobUpdateSchema.parse(value.result);
   }
-  private update(record: Record, update: ReturnType<typeof jobUpdateSchema.parse>) {
+  private update(record: Record, update: ReturnType<typeof jobUpdateSchema.parse>, effect: "read" | "write") {
     const current = record.snapshot;
     if (["completed", "failed", "stopped"].includes(current.state)) return;
     if (update.state === "completed") {
@@ -26,10 +28,25 @@ export class PluginJobs {
       current.result = { path: created.path, revision: created.revision };
     }
     if (["completed", "failed", "stopped"].includes(update.state)) record.finishedAt = Date.now();
-    Object.assign(current, { state: update.state, phase: update.phase, progress: update.progress, error: update.error });
+    const failure = update.state === "failed" || update.state === "uncertain";
+    Object.assign(current, { state: update.state, phase: failure ? (update.state === "failed" ? "Failed" : "Observation lost") : update.phase, progress: update.progress,
+      ...(failure ? this.failure({ kind: update.errorKind }, update.state === "uncertain" && record.uncertainWrite ? "write" : effect) : { errorKind: undefined, error: undefined }) });
   }
-  private uncertain(record: Record, cause?: unknown) {
-    if (!["completed", "failed", "stopped"].includes(record.snapshot.state)) Object.assign(record.snapshot, { state: "uncertain", error: `Observation lost. Query the same requestId; do not resend start. ${cause instanceof Error ? cause.message : ""}` });
+  private failure(cause: unknown, effect: "read" | "write") {
+    const failure = publicOperationError(cause, effect);
+    return { ...failure, error: failure.error + (effect === "write" ? " Query the same requestId; do not resend start." : "") };
+  }
+  private async observe(record: Record, operation: string) {
+    const effect = record.effects.get(operation)!;
+    try {
+      this.update(record, await this.call(record, operation), effect);
+      if (record.snapshot.state !== "uncertain") record.uncertainWrite = false;
+      else if (effect === "write") record.uncertainWrite = true;
+    } catch (cause) {
+      if (["completed", "failed", "stopped"].includes(record.snapshot.state)) return;
+      if (effect === "write") record.uncertainWrite = true;
+      Object.assign(record.snapshot, { state: "uncertain", phase: "Observation lost", ...this.failure(cause, record.uncertainWrite ? "write" : effect) });
+    }
   }
   async execute(raw: unknown) {
     const input = jobRequestSchema.parse(raw);
@@ -46,9 +63,9 @@ export class PluginJobs {
       const file = accessPath(relative(input.file), this.access), output = accessPath(relative(input.output, true), this.access, true);
       if (!statSync(file).isFile() || !binding.accept.includes(path.extname(file).toLowerCase())) throw new Error("Unsupported input file");
       if (file === output) throw new Error("Output must preserve input");
-      const record: Record = { startedAt: Date.now(), snapshot: { requestId: input.requestId, plugin: input.plugin, job: input.job, root, elapsedMs: 0, state: "running", phase: "Starting", stopRequested: false }, binding, access: boundary, input: { requestId: input.requestId, root, file, output }, pending: Promise.resolve() };
+      const record: Record = { effects: new Map([binding.start, binding.status, binding.stop].map(operation => [operation, this.effect(`${input.plugin}.${operation}`)])), startedAt: Date.now(), snapshot: { requestId: input.requestId, plugin: input.plugin, job: input.job, root, elapsedMs: 0, state: "running", phase: "Starting", stopRequested: false }, binding, access: boundary, input: { requestId: input.requestId, root, file, output }, pending: Promise.resolve() };
       this.records.set(input.requestId, record);
-      record.pending = this.call(record, binding.start).then(update => this.update(record, update)).catch(error => this.uncertain(record, error));
+      record.pending = this.observe(record, binding.start);
       return this.response(record, input.action);
     }
     const record = this.records.get(input.requestId);
@@ -56,7 +73,7 @@ export class PluginJobs {
     if (input.action === "job-result" && record.snapshot.state !== "completed") throw new Error("Result is not available before completion");
     if (input.action === "job-stop") await this.stop(record);
     if (input.action === "job-status" && ["running", "uncertain"].includes(record.snapshot.state)) {
-      try { this.update(record, await this.call(record, record.binding.status)); } catch (error) { this.uncertain(record, error); }
+      await this.observe(record, record.binding.status);
     }
     return this.response(record, input.action);
   }
@@ -74,7 +91,7 @@ export class PluginJobs {
   private stop(record: Record) {
     if (!["running", "uncertain"].includes(record.snapshot.state)) return Promise.resolve();
     record.snapshot.stopRequested = true;
-    return record.stopping ??= this.call(record, record.binding.stop).then(update => this.update(record, update)).catch(error => this.uncertain(record, error));
+    return record.stopping ??= this.observe(record, record.binding.stop);
   }
   async close(plugin?: string) {
     const records = [...this.records.values()].filter(record => !plugin || record.snapshot.plugin === plugin);

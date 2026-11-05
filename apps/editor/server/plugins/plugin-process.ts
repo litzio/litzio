@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { PluginInstance, PluginManifest } from "@litzio/plugin-sdk";
+import { PLUGIN_ERROR_KINDS, PluginOperationError, pluginErrorKind, type PluginInstance, type PluginManifest } from "@litzio/plugin-sdk";
 
 // Inline bootstrap keeps source and the relocatable CLI on the same execution path.
 // Only trusted artifact code runs here; a child process is not an OS sandbox.
@@ -20,9 +20,11 @@ process.on('message', async ({id, method, args}) => {
     else if (method === 'dispose') await instance?.dispose?.();
     else throw new Error('Unknown method');
     process.send({id, ok: true, result});
-  } catch {
+  } catch (error) {
     // Artifact errors can contain credentials. Do not forward arbitrary error text.
-    process.send({id, ok: false});
+    let kind = "failed";
+    try { const requested = error?.kind; if (${JSON.stringify(PLUGIN_ERROR_KINDS)}.includes(requested)) kind = requested; } catch {}
+    process.send({id, ok: false, kind});
   }
 });
 `;
@@ -34,24 +36,24 @@ export async function startPluginProcess(entry: string, manifest: PluginManifest
   let sequence = 0, stopped = false, dead = false;
   const pending = new Map<number, { resolve(value: any): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
   const exited = new Promise<void>(resolve => child.once("close", () => resolve()));
-  const fail = () => {
+  const fail = (kind: "failed" | "timeout" = "failed") => {
     if (dead) return;
     dead = true;
-    for (const call of pending.values()) { clearTimeout(call.timer); call.reject(new Error("Plugin process failed or timed out")); }
+    for (const call of pending.values()) { clearTimeout(call.timer); call.reject(new PluginOperationError(kind)); }
     pending.clear();
     if (!stopped) failed();
   };
-  child.on("error", fail); child.on("exit", fail);
+  child.on("error", () => fail()); child.on("exit", () => fail());
   child.on("message", (message: any) => {
     const call = pending.get(message?.id);
     if (!call) return;
     pending.delete(message.id); clearTimeout(call.timer);
-    if (message.ok === true) call.resolve(message.result); else call.reject(new Error("Plugin request failed"));
+    if (message.ok === true) call.resolve(message.result); else call.reject(new PluginOperationError(pluginErrorKind(message.kind)));
   });
   const request = (method: string, args?: unknown) => new Promise<any>((resolve, reject) => {
     if (dead) { reject(new Error("Plugin process unavailable")); return; }
     const id = ++sequence;
-    const timer = setTimeout(() => { fail(); child.kill(); }, 10_000);
+    const timer = setTimeout(() => { fail("timeout"); child.kill(); }, 10_000);
     pending.set(id, { resolve, reject, timer });
     child.send({ id, method, args }, error => { if (error) { fail(); child.kill(); } });
   });

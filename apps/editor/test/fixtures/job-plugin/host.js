@@ -5,6 +5,7 @@ export function activate() {
     operations: {
       async start(input) {
         const text = readFileSync(input.file, "utf8");
+        if (text.startsWith("THROW")) throw Object.assign(new Error("raw-write-private"), {kind:"unavailable"});
         const job = { state: "running", phase: "Reading", progress: { done: 0, total: 3 } };
         const control = { job, text, wake: undefined, timer: undefined }; jobs.set(input.requestId, control);
         for (let step = 1; step <= 3; step++) {
@@ -12,8 +13,9 @@ export function activate() {
           if (job.state !== "running") return { ...job };
           job.phase = "Processing"; job.progress.done = step;
         }
-        if (text.startsWith("FAIL")) Object.assign(job, { state: "failed", phase: "Failed", error: "Fixture failure" });
-        else if (text.startsWith("UNCERTAIN")) Object.assign(job, { state: "uncertain", phase: "Observation lost", error: "Fixture uncertainty" });
+        if (text.startsWith("FAIL-RAW")) Object.assign(job, { state: "failed", phase: "raw-service-private", error: "raw-service-private" });
+        else if (text.startsWith("FAIL")) Object.assign(job, { state: "failed", phase: "raw-service-private", errorKind: text.split(":")[1] });
+        else if (text.startsWith("UNCERTAIN")) Object.assign(job, { state: "uncertain", phase: "raw-service-private", errorKind: "unavailable" });
         else Object.assign(job, { state: "completed", phase: "Complete", document: { source: "---\nlitzio: 1\n---\n\n" + text } });
         return structuredClone(job);
       },

@@ -18,6 +18,8 @@ export function scaffoldPlugin(directory: string, id: string, access: FileAccess
     "host.js": `export function activate(context) {
   return {
     operations: {
+      // External service failure example: throw Object.assign(new Error(), { kind: "auth" });
+      // SDK equivalent (bundle dependency): throw new PluginOperationError("auth");
       greet: ({ name }) => ({ greeting: "Hello, " + name + "!" }),
     },
     status: () => ({ available: true, message: "Ready", folders: [], decorations: [], accounts: [] }),

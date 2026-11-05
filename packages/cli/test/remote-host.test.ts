@@ -201,3 +201,22 @@ test("plugin authoring CLI forwards Host directory/id and preserves validation f
   assert.equal(await runCliAsync(["plugins", "validate", "C:/host/greeting", "--host", "http://127.0.0.1:5180", "--json"]), 1);
   assert.deepEqual(bodies, [{ action: "scaffold", directory: "C:/host/greeting", id: "local.greeting" }, { action: "validate", directory: "C:/host/greeting" }]);
 });
+
+
+test("operation CLI preserves Host failure kind and read advice without replay", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-operation-cli-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const input = path.join(root, "input.json"); writeFileSync(input, "{}");
+  const { PLUGIN_ERROR_MESSAGES } = await import("@litzio/plugin-sdk");
+  const failure = { errorKind: "auth", error: PLUGIN_ERROR_MESSAGES.auth, receipt: { outcome: "failure" } };
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async (url: URL, init?: RequestInit) => {
+    if (url.pathname === "/daemon/health") return new Response(JSON.stringify({ protocolVersion: DAEMON_PROTOCOL }));
+    calls++; assert.deepEqual(JSON.parse(init!.body as string), { action: "invoke", operation: "local.example.read", input: {} });
+    return new Response(JSON.stringify(failure));
+  });
+  let output = ""; t.mock.method(process.stdout, "write", (chunk: string) => { output += chunk; return true; });
+  assert.equal(await runCliAsync(["operation", "invoke", "local.example.read", "--input", input, "--host", "http://127.0.0.1:5180", "--json"]), 1);
+  assert.deepEqual(JSON.parse(output), { target: "http://127.0.0.1:5180", ...failure });
+  assert.equal(calls, 1);
+});

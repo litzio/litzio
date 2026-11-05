@@ -5,7 +5,10 @@ import { randomUUID } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
+import { PLUGIN_ERROR_MESSAGES } from "@litzio/plugin-sdk";
 import { RootAccess } from "../server/file-access.ts";
+
+const safeWriteAdvice = " Check the target before retrying a write. Query the same requestId; do not resend start.";
 
 test("K1 lifecycle, exclusive request identity, Root admission, publication and disable cleanup", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-"));
@@ -61,8 +64,40 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
     const raceResult = await wait(racing.requestId, "completed");
     assert.match(readFileSync(raceResult.result!.path, "utf8"), /Completed during Stop/);
     assert.equal(raceResult.stopRequested, true);
-    const failed = await start("FAIL"); await wait(failed.requestId, "failed"); assert.equal(existsSync(path.join(root, failed.output)), false);
-    const uncertain = await start("UNCERTAIN"); await wait(uncertain.requestId, "uncertain");
+    const failures = await Promise.all((["auth", "forbidden", "not_found", "unavailable", "timeout", "failed", "raw-service-private", undefined] as const).map(async kind => {
+      const input = await start(kind ? `FAIL:${kind}` : "FAIL");
+      return { input, kind: kind === "raw-service-private" || kind === undefined ? "failed" as const : kind };
+    }));
+    for (const { input, kind } of failures) {
+      const failure = await wait(input.requestId, "failed");
+      assert.equal(failure.errorKind, kind); assert.ok([PLUGIN_ERROR_MESSAGES[kind], PLUGIN_ERROR_MESSAGES[kind] + safeWriteAdvice].includes(failure.error!));
+      assert.equal(failure.phase, "Failed");
+      assert.equal(existsSync(path.join(root, input.output)), false);
+    }
+    const raw = await start("FAIL-RAW");
+    const rejected = await wait(raw.requestId, "uncertain");
+    assert.equal(rejected.errorKind, "failed"); assert.equal(rejected.error, PLUGIN_ERROR_MESSAGES.failed + safeWriteAdvice);
+    for (const { input } of [...failures, { input: raw }]) {
+      const status = await host.jobs.execute({ action: "job-status", requestId: input.requestId });
+      assert.ok(!JSON.stringify(status).includes("raw-service-private"));
+    }
+    const list = await host.jobs.execute({ action: "job-list" });
+    assert.ok(!JSON.stringify(list).includes("raw-service-private"));
+    const thrown = await start("THROW");
+    // Observe start completion through list so the first assertion cannot mask it with a read failure.
+    for (let i = 0; host.jobs.list().jobs.find(job => job.requestId === thrown.requestId)?.state === "running" && i < 100; i++) await new Promise(resolve => setTimeout(resolve, 10));
+    const thrownSnapshot = host.jobs.list().jobs.find(job => job.requestId === thrown.requestId)!;
+    assert.equal(thrownSnapshot.state, "uncertain"); assert.equal(thrownSnapshot.errorKind, "unavailable");
+    assert.equal(thrownSnapshot.error, PLUGIN_ERROR_MESSAGES.unavailable + safeWriteAdvice);
+    const observedThrow = await host.jobs.execute({ action: "job-status", requestId: thrown.requestId });
+    assert.ok("job" in observedThrow); assert.ok(observedThrow.job.error?.endsWith(safeWriteAdvice));
+    assert.ok(!JSON.stringify(observedThrow).includes("raw-write-private"));
+    assert.ok(!JSON.stringify(host.jobs.list()).includes("raw-write-private"));
+    await assert.rejects(host.invoke("job-start", { ...thrown }), /Duplicate requestId/);
+    const uncertain = await start("UNCERTAIN"); const observation = await wait(uncertain.requestId, "uncertain");
+    assert.equal(observation.errorKind, "unavailable"); assert.ok([PLUGIN_ERROR_MESSAGES.unavailable, PLUGIN_ERROR_MESSAGES.unavailable + safeWriteAdvice].includes(observation.error!));
+    assert.ok(!JSON.stringify(await host.jobs.execute({ action: "job-status", requestId: uncertain.requestId })).includes("raw-service-private"));
+    assert.ok(!JSON.stringify(await host.jobs.execute({ action: "job-list" })).includes("raw-service-private"));
     assert.equal(existsSync(path.join(root, uncertain.output)), false);
     const stopped = await start("# Stop"); const acknowledgement = await host.jobs.execute({ action: "job-stop", requestId: stopped.requestId });
     assert.ok("job" in acknowledgement);
@@ -107,7 +142,7 @@ test("K1 start/status/stop cannot publish subprocess results rejected by output 
     await host.invoke('job-start',{plugin:'fixture.jobs',job:'text',requestId,root,file:'input.txt',output:'result.md'});
     for (const action of ['job-status','job-stop']) {
       const reply = await host.jobs.execute({action,requestId});
-      assert.ok('job' in reply); assert.equal(reply.job.state,'uncertain');
+      assert.ok('job' in reply); assert.equal(reply.job.state,'uncertain'); assert.equal(reply.job.errorKind,'failed');
       assert.equal('result' in reply.job,false); assert.equal(existsSync(path.join(root,'result.md')),false);
     }
     assert.equal(readFileSync(path.join(root,'input.txt'),'utf8'),'Original');

@@ -203,7 +203,7 @@ test("operation invoke publishes declared public rows and refuses row-type misma
   const manifest = { schemaVersion: 1, id: "fixture.rows", tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Rows", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", properties: { mode: { type: "string" } }, additionalProperties: false }, outputSchema: { type: "array", items: { type: "object" } }, rowSchema: { points: { type: "number", label: "Points" }, caption: { type: "string", label: "Caption" }, token: { type: "string", label: "Token", secret: true } } }] } };
   writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify(manifest));
   writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
-  writeFileSync(path.join(directory, "host.js"), `export function activate(){return {operations:{read:({mode})=>[{points:mode==="wrong-number"?"3":-3,caption:"row-boundary-known-private",token:mode==="wrong-secret"?4:"private",extra:"undeclared"}]},status:()=>({available:true,message:"Rows",folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+  writeFileSync(path.join(directory, "host.js"), `export function activate(){return {operations:{read:({mode})=>{if(mode?.startsWith("error:")) throw Object.assign(new Error("raw-response credential-private"), {kind:mode.slice(6),response:"credential-private"}); return [{points:mode==="wrong-number"?"3":-3,caption:"row-boundary-known-private",token:mode==="wrong-secret"?4:"private",extra:"undeclared"}]} },status:()=>({available:true,message:"Rows",folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
   const host = new PluginHost(path.join(root, "plugins.json"));
   try {
     await host.invoke("register", { directory }); const record = (await host.list())[0]!;
@@ -212,8 +212,25 @@ test("operation invoke publishes declared public rows and refuses row-type misma
     const valid = await invoke(); assert.equal(valid.receipt.outcome, "success"); assert.deepEqual(valid.result, [{ points: -3, caption: "[secret]" }]);
     await host.invoke("reload", { id: record.id });
     assert.deepEqual((await invoke()).result, valid.result);
+    const { PLUGIN_ERROR_KINDS, PLUGIN_ERROR_MESSAGES } = await import("@litzio/plugin-sdk");
+    for (const kind of [...PLUGIN_ERROR_KINDS, "credential-private"] as const) {
+      const failure = await invoke(`error:${kind}`);
+      const expected = kind === "credential-private" ? "failed" : kind;
+      assert.equal(failure.errorKind, expected);
+      assert.equal(failure.error, PLUGIN_ERROR_MESSAGES[expected]);
+      assert.equal(failure.receipt.outcome, "failure");
+      assert.ok(!JSON.stringify(failure).includes("private"));
+      assert.ok(!JSON.stringify(failure).includes("raw-response"));
+    }
+    const { executeViewOperation } = await import("../server/views.ts");
+    const { statisticsView, viewRequest } = await import("../src/views/view-api.ts");
+    const view = { ...statisticsView, sources: { stats: { operation: "fixture.rows.read", version: 1, args: { mode: "error:auth" } } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Rows", source: "stats", data: "/rows", columns: ["points"] }] } };
+    const failedView = await executeViewOperation({ action: "run", root, view }, { access: new RootAccess([root]), plugins: host });
+    assert.equal(failedView.errorKind, "auth", failedView.error); assert.equal(failedView.error, PLUGIN_ERROR_MESSAGES.auth);
+    const client = { request: async () => new Response(JSON.stringify(failedView)) } as unknown as import("../src/host-client.ts").HostClient;
+    await assert.rejects(viewRequest(client, {}), /\[auth\] Authentication required/);
     for (const mode of ["wrong-number", "wrong-secret"]) {
-      const refused = await invoke(mode); assert.equal(refused.receipt.outcome, "failure"); assert.ok(!("result" in refused)); assert.ok(!JSON.stringify(refused).includes("private"));
+      const refused = await invoke(mode); assert.equal(refused.receipt.outcome, "failure"); assert.ok(!("result" in refused)); assert.ok(!JSON.stringify(refused).includes("private")); assert.equal(refused.errorKind, "failed"); assert.ok(!refused.error.includes("retrying a write"));
     }
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
@@ -286,6 +303,8 @@ test("a stalled write times out as uncertain; failed disposal can recover on the
     await host.invoke("reload", {id:'fixture.timeout'});
     const result = await host.invokeOperation('fixture.timeout.write', {});
     assert.equal(result.receipt.outcome, 'uncertain');
+    assert.equal('errorKind' in result && result.errorKind, 'timeout');
+    assert.match('error' in result ? result.error : '', /Check the target before retrying a write/);
     assert.equal((await host.list())[0]!.running, false);
     assert.match((await host.list())[0]!.error!, /process failed/);
   } finally {await host.close(); rmSync(root, {recursive:true, force:true});}
