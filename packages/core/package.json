@@ -11,10 +11,11 @@
     "./numbering": "./src/numbering.ts",
     "./citation": "./src/citation.ts",
     "./bibliography": "./src/bibliography.ts",
-    "./section": "./src/section.ts"
+    "./section": "./src/section.ts",
+    "./views": "./src/views.ts"
   },
   "scripts": {
-    "test": "tsx --test test/core.test.ts test/compare.test.ts test/technical-document.test.ts test/editable.test.ts test/inline.test.ts test/paragraph.test.ts test/myst-regression.test.ts test/figure.test.ts test/reference.test.ts test/serialize-guard.test.ts test/public-api.test.ts test/native.test.ts test/table.test.ts test/link.test.ts test/inline-math.test.ts test/label.test.ts test/cross-reference.test.ts test/parse-boundary.test.ts test/writeability.test.ts test/structural-authoring.test.ts test/list.test.ts test/code.test.ts test/section.test.ts test/numbering.test.ts test/footnote.test.ts test/endnote.test.ts test/bibliography.test.ts",
+    "test": "tsx --test test/core.test.ts test/compare.test.ts test/technical-document.test.ts test/editable.test.ts test/inline.test.ts test/paragraph.test.ts test/myst-regression.test.ts test/figure.test.ts test/reference.test.ts test/serialize-guard.test.ts test/public-api.test.ts test/native.test.ts test/table.test.ts test/link.test.ts test/inline-math.test.ts test/label.test.ts test/cross-reference.test.ts test/parse-boundary.test.ts test/writeability.test.ts test/structural-authoring.test.ts test/list.test.ts test/code.test.ts test/section.test.ts test/numbering.test.ts test/footnote.test.ts test/endnote.test.ts test/bibliography.test.ts test/views.test.ts",
     "test:smartquotes": "tsx --test test/smartquotes-patch.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
@@ -28,7 +29,8 @@
     "myst-to-md": "1.0.17",
     "myst-transforms": "1.3.51",
     "vfile": "5.3.7",
-    "yaml": "2.9.1"
+    "yaml": "2.9.1",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",

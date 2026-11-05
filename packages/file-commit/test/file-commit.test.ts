@@ -3,12 +3,56 @@ import fs, { chmodSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSyn
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { commitFile, decodeUtf8, preflightFileCommit, textRevision } from "../src/index.ts";
+import { commitFile, createFile, decodeUtf8, preflightFileCommit, textRevision } from "../src/index.ts";
 
 // A partial temporary write and a change found just before the rename are exercised through
 // the Editor Host's save tests; these cover the remaining file properties and failures.
 
 const ORIGINAL = "Original.\n";
+
+test("exclusive creation publishes complete text and never replaces an existing name", () => {
+  withFile((dir, original) => {
+    const file = path.join(dir, "new.view.json");
+    createFile(file, "한글 😀\n");
+    assert.equal(readFileSync(file, "utf8"), "한글 😀\n");
+    assert.throws(() => createFile(file, "replacement"), { code: "EEXIST" });
+    assert.equal(readFileSync(file, "utf8"), "한글 😀\n");
+    assert.equal(readFileSync(original, "utf8"), ORIGINAL);
+    assert.deepEqual(readdirSync(dir).sort(), ["document.md", "new.view.json"]);
+  });
+});
+
+test("partial write, flush and publication failures leave no reserved file", context => {
+  withFile((dir, original) => {
+    const target = path.join(dir, "new.view.json");
+    for (const method of ["writeFileSync", "fsyncSync", "linkSync"] as const) {
+      const write = fs.writeFileSync;
+      context.mock.method(fs, method, (...args: unknown[]) => {
+        if (method === "writeFileSync") write(args[0] as number, "partial");
+        throw new Error("injected I/O failure");
+      });
+      try { assert.throws(() => createFile(target, "complete"), /injected I\/O/); }
+      finally { context.mock.restoreAll(); }
+      assert.deepEqual(readdirSync(dir), ["document.md"]);
+      assert.equal(readFileSync(original, "utf8"), ORIGINAL);
+    }
+  });
+});
+
+test("a competing creator at publication wins without being overwritten", context => {
+  withFile((dir, original) => {
+    const target = path.join(dir, "new.view.json"), link = fs.linkSync;
+    context.mock.method(fs, "linkSync", (source: string, destination: string) => {
+      writeFileSync(destination, "competitor", { flag: "wx" });
+      link(source, destination);
+    });
+    try { assert.throws(() => createFile(target, "ours"), { code: "EEXIST" }); }
+    finally { context.mock.restoreAll(); }
+    assert.equal(readFileSync(target, "utf8"), "competitor");
+    assert.equal(readFileSync(original, "utf8"), ORIGINAL);
+    assert.deepEqual(readdirSync(dir).sort(), ["document.md", "new.view.json"]);
+  });
+});
 
 test("UTF-8 decoding rejects malformed bytes and preserves valid text including BOM", () => {
   for (const bytes of [[0xff], [0x80], [0xc0, 0xaf], [0xe2, 0x82], [0xed, 0xa0, 0x80], [0xf4, 0x90, 0x80, 0x80]]) {
