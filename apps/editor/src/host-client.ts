@@ -1,3 +1,4 @@
+import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
 import { LOCAL_HOST_ID } from "./host-locator.ts";
 
 export class HostConnectionChangedError extends Error {
@@ -22,16 +23,23 @@ export function createHostClient(base: string, ready: Promise<void> = Promise.re
     },
   };
 }
+class HostProtocolMismatch extends Error {}
+
 export type HostRuntime = {
   client: HostClient;
   state: "connecting" | "connected" | "disconnected";
-  error?: string;
+  warning?: string;
+  reason?: string;
+  failure?: "protocol-mismatch" | "unreachable";
   capabilities?: { fileDeletion: "trash" | "permanent" };
 };
 /** A registry can be injected in fixtures; unknown identities fail closed. */
 export function createHostRegistry(hosts: readonly { hostId: string; origin: string; label?: string }[]) {
   const listeners = new Set<() => void>();
-  const notify = () => { for (const listener of listeners) listener(); };
+  let revision = 0;
+  const notify = () => { revision++; for (const listener of listeners) listener(); };
+  const entries = new Map(hosts.map(host => [host.hostId, { ...host, label: host.label ?? host.hostId }]));
+  const productVersions = new Map<string, string>();
   const attempts = new Map<string, object>();
   const runtimes = new Map<string, HostRuntime>();
   for (const host of hosts) {
@@ -40,31 +48,67 @@ export function createHostRegistry(hosts: readonly { hostId: string; origin: str
   }
   return {
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    list: () => hosts.map(host => ({ ...host, label: host.label ?? host.hostId })),
+    snapshot: () => revision,
+    list: () => [...entries.values()].map(host => ({ ...host })),
+    add(hostId: string, origin: string, label = hostId) {
+      const previous = entries.get(hostId);
+      if (previous && previous.origin !== origin) throw new Error("A registered Host origin cannot change.");
+      entries.set(hostId, { hostId, origin, label });
+      if (!runtimes.has(hostId)) {
+        const client = createHostClient(origin);
+        runtimes.set(hostId, { client: { ...client, assertCurrent() {
+          if (runtimes.get(hostId)?.state !== "connected") throw new Error("Host is not connected.");
+        }, async request(path, init) { this.assertCurrent(); return client.request(path, init); } }, state: "connecting" });
+      }
+      if (!previous || previous.label !== label) notify();
+    },
+    remove(hostId: string) { attempts.delete(hostId); runtimes.delete(hostId); entries.delete(hostId); productVersions.delete(hostId); notify(); },
     get(hostId: string): HostRuntime {
       const runtime = runtimes.get(hostId);
       if (!runtime) throw new Error(`Unavailable Host: ${hostId}`);
       return runtime;
     },
-    async connect(hostId: string): Promise<void> {
+    async connect(hostId: string, productVersion?: string, background = false): Promise<void> {
       const runtime = this.get(hostId);
+      if (productVersion !== undefined) productVersions.set(hostId, productVersion);
+      productVersion ??= productVersions.get(hostId);
       // An attempt token prevents a late reply overwriting a newer observation.
       const attempt = {};
       attempts.set(hostId, attempt);
-      runtime.state = "connecting";
-      runtime.capabilities = undefined;
-      runtime.error = undefined;
-      notify();
+      if (!background || runtime.state !== "connected") runtime.state = "connecting";
       const client = runtime.client;
+      runtime.warning = undefined;
+      runtime.reason = undefined;
+      runtime.failure = undefined;
+      notify();
       try {
-        const response = await client.request("/api/host-capabilities");
+        const request = (path: string, headers?: HeadersInit) => {
+          const init = { headers, redirect: "error" as const, signal: AbortSignal.timeout(5000) };
+          return hostId === LOCAL_HOST_ID ? client.request(path, init) : fetch(client.url(path), init);
+        };
+        if (productVersion !== undefined) {
+          const health = await request("/daemon/health", { "X-Litzio-Protocol": DAEMON_PROTOCOL });
+          if (health.status === 409) throw new HostProtocolMismatch("Host protocol mismatch.");
+          if (!health.ok) throw new Error(`HTTP ${health.status}`);
+          const body = await health.json();
+          if (body.protocolVersion !== DAEMON_PROTOCOL) throw new HostProtocolMismatch("Host protocol mismatch.");
+          if (typeof body.productVersion !== "string") throw new Error("Invalid health response.");
+          if (attempts.get(hostId) !== attempt) return;
+          if (body.productVersion !== productVersion) runtime.warning = `Host product ${body.productVersion}, client ${productVersion}`;
+        }
+        const response = await request("/api/host-capabilities");
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const body = await response.json();
         if (attempts.get(hostId) !== attempt) return;
         runtime.capabilities = { fileDeletion: body.fileDeletion === "trash" ? "trash" : "permanent" };
         runtime.state = "connected";
-      } catch (cause) { if (attempts.get(hostId) === attempt) { runtime.state = "disconnected"; runtime.error = String(cause); } }
-      notify();
+      } catch (error) { if (attempts.get(hostId) === attempt) {
+        runtime.state = "disconnected";
+        runtime.capabilities = undefined;
+        runtime.failure = error instanceof HostProtocolMismatch ? "protocol-mismatch" : "unreachable";
+        runtime.reason = error instanceof Error ? error.message : String(error);
+      } }
+      if (attempts.get(hostId) === attempt) notify();
     },
   };
 }
@@ -109,3 +153,22 @@ export function setDesktopHost(origin: string): void {
   void hostRegistry.connect(LOCAL_HOST_ID);
 }
 export const getHostClient = (hostId: string): HostClient => hostRegistry.get(hostId).client;
+
+/** Periodic read-only health checks never replay document writes or control daemons. */
+export function monitorRegisteredHosts(hosts: readonly { hostId: string; origin: string; label?: string }[], productVersion: string, interval = 5000) {
+  let stopped = false;
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+  for (const host of hosts) {
+    hostRegistry.add(host.hostId, host.origin, host.label);
+    const check = async () => {
+      try { hostRegistry.get(host.hostId); } catch { return; }
+      await hostRegistry.connect(host.hostId, productVersion, true);
+      if (!stopped) {
+        const timer = setTimeout(() => { timers.delete(timer); void check(); }, interval);
+        timers.add(timer);
+      }
+    };
+    void check();
+  }
+  return () => { stopped = true; for (const timer of timers) clearTimeout(timer); };
+}

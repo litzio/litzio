@@ -1,4 +1,4 @@
-import { EventEmitter } from "node:events";
+import { EventEmitter, once } from "node:events";
 import { randomUUID } from "node:crypto";
 import { folderVersion } from "../server/folder-watch.ts";
 import { listenForFetch, startFetchServer } from "../../../test/helpers/fetch-server.ts";
@@ -13,7 +13,7 @@ import test, { type TestContext } from "node:test";
 import { documentRevision, loadDocumentFile } from "../server/document-api.ts";
 import { MAX_JSON_BYTES, startHttpHost } from "../server/http-host.ts";
 import { DAEMON_PROTOCOL } from "../server/daemon-protocol.ts";
-import { inspectDaemon, stopDaemon } from "../server/daemon-state.ts";
+import { daemonRpc, inspectDaemon, stopDaemon, type DaemonRecord } from "../server/daemon-state.ts";
 import { RootAccess } from "../server/file-access.ts";
 import { trashFile } from "../server/os-trash.ts";
 
@@ -212,6 +212,50 @@ test("daemon checks protocol/product versions and only stops its own instance", 
   await stopDaemon(record, health.productVersion);
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(stopped(), true);
+});
+
+test("daemon RPC uses fresh connections after idle closure and never retries a lost stop response", async t => {
+  const sockets: import("node:net").Socket[] = [];
+  let idleClosed: Promise<unknown> | undefined;
+  let stopRequests = 0;
+  const server = createServer({ keepAliveTimeout: 20, keepAliveTimeoutBuffer: 0 }, (req, res) => {
+    sockets.push(req.socket);
+    // Advertise longer than the actual timeout so pooled clients initially retain sockets.
+    res.setHeader("Keep-Alive", "timeout=60");
+    if (req.url === "/seed") {
+      idleClosed = once(req.socket, "close");
+    } else {
+      assert.equal(req.headers["x-litzio-protocol"], DAEMON_PROTOCOL);
+      assert.equal(req.headers.origin, record.url);
+    }
+    if (req.url === "/daemon/stop") {
+      stopRequests++;
+      assert.equal(req.method, "POST");
+      req.resume();
+      req.on("end", () => req.socket.destroy());
+      return;
+    }
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ healthy: true }));
+  });
+  t.after(() => new Promise<void>((resolve, reject) => {
+    server.closeAllConnections();
+    server.close(error => error ? reject(error) : resolve());
+  }));
+  await listenForFetch(server);
+  const address = server.address();
+  assert.ok(address && typeof address !== "string");
+  const record = { url: `http://127.0.0.1:${address.port}` } as DaemonRecord;
+  await (await fetch(record.url + "/seed")).json();
+  assert.ok(idleClosed);
+  await idleClosed;
+  assert.deepEqual(await daemonRpc(record, "/daemon/health"), { healthy: true });
+  // Give a pooled implementation a chance to return its socket to the idle pool.
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(await daemonRpc(record, "/daemon/health"), { healthy: true });
+  assert.notEqual(sockets[1], sockets[2], "control requests must not share an idle connection");
+  await assert.rejects(daemonRpc(record, "/daemon/stop", { confirm: true }), /fetch failed/);
+  assert.equal(stopRequests, 1, "a stop with a lost response must not be replayed");
 });
 
 test("non-loopback binding still requires an explicit public origin", async () => {

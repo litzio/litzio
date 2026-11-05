@@ -1231,7 +1231,7 @@ Verification (2026-11-04): persistent Chrome `pnpm browser:test assistant --scre
 The shell selects the Host before mounting a new conversation surface. Once initial connection
 observations settle, one connected candidate is selected directly, even if more Hosts are registered.
 Several connected candidates open the existing Dialog with one Button per registered Host.
-Each row uses the shared HostConnectionStatus dot and localized state name. Unreachable/connecting
+Each row uses the shared HostStatus dot and localized state name. Unreachable/connecting
 Hosts remain listed but disabled; the focusable tooltip wrapper explains why they cannot start
 a conversation. Connection changes never retarget an existing conversation. Choosing
 another Host requires New conversation; the selector cannot retarget an existing conversation.

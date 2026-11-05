@@ -2,11 +2,20 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { RemoteHostRegistry } from "../../editor/server/remote-host-registry.ts";
 import { createRequire } from "node:module";
 import { setImmediate } from "node:timers/promises";
 import { runInNewContext } from "node:vm";
-import { test } from "node:test";
+import { test, after } from "node:test";
+const registryRoot = mkdtempSync(path.join(tmpdir(), "litzio-desktop-host-test-"));
+after(() => {
+  if (!path.resolve(registryRoot).startsWith(path.resolve(tmpdir()) + path.sep)) throw new Error("Unsafe test cleanup.");
+  rmSync(registryRoot, { recursive: true, force: true });
+});
 import { transformSync } from "esbuild";
 import { DESKTOP_ENTRY, trustedDesktopUrl } from "../../editor/shared/desktop-origin.ts";
 import { bundledUiResponse } from "../src/bundled-ui.ts";
@@ -21,7 +30,27 @@ const source = transformSync(readFileSync(main, "utf8"), {
   loader: "ts", format: "cjs", define: { "import.meta.url": JSON.stringify(main.href), __LITZIO_REQUIRE_SIGNED_UPDATES__: "false" },
 }).code;
 
-async function start(options: { startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState; daemonVersion?: string; daemonError?: string; daemonPending?: boolean; stopChoice?: number; closeError?: string; installationError?: string; packaged?: boolean } = {}) {
+async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwritable"; registryDamage?: boolean; restartAllowed?: boolean; startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState; daemonVersion?: string; daemonError?: string; daemonPending?: boolean; stopChoice?: number; closeError?: string; installationError?: string; packaged?: boolean } = {}) {
+  const registry = new RemoteHostRegistry(path.join(registryRoot, randomUUID() + ".json"));
+  const workFile = registry.desktopWorkFile("/fake-user-data");
+  if (options.workDamage) {
+    mkdirSync(path.dirname(workFile), { recursive: true });
+    if (options.workDamage === "corrupt") writeFileSync(path.join(path.dirname(workFile), `${path.basename(workFile).split(".")[0]}.2147483647.previous.json`), "{");
+    if (options.workDamage === "unwritable") mkdirSync(workFile);
+    if (options.workDamage === "interrupted") {
+      const module = new URL("../../editor/server/remote-host-registry.ts", import.meta.url).href;
+      const result = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", `
+        import fs from 'node:fs'; import {RemoteHostRegistry} from ${JSON.stringify(module)};
+        const registry = new RemoteHostRegistry(${JSON.stringify(registry.file)});
+        const rename = fs.renameSync;
+        fs.renameSync = (from, to) => { if (to === registry.desktopWorkFile('/fake-user-data')) process.exit(23); return rename(from, to); };
+        registry.desktopWork('/fake-user-data', []);
+      `], { encoding: "utf8", windowsHide: true });
+      assert.equal(result.status, 23, result.stderr);
+      assert.equal(existsSync(registry.file + ".lock"), false, "summary writes must not acquire the registry lock");
+    }
+  }
+  if (options.registryDamage) writeFileSync(registry.file, "{");
   const preferences: unknown[] = [];
   const logs: string[] = [], errors: unknown[][] = [], alerts: string[] = [];
   const directories: string[] = [], opened: string[] = [];
@@ -37,7 +66,7 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
     background = ""; overlay: unknown;
     webContents = Object.assign(new EventEmitter(), {
       mainFrame: { url: DESKTOP_ENTRY }, setWindowOpenHandler() {}, send(channel: string, id: number) {
-        if (channel === "desktop:restart-check") restartAnswer?.({ sender: this, senderFrame: this.mainFrame }, id, { ok: true });
+        if (channel === "desktop:restart-check") restartAnswer?.({ sender: this, senderFrame: this.mainFrame }, id, options.restartAllowed === false ? { ok: false, reason: "Unsaved draft" } : { ok: true });
       },
     });
     constructor(_options: unknown) { super(); windows.push(this); }
@@ -56,6 +85,7 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
   const windows: Window[] = [];
   const app = Object.assign(new EventEmitter(), {
     isPackaged: options.packaged ?? false, requestSingleInstanceLock: () => options.lock !== false,
+    relaunch: () => daemonCalls.push("relaunch"),
     quit: () => quits++, exit: (code: number) => { assert.equal(code, 1); exits++; },
     setAppUserModelId() {}, setPath() {}, whenReady: () => Promise.resolve(), getPath: () => "/fake-user-data", getVersion: () => "0.0.2-beta.7",
   });
@@ -73,6 +103,7 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
       mkdirSync(directory: string) { if (options.logError && directory.endsWith("logs")) throw new Error("log directory denied"); directories.push(directory); },
       appendFileSync: (_file: string, message: string) => logs.push(message), existsSync: () => false,
     },
+    "../../editor/server/remote-host-registry.ts": { RemoteHostRegistry: class { constructor() { return registry; } } },
     "electron-updater": { autoUpdater: {} }, "js-yaml": {},
     "../../editor/shared/desktop-origin.ts": { DESKTOP_ENTRY, trustedDesktopUrl },
     "./bundled-ui.ts": { bundledUiResponse },
@@ -95,7 +126,11 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
     "./update-policy.ts": {}, "./signatures.ts": {}, "./github-provider.ts": {}, "./cli-integration.ts": {}, "./windows-environment.ts": {},
   };
   runInNewContext(source, {
-    require: (name: string) => name in dependencies ? dependencies[name] : require(name),
+    require: (name: string) => {
+      if (name in dependencies) return dependencies[name];
+      if (name === "node:path" || name === "node:url") return require(name);
+      throw new Error(`Unmocked main dependency: ${name}. Inject an isolated test port.`);
+    },
     process: mainProcess, URL, URLSearchParams,
     console: { error: (...args: unknown[]) => errors.push(args) },
     setTimeout: (run: () => void, ms: number) => { timers.set(++timerId, { run, ms }); return timerId; },
@@ -115,7 +150,7 @@ async function start(options: { startupError?: boolean; logError?: boolean; open
   const invoke = (channel: string, args: unknown[], trusted = true) => handlers.get(channel)!({
     sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {},
   }, ...args);
-  return { daemonCalls, confirmations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
+  return { registry, daemonCalls, confirmations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
     seen: (version: unknown, trusted = true) => handlers.get("desktop:seen-update")!({ sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {} }, version), exits: () => exits, quits: () => quits };
 }
 
@@ -380,4 +415,65 @@ test("update installation requires confirmed daemon exit; CLI refusal keeps the 
   assert.equal((await h.invoke("desktop:install", []) as any).reason, "Stop CLI daemon first");
   assert.equal(h.window.destroyed, false);
   assert.equal(h.daemonCalls.includes("close"), false);
+});
+
+test("settings removal requires cleared work, recovery and confirmation without daemon control", async () => {
+  const h = await start({ stopChoice: 1 });
+  const host = h.registry.register("https://remote.example", "Remote").host;
+  assert.throws(() => h.invoke("desktop:host-remove", [host.hostId]), /not ready/);
+  for (const [openWork, recovery] of [[1, 0], [0, 1]]) {
+    h.invoke("desktop:host-work", [[{ hostId: host.hostId, openWork, recovery }]]);
+    assert.throws(() => h.invoke("desktop:host-remove", [host.hostId]), /Close Host tabs/);
+  }
+  h.invoke("desktop:host-work", [[]]);
+  assert.throws(() => h.invoke("desktop:host-remove", [host.hostId], false), /Untrusted/);
+  h.invoke("desktop:host-remove", [host.hostId]);
+  assert.deepEqual(h.registry.list(), []);
+  assert.equal(h.confirmations.at(-1).buttons[1], "Remove");
+  assert.ok(!h.daemonCalls.includes("stop"));
+  const cancel = await start();
+  const other = cancel.registry.register("https://other.example", "Other").host;
+  cancel.invoke("desktop:host-work", [[]]);
+  assert.throws(() => cancel.invoke("desktop:host-remove", [other.hostId]), /cancelled/);
+  assert.equal(cancel.registry.list().length, 1);
+});
+
+test("registration restart requires Editor protection and relaunches only after window close", async () => {
+  const denied = await start({ restartAllowed: false });
+  const refusal = await denied.invoke("desktop:host-restart", []) as { ok: boolean };
+  assert.equal(refusal.ok, false);
+  assert.equal(denied.window.destroyed, false);
+  assert.ok(!denied.daemonCalls.includes("relaunch"));
+  const allowed = await start();
+  const result = await allowed.invoke("desktop:host-restart", []) as { ok: boolean };
+  await setImmediate();
+  assert.equal(result.ok, true);
+  assert.equal(allowed.window.destroyed, true);
+  assert.ok(allowed.daemonCalls.includes("relaunch"));
+  assert.ok(!allowed.daemonCalls.includes("stop"));
+});
+
+test("damaged own summaries recover without blocking window creation; interrupted writes cannot lock the next start", async () => {
+  for (const workDamage of ["corrupt", "interrupted"] as const) {
+    const h = await start({ workDamage });
+    assert.ok(h.window, "Desktop must create its window");
+    assert.equal(h.exits(), 0);
+    const owner = JSON.parse(readFileSync(h.registry.desktopWorkFile("/fake-user-data"), "utf8"));
+    assert.equal(owner.pid, process.pid);
+    assert.equal(owner.summary, null, "startup must reset only its own committed summary");
+    assert.equal(existsSync(h.registry.file + ".lock"), false);
+    assert.equal((h.invoke("desktop:hosts", []) as { cliRemovalProtectionWarning: boolean }).cliRemovalProtectionWarning, false);
+  }
+});
+test("unwritable summary or unreadable registry logs a problem but still creates the Desktop window", async () => {
+  for (const options of [{ workDamage: "unwritable" as const }, { registryDamage: true }]) {
+    const h = await start(options);
+    assert.ok(h.window);
+    assert.equal(h.exits(), 0);
+    assert.ok(h.logs.some(message => message.includes("continuing")));
+    if (options.workDamage) {
+      assert.ok(h.logs.some(message => message.includes("Could not record CLI removal protection")));
+      assert.equal((h.invoke("desktop:hosts", []) as { cliRemovalProtectionWarning: boolean }).cliRemovalProtectionWarning, true);
+    }
+  }
 });

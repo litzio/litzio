@@ -1,7 +1,7 @@
 import { AssistantHostChooser } from "./shell/AssistantHostChooser.tsx";
 import { HostContext, HostClientContext } from "./host-context.tsx";
 import { LOCAL_HOST_ID, locatorKey, sameLocator } from "./host-locator.ts";
-import { getHostClient, hostRegistry, hostLabel, type HostClient } from "./host-client.ts";
+import { getHostClient, hostRegistry, hostLabel, monitorRegisteredHosts, type HostClient } from "./host-client.ts";
 import { handleDisplayRequest } from "./assistant-display.ts";
 import { creationUndoNeedsConfirmation, type FileIdentity } from "../shared/file-operations.ts";
 import { DangerConfirmation } from "./components/ui/danger-confirmation.tsx";
@@ -22,7 +22,7 @@ import type { SaveComparison } from "./shell/SaveCompare.tsx";
 import { SaveDisplayError } from "./save-error.ts";
 import { SaveContentError } from "../shared/save-error.ts";
 import { RecoveryList, RecoveryPrompt } from "./shell/Recovery.tsx";
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import type { DocumentEditorHandle } from "./DocumentEditor.tsx";
 import { DocumentTab, type EditorSession, type SessionSnapshot } from "./DocumentTab.tsx";
 import { documentScrollContainer, scrollDocumentFromShell } from "./document-scroll.ts";
@@ -89,6 +89,8 @@ export function App() {
 }
 
 function EditorApp() {
+  useSyncExternalStore(hostRegistry.subscribe, hostRegistry.snapshot, hostRegistry.snapshot);
+  const connectedHostIds = hostRegistry.list().filter(host => hostRegistry.get(host.hostId).state === "connected").map(host => host.hostId).join(",");
   useTranslation();
   const [referenceRequest, setReferenceRequest] = useState<{ hostId: string; path: string }>();
   const [assistantOpen, setAssistantOpen] = useState(false);
@@ -578,7 +580,7 @@ function EditorApp() {
   useEffect(() => {
     if (!tabsRestored) return;
     let alive = true;
-    for (const host of hostRegistry.list().filter(host => host.hostId !== LOCAL_HOST_ID)) {
+    for (const host of hostRegistry.list().filter(host => host.hostId !== LOCAL_HOST_ID && hostRegistry.get(host.hostId).state === "connected" && !restoredHosts.current.has(host.hostId))) {
       const client = getHostClient(host.hostId);
       let failed = false;
       void Promise.all((readOpenTabs(host.hostId)?.paths ?? []).map(async path => {
@@ -601,7 +603,7 @@ function EditorApp() {
       })).then(() => { if (alive && !failed) restoredHosts.current.add(host.hostId); });
     }
     return () => { alive = false; };
-  }, [tabsRestored]);
+  }, [tabsRestored, connectedHostIds]);
 
   function removeTab(id: string): void {
     const closing = latestTabs.current.find(tab => tab.id === id);
@@ -1027,8 +1029,33 @@ function EditorApp() {
     return () => window.removeEventListener("keydown", listener);
   }, []);
 
+  useEffect(() => {
+    if (!desktop) return;
+    let active = true;
+    let stop: (() => void) | undefined;
+    void desktop.registeredHosts().then(({ hosts, allowedHostIds, productVersion }) => {
+      if (active) stop = monitorRegisteredHosts(hosts.filter(host => allowedHostIds.includes(host.hostId)), productVersion);
+    }).catch(cause => setError({ key: "Desktop settings unavailable: {{reason}}", values: { reason: messageOf(cause) } }));
+    return () => { active = false; stop?.(); };
+  }, []);
+  useEffect(() => {
+    if (!desktop || !tabsRestored) return;
+    let active = true;
+    void recoveryStorage.list().then(records => {
+      if (!active) return;
+      const ids = new Set([...tabs.map(tab => tab.hostId), ...records.map(record => record.hostId)]);
+      return desktop.reportHostWork([...ids].map(hostId => ({
+        hostId, openWork: tabs.filter(tab => tab.hostId === hostId).length,
+        recovery: records.filter(record => record.hostId === hostId).length,
+      })));
+    }).catch(() => {
+      if (active) void desktop.reportHostWork(null).catch(cause => setError({ key: "Desktop settings unavailable: {{reason}}", values: { reason: messageOf(cause) } }));
+    });
+    return () => { active = false; };
+  }, [tabs, recoveryRecords, tabsRestored]);
   const restartCheck = useRef<() => RestartCheck>(() => ({ ok: false, reason: i18n.t("The editor is not ready.") }));
   restartCheck.current = () => {
+    if (!tabsRestored) return { ok: false, reason: i18n.t("The editor is not ready.") };
     const reason = allTabsPendingWork(sessions.current.values(), operationRef.current);
     return reason ? { ok: false, reason } : { ok: true };
   };
@@ -1410,7 +1437,22 @@ function EditorApp() {
             hidden={!settingsOpen} inert={!settingsOpen} data-document-tab="settings" data-active={settingsFocused ? "true" : "false"}
             data-group-index={navigation.groups.indexOf(settingsGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(settingsGroup) } as React.CSSProperties}
             onFocusCapture={() => focusDocument("settings")} onPointerDownCapture={() => focusDocument("settings")}>
-            <SettingsDialog onAssistantSaved={() => setAssistantSettingsRevision(value => value + 1)}
+            <SettingsDialog onCloseHostWork={hostId => {
+                const tab = tabs.find(tab => tab.hostId === hostId);
+                if (tab) closeTab(tab.id);
+              }} onPrepareHostRemoval={async hostId => {
+                if (operationRef.current || busy || !tabsRestored) throw new Error(i18n.t("Wait for the current operation to finish."));
+                operationRef.current = true; setOperation("opening");
+                try {
+                  if (tabs.some(tab => tab.hostId === hostId)) throw new Error(i18n.t("Close Host work before removing this Host."));
+                  const records = await recoveryStorage.list();
+                  if (records.some(record => record.hostId === hostId)) throw new Error(i18n.t("Resolve Host recovery records before removal."));
+                  if (desktop) await desktop.reportHostWork([...new Set([...tabs.map(tab => tab.hostId), ...records.map(record => record.hostId)])].map(id => ({
+                    hostId: id, openWork: tabs.filter(tab => tab.hostId === id).length, recovery: records.filter(record => record.hostId === id).length,
+                  })));
+                  await desktop?.removeHost(hostId);
+                } finally { operationRef.current = false; setOperation(""); }
+              }} onAssistantSaved={() => setAssistantSettingsRevision(value => value + 1)}
                 theme={theme} themeProblem={themeProblem} onThemeChange={changeTheme}
                 category={settingsCategory}
                 highlightUpdate={highlightUpdate}

@@ -1,4 +1,4 @@
-import { HostExplorer, HostStatus } from "./HostExplorer.tsx";
+import { HostExplorer, HostHeading } from "./HostExplorer.tsx";
 import { hostRegistry } from "../host-client.ts";
 import { SettingsSelect } from "@/components/ui/settings.tsx";
 import { locatorKey } from "../host-locator.ts";
@@ -10,7 +10,7 @@ import { FileActionDialog, type FileAction, type FileActionHandler } from "./Fil
 import { FilePreviewDialog } from "./FilePreviewDialog.tsx";
 import { useTranslation } from "react-i18next";
 import { i18n, type MessageKey } from "../i18n.ts";
-import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
+import { useId, useSyncExternalStore, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { Sun, Moon, Pencil, Trash2, ChevronRight, Ellipsis, File, Files as FilesIcon, Image as ImageIcon, FileText, FileX, Folder, FolderOpen, FolderPlus, PanelLeftClose, PanelRightOpen, Plus, RotateCw, Settings, X } from "lucide-react";
 import { fileDeletion } from "../host-capabilities.ts";
 import { DesktopMenu } from "./DesktopDaemon.tsx";
@@ -72,6 +72,7 @@ export function Sidebar({
 }: SidebarProps) {
   useTranslation();
   const [hostFilter, setHostFilter] = useState("");
+  useSyncExternalStore(hostRegistry.subscribe, hostRegistry.snapshot, hostRegistry.snapshot);
   const hosts = hostRegistry.list();
   const bounds = usePanelWidthBounds("sidebar");
   const content = useRef<HTMLDivElement>(null);
@@ -115,7 +116,7 @@ export function Sidebar({
         }}>
         {hosts.length > 1 ? <div className="host-filter"><SettingsSelect label={i18n.t("Host")} value={hostFilter} options={[{ value: "", label: i18n.t("All Hosts") }, ...hosts.map(host => ({ value: host.hostId, label: host.label }))]} onChange={setHostFilter} /></div> : null}
         <section className="sidebar-host" data-host-id="local" hidden={!!hostFilter && hostFilter !== "local"} aria-label={hosts.find(host => host.hostId === "local")?.label ?? "Local"}>
-        {hosts.length > 1 ? <HostStatus hostId="local" /> : null}
+        {hosts.length > 1 ? <HostHeading hostId="local" /> : null}
         {folders.length > 0 ? folders.map(tree => (
           <FolderTree
             key={locatorKey({ hostId: tree.hostId, path: tree.root })}

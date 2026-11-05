@@ -16,13 +16,14 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { _electron as electron } from "@playwright/test";
+import { _electron as electron, type Page } from "@playwright/test";
 import { RELEASE_REPOSITORY } from "../../src/update-policy.ts";
 import { readUpdateInfo } from "../../scripts/verify-release.ts";
 import { readPreferences, writePreferences } from "../../src/preferences.ts";
 import { windowsEnvironment } from "../../src/windows-environment.ts";
 import { verifyPackagedCli } from "./cli-check.ts";
-import { daemonDirectory, readDaemonRecord } from "../../../editor/server/daemon-state.ts";
+import { daemonDirectory, processStart, readDaemonRecord } from "../../../editor/server/daemon-state.ts";
+import { DAEMON_PROTOCOL, sameInstance } from "../../../editor/server/daemon-protocol.ts";
 import { cliDaemon, desktopRecord, assertExited, assertNoDiscovery } from "./daemon-fixture.ts";
 import { installedDirectory } from "./installed-app.ts";
 import { installationPort } from "../../src/installation-lifecycle.ts";
@@ -170,6 +171,61 @@ test("installs per user, then updates from Settings only after the open document
   let other: Awaited<ReturnType<typeof cliDaemon>> | undefined;
   const channel = BETA ? "beta" : "stable";
   const otherChannel = BETA ? "stable" : "beta";
+  const rendererTail: string[] = [];
+  const observeRenderer = (page: Page) => {
+    const append = (message: string) => {
+      rendererTail.push(`${new Date().toISOString()} ${message}`);
+      if (rendererTail.length > 100) rendererTail.shift();
+    };
+    page.on("console", message => append(`console ${message.type()}: ${message.text()}`));
+    page.on("pageerror", error => append(`pageerror: ${error.stack ?? error.message}`));
+    page.on("close", () => append("observed renderer closed; installer-relaunched renderer is not attached"));
+  };
+  const diagnoseOtherHealth = async (error: unknown) => {
+    if (!other) return;
+    const record = other.record;
+    const evidence: Record<string, unknown> = {
+      at: new Date().toISOString(), channel: otherChannel, record,
+      error: String(error),
+      rendererTail: [...rendererTail],
+      rendererCoverage: "Playwright-launched windows only; renderer exit/load failures after installer relaunch are in desktop.log",
+    };
+    const tail = (file: string) => {
+      try { return readFileSync(file, "utf8").split(/\r?\n/).slice(-100).join("\n"); }
+      catch (error) { return { unavailable: String(error) }; }
+    };
+    // Snapshot before the independent probe (which must never turn failure into success).
+    evidence.desktopLog = tail(path.join(appData, "logs/desktop.log"));
+    evidence.daemonLogs = Object.fromEntries(([channel, otherChannel] as const).map(value =>
+      [value, tail(path.join(daemonDirectory(value), "daemon.log"))]));
+    try {
+      const started = processStart(record.pid);
+      evidence.process = { pid: record.pid, alive: started !== undefined, observedStartedAt: started ?? null,
+        expectedStartedAt: record.processStartedAt, sameCreationTime: started === record.processStartedAt };
+    } catch (error) { evidence.process = { unknown: String(error) }; }
+    try {
+      evidence.freshConnection = await new Promise((resolve, reject) => {
+        // agent:false creates a new socket, separate from fetch's connection pool.
+        const request = http.get(record.url + "/daemon/health", { agent: false,
+          headers: { Connection: "close", "X-Litzio-Protocol": DAEMON_PROTOCOL, Origin: record.url },
+          signal: AbortSignal.timeout(10_000) }, response => {
+          let body = "";
+          response.setEncoding("utf8");
+          response.on("data", chunk => { body += chunk; });
+          response.on("error", reject);
+          response.on("end", () => {
+            let health;
+            try { health = JSON.parse(body); } catch { /* Preserve non-JSON responses too. */ }
+            resolve({ status: response.statusCode, body, reusedSocket: request.reusedSocket,
+              sameInstance: !!health && sameInstance(record, health), protocolMatches: health?.protocolVersion === DAEMON_PROTOCOL });
+          });
+        });
+        request.on("error", reject);
+      });
+    } catch (error) { evidence.freshConnection = { error: String(error) }; }
+    console.error("Other-channel health failure evidence:", JSON.stringify(evidence));
+    writeFileSync(path.join(work, "other-health-diagnostics.json"), JSON.stringify(evidence, null, 2));
+  };
   const diagnose = (stage: string, error: unknown) => {
     // Log the original failure before cleanup can replace it. Read-only OS/daemon evidence.
     const evidence: Record<string, unknown> = { stage, error: error instanceof Error ? error.stack : error };
@@ -208,6 +264,7 @@ test("installs per user, then updates from Settings only after the open document
 
     let app = await electron.launch({ executablePath: exe, args: ["--lang=en-US", documentFile], timeout: 60_000 });
     let page = await app.firstWindow();
+    observeRenderer(page);
     page.on("dialog", () => {});
     // Public beta.4 uses "Ready"; current builds use the stable lowercase operation ID.
     await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached", timeout: 30_000 });
@@ -297,6 +354,7 @@ test("installs per user, then updates from Settings only after the open document
     writePreferences(preferencesFile, prefs);
     app = await electron.launch({ executablePath: exe, args: ["--lang=en-US", documentFile], timeout: 60_000 });
     page = await app.firstWindow();
+    observeRenderer(page);
     page.on("dialog", () => {});
     await page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready" i]').waitFor({ state: "attached" });
     await page.getByRole("button", { name: /^Settings/ }).click();
@@ -408,7 +466,12 @@ test("installs per user, then updates from Settings only after the open document
           assert.equal(prepared.status, 0, `graceful post-update cleanup: ${prepared.stderr} ${existsSync(report) ? readFileSync(report, "utf16le") : ""}`);
           if (daemon) assertExited(daemon);
           assertNoDiscovery(channel);
-          await other?.alive();
+          try { await other?.alive(); }
+          catch (error) {
+            try { await diagnoseOtherHealth(error); }
+            catch (diagnosticError) { console.error("Other-channel diagnostics failed:", diagnosticError); }
+            throw error;
+          }
         }
       } finally {
         // Always release only this test's owned installation, even when the graceful

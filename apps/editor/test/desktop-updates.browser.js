@@ -33,6 +33,8 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
     window.__desktop = {connected:true, calls, info, push(state) { info.update = state; for (const listener of listeners) listener(state); }};
     window.__cli = {state:{status:'off'}, calls:[], pending:false, fail:false};
     window.litzioDesktop = {
+      registeredHosts: async () => ({ hosts: [], allowedHostIds: [], productVersion: "test" }),
+      reportHostWork: async () => {},
       hostConnection: async () => ({url: location.origin, productVersion: info.version, desktopVersion: info.version}),
       daemonInfo: async () => ({state: window.__desktop.connected ? 'running' : 'unreachable', url:'http://127.0.0.1:25887', launcher:'cli-start', productVersion:'0.2.0', protocolVersion:'1', pid:1234, startedAt:'2026-11-04T00:00:00Z', daemonHome:'C:/temporary/daemon/beta', executable:'C:/Litzio/Litzio.exe', roots:[], nonLoopback:false}),
       checkDaemon: async () => { if (!window.__desktop.connected) throw Error('Disconnected'); },

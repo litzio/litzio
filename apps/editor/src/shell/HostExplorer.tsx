@@ -1,4 +1,4 @@
-import { HostConnectionStatus } from "../components/HostConnectionStatus.tsx";
+import { HostStatus } from "../components/HostStatus.tsx";
 import { i18n } from "../i18n.ts";
 import { useTranslation } from "react-i18next";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip.tsx";
@@ -13,11 +13,11 @@ import { HostContext } from "../host-context.tsx";
 import type { FolderResponse, FolderBrowseResponse, FolderPlacesResponse } from "../../shared/document-protocol.ts";
 import { FolderOpen } from "lucide-react";
 
-export function HostStatus({ hostId }: { hostId: string }) {
+export function HostHeading({ hostId }: { hostId: string }) {
   useTranslation();
-  const state = useSyncExternalStore(hostRegistry.subscribe, () => hostRegistry.get(hostId).state, () => hostRegistry.get(hostId).state);
+  useSyncExternalStore(hostRegistry.subscribe, hostRegistry.snapshot, hostRegistry.snapshot);
   useEffect(() => { void hostRegistry.connect(hostId); }, [hostId]);
-  return <div className="host-heading"><span className="sidebar-tree-name">{hostLabel(hostId)}</span><Tooltip><TooltipTrigger render={<span tabIndex={0} />}><HostConnectionStatus state={state} /></TooltipTrigger><TooltipContent>{hostRegistry.get(hostId).error ?? hostRegistry.list().find(host => host.hostId === hostId)?.origin}</TooltipContent></Tooltip></div>;
+  return <div className="host-heading"><span className="sidebar-tree-name">{hostLabel(hostId)}</span><Tooltip><TooltipTrigger render={<span tabIndex={0} />}><HostStatus runtime={hostRegistry.get(hostId)} showDetails={false} compact /></TooltipTrigger><TooltipContent>{hostRegistry.get(hostId).reason ?? hostRegistry.get(hostId).warning ?? hostRegistry.list().find(host => host.hostId === hostId)?.origin}</TooltipContent></Tooltip></div>;
 }
 
 export function HostExplorer({ hostId, documentPath, isFileDirty, onOpen, onFileAction, disabled }: { hostId: string; documentPath: string; isFileDirty(path: string): boolean; onOpen(path: string): Promise<void>; onFileAction: FileActionHandler; disabled: boolean }) {
@@ -34,7 +34,7 @@ export function HostExplorer({ hostId, documentPath, isFileDirty, onOpen, onFile
   }
   const folders = useFolderTrees((root, path, background) => request<FolderResponse>(`/api/folder?${new URLSearchParams({ root, ...(path ? { path } : {}), ...(background ? { background: "1" } : {}) })}`), setProblem, undefined, hostId);
   return <HostContext.Provider value={hostId}><section aria-label={hostLabel(hostId)} data-host-id={hostId} onContextMenu={event => event.stopPropagation()}>
-    <HostStatus hostId={hostId} />
+    <HostHeading hostId={hostId} />
     {!folders.trees.length ? <div className="sidebar-empty"><Button className="w-full justify-start" size="sm" variant="ghost" disabled={disabled} onClick={event => { returnFocus.current = event.currentTarget; setPicker(true); }}><FolderOpen />{i18n.t("Open folder…")}</Button></div> : null}
     {problem ? <p role="alert">{problem}</p> : null}
     {folders.trees.map(tree => <FolderTree key={tree.root} tree={tree} documentPath={documentPath} isFileDirty={isFileDirty} fileActionsDisabled={disabled} onFileAction={async (...args) => { const result = await onFileAction(...args); folders.refreshParents(args[2].path); return result; }} onToggleFolder={path => folders.toggle(tree.root, path)} onToggleSection={() => folders.toggleSection(tree.root)} onOpenDocument={path => void onOpen(path)} onOpenFolder={() => setPicker(true)} onRefresh={() => folders.refreshRoot(tree.root)} onClose={() => folders.close(tree.root)} />)}

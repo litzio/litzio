@@ -6,7 +6,6 @@
 .agent-provider { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--id-color-border); border-radius: var(--id-radius-md); }
 .agent-provider-open { display: flex; align-items: center; flex: 1; min-width: 0; text-align: left; gap: var(--space-3); padding: var(--space-2); }
 .agent-provider-summary { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); color: var(--id-color-text-muted); font-size: var(--font-size-xs); }
-.agent-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--id-color-text-subtle); flex-shrink: 0; }
 .agent-dot.available { background: var(--id-color-interaction); }
 .agent-provider-open:disabled { opacity: .5; cursor: default; }
 .agent-provider-open:focus-visible { outline: 2px solid var(--id-color-interaction); outline-offset: 2px; }

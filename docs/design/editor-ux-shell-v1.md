@@ -3058,7 +3058,7 @@ Under [ADR-0018](../adr/0018-desktop-remote-hosts.md), the shell consumes the in
 Host registry. Explorer retains a section for each Host, including unreachable Hosts.
 The shared SettingsSelect offers All Hosts or one Host; it filters Explorer visibility only.
 Mounted trees, document sessions and assistant conversations retain their original Host.
-Connection state uses the shared [HostConnectionStatus](../../apps/editor/src/components/HostConnectionStatus.tsx)
+Connection state uses the shared [HostStatus](../../apps/editor/src/components/HostStatus.tsx)
 component with a token-colored dot and a localized state name; Unreachable does not claim
 that the remote machine is powered off. The state tooltip carries the observed error/origin.
 
@@ -3102,3 +3102,33 @@ browser fixture check, not Windows packaged Desktop/Linux remote execution. Opti
 `tmp/pr4-640.png`, `tmp/pr4-choose-1440.png`, `tmp/pr4-choose-640.png`,
 `tmp/pr4-assistant-1440.png`, `tmp/pr4-assistant-640.png`.
 Remote trash failure is injected and must keep both tabs without a second/permanent-delete request.
+## Remote Host settings (#1174 PR3b)
+
+Desktop Settings has a Hosts category using the shared settings content, Input, Button and Notice
+patterns. It lists registrations, editable labels, connection/reconnect state and health warnings.
+Registration is saved before a protected restart; the current window never dynamically expands CSP.
+Close Host work reuses tab close protection. Removal checks current Host tabs and recovery,
+then asks for native confirmation; any recovery blocks removal. App-global appearance and local
+daemon controls retain their existing scopes. See the [Desktop registration contract](desktop-distribution-v1.md#desktop-local-remote-registry-1174-pr3a).
+
+The Hosts category uses the bundled Server icon. A Host summary groups its label, origin and
+localized status with the existing agent status dot and semantic color tokens: Connecting,
+Connected, Unreachable, Protocol mismatch and Version warning. Protocol failures have an explicit
+runtime category; UI does not infer them from error wording. Detailed health messages live in
+the shared tooltip. The access warning stays on one short line with full help in a tooltip.
+Actions share compact Button geometry; narrow windows show accessible icon buttons with tooltips,
+keeping Remove on the same row with the destructive variant. The local Host is not duplicated
+here: the existing Desktop status menu and daemon details remain its single surface.
+
+Settings uses the shared `HostStatus` component in `apps/editor/src/components/HostStatus.tsx`.
+It receives a read-only runtime observation, optional restart requirement and optional detail help;
+it does not access the registry, connect or change the target. PR4 can reuse the same localized
+names, status dot and semantic colors without reproducing their mapping. Dot geometry is shared
+with provider status in the global stylesheet.
+
+After PR3b/PR4 integration, HostStatus is the only status presenter for Settings, Explorer
+headings and assistant Host selection. Compact surfaces use the same labels/colors with the
+existing small typography. Registry metadata and runtime observations publish through the same
+subscription; registered Host labels/removal update shell surfaces, and startup tab restoration
+waits for the corresponding Host to connect. Subsequent shell connection checks retain the
+registered Host's protocol/product policy.

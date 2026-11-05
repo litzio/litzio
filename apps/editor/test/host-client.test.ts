@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { once } from "node:events";
-import { createHostRegistry } from "../src/host-client.ts";
+import { createHostRegistry, monitorRegisteredHosts, hostRegistry } from "../src/host-client.ts";
 import { createDocumentRequests } from "../src/document-session.ts";
 import { createAssetHost, chooseHostImage } from "../src/image-assets.ts";
 import { createAssistantRequest } from "../src/assistant-api.ts";
@@ -95,9 +95,10 @@ test("Desktop bootstrap and reconnect keep in-flight targets while new work uses
   });
   const module = await import(new URL("../src/host-client.ts?desktop-reconnect", import.meta.url).href);
   const client = module.getHostClient("local");
+  const observation = module.hostRegistry.connect("local");
   const bootstrap = client.request("/initial"); await Promise.resolve();
   assert.equal(requests.length, 0);
-  module.setDesktopHost("http://first"); await bootstrap;
+  module.setDesktopHost("http://first"); await Promise.all([bootstrap, observation]);
   const saving = client.request("/save"); await Promise.resolve(); await Promise.resolve();
   const assets = createAssetHost(client);
   const receipt = await assets.create(new File(["image"], "a.png", { type: "image/png" }), "/same.md", "paste");
@@ -120,4 +121,80 @@ test("Desktop bootstrap and reconnect keep in-flight targets while new work uses
   assert.equal(requests.filter(url => url.endsWith("/save")).join(), "http://first/save");
   assert.ok(requests.includes("http://second/next"));
   assert.equal(client.url("/image"), "http://first/image");
+});
+
+test("registered connections recheck health, reject protocol, warn product and recover without writes", async t => {
+  let protocol = "4", product = "different", offline = false;
+  const calls: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url: string, init?: RequestInit) => {
+    calls.push(String(url));
+    assert.equal(init?.method ?? "GET", "GET");
+    if (offline) throw new Error("offline");
+    if (String(url).endsWith("/daemon/health")) {
+      assert.equal((init?.headers as Record<string, string>)["X-Litzio-Protocol"], "4");
+      return Response.json({ protocolVersion: protocol, productVersion: product });
+    }
+    return Response.json({ fileDeletion: "trash" });
+  });
+  const registry = createHostRegistry([]);
+  registry.add("remote", "https://remote.example");
+  await assert.rejects(registry.get("remote").client.request("/api/document"), /not connected/);
+  await registry.connect("remote", "client");
+  assert.match(registry.get("remote").warning!, /different/);
+  offline = true; await registry.connect("remote", "client");
+  assert.equal(registry.get("remote").state, "disconnected");
+  assert.equal(registry.get("remote").failure, "unreachable");
+  offline = false; protocol = "other";
+  await registry.connect("remote");
+  assert.match(registry.get("remote").reason!, /protocol mismatch/);
+  assert.equal(registry.get("remote").failure, "protocol-mismatch");
+  protocol = "4"; product = "client";
+  await registry.connect("remote", "client");
+  assert.equal(registry.get("remote").state, "connected");
+  assert.equal(registry.get("remote").warning, undefined);
+  const client = registry.get("remote").client;
+  registry.remove("remote");
+  await assert.rejects(client.request("/api/document"), /not connected/);
+  assert.ok(calls.every(url => !url.includes("stop") && !url.includes("document")));
+});
+
+test("registered monitor automatically connects and reconnects using only reads, and stops its timers", async t => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  let offline = true, probes = 0;
+  t.mock.method(globalThis, "fetch", async (url: string) => {
+    if (String(url).endsWith("/daemon/health")) {
+      probes++;
+      if (offline) throw new Error("offline");
+      return Response.json({ protocolVersion: "4", productVersion: "client" });
+    }
+    return Response.json({ fileDeletion: "trash" });
+  });
+  const stop = monitorRegisteredHosts([{ hostId: "auto-test", origin: "https://auto.example" }], "client");
+  t.after(() => { stop(); hostRegistry.remove("auto-test"); });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(hostRegistry.get("auto-test").state, "disconnected");
+  offline = false; t.mock.timers.tick(5000);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(hostRegistry.get("auto-test").state, "connected");
+  stop(); const before = probes;
+  t.mock.timers.tick(10000);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(probes, before);
+});
+
+test("registered Host metadata and observation changes publish to shell subscribers", async t => {
+  const registry = createHostRegistry([{ hostId: "local", origin: "/", label: "Local" }]);
+  let observed = registry.snapshot();
+  const stop = registry.subscribe(() => { observed = registry.snapshot(); });
+  t.after(stop);
+  registry.add("remote", "https://remote.example", "Remote");
+  assert.ok(observed > 0);
+  assert.equal(registry.list().find(host => host.hostId === "remote")?.label, "Remote");
+  const beforeRename = observed;
+  registry.add("remote", "https://remote.example", "Renamed");
+  assert.ok(observed > beforeRename);
+  assert.equal(registry.list().find(host => host.hostId === "remote")?.label, "Renamed");
+  assert.throws(() => registry.add("remote", "https://other.example", "Changed"), /origin cannot change/);
+  registry.remove("remote");
+  assert.ok(!registry.list().some(host => host.hostId === "remote"));
 });
