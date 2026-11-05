@@ -1,10 +1,10 @@
 # HTTP Host v1
 
-#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. ④ Host 클라이언트와 ⑤ Desktop 번들 origin은 아래 경계를 구현한다.
+#1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 당시 구 플러그인 등록/관리/기여 탭·Docling을 제거했다. 현재 재개한 플러그인은 아래 Plugin stage 1 절을 따른다. 구 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. ④ Host 클라이언트와 ⑤ Desktop 번들 origin은 아래 경계를 구현한다.
 
 - Status: Implemented
 - Run-as verification: 2026-11-05 — #1199 Windows Host health/capability·CLI lifecycle and two-Host persistent Chrome fixture; 1440px/640px footer captures. Actual Windows Desktop to Linux connection remains unverified.
-- Last verified: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
+- Last verified: 2026-11-06 — #1247 ADR-0020·문서 색인·플러그인 subprocess/secret/제작 및 공통 뷰 코드를 정적 대조. 제품 실행 재검증 없음. 이전 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
 - Remote registration PR3a verification: 2026-11-05 — temporary-path registry/CLI, exact CSP and health preflight tests; production HTTP persistent Chrome recovery/Save/Reload/conflict (2 passed). Settings/protected restart and live Windows Desktop → Linux remote connection remain unverified and outside PR3a.
 - Daemon verification: 2026-11-04 (#1142 PR2: Windows CLI concurrent start/stop, Host/Origin boundaries and production browser Save/Reload/conflict; Linux remains required CI).
 - CI artifact policy verification: 2026-10-30 (#808; tarball upload removed, screen evidence retained on failure; workflow policy regressions and docs check, no local HTTP/browser execution).
@@ -332,4 +332,4 @@ for bounds, pairing and receipt semantics. CLI `compare <before> <after> --json`
 the same executor in its own process, rather than contacting the running daemon.
 ## Plugin stage 1 (ADR-0020)
 
-Owner-initiated stage 1 provides [the shared plugin management contract](plugin-stage1-v1.md). Management is a separate Codex tool with a fresh explicit confirmation for each call, including full access. Display tools remain restricted to their existing fields. Plugin execution belongs to the target Host; secret and view runtimes are unsupported.
+Owner-initiated stage 1 provides [the shared plugin management contract](plugin-stage1-v1.md): local artifact registration, trust/enable, target-daemon subprocess execution and reload, Windows DPAPI secret storage, and the assistant authoring kit. Management uses the shared operations/CLI and a separate Codex tool; per-call confirmation is replaced by visible activity records. Secret values are entered directly by the user in settings UI and are not exposed to the assistant. Display tools remain restricted to their existing fields. [Generated views](generated-views-v1.md) provide the common Core/Host runtime and bundled app renderer, including active plugin read operations with row schemas. Plugin-specific generatedUi/views contributions remain unsupported; this does not mean the common view runtime is unavailable.

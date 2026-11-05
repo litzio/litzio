@@ -6,10 +6,11 @@
 
 - 지금은 컨셉 검증 단계이므로 당장 검증할 것만 구현하고, 보안·배포·운영의 세부는 실제로 필요해질 때로 미룬다([Discussion #767](https://github.com/litzio/litzio/discussions/767)). 공식 write path의 유효성, 데이터 보존, 테스트 기준 등 이미 적용되는 저장소 제약은 그대로 지킨다.
 - 현재 요청을 해결하는 가장 작고 단순한 변경을 우선한다.
-- 기존 코드와 검증된 라이브러리를 재사용하고, 필요성이 확인되지 않은 abstraction이나 infrastructure를 추가하지 않는다.
+- 기존 코드와 검증된 라이브러리를 재사용하고, 새 abstraction이나 infrastructure의 필요성은 지금 막힌 실제 사례로 설명한다.
 - 정상 동작하는 주변 코드를 현재 작업과 무관하게 재설계하거나 리팩터링하지 않는다.
 - 기존 기술로 해결 가능한 parser, AST, document format, editor engine 등을 불필요하게 재구현하지 않는다.
-- 기술적 제약이나 실패를 숨기기 위해 테스트 기준을 약화하거나 동작을 우회하지 않는다. [ADR-0016 ⑥](docs/adr/0016-shared-local-daemon-host.md#⑥-플러그인-기능-제거와-보관)의 PR3 테스트 제외는 PR4에서 복구해 종료했다. 제외 전 CI 측정 기록을 보존하며 PR4 필수 CI 전체 통과로 1단계를 완료하고 해당 예외에 따른 릴리스 중단 조건을 해제했다. 이 예외를 연장하지 않는다. [ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)은 AI 공식 기능 이전 뒤 플러그인·Docling 및 관련 테스트·문서의 기능 제거를 결정한다. 삭제 직전 master는 원격 `archive/plugins-docling-2026-11`에 보관한다. 이는 테스트 예외가 아니며 남는 기능의 검증은 유지한다. 1단계와 #1150 코어 전환 완료 전에는 릴리스하지 않고 이후 플러그인 없는 제품의 릴리스 여부는 소유자가 정한다.
+- 기술적 제약이나 실패를 숨기기 위해 테스트 기준을 약화하거나 동작을 우회하지 않는다. [ADR-0016 ⑥](docs/adr/0016-shared-local-daemon-host.md#⑥-플러그인-기능-제거와-보관)의 PR3 테스트 제외는 PR4에서 복구해 종료했으며 예외를 연장하지 않는다. [ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)의 AI 공식 기능 이전·구 플러그인/Docling 제거와 보관·번들 UI 전환은 완료했다. 보관 기록은 `archive/plugins-docling-2026-11`에 유지하며, 현재 플러그인 계약은 ADR-0019·0020과 아래 구현 계약을 따른다.
+- 새 상태는 소유자(앱·Host·문서·대화·플러그인·요청)를 먼저 정한다. 병렬 PR은 상대 PR이 바꾼 timeout·취소·출력·수명 가정까지 합쳐 검토한다.
 - 개발 단계이므로 소유자가 Migration을 명시적으로 지시하지 않는 한, 이미 저장된 Litzio 문서·복구 기록·설정 등 과거 데이터의 하위 호환성을 설계 판단이나 구현 범위에 포함하지 않는다. 사람·AI·CLI가 앞으로 작성하는 입력의 처리는 이 규칙과 별개다.
 
 ## Architectural constraints
@@ -27,9 +28,7 @@
 - Editor는 ADR-0010에 따라 최소 640px의 데스크톱급 창과 키보드·포인터 입력을 지원 대상으로 한다. 휴대폰 폭·터치 전용 레이아웃이나 검증은 실제 사용자가 확인되어 별도 결정이 나기 전까지 계획하지 않는다.
 - [ADR-0016](docs/adr/0016-shared-local-daemon-host.md)에 따라 Desktop은 같은 PC의 공유 daemon(HTTP Host; 현재 단계는 인증 없음, #1145에서 방식·시점 선택)에 연결한다. `apps/editor/server`의 공용 파일 Host handler와 Core 의미·공식 write path를 재사용한다. 화면과 독립된 daemon 수명을 허용하되, 이를 범용 persistence/backend나 공유 편집 세션의 근거로 확장하지 않는다. Desktop의 로컬 연결은 PR3부터 공유 daemon을 사용하며 띄운 주체별 종료·명시적 종료·수동 다시 연결을 ADR-0016에 따른다. AI는 daemon 수명을 따른다. PR4가 수명 계약과 한정 테스트 복구를 완료했으며, 이후 ADR-0017에서 플러그인 기능을 제거·보관했다.
 
-[ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)에 따라 PR4(완료) → ADR → ③a AI 공식 기능 이전 → ③b 플러그인·Docling 기능 제거와 보관 → ④ Host 클라이언트 → ⑤ Desktop 번들 UI 순으로 완료했다. 소유자가 명시적으로 재개를 개시할 때 보관 코드를 참고해 플러그인 컨셉을 다시 개발하며 그대로 복구하지 않는다. 계층 개념은 [ADR-0019](docs/adr/0019-plugin-tiers.md)·[ADR-0020](docs/adr/0020-plugin-architecture.md)를 따르며 개념 결정은 구현 재개가 아니다. ADR-0017 전환 당시 보류한 원격 Host 설정·여러 Host 동시 보기는 [ADR-0018](docs/adr/0018-desktop-remote-hosts.md)의 #1174 소유자 결정과 PR0~4를 따른다. PR0은 결정 문서이며 PR1~4(#1176~#1180)에서 구현을 완료했다.
-
-2026-11-05 소유자가 ADR-0020 1단계를 별도로 개시했다. 현재 최소 SDK·로컬 artifact 관리·OneDrive의 범위와 미지원 확장은 [플러그인 1단계 계약](docs/design/plugin-stage1-v1.md)을 따른다. Jira·동적 UI 스파이크는 이번 구현에 포함하지 않는다.
+[ADR-0017](docs/adr/0017-bundled-client-and-official-ai.md)의 전환과 [ADR-0018](docs/adr/0018-desktop-remote-hosts.md)의 원격 Host·여러 Host 동시 보기는 구현을 완료했다. 2026-11-05 소유자 개시로 재개한 플러그인은 [ADR-0019](docs/adr/0019-plugin-tiers.md)·[ADR-0020](docs/adr/0020-plugin-architecture.md)를 따른다. 현재 SDK·로컬 artifact 관리·OneDrive·하위 프로세스/reload·Windows secret·비서 제작 키트는 [플러그인 1단계 계약](docs/design/plugin-stage1-v1.md), 공통 생성 UI·저장 뷰는 [생성 뷰 계약](docs/design/generated-views-v1.md)을 따른다. Docling은 공식 플러그인이 아니며 재개 시 커뮤니티 계층이다. Jira·Docling 수락 시험과 카탈로그 v2 등 후속 계획을 현재 구현 완료로 간주하지 않는다.
 
 이 원칙을 이유로 미래 구조나 기능을 선제적으로 구현하지 않는다.
 
@@ -37,7 +36,7 @@
 
 ## Internal naming
 
-- 내부 코드 이름은 `litzio`다(Discussion #856, #858). 패키지는 `@litzio/*`를 사용한다. 플러그인 API는 ADR-0017에 따라 제거했다. 제품 표시 이름, CLI·Desktop 프로토콜·설치·데이터 경로는 `brand.ts`와 패키저용 안내를 따른다(공식 기본값 Litzio). 저장소 참조는 별도 계약을 따른다.
+- 내부 코드 이름은 `litzio`다(Discussion #856, #858). 패키지는 `@litzio/*`를 사용한다. 플러그인 공개 SDK는 ADR-0019·0020에 따른 `@litzio/plugin-sdk`를 사용한다. 제품 표시 이름, CLI·Desktop 프로토콜·설치·데이터 경로는 `brand.ts`와 패키저용 안내를 따른다(공식 기본값 Litzio). 저장소 참조는 별도 계약을 따른다.
 
 ## Repository map
 
@@ -52,8 +51,11 @@
 - `packages/core/src/myst/` — MyST integration boundary. MyST-specific parsing/serialization logic은 이 경계 안에 둔다.
 - `packages/core/test/` — Core의 document semantics와 canonical round-trip 계약을 검증한다.
 - `packages/cli/` — `@litzio/core`의 얇은 명령줄 인터페이스. 문서 의미나 AST 처리 로직을 구현하지 않는다.
+- `packages/plugin-sdk/` — 플러그인의 공통 manifest·schema·Host SDK와 제작 계약.
+- `plugins/onedrive/` — 공개 SDK를 사용하는 공식 OneDrive 플러그인.
+- `packages/core/src/views/`·`apps/editor/src/views/` — 공통 생성 UI·저장 뷰의 Core 의미와 앱 번들 렌더러.
 - `packages/file-commit/` — CLI와 Editor Host가 공유하는 Node 전용 파일 교체(revision 확인, temporary sibling, rename). 문서 의미를 알지 않는다.
-- `apps/editor/server` — 공용 HTTP Host handler. ADR-0017에서 AI는 플러그인에서 daemon 공식 기능으로 옮기며 AI 수명은 daemon을 따른다. `assistant-host.ts`가 공식 AI를 직접 구성하고 `shared/assistant.ts`가 중립 계약을 소유한다. 플러그인·Docling 기능은 제거했으며 소유자 재개 개시 때 보관 코드를 참고해 다시 개발한다.
+- `apps/editor/server` — 공용 HTTP Host handler. ADR-0017에서 AI는 플러그인에서 daemon 공식 기능으로 옮기며 AI 수명은 daemon을 따른다. `assistant-host.ts`가 공식 AI를 직접 구성하고 `shared/assistant.ts`가 중립 계약을 소유한다. `plugins/`는 대상 Host의 플러그인 실행·reload·secret·제작 작업을 소유한다. Docling은 공식 플러그인이 아니다.
 - `apps/editor/` — Core-backed Visual Editor. MyST AST를 직접 다루지 않고 Core read model과 Core operations만 사용한다.
 - `apps/desktop/` — Electron Windows shell, NSIS 패키징과 Stable/Beta 업데이트. ADR-0016의 공유 로컬 daemon 수명을 따르고 ADR-0017에서 앱 번들 UI + 대상 Host를 아는 HTTP 클라이언트로 전환한다. 문서 의미를 구현하지 않는다.
 - [UI 결정표와 갤러리](docs/design/ui-decision-table-v1.md) — UI 작업의 진입점. 기존 토큰·variant·아이콘 관례 안의 선택은 묻지 않고 정한다. 새 표면 구조·기존 계약 변경·새 공통 상호작용 변경만 소유자에게 올린다. 결과에는 선택한 공통 구현과 예외 이유를 적는다.
@@ -86,6 +88,7 @@
 - 테스트 추가 전 기존 보호 범위와 새로 잡을 결함을 확인한다. 기존 테스트 보완을 우선하며, 고유한 보호 가치가 없으면 추가하지 않는다.
 - 사용자 동작·공개 계약을 검증하고, 변수명·우연한 마크업 형태·임의의 개수를 고정하지 않는다. 명시적인 의존성 경계는 검증한다.
 - 의미 규칙은 Core에서, CLI·브라우저는 각 인터페이스의 고유한 위험과 통합 동작을 검증한다. 같은 결함을 잡는 사례를 계층마다 반복하지 않는다.
+- fixture 통과와 실제 제품 성공을 구분한다. 짧은 작업·작은 폴더·localhost·합성 secret의 통과만으로 제품 성공을 선언하지 않고 검증 범위와 미확인 조건을 기록한다.
 - 동일 실행 결과로 필요한 검사를 함께 수행한다. 자동 판정에 쓰이지 않는 촬영·촬영 전용 순회는 수동 검토로 분리한다.
 - 메인 에이전트·Docling 검수 등 실제 AI 호출로 응답을 확인할 때는 가장 저렴한 모델(현재 Codex `gpt-6-luna`, 추론 강도 `low`)을 쓴다. 특정 모델·추론 강도의 동작 자체를 확인해야 할 때만 예외로 하고 이유를 기록한다.
 
