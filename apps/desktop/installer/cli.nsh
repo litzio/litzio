@@ -145,6 +145,12 @@ Var litzioRemovalLog
         FileWriteUTF16LE $8 "$3$\r$\n"
         FileClose $8
         DetailPrint "$3"
+        ${GetParameters} $4
+        ClearErrors
+        ${GetOptions} $4 "/S" $5
+        ${if} ${Errors}
+          SetSilent normal
+        ${endif}
         MessageBox MB_OK|MB_ICONEXCLAMATION "$3" /SD IDOK
         SetErrorLevel 1
         Quit
