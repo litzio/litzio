@@ -1,3 +1,4 @@
+import { randomUuid } from "../src/uuid.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, cpSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
@@ -9,6 +10,14 @@ import { PLUGIN_ERROR_MESSAGES } from "@litzio/plugin-sdk";
 import { RootAccess } from "../server/file-access.ts";
 
 const safeWriteAdvice = " Check the target before retrying a write. Query the same requestId; do not resend start.";
+
+test("request IDs use v4 UUIDs without secure-context randomUUID", () => {
+  const original = globalThis.crypto;
+  try {
+    Object.defineProperty(globalThis, "crypto", { configurable: true, value: { getRandomValues: original.getRandomValues.bind(original) } });
+    assert.match(randomUuid(), /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  } finally { Object.defineProperty(globalThis, "crypto", { configurable: true, value: original }); }
+});
 
 test("K1 lifecycle, exclusive request identity, Root admission, publication and disable cleanup", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-"));

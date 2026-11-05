@@ -1,3 +1,4 @@
+import { randomUuid } from "./uuid.ts";
 import { i18n } from "./i18n.ts";
 import { useEffect, useRef, useState } from "react";
 import type { JobContribution, JobSnapshot } from "@litzio/plugin-sdk";
@@ -74,7 +75,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
     <div className="view-controls">
     <Button disabled={locked || !choice || !file || file.root !== root || !output} onClick={() => void run(async () => {
       if (!file || file.root !== root) return;
-      const id = crypto.randomUUID();
+      const id = randomUuid();
       const initial: JobSnapshot = { requestId: id, plugin: choice!.plugin.id, job: choice!.binding.id, root, elapsedMs: 0, state: "running", phase: "Starting", stopRequested: false }; setJob(initial);
       try { const value = await request({ action: "job-start", plugin: initial.plugin, job: initial.job, requestId: id, root, file: file.relativePath, output }); setJob(value.job); }
       catch (error) { if (!lifetime.current?.signal.aborted) {

@@ -2888,6 +2888,8 @@ Manual `--screenshots` writes 1440px Light/English and 640px Dark/Korean expande
 
 ## Document table display (#902)
 
+Table display choices are identified by Host ID and document path; the default remains device-wide.
+
 Settings → Appearance & language sets the new-document table default (Wrap long text /
 Single line). Paths without an override follow it. Table block menus have a separate
 View group with a document-scoped checkbox; the command center provides the same

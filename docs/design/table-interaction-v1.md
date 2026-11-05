@@ -428,6 +428,8 @@ existing-table branches of [Save collection](../../apps/editor/src/tiptap-edits.
 
 ## Per-document table presentation (#902)
 
+Table display choices are identified by Host ID and document path; the default remains device-wide.
+
 The table block menu includes the checkbox “This document’s tables: wrap long text”
 (“이 문서의 표: 긴 텍스트 줄바꿈”), separated from document mutations in a View group.
 The command center offers the same toggle with the current display value, including
