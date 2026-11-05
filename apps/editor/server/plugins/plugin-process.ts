@@ -12,7 +12,8 @@ function hostSdkUrl(): Promise<string> {
   return sdkUrl ??= (async () => {
     if (import.meta.url.endsWith(".ts")) {
       const tooling = new URL("../../../../packages/cli/scripts/plugin-sdk.ts", import.meta.url);
-      return (await import(tooling.href)).developmentSdkUrl();
+      // Node loads checkout tooling at runtime, including under Vite SSR.
+      return (await import(/* @vite-ignore */ tooling.href)).developmentSdkUrl();
     }
     return new URL("./plugin-sdk.mjs", import.meta.url).href;
   })();
