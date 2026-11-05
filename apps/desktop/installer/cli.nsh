@@ -1,7 +1,6 @@
 ; This include is generated next to the bundled helper. Capture its build-time directory
 ; here, before macro expansion inside electron-builder's installer/uninstaller templates.
 !define LITZIO_LIFECYCLE_SOURCE "${__FILEDIR__}\prepare-installation.cjs"
-Var litzioRemovalLog
 
 ; Replace electron-builder's image-name kill path for BOTH setup and removal.
 !macro customCheckAppRunning
@@ -35,6 +34,7 @@ Var litzioRemovalLog
 !macroend
 
 !macro customUnInstall
+  Var /GLOBAL litzioRemovalLog
   ; Silent one-click uninstall skips checkAppRunning in electron-builder; always gate deletion.
   !insertmacro customCheckAppRunning
   ; Updates replace the application tree, but preserve the external opt-in integration.
