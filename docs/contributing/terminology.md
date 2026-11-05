@@ -76,7 +76,8 @@
 | 앱 소유 컴포넌트의 허용 목록 | UI 카탈로그 | UI catalog | `catalog` | 앱 번들 UI 카탈로그; 최초 Table·BarChart·세로 패널 |
 | 조회·바인딩·표현의 공통 정의 | UI 명세 | UI specification | `schemaVersion`, `sources`, `panels` | UI 명세; 일시적 생성 UI와 저장된 뷰가 같은 형식 사용 |
 | 비서가 대화 중 만든 일시적 UI | 생성 UI | Generated UI | 공통 UI 명세 | 생성 UI; 동적 UI라고도 설명하며 원격 JS/CSS 생성·실행을 뜻하지 않음 |
-| 이름 있는 파일로 고정한 UI 명세 | 저장된 뷰 | Saved view | `.view.json`, `view.validate/save/run` | 저장된 뷰: 생성 UI와 같은 앱 렌더러, LLM 없이 재열기, 기본 수동 재조회 |
+| 이름 있는 동적 UI 상태(명세 + 질의)를 고정한 것 | 즐겨찾기 뷰 | Favorite view | `.view.json`, `view.validate/save/run` | ★ 즐겨찾기에 추가·즐겨찾기 목록; 생성 UI와 같은 앱 렌더러, LLM 없이 재열기, 수동 재조회 |
+| 즐겨찾기 뷰의 저장 개념·파일 형식 설명 | 저장된 뷰 | Saved view | `.view.json` | 즐겨찾기 뷰와 같은 개념. 사용자 표시 이름은 즐겨찾기 뷰이며 별도 형식이 아님 |
 | 뷰를 계속 열어 쓰는 사용 형태 | 대시보드 | Dashboard | 공통 UI 명세·렌더러 | 대시보드; 별도 UI 형식·자동 실시간 갱신을 뜻하지 않음 |
 | 실행 데이터까지 고정한 정적 산출물 | 스냅샷 | Snapshot | `.snapshot.json` | 뷰 데이터 스냅샷; 표현·데이터·조회 시각·조건·receipt 포함, 질의 재실행 권한 없음 |
 | 플러그인의 연결별 설정 단위 | 연결 | Connection | `connectionId` | 플러그인 연결; Host 등록·AI 공급자 연결과 맥락을 구별 |
