@@ -26,6 +26,7 @@ export type AssistantConversation = AssistantConversationInfo & { turns: Assista
   copilot?: AiCopilotOptions;
   tokenUsage?: { used: number; limit: number | null } };
 export type AssistantConversationInput = Pick<AssistantExecutionSettings, "model" | "reasoningEffort"> & { id?: string; message: string; references?: string[]; skills?: { name: string; path: string }[];
+  viewGeneration?: boolean;
   /** User-selected conversation overrides; never persisted as global defaults. */
   provider?: AiProvider; permissionMode?: AssistantSettings["permissionMode"];
   mode?: string;

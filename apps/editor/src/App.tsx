@@ -1,4 +1,6 @@
 import { useAssistantReferenceHandoff } from "./assistant-reference-handoff.ts";
+import { Views, type ViewTab } from "./views/Views.tsx";
+import type { View } from "@litzio/core/views";
 import { useHostTabRestore, useTabNavigationMemory } from "./host-tab-restore.ts";
 import { createTabAdmission, type Tab } from "./tab-admission.ts";
 import { AssistantHostChooser } from "./shell/AssistantHostChooser.tsx";
@@ -197,6 +199,7 @@ function EditorApp() {
     return () => elements?.forEach(element => { element.inert = false; });
   }, [assistantOpen, assistantOverlay, fileOperationPending]);
   const [navigation, navigate] = useReducer(editorGroups, initialEditorGroups);
+  const [viewTabs, setViewTabs] = useState<ViewTab[]>([]);
   const focusedGroup = navigation.groups.find(group => group.id === navigation.focused)!;
   const activeId = focusedGroup.active;
   const settingsGroup = navigation.groups.find(group => group.tabs.includes("settings"));
@@ -205,7 +208,7 @@ function EditorApp() {
   const galleryGroup = navigation.groups.find(group => group.tabs.includes("templates"));
   const galleryOpen = galleryGroup?.active === "templates";
   const galleryFocused = activeId === "templates";
-  const allTabs = [...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
+  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.root, hostId: tab.hostId, title: tab.basic ? i18n.t("Document statistics") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
@@ -579,6 +582,11 @@ function EditorApp() {
     return `./${renamed.slice(directory.length).replaceAll("\\", "/")}`;
   };
   function closeTab(id: string): void {
+    if (viewTabs.some(tab => tab.id === id)) {
+      if (busy || continuation) return;
+      setViewTabs(previous => previous.filter(tab => tab.id !== id));
+      navigate({ type: "close", id }); focusAfterClose.current = true; return;
+    }
     if (id === "settings" || id === "templates") {
       if (busy || continuation) return;
       if (id === "settings") setHighlightUpdate(false);
@@ -707,6 +715,23 @@ function EditorApp() {
     if (assistantOverlay) setAssistantOpen(false);
     focusAfterClose.current = true;
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
+  }
+  function openStatistics(): void {
+    if (busy || continuation) return;
+    const hostId = viewTabs.find(tab => tab.id === activeId)?.hostId ?? session?.hostId ?? LOCAL_HOST_ID;
+    const id = `statistics-${hostId}`;
+    const roots = hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(hostId);
+    setViewTabs(previous => previous.some(tab => tab.id === id) ? previous : [...previous, { id, basic: true, hostId, root: roots[0] ?? "" }]);
+    placeTab(id);
+  }
+  function openGeneratedView(view: View, root: string, hostId: string, label?: string): void {
+    if (!hostRegistry.list().some(host => host.hostId === hostId)) { setError(`Unavailable Host: ${hostId}`); return; }
+    const id = `view-${crypto.getRandomValues(new Uint32Array(4)).join("-")}`;
+    const basicId = `statistics-${hostId}`;
+    setViewTabs(previous => [...previous, ...(previous.some(tab => tab.id === basicId) ? [] : [{ id: basicId, basic: true, hostId, root }]), { id, view, root, hostId, label }]);
+    if (!viewTabs.some(tab => tab.id === basicId)) placeTab(basicId);
+    placeTab(id);
+    if (assistantOverlay) setAssistantOpen(false);
   }
   async function createFile(path: string, target?: { hostId: string; client: HostClient; root?: string }): Promise<string> {
     if (operationRef.current || busy || continuation) return i18n.t("Wait for the current operation to finish.");
@@ -892,16 +917,16 @@ function EditorApp() {
     let active = true;
     void recoveryStorage.list().then(records => {
       if (!active) return;
-      const ids = new Set([...tabs.map(tab => tab.hostId), ...records.map(record => record.hostId)]);
+      const ids = new Set([...tabs.map(tab => tab.hostId), ...viewTabs.map(tab => tab.hostId), ...records.map(record => record.hostId)]);
       return desktop.reportHostWork([...ids].map(hostId => ({
-        hostId, openWork: tabs.filter(tab => tab.hostId === hostId).length,
+        hostId, openWork: [...tabs, ...viewTabs].filter(tab => tab.hostId === hostId).length,
         recovery: records.filter(record => record.hostId === hostId).length,
       })));
     }).catch(() => {
       if (active) void desktop.reportHostWork(null).catch(cause => setError({ key: "Desktop settings unavailable: {{reason}}", values: { reason: messageOf(cause) } }));
     });
     return () => { active = false; };
-  }, [tabs, recoveryRecords, tabsRestored]);
+  }, [tabs, viewTabs, recoveryRecords, tabsRestored]);
   const restartCheck = useRef<() => RestartCheck>(() => ({ ok: false, reason: i18n.t("The editor is not ready.") }));
   restartCheck.current = () => {
     if (!tabsRestored) return { ok: false, reason: i18n.t("The editor is not ready.") };
@@ -1008,6 +1033,8 @@ function EditorApp() {
     });
   };
   const commandItems: CommandCenterItem[] = [
+    { id: "document-statistics", kind: "command", label: i18n.t("Document statistics"), icon: FileText, takesFocus: true,
+      disabled: busy || Boolean(continuation), keywords: ["statistics", "views", "favourites", "통계", "즐겨찾기"], run: openStatistics },
     ...(assistantAvailable ? [{ id: "assistant", kind: "command" as const, label: i18n.t("Assistant"), icon: MessageSquare, takesFocus: true,
       shortcut: ASSISTANT_SHORTCUT.label, keywords: ["assistant", "비서"], run: () => { assistantReturn.current = commandReturnFocus.current; setAssistantOpen(true); } }] : []),
     ...(samplePath ? [{ id: "open-sample", kind: "command" as const, label: i18n.t("Open sample document"), icon: FileText, takesFocus: true, disabled: busy || Boolean(continuation),
@@ -1123,7 +1150,7 @@ function EditorApp() {
         onHostFileAction={(hostId, ...args) => fileAction(...args, undefined, undefined, hostId)}
         onAddToChat={assistantAvailable ? addToChat : undefined}
         theme={theme} onThemeChange={changeTheme}
-        contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }]}
+        contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }, { id: "statistics", label: "Document statistics", run: openStatistics }]}
         onFileAction={fileAction} fileActionsDisabled={busy || Boolean(continuation)}
         isFileDirty={path => { const tab = tabs.find(tab => sameLocator(tab, { hostId: LOCAL_HOST_ID, path })); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
         onWidth={setSidebarSize}
@@ -1253,7 +1280,7 @@ function EditorApp() {
           if (event.button === 0 && event.target instanceof HTMLElement && event.target.classList.contains("document-column") && (owner?.kind === "text" || owner?.view === "visual") &&
             owner.editorRef.current?.focusEnd(event.clientY)) event.preventDefault();
         }}>
-          {tabs.length === 0 && !settingsGroup && !galleryGroup && start ? (
+          {tabs.length === 0 && !settingsGroup && !galleryGroup && !viewTabs.length && start ? (
             <div className="document-scroll" data-active="true"><div className="document-column"><DocumentStart
               mark={productMark} darkMark={darkIcon}
               recovery={<RecoveryList records={recoveryRecords.filter(record => !tabs.some(tab => tab.recoveryId === record.id))} unavailable={Boolean(recoveryProblem)} onReview={reviewRecovery} />}
@@ -1277,6 +1304,16 @@ function EditorApp() {
               report={reportSession} onAssetChange={onAssetChange} renameImage={tab.hostId === LOCAL_HOST_ID ? renameImage : remoteImageRename} onReveal={revealDocument}
               onCompare={compareExternal} />;
           })}
+          {viewTabs.map(tab => {
+            const groupIndex = navigation.groups.findIndex(group => group.tabs.includes(tab.id));
+            const group = navigation.groups[groupIndex];
+            return <div key={tab.id} className="shell-tab" role="tabpanel" tabIndex={-1} id={`panel-${tab.id}`} aria-labelledby={`tab-${tab.id}`}
+              hidden={group?.active !== tab.id} inert={group?.active !== tab.id} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
+              data-group-index={groupIndex} style={{ "--editor-group-index": groupIndex } as React.CSSProperties}
+              onFocusCapture={() => focusDocument(tab.id)} onPointerDownCapture={() => focusDocument(tab.id)}>
+              <Views tab={tab} client={getHostClient(tab.hostId)} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} onOpen={openGeneratedView} />
+            </div>;
+          })}
           {galleryGroup ? <div className="shell-tab" role="tabpanel" tabIndex={-1} id="panel-templates" aria-labelledby="tab-templates"
             hidden={!galleryOpen} inert={!galleryOpen} data-document-tab="templates" data-active={galleryFocused ? "true" : "false"}
             data-group-index={navigation.groups.indexOf(galleryGroup)} style={{ "--editor-group-index": navigation.groups.indexOf(galleryGroup) } as React.CSSProperties}
@@ -1291,15 +1328,16 @@ function EditorApp() {
             <SettingsDialog onCloseHostWork={hostId => {
                 const tab = tabs.find(tab => tab.hostId === hostId);
                 if (tab) closeTab(tab.id);
+                else { const view = viewTabs.find(tab => tab.hostId === hostId); if (view) closeTab(view.id); }
               }} onPrepareHostRemoval={async hostId => {
                 if (operationRef.current || busy || !tabsRestored) throw new Error(i18n.t("Wait for the current operation to finish."));
                 operationRef.current = true; setOperation("opening");
                 try {
-                  if (tabs.some(tab => tab.hostId === hostId)) throw new Error(i18n.t("Close Host work before removing this Host."));
+                  if ([...tabs, ...viewTabs].some(tab => tab.hostId === hostId)) throw new Error(i18n.t("Close Host work before removing this Host."));
                   const records = await recoveryStorage.list();
                   if (records.some(record => record.hostId === hostId)) throw new Error(i18n.t("Resolve Host recovery records before removal."));
-                  if (desktop) await desktop.reportHostWork([...new Set([...tabs.map(tab => tab.hostId), ...records.map(record => record.hostId)])].map(id => ({
-                    hostId: id, openWork: tabs.filter(tab => tab.hostId === id).length, recovery: records.filter(record => record.hostId === id).length,
+                  if (desktop) await desktop.reportHostWork([...new Set([...tabs.map(tab => tab.hostId), ...viewTabs.map(tab => tab.hostId), ...records.map(record => record.hostId)])].map(id => ({
+                    hostId: id, openWork: [...tabs, ...viewTabs].filter(tab => tab.hostId === id).length, recovery: records.filter(record => record.hostId === id).length,
                   })));
                   await desktop?.removeHost(hostId);
                 } finally { operationRef.current = false; setOperation(""); }
@@ -1335,7 +1373,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel key={assistantHost} onNewHost={hostRegistry.list().length > 1 ? newConversation : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel key={assistantHost} onGeneratedView={(view, root) => openGeneratedView(view, root, assistantHost)} onNewHost={hostRegistry.list().length > 1 ? newConversation : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { const message = await openFile(path, "", navigation.focused, assistantHost); if (message) throw new Error(message); }}
         onUndo={async result => {
