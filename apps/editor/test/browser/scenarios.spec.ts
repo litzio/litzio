@@ -178,7 +178,7 @@ for (const name of scenarios) {
         mode === "updated" ? initialBibliography.replace("Control Study", "Updated Study") : mode === "invalid" ? "@article{broken" : initialBibliography),
       report: (markdown: string, text: string) => citationReport(parse(markdown), [{ source: "../refs.bib", status: "ok", text }]),
     };
-    const pluginDirectory = path.join(REPOSITORY_ROOT, "tmp", "http-host-a", "plugin-artifact");
+    const pluginDirectory = path.join(REPOSITORY_ROOT, "tmp", "http-host-a", name === "generated-views" ? "issues-artifact" : "plugin-artifact");
     const pluginFolder = path.join(REPOSITORY_ROOT, "tmp", "http-host-a", "fixture");
     if (name === "http-plugins") {
       mkdirSync(pluginDirectory, { recursive: true });
