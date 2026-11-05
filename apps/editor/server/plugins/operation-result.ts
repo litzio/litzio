@@ -4,8 +4,8 @@ import { PLUGIN_ERROR_MESSAGES, pluginErrorKind, type PluginErrorKind, compileSc
 import { parseOperationRows } from "@litzio/core/views";
 
 /** Common publication boundary, independent of plugin transport and lifetime. */
-export function publicOperationResult(operation: Pick<OperationDefinition, "outputSchema" | "rowSchema">, result: unknown): unknown {
-  result = safePluginValue(result);
+export function publicOperationResult(operation: Pick<OperationDefinition, "outputSchema" | "rowSchema">, result: unknown, secrets: readonly string[]): unknown {
+  result = safePluginValue(result, secrets);
   if (!compileSchema(operation.outputSchema)(result)) throw new Error("Invalid operation result");
   return operation.rowSchema ? parseOperationRows(result, operation.rowSchema) : result;
 }

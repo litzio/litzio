@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Request paths, lazy plugin start, receipts and stored formats are unchanged.
-- Last verified: 2026-11-05 — SDK·Host·OneDrive fixture, 제작 lifecycle·CLI·실제 Codex 두 모델 및 http-plugins 검사. 필수 CI 결과는 구현 PR에 기록한다.
+- Last verified: 2026-11-06 — #1244 플러그인별 마스킹·키 보존·삭제·로그 비노출 회귀 및 Editor typecheck. 기존 검증: 2026-11-05 SDK·Host·OneDrive fixture, 제작 lifecycle·CLI·실제 Codex 두 모델 및 http-plugins 검사. 필수 CI 결과는 구현 PR에 기록한다.
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md)의 소유자 1단계 개시. [ADR-0019](../adr/0019-plugin-tiers.md), [ADR-0015](../adr/0015-shared-host-operations.md), [ADR-0018](../adr/0018-desktop-remote-hosts.md)을 따른다.
 - Scope: 최소 SDK, 명시적 로컬 등록·신뢰·활성화, 공용 작업·CLI·설정과 OneDrive, 비서 제작 키트. Jira와 동적 UI 스파이크는 후속이다.
 
@@ -66,7 +66,7 @@ Windows PowerShell의 기본 .NET ProtectedData를 통해 DPAPI CurrentUser를 �
 
 암호문 파일 ACL은 부모 디렉터리에서 상속되며, 별도 ACL은 설정하지 않는다. 암호문은 해당 Host의 plugins 설정 파일 옆 `.secrets` 디렉터리에 플러그인 id·secret id 해시 파일로 원자 교체한다. 이 Host 저장 경로와 id/name을 추가 entropy로 묶으므로 Host 간 자동 동기화/복사는 지원하지 않는다. 현재 연결은 플러그인당 하나다. 여러 연결별 secret은 후속 계약이며 일반 설정에 값을 넣지 않는다. unregister는 artifact 유무와 무관하게 해당 플러그인 저장소를 지운 뒤 등록을 해제한다. 비활성화는 보존한다.
 
-내부 `PluginSecretStore`만 read를 가지며 실행 직전 해당 manifest 선언만 읽어 `activate(context).secrets`의 읽기 전용 map에 전달한다. 이 map은 신뢰·schema 확인 뒤 프로세스를 시작할 때 해당 플러그인에만 activate IPC로 전달한다. argv·환경 변수·등록 설정에는 넣지 않는다. reload는 값을 다시 읽으며, 자식의 context.secrets는 읽기 전용 map이다. required 값이 없으면 실행을 거부한다. 하위 프로세스의 stdout/stderr를 버리고 IPC 오류는 고정 메시지만 반환하여 값이 로그로 흐르지 않게 한다. Host로 나가는 상태·결과는 알려진 값을 정리하고 activation/operation 오류 원문은 공개하지 않는다. 신뢰 코드의 직접 파일 쓰기·직접 OS 접근·변형된 값 유출을 막는 sandbox는 아니다.
+내부 `PluginSecretStore`만 read를 가지며 실행 직전 해당 manifest 선언만 읽어 `activate(context).secrets`의 읽기 전용 map에 전달한다. 이 map은 신뢰·schema 확인 뒤 프로세스를 시작할 때 해당 플러그인에만 activate IPC로 전달한다. argv·환경 변수·등록 설정에는 넣지 않는다. reload는 값을 다시 읽으며, 자식의 context.secrets는 읽기 전용 map이다. required 값이 없으면 실행을 거부한다. 하위 프로세스의 stdout/stderr를 버리고 IPC 오류는 고정 메시지만 반환하여 값이 로그로 흐르지 않게 한다. Host로 나가는 상태·결과는 해당 Host 인스턴스·플러그인의 알려진 문자열 값만 정리하며 객체 키는 보존한다. 마스킹 값은 secret 이름별로 교체하고 삭제·unregister 시 제거한다. Host stdout/stderr는 교체하지 않으며 자식 출력 폐기와 공개 결과 경계로 비노출을 유지한다. 또한 activation/operation 오류 원문은 공개하지 않는다. 신뢰 코드의 직접 파일 쓰기·직접 OS 접근·변형된 값 유출을 막는 sandbox는 아니다.
 
 검증은 주입 저장소로 선언·범위·설정 여부·삭제·unregister·응답 비노출을 검사한다. Windows에서는 임시 디렉터리의 실제 DPAPI 암호문·재시작 조회·삭제를 검사하고 finally로 제거한다. 기존 quality/Windows Desktop unit CI의 전체 검사에 같은 Host 검사가 포함되며, HTTP CI의 양 OS는 production UI/CLI 경계를 검사한다. OS 전역 Credential Manager는 변경하지 않는다.
 
