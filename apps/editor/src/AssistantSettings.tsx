@@ -101,7 +101,7 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
       const value = connections[provider];
       return !settings ? t("Checking…") : !value ? t("Checking…")
         : /Codex .+ or later is required\./.test(value.error ?? "") ? t("Update required") : value.error ? t("Unavailable")
-        : value.account === null ? t("Login required") : value.connected && (provider === "copilot" || value.account) ? t(provider === "copilot" ? "Connected" : "Available") : t("Unavailable");
+        : value.account === null ? t("Login required") : value.connected && (provider === "copilot" || value.account) ? t("Available") : t("Unavailable");
     };
     const date = (value?: number) => value ? new Date(value).toLocaleString() : t("Not checked");
     const filteredModels = models?.models.filter(item => `${item.displayName} ${item.model}`.toLowerCase().includes(search.toLowerCase()));
