@@ -24,7 +24,8 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   const trackBrowse = request => { if (request.url().includes('/api/folder-browse?')) browseRequests.push(decodeURIComponent(request.url().split('path=')[1].split('&')[0].replace(/\+/g, ' '))); };
   page.on('request', trackBrowse);
   await openPicker();
-  await page.getByTestId('folder-path').fill(a);
+  await page.getByTestId('folder-path').fill('');
+  await page.getByTestId('folder-path').pressSequentially(a, {delay: 20});
   await picker.getByRole('option', {name:'fixture', exact:true}).waitFor();
   check(browseRequests.every(value => start.allowedRoots.some(root => value === root || value.startsWith(root + sep))), 'Opening and typing an allowed root never lists its parent');
   page.off('request', trackBrowse);
@@ -69,9 +70,15 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   check(box.x >= 0 && box.x + box.width <= 640 && box.y >= 0 && box.y + box.height <= 812, 'Restricted picker fits a narrow viewport');
   if (screenshots) await page.screenshot({path:'tmp/http-host-capture/roots-narrow.png'});
   await page.setViewportSize({width:1280, height:720});
-  // A typed outside path reaches the real Host and leaves the current selection intact.
+  // A typed outside path does not trigger a listing.
+  browseRequests.length = 0;
+  page.on('request', trackBrowse);
   await page.getByTestId('folder-path').fill(stale + sep);
   await page.getByTestId('folder-picker-meta').getByText('Path is outside the allowed folders.', {exact:true}).waitFor();
+  check(await page.getByTestId('folder-open').isEnabled(), 'A typed outside path keeps Open enabled');
+  await page.getByTestId('folder-path').blur();
+  check(browseRequests.length === 0, 'Outside paths are not listed');
+  page.off('request', trackBrowse);
   await places.getByTitle(a, {exact:true}).click();
   await picker.getByRole('option', {name:'fixture', exact:true}).click();
   await page.getByTestId('folder-open').click(); await picker.waitFor({state:'detached'});
