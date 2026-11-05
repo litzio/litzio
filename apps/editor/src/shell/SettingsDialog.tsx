@@ -154,7 +154,7 @@ export function SettingsDialog({ onCloseHostWork, onPrepareHostRemoval, onAssist
   const categories = [
     { id: "appearance", label: i18n.t("Appearance & language"), icon: Palette },
     { id: "recovery", label: i18n.t("Saving & recovery"), icon: History },
-    { id: "plugins", label: "Plugins", icon: Server },
+    { id: "plugins", label: i18n.t("Plugins"), icon: Server },
     { id: "assistant", label: i18n.t("Assistant"), icon: FileText },
     ...(desktop ? [{ id: "hosts" as const, label: i18n.t("Hosts"), icon: Server }, { id: "about" as const, label: i18n.t("About & updates"), icon: Info }] : []),
   ] as const;

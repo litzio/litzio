@@ -28,7 +28,7 @@ export function PluginSettings() {
     <Input id="plugin-directory" value={directory} onChange={e => setDirectory(e.target.value)} />
     <Button variant="secondary" disabled={busy || !directory.trim()} onClick={() => void run("register", { directory })}>Register plugin</Button>
     {error || problem ? <p role="alert">{error || problem}</p> : null}
-    {plugins.map(plugin => <div key={plugin.id} className="settings-section">
+    {plugins.map(plugin => <div key={plugin.id} className="settings-section settings-section--stacked">
       <Button variant="ghost" className="justify-start" onClick={() => setSelected(plugin.id)}>{plugin.name ?? plugin.id}</Button>
       <p className="settings-status">{plugin.running ? "Running" : plugin.enabled ? "Unavailable" : "Disabled"} · {plugin.official ? "Official" : "Community"} · {plugin.trusted ? "Trusted" : "Trust required"}</p>
       {plugin.error ? <p role="alert">{plugin.error}</p> : null}
