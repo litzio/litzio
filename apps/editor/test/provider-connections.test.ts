@@ -1,3 +1,5 @@
+import { viewGenerationContext } from "../shared/view-generation.ts";
+import { compileViewInputSchema, queryViewSchema } from "@litzio/core/views-v2";
 import { assistantCliEnvironment } from "../server/assistant-cli.ts";
 import { brand } from "../../../brand.ts";
 import { AgentDisplayRequests } from "../server/assistant-display-tools.ts";
@@ -41,6 +43,9 @@ test("view proposals pass the finite catalog through both stdio adapters without
   assert.ok(prompt.includes('"viewGeneration"') && prompt.includes('"catalog"'));
   assert.equal(copilot.turns[0]!.items[0]!.text, "Show a document chart");
   assert.equal(copilot.permissionMode, "read-only");
+  assert.deepEqual(copilot.turns[0]!.items[0]!.viewGeneration, { correction: 0 });
+  const resumed = await new AssistantConversations(connection, new RootAccess([root])).resume(codex.id, settings);
+  assert.deepEqual(resumed.turns[0]!.items.find(item => item.kind === "user")!.viewGeneration, { correction: 0 });
 });
 
 test("Copilot ACP lists its models, streams one turn, applies permission scope, cancels and reports a failed turn", async t => {
@@ -366,6 +371,29 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const conversation = await conversations.send(input, settings, "window-a");
   const call = async (tool: string, args: unknown, extra = {}) => (await connection.client.request("fixture/tool", { threadId: conversation.id, tool, arguments: args, ...extra }));
+  const catalogReply = (await call("view_catalog", {})).result;
+  assert.equal(catalogReply.success, true);
+  const authoringCatalog = JSON.parse(catalogReply.contentItems[0].text);
+  assert.ok(authoringCatalog.catalog.operations.length);
+  assert.equal(authoringCatalog.receipt.operation, "view.catalog");
+  assert.deepEqual(authoringCatalog.catalog, viewGenerationContext().catalog);
+  assert.equal("views" in authoringCatalog, false, "authoring must not expose Host contributed definitions");
+  const acceptsGeneratedView = compileViewInputSchema(authoringCatalog.catalog.schema);
+  assert.equal(acceptsGeneratedView({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
+    sources: { review: { plugin: "example.demo", review: "compare", bundleRef: "bundle-1" } },
+    layout: { component: "VerticalPanel", children: [{ component: "PageSurface", title: "Page", source: "review" }] } }), false);
+  assert.doesNotMatch(JSON.stringify(authoringCatalog.catalog.schema), /ReviewList|ReviewDetail|PageSurface|SourceDocumentCompare/);
+  const view = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", title: "Statistics", refresh: "manual", sources: { stats: { operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Documents", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } };
+  const generatedView = queryViewSchema.parse(view);
+  assert.equal(acceptsGeneratedView(generatedView), true);
+  assert.equal(acceptsGeneratedView({ ...generatedView, form: { component: "InputForm", source: "stats", fields: [], submit: { component: "SubmitButton", label: "Search" } } }), true);
+  assert.equal((await call("propose_view", { view: {} })).result.success, false);
+  assert.equal((await call("propose_view", { view: {} })).result.success, false);
+  const proposalReply = (await call("propose_view", { view })).result;
+  assert.equal(proposalReply.success, true);
+  assert.equal(JSON.parse(proposalReply.contentItems[0].text).receipt.operation, "view.propose");
+  assert.equal(JSON.parse(proposalReply.contentItems[0].text).view.title, view.title);
+  assert.match(JSON.stringify(await call("propose_view", { view })), /correction limit/);
   const handler = connection.client.toolCall!;
   let arrived: (() => void) | undefined;
   connection.client.toolCall = params => { const reply = handler(params); arrived?.(); return reply; };
@@ -469,7 +497,7 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     const persistedTemplate = resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success && item.toolResult.contentItems?.some(content => content.type === "inputText" && typeof content.text === "string" && JSON.parse(content.text).path === templateFile));
     assert.deepEqual(persistedTemplate?.toolResult, fromTemplate);
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template"]);
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["view_catalog", "propose_view", "create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
   } finally { await next.close(); }
 });

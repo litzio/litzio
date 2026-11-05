@@ -39,6 +39,8 @@ type Props = { onNewHost?(): void; settingsRevision: number; open: boolean; over
 export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
   useTranslation();
   const client = useHostClient();
+  const cardVersion = useRef(0);
+  useEffect(() => { if (!open) cardVersion.current++; }, [open]);
   const [hostId] = useState(useContext(HostContext));
   const conversationKey = `${brand.storagePrefix}.assistantConversation:${hostId}`;
   const request = createAssistantRequest(client);
@@ -69,10 +71,12 @@ export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, o
   const [setup, setSetup] = useState("");
   const [ready, setReady] = useState(false);
   const [pending, setPending] = useState(false);
-  const [generationStatus, setGenerationStatus] = useState<string[]>([]);
+  const [generationStatus, setGenerationStatus] = useState("");
+  const [viewCards, setViewCards] = useState<{ conversation: string; turn: string; view: View; root: string; corrections: number }[]>([]);
   const [viewRoot, setViewRoot] = useState("");
   const generation = useRef<AbortController | null>(null);
   const cancelledViewConversation = useRef<string | undefined>(undefined);
+  useEffect(() => { if (!open) generation.current?.abort(new Error(i18n.t("View generation closed."))); }, [open]);
   useEffect(() => () => generation.current?.abort(new Error(i18n.t("View generation closed."))), []);
   const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
@@ -201,20 +205,21 @@ export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, o
     const root = folders.includes(viewRoot) ? viewRoot : folders[0];
     if (!root) throw new Error(i18n.t("Choose a folder"));
     const controller = new AbortController(); generation.current = controller; cancelledViewConversation.current = undefined;
-    setGenerationStatus([]); setHistory(null);
+    setGenerationStatus(""); setHistory(null);
+    let corrections = 0;
     try {
       const view = await generateView({ request, signal: controller.signal,
         input: { id: conversation?.id, provider, model, reasoningEffort: effort, mode: provider === "copilot" ? mode : undefined, permissionMode: "read-only", folders: [], message: message.trim() },
-        snapshot: next => { if (isCurrent()) { current.current = next; setConversation(next); setPermissionMode("read-only"); rememberConversation(conversationKey, next.id); } },
-        status: value => { if (isCurrent()) setGenerationStatus(previous => [...previous, value]); },
+        snapshot: next => { corrections = next.turns.at(-1)?.items.find(item => item.viewGeneration)?.viewGeneration?.correction ?? 0; if (isCurrent()) { current.current = next; setConversation(next); setPermissionMode("read-only"); rememberConversation(conversationKey, next.id); } },
+        status: value => { if (isCurrent()) setGenerationStatus(value); },
         cancelled: () => { if (isCurrent()) {
           cancelledViewConversation.current = current.current?.id;
           setConversation(previous => previous ? { ...previous, turns: previous.turns.map(turn => turn.status === "inProgress" ? { ...turn, status: "interrupted" } : turn) } : previous);
         } },
-        validate: async (value, signal) => (await viewRequest(client, { action: "validate", view: value }, signal)).view!,
+        validate: async (value, signal) => (await viewRequest(client, { action: "propose", view: value }, signal)).view!,
       });
-      if (isCurrent() && !controller.signal.aborted) { onGeneratedView(view, root); setMessage(""); setPermissionMode("read-only"); }
-    } finally { generation.current = null; }
+      if (isCurrent() && !controller.signal.aborted) { setViewCards(previous => [...previous, { conversation: current.current!.id, turn: current.current!.turns.at(-1)!.id, view, root, corrections }]); setMessage(""); setPermissionMode("read-only"); }
+    } catch (error) { setGenerationStatus(""); throw error; } finally { generation.current = null; }
   });
   const addReference = (file: AssistantFileReference) => {
     setReferences(previous => {
@@ -322,7 +327,7 @@ export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, o
         let catalog = models;
         if (settings && provider !== settings.provider) catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${settings.provider}`);
         if (!isCurrent()) return;
-        setConversation(undefined); setGenerationStatus([]); rememberConversation(conversationKey, ); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null);
+        setConversation(undefined); setGenerationStatus(""); rememberConversation(conversationKey, ); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null);
         setModels(catalog); if (settings) defaults(settings);
         setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); input.current?.focus();
       }); }}><Plus /></Button>
@@ -345,12 +350,34 @@ export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, o
         })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
           {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
         : conversation?.turns.map(turn => <section key={turn.id} className="assistant-turn" data-status={turn.status}>
-          {turn.items.filter(item => item.kind === "user").map(item => <p key={item.id} className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips references={item.references ?? []} /></p>)}
+          {turn.items.filter(item => item.kind === "user" && !item.viewGeneration?.correction).map(item => <p key={item.id} className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips references={item.references ?? []} /></p>)}
           {turn.items.some(isWorkDetail) ? <details key={`${turn.id}-${turn.status}`} open={turn.status === "inProgress"} className="assistant-steps"><summary>{i18n.t(turn.status === "inProgress" ? "Working…" : "Work details")}</summary>
             {turn.items.filter(isWorkDetail).map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}</details> : null}
           <div role="group" aria-label={i18n.t("Assistant response")}>
-            {turn.items.filter(item => item.kind === "assistant").map(item => <AssistantAnswer key={item.id} source={item.text} />)}
+            {turn.items.filter(item => item.kind === "assistant").map(item => viewDefinition(turn, item.text)
+              ? <details key={item.id} className="assistant-steps"><summary>{i18n.t("View definition")}</summary><pre>{item.text}</pre><CopyButton text={item.text} label={i18n.t("Copy view definition")} /></details>
+              : <AssistantAnswer key={item.id} source={item.text} />)}
           </div>
+          {onGeneratedView && turn.status === "completed" ? [
+            ...viewCards.filter(card => card.conversation === conversation!.id && card.turn === turn.id),
+            ...turn.items.flatMap(item => {
+              if (item.kind !== "tool" || item.text !== "propose_view" || item.toolResult?.success !== true) return [];
+              for (const part of item.toolResult.contentItems) {
+                try {
+                  const result = JSON.parse(part.text ?? "");
+                  if (result.receipt?.operation === "view.propose" && result.receipt.outcome === "success" && result.view?.kind === "litzio-view") return [{ view: result.view as View, root: folders.includes(viewRoot) ? viewRoot : folders[0] }];
+                } catch { /* A partial tool result is not a card. */ }
+              }
+              return [];
+            }),
+          ].map((card, index) => <div key={index} className="assistant-result" data-testid="assistant-view-result">
+            <strong>{"corrections" in card && typeof card.corrections === "number" && card.corrections > 0 ? i18n.t("View validated · Corrections: {{count}}/2", { count: card.corrections }) : i18n.t("View validated")}</strong><span>{card.view.title}</span>
+            <div><Tooltip><TooltipTrigger render={<Button size="sm" disabled={pending || !card.root} />} onClick={() => void run(async isCurrent => {
+              const version = cardVersion.current;
+              const result = await viewRequest(client, { action: "propose", view: card.view });
+              if (isCurrent() && version === cardVersion.current && current.current?.id === conversation!.id && result.view) onGeneratedView(result.view, card.root);
+            })}>{i18n.t("Open view")}</TooltipTrigger><TooltipContent>{i18n.t("Open without querying. Refresh data in the new tab.")}</TooltipContent></Tooltip></div>
+          </div>) : null}
           {turn.items.map(item => {
             const result = createdDocument(item);
             if (!result) return null;
@@ -390,7 +417,7 @@ export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, o
           })}
           {turn.status === "inProgress" ? <p role="status">{i18n.t("Working…")}</p> : turn.status === "interrupted" ? <p>{i18n.t("Stopped")}</p> : null}
           {turn.error ? <p role="alert">{turn.error}</p> : null}
-          {turn.items.some(item => item.kind === "assistant" && item.text.trim()) ? <div className="assistant-turn-actions">
+          {turn.items.some(item => item.kind === "assistant" && item.text.trim()) && !turn.items.some(item => item.viewGeneration) ? <div className="assistant-turn-actions">
             <CopyButton iconOnly text={turn.items.filter(item => item.kind === "assistant").map(item => item.text).join("\n\n")} label={i18n.t("Copy answer")} />
           </div> : null}
         </section>)}
@@ -403,7 +430,7 @@ export function AssistantPanel({ onGeneratedView, onNewHost, settingsRevision, o
       {!history && !conversation ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Changes to existing documents are suggested in text.")}</p></div> : null}
       {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
       {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
-      {generationStatus.length ? <ol className="assistant-notice" aria-label={i18n.t("View generation progress")} aria-live="polite">{generationStatus.map((status, index) => <li key={index}>{status}</li>)}</ol> : null}
+      {generationStatus && (pending || !viewCards.some(card => card.conversation === conversation?.id)) ? <p className="assistant-notice" role="status" aria-label={i18n.t("View generation progress")}>{generationStatus}</p> : null}
     </div>
     <form className="assistant-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
       {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
@@ -547,4 +574,12 @@ function displayValueLabel(value: DisplaySettings[keyof DisplaySettings]) {
   if (value === "ko") return "한국어";
   if (value === "en") return "English";
   return i18n.t(displayLabels[value]);
+}
+
+/** Presentation only: ordinary prose remains readable alongside a proposal card. */
+function viewDefinition(turn: AssistantConversation["turns"][number], text: string): boolean {
+  if (turn.items.some(item => item.viewGeneration)) return true;
+  if (!turn.items.some(item => item.text === "propose_view" && item.toolResult?.success === true)) return false;
+  try { return JSON.parse(text.trim().replace(/^```(?:json)?\s*\n([\s\S]*?)\n```$/i, "$1"))?.kind === "litzio-view"; }
+  catch { return false; }
 }
