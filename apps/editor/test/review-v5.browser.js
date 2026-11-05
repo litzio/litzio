@@ -189,6 +189,14 @@ async (page, { expect, screenshots }) => {
   await expect(page.getByText('Outcome unknown.', { exact: false })).toHaveText(requestNotice);
   await expect(page.getByText(/^Actions:/)).toHaveText(`Actions: ${actionCount + 1}`);
   await expect(page.getByText(/^Status checks:/)).toHaveText('Status checks: 1');
+  for (const label of ['Other tab', 'Reopen tab', 'Reload client']) {
+    await page.getByRole('button', { name: label, exact: true }).click();
+    await expect(page.getByText('Outcome unknown.', { exact: false })).toHaveText(requestNotice);
+    await page.getByRole('button', { name: /Change 1/ }).click();
+    await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled();
+    await expect(page.getByText(/^Actions:/)).toHaveText(`Actions: ${actionCount + 1}`);
+  }
+
   await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled();
   await page.getByRole('button', { name: 'Resolve request', exact: true }).click();
   await page.getByRole('button', { name: 'Check request status', exact: true }).click();

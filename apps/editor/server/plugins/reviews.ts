@@ -10,6 +10,7 @@ import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
 import { validateImage } from "../image-validation.ts";
 import { publicOperationError } from "./operation-result.ts";
 import { loadDocumentFile } from "../document-reader.ts";
+import type { ReviewPendingChange } from "../../shared/review.ts";
 
 const ref = z.string().min(1).max(512);
 export const reviewRequestSchema = z.strictObject({ action: z.enum(["read", "propose", "approve", "reject", "undo", "status"]), plugin: ref, review: ref, root: ref,
@@ -19,7 +20,7 @@ const editSchema = z.strictObject({ kind: z.literal("text"), path: z.array(z.num
 type Edit = z.infer<typeof editSchema>;
 type Bundle = { plugin: string; review: string; root: string; access: RootAccess; file: string; documentSource: string; source: string; sourceHash: string; bundle: ReviewBundle;
   pages: z.infer<typeof reviewPageSchema>[]; mapping?: z.infer<typeof reviewMappingSchema>; images: z.infer<typeof completedReviewSchema>["images"];
-  proposals: Map<string, ReviewProposal>; edits: Map<string, Edit>; revision: string; undo: Map<string, { edit: Edit; before: string }> };
+  proposals: Map<string, ReviewProposal>; unresolved: Map<string, ReviewPendingChange>; edits: Map<string, Edit>; revision: string; undo: Map<string, { edit: Edit; before: string }> };
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 function bounded<T>(value: T): T { if (Buffer.byteLength(JSON.stringify(value)) > REVIEW_LIMITS.jsonBytes) throw new Error("Review JSON exceeds limit"); return value; }
 /** Daemon-owned completed artifacts and no-replay observations, scoped to one PluginHost. */
@@ -40,7 +41,7 @@ export class PluginReviews {
     if (data.mapping && (data.mapping.generation !== data.bundle.generation || data.mapping.sourceRevision !== sourceHash || data.mapping.documentRevision !== revision || data.mapping.documentHash !== revision || data.mapping.mappingRevision !== data.bundle.mappingRevision)) throw new Error("Mixed review mapping");
     if (!!data.mapping !== !!data.bundle.mappingRevision) throw new Error("Missing review mapping");
     const bundle: ReviewBundle = { ...data.bundle, bundleRef: randomUUID(), documentRef: randomUUID() };
-    const record: Bundle = { plugin, review: data.review, root: boundary.resolve(root), access: boundary, file, documentSource: decodeUtf8(readFileSync(file)), source, sourceHash, bundle, pages: data.pages, mapping: data.mapping, images: data.images, proposals: new Map(), edits: new Map(), revision: randomUUID(), undo: new Map() };
+    const record: Bundle = { plugin, review: data.review, root: boundary.resolve(root), access: boundary, file, documentSource: decodeUtf8(readFileSync(file)), source, sourceHash, bundle, pages: data.pages, mapping: data.mapping, images: data.images, proposals: new Map(), unresolved: new Map(), edits: new Map(), revision: randomUUID(), undo: new Map() };
     for (const image of data.images) this.image(record, image.ref);
     for (const page of data.pages) if (page.imageRef && !data.images.some(i => i.ref === page.imageRef)) throw new Error("Missing image");
     const regions = new Set(data.pages.flatMap(p => p.regions.map(r => r.id)));
@@ -78,6 +79,13 @@ export class PluginReviews {
       return { action, allowed, ...(!allowed ? { reason: "Proposal state or contribution does not allow this action" } : {}) };
     });
   }
+  private proposals(b: Bundle) {
+    return [...b.proposals.values()].map(p => {
+      const copy = structuredClone(p), pending = b.unresolved.get(p.id);
+      if (pending) copy.actions = copy.actions.map(a => ({ action: a.action, allowed: false, reason: `Verification required. Check request ${pending.requestId}; do not resend this change.` }));
+      return copy;
+    });
+  }
   async execute(raw: unknown): Promise<any> {
     const input = reviewRequestSchema.parse(raw), b = this.bundles.get(input.bundleRef);
     if (!b && input.action === "status") return { state: "unknown", receipt: { requestId: input.requestId ?? randomUUID(), operation: "review.status", version: 1, scope: accessPath(input.root, this.access), outcome: "unknown" } };
@@ -96,27 +104,30 @@ export class PluginReviews {
         const page = b.pages.find(p => p.pageNo === (input.pageNo ?? 1));
         if (!page && b.pages.length) throw new Error("Review page unavailable");
         const document = loadDocumentFile(accessPath(b.file, this.access), b.access);
-        const snapshot = bounded({ bundle: b.bundle, page, mapping: b.mapping, proposals: [...b.proposals.values()],
+        const snapshot = bounded({ bundle: b.bundle, page, mapping: b.mapping, proposals: this.proposals(b), unresolved: [...b.unresolved.values()],
           document: document.document, documentRevision: document.revision, documentHash: document.revision, documentPath: document.path,
           baseline: { ...this.baseline(b), sourceRevision: hash(readFileSync(b.source)) }, pageCount: b.pages.length });
         const image = page?.imageRef ? this.image(b, page.imageRef) : undefined;
         return { snapshot: structuredClone({ ...snapshot, ...(image ? { imageUrl: `data:${image.mime};base64,${image.data}` } : {}) }), state: stale ? "stale" : "ready", receipt: receipt("success") };
       }
-      const data = kind === "bundle" ? b.bundle : kind === "document" ? { source: b.documentSource, documentRef: b.bundle.documentRef, revision: b.bundle.documentRevision } : kind === "page" ? b.pages.find(p => p.pageNo === input.pageNo) : kind === "mapping" ? b.mapping : kind === "proposals" ? [...b.proposals.values()] : this.image(b, b.pages.find(p => p.pageNo === input.pageNo)?.imageRef ?? "");
+      const data = kind === "bundle" ? b.bundle : kind === "document" ? { source: b.documentSource, documentRef: b.bundle.documentRef, revision: b.bundle.documentRevision } : kind === "page" ? b.pages.find(p => p.pageNo === input.pageNo) : kind === "mapping" ? b.mapping : kind === "proposals" ? this.proposals(b) : this.image(b, b.pages.find(p => p.pageNo === input.pageNo)?.imageRef ?? "");
       if (input.continuation || data === undefined) throw new Error("Review material unavailable");
       if (kind !== "image") bounded(data);
       return { data: structuredClone(data), baseline: this.baseline(b), state: stale ? "stale" : "ready", receipt: receipt("success") };
     }
     if (!input.requestId || !input.baseline) throw new Error("requestId and baseline required");
+    const existing = input.action !== "propose" ? b.unresolved.get(input.proposalId ?? "") : undefined;
+    if (existing) return { code: "confirmation-required", error: `Verification required. Check request ${existing.requestId}; do not resend this change.`, pending: structuredClone(existing), receipt: receipt("uncertain") };
     if (this.requests.has(input.requestId)) throw new Error("Duplicate requestId; use review status, never replay");
     if (this.busy.has(owner)) throw new Error("Review mutation in progress");
     this.check(b);
     if (JSON.stringify(reviewBaselineSchema.parse(input.baseline)) !== JSON.stringify(reviewBaselineSchema.parse(this.baseline(b)))) throw new Error("Review baseline conflict");
+    const action = input.action;
+    const proposal = action === "propose" ? undefined : b.proposals.get(input.proposalId ?? "");
+    if (action !== "propose" && (!proposal || !proposal.actions.some(a => a.action === action && a.allowed))) throw new Error("Proposal action unavailable");
     const pending = { owner, value: { state: "uncertain", receipt: receipt("uncertain") } as any }; this.requests.set(input.requestId, pending); this.busy.add(owner);
+    if (action !== "propose") b.unresolved.set(proposal!.id, { proposalId: proposal!.id, action, requestId: input.requestId, receipt: pending.value.receipt });
     try {
-      const action = input.action;
-      const proposal = action === "propose" ? undefined : b.proposals.get(input.proposalId ?? "");
-      if (action !== "propose" && (!proposal || !proposal.actions.some(a => a.action === action && a.allowed))) throw new Error("Proposal action unavailable");
       const result = await this.invoke(binding[action].operation, structuredClone({ bundle: b.bundle, baseline: this.baseline(b), requestId: input.requestId, proposal: proposal ?? null, input: input.input ?? null }), binding[action].version);
       if (result.error) throw Object.assign(new Error("Review operation failed"), { kind: result.errorKind });
       // Recheck after plugin execution, immediately before any mutation.
@@ -152,7 +163,8 @@ export class PluginReviews {
       }
       b.revision = randomUUID();
       for (const p of b.proposals.values()) { this.actions(p); if (p.state !== "stale") p.baseline = this.baseline(b); }
-      pending.value = { baseline: this.baseline(b), changedDocumentRefs: ["approve", "undo"].includes(action) ? [b.bundle.documentRef] : [], proposals: structuredClone([...b.proposals.values()]), receipt: receipt("success") };
+      if (proposal) b.unresolved.delete(proposal.id);
+      pending.value = { baseline: this.baseline(b), changedDocumentRefs: ["approve", "undo"].includes(action) ? [b.bundle.documentRef] : [], proposals: this.proposals(b), receipt: receipt("success") };
     } catch (cause) { pending.value = { state: "uncertain", ...publicOperationError(cause, "write"), receipt: receipt("uncertain") }; }
     this.busy.delete(owner);
     return structuredClone(pending.value);

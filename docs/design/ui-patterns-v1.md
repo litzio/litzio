@@ -508,7 +508,7 @@ ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의
   영역 label은 bbox 바깥 위쪽에 두어 원본 내용을 가리지 않는다. 변경 전후 본문은 Read와 같은 document typography 토큰을 사용한다.
 - 승인·거절·Undo 요청부터 문서·제안·자료를 다시 읽을 때까지 “Refreshing data…”다. 이전
   자료는 최신으로 표시하지 않으며 대응 이동과 변경 버튼을 잠근다. 실패한 write는
-  자동 재전송하지 않고 결과 불확실과 상태 확인 안내를 표시한다. 화면의 ReviewObservation은 변경 requestId와 receipt를 같은 Host/Root/bundle 탭 수명 동안 보관한다. 미확인 요청이 있으면 Refresh 대신 Check request status를 제공하고 같은 ID의 status를 먼저 조회한다. unknown/uncertain·통신 실패는 변경 버튼과 새 요청을 계속 막으며, 확정 status 뒤에만 snapshot을 읽는다. adapter가 다시 만들어져도 이 관찰 상태를 유지한다.
+  자동 재전송하지 않고 결과 불확실과 상태 확인 안내를 표시한다. 미확정 변경 잠금은 Host가 제안별로 소유한다. snapshot.unresolved와 잠긴 actions를 모든 탭에 반환하며 화면의 ReviewObservation은 전송 상태/cache만 담당한다. 다른 탭·재개방·새로고침도 기존 requestId를 복원한다. 미확인 요청이 있으면 Refresh 대신 Check request status를 제공하고 같은 ID의 status를 먼저 조회한다. unknown/uncertain·통신 실패는 변경 버튼과 새 요청을 계속 막으며, 확정 status 뒤에만 snapshot을 읽는다. adapter가 다시 만들어져도 이 관찰 상태를 유지한다.
 - Host/source별 별도 mount를 사용한다. 닫기·Host 전환 뒤 늦은 응답은 버린다.
   비서는 pending 제안 제출만 하며 승인·Undo 권한은 Host도 사용자 경계에서 검증한다.
 - 대조 콘텐츠 1024px 미만에서는 안내와 상태·결과 문서 열기를 유지한다. 두 영역을

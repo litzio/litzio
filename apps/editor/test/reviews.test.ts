@@ -52,7 +52,7 @@ test("review baseline, Root/Host/generation, serialized writes, conflict and no 
     assert.throws(() => reviews.publish("fixture", root, file, source, { ...data, pages: [{ ...data.pages[0], generation: "g2" }] }));
     await assert.rejects(reviews.execute({ ...base, action: "propose", requestId: randomUUID(), baseline: { ...(await read()).baseline, mappingRevision: "other-map" } }), /conflict/);
     assert.throws(() => reviews.publish("fixture", root, file, source, { ...data, mapping: { ...(data as any).mapping, generation: "g2" } }));
-    const proposed = await mutate("propose"), id = proposed.proposals[0].id;
+    const proposed = await mutate("propose"); let id = proposed.proposals[0].id;
     assert.equal(readFileSync(file, "utf8"), original);
     const assertActionSnapshot = (snapshot: any, proposalId: string, action: string) => {
       const proposal = snapshot.proposals.find((p: any) => p.id === proposalId);
@@ -65,20 +65,22 @@ test("review baseline, Root/Host/generation, serialized writes, conflict and no 
     };
     assertActionSnapshot(proposed, id, "approve"); assertActionSnapshot(proposed, id, "reject");
     for (const mismatch of [{ to: "Other." }, { from: "Original" }, { path: [2] }]) {
+      id = (await mutate("propose")).proposals.at(-1).id;
       approvalOverride = { kind: "text", path: [1], from: "Original.", to: "Changed.", ...mismatch };
       const refused = await mutate("approve", id);
       assert.equal(refused.receipt.outcome, "uncertain"); assert.equal(readFileSync(file, "utf8"), original, "An approval cannot replace the reviewed content or target");
       const observed = await read();
-      assert.deepEqual(observed.data[0].before, { type: "plain", text: "Original." });
-      assert.deepEqual(observed.data[0].after, { type: "plain", text: "Changed." });
+      assert.deepEqual(observed.data.find((p: any) => p.id === id).before, { type: "plain", text: "Original." });
+      assert.deepEqual(observed.data.find((p: any) => p.id === id).after, { type: "plain", text: "Changed." });
     }
     approvalOverride = undefined;
+    id = (await mutate("propose")).proposals.at(-1).id;
     const approved = await mutate("approve", id); assert.equal(approved.receipt.outcome, "success"); assert.match(readFileSync(file, "utf8"), /Changed/);
     assertActionSnapshot(approved, id, "undo");
     const undone = await mutate("undo", id); assert.equal(undone.receipt.outcome, "success"); assert.equal(readFileSync(file, "utf8"), original);
     const p2 = await mutate("propose");
     const p3 = await mutate("propose");
-    for (const p of p3.proposals.filter((p: any) => p.state === "pending")) { assertActionSnapshot(p3, p.id, "approve"); assertActionSnapshot(p3, p.id, "reject"); }
+    for (const p of p3.proposals.filter((p: any) => p.state === "pending" && p.actions.some((a: any) => a.allowed))) { assertActionSnapshot(p3, p.id, "approve"); assertActionSnapshot(p3, p.id, "reject"); }
     const rejected = await mutate("reject", p3.proposals.at(-1).id); assert.equal(rejected.receipt.outcome, "success"); assert.equal(readFileSync(file, "utf8"), original);
     assertActionSnapshot(rejected, p2.proposals.at(-1).id, "approve");
     const request = { ...base, action: "propose", requestId: randomUUID(), baseline: (await read()).baseline }; lose = true;
@@ -100,6 +102,42 @@ test("review baseline, Root/Host/generation, serialized writes, conflict and no 
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
+test("Host admits only one concurrent change per proposal and retains the winning request ID", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "review-flight-")), file = path.join(root, "doc.md"), source = path.join(root, "input.txt");
+  try {
+    const original = serialize(parse(nativeSource("Original.\n"))), revision = textRevision(original);
+    writeFileSync(file, original); writeFileSync(source, "input");
+    const sourceRevision = createHash("sha256").update("input").digest("hex");
+    let release!: () => void, entered!: () => void, approvals = 0;
+    const gate = new Promise<void>(resolve => release = resolve), started = new Promise<void>(resolve => entered = resolve);
+    const reviews = new PluginReviews(new RootAccess([root]), () => declaration, async (operation, input: any) => {
+      if (operation === "propose") return { result: { id: "p1", kind: "text", targets: [{ path: [1], documentRevision: revision, documentHash: revision }], evidence: [], before: { type: "plain", text: "Original." }, after: { type: "plain", text: "Changed." }, state: "pending", baseline: input.baseline, actions: [{ action: "approve", allowed: true }, { action: "reject", allowed: true }] } };
+      approvals++; entered(); await gate;
+      return { result: { kind: "text", path: [1], from: "Original.", to: "Changed." } };
+    });
+    const bundle = reviews.publish("fixture", root, file, source, { review: "text", bundle: { generation: "g1", documentRevision: revision, documentHash: revision, sourceRevision }, pages: [], images: [] });
+    const base = { plugin: "fixture", review: "text", root, bundleRef: bundle.bundleRef };
+    const initial = await reviews.execute({ ...base, action: "read", kind: "snapshot" });
+    const proposed = await reviews.execute({ ...base, action: "propose", requestId: randomUUID(), baseline: initial.snapshot.baseline });
+    const requestId = randomUUID(), input = { ...base, action: "approve", proposalId: "p1", baseline: proposed.baseline, requestId };
+    const first = reviews.execute(input); await started;
+    const second = await reviews.execute({ ...input, requestId: randomUUID() });
+    assert.equal(second.code, "confirmation-required"); assert.equal(second.pending.requestId, requestId);
+    const during = await reviews.execute({ ...base, action: "read", kind: "snapshot" });
+    assert.equal(during.snapshot.unresolved[0].requestId, requestId);
+    assert.ok(during.snapshot.proposals[0].actions.every((a: any) => !a.allowed));
+    release(); const completed = await first;
+    assert.equal(completed.receipt.outcome, "success"); assert.equal(approvals, 1);
+    assert.match(readFileSync(file, "utf8"), /Changed/);
+    const after = await reviews.execute({ ...base, action: "read", kind: "snapshot" });
+    assert.deepEqual(after.snapshot.unresolved, []);
+    await assert.rejects(reviews.execute({ ...input, requestId: randomUUID(), baseline: after.snapshot.baseline }), /unavailable/);
+    const restarted = new PluginReviews(new RootAccess([root]), () => declaration, async () => ({}));
+    assert.equal((await restarted.execute({ ...base, action: "status", requestId })).state, "unknown");
+    await assert.rejects(restarted.execute({ ...input, requestId: randomUUID() }), /unavailable/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
 test("K1 completed review bundle through product HTTP and CLI approval/rejection/Undo", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "review-http-")), previous = process.env.LITZIO_DATA_DIR;
   process.env.LITZIO_DATA_DIR = root;
@@ -114,7 +152,7 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     writeFileSync(path.join(artifact, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
     const operations = ["start", "status", "stop", "read", "propose", "approve", "reject", "undo"].map(id => ({ id, version: 1, effect: ["status", "read"].includes(id) ? "read" : "write", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } }));
     writeFileSync(path.join(artifact, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.review", name: "Review fixture", tier: "community", publisher: { id: "fixture", name: "Fixture" }, version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations, reviews: [{ ...declaration, ...Object.fromEntries(["read", "propose", "approve", "reject", "undo"].map(action => [action, { operation: `fixture.review.${action}`, version: 1 }])) }], jobs: [{ id: "text", title: "Import", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" }] } }));
-    writeFileSync(path.join(artifact, "host.js"), `export function activate() { const completed = ${JSON.stringify({ state: "completed", phase: "Done", document: { source }, review })}; return { operations: { start: async () => ({state:"running",phase:"Accepted"}), status: async () => completed, stop: async () => ({state:"stopped",phase:"Stopped"}), read: async () => ({}), propose: async input => ({ id: input.requestId, kind: 'text', targets: [{path:[1],documentRevision:input.baseline.documentRevision,documentHash:input.baseline.documentRevision}], evidence:['fixture'],before:{type:'plain',text:'Original.'},after:{type:'plain',text:'Changed.'},baseline:input.baseline,state:'pending',actions:[{action:'approve',allowed:true},{action:'reject',allowed:true}] }), approve: async () => ({kind:'text',path:[1],from:'Original.',to:'Changed.'}), reject: async () => ({}), undo: async () => ({}) }, status: async () => ({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}), dispose: async () => {} }; }`);
+    writeFileSync(path.join(artifact, "host.js"), `export function activate() { const completed = ${JSON.stringify({ state: "completed", phase: "Done", document: { source }, review })}; return { operations: { start: async () => ({state:"running",phase:"Accepted"}), status: async () => completed, stop: async () => ({state:"stopped",phase:"Stopped"}), read: async () => ({}), propose: async input => ({ id: input.requestId, kind: 'text', targets: [{path:[1],documentRevision:input.baseline.documentRevision,documentHash:input.baseline.documentRevision}], evidence:['fixture'],before:{type:'plain',text:'Original.'},after:{type:'plain',text:'Changed.'},baseline:input.baseline,state:'pending',actions:[{action:'approve',allowed:true},{action:'reject',allowed:true}] }), approve: async input => { if(input.input?.uncertain) throw Error('Observation lost'); return {kind:'text',path:[1],from:'Original.',to:'Changed.'}; }, reject: async () => ({}), undo: async () => ({}) }, status: async () => ({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}), dispose: async () => {} }; }`);
     writeFileSync(path.join(root, "index.html"), "<html></html>");
     host = await startFetchServer(() => startHttpHost({ port: 0, roots: [root], editorDir: root, daemon: { health: { pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), processStartedAt: new Date().toISOString(), daemonHome: root, executable: process.execPath, roots: [root], nonLoopback: false, launcher: "cli-run", productVersion: "0.0.0", protocolVersion: DAEMON_PROTOCOL }, stop() {} } }));
     const address = host.server.address(); assert.ok(address && typeof address !== "string"); const origin = `http://127.0.0.1:${address.port}`;
@@ -213,7 +251,30 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     assert.equal((await recover("approve", recoverId)).proposals.at(-1)!.state, "approved");
     await recover("undo", recoverId);
     await recover("reject", await nextProposal());
- assert.equal(readFileSync(path.join(root, "doc.md"), "utf8"), source);
+    const uncertainProposal = await nextProposal(), uncertainRequest = randomUUID();
+    const unconfirmed = await send("/api/reviews", { ...base, action: "approve", proposalId: uncertainProposal, requestId: uncertainRequest, baseline: (await read()).baseline, input: { uncertain: true } });
+    assert.equal(unconfirmed.receipt.outcome, "uncertain");
+    // Separate tabs and a reopened/reloaded tab have no shared client observation.
+    for (const tab of ["other tab", "reopened tab", "reloaded app"]) {
+      const freshAdapter = createReviewAdapter(faultClient, reviewViewSchema.parse(definition), root, new AbortController().signal, () => {});
+      const freshSnapshot = await freshAdapter.read(1);
+      assert.equal(freshAdapter.pending!.requestId, uncertainRequest, tab);
+      assert.equal(freshSnapshot.unresolved!.find(p => p.proposalId === uncertainProposal)!.requestId, uncertainRequest);
+      const locked = freshSnapshot.proposals.find(p => p.id === uncertainProposal)!;
+      assert.ok(locked.actions.every(a => !a.allowed));
+      const before = requests.length;
+      await assert.rejects(freshAdapter.act("approve", locked, freshSnapshot.baseline));
+      assert.equal(requests.length, before);
+      await assert.rejects(freshAdapter.read(1));
+      assert.equal(requests.at(-1).action, "status"); assert.equal(requests.at(-1).requestId, uncertainRequest);
+    }
+    for (const action of ["approve", "reject", "undo"]) {
+      const refused = await send("/api/reviews", { ...base, action, proposalId: uncertainProposal, requestId: randomUUID(), baseline: (await read()).baseline });
+      assert.equal(refused.code, "confirmation-required"); assert.equal(refused.pending.requestId, uncertainRequest);
+      assert.match(refused.error, /Verification required/);
+    }
+
+    assert.equal(readFileSync(path.join(root, "doc.md"), "utf8"), source);
   } finally {
     await host?.close();
     if (previous === undefined) delete process.env.LITZIO_DATA_DIR; else process.env.LITZIO_DATA_DIR = previous;

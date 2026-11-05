@@ -13,6 +13,7 @@ import "katex/dist/katex.min.css";
 const view: ReviewView = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review changes", refresh: "manual", sources: { review: { plugin: "fixture.review", review: "sample", bundleRef: "bundle" } }, layout: { component: "VerticalPanel", children: [{ component: "SourceDocumentCompare", title: "Compare", source: "review" }, { component: "ReviewList", title: "Changes", source: "review" }, { component: "ReviewDetail", title: "Details", source: "review" }] } };
 function Fixture() {
   const [mode, setMode] = useState("normal"), [held, setHeld] = useState(false), [count, setCount] = useState(0);
+  const [clientEpoch, setClientEpoch] = useState(0);
   const [checks, setChecks] = useState(0);
   const [layout, setLayout] = useState("Default layout");
   const panel = (component: ReviewView["layout"]["children"][number]["component"], title: string) => ({ component, title, source: "review" as const });
@@ -24,6 +25,7 @@ function Fixture() {
   const currentView: ReviewView = { ...view, layout: { component: "VerticalPanel", children } };
   const adapter = useMemo<ReviewAdapter>(() => {
     let state: "pending" | "approved" | "rejected" = "pending", revision = "r1", proposalRevision = 1, hasMapping = mode !== "no-map", release: (() => void) | undefined;
+    let pendingChange: NonNullable<ReviewSnapshot["unresolved"]>[number] | undefined;
     function snapshot(pageNo: number): ReviewSnapshot {
       const document = getEditableDocument(parse(`---\nlitzio: 1\n---\n# 검토 문서\n\n${state === "approved" ? "정정된 문장입니다." : "검토할 문장입니다."}\n\n${Array.from({length: 18}, (_, i) => `추가 문단 ${i + 1}. 원본과 비교하며 읽습니다.`).join("\n\n")}\n`));
       const target = { path: [...document.blocks[1].path], documentRevision: revision, documentHash: revision };
@@ -31,7 +33,7 @@ function Fixture() {
       const baseline = { documentRevision: revision, proposalRevision: `p${proposalRevision}`, sourceRevision: "s1", mappingRevision };
       const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800"><rect width="600" height="800" fill="white"/><text x="55" y="105" font-size="24">Original page ${pageNo}</text><text x="55" y="180" font-size="18">A sentence for review.</text><path d="M55 260H540M55 300H540M55 340H540" stroke="#888"/></svg>`;
       return { bundle: { bundleRef: "bundle", generation: "g1", documentRef: "doc", documentRevision: revision, documentHash: revision, sourceRevision: "s1", mappingRevision },
-        baseline, documentRevision: mode === "stale" ? "old" : revision, documentHash: revision, document, documentPath: "/fixture.md", pageCount: mode === "no-pages" ? 0 : 2,
+        baseline, unresolved: pendingChange ? [pendingChange] : [], documentRevision: mode === "stale" ? "old" : revision, documentHash: revision, document, documentPath: "/fixture.md", pageCount: mode === "no-pages" ? 0 : 2,
         imageUrl: mode === "no-image" || mode === "no-pages" ? undefined : `data:image/svg+xml,${encodeURIComponent(svg)}`,
         page: mode === "no-pages" ? undefined : { generation: "g1", sourceRevision: "s1", pageNo, width: 600, height: 800, origin: pageNo === 1 ? "TOPLEFT" : "BOTTOMLEFT", unit: "px", imageRef: "image", regions: [
           { id: "text", bbox: pageNo === 1 ? [45,130,550,200] : [45,600,550,670], category: "Sentence", status: "supported" },
@@ -52,7 +54,7 @@ function Fixture() {
     if (mode === "uncertain") {
       let requestId: string | undefined, resolved = false;
       const client = createHostClient(window.location.origin);
-      const transport = createReviewAdapter({ ...client, request: async (_url, init) => {
+      const connect = () => createReviewAdapter({ ...client, request: async (_url, init) => {
         const input = JSON.parse(String(init?.body));
         if (input.action === "read") return new Response(JSON.stringify({ snapshot: snapshot(input.pageNo), receipt: { outcome: "success" } }));
         if (input.action === "status") {
@@ -60,9 +62,11 @@ function Fixture() {
           if (input.requestId !== requestId) throw Error("Status request ID changed");
           return new Response(JSON.stringify({ state: resolved ? "completed" : "unknown", receipt: { requestId, outcome: resolved ? "success" : "unknown" } }));
         }
-        setCount(c => c + 1); requestId = input.requestId; setHeld(true); throw Error("Write response lost");
+        setCount(c => c + 1); requestId = input.requestId; pendingChange = { proposalId: "p1", requestId: requestId!, action: "approve", receipt: { requestId: requestId!, outcome: "uncertain" } }; setHeld(true); throw Error("Write response lost");
       } }, view, "/fixture", new AbortController().signal, () => {});
-      return Object.assign(transport, { release: () => { resolved = true; state = "approved"; revision = "r2"; proposalRevision++; hasMapping = false; setHeld(false); } });
+      let transport = connect();
+      return { get pending() { return transport.pending; }, read: n => transport.read(n), act: (a, p, b) => transport.act(a, p, b), openDocument: () => transport.openDocument(),
+        reopen: () => { transport = connect(); setClientEpoch(v => v + 1); }, release: () => { pendingChange = undefined; resolved = true; state = "approved"; revision = "r2"; proposalRevision++; hasMapping = false; setHeld(false); } };
     }
     return { read: async pageNo => { if (mode === "unavailable") throw Error("Unavailable"); if (release) await new Promise<void>(resolve => { release = resolve; }); return snapshot(pageNo); },
       act: async (action, proposal, baseline) => {
@@ -76,6 +80,6 @@ function Fixture() {
       release: () => { const resolve = release; release = undefined; resolve?.(); setHeld(false); },
     } as ReviewAdapter;
   }, [mode]);
-  return <TooltipProvider><div style={{ padding: 16 }}><div className="review-toolbar" aria-label="Fixture controls">{["normal", "stale", "unavailable", "no-image", "no-undo", "hold", "typed-object", "typed-array", "typed-unsupported", "no-map", "continuation", "stale-baseline", "stale-target", "no-pages", "uncertain"].map(v => <Button key={v} variant="outline" onClick={() => { setMode(v); setHeld(false); }}>{v}</Button>)}<span>Actions: {count}</span><span>Status checks: {checks}</span>{held && <Button onClick={() => (adapter as ReviewAdapter & { release(): void }).release()}>{mode === "uncertain" ? "Resolve request" : "Complete refresh"}</Button>}</div><div className="review-toolbar" aria-label="Layout fixtures">{["Default layout", "List only", "Detail only", "Mixed layout", "Repeated panels"].map(v => <Button key={v} variant="outline" onClick={() => setLayout(v)}>{v}</Button>)}</div><ReviewRenderer key={mode} view={currentView} adapter={adapter} /></div></TooltipProvider>;
+  return <TooltipProvider><div style={{ padding: 16 }}><div className="review-toolbar" aria-label="Fixture controls">{["normal", "stale", "unavailable", "no-image", "no-undo", "hold", "typed-object", "typed-array", "typed-unsupported", "no-map", "continuation", "stale-baseline", "stale-target", "no-pages", "uncertain"].map(v => <Button key={v} variant="outline" onClick={() => { setMode(v); setHeld(false); }}>{v}</Button>)}<span>Actions: {count}</span><span>Status checks: {checks}</span>{mode === "uncertain" && ["Other tab", "Reopen tab", "Reload client"].map(label => <Button key={label} onClick={() => (adapter as ReviewAdapter & { reopen(): void }).reopen()}>{label}</Button>)}{held && <Button onClick={() => (adapter as ReviewAdapter & { release(): void }).release()}>{mode === "uncertain" ? "Resolve request" : "Complete refresh"}</Button>}</div><div className="review-toolbar" aria-label="Layout fixtures">{["Default layout", "List only", "Detail only", "Mixed layout", "Repeated panels"].map(v => <Button key={v} variant="outline" onClick={() => setLayout(v)}>{v}</Button>)}</div><ReviewRenderer key={`${mode}:${clientEpoch}`} view={currentView} adapter={adapter} /></div></TooltipProvider>;
 }
 createRoot(document.getElementById("root")!).render(<Fixture />);

@@ -29,13 +29,17 @@ export function createReviewAdapter(client: HostClient, view: ReviewView, root: 
       const snapshot: ReviewSnapshot = result.snapshot;
       if (!snapshot?.bundle || !snapshot.documentPath) throw new Error("Review data unavailable");
       documentPath = snapshot.documentPath;
+      // A new tab has no local observation: restore it from the authoritative Host snapshot.
+      const unresolved = snapshot.unresolved?.[0];
+      if (unresolved) observation.pending = { requestId: unresolved.requestId, receipt: unresolved.receipt };
       return snapshot;
     },
     async act(action, proposal: ReviewProposal, baseline: ReviewBaseline) {
       if (observation.pending) throw uncertain();
       observation.pending = { requestId: crypto.randomUUID() };
       const result = await request({ action, requestId: observation.pending.requestId, proposalId: proposal.id, baseline });
-      if (result.receipt?.requestId === observation.pending.requestId) observation.pending = { ...observation.pending, receipt: result.receipt };
+      if (result.pending?.requestId) observation.pending = { requestId: result.pending.requestId, receipt: result.pending.receipt };
+      else if (result.receipt?.requestId === observation.pending.requestId) observation.pending = { ...observation.pending, receipt: result.receipt };
       if (!result.ok || result.receipt?.requestId !== observation.pending.requestId || result.receipt?.outcome !== "success") throw uncertain();
       observation.pending = undefined;
     },

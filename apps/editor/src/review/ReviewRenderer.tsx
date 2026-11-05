@@ -8,12 +8,14 @@ import { Button } from "../components/ui/button.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
 import { Notice } from "../ui/primitives.tsx";
 import "./review.css";
+import type { ReviewPendingChange } from "../../shared/review.ts";
 
 /** Host supplies one coherent snapshot, including the identity of the actual Read model. */
 export type ReviewSnapshot = {
   bundle: ReviewBundle; page?: ReviewPage; mapping?: ReviewMapping; proposals: ReviewProposal[];
   document: EditableDocument; documentRevision: string; documentHash: string; documentPath: string;
   baseline: ReviewBaseline; pageCount: number; imageUrl?: string;
+  unresolved?: ReviewPendingChange[];
 };
 export type ReviewAction = "approve" | "reject" | "undo";
 export type ReviewAdapter = {
@@ -174,16 +176,17 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
   const host = useRef<HTMLDivElement>(null), [wide, setWide] = useState(false), epoch = useRef(0), busy = useRef(false);
   useEffect(() => { const observer = new ResizeObserver(entries => setWide(entries[0].contentRect.width >= 1024)); if (host.current) observer.observe(host.current); return () => observer.disconnect(); }, []);
   useEffect(() => { const token = ++epoch.current; busy.current = true; setState("loading"); setSnapshot(undefined); setSelected(undefined);
-    adapter.read(1).then(s => { if (epoch.current === token) { setSnapshot(s); setState("ready"); busy.current = false; } }, () => { if (epoch.current === token) { setState(adapter.pending ? "uncertain" : "unavailable"); busy.current = false; } });
+    adapter.read(1).then(s => { if (epoch.current === token) { setSnapshot(s); setState(adapter.pending ? "uncertain" : "ready"); busy.current = false; } }, () => { if (epoch.current === token) { setState(adapter.pending ? "uncertain" : "unavailable"); busy.current = false; } });
     return () => { ++epoch.current; };
   }, [adapter, view.sources.review.bundleRef]);
   const read = async (pageNo: number) => {
     if (busy.current) return; busy.current = true; const token = ++epoch.current; setState("refreshing");
-    try { const next = await adapter.read(pageNo); if (token === epoch.current) { setSnapshot(next); setState("ready"); } }
+    try { const next = await adapter.read(pageNo); if (token === epoch.current) { setSnapshot(next); setState(adapter.pending ? "uncertain" : "ready"); } }
     catch { if (token === epoch.current) setState(adapter.pending ? "uncertain" : "unavailable"); } finally { if (token === epoch.current) busy.current = false; }
   };
   const stale = snapshot && (!documentCoherent(snapshot) || snapshot.bundle.bundleRef !== view.sources.review.bundleRef);
-  const disabled = state !== "ready" || !!stale || !!adapter.pending;
+  const unresolved = adapter.pending ?? snapshot?.unresolved?.[0];
+  const disabled = state !== "ready" || !!stale || !!unresolved;
   const proposal = snapshot?.proposals.find(p => p.id === selected);
   const act = async (action: ReviewAction) => {
     if (busy.current || disabled || !snapshot || !proposal || !sameBaseline(proposal.baseline, snapshot.baseline) || !targetsMatch(snapshot, proposal) || (action === "undo" ? proposal.state !== "approved" : proposal.state !== "pending") || !proposal.actions.some(a => a.action === action && a.allowed)) return;
@@ -192,12 +195,12 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
       await adapter.act(action, proposal, snapshot.baseline);
       if (token !== epoch.current) return;
       const next = await adapter.read(snapshot.page?.pageNo ?? 1);
-      if (token === epoch.current) { setSnapshot(next); setState("ready"); }
+      if (token === epoch.current) { setSnapshot(next); setState(adapter.pending ? "uncertain" : "ready"); }
     } catch { if (token === epoch.current) setState("uncertain"); }
     finally { if (token === epoch.current) busy.current = false; }
   };
-  return <div ref={host} className="review-renderer"><header className="review-toolbar"><h2>{view.title}</h2><Button variant="outline" onClick={adapter.openDocument}>Open document</Button><Button variant="outline" disabled={state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page?.pageNo ?? 1)}>{adapter.pending ? "Check request status" : "Refresh data"}</Button></header>
-    {state !== "ready" && <Notice tone={state === "unavailable" || state === "uncertain" ? "warning" : "info"}>{state === "refreshing" ? "Refreshing data…" : state === "loading" ? "Loading data…" : state === "uncertain" ? "Outcome unknown. Check the same request ID; do not resend this change." : "Data unavailable."}{adapter.pending && <span> Request: {adapter.pending.requestId}</span>}</Notice>}
+  return <div ref={host} className="review-renderer"><header className="review-toolbar"><h2>{view.title}</h2><Button variant="outline" onClick={adapter.openDocument}>Open document</Button><Button variant="outline" disabled={state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page?.pageNo ?? 1)}>{unresolved ? "Check request status" : "Refresh data"}</Button></header>
+    {(state !== "ready" || unresolved) && <Notice tone={state === "unavailable" || state === "uncertain" || unresolved ? "warning" : "info"}>{state === "refreshing" ? "Refreshing data…" : state === "loading" ? "Loading data…" : state === "uncertain" || unresolved ? "Outcome unknown. Check the same request ID; do not resend this change." : "Data unavailable."}{unresolved && <span> Request: {unresolved.requestId}</span>}</Notice>}
     {stale && <Notice tone="warning">Data is out of date. Refresh data to navigate or apply changes.</Notice>}
     {!wide && <Notice>Widen the window to compare. Comparison requires at least 1024px.</Notice>}
     {snapshot && wide && <div className="review-panels">{view.layout.children.map((child, index) => <section key={index} aria-label={child.title} className="review-panel">
