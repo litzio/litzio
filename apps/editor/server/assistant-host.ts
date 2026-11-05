@@ -1,3 +1,4 @@
+import { executeViewOperation } from "./views.ts";
 import path from "node:path";
 import { PluginHost } from "./plugins/plugin-host.ts";
 import { hostPaths, type HostRun } from "./host-paths.ts";
@@ -103,5 +104,5 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     conversations?.display.cancel();
     return closing ??= Promise.all([agent?.close(), Promise.resolve(pluginsReady).then(() => plugins.close())]).then(() => {});
   };
-  return { invoke, route, close };
+  return { invoke, route, close, executeView: async (input: unknown) => { await readyPlugins(); return executeViewOperation(input, { access, plugins }); } };
 }

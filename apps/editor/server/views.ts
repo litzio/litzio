@@ -1,9 +1,10 @@
+import type { PluginHost } from "./plugins/plugin-host.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getEditableDocument, hasNativeMarker, parse } from "@litzio/core";
-import { evaluateView, parseView, serializeView, validateView, VIEW_LIMITS, type StatisticsRow } from "@litzio/core/views";
+import { evaluateView, parseView, serializeView, validateView, VIEW_LIMITS, builtinViewOperations, type ViewOperation, type StatisticsRow } from "@litzio/core/views";
 import { createFile, decodeUtf8, textRevision } from "@litzio/file-commit";
 import { accessPath, fileErrorMessage, inside, RootAccess, type FileAccess } from "./file-access.ts";
 import { hostPaths } from "./host-paths.ts";
@@ -26,12 +27,12 @@ export const viewRequestSchema = z.union([
 function favouritesDirectory(plugin: string, directory?: string): string {
   return path.join(directory ?? path.join(path.dirname(hostPaths().settingsFile("plugins")), "plugins"), plugin, "views");
 }
-function openFavourite(directory: string, name: string) {
+function openFavourite(directory: string, name: string, operations: readonly ViewOperation[]) {
   const boundary = new RootAccess([directory]);
   const file = accessPath(path.join(directory, `${name}.view.json`), boundary);
   if (!inside(fs.realpathSync(directory), fs.realpathSync(file)) || fs.lstatSync(file).isSymbolicLink()) throw new Error("Favourite must be a local regular file");
   if (fs.statSync(file).size > VIEW_LIMITS.bytes) throw new Error("View exceeds byte limit");
-  return parseView(decodeUtf8(fs.readFileSync(file)));
+  return parseView(decodeUtf8(fs.readFileSync(file)), operations);
 }
 
 export function folderStatistics(root: string, folder: string | undefined, access: FileAccess): StatisticsRow[] {
@@ -73,22 +74,32 @@ export function folderStatistics(root: string, folder: string | undefined, acces
 }
 
 /** One target Host, no fallback, no automatic query on opening a definition. */
-export function executeViewOperation(value: unknown, scope: { access: FileAccess; directory?: string }) {
+export async function executeViewOperation(value: unknown, scope: { access: FileAccess; directory?: string; plugins?: PluginHost }) {
   const receipt = { requestId: randomUUID(), operation: "view", version: 1, scope: "host" as string, outcome: "failure" as "failure" | "success", timestamp: new Date().toISOString() };
   try {
+    const operations = scope.plugins?.viewOperations() ?? builtinViewOperations;
     const input = viewRequestSchema.parse(value);
     receipt.operation = `view.${input.action}`;
-    if (input.action === "validate") return { view: validateView(input.view), canonical: serializeView(input.view), receipt: { ...receipt, outcome: "success" as const } };
+    if (input.action === "validate") return { view: validateView(input.view, operations), canonical: serializeView(input.view, operations), receipt: { ...receipt, outcome: "success" as const } };
     if (input.action === "run") {
       receipt.scope = "folder";
-      const view = "view" in input ? validateView(input.view) : openFavourite(favouritesDirectory(input.plugin, scope.directory), input.name);
+      const view = "view" in input ? validateView(input.view, operations) : openFavourite(favouritesDirectory(input.plugin, scope.directory), input.name, operations);
       const root = fs.realpathSync(accessPath(input.root, scope.access));
-      return { ...evaluateView(view, folderStatistics(root, view.sources.stats.args.folder, scope.access)), target: { root }, receipt: { ...receipt, outcome: "success" as const } };
+      const source = view.sources.stats;
+      let data: unknown;
+      if (source.operation === "folder.statistics") data = folderStatistics(root, source.args.folder as string | undefined, scope.access);
+      else {
+        const reply = await scope.plugins!.invokeOperation(source.operation, source.args);
+        if (reply.receipt.outcome !== "success") throw new Error("View source failed");
+        data = reply.result;
+      }
+      const fields = Object.fromEntries(Object.entries(operations.find(op => op.operation === source.operation)!.rowSchema).filter(([, f]) => !f.secret).map(([name, f]) => [name, f.label]));
+      return { fields, ...evaluateView(view, data, operations), target: { root }, receipt: { ...receipt, outcome: "success" as const } };
     }
     // App data is deliberately separate from document Roots, and callers cannot pick a path.
     const directory = favouritesDirectory(input.plugin, scope.directory);
     if (input.action === "save") {
-      const canonical = serializeView(input.view);
+      const canonical = serializeView(input.view, operations);
       fs.mkdirSync(directory, { recursive: true });
       const boundary = new RootAccess([directory]);
       const file = accessPath(path.join(directory, `${input.name}.view.json`), boundary, true);
@@ -107,7 +118,7 @@ export function executeViewOperation(value: unknown, scope: { access: FileAccess
       if (favourites.length > STATISTICS_LIMITS.favourites) throw new Error("Favourite count limit exceeded");
       return { favourites, receipt: { ...receipt, outcome: "success" as const } };
     }
-    const view = openFavourite(directory, input.name);
+    const view = openFavourite(directory, input.name, operations);
     return { view, name: input.name, receipt: { ...receipt, outcome: "success" as const } };
   } catch (error) { return { error: fileErrorMessage(error, scope.access), receipt }; }
 }

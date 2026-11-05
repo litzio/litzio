@@ -1,3 +1,5 @@
+import { publicOperationResult } from "./operation-result.ts";
+import { builtinViewOperations, type ViewOperation } from "@litzio/core/views";
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, lstatSync, realpathSync, statSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import path from "node:path";
@@ -151,6 +153,11 @@ export class PluginHost {
       try { await withPluginCode(() => live.instance.dispose()); } catch { this.restartRequired.add(id); this.errors.set(id, "Plugin disposal failed; daemon restart required"); throw new Error("Plugin disposal failed; daemon restart required"); }
     }
   }
+  viewOperations(): ViewOperation[] {
+    return [...builtinViewOperations, ...[...this.loaded.values()].flatMap(live => live.manifest.contributes.operations
+      .filter(op => op.effect === "read" && op.rowSchema)
+      .map(op => ({ operation: `${live.manifest.id}.${op.id}`, version: op.version, rowSchema: op.rowSchema!, inputSchema: op.inputSchema, validateArgs: (args: unknown) => !!compileSchema(op.inputSchema)(args) })))];
+  }
   async invokeOperation(name: string, input: unknown, folder?: string) {
     const live = [...this.loaded.values()].find(v => v.manifest.contributes.operations.some(op => `${v.manifest.id}.${op.id}` === name));
     const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === name);
@@ -162,8 +169,7 @@ export class PluginHost {
     const requestId = randomUUID();
     const run = Promise.resolve().then(() => withPluginCode(() => live.instance.operations[op.id]!(input))); live.pending.add(run);
     try {
-      const result = safePluginValue(await run);
-      if (!compileSchema(op.outputSchema)(result)) throw new Error("Invalid operation result");
+      const result = publicOperationResult(op, await run);
       return { result, receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: "success" } };
     } catch {
       return { error: "Plugin operation did not return a valid result. Check the target before retrying a write.", receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: op.effect === "write" ? "uncertain" : "failure" } };
@@ -179,6 +185,7 @@ export class PluginHost {
       if (action === "register") {
         const directory = realpathSync(args.directory!), a = this.artifact(directory);
         const names = new Set(a.manifest.contributes.operations.map(operation => `${a.manifest.id}.${operation.id}`));
+        if (builtinViewOperations.some(op => names.has(op.operation))) throw new Error("Plugin operation ID collides with built-in operation");
         for (const [otherId, other] of Object.entries(this.installed)) {
           if (otherId !== a.manifest.id && (other.operationNames ?? []).some(name => names.has(name))) throw new Error("Plugin operation ID collision");
         }

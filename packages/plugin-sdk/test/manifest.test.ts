@@ -14,3 +14,14 @@ test("declared secrets accept unique identifiers only", () => {
  assert.equal(validateManifest({ ...manifest(), secrets: [secret] }).secrets.length, 1);
  assert.throws(() => validateManifest({ ...manifest(), secrets: [secret, secret] }));
 });
+
+test("read operation row schema is normalized and rejects invalid declarations", () => {
+  const operation = { id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "array", items: { type: "object" } }, rowSchema: { points: { type: "number", label: "Points" } } };
+  const withOperation = (op: unknown) => ({ ...manifest(), contributes: { operations: [op] } });
+  assert.equal(validateManifest(withOperation(operation)).contributes.operations[0]!.rowSchema!.points.secret, false);
+  assert.throws(() => validateManifest(withOperation({ ...operation, effect: "write" })));
+  for (const name of ["group", "value", "a".repeat(81)]) assert.throws(() => validateManifest(withOperation({ ...operation, rowSchema: { [name]: { type: "number", label: "Points" } } })));
+  assert.ok(validateManifest(withOperation({ ...operation, rowSchema: { ["a".repeat(80)]: { type: "number", label: "Points" } } })));
+
+  assert.throws(() => validateManifest(withOperation({ ...operation, rowSchema: { points: { type: "number", label: "Points", date: true } } })));
+});

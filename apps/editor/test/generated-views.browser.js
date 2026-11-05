@@ -1,6 +1,18 @@
 async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
+  pluginFixture.cli(['plugins', 'register', pluginFixture.directory]);
+  const registered = pluginFixture.cli(['plugins', 'list']).plugins.find(p => p.id === 'fixture.issues');
+  pluginFixture.cli(['plugins', 'trust', 'fixture.issues', '--digest', registered.digest]);
+  pluginFixture.cli(['plugins', 'enable', 'fixture.issues']);
+  const invoked = pluginFixture.cli(['operation', 'invoke', 'fixture.issues.read', '--input', `${pluginFixture.directory}/input.json`]);
+  expect(invoked.receipt.outcome).toBe('success'); expect(invoked.result.every(row => !('token' in row))).toBe(true);
+  let refused;
+  try { pluginFixture.cli(['operation', 'invoke', 'fixture.issues.read', '--input', `${pluginFixture.directory}/invalid-input.json`]); }
+  catch (error) { refused = JSON.parse(error.stdout.toString()); }
+  expect(refused.receipt.outcome).toBe('failure'); expect(refused.result).toBeUndefined();
+
+  let captureEnvironment;
   const root = pluginFixture.folder, favorite = 'Folder document totals';
-  const proposal = { kind: 'litzio-view', schemaVersion: 1, catalog: 'litzio-v1', title: 'Folder document totals', refresh: 'manual', sources: { stats: { operation: 'folder.statistics', version: 1, args: {}, groupBy: { field: 'folder' }, aggregate: { op: 'sum', field: 'documents' }, sort: { field: 'value', direction: 'desc' }, limit: 10 } }, layout: { component: 'VerticalPanel', children: [{ component: 'Table', title: 'Document totals', source: 'stats', data: '/rows', columns: ['group', 'value'] }, { component: 'BarChart', title: 'Document totals chart', source: 'stats', data: '/rows', x: 'group', y: 'value' }] } };
+  const proposal = { kind: 'litzio-view', schemaVersion: 1, catalog: 'litzio-v1', title: 'Folder document totals', refresh: 'manual', sources: { stats: { operation: 'fixture.issues.read', version: 1, args: {}, groupBy: { field: 'status' }, aggregate: { op: 'sum', field: 'points' }, sort: { field: 'value', direction: 'desc' }, limit: 10 } }, layout: { component: 'VerticalPanel', children: [{ component: 'Table', title: 'Document totals', source: 'stats', data: '/rows', columns: ['group', 'value'] }, { component: 'BarChart', title: 'Document totals chart', source: 'stats', data: '/rows', x: 'group', y: 'value' }] } };
   let conversation, sends = [], queries = 0, validates = 0, latestRows, latestReceipt, delayPoll = false;
   const settings = { provider: 'codex', model: 'gpt-6-luna', reasoningEffort: 'low', permissionMode: 'read-only', responseLanguage: 'en' };
   await page.route('**/api/assistant/settings*', route => route.fulfill({ json: settings }));
@@ -47,8 +59,28 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   if (await panel.isVisible()) await panel.getByRole('button', { name: 'Close assistant' }).click();
   await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
   await expect(generated().locator('tbody tr')).not.toHaveCount(0); const rows = latestRows;
-  await expect(generated().getByRole('cell', { name: '(Root)', exact: true })).toBeVisible();
-  await expect(generated().getByRole('meter', { name: '(Root)', exact: true })).toBeVisible();
+  await expect(generated().getByRole('cell', { name: 'open', exact: true })).toBeVisible();
+  await expect(generated().getByRole('meter', { name: 'open', exact: true })).toBeVisible();
+  if (screenshots) {
+    captureEnvironment = await page.evaluate(() => ({ dpr: devicePixelRatio, zoom: visualViewport.scale, userAgent: navigator.userAgent, font: getComputedStyle(document.querySelector('.views-page')).font, scrollTop: document.querySelector('.views-page').scrollTop }));
+    for (const width of [1440, 640]) { await page.setViewportSize({ width, height: 1000 }); await page.screenshot({ path: `tmp/1218-evidence/signed-bars-${width}.png` }); }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+  }
+  const baselines = [];
+  for (const [name, value] of [['closed', -2], ['idle', 0], ['open', 5]]) {
+    const meter = generated().getByRole('meter', { name, exact: true });
+    await expect(meter).toHaveAttribute('aria-valuenow', String(value));
+    const geometry = await meter.evaluate(el => {
+      const bar = el.querySelector('.view-bar-value').getBoundingClientRect(), zero = el.querySelector('.view-bar-zero').getBoundingClientRect();
+      return { left: bar.left, right: bar.right, width: bar.width, zero: zero.left };
+    });
+    baselines.push(geometry.zero);
+    if (value < 0) { expect(geometry.width).toBeGreaterThan(0); expect(Math.abs(geometry.right - geometry.zero)).toBeLessThan(1); }
+    else if (value > 0) { expect(geometry.width).toBeGreaterThan(0); expect(Math.abs(geometry.left - geometry.zero)).toBeLessThan(1); }
+    else expect(geometry.width).toBe(0);
+  }
+
+  expect(Math.max(...baselines) - Math.min(...baselines)).toBeLessThan(1);
   const receipt = generated().getByLabel('View receipt', { exact: true });
   await expect(receipt).toHaveText(/^Queried: \d{2}:\d{2}$/);
   await expect(generated().getByText(latestReceipt.requestId, { exact: false })).not.toBeVisible();
@@ -77,7 +109,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect(generated().locator('tbody tr')).not.toHaveCount(0); expect(latestRows).toEqual(rows);
   const cli = pluginFixture.cli(['view', 'run', '--name', favorite, '--root', root]);
   expect(cli.rows).toEqual(latestRows); expect(cli.receipt.operation).toBe('view.run'); expect(cli.receipt.outcome).toBe('success');
-  expect(cli.rows.some(row => row.group === '.')).toBe(true);
+  expect(cli.rows.some(row => row.group === 'open')).toBe(true);
   if (screenshots) for (const width of [1440, 640]) {
     await page.setViewportSize({ width, height: 1000 }); await expect(generated()).toBeVisible();
     await expect(generated().locator('tbody tr')).not.toHaveCount(0);
@@ -142,5 +174,6 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
   releasePoll(); await expect.poll(() => pollDelivered).toBe(true);
   await expect(page.locator('.document-tabs [role="tab"]')).toHaveCount(tabsAfterStop);
-  return { favorite, root, rows, providers: sends.map(send => send.provider) };
+  pluginFixture.cli(['plugins', 'disable', 'fixture.issues']);
+  return { favorite, root, rows, captureEnvironment, providers: sends.map(send => send.provider) };
 }

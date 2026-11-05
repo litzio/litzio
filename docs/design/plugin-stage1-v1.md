@@ -64,3 +64,7 @@ Windows PowerShell의 기본 .NET ProtectedData를 통해 DPAPI CurrentUser를 �
 검증은 주입 저장소로 선언·범위·설정 여부·삭제·unregister·응답 비노출을 검사한다. Windows에서는 임시 디렉터리의 실제 DPAPI 암호문·재시작 조회·삭제를 검사하고 finally로 제거한다. 기존 quality/Windows Desktop unit CI의 전체 검사에 같은 Host 검사가 포함되며, HTTP CI의 양 OS는 production UI/CLI 경계를 검사한다. OS 전역 Credential Manager는 변경하지 않는다.
 
 화면 근거: [1440 이전](assets/plugin-secrets-1075/secrets-before-1440.png) / [이후](assets/plugin-secrets-1075/secrets-1440.png), [640 이전](assets/plugin-secrets-1075/secrets-before-640.png) / [이후](assets/plugin-secrets-1075/secrets-640.png). 동일한 production 설정 Dialog에서 새 secret section만 숨긴 이전 기준과 복원한 이후를 비교한다. 실제 과거 checkout 실행 캡처는 아니다. 값은 합성 fixture이고 저장 뒤 입력이 비워진 상태다.
+
+## Read operation row schema (#1218)
+
+읽기 작업의 선택적 `rowSchema`는 [Generated views v1](generated-views-v1.md#operation-row-schema-1218)을 따른다. 이는 일반 읽기 작업의 출력 선언이며 `generatedUi/views` 기여나 SDK folder scope를 개방하지 않는다. Core가 타입·날짜·표시 라벨·secret 제한과 가공을 소유한다.
