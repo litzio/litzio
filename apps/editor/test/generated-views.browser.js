@@ -49,10 +49,14 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   const duplicate = await save(); await expect(duplicate.getByRole('alert')).toBeVisible(); await duplicate.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
   await expect(basic.getByRole('button', { name: favourite, exact: true })).toBeVisible();
+  await basic.getByRole('combobox', { name: 'Statistics folder' }).selectOption('');
   const before = { queries, sends: sends.length };
   await basic.getByRole('button', { name: favourite, exact: true }).click();
   await expect(generated().getByText('Data has not been queried. Refresh manually.').first()).toBeVisible();
   expect(queries).toBe(before.queries); expect(sends.length).toBe(before.sends);
+  await expect(generated().getByRole('button', { name: 'Refresh data', exact: true })).toBeDisabled();
+  await generated().getByRole('combobox', { name: 'Statistics folder' }).selectOption(root);
+  expect(queries).toBe(before.queries);
   await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
   await expect(generated().locator('tbody tr')).not.toHaveCount(0); expect(latestRows).toEqual(rows);
   const cli = pluginFixture.cli(['view', 'run', '--name', favourite, '--root', root]);
@@ -65,6 +69,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
     await page.screenshot({ path: `tmp/1210-evidence/captures/favourites-${width}.png` });
     await basic.getByRole('button', { name: favourite, exact: true }).click();
+    await generated().getByRole('combobox', { name: 'Statistics folder' }).selectOption(root);
     await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
