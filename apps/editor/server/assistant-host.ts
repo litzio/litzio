@@ -1,6 +1,4 @@
-import { executeViewOperation } from "./views.ts";
-import path from "node:path";
-import { PluginHost } from "./plugins/plugin-host.ts";
+import type { PluginService } from "./plugin-service.ts";
 import { hostPaths, type HostRun } from "./host-paths.ts";
 import { type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
 import { ASSISTANT, type AiProvider } from "../shared/assistant.ts";
@@ -10,16 +8,14 @@ import { AssistantConversations } from "./assistant-conversations.ts";
 import { AssistantViewGenerations } from "./assistant-view-generations.ts";
 
 /** Official daemon feature. Connections and turns live until daemon shutdown. */
-export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { agent?: ProviderConnections; run?: HostRun }) {
-  const paths = hostPaths(options?.run, { ...process.env });
+export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { agent?: ProviderConnections; run?: HostRun; plugins?: PluginService; paths?: ReturnType<typeof hostPaths> }) {
+  const paths = options?.paths ?? hostPaths(options?.run, { ...process.env });
   const { settings, configure } = createAssistantSettings(settingsFile ?? paths.settingsFile("assistant"), paths.assistantDefaults);
-  const plugins = new PluginHost(settingsFile ? path.join(path.dirname(settingsFile), "plugins.json") : paths.settingsFile("plugins"), { access });
-  let pluginsReady: Promise<void> | undefined;
-  const readyPlugins = () => pluginsReady ??= plugins.start();
+  const plugins = options?.plugins;
   let closed = false, closing: Promise<void> | undefined;
   let agent = options?.agent;
   let conversations: AssistantConversations | undefined;
-  const history = () => conversations ??= new AssistantConversations(agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run), access, plugins);
+  const history = () => conversations ??= new AssistantConversations(agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run), access, plugins?.host);
   const viewGenerations = new AssistantViewGenerations(async (id, turnId) => {
     if (history().current(id).turns.some(turn => turn.id === turnId && turn.status === "inProgress")) await history().interrupt(id);
   });
@@ -49,7 +45,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     },
   };
   const sendConversation = async (args: any): Promise<any> => {
-      if (args.action === "send") await readyPlugins();
+      if (args.action === "send") await plugins?.start();
       const currentSettings = settings();
       if (args.action === "display-result") { history().display.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
       if (args.action === "display-undo") return history().display.undo(args.id, args.displayClient, args.requestId);
@@ -71,9 +67,6 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   };
   const invoke = async (operation: string, args: any = {}): Promise<any> => {
     if (closed) throw new Error("The Assistant Host is closing.");
-    if (operation === "pluginSecretSet") { await readyPlugins(); try { return await plugins.setSecret(args.id, args.name, args.value); } catch { throw new Error("Unable to store plugin secret. Disable the plugin and check Windows store support."); } }
-    if (operation === "pluginsList") { await readyPlugins(); return { plugins: await plugins.list() }; }
-    if (operation === "pluginsManage") { await readyPlugins(); const { action, ...input } = args; return plugins.invoke(action, input); }
     if (operation === "settings") return settings();
     if (operation === "configure") {
       const current = settings(), next = checkedAssistantSettings(args);
@@ -91,8 +84,6 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     return assistantOperations[operation as keyof typeof assistantOperations](args);
   };
   const route = (url: string): Record<string, string> | undefined => {
-    if (url === "/api/plugins/secrets") return { POST: "pluginSecretSet" };
-    if (url === "/api/plugins") return { GET: "pluginsList", POST: "pluginsManage" };
     if (url === ASSISTANT.settingsRoute) return { GET: "settings", PUT: "configure" };
     if (url === ASSISTANT.conversationsRoute) return { GET: "assistantConversations", POST: "assistantConversation" };
     const operation = { [ASSISTANT.skillsRoute]: "assistantSkills", [ASSISTANT.modelsRoute]: "assistantModels", [ASSISTANT.diagnosticsRoute]: "assistantDiagnostics", [ASSISTANT.environmentRoute]: "assistantEnvironment" }[url];
@@ -102,7 +93,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     closed = true;
     viewGenerations.close();
     conversations?.display.cancel();
-    return closing ??= Promise.all([agent?.close(), Promise.resolve(pluginsReady).then(() => plugins.close())]).then(() => {});
+    return closing ??= Promise.resolve(agent?.close());
   };
-  return { invoke, route, close, executeView: async (input: unknown) => { await readyPlugins(); return executeViewOperation(input, { access, plugins }); } };
+  return { invoke, route, close };
 }

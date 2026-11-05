@@ -405,7 +405,7 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
 });
 
 
-import { createAssistantHost } from "../server/assistant-host.ts";
+import { createPluginService } from "../server/plugin-service.ts";
 import { pluginCli } from "../../../packages/cli/src/plugins.ts";
 import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
 
@@ -414,7 +414,7 @@ test("scaffold enforces Host roots and the active assistant turn write scope bef
   const allowed = path.join(root, "allowed"), opened = path.join(allowed, "opened");
   mkdirSync(allowed); mkdirSync(opened);
   const access = new RootAccess([allowed]);
-  const assistant = createAssistantHost(access, path.join(root, "assistant.json"));
+  const assistant = createPluginService(access, path.join(root, "plugins.json"));
   const host = new PluginHost(path.join(root, "turn-plugins.json"), { access });
   const scope = { access, folders: new RootAccess([opened]), permissionMode: "opened-folders" };
   const activities: unknown[] = [];
