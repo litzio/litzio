@@ -40,9 +40,9 @@ const BETA = LIVE || PUBLISHED_BASE || process.env.LITZIO_TEST_UPDATE_CHANNEL ==
 const sharedData = path.join(os.homedir(), brand.folders.shared);
 process.env.LITZIO_DAEMON_DIR = LIVE ? path.join(work, "daemon") : path.join(sharedData, "daemon");
 process.env.LITZIO_DATA_DIR = LIVE ? path.join(work, "host-data") : sharedData;
-// Litzio beta.7 candidate pair; IeumDoc beta.4 cannot update to Litzio beta.5.
+// Litzio beta.8 candidate pair; IeumDoc beta.4 cannot update to Litzio beta.5.
 // Both Litzio releases must be public before this opt-in harness can run.
-const [OLD, NEW] = LIVE ? ["0.0.2-beta.6", "0.0.2-beta.7"]
+const [OLD, NEW] = LIVE ? ["0.0.2-beta.7", "0.0.2-beta.8"]
   : BETA ? ["0.1.0-beta.1", "0.1.0-beta.2"] : ["0.0.1", "0.0.2"];
 // The public beta.3 predates native documents (#232) and edits leading frontmatter as a body block.
 const NATIVE_PREFIX = LIVE && OLD === "0.0.1-beta.3" ? "" : "---\nlitzio: 1\n---\n\n";
@@ -66,7 +66,7 @@ function packageVersion(version: string): string {
   const out = path.join(work, `v${version}`);
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
-  execFileSync("pnpm --filter @litzio/desktop package", { cwd: repo, shell: process.env.ComSpec ?? "cmd.exe", stdio: "ignore",
+  execFileSync("pnpm --filter @litzio/desktop package", { cwd: repo, shell: process.env.ComSpec ?? "cmd.exe", stdio: "inherit",
     env: { ...process.env, LITZIO_TEST_VERSION: version, LITZIO_TEST_UPDATE_HOST: HOST, LITZIO_RELEASE: "", LITZIO_REQUIRE_SIGNED_UPDATES: "" } });
   for (const file of [`${brand.executableName}-Setup-${version}.exe`, `${brand.executableName}-Setup-${version}.exe.blockmap`, CHANNEL_FILE]) {
     copyFileSync(path.join(desktop, "release", file), path.join(out, file));

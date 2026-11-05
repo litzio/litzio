@@ -468,11 +468,11 @@ logging. No alternate userData location or speculative filesystem repair is intr
 
 ## Channels and versions
 
-The current source and public distribution is `0.0.2-beta.6`; see the [#1088 release record](../releases/v0.0.2-beta.6.md). The first unsigned-beta workflow run passed all release browser shards and Windows package/install/update/uninstall checks. Actual GitHub installation/update remains unverified.
+The current source candidate is `0.0.2-beta.8`; see the [#1216 preparation record](../releases/v0.0.2-beta.8.md). The current public distribution is `0.0.2-beta.7`; see the [#1171 release record](../releases/v0.0.2-beta.7.md). Actual GitHub installation/update remains unverified.
 
 The preceding public distribution is `0.0.2-beta.5`; see the [#926 release record](../releases/v0.0.2-beta.5.md). The public beta.4 was shipped as IeumDoc. The IeumDoc → Litzio rename changes app ID, installation and data paths: IeumDoc beta.4 cannot automatically update to Litzio. A fresh installation is required; old data, settings and recovery records are not migrated, per the [branding guide](../guides/branding.md).
 
-The opt-in real GitHub harness targets the same-brand Litzio `0.0.2-beta.5 → 0.0.2-beta.6` pair. Both versions are now public, so it can run, but it has not been run. Actual GitHub installation/update remains **not run and unverified** because this PC’s installed state must remain unchanged. This is separate from CI local-feed evidence.
+The opt-in real GitHub harness targets the same-brand Litzio `0.0.2-beta.7 → 0.0.2-beta.8` pair. It can run only after beta.8 is public and has not been run. Actual GitHub installation/update remains **not run and unverified** because this PC’s installed state must remain unchanged. This is separate from CI local-feed evidence.
 
 The preceding public distribution was `0.0.2-beta.4`; Stable publication is deferred. See the [#758 release record](../releases/v0.0.2-beta.4.md) for the successful first release-workflow attempt, public assets and Korean Release body. Actual GitHub `0.0.2-beta.3 → 0.0.2-beta.4` installation/update is **not run and unverified** because this PC’s installed state must remain unchanged. Local-feed CI is separate evidence.
 

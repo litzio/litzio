@@ -87,7 +87,7 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
     isPackaged: options.packaged ?? false, requestSingleInstanceLock: () => options.lock !== false,
     relaunch: () => daemonCalls.push("relaunch"),
     quit: () => quits++, exit: (code: number) => { assert.equal(code, 1); exits++; },
-    setAppUserModelId() {}, setPath() {}, whenReady: () => Promise.resolve(), getPath: () => "/fake-user-data", getVersion: () => "0.0.2-beta.7",
+    setAppUserModelId() {}, setPath() {}, whenReady: () => Promise.resolve(), getPath: () => "/fake-user-data", getVersion: () => "0.0.2-beta.8",
   });
   const require = createRequire(import.meta.url);
   const dependencies: Record<string, unknown> = {
@@ -109,7 +109,7 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
     "./bundled-ui.ts": { bundledUiResponse },
     "./daemon-client.ts": { DesktopDaemon: class {
       channel = "beta";
-      record = { url: "http://127.0.0.1:23456" }; health = { productVersion: options.daemonVersion ?? "0.0.2-beta.7", launcher: "cli-start" };
+      record = { url: "http://127.0.0.1:23456" }; health = { productVersion: options.daemonVersion ?? "0.0.2-beta.8", launcher: "cli-start" };
       async connect() { daemonCalls.push("connect"); if (options.daemonPending) await new Promise(() => {}); if (options.daemonError) throw new Error(options.daemonError); } async close() { daemonCalls.push("close"); if (options.closeError) throw new Error(options.closeError); }
       async check() { daemonCalls.push("check"); } async stopExplicitly() { daemonCalls.push("stop"); }
     } },
@@ -267,7 +267,7 @@ test("close cancels both timers; second launch reveals, restores and focuses the
 
 test("startup exceptions are logged, reported and exit; logging failure remains observable on stderr", async () => {
   const h = await start({ startupError: true });
-  assert.match(h.logs.join(""), /starting 0.0.2-beta.7[\s\S]*startup failed: Error: permission setup failed/);
+  assert.match(h.logs.join(""), /starting 0.0.2-beta.8[\s\S]*startup failed: Error: permission setup failed/);
   assert.match(h.alerts[0]!, /permission setup failed/);
   assert.equal(h.exits(), 1);
   const denied = await start({ logError: true, startupError: true });
