@@ -5,6 +5,7 @@ import type { ReviewView, ReviewBundle, ReviewPage, ReviewMapping, ReviewProposa
 import { DocumentEditor } from "../DocumentEditor.tsx";
 import type { ReadingPosition } from "../document-reading.ts";
 import { Button } from "../components/ui/button.tsx";
+import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
 import { Notice } from "../ui/primitives.tsx";
 import "./review.css";
 
@@ -38,20 +39,20 @@ function reveal(scroll: HTMLElement, top: number, height: number) {
   if (top >= start && (top + height <= end || height > scroll.clientHeight && top < end)) return;
   scroll.scrollTo({ top: Math.max(0, top - 16), behavior: "instant" });
 }
-const regionStatus = { supported: "지원", unsupported: "미지원", decoration: "장식", excluded: "제외" };
-const proposalStatus = { pending: "검토 대기 · pending", approved: "적용됨 · applied", rejected: "거절됨", inapplicable: "적용 불가", stale: "오래된 제안 · stale" };
+const regionStatus = { supported: "Supported", unsupported: "Unsupported", decoration: "Decoration", excluded: "Excluded" };
+const proposalStatus = { pending: "Pending review", approved: "Applied", rejected: "Rejected", inapplicable: "Cannot apply", stale: "Out of date" };
 export function PageSurface({ snapshot: s, selected, onSelect, onPage, disabled = false }: {
   snapshot: ReviewSnapshot; selected: string[]; onSelect(id: string): void; onPage(page: number): void; disabled?: boolean;
 }) {
   const [zoom, setZoom] = useState(1), [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [s.imageUrl]);
   const p = s.page;
-  return <section aria-label="원본 페이지" className="review-source">
-    <div className="review-toolbar"><Button variant="ghost" aria-label="이전 페이지" disabled={disabled || p.pageNo <= 1} onClick={() => onPage(p.pageNo - 1)}><ChevronLeft /></Button>
-      <span>{p.pageNo} / {s.pageCount} 페이지</span><Button variant="ghost" aria-label="다음 페이지" disabled={disabled || p.pageNo >= s.pageCount} onClick={() => onPage(p.pageNo + 1)}><ChevronRight /></Button>
-      <Button variant="outline" onClick={() => setZoom(v => v === 1 ? 1.5 : 1)}>{zoom === 1 ? "확대" : "맞춤"}</Button></div>
+  return <section aria-label="Source page" className="review-source">
+    <div className="review-toolbar"><Button variant="ghost" aria-label="Previous page" disabled={disabled || p.pageNo <= 1} onClick={() => onPage(p.pageNo - 1)}><ChevronLeft /></Button>
+      <span>Page {p.pageNo} of {s.pageCount}</span><Button variant="ghost" aria-label="Next page" disabled={disabled || p.pageNo >= s.pageCount} onClick={() => onPage(p.pageNo + 1)}><ChevronRight /></Button>
+      <Button variant="outline" onClick={() => setZoom(v => v === 1 ? 1.5 : 1)}>{zoom === 1 ? "Zoom in" : "Fit to width"}</Button></div>
     <div className="review-page-scroll"><div className="review-page" style={{ width: `${zoom * 100}%`, aspectRatio: `${p.width}/${p.height}` }}>
-      {s.imageUrl && !failed ? <img src={s.imageUrl} alt={`원본 ${p.pageNo} 페이지`} onError={() => setFailed(true)} /> : <Notice>이미지 없음 · 영역 정보만 표시합니다.</Notice>}
+      {s.imageUrl && !failed ? <img src={s.imageUrl} alt={`Source page ${p.pageNo}`} onError={() => setFailed(true)} /> : <Notice>No image available. Showing regions only.</Notice>}
       {p.regions.map(r => { const [x1,y1,x2,y2] = r.bbox; return <button key={r.id} className="review-region" aria-label={`${r.category} · ${regionStatus[r.status]}${r.reason ? ` · ${r.reason}` : ""}`} aria-pressed={selected.includes(r.id)} disabled={disabled}
         style={{ left: `${x1/p.width*100}%`, top: `${(p.origin === "TOPLEFT" ? y1 : p.height-y2)/p.height*100}%`, width: `${(x2-x1)/p.width*100}%`, height: `${(y2-y1)/p.height*100}%` }} onClick={() => onSelect(r.id)}><span>{r.category} · {regionStatus[r.status]}</span></button>; })}
     </div></div>
@@ -87,24 +88,34 @@ export function SourceDocumentCompare({ snapshot: s, disabled, onPage }: { snaps
   }, [sources]);
   return <><div className="review-compare">
     <div ref={source}><PageSurface snapshot={s} selected={sources} onSelect={selectSource} onPage={onPage} disabled={disabled} /></div>
-    <section aria-label="문서 Read" className="review-read" ref={scroll} tabIndex={0}>
+    <section aria-label="Document preview" className="review-read" ref={scroll} tabIndex={0}>
       <div className="review-reading-content" ref={content}>
         <DocumentEditor readOnly preview document={s.document} documentPath={s.documentPath} onStructuralReject={() => {}} onReadingLayout={setPositions} onReadingSelection={selectDocument} />
         <div className="review-highlights" aria-hidden="true">{positions.blocks.filter(b => targets.includes(b.key)).map(b => <div key={b.key} style={{ top: b.top, height: b.height }} />)}</div>
       </div>
-    </section></div>{unmapped && <Notice>대응하는 자료가 없습니다.</Notice>}{s.mapping.continuation && <Notice>대응 목록이 완전하지 않습니다. 추가 자료를 읽은 뒤 검토하세요.</Notice>}</>;
+    </section></div>{unmapped && <Notice>No matching content.</Notice>}{s.mapping.continuation && <Notice>Mappings are incomplete. Refresh data before reviewing.</Notice>}</>;
 }
 export function ReviewList({ proposals, selected, onSelect }: { proposals: ReviewProposal[]; selected?: string; onSelect(id: string): void }) {
-  return <nav aria-label="변경 제안" className="review-list">{!proposals.length && <Notice>변경 제안이 없습니다.</Notice>}{proposals.map(p => <Button key={p.id} variant={selected === p.id ? "secondary" : "ghost"} aria-pressed={selected === p.id} onClick={() => onSelect(p.id)}>{p.kind} · {proposalStatus[p.state]}</Button>)}</nav>;
+  return <nav aria-label="Changes" className="review-list">{!proposals.length && <Notice>No changes to review.</Notice>}{proposals.map((p, index) => <Button key={p.id} variant={selected === p.id ? "secondary" : "ghost"} aria-pressed={selected === p.id} onClick={() => onSelect(p.id)}>Change {index + 1} · {proposalStatus[p.state]}</Button>)}</nav>;
 }
-export function ReviewDetail({ proposal: p, baseline, disabled, onAction }: { proposal: ReviewProposal; baseline: ReviewBaseline; disabled: boolean; onAction(a: ReviewAction): void }) {
-  const content = (v: ReviewProposal["before"]) => v.type === "plain" ? v.text : `${v.kind}\n${JSON.stringify(v.value, null, 2)}`;
-  return <section aria-label="제안 상세" className="review-detail"><strong>{proposalStatus[p.state]}</strong><p>대상: {p.targets.map(t => JSON.stringify(t.path)).join(", ")}</p>
-    <div className="review-before-after"><div>변경 전<pre>{content(p.before)}</pre></div><div>변경 후<pre>{content(p.after)}</pre></div></div>
+export function ReviewDetail({ proposal: p, document, baseline, disabled, onAction }: { proposal: ReviewProposal; document: EditableDocument; baseline: ReviewBaseline; disabled: boolean; onAction(a: ReviewAction): void }) {
+  const content = (v: ReviewProposal["before"]) => v.type === "plain" ? v.text : JSON.stringify(v.value, null, 2);
+  const targetNames = p.targets.map(t => {
+    const block = document.blocks.find(b => JSON.stringify(b.path) === JSON.stringify(t.path));
+    return block && "text" in block && block.text ? block.text : "Document content";
+  });
+  return <section aria-label="Change details" className="review-detail"><strong>{proposalStatus[p.state]}</strong><p>Target: {targetNames.join(" · ")}</p>
+    <div className="review-before-after"><div>Before<pre>{content(p.before)}</pre></div><div>After<pre>{content(p.after)}</pre></div></div>
     <ul>{p.evidence.map((e,i) => <li key={i}>{e}</li>)}</ul><div className="review-toolbar">{(["approve", "reject", "undo"] as const).map(action => {
       const availability = p.actions.find(a => a.action === action), allowed = !disabled && sameBaseline(p.baseline, baseline) && availability?.allowed && (action === "undo" ? p.state === "approved" : p.state === "pending");
       const Icon = action === "approve" ? Check : action === "reject" ? X : Undo2;
-      return <div key={action}><Button variant={action === "approve" ? "default" : "outline"} disabled={!allowed} onClick={() => onAction(action)}><Icon />{action === "approve" ? "승인" : action === "reject" ? "거절" : "되돌리기"}</Button>{!allowed && <small>{disabled ? "자료를 확인한 뒤 사용하세요" : !sameBaseline(p.baseline, baseline) ? "오래된 제안" : availability?.reason ?? "이 상태에서는 사용할 수 없습니다"}</small>}</div>;
+      const label = action === "approve" ? "Approve" : action === "reject" ? "Reject" : "Undo";
+      const reason = disabled ? "Refresh data before using this action." : !sameBaseline(p.baseline, baseline) ? "This change is out of date." : availability?.reason ?? "This action is unavailable for this change.";
+      const button = <Button variant={action === "approve" ? "default" : "outline"} disabled={!allowed} onClick={() => onAction(action)}><Icon />{label}</Button>;
+      return allowed ? <span key={action}>{button}</span> : <Tooltip key={action}>
+        <TooltipTrigger render={<span className="review-action-trigger" tabIndex={0} aria-label={`${label} unavailable`} />}>{button}</TooltipTrigger>
+        <TooltipContent>{reason}</TooltipContent>
+      </Tooltip>;
     })}</div></section>;
 }
 /** Mount with a new key on Host/source changes. Adapter is scoped to that mounted source. */
@@ -138,16 +149,16 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
     } catch { if (token === epoch.current) setState("uncertain"); }
     finally { if (token === epoch.current) busy.current = false; }
   };
-  return <div ref={host} className="review-renderer"><header className="review-toolbar"><h2>{view.title}</h2><Button variant="outline" onClick={adapter.openDocument}>결과 문서 열기</Button><Button variant="outline" disabled={state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page.pageNo ?? 1)}>다시 읽기</Button></header>
-    {state !== "ready" && <Notice tone={state === "unavailable" || state === "uncertain" ? "warning" : "info"}>{state === "refreshing" ? "갱신 중" : state === "loading" ? "자료 읽는 중" : state === "uncertain" ? "결과 불확실 · 변경을 다시 보내지 말고 상태를 확인하세요." : "자료 사용 불가 · unavailable"}</Notice>}
-    {stale && <Notice tone="warning">오래된 자료 · stale — 다시 읽기 전에는 이동하거나 적용할 수 없습니다.</Notice>}
-    {!wide && <Notice>대조하려면 창을 넓히세요. 대조 콘텐츠는 최소 1024px이 필요합니다.</Notice>}
+  return <div ref={host} className="review-renderer"><header className="review-toolbar"><h2>{view.title}</h2><Button variant="outline" onClick={adapter.openDocument}>Open document</Button><Button variant="outline" disabled={state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page.pageNo ?? 1)}>Refresh data</Button></header>
+    {state !== "ready" && <Notice tone={state === "unavailable" || state === "uncertain" ? "warning" : "info"}>{state === "refreshing" ? "Refreshing data…" : state === "loading" ? "Loading data…" : state === "uncertain" ? "Outcome unknown. Check the status before trying again." : "Data unavailable."}</Notice>}
+    {stale && <Notice tone="warning">Data is out of date. Refresh data to navigate or apply changes.</Notice>}
+    {!wide && <Notice>Widen the window to compare. Comparison requires at least 1024px.</Notice>}
     {snapshot && wide && <>
       {components.has("SourceDocumentCompare") ? <SourceDocumentCompare snapshot={snapshot} disabled={disabled} onPage={n => void read(n)} />
         : components.has("PageSurface") && <PageSurface snapshot={snapshot} selected={pageSelection} onSelect={id => setPageSelection([id])} onPage={n => void read(n)} disabled={disabled} />}
       {(components.has("ReviewList") || components.has("ReviewDetail")) && <div className="review-proposals">
         <ReviewList proposals={snapshot.proposals} selected={selected} onSelect={setSelected} />
-        {proposal && <ReviewDetail proposal={proposal} baseline={snapshot.baseline} disabled={disabled || proposal.targets.some(t => t.documentRevision !== snapshot.documentRevision || t.documentHash !== snapshot.documentHash)} onAction={a => void act(a)} />}
+        {proposal && <ReviewDetail proposal={proposal} document={snapshot.document} baseline={snapshot.baseline} disabled={disabled || proposal.targets.some(t => t.documentRevision !== snapshot.documentRevision || t.documentHash !== snapshot.documentHash)} onAction={a => void act(a)} />}
       </div>}
     </>}
   </div>;

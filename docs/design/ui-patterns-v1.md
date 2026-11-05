@@ -478,10 +478,13 @@ ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의
 - generation, document revision/hash, source/map revision이 다르면 stale이다. 사용 불가
   응답(unavailable)과 구별한다. stale 자료는 표시할 수 있지만 대응 이동·변경은 막는다.
   continuation이 남은 mapping은 완전한 대응으로 취급하지 않는다.
-- ReviewList의 선택은 상세 열기다. pending은 검토 대기, approved는 applied(적용됨)로
-  표시한다. 승인·거절·Undo는 별도 사용자 버튼이다. 전후 값·근거·대상을 표시하고
-  Host action 가용성과 불가 사유를 유지한다. Undo는 적용됨 상태의 허용된 항목만 가능하다.
-- 승인·거절·Undo 요청부터 문서·제안·자료를 다시 읽을 때까지 ‘갱신 중’이다. 이전
+- ReviewList의 선택은 상세 열기다. pending은 “Pending review”, approved는 “Applied”, stale은 “Out of date”로
+  표시한다. 제품 UI의 기본 문자열은 영어이며 내부 kind·enum·target path 배열은 사용자 label로 노출하지 않는다.
+  제안은 “Change N”, 대상은 해당 문서 본문(없는 경우 “Document content”)으로 표시한다. 승인·거절·Undo는 별도 사용자 버튼이다. 전후 값·근거·대상을 표시하고
+  Host action 가용성을 유지하고 불가 사유는 기존 Tooltip의 hover·keyboard focus에서 확인한다.
+  비활성 버튼은 focus 가능한 TooltipTrigger wrapper를 사용한다. Undo는 적용됨 상태의 허용된 항목만 가능하다.
+  영역 label은 bbox 바깥 위쪽에 두어 원본 내용을 가리지 않는다. 변경 전후 본문은 Read와 같은 document typography 토큰을 사용한다.
+- 승인·거절·Undo 요청부터 문서·제안·자료를 다시 읽을 때까지 “Refreshing data…”다. 이전
   자료는 최신으로 표시하지 않으며 대응 이동과 변경 버튼을 잠근다. 실패한 write는
   자동 재전송하지 않고 결과 불확실과 상태 확인 안내를 표시한다. 다시 읽기는 read만 한다.
 - Host/source별 별도 mount를 사용한다. 닫기·Host 전환 뒤 늦은 응답은 버린다.
