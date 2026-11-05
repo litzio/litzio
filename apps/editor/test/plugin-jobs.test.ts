@@ -261,3 +261,53 @@ test("K1 accepted work survives the RPC budget; completion, failure, stop and pr
     } finally { if (services) await services.close(); else await host.close(); rmSync(root, { recursive: true, force: true }); }
   })));
 });
+
+test("K1 snapshots preserve keys and redact only the publishing plugin's secret values", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-redaction-"));
+  const values = new Map([["fixture.a", "phase"], ["fixture.b", "foreign-private"]]);
+  const host = new PluginHost(path.join(root, "state.json"), {
+    access: new RootAccess([root]),
+    secrets: { supported: true, async read(id) { return values.get(id); }, async status(id) { return values.has(id); }, async set() {}, async delete() {} },
+  });
+  const stdout = process.stdout.write, stderr = process.stderr.write;
+  try {
+    writeFileSync(path.join(root, "input.txt"), "Original");
+    for (const id of values.keys()) {
+      const directory = path.join(root, id);
+      cpSync(new URL("./fixtures/job-plugin", import.meta.url), directory, { recursive: true });
+      const manifestFile = path.join(directory, "litzio-plugin.json");
+      const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+      manifest.id = id;
+      manifest.secrets = [{ id: "pat", scope: "connection", required: true }];
+      for (const operation of manifest.contributes.operations) operation.outputSchema = {
+        type: "object", required: ["state", "phase"], additionalProperties: false,
+        properties: { state: { type: "string" }, phase: { type: "string" } },
+      };
+      writeFileSync(manifestFile, JSON.stringify(manifest));
+      writeFileSync(path.join(directory, "host.js"), `export function activate() {
+        return { operations: {
+          start: () => ({state:"running",phase:"phase foreign-private"}),
+          status: () => ({state:"running",phase:"phase foreign-private"}),
+          stop: () => ({state:"stopped",phase:"phase foreign-private"})
+        }, status: () => ({available:true,message:"Ready",folders:[],decorations:[],accounts:[]}), dispose() {} };
+      }`);
+      await host.invoke("register", { directory });
+      await host.invoke("trust", { id, digest: (await host.list()).find(plugin => plugin.id === id)!.digest });
+      await host.invoke("enable", { id });
+    }
+    for (const [plugin, expected] of [["fixture.a", "[secret] foreign-private"], ["fixture.b", "phase [secret]"]]) {
+      const requestId = randomUUID();
+      const start = await host.jobs.execute({ action: "job-start", plugin, job: "text", requestId, root, file: "input.txt", output: `${plugin}.md` });
+      assert.ok("job" in start); assert.equal(start.job.phase, expected); assert.equal(start.job.state, "running");
+      const status = await host.jobs.execute({ action: "job-status", requestId });
+      assert.ok("job" in status); assert.equal(status.job.phase, expected); assert.equal(status.job.state, "running");
+      const listed = await host.jobs.execute({ action: "job-list", plugin });
+      assert.ok("jobs" in listed); assert.equal(listed.jobs[0]!.phase, expected); assert.equal(listed.jobs[0]!.plugin, plugin);
+      const stop = await host.jobs.execute({ action: "job-stop", requestId });
+      assert.ok("job" in stop); assert.equal(stop.job.phase, expected); assert.equal(stop.job.state, "stopped");
+      assert.equal(host.jobs.list(plugin).jobs[0]!.phase, expected);
+    }
+    assert.equal(process.stdout.write, stdout);
+    assert.equal(process.stderr.write, stderr);
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
