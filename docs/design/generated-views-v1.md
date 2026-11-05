@@ -227,3 +227,5 @@ V6 대화 표시 보완: 생성 명세는 ‘뷰 명세’에 기본 접힘으�
 진행은 최신 한 줄과 최종 교정 횟수로 압축하고 검증 실패는 고정 문구로 안내한다.
 1440px [교정 없음](assets/catalog-v6/result-card-no-correction-1440.png)과
 [교정 1회](assets/catalog-v6/result-card-1440.png)를 fixture로 확인했다.
+
+V4 review의 Host·CLI·K1 완료 bundle은 [플러그인 1단계 V4 계약](plugin-stage1-v1.md#v4-공용-review-hostcli)에 구현했다. query v2 전환과 review 화면 통합은 각각의 후속 PR 범위다. 공용 자료 읽기·제안·승인·거절·Undo·status는 같은 PluginHost dispatcher를 사용하며 문서 의미를 renderer나 CLI에 구현하지 않는다.

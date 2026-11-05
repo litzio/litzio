@@ -197,3 +197,7 @@ V1에서 공통 contract/schema를 소유하고, V2는 조회용 Host/CLI, V4는
 기존 Read를 조합한다. 선택·승인·pending/applied·stale/unavailable·Undo·갱신 중·폭 안내의
 동작 소유권은 [UI 패턴](ui-patterns-v1.md#공용-원본-대조와-변경-제안-catalog-v5-1241-a안)에 둔다.
 명세에는 자료와 binding만 남긴다. V3 공통 진입점의 query/review 분기와 V5 연결은 #1263의 공용 fixture로 검증한다. V4 실제 Host·CLI 통합은 아직 검증하지 않았다.
+
+## V4 구현 기록
+
+V4 Host·CLI와 K1 완료 자료 연결의 구현 계약은 [플러그인 1단계](plugin-stage1-v1.md#v4-공용-review-hostcli)에 기록했다. SDK completedReviewSchema, Core Review 타입·중립 operation, PluginHost 소유 dispatcher와 공식 file-commit을 사용한다. 제품 HTTP/CLI fixture는 공용 흐름의 근거이며 V5 화면의 실제 통합·Docling 수락을 대신하지 않는다. 전체 Draft 상태와 나머지 구현 gate는 유지한다.

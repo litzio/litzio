@@ -126,3 +126,21 @@ Host의 `publicOperationError`는 `errorKind`와 SDK의 고정 `PLUGIN_ERROR_MES
 K1 반환형 실패도 같은 공개 오류 경계를 따른다. handler는 오류 문자열 대신 `errorKind`만 지정하며 알 수 없거나 누락된 분류는 `failed`다. `failed`·`uncertain`의 phase와 오류 안내는 Host 고정값이며 plugin phase·예외 원문을 복사하지 않는다. 기존 `error` 필드는 허용하지 않으며 잘못된 결과는 고정 `failed` 안내의 uncertain으로 남긴다. job-status·job-list·화면·비서가 같은 정규화된 snapshot을 받는다.
 
 K1 호출은 등록 시 manifest의 start/status/stop read·write 효과를 기록하고 오류 정규화에도 유지한다. 쓰기 실패에는 고정 대상 확인 안내와 `Query the same requestId; do not resend start.`를 함께 붙인다. 쓰기 결과가 uncertain인 동안 후속 읽기 조회도 실패하거나 uncertain을 반환하면 이 안전 안내를 유지한다. 원문·stack은 복사하지 않는다.
+
+## V4 공용 review Host·CLI
+
+K1 완료의 선택 `jobUpdate.review`는 SDK `completedReviewSchema`를 따른다. review, bundle(generation/documentRevision/documentHash/sourceRevision와 선택 mappingRevision), pages, 선택 mapping, images(ref/Root 상대 path/SHA-256 revision)를 전달한다. sourceRevision은 K1 입력 파일 SHA-256, documentRevision/hash는 Core canonical 출력 revision이다. Host는 문서 생성 후 모든 자료를 검증하고 `result.bundle`에 Host 발급 bundleRef/documentRef를 공개한다. Root·generation·revision·이미지 검증 실패 시 bundle은 공개하지 않으며 이미 생성된 결과 문서를 보존하고 uncertain으로 남긴다. 완료 전 자료는 공개하지 않는다.
+
+`POST /api/review`는 PluginHost 소유 dispatcher다. 입력은 action(read/propose/approve/reject/undo/status), plugin/review/root/bundleRef/generation이다. read는 kind(bundle/document/page/mapping/proposals/image)와 pageNo를 선택하고 data/baseline/state/receipt를 반환한다. 문서는 bundle의 canonical source snapshot이며 stale 자료를 현재 파일처럼 반환하지 않는다. image는 검증한 PNG의 mime/base64 data/width/height다. 현재 PNG만 지원하며 다른 형식은 거부한다. Core REVIEW_LIMITS의 JSON·목록·영역·이미지 byte/pixel 상한을 적용하고 초과나 미지원 continuation은 자르지 않고 거부한다. 자료 참조에 임의 파일 경로·URL을 받지 않는다.
+
+변경에는 requestId(UUID), baseline과 선택 proposalId/input을 더한다. baseline은 문서·제안 revision과 원본/map revision이다. Host는 plugin 실행 전과 commit 직전에 문서·원본·이미지를 재검사하고 bundle별 동시 변경을 거부한다. binding ID/version·가용성·artifact 신뢰를 매번 확인하며 일반 operation invoke로 review binding을 호출할 수 없다. propose 결과는 Core ReviewProposal의 pending만 허용하고 target snapshot·baseline을 검사하며 기여의 action 제한을 유지한다. reject는 문서를 바꾸지 않는다.
+
+현재 공용 적용 결과는 `{kind:"text",path,from,to}`다. Host가 proposal target과 일치하는 Core snapshot path에 기존 `updateNodeTextAtPath`를 호출하고 canonical serialize 후 file-commit의 revision 보호·temporary sibling·rename으로 저장한다. 임의 source·파일 쓰기 요청은 받지 않는다. Undo는 Host가 보관한 역연산을 같은 Core operation으로 수행하고 승인 전 canonical source와 정확히 일치할 때만 commit한다. 빈 문자열 역연산·지원하지 않는 변경 종류는 거부한다. 승인/Undo 뒤 다른 제안은 stale, 이전 map은 unavailable이며 새 baseline/changedDocumentRefs/proposals/receipt를 반환한다. Docling 저장·재처리 방식은 정하지 않는다.
+
+requestId는 plugin 호출 전에 기록한다. 관찰 유실은 고정 오류 안내와 uncertain이며 같은 ID 변경은 재실행하지 않고 status로 결과만 확인한다. daemon 재시작 뒤 확인할 수 없는 결과는 unknown이며 실행 허가가 아니다. bundle·제안·Undo·요청 관찰은 PluginHost/daemon 수명 소유다. 다른 Host/Root/generation으로 재바인딩하지 않는다. 비서에 approve/undo 전용 도구를 추가하지 않는다.
+
+```text
+review <read|propose|approve|reject|undo|status> <pluginId> <reviewId> --input <json-file> --root <root> --host <origin> --json
+```
+
+CLI는 같은 dispatcher를 호출한다. JSON은 bundleRef/generation과 동작별 kind/pageNo 또는 requestId/baseline/proposalId/input을 담는다. 명시 CLI의 action/plugin/review/root가 적용되며 응답 유실을 자동 재전송하지 않는다. `reviews.test.ts`는 제품 HTTP Host·실제 CLI·plugin subprocess·K1 완료·파일 승인/거절/Undo와 Root/Host/generation·stale·no-replay를 검증한다. 공용 fixture이며 실제 Docling 제작·변환 품질이나 V5 브라우저 통합의 완료 근거가 아니다.

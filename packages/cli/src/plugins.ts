@@ -10,7 +10,10 @@ export async function pluginCli(args: string[]): Promise<number> {
     const tokens = args.filter((_, i) => i !== index && i !== index + 1 && args[i] !== "--json");
     const [command, action, id] = tokens;
     let body: Record<string, unknown>;
-    if (command === "operation" && action === "invoke") {
+    if (command === "review") {
+      if (!["read", "propose", "approve", "reject", "undo", "status"].includes(action!) || tokens.length !== 8 || tokens[4] !== "--input" || tokens[6] !== "--root") throw new Error("review <action> <pluginId> <reviewId> --input <file> --root <root> --host <origin> --json");
+      body = { ...JSON.parse(readFileSync(tokens[5]!, "utf8")), action, plugin: id, review: tokens[3], root: tokens[7] };
+    } else if (command === "operation" && action === "invoke") {
       if (!id || tokens[3] !== "--input" || tokens.length !== 5) throw new Error("operation invoke <id> --input <json-file>");
       body = { action: "invoke", operation: id, input: JSON.parse(readFileSync(tokens[4]!, "utf8")) };
     } else if (command === "jobs" && action === "list" && tokens.length <= 3) {
@@ -36,7 +39,7 @@ export async function pluginCli(args: string[]): Promise<number> {
     const health = await fetch(new URL("/daemon/health", origin), { headers: { "X-Litzio-Protocol": DAEMON_PROTOCOL }, redirect: "error", signal: AbortSignal.timeout(5000) });
     if (!health.ok || (await health.json()).protocolVersion !== DAEMON_PROTOCOL) throw new Error("Host protocol check failed");
     dispatched = true;
-    const response = await fetch(new URL("/api/plugins", origin), { method: "POST", headers: { "Content-Type": "application/json", Origin: origin.origin }, body: JSON.stringify(body), redirect: "error", signal: AbortSignal.timeout(30000) });
+    const response = await fetch(new URL(command === "review" ? "/api/review" : "/api/plugins", origin), { method: "POST", headers: { "Content-Type": "application/json", Origin: origin.origin }, body: JSON.stringify(body), redirect: "error", signal: AbortSignal.timeout(30000) });
     const value = await response.json(); process.stdout.write(JSON.stringify({ target: origin.origin, ...value }) + "\n"); return response.ok && (!value.receipt || value.receipt.outcome === "success") ? 0 : 1;
   } catch (error) { process.stdout.write(JSON.stringify({ outcome: dispatched ? "uncertain" : "failure", reason: String(error) }) + "\n"); return 1; }
 }

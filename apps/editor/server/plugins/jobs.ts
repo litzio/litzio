@@ -12,7 +12,7 @@ export class PluginJobs {
   private records = new Map<string, Record>();
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => JobContribution,
     private invoke: (name: string, input: unknown) => Promise<{ result?: unknown; error?: string; errorKind?: PluginErrorKind }>,
-    private effect: (name: string) => "read" | "write") {}
+    private effect: (name: string) => "read" | "write", private publishReview?: (plugin: string, root: string, file: string, source: string, data: unknown) => NonNullable<JobSnapshot["result"]>["bundle"]) {}
   private async call(record: Record, operation: string) {
     const value = await this.invoke(`${record.snapshot.plugin}.${operation}`, record.input);
     if (value.error) throw Object.assign(new Error(value.error), { kind: value.errorKind });
@@ -25,7 +25,8 @@ export class PluginJobs {
       if (!update.document) throw new Error("Completed job has no document");
       accessPath(record.input.output, this.access, true);
       const created = createDocumentSourceFile(record.input.output, update.document.source, record.access);
-      current.result = { path: created.path, revision: created.revision };
+      const bundle = update.review ? this.publishReview?.(current.plugin, current.root, created.path, record.input.file, update.review) : undefined;
+      current.result = { path: created.path, revision: created.revision, ...(bundle ? { bundle } : {}) };
     }
     if (["completed", "failed", "stopped"].includes(update.state)) record.finishedAt = Date.now();
     const failure = update.state === "failed" || update.state === "uncertain";
