@@ -1,4 +1,4 @@
-import { pluginTools, executePluginTool } from "./assistant-plugin-tools.ts";
+import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool } from "./assistant-plugin-tools.ts";
 import { viewGenerationContext } from "../shared/view-generation.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
@@ -53,6 +53,22 @@ export class AssistantConversations {
       const active = this.conversations.get(params?.threadId)?.turns.find(turn => turn.id === params.turnId && turn.status === "inProgress");
       if (!scope || !active || scope.turnId !== params.turnId || params.namespace != null) throw new Error("No authorized active turn for this tool call.");
       if (scope.viewGeneration) throw new Error("View generation only proposes a definition; tools are unavailable for this turn.");
+      if (params.tool === "plugin_jobs" && this.plugins) {
+        const activity: AssistantConversationItem = { id: `plugin-job-${randomUUID()}`, kind: "tool", text: `plugin_jobs · ${String(params.arguments?.action ?? "")}`, status: "inProgress" };
+        active.items.push(activity);
+        try {
+          const result = await executePluginJobTool(this.plugins, params.arguments, scope);
+          activity.status = "completed";
+          activity.toolResult = { success: true, contentItems: [{ type: "inputText", text: JSON.stringify(result) }] };
+          this.save(this.current(params.threadId));
+          return { ...activity.toolResult };
+        } catch (error) {
+          activity.status = "failed";
+          activity.toolResult = { success: false, contentItems: [{ type: "inputText", text: String(error) }] };
+          this.save(this.current(params.threadId));
+          return { ...activity.toolResult };
+        }
+      }
       const templateScope = { ...scope, directory: this.connection.templatesDirectory };
       const result = params.tool === "manage_plugins" && this.plugins
         ? await executePluginTool(this.plugins, params.arguments, async description => {
@@ -195,7 +211,7 @@ export class AssistantConversations {
       }
       if (!conversation) {
         const result = await this.connection.client.request("thread/start", { model: input.model, cwd: this.connection.cwd,
-          approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [...documentTools, ...displayTools, ...templateTools, ...(this.plugins ? pluginTools : [])] });
+          approvalPolicy: "never", sandbox: "read-only", ephemeral: false, dynamicTools: [...documentTools, ...displayTools, ...templateTools, ...(this.plugins ? [...pluginTools, ...pluginJobTools] : [])] });
         conversation = { id: result.thread.id, title: (input.message.trim() || [...references, ...skills].map(file => file.name).join(", ")).slice(0, 80), folders, createdAt: Date.now(), updatedAt: Date.now(),
           turns: [], provider: "codex", permissionMode: settings.permissionMode, model: input.model, reasoningEffort: input.reasoningEffort };
         this.conversations.set(conversation.id, conversation);

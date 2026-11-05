@@ -1263,3 +1263,5 @@ remain PR3b's responsibility; remote panels do not dispatch the local Settings s
 ## Plugin stage 1 (ADR-0020)
 
 Owner-initiated stage 1 provides [the shared plugin management contract](plugin-stage1-v1.md). Management is a separate Codex tool with a fresh explicit confirmation for each call, including full access. Display tools remain restricted to their existing fields. Plugin execution belongs to the target Host; secret and view runtimes are unsupported.
+
+K1 플러그인 파일 작업은 Codex dynamic tool `plugin_jobs`로 SDK 공용 start/status/stop/result/list를 제공한다([계약](plugin-stage1-v1.md#k1-파일-작업)). 건별 승인은 없고 turn의 기존 tool 활동에 작업·성공/실패·결과가 남는다. 쓰기 모드와 열린 폴더 범위, 대상 Host 및 응답 상실 뒤 같은 ID 조회/no replay는 유지한다. 이 추가는 Copilot custom dynamic-tool 공급을 구현한 증거가 아니다.

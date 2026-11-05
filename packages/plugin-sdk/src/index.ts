@@ -74,8 +74,11 @@ export const jobUpdateSchema = z.strictObject({
   error: z.string().optional(), document: z.strictObject({ source: z.string() }).optional(),
 });
 export type JobContribution = PluginManifest["contributes"]["jobs"][number];
-export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; error?: string; result?: { path: string; revision: string } };
+export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; error?: string; result?: { path: string; revision: string } };
 export const jobRequestSchema = z.discriminatedUnion("action", [
+  z.strictObject({ action: z.literal("job-list"), plugin: id.optional() }),
   z.strictObject({ action: z.literal("job-start"), plugin: id, job: id, requestId: z.string().uuid(), root: z.string().min(1), file: z.string().min(1), output: z.string().min(1) }),
   ...(["job-status", "job-stop", "job-result"] as const).map(action => z.strictObject({ action: z.literal(action), requestId: z.string().uuid() })),
 ]);
+
+export const PLUGIN_JOBS = { version: 1, scope: "host", inputSchema: z.toJSONSchema(jobRequestSchema) } as const;

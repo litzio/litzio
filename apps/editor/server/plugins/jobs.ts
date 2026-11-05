@@ -1,10 +1,11 @@
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { statSync } from "node:fs";
 import { jobRequestSchema, jobUpdateSchema, type JobContribution, type JobSnapshot } from "@litzio/plugin-sdk";
 import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
 import { createDocumentSourceFile } from "../document-create.ts";
 
-type Record = { snapshot: JobSnapshot; binding: JobContribution; input: { requestId: string; root: string; file: string; output: string }; access: RootAccess; pending: Promise<void>; stopping?: Promise<void> };
+type Record = { startedAt: number; finishedAt?: number; snapshot: JobSnapshot; binding: JobContribution; input: { requestId: string; root: string; file: string; output: string }; access: RootAccess; pending: Promise<void>; stopping?: Promise<void> };
 /** Daemon-lifetime observations only; no queue, scheduler or replay ledger. */
 export class PluginJobs {
   private records = new Map<string, Record>();
@@ -24,6 +25,7 @@ export class PluginJobs {
       const created = createDocumentSourceFile(record.input.output, update.document.source, record.access);
       current.result = { path: created.path, revision: created.revision };
     }
+    if (["completed", "failed", "stopped"].includes(update.state)) record.finishedAt = Date.now();
     Object.assign(current, { state: update.state, phase: update.phase, progress: update.progress, error: update.error });
   }
   private uncertain(record: Record, cause?: unknown) {
@@ -31,6 +33,7 @@ export class PluginJobs {
   }
   async execute(raw: unknown) {
     const input = jobRequestSchema.parse(raw);
+    if (input.action === "job-list") return this.list(input.plugin);
     if (input.action === "job-start") {
       if (this.records.has(input.requestId)) throw new Error("Duplicate requestId; query status instead");
       const binding = this.declaration(input.plugin, input.job);
@@ -43,7 +46,7 @@ export class PluginJobs {
       const file = accessPath(relative(input.file), this.access), output = accessPath(relative(input.output, true), this.access, true);
       if (!statSync(file).isFile() || !binding.accept.includes(path.extname(file).toLowerCase())) throw new Error("Unsupported input file");
       if (file === output) throw new Error("Output must preserve input");
-      const record: Record = { snapshot: { requestId: input.requestId, plugin: input.plugin, job: input.job, root, state: "running", phase: "Starting", stopRequested: false }, binding, access: boundary, input: { requestId: input.requestId, root, file, output }, pending: Promise.resolve() };
+      const record: Record = { startedAt: Date.now(), snapshot: { requestId: input.requestId, plugin: input.plugin, job: input.job, root, elapsedMs: 0, state: "running", phase: "Starting", stopRequested: false }, binding, access: boundary, input: { requestId: input.requestId, root, file, output }, pending: Promise.resolve() };
       this.records.set(input.requestId, record);
       record.pending = this.call(record, binding.start).then(update => this.update(record, update)).catch(error => this.uncertain(record, error));
       return this.response(record, input.action);
@@ -57,8 +60,16 @@ export class PluginJobs {
     }
     return this.response(record, input.action);
   }
+  private snapshot(record: Record) {
+    return { ...structuredClone(record.snapshot), elapsedMs: (record.finishedAt ?? Date.now()) - record.startedAt };
+  }
+  list(plugin?: string) {
+    jobRequestSchema.parse({ action: "job-list", ...(plugin ? { plugin } : {}) });
+    return { jobs: [...this.records.values()].filter(record => !plugin || record.snapshot.plugin === plugin).reverse().map(record => this.snapshot(record)),
+      receipt: { requestId: randomUUID(), operation: "plugins.job-list", version: 1, scope: "host", outcome: "success" } };
+  }
   private response(record: Record, action: string) {
-    return { job: structuredClone(record.snapshot), receipt: { requestId: record.snapshot.requestId, operation: `plugins.${action}`, version: 1, scope: record.snapshot.root, outcome: record.snapshot.state === "uncertain" ? "uncertain" : "success" } };
+    return { job: this.snapshot(record), receipt: { requestId: record.snapshot.requestId, operation: `plugins.${action}`, version: 1, scope: record.snapshot.root, outcome: record.snapshot.state === "uncertain" ? "uncertain" : "success" } };
   }
   private stop(record: Record) {
     if (!["running", "uncertain"].includes(record.snapshot.state)) return Promise.resolve();

@@ -1,4 +1,6 @@
 async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
+  let latestRequestId;
+  page.on("request", request => { if (request.url().endsWith("/api/plugins") && request.method() === "POST") { const body = request.postDataJSON(); if (body.action === "job-start") latestRequestId = body.requestId; } });
   pluginFixture.cli(["plugins", "register", pluginFixture.directory]);
   const plugin = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.jobs");
   pluginFixture.cli(["plugins", "trust", plugin.id, "--digest", plugin.digest]);
@@ -12,14 +14,23 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await page.getByRole("option", { name: "Plugin jobs", exact: true }).click();
   const pane = page.getByTestId("plugin-jobs");
   await pane.getByLabel("Job", { exact: true }).selectOption("fixture.jobs/text");
-  await pane.getByLabel("Host input file").selectOption({ label: "input.txt" });
+  await pane.getByLabel("Input file").selectOption({ label: "input.txt" });
+  await pane.getByLabel("Result path in Root").fill("../outside.md");
+  await pane.getByRole("button", { name: "Start job", exact: true }).click();
+  await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("Failed");
+  await expect(pane.getByRole("alert")).toContainText(/outside|allowed|Root/i);
+  await expect(pane.getByLabel("Result path in Root")).toBeEnabled();
+  await expect(pane.getByRole("button", { name: "Start job", exact: true })).toBeEnabled();
   await pane.getByLabel("Result path in Root").fill("browser-result.md");
   await pane.getByRole("button", { name: "Start job", exact: true }).click();
-  await expect(pane.getByText(/^running/)).toBeVisible();
-  const requestId = await pane.getByLabel("Request ID").inputValue();
+  await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("In progress");
+  const requestId = latestRequestId;
+  await expect(pane.getByRole("button", { name: "Recheck status" })).toHaveCount(0);
+  await expect(pane.getByLabel("Request ID")).toHaveCount(0);
   expect(pluginFixture.cli(["plugins", "status", requestId]).job.requestId).toBe(requestId);
   await expect(pane.getByRole("button", { name: "Open result document" })).toBeVisible();
   expect(pluginFixture.cli(["plugins", "result", requestId]).job.state).toBe("completed");
+  expect(pluginFixture.cli(["jobs", "list", plugin.id]).jobs.some(job => job.requestId === requestId)).toBe(true);
   for (const width of [1440, 640]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await pane.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
@@ -32,8 +43,21 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await pane.getByLabel("Result path in Root").fill("stopped-result.md");
   await pane.getByRole("button", { name: "Start job", exact: true }).click();
   await pane.getByRole("button", { name: "Request cancellation" }).click();
-  await expect(pane.getByText(/^stopped/)).toBeVisible();
+  await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("Cancellation requested");
+  await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("Cancelled");
+  await expect(pane.getByRole("button", { name: "Request cancellation" })).toHaveCount(0);
   await expect(pane.getByRole("button", { name: "Open result document" })).toHaveCount(0);
+  await pane.getByLabel("Input file").selectOption({ label: "slow.txt" });
+  await pane.getByLabel("Result path in Root").fill("reopened-running.md");
+  await pane.getByRole("button", { name: "Start job", exact: true }).click();
+  await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("In progress");
+  await page.getByRole("button", { name: /Close Plugin jobs/ }).click();
+  await page.keyboard.press("Control+Slash");
+  await page.getByRole("combobox").fill("> Plugin jobs");
+  await page.getByRole("option", { name: "Plugin jobs", exact: true }).click();
+  await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("In progress");
+  await expect(pane.getByRole("button", { name: "Open result document" })).toBeVisible({ timeout: 15000 });
+  await pane.getByLabel("Input file").selectOption({ label: "input.txt" });
   let starts = 0, observations = 0, loseResponse = true;
   const monitor = async route => {
     const body = route.request().method() === "POST" ? route.request().postDataJSON() : {};
@@ -47,8 +71,8 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await page.route("**/api/plugins", monitor);
   await pane.getByLabel("Result path in Root").fill("closed-result.md");
   await pane.getByRole("button", { name: "Start job", exact: true }).click();
-  await expect(pane.getByText(/^uncertain ·/)).toBeVisible();
-  const lostId = await pane.getByLabel("Request ID").inputValue();
+  await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("Outcome uncertain");
+  const lostId = latestRequestId;
   expect(starts).toBe(1);
   await page.getByRole("button", { name: /Close Plugin jobs/ }).click();
   await expect(pane).toHaveCount(0);
@@ -58,16 +82,15 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await page.keyboard.press("Control+Slash");
   await page.getByRole("combobox").fill("> Plugin jobs");
   await page.getByRole("option", { name: "Plugin jobs", exact: true }).click();
-  await pane.getByLabel("Request ID").fill(lostId);
-  await pane.getByRole("button", { name: "Check status" }).click();
+  await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("Completed");
   await expect(pane.getByRole("button", { name: "Open result document" })).toBeVisible();
   expect(starts).toBe(1);
   await page.unroute("**/api/plugins", monitor);
   await pane.getByLabel("Job", { exact: true }).selectOption("fixture.jobs/text");
-  for (const [input, state] of [["fail.txt", "failed"], ["uncertain.txt", "uncertain"]]) {
-    await pane.getByLabel("Host input file").selectOption({ label: input });
+  for (const [input, state] of [["fail.txt", "Failed"], ["uncertain.txt", "Outcome uncertain"]]) {
+    await pane.getByLabel("Input file").selectOption({ label: input });
     await pane.getByRole("button", { name: "Start job", exact: true }).click();
-    await expect(pane.getByText(new RegExp(`^${state} ·`))).toBeVisible();
+    await expect(pane.getByRole("status", { name: "Job status" })).toHaveText(state);
     await expect(pane.getByRole("button", { name: "Open result document" })).toHaveCount(0);
   }
   pluginFixture.cli(["plugins", "disable", plugin.id]);

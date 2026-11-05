@@ -23,3 +23,7 @@
 .view-favorites li > button { max-width: 100%; }
 .view-favorite-icon { fill: currentColor; flex-shrink: 0; }
 .view-favorite-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+.plugin-job-summary { align-items: center; }
+.plugin-job-progress { display: flex; align-items: center; gap: var(--space-3); font-size: var(--font-size-sm); color: var(--id-color-text-muted); }
+.plugin-job-progress > [role="progressbar"] { flex: 1; }

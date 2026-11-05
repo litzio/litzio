@@ -224,3 +224,19 @@ test("operation invoke publishes declared public rows and refuses row-type misma
     }
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
+
+test("K1 assistant job tools use shared definitions without per-call consent and leave activity", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-tool-"));
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] }, undefined, { packaged: false, checkoutRoot: root });
+  const host = new PluginHost(path.join(root, "plugins.json"));
+  const conversations = new AssistantConversations(connection, new RootAccess([root]), host);
+  try {
+    const settings = { provider: "codex" as const, permissionMode: "full-access" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+    const conversation = await conversations.send({ message: "List plugin jobs", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings, "window-a");
+    const response = await connection.client.request("fixture/tool", { threadId: conversation.id, tool: "plugin_jobs", arguments: { action: "job-list" } }) as any;
+    assert.equal(response.result.success, true);
+    assert.equal(conversations.current(conversation.id).userInput, undefined);
+    const activity = conversations.current(conversation.id).turns.flatMap(turn => turn.items).find(item => item.text === "plugin_jobs · job-list");
+    assert.equal(activity?.status, "completed"); assert.equal(activity?.toolResult?.success, true);
+  } finally { await connection.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
+});

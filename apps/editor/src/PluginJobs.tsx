@@ -4,25 +4,38 @@ import type { JobContribution, JobSnapshot } from "@litzio/plugin-sdk";
 import type { HostClient } from "./host-client.ts";
 import { hostLabel } from "./host-client.ts";
 import { Button } from "./components/ui/button.tsx";
-import { Input } from "./components/ui/input.tsx";
+import { SettingsSelect, SettingsInput } from "./components/ui/settings.tsx";
+import { Progress } from "./components/ui/progress.tsx";
 import { Notice } from "./ui/primitives.tsx";
 import "./views/views.css";
+
+class JobRefused extends Error {}
+const stateLabels = { running: "In progress", completed: "Completed", failed: "Failed", stopped: "Cancelled", uncertain: "Outcome uncertain" } as const;
 
 type Plugin = { id: string; name: string; running: boolean; jobs?: JobContribution[] };
 export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: HostClient; hostId: string; roots: string[]; active: boolean; onOpen(path: string): Promise<unknown> }) {
   const [plugins, setPlugins] = useState<Plugin[]>([]), [selected, setSelected] = useState("");
   const [root, setRoot] = useState(roots[0] ?? ""), [folder, setFolder] = useState("");
   const [entries, setEntries] = useState<{ path: string; name: string; kind: string }[]>([]), [file, setFile] = useState(""), [output, setOutput] = useState("result.md");
-  const [job, setJob] = useState<JobSnapshot>(), [requestId, setRequestId] = useState(""), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false);
+  const [job, setJob] = useState<JobSnapshot>(), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false);
+  const requestId = job?.requestId;
+  const [recent, setRecent] = useState<JobSnapshot[]>([]);
+  useEffect(() => { if (job) setRecent(previous => [job, ...previous.filter(item => item.requestId !== job.requestId)]); }, [job]);
   const lifetime = useRef<AbortController | null>(null);
   useEffect(() => { const controller = new AbortController(); lifetime.current = controller; return () => controller.abort(); }, []);
   const request = async (body?: unknown) => {
     const signal = lifetime.current!.signal;
     const response = await client.request("/api/plugins", { ...(body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}), signal: AbortSignal.any([signal, AbortSignal.timeout(10000)]) });
     const value = await response.json(); signal.throwIfAborted();
-    if (!response.ok) throw new Error(value.error ?? "Job request failed"); return value;
+    if (!response.ok) { const message = value.error ?? "Job request failed"; throw response.status >= 400 && response.status < 500 ? new JobRefused(message) : new Error(message); } return value;
   };
-  useEffect(() => { void request().then(value => setPlugins(value.plugins)).catch(error => { if (!lifetime.current?.signal.aborted) setProblem(String(error)); }); }, [client]);
+  useEffect(() => {
+    void Promise.all([request(), request({ action: "job-list" })]).then(([catalog, history]) => {
+      setPlugins(catalog.plugins); setRecent(history.jobs);
+      const latest = history.jobs.find((item: JobSnapshot) => ["running", "uncertain"].includes(item.state)) ?? history.jobs[0];
+      if (latest) { setJob(latest); setRoot(latest.root); setSelected(`${latest.plugin}/${latest.job}`); }
+    }).catch(error => { if (!lifetime.current?.signal.aborted) setProblem(String(error)); });
+  }, [client]);
   const choices = plugins.filter(plugin => plugin.running).flatMap(plugin => (plugin.jobs ?? []).map(binding => ({ plugin, binding, key: `${plugin.id}/${binding.id}` })));
   const choice = choices.find(item => item.key === selected);
   const locked = busy || !!job && ["running", "uncertain"].includes(job.state);
@@ -40,20 +53,42 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
   const run = async (action: () => Promise<void>) => { setBusy(true); setProblem(""); try { await action(); } catch (error) { if (!lifetime.current?.signal.aborted) { setProblem(String(error)); setJob(previous => previous?.state === "running" ? { ...previous, state: "uncertain", result: undefined } : previous); } } finally { if (!lifetime.current?.signal.aborted) setBusy(false); } };
   const relative = (value: string) => value.slice(root.length).replace(/^[\\/]/, "").replaceAll("\\", "/");
   return <div className="views-page" data-testid="plugin-jobs"><header><h2>{i18n.t("Plugin jobs")}</h2><p>{hostLabel(hostId)}</p></header>
-    <div className="view-controls"><label>{i18n.t("Job")}<select aria-label="Job" value={selected} disabled={locked} onChange={e => setSelected(e.target.value)}><option value="">—</option>{choices.map(item => <option key={item.key} value={item.key}>{item.plugin.name} · {item.binding.title}</option>)}</select></label>
-    <label>{i18n.t("Opened folder")}<select aria-label="Job root" value={root} disabled={locked} onChange={e => { setRoot(e.target.value); setFolder(""); setFile(""); }}><option value="">—</option>{roots.map(root => <option key={root}>{root}</option>)}</select></label></div>
-    <p>{i18n.t("Select a file on this Host. No Desktop upload.")}</p>
-    <div className="view-controls"><Button variant="secondary" disabled={locked || !folder} onClick={() => setFolder("")}>{i18n.t("Root folder")}</Button><select aria-label="Host input file" value={file} disabled={locked || !choice} onChange={e => { const entry = entries.find(item => item.path === e.target.value); if (entry?.kind === "folder") { setFolder(entry.path); setFile(""); } else setFile(e.target.value); }}><option value="">{folder || root || "—"}</option>{entries.filter(entry => entry.kind === "folder" || choice?.binding.accept.some(extension => entry.name.toLowerCase().endsWith(extension))).map(entry => <option key={entry.path} value={entry.path}>{entry.kind === "folder" ? "▸ " : ""}{entry.name}</option>)}</select>
-    <label>{i18n.t("Result path in Root")}<Input aria-label="Result path in Root" value={output} disabled={locked} onChange={e => setOutput(e.target.value)} /></label>
+    <div>
+      {recent.length ? <SettingsSelect label={i18n.t("Recent jobs")} value={requestId ?? ""} disabled={busy} onChange={id => { const item = recent.find(item => item.requestId === id); if (item) { setJob(item); setRoot(item.root); setSelected(`${item.plugin}/${item.job}`); setProblem(""); } }} options={recent.map(item => ({ value: item.requestId, label: `${plugins.find(plugin => plugin.id === item.plugin)?.name ?? item.plugin} · ${i18n.t(stateLabels[item.state])} · ${Math.floor(item.elapsedMs / 1000)}s` }))} /> : null}
+      <SettingsSelect label={i18n.t("Job")} value={selected} disabled={locked} onChange={setSelected} options={[{ value: "", label: "—" }, ...choices.map(item => ({ value: item.key, label: `${item.plugin.name} · ${item.binding.title}` }))]} />
+      <SettingsSelect label={i18n.t("Opened folder")} description={i18n.t("Select a file on this Host. No Desktop upload.")} value={root} disabled={locked} onChange={value => { setRoot(value); setFolder(""); setFile(""); }} options={[{ value: "", label: "—" }, ...roots.map(value => ({ value, label: value }))]} />
+      <SettingsSelect label={i18n.t("Input file")} description={folder || undefined} value={file} disabled={locked || !choice} onChange={value => { const entry = entries.find(item => item.path === value); if (entry?.kind === "folder") { setFolder(entry.path); setFile(""); } else setFile(value); }} options={[{ value: "", label: "—" }, ...entries.filter(entry => entry.kind === "folder" || choice?.binding.accept.some(extension => entry.name.toLowerCase().endsWith(extension))).map(entry => ({ value: entry.path, label: `${entry.kind === "folder" ? "▸ " : ""}${entry.name}` }))]} />
+      {folder ? <Button size="sm" variant="secondary" disabled={locked} onClick={() => { setFolder(""); setFile(""); }}>{i18n.t("Return to opened folder")}</Button> : null}
+      <SettingsInput label={i18n.t("Result path in Root")} value={output} disabled={locked} onChange={setOutput} />
+    </div>
+    <div className="view-controls">
     <Button disabled={locked || !choice || !file || !output} onClick={() => void run(async () => {
-      const id = crypto.randomUUID(); setRequestId(id);
-      const initial: JobSnapshot = { requestId: id, plugin: choice!.plugin.id, job: choice!.binding.id, root, state: "running", phase: "Starting", stopRequested: false }; setJob(initial);
+      const id = crypto.randomUUID();
+      const initial: JobSnapshot = { requestId: id, plugin: choice!.plugin.id, job: choice!.binding.id, root, elapsedMs: 0, state: "running", phase: "Starting", stopRequested: false }; setJob(initial);
       try { const value = await request({ action: "job-start", plugin: initial.plugin, job: initial.job, requestId: id, root, file: relative(file), output }); setJob(value.job); }
-      catch { if (!lifetime.current?.signal.aborted) setJob({ ...initial, state: "uncertain" }); }
+      catch (error) { if (!lifetime.current?.signal.aborted) {
+        if (error instanceof JobRefused) { setProblem(error.message); setJob({ ...initial, state: "failed", phase: "", error: undefined }); }
+        else setJob({ ...initial, state: "uncertain" });
+      } }
     })}>{i18n.t("Start job")}</Button></div>
-    <label>{i18n.t("Request ID")}<Input aria-label="Request ID" value={requestId} disabled={busy || job?.state === "running"} onChange={e => { setRequestId(e.target.value); setJob(undefined); }} /></label>
-    <div className="view-controls"><Button variant="secondary" disabled={busy || !requestId} onClick={() => void run(async () => { const value = await request({ action: "job-status", requestId }); setJob(value.job); })}>{i18n.t("Check status")}</Button><Button variant="secondary" disabled={busy || !job || !["running", "uncertain"].includes(job.state) || job.stopRequested} onClick={() => void run(async () => { const value = await request({ action: "job-stop", requestId }); setJob(value.job); })}>{i18n.t("Request cancellation")}</Button></div>
-    {job ? <section aria-live="polite"><p>{i18n.t(job.state)} · {job.phase}</p>{job.progress ? <><progress max={job.progress.total} value={job.progress.done} /> {job.progress.done}/{job.progress.total}</> : null}{job.stopRequested && job.state !== "stopped" ? <p>{i18n.t("Cancellation requested; not confirmed.")}</p> : null}{job.state === "uncertain" ? <Notice tone="warning">{i18n.t("Outcome uncertain. Check this request ID; do not resend start.")}</Notice> : null}{job.error ? <Notice tone="error">{job.error}</Notice> : null}{job.state === "completed" ? <Button onClick={() => void run(async () => { const value = await request({ action: "job-result", requestId }); await onOpen(value.job.result.path); })}>{i18n.t("Open result document")}</Button> : null}</section> : null}
+    {job ? <section className="view-panel plugin-job-status" aria-live="polite">
+      <div className="view-controls plugin-job-summary">
+        <span className="host-status" role="status" aria-label={i18n.t("Job status")} data-tone={job.state === "failed" ? "danger" : job.state === "uncertain" ? "warning" : job.state === "stopped" ? "muted" : "connected"}>
+          <span className="agent-dot" aria-hidden="true" />
+          {i18n.t(job.state === "running" && job.stopRequested ? "Cancellation requested" : stateLabels[job.state])}
+        </span>
+        {job.state === "running" && job.phase ? <p>{job.phase}</p> : null}
+        <p>{i18n.t("Elapsed: {{seconds}} s", { seconds: Math.floor(job.elapsedMs / 1000) })}</p>
+      </div>
+      {job.progress ? <div className="plugin-job-progress"><Progress aria-label={i18n.t("Job progress")} max={job.progress.total} value={job.progress.done} /><span>{job.progress.done}/{job.progress.total}</span></div> : null}
+      {job.state === "uncertain" ? <Notice tone="warning">{i18n.t("The job outcome is uncertain. Check the status before starting again.")}</Notice> : null}
+      {job.error ? <Notice tone="error">{job.error}</Notice> : null}
+      <div className="view-controls">
+        {job.state === "uncertain" ? <Button variant="secondary" disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-status", requestId }); setJob(value.job); })}>{i18n.t("Recheck status")}</Button> : null}
+        {job.state === "running" && !job.stopRequested ? <Button variant="secondary" disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-stop", requestId }); setJob(value.job); })}>{i18n.t("Request cancellation")}</Button> : null}
+        {job.state === "completed" ? <Button disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-result", requestId }); await onOpen(value.job.result.path); })}>{i18n.t("Open result document")}</Button> : null}
+      </div>
+    </section> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
   </div>;
 }

@@ -200,7 +200,8 @@ for (const name of scenarios) {
       cpSync(path.join(REPOSITORY_ROOT, "apps/editor/test/fixtures/job-plugin"), pluginDirectory, { recursive: true });
       mkdirSync(pluginFolder, { recursive: true });
       writeFileSync(path.join(pluginFolder, "input.txt"), "# Imported\n\nJob result.\n");
-      for (const name of ["browser-result.md", "stopped-result.md", "closed-result.md"]) rmSync(path.join(pluginFolder, name), { force: true });
+      for (const name of ["browser-result.md", "stopped-result.md", "closed-result.md", "reopened-running.md"]) rmSync(path.join(pluginFolder, name), { force: true });
+      writeFileSync(path.join(pluginFolder, "slow.txt"), "SLOW\n# Resume observation\n");
       writeFileSync(path.join(pluginFolder, "fail.txt"), "FAIL");
       writeFileSync(path.join(pluginFolder, "uncertain.txt"), "UNCERTAIN");
     }

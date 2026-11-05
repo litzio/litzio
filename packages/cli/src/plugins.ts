@@ -13,6 +13,8 @@ export async function pluginCli(args: string[]): Promise<number> {
     if (command === "operation" && action === "invoke") {
       if (!id || tokens[3] !== "--input" || tokens.length !== 5) throw new Error("operation invoke <id> --input <json-file>");
       body = { action: "invoke", operation: id, input: JSON.parse(readFileSync(tokens[4]!, "utf8")) };
+    } else if (command === "jobs" && action === "list" && tokens.length <= 3) {
+      body = { action: "job-list", ...(id ? { plugin: id } : {}) };
     } else if (command === "plugins" && ["start", "status", "stop", "result"].includes(action!) && id) {
       if (action === "start") {
         if (tokens.length !== 5 || tokens[3] !== "--input") throw new Error("plugins start <pluginId> --input <json-file>");
