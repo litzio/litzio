@@ -1,4 +1,4 @@
-import { diffArrays } from "diff";
+import { diffArrays, diffChars } from "diff";
 import type { NodePath } from "./document.ts";
 import { getEditableDocument } from "./editable.ts";
 import type { MystDocument } from "./myst/tree.ts";
@@ -26,6 +26,26 @@ function details(before: EditableBlock, after: EditableBlock): string[] {
   return changes.length ? changes : ["Block attributes changed"];
 }
 
+// Use payload text, not schema/field names, as replacement evidence. jsdiff owns
+// similarity calculation as well as sequence matching. Uncertain pairs stay unpaired.
+function payload(value: unknown): string[] {
+  if (Array.isArray(value)) return value.flatMap(payload);
+  if (!value || typeof value !== "object") return [];
+  return Object.entries(value).flatMap(([field, child]) => {
+    if (["text", "value", "latex", "code", "imageUrl", "mermaidSource"].includes(field) && typeof child === "string") {
+      return field === "text" && "content" in value ? [] : [child];
+    }
+    return typeof child === "object" ? payload(child) : [];
+  });
+}
+function similar(before: EditableBlock, after: EditableBlock): boolean {
+  const a = payload(before).join("\n"), b = payload(after).join("\n");
+  if (!a.trim() || !b.trim()) return false;
+  const diff = diffChars(a, b, { timeout: 100 });
+  return !!diff && diff.filter(part => !part.added && !part.removed)
+    .reduce((length, part) => length + part.value.length, 0) / Math.max(a.length, b.length) >= 0.5;
+}
+
 /** Snapshot-relative paths; moves remain removal + addition. No source formatting diff. */
 export function compareDocuments(before: MystDocument, after: MystDocument): DocumentComparison {
   const a = getEditableDocument(before), b = getEditableDocument(after);
@@ -41,7 +61,8 @@ export function compareDocuments(before: MystDocument, after: MystDocument): Doc
   for (let i = 0; i < sequence.length; i++) {
     const group = sequence[i], count = group.value.length;
     const following = sequence[i + 1];
-    if (group.removed && following?.added && count === following.value.length &&
+    if (group.removed && following?.added && count === 1 && following.value.length === 1 && old === next &&
+      similar(a.blocks[old], b.blocks[next]) &&
       group.value.every((fingerprint, offset) => !nextKeys.has(fingerprint) && !oldKeys.has(following.value[offset]) && a.blocks[old + offset].block === b.blocks[next + offset].block)) {
       for (let offset = 0; offset < count; offset++) changes.push({ kind: "changed", before: a.blocks[old + offset].path,
         after: b.blocks[next + offset].path, details: details(a.blocks[old + offset], b.blocks[next + offset]) });

@@ -19,7 +19,7 @@ test("comparison includes hidden properties, marks, destinations and atomic tech
     ["| A |\n| --- |\n| 1 |", "| A |\n| --- |\n| 2 |", "rows"],
     ["| A |\n| --- |\n| 1 |", "| A |\n| --- |\n| 1 |\n| 2 |", "rows"],
     ["```{math}\n:label: eq-a\nx\n```", "```{math}\n:label: eq-b\nx\n```", "label"],
-    ["```{math}\nx\n```", "```{math}\ny\n```", "latex"],
+    ["```{math}\nx + y\n```", "```{math}\nx + z\n```", "latex"],
     [":::{figure} ./a.png\n\nCaption\n:::", ":::{figure} ./b.png\n\nCaption\n:::", "imageUrl"],
     [":::{figure} ./a.png\n\nCaption\n:::", ":::{figure} ./a.png\n\nNew caption\n:::", "caption"],
     [":::{figure}\n\n```{mermaid}\ngraph LR\nA-->B\n```\n:::", ":::{figure}\n\n```{mermaid}\ngraph LR\nA-->C\n```\n:::", "mermaidSource"],
@@ -47,3 +47,22 @@ test("frontmatter values compare semantically while comments are source-only", (
   assert.equal(compareDocuments(a, b).documentChanged, false);
   assert.equal(compareDocuments(a, parse('---\nlitzio: 1\ntitle: New\n---\n\nText\n')).documentChanged, true);
 });
+
+
+test("ambiguous edited reorders and repeated replacement runs stay removed plus added", () => {
+  for (const [a, b] of [["Alpha old\n\nBeta old", "Beta new\n\nAlpha new"], ["A\n\nA", "B\n\nC"], ["Alpha", "Unrelated"]]) {
+    const changes = compare(a, b).changes;
+    assert.equal(changes.some(change => change.kind === "changed"), false);
+    assert.equal(changes.filter(change => change.kind === "removed").length, a.split("\n\n").length);
+    assert.equal(changes.filter(change => change.kind === "added").length, b.split("\n\n").length);
+  }
+  assert.equal(compare("Alpha old", "Alpha new").changes[0].kind, "changed");
+});
+
+test("comparison explicitly refuses excessive block and fingerprint budgets", () => {
+  const many = parse(native(Array.from({ length: 5001 }, (_, i) => `Block ${i}`).join("\n\n")));
+  assert.throws(() => compareDocuments(many, many), /10000 blocks/);
+  const large = parse(native("a".repeat(1000100)));
+  assert.throws(() => compareDocuments(large, large), /semantic size budget/);
+});
+

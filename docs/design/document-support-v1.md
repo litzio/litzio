@@ -355,9 +355,10 @@ No engine types, source edits, persistent block identity or write operation are 
 
 Comparison reuses the canonical round-trip semantic fingerprint and jsdiff block
 sequence matching. Source whitespace, mark nesting order and canonical table syntax
-are not changes in meaning. Moves remain removal plus addition; equal-length adjacent
-replacement runs are paired only for equal block kinds whose fingerprints do not occur
-on the other side. Ambiguous replacement runs remain removed/added. Frontmatter YAML
+are not changes in meaning. Moves remain removal plus addition; only same-position singleton 1:1
+replacement runs are paired, for equal block kinds whose fingerprints do not occur
+on the other side and whose payload text shares at least 50% of the longer payload
+(using jsdiff diffChars, 100ms timeout). Payload excludes schema/field names. Ambiguous replacement runs remain removed/added. Frontmatter YAML
 values compare separately (`documentChanged`); comments and key order do not count.
 Paths are valid only within their own input snapshot and never identify a persistent block.
 
@@ -379,3 +380,10 @@ operation does not preserve historical image bytes or establish pixel equality.
 
 This first PR supplies Core/Host/CLI only. The existing source-only pre-save and
 recovery comparison contracts remain in effect while Editor UI concepts await owner selection.
+
+
+#1203 review measurements (reviewer supplied, 2026-11-05): plain 2000/5000 blocks
+approximately 293/585ms; mixed 2000 blocks 608ms; mixed 5000 blocks refused after
+approximately 1.83s at the fingerprint budget. These include work outside jsdiff's
+timeout and are observations, not a latency guarantee. Core tests protect both
+block-count and fingerprint-size refusal. UI rendering requires separate measurements.
