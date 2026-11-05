@@ -30,4 +30,19 @@ async (page, { expect }) => {
   await page.getByRole('group', { name: 'Example state', exact: true }).getByRole('button', { name: 'Disabled', exact: true }).click();
   await expect(automatic).toBeDisabled();
   await expect(fixed).toBeDisabled();
+  await page.getByRole('group', { name: 'Example state', exact: true }).getByRole('button', { name: 'Default', exact: true }).click();
+  await page.getByRole('group', { name: 'Category', exact: true }).getByRole('button', { name: 'Generated views', exact: true }).click();
+  const examples = page.getByRole('region', { name: 'Generated views examples' });
+  await expect(examples.getByRole('table')).toHaveCount(2);
+  const states = examples.getByRole('group', { name: 'Generated view state', exact: true });
+  await states.getByRole('button', { name: 'auth', exact: true }).click();
+  await expect(examples.getByText('Authentication required. Check credentials in plugin settings.', { exact: true })).toBeVisible();
+  await states.getByRole('button', { name: 'loading-previous', exact: true }).click();
+  await expect(examples.getByText('Previous query result · 09:00', { exact: true })).toBeVisible();
+  await expect(examples.getByRole('table')).toHaveCount(2);
+  await states.getByRole('button', { name: 'inputIssues', exact: true }).click();
+  await expect(examples.getByRole('textbox', { name: 'Search text' })).toHaveAttribute('aria-invalid', 'true');
+  await examples.getByRole('group', { name: 'View profile', exact: true }).getByRole('button', { name: 'review', exact: true }).click();
+  await states.getByRole('button', { name: 'unverifiable', exact: true }).click();
+  await expect(examples.getByText('Status checks cannot resolve this outcome. Do not repeat this change.', { exact: false })).toBeVisible();
 }

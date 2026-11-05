@@ -10,3 +10,5 @@
 .ui-gallery-icons { display: inline-flex; gap: var(--space-3); }
 .ui-gallery-icons svg { width: var(--size-icon-slot); height: var(--size-icon-slot); }
 .ui-gallery footer { padding-bottom: var(--space-12); color: var(--id-color-text-muted); }
+.ui-gallery [aria-label="Generated view state"] { flex-wrap: wrap; height: auto; }
+.ui-gallery .views-page { height: auto; overflow: visible; }

@@ -1,3 +1,4 @@
+import { GeneratedViewExamples } from "./generated-view-examples.tsx";
 import { useRef, useState } from "react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { FileText, FolderOpen, MoreHorizontal, Pencil, Plus, Settings, Trash2 } from "lucide-react";
@@ -123,7 +124,7 @@ export function UiGallery() {
       <a href="/" onClick={() => { void applyTheme(originalTheme.current); }}>Back to editor</a></header>
     <nav className="ui-gallery-section" aria-label="Gallery controls">
       <div className="ui-gallery-row"><ChoiceGroup aria-label="Category" value={category} onValueChange={setCategory}
-        options={["All", "Controls", "Surfaces", "Menus", "Notifications"].map(value => ({ value, label: value }))} /></div>
+        options={["All", "Controls", "Surfaces", "Menus", "Notifications", "Generated views"].map(value => ({ value, label: value }))} /></div>
       <div className="ui-gallery-row"><ChoiceGroup aria-label="Theme" value={theme}
         options={[{ value: "light", label: "Light" }, { value: "dark", label: "Dark" }]}
         onValueChange={value => { setTheme(value); void applyTheme(value); }} /></div>
@@ -137,6 +138,7 @@ export function UiGallery() {
     {visible("Surfaces") ? <SurfaceExamples state={state} /> : null}
     {visible("Menus") ? <MenuExamples state={state} /> : null}
     {visible("Notifications") ? <NotificationExample state={state} /> : null}
+    {visible("Generated views") ? <GeneratedViewExamples state={state} /> : null}
     <footer>Examples show current implementation, not unimplemented UI pattern targets. Review large layout changes in their actual screen.</footer>
   </main>;
 }

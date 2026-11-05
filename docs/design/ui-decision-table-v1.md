@@ -38,7 +38,7 @@
 
 ## 공통 구현
 
-아래 import는 `apps/editor` 내부용이다. 플러그인은 Editor 내부를 import하지 않고 주입된 [UiHost](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/packages/plugin-api/src/ui.ts)를 사용한다([Plugin API 경계](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#renderer-and-api-surface)). 실행 가능한 예제는 [ui-gallery.tsx](../../apps/editor/src/dev/ui-gallery.tsx)의 이름 있는 함수이며 상단 import와 함께 재사용한다. 예제의 로컬 상태 처리를 제품의 저장·초안 처리로 복사하지 않는다.
+아래 import는 `apps/editor` 내부용이다. 플러그인은 화면 코드를 넣지 않고 카탈로그 v2 명세만 낸다. 앱 번들 renderer가 제품 공통 부품으로 그린다([ADR-0020](../adr/0020-plugin-architecture.md), [catalog-v2](catalog-v2.md), [ui-patterns](ui-patterns-v1.md)). 아래 Plugin Host 열은 보관된 API의 역사적 참조다. 실행 가능한 예제는 [ui-gallery.tsx](../../apps/editor/src/dev/ui-gallery.tsx)의 이름 있는 함수이며 상단 import와 함께 재사용한다. 예제의 로컬 상태 처리를 제품의 저장·초안 처리로 복사하지 않는다.
 
 | 구현 / 실행 예제 함수 | 용도 / 비사용 | Editor import | Plugin Host | 대표 사용처 / 권한 문서 |
 | --- | --- | --- | --- | --- |
@@ -58,6 +58,10 @@
 플러그인 실행 예제는 [ConversionDialog](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/plugins/docling/src/conversion/ConversionDialog.tsx)와 [ServerSettings](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/plugins/docling/src/conversion/ServerSettings.tsx)를 사용한다. 설정 행과 선언형 Menu는 [#1033 API](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#host-settings-rows-and-declarative-menus-1033)를 따른다. 범용 Toggle·Popover는 공개하지 않는다. native 탭·행 버튼은 [기존 예외](editor-layout-rules-v1.md#deliberate-control-exceptions)를 확인한다.
 
 ## 갤러리 열기와 검토
+
+Generated views 범주는 query(InputForm, 5열·12열 Table, BarChart, VerticalPanel)와 review(PageSurface, SourceDocumentCompare, ReviewList, ReviewDetail)의 실제 제품 renderer를 사용한다. 메모리 fixture와 adapter만 사용하며 Host 호출·저장은 없다. query/review와 개별 상태를 ChoiceGroup으로 선택한다. review의 refreshing은 Refresh data를 눌러 이전 자료 유지 상태를 확인하고, Changes에서 항목을 선택하면 Details와 메모리 적용·Undo를 확인한다. 외부 서비스나 실제 저장 성공을 증명하는 fixture는 아니다.
+
+수동 검토(2026-11-06, Windows persistent Chrome, 1440×1100, English, Plum): query [Light](assets/generated-views-1241/query-1440-light.png) / [Dark](assets/generated-views-1241/query-1440-dark.png), [인증 오류](assets/generated-views-1241/error-1440-dark.png), 원본 대조 [Light](assets/generated-views-1241/review-1440-light.png) / [Dark](assets/generated-views-1241/review-1440-dark.png), 상세·동작 [Light](assets/generated-views-1241/details-1440-light.png) / [Dark](assets/generated-views-1241/details-1440-dark.png). 입력 간격·테마 대비·12열 overflow와 검토 전후 표시를 확인했다. 원본 이미지는 없는 fixture로 영역 표시를 확인했다. `pnpm browser:test ui-gallery --screenshots`의 임시 촬영 body를 실행한 뒤 자동 검사 body를 복원했다. 자동 검사에는 범주 진입·이전 자료 유지·필드 오류·재실행 금지 안내의 대표 연결만 추가하며 픽셀 판정은 없다.
 
 `pnpm editor` 실행 후 개발 서버의 `/ui-gallery`를 연다(기본 `http://localhost:5173/ui-gallery`). 범주, Light/Dark, Default/Hover·focus/Disabled/Error를 선택한다. Hover·focus는 포인터와 Tab으로 실제 상태를 확인한다. 지원되는 예제에만 disabled·error를 적용하며 선택 도구는 계속 사용할 수 있다. 테마 변경은 이 페이지의 메모리에만 적용한다.
 
