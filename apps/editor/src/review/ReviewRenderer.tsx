@@ -8,7 +8,7 @@ import { Button } from "../components/ui/button.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
 import { Notice } from "../ui/primitives.tsx";
 import "./review.css";
-import type { ReviewPendingChange } from "../../shared/review.ts";
+import { REVIEW_UNAVAILABLE_GUIDANCE, type ReviewPendingChange, type ReviewVerification } from "../../shared/review.ts";
 
 /** Host supplies one coherent snapshot, including the identity of the actual Read model. */
 export type ReviewSnapshot = {
@@ -20,7 +20,7 @@ export type ReviewSnapshot = {
 export type ReviewAction = "approve" | "reject" | "undo";
 export type ReviewAdapter = {
   /** Source-scoped observation retained until the same requestId has a definitive status. */
-  readonly pending?: { requestId: string; receipt?: { requestId: string; outcome: string } };
+  readonly pending?: { requestId: string; receipt?: { requestId: string; outcome: string }; verification?: ReviewVerification; guidance?: string };
   read(pageNo: number): Promise<ReviewSnapshot>;
   act(action: ReviewAction, proposal: ReviewProposal, baseline: ReviewBaseline): Promise<void>;
   openDocument(): void;
@@ -186,6 +186,7 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
   };
   const stale = snapshot && (!documentCoherent(snapshot) || snapshot.bundle.bundleRef !== view.sources.review.bundleRef);
   const unresolved = adapter.pending ?? snapshot?.unresolved?.[0];
+  const unverifiable = unresolved?.verification === "unavailable";
   const disabled = state !== "ready" || !!stale || !!unresolved;
   const proposal = snapshot?.proposals.find(p => p.id === selected);
   const act = async (action: ReviewAction) => {
@@ -199,8 +200,10 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
     } catch { if (token === epoch.current) setState("uncertain"); }
     finally { if (token === epoch.current) busy.current = false; }
   };
-  return <div ref={host} className="review-renderer"><header className="review-toolbar"><h2>{view.title}</h2><Button variant="outline" onClick={adapter.openDocument}>Open document</Button><Button variant="outline" disabled={state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page?.pageNo ?? 1)}>{unresolved ? "Check request status" : "Refresh data"}</Button></header>
-    {(state !== "ready" || unresolved) && <Notice tone={state === "unavailable" || state === "uncertain" || unresolved ? "warning" : "info"}>{state === "refreshing" ? "Refreshing data…" : state === "loading" ? "Loading data…" : state === "uncertain" || unresolved ? "Outcome unknown. Check the same request ID; do not resend this change." : "Data unavailable."}{unresolved && <span> Request: {unresolved.requestId}</span>}</Notice>}
+  return <div ref={host} className="review-renderer"><header className="review-toolbar"><h2>{view.title}</h2>{unverifiable
+      ? <Tooltip><TooltipTrigger render={<Button variant="outline" onClick={adapter.openDocument} />}>Open result document</TooltipTrigger><TooltipContent>{REVIEW_UNAVAILABLE_GUIDANCE}</TooltipContent></Tooltip>
+      : <><Button variant="outline" onClick={adapter.openDocument}>Open document</Button><Button variant="outline" disabled={state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page?.pageNo ?? 1)}>{unresolved ? "Check request status" : "Refresh data"}</Button></>}</header>
+    {(state !== "ready" || unresolved) && <Notice tone={state === "unavailable" || state === "uncertain" || unresolved ? "warning" : "info"}>{state === "refreshing" ? "Refreshing data…" : state === "loading" ? "Loading data…" : unverifiable ? "Status checks cannot resolve this outcome. Do not repeat this change." : state === "uncertain" || unresolved ? "Outcome unknown. Check the same request ID; do not resend this change." : "Data unavailable."}{unresolved && <span> Request: {unresolved.requestId}</span>}</Notice>}
     {stale && <Notice tone="warning">Data is out of date. Refresh data to navigate or apply changes.</Notice>}
     {!wide && <Notice>Widen the window to compare. Comparison requires at least 1024px.</Notice>}
     {snapshot && wide && <div className="review-panels">{view.layout.children.map((child, index) => <section key={index} aria-label={child.title} className="review-panel">

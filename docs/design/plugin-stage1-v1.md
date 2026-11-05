@@ -166,8 +166,17 @@ V3/V5와 CLI는 단일 POST /api/reviews dispatcher를 사용한다. source의 b
 
 미확정 변경의 소유자는 Host의 PluginReviews이며 bundle/proposal별로 관리한다. 유효한 approve/reject/undo를 접수할 때 requestId와 action/receipt를 plugin 호출 전에 잠근다. 결과가 확정되지 않은 동안 같은 제안의 모든 후속 변경은 다른 requestId라도 code:confirmation-required, Verification required 안내와 기존 pending.requestId를 반환한다. status 조회나 탭 종료만으로 이 잠금을 해제하지 않는다. 성공한 변경 결과가 확정될 때만 잠금을 해제하고 이후에는 제안 상태·baseline으로 중복을 거부한다. plugin/저장 관찰 실패는 기존 uncertain 결과와 잠금을 유지한다.
 
-snapshot.unresolved는 proposalId/action/requestId/receipt 목록이며, 미확정 제안의 published actions는 모두 allowed:false다. 따라서 다른 탭·재개방·앱 새로고침도 Host가 반환한 같은 잠금과 ID를 받는다. 화면의 ReviewObservation은 전송 중 표시와 Host 관찰의 임시 cache일 뿐 잠금의 권한 원본이 아니다. read는 snapshot의 Host 잠금을 복원하며 Check request status는 같은 ID만 조회한다. unknown/uncertain·통신 실패·다른 ID 응답은 새 변경을 허용하지 않는다. 화면 저장소는 쓰지 않는다. daemon 재시작 후 요청 결과는 unknown이고 이전 bundle/제안은 복원하지 않으므로 해당 변경의 새 ID 재접수도 거부한다. unknown을 실행 허가로 해석하지 않는다.
+snapshot.unresolved는 proposalId/action/requestId/receipt/verification와 고정 guidance 목록이며, 미확정 제안의 published actions는 모두 allowed:false다. 따라서 다른 탭·재개방·앱 새로고침도 Host가 반환한 같은 잠금과 ID를 받는다. 화면의 ReviewObservation은 전송 중 표시와 Host 관찰의 임시 cache일 뿐 잠금의 권한 원본이 아니다. read는 snapshot의 Host 잠금을 복원한다. verification:pending인 요청만 Check request status에서 같은 ID를 조회하며, verification:unavailable은 결과 문서 직접 확인으로 안내한다. unknown/uncertain·통신 실패·다른 ID 응답은 새 변경을 허용하지 않는다. 화면 저장소는 쓰지 않는다. daemon 재시작 후 요청 결과는 unknown이고 이전 bundle/제안은 복원하지 않으므로 해당 변경의 새 ID 재접수도 거부한다. unknown을 실행 허가로 해석하지 않는다.
 
 SDK pages:[] 완료 bundle도 snapshot을 제공한다. 이 경우 page는 없고 pageCount는 0이며 문서·baseline·제안은 그대로 반환한다. 화면은 페이지 controls와 원본↔문서 탐색만 비활성으로 두고 K4의 목록·상세·유효한 승인/거절/Undo는 유지한다. 존재하는 페이지 목록에서 잘못된 pageNo를 요청하면 계속 거부한다. 공용 Button/Notice/Tooltip과 기존 Read를 쓰며 새 surface나 스타일 예외를 추가하지 않는다.
 
 회귀: 제품 HTTP/CLI fixture는 페이지 없는 K4와 세 변경의 응답 유실, 같은 ID의 unknown/uncertain 확인 및 확정 결과 복구를 검증한다. review-v5 브라우저 fixture는 실제 createReviewAdapter를 사용해 불확실 요청의 status 확인 전 버튼 잠금과 같은 ID 유지, 정상 복구 뒤 Undo, 페이지 없는 review의 승인/Undo를 확인한다. 실제 외부 서비스·Docling 수락은 별도다.
+
+
+### 미확정 결과의 확인 가능 여부
+
+Host가 verification을 소유한다. 아직 원래 호출이 진행 중이면 pending과 nextAction:check-status, 같은 ID 조회/no-replay 안내를 반환한다. 호출이 끝났으나 결과를 확정하지 못한 실패와 결과 기록이 없는 unknown은 unavailable과 nextAction:open-document를 반환한다. unavailable은 재조회로 해결되는 진행 상태가 아니며 잠금은 그대로 유지한다. status와 snapshot.unresolved, 후속 변경 거부가 이 구분을 동일하게 전달한다.
+
+화면은 unavailable일 때 “Status checks cannot resolve this outcome. Do not repeat this change.”를 짧게 표시하고 기존 결과 문서 열기 동작을 “Open result document” 버튼으로 제공한다. Tooltip에는 공용 고정 guidance “Status checks cannot resolve this outcome. Do not repeat this change. Open the result document and inspect it.”를 둔다. 불필요한 status 반복은 하지 않으며 변경 권한도 복구하지 않는다. 기존 snapshot의 결과 경로로 문서를 열고, Host가 모르는 경로를 발명하지 않는다. CLI JSON도 같은 verification/guidance/nextAction을 그대로 전달하고 Host가 확인한 documentPath가 있으면 함께 제공한다. daemon 재시작으로 경로까지 모르면 경로는 반환하지 않는다.
+
+제품 fixture는 진행 중 pending, 종료된 uncertain의 unavailable, 재시작 unknown의 unavailable과 잠금 유지를 검증한다. 실제 CLI status에서 unknown/uncertain의 공용 안내·행동 코드를 확인한다. review-v5 브라우저 검사는 unavailable 안내·tooltip·결과 문서 열기와 이후 변경 버튼 잠금 유지, status 재조회 중단을 확인한다.

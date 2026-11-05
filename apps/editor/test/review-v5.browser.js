@@ -203,4 +203,19 @@ async (page, { expect, screenshots }) => {
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
   await expect(page.getByText(/^Actions:/)).toHaveText(`Actions: ${actionCount + 1}`);
 
+  await page.getByRole('button', { name: 'unverifiable', exact: true }).click();
+  await page.getByRole('button', { name: /Change 1/ }).click();
+  await page.getByRole('button', { name: 'Approve', exact: true }).click();
+  await page.getByRole('button', { name: 'Check request status', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Status checks cannot resolve this outcome. Do not repeat this change.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Check request status', exact: true })).toHaveCount(0);
+  const resultDocument = page.getByRole('button', { name: 'Open result document', exact: true });
+  await resultDocument.hover();
+  await expect(page.getByText('Status checks cannot resolve this outcome. Do not repeat this change. Open the result document and inspect it.', { exact: true })).toBeVisible();
+  const statusCount = await page.getByText(/^Status checks:/).innerText();
+  await resultDocument.click();
+  await expect(page).toHaveTitle('Opened result');
+  await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled();
+  await expect(page.getByText(/^Status checks:/)).toHaveText(statusCount);
+
 }

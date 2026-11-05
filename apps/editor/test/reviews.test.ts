@@ -1,3 +1,4 @@
+import { REVIEW_UNAVAILABLE_GUIDANCE } from "../shared/review.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync } from "node:fs";
@@ -125,6 +126,8 @@ test("Host admits only one concurrent change per proposal and retains the winnin
     assert.equal(second.code, "confirmation-required"); assert.equal(second.pending.requestId, requestId);
     const during = await reviews.execute({ ...base, action: "read", kind: "snapshot" });
     assert.equal(during.snapshot.unresolved[0].requestId, requestId);
+    assert.equal(during.snapshot.unresolved[0].verification, "pending");
+    assert.equal((await reviews.execute({ ...base, action: "status", requestId })).verification, "pending");
     assert.ok(during.snapshot.proposals[0].actions.every((a: any) => !a.allowed));
     release(); const completed = await first;
     assert.equal(completed.receipt.outcome, "success"); assert.equal(approvals, 1);
@@ -133,7 +136,9 @@ test("Host admits only one concurrent change per proposal and retains the winnin
     assert.deepEqual(after.snapshot.unresolved, []);
     await assert.rejects(reviews.execute({ ...input, requestId: randomUUID(), baseline: after.snapshot.baseline }), /unavailable/);
     const restarted = new PluginReviews(new RootAccess([root]), () => declaration, async () => ({}));
-    assert.equal((await restarted.execute({ ...base, action: "status", requestId })).state, "unknown");
+    const unknown = await restarted.execute({ ...base, action: "status", requestId });
+    assert.equal(unknown.state, "unknown"); assert.equal(unknown.verification, "unavailable");
+    assert.equal(unknown.guidance, REVIEW_UNAVAILABLE_GUIDANCE);
     await assert.rejects(restarted.execute({ ...input, requestId: randomUUID() }), /unavailable/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
@@ -185,7 +190,7 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const observation = {};
     const faultClient = { ...client, request: async (endpoint: string, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)); requests.push(body);
-      if (body.action === "status" && statusOverride) return new Response(JSON.stringify({ state: statusOverride, receipt: { requestId: body.requestId, outcome: statusOverride } }));
+      if (body.action === "status" && statusOverride) return new Response(JSON.stringify({ state: statusOverride, verification: "pending", receipt: { requestId: body.requestId, outcome: statusOverride } }));
       const response = await client.request(endpoint, { ...init, headers: { ...init?.headers, Origin: origin } });
       if (loseResponse && ["approve", "reject", "undo"].includes(body.action)) { await response.arrayBuffer(); throw new Error("Lost write response"); }
       return response;
@@ -198,11 +203,11 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const invalidView = await fetch(origin + "/api/views", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ action: "propose", view: { ...definition, sources: { review: { ...definition.sources.review, bundleRef: "other-host" } } } }) });
     assert.equal(invalidView.status, 400); await invalidView.arrayBuffer();
 
-    const cli = async (action: string, proposalId?: string) => {
-      const inputFile = path.join(root, "request.json"); writeFileSync(inputFile, JSON.stringify({ bundleRef: base.bundleRef, generation: "g1", proposalId, baseline: (await read()).baseline, requestId: randomUUID() }));
+    const cli = async (action: string, proposalId?: string, expectedCode = 0, observedRequestId?: string) => {
+      const inputFile = path.join(root, "request.json"); writeFileSync(inputFile, JSON.stringify({ bundleRef: base.bundleRef, generation: "g1", proposalId, baseline: (await read()).baseline, requestId: observedRequestId ?? randomUUID() }));
       const child = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../../../packages/cli/src/cli.ts", import.meta.url)), "review", action, base.plugin, base.review, "--input", inputFile, "--root", root, "--host", origin, "--json"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
       let stdout = "", stderr = ""; child.stdout.on("data", b => stdout += b); child.stderr.on("data", b => stderr += b);
-      const code = await new Promise(resolve => child.once("exit", resolve)); assert.equal(code, 0, stdout + stderr); return JSON.parse(stdout);
+      const code = await new Promise(resolve => child.once("exit", resolve)); assert.equal(code, expectedCode, stdout + stderr); return JSON.parse(stdout);
     };
     const p = await cli("propose"), id = p.proposals[0].id;
     const approve = await cli("approve", id); assert.equal(approve.receipt.outcome, "success"); assert.match(readFileSync(path.join(root, "doc.md"), "utf8"), /Changed/);
@@ -233,7 +238,7 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
       await assert.rejects(adapter.act(action, current.proposals.find(p => p.id === proposalId)!, current.baseline));
       const requestId = adapter.pending!.requestId;
       const reattached = createReviewAdapter(faultClient, reviewViewSchema.parse(definition), root, new AbortController().signal, () => {}, observation);
-      for (const outcome of ["unknown", "uncertain"]) {
+      for (const outcome of ["uncertain", "uncertain"]) {
         statusOverride = outcome;
         await assert.rejects(reattached.read(1));
         assert.equal(reattached.pending!.requestId, requestId); assert.equal(reattached.pending!.receipt!.outcome, outcome);
@@ -254,6 +259,13 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const uncertainProposal = await nextProposal(), uncertainRequest = randomUUID();
     const unconfirmed = await send("/api/reviews", { ...base, action: "approve", proposalId: uncertainProposal, requestId: uncertainRequest, baseline: (await read()).baseline, input: { uncertain: true } });
     assert.equal(unconfirmed.receipt.outcome, "uncertain");
+    assert.equal(unconfirmed.verification, "unavailable"); assert.equal(unconfirmed.guidance, REVIEW_UNAVAILABLE_GUIDANCE);
+    for (const requestId of [uncertainRequest, randomUUID()]) {
+      const cliStatus = await cli("status", undefined, 1, requestId);
+      assert.equal(cliStatus.verification, "unavailable"); assert.equal(cliStatus.guidance, REVIEW_UNAVAILABLE_GUIDANCE);
+      assert.equal(cliStatus.nextAction, "open-document");
+      assert.equal(cliStatus.state, requestId === uncertainRequest ? "uncertain" : "unknown");
+    }
     // Separate tabs and a reopened/reloaded tab have no shared client observation.
     for (const tab of ["other tab", "reopened tab", "reloaded app"]) {
       const freshAdapter = createReviewAdapter(faultClient, reviewViewSchema.parse(definition), root, new AbortController().signal, () => {});
@@ -265,8 +277,8 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
       const before = requests.length;
       await assert.rejects(freshAdapter.act("approve", locked, freshSnapshot.baseline));
       assert.equal(requests.length, before);
-      await assert.rejects(freshAdapter.read(1));
-      assert.equal(requests.at(-1).action, "status"); assert.equal(requests.at(-1).requestId, uncertainRequest);
+      await assert.rejects(freshAdapter.read(1), /Status checks cannot resolve/);
+      assert.equal(requests.length, before, "Host marks the outcome unavailable; no endless status polling");
     }
     for (const action of ["approve", "reject", "undo"]) {
       const refused = await send("/api/reviews", { ...base, action, proposalId: uncertainProposal, requestId: randomUUID(), baseline: (await read()).baseline });

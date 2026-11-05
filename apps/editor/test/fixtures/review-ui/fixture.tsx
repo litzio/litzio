@@ -1,3 +1,4 @@
+import { REVIEW_UNAVAILABLE_GUIDANCE } from "../../../shared/review.ts";
 import { createRoot } from "react-dom/client";
 import { useMemo, useState } from "react";
 import { parse, getEditableDocument } from "@litzio/core";
@@ -51,7 +52,7 @@ function Fixture() {
             : { type: "plain", text: "정정된 문장입니다." }, baseline: mode === "stale-baseline" ? { ...baseline, proposalRevision: "old" } : baseline, state,
           actions: [{ action: "approve", allowed: state === "pending", reason: "Only pending changes can be approved." }, { action: "reject", allowed: state === "pending", reason: "Only pending changes can be rejected." }, { action: "undo", allowed: state === "approved" && mode !== "no-undo", reason: "There is no applied change to undo." }] }] };
     }
-    if (mode === "uncertain") {
+    if (mode === "uncertain" || mode === "unverifiable") {
       let requestId: string | undefined, resolved = false;
       const client = createHostClient(window.location.origin);
       const connect = () => createReviewAdapter({ ...client, request: async (_url, init) => {
@@ -60,10 +61,14 @@ function Fixture() {
         if (input.action === "status") {
           setChecks(c => c + 1);
           if (input.requestId !== requestId) throw Error("Status request ID changed");
-          return new Response(JSON.stringify({ state: resolved ? "completed" : "unknown", receipt: { requestId, outcome: resolved ? "success" : "unknown" } }));
+          if (mode === "unverifiable") {
+            pendingChange = { ...pendingChange!, verification: "unavailable", guidance: REVIEW_UNAVAILABLE_GUIDANCE };
+            return new Response(JSON.stringify({ state: "unknown", verification: "unavailable", guidance: REVIEW_UNAVAILABLE_GUIDANCE, receipt: { requestId, outcome: "unknown" } }));
+          }
+          return new Response(JSON.stringify({ state: resolved ? "completed" : "uncertain", verification: resolved ? undefined : "pending", receipt: { requestId, outcome: resolved ? "success" : "uncertain" } }));
         }
-        setCount(c => c + 1); requestId = input.requestId; pendingChange = { proposalId: "p1", requestId: requestId!, action: "approve", receipt: { requestId: requestId!, outcome: "uncertain" } }; setHeld(true); throw Error("Write response lost");
-      } }, view, "/fixture", new AbortController().signal, () => {});
+        setCount(c => c + 1); requestId = input.requestId; pendingChange = { proposalId: "p1", requestId: requestId!, action: "approve", verification: "pending", receipt: { requestId: requestId!, outcome: "uncertain" } }; setHeld(true); throw Error("Write response lost");
+      } }, view, "/fixture", new AbortController().signal, () => { document.title = "Opened result"; });
       let transport = connect();
       return { get pending() { return transport.pending; }, read: n => transport.read(n), act: (a, p, b) => transport.act(a, p, b), openDocument: () => transport.openDocument(),
         reopen: () => { transport = connect(); setClientEpoch(v => v + 1); }, release: () => { pendingChange = undefined; resolved = true; state = "approved"; revision = "r2"; proposalRevision++; hasMapping = false; setHeld(false); } };
@@ -80,6 +85,6 @@ function Fixture() {
       release: () => { const resolve = release; release = undefined; resolve?.(); setHeld(false); },
     } as ReviewAdapter;
   }, [mode]);
-  return <TooltipProvider><div style={{ padding: 16 }}><div className="review-toolbar" aria-label="Fixture controls">{["normal", "stale", "unavailable", "no-image", "no-undo", "hold", "typed-object", "typed-array", "typed-unsupported", "no-map", "continuation", "stale-baseline", "stale-target", "no-pages", "uncertain"].map(v => <Button key={v} variant="outline" onClick={() => { setMode(v); setHeld(false); }}>{v}</Button>)}<span>Actions: {count}</span><span>Status checks: {checks}</span>{mode === "uncertain" && ["Other tab", "Reopen tab", "Reload client"].map(label => <Button key={label} onClick={() => (adapter as ReviewAdapter & { reopen(): void }).reopen()}>{label}</Button>)}{held && <Button onClick={() => (adapter as ReviewAdapter & { release(): void }).release()}>{mode === "uncertain" ? "Resolve request" : "Complete refresh"}</Button>}</div><div className="review-toolbar" aria-label="Layout fixtures">{["Default layout", "List only", "Detail only", "Mixed layout", "Repeated panels"].map(v => <Button key={v} variant="outline" onClick={() => setLayout(v)}>{v}</Button>)}</div><ReviewRenderer key={`${mode}:${clientEpoch}`} view={currentView} adapter={adapter} /></div></TooltipProvider>;
+  return <TooltipProvider><div style={{ padding: 16 }}><div className="review-toolbar" aria-label="Fixture controls">{["normal", "stale", "unavailable", "no-image", "no-undo", "hold", "typed-object", "typed-array", "typed-unsupported", "no-map", "continuation", "stale-baseline", "stale-target", "no-pages", "uncertain", "unverifiable"].map(v => <Button key={v} variant="outline" onClick={() => { setMode(v); setHeld(false); }}>{v}</Button>)}<span>Actions: {count}</span><span>Status checks: {checks}</span>{mode === "uncertain" && ["Other tab", "Reopen tab", "Reload client"].map(label => <Button key={label} onClick={() => (adapter as ReviewAdapter & { reopen(): void }).reopen()}>{label}</Button>)}{held && mode !== "unverifiable" && <Button onClick={() => (adapter as ReviewAdapter & { release(): void }).release()}>{mode === "uncertain" ? "Resolve request" : "Complete refresh"}</Button>}</div><div className="review-toolbar" aria-label="Layout fixtures">{["Default layout", "List only", "Detail only", "Mixed layout", "Repeated panels"].map(v => <Button key={v} variant="outline" onClick={() => setLayout(v)}>{v}</Button>)}</div><ReviewRenderer key={`${mode}:${clientEpoch}`} view={currentView} adapter={adapter} /></div></TooltipProvider>;
 }
 createRoot(document.getElementById("root")!).render(<Fixture />);

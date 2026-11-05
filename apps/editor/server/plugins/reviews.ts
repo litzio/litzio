@@ -10,7 +10,7 @@ import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
 import { validateImage } from "../image-validation.ts";
 import { publicOperationError } from "./operation-result.ts";
 import { loadDocumentFile } from "../document-reader.ts";
-import type { ReviewPendingChange } from "../../shared/review.ts";
+import { REVIEW_PENDING_GUIDANCE, REVIEW_UNAVAILABLE_GUIDANCE, type ReviewPendingChange } from "../../shared/review.ts";
 
 const ref = z.string().min(1).max(512);
 export const reviewRequestSchema = z.strictObject({ action: z.enum(["read", "propose", "approve", "reject", "undo", "status"]), plugin: ref, review: ref, root: ref,
@@ -82,18 +82,18 @@ export class PluginReviews {
   private proposals(b: Bundle) {
     return [...b.proposals.values()].map(p => {
       const copy = structuredClone(p), pending = b.unresolved.get(p.id);
-      if (pending) copy.actions = copy.actions.map(a => ({ action: a.action, allowed: false, reason: `Verification required. Check request ${pending.requestId}; do not resend this change.` }));
+      if (pending) copy.actions = copy.actions.map(a => ({ action: a.action, allowed: false, reason: pending.verification === "unavailable" ? REVIEW_UNAVAILABLE_GUIDANCE : `Verification required. Check request ${pending.requestId}; do not resend this change.` }));
       return copy;
     });
   }
   async execute(raw: unknown): Promise<any> {
     const input = reviewRequestSchema.parse(raw), b = this.bundles.get(input.bundleRef);
-    if (!b && input.action === "status") return { state: "unknown", receipt: { requestId: input.requestId ?? randomUUID(), operation: "review.status", version: 1, scope: accessPath(input.root, this.access), outcome: "unknown" } };
+    if (!b && input.action === "status") return { state: "unknown", verification: "unavailable", guidance: REVIEW_UNAVAILABLE_GUIDANCE, nextAction: "open-document", receipt: { requestId: input.requestId ?? randomUUID(), operation: "review.status", version: 1, scope: accessPath(input.root, this.access), outcome: "unknown" } };
     if (!b || b.plugin !== input.plugin || b.review !== input.review || b.root !== accessPath(input.root, this.access) || input.generation !== undefined && b.bundle.generation !== input.generation) throw new Error("Review bundle unavailable on this Host/Root/generation");
     for (const file of [b.root, b.file, b.source]) accessPath(b.access.resolve(file), this.access);
     const owner = `${input.plugin}/${input.review}/${input.bundleRef}`;
     const receipt = (outcome: string) => ({ requestId: input.requestId ?? randomUUID(), operation: `review.${input.action}`, version: 1, scope: b.root, outcome });
-    if (input.action === "status") { const observed = this.requests.get(input.requestId ?? ""); return observed?.owner === owner ? structuredClone(observed.value) : { state: "unknown", receipt: receipt("unknown") }; }
+    if (input.action === "status") { const observed = this.requests.get(input.requestId ?? ""); return observed?.owner === owner ? structuredClone(observed.value) : { state: "unknown", verification: "unavailable", guidance: REVIEW_UNAVAILABLE_GUIDANCE, nextAction: "open-document", documentPath: b.file, receipt: receipt("unknown") }; }
     const binding = this.declaration(input.plugin, input.review);
     if (input.action === "read") {
       let stale = false; try { this.check(b); } catch { stale = true; }
@@ -117,7 +117,7 @@ export class PluginReviews {
     }
     if (!input.requestId || !input.baseline) throw new Error("requestId and baseline required");
     const existing = input.action !== "propose" ? b.unresolved.get(input.proposalId ?? "") : undefined;
-    if (existing) return { code: "confirmation-required", error: `Verification required. Check request ${existing.requestId}; do not resend this change.`, pending: structuredClone(existing), receipt: receipt("uncertain") };
+    if (existing) return { code: "confirmation-required", error: `Verification required. Request ${existing.requestId}. ${existing.verification === "unavailable" ? REVIEW_UNAVAILABLE_GUIDANCE : "Check this request; do not resend this change."}`, verification: existing.verification, guidance: existing.guidance, nextAction: existing.verification === "unavailable" ? "open-document" : "check-status", documentPath: b.file, pending: structuredClone(existing), receipt: receipt("uncertain") };
     if (this.requests.has(input.requestId)) throw new Error("Duplicate requestId; use review status, never replay");
     if (this.busy.has(owner)) throw new Error("Review mutation in progress");
     this.check(b);
@@ -125,8 +125,8 @@ export class PluginReviews {
     const action = input.action;
     const proposal = action === "propose" ? undefined : b.proposals.get(input.proposalId ?? "");
     if (action !== "propose" && (!proposal || !proposal.actions.some(a => a.action === action && a.allowed))) throw new Error("Proposal action unavailable");
-    const pending = { owner, value: { state: "uncertain", receipt: receipt("uncertain") } as any }; this.requests.set(input.requestId, pending); this.busy.add(owner);
-    if (action !== "propose") b.unresolved.set(proposal!.id, { proposalId: proposal!.id, action, requestId: input.requestId, receipt: pending.value.receipt });
+    const pending = { owner, value: { state: "uncertain", verification: "pending", guidance: REVIEW_PENDING_GUIDANCE, nextAction: "check-status", receipt: receipt("uncertain") } as any }; this.requests.set(input.requestId, pending); this.busy.add(owner);
+    if (action !== "propose") b.unresolved.set(proposal!.id, { proposalId: proposal!.id, action, requestId: input.requestId, receipt: pending.value.receipt, verification: "pending", guidance: REVIEW_PENDING_GUIDANCE });
     try {
       const result = await this.invoke(binding[action].operation, structuredClone({ bundle: b.bundle, baseline: this.baseline(b), requestId: input.requestId, proposal: proposal ?? null, input: input.input ?? null }), binding[action].version);
       if (result.error) throw Object.assign(new Error("Review operation failed"), { kind: result.errorKind });
@@ -165,7 +165,10 @@ export class PluginReviews {
       for (const p of b.proposals.values()) { this.actions(p); if (p.state !== "stale") p.baseline = this.baseline(b); }
       if (proposal) b.unresolved.delete(proposal.id);
       pending.value = { baseline: this.baseline(b), changedDocumentRefs: ["approve", "undo"].includes(action) ? [b.bundle.documentRef] : [], proposals: this.proposals(b), receipt: receipt("success") };
-    } catch (cause) { pending.value = { state: "uncertain", ...publicOperationError(cause, "write"), receipt: receipt("uncertain") }; }
+    } catch (cause) {
+      pending.value = { state: "uncertain", verification: "unavailable", guidance: REVIEW_UNAVAILABLE_GUIDANCE, nextAction: "open-document", documentPath: b.file, ...publicOperationError(cause, "write"), receipt: receipt("uncertain") };
+      if (proposal) b.unresolved.set(proposal.id, { proposalId: proposal.id, action: action as ReviewPendingChange["action"], requestId: input.requestId, receipt: pending.value.receipt, verification: "unavailable", guidance: REVIEW_UNAVAILABLE_GUIDANCE });
+    }
     this.busy.delete(owner);
     return structuredClone(pending.value);
   }
