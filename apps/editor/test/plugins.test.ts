@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
@@ -379,6 +379,14 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
   try {
     await executePluginTool(host, { action: "scaffold", directory, id }, e => activity.push(e), scope);
     const entry = path.join(directory, "host.js"), source = readFileSync(entry, "utf8");
+    assert.match(source, /import .* from "@litzio\/plugin-sdk"/);
+    assert.match(readFileSync(path.join(directory, "plugin-sdk.d.ts"), "utf8"), /PluginContext/);
+    // Even an artifact-local SDK must never replace the Host's public runtime.
+    const localSdk = path.join(directory, "node_modules/@litzio/plugin-sdk");
+    mkdirSync(localSdk, { recursive: true });
+    writeFileSync(path.join(localSdk, "package.json"), JSON.stringify({ type: "module", exports: "./index.js" }));
+    writeFileSync(path.join(localSdk, "index.js"), 'throw new Error("Artifact SDK must not load");');
+
     await assert.rejects(host.invoke("scaffold", { directory, id }));
     assert.equal(readFileSync(entry, "utf8"), source);
     const validate = () => host.invoke("validate", { directory }) as Promise<any>;
@@ -395,6 +403,10 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
     const manifestFile = path.join(directory, "litzio-plugin.json"), manifest = readFileSync(manifestFile, "utf8");
     writeFileSync(manifestFile, manifest.replace('"type": "string"', '"type": "invalid"'));
     assert.equal((await validate()).valid, false);
+
+    writeFileSync(manifestFile, manifest.replace(/"requiresSdk": "[^"]+"/, '"requiresSdk": "999.0.0"'));
+    assert.equal((await validate()).valid, false);
+    await assert.rejects(host.invoke("register", { directory }));
     writeFileSync(manifestFile, manifest); writeFileSync(entry, source);
     await executePluginTool(host, { action: "register", directory }, e => activity.push(e));
     assert.deepEqual(activity.at(-1), { action: "register", id, outcome: "success" });
@@ -405,6 +417,13 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
     assert.equal((await validate()).valid, true);
     await trust(); await host.invoke("reload", { id });
     assert.deepEqual((await host.invokeOperation(`${id}.greet`, { name: "World" })).result, { greeting: "Welcome, World!" });
+    // Internal package imports fail even if an artifact supplies a matching package.
+    const internal = path.join(directory, "node_modules/@litzio/core");
+    mkdirSync(internal, { recursive: true });
+    writeFileSync(path.join(internal, "package.json"), JSON.stringify({ type: "module", exports: "./index.js" }));
+    writeFileSync(path.join(internal, "index.js"), 'export const forbidden = true;');
+    writeFileSync(entry, 'import "@litzio/core";\n' + source);
+    await trust(); await assert.rejects(host.invoke("reload", { id }), /request failed/);
     assert.equal(existsSync(marker), false);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
@@ -413,6 +432,68 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
 import { createPluginService } from "../server/plugin-service.ts";
 import { pluginCli } from "../../../packages/cli/src/plugins.ts";
 import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
+
+test("Host SDK runtime is one self-contained JavaScript module with only Node builtin imports", async () => {
+  const { buildSdkRuntime } = await import("../../../packages/cli/scripts/plugin-sdk.ts");
+  const { isBuiltin } = await import("node:module");
+  const result = await buildSdkRuntime();
+  assert.equal(result.outputFiles!.length, 1, "SDK must not emit shared chunks");
+  for (const output of Object.values(result.metafile.outputs)) {
+    for (const dependency of output.imports) {
+      assert.ok(dependency.external && isBuiltin(dependency.path), `SDK must be self-contained: ${dependency.path}`);
+    }
+  }
+  const runtime = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles![0]!.contents).toString("base64")}`);
+  assert.equal(runtime.SDK_VERSION, "0.1.0");
+  assert.equal(typeof runtime.PluginOperationError, "function");
+});
+
+test("runtime import boundary checks resolved real paths, including aliases into the Host checkout", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-import-boundary-"));
+  const host = new PluginHost(path.join(root, "state.json")), id = "fixture.imports";
+  const source = `import { SDK_VERSION } from '@litzio/plugin-sdk';
+import {basename} from 'node:path'; import {message} from './local.js'; import {value} from 'fixture-dependency';
+export function activate(){return {operations:{},status:()=>({available:true,message:[SDK_VERSION,basename('okay'),message,value].join('/'),folders:[],decorations:[],accounts:[]}),dispose(){}}}`;
+  // A legitimate artifact can itself live under the checkout boundary.
+  const checkoutTmp = fileURLToPath(new URL("../../../tmp/", import.meta.url));
+  mkdirSync(checkoutTmp, { recursive: true });
+  const checkoutScratch = mkdtempSync(path.join(checkoutTmp, "import-boundary-"));
+  const directory = lifecycleFixture(checkoutScratch, id, source), entry = path.join(directory, "host.js");
+  const target = fileURLToPath(new URL("../../../packages/core/src/label.ts", import.meta.url));
+  try {
+    writeFileSync(path.join(directory, "local.js"), "export const message = 'local';");
+    const dependency = path.join(directory, "node_modules/fixture-dependency");
+    mkdirSync(dependency, { recursive: true });
+    writeFileSync(path.join(dependency, "package.json"), JSON.stringify({ type: "module", exports: "./index.js" }));
+    writeFileSync(path.join(dependency, "index.js"), "export const value = 'dependency';");
+    await host.invoke("register", { directory });
+    const trust = async () => host.invoke("trust", { id, digest: (await host.list())[0]!.digest });
+    await trust(); await host.invoke("enable", { id });
+    assert.match((await host.list())[0]!.status!.message, /okay\/local\/dependency$/);
+    // Keep the link outside the artifact: artifact admission independently rejects links.
+    // This reaches the runtime resolver and proves that realpath, not lexical path, is checked.
+    const alias = path.join(root, "host-source-alias");
+    symlinkSync(path.dirname(target), alias, process.platform === "win32" ? "junction" : "dir");
+    const attempts = [
+      path.relative(directory, target).replaceAll("\\", "/"),
+      pathToFileURL(target).href,
+      pathToFileURL(path.join(alias, "label.ts")).href,
+      path.relative(directory, path.join(alias, "label.ts")).replaceAll("\\", "/"),
+      ...(process.platform === "win32" ? [pathToFileURL(target.toUpperCase()).href] : []),
+    ];
+    for (const specifier of attempts) {
+      writeFileSync(entry, `import ${JSON.stringify(specifier)};\n` + source);
+      await trust();
+      await assert.rejects(host.invoke("reload", { id }), /request failed/, specifier);
+      assert.equal((await host.list())[0]!.running, false);
+    }
+    writeFileSync(entry, `import {createRequire} from 'node:module'; createRequire(import.meta.url)(${JSON.stringify(target)});\n` + source);
+    await trust(); await assert.rejects(host.invoke("reload", { id }), /request failed/);
+    // Restore the ordinary SDK + artifact + dependency imports after all refusals.
+    writeFileSync(entry, source); await trust(); await host.invoke("reload", { id });
+    assert.match((await host.list())[0]!.status!.message, /okay\/local\/dependency$/);
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); rmSync(checkoutScratch, { recursive: true, force: true }); }
+});
 
 test("scaffold enforces Host roots and the active assistant turn write scope before creation", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-scaffold-access-"));

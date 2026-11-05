@@ -1,4 +1,5 @@
 import { listenForFetch } from "../../../test/helpers/fetch-server.ts";
+import { verifyExternalPlugin } from "../../../test/helpers/external-plugin.ts";
 import assert from "node:assert/strict";
 import { execSync, spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
@@ -67,6 +68,7 @@ test("the packed CLI installs offline outside the checkout and serves both roots
       child!.stdout!.on("data", data => { output += data; if (output.includes("Litzio HTTP:")) { clearTimeout(timeout); resolve(); } });
     });
     assert.equal((await fetch(url)).status, 200);
+    await verifyExternalPlugin(url, a, path.dirname(entry));
     assert.equal((await (await fetch(url + "/api/plugins")).json()).plugins[0].id, "fixture.isolated", "packaged Host reads only the isolated plugin registry");
     const notices = await fetch(url + "/licenses/THIRD_PARTY_LICENSES.txt");
     assert.equal(notices.status, 200);
