@@ -127,6 +127,22 @@ test("v2 form validates type/enum/date/range/secret and separates saved missing 
     const bad = structuredClone(v); bad.sources.stats.args = args; assert.throws(() => validateCatalogView(bad, operations));
   }
   for (const field of ["token", "unknown"]) { const bad = formView(); bad.form.fields[0].field = field; assert.throws(() => validateCatalogView(bad, operations)); }
+  // Diagnostics expose only declared public JSON Pointer paths and keywords.
+  const patterned = { ...inputOperation, inputSchema: { type: "object", properties: {
+    text: { type: "string", minLength: 2, pattern: "^[a-z]+$" },
+    date: { type: "string", format: "date" },
+  }, required: ["text"], additionalProperties: false } };
+  for (const [args, expected] of [
+    [{ text: "x" }, { field: "/text", keyword: "minLength" }],
+    [{ text: "PRIVATE-123" }, { field: "/text", keyword: "pattern" }],
+    [{ text: "ok", date: "PRIVATE" }, { field: "/date", keyword: "format" }],
+  ] as const) {
+    const invalid = formView(); invalid.form.fields = [{ component: "TextInput", field: "text" }]; invalid.sources.stats.args = args;
+    assert.throws(() => validateViewInputs(queryViewSchema.parse(invalid), patterned), error => {
+      const issues = (error as { inputIssues: unknown }).inputIssues;
+      assert.deepEqual(issues, [expected]); assert.ok(!JSON.stringify(issues).includes("PRIVATE")); return true;
+    });
+  }
   const noForm = formView(); delete noForm.form; assert.throws(() => validateCatalogView(noForm, operations));
   const fixed = formView(); delete fixed.form; fixed.sources.stats.args = { text: "a".repeat(513) };
   assert.throws(() => validateCatalogView(fixed, [{ ...inputOperation, inputSchema: { type: "object", properties: { text: { type: "string" } } } }]));

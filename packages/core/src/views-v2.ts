@@ -82,16 +82,41 @@ function assertPersistableInputSchema(schema: Record<string, unknown>): void {
   inspect(schema);
 }
 
+export type ViewInputIssue = { field?: string; keyword: string };
+export class ViewInputError extends Error {
+  constructor(message: string, readonly inputIssues: ViewInputIssue[]) { super(message); }
+}
+/** Only declared public field paths and validator keywords can leave input validation. */
+function inputIssues(validator: ReturnType<typeof compileViewInputSchema>, schema: Record<string, unknown>): ViewInputIssue[] {
+  return (validator.errors ?? []).map(error => {
+    const parts = error.instancePath.split("/").slice(1).map(p => p.replaceAll("~1", "/").replaceAll("~0", "~"));
+    if (error.keyword === "required") parts.push(error.params.missingProperty);
+    let node = record(schema), visible = !secret(node);
+    for (const part of parts) {
+      if (node.type === "array" && /^\d+$/.test(part)) node = record(node.items);
+      else if (Object.hasOwn(record(node.properties), part)) node = record(record(node.properties)[part]);
+      else { visible = false; break; }
+      if (secret(node)) visible = false;
+    }
+    const field = visible && parts.length ? "/" + parts.map(p => p.replaceAll("~", "~0").replaceAll("/", "~1")).join("/") : undefined;
+    return { ...(field ? { field } : {}), keyword: error.keyword };
+  });
+}
+function validateInputArgs(schema: Record<string, unknown>, args: unknown): void {
+  const validator = compileViewInputSchema(schema);
+  if (!validator(args)) throw new ViewInputError("Invalid operation args", inputIssues(validator, schema));
+}
+
 /** Static mode tolerates only missing required fields explicitly bound by the form. */
 export function validateViewInputs(view: QueryView, operation: ViewOperation, mode: "static" | "execute" = "static"): ViewInputState {
   const schema = operation.inputSchema, properties = record(schema.properties), args = view.sources.stats.args;
   assertPersistableInputSchema(schema);
   for (const name of Object.keys(args)) {
-    if (!Object.hasOwn(properties, name) || secret(record(properties[name]))) throw new Error("Unknown or secret input binding");
+    if (!Object.hasOwn(properties, name) || secret(record(properties[name]))) throw new ViewInputError("Unknown or secret input binding", [{ keyword: Object.hasOwn(properties, name) ? "secret" : "additionalProperties" }]);
   }
   const inspectSecrets = (value: unknown, definition: Record<string, any>): void => {
-    if (secret(definition)) throw new Error("Secret input cannot be persisted");
-    if (typeof value === "string" && value.length > 512) throw new Error("Input string exceeds limit");
+    if (secret(definition)) throw new ViewInputError("Secret input cannot be persisted", [{ keyword: "secret" }]);
+    if (typeof value === "string" && value.length > 512) throw new ViewInputError("Input string exceeds limit", [{ keyword: "maxLength" }]);
     if (Array.isArray(value)) for (const item of value) inspectSecrets(item, record(definition.items));
     else if (value && typeof value === "object") for (const [name, item] of Object.entries(value)) inspectSecrets(item, record(record(definition.properties)[name]));
   };
@@ -111,19 +136,20 @@ export function validateViewInputs(view: QueryView, operation: ViewOperation, mo
       : f.component === "NumberInput" ? type === "number" || type === "integer" : type === "boolean";
     if (!valid) throw new Error("Input control/schema mismatch");
     const value = args[f.field];
-    if (typeof value === "string" && value.length > 512) throw new Error("Input string exceeds limit");
-    if (f.component === "TextInput" && typeof value === "string" && /[\r\n]/.test(value)) throw new Error("Single line input required");
+    if (typeof value === "string" && value.length > 512) throw new ViewInputError("Input string exceeds limit", [{ keyword: "maxLength" }]);
+    if (f.component === "TextInput" && typeof value === "string" && /[\r\n]/.test(value)) throw new ViewInputError("Single line input required", [{ field: "/" + f.field.replaceAll("~", "~0").replaceAll("/", "~1"), keyword: "pattern" }]);
   }
   const required = Array.isArray(schema.required) ? schema.required as string[] : [];
   const missing = required.filter(name => !Object.hasOwn(args, name));
   if (mode === "execute") {
-    if (!compileViewInputSchema(schema)(args) || !operation.validateArgs(args)) throw new Error("Invalid operation args");
+    validateInputArgs(schema, args);
+    if (!operation.validateArgs(args)) throw new ViewInputError("Invalid operation args", []);
   } else {
-    if (missing.some(name => !fields.some(f => f.field === name))) throw new Error("Missing required operation input");
+    if (missing.some(name => !fields.some(f => f.field === name))) throw new ViewInputError("Missing required operation input", missing.map(field => !Object.hasOwn(properties, field) || secret(record(properties[field])) ? { keyword: "required" } : { field: "/" + field.replaceAll("~", "~0").replaceAll("/", "~1"), keyword: "required" }));
     // Remove only the form-bound missing requirements; preserve every other JSON Schema constraint.
     const partial = { ...schema, required: required.filter(name => !missing.includes(name)) };
-    if (!missing.length && !operation.validateArgs(args)) throw new Error("Invalid operation args");
-    if (!compileViewInputSchema(partial)(args)) throw new Error("Invalid operation args");
+    validateInputArgs(partial, args);
+    if (!missing.length && !operation.validateArgs(args)) throw new ViewInputError("Invalid operation args", []);
   }
   return { state: missing.length ? "needs-input" : "ready", missing };
 }

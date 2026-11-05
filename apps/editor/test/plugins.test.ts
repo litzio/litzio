@@ -229,7 +229,7 @@ test("operation invoke publishes declared public rows and refuses row-type misma
     }
     const { executeViewOperation } = await import("../server/views.ts");
     const { statisticsView, viewRequest } = await import("../src/views/view-api.ts");
-    const view = { ...statisticsView, sources: { stats: { operation: "fixture.rows.read", version: 1, args: { mode: "error:auth" } } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Rows", source: "stats", data: "/rows", columns: ["points"] }] } };
+    const view = { ...statisticsView, schemaVersion: 2, catalog: "litzio-v2", profile: "query", sources: { stats: { operation: "fixture.rows.read", version: 1, args: { mode: "error:auth" } } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Rows", source: "stats", data: "/rows", columns: ["points"] }] } };
     const failedView = await executeViewOperation({ action: "run", root, view }, { access: new RootAccess([root]), plugins: host });
     assert.equal(failedView.errorKind, "auth", failedView.error); assert.equal(failedView.error, PLUGIN_ERROR_MESSAGES.auth);
     const client = { request: async () => new Response(JSON.stringify(failedView)) } as unknown as import("../src/host-client.ts").HostClient;

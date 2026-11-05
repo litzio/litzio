@@ -1,6 +1,7 @@
 import { i18n } from "../i18n.ts";
 import { useEffect, useRef, useState } from "react";
-import { viewSchema, validateView, type View, type ViewRow } from "@litzio/core/views";
+import type { ViewRow } from "@litzio/core/views";
+import { queryViewSchema, type QueryView as View } from "@litzio/core/views-v2";
 import { Button } from "../components/ui/button.tsx";
 import { Input } from "../components/ui/input.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../components/ui/dialog.tsx";
@@ -30,7 +31,7 @@ function ViewBars({ rows, x, y, label }: { rows: ViewRow[]; x: string; y: string
 }
 export function ViewRenderer({ view, rows, fields }: { view: View; rows?: ViewRow[]; fields?: Record<string, string> }) {
   // Target Host validates operation semantics; renderer checks catalog structure.
-  const valid = viewSchema.parse(view);
+  const valid = queryViewSchema.parse(view);
   const label = (field: string, value: ViewRow[string]) => valid.sources.stats.operation === "folder.statistics" && value === "." && (field === "folder" || field === "group" && valid.sources.stats.groupBy?.field === "folder")
     ? i18n.t("(Root)") : value === null ? "—" : String(value);
   return <div className="view-panels">{valid.layout.children.map((panel, index) => <section key={index} className="view-panel" aria-label={panel.title}>
@@ -41,8 +42,8 @@ export function ViewRenderer({ view, rows, fields }: { view: View; rows?: ViewRo
 export function Views({ tab, client, roots, onOpen, onRoot }: { tab: ViewTab; client: HostClient; roots: string[]; onOpen(view: View, root: string, hostId: string, label?: string): void; onRoot(root: string): void }) {
   const root = tab.root;
   const [result, setResult] = useState<ViewResult>(), [problem, setProblem] = useState("");
-  const [busy, setBusy] = useState(false), [favourites, setFavourites] = useState<string[]>([]), [saving, setSaving] = useState(false), [name, setName] = useState("");
-  const view = tab.view ?? validateView(statisticsView);
+  const [busy, setBusy] = useState(false), [favourites, setFavourites] = useState<{ plugin: string; name: string }[]>([]), [saving, setSaving] = useState(false), [name, setName] = useState("");
+  const view = tab.view ?? queryViewSchema.parse(statisticsView);
   const lifetime = useRef<AbortController | null>(null);
   useEffect(() => { const controller = new AbortController(); lifetime.current = controller; return () => controller.abort(); }, []);
   const request = async (input: unknown) => {
@@ -51,11 +52,19 @@ export function Views({ tab, client, roots, onOpen, onRoot }: { tab: ViewTab; cl
     signal.throwIfAborted(); return value;
   };
   const queriedAt = result ? new Intl.DateTimeFormat(i18n.language, { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(result.receipt.timestamp)) : "";
-  const list = async () => { const value = await request({ action: "list", plugin: STATISTICS_PLUGIN }); setFavourites(value.favourites ?? []); };
+  const readFavourites = async () => {
+    const value = await request({ action: "catalog" });
+    const plugins = [...new Set([STATISTICS_PLUGIN, ...value.catalog!.operations.map(op => op.plugin)])];
+    return (await Promise.all(plugins.map(async plugin => {
+      const listed = await request({ action: "list", plugin });
+      return (listed.favourites ?? []).map(name => ({ plugin, name }));
+    }))).flat();
+  };
+  const list = async () => setFavourites(await readFavourites());
   useEffect(() => {
     if (!tab.basic) return;
     let alive = true;
-    const refresh = () => { void request({ action: "list", plugin: STATISTICS_PLUGIN }).then(value => { if (alive) setFavourites(value.favourites ?? []); }).catch(error => { if (alive && !lifetime.current?.signal.aborted) setProblem(String(error)); }); };
+    const refresh = () => { void readFavourites().then(value => { if (alive) setFavourites(value); }).catch(error => { if (alive && !lifetime.current?.signal.aborted) setProblem(String(error)); }); };
     const changed = (event: Event) => { if ((event as CustomEvent).detail === tab.hostId) refresh(); };
     refresh(); window.addEventListener("view-favourites-changed", changed);
     return () => { alive = false; window.removeEventListener("view-favourites-changed", changed); };
@@ -71,7 +80,7 @@ export function Views({ tab, client, roots, onOpen, onRoot }: { tab: ViewTab; cl
     {problem ? <Notice tone="error">{problem}</Notice> : null}
     <ViewRenderer view={view} rows={result?.rows} fields={result?.fields} />
     {result ? <p className="view-receipt"><Tooltip><TooltipTrigger render={<Button size="sm" variant="ghost" className="text-muted-foreground" aria-label={i18n.t("View receipt")} />}>{i18n.t("Queried: {{time}}", { time: queriedAt })}</TooltipTrigger><TooltipContent className="flex-col items-start break-all"><div>{result.receipt.operation} v{result.receipt.version} · {result.receipt.scope}</div><div>{result.target?.root}</div><div>{result.receipt.timestamp}</div><div>{result.receipt.requestId}</div></TooltipContent></Tooltip></p> : null}
-    {tab.basic ? <section className="view-favorites" aria-label={i18n.t("Favorites")}><div className="view-favorites-header"><h3>{i18n.t("Favorites")}</h3><Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("Refresh favorites")} disabled={busy} />} onClick={() => void run(list)}><RotateCw aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Refresh favorites")}</TooltipContent></Tooltip></div>{favourites.length ? <ul>{favourites.map(name => <li key={name}><Button variant="ghost" size="sm" title={name} disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "open", plugin: STATISTICS_PLUGIN, name }); onOpen(value.view!, root, tab.hostId, value.name); })}><Star aria-hidden="true" className="view-favorite-icon" /><span className="view-favorite-name">{name}</span></Button></li>)}</ul> : <p>{i18n.t("No favorites yet.")}</p>}</section> : null}
-    <Dialog open={saving} onOpenChange={open => { if (!busy) setSaving(open); }}><DialogContent><DialogHeader><DialogTitle>{i18n.t("★ Add to favorites")}</DialogTitle><DialogDescription>{i18n.t("Save this definition and query with a new name. Data is queried only when you refresh.")}</DialogDescription></DialogHeader><form onSubmit={event => { event.preventDefault(); void run(async () => { await request({ action: "save", plugin: STATISTICS_PLUGIN, name, view }); window.dispatchEvent(new CustomEvent("view-favourites-changed", { detail: tab.hostId })); setSaving(false); }); }}><label>{i18n.t("New favorite name")}<Input autoFocus aria-label={i18n.t("New favorite name")} aria-invalid={!!problem} aria-describedby={problem ? `view-save-error-${tab.id}` : undefined} value={name} onChange={e => setName(e.target.value)} disabled={busy} /></label>{problem ? <p id={`view-save-error-${tab.id}`} role="alert">{problem}</p> : null}<div className="view-controls"><Button type="submit" disabled={busy || !name.trim()}>{i18n.t("Add favorite")}</Button><Button type="button" variant="secondary" disabled={busy} onClick={() => setSaving(false)}>{i18n.t("Cancel")}</Button></div></form></DialogContent></Dialog>
+    {tab.basic ? <section className="view-favorites" aria-label={i18n.t("Favorites")}><div className="view-favorites-header"><h3>{i18n.t("Favorites")}</h3><Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("Refresh favorites")} disabled={busy} />} onClick={() => void run(list)}><RotateCw aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Refresh favorites")}</TooltipContent></Tooltip></div>{favourites.length ? <ul>{favourites.map(({ plugin, name }) => <li key={`${plugin}:${name}`}><Button variant="ghost" size="sm" title={name} disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "open", plugin, name }); onOpen(value.view!, root, tab.hostId, value.name); })}><Star aria-hidden="true" className="view-favorite-icon" /><span className="view-favorite-name">{name}</span></Button></li>)}</ul> : <p>{i18n.t("No favorites yet.")}</p>}</section> : null}
+    <Dialog open={saving} onOpenChange={open => { if (!busy) setSaving(open); }}><DialogContent><DialogHeader><DialogTitle>{i18n.t("★ Add to favorites")}</DialogTitle><DialogDescription>{i18n.t("Save this definition and query with a new name. Data is queried only when you refresh.")}</DialogDescription></DialogHeader><form onSubmit={event => { event.preventDefault(); void run(async () => { await request({ action: "save", name, view }); window.dispatchEvent(new CustomEvent("view-favourites-changed", { detail: tab.hostId })); setSaving(false); }); }}><label>{i18n.t("New favorite name")}<Input autoFocus aria-label={i18n.t("New favorite name")} aria-invalid={!!problem} aria-describedby={problem ? `view-save-error-${tab.id}` : undefined} value={name} onChange={e => setName(e.target.value)} disabled={busy} /></label>{problem ? <p id={`view-save-error-${tab.id}`} role="alert">{problem}</p> : null}<div className="view-controls"><Button type="submit" disabled={busy || !name.trim()}>{i18n.t("Add favorite")}</Button><Button type="button" variant="secondary" disabled={busy} onClick={() => setSaving(false)}>{i18n.t("Cancel")}</Button></div></form></DialogContent></Dialog>
   </div>;
 }

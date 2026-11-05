@@ -13,7 +13,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
 
   let captureEnvironment;
   const root = pluginFixture.folder, favorite = 'Folder document totals';
-  const proposal = { kind: 'litzio-view', schemaVersion: 1, catalog: 'litzio-v1', title: 'Folder document totals', refresh: 'manual', sources: { stats: { operation: 'fixture.issues.read', version: 1, args: {}, groupBy: { field: 'status' }, aggregate: { op: 'sum', field: 'points' }, sort: { field: 'value', direction: 'desc' }, limit: 10 } }, layout: { component: 'VerticalPanel', children: [{ component: 'Table', title: 'Document totals', source: 'stats', data: '/rows', columns: ['group', 'value'] }, { component: 'BarChart', title: 'Document totals chart', source: 'stats', data: '/rows', x: 'group', y: 'value' }] } };
+  const proposal = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', title: 'Folder document totals', refresh: 'manual', sources: { stats: { operation: 'fixture.issues.read', version: 1, args: {}, groupBy: { field: 'status' }, aggregate: { op: 'sum', field: 'points' }, sort: { field: 'value', direction: 'desc' }, limit: 10 } }, layout: { component: 'VerticalPanel', children: [{ component: 'Table', title: 'Document totals', source: 'stats', data: '/rows', columns: ['group', 'value'] }, { component: 'BarChart', title: 'Document totals chart', source: 'stats', data: '/rows', x: 'group', y: 'value' }] } };
   let conversation, sends = [], queries = 0, validates = 0, latestRows, latestReceipt, delayPoll = false;
   const settings = { provider: 'codex', model: 'gpt-6-luna', reasoningEffort: 'low', permissionMode: 'read-only', responseLanguage: 'en' };
   await page.route('**/api/assistant/settings*', route => route.fulfill({ json: settings }));
@@ -108,7 +108,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   expect(queries).toBe(before.queries);
   await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
   await expect(generated().locator('tbody tr')).not.toHaveCount(0); expect(latestRows).toEqual(rows);
-  const cli = pluginFixture.cli(['view', 'run', '--name', favorite, '--root', root]);
+  const cli = pluginFixture.cli(['view', 'run', '--name', favorite, '--plugin', 'fixture.issues', '--root', root]);
   expect(cli.rows).toEqual(latestRows); expect(cli.receipt.operation).toBe('view.run'); expect(cli.receipt.outcome).toBe('success');
   expect(cli.rows.some(row => row.group === 'open')).toBe(true);
   if (screenshots) for (const width of [1440, 640]) {

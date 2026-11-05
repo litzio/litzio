@@ -2,13 +2,30 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { generateView } from "../src/views/generate-view.ts";
 import { statisticsView, ViewValidationError } from "../src/views/view-api.ts";
-import { validateView } from "@litzio/core/views";
+import { compileViewInputSchema } from "@litzio/core/views-v2";
+import { builtinViewOperations } from "@litzio/core/views";
+import { VIEW_GENERATION_CONTEXT, viewGenerationContext } from "../shared/view-generation.ts";
+import { queryViewSchema, validateCatalogView } from "@litzio/core/views-v2";
+const validateView = (value: unknown) => queryViewSchema.parse(validateCatalogView(value));
 import type { AssistantConversation } from "../shared/assistant.ts";
 import { AssistantViewGenerations } from "../server/assistant-view-generations.ts";
 import { createAssistantRequest } from "../src/assistant-api.ts";
 import { createHostClient } from "../src/host-client.ts";
 import { viewRequest } from "../src/views/view-api.ts";
 import { i18n } from "../src/i18n.ts";
+
+test("generation context advertises only executable fixed-input query definitions", () => {
+  for (const catalog of [VIEW_GENERATION_CONTEXT.catalog, viewGenerationContext(builtinViewOperations).catalog]) {
+    const accepts = compileViewInputSchema(catalog.schema);
+    const fixed = queryViewSchema.parse(statisticsView);
+    assert.equal(accepts(fixed), true);
+    assert.equal(accepts({ ...fixed, form: { component: "InputForm", source: "stats", fields: [], submit: { component: "SubmitButton", label: "Search" } } }), false);
+    assert.equal(accepts({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
+      sources: { review: { plugin: "example.demo", review: "compare", bundleRef: "bundle-1" } },
+      layout: { component: "VerticalPanel", children: [{ component: "PageSurface", title: "Page", source: "review" }] } }), false);
+    assert.equal(catalog.limits.inputs, 0);
+  }
+});
 
 test("send, poll and validation cancellation settle before delayed transports and discard their late results", async () => {
   for (const phase of ["send", "poll", "validate"] as const) {
@@ -107,7 +124,7 @@ test("both providers validate only final responses, correct in the same conversa
       request: async <T>(_url: string, body?: any): Promise<T> => { if (body?.action === "prepare-view-generation") return { requestId: "prepared" } as T; calls.push(body); if (body) { attempt++; polls = 0; } else polls++; return snapshot() as T; },
       snapshot: () => {}, status: message => statuses.push(message), validate: async value => { try { return validateView(value); } catch (error) { throw new ViewValidationError(String(error)); } },
     });
-    assert.equal(result.schemaVersion, 1); assert.equal(attempt, 3);
+    assert.equal(result.schemaVersion, 2); assert.equal(attempt, 3);
     const sends = calls.filter(Boolean);
     assert.ok(sends.every(call => call.model === "selected-model" && call.provider === provider && call.viewGeneration));
     assert.equal(sends[1].id, "same-thread"); assert.equal(sends[2].id, "same-thread");
