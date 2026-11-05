@@ -639,7 +639,7 @@ test("litzio help exits successfully", () => {
     }
     const help = args.length === 0 ? result.stderr : result.stdout;
     const expectedGroups: Record<string, string[]> = {
-      "Create and inspect": ["create", "inspect", "templates"],
+      "Create and inspect": ["compare", "create", "inspect", "templates"],
       "Check": ["check"],
       "Edit — batch": ["apply-batch"],
       "Edit — insert blocks": ["insert-block", "insert-heading", "insert-admonition", "insert-quote", "insert-divider", "insert-equation", "insert-figure", "insert-list", "insert-code-block"],
@@ -2968,4 +2968,24 @@ test("assistant configure reports invalid fields without writing settings or cal
     assert.equal(result.status, 1); assert.match(result.stderr, new RegExp(field)); assert.match(result.stderr, reason);
   }
   assert.equal(fs.existsSync(settings) ? readFileSync(settings, "utf8") : undefined, before);
+});
+
+test("compare returns shared JSON receipts without changing either file; rejects invalid input", () => {
+  const before = path.join(fixtures, "compare-before.md"), after = path.join(fixtures, "compare-after.md");
+  const a = nativeSource("## Title\n"), b = nativeSource("### Title\n");
+  writeFileSync(before, a); writeFileSync(after, b);
+  const result = run(["compare", before, after, "--json"]);
+  assert.equal(result.status, 0, result.stderr);
+  const comparison = JSON.parse(result.stdout);
+  assert.equal(comparison.changes[0].kind, "changed");
+  assert.deepEqual(comparison.receipt, { beforeRevision: textRevision(a), afterRevision: textRevision(b) });
+  assert.equal(readFileSync(before, "utf8"), a); assert.equal(readFileSync(after, "utf8"), b);
+  for (const args of [[before, after], [before, after, "--json", "--json"], [before, "missing.md", "--json"]]) {
+    const failure = run(["compare", ...args]);
+    assert.notEqual(failure.status, 0); assert.equal(failure.stdout, "");
+  }
+  writeFileSync(after, "not native");
+  const failure = run(["compare", before, after, "--json"]);
+  assert.notEqual(failure.status, 0); assert.equal(failure.stdout, "");
+  assert.equal(readFileSync(after, "utf8"), "not native");
 });

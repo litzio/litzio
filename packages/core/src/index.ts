@@ -4,6 +4,7 @@
  * the Core implementation itself, typed with the opaque `Document` (no copy, no
  * wrapper at runtime). MyST types and raw tree access are never exported here.
  */
+import { compareDocuments as compareTrees } from "./compare.ts";
 import * as templates from "./myst/template.ts";
 import type { Document } from "./document.ts";
 import { inspectDocument as inspectTree } from "./document.ts";
@@ -148,3 +149,6 @@ export type { TemplateMetadata } from "./myst/template.ts";
 export const getTemplateMetadata = fence(templates.getTemplateMetadata);
 export const updateTemplateMetadata = fence(templates.updateTemplateMetadata);
 export const createDocumentFromTemplate = fence(templates.createDocumentFromTemplate);
+
+export type { DocumentComparison, BlockChange } from "./compare.ts";
+export const compareDocuments = fence(compareTrees);

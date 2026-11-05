@@ -311,6 +311,17 @@ a changed scheme/host/port/profile has a different IndexedDB store. See the
 
 The 2026-10-13 dependency audit still reports 16 existing transitive advisories (5 high, 10 moderate, 1 low). This change reuses the already locked esbuild build tool and changes no resolved dependency versions; it does not remediate those advisories. Core parser configuration and the local markdown-it patch remain unchanged, and build-only tooling is not a Host runtime. MyST remediation remains tracked in [#11](https://github.com/litzio/litzio/issues/11); the historical [dependency review](../reviews/myst-security-alignment-v1.md) is context, not current security assurance.
 
+## Read-only document comparison (#1201)
+
+`POST /api/document-compare` accepts `{ before: string, after: string }` native source
+snapshots and invokes the shared `executeCompareOperation` executor. It does not read
+file paths, call Save, write recovery records or share client editing state. Results
+include Core block changes, document metadata change status, two editable projections
+and source revision receipts. Invalid/oversize/unsupported input returns the existing
+JSON error response; methods other than POST return 405. See the
+[Core and CLI comparison contract](document-support-v1.md#block-semantic-comparison-1201)
+for bounds, pairing and receipt semantics. CLI `compare <before> <after> --json` calls
+the same executor in its own process, rather than contacting the running daemon.
 ### Host 실행 계정 (#1199)
 
 `GET /api/host-capabilities`와 `GET /daemon/health`는 `identity: { runAs: string }`을 추가로 반환한다. 값은 대상 Host 프로세스의 OS 실행 계정이며 Windows는 `DOMAIN\user`, Linux는 사용자 이름이다. Desktop 로그인 이름이나 접속자 인증 정보가 아니다. 파일 작업과 비서 실행은 이 계정 권한으로 수행된다. `identity.viewer`는 인증 결정 #1145 이후의 확장 자리이며 현재 제공하지 않는다.
