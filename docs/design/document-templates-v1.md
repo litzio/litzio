@@ -1,14 +1,15 @@
 # Document templates v1
 
 - Status: Implemented
-- Last verified: 2026-11-04 — Phase 1 Core/CLI/Host/Desktop adapter tests; phase 2 gallery, retained reading preview, naming feedback and 1440/640px review; phase 3 generated guidance, CLI path and YAML-comment preservation checks. No real model call; packaged Desktop verification is CI-only.
+- Last verified: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
+- Previous execution verification: 2026-11-04 — Phase 1 Core/CLI/Host/Desktop adapter tests; phase 2 gallery, retained reading preview, naming feedback and 1440/640px review; phase 3 generated guidance, CLI path and YAML-comment preservation checks. No real model call; packaged Desktop verification is CI-only.
 - Shared-operation verification: 2026-11-04 (#1128: common Host operations, fake Codex tool calls/receipt history and child CLI execution; no real model call, packaged behavior is CI-only).
 - Scope: #1128 and #936 phases 1–3: Core semantics, thin CLI/Host interfaces, Editor gallery and assistant guidance.
 - Authority: [#936 owner decisions](https://github.com/litzio/litzio/issues/936), including the 2026-11-04 approval of optional `template: { name, description }`; [native support](document-support-v1.md), [ADR-0002](../adr/0002-document-persistence-semantic-ownership.md) and [ADR-0006](../adr/0006-native-document-boundary.md).
 
 ## Host 요청 경계 (#1174 PR2)
 
-템플릿 목록·미리보기 표면은 mount 시 Host client를 고정한다. 사용자 템플릿 저장 대화상자는 원본 문서 세션의 client를 직접 받으며, 대화상자를 여는 시점의 현재 client로 대체하지 않는다. 원본 연결이 달라졌으면 제출을 전송 전에 거부한다. 갤러리에서 템플릿을 선택해 시작한 문서 생성은 갤러리의 고정 client를 생성 대화상자까지 전달하며, 연결 변경 뒤 새 문서 PUT도 전송 전에 거부한다. 비동기 완료 전에 활성 탭을 바꾸어도 요청이 다른 Host로 이동하지 않으며 쓰기를 자동 replay하지 않는다. 운영 목록은 로컬 하나이며 원격 등록과 화면 대상 선택은 ADR-0018 PR3~4에서 통합한다.
+템플릿 목록·미리보기 표면은 mount 시 Host client를 고정한다. 사용자 템플릿 저장 대화상자는 원본 문서 세션의 client를 직접 받으며, 대화상자를 여는 시점의 현재 client로 대체하지 않는다. 원본 연결이 달라졌으면 제출을 전송 전에 거부한다. 갤러리에서 템플릿을 선택해 시작한 문서 생성은 갤러리의 고정 client를 생성 대화상자까지 전달하며, 연결 변경 뒤 새 문서 PUT도 전송 전에 거부한다. 비동기 완료 전에 활성 탭을 바꾸어도 요청이 다른 Host로 이동하지 않으며 쓰기를 자동 replay하지 않는다. 현재 갤러리 진입은 로컬 Host만 제공한다. App.tsx의 갤러리 진입과 렌더에는 Host 선택 또는 Provider가 없고 useHostClient는 기본 LOCAL_HOST_ID를 사용한다. 원격 Host의 문서를 사용자 템플릿으로 저장하는 경계와 갤러리 진입은 별개다. 원격 갤러리 진입은 [#1185](https://github.com/litzio/litzio/issues/1185)로 추적한다.
 
 
 ## Native document semantics

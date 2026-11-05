@@ -3,6 +3,7 @@
 #1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP Host 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
 
 - Status: Implemented
+- Last verified: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
 - Remote registration PR3a verification: 2026-11-05 — temporary-path registry/CLI, exact CSP and health preflight tests; production HTTP persistent Chrome recovery/Save/Reload/conflict (2 passed). Settings/protected restart and live Windows Desktop → Linux remote connection remain unverified and outside PR3a.
 - PR4 daemon lifetime verification: 2026-11-04 — existing fake app-server/HTTP, shutdown/uncertain/no-replay, CLI ownership subprocess tests and persistent Chrome reconnect preservation; restored packaged worker/native comparison is required Windows CI.
 - PR3 verification: 2026-11-04 — CLI 90, Editor 433, Desktop 76 tests; ownership/crash/stale subprocess cases; typecheck and dev build; persistent Chrome Desktop/HTTP scenarios. Windows packaged checks remain CI-only.
@@ -20,7 +21,7 @@
 - Separator verification: 2026-10-28 (#635: persistent Windows Chrome, light/dark, 1440/1424/1423/640px, Outline/sidebar open and closed, representative 138px/zero caption reservations; four 1440/640px before/after PNG pairs differ only in the missing 138×1px line. Actual native geometry remains Windows packaged CI; native visual acceptance is separate).
 - File operations verification: 2026-10-27 (#505 / #504 PR A: Editor/Host/Desktop unit tests, workspace typecheck, production Editor build and targeted persistent-Chrome browser checks; packaged Desktop is CI-only).
 - Documentation verification: 2026-10-26 (Host startup response versus Editor tab restoration compared with first-document.ts, host-protocol.ts, App.tsx and the session contract; no new Desktop execution).
-- Last verified: 2026-11-04 (public 0.0.2-beta.6, first release run succeeded; tag/commit, Korean Release body and asset metadata checked; orchestrator anonymous download and SHA-512 evidence recorded; actual installation/update unverified; [record](../releases/v0.0.2-beta.6.md)).
+- Previous execution verification: 2026-11-04 (public 0.0.2-beta.6, first release run succeeded; tag/commit, Korean Release body and asset metadata checked; orchestrator anonymous download and SHA-512 evidence recorded; actual installation/update unverified; [record](../releases/v0.0.2-beta.6.md)).
 - Previous verification: 2026-10-26 (public 0.1.0-beta.1, release CI, anonymous assets, real GitHub 0.0.1-beta.4→0.1.0-beta.1 update and Korean Windows packaged regression with #450; see the release record).
 - Previous verification: 2026-10-16 (#296 PR3: actual packaged Windows process crash/normal close, same-profile recovery, pending Figure, Save/Reload and external conflict. Native close answer is stubbed; no install/update/release performed).
 - Previous verification: 2026-10-16 (#296 PR2: native Close without saving wording; Desktop tests/typecheck and mock-bridge browser guards).
@@ -36,9 +37,9 @@ UI를 `litzio://app/index.html`로 연다. custom scheme은 static UI 전용이�
 브라우저는 계속 daemon HTTP UI를 쓴다. Electron storage의 현재 origin은 `litzio://app`이며
 과거 origin 데이터의 migration/하위 호환은 제공하지 않는다. 인증은 #1145에 보류한다.
 
-## 후속 결정: 원격 Host (#1174, 미구현)
+## 원격 Host (#1174 PR0~4 완료)
 
-[ADR-0018](../adr/0018-desktop-remote-hosts.md)은 Desktop 원격 등록·자동 연결/재연결·여러 Host 보기를 결정한다. 아래는 현재 구현 계약이며 해당 변경은 #1174 PR1~4에서 실제 구현과 함께 갱신한다. 이 연결은 원격 기능의 제공 완료를 뜻하지 않는다.
+[ADR-0018](../adr/0018-desktop-remote-hosts.md)의 PR0~4(#1175~#1180)는 완료했다. Desktop 원격 등록·자동 연결/재연결·Host별 탐색기·탭·필터·비서 선택을 제공한다. 실제 Windows Desktop → Linux 연결은 미검증이며, 템플릿 갤러리 진입은 [템플릿 계약](document-templates-v1.md)의 로컬 전용 경계를 따른다.
 
 ## Shared daemon Desktop (#1142 PR3)
 

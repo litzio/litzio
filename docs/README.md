@@ -19,13 +19,13 @@
 | [ADR-0009: Multiple opened folders](adr/0009-multiple-opened-folders.md) | Accepted | #235 / #425 / #582 / #702. 포함 관계 없는 루트와 상위 흡수·하위 reveal, origin별 폴더 섹션 접힘 기억과 폴더 줄의 작업 진입점, 순서 있는 여러 폴더, 경로만 브라우저 환경설정으로 복원, 문서 폴더 맥락은 가장 바깥쪽 열린 폴더. #582가 #385의 헤더 진입점 배치를 대체. Workspace 파일·Host 상태 없음. |
 | [ADR-0010: Supported viewport and input](adr/0010-supported-viewport-and-input.md) | Accepted | 2026-10-27 소유자 결정. 지원 최소 폭 640px의 데스크톱급 창과 키보드·포인터 입력. 휴대폰·터치 전용 지원은 실제 사용자 확인 후 별도 결정. 정리 작업은 #602. |
 | [ADR-0011: Code module boundary](adr/0011-code-module-boundary.md) | Accepted | 첫 모듈의 패키지 위치, 모듈 → Core 공개 API 의존, 문서 밖 데이터와 얇은 CLI. 정적 연결·등록/동적 로딩 금지와 process-local 전용 작업 상태는 ADR-0012로 일부 Superseded. |
-| [ADR-0012: Plugin runtime and UI contributions](adr/0012-plugin-runtime-and-ui-contributions.md) | Accepted | 2026-10-31 소유자 승인. 실행 중 Host 연결 없는 공용 설치 폴더, 별도 worker, 같은 origin의 검증된 ESM/CSS와 좁은 UI API, 동적 기여·drain·비활성 탭, UUID·uncertain·완료 결과 공개. 구현 채택 조건과 범위 제외를 명시하며 스파이크 코드 채택은 아님. |
+| [ADR-0012: Plugin runtime and UI contributions](adr/0012-plugin-runtime-and-ui-contributions.md) | Accepted | 2026-10-31 소유자 승인. 실행 중 Host 연결 없는 공용 설치 폴더, 별도 worker, 같은 origin의 검증된 ESM/CSS와 좁은 UI API, 동적 기여·drain·비활성 탭, UUID·uncertain·완료 결과 공개. ADR-0017로 해당 플러그인·Docling 기능과 공개 API를 제거하고 archive/plugins-docling-2026-11에 보관했다. 기존 승인 기록이며 현재 플러그인 제공 계약이 아니다. |
 | [ADR-0013: AI agent task service](adr/0013-ai-agent-task-service.md) | Accepted | 2026-11-02 소유자 승인. #880 AI 작업 서비스, Host 중개 작업 메시지. 기본 포함 AI 플러그인 결정은 ADR-0017의 공식 기능으로 개정. 기능·추론 역할 분리와 자료 스냅샷. 전용 Codex 홈 격리의 유예와 도입 조건 포함. |
 | [ADR-0014: Main agent app-server](adr/0014-main-agent-app-server.md) | Accepted | #931 Host 소유 stdio 연결, 사용자 Codex 환경 재사용, 앱 데이터 cwd, provider 이름만 전제한 구조와 ADR-0013 조건 2 변경. 연결·설정·대화의 소유권과 후속 문서 작성 기능의 경계. |
 | [ADR-0015: Shared Host operations](adr/0015-shared-host-operations.md) | Accepted | 2026-11-04 #1132 소유자 승인. 새 사용자 기능의 입력·결과·범위·receipt 공용 정의와 CLI 필수, 필요 시 비서 도구. #1128 첫 사례와 동시 편집 대비 경계. 로컬 daemon 자동 탐색·연결·수명은 ADR-0016으로 개정하고 편집 상태 공유는 보류. |
-| [ADR-0016: 공유 로컬 daemon Host](adr/0016-shared-local-daemon-host.md) | Accepted | 2026-11-04 #1142 소유자 결정 ①~⑥. 인증 보류(#1145)·단일 인스턴스·버전·수명·Root·휴지통·샘플·origin, PR1~PR4. PR4에서 플러그인·AI daemon 수명과 테스트 복구로 기간 한정 예외 종료; 필수 CI 전체 통과로 1단계 완료·해당 릴리스 중단 해제. 구현 계약은 HTTP Host/ Desktop distribution과 Plugin runtime/Main agent. 공유 편집은 보류. |
+| [ADR-0016: 공유 로컬 daemon Host](adr/0016-shared-local-daemon-host.md) | Accepted | 2026-11-04 #1142 소유자 결정 ①~⑥. 인증 보류(#1145)·단일 인스턴스·버전·수명·Root·휴지통·샘플·origin, PR1~PR4. PR4에서 플러그인·AI daemon 수명과 테스트 복구로 기간 한정 예외 종료; 필수 CI 전체 통과로 1단계 완료·해당 릴리스 중단 해제. 구현 계약은 HTTP Host/Desktop distribution과 공식 AI Main agent. Plugin runtime은 ADR-0017로 제거·보관했다. 공유 편집은 보류. |
 | [ADR-0017: Desktop 번들 UI와 daemon 공식 AI](adr/0017-bundled-client-and-official-ai.md) | Accepted | #1150 소유자 결정. 공식 AI·프로바이더 가용성·설정 CLI, 플러그인·Docling 기능 제거·직전 master 원격 보관, Host 클라이언트·번들 UI 전환. 소유자 개시 시 컨셉 재개발. 1단계·코어 전환 전 릴리스 금지, 이후 플러그인 없는 제품 릴리스는 소유자 결정. ③a·③b 구현: 공식 AI·설정 CLI와 플러그인/Docling 삭제. ④ Host 클라이언트·⑤ 앱 번들 UI와 정확한 Desktop origin 허용 구현. |
-| [ADR-0018: Desktop의 원격 Host 등록과 여러 Host 보기](adr/0018-desktop-remote-hosts.md) | Accepted | #1174 소유자 결정 ①~⑨. Desktop 로컬 등록·hostId·원격 자동 연결/재연결, Host별 탐색기·탭·필터·비서, 공용 작업·CLI·CSP 재시작 보호. ADR-0016·0017의 원격 보류 개정. PR1은 로컬 Host 식별·탭/폴더 기억·복구 격리 구현. PR2는 Host별 요청·상태·capability와 비서/템플릿 대상 고정, 두 Host fixture 검증. PR4는 Host별 탐색기·필터·탭과 비서 선택/고정, 로컬 OS 기능 경계를 구현하며 브라우저 fixture로 확인한다. PR3 등록 통합과 PR4 필수 CI 완료는 별도 확인한다. |
+| [ADR-0018: Desktop의 원격 Host 등록과 여러 Host 보기](adr/0018-desktop-remote-hosts.md) | Accepted | #1174 소유자 결정 ①~⑨. Desktop 로컬 등록·hostId·원격 자동 연결/재연결, Host별 탐색기·탭·필터·비서, 공용 작업·CLI·CSP 재시작 보호. ADR-0016·0017의 원격 보류 개정. PR1은 로컬 Host 식별·탭/폴더 기억·복구 격리 구현. PR2는 Host별 요청·상태·capability와 비서/템플릿 대상 고정, 두 Host fixture 검증. PR4는 Host별 탐색기·필터·탭과 비서 선택/고정, 로컬 OS 기능 경계를 구현하며 브라우저 fixture로 확인한다. PR3 등록·Settings·보호된 재시작 통합과 PR4를 포함한 PR0~4(#1175~#1180)가 완료했다. #1180의 필수 CI 성공 확인(2026-11-05); 실제 Windows→Linux 연결은 미검증. 템플릿 갤러리 진입은 로컬 전용이다. |
 
 ## Current implemented contracts
 
@@ -68,7 +68,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
-| [제품 용어집](contributing/terminology.md) | Implemented | 화면·문서 표준 용어와 PR B 기술 이름 목표. |
+| [제품 용어집](contributing/terminology.md) | Implemented | 화면·문서 표준 용어와 PR B에서 반영한 기술 이름. |
 | [이슈 작성](contributing/issues.md) | Implemented | 제목·유형·최소 정보 규칙, 공통 정의에서 생성하는 웹 폼, CLI 사전 검사와 GitHub 등록 후 검사. |
 | [테스트 설계와 PR 확인](contributing/test-design.md) | Implemented | 테스트 작성·확대의 7개 원칙, 예외 기준과 PR 기록·확인 절차. |
 | [Documentation governance](contributing/documentation-governance.md) | Implemented | 현재 작업 규칙. 문서 authority, status, metadata와 갱신 절차. |
@@ -81,7 +81,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
-| [UI decision table and gallery](design/ui-decision-table-v1.md) | Implemented | 에이전트의 표면·공통 구현 선택, Plugin API 경계와 개발 전용 실행 예제. 규범은 기존 세 UI 문서가 소유한다. |
+| [UI decision table and gallery](design/ui-decision-table-v1.md) | Implemented | 에이전트의 표면·공통 구현 선택, 개발 전용 실행 예제와 제거·보관된 Plugin API의 역사적 경계. 규범은 기존 세 UI 문서가 소유한다. |
 | [UI patterns](design/ui-patterns-v1.md) | Draft | UI 작업 전 확인. #777 소유자가 확정한 P01–P12 목표와 현재 기준 구현·사용처, 알려진 불일치·후속 이슈 및 다른 화면 확인 규칙. 미구현 목표를 Implemented로 주장하지 않기 위한 상태이며 채택 결정은 확정됨. |
 
 ## Historical reviews and spikes
