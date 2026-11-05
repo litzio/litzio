@@ -12,7 +12,7 @@ import { hostLabel } from "../host-client.ts";
 import { STATISTICS_PLUGIN, statisticsView, viewRequest, type ViewResult } from "./view-api.ts";
 import "./views.css";
 
-export type ViewTab = { id: string; hostId: string; root: string; view?: View; basic?: boolean; label?: string };
+export type ViewTab = { id: string; hostId: string; root: string; view?: View; basic?: boolean; jobs?: boolean; label?: string };
 function ViewBars({ rows, x, y, label }: { rows: ViewRow[]; x: string; y: string; label(field: string, value: ViewRow[string]): string }) {
   const values = rows.map(row => Number(row[y]));
   const min = Math.min(0, ...values), max = Math.max(0, ...values);

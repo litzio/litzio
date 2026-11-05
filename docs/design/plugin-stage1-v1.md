@@ -68,3 +68,31 @@ Windows PowerShell의 기본 .NET ProtectedData를 통해 DPAPI CurrentUser를 �
 ## Read operation row schema (#1218)
 
 읽기 작업의 선택적 `rowSchema`는 [Generated views v1](generated-views-v1.md#operation-row-schema-1218)을 따른다. 이는 일반 읽기 작업의 출력 선언이며 `generatedUi/views` 기여나 SDK folder scope를 개방하지 않는다. Core가 타입·날짜·표시 라벨·secret 제한과 가공을 소유한다.
+
+## K1 파일 작업
+
+2026-11-05 로드맵 1(e): `contributes.jobs`에 id/title, 확장자 accept(예: `.txt`), start/status/stop 작업 ID와 `resultKind: native-document`를 선언한다. 세 binding은 등록된 operation이어야 하며 start는 write다. 일반 `operation invoke`로 이 binding을 직접 실행할 수 없다. 입력·결과 JSON schema 검사는 기존 기능 호출과 동일하다. SDK `jobRequestSchema`, `jobUpdateSchema`, `JobSnapshot`이 공용 작업의 정의다.
+
+`POST /api/plugins`의 job-start는 plugin/job/requestId(UUID)/root/file/output을 받는다. file과 output은 대상 Host Root 상대 경로다. Host의 접근 정책과 real-path Root 검사를 모두 통과해야 하며 입력은 accept와 일치하는 실제 파일이어야 한다. Desktop 파일 업로드나 로컬 fallback은 없다. 결과는 새 `.md` 문서로만 생성하며 기존 파일·입력 원본을 덮어쓰지 않는다.
+
+Host는 실행 전에 requestId를 메모리에 기록하고 중복 start를 거부한다. running/completed/failed/stopped/uncertain, phase, 선택적 done/total, stopRequested를 유지한다. start handler는 긴 Promise를 반환할 수 있다. status/stop handler는 같은 requestId/root/file/output을 받는다. handler 결과는 state/phase/progress/error와 완료 시 document.source다. Host가 완료 결과의 native source를 Core 기반 공식 생성 경로로 검증·생성한 뒤에만 path/revision을 공개한다. 완료 전 document/source/부분 결과는 UI·CLI로 공개하지 않는다. 결과 문서 생성 실패도 uncertain으로 남겨 확인 없이 다시 쓰지 않는다.
+
+job-status/job-stop/job-result는 같은 requestId만 받는다. stopRequested는 취소 요청이며 stopped와 다르다. 플러그인이 stopped를 확인할 때만 실제 중단으로 표시한다. disable/종료는 작업에 중단을 요청하고 진행 start 호출을 drain한 뒤 기존 dispose를 수행한다. 협조하지 않는 신뢰 코드의 강제 종료는 보장하지 않는다. 메모리 기록은 daemon 수명에 한정된다. 재시작 후 unknown ID는 재실행 근거가 아니다. 영속 queue/DB/scheduler는 없다.
+
+```text
+plugins start <pluginId> --input <json-file> --host <origin> --json
+plugins status|stop|result <requestId> --host <origin> --json
+jobs list [pluginId] --host <origin> --json
+```
+
+start 파일은 job/requestId/root/file/output을 담는다. CLI는 앱과 같은 공용 작업·receipt를 호출하며 결과가 앱 탭을 생성하지 않는다. 응답 유실 뒤 start를 재전송하지 않고 status로 같은 ID를 조회한다.
+
+명령 센터의 Plugin jobs는 현재 문서/작업 탭 Host에 고정된 앱 번들 기본 UI다. 공통 Button/Input/Notice, 기존 뷰 페이지 레이아웃과 Host 폴더 목록을 재사용한다. 열린 대상 Host 폴더 안에서 파일을 선택하고 실행·상태·중단·완료 문서 열기를 제공한다. 결과 열기는 기존 Host-aware 문서 열기와 미저장 보호를 따른다. requestId는 내부에서 생성·관리하며 입력란으로 노출하지 않는다. Host의 `job-list`는 플러그인별 진행 중·최근 작업과 경과 시간을 daemon 메모리에서 반환한다. 작업 화면을 다시 열면 이 목록으로 진행 중 작업을 복원해 관찰하고 최근 작업을 선택할 수 있다. 브라우저 자체 요청 ID 저장소나 재입력에 의존하지 않는다. 활성 작업 화면에서만 1초 간격으로 겹치지 않게 조회하고, 숨김/탭 닫기 시 타이머와 요청을 정리한다. 화면 닫기는 실행 취소가 아니다. 연결/응답 상실은 uncertain으로 표시하며 폴링을 멈춘다. uncertain일 때만 상태 다시 확인 버튼을 보여 내부의 같은 ID로 조회한다. Host의 명확한 4xx 실행 거부는 실패와 이유를 표시하고 입력 수정을 허용한다. 연결 실패·5xx·응답 유실과 구분한다. 저장된 데이터 뷰의 자동 조회 금지 계약은 그대로다.
+
+검증 fixture는 `apps/editor/test/fixtures/job-plugin`이다. 텍스트 파일을 세 단계 처리하고 native source를 Host에 돌려준다. FAIL/UNCERTAIN으로 시작하는 입력은 각각 실패/불확실을 재현한다. 중단 요청은 먼저 접수되고 다음 상태 조회에서 실제 stopped가 확인된다. 실제 Docling 변환·품질 증거는 아니다. Host 수명·중복·출력 공개·Root 경계는 `plugin-jobs.test.ts`, HTTP CLI/UI 연결·결과 열기·Stop은 `pnpm browser:test plugin-jobs`가 소유한다. 수동 캡처는 `pnpm browser:test plugin-jobs --screenshots`의 `tmp/plugin-jobs/completed-1440.png`, `completed-640.png`에 남긴다.
+
+K1 기본 UI는 `SettingsSelect`/`SettingsInput`의 라벨·control 높이·간격과 `HostStatus`의 점·톤을 재사용한다. 상태를 지역화해 한 번만 표시하고 진행 중 phase와 경과 시간을 옆에 둔다. 취소 버튼은 실행 중에만, 접수 뒤에는 취소 요청됨, 실제 stopped 뒤에는 취소됨으로 구분한다. 상위 폴더 복귀는 하위 폴더를 탐색한 경우에만 명확한 라벨로 보인다. 공용 `components/ui/Progress`는 ARIA progressbar와 제품 surface/accent·간격 토큰을 쓰며 기본 브라우저 progress를 사용하지 않는다. 숫자 진행량과 결과 열기는 별도 간격·행으로 분리한다.
+
+Codex 비서는 SDK `PLUGIN_JOBS` 공용 정의를 그대로 쓰는 `plugin_jobs` 도구로 start/status/stop/result/list를 호출한다. 건별 확인은 없고 기존 turn 활동 목록에 작업·성공/실패·결과를 남긴다. start/stop은 기존 대화의 쓰기 모드·열린 폴더 범위를 지키며 secret이나 공식 목록 변경 권한은 추가하지 않는다. 실제 모델 호출 없이 app-server fixture로 도구 노출·승인 없음·활동 기록을 검증한다. Copilot의 별도 dynamic-tool 공급은 이 단계에서 추가하지 않는다. `plugin-jobs.test.ts`는 Editor 기본 test 명령에 포함하며 동시 동일 ID/별도 ID 시작, 완료와 Stop 경합, daemon 재시작 뒤 unknown/no replay를 보호한다.
+
+입력 선택은 `(Root, 상대 경로)` 쌍이다. 파일·폴더 선택은 해당 Host가 반환한 자식 이름으로 상대 경로를 구성하며 절대 경로 문자열을 잘라 재해석하지 않는다. Root 선택이나 최근 작업 이동으로 Root가 바뀌면 파일·탐색 폴더·이전 목록을 초기화하며, 새 Root에서 명시적으로 다시 선택하기 전에는 실행하지 않는다. 같은 이름의 파일이 다른 Root에 존재해도 자동 재바인딩하지 않는다.

@@ -4,6 +4,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| 플러그인 파일 작업의 진행·결과를 확인한다 | 기존 작업 탭 | SettingsSelect/SettingsInput/Button/Notice + 공용 Progress + HostStatus 점·톤 | 진행 화면 한정 polling · uncertain에서만 다시 확인 · Host 목록으로 재진입 · 완료 결과만 열기 | [K1](plugin-stage1-v1.md#k1-파일-작업) | 범용 작업 UI 엔진은 만들지 않는다. Progress는 재사용할 기존 공용 막대가 없어 작은 ARIA·토큰 컴포넌트로 추가한다. |
 | 내장 통계와 생성·즐겨찾기 뷰를 연다 | 기존 작업 탭 | DocumentTabs + Views/ViewRenderer, Button/Input/Dialog/Notice, native table/meter와 제품 토큰 | 기본 표 유지 · 제안은 새 탭 · 새 이름 저장 · 목록 열기는 명세만 · 수동 새로고침 | [Generated views](generated-views-v1.md) | 읽기 전용 뷰는 문서 Save/복구 세션이 없다. SDK 기여 확장은 하지 않는다. |
 | 문서 내용을 읽고 편집한다 | 문서 본문 | 기존 Tiptap editor / NodeView와 Core operation | 직접 입력은 즉시 적용·Undo · 디스크는 Save · 미저장 닫기는 Save/Don't save/Cancel ([저장 계약](editing-session-save-v1.md#switching-and-recovery), [P04](ui-patterns-v1.md#p04-적용취소완료)) | [DocumentEditor](../../apps/editor/src/DocumentEditor.tsx) | 별도 editor engine을 만들지 않는다. [미적용 초안](editing-session-save-v1.md#applied-content-and-drafts)은 직접 본문 입력과 다르다. |
 | 대상의 작은 속성을 고치며 본문 문맥을 유지한다 | 대상에 붙는 작은 편집면 | 기존 속성 폼과 Popover | Metadata는 Edit로 진입 · Done/유효한 바깥 pointer 적용·Esc 취소 · 오류는 초안 유지 ([P03](ui-patterns-v1.md#p03-편집-진입), [P04](ui-patterns-v1.md#p04-적용취소완료)) | [MetadataProperties](../../apps/editor/src/metadata-properties.tsx) | 바깥 적용은 클릭 위치 focus 유지. 링크·교차참조의 명시적 Apply/Cancel, [미주](footnotes-v1.md#editor), [인용 동결](../adr/0008-citations-and-bibliography.md)은 [P04](ui-patterns-v1.md#p04-적용취소완료)의 별도 경계다. |

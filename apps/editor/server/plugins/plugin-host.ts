@@ -10,6 +10,9 @@ import { hostPaths } from "../host-paths.ts";
 import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store.ts";
 import { rememberSecret, safePluginValue, withPluginCode } from "./secret-redaction.ts";
 
+import { PluginJobs } from "./jobs.ts";
+import { LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.ts";
+
 type Installed = { directory: string; digest: string; trustedDigest?: string; enabled: boolean; settings: Record<string, unknown>; operationNames: string[] };
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>> };
 // Product-maintained supply list. Publisher metadata alone never establishes official supply.
@@ -22,7 +25,12 @@ export class PluginHost {
   private errors = new Map<string, string>();
   private serial: Promise<unknown> = Promise.resolve();
   private closed = false;
-  constructor(private file = hostPaths().settingsFile("plugins"), private secrets: PluginSecretStore = new WindowsPluginSecretStore(`${file}.secrets`)) {
+  private disabling = new Set<string>();
+  readonly jobs: PluginJobs;
+  private secrets: PluginSecretStore;
+  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; secrets?: PluginSecretStore } = {}) {
+    this.secrets = options.secrets ?? new WindowsPluginSecretStore(`${file}.secrets`);
+    this.jobs = new PluginJobs(options.access ?? LOCAL_FILE_ACCESS, (plugin, job) => { if (this.closed || this.disabling.has(plugin)) throw new Error("Plugin is stopping"); const binding = this.loaded.get(plugin)?.manifest.contributes.jobs.find(item => item.id === job); if (!binding) throw new Error("Job unavailable"); return binding; }, (name, input) => this.invokeOperation(name, input, undefined, true));
     this.installed = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
   }
   private save() {
@@ -82,7 +90,7 @@ export class PluginHost {
         const observed = live ? await this.status(live) : null;
         const current = live && this.loaded.get(id) === live;
         return { id, publisher: m.publisher, name: m.name, description: m.description, version: m.version, installed: true, official: this.official(m, digest), trusted: this.official(m, digest) || r.trustedDigest === digest, enabled: r.enabled, running: !!current,
-          secrets: await this.secretStatus(id, m), settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest };
+          jobs: m.contributes.jobs, secrets: await this.secretStatus(id, m), settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest };
       } catch (e) { return { id, installed: true, enabled: r.enabled, running: false, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : "Plugin status unavailable", status: null }; }
     }));
   }
@@ -104,6 +112,7 @@ export class PluginHost {
         await withPluginCode(() => instance?.dispose?.()); throw new Error("Missing or undeclared contribution handler");
       }
       this.loaded.set(id, { manifest: a.manifest, instance, pending: new Set() });
+      this.disabling.delete(id);
       this.errors.delete(id);
     }); } catch { throw new Error("Plugin activation failed"); }
   }
@@ -147,6 +156,8 @@ export class PluginHost {
   }
   private record(id: string) { if (!Object.hasOwn(this.installed, id)) throw new Error("Plugin is not registered"); return this.installed[id]!; }
   private async disable(id: string) {
+    this.disabling.add(id);
+    await this.jobs.close(id);
     const live = this.loaded.get(id); this.loaded.delete(id);
     if (live) {
       await Promise.allSettled([...live.pending]);
@@ -158,10 +169,12 @@ export class PluginHost {
       .filter(op => op.effect === "read" && op.rowSchema)
       .map(op => ({ operation: `${live.manifest.id}.${op.id}`, version: op.version, rowSchema: op.rowSchema!, inputSchema: op.inputSchema, validateArgs: (args: unknown) => !!compileSchema(op.inputSchema)(args) })))];
   }
-  async invokeOperation(name: string, input: unknown, folder?: string) {
+  async invokeOperation(name: string, input: unknown, folder?: string, jobCall = false) {
     const live = [...this.loaded.values()].find(v => v.manifest.contributes.operations.some(op => `${v.manifest.id}.${op.id}` === name));
     const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === name);
     if (!live || !op) throw new Error("Operation unavailable or plugin disabled");
+    if (!jobCall && this.disabling.has(live.manifest.id)) throw new Error("Plugin is stopping");
+    if (!jobCall && live.manifest.contributes.jobs.some(job => [job.start, job.status, job.stop].includes(op.id))) throw new Error("Use job start/status/stop with a requestId");
     const record = this.record(live.manifest.id), current = this.artifact(record.directory);
     if (current.digest !== record.digest || !this.official(current.manifest, current.digest) && record.trustedDigest !== current.digest) throw new Error("Artifact trust changed; restart daemon before invoking");
     if (op.scope === "folder") throw new Error("Folder-scoped plugin operations are unsupported in stage 1");
@@ -175,8 +188,9 @@ export class PluginHost {
       return { error: "Plugin operation did not return a valid result. Check the target before retrying a write.", receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: op.effect === "write" ? "uncertain" : "failure" } };
     } finally { live.pending.delete(run); }
   }
-  invoke(action: string, args: { id?: string; directory?: string; digest?: string; settings?: Record<string, unknown>; operation?: string; input?: unknown; name?: string } = {}): Promise<unknown> {
+  invoke(action: string, args: { id?: string; directory?: string; digest?: string; settings?: Record<string, unknown>; operation?: string; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; output?: string; requestId?: string } = {}): Promise<unknown> {
     if (this.closed) return Promise.reject(new Error("Plugin Host is closing"));
+    if (action.startsWith("job-")) return this.jobs.execute({ action, ...args });
     if (action === "invoke") return this.invokeOperation(args.operation!, args.input);
     pluginManagementSchema.parse({ action, ...args });
     if (action === "list") return this.list().then(plugins => ({ plugins }));

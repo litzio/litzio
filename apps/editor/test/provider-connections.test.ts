@@ -98,12 +98,13 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   assert.deepEqual(connection.copilot.permission!({ ...execution, toolCall: { toolCallId: "outside", kind: "edit", locations: [{ path: path.join(root, "..", "outside.txt") }] } }), { outcome: { outcome: "selected", optionId: "once" } });
   assert.deepEqual(connection.copilot.permission!({ ...execution, toolCall: { toolCallId: "url", kind: "fetch" } }), { outcome: { outcome: "selected", optionId: "once" } });
   await conversations.interrupt(full.id);
+  // cancel is a notification: wait for the existing RPC barrier before reading child-owned JSONL.
+  await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: full.id, modelId: input.model }));
   const fullRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   const launch = fullRpc.filter(message => message.args).at(-1);
   assert.ok(!launch.args.includes("--deny-tool=shell"));
   assert.ok(launch.args.includes("--disable-builtin-mcps"));
   assert.ok(fullRpc.some(message => message.method === "session/set_config_option" && message.params.configId === "allow_all" && message.params.value === "on"));
-  await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: full.id, modelId: input.model }));
   const restricted = await conversations.send({ ...input, id: full.id, permissionMode: "read-only" }, settings);
   assert.deepEqual(connection.copilot.permission!({ ...execution, sessionId: restricted.id }), { outcome: { outcome: "cancelled" } });
   await conversations.interrupt(restricted.id);

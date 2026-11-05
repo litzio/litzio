@@ -13,6 +13,16 @@ export async function pluginCli(args: string[]): Promise<number> {
     if (command === "operation" && action === "invoke") {
       if (!id || tokens[3] !== "--input" || tokens.length !== 5) throw new Error("operation invoke <id> --input <json-file>");
       body = { action: "invoke", operation: id, input: JSON.parse(readFileSync(tokens[4]!, "utf8")) };
+    } else if (command === "jobs" && action === "list" && tokens.length <= 3) {
+      body = { action: "job-list", ...(id ? { plugin: id } : {}) };
+    } else if (command === "plugins" && ["start", "status", "stop", "result"].includes(action!) && id) {
+      if (action === "start") {
+        if (tokens.length !== 5 || tokens[3] !== "--input") throw new Error("plugins start <pluginId> --input <json-file>");
+        body = { ...JSON.parse(readFileSync(tokens[4]!, "utf8")), action: "job-start", plugin: id };
+      } else {
+        if (tokens.length !== 3) throw new Error("plugins status|stop|result <requestId>");
+        body = { action: `job-${action}`, requestId: id };
+      }
     } else if (command === "plugins" && action === "list" && tokens.length === 2) body = { action };
     else if (command === "plugins" && action === "register" && tokens.length === 3) body = { action, directory: id };
     else if (command === "plugins" && ["enable", "disable", "unregister"].includes(action!) && tokens.length === 3) body = { action, id };

@@ -328,3 +328,5 @@ CI follow-up: the first head failed the existing `continuous-editing` assertion
 that notification history starts outside `.app-shell`. The center remains a
 shell sibling; the shell now passes only its current right-panel width to the
 notification outlet. The original history assertion is unchanged.
+
+K1 플러그인 작업 폼은 SettingsSelect/SettingsInput의 공용 라벨·control 행을 재사용한다. 진행 막대는 공용 Progress의 `--space-2` 높이와 surface/accent를 사용하고, 진행량과의 간격은 `--space-3`, 상태·진행·결과 동작의 세로 간격은 기존 view-panel의 `--space-3`을 따른다. 고유한 크기·색·라벨 규칙을 추가하지 않는다.

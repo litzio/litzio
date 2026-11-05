@@ -1,3 +1,4 @@
+import { PluginJobs } from "./PluginJobs.tsx";
 import { useAssistantReferenceHandoff } from "./assistant-reference-handoff.ts";
 import { Views, type ViewTab } from "./views/Views.tsx";
 import type { View } from "@litzio/core/views";
@@ -208,7 +209,7 @@ function EditorApp() {
   const galleryGroup = navigation.groups.find(group => group.tabs.includes("templates"));
   const galleryOpen = galleryGroup?.active === "templates";
   const galleryFocused = activeId === "templates";
-  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.root, hostId: tab.hostId, title: tab.basic ? i18n.t("Document statistics") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
+  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.root, hostId: tab.hostId, title: tab.jobs ? i18n.t("Plugin jobs") : tab.basic ? i18n.t("Document statistics") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
@@ -716,6 +717,12 @@ function EditorApp() {
     focusAfterClose.current = true;
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
   }
+  function openPluginJobs(): void {
+    const hostId = viewTabs.find(tab => tab.id === activeId)?.hostId ?? session?.hostId ?? LOCAL_HOST_ID;
+    const id = `plugin-jobs-${hostId}`;
+    setViewTabs(previous => previous.some(tab => tab.id === id) ? previous : [...previous, { id, jobs: true, hostId, root: "" }]);
+    placeTab(id);
+  }
   function openStatistics(): void {
     if (busy || continuation) return;
     const hostId = viewTabs.find(tab => tab.id === activeId)?.hostId ?? session?.hostId ?? LOCAL_HOST_ID;
@@ -1033,6 +1040,7 @@ function EditorApp() {
     });
   };
   const commandItems: CommandCenterItem[] = [
+    { id: "plugin-jobs", kind: "command", label: i18n.t("Plugin jobs"), icon: FileText, takesFocus: true, run: openPluginJobs },
     { id: "document-statistics", kind: "command", label: i18n.t("Document statistics"), icon: FileText, takesFocus: true,
       disabled: busy || Boolean(continuation), keywords: ["statistics", "views", "favourites", "통계", "즐겨찾기"], run: openStatistics },
     ...(assistantAvailable ? [{ id: "assistant", kind: "command" as const, label: i18n.t("Assistant"), icon: MessageSquare, takesFocus: true,
@@ -1311,7 +1319,7 @@ function EditorApp() {
               hidden={group?.active !== tab.id} inert={group?.active !== tab.id} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
               data-group-index={groupIndex} style={{ "--editor-group-index": groupIndex } as React.CSSProperties}
               onFocusCapture={() => focusDocument(tab.id)} onPointerDownCapture={() => focusDocument(tab.id)}>
-              <Views tab={tab} client={getHostClient(tab.hostId)} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} onOpen={openGeneratedView} onRoot={root => setViewTabs(previous => previous.map(item => item.id === tab.id ? { ...item, root } : item))} />
+              {tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} /> : <Views tab={tab} client={getHostClient(tab.hostId)} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} onOpen={openGeneratedView} onRoot={root => setViewTabs(previous => previous.map(item => item.id === tab.id ? { ...item, root } : item))} />}
             </div>;
           })}
           {galleryGroup ? <div className="shell-tab" role="tabpanel" tabIndex={-1} id="panel-templates" aria-labelledby="tab-templates"

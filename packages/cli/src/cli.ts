@@ -189,8 +189,9 @@ const COMMANDS: CommandSpec[] = [
     details: [`${brand.cliCommand} templates read <name|id> [--json] [--language <ko|en>]`,
       `${brand.cliCommand} templates save <name> --from <file> [--description <text>]`,
       "Save never overwrites. Names of app defaults in both languages are reserved."] },
-  { name: "plugins", group: "Serve", summary: "Manage plugins on an explicit target Host", usage: `${brand.cliCommand} plugins list|register <directory>|unregister <id>|trust <id> --digest <digest>|enable|disable <id>|secret-status <id>|secret-delete <id> <name>|settings <id> --file <json> --host <origin> --json`, details: ["Registration never executes code. Community artifacts require explicit digest-bound trust before enable. All plugins start disabled."] },
+  { name: "plugins", group: "Serve", summary: "Manage plugins on an explicit target Host", usage: `${brand.cliCommand} plugins start <pluginId> --input <json-file>|status|stop|result <requestId>|list|register <directory>|unregister <id>|trust <id> --digest <digest>|enable|disable <id>|secret-status <id>|secret-delete <id> <name>|settings <id> --file <json> --host <origin> --json`, details: ["Registration never executes code. Community artifacts require explicit digest-bound trust before enable. All plugins start disabled."] },
   { name: "view", group: "Serve", summary: "Validate, save or run a view on an explicit Host", usage: `${brand.cliCommand} view validate|save|run <file> --host <origin> [--name <favourite>] [--root <folder>] --json`, details: [`${brand.cliCommand} view list|open <name> --host <origin> --json`, "Opening a favourite returns its definition only. run always requires an explicit root."] },
+  { name: "jobs", group: "Serve", summary: "List running and recent plugin jobs on a Host", usage: `${brand.cliCommand} jobs list [pluginId] --host <origin> --json`, details: ["Daemon-lifetime observations only. Never restarts a job."] },
   { name: "operation", group: "Serve", summary: "Invoke a declared plugin operation", usage: `${brand.cliCommand} operation invoke <pluginId.operationId> --input <json-file> --host <origin> --json`, details: ["Uses only the named Host. Does not retry or fall back to local execution."] },
   { name: "assistant", group: "Serve", summary: "Read or configure official Assistant settings",
     usage: `${brand.cliCommand} assistant settings | assistant configure --file <json-file>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero."] },
@@ -1930,7 +1931,7 @@ export function runCli(args: string[]): number {
 /** Asynchronous command surface; synchronous commands keep the existing runCli API. */
 export async function runCliAsync(args: string[]): Promise<number> {
   if (args[0] === "view" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./views.ts")).viewCli(args.slice(1));
-  if (["plugins", "operation"].includes(args[0]) && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./plugins.ts")).pluginCli(args);
+  if (["plugins", "operation", "jobs"].includes(args[0]) && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./plugins.ts")).pluginCli(args);
   if (args[0] === "host" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
     try { return await (await import("./remote-host.ts")).remoteHostCli(args.slice(1)); }
     catch (error) { return reportError(args, error); }

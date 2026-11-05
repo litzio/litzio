@@ -147,7 +147,7 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-secret-host-"));
   const values = new Map<string, string>(), broken = new Set<string>();
   const store = { supported: true, async read(p: string, n: string) { return values.get(`${p}/${n}`); }, async status(p: string, n: string) { if (broken.has(`${p}/${n}`)) throw new Error("raw-store-error-private"); return values.has(`${p}/${n}`); }, async set(p: string, n: string, v: string) { values.set(`${p}/${n}`, v); broken.delete(`${p}/${n}`); }, async delete(p: string, n?: string) { for (const key of values.keys()) if (n ? key === `${p}/${n}` : key.startsWith(`${p}/`)) { values.delete(key); broken.delete(key); } } };
-  const host = new PluginHost(path.join(root, "state.json"), store), value = 'fixture-PAT-"-private';
+  const host = new PluginHost(path.join(root, "state.json"), { secrets: store }), value = 'fixture-PAT-"-private';
   try {
     for (const id of ["example.first", "example.second"]) {
       const directory = path.join(root, id); mkdirSync(directory);
@@ -184,7 +184,7 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
     assert.equal(await store.status("example.second", "pat"), true);
     await host.invoke("unregister", { id: "example.second" }); assert.equal(values.size, 0);
     const { WindowsPluginSecretStore } = await import("../server/plugins/secret-store.ts");
-    const unsupportedHost = new PluginHost(path.join(root, "unsupported.json"), new WindowsPluginSecretStore(path.join(root, "unsupported-secrets"), "linux"));
+    const unsupportedHost = new PluginHost(path.join(root, "unsupported.json"), { secrets: new WindowsPluginSecretStore(path.join(root, "unsupported-secrets"), "linux") });
     try {
       await unsupportedHost.invoke("register", { directory: path.join(root, "example.first") });
       const p = (await unsupportedHost.list())[0]!;
@@ -223,4 +223,20 @@ test("operation invoke publishes declared public rows and refuses row-type misma
       const refused = await invoke(mode); assert.equal(refused.receipt.outcome, "failure"); assert.ok(!("result" in refused)); assert.ok(!JSON.stringify(refused).includes("private"));
     }
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("K1 assistant job tools use shared definitions without per-call consent and leave activity", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-tool-"));
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] }, undefined, { packaged: false, checkoutRoot: root });
+  const host = new PluginHost(path.join(root, "plugins.json"));
+  const conversations = new AssistantConversations(connection, new RootAccess([root]), host);
+  try {
+    const settings = { provider: "codex" as const, permissionMode: "full-access" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
+    const conversation = await conversations.send({ message: "List plugin jobs", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings, "window-a");
+    const response = await connection.client.request("fixture/tool", { threadId: conversation.id, tool: "plugin_jobs", arguments: { action: "job-list" } }) as any;
+    assert.equal(response.result.success, true);
+    assert.equal(conversations.current(conversation.id).userInput, undefined);
+    const activity = conversations.current(conversation.id).turns.flatMap(turn => turn.items).find(item => item.text === "plugin_jobs · job-list");
+    assert.equal(activity?.status, "completed"); assert.equal(activity?.toolResult?.success, true);
+  } finally { await connection.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
