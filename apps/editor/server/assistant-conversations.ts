@@ -25,7 +25,6 @@ export class AssistantConversations {
   private conversations = new Map<string, AssistantConversation>();
   private pending = new Set<string>();
   private scopes = new Map<string, DocumentToolScope & { turnId?: string; displayClient?: string; viewGeneration?: boolean }>();
-  private pluginConfirmations = new Set<string>();
   private answers = new Map<string, (answers: AssistantUserInputAnswers) => void>();
   private loaded = new Set<string>();
   constructor(private connection: ProviderConnections, private access: FileAccess, private plugins?: PluginHost) {
@@ -71,13 +70,8 @@ export class AssistantConversations {
       }
       const templateScope = { ...scope, directory: this.connection.templatesDirectory };
       const result = params.tool === "manage_plugins" && this.plugins
-        ? await executePluginTool(this.plugins, params.arguments, async description => {
-          const conversation = this.current(params.threadId);
-          if (conversation.userInput) throw new Error("A confirmation is already pending");
-          this.pluginConfirmations.add(params.threadId);
-          const requestId = randomUUID();
-          conversation.userInput = { requestId, turnId: params.turnId, questions: [{ id: "plugin-confirm", header: "Plugins", question: description, isOther: false, isSecret: false, options: [{ label: "Approve once", description: "Execute only this plugin management call" }, { label: "Reject", description: "Do not execute" }] }] };
-          return new Promise<boolean>(resolve => this.answers.set(params.threadId, answers => resolve(answers["plugin-confirm"]?.answers[0] === "Approve once")));
+        ? await executePluginTool(this.plugins, params.arguments, entry => {
+          active.items.push({ id: randomUUID(), kind: "tool", text: `plugins.${entry.action}${entry.id ? ` (${entry.id})` : ""}: ${entry.outcome}`, status: entry.outcome });
         })
         : displayTools.some(tool => tool.name === params.tool)
         ? await this.display.execute(params.tool, params.arguments, params.threadId, scope.displayClient)
@@ -241,9 +235,7 @@ export class AssistantConversations {
     } finally { this.pending.delete(key); }
   }
   private expireQuestion(conversation: AssistantConversation) {
-    const cancel = this.answers.get(conversation.id);
     delete conversation.userInput; this.answers.delete(conversation.id);
-    if (this.pluginConfirmations.delete(conversation.id)) cancel?.({ "plugin-confirm": { answers: ["Reject"] } });
   }
   answer(id: string, turnId: string, requestId: string | number, answers: AssistantUserInputAnswers) {
     const conversation = this.current(id), question = conversation.userInput, respond = this.answers.get(id);
@@ -256,7 +248,6 @@ export class AssistantConversations {
       return !Array.isArray(values) || values.length !== 1 || typeof values[0] !== "string" || !values[0].trim() ||
         q.options?.length && !q.isOther && !q.options.some(option => option.label === values[0]);
     })) throw new Error("Invalid question answers.");
-    this.pluginConfirmations.delete(id);
     this.expireQuestion(conversation); // Consume synchronously before writing; duplicate submissions cannot reply twice.
     respond(answers);
     return conversation;
@@ -441,10 +432,23 @@ function itemFrom(item: any): AssistantConversationItem | null {
   if (item.type === "plan") return { id: item.id, kind: "plan", text: item.text };
   if (item.type === "commandExecution") return { id: item.id, kind: "tool", text: item.command, status: item.status };
   if (item.type === "mcpToolCall") return { id: item.id, kind: "tool", text: `${item.server} · ${item.tool}`, status: item.status };
-  if (item.type === "dynamicToolCall") return { id: item.id, kind: "tool", text: [item.namespace, item.tool].filter(Boolean).join(" · "), status: item.success === false ? "failed" : item.status,
+  if (item.type === "dynamicToolCall") return { id: item.id, kind: "tool", text: pluginActivityText(item) ?? [item.namespace, item.tool].filter(Boolean).join(" · "), status: item.success === false ? "failed" : item.status,
     toolResult: { success: item.success ?? null, contentItems: item.contentItems ?? [] } };
   if (item.type === "webSearch") return { id: item.id, kind: "tool", text: item.query };
   if (item.type === "fileChange") return { id: item.id, kind: "tool", text: item.changes.map((change: any) => change.path).join("\n"), status: item.status };
+  return null;
+}
+// Reconstruct the same visible activity from CLI-owned history after resume.
+function pluginActivityText(item: any): string | null {
+  if (item.tool !== "manage_plugins") return null;
+  for (const part of item.contentItems ?? []) {
+    if (part.type !== "inputText" || typeof part.text !== "string") continue;
+    try {
+      const entry = JSON.parse(part.text).activity;
+      if (typeof entry?.action === "string" && ["success", "failure"].includes(entry.outcome))
+        return `plugins.${entry.action}${typeof entry.id === "string" ? ` (${entry.id})` : ""}: ${entry.outcome}`;
+    } catch { /* In-progress calls have no receipt yet. */ }
+  }
   return null;
 }
 function turnFrom(turn: any): AssistantConversationTurn { return { id: turn.id, status: turn.status, items: (turn.items ?? []).map(itemFrom).filter(Boolean), ...(turn.error ? { error: turn.error.message } : {}) }; }

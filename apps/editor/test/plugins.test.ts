@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { executePluginTool } from "../server/assistant-plugin-tools.ts";
-test("local artifact trust, activation, admission, drain, settings persistence and per-call assistant approval", async () => {
+test("local artifact trust, activation, admission, drain, settings persistence and assistant activity", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugins-"));
   const directory = path.join(root, "artifact"); mkdirSync(directory);
   const manifest = { schemaVersion: 1, id: "litzio.onedrive", tier: "official", publisher: { id: "litzio", name: "Litzio" }, name: "Fixture", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "string" } }] }, settingsSchema: { type: "object", properties: { label: { type: "string" } }, additionalProperties: false } };
@@ -32,10 +32,9 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     await disabling; assert.equal((await admitted).result, "done");
     await host.invoke("settings", { id: manifest.id, settings: { label: "saved" } });
     assert.deepEqual((await host.list())[0]?.settings, { label: "saved" });
-    let calls = 0;
-    for (let i = 0; i < 2; i++) await assert.rejects(executePluginTool(host, { action: "enable", id: manifest.id }, async () => { calls++; return false; }), /not approved/);
-    assert.equal(calls, 2); assert.equal((await host.list())[0]?.running, false);
-    await executePluginTool(host, { action: "enable", id: manifest.id }, async () => true);
+    const activities: unknown[] = [];
+    await executePluginTool(host, { action: "enable", id: manifest.id }, entry => { activities.push(entry); });
+    assert.deepEqual(activities, [{ action: "enable", id: manifest.id, outcome: "success" }]);
     assert.equal((await host.list())[0]?.running, true);
     await host.invoke("disable", { id: manifest.id });
     writeFileSync(path.join(directory, "extra.js"), "changed");
@@ -47,31 +46,24 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ProviderConnections } from "../server/provider-connections.ts";
 import { AssistantConversations } from "../server/assistant-conversations.ts";
 import { RootAccess } from "../server/file-access.ts";
-test("Codex management adapter requires fresh confirmation even with full access and cancels pending approval", async () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-consent-"));
+test("Codex management runs without approval and exposes activity in the existing tool result", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-activity-"));
   const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] }, undefined, { packaged: false, checkoutRoot: root });
   const host = new PluginHost(path.join(root, "plugins.json"));
   const conversations = new AssistantConversations(connection, new RootAccess([root]), host);
   try {
     const settings = { provider: "codex" as const, permissionMode: "full-access" as const, model: "gpt-6.1-sol", reasoningEffort: "medium" };
     const conversation = await conversations.send({ message: "Inspect plugins", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }, settings, "window-a");
-    const handler = connection.client.toolCall!;
-    let arrive: (() => void) | undefined;
-    connection.client.toolCall = params => { const result = handler(params); arrive?.(); return result; };
-    for (const approve of [true, false]) {
-      const received = new Promise<void>(resolve => { arrive = resolve; });
-      const response = connection.client.request("fixture/tool", { threadId: conversation.id, tool: "manage_plugins", arguments: { action: "list" } });
-      await received;
-      const pending = conversations.current(conversation.id).userInput!;
-      assert.match(pending.questions[0]!.question, /plugins.list/);
-      conversations.answer(conversation.id, pending.turnId, pending.requestId, { "plugin-confirm": { answers: [approve ? "Approve once" : "Reject"] } });
-      const result = await response as any;
-      assert.equal(result.result?.success ?? false, approve);
+    for (const action of ["list", "reload"]) {
+      const response: any = await connection.client.request("fixture/tool", { threadId: conversation.id, tool: "manage_plugins", arguments: action === "list" ? { action } : { action, id: "missing.plugin" } });
+      assert.equal(conversations.current(conversation.id).userInput, undefined);
+      assert.equal(response.result.success, action === "list");
+      assert.match(response.result.contentItems[0].text, /activity/);
+      assert.ok(conversations.current(conversation.id).turns.flatMap(t => t.items).some(item => item.text.includes(`plugins.${action}`)));
     }
-    const received = new Promise<void>(resolve => { arrive = resolve; });
-    const response = connection.client.request("fixture/tool", { threadId: conversation.id, tool: "manage_plugins", arguments: { action: "list" } });
-    await received; await conversations.interrupt(conversation.id); await response;
-    assert.equal(conversations.current(conversation.id).userInput, undefined);
+    await connection.client.request("fixture/finish", { threadId: conversation.id });
+    const restored = await conversations.resume(conversation.id, settings);
+    assert.ok(restored.turns.flatMap(t => t.items).some(item => item.text === "plugins.reload (missing.plugin): failure"));
   } finally { await connection.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -82,16 +74,14 @@ function lifecycleFixture(root: string, id: string, code = "export function acti
   writeFileSync(path.join(directory, "host.js"), code);
   return directory;
 }
-test("missing artifact affects only its registration; unregister remains approved and leaves artifact files alone", async () => {
+test("missing artifact affects only its registration; unregister records activity and leaves artifact files alone", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-missing-plugin-")), host = new PluginHost(path.join(root, "state.json"));
   try {
     const a = lifecycleFixture(root, "fixture.a"), b = lifecycleFixture(root, "fixture.b");
     await host.invoke("register", { directory: a }); rmSync(a, { recursive: true });
     await host.invoke("register", { directory: b });
     assert.match((await host.list()).find(p => p.id === "fixture.a")!.error!, /artifact missing/);
-    await assert.rejects(executePluginTool(host, { action: "unregister", id: "fixture.a" }, async () => false), /not approved/);
-    assert.equal((await host.list()).length, 2);
-    await executePluginTool(host, { action: "unregister", id: "fixture.a" }, async () => true);
+    await executePluginTool(host, { action: "unregister", id: "fixture.a" }, () => {});
     await host.invoke("unregister", { id: "fixture.b" });
     assert.equal((await host.list()).length, 0);
     assert.doesNotThrow(() => readFileSync(path.join(b, "host.js")));
@@ -100,19 +90,20 @@ test("missing artifact affects only its registration; unregister remains approve
 test("disable drains admitted status observations and their late results cannot restore contributions", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-status-drain-")), host = new PluginHost(path.join(root, "state.json"));
   try {
-    const directory = lifecycleFixture(root, "fixture.slow", `let calls=0, begin, release; export let disposed=false; export const started=new Promise(r=>begin=r); const blocked=new Promise(r=>release=r); export function finish(){release()} export function activate(){return {operations:{},async status(){if(calls++>0){begin();await blocked}return {available:true,message:'Fixture',folders:[],decorations:[],accounts:[]}},dispose(){disposed=true}}}`);
+    const marker = path.join(root, "started"), release = path.join(root, "release"), disposed = path.join(root, "disposed");
+    const directory = lifecycleFixture(root, "fixture.slow", `import {existsSync,writeFileSync} from 'node:fs'; let calls=0; export function activate(){return {operations:{},async status(){if(calls++>0){writeFileSync(${JSON.stringify(marker)},'');while(!existsSync(${JSON.stringify(release)}))await new Promise(r=>setTimeout(r,10))}return {available:true,message:'Fixture',folders:[],decorations:[],accounts:[]}},dispose(){writeFileSync(${JSON.stringify(disposed)},'')}}}`);
     await host.invoke("register", { directory });
     await host.invoke("trust", { id: "fixture.slow", digest: (await host.list())[0]!.digest });
     await host.invoke("enable", { id: "fixture.slow" });
-    const control = await import(pathToFileURL(path.join(directory, "host.js")).href);
-    const observation = host.list(); await control.started;
+    const observation = host.list();
+    while (!existsSync(marker)) await new Promise(r => setTimeout(r, 10));
     let disabled = false;
     const stopping = host.invoke("disable", { id: "fixture.slow" }).then(() => { disabled = true; });
     await new Promise(r => setImmediate(r));
-    assert.equal(disabled, false); assert.equal(control.disposed, false);
+    assert.equal(disabled, false); assert.equal(existsSync(disposed), false);
     assert.equal((await host.list())[0]!.status, null);
-    control.finish(); await stopping;
-    assert.equal(control.disposed, true);
+    writeFileSync(release, ''); await stopping;
+    assert.equal(existsSync(disposed), true);
     const late = (await observation)[0]!;
     assert.equal(late.running, false); assert.equal(late.enabled, false); assert.equal(late.status, null);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
@@ -239,4 +230,61 @@ test("K1 assistant job tools use shared definitions without per-call consent and
     const activity = conversations.current(conversation.id).turns.flatMap(turn => turn.items).find(item => item.text === "plugin_jobs · job-list");
     assert.equal(activity?.status, "completed"); assert.equal(activity?.toolResult?.success, true);
   } finally { await connection.close(); await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("subprocess isolation, fresh artifact reload, trust failure recovery and crash status", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-reload-")), host = new PluginHost(path.join(root, "state.json"));
+  const marker = path.join(root, "disposed");
+  const code = (label: string, crash = false) => `import {writeFileSync} from 'node:fs'; export function activate(){${crash ? "setTimeout(()=>process.exit(7),100);" : ""}return {operations:{},status:()=>({available:true,message:${JSON.stringify(label)}+':'+process.pid,folders:[],decorations:[],accounts:[]}),dispose(){writeFileSync(${JSON.stringify(marker)},'disposed')}}}`;
+  try {
+    const directory = lifecycleFixture(root, "fixture.reload", code("first"));
+    await host.invoke("register", { directory });
+    const trust = async () => host.invoke("trust", { id: "fixture.reload", digest: (await host.list())[0]!.digest });
+    await trust(); await host.invoke("enable", { id: "fixture.reload" });
+    const first = (await host.list())[0]!.status!.message;
+    assert.notEqual(first.split(':')[1], String(process.pid));
+    writeFileSync(path.join(directory, "host.js"), code("second"));
+    await assert.rejects(host.invoke("reload", { id: "fixture.reload" }), /trust/);
+    assert.equal(readFileSync(marker, "utf8"), "disposed");
+    assert.equal((await host.list())[0]!.running, false);
+    await trust(); await host.invoke("reload", { id: "fixture.reload" });
+    const second = (await host.list())[0]!.status!.message;
+    assert.match(second, /^second:/); assert.notEqual(first.split(':')[1], second.split(':')[1]);
+    writeFileSync(path.join(directory, "host.js"), "throw new Error('private error')");
+    await trust(); await assert.rejects(host.invoke("reload", { id: "fixture.reload" }), /request failed/);
+    assert.equal((await host.list())[0]!.running, false);
+    writeFileSync(path.join(directory, "host.js"), code("recovered"));
+    await trust(); await host.invoke("reload", { id: "fixture.reload" });
+    assert.match((await host.list())[0]!.status!.message, /^recovered:/);
+    writeFileSync(path.join(directory, "host.js"), code("crash", true));
+    await trust(); await host.invoke("reload", { id: "fixture.reload" });
+    await new Promise(r => setTimeout(r, 200));
+    const failed = (await host.list())[0]!;
+    assert.equal(failed.running, false); assert.match(failed.error!, /process failed/);
+    await new Promise(r => setTimeout(r, 100)); assert.equal((await host.list())[0]!.running, false);
+    writeFileSync(path.join(directory, "host.js"), code("final"));
+    await trust(); await host.invoke("reload", { id: "fixture.reload" });
+    assert.match((await host.list())[0]!.status!.message, /^final:/);
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+
+test("a stalled write times out as uncertain; failed disposal can recover on the next reload", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugin-timeout-")), host = new PluginHost(path.join(root, "state.json"));
+  try {
+    const directory = lifecycleFixture(root, "fixture.timeout", `export function activate(){return {operations:{write:()=>new Promise(()=>{})},status:()=>({available:true,message:'ready',folders:[],decorations:[],accounts:[]}),dispose(){throw new Error('private')}}}`);
+    const file = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(file, 'utf8'));
+    manifest.contributes.operations = [{id:'write',version:1,effect:'write',scope:'host',inputSchema:{type:'object'},outputSchema:{type:'object'}}];
+    writeFileSync(file, JSON.stringify(manifest));
+    await host.invoke("register", {directory});
+    await host.invoke("trust", {id:'fixture.timeout',digest:(await host.list())[0]!.digest});
+    await host.invoke("enable", {id:'fixture.timeout'});
+    await assert.rejects(host.invoke("reload", {id:'fixture.timeout'}), /disposal failed/);
+    assert.equal((await host.list())[0]!.running, false);
+    await host.invoke("reload", {id:'fixture.timeout'});
+    const result = await host.invokeOperation('fixture.timeout.write', {});
+    assert.equal(result.receipt.outcome, 'uncertain');
+    assert.equal((await host.list())[0]!.running, false);
+    assert.match((await host.list())[0]!.error!, /process failed/);
+  } finally {await host.close(); rmSync(root, {recursive:true, force:true});}
 });
