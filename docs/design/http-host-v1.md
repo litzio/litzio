@@ -318,3 +318,7 @@ The 2026-10-13 dependency audit still reports 16 existing transitive advisories 
 이 변경은 기존 필드를 바꾸지 않는 추가 정보다. 새 클라이언트도 이 필드의 존재를 연결 조건으로 요구하지 않으므로 프로토콜 4를 유지한다. 값을 제공하지 않거나 연결되지 않은 Host의 계정은 추측하지 않는다. 구버전 호환 계층이나 데이터 migration은 추가하지 않는다.
 
 CLI `litzio daemon status` 표는 실행 중인 각 daemon의 `Run as (실행 계정)`을 표시하며 `--json`은 같은 `identity.runAs`를 보존한다. 이 읽기 작업의 범위는 기존 로컬/수동 daemon 상태 조회이고 쓰기 receipt는 없다. 응답을 확인하지 못한 daemon은 기존 unreachable 상태를 유지하고 계정은 표시하지 않는다.
+
+## Plugin stage 1 (ADR-0020)
+
+Owner-initiated stage 1 provides [the shared plugin management contract](plugin-stage1-v1.md). Management is a separate Codex tool with a fresh explicit confirmation for each call, including full access. Display tools remain restricted to their existing fields. Plugin execution belongs to the target Host; secret and view runtimes are unsupported.

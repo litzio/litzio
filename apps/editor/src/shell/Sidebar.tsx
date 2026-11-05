@@ -1,3 +1,4 @@
+import { usePlugins, defaultFolderCandidate, OneDriveIcon } from "../PluginSettings.tsx";
 import { HostStatus } from "../components/HostStatus.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
 import { HostExplorer, HostHeading } from "./HostExplorer.tsx";
@@ -81,6 +82,8 @@ export function Sidebar({
   const bounds = usePanelWidthBounds("sidebar");
   const content = useRef<HTMLDivElement>(null);
   const blankTrigger = useRef<HTMLDivElement>(null);
+  const { plugins } = usePlugins();
+  const candidate = defaultFolderCandidate(plugins, { folders: folders.length, recent: recent.length, documentPath });
   const only = folders.length === 1 ? folders[0] : undefined;
   const blankActions = only ? folderActions({
     onNew: button => onNew?.(only.root, button),
@@ -126,7 +129,7 @@ export function Sidebar({
             key={locatorKey({ hostId: tree.hostId, path: tree.root })}
             onAddToChat={onAddToChat}
             onFileAction={onFileAction} fileActionsDisabled={fileActionsDisabled} isFileDirty={isFileDirty}
-            tree={tree}
+            tree={tree} decoration={plugins.some(p => p.running && p.status?.decorations.some(d => d.path === tree.root))}
             focusFolder={focusFolder}
             onFolderFocused={onFolderFocused}
             documentPath={documentHostId === "local" ? documentPath : ""}
@@ -151,6 +154,7 @@ export function Sidebar({
             {onNewDocument ? <Button type="button" size="sm" variant="ghost" className="w-full justify-start"
               onClick={event => onNewDocument(event.currentTarget)}>
               <Plus aria-hidden="true" />{i18n.t("New document…")}</Button> : null}
+            {candidate && onOpenRecent ? <Button variant="ghost" onClick={() => onOpenRecent(candidate.path)}><OneDriveIcon />Open {candidate.label}</Button> : null}
             {recent.length > 0 && onOpenRecent ? (
               <section className="sidebar-recent" aria-labelledby="sidebar-recent-label">
                 <p className="sidebar-recent-label" id="sidebar-recent-label">{i18n.t("Recent")}</p>
@@ -211,6 +215,7 @@ type FolderTreeProps = {
   onFileAction: FileActionHandler;
   fileActionsDisabled: boolean;
   isFileDirty(path: string): boolean;
+  decoration?: boolean;
   tree: FolderTreeState;
   focusFolder?: string | null;
   onFolderFocused?(): void;
@@ -242,7 +247,7 @@ function folderActions(props: Pick<FolderTreeProps, "onNew" | "onNewFolder" | "o
 }
 
 /** One opened folder as a tree: folders expand in place, documents open. */
-export function FolderTree({ onAddToChat, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
+export function FolderTree({ decoration,  onAddToChat, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
   useTranslation();
   const treeId = useId();
   const section = useRef<HTMLElement>(null);
@@ -299,12 +304,13 @@ export function FolderTree({ onAddToChat, onFileAction, fileActionsDisabled, isF
   return (
     <section ref={section} className="sidebar-folder" aria-label={folderName} data-testid="folder" data-root={tree.root}>
       <ContextMenu actions={actions} trigger={<div className="sidebar-folder-header">
-        <p className="sidebar-folder-name" title={tree.root}>
+        <p className={`sidebar-folder-name${decoration ? " sidebar-folder-name--decorated" : ""}`} title={tree.root}>
           <span className="sidebar-tree-chevron">
             <Button type="button" variant="ghost" size="icon-xs" className="sidebar-folder-toggle"
               aria-label={toggleName} title={toggleName} aria-expanded={tree.sectionExpanded} aria-controls={treeId}
               onClick={onToggleSection}><ChevronRight aria-hidden="true" /></Button>
           </span>
+          {decoration ? <OneDriveIcon /> : null}
           <span className="sidebar-tree-name" onClick={event => {
             // A double-click must not immediately undo its first toggle.
             if (event.detail <= 1) onToggleSection();

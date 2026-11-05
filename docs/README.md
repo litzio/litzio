@@ -42,6 +42,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Continuous document editing](design/document-editing-v1.md) | Implemented | 현재 계약. 연속 편집, clipboard, table/section 구조 변경의 보존 경계. |
 | [Editing session and Save](design/editing-session-save-v1.md) | Implemented | 현재 계약. opening snapshot, Save acknowledgement, draft/work-loss 보호와 Host별 위치 식별·로컬 복구(#1174 PR1). |
 | [Filesystem Host boundary](design/filesystem-host-boundary-v1.md) | Implemented | 파일·asset·folder 계약. Vite, Desktop, HTTP Host가 같은 handler를 재사용. |
+| [플러그인 1단계](design/plugin-stage1-v1.md) | Implemented | ADR-0020 명시 개시: 최소 SDK·로컬 등록·신뢰·활성·공용 작업·CLI·승인받는 관리·OneDrive. secret·뷰 runtime 없음. |
 | [HTTP Host](design/http-host-v1.md) | Implemented | 무인증 단계(#1145) daemon start/stop/status·실행 주체/상세 상태·stale 회수·Desktop pipe 수명·고정 origin·선택 Root·버전·OS 휴지통, CLI 배포와 HTTP·프록시 경계. |
 | [Desktop distribution and updates](design/desktop-distribution-v1.md) | Implemented | Windows Host, NSIS, Stable/Beta, signing 및 수동 workflow 실행 후 검증 성공 시 추가 승인 없는 게시 계약. 현재 공개 Litzio 0.0.2-beta.7·직전 Litzio 0.0.2-beta.6·이전 Litzio 0.0.2-beta.5·이전 IeumDoc 0.0.2-beta.4·이전 0.0.2-beta.3·이전 0.0.2-beta.2·0.0.2-beta.1과 기존 두 0.1.0 Beta 철회 근거·실제 GitHub 업데이트 미검증 범위 보존. |
 | [Desktop app icon](design/app-icon-v1.md) | Implemented | #905 승인된 E안 SVG 원본·Chromium 틈 검사·크기별 ICO, 브랜드 연결·출처·재생성과 Windows CI 검증 경계. |

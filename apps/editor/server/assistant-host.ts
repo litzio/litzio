@@ -1,3 +1,5 @@
+import path from "node:path";
+import { PluginHost } from "./plugins/plugin-host.ts";
 import { hostPaths, type HostRun } from "./host-paths.ts";
 import { type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
 import { ASSISTANT, type AiProvider } from "../shared/assistant.ts";
@@ -9,10 +11,13 @@ import { AssistantConversations } from "./assistant-conversations.ts";
 export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, settingsFile?: string, options?: { agent?: ProviderConnections; run?: HostRun }) {
   const paths = hostPaths(options?.run, { ...process.env });
   const { settings, configure } = createAssistantSettings(settingsFile ?? paths.settingsFile("assistant"), paths.assistantDefaults);
+  const plugins = new PluginHost(settingsFile ? path.join(path.dirname(settingsFile), "plugins.json") : paths.settingsFile("plugins"));
+  let pluginsReady: Promise<void> | undefined;
+  const readyPlugins = () => pluginsReady ??= plugins.start();
   let closed = false, closing: Promise<void> | undefined;
   let agent = options?.agent;
   let conversations: AssistantConversations | undefined;
-  const history = () => conversations ??= new AssistantConversations(agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run), access);
+  const history = () => conversations ??= new AssistantConversations(agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run), access, plugins);
   const provider = (args?: { provider?: AiProvider }): AiProvider => {
     const value = args?.provider ?? settings().provider;
     if (value !== "codex" && value !== "copilot") throw new Error("Invalid AI provider.");
@@ -32,6 +37,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       return { ...conversation, displayRequest: history().display.snapshot(args.id, args.displayClient) };
     },
     assistantConversation: async (args: any) => {
+      if (args.action === "send") await readyPlugins();
       const currentSettings = settings();
       if (args.action === "display-result") { history().display.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
       if (args.action === "display-undo") return history().display.undo(args.id, args.displayClient, args.requestId);
@@ -54,6 +60,8 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   };
   const invoke = async (operation: string, args: any = {}): Promise<any> => {
     if (closed) throw new Error("The Assistant Host is closing.");
+    if (operation === "pluginsList") { await readyPlugins(); return { plugins: await plugins.list() }; }
+    if (operation === "pluginsManage") { await readyPlugins(); const { action, ...input } = args; return plugins.invoke(action, input); }
     if (operation === "settings") return settings();
     if (operation === "configure") {
       const current = settings(), next = checkedAssistantSettings(args);
@@ -71,6 +79,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     return assistantOperations[operation as keyof typeof assistantOperations](args);
   };
   const route = (url: string): Record<string, string> | undefined => {
+    if (url === "/api/plugins") return { GET: "pluginsList", POST: "pluginsManage" };
     if (url === ASSISTANT.settingsRoute) return { GET: "settings", PUT: "configure" };
     if (url === ASSISTANT.conversationsRoute) return { GET: "assistantConversations", POST: "assistantConversation" };
     const operation = { [ASSISTANT.skillsRoute]: "assistantSkills", [ASSISTANT.modelsRoute]: "assistantModels", [ASSISTANT.diagnosticsRoute]: "assistantDiagnostics", [ASSISTANT.environmentRoute]: "assistantEnvironment" }[url];
@@ -79,7 +88,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   const close = () => {
     closed = true;
     conversations?.display.cancel();
-    return closing ??= Promise.resolve(agent?.close());
+    return closing ??= Promise.all([agent?.close(), Promise.resolve(pluginsReady).then(() => plugins.close())]).then(() => {});
   };
   return { invoke, route, close };
 }

@@ -31,3 +31,5 @@ temp/
 
 # Source Host runtime state (outside disposable tmp/)
 /.litzio-dev/
+
+/plugins/onedrive/artifact/

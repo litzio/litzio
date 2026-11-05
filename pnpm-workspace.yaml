@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - apps/*
+  - plugins/*
 
 # tsx uses esbuild's native executable; approve its install-time binary check.
 allowBuilds:

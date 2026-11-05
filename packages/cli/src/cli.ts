@@ -187,6 +187,8 @@ const COMMANDS: CommandSpec[] = [
     details: [`${brand.cliCommand} templates read <name|id> [--json] [--language <ko|en>]`,
       `${brand.cliCommand} templates save <name> --from <file> [--description <text>]`,
       "Save never overwrites. Names of app defaults in both languages are reserved."] },
+  { name: "plugins", group: "Serve", summary: "Manage plugins on an explicit target Host", usage: `${brand.cliCommand} plugins list|register <directory>|trust <id> --digest <digest>|enable|disable <id>|settings <id> --file <json> --host <origin> --json`, details: ["Registration never executes code. Community artifacts require explicit digest-bound trust before enable. All plugins start disabled."] },
+  { name: "operation", group: "Serve", summary: "Invoke a declared plugin operation", usage: `${brand.cliCommand} operation invoke <pluginId.operationId> --input <json-file> --host <origin> --json`, details: ["Uses only the named Host. Does not retry or fall back to local execution."] },
   { name: "assistant", group: "Serve", summary: "Read or configure official Assistant settings",
     usage: `${brand.cliCommand} assistant settings | assistant configure --file <json-file>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero."] },
   {
@@ -1919,6 +1921,7 @@ export function runCli(args: string[]): number {
 
 /** Asynchronous command surface; synchronous commands keep the existing runCli API. */
 export async function runCliAsync(args: string[]): Promise<number> {
+  if (["plugins", "operation"].includes(args[0]) && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./plugins.ts")).pluginCli(args);
   if (args[0] === "host" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
     try { return await (await import("./remote-host.ts")).remoteHostCli(args.slice(1)); }
     catch (error) { return reportError(args, error); }

@@ -21,7 +21,7 @@ export default defineConfig({
     command: httpHost ? "node packages/cli/dist/cli.mjs daemon run --channel development --port 5181 --root tmp/http-host-a --root tmp/http-host-b"
       : process.platform !== "win32" && process.env.LITZIO_BROWSER_SERVER_LOG ? 'pnpm editor > "$LITZIO_BROWSER_SERVER_LOG" 2>&1' : "pnpm editor",
     cwd: REPOSITORY_ROOT,
-    env: { ...(HTTP_DAEMON_STATE ? { LITZIO_DAEMON_DIR: HTTP_DAEMON_STATE } : {}), LITZIO_ASSISTANT_CWD: path.join(REPOSITORY_ROOT, "tmp", "browser-assistant"), LITZIO_ASSISTANT_SETTINGS_FILE: path.join(REPOSITORY_ROOT, "tmp", "browser-assistant-settings.json") },
+    env: { ...(HTTP_DAEMON_STATE ? { LITZIO_DAEMON_DIR: HTTP_DAEMON_STATE } : {}), LITZIO_PLUGINS_SETTINGS_FILE: path.join(HTTP_DAEMON_STATE ?? path.join(REPOSITORY_ROOT, "tmp"), "browser-plugins.json"), LITZIO_ASSISTANT_CWD: path.join(REPOSITORY_ROOT, "tmp", "browser-assistant"), LITZIO_ASSISTANT_SETTINGS_FILE: path.join(REPOSITORY_ROOT, "tmp", "browser-assistant-settings.json") },
     url: `${url}/api/document`,
     reuseExistingServer: !httpHost && !process.env.CI,
     timeout: 60_000,

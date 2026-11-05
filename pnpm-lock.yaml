@@ -242,6 +242,9 @@ importers:
       '@litzio/file-commit':
         specifier: workspace:*
         version: link:../../packages/file-commit
+      '@litzio/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
       '@tiptap/core':
         specifier: 3.31.3
         version: 3.31.3(@tiptap/pm@3.31.3)
@@ -378,6 +381,9 @@ importers:
       '@litzio/file-commit':
         specifier: workspace:*
         version: link:../file-commit
+      '@litzio/plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
     devDependencies:
       '@babel/parser':
         specifier: 7.29.9
@@ -446,6 +452,44 @@ importers:
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+
+  packages/plugin-sdk:
+    dependencies:
+      ajv:
+        specifier: 8.20.0
+        version: 8.20.0
+      semver:
+        specifier: 7.7.3
+        version: 7.7.3
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^24.5.2
+        version: 24.13.6
+      '@types/semver':
+        specifier: ^7.8.0
+        version: 7.8.0
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  plugins/onedrive:
+    dependencies:
+      '@litzio/plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
 
 packages:
 
@@ -8678,7 +8722,7 @@ snapshots:
       stringify-object: 5.0.0
       ts-morph: 26.0.0
       tsconfig-paths: 4.2.0
-      undici: 7.29.1
+      undici: 7.30.1
       validate-npm-package-name: 7.0.2
       zod: 3.25.76
       zod-to-json-schema: 3.25.2(zod@3.25.76)
