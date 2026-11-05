@@ -66,7 +66,7 @@ function packageVersion(version: string): string {
   const out = path.join(work, `v${version}`);
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
-  execFileSync("pnpm --filter @litzio/desktop package", { cwd: repo, shell: process.env.ComSpec ?? "cmd.exe", stdio: "ignore",
+  execFileSync("pnpm --filter @litzio/desktop package", { cwd: repo, shell: process.env.ComSpec ?? "cmd.exe", stdio: "inherit",
     env: { ...process.env, LITZIO_TEST_VERSION: version, LITZIO_TEST_UPDATE_HOST: HOST, LITZIO_RELEASE: "", LITZIO_REQUIRE_SIGNED_UPDATES: "" } });
   for (const file of [`${brand.executableName}-Setup-${version}.exe`, `${brand.executableName}-Setup-${version}.exe.blockmap`, CHANNEL_FILE]) {
     copyFileSync(path.join(desktop, "release", file), path.join(out, file));
