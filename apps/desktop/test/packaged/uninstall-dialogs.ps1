@@ -1,4 +1,4 @@
-param([int]$UninstallerPid)
+param([int]$UninstallerPid, [string]$Executable, [ValidateSet('', 'transient', 'persistent')][string]$LockMode = '')
 $ErrorActionPreference = 'Stop'
 Add-Type @'
 using System;
@@ -22,7 +22,14 @@ public static class Dialogs {
 '@
 $deadline = [DateTime]::UtcNow.AddSeconds(45)
 $seen = [Collections.Generic.HashSet[string]]::new()
+try {
 while (Get-Process -Id $UninstallerPid -ErrorAction SilentlyContinue) {
+  if ($LockMode -eq 'transient' -and $script:imageLock -and
+      (Get-Content -LiteralPath $script:removalLog -Raw -Encoding Unicode) -match 'App executable deletion attempt') {
+    $script:imageLock.Dispose()
+    $script:imageLock = $null
+    Write-Host 'Released image lock after observed deletion failure'
+  }
   if ([DateTime]::UtcNow -gt $deadline) {
     $processes = @(Get-CimInstance Win32_Process)
     $owned = [Collections.Generic.HashSet[int]]::new()
@@ -52,6 +59,15 @@ while (Get-Process -Id $UninstallerPid -ErrorAction SilentlyContinue) {
         return $true
       }, [IntPtr]::Zero)
       if ($seen.Add($script:dialogText)) { Write-Host $script:dialogText }
+      if ($LockMode -and -not $script:lockAcquired -and $script:dialogText -match 'CLI cleanup incomplete') {
+        # Acquire only after lifecycle/CLI helpers have exited, at the warning gate.
+        # Allow reads/execution but deny deletion; release is driven by the retry log.
+        $script:imageLock = [IO.File]::Open($Executable, 'Open', 'Read', 'ReadWrite')
+        $script:lockAcquired = $true
+        $script:removalLog = [regex]::Match($script:dialogText, 'Diagnostic: ([^\r\n]+)').Groups[1].Value.Trim()
+        if (-not $script:removalLog) { throw 'No durable warning diagnostic to observe' }
+        Write-Host "Holding image deletion lock: $LockMode"
+      }
       foreach ($ok in $script:okButtons) {
         # Send the enabled button's standard BN_CLICKED notification to its own dialog.
         # BM_CLICK requires activation; this NSIS MessageBox exposes no UIA InvokePattern.
@@ -68,3 +84,4 @@ while (Get-Process -Id $UninstallerPid -ErrorAction SilentlyContinue) {
   }, [IntPtr]::Zero) | Out-Null
   Start-Sleep -Milliseconds 100
 }
+} finally { if ($script:imageLock) { $script:imageLock.Dispose() } }

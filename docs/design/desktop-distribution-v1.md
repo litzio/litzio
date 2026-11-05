@@ -240,7 +240,23 @@ remain errors. Optional cleanup failure never aborts app removal, including `/S`
 unique diagnostic under `%LOCALAPPDATA%\litzio\uninstall-logs` (TEMP fallback), with the bin path,
 helper error and manual Environment Variables cleanup instructions. Interactive removal displays
 a warning; silent removal logs it without waiting for input. This does not claim CLI cleanup
-succeeded. Moving an installation leaves a broken target;
+succeeded.
+
+Actual removal explicitly deletes the app executable after the lifecycle and optional CLI helpers
+finish, before electron-builder removes the tree and uninstall registration. A failed deletion
+retries at 200ms intervals for at most 3 seconds (16 attempts including the first). A successful
+DeleteFile whose image is still present is also retried. Continued failure exits with code 1 and
+retains the installation tree and uninstall registration so removal can be retried; optional CLI
+cleanup may already have completed. It does not schedule deletion at reboot or report success.
+Every failed attempt records its attempt number, Win32 error and executable path in the NSIS
+details and a UTF-16LE diagnostic in the same uninstall-logs directory (TEMP fallback), reusing
+the optional CLI warning log when present. The final success-after-retries or failure is appended.
+The original intermittent lock holder remains unknown (#1231); retries are product handling of
+deletion failures, not a relaxation of the CI executable-removal assertion. Disposable Windows CI
+holds a delete-denying handle after the helper warning, releasing it after the first logged failure
+or retaining it through the retry limit, to check both outcomes without launching the app.
+
+Moving an installation leaves a broken target;
 Repair from the new app rebinds it after the same ownership/conflict checks.
 
 Verification scope: scratch files and an injected environment boundary test state, conflict, repair,

@@ -133,16 +133,16 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
         try { if (live && liveProcess?.exitCode === null) await live.close(); }
         finally { await other?.stop(); }
       }
-      assert.equal(status!, 0, `${label}: app removal must succeed despite optional cleanup failure`);
-      assert.equal(entries(), "", `${label}: uninstall registration removed`);
       if (existsSync(integration.executable)) {
         const diagnostic = spawnSync("powershell.exe", ["-NoProfile", "-File",
           path.join(desktop, "test/packaged/uninstall-diagnostics.ps1"), integration.executable],
           { encoding: "utf8", timeout: 30_000 });
-        const output = diagnostic.stdout + diagnostic.stderr;
+        const output = `${diagnostic.stdout ?? ""}${diagnostic.stderr ?? ""}${diagnostic.error?.stack ?? ""}`;
         writeFileSync(path.join(work, `${label}-cleanup.txt`), output);
         console.error(output);
       }
+      assert.equal(status!, 0, `${label}: app removal must succeed despite optional cleanup failure`);
+      assert.equal(entries(), "", `${label}: uninstall registration removed`);
       assert.equal(existsSync(integration.executable), false, `${label}: app executable removed`);
       if (healthy) {
         assert.deepEqual((await environment.read()).user, longPath, `${label}: only the CLI PATH entry was removed`);
@@ -154,8 +154,15 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
           unlinkSync(userFile);
           rmdirSync(bin);
         } else assert.equal(existsSync(bin), false, "uninstall must remove an empty owned bin");
-        assert.deepEqual(existsSync(logFolder) ? readdirSync(logFolder) : [], [...logsBefore],
-          `${label}: successful cleanup, including a nonempty bin, must not report a failure`);
+        for (const log of (existsSync(logFolder) ? readdirSync(logFolder) : []).filter(name => !logsBefore.has(name))) {
+          const diagnostic = readFileSync(path.join(logFolder, log)).toString("utf16le");
+          assert.doesNotMatch(diagnostic, /CLI cleanup incomplete|removal failed/,
+            `${label}: successful cleanup must not report a failure`);
+          assert.match(diagnostic, /App executable deletion attempt/);
+          assert.match(diagnostic, /deletion succeeded after/);
+          writeFileSync(path.join(work, `${label}-cleanup.txt`), diagnostic);
+          console.log(diagnostic);
+        }
         console.log(`${label}: app and owned CLI entries removed; user files preserved`);
         continue;
       }
@@ -166,6 +173,7 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
       assert.equal(logs.length, 1, `${label}: durable cleanup diagnostic`);
       const diagnostic = readFileSync(path.join(logFolder, logs[0]!)).toString("utf16le");
       writeFileSync(path.join(work, `${label}-cleanup.txt`), diagnostic);
+      if (diagnostic.includes("App executable deletion attempt")) console.log(diagnostic);
       assert.match(diagnostic, /CLI cleanup incomplete/);
       assert.ok(diagnostic.includes(bin));
       assert.match(diagnostic, /Environment Variables > User Path/);
@@ -184,4 +192,57 @@ test("NSIS removal cleans owned CLI entries, preserves user files and survives o
     await environment.write((await environment.read()).user, original);
   }
   assert.deepEqual((await environment.read()).user, original);
+});
+
+test("NSIS retries a transient image lock and refuses success for a persistent image lock", {
+  skip: process.platform !== "win32" || process.env.CI !== "true", timeout: 3 * 60_000,
+}, async () => {
+  assert.equal(entries(), "", "requires an uninstalled disposable Windows account");
+  const version = JSON.parse(readFileSync(path.join(desktop, "package.json"), "utf8")).version;
+  const installer = path.join(desktop, "release", `${brand.executableName}-Setup-${version}.exe`);
+  for (const mode of ["transient", "persistent"] as const) {
+    const install = path.join(work, `image-lock-${mode}`);
+    const executable = path.join(install, `${brand.executableName}.exe`);
+    assert.equal(spawnSync(installer, ["/S", `/D=${install}`], { timeout: 60_000 }).status, 0);
+    const registration = entries();
+    // The existing optional-cleanup warning provides a gate after all helpers exit.
+    unlinkSync(path.join(install, "resources/uninstall-cli.cjs"));
+    const uninstaller = path.join(work, `image-lock-${mode}.exe`);
+    copyFileSync(path.join(install, `Uninstall ${brand.executableName}.exe`), uninstaller);
+    const args = ["/currentuser", `_?=${install}`];
+    const child = spawn(uninstaller, args, { stdio: "ignore", timeout: 60_000 });
+    const completed = new Promise<number | null>((resolve, reject) => { child.once("error", reject); child.once("exit", resolve); });
+    try {
+      const output = execFileSync("powershell.exe", ["-NoProfile", "-File",
+        path.join(desktop, "test/packaged/uninstall-dialogs.ps1"), String(child.pid), executable, mode],
+        { encoding: "utf8", timeout: 60_000 });
+      writeFileSync(path.join(work, `image-lock-${mode}-dialogs.txt`), output);
+      const status = await completed;
+      const log = /Diagnostic: ([^\r\n]+)/.exec(output)?.[1]?.trim();
+      assert.ok(log, "warning exposes the retry diagnostic");
+      const diagnostic = readFileSync(log).toString("utf16le");
+      writeFileSync(path.join(work, `image-lock-${mode}-cleanup.txt`), diagnostic);
+      console.log(diagnostic);
+      assert.match(diagnostic, /App executable deletion attempt.*Win32 error 32/);
+      if (mode === "transient") {
+        assert.equal(status, 0);
+        assert.equal(existsSync(executable), false);
+        assert.equal(entries(), "");
+        assert.match(diagnostic, /deletion succeeded after/);
+        assert.doesNotMatch(diagnostic, /removal failed/);
+      } else {
+        assert.equal(status, 1, "persistent lock must never report successful removal");
+        assert.equal(existsSync(executable), true);
+        assert.equal(entries(), registration, "failed removal retains uninstall registration");
+        assert.match(diagnostic, /removal failed/);
+        // The lock holder is gone. The registered installation can now be removed normally.
+        assert.equal(spawnSync(uninstaller, ["/S", ...args], { timeout: 60_000 }).status, 0);
+        assert.equal(existsSync(executable), false);
+        assert.equal(entries(), "");
+      }
+    } finally {
+      if (child.exitCode === null) spawnSync("taskkill", ["/PID", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+      await completed;
+    }
+  }
 });
