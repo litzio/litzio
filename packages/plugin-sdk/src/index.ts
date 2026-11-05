@@ -1,3 +1,4 @@
+import { compileSchema } from "./schema.ts";
 import { z } from "zod";
 import semver from "semver";
 export const SDK_VERSION = "0.1.0";
@@ -28,6 +29,8 @@ export function validateManifest(input: unknown): PluginManifest {
   }
   if (m.contributes.operations.some(op => op.scope === "folder")) throw new Error("Folder-scoped plugin operations are unsupported in stage 1");
   if (m.secrets.length || m.contributes.dataViews.length || m.contributes.generatedUi.length || m.contributes.views.length || m.contributes.secretUses.length) throw new Error("Unsupported stage-1 contribution: views, generated UI and secrets");
+  compileSchema(m.settingsSchema);
+  for (const operation of m.contributes.operations) { compileSchema(operation.inputSchema); compileSchema(operation.outputSchema); }
   return m;
 }
 export type FolderSource = { id: string; path: string; label: string; defaultCandidate: boolean };

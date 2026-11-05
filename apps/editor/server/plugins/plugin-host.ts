@@ -8,7 +8,7 @@ import { hostPaths } from "../host-paths.ts";
 type Installed = { directory: string; digest: string; trustedDigest?: string; enabled: boolean; settings: Record<string, unknown> };
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>> };
 // Product-maintained supply list. Publisher metadata alone never establishes official supply.
-export const OFFICIAL_PLUGINS = [{ id: "litzio.onedrive", publisher: "litzio", digest: "3913d66b9f6f8621af9f76a2f31353d8e179c8ae1157e834d075eb82d746eaf9" }];
+export const OFFICIAL_PLUGINS = [{ id: "litzio.onedrive", publisher: "litzio", digest: "c49adb338b4c0470f48af3f6a90c8d5d36cc66dd54b9e809de59c3794d0b6a7c" }];
 export class PluginHost {
   private installed: Record<string, Installed>;
   private imported = new Set<string>();
@@ -34,8 +34,9 @@ export class PluginHost {
       if (lstatSync(file).isSymbolicLink()) throw new Error("Artifact must contain real files, not linked dependencies");
       const relative = path.relative(directory, realpathSync(file));
       if (relative.startsWith("..") || path.isAbsolute(relative)) throw new Error("Package reference escapes artifact");
-      hash.update(path.relative(directory, file));
-      if (statSync(file).isDirectory()) walk(file); else hash.update(readFileSync(file));
+      const metadata = statSync(file);
+      hash.update(JSON.stringify([path.relative(directory, file).replaceAll("\\", "/"), metadata.isDirectory() ? "directory" : "file", metadata.isDirectory() ? 0 : metadata.size]));
+      if (metadata.isDirectory()) walk(file); else hash.update(readFileSync(file));
     } };
     walk(directory);
     const manifest = validateManifest(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")));
@@ -80,6 +81,7 @@ export class PluginHost {
     if (this.loaded.has(id)) return;
     if (this.restartRequired.has(id)) throw new Error("Plugin disposal failed; restart daemon before enabling");
     this.imported.add(id);
+    if (!compileSchema(a.manifest.settingsSchema)(r.settings)) throw new Error("Stored settings do not satisfy this artifact schema");
     const module = await import(pathToFileURL(a.entry).href) as PluginModule;
     if (typeof module.activate !== "function") throw new Error("Missing activate handler");
     const instance = await module.activate({ settings: structuredClone(r.settings), platform: process.platform, env: { ...process.env }, isDirectory(file) { try { return statSync(file).isDirectory(); } catch { return false; } } });
