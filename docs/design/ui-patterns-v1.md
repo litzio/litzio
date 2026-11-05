@@ -438,3 +438,10 @@ Current behavior and browser/1440px/640px fixture evidence are recorded in
 [Editor UX Shell](editor-ux-shell-v1.md#multiple-host-shell-1174-pr4) and
 [Assistant](main-agent-v1.md#conversation-host-selection-1174-pr4). Registration and connection
 management remain the separate PR3b scope; this section does not claim them as implemented.
+
+#1190 extends the same P12 file-creation Dialog and P10 folder menus to remote Explorer.
+Local and remote reuse FolderTree, NewDialog and destination labels; the remote dialog
+keeps its Host client and offers only that Host's folders. No common interaction exception
+is added. Existing local New/FolderDialog surfaces were compared; the remote folder picker
+now also offers New folder. The multi-host browser scenario and manual 1440/640px +/menu
+captures are recorded in [Editor UX Shell](editor-ux-shell-v1.md#multiple-host-shell-1174-pr4).

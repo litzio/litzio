@@ -4,19 +4,29 @@ async (page, { expect, screenshots, recoveryRecords }) => {
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const root = initial.path.split(sep).slice(0, -4).concat('tmp', 'multi-host').join(sep);
   const path = root + sep + 'same.txt';
+  const empty = await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(root + sep + 'empty.md'))).json();
   const missing = root + sep + 'missing.txt', fresh = root + sep + 'fresh.txt';
   let failRemembered = false, failedReads = 0, showFresh = false;
   let delayStartup = false, releaseStartup;
   const sources = { local: 'Local text', remote: 'Remote text' };
   const saves = [];
+  const created = { local: new Map(), remote: new Map() };
+  const creations = [];
   const versions = { local: 0, remote: 0 };
   const revision = host => (host === "local" ? "a" : "b").repeat(60) + String(versions[host]).padStart(4, "0");
   await page.route('**/api/document**', async route => {
     const url = route.request().url();
     const host = url.includes('/fixture/remote/') ? 'remote' : 'local';
+    if (route.request().method() === 'PUT') {
+      const { path: target } = route.request().postDataJSON();
+      creations.push({ host, path: target, kind: 'document' });
+      created[host].set(target, 'document');
+      return route.fulfill({ json: { ...empty, path: target } });
+    }
     if (route.request().method() === 'POST') { const body = route.request().postDataJSON(); if (body.revision !== revision(host)) throw new Error("Save used another Host’s revision"); sources[host] = body.source; versions[host]++; saves.push(host); return route.fulfill({ json: { revision: revision(host) } }); }
     if (!url.includes('?path=')) return route.fulfill({ json: { start: true } });
     const requestedPath = decodeURIComponent(url.split('?path=')[1].split('&')[0]);
+    if (created[host].get(requestedPath) === 'document') return route.fulfill({ json: { ...empty, path: requestedPath } });
     if (host === 'remote' && requestedPath === missing && failRemembered) { failedReads++; return route.fulfill({ status: 503, json: { error: 'Fixture startup read failure' } }); }
     const json = { kind: 'text', path: requestedPath, source: sources[host], revision: revision(host) };
     if (host === 'remote' && requestedPath === path && delayStartup) {
@@ -26,7 +36,22 @@ async (page, { expect, screenshots, recoveryRecords }) => {
     }
     return route.fulfill({ json });
   });
-  await page.route('**/api/folder?**', route => route.fulfill({ json: { root, path: root, entries: [{ path, name: 'same.txt', kind: 'document', native: false }, ...(showFresh ? [{ path: fresh, name: 'fresh.txt', kind: 'document', native: false }] : [])] } }));
+  await page.route('**/api/folder?**', route => {
+    const url = route.request().url();
+    const host = url.includes('/fixture/remote/') ? 'remote' : 'local';
+    const directory = decodeURIComponent(url.match(/[?&]path=([^&]*)/)?.[1] ?? '') || root;
+    const entries = [...created[host]].filter(([target]) => target.slice(0, target.lastIndexOf(sep)) === directory)
+      .map(([target, kind]) => ({ path: target, name: target.split(sep).at(-1), kind, native: kind === 'document' }));
+    return route.fulfill({ json: { root, path: directory, entries: [...(directory === root ? [{ path, name: 'same.txt', kind: 'document', native: false }, ...(showFresh ? [{ path: fresh, name: 'fresh.txt', kind: 'document', native: false }] : [])] : []), ...entries] } });
+  });
+  await page.route('**/api/folder', route => {
+    const host = route.request().url().includes('/fixture/remote/') ? 'remote' : 'local';
+    const { parent, name } = route.request().postDataJSON();
+    const target = parent + sep + name;
+    creations.push({ host, path: target, kind: 'folder' });
+    created[host].set(target, 'folder');
+    return route.fulfill({ json: { path: target } });
+  });
   await page.route('**/api/folder-version?**', route => route.fulfill({ json: { version: '1', revisions: [] } }));
   let remoteAvailable = true;
   await page.route('**/fixture/remote/api/host-capabilities', route => route.fulfill(remoteAvailable ? { json: { fileDeletion: 'trash' } } : { status: 503, json: { error: 'Fixture unreachable' } }));
@@ -190,4 +215,71 @@ async (page, { expect, screenshots, recoveryRecords }) => {
     await expect(closeBeforeReply ? local : remote).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('textbox', { name: 'Text editor' })).toHaveValue(closeBeforeReply ? sources.local : sources.remote);
   }
+  // #1190: creation follows the Explorer's Host while Local owns the active tab.
+  await local.click();
+  await page.getByLabel('Host', { exact: true }).selectOption('');
+  const remoteExplorer = page.locator('[data-host-id="remote"]');
+  const localExplorer = page.locator('[data-host-id="local"]');
+  const newPath = root + sep + 'remote-created.md';
+  const newFolder = root + sep + 'remote-folder';
+  if (screenshots) {
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 900 });
+      await remoteExplorer.getByRole('button', { name: 'New document…', exact: true }).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `tmp/1190-plus-${width}.png` });
+      await remoteExplorer.locator('[data-folder-menu]').click();
+      await page.getByRole('menuitem', { name: 'New folder…', exact: true }).waitFor();
+      await page.screenshot({ path: `tmp/1190-menu-${width}.png` });
+      await page.keyboard.press('Escape');
+      await page.getByRole('menuitem', { name: 'New folder…', exact: true }).waitFor({ state: 'hidden' });
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await remoteExplorer.getByRole('button', { name: 'New document…', exact: true }).click();
+  await expect(page.getByTestId('new-file-directory')).toHaveValue(root);
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(remoteExplorer.getByRole('button', { name: 'New document…', exact: true })).toBeFocused();
+  await remoteExplorer.getByRole('button', { name: 'New document…', exact: true }).click();
+  await page.getByTestId('new-file-name').fill('remote-created');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const createdTab = page.getByRole('tab', { name: /remote-created.md.*Remote/ });
+  await expect(createdTab).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('current-host')).toHaveText('Remote');
+  await expect(page.locator('[data-document-tab][data-active=true] .document-editor')).toBeFocused();
+  await expect(remoteExplorer.getByRole('treeitem', { name: /remote-created.md/ })).toBeVisible();
+  await remoteExplorer.locator('[data-folder-menu]').click();
+  await page.getByRole('menuitem', { name: 'New folder…', exact: true }).click();
+  await page.getByTestId('new-folder-name').fill('remote-folder');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(remoteExplorer.getByRole('treeitem', { name: 'remote-folder', exact: true })).toBeVisible();
+  await remoteExplorer.getByRole('treeitem', { name: 'remote-folder', exact: true }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'New document…', exact: true }).click();
+  await expect(page.getByTestId('new-file-directory')).toHaveValue(newFolder);
+  await page.getByTestId('new-file-name').fill('child');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(page.getByRole('tab', { name: /child.md.*Remote/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(remoteExplorer.getByRole('treeitem', { name: /child.md/ })).toBeVisible();
+  await remoteExplorer.getByRole('treeitem', { name: 'remote-folder', exact: true }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'New folder…', exact: true }).click();
+  await expect(page.getByTestId('new-folder-directory')).toHaveValue(newFolder);
+  await page.getByTestId('new-folder-name').fill('nested');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(remoteExplorer.getByRole('treeitem', { name: 'nested', exact: true })).toBeVisible();
+  expect(creations).toEqual([
+    { host: 'remote', path: newPath, kind: 'document' },
+    { host: 'remote', path: newFolder, kind: 'folder' },
+    { host: 'remote', path: newFolder + sep + 'child.md', kind: 'document' },
+    { host: 'remote', path: newFolder + sep + 'nested', kind: 'folder' },
+  ]);
+  expect([...created.local]).toEqual([]);
+  await localExplorer.locator('[data-folder-menu]').click();
+  await page.getByRole('menuitem', { name: 'Refresh', exact: true }).click();
+  await expect(localExplorer.getByRole('treeitem', { name: /remote-created|remote-folder|child.md/ })).toHaveCount(0);
+  await remoteExplorer.locator('[data-folder-menu]').click();
+  await page.getByRole('menuitem', { name: 'Close folder', exact: true }).click();
+  await expect(remoteExplorer.getByTestId('folder')).toHaveCount(0);
+  await expect(localExplorer.getByTestId('folder')).toHaveCount(1);
+  await expect(createdTab).toHaveCount(1);
+
 }
