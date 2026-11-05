@@ -118,6 +118,7 @@
       ${if} $1 == 0
         ${if} $9 > 0
           FileOpen $8 "$litzioRemovalLog" a
+          FileSeek $8 0 END
           FileWriteUTF16LE $8 "App executable deletion succeeded after $9 retries.$\r$\n"
           FileClose $8
           DetailPrint "App executable deletion succeeded after $9 retries."
@@ -138,12 +139,14 @@
       ClearErrors
       FileOpen $8 "$litzioRemovalLog" a
       ${ifNot} ${Errors}
+        FileSeek $8 0 END
         FileWriteUTF16LE $8 "$3$\r$\n"
         FileClose $8
       ${endif}
       ${if} $9 > 15
         StrCpy $3 "@PRODUCT@ removal failed: the app executable could not be deleted.$\r$\n$INSTDIR\@EXECUTABLE@.exe$\r$\n$7. Close applications using it and try removal again.$\r$\nDiagnostic: $litzioRemovalLog"
         FileOpen $8 "$litzioRemovalLog" a
+        FileSeek $8 0 END
         FileWriteUTF16LE $8 "$3$\r$\n"
         FileClose $8
         DetailPrint "$3"
