@@ -1,3 +1,5 @@
+import { viewGenerationContext } from "../shared/view-generation.ts";
+import { compileViewInputSchema, queryViewSchema } from "@litzio/core/views-v2";
 import { assistantCliEnvironment } from "../server/assistant-cli.ts";
 import { brand } from "../../../brand.ts";
 import { AgentDisplayRequests } from "../server/assistant-display-tools.ts";
@@ -371,8 +373,20 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   const call = async (tool: string, args: unknown, extra = {}) => (await connection.client.request("fixture/tool", { threadId: conversation.id, tool, arguments: args, ...extra }));
   const catalogReply = (await call("view_catalog", {})).result;
   assert.equal(catalogReply.success, true);
-  assert.ok(JSON.parse(catalogReply.contentItems[0].text).catalog.operations.length);
+  const authoringCatalog = JSON.parse(catalogReply.contentItems[0].text);
+  assert.ok(authoringCatalog.catalog.operations.length);
+  assert.equal(authoringCatalog.receipt.operation, "view.catalog");
+  assert.deepEqual(authoringCatalog.catalog, viewGenerationContext().catalog);
+  assert.equal("views" in authoringCatalog, false, "authoring must not expose Host contributed definitions");
+  const acceptsGeneratedView = compileViewInputSchema(authoringCatalog.catalog.schema);
+  assert.equal(acceptsGeneratedView({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
+    sources: { review: { plugin: "example.demo", review: "compare", bundleRef: "bundle-1" } },
+    layout: { component: "VerticalPanel", children: [{ component: "PageSurface", title: "Page", source: "review" }] } }), false);
+  assert.doesNotMatch(JSON.stringify(authoringCatalog.catalog.schema), /ReviewList|ReviewDetail|PageSurface|SourceDocumentCompare/);
   const view = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", title: "Statistics", refresh: "manual", sources: { stats: { operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Documents", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } };
+  const generatedView = queryViewSchema.parse(view);
+  assert.equal(acceptsGeneratedView(generatedView), true);
+  assert.equal(acceptsGeneratedView({ ...generatedView, form: { component: "InputForm", source: "stats", fields: [], submit: { component: "SubmitButton", label: "Search" } } }), true);
   assert.equal((await call("propose_view", { view: {} })).result.success, false);
   assert.equal((await call("propose_view", { view: {} })).result.success, false);
   const proposalReply = (await call("propose_view", { view })).result;

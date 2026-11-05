@@ -211,7 +211,9 @@ Generate view는 양 공급자에서 선택 모델을 유지하고 검증 실패
 일반 도구도 한 turn에서 최초 제안과 두 번 교정까지만 허용한다. 공급자·전송 실패는 자동 교정하지 않는다.
 대화는 turn과 도구 receipt, 카드는 검증 명세와 선택 Root, 열린 탭은 입력 초안·조회·저장 상태를 소유한다.
 중단·패널 닫기·unmount는 생성 요청을 취소하고 늦은 결과를 버린다. 중단된 turn에는 카드를 표시하지 않는다.
-review 생성은 V4 통합 확인 후 `shared/view-generation.ts`에서 별도로 연다.
+일반 대화의 `view_catalog`도 `shared/view-generation.ts`의 동일 생성 catalog를 반환하며
+Host 전체 schema나 기여 명세는 노출하지 않는다. query/InputForm만 허용하고 review 생성은
+V4 통합 확인 후 이 공통 생성 범위 정의에서 연다.
 
 2026-11-06 검증: stdio fixture의 catalog/propose/교정 cap과 기존 취소 검사를 보완했다.
 브라우저 generated-views fixture는 카드 → 새 탭 → 수동 조회와 일반 대화 도구 카드 경로를 검증한다.

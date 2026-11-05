@@ -62,7 +62,12 @@ export class AssistantConversations {
         }
         const result = await executeViewOperation(params.tool === "view_catalog" ? { action: "catalog" } : { action: "propose", view: params.arguments?.view }, { access: this.access, plugins: this.plugins });
         if (active.status !== "inProgress") throw new Error("View proposal arrived after the turn ended.");
-        return { success: result.receipt.outcome === "success", contentItems: [{ type: "inputText", text: JSON.stringify(result) }] };
+        // Authoring exposes the same finite generation scope as Generate view,
+        // not the Host's full query/review catalog or contributed definitions.
+        const toolResult = params.tool === "view_catalog"
+          ? { catalog: viewGenerationContext(this.plugins?.viewOperations()).catalog, receipt: result.receipt }
+          : result;
+        return { success: result.receipt.outcome === "success", contentItems: [{ type: "inputText", text: JSON.stringify(toolResult) }] };
       }
       if (params.tool === "plugin_jobs" && this.plugins) {
         const activity: AssistantConversationItem = { id: `plugin-job-${randomUUID()}`, kind: "tool", text: `plugin_jobs · ${String(params.arguments?.action ?? "")}`, status: "inProgress" };
