@@ -91,6 +91,7 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
   });
   const require = createRequire(import.meta.url);
   const dependencies: Record<string, unknown> = {
+    "./provider-session-log.ts": { openProviderSessionLog: async () => assert.fail("Provider logs must not open during startup.") },
     "../../../brand.ts": { brand },
     "electron": {
       app, BrowserWindow: Window, dialog: { showMessageBoxSync: (_target: unknown, details: any) => { confirmations.push(details); return options.stopChoice ?? 0; }, showErrorBox: (_title: string, message: string) => alerts.push(message) },
@@ -114,7 +115,6 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
       async check() { daemonCalls.push("check"); } async stopExplicitly() { daemonCalls.push("stop"); }
     } },
     "../../editor/server/daemon-state.ts": { daemonPort, async daemonRpc() {} },
-    "./provider-session-log.ts": { openProviderSessionLog: async () => assert.fail("Provider logs must not open during startup.") },
     "./explorer.ts": { ExplorerFolders },
     "./first-document.ts": { firstDocument() {} },
     "./preferences.ts": { readPreferences: () => ({ channel: "beta", seenUpdate: null }), writePreferences: (_file: string, value: unknown) => preferences.push(JSON.parse(JSON.stringify(value))) },
