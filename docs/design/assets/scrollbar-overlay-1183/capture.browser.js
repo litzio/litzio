@@ -1,4 +1,9 @@
 async (page, {openPath, expect}) => {
+  // Public evidence uses a synthetic Host identity; never capture the machine's account.
+  await page.route('**/api/host-capabilities', route => route.fulfill({json:{
+    fileDeletion:'permanent', identity:{runAs:'DEMO-PC\\demo'},
+  }}));
+  await page.reload();
   await page.setViewportSize({width:1440,height:900});
   const origin=page.url().split('/').slice(0,3).join('/');
   const loaded=await (await page.request.get(origin+'/api/document')).json();
@@ -16,6 +21,7 @@ async (page, {openPath, expect}) => {
       await page.getByRole('tab',{name,exact:true}).click();
       await page.evaluate(async()=>{await document.fonts.ready;document.activeElement?.blur();await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));});
       await page.mouse.move(0,0);
+      await expect(page.locator('.sidebar-host-account')).toContainText('DEMO-PC\\demo');
       const geometry=await page.evaluate(()=>{
         const viewport=document.querySelector('.document-scroll[data-active="true"]');
         const rect=node=>{const {x,y,width,height}=node.getBoundingClientRect();return {x,y,width,height};};
@@ -30,5 +36,6 @@ async (page, {openPath, expect}) => {
       results.push({width,theme,kind,path,...geometry});
     }
   }
-  return {overlay,results,userAgent:await page.evaluate(()=>navigator.userAgent)};
+  return {overlay,results,userAgent:await page.evaluate(()=>navigator.userAgent),
+    publicEvidence:{identity:'synthetic Host capability response',account:'DEMO-PC\\demo',imageEdits:false}};
 }

@@ -86,7 +86,14 @@ Role: alignment, spacing, control dimensions and deliberate geometry exceptions;
   | 640 Light/Korean | [Before](assets/scrollbar-overlay-1183/before-640-light-long.webp) / [After](assets/scrollbar-overlay-1183/after-640-light-long.webp) | [Before](assets/scrollbar-overlay-1183/before-640-light-short.webp) / [After](assets/scrollbar-overlay-1183/after-640-light-short.webp) |
   | 640 Dark/Korean | [Before](assets/scrollbar-overlay-1183/before-640-dark-long.webp) / [After](assets/scrollbar-overlay-1183/after-640-dark-long.webp) | [Before](assets/scrollbar-overlay-1183/before-640-dark-short.webp) / [After](assets/scrollbar-overlay-1183/after-640-dark-short.webp) |
 
-  Visual owner approval is pending. Actual packaged Desktop and OS scrollbar settings
+  The owner approved the scrollbar visuals. Public captures were subsequently
+  recaptured with a synthetic Host capability identity (`DEMO-PC\\demo`); the capture
+  body asserts that synthetic label before every image. Geometry was compared with
+  the previous evidence; this replacement does not change product behavior or design.
+  [Pixel comparison bounds](assets/scrollbar-overlay-1183/identity-pixel-audit.json)
+  for all 32 images are confined to the Host identity footer; all other pixels match.
+  This updates current evidence, not historical commits or external caches.
+  Actual packaged Desktop and OS scrollbar settings
   are not proven by these Chrome captures. Other scroll surfaces (navigation lists,
   tabs, tables, textarea interiors) retain their existing behavior.
 
