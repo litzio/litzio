@@ -51,6 +51,15 @@ The adaptation deliberately retains 13.x comment/declaration grammar: for exampl
 `<!--->` and `<!A>` remain literal text. No new HTML parser, broad registry, diagnostics bypass,
 timeout relaxation or document-length cutoff is introduced.
 
+For [#1147](https://github.com/litzio/litzio/issues/1147), the same markdown-it patch also
+loads `punycode/` instead of Node's deprecated builtin `punycode`. A version-specific
+`packageExtensions` entry supplies `punycode@2.3.1` as markdown-it's runtime dependency.
+This keeps the existing URL normalization implementation and both security backports;
+no warning suppression or parser replacement is used. The daemon CLI regression checks
+stderr from an ESM bundle outside `node_modules`, where Node exposes DEP0040 (an npm
+installation under `node_modules` alone can mask it). Core's MyST regression checks
+internationalized hostname normalization/display and canonical round-trip.
+
 Remove these patches only when compatible supported upstream dependencies contain all relevant
 fixes and public admission/diagnostic, HTML refusal, canonical, Core/CLI/Editor and browser
 regressions pass without them. Reassess the audit and reachability at that time. #346 does not

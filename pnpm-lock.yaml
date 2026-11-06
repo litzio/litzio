@@ -162,9 +162,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+packageExtensionsChecksum: sha256-BeluPf64p5kV990HShaosc4VVdXKNQrSwBTiF/bUikM=
+
 patchedDependencies:
   linkify-it@4.0.1: f16b751c92faa9d66ba4fba73c7ed8d38bb8558799b3e9a797eb564678a4a257
-  markdown-it@13.0.2: 6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9
+  markdown-it@13.0.2: 18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470
   myst-parser@1.7.4: 7f92eea841af3cdd6e613df6d1ced41ba659fe7c11bd62f1bb42fb6e0fd66402
   myst-to-md@1.0.17: 5e4cf2e0a19a18dea32cfcae63c35c1985361a47aa10139c604d9fe785015849
   prosemirror-view@1.42.4: fbc718e4ad506ead341f3233031198cac61c101269e4996274b6802deb0d1408
@@ -301,10 +303,10 @@ importers:
         version: 1.47.0(react@19.3.0)
       markdown-it:
         specifier: 13.0.2
-        version: 13.0.2(patch_hash=6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9)
+        version: 13.0.2(patch_hash=18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470)
       markdown-it-dollarmath:
         specifier: 0.5.0
-        version: 0.5.0(markdown-it@13.0.2(patch_hash=6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9))
+        version: 0.5.0(markdown-it@13.0.2(patch_hash=18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470))
       markdown-it-footnote:
         specifier: 4.0.0
         version: 4.0.0
@@ -3973,6 +3975,10 @@ packages:
   pump@3.0.4:
     resolution: {integrity: sha512-VS7sjc6KR7e1ukRFhQSY5LM2uBWAUPiOPa/A3mkKmiMwSmRFUITt0xuj+/lesgnCv+dPIEYlkzrcyXgquIHMcA==}
 
+  punycode@2.3.1:
+    resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
+    engines: {node: '>=6'}
+
   pvtsutils@1.3.6:
     resolution: {integrity: sha512-PLgQXQ6H2FWCaeRak8vvk1GW462lMxB5s3Jm673N82zI4vqtVUPuZdffdZbPDFRoU8kAhItWFtPCWiPpp4/EDg==}
 
@@ -7613,25 +7619,25 @@ snapshots:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  markdown-it-amsmath@0.4.0(markdown-it@13.0.2(patch_hash=6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9)):
+  markdown-it-amsmath@0.4.0(markdown-it@13.0.2(patch_hash=18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470)):
     dependencies:
-      markdown-it: 13.0.2(patch_hash=6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9)
+      markdown-it: 13.0.2(patch_hash=18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470)
 
   markdown-it-deflist@2.1.0: {}
 
-  markdown-it-dollarmath@0.5.0(markdown-it@13.0.2(patch_hash=6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9)):
+  markdown-it-dollarmath@0.5.0(markdown-it@13.0.2(patch_hash=18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470)):
     dependencies:
-      markdown-it: 13.0.2(patch_hash=6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9)
+      markdown-it: 13.0.2(patch_hash=18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470)
 
   markdown-it-footnote@4.0.0: {}
 
   markdown-it-front-matter@0.2.4: {}
 
-  markdown-it-myst@1.0.18(@types/markdown-it@13.0.9)(markdown-it@13.0.2(patch_hash=6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9)):
+  markdown-it-myst@1.0.18(@types/markdown-it@13.0.9)(markdown-it@13.0.2(patch_hash=18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470)):
     dependencies:
       '@types/markdown-it': 13.0.9
       js-yaml: 4.3.2
-      markdown-it: 13.0.2(patch_hash=6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9)
+      markdown-it: 13.0.2(patch_hash=18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470)
       vfile: 5.3.7
       vfile-message: 3.1.4
 
@@ -7639,12 +7645,13 @@ snapshots:
 
   markdown-it-texmath@1.0.0: {}
 
-  markdown-it@13.0.2(patch_hash=6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9):
+  markdown-it@13.0.2(patch_hash=18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470):
     dependencies:
       argparse: 2.0.1
       entities: 3.0.1
       linkify-it: 4.0.1(patch_hash=f16b751c92faa9d66ba4fba73c7ed8d38bb8558799b3e9a797eb564678a4a257)
       mdurl: 1.0.1
+      punycode: 2.3.1
       uc.micro: 1.0.6
 
   markdown-table@3.0.4: {}
@@ -8013,13 +8020,13 @@ snapshots:
     dependencies:
       '@types/markdown-it': 13.0.9
       he: 1.2.0
-      markdown-it: 13.0.2(patch_hash=6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9)
-      markdown-it-amsmath: 0.4.0(markdown-it@13.0.2(patch_hash=6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9))
+      markdown-it: 13.0.2(patch_hash=18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470)
+      markdown-it-amsmath: 0.4.0(markdown-it@13.0.2(patch_hash=18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470))
       markdown-it-deflist: 2.1.0
-      markdown-it-dollarmath: 0.5.0(markdown-it@13.0.2(patch_hash=6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9))
+      markdown-it-dollarmath: 0.5.0(markdown-it@13.0.2(patch_hash=18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470))
       markdown-it-footnote: 4.0.0
       markdown-it-front-matter: 0.2.4
-      markdown-it-myst: 1.0.18(@types/markdown-it@13.0.9)(markdown-it@13.0.2(patch_hash=6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9))
+      markdown-it-myst: 1.0.18(@types/markdown-it@13.0.9)(markdown-it@13.0.2(patch_hash=18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470))
       markdown-it-task-lists: 2.1.1
       myst-common: 1.10.1
       myst-directives: 1.7.4
@@ -8049,7 +8056,7 @@ snapshots:
       classnames: 2.5.1
       hast: 1.0.0
       hast-util-to-mdast: 8.4.1
-      markdown-it: 13.0.2(patch_hash=6cdfa96d710d0c9074bee965f743cf626379860eeaf367b632a9993c5068d4c9)
+      markdown-it: 13.0.2(patch_hash=18116a66e4a700e9ad353454f1fe07dfe2cd9715337ccdf83ef7906dd0474470)
       mdast: 3.0.0
       mdast-util-find-and-replace: 2.2.2
       mdast-util-to-hast: 12.3.0
@@ -8462,6 +8469,8 @@ snapshots:
     dependencies:
       end-of-stream: 1.4.5
       once: 1.4.0
+
+  punycode@2.3.1: {}
 
   pvtsutils@1.3.6:
     dependencies:

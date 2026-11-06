@@ -79,6 +79,21 @@ const native = (body: string) => `---\nlitzio: 1\n---\n\n${body}\n`;
 const parserRequire = createRequire(createRequire(import.meta.url).resolve("myst-parser"));
 const markdownRequire = createRequire(parserRequire.resolve("markdown-it"));
 
+test("internationalized link hosts retain URL normalization and canonical round-trip", () => {
+  const document = publicCore.parse(native("[Book](https://bücher.example/path) <https://xn--bcher-kva.example/path>"));
+  const paragraph = publicCore.getEditableDocument(document).blocks.find(block => block.block === "paragraph");
+  assert.ok(paragraph?.block === "paragraph");
+  assert.deepEqual(paragraph.content, [
+    { kind: "link", url: "https://xn--bcher-kva.example/path", children: [{ kind: "text", text: "Book" }] },
+    { kind: "text", text: " " },
+    { kind: "link", url: "https://xn--bcher-kva.example/path", children: [{ kind: "text", text: "https://bücher.example/path" }] },
+  ]);
+  const canonical = publicCore.serialize(document);
+  const reparsed = publicCore.parse(canonical);
+  assert.equal(publicCore.serialize(reparsed), canonical);
+  assert.deepEqual(publicCore.getEditableDocument(reparsed), publicCore.getEditableDocument(document));
+});
+
 test("public admission and reference diagnostics reach the patched URL recognizer", (t) => {
   const LinkifyIt = markdownRequire("linkify-it");
   const match = t.mock.method(LinkifyIt.prototype, "match");

@@ -1,3 +1,16 @@
+diff --git a/lib/index.js b/lib/index.js
+index afec8d8defc975811eaed0b5af0a8d571771c6b1..d3ba7fb51dd465e65aeac981e32d6ffff56c90af 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -11,7 +11,7 @@ var ParserBlock  = require('./parser_block');
+ var ParserInline = require('./parser_inline');
+ var LinkifyIt    = require('linkify-it');
+ var mdurl        = require('mdurl');
+-var punycode     = require('punycode');
++var punycode     = require('punycode/');
+ 
+ 
+ var config = {
 diff --git a/lib/rules_core/smartquotes.js b/lib/rules_core/smartquotes.js
 index 42d6851b6783811d8655bde20689a21412372d59..a09bec68ea00a4319d50b822677b9ac143c929cc 100644
 --- a/lib/rules_core/smartquotes.js
