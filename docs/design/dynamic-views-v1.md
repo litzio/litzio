@@ -7,7 +7,7 @@
 
 ## 구현 상태
 
-D1의 Core/SDK 두 source·owner·출처·inline snapshot·canonical·공개 한도·열 상한 제거·Chart/Panel schema와 screens 선언은 구현했다. 현재 실행 계약과 공용 진입점은 [Generated views의 D1 절](generated-views-v1.md#d1-dynamic-data-contract-core-and-sdk)을 따른다. D2/D3/D4 및 V7의 Host·CLI 실행·앱 위치·비서 자료 경로·확장 renderer는 이 상태에 포함하지 않는다. 문서 전체는 후속 구현 설계로 유지한다.
+D1의 Core/SDK 두 source·owner·출처·inline snapshot·canonical·공개 한도·열 상한 제거·Chart/Panel schema와 screens 선언은 구현했다. 현재 실행 계약과 공용 진입점은 [Generated views의 D1 절](generated-views-v1.md#d1-dynamic-data-contract-core-and-sdk)을 따른다. V7의 Chart/Panel renderer는 [Generated views의 V7 절](generated-views-v1.md#v7-chart-and-panel-renderer)에 구현 계약을 기록한다. D2/D3/D4의 Host·CLI 실행·앱 위치·비서 자료 경로 및 통합 수락은 이 상태에 포함하지 않는다. 문서 전체는 후속 구현 설계로 유지한다.
 
 ## 정의와 경계
 
