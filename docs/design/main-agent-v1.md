@@ -1354,7 +1354,7 @@ request wiring, readable content and dialog bounds at 1440px and Korean Dark
 640px without model calls.
 
 
-Manual evidence (synthetic content, persistent Chrome):
+Manual evidence (synthetic document, Host and account fixture, persistent Chrome):
 [1440px closed](assets/assistant-transmissions-1304/closed-1440.png),
 [1440px open](assets/assistant-transmissions-1304/open-1440.png),
 [640px Korean Dark closed](assets/assistant-transmissions-1304/closed-640.png),
@@ -1362,3 +1362,5 @@ Manual evidence (synthetic content, persistent Chrome):
 These compare the closed/open interaction, not pre-implementation screenshots.
 Alignment, control padding, Korean wrapping, dark contrast and viewport margins
 were reviewed; visual approval by the owner is still required before merge.
+
+Capture follow-up: the scenario fixes Host capabilities/account identity before reload and asserts the synthetic identity before each capture. All four current images were regenerated against this worktree on its own explicit server port. This replaces current public images only; prior commits and external caches are not claimed removed.

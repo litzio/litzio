@@ -1,6 +1,7 @@
 async (page, { expect, screenshots, brand }) => {
   const entry = { id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', at: 1793590000000, provider: 'codex', method: 'turn/start', conversationId: 'fixture-thread', turnId: 'fixture-turn', bytes: 123, status: 'acknowledged', complete: true, sources: [{ kind: 'attachment', label: 'fixture.md', bytes: 42 }] };
   let deleted = false;
+  await page.route('**/api/host-capabilities', route => route.fulfill({ json: { fileDeletion: 'trash', identity: { runAs: 'FIXTURE-PC\\fixture-user' } } }));
   await page.route('**/api/assistant/**', route => {
     const url = route.request().url();
     if (url.includes('/transmissions')) {
@@ -22,6 +23,7 @@ async (page, { expect, screenshots, brand }) => {
     await page.getByRole('button', { name: ko ? '비서' : 'Assistant', exact: true }).click();
     const panel = page.getByTestId('assistant-panel');
     await expect(panel.getByRole('textbox')).toBeEnabled();
+    await expect(page.locator('body')).toContainText('FIXTURE-PC\\fixture-user');
     if (screenshots) await page.screenshot({ path: `tmp/1304-before-${width}.png` });
     await panel.getByRole('button', { name: ko ? '전송 기록' : 'Transmission log', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: ko ? '전송 기록' : 'Transmission log', exact: true });
