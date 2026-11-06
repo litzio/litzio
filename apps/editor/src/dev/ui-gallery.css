@@ -12,3 +12,16 @@
 .ui-gallery footer { padding-bottom: var(--space-12); color: var(--id-color-text-muted); }
 .ui-gallery [aria-label="Generated view state"] { flex-wrap: wrap; height: auto; }
 .ui-gallery .views-page { height: auto; overflow: visible; }
+.ui-gallery-body { display: grid; grid-template-columns: 10rem minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+.ui-gallery-navigation { position: sticky; top: 0; padding: var(--space-4) var(--space-2) var(--space-4) 0; }
+.ui-gallery-navigation nav button { white-space: normal; height: auto; min-height: var(--size-control-compact); text-align: left; }
+.ui-gallery-content { min-width: 0; }
+.ui-gallery-toolbar { padding-block: var(--space-3); border-bottom: var(--border-width) solid var(--id-color-border); }
+.ui-gallery-toolbar .view-toggle { flex-wrap: wrap; height: auto; }
+.ui-gallery-toolbar details { color: var(--id-color-text-muted); margin-top: var(--space-3); }
+.ui-gallery-toolbar summary { cursor: pointer; }
+.ui-gallery-content > .view-panel { margin-block: var(--space-4); }
+@media (max-width: 800px) {
+  .ui-gallery { padding: var(--space-3); }
+  .ui-gallery-body { grid-template-columns: 8rem minmax(0, 1fr); gap: var(--space-3); }
+}
