@@ -11,7 +11,7 @@ import { TooltipProvider } from "../../../src/components/ui/tooltip.tsx";
 import "../../../src/index.css";
 import "../../../src/styles.css";
 import "katex/dist/katex.min.css";
-const view: ReviewView = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review changes", refresh: "manual", sources: { review: { plugin: "fixture.review", review: "sample", bundleRef: "bundle" } }, layout: { component: "VerticalPanel", children: [{ component: "SourceDocumentCompare", title: "Compare", source: "review" }, { component: "ReviewList", title: "Changes", source: "review" }, { component: "ReviewDetail", title: "Details", source: "review" }] } };
+const view: ReviewView = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review changes", refresh: "manual", sources: { review: { plugin: "fixture.review", review: "sample", bundleRef: "bundle" } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "SourceDocumentCompare", title: "Compare", source: "review" }, { component: "ReviewList", title: "Changes", source: "review" }, { component: "ReviewDetail", title: "Details", source: "review" }] } };
 function Fixture() {
   const [mode, setMode] = useState("normal"), [held, setHeld] = useState(false), [count, setCount] = useState(0);
   const [clientEpoch, setClientEpoch] = useState(0);
@@ -23,7 +23,7 @@ function Fixture() {
     : layout === "Mixed layout" ? [panel("ReviewList", "First: changes"), panel("PageSurface", "Second: page"), panel("ReviewDetail", "Third: details"), panel("SourceDocumentCompare", "Fourth: compare")]
     : layout === "Repeated panels" ? [panel("PageSurface", "First page"), panel("PageSurface", "Second page")]
     : view.layout.children;
-  const currentView: ReviewView = { ...view, layout: { component: "VerticalPanel", children } };
+  const currentView: ReviewView = { ...view, layout: { component: "Panel", direction: "vertical", children } };
   const adapter = useMemo<ReviewAdapter>(() => {
     let state: "pending" | "approved" | "rejected" = "pending", revision = "r1", proposalRevision = 1, hasMapping = mode !== "no-map", release: (() => void) | undefined;
     let pendingChange: NonNullable<ReviewSnapshot["unresolved"]>[number] | undefined;

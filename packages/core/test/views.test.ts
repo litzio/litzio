@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { evaluateView, parseView, serializeView, validateView, VIEW_LIMITS, rowSchema, createViewCatalog, type ViewOperation } from "../src/views.ts";
 
-const base = () => ({ kind: "litzio-view", schemaVersion: 1, catalog: "litzio-v1", title: "문서 통계", refresh: "manual", sources: { stats: { operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "통계", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } });
+const base = () => ({ kind: "litzio-view", schemaVersion: 1, catalog: "litzio-v1", title: "문서 통계", refresh: "manual", sources: { stats: { kind: "operation", operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "통계", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } });
 const rows = [
   { folder: "b", documents: 3, headings: 9, modified: "2026-11-08T23:00:00.000Z" },
   { folder: "a", documents: 1, headings: 5, modified: "2026-11-02T00:00:00.000Z" },
@@ -29,7 +29,7 @@ test("rejects unsupported structures, bindings, types and processing", () => {
     v => v.layout.children[0].component = "HTML", v => v.layout.children[0].html = "<b>bad</b>",
     v => v.layout.children[0].onClick = "eval()", v => v.layout.children[0].style = {},
     v => v.layout.children[0].columns = ["authorEmail"], v => v.layout.children[0].data = "/other",
-    v => v.layout.children[0] = { component: "BarChart", title: "Chart", source: "stats", data: "/rows", x: "folder", y: "modified" },
+    v => v.layout.children[0] = { component: "Chart", type: "bar", title: "Chart", source: "stats", data: "/rows", x: "folder", y: "modified" },
     v => v.sources.stats.join = {}, v => v.sources.stats.formula = "a+b",
     v => v.sources.stats.groupBy = [{ field: "folder" }, { field: "modified" }],
     v => v.sources.stats.filters = [{ op: "eq", field: "documents", value: "1" }],
@@ -90,11 +90,11 @@ test("operation declarations control all bindings and transforms without reveali
   for (const patch of [{ filters: [{ op: "eq", field: "unknown", value: "x" }] }, { sort: { field: "unknown", direction: "asc" } }, { groupBy: { field: "unknown" }, aggregate: { op: "count" } }]) {
     const bad = structuredClone(spec); Object.assign(bad.sources.stats, patch); assert.throws(() => validateView(bad, ops));
   }
-  spec.layout.children = [{ component: "BarChart", title: "Chart", source: "stats", data: "/rows", x: "status", y: "status" }];
+  spec.layout.children = [{ component: "Chart", type: "bar", title: "Chart", source: "stats", data: "/rows", x: "status", y: "status" }];
   assert.throws(() => validateView(spec, ops));
 });
-import { createCatalogV2, queryViewSchema, validateCatalogView, serializeCatalogView, parseCatalogView, validateViewInputs, evaluateQueryView, compileViewInputSchema, compilePortableViewInputSchema, ViewInputError, reviewPageSchema, reviewProposalSchema } from "../src/views-v2.ts";
-const v2 = (): any => ({ ...base(), schemaVersion: 2, catalog: "litzio-v2", profile: "query" });
+import { createCatalogV2, operationQueryViewSchema as queryViewSchema, validateCatalogView, serializeCatalogView, parseCatalogView, validateViewInputs, evaluateQueryView, compileViewInputSchema, compilePortableViewInputSchema, ViewInputError, reviewPageSchema, reviewProposalSchema } from "../src/views-v2.ts";
+const v2 = (): any => ({ ...base(), schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.statistics" });
 const inputOperation: ViewOperation = { ...pluginOperation, inputSchema: { type: "object", properties: {
   text: { type: "string", maxLength: 8 }, date: { type: "string", format: "date" }, count: { type: "integer", minimum: 1, maximum: 5 },
   preset: { type: "string", enum: ["open", "all"] }, enabled: { type: ["boolean", "null"] }, token: { type: "string", writeOnly: true },
@@ -105,7 +105,7 @@ const formView = (): any => { const v = v2(); v.sources.stats.operation = inputO
 test("v2 canonical query/review profiles reject v1 and cross-profile/action injection", () => {
   const review: any = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
     sources: { review: { plugin: "example.demo", review: "compare", bundleRef: "bundle-1" } },
-    layout: { component: "VerticalPanel", children: [{ component: "SourceDocumentCompare", title: "Compare", source: "review" }] } };
+    layout: { component: "Panel", direction: "vertical", children: [{ component: "SourceDocumentCompare", title: "Compare", source: "review" }] } };
   for (const v of [v2(), review]) { const text = serializeCatalogView(v); assert.equal(serializeCatalogView(parseCatalogView(text)), text); }
   assert.throws(() => validateCatalogView(base()));
   for (const change of [(v: any) => v.form = formView().form, (v: any) => v.sources.review.bundleRef = "https://other/asset", (v: any) => v.layout.children[0].action = "approve", (v: any) => v.layout.children[0].component = "Table"]) {
@@ -178,12 +178,11 @@ test("v2 form validates type/enum/date/range/secret and separates saved missing 
   assert.throws(() => serializeCatalogView(fixedNested, [nestedOp]), /Secret input/);
 
 });
-test("v2 permits exactly 12 public columns and rejects duplicates/secrets/13 columns", () => {
-  const fields = Object.fromEntries(Array.from({ length: 13 }, (_, i) => [`col${i}`, { type: "string", label: `Column ${i}` }]));
+test("v2 permits wide public schemas and tables but rejects duplicates and secrets", () => {
+  const fields = Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`col${i}`, { type: "string", label: `Column ${i}` }]));
   const op = { ...inputOperation, inputSchema: { type: "object" }, rowSchema: rowSchema.parse(fields) };
-  const v = v2(); v.sources.stats.operation = op.operation; v.layout.children[0].columns = Object.keys(fields).slice(0, 12);
+  const v = v2(); v.sources.stats.operation = op.operation; v.layout.children[0].columns = Object.keys(fields);
   assert.equal(validateCatalogView(v, [op]).profile, "query");
-  v.layout.children[0].columns.push("col12"); assert.throws(() => validateCatalogView(v, [op]));
   v.layout.children[0].columns = ["col0", "col0"]; assert.throws(() => validateCatalogView(v, [op]));
   v.layout.children[0].columns = ["token"]; assert.throws(() => validateCatalogView(v, [pluginOperation]));
 });
@@ -231,4 +230,85 @@ test("portable inputs distinguish optional absence, explicit empty text, null an
     }
     assert.equal(check({ text: "other" }), false);
   }
+});
+
+
+const assistantView = (): any => ({ ...v2(), owner: "litzio.assistant", refresh: "assistant", sources: { stats: {
+  kind: "assistant", generatedAt: "2026-11-06T00:00:00.000Z",
+  rowSchema: { x: { type: "number", label: "X", nullable: true }, y: { type: "number", label: "Y", nullable: true } },
+  rows: [{ x: 1, y: 2 }, { x: 2, y: null }], provenance: [{ kind: "reference", label: "Assumption", refId: "ref-1" }], method: "Calculated from supplied material",
+} }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Chart", type: "line", title: "Trend", source: "stats", data: "/rows", x: "x", y: "y" }] } });
+test("assistant snapshot canonical roundtrip preserves inline rows, provenance and order without operations", () => {
+  const view = assistantView(), text = serializeCatalogView(view, []);
+  const connected = serializeCatalogView(v2());
+  assert.throws(() => parseCatalogView(connected + " ".repeat(32769 - Buffer.byteLength(connected))), /byte limit/);
+  assert.equal(serializeCatalogView(parseCatalogView(text, []), []), text);
+  assert.deepEqual(evaluateQueryView(view, undefined, []).rows, view.sources.stats.rows);
+  for (const change of [
+    (v: any) => delete v.owner, (v: any) => v.refresh = "manual", (v: any) => v.sources.stats.args = {},
+    (v: any) => v.form = {}, (v: any) => v.sources.stats.rowSchema.x.secret = true,
+    (v: any) => v.sources.stats.rows[0].unknown = 1, (v: any) => delete v.sources.stats.rows[0].y,
+    (v: any) => v.sources.stats.rows[0].y = Infinity, (v: any) => v.sources.stats.rows[0].y = "2",
+    (v: any) => v.sources.stats.provenance = [], (v: any) => v.layout.children[0].x = "missing",
+    (v: any) => v.sources.stats.provenance[0].url = "https://example.test",
+    (v: any) => v.profile = "review",
+  ]) { const bad = assistantView(); change(bad); assert.throws(() => validateCatalogView(bad, [])); }
+  for (const path of ["../escape.md", "/root.md", "https://example.test/a", "a/../b.md", "a\\b.md"]) {
+    const bad = assistantView(); bad.sources.stats.provenance = [{ kind: "document", label: "Document", hostId: "host-a", rootId: "root-a", path, revision: "r1" }]; assert.throws(() => validateCatalogView(bad, []));
+  }
+});
+test("assistant row, string, provenance and raw/canonical byte limits are enforced", () => {
+  const view = assistantView(); view.layout.children[0].type = "scatter";
+  view.sources.stats.rows = Array.from({ length: 10000 }, () => ({ x: 1, y: 2 }));
+  assert.equal(evaluateQueryView(view, undefined, []).rows.length, 10000);
+  view.sources.stats.rows.push({ x: 1, y: 2 }); assert.throws(() => validateCatalogView(view));
+  const small = assistantView(); small.sources.stats.provenance = Array(64).fill(small.sources.stats.provenance[0]); validateCatalogView(small);
+  small.sources.stats.provenance.push(small.sources.stats.provenance[0]); assert.throws(() => validateCatalogView(small));
+  const text = serializeCatalogView(assistantView());
+  parseCatalogView(text + " ".repeat(1048576 - Buffer.byteLength(text)));
+  assert.throws(() => parseCatalogView(text + " ".repeat(1048577 - Buffer.byteLength(text))), /byte limit/);
+  const strings = assistantView(); strings.layout.children = [{ component: "Table", title: "Text", source: "stats", data: "/rows", columns: ["text"] }];
+  strings.sources.stats.rowSchema = { text: { type: "string", label: "Text" } }; strings.sources.stats.rows = [{ text: "a".repeat(4096) }]; validateCatalogView(strings);
+  strings.sources.stats.rows[0].text += "a"; assert.throws(() => validateCatalogView(strings));
+  strings.sources.stats.rows = Array(254).fill({ text: "a".repeat(4096) }); assert.ok(Buffer.byteLength(JSON.stringify(strings)) < 1048576);
+  assert.throws(() => serializeCatalogView(strings), /byte limit/);
+});
+test("Chart types and Panel structure have strict, shared Core semantics", () => {
+  for (const xs of [[2, 1], [1, 1], [null, 2]]) { const v = assistantView(); v.sources.stats.rows.forEach((r: any, i: number) => r.x = xs[i]); assert.throws(() => validateCatalogView(v)); }
+  const v = assistantView(); v.layout.children[0].type = "scatter"; v.sources.stats.rows = [{ x: null, y: 2 }, { x: 1, y: 2 }, { x: 1, y: 2 }]; validateCatalogView(v);
+  for (const type of ["bar", "line", "scatter"]) { const bad = assistantView(); Object.assign(bad.layout.children[0], { type, options: { invented: true } }); assert.throws(() => validateCatalogView(bad)); }
+  const date = assistantView(); date.sources.stats.rowSchema.x = { type: "string", label: "Date", date: true }; date.sources.stats.rows = [{ x: "2026-11-06T00:00:00.000Z", y: null }]; validateCatalogView(date);
+  date.layout.children[0].type = "scatter"; assert.throws(() => validateCatalogView(date));
+  const panel = assistantView(); const leaf = panel.layout.children[0]; panel.layout = { component: "Panel", direction: "horizontal", children: [leaf, leaf] }; validateCatalogView(panel);
+  panel.layout.children.push(leaf); assert.throws(() => validateCatalogView(panel));
+  panel.layout.children = [{ ...panel.layout, children: [leaf, leaf] }, leaf]; assert.throws(() => validateCatalogView(panel));
+});
+
+
+test("monthly date aggregation binds to line x and validates final bucket order", () => {
+  const view: any = { ...grouped({ field: "modified", interval: "month" }, { op: "count" }), schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.statistics" };
+  view.layout.children = [{ component: "Chart", type: "line", title: "Monthly documents", source: "stats", data: "/rows", x: "group", y: "value" }];
+  const data = [rows[0], { ...rows[1], modified: "2026-10-02T00:00:00.000Z" }, { ...rows[2], modified: "2026-11-02T00:00:00.000Z" }];
+  const canonical = serializeCatalogView(view);
+  assert.equal(serializeCatalogView(parseCatalogView(canonical)), canonical);
+  const expected = { rows: [{ group: "2026-10", value: 1 }, { group: "2026-11", value: 2 }] };
+  assert.deepEqual(evaluateQueryView(view, data), expected);
+  assert.deepEqual(evaluateQueryView(view, [...data].reverse()), expected);
+  // Repeated dates collapse to unique buckets; descending final output still fails line order.
+  view.sources.stats.sort = { field: "group", direction: "desc" };
+  assert.throws(() => evaluateQueryView(view, data), /ascending/);
+  delete view.sources.stats.sort;
+  assert.throws(() => evaluateQueryView(view, rows), /non-null/);
+});
+
+test("assistant calculation method preserves comparison expressions as plain text", () => {
+  const view = assistantView();
+  const method = "매출 > 0인 행만 합산하고 비용 < 100인 행과 비교한다.\n<b>도 텍스트다.</b>";
+  view.sources.stats.method = method;
+  const parsed = parseCatalogView(serializeCatalogView(view));
+  assert.equal(parsed.profile === "query" && parsed.sources.stats.kind === "assistant" && parsed.sources.stats.method, method);
+  view.sources.stats.method = "a".repeat(4097);
+  assert.throws(() => validateCatalogView(view));
+  view.sources.stats.method = "설명\u0000";
+  assert.throws(() => validateCatalogView(view));
 });

@@ -10,6 +10,9 @@ export const SDK_VERSION = "0.1.0";
 const id = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
 const schema = z.record(z.string(), z.unknown());
 const operation = z.strictObject({ id, version: z.number().int().positive(), effect: z.enum(["read", "write"]), assistant: z.boolean().default(false), scope: z.enum(["host", "folder"]), inputSchema: schema, outputSchema: schema, rowSchema: rowSchema.optional() });
+export const SCREEN_ICONS = ["LayoutDashboard", "Table", "ChartColumn", "FileText", "Folder"] as const;
+export const screenContributionSchema = z.strictObject({ id, title: queryViewSchema.options[0].shape.title, icon: z.enum(SCREEN_ICONS),
+  defaultViewIds: z.array(id).min(1).max(8).refine(ids => new Set(ids).size === ids.length, "Duplicate default view"), primary: z.boolean().default(false) });
 export const manifestSchema = z.strictObject({
   schemaVersion: z.literal(1), id, tier: z.enum(["official", "community"]),
   publisher: z.strictObject({ id, name: z.string().min(1) }), name: z.string().min(1), description: z.string().default(""),
@@ -18,6 +21,7 @@ export const manifestSchema = z.strictObject({
     dataViews: z.array(z.strictObject({ id, operation: id, version: z.number().int().positive() })).default([]),
     generatedUi: z.array(z.strictObject({ id, catalog: z.string(), schemaVersion: z.number().int().positive() })).default([]),
     views: z.array(z.strictObject({ id, title: z.string().min(1), definition: queryViewSchema })).default([]),
+    screens: z.array(screenContributionSchema).default([]),
     reviews: z.array(reviewContributionSchema).default([]),
     secretUses: z.array(z.strictObject({ operation: id, secret: id })).default([]) }),
   settingsSchema: schema.default({ type: "object", additionalProperties: false }),
@@ -46,7 +50,12 @@ export function validateManifest(input: unknown): PluginManifest {
   const viewOperations: ViewOperation[] = m.contributes.operations.filter(op => op.effect === "read" && op.rowSchema).map(op => ({
     operation: `${m.id}.${op.id}`, version: op.version, rowSchema: op.rowSchema!, inputSchema: op.inputSchema, validateArgs: compileViewInputSchema(op.inputSchema),
   }));
-  for (const view of m.contributes.views) validateCatalogView(view.definition, viewOperations);
+  for (const view of m.contributes.views) {
+    if (view.definition.owner !== m.id) throw new Error("Default view owner must match plugin");
+    validateCatalogView(view.definition, viewOperations);
+  }
+  if (m.contributes.screens.filter(screen => screen.primary).length > 1) throw new Error("Only one primary screen is allowed");
+  for (const screen of m.contributes.screens) for (const viewId of screen.defaultViewIds) if (!m.contributes.views.some(v => v.id === viewId)) throw new Error("Undeclared screen view");
   for (const review of m.contributes.reviews) {
     for (const action of ["read", "propose", "approve", "reject", "undo"] as const) {
       const binding = review[action];
@@ -132,3 +141,5 @@ export const PLUGIN_ERROR_MESSAGES: Readonly<Record<PluginErrorKind, string>> = 
 };
 
 export type ViewContribution = PluginManifest["contributes"]["views"][number];
+
+export type ScreenContribution = PluginManifest["contributes"]["screens"][number];

@@ -1,7 +1,7 @@
 import { i18n } from "../i18n.ts";
 import { useEffect, useRef, useState } from "react";
-import { builtinViewOperations, type ViewRow } from "@litzio/core/views";
-import { queryViewSchema, compilePortableViewInputSchema, validateViewInputs, ViewInputError, type ViewOperation, type CatalogView, type QueryView as View, type SourceState } from "@litzio/core/views-v2";
+import { builtinViewOperations, type ViewRow, queryLeaves } from "@litzio/core/views";
+import { operationQueryViewSchema as queryViewSchema, compilePortableViewInputSchema, validateViewInputs, ViewInputError, type ViewOperation, type CatalogView, type OperationQueryView as View, type SourceState } from "@litzio/core/views-v2";
 import { Button } from "../components/ui/button.tsx";
 import { Input } from "../components/ui/input.tsx";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../components/ui/dialog.tsx";
@@ -36,18 +36,19 @@ function ViewBars({ rows, x, y, label }: { rows: ViewRow[]; x: string; y: string
 }
 export function ViewRenderer({ view, rows, fields }: { view: View; rows?: ViewRow[]; fields?: Record<string, string> }) {
   const valid = queryViewSchema.parse(view);
+  if (valid.layout.direction !== "vertical" || valid.layout.children.some(p => p.component === "Panel")) return <Notice>{i18n.t("Unavailable")}</Notice>;
   const label = (field: string, value: ViewRow[string]) => valid.sources.stats.operation === "folder.statistics" && value === "." && (field === "folder" || field === "group" && valid.sources.stats.groupBy?.field === "folder")
     ? i18n.t("(Root)") : value === null ? "—" : String(value);
-  return <div className="view-panels">{valid.layout.children.map((panel, index) => <section key={index} className="view-panel" aria-label={panel.title}>
+  return <div className="view-panels">{queryLeaves(valid.layout).map((panel, index) => <section key={index} className="view-panel" aria-label={panel.title}>
     <h3>{panel.title}</h3>
-    {!rows?.length ? null : panel.component === "Table" ? <div className="view-table-scroll" tabIndex={0} aria-label={panel.title}><table><thead><tr>{panel.columns.map(column => <th key={column} scope="col">{fields?.[column] ?? readableLabel(column)}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={i}>{panel.columns.map(column => <td key={column}>{label(column, row[column])}</td>)}</tr>)}</tbody></table></div> : <ViewBars rows={rows} x={panel.x} y={panel.y} label={label} />}
+    {!rows?.length ? null : panel.component === "Table" ? <div className="view-table-scroll" tabIndex={0} aria-label={panel.title}><table><thead><tr>{panel.columns.map(column => <th key={column} scope="col">{fields?.[column] ?? readableLabel(column)}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={i}>{panel.columns.map(column => <td key={column}>{label(column, row[column])}</td>)}</tr>)}</tbody></table></div> : panel.type !== "bar" ? <Notice>{i18n.t("Unavailable")}</Notice> : <ViewBars rows={rows} x={panel.x} y={panel.y} label={label} />}
   </section>)}</div>;
 }
 const emptyInputErrors = () => ({ fields: Object.create(null) as Record<string, string> });
 
 type ViewsProps = { tab: ViewTab; client: HostClient; roots: string[]; onOpen(view: CatalogView, root: string, hostId: string, label?: string): void; onRoot(root: string): void; onOpenDocument?(path: string, hostId: string): void };
 export function Views(props: ViewsProps) {
-  return props.tab.view?.profile === "review" ? <ReviewViewPage key={`${props.tab.hostId}:${props.tab.root}:${props.tab.view.sources.review.plugin}:${props.tab.view.sources.review.review}:${props.tab.view.sources.review.bundleRef}`} {...props} view={props.tab.view} /> : <QueryViews {...props} tab={{ ...props.tab, view: props.tab.view }} />;
+  return props.tab.view?.profile === "review" ? <ReviewViewPage key={`${props.tab.hostId}:${props.tab.root}:${props.tab.view.sources.review.plugin}:${props.tab.view.sources.review.review}:${props.tab.view.sources.review.bundleRef}`} {...props} view={props.tab.view} /> : props.tab.view?.refresh === "assistant" ? <Notice>{i18n.t("Unavailable")}</Notice> : <QueryViews {...props} tab={{ ...props.tab, view: props.tab.view }} />;
 }
 function ReviewViewPage({ tab, view, client, onOpenDocument }: ViewsProps & { view: Extract<CatalogView, { profile: "review" }> }) {
   const [adapter, setAdapter] = useState<ReviewAdapter>();

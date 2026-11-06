@@ -24,7 +24,7 @@ test("generation context accepts fixed args and InputForm queries and completed-
     assert.equal(accepts({ ...fixed, form: { component: "InputForm", source: "stats", fields: [], submit: { component: "SubmitButton", label: "Search" } } }), true);
     assert.equal(accepts({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
       sources: { review: { plugin: "example.demo", review: "compare", bundleRef: "bundle-1" } },
-      layout: { component: "VerticalPanel", children: [{ component: "PageSurface", title: "Page", source: "review" }] } }), true);
+      layout: { component: "Panel", direction: "vertical", children: [{ component: "PageSurface", title: "Page", source: "review" }] } }), true);
     assert.equal(catalog.limits.inputs, VIEW_LIMITS.inputs);
   }
 });
