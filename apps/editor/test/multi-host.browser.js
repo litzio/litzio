@@ -226,7 +226,10 @@ async (page, { expect, screenshots, recoveryRecords, showNotifications }) => {
   await heldReads.shift()();
   await expect(page.getByRole('tab', { name: /hanging.txt/ })).toHaveCount(0);
   await page.locator('[data-host-id="local"]').getByRole('treeitem', { name: /same.txt/ }).click();
-  await page.getByRole('textbox', { name: 'Text editor' }).fill('Local saved');
+  await expect(local).toHaveAttribute('aria-selected', 'true');
+  // Reopening creates a new panel; bind after activation rather than retaining the previous editor.
+  const reopenedLocalInput = page.locator('#' + await local.getAttribute('aria-controls')).getByRole('textbox', { name: 'Text editor' });
+  await reopenedLocalInput.fill('Local saved');
   await page.keyboard.press('Control+s');
   await expect.poll(() => sources.local).toBe('Local saved');
   await page.reload();
