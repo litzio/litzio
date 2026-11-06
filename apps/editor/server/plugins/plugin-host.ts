@@ -201,6 +201,11 @@ export class PluginHost {
   viewContributions() {
     return [...this.loaded.values()].flatMap(live => live.manifest.contributes.views.map(view => ({ plugin: live.manifest.id, ...view })));
   }
+  viewScreens() {
+    return [...this.loaded.values()].flatMap(live => live.manifest.contributes.screens.map(screen => ({ plugin: live.manifest.id, ...screen })));
+  }
+  /** Registered namespaces remain valid even while a plugin is disabled. */
+  hasViewOwner(id: string): boolean { return Object.hasOwn(this.installed, id); }
   async invokeOperation(name: string, input: unknown, folder?: string, jobCall = false, version?: number) {
     const live = [...this.loaded.values()].find(v => v.manifest.contributes.operations.some(op => `${v.manifest.id}.${op.id}` === name));
     const op = live?.manifest.contributes.operations.find(op => `${live.manifest.id}.${op.id}` === name);

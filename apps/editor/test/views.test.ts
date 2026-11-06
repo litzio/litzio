@@ -13,6 +13,25 @@ import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
 import { nativeSource } from "./helpers/document.ts";
 
 const view = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.statistics", title: "Statistics", refresh: "manual", sources: { stats: { kind: "operation", operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Documents", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } };
+const assistantView = { ...view, owner: "litzio.assistant", title: "예시: 합계 snapshot", refresh: "assistant", sources: { stats: {
+  kind: "assistant", generatedAt: "2026-11-06T00:00:00.000Z", rowSchema: { total: { type: "number", label: "합계" } }, rows: [{ total: 300 }],
+  provenance: [{ kind: "reference", label: "예시: 합산 자료", refId: "reference-a" }], method: "두 문서 값을 합산했다.",
+} }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "예시: 합계", source: "stats", data: "/rows", columns: ["total"] }] } };
+test("proposal scope fixes owner and checks supplied provenance without certifying content", async () => {
+  const scope = { access: null, proposal: { owner: "litzio.assistant", provenance: assistantView.sources.stats.provenance as import("@litzio/core/views-v2").ViewProvenance[] } };
+  const invoke = (value: unknown) => executeViewOperation({ action: "propose", view: value }, scope);
+  const checked = await invoke(assistantView);
+  assert.ok("provenanceStatus" in checked); assert.equal(checked.provenanceStatus, "verified");
+  const unchecked = await executeViewOperation({ action: "propose", view: assistantView }, { access: scope.access });
+  assert.ok("provenanceStatus" in unchecked); assert.equal(unchecked.provenanceStatus, "unverified");
+  const wrong = structuredClone(assistantView); wrong.sources.stats.provenance[0].refId = "not-supplied";
+  assert.equal((await invoke(wrong)).receipt.outcome, "failure");
+  assert.equal((await invoke({ ...assistantView, owner: "litzio.statistics" })).code, "owner-mismatch");
+  assert.equal((await invoke({ ...view, owner: "litzio.assistant" })).code, "owner-mismatch");
+  assert.equal((await executeViewOperation({ action: "propose", view: assistantView, proposal: scope.proposal }, scope)).receipt.outcome, "failure");
+  assert.equal((await executeViewOperation({ action: "run", view: assistantView, input: {} }, scope)).receipt.outcome, "failure");
+  assert.equal((await executeViewOperation({ action: "run", view }, scope)).receipt.outcome, "failure");
+});
 test("Host favourites create exclusively, open definition without reading root, and run current data", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-views-"));
   const root = path.join(dir, "documents"), directory = path.join(dir, "data");
@@ -124,6 +143,7 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
       type: "object", properties: { term: { anyOf: [{ type: "string" }, { type: "number" }] } }, additionalProperties: false,
     } });
     manifest.contributes.views = [{ id: "issues", title: "My issues", definition: jiraView }];
+    manifest.contributes.screens = [{ id: "dashboard", title: "예시: Issues", icon: "Table", defaultViewIds: ["issues"], primary: true }];
     fs.writeFileSync(manifestFile, JSON.stringify(manifest));
     fs.writeFileSync(path.join(artifact, "host.js"), `export function activate() { return {
       operations: { advanced: () => [], search: ({preset, text}) => { if(text === "fail") throw Object.assign(new Error("PRIVATE SERVICE BODY"), {kind:"auth"}); return [{key:"MOCK-1",summary:preset,status:"Open",assignee:text ?? "me",updated:"2026-11-06"}]; } },
@@ -160,8 +180,17 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     assert.equal(catalog.views.find((v: any) => v.plugin === jira).definition.layout.children[0].columns.length, 5);
     parity(catalog, await cliRequest(["catalog"]));
     parity(await request({ action: "propose", view: jiraView }), await cliRequest(["propose", jiraFile]));
+    // Reuse this Host/child to cover transport/storage integration rather than another subprocess.
+    const snapshot = structuredClone(assistantView);
+    snapshot.owner = jira;
+    const snapshotFile = path.join(dir, "snapshot.view.json");
+    fs.writeFileSync(snapshotFile, JSON.stringify(snapshot));
+    assert.deepEqual((await request({ action: "catalog" })).screens, [{ plugin: jira, ...manifest.contributes.screens[0] }]);
+    parity(await request({ action: "propose", view: snapshot, plugin: jira }), await cliRequest(["propose", snapshotFile, "--plugin", jira]));
+    assert.equal((await request({ action: "save", view: snapshot, plugin: jira, name: "snapshot" })).receipt.outcome, "success");
+    assert.equal((await cliRequest(["save", snapshotFile, "--plugin", jira, "--name", "snapshot-cli"])).receipt.outcome, "success");
     // Save uses current unqueried input, replacing rather than merging old text.
-    const saved = await cliRequest(["save", jiraFile, "--name", "issues", "--input", inputFile]);
+    const saved = await cliRequest(["save", jiraFile, "--plugin", jira, "--name", "issues", "--input", inputFile]);
     assert.equal(saved.plugin, jira);
     const opened = await request({ action: "open", plugin: jira, name: "issues" });
     parity(opened, await cliRequest(["open", "issues", "--plugin", jira]));
@@ -228,6 +257,35 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     assert.equal((await request({ action: "run", plugin: jira, name: "issues", root })).code, "unavailable");
     assert.equal(fs.readFileSync(favouriteFile, "utf8"), preserved);
     await manage({ action: "disable", id: jira });
+    assert.deepEqual((await request({ action: "catalog" })).screens, []);
+    const reopenedSnapshot = await request({ action: "open", plugin: jira, name: "snapshot" });
+    assert.equal(reopenedSnapshot.receipt.outcome, "success");
+    assert.equal(reopenedSnapshot.provenanceStatus, "unverified");
+    const storedRun = await request({ action: "run", plugin: jira, name: "snapshot" });
+    assert.deepEqual(storedRun.rows, snapshot.sources.stats.rows);
+    assert.deepEqual(storedRun.provenance, snapshot.sources.stats.provenance);
+    parity(storedRun, await cliRequest(["run", "--name", "snapshot", "--plugin", jira]));
+    // More than the former 64 KiB HTTP cap, while remaining below the full canonical limit.
+    const large = structuredClone(assistantView);
+    large.sources.stats.rows = Array.from({ length: 8000 }, (_, total) => ({ total }));
+    fs.writeFileSync(snapshotFile, JSON.stringify(large));
+    parity(await request({ action: "propose", view: large }), await cliRequest(["propose", snapshotFile]));
+    const small = JSON.stringify(assistantView);
+    const rawView = small.slice(0, 1) + " ".repeat(1048577 - Buffer.byteLength(small)) + small.slice(1);
+    fs.writeFileSync(snapshotFile, rawView);
+    assert.equal((await cliRequest(["propose", snapshotFile], 1)).outcome, "failure");
+    const rawProposal = await fetch(`${host.url}/api/views`, { method: "POST", headers: { Origin: host.url, "Content-Type": "application/json" }, body: '{"action":"propose","view":' + rawView + '}' });
+    assert.equal(rawProposal.status, 400, "HTTP must reject the same oversized raw definition as CLI");
+    const atLimit = rawView.slice(0, 1) + rawView.slice(2);
+    const exactProposal = await fetch(`${host.url}/api/views`, { method: "POST", headers: { Origin: host.url, "Content-Type": "application/json" }, body: '{"action":"propose","view":' + atLimit + '}' });
+    assert.equal(exactProposal.status, 200, "A valid exact-limit raw definition must remain accepted");
+    fs.writeFileSync(snapshotFile, atLimit);
+    assert.equal((await cliRequest(["propose", snapshotFile])).receipt.outcome, "success");
+    const tooLarge = JSON.stringify({ action: "propose", view: large }) + " ".repeat(1048576);
+    const oversized = await fetch(`${host.url}/api/views`, { method: "POST", headers: { Origin: host.url, "Content-Type": "application/json" }, body: tooLarge });
+    assert.equal(oversized.status, 413);
+    fs.writeFileSync(snapshotFile, " ".repeat(1048577));
+    assert.equal((await cliRequest(["propose", snapshotFile], 1)).outcome, "failure");
     manifest.contributes.operations[0].version = 2;
     manifest.contributes.views[0].definition.sources.stats.version = 2;
     fs.writeFileSync(manifestFile, JSON.stringify(manifest));
