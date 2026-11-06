@@ -206,16 +206,6 @@ export function ViewWorkspace({
             </select>
           </label>
         ) : null}
-        {!pages[selected] ? (
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={!active}
-            onClick={() => onGenerate(chosenRoot, pages[selected])}
-          >
-            {i18n.t("Ask assistant")}
-          </Button>
-        ) : null}
         {view ? (
           <Button
             size="sm"

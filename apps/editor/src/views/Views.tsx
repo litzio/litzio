@@ -143,7 +143,6 @@ function QueryViews({ tab, client, roots, onOpen, onRoot, onGenerate, unavailabl
   return <div className="views-page" data-testid={tab.basic ? "statistics-view" : "generated-view"}>
     <header><h2>{tab.basic ? i18n.t("Document statistics") : tab.label ?? view.title}</h2><p>{hostLabel(tab.hostId)} · {root || i18n.t("Choose a folder")}</p></header>
     <div className="view-controls">
-      {onGenerate ? <Button size="sm" variant="secondary" onClick={()=>onGenerate(view)}>{i18n.t("Ask assistant")}</Button> : null}
       <label>{i18n.t("Opened folder")}<select className="form-select settings-select" aria-label={i18n.t("Statistics folder")} value={root} disabled={busy} onChange={event => onRoot(event.target.value)}><option value="">{i18n.t("Choose a folder")}</option>{roots.map(folder => <option key={folder} value={folder}>{folder}</option>)}</select></label>
       {!view.form ? <Button variant="secondary" size="sm" disabled={unavailable || busy || !root || !operation} onClick={() => void query()}>{i18n.t("Refresh data")}</Button> : null}
       {!tab.basic ? <Button variant="secondary" size="sm" disabled={busy || !owner} onClick={() => { setName(view.title); setSaving(true); setSaveProblem(""); }}><Star aria-hidden="true" />{i18n.t("Add to favorites", { defaultValue: "Add to favorites" })}</Button> : <p>{i18n.t("Ask the assistant to generate a view. The basic table stays here.")}</p>}
@@ -184,11 +183,6 @@ function AssistantView({
     <div className="views-page" data-testid="generated-view">
       <h2>{tab.label ?? view.title}</h2>
       <div className="view-controls">
-      {onGenerate ? (
-        <Button size="sm" variant="secondary" onClick={() => onGenerate(view)}>
-          {i18n.t("Ask assistant")}
-        </Button>
-      ) : null}
       <Button size="sm" variant="secondary" onClick={() => setSaving(true)}>
         {i18n.t("Add to favorites")}
       </Button>

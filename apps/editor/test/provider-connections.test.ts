@@ -61,6 +61,23 @@ test("view proposals pass the finite catalog through both stdio adapters with ch
     assert.equal(JSON.stringify(history).includes('"catalog"'), false);
   }
 
+  // Current document is context identity only; explicit attachments supply material bytes.
+  for (const provider of ["codex", "copilot"] as const) {
+    const input = { provider, model: provider === "codex" ? settings.model : "copilot-model", reasoningEffort: provider === "codex" ? "medium" : "low", folders: [root], document: {path: attached[0]!}, message: "Use ordinary chat", viewContext: {owner:"litzio.assistant",hostId:"local",roots:[]} };
+    for (const references of [[], [attached[1]!]]) {
+      const ordinary = await conversations.send({...input,references},settings);
+      await conversations.interrupt(ordinary.id);
+      if (provider === "copilot") await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({sessionId:ordinary.id,modelId:input.model}));
+      const log = readFileSync(provider === "codex" ? codexLog : copilotLog,"utf8").trim().split("\n").map(line=>JSON.parse(line));
+      const call = log.filter(call=>call.method === (provider === "codex" ? "turn/start" : "session/prompt")).at(-1);
+      const text = provider === "codex" ? call.params.input[1].text : call.params.prompt[0].text;
+      const context = JSON.parse(text.split("(JSON):\n")[1]);
+      assert.deepEqual(context.document,{path:attached[0]});
+      assert.deepEqual(context.viewAuthoring.materials.map((item:any)=>item.text),references.length ? ["Revenue B: 200"] : []);
+      assert.equal(text.includes("Revenue A: 100"),false,"unattached current document bytes are not sent");
+    }
+  }
+
   // Reuse the two existing adapter children: ordinary image transport is independent of view text snapshots.
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
   const image = path.join(root,"ordinary.png"); writeFileSync(image,png);

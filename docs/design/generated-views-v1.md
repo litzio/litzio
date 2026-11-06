@@ -8,6 +8,40 @@
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md), [#1210](https://github.com/litzio/litzio/issues/1210).
 - Scope: V2 query Host/CLI supersedes v1 Host behavior as described below. Existing renderer/assistant call sites now use v2 query envelopes; V3 supplies forms/states and query/InputForm generation; V6 tools/cards and V4 completed-bundle review generation use the same authoring catalog. Historical Core v1, file-commit exclusive creation, built-in statistics, Host/CLI operations, shared bundled rendering and both assistant adapters. Includes #1218 operation row-schema declarations for active plugin reads; no external API, settings migration or data migration. The final V1 section documents the separately implemented catalog v2 Core/SDK layer, now consumed by the V2 query Host/CLI.
 
+## 명시적 생성 버튼 제거 (2026-11-06)
+
+소유자 결정으로 composer의 Generate view와 전용 요청을 준비하는 Ask assistant 버튼을
+통계·생성 탭·문서 우측 보기·플러그인 화면에서 제거했다. 아래 Generate view 관련 기록은
+유지된 내부 Host/CLI 생성 기능과 과거 검증 기록이며 현재 UI 진입점을 뜻하지 않는다.
+일반 Send 대화의 view_catalog/propose_view, 검증 결과 카드·새 탭·즐겨찾기는 유지한다.
+Copilot 일반 대화에는 동적 뷰 도구가 없으며 기존 CLI 대안의 한계도 그대로다.
+
+일반 대화는 첨부하지 않은 현재 문서의 경로만 전달한다. 현재 문서 본문을 자동 snapshot으로
+수집하지 않는다. 명시적으로 첨부한 저장 UTF-8 자료와 이전의 성공한 공개 도구 결과는 선택적
+뷰 context로 전달될 수 있다. 이 context의 1 MiB/64개 출처 상한은 일반 문서 읽기의 상한이
+아니며, 초과해도 원래 첨부/도구 결과는 보존하고 뷰 context만 unavailable로 표시한다.
+전용 내부 생성 경로의 저장 현재 문서 자동 첨부와 구분한다. 사용자 데이터 migration은 없다.
+
+UI 선택은 기존 공통 Button의 삭제이며 새로운 표면·토큰·상호작용 예외는 없다.
+1440px English Light [전](assets/remove-generate-view/before-1440.png) /
+[후](assets/remove-generate-view/after-1440.png), 640px Korean Dark
+[전](assets/remove-generate-view/before-640.png) /
+[후](assets/remove-generate-view/after-640.png)는 해당 viewport의 composer 부분 캡처다.
+합성 fixture와 checkout 전용 Host/persistent Chrome을 사용하고 경로를 담는 select는 mask했다.
+버튼 제거 후 control 정렬·여백·잘림·한국어 줄바꿈을 직접 확인했다. 문서 표 편집과
+Settings 등 다른 공통 Button 사용처는 바꾸지 않는다.
+
+기존 generated-views browser는 일반 Send의 검증 카드 → 새 탭 → 수동 조회·즐겨찾기 경로와
+생성 버튼 부재를 보호한다. 사라진 UI의 교정·중단·destination 생성 사례는 그 시나리오에서
+제거하며 내부 서비스의 기존 view-generation/provider 검사는 유지한다. 기존 provider fixture의
+두 child를 재사용해 현재 문서는 경로만, 별도 명시 첨부는 본문을 전달하는 경계를 검사한다.
+이 검사는 모델 품질 검사가 아니며 새 subprocess나 전수 조합을 추가하지 않는다.
+
+일반 대화 실제 제품 경로도 격리 Host와 합성 folder에서 Codex `gpt-6-luna` / `low`로
+확인했다. 일반 Send의 catalog/propose 도구 결과 카드가 생기고, Open view 후 수동 조회로
+연결 표의 행이 표시됐다. 이 한 사례는 대화 경로 유지의 근거이며 모델의 전반적 품질,
+Copilot 도구 지원, 외부 서비스·원격 Host 수락을 보증하지 않는다.
+
 ## D1 dynamic data contract (Core and SDK)
 
 Implemented 2026-11-06 in Core/SDK only, following the [dynamic views design](dynamic-views-v1.md). This section supersedes the earlier component names and field/column limits throughout this document. Host/CLI assistant snapshot execution follows the [D2 implemented contract](#d2-dynamic-data-host-and-cli); assistant context integration remains D4 work; screen entry points follow the [D3 app contract](#d3-앱-위치와-읽기-표); line/scatter/horizontal rendering follows the [V7 implemented contract](#v7-chart-and-panel-renderer). Their availability is not implied by schema acceptance.

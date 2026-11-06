@@ -124,6 +124,11 @@ Host catalog는 활성 기여를 `{plugin,id,title,icon,defaultViewIds,primary}`
 
 ## 비서 경로
 
+2026-11-06 소유자 정정: 명시적 Generate view 및 Ask assistant UI 진입점은 제거한다.
+아래 전용 생성 경로 설명은 내부 기능/설계 기록이며 현재 제품의 버튼 요구사항이 아니다.
+일반 대화와 결과 카드·새 탭·즐겨찾기를 사용한다. 현재 구현은
+[생성 버튼 제거 계약](generated-views-v1.md#명시적-생성-버튼-제거-2026-11-06)을 따른다.
+
 1. **일반 대화:** 현재 Host catalog와 Root 내 참조 첨부 경계를 사용한다. 비서가 허용된 기존 도구로 자료를 읽고 연결 명세 또는 비서 행을 만든 다음 공용 propose로 검증한다. 여러 문서·도구 결과의 합성은 비서가 수행한다. 첨부 경계 밖 Root/Host를 새로 탐색하는 권한을 추가하지 않는다. 이미 대화에 있는 다른 출처의 텍스트를 합성하면 reference로 기록하며 자동 파일 읽기와 구별한다.
 2. **Generate view:** 같은 선택 모델을 유지한다. 현재 assistant-conversations는 viewGeneration에서 references/folders/document를 비운다. D4는 이를 우회하지 않고 생성 요청 준비 단계에 기존 checkedReferences 검사를 재사용하는 자료 snapshot 수집을 추가한다. 기존 도구 없는 최종 명세 생성 경로에 Host가 해석한 첨부 자료와 공개 도구 결과 snapshot을 context로 공급한다. 현재의 “Never include data/hostId” 지시는 source 종류별 지시로 바꾼다. 문서 참조의 hostId만 허용하며 operation args나 임의 URL에 허용하지 않는다. 자료가 없으면 일반 대화에서 읽거나 참조를 첨부하도록 안내한다. 이 경로 자체가 plugin 설치·외부 작업·파일 쓰기를 수행하지 않는다.
 3. **우측 보기:** 현재 문서 참조를 제안하고 사용자가 기존 열린 Root 범위의 추가 참조를 붙일 수 있다. `비서에게 요청`은 위 생성 경로와 같은 context·validation·카드를 쓰고 destination만 해당 문서의 보기로 고정한다. 기존 뷰 수정 요청은 현재 명세와 행을 함께 전달한다. 갱신은 새 결과 카드이며 기존 즐겨찾기를 덮어쓰지 않는다.
