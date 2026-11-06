@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button.tsx";
 
 type DocumentPanelProps = {
   viewContent?: ReactNode;
+  visible?: boolean;
   onWidth(value: number): void;
   /** Below the docking width the panel covers the document instead of narrowing it. */
   overlay: boolean;
@@ -23,7 +24,7 @@ const kinds = ["outline", "tables", "figures", "views"] as const;
 type ListKind = typeof kinds[number];
 
 /** Navigation inside the open document. Choice is local to this mounted panel. */
-export function DocumentPanel({ viewContent, onWidth, overlay, outline: store = emptyOutline, onSelectItem, onClose }: DocumentPanelProps) {
+export function DocumentPanel({ visible=true, viewContent, onWidth, overlay, outline: store = emptyOutline, onSelectItem, onClose }: DocumentPanelProps) {
   useTranslation();
   const bounds = usePanelWidthBounds("document-panel");
   const outline = useSyncExternalStore(store.subscribe, store.get, store.get);
@@ -42,6 +43,7 @@ export function DocumentPanel({ viewContent, onWidth, overlay, outline: store = 
   };
   return (
     <aside
+      hidden={!visible} inert={!visible} style={visible ? undefined : {display:"none"}}
       className={`document-panel${overlay ? " document-panel--overlay" : ""}`}
       aria-labelledby="document-panel-title"
       data-testid="document-panel"
@@ -61,7 +63,7 @@ export function DocumentPanel({ viewContent, onWidth, overlay, outline: store = 
             tabIndex={kind === value ? 0 : -1} onClick={() => setKind(value)} data-segment-label={labels[value]}><span className="view-toggle-label">{labels[value]}</span></Button>)}
         </div>
       </div>
-      {kind === "views" ? <section role="tabpanel" id="document-panel-list-views" aria-labelledby="document-panel-tab-views" className="document-outline">{viewContent}</section> : null}
+      <section hidden={kind !== "views"} role="tabpanel" id="document-panel-list-views" aria-labelledby="document-panel-tab-views" className="document-outline">{viewContent}</section>
       {kinds.filter(value => value !== "views").map(value => <Outline key={value} kind={value} active={kind === value}
         outline={value === "outline" ? outline : outline[value]} onSelect={onSelectItem} />)}
     </aside>

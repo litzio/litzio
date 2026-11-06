@@ -1,3 +1,4 @@
+import { ViewLifetimeExamples } from "./view-lifetime-examples.tsx";
 import { GeneratedViewExamples, TableInteractionExample } from "./generated-view-examples.tsx";
 import { useRef, useState } from "react";
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
@@ -138,7 +139,7 @@ export function UiGallery() {
     {visible("Surfaces") ? <SurfaceExamples state={state} /> : null}
     {visible("Menus") ? <MenuExamples state={state} /> : null}
     {visible("Notifications") ? <NotificationExample state={state} /> : null}
-    {visible("Generated views") ? <><GeneratedViewExamples state={state} /><TableInteractionExample /></> : null}
+    {visible("Generated views") ? <><GeneratedViewExamples state={state} /><TableInteractionExample /><ViewLifetimeExamples /></> : null}
     <footer>Examples show current implementation, not unimplemented UI pattern targets. Review large layout changes in their actual screen.</footer>
   </main>;
 }

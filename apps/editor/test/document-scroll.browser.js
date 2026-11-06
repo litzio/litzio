@@ -89,7 +89,7 @@ async (page, { openPath, expect, screenshots }) => {
     await expect(page.getByTestId('status')).toHaveAttribute('data-operation', 'ready');
     for (const width of [1440, 640]) {
       await page.setViewportSize({width, height:900});
-      if (width === 640) await page.getByTestId('document-panel').waitFor({state:'detached'});
+      if (width === 640) await page.getByTestId('document-panel').waitFor({state:'hidden'});
       for (const sidebar of ['open', 'closed']) {
         const expand = page.getByRole('button', {name:'Expand Explorer', exact:true});
         if ((sidebar === 'open') === await expand.isVisible()) {

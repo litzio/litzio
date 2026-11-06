@@ -1,8 +1,7 @@
-import { ViewChart } from "./ViewChart.tsx";
-import { ViewPanels } from "./ViewPanels.tsx";
+import { resolveViewDocument, type ViewRootBinding } from "./view-provenance.ts";
 import { DataTable, type TableField } from "../components/DataTable.tsx";
 import { i18n } from "../i18n.ts";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { builtinViewOperations, type ViewRow } from "@litzio/core/views";
 import { queryViewSchema as allQueryViewSchema, operationQueryViewSchema as queryViewSchema, compilePortableViewInputSchema, validateViewInputs, ViewInputError, type ViewOperation, type CatalogView, type OperationQueryView as View, type SourceState } from "@litzio/core/views-v2";
 import { Button } from "../components/ui/button.tsx";
@@ -20,6 +19,8 @@ import { ReviewRenderer, type ReviewAdapter } from "../review/ReviewRenderer.tsx
 import { createReviewAdapter, type ReviewObservation } from "./review-api.ts";
 import { readableLabel } from "./view-label.ts";
 import "./views.css";
+import { ViewChart } from "./ViewChart.tsx";
+import { ViewPanels } from "./ViewPanels.tsx";
 
 export type ViewTab = { id: string; hostId: string; root: string; view?: CatalogView; basic?: boolean; jobs?: boolean; label?: string; screen?: import("./view-api.ts").ViewScreen };
 export function ViewRenderer({ view, rows, fields, fieldTypes }: { view: Extract<CatalogView, {profile: "query"}>; rows?: ViewRow[]; fields?: Record<string, string>; fieldTypes?: Record<string, TableField> }) {
@@ -33,8 +34,13 @@ export function ViewRenderer({ view, rows, fields, fieldTypes }: { view: Extract
 }
 const emptyInputErrors = () => ({ fields: Object.create(null) as Record<string, string> });
 
-type ViewsProps = { onGenerate?(view?: CatalogView):void; tab: ViewTab; client: HostClient; roots: string[]; onOpen(view: CatalogView, root: string, hostId: string, label?: string): void; onRoot(root: string): void; onOpenDocument?(path: string, hostId: string): void };
+type ViewsProps = { provenanceRoots?: readonly ViewRootBinding[]; unavailable?: boolean; onGenerate?(view?: CatalogView):void; tab: ViewTab; client: HostClient; roots: string[]; onOpen(view: CatalogView, root: string, hostId: string, label?: string): void; onRoot(root: string): void; onOpenDocument?(path: string, hostId: string): void };
 export function Views(props: ViewsProps) {
+  const identity = useRef({view:props.tab.view,hostId:props.tab.hostId,revision:0});
+  if(identity.current.view !== props.tab.view || identity.current.hostId !== props.tab.hostId) identity.current={view:props.tab.view,hostId:props.tab.hostId,revision:identity.current.revision+1};
+  return <ViewInstance key={identity.current.revision} {...props} />;
+}
+function ViewInstance(props: ViewsProps) {
   return props.tab.view?.profile === "review" ? <ReviewViewPage key={`${props.tab.hostId}:${props.tab.root}:${props.tab.view.sources.review.plugin}:${props.tab.view.sources.review.review}:${props.tab.view.sources.review.bundleRef}`} {...props} view={props.tab.view} /> : props.tab.view?.refresh === "assistant" ? <AssistantView {...props} view={props.tab.view} /> : <QueryViews {...props} tab={{ ...props.tab, view: props.tab.view }} />;
 }
 function ReviewViewPage({ tab, view, client, onOpenDocument }: ViewsProps & { view: Extract<CatalogView, { profile: "review" }> }) {
@@ -49,7 +55,9 @@ function ReviewViewPage({ tab, view, client, onOpenDocument }: ViewsProps & { vi
   }, [client, tab.root, tab.hostId, view]);
   return <div className="views-page" data-testid="review-view">{adapter ? <ReviewRenderer key={`${tab.hostId}:${tab.root}:${view.sources.review.bundleRef}`} view={view} adapter={adapter} /> : <Notice>{i18n.t("Loading data…")}</Notice>}</div>;
 }
-function QueryViews({ tab, client, roots, onOpen, onRoot, onGenerate }: Omit<ViewsProps, "tab"> & { tab: Omit<ViewTab, "view"> & { view?: View } }) {
+function QueryViews({ tab, client, roots, onOpen, onRoot, onGenerate, unavailable:explicitUnavailable }: Omit<ViewsProps, "tab"> & { tab: Omit<ViewTab, "view"> & { view?: View } }) {
+  useSyncExternalStore(hostRegistry.subscribe,hostRegistry.snapshot,hostRegistry.snapshot);
+  const unavailable=explicitUnavailable || hostRegistry.get(tab.hostId).state !== "connected";
   const root = tab.root, base = tab.view ?? queryViewSchema.parse(statisticsView);
   const [args, setArgs] = useState(base.sources.stats.args);
   const view: View = { ...base, sources: { stats: { ...base.sources.stats, args } } };
@@ -71,6 +79,7 @@ function QueryViews({ tab, client, roots, onOpen, onRoot, onGenerate }: Omit<Vie
     if (hostRegistry.get(tab.hostId).state !== "connected") { generation.current++; setBusy(false); setState("unavailable"); setProblem(i18n.t("Unavailable")); }
   }), [tab.hostId]);
   useEffect(() => { const controller = new AbortController(); lifetime.current = controller; return () => { generation.current++; controller.abort(); }; }, []);
+  useEffect(() => { if(unavailable){generation.current++;setBusy(false);setState("unavailable");setProblem(i18n.t("Unavailable"));} },[unavailable]);
   useEffect(() => { generation.current++; setResult(undefined); setState("idle"); setProblem(""); }, [root]);
   const request = async (input: unknown) => {
     const signal = lifetime.current!.signal;
@@ -113,7 +122,7 @@ function QueryViews({ tab, client, roots, onOpen, onRoot, onGenerate }: Omit<Vie
     setInputErrors({ fields, common }); setProblem(""); setState("needs-input");
   };
   const query = async () => {
-    if (busy) return;
+    if (busy || unavailable) return;
     setInputErrors(emptyInputErrors());
     {
       if (!operation) return;
@@ -135,12 +144,12 @@ function QueryViews({ tab, client, roots, onOpen, onRoot, onGenerate }: Omit<Vie
     <div className="view-controls">
       {onGenerate ? <Button size="sm" variant="secondary" onClick={()=>onGenerate(view)}>{i18n.t("Ask assistant")}</Button> : null}
       <label>{i18n.t("Opened folder")}<select className="form-select settings-select" aria-label={i18n.t("Statistics folder")} value={root} disabled={busy} onChange={event => onRoot(event.target.value)}><option value="">{i18n.t("Choose a folder")}</option>{roots.map(folder => <option key={folder} value={folder}>{folder}</option>)}</select></label>
-      {!view.form ? <Button variant="secondary" size="sm" disabled={busy || !root || !operation} onClick={() => void query()}>{i18n.t("Refresh data")}</Button> : null}
+      {!view.form ? <Button variant="secondary" size="sm" disabled={unavailable || busy || !root || !operation} onClick={() => void query()}>{i18n.t("Refresh data")}</Button> : null}
       {!tab.basic ? <Button variant="secondary" size="sm" disabled={busy || !owner} onClick={() => { setName(view.title); setSaving(true); setSaveProblem(""); }}><Star aria-hidden="true" />{i18n.t("Add to favorites", { defaultValue: "Add to favorites" })}</Button> : <p>{i18n.t("Ask the assistant to generate a view. The basic table stays here.")}</p>}
     </div>
     {view.form ? <form ref={formElement} className="view-query-form" noValidate onSubmit={event => { event.preventDefault(); void query(); }}>
       {schema ? <QueryInputs view={view} schema={schema} errors={inputErrors.fields} change={(field, value, remove) => { setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; }); setInputErrors(emptyInputErrors()); }} /> : null}
-      <div className="form-actions view-query-actions"><Button type="submit" disabled={busy || !root || !schema}>{view.form.submit.label}</Button></div>
+      <div className="form-actions view-query-actions"><Button type="submit" disabled={unavailable || busy || !root || !schema}>{view.form.submit.label}</Button></div>
     </form> : null}
     <FieldError id={`view-input-error-${tab.id}`}>{inputErrors.common}</FieldError>
     {state === "loading" ? <Notice>{i18n.t("Loading data…")}</Notice> : state === "idle" ? <Notice>{i18n.t("Data has not been queried. Refresh manually.")}</Notice> : state === "empty" ? <Notice>{i18n.t("No matching rows.")}</Notice> : null}
@@ -153,11 +162,149 @@ function QueryViews({ tab, client, roots, onOpen, onRoot, onGenerate }: Omit<Vie
   </div>;
 }
 
-function AssistantView({ tab, view, client, onGenerate }: ViewsProps & {view: Extract<CatalogView,{refresh:"assistant"}>}) {
- const source=view.sources.stats;
- const [saving,setSaving]=useState(false);
- const [name,setName]=useState(view.title), [problem,setProblem]=useState("");
- const controller=useRef<AbortController|null>(null);
- useEffect(()=>{controller.current=new AbortController();return ()=>controller.current?.abort();},[client]);
- return <div className="views-page" data-testid="generated-view"><h2>{tab.label??view.title}</h2>{onGenerate?<Button size="sm" variant="secondary" onClick={()=>onGenerate(view)}>{i18n.t("Ask assistant")}</Button>:null}<Button size="sm" variant="secondary" onClick={()=>setSaving(true)}>{i18n.t("Add to favorites")}</Button><p>{i18n.t("Assistant prepared data")} · {source.provenance.map(p=>p.label).join(", ")}</p><p>{source.generatedAt}</p><Notice tone="warning">{i18n.t("Assistant content may be inaccurate.")}</Notice><ViewRenderer view={view} rows={source.rows} fields={Object.fromEntries(Object.entries(source.rowSchema).map(([k,v])=>[k,v.label]))} /><details><summary>{i18n.t("View data")}</summary>{source.method?<p>{source.method}</p>:null}<DataTable title={i18n.t("View data")} rows={source.rows} columns={Object.keys(source.rowSchema)} fields={source.rowSchema} /></details><Dialog open={saving} onOpenChange={setSaving}><DialogContent><DialogHeader><DialogTitle>{i18n.t("Add to favorites")}</DialogTitle><DialogDescription>{i18n.t("Assistant prepared data")}</DialogDescription></DialogHeader><form onSubmit={e=>{e.preventDefault();void viewRequest(client,{action:"save",plugin:view.owner,name,view},controller.current?.signal).then(()=>{setSaving(false);window.dispatchEvent(new CustomEvent("view-favourites-changed",{detail:tab.hostId}));}).catch(()=>setProblem(i18n.t("Unavailable")));}}><label>{i18n.t("New favorite name")}<Input value={name} onChange={e=>setName(e.target.value)} /></label>{problem?<Notice tone="error">{problem}</Notice>:null}<Button type="submit" disabled={!name.trim()}>{i18n.t("Add favorite")}</Button></form></DialogContent></Dialog></div>;
+function AssistantView({
+  tab,
+  view,
+  client,
+  onGenerate,
+  onOpenDocument,
+  provenanceRoots = [],
+}: ViewsProps & { view: Extract<CatalogView, { refresh: "assistant" }> }) {
+  const source = view.sources.stats;
+  const [saving, setSaving] = useState(false);
+  const [name, setName] = useState(view.title),
+    [problem, setProblem] = useState("");
+  const controller = useRef<AbortController | null>(null);
+  useEffect(() => {
+    controller.current = new AbortController();
+    return () => controller.current?.abort();
+  }, [client]);
+  return (
+    <div className="views-page" data-testid="generated-view">
+      <h2>{tab.label ?? view.title}</h2>
+      <div className="view-controls">
+      {onGenerate ? (
+        <Button size="sm" variant="secondary" onClick={() => onGenerate(view)}>
+          {i18n.t("Ask assistant")}
+        </Button>
+      ) : null}
+      <Button size="sm" variant="secondary" onClick={() => setSaving(true)}>
+        {i18n.t("Add to favorites")}
+      </Button>
+      </div>
+      <p>
+        {i18n.t("Assistant prepared data")} ·{" "}
+        {source.provenance
+          .slice(0, 3)
+          .map((p) => p.label)
+          .join(", ")}
+        {source.provenance.length > 3 ? "…" : ""}
+      </p>
+      <details className="view-sources">
+        <summary>
+          {i18n.t("View sources", { count: source.provenance.length })}
+        </summary>
+        <ul>
+          {source.provenance.map((item, index) => {
+            const target = resolveViewDocument(item, provenanceRoots);
+            const available =
+              target &&
+              onOpenDocument &&
+              hostRegistry
+                .list()
+                .some(
+                  (host) =>
+                    host.hostId === target.hostId &&
+                    hostRegistry.get(host.hostId).state === "connected",
+                );
+            return (
+              <li key={index}>
+                {item.kind === "document" ? (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="max-w-full whitespace-normal text-left h-auto"
+                      disabled={!available}
+                      onClick={() => {
+                        if (available)
+                          onOpenDocument!(target!.path, target!.hostId);
+                      }}
+                    >
+                      {item.label}
+                    </Button>
+                    {!available ? <span>{i18n.t("Unavailable")}</span> : null}
+                    <p>
+                      {item.path} · {item.revision}
+                    </p>
+                  </>
+                ) : (
+                  <span>{item.label}</span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </details>
+      <p>{source.generatedAt}</p>
+      <Notice tone="warning">
+        {i18n.t("Assistant content may be inaccurate.")}
+      </Notice>
+      <ViewRenderer
+        view={view}
+        rows={source.rows}
+        fields={Object.fromEntries(
+          Object.entries(source.rowSchema).map(([k, v]) => [k, v.label]),
+        )}
+      />
+      <details>
+        <summary>{i18n.t("View data")}</summary>
+        {source.method ? <p>{source.method}</p> : null}
+        <DataTable
+          title={i18n.t("View data")}
+          rows={source.rows}
+          columns={Object.keys(source.rowSchema)}
+          fields={source.rowSchema}
+        />
+      </details>
+      <Dialog open={saving} onOpenChange={setSaving}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{i18n.t("Add to favorites")}</DialogTitle>
+            <DialogDescription>
+              {i18n.t("Assistant prepared data")}
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void viewRequest(
+                client,
+                { action: "save", plugin: view.owner, name, view },
+                controller.current?.signal,
+              )
+                .then(() => {
+                  setSaving(false);
+                  window.dispatchEvent(
+                    new CustomEvent("view-favourites-changed", {
+                      detail: tab.hostId,
+                    }),
+                  );
+                })
+                .catch(() => setProblem(i18n.t("Unavailable")));
+            }}
+          >
+            <label>
+              {i18n.t("New favorite name")}
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </label>
+            {problem ? <Notice tone="error">{problem}</Notice> : null}
+            <Button type="submit" disabled={!name.trim()}>
+              {i18n.t("Add favorite")}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }

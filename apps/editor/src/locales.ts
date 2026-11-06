@@ -1,6 +1,8 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "View sources": "Sources ({{count}})",
+  "Current generated view": "Current generated view",
   "Clear": "Clear",
   "Default views": "Default views",
   "Ask assistant": "Ask assistant",
@@ -1209,6 +1211,8 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "View sources": "출처 ({{count}})",
+  "Current generated view": "현재 생성 뷰",
   "Clear": "지우기",
   "Default views": "기본 뷰",
   "Ask assistant": "비서에게 요청",

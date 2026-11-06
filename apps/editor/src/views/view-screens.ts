@@ -12,7 +12,7 @@ export function useViewScreens() {
       controller = new AbortController();
       const signal = controller.signal;
       void Promise.all(
-        hostRegistry.list().map(async (host) => {
+        hostRegistry.list().filter(host=>hostRegistry.get(host.hostId).state === "connected").map(async (host) => {
           try {
             const value = await viewRequest(
               getHostClient(host.hostId),
@@ -32,7 +32,9 @@ export function useViewScreens() {
       });
     };
     refresh();
-    const unsubscribe = hostRegistry.subscribe(refresh);
+    const states=()=>JSON.stringify(hostRegistry.list().map(host=>[host.hostId,hostRegistry.get(host.hostId).state]));
+    let previous=states();
+    const unsubscribe = hostRegistry.subscribe(()=>{const next=states();if(next!==previous){previous=next;refresh();}});
     window.addEventListener("plugins-changed", refresh);
     return () => {
       controller.abort();

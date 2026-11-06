@@ -194,10 +194,13 @@ test("field advice uses keywords and public limits without echoing input or patt
 test('destination delivery rejects closed, replaced and disconnected targets', async () => {
   const { ViewDestinationRegistry } = await import('../src/views/view-destination.ts');
   const registry = new ViewDestinationRegistry(), applied: unknown[] = [];
-  const destination = {kind:'document' as const,id:'document-a',hostId:'host-a',owner:'litzio.assistant',root:'reports'};
+  const destination = {kind:'document' as const,id:'document-a',hostId:'host-a',owner:'litzio.assistant',root:'reports',documentPath:'reports/a.md',documentDirty:true};
   const view = {profile:'query',owner:'litzio.assistant'} as never;
   registry.register(destination.id, view => applied.push(view));
   const old=registry.begin(destination), current=registry.begin(destination);
+  destination.documentDirty=false;
+  assert.equal(current.destination.documentDirty,true);
+  assert.equal(current.destination.documentPath,"reports/a.md");
   assert.equal(old.signal.aborted,true); assert.equal(registry.apply(old,view),false);
   assert.equal(registry.apply(current,{profile:"query",owner:"other.owner"} as never),false);
   assert.equal(registry.apply(current,view),true);
@@ -221,4 +224,13 @@ test('read table keeps source order stable, treats zero/false as values and comb
   assert.deepEqual(tableRows(rows,{n:filter,b:{...filter,min:'',max:'',text:'false'}},undefined,fields,'en').map(r=>r.n),[0,1]);
   assert.equal(tableRows(rows,{n:{...filter,mode:'empty',empty:true}},undefined,fields,'en').length,1);
   assert.deepEqual(rows,original);
+});
+
+test('document provenance opens only with a matching trusted Host and Root identity', async () => {
+  const {resolveViewDocument}=await import('../src/views/view-provenance.ts');
+  const source={kind:'document' as const,label:'예시: Source',hostId:'host-a',rootId:'root-a',path:'reports/a.md',revision:'revision-a'};
+  assert.equal(resolveViewDocument(source,[]),undefined);
+  assert.equal(resolveViewDocument(source,[{hostId:'host-b',id:'root-a',path:'documents'}]),undefined);
+  assert.equal(resolveViewDocument(source,[{hostId:'host-a',id:'root-b',path:'documents'}]),undefined);
+  assert.deepEqual(resolveViewDocument(source,[{hostId:'host-a',id:'root-a',path:'documents'}]),{hostId:'host-a',path:'documents/reports/a.md'});
 });

@@ -10,7 +10,7 @@
 
 ## D1 dynamic data contract (Core and SDK)
 
-Implemented 2026-11-06 in Core/SDK only, following the [dynamic views design](dynamic-views-v1.md). This section supersedes the earlier component names and field/column limits throughout this document. Host/CLI assistant snapshot execution, screen entry points and assistant context integration remain D2/D3/D4 work; line/scatter/horizontal rendering remains V7 work. Their availability is not implied by schema acceptance.
+Implemented 2026-11-06 in Core/SDK only, following the [dynamic views design](dynamic-views-v1.md). This section supersedes the earlier component names and field/column limits throughout this document. Host/CLI assistant snapshot execution and assistant context integration remain D2/D4 work; screen entry points follow the [D3 app contract](#d3-앱-위치와-읽기-표); line/scatter/horizontal rendering follows the [V7 implemented contract](#v7-chart-and-panel-renderer). Their availability is not implied by schema acceptance.
 
 Query definitions require `owner`. `sources.stats.kind: operation` retains manual refresh, operation/version/args and existing transforms/forms. `kind: assistant` requires assistant refresh, UTC millisecond `generatedAt`, public scalar `rowSchema`, complete inline `rows`, 1–64 `provenance` entries and optional plain-text `method`. `method` allows ordinary comparison characters such as `<` and `>`; renderers must display it as text, never interpret it as HTML. Its 4,096-character limit and rejection of disruptive control characters remain. It forbids forms, operation args and transforms. Owner authorization and provenance identity checks belong to the Host request boundary; Core validates their representation. Inline rows and provenance are the favorite snapshot: canonical `.view.json` needs no companion snapshot file. Operation favorites retain definition/args without result rows.
 
@@ -271,3 +271,11 @@ V7 시각 검토: 같은 메모리 예시·Dark/Korean·100% zoom에서 [1440px 
 
 검증 역할: 기존 Core views 검사는 line 순서/중복/null과 타입·옵션 거부를 보호한다. 기존 `ui-gallery` 시나리오 보완은 SVG의 null 단절·scatter 중복/제외 좌표의 축 영향·접근 가능한 원자료 순서 및 실제 container 폭 접힘이라는 브라우저 고유 위험을 보호한다. 별도 subprocess·전수 조합·실제 AI 호출은 추가하지 않는다. 캡처는 `--screenshots` 수동 실행에서만 생성한다. 직접 소유한 전용 서버에서 fixture를 검증했으며 CLI/비서 데이터의 실제 UI 통합 수락은 후속 통합에서 확인한다.
 
+
+### D3 보기 인스턴스와 선택 수명
+
+문서별 ViewWorkspace와 DocumentPanel은 숨김·개요 전환·다른 문서·비서 표시 중에도 유지하고 문서 탭 닫기에 해제한다. 숨김은 접근성 트리와 포커스에서 제외한다. 네 navigation tab의 aria-controls 대상은 항상 mount하고 선택한 panel만 보인다. 일반 작업 탭도 새 definition을 받으면 이전 요청을 취소하고 args·결과·표 상태를 새 인스턴스로 전환한다. Host offline/unavailable은 기존 결과를 제거하지 않으며 오래된 결과와 실행 불가 상태를 함께 표시한다. 다시 연결해도 실행을 자동 반복하지 않는다.
+
+플러그인 화면은 기본 뷰·현재 생성 뷰·선택한 즐겨찾기의 인스턴스를 구분한다. 기본 뷰로 전환해도 생성 뷰를 다시 선택할 수 있다. 수동 기본/즐겨찾기/Root 선택은 같은 destination의 생성 token과 이전 open 요청을 무효화한다. 명시한 Host의 진입은 다른 Host로 열려 있던 화면을 전환하고 이전 임시 상태·요청을 해제한다. document destination에는 시작 documentPath와 documentDirty를 함께 고정한다.
+
+출처는 요약과 펼칠 수 있는 전체 목록으로 제공한다. `ViewRootBinding {hostId,id,path}`는 신뢰된 앱/Host 문맥의 매핑만 받으며 `resolveViewDocument`는 Host·Root identity가 모두 일치할 때만 상대 path를 해석한다. known Host가 연결되어 있고 매핑과 onOpenDocument가 있을 때 기존 문서 열기/미저장 보호 경로를 사용한다. 현재 Host의 Root identity 공급 API와 D4의 실제 매핑은 없으므로 앱은 이를 추측하지 않고 해당 문서 출처를 unavailable로 남긴다. 이 조건의 실제 출처 열기 및 실제 AI 수락은 통합 미완료다.

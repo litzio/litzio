@@ -6,6 +6,7 @@ export type ViewDestination = {
   owner: string;
   root: string;
   documentPath?: string;
+  documentDirty?: boolean;
 };
 export type ViewDestinationToken = {
   destination: Readonly<ViewDestination>;

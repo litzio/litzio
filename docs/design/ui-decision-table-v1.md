@@ -218,3 +218,7 @@ V5 ReviewRenderer를 mount한다. Core ViewInputError의 field diagnostics를 �
 검사: 기존 `ui-gallery`에 페이지 밖 61번째 행을 내림차순·범위 필터로 찾고 필터 해제 뒤 정렬이 남는 조작을 추가했다. 이는 Core 의미 검사가 아닌 실제 공통 Popover/표 연결을 보호한다. `view-generation.test.ts`의 대표 대상 교체·닫힘·Host 해제 검사는 provider 취소와 별개인 앱 전달 경계를 보호한다. 전수 조합·새 subprocess는 추가하지 않았다. fixture는 외부 서비스·실제 AI·원격 Host 수락 근거가 아니다.
 
 시각 점검은 checkout 전용 서버·기존 persistent Chrome profile로 수행했다. 1440px English Light [변경 전](assets/dynamic-views-d3/before-1440.png) / [변경 후](assets/dynamic-views-d3/after-1440.png), 640px Korean Dark [변경 전](assets/dynamic-views-d3/before-640.png) / [변경 후](assets/dynamic-views-d3/after-640.png). Before는 기준 renderer를 잠시 복원해 촬영했고 After는 같은 좁은 표 예시의 새 renderer다. 예시 제목·행의 예시 표기 변경과 공통 정렬/필터 controls, 여백·스크롤을 수동 점검했다. 계정·로컬 파일 경로가 없는 개발 갤러리만 촬영했다.
+
+D3 후속 검증은 기존 panel-lists의 4탭·양방향 wrap·Home/End·항상 존재하는 aria-controls를 보완한다. 기존 multi-host에는 연결된 Host의 catalog fixture와 offline Host 무요청·명시 Host 진입 재선택을 추가한다. generated-views는 문서 숨김/전환/비서 표시 중 표 상태와 늦은 favorite open의 수동 선택 우선권을, ui-gallery는 실제 Views의 명세 교체/이전 응답 폐기·offline 결과 보존 및 생성 뷰 재선택을 보호한다. 갤러리의 수명 예시는 메모리 HostClient만 사용하며 실제 Host/AI 수락을 뜻하지 않는다. DOM 해제 대신 hidden으로 바뀐 기존 layout/scroll/notification 단언은 같은 비노출 조건을 계속 확인한다. 별도 subprocess나 전수 조합은 추가하지 않는다.
+
+후속 보기 화면은 1440px English Light [캡처](assets/dynamic-views-d3/view-1440.png), 640px Korean Dark [캡처](assets/dynamic-views-d3/view-640.png)에서 4탭 정렬, 줄바꿈, 패널 내부 세로 스크롤과 표 내부 가로 스크롤을 확인했다. 계정/폴더 경로를 포함할 수 있는 사이드바와 Root select는 촬영 시 mask했다. 출처의 unavailable은 현재 신뢰된 Root identity 공급이 없는 실제 제한이며 숨기지 않는다.
