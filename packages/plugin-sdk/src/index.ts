@@ -60,6 +60,7 @@ export function validateManifest(input: unknown): PluginManifest {
   for (const review of m.contributes.reviews) {
     for (const action of ["read", "propose", "approve", "reject", "undo"] as const) {
       const binding = review[action];
+      if (!binding) continue;
       const op = m.contributes.operations.find(op => `${m.id}.${op.id}` === binding.operation && op.version === binding.version);
       if (!op || op.effect !== (action === "read" ? "read" : "write")) throw new Error("Invalid review operation binding");
     }
@@ -105,7 +106,10 @@ export const JOB_START_CONTRACT_MESSAGE = "K1 start must accept work and return 
 /** Completed K1 review materials are admitted and assigned opaque refs by the Host. */
 export const completedReviewSchema = z.strictObject({ review: z.string().min(1).max(512),
   bundle: reviewBundleSchema.omit({ bundleRef: true, documentRef: true }), pages: z.array(reviewPageSchema).max(2000),
-  mapping: reviewMappingSchema.optional(), images: z.array(z.strictObject({ ref: z.string().min(1).max(512), path: z.string().min(1), revision: z.string().min(1).max(512) })).max(2000) });
+  mapping: reviewMappingSchema.optional(), images: z.array(z.strictObject({ ref: z.string().min(1).max(512), path: z.string().min(1), revision: z.string().min(1).max(512) })).max(2000) }).superRefine((value, ctx) => {
+    const ids = value.pages.flatMap(page => page.regions.map(region => region.id));
+    if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", message: "Duplicate region across review pages" });
+  });
 export type CompletedReview = z.infer<typeof completedReviewSchema>;
 export const jobUpdateSchema = z.strictObject({
   state: z.enum(["running", "completed", "failed", "stopped", "uncertain"]), phase: z.string(),
@@ -113,7 +117,7 @@ export const jobUpdateSchema = z.strictObject({
   errorKind: z.unknown().transform(pluginErrorKind).optional(), document: z.strictObject({ source: z.string() }).optional(), review: completedReviewSchema.optional(),
 });
 export type JobContribution = PluginManifest["contributes"]["jobs"][number];
-export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { path: string; revision: string; bundle?: ReviewBundle } };
+export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { path: string; revision: string; bundle?: ReviewBundle; review?: { plugin: string; review: string; root: string; bundleRef: string; generation: string } } };
 export const jobRequestSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("job-list"), plugin: id.optional() }),
   z.strictObject({ action: z.literal("job-start"), plugin: id, job: id, requestId: z.string().uuid(), root: z.string().min(1), file: z.string().min(1), output: z.string().min(1) }),

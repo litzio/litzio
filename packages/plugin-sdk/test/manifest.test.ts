@@ -37,6 +37,7 @@ test("v2 view and review contributions validate local bindings before entry exec
     layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Results", source: "stats", data: "/rows", columns: ["title"] }] } };
   const m = { ...manifest(), contributes: { operations: [read, write], views: [{ id: "search", title: "Search", definition }], reviews: [review] } };
   assert.equal(validateManifest(m).contributes.views[0]!.definition.profile, "query");
+  assert.equal(validateManifest({ ...m, contributes: { operations: [read], reviews: [{ id: "compare", title: "Compare", read: binding("search") }] } }).contributes.reviews[0]!.propose, undefined);
   const screen = { id: "dashboard", title: "Dashboard", icon: "LayoutDashboard", defaultViewIds: ["search"], primary: true };
   const screened = { ...m, contributes: { ...m.contributes, screens: [screen] } };
   assert.equal(validateManifest(screened).contributes.screens[0].primary, true);

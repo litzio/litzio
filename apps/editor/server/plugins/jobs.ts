@@ -20,13 +20,16 @@ export class PluginJobs {
   }
   private update(record: Record, update: ReturnType<typeof jobUpdateSchema.parse>, effect: "read" | "write") {
     const current = record.snapshot;
-    if (record.detached || ["completed", "failed", "stopped"].includes(current.state)) return;
+    if (record.detached || current.result || ["completed", "failed", "stopped"].includes(current.state)) return;
     if (update.state === "completed") {
       if (!update.document) throw new Error("Completed job has no document");
       accessPath(record.input.output, this.access, true);
       const created = createDocumentSourceFile(record.input.output, update.document.source, record.access);
+      current.result = { path: created.path, revision: created.revision };
+      // Publication failure must not lose the successful document receipt or recreate it on status.
+      record.finishedAt = Date.now();
       const bundle = update.review ? this.publishReview?.(current.plugin, current.root, created.path, record.input.file, update.review) : undefined;
-      current.result = { path: created.path, revision: created.revision, ...(bundle ? { bundle } : {}) };
+      current.result = { path: created.path, revision: created.revision, ...(bundle ? { bundle, review: { plugin: current.plugin, review: update.review!.review, root: current.root, bundleRef: bundle.bundleRef, generation: bundle.generation } } : {}) };
     }
     if (["completed", "failed", "stopped"].includes(update.state)) record.finishedAt = Date.now();
     const failure = update.state === "failed" || update.state === "uncertain";
@@ -79,7 +82,7 @@ export class PluginJobs {
     if (!record) throw new Error("Unknown requestId on this daemon. Do not automatically restart the job.");
     if (input.action === "job-result" && record.snapshot.state !== "completed") throw new Error("Result is not available before completion");
     if (input.action === "job-stop") await this.stop(record);
-    if (input.action === "job-status" && !record.detached && ["running", "uncertain"].includes(record.snapshot.state)) {
+    if (input.action === "job-status" && !record.snapshot.result && !record.detached && ["running", "uncertain"].includes(record.snapshot.state)) {
       await this.observe(record, record.binding.status);
     }
     return this.response(record, input.action);

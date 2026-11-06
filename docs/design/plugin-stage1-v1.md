@@ -14,7 +14,7 @@
 
 `packages/plugin-sdk`는 React·Editor·Core AST 의존 없이 manifest, JSON Schema 검증과 공용 작업·폴더·계정 타입을 공급한다. `litzio-plugin.json`이 실행 선언이며 패키지 버전은 package.json과 일치해야 한다. ID, tier, publisher, SemVer SDK 범위, 패키지 안 entry, contributes와 settingsSchema를 import 전에 검증한다. JSON Schema는 Ajv, manifest는 Zod, 버전은 SemVer를 재사용한다. 외부 `$ref`와 알 수 없는 필드·중복 기여를 거부한다.
 
-확장 자리 `contributes.dataViews`, `generatedUi`, `secretUses`는 비어 있지 않으면 미지원으로 등록을 거부한다. 카탈로그 V1에서 `contributes.views:[{id,title,definition}]`는 inline query v2 명세만 받고, `contributes.reviews:[{id,title,read,propose,approve,reject,undo}]`는 `{operation,version}` binding을 받는다. 같은 플러그인의 완전 이름 `<plugin-id>.<operation-id>`와 등록 version만 허용하며 view는 rowSchema 읽기, review read는 read, 나머지는 write여야 한다. unknown action·cross-plugin·effect/version 불일치는 entry 전에 거부한다. [Core/SDK v2 계약](generated-views-v1.md#catalog-v2-contract-layer-v1)을 SDK가 재노출한다. 실제 Host dispatch·기본 UI·CLI와 승인 경계 연결은 V2/V4 범위다. `secrets`는 중복 없는 id·connection scope·required 선언을 지원한다. secret 값 조회 API와 생성 UI·저장 뷰 runtime은 없다.
+확장 자리 `contributes.dataViews`, `generatedUi`, `secretUses`는 비어 있지 않으면 미지원으로 등록을 거부한다. 카탈로그 V1에서 `contributes.views:[{id,title,definition}]`는 inline query v2 명세만 받고, `contributes.reviews:[{id,title,read,propose?,approve?,reject?,undo?}]`는 `{operation,version}` binding을 받는다. 같은 플러그인의 완전 이름 `<plugin-id>.<operation-id>`와 등록 version만 허용하며 view는 rowSchema 읽기, review read는 read, 나머지는 write여야 한다. unknown action·cross-plugin·effect/version 불일치는 entry 전에 거부한다. [Core/SDK v2 계약](generated-views-v1.md#catalog-v2-contract-layer-v1)을 SDK가 재노출한다. 실제 Host dispatch·기본 UI·CLI와 승인 경계 연결은 V2/V4 범위다. `secrets`는 중복 없는 id·connection scope·required 선언을 지원한다. secret 값 조회 API와 생성 UI·저장 뷰 runtime은 없다.
 
 공용 작업은 id/version/effect/scope와 입력·결과 schema를 선언하고 같은 id의 handler를 연결한다. 1단계 기능 작업은 host scope만 지원하며 folder scope 선언은 미지원으로 거부한다. `activate(context)`는 operations/status/dispose를 반환한다. 미선언·누락 작업 handler는 활성화 실패다. 폴더 소스와 장식·계정은 선언한 기여의 상태 결과이며 앱 번들 아이콘만 표시한다. 폴더 열기는 기존 파일 Host가 검증한다. 문서 의미·공식 쓰기 경계는 변경하지 않는다.
 
@@ -206,6 +206,20 @@ OneDrive 빌드는 공용 artifact digest 계산으로 artifact 밖 `digest.json
 
 기본값 전환·명시적 선택·변조 차단은 Host 단위 검사, 첫 실행 표시·토글·외부 폴더 선택 연결은 `http-plugins`, 배포물 안 공급·실행은 CI packaged 검사에서 확인한다. 수동 1440 캡처는 `pnpm browser:test http-plugins --screenshots`의 `docs/design/assets/bundled-plugins-1279/bundled-1440.png`에 남긴다. 이는 localhost와 fixture 검증이며 실제 OneDrive 계정 동기화의 증거는 아니다.
 
+### 읽기 전용 대조 자료 (#1317)
+
+review 기여는 read가 필수이며 propose/approve/reject/undo는 선택이다. Host는 선언하지 않은 변경을 plugin 호출 전에 거부한다. 기존 review 화면·Read·Button·Notice를 재사용하며 새 화면이나 공통 상호작용 예외는 없다.
+
+K1 result.review는 같은 Host에서 재조회할 plugin/review/root/bundleRef/generation을 제공한다. result.bundle의 문서 참조도 유지한다. 발행은 canonical 파일의 revision/hash와 Core read model의 실제 block path를 함께 대조한다. 영역 ID는 페이지 안뿐 아니라 발행 자료 전체에서 유일해야 한다. 여러 페이지의 같은 이름은 plugin이 page 식별자를 포함한 opaque ID로 구분한다. 미지원 continuation이나 기존 JSON/목록/PNG 상한 초과는 거부한다.
+
+모든 read는 문서·원본·이미지를 확인하며 불일치를 본 bundle은 같은 Host 수명 동안 stale을 유지한다. snapshot에도 응답 state를 전달하고 Editor adapter가 stale을 보존하므로 뒤늦은 ready 응답이나 이전 byte 복원으로 탐색을 재활성화하지 않는다. 바뀐 이미지는 전달하지 않는다. 새로 발행·검증한 bundle을 명시적으로 열어야 다시 사용할 수 있다. disable/unregister 동안 조회를 거부하고 reload·재활성 후 같은 신뢰 artifact의 기존 bundle은 다시 확인할 수 있다. daemon 재시작 후 복원하지 않는다.
+
+자료 삭제·경로 종류 변경·접근 권한 상실(ENOENT/ENOTDIR/EISDIR/EACCES/EPERM/ELOOP), 고정 Root 접근 거부와 실제 revision/hash 불일치는 조회 전 경로 검사에서도 해당 bundle의 stale을 기록하고 원래 접근 오류는 유지한다. 삭제된 문서는 snapshot을 반환하지 않으며 같은 바이트로 복원해도 기존 bundle은 stale이다. 복구한 자료는 새 bundle을 명시적으로 발행해 사용할 수 있다. 잘못된 Host/Root/generation 요청은 bundle 검사 전에 거부하며 다른 bundle을 무효화하지 않는다. EBUSY·자원 부족 등 그 밖의 일시적 I/O 오류는 실패로 전달하고 stale로 고정하지 않는다.
+
+문서 생성 후 발행 실패는 uncertain과 이미 생성한 result.path/revision을 보존한다. 같은 requestId 조회는 이를 재생성하거나 start를 재전송하지 않는다. 문서 결과와 대조 자료 발행 성공을 구분한다. 이 범위는 K1 단일 원본→새 문서이며 Docling 해석·대규모 paging·과거 형식 호환을 포함하지 않는다.
+
+검증 근거: `pnpm browser:test review-v5 --screenshots`의 [1440 이전](assets/readonly-review-1317/review-readonly-1440-before.png)·[이후](assets/readonly-review-1317/review-readonly-1440.png), [다크 1440 이전](assets/readonly-review-1317/review-readonly-dark-1440-before.png)·[이후](assets/readonly-review-1317/review-readonly-dark-1440.png), [다크 640 이전](assets/readonly-review-1317/review-readonly-dark-640-before.png)·[이후](assets/readonly-review-1317/review-readonly-dark-640.png). 같은 snapshot의 Host stale 응답이 이전에는 무시되고 이후에는 탐색을 막는 차이다. 한국어 문서·같은 행 정렬·여백·패널 내 스크롤·잘림과 다크 톤을 확인했다. 640px는 기존 넓은 비교 안내를 유지한다. review 화면의 기존 영문 안내는 지역화하지 않았으며 새 대조 화면을 설계하지 않았다.
+
 ## 공개 SDK의 중립 문서 생성 (#1316)
 
 Core `authorDocument(input)`을 공개 `@litzio/plugin-sdk`에서 제공한다. Promise 결과는 `{source, documentRevision, documentHash, inputs:[{key,targets:[]}]}`다. 외부 플러그인은 내부 패키지·AST·Markdown 구현 없이 이 함수로 생성하며, 파일 쓰기 권한이나 저장 receipt를 얻는 함수는 아니다. 원본의 해석·지원 여부 분류는 플러그인, 문서 의미·유효성·canonical 직렬화는 Core, Root·경로·충돌·실제 저장은 Host가 소유한다.
@@ -231,4 +245,4 @@ Core `authorDocument(input)`을 공개 `@litzio/plugin-sdk`에서 제공한다. 
 
 저장은 기존 K1 status 완료의 `document:{source: authored.source}`를 사용한다. 공용 `plugins job-start/job-status/job-result` HTTP/CLI·requestId·Root·충돌·receipt 경로를 유지하며 새 저장 endpoint나 직접 파일 쓰기를 만들지 않는다. start는 계속 running 접수만 반환한다. 문서 저장 이후 review 발행은 별개 단계이고 기존 uncertain·같은 requestId 확인·start 무재전송 계약을 유지한다.
 
-검증은 기존 Core native suite에서 최소 요소·입력 키별 0/N 참조·canonical 재처리와 거부를 확인한다. 기존 K1 suite의 대표 외부 artifact subprocess(약 2초)는 SDK import만 사용해 생성→Host 공식 저장→재파싱·revision/path 대조와 원본 보존을 확인한다. Core 조합을 subprocess에서 반복하지 않는다. #1317 읽기 전용 review와의 실제 결합·CLI 재조회 검증은 이 독립 PR에 포함하지 않으며 최종 통합 시 별도 확인한다. Docling 품질·대규모 paging·과거 형식 호환은 검증 범위가 아니다.
+검증은 기존 Core native suite에서 최소 요소·입력 키별 0/N 참조·canonical 재처리와 거부를 확인한다. 기존 K1 suite의 대표 외부 artifact subprocess(약 2초)는 SDK import만 사용해 생성→Host 공식 저장→재파싱·revision/path 대조와 원본 보존을 확인한다. Core 조합을 subprocess에서 반복하지 않는다. master의 #1318과 #1317 최종 결합은 기존 `reviews.test.ts`의 읽기 전용 K1 완료 경로에서 공개 SDK 생성→공식 저장→입력 key별 target으로 대조 발행→Host·실제 CLI snapshot 재조회와 revision/path 일치를 확인한다. 같은 SDK 생성 문서를 외부 변경한 뒤 원래 byte로 복원해도 stale을 유지하는 통합 경계를 함께 보호한다. 새 subprocess를 추가하지 않고 기존 완료·CLI 읽기를 보완하며 삭제·일시적 오류 분류는 Host 단위 검사가 소유한다. Docling 품질·대규모 paging·과거 형식 호환은 검증 범위가 아니다.

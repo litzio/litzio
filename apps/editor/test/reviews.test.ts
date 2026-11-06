@@ -5,13 +5,13 @@ import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync } from "nod
 import path from "node:path";
 import os from "node:os";
 import { randomUUID, createHash } from "node:crypto";
-import { parse, serialize } from "@litzio/core";
+import { parse, serialize, getEditableDocument } from "@litzio/core";
 import { textRevision } from "@litzio/file-commit";
 import { createReviewAdapter } from "../src/views/review-api.ts";
 import { createHostClient } from "../src/host-client.ts";
 import { reviewViewSchema } from "@litzio/core/views-v2";
 import { PluginReviews } from "../server/plugins/reviews.ts";
-import { RootAccess } from "../server/file-access.ts";
+import { RootAccess, FileAccessError } from "../server/file-access.ts";
 import { nativeSource } from "./helpers/document.ts";
 import { startHttpHost } from "../server/http-host.ts";
 import { startFetchServer } from "../../../test/helpers/fetch-server.ts";
@@ -39,6 +39,17 @@ test("review baseline, Root/Host/generation, serialized writes, conflict and no 
       if (name.endsWith("approve") && approvalOverride) { input.proposal.after.text = approvalOverride.to; input.proposal.targets[0].path = approvalOverride.path; return { result: approvalOverride }; }
       return { result: name.endsWith("propose") ? { id: randomUUID(), kind: "text", targets: [{ path: [1], documentRevision: input.baseline.documentRevision, documentHash: input.baseline.documentRevision }], evidence: ["fixture"], before: { type: "plain", text: "Original." }, after: { type: "plain", text: "Changed." }, baseline: input.baseline, state: "pending", actions: [{ action: "approve", allowed: true }, { action: "reject", allowed: true }] } : { kind: "text", path: [1], from: "Original.", to: "Changed." } };
     });
+    const mapped = { ...data, mapping: { ...(data as any).mapping, entries: [{ sourceIds: [], targets: [{ path: [999], documentRevision: revision, documentHash: revision }] }] } };
+    mapped.mapping.entries[0]!.sourceIds = ["region"] as never[];
+    const region = { id: "region", bbox: [0, 0, 1, 1], category: "Text", status: "supported" };
+    const page = { ...data.pages[0], regions: [region] };
+    assert.throws(() => reviews.publish("fixture", root, file, source, { ...mapped, pages: [page] }), /target/i);
+    assert.throws(() => reviews.publish("fixture", root, file, source, { ...data, pages: [page, { ...page, pageNo: 2 }] }), /region/i);
+    const readonly = new PluginReviews(new RootAccess([root]), () => ({ id: "text", title: "Compare", read: declaration.read }), async () => { throw Error("Must not invoke"); });
+    const roBundle = readonly.publish("fixture", root, file, source, data);
+    const ro = { plugin: "fixture", review: "text", root, bundleRef: roBundle.bundleRef };
+    assert.equal((await readonly.execute({ ...ro, action: "read", pageNo: 1 })).state, "ready");
+    await assert.rejects(readonly.execute({ ...ro, action: "propose" }), /not declared/);
     const bundle = reviews.publish("fixture", root, file, source, data);
     const base = { plugin: "fixture", review: "text", root, bundleRef: bundle.bundleRef, generation: "g1" };
     assert.throws(() => reviews.publish("fixture", root, file, source, { ...data, images: [{ ...data.images[0], path: "../outside.png" }] }));
@@ -100,6 +111,11 @@ test("review baseline, Root/Host/generation, serialized writes, conflict and no 
     assert.equal((await flight).receipt.outcome, "uncertain");
     assert.equal(readFileSync(file, "utf8"), original + "External\n");
     assert.equal((await read()).state, "stale"); await assert.rejects(mutate("propose"), /stale/);
+    writeFileSync(file, original);
+    assert.equal((await read()).state, "stale", "Restored bytes do not reactivate an invalidated bundle");
+    writeFileSync(path.join(root, "page.png"), "changed");
+    assert.equal((await readonly.execute({ ...ro, action: "read", pageNo: 1 })).state, "stale");
+    assert.equal((await readonly.execute({ ...ro, action: "read", kind: "image", pageNo: 1 })).state, "stale");
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -156,8 +172,15 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const artifact = path.join(root, "artifact"); mkdirSync(artifact);
     writeFileSync(path.join(artifact, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
     const operations = ["start", "status", "stop", "read", "propose", "approve", "reject", "undo"].map(id => ({ id, version: 1, effect: ["status", "read"].includes(id) ? "read" : "write", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } }));
-    writeFileSync(path.join(artifact, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.review", name: "Review fixture", tier: "community", publisher: { id: "fixture", name: "Fixture" }, version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations, reviews: [{ ...declaration, ...Object.fromEntries(["read", "propose", "approve", "reject", "undo"].map(action => [action, { operation: `fixture.review.${action}`, version: 1 }])) }], jobs: [{ id: "text", title: "Import", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" }] } }));
-    writeFileSync(path.join(artifact, "host.js"), `export function activate() { const completed = ${JSON.stringify({ state: "completed", phase: "Done", document: { source }, review })}; return { operations: { start: async () => ({state:"running",phase:"Accepted"}), status: async () => completed, stop: async () => ({state:"stopped",phase:"Stopped"}), read: async () => ({}), propose: async input => ({ id: input.requestId, kind: 'text', targets: [{path:[1],documentRevision:input.baseline.documentRevision,documentHash:input.baseline.documentRevision}], evidence:['fixture'],before:{type:'plain',text:'Original.'},after:{type:'plain',text:'Changed.'},baseline:input.baseline,state:'pending',actions:[{action:'approve',allowed:true},{action:'reject',allowed:true}] }), approve: async input => { if(input.input?.uncertain) throw Error('Observation lost'); return {kind:'text',path:[1],from:'Original.',to:'Changed.'}; }, reject: async () => ({}), undo: async () => ({}) }, status: async () => ({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}), dispose: async () => {} }; }`);
+    writeFileSync(path.join(artifact, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.review", name: "Review fixture", tier: "community", publisher: { id: "fixture", name: "Fixture" }, version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations, reviews: [{ id: "compare", title: "Compare", read: { operation: "fixture.review.read", version: 1 } }, { ...declaration, ...Object.fromEntries(["read", "propose", "approve", "reject", "undo"].map(action => [action, { operation: `fixture.review.${action}`, version: 1 }])) }], jobs: [{ id: "text", title: "Import", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" }] } }));
+    writeFileSync(path.join(artifact, "host.js"), `import { authorDocument } from '@litzio/plugin-sdk';
+      export function activate() { const completed = ${JSON.stringify({ state: "completed", phase: "Done", document: { source }, review })}; return { operations: { start: async () => ({state:"running",phase:"Accepted"}), status: async input => { const result = structuredClone(completed); if (input.output.endsWith('readonly.md')) {
+        const authored = await authorDocument({ title:'Imported', inputs:[{key:'source-한국어',blocks:[{kind:'heading',level:1,text:'Imported'},{kind:'paragraph',text:'Literal *text*'}]},{key:'excluded',blocks:[]}] });
+        result.document.source = authored.source;
+        result.review = { review:'compare', bundle:{...completed.review.bundle,documentRevision:authored.documentRevision,documentHash:authored.documentHash,mappingRevision:'map1'},
+          pages:[{generation:'g1',sourceRevision:completed.review.bundle.sourceRevision,pageNo:1,width:10,height:10,origin:'TOPLEFT',unit:'px',regions:[{id:'page-1-text',bbox:[0,0,1,1],category:'Text',status:'supported'}]}],
+          mapping:{generation:'g1',sourceRevision:completed.review.bundle.sourceRevision,documentRevision:authored.documentRevision,documentHash:authored.documentHash,mappingRevision:'map1',entries:[{sourceIds:['page-1-text'],targets:authored.inputs.find(i=>i.key==='source-한국어').targets}]},images:[] };
+      } if (input.output.endsWith('bad.md')) result.review.bundle.documentHash = 'wrong'; return result; }, stop: async () => ({state:"stopped",phase:"Stopped"}), read: async () => ({}), propose: async input => ({ id: input.requestId, kind: 'text', targets: [{path:[1],documentRevision:input.baseline.documentRevision,documentHash:input.baseline.documentRevision}], evidence:['fixture'],before:{type:'plain',text:'Original.'},after:{type:'plain',text:'Changed.'},baseline:input.baseline,state:'pending',actions:[{action:'approve',allowed:true},{action:'reject',allowed:true}] }), approve: async input => { if(input.input?.uncertain) throw Error('Observation lost'); return {kind:'text',path:[1],from:'Original.',to:'Changed.'}; }, reject: async () => ({}), undo: async () => ({}) }, status: async () => ({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}), dispose: async () => {} }; }`);
     writeFileSync(path.join(root, "index.html"), "<html></html>");
     host = await startFetchServer(() => startHttpHost({ port: 0, roots: [root], editorDir: root, daemon: { health: { pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), processStartedAt: new Date().toISOString(), daemonHome: root, executable: process.execPath, roots: [root], nonLoopback: false, launcher: "cli-run", productVersion: "0.0.0", protocolVersion: DAEMON_PROTOCOL }, stop() {} } }));
     const address = host.server.address(); assert.ok(address && typeof address !== "string"); const origin = `http://127.0.0.1:${address.port}`;
@@ -175,6 +198,26 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     for (let i = 0; i < 100; i++) { job = (await send("/api/plugins", { action: "job-status", requestId })).job; if (job.state === "completed") break; await new Promise(r => setTimeout(r, 20)); }
     assert.equal(job.state, "completed", JSON.stringify(job)); assert.ok(job.result.bundle);
     const base = { plugin: "fixture.review", review: "text", root, bundleRef: job.result.bundle.bundleRef, generation: "g1" };
+    assert.deepEqual(job.result.review, base);
+    const readonlyId = randomUUID();
+    await send("/api/plugins", { action: "job-start", plugin: base.plugin, job: "text", root, file: "input.txt", output: "readonly.md", requestId: readonlyId });
+    const readonlyJob = (await send("/api/plugins", { action: "job-status", requestId: readonlyId })).job;
+    assert.equal(readonlyJob.state, "completed");
+    const readonlyRef = readonlyJob.result.review;
+    const readonlySnapshot = await send("/api/reviews", { ...readonlyRef, action: "read", pageNo: 1 });
+    assert.equal(readonlySnapshot.state, "ready");
+    const readonlySource = readFileSync(readonlyJob.result.path, "utf8");
+    assert.equal(serialize(parse(readonlySource)), readonlySource);
+    assert.equal(textRevision(readonlySource), readonlyJob.result.revision);
+    const readonlyTargets = readonlySnapshot.snapshot.mapping.entries[0].targets;
+    assert.deepEqual(readonlyTargets.map((target: any) => target.path), getEditableDocument(parse(readonlySource)).blocks.map(block => block.path));
+    assert.ok(readonlyTargets.every((target: any) => target.documentRevision === readonlyJob.result.revision && target.documentHash === readonlyJob.result.revision));
+    const badId = randomUUID();
+    await send("/api/plugins", { action: "job-start", plugin: base.plugin, job: "text", root, file: "input.txt", output: "bad.md", requestId: badId });
+    const bad = (await send("/api/plugins", { action: "job-status", requestId: badId })).job;
+    assert.equal(bad.state, "uncertain"); assert.equal(bad.result.revision, revision);
+    assert.equal(readFileSync(bad.result.path, "utf8"), source);
+    assert.deepEqual((await send("/api/plugins", { action: "job-status", requestId: badId })).job.result, bad.result);
     const read = () => send("/api/reviews", { ...base, action: "read", kind: "proposals" });
     const definition = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
       sources: { review: { plugin: base.plugin, review: base.review, bundleRef: base.bundleRef } },
@@ -203,12 +246,18 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const invalidView = await fetch(origin + "/api/views", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ action: "propose", view: { ...definition, sources: { review: { ...definition.sources.review, bundleRef: "other-host" } } } }) });
     assert.equal(invalidView.status, 400); await invalidView.arrayBuffer();
 
-    const cli = async (action: string, proposalId?: string, expectedCode = 0, observedRequestId?: string) => {
-      const inputFile = path.join(root, "request.json"); writeFileSync(inputFile, JSON.stringify({ bundleRef: base.bundleRef, generation: "g1", proposalId, baseline: (await read()).baseline, requestId: observedRequestId ?? randomUUID() }));
-      const child = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../../../packages/cli/src/cli.ts", import.meta.url)), "review", action, base.plugin, base.review, "--input", inputFile, "--root", root, "--host", origin, "--json"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    const cli = async (action: string, proposalId?: string, expectedCode = 0, observedRequestId?: string, reference = base, kind?: "snapshot") => {
+      const inputFile = path.join(root, "request.json"); writeFileSync(inputFile, JSON.stringify({ bundleRef: reference.bundleRef, generation: reference.generation, ...(kind ? { kind, pageNo: 1 } : {}), proposalId, baseline: (await read()).baseline, requestId: observedRequestId ?? randomUUID() }));
+      const child = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../../../packages/cli/src/cli.ts", import.meta.url)), "review", action, reference.plugin, reference.review, "--input", inputFile, "--root", root, "--host", origin, "--json"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
       let stdout = "", stderr = ""; child.stdout.on("data", b => stdout += b); child.stderr.on("data", b => stderr += b);
       const code = await new Promise(resolve => child.once("exit", resolve)); assert.equal(code, expectedCode, stdout + stderr); return JSON.parse(stdout);
     };
+    const readonlyCli = await cli("read", undefined, 0, undefined, readonlyRef, "snapshot");
+    assert.equal(readonlyCli.state, "ready");
+    assert.deepEqual(readonlyCli.snapshot.mapping.entries[0].targets, readonlyTargets);
+    assert.equal(readonlyCli.snapshot.documentRevision, readonlyJob.result.revision);
+    const undeclared = await cli("propose", undefined, 1, undefined, readonlyRef);
+    assert.ok(undeclared.error, "CLI rejects undeclared mutation");
     const p = await cli("propose"), id = p.proposals[0].id;
     const approve = await cli("approve", id); assert.equal(approve.receipt.outcome, "success"); assert.match(readFileSync(path.join(root, "doc.md"), "utf8"), /Changed/);
     const appliedSnapshot = (await snapshotRead()).snapshot;
@@ -287,10 +336,99 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     }
 
     assert.equal(readFileSync(path.join(root, "doc.md"), "utf8"), source);
+    await send("/api/plugins", { action: "disable", id: base.plugin });
+    const unavailable = await fetch(origin + "/api/reviews", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ ...readonlyRef, action: "read" }) });
+    assert.equal(unavailable.status, 400); await unavailable.arrayBuffer();
+    await send("/api/plugins", { action: "enable", id: base.plugin });
+    await send("/api/plugins", { action: "reload", id: base.plugin });
+    assert.equal((await send("/api/reviews", { ...readonlyRef, action: "read" })).state, "ready");
+    writeFileSync(readonlyJob.result.path, readonlySource + "External change.\n");
+    assert.equal((await send("/api/reviews", { ...readonlyRef, action: "read", pageNo: 1 })).state, "stale");
+    writeFileSync(readonlyJob.result.path, readonlySource);
+    assert.equal((await send("/api/reviews", { ...readonlyRef, action: "read", pageNo: 1 })).state, "stale", "The actual SDK-generated snapshot remains invalidated after restoration");
+    await send("/api/plugins", { action: "unregister", id: base.plugin });
+    const removed = await fetch(origin + "/api/reviews", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ ...readonlyRef, action: "read" }) });
+    assert.equal(removed.status, 400); await removed.arrayBuffer();
   } finally {
     await host?.close();
     if (previous === undefined) delete process.env.LITZIO_DATA_DIR; else process.env.LITZIO_DATA_DIR = previous;
     if (oldSettings === undefined) delete process.env.LITZIO_PLUGINS_SETTINGS_FILE; else process.env.LITZIO_PLUGINS_SETTINGS_FILE = oldSettings;
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("a delayed ready response cannot undo an observed Host stale state", async () => {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => release = resolve);
+  const client = createHostClient("http://localhost");
+  const view = reviewViewSchema.parse({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Compare", refresh: "manual", sources: { review: { plugin: "fixture", review: "text", bundleRef: "bundle" } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "SourceDocumentCompare", title: "Compare", source: "review" }] } });
+  const adapter = createReviewAdapter({ ...client, request: async (_url, init) => {
+    const input = JSON.parse(String(init?.body));
+    if (input.pageNo === 1) await held;
+    return new Response(JSON.stringify({ state: input.pageNo === 2 ? "stale" : "ready", snapshot: { bundle: { bundleRef: "bundle" }, documentPath: "/doc.md" }, receipt: { outcome: "success" } }));
+  } }, view, "/", new AbortController().signal, () => {});
+  const previous = adapter.read(1);
+  assert.equal((await adapter.read(2)).state, "stale");
+  release();
+  assert.equal((await previous).state, "stale");
+  assert.equal((await adapter.read(3)).state, "stale");
+});
+
+test("observed deletion invalidates only the matching review bundle after byte restoration", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "review-deletion-")), file = path.join(root, "doc.md"), source = path.join(root, "source.txt");
+  try {
+    const original = serialize(parse(nativeSource("Original.\n")));
+    writeFileSync(file, original); writeFileSync(source, "input");
+    const revision = textRevision(original), sourceRevision = createHash("sha256").update("input").digest("hex");
+    const access = new RootAccess([root]);
+    let failure: string | undefined, skip = 0;
+    const resolve = access.resolve.bind(access);
+    access.resolve = (value, create) => {
+      if (value === file && failure && skip-- <= 0) {
+        if (failure === "BOUNDARY") throw new FileAccessError();
+        throw Object.assign(new Error("Injected access failure"), { code: failure });
+      }
+      return resolve(value, create);
+    };
+    let calls = 0;
+    const reviews = new PluginReviews(access, () => declaration, async () => { calls++; return {}; });
+    const data = { review: "text", bundle: { generation: "g1", documentRevision: revision, documentHash: revision, sourceRevision }, pages: [], images: [] };
+    const publish = () => ({ plugin: "fixture", review: "text", root, bundleRef: reviews.publish("fixture", root, file, source, data).bundleRef, generation: "g1" });
+    for (const target of [source, file]) {
+      const reference = publish(), unaffected = publish();
+      rmSync(target);
+      const otherHost = new PluginReviews(access, () => declaration, async () => ({}));
+      await assert.rejects(otherHost.execute({ ...unaffected, action: "read" }), /unavailable on this Host/);
+      await assert.rejects(reviews.execute({ ...unaffected, root: os.tmpdir(), action: "read" }), { status: 403 });
+      await assert.rejects(reviews.execute({ ...unaffected, generation: "other", action: "read" }), /generation/);
+      await assert.rejects(reviews.execute({ ...reference, action: "read", kind: "snapshot" }), { code: "ENOENT" });
+      writeFileSync(target, target === source ? "input" : original);
+      const restored = await reviews.execute({ ...reference, action: "read", kind: "snapshot" });
+      assert.equal(restored.state, "stale", "Observed deletion cannot be forgotten after restoring identical bytes");
+      await assert.rejects(reviews.execute({ ...reference, action: "propose", requestId: randomUUID(), baseline: restored.snapshot.baseline }), /stale/);
+      assert.equal((await reviews.execute({ ...unaffected, action: "read" })).state, "ready", "Unobserved bundles are unaffected");
+      assert.equal((await reviews.execute({ ...publish(), action: "read" })).state, "ready", "Explicit new publication can recover");
+    }
+    for (const beforeFailure of [0, 1]) {
+      const transient = publish();
+      skip = beforeFailure; failure = "EBUSY";
+      await assert.rejects(reviews.execute({ ...transient, action: "read" }), { code: "EBUSY" });
+      failure = undefined;
+      assert.equal((await reviews.execute({ ...transient, action: "read" })).state, "ready", "Transient access errors do not poison either access/check path");
+    }
+    const malformed = publish();
+    writeFileSync(file, Buffer.from([0xff]));
+    assert.equal((await reviews.execute({ ...malformed, action: "read" })).state, "stale", "Non-UTF8 replacements are definite byte mismatches too");
+    writeFileSync(file, original);
+    assert.equal((await reviews.execute({ ...malformed, action: "read" })).state, "stale");
+    // Inject access failures instead of changing the user's ACLs or replacing a Host root.
+    for (const deniedKind of ["EACCES", "BOUNDARY"]) {
+      const denied = publish();
+      failure = deniedKind;
+      await assert.rejects(reviews.execute({ ...denied, action: "read" }), deniedKind === "BOUNDARY" ? { status: 403 } : { code: "EACCES" });
+      failure = undefined;
+      assert.equal((await reviews.execute({ ...denied, action: "read" })).state, "stale");
+    }
+    assert.equal(calls, 0, "No invalid or stale mutation reaches the plugin");
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

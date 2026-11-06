@@ -52,6 +52,15 @@ function Fixture() {
             : { type: "plain", text: "정정된 문장입니다." }, baseline: mode === "stale-baseline" ? { ...baseline, proposalRevision: "old" } : baseline, state,
           actions: [{ action: "approve", allowed: state === "pending", reason: "Only pending changes can be approved." }, { action: "reject", allowed: state === "pending", reason: "Only pending changes can be rejected." }, { action: "undo", allowed: state === "approved" && mode !== "no-undo", reason: "There is no applied change to undo." }] }] };
     }
+    if (mode === "host-stale") {
+      let observed = false;
+      const client = createHostClient(window.location.origin);
+      return createReviewAdapter({ ...client, request: async (_url, init) => {
+        const input = JSON.parse(String(init?.body));
+        const stale = input.pageNo === 2 && !observed; observed ||= stale;
+        return new Response(JSON.stringify({ state: stale ? "stale" : "ready", snapshot: snapshot(input.pageNo), receipt: { outcome: "success" } }));
+      } }, currentView, "/", new AbortController().signal, () => {});
+    }
     if (mode === "uncertain" || mode === "unverifiable") {
       let requestId: string | undefined, resolved = false;
       const client = createHostClient(window.location.origin);
@@ -85,6 +94,6 @@ function Fixture() {
       release: () => { const resolve = release; release = undefined; resolve?.(); setHeld(false); },
     } as ReviewAdapter;
   }, [mode]);
-  return <TooltipProvider><div style={{ padding: 16 }}><div className="review-toolbar" aria-label="Fixture controls">{["normal", "stale", "unavailable", "no-image", "no-undo", "hold", "typed-object", "typed-array", "typed-unsupported", "no-map", "continuation", "stale-baseline", "stale-target", "no-pages", "uncertain", "unverifiable"].map(v => <Button key={v} variant="outline" onClick={() => { setMode(v); setHeld(false); }}>{v}</Button>)}<span>Actions: {count}</span><span>Status checks: {checks}</span>{mode === "uncertain" && ["Other tab", "Reopen tab", "Reload client"].map(label => <Button key={label} onClick={() => (adapter as ReviewAdapter & { reopen(): void }).reopen()}>{label}</Button>)}{held && mode !== "unverifiable" && <Button onClick={() => (adapter as ReviewAdapter & { release(): void }).release()}>{mode === "uncertain" ? "Resolve request" : "Complete refresh"}</Button>}</div><div className="review-toolbar" aria-label="Layout fixtures">{["Default layout", "List only", "Detail only", "Mixed layout", "Repeated panels"].map(v => <Button key={v} variant="outline" onClick={() => setLayout(v)}>{v}</Button>)}</div><ReviewRenderer key={`${mode}:${clientEpoch}`} view={currentView} adapter={adapter} /></div></TooltipProvider>;
+  return <TooltipProvider><div style={{ padding: 16 }}><div className="review-toolbar" aria-label="Fixture controls">{["normal", "host-stale", "stale", "unavailable", "no-image", "no-undo", "hold", "typed-object", "typed-array", "typed-unsupported", "no-map", "continuation", "stale-baseline", "stale-target", "no-pages", "uncertain", "unverifiable"].map(v => <Button key={v} variant="outline" onClick={() => { setMode(v); setHeld(false); }}>{v}</Button>)}<span>Actions: {count}</span><span>Status checks: {checks}</span>{mode === "uncertain" && ["Other tab", "Reopen tab", "Reload client"].map(label => <Button key={label} onClick={() => (adapter as ReviewAdapter & { reopen(): void }).reopen()}>{label}</Button>)}{held && mode !== "unverifiable" && <Button onClick={() => (adapter as ReviewAdapter & { release(): void }).release()}>{mode === "uncertain" ? "Resolve request" : "Complete refresh"}</Button>}</div><div className="review-toolbar" aria-label="Layout fixtures">{["Default layout", "List only", "Detail only", "Mixed layout", "Repeated panels"].map(v => <Button key={v} variant="outline" onClick={() => setLayout(v)}>{v}</Button>)}</div><ReviewRenderer key={`${mode}:${clientEpoch}`} view={currentView} adapter={adapter} /></div></TooltipProvider>;
 }
 createRoot(document.getElementById("root")!).render(<Fixture />);
