@@ -1,6 +1,10 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Source values": "Source values",
+  "Rows with null coordinates excluded: {{count}}": "Rows with null coordinates excluded: {{count}}",
+  "Next values": "Next values",
+  "Previous values": "Previous values",
   "Enter a valid date (YYYY-MM-DD).": "Enter a valid date (YYYY-MM-DD).",
   "Enter a value of at least {{n}}.": "Enter a value of at least {{n}}.",
   "Enter a value of at most {{n}}.": "Enter a value of at most {{n}}.",
@@ -1182,6 +1186,10 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Source values": "원자료 값",
+  "Rows with null coordinates excluded: {{count}}": "null 좌표로 표시에서 제외된 행: {{count}}개",
+  "Next values": "다음 값",
+  "Previous values": "이전 값",
   "Enter a valid date (YYYY-MM-DD).": "올바른 날짜를 입력하세요 (YYYY-MM-DD).",
   "Enter a value of at least {{n}}.": "{{n}} 이상의 값을 입력하세요.",
   "Enter a value of at most {{n}}.": "{{n}} 이하의 값을 입력하세요.",

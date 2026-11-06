@@ -261,3 +261,21 @@ V6 대화 표시 보완: 생성 명세는 ‘뷰 명세’에 기본 접힘으�
 V4 review의 Host·CLI·K1 완료 bundle은 [플러그인 1단계 V4 계약](plugin-stage1-v1.md#v4-공용-review-hostcli)에 구현했다. V3/V5의 /api/reviews snapshot transport와 연결하며 Core read model은 document-reader 경계를 사용한다. 실제 브라우저·외부 서비스 수락은 별도 검증이다. 공용 자료 읽기·제안·승인·거절·Undo·status는 같은 PluginHost dispatcher를 사용하며 문서 의미를 renderer나 CLI에 구현하지 않는다.
 
 이미지가 없거나 로드에 실패한 PageSurface는 영역 좌표계 바깥, 도구줄 아래 별도 줄에 안내를 표시한다. 독립 페이지와 SourceDocumentCompare에 동일하게 적용한다. `review-v5`에서 두 사용처의 안내와 영역이 겹치지 않는지 확인한다(#1278).
+
+## V7 Chart and Panel renderer
+
+- Status: Implemented
+- Last verified: 2026-11-06 — Core 기존 Chart/Panel 검증과 번들 renderer 대조. 브라우저·fixture 검증 범위는 PR 기록을 따른다. D2/D3/D4 통합·실제 AI 수락은 포함하지 않는다.
+- Scope: 공통 Chart의 bar/line/scatter, Panel의 horizontal 배치. [동적 뷰 설계](dynamic-views-v1.md#카탈로그-부품)의 V7 담당 구현.
+
+`ViewChart`는 Core가 반환한 행을 정렬·집계·보간하지 않는다. line은 숫자 또는 UTC date x의 단일 series이며 Core의 strict ascending·중복 x 거부를 재사용한다. null y에서 선을 끊고 고립된 값도 점으로 표시한다. scatter는 숫자 좌표만 표시하며 중복 좌표는 유지하고 null x/y는 그리지 않는다. 회귀선·연결선은 없다. bar는 기존 부호·영점 기준을 유지한다. 세 type의 `options`는 현재 필요한 추가 설정이 없어 strict 빈 객체만 허용하며 생략은 기본 동작이다.
+
+모든 Chart는 native details/summary의 원자료 값 목록을 제공한다. 100행 단위 목록과 이전/다음 버튼으로 반환된 모든 행을 원래 순서대로 확인한다. null은 `—`로 보이며 scatter의 제외 건수는 목록에 표시한다. SVG는 접근성 트리에서 숨기고 원자료를 접근 가능한 표현으로 사용한다. 목록은 새 통계나 데이터 샘플이 아니다.
+
+`ViewPanels`는 renderer 자체의 inline-size container를 사용한다. 가용 폭 960px 이상에서 horizontal의 두 자식을 같은 폭으로 나란히 표시하며 960px 미만에서는 세로로 접는다. 창이 넓어도 좁은 우측 영역에서는 세로다. 한 단계·두 자식·전체 leaf 8개 검증은 Core를 재사용한다. Table, shell, context와 요청 수명은 이 renderer가 소유하지 않는다.
+
+UI 선택은 기존 작업 탭의 ViewRenderer·제품 색/간격 토큰·공통 Button과 native 목록을 재사용한다. 새로운 스타일 DSL이나 공용 상호작용 예외는 없다. 개발 갤러리의 `예시: Chart와 Panel`은 메모리 행으로 렌더링·폭 경계만 확인하며 실제 AI·Host/CLI 연결 증거를 대신하지 않는다.
+
+V7 시각 검토: 같은 메모리 예시·Dark/Korean·100% zoom에서 [1440px Before](assets/dynamic-views-v7/before-1440.png) / [After](assets/dynamic-views-v7/after-1440.png), [640px Before](assets/dynamic-views-v7/before-640.png) / [After](assets/dynamic-views-v7/after-640.png)를 확인했다. 960px 경계는 창 폭을 유지하고 실제 renderer 폭을 959/960px로 선택하는 브라우저 단언으로 보호한다. 정렬·간격·한국어 줄바꿈·패널 내부 잘림은 캡처 수동 검토이며 픽셀 단언은 아니다. Before는 D1 renderer, After는 V7 renderer로 동일 예시를 렌더링했다.
+
+검증 역할: 기존 Core views 검사는 line 순서/중복/null과 타입·옵션 거부를 보호한다. 기존 `ui-gallery` 시나리오 보완은 SVG의 null 단절·scatter 중복/제외 좌표의 축 영향·접근 가능한 원자료 순서 및 실제 container 폭 접힘이라는 브라우저 고유 위험을 보호한다. 별도 subprocess·전수 조합·실제 AI 호출은 추가하지 않는다. 캡처는 `--screenshots` 수동 실행에서만 생성한다. 직접 소유한 전용 서버에서 fixture를 검증했으며 CLI/비서 데이터의 실제 UI 통합 수락은 후속 통합에서 확인한다.
