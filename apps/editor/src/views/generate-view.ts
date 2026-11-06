@@ -1,6 +1,6 @@
 import type { CatalogView as View } from "@litzio/core/views-v2";
 import { ASSISTANT, type AssistantConversation, type AssistantConversationInput } from "../../shared/assistant.ts";
-import { VIEW_GENERATION_TIMEOUT_MS } from "../../shared/view-generation.ts";
+import { VIEW_GENERATION_TIMEOUT_MS, VIEW_GENERATION_OUTPUT_BYTES } from "../../shared/view-generation.ts";
 import { i18n } from "../i18n.ts";
 import { ViewValidationError } from "./view-api.ts";
 
@@ -52,6 +52,7 @@ export async function generateView(options: {
         if (turn.status !== "inProgress") {
           if (turn.status !== "completed") throw new Error(turn.error ?? i18n.t("View generation did not complete."));
           const text = turn.items.filter(item => item.kind === "assistant").map(item => item.text).join("\n").trim();
+          if (new TextEncoder().encode(text).byteLength > VIEW_GENERATION_OUTPUT_BYTES) throw new Error("View generation output exceeds byte limit.");
           try {
             let proposed: unknown;
             try { proposed = JSON.parse(text.replace(/^\x60\x60\x60(?:json)?\s*\n([\s\S]*?)\n\x60\x60\x60$/i, "$1")); }

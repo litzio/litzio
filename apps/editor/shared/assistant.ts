@@ -27,6 +27,9 @@ export type AssistantConversation = AssistantConversationInfo & { turns: Assista
   tokenUsage?: { used: number; limit: number | null } };
 export type AssistantConversationInput = Pick<AssistantExecutionSettings, "model" | "reasoningEffort"> & { id?: string; message: string; references?: string[]; skills?: { name: string; path: string }[];
   viewGeneration?: boolean;
+  /** Display identities only; checked against existing opened roots, never an access grant. */
+  viewContext?: { owner: string; hostId: string; roots: { path: string; id: string }[] };
+  viewDefinition?: unknown;
   viewGenerationRequest?: string;
   viewGenerationCorrection?: number;
   /** User-selected conversation overrides; never persisted as global defaults. */

@@ -1,6 +1,12 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Next": "Next",
+  "Previous": "Previous",
+  "Request a view": "Request a view",
+  "View data": "View data",
+  "Sources": "Sources",
+  "Assistant data may be inaccurate.": "Assistant data may be inaccurate.",
   "Enter a valid date (YYYY-MM-DD).": "Enter a valid date (YYYY-MM-DD).",
   "Enter a value of at least {{n}}.": "Enter a value of at least {{n}}.",
   "Enter a value of at most {{n}}.": "Enter a value of at most {{n}}.",
@@ -1182,6 +1188,12 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Next": "다음",
+  "Previous": "이전",
+  "Request a view": "보기를 만들어 주세요",
+  "View data": "데이터 보기",
+  "Sources": "출처",
+  "Assistant data may be inaccurate.": "비서가 작성한 내용으로, 정확성을 보장하지 않습니다.",
   "Enter a valid date (YYYY-MM-DD).": "올바른 날짜를 입력하세요 (YYYY-MM-DD).",
   "Enter a value of at least {{n}}.": "{{n}} 이상의 값을 입력하세요.",
   "Enter a value of at most {{n}}.": "{{n}} 이하의 값을 입력하세요.",
