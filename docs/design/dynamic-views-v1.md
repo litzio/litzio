@@ -7,9 +7,10 @@
 
 ## 구현 상태
 
-D1의 Core/SDK 두 source·owner·출처·inline snapshot·canonical·공개 한도·열 상한 제거·Chart/Panel schema와 screens 선언은 구현했다. 현재 실행 계약과 공용 진입점은 [Generated views의 D1 절](generated-views-v1.md#d1-dynamic-data-contract-core-and-sdk)을 따른다. V7 renderer는 [Generated views의 V7 절](generated-views-v1.md#v7-chart-and-panel-renderer)을 따른다. D2/D4의 Host·CLI 실행·비서 자료 경로와 통합 수락은 이 상태에 포함하지 않는다. 문서 전체는 후속 구현 설계로 유지한다.
+D1의 Core/SDK 두 source·owner·출처·inline snapshot·canonical·공개 한도·열 상한 제거·Chart/Panel schema와 screens 선언은 구현했다. 현재 실행 계약과 공용 진입점은 [Generated views의 D1 절](generated-views-v1.md#d1-dynamic-data-contract-core-and-sdk)을 따른다. D2의 두 source Host·CLI 실행·snapshot 저장/재열기·owner 및 출처 목록 대조·전송 한도는 [Generated views의 D2 절](generated-views-v1.md#d2-dynamic-data-host-and-cli)에 구현했다. V7의 Chart/Panel renderer는 [Generated views의 V7 절](generated-views-v1.md#v7-chart-and-panel-renderer)에 구현 계약을 기록한다. D4의 비서 자료 경로 및 최종 통합 수락은 이 상태에 포함하지 않는다. 문서 전체는 후속 구현 설계로 유지한다.
 
 D3는 앱 위치·SDK 화면 소비·owner별 즐겨찾기와 공통 읽기 표 조작을 구현했다. 현재 앱 계약은 [Generated views의 D3 절](generated-views-v1.md#d3-앱-위치와-읽기-표)을 따른다. D4 생성 결과 전달 및 D2/V7의 통합 수락은 이 상태에 포함하지 않는다.
+
 
 ## 정의와 경계
 

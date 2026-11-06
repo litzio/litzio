@@ -1,7 +1,7 @@
 import type { GenericNode, GenericParent } from "myst-common";
 import type { NodePath } from "../document.ts";
 import { DocumentDiagnosticError, DocumentWriteError } from "../write-error.ts";
-import { FRONT_MATTER_FIELD } from "./parse.ts";
+import { FRONT_MATTER_FIELD } from "./constants.ts";
 
 export { toText } from "myst-common";
 

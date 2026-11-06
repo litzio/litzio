@@ -4,6 +4,7 @@ import {
   liftMystDirectivesAndRolesTransform,
 } from "myst-transforms";
 import { VFile } from "vfile";
+import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { locateFootnotes } from "./footnote.ts";
 import { retainMermaidOptions } from "./figure.ts";
 import { retainTableSource } from "./table.ts";
@@ -27,13 +28,6 @@ import { assertUnicode } from "./unicode.ts";
 // Keep MyST's HTML recognition: disabling it would admit unsupported HTML as text.
 // The pinned markdown-it patch bounds unterminated inline HTML scans instead.
 export const OPTIONS = { extensions: { smartquotes: false, citations: false, attrs_block: true } };
-
-/**
- * Marks the code block MyST makes from front matter. The fingerprint treats every
- * node field as semantic, so metadata cannot silently become a YAML code fence.
- * Unterminated or unrecognized delimiters remain unwritable. The parenthesized name is not a MyST field.
- */
-export const FRONT_MATTER_FIELD = "(front matter)";
 
 export function parse(source: string): MystDocument {
   assertUnicode(source);

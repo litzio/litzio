@@ -5,7 +5,9 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getEditableDocument, hasNativeMarker, parse } from "@litzio/core";
 import { validateQueryBindings, builtinViewOperations, type ViewOperation, type StatisticsRow } from "@litzio/core/views";
-import { ViewInputError, evaluateQueryView, serializeCatalogView, validateCatalogView, validateViewInputs, createCatalogV2, catalogViewSchema, VIEW_LIMITS, type OperationQueryView as QueryView } from "@litzio/core/views-v2";
+import { ViewInputError, evaluateQueryView, serializeCatalogView, validateCatalogView, validateViewInputs, createCatalogV2, catalogViewSchema, VIEW_LIMITS, catalogViewByteLimit, isOperationQueryView, type QueryView, type ViewProvenance } from "@litzio/core/views-v2";
+import { isDeepStrictEqual } from "node:util";
+import { VIEW_TRANSPORT_LIMITS } from "../shared/view-limits.ts";
 import { publicOperationError } from "./plugins/operation-result.ts";
 import { createFile, decodeUtf8, textRevision } from "@litzio/file-commit";
 import { accessPath, inside, RootAccess, type FileAccess } from "./file-access.ts";
@@ -20,13 +22,13 @@ const owner = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
 const args = z.record(z.string(), z.unknown()).optional();
 export const viewRequestSchema = z.union([
   z.strictObject({ action: z.literal("catalog") }),
-  z.strictObject({ action: z.literal("validate"), view: z.unknown() }),
-  z.strictObject({ action: z.literal("propose"), view: z.unknown() }),
+  z.strictObject({ action: z.literal("validate"), view: z.unknown(), plugin: owner.optional() }),
+  z.strictObject({ action: z.literal("propose"), view: z.unknown(), plugin: owner.optional() }),
   z.strictObject({ action: z.literal("save"), plugin: owner.optional(), name, view: z.unknown(), input: args }),
   z.strictObject({ action: z.literal("list"), plugin: owner }),
   z.strictObject({ action: z.literal("open"), plugin: owner, name }),
-  z.strictObject({ action: z.literal("run"), root: z.string().min(1), view: z.unknown(), input: args }),
-  z.strictObject({ action: z.literal("run"), root: z.string().min(1), plugin: owner, name, input: args }),
+  z.strictObject({ action: z.literal("run"), root: z.string().min(1).optional(), view: z.unknown(), input: args }),
+  z.strictObject({ action: z.literal("run"), root: z.string().min(1).optional(), plugin: owner, name, input: args }),
 ]);
 
 class ViewRefusal extends Error {
@@ -36,6 +38,7 @@ function query(value: unknown, operations: readonly ViewOperation[], input?: Rec
   // Replace the entire args object before validation, including when saved args are incomplete.
   if (input !== undefined) {
     const envelope = value as QueryView;
+    if (envelope?.sources?.stats?.kind === "assistant") throw new Error("Assistant data does not accept input");
     value = { ...envelope, sources: { ...envelope?.sources, stats: { ...envelope?.sources?.stats, args: input } } };
   }
   const parsed = catalogViewSchema.parse(value);
@@ -48,7 +51,7 @@ function query(value: unknown, operations: readonly ViewOperation[], input?: Rec
     catch { throw new ViewRefusal("unavailable"); }
   }
   const view = validateCatalogView(parsed, operations);
-  if (view.profile !== "query" || view.refresh !== "manual") throw new Error("Query profile required");
+  if (view.profile !== "query") throw new Error("Query profile required");
   return view;
 }
 
@@ -59,8 +62,12 @@ function openFavourite(directory: string, name: string, operations: readonly Vie
   const boundary = new RootAccess([directory]);
   const file = accessPath(path.join(directory, `${name}.view.json`), boundary);
   if (!inside(fs.realpathSync(directory), fs.realpathSync(file)) || fs.lstatSync(file).isSymbolicLink()) throw new Error("Favourite must be a local regular file");
-  if (fs.statSync(file).size > VIEW_LIMITS.bytes) throw new Error("View exceeds byte limit");
-  return query(JSON.parse(decodeUtf8(fs.readFileSync(file))), operations, input);
+  if (fs.statSync(file).size > VIEW_LIMITS.assistantBytes) throw new Error("View exceeds byte limit");
+  const text = decodeUtf8(fs.readFileSync(file));
+  if (Buffer.byteLength(text) > VIEW_LIMITS.assistantBytes) throw new Error("View exceeds byte limit");
+  const view = query(JSON.parse(text), operations, input);
+  if (Buffer.byteLength(text) > catalogViewByteLimit(view)) throw new Error("View exceeds byte limit");
+  return view;
 }
 
 export function folderStatistics(root: string, folder: string | undefined, access: FileAccess): StatisticsRow[] {
@@ -102,9 +109,17 @@ export function folderStatistics(root: string, folder: string | undefined, acces
 }
 
 /** One target Host, no fallback, no automatic query on opening a definition. */
-export async function executeViewOperation(value: unknown, scope: { access: FileAccess; directory?: string; plugins?: PluginHost }) {
+export type ViewProposalScope = { owner: string; provenance: readonly ViewProvenance[] };
+export type ViewExecutionScope = { access: FileAccess; directory?: string; plugins?: PluginHost; proposal?: ViewProposalScope };
+export async function executeViewOperation(value: unknown, scope: ViewExecutionScope): Promise<Awaited<ReturnType<typeof execute>>> {
+  const result = await execute(value, scope);
+  if (Buffer.byteLength(JSON.stringify(result), "utf8") <= VIEW_TRANSPORT_LIMITS.responseBytes) return result;
+  return { ...publicOperationError(undefined, "read"), error: "View response exceeds byte limit.", code: "invalid-view-request", receipt: { ...result.receipt, outcome: "failure" as const } };
+}
+async function execute(value: unknown, scope: ViewExecutionScope) {
   const receipt = { requestId: randomUUID(), operation: "view", version: 1, scope: "host" as string, outcome: "failure" as "failure" | "success", timestamp: new Date().toISOString() };
   try {
+    if (Buffer.byteLength(JSON.stringify(value) ?? "", "utf8") > VIEW_TRANSPORT_LIMITS.requestBytes) throw new Error("Request exceeds byte limit");
     const operations = scope.plugins?.viewOperations() ?? builtinViewOperations;
     // Replacement args must be an object; classify its envelope error as input,
     // without serializing Zod diagnostics or the rejected value.
@@ -125,10 +140,16 @@ export async function executeViewOperation(value: unknown, scope: { access: File
         try { return createCatalogV2([operation]).operations.map(op => ({ ...op, plugin: operationOwner(op.operation) })); }
         catch { return []; }
       });
-      return { catalog: { ...catalog, operations: available }, views: scope.plugins?.viewContributions() ?? [], receipt: success };
+      return { catalog: { ...catalog, operations: available }, views: scope.plugins?.viewContributions() ?? [], screens: scope.plugins?.viewScreens() ?? [], receipt: success };
     }
-    const ownerOf = (view: QueryView) => operationOwner(view.sources.stats.operation);
-    const describe = (view: QueryView) => ({ view, plugin: ownerOf(view), inputState: validateViewInputs(view, operations.find(op => op.operation === view.sources.stats.operation && op.version === view.sources.stats.version)!) });
+    const registeredOwner = (id: string) => id === STATISTICS_PLUGIN_ID || id === "litzio.assistant" || scope.plugins?.hasViewOwner(id);
+    const ownerOf = (view: QueryView) => {
+      if (isOperationQueryView(view) && operationOwner(view.sources.stats.operation) !== view.owner) throw new ViewRefusal("owner-mismatch");
+      return view.owner;
+    };
+    const describe = (view: QueryView): { view: QueryView; plugin: string; inputState: { state: "ready" | "needs-input"; missing: string[] }; provenanceStatus?: "unverified" | "verified" } => ({ view, plugin: ownerOf(view),
+      ...(isOperationQueryView(view) ? { inputState: validateViewInputs(view, operations.find(op => op.operation === view.sources.stats.operation && op.version === view.sources.stats.version)!) }
+        : { inputState: { state: "ready" as const, missing: [] }, provenanceStatus: "unverified" as "unverified" | "verified" }) });
     if (input.action === "validate" || input.action === "propose") {
       const parsed = catalogViewSchema.parse(input.view);
       if (parsed.profile === "review") {
@@ -138,12 +159,29 @@ export async function executeViewOperation(value: unknown, scope: { access: File
         return { view, plugin: parsed.sources.review.plugin, canonical: serializeCatalogView(view, operations), receipt: success };
       }
       const view = query(input.view, operations);
-      return { ...describe(view), canonical: serializeCatalogView(view, operations), receipt: success };
+      if (!registeredOwner(view.owner)) throw new ViewRefusal("owner-mismatch");
+      const description = describe(view);
+      let provenanceStatus = description.provenanceStatus;
+      if (input.plugin !== undefined && input.plugin !== view.owner || scope.proposal && scope.proposal.owner !== view.owner) throw new ViewRefusal("owner-mismatch");
+      if (input.action === "propose" && scope.proposal && !isOperationQueryView(view)) {
+        if (!view.sources.stats.provenance.every(item => scope.proposal!.provenance.some(allowed => isDeepStrictEqual(item, allowed)))) throw new Error("Provenance outside request");
+        provenanceStatus = "verified";
+      }
+      return { ...description, ...(provenanceStatus ? { provenanceStatus } : {}), canonical: serializeCatalogView(view, operations), receipt: success };
     }
     if (input.action === "run") {
-      receipt.scope = "folder";
       const view = "view" in input ? query(input.view, operations, input.input) : openFavourite(favouritesDirectory(input.plugin, scope.directory), input.name, operations, input.input);
       if ("plugin" in input && ownerOf(view) !== input.plugin) throw new ViewRefusal("owner-mismatch");
+      ownerOf(view);
+      if (!isOperationQueryView(view)) {
+        if (input.input !== undefined) throw new Error("Assistant data does not accept input");
+        const source = view.sources.stats;
+        return { fields: Object.fromEntries(Object.entries(source.rowSchema).map(([name, field]) => [name, field.label])),
+          ...evaluateQueryView(view, undefined, operations), provenance: source.provenance, generatedAt: source.generatedAt,
+          ...(source.method === undefined ? {} : { method: source.method }), provenanceStatus: "unverified" as const, receipt: success };
+      }
+      receipt.scope = "folder";
+      if (!input.root) throw new Error("Connected query requires Root");
       const operation = operations.find(op => op.operation === view.sources.stats.operation && op.version === view.sources.stats.version)!;
       validateViewInputs(view, operation, "execute");
       const root = fs.realpathSync(accessPath(input.root, scope.access));
@@ -164,6 +202,7 @@ export async function executeViewOperation(value: unknown, scope: { access: File
     if (!plugin || input.plugin !== undefined && input.plugin !== plugin) throw new ViewRefusal("owner-mismatch");
     const directory = favouritesDirectory(plugin, scope.directory);
     if (input.action === "save") {
+      if (!registeredOwner(plugin) || scope.proposal && scope.proposal.owner !== plugin) throw new ViewRefusal("owner-mismatch");
       const canonical = serializeCatalogView(savedView, operations);
       fs.mkdirSync(directory, { recursive: true });
       const boundary = new RootAccess([directory]);
@@ -173,7 +212,7 @@ export async function executeViewOperation(value: unknown, scope: { access: File
       if (fs.readdirSync(directory).some(item => item.toLowerCase() === `${input.name}.view.json`.toLowerCase())) throw new Error("Favourite name already exists");
       if (fs.readdirSync(directory).length >= STATISTICS_LIMITS.favourites) throw new Error("Favourite count limit exceeded");
       createFile(file, canonical);
-      return { plugin, name: input.name, revision: textRevision(canonical), receipt: { ...receipt, outcome: "success" as const } };
+      return { plugin, name: input.name, ...(!isOperationQueryView(savedView!) ? { provenanceStatus: "unverified" as const } : {}), revision: textRevision(canonical), receipt: { ...receipt, outcome: "success" as const } };
     }
     if (input.action === "list") {
       let entries: fs.Dirent[];
