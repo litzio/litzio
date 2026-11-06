@@ -1,3 +1,4 @@
+import { ContinuousCompare } from "./ContinuousCompare.tsx";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Check, X, Undo2, ChevronLeft, ChevronRight } from "lucide-react";
 import type { EditableDocument } from "@litzio/core";
@@ -12,7 +13,7 @@ import { REVIEW_UNAVAILABLE_GUIDANCE, type ReviewPendingChange, type ReviewVerif
 
 /** Host supplies one coherent snapshot, including the identity of the actual Read model. */
 export type ReviewSnapshot = {
-  bundle: ReviewBundle; page?: ReviewPage; mapping?: ReviewMapping; proposals: ReviewProposal[];
+  bundle: ReviewBundle; pageIndex?: ReviewPage[]; page?: ReviewPage; mapping?: ReviewMapping; proposals: ReviewProposal[];
   document: EditableDocument; documentRevision: string; documentHash: string; documentPath: string;
   baseline: ReviewBaseline; pageCount: number; imageUrl?: string;
   unresolved?: ReviewPendingChange[];
@@ -210,7 +211,7 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
     {snapshot && wide && <div className="review-panels">{view.layout.children.map((child, index) => <section key={index} aria-label={child.title} className="review-panel">
       <h3>{child.title}</h3>
       {child.component === "PageSurface" && <ReviewPagePanel snapshot={snapshot} disabled={disabled} onPage={n => void read(n)} />}
-      {child.component === "SourceDocumentCompare" && <SourceDocumentCompare snapshot={snapshot} disabled={disabled} onPage={n => void read(n)} />}
+      {child.component === "SourceDocumentCompare" && (snapshot.pageIndex ? <ContinuousCompare snapshot={snapshot} disabled={disabled} readPage={adapter.read} /> : <SourceDocumentCompare snapshot={snapshot} disabled={disabled} onPage={n => void read(n)} />)}
       {child.component === "ReviewList" && <ReviewList proposals={snapshot.proposals} selected={selected} onSelect={setSelected} />}
       {child.component === "ReviewDetail" && (proposal
         ? <ReviewDetail proposal={proposal} document={snapshot.document} baseline={snapshot.baseline} disabled={disabled || !targetsMatch(snapshot, proposal)} onAction={a => void act(a)} />

@@ -246,7 +246,11 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
       return { plugins: [plugin] };
     } : undefined;
     let result;
-    result = await scenario(page, { pluginFixture: { ...pluginFixture, realSnapshot, reviewDocument: name === "generated-views" ? getEditableDocument(parse(readFileSync(path.join(pluginFolder, "a.md"), "utf8"))) : undefined }, fullLayout: process.env.LITZIO_TEST_LAYOUT_SCOPE !== "representative", brand, assistantFixture: { document: path.join(REPOSITORY_ROOT, "tmp/assistant/document.md") }, assertSavedSource: savedSourceAssertion(test.info()), screenshots, showNotifications, fileActionsRoot: FILE_ACTIONS_ROOT, expect, recoveryRecords, openFolderPicker, openDocument, openPath, waitForActivePath, reloadDocument, waitForEditorFocus, activeDocument, withBlockHover, bibliographyFixture,
+    result = await scenario(page, { pluginFixture: { ...pluginFixture, ...(name === "sdk-compare-spike" ? {spike: JSON.parse(readFileSync(path.join(REPOSITORY_ROOT,"spike/compare/live.json"),"utf8")), spikeStale: async (kind: string, action: () => Promise<void>) => {
+ const live = JSON.parse(readFileSync(path.join(REPOSITORY_ROOT,"spike/compare/live.json"),"utf8"));
+ const file = path.join(live.root,kind === "source" ? "document.json" : "result.md"); const bytes = readFileSync(file);
+ try { writeFileSync(file, Buffer.concat([bytes,Buffer.from("\n")])); await action(); } finally {writeFileSync(file,bytes);}
+}} : {}), realSnapshot, reviewDocument: name === "generated-views" ? getEditableDocument(parse(readFileSync(path.join(pluginFolder, "a.md"), "utf8"))) : undefined }, fullLayout: process.env.LITZIO_TEST_LAYOUT_SCOPE !== "representative", brand, assistantFixture: { document: path.join(REPOSITORY_ROOT, "tmp/assistant/document.md") }, assertSavedSource: savedSourceAssertion(test.info()), screenshots, showNotifications, fileActionsRoot: FILE_ACTIONS_ROOT, expect, recoveryRecords, openFolderPicker, openDocument, openPath, waitForActivePath, reloadDocument, waitForEditorFocus, activeDocument, withBlockHover, bibliographyFixture,
       folderFixture: {
         change: (mode: string) => {
           const dir = path.join(REPOSITORY_ROOT, "tmp/folder-navigation/guides");

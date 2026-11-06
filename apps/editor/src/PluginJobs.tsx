@@ -1,3 +1,4 @@
+import type { ReviewView } from "@litzio/core/views-v2";
 import { randomUuid } from "./uuid.ts";
 import { i18n } from "./i18n.ts";
 import { useEffect, useRef, useState } from "react";
@@ -16,7 +17,7 @@ const stateLabels = { running: "In progress", completed: "Completed", failed: "F
 type FileSelection = { root: string; relativePath: string };
 
 type Plugin = { id: string; name: string; running: boolean; jobs?: JobContribution[] };
-export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: HostClient; hostId: string; roots: string[]; active: boolean; onOpen(path: string): Promise<unknown> }) {
+export function PluginJobs({ client, hostId, roots, active, onOpen, onReview }: { client: HostClient; hostId: string; roots: string[]; active: boolean; onOpen(path: string): Promise<unknown>; onReview(view: ReviewView, root: string): void }) {
   const [plugins, setPlugins] = useState<Plugin[]>([]), [selected, setSelected] = useState("");
   const [root, setRoot] = useState(roots[0] ?? ""), [folder, setFolder] = useState("");
   const [entries, setEntries] = useState<{ path: string; name: string; kind: string }[]>([]), [file, setFile] = useState<FileSelection>(), [output, setOutput] = useState("result.md");
@@ -98,6 +99,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
       <div className="view-controls">
         {job.state === "uncertain" ? <Button variant="secondary" disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-status", requestId }); setJob(value.job); })}>{i18n.t("Recheck status")}</Button> : null}
         {job.state === "running" && !job.stopRequested ? <Button variant="secondary" disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-stop", requestId }); setJob(value.job); })}>{i18n.t("Request cancellation")}</Button> : null}
+        {job.state === "completed" && job.result?.bundle && job.result.review ? <Button onClick={() => onReview({kind:"litzio-view",schemaVersion:2,catalog:"litzio-v2",profile:"review",title:"NIST comparison",refresh:"manual",sources:{review:{plugin:job.plugin,review:job.result!.review!,bundleRef:job.result!.bundle!.bundleRef}},layout:{component:"Panel",direction:"vertical",children:[{component:"SourceDocumentCompare",title:"Compare",source:"review"}]}},job.root)}>Open comparison</Button> : null}
         {job.state === "completed" ? <Button disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-result", requestId }); await onOpen(value.job.result.path); })}>{i18n.t("Open result document")}</Button> : null}
       </div>
     </section> : null}

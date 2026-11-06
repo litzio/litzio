@@ -1,0 +1,12 @@
+$ tsx --test scripts/editor-engine-boundary.test.ts && tsx scripts/check-boundaries.ts
+✔ non-Editor production layers reject editor-engine imports and models (1.0779ms)
+✔ Editor owns engine dependencies; neutral imports remain allowed (0.1523ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 526.2189
+Core and official application boundaries passed.

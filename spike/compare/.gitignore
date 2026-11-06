@@ -1,0 +1,15 @@
+# Runtime observations and raw logs contain local paths. Keep them local.
+/*.json
+/*.log
+# One-off implementation edit scripts, superseded by the final committed sources.
+/browser-fix.py
+/captions.py
+/capture-fix.py
+/edit.py
+/entry.py
+/final-captures.py
+/update-record.py
+/normalize-record.py
+/scan-fix.py
+/preservation-final.py
+/commit-message.local.txt

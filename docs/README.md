@@ -159,3 +159,5 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Test Guide](test/TEST_GUIDE.md) | Implemented | 현재 실행/수동 검토 절차. 테스트 이름·개수의 원본은 runner. |
 
 | [비서 플러그인 제작 예행연습](reviews/plugin-authoring-rehearsal-2026-11.md) | Historical | Windows 실제 Codex Luna low·Sol 기본 low 비교, 최초 시험 구성 실패와 재시험·스킬 보강 근거. |
+
+- [SDK 대조 뷰 경계 스파이크 #1315](reviews/sdk-compare-boundary-1315.md) — Historical. NIST 11페이지·외부 SDK artifact·Host/CLI/앱 실행 실험과 미완료 경계.

@@ -1,0 +1,25 @@
+✔ request IDs use v4 UUIDs without secure-context randomUUID (1.7273ms)
+✔ K1 lifecycle, exclusive request identity, Root admission, publication and disable cleanup (18509.5947ms)
+✔ K1 start/status/stop cannot publish subprocess results rejected by output schema (860.9296ms)
+▶ K1 accepted work survives the RPC budget; completion, failure, stop and process loss
+  ✔ complete (14517.217ms)
+  ✔ fail (14631.4615ms)
+  ✔ stop (14280.5835ms)
+  ✔ reload (14844.3604ms)
+  ✔ disable (14491.113ms)
+  ✔ crash (14168.3727ms)
+  ✔ bad-start (13516.054ms)
+  ✔ host-close (14415.2038ms)
+✔ K1 accepted work survives the RPC budget; completion, failure, stop and process loss (14862.8158ms)
+✔ K1 snapshots preserve keys and redact only the publishing plugin's secret values (2136.1031ms)
+✔ review baseline, Root/Host/generation, serialized writes, conflict and no replay (407.8387ms)
+✔ Host admits only one concurrent change per proposal and retains the winning request ID (89.3822ms)
+✔ K1 completed review bundle through product HTTP and CLI approval/rejection/Undo (28892.6661ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 38322.8366

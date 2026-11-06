@@ -1,0 +1,539 @@
+[
+  {
+    "args": [
+      "plugins",
+      "scaffold",
+      "<FIXTURE_ROOT>\\artifact",
+      "--id",
+      "spike.nist"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "id": "spike.nist",
+      "directory": "<FIXTURE_ROOT>\\artifact",
+      "files": [
+        "litzio-plugin.json",
+        "package.json",
+        "jsconfig.json",
+        "plugin-sdk.d.ts",
+        "host.js"
+      ],
+      "receipt": {
+        "requestId": "17482de3-05fe-4c20-8a18-02a939ba9fcc",
+        "operation": "plugins.scaffold",
+        "version": 1,
+        "scope": "host",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "plugins",
+      "validate",
+      "<FIXTURE_ROOT>\\artifact"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "id": "spike.nist",
+      "valid": true,
+      "errors": [],
+      "limitations": "Static literal handlers only; computed output and activation behavior are checked at runtime.",
+      "receipt": {
+        "requestId": "7e7dfecc-2567-4d83-96ff-0316a9eaf0ae",
+        "operation": "plugins.validate",
+        "version": 1,
+        "scope": "host",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "plugins",
+      "register",
+      "<FIXTURE_ROOT>\\artifact"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "id": "spike.nist",
+      "plugins": [
+        {
+          "id": "litzio.onedrive",
+          "publisher": {
+            "id": "litzio",
+            "name": "Litzio"
+          },
+          "name": "OneDrive",
+          "description": "Detect OneDrive folders on the target Windows Host. Folder detection does not confirm login or synchronization.",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": true,
+          "official": true,
+          "trusted": true,
+          "enabled": false,
+          "running": false,
+          "jobs": [],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "status": null,
+          "digest": "c49adb338b4c0470f48af3f6a90c8d5d36cc66dd54b9e809de59c3794d0b6a7c"
+        },
+        {
+          "id": "spike.nist",
+          "publisher": {
+            "id": "spike",
+            "name": "Spike"
+          },
+          "name": "NIST comparison",
+          "description": "",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": false,
+          "official": false,
+          "trusted": false,
+          "enabled": false,
+          "running": false,
+          "jobs": [
+            {
+              "id": "nist",
+              "title": "NIST",
+              "accept": [
+                ".json"
+              ],
+              "start": "start",
+              "status": "status",
+              "stop": "stop",
+              "resultKind": "native-document"
+            }
+          ],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "additionalProperties": false
+          },
+          "status": null,
+          "digest": "bbd8c00c05458dd975865f87d4647fc7ad407adc277177aadf03c85fe2dbbb98"
+        }
+      ],
+      "receipt": {
+        "requestId": "617387ef-46ac-4305-851e-727696b2330e",
+        "operation": "plugins.register",
+        "version": 1,
+        "scope": "host",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "plugins",
+      "list"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "plugins": [
+        {
+          "id": "litzio.onedrive",
+          "publisher": {
+            "id": "litzio",
+            "name": "Litzio"
+          },
+          "name": "OneDrive",
+          "description": "Detect OneDrive folders on the target Windows Host. Folder detection does not confirm login or synchronization.",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": true,
+          "official": true,
+          "trusted": true,
+          "enabled": false,
+          "running": false,
+          "jobs": [],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "status": null,
+          "digest": "c49adb338b4c0470f48af3f6a90c8d5d36cc66dd54b9e809de59c3794d0b6a7c"
+        },
+        {
+          "id": "spike.nist",
+          "publisher": {
+            "id": "spike",
+            "name": "Spike"
+          },
+          "name": "NIST comparison",
+          "description": "",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": false,
+          "official": false,
+          "trusted": false,
+          "enabled": false,
+          "running": false,
+          "jobs": [
+            {
+              "id": "nist",
+              "title": "NIST",
+              "accept": [
+                ".json"
+              ],
+              "start": "start",
+              "status": "status",
+              "stop": "stop",
+              "resultKind": "native-document"
+            }
+          ],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "additionalProperties": false
+          },
+          "status": null,
+          "digest": "bbd8c00c05458dd975865f87d4647fc7ad407adc277177aadf03c85fe2dbbb98"
+        }
+      ]
+    }
+  },
+  {
+    "args": [
+      "plugins",
+      "trust",
+      "spike.nist",
+      "--digest",
+      "bbd8c00c05458dd975865f87d4647fc7ad407adc277177aadf03c85fe2dbbb98"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "id": "spike.nist",
+      "plugins": [
+        {
+          "id": "litzio.onedrive",
+          "publisher": {
+            "id": "litzio",
+            "name": "Litzio"
+          },
+          "name": "OneDrive",
+          "description": "Detect OneDrive folders on the target Windows Host. Folder detection does not confirm login or synchronization.",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": true,
+          "official": true,
+          "trusted": true,
+          "enabled": false,
+          "running": false,
+          "jobs": [],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "status": null,
+          "digest": "c49adb338b4c0470f48af3f6a90c8d5d36cc66dd54b9e809de59c3794d0b6a7c"
+        },
+        {
+          "id": "spike.nist",
+          "publisher": {
+            "id": "spike",
+            "name": "Spike"
+          },
+          "name": "NIST comparison",
+          "description": "",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": false,
+          "official": false,
+          "trusted": true,
+          "enabled": false,
+          "running": false,
+          "jobs": [
+            {
+              "id": "nist",
+              "title": "NIST",
+              "accept": [
+                ".json"
+              ],
+              "start": "start",
+              "status": "status",
+              "stop": "stop",
+              "resultKind": "native-document"
+            }
+          ],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "additionalProperties": false
+          },
+          "status": null,
+          "digest": "bbd8c00c05458dd975865f87d4647fc7ad407adc277177aadf03c85fe2dbbb98"
+        }
+      ],
+      "receipt": {
+        "requestId": "0ffcfc8d-c4fc-4d29-b0cd-d8afa61844f8",
+        "operation": "plugins.trust",
+        "version": 1,
+        "scope": "host",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "plugins",
+      "enable",
+      "spike.nist"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "id": "spike.nist",
+      "plugins": [
+        {
+          "id": "litzio.onedrive",
+          "publisher": {
+            "id": "litzio",
+            "name": "Litzio"
+          },
+          "name": "OneDrive",
+          "description": "Detect OneDrive folders on the target Windows Host. Folder detection does not confirm login or synchronization.",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": true,
+          "official": true,
+          "trusted": true,
+          "enabled": false,
+          "running": false,
+          "jobs": [],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "status": null,
+          "digest": "c49adb338b4c0470f48af3f6a90c8d5d36cc66dd54b9e809de59c3794d0b6a7c"
+        },
+        {
+          "id": "spike.nist",
+          "publisher": {
+            "id": "spike",
+            "name": "Spike"
+          },
+          "name": "NIST comparison",
+          "description": "",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": false,
+          "official": false,
+          "trusted": true,
+          "enabled": true,
+          "running": true,
+          "jobs": [
+            {
+              "id": "nist",
+              "title": "NIST",
+              "accept": [
+                ".json"
+              ],
+              "start": "start",
+              "status": "status",
+              "stop": "stop",
+              "resultKind": "native-document"
+            }
+          ],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "additionalProperties": false
+          },
+          "status": {
+            "available": true,
+            "message": "NIST comparison spike",
+            "folders": [],
+            "decorations": [],
+            "accounts": []
+          },
+          "digest": "bbd8c00c05458dd975865f87d4647fc7ad407adc277177aadf03c85fe2dbbb98"
+        }
+      ],
+      "receipt": {
+        "requestId": "67aaf508-a3f0-4e6d-825e-10d6e9a4b9cd",
+        "operation": "plugins.enable",
+        "version": 1,
+        "scope": "host",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "operation",
+      "invoke",
+      "spike.nist.probe",
+      "--input",
+      "<FIXTURE_ROOT>\\probe.json"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "result": {
+        "pid": 62324,
+        "sdk": "0.1.0",
+        "results": [
+          {
+            "specifier": "@litzio/core",
+            "rejected": true
+          },
+          {
+            "specifier": "@litzio/plugin-sdk/schema",
+            "rejected": true
+          },
+          {
+            "specifier": "fil<LOCAL_PATH><WORKTREE>/apps/editor/server/plugins/reviews.ts",
+            "rejected": true
+          }
+        ]
+      },
+      "receipt": {
+        "requestId": "c4118773-d4d7-4c0c-960b-1ff716a92b8e",
+        "operation": "spike.nist.probe",
+        "version": 1,
+        "scope": "host",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "plugins",
+      "start",
+      "spike.nist",
+      "--input",
+      "<FIXTURE_ROOT>\\job.json"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "job": {
+        "requestId": "f6454e58-110f-4422-a83b-ed6aad4e2335",
+        "plugin": "spike.nist",
+        "job": "nist",
+        "root": "<FIXTURE_ROOT>",
+        "elapsedMs": 598,
+        "state": "running",
+        "phase": "Accepted",
+        "stopRequested": false
+      },
+      "receipt": {
+        "requestId": "f6454e58-110f-4422-a83b-ed6aad4e2335",
+        "operation": "plugins.job-start",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "plugins",
+      "status",
+      "f6454e58-110f-4422-a83b-ed6aad4e2335"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "job": {
+        "requestId": "f6454e58-110f-4422-a83b-ed6aad4e2335",
+        "plugin": "spike.nist",
+        "job": "nist",
+        "root": "<FIXTURE_ROOT>",
+        "elapsedMs": 1685,
+        "state": "completed",
+        "phase": "Prepared",
+        "stopRequested": false,
+        "result": {
+          "path": "<FIXTURE_ROOT>\\result.md",
+          "revision": "a959bb6ce495edda28e66f16159655e7db5238c39795b202a1c9189199bb1c60",
+          "bundle": {
+            "generation": "f6454e58-110f-4422-a83b-ed6aad4e2335",
+            "documentRevision": "a959bb6ce495edda28e66f16159655e7db5238c39795b202a1c9189199bb1c60",
+            "documentHash": "a959bb6ce495edda28e66f16159655e7db5238c39795b202a1c9189199bb1c60",
+            "sourceRevision": "9940863e6110fea3ca065e65d3dc9da573b7f807a7b2a8edcf32688a67f3927d",
+            "mappingRevision": "nist-m1",
+            "bundleRef": "1f113cfa-5b5f-4974-9c25-f81e2356555c",
+            "documentRef": "2d2fd979-fa8e-4202-b50a-01011fed7791"
+          }
+        }
+      },
+      "receipt": {
+        "requestId": "f6454e58-110f-4422-a83b-ed6aad4e2335",
+        "operation": "plugins.job-status",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "review",
+      "read",
+      "spike.nist",
+      "compare",
+      "--input",
+      "<FIXTURE_ROOT>\\read.json",
+      "--root",
+      "<FIXTURE_ROOT>"
+    ],
+    "value": {
+      "state": "ready",
+      "receipt": {
+        "requestId": "e581dddc-bda3-4b0b-be86-d5932946c2aa",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "pageNo": 1,
+      "regions": 11,
+      "entries": 80,
+      "blocks": 80,
+      "imageBytes": 916854
+    }
+  }
+]

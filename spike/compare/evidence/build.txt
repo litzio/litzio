@@ -1,0 +1,290 @@
+$ tsx scripts/build.ts
+$ node build.mjs
+$ vite build
+vite v8.3.0 building client environment for production...
+transforming...
+✓ 5912 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                                              0.81 kB │ gzip:     0.41 kB
+dist/assets/litzio-E-RV_MxczA.svg                            2.38 kB │ gzip:     1.11 kB
+dist/assets/litzio-E-dark-DQZNRcYo.svg                       2.39 kB │ gzip:     1.13 kB
+dist/assets/KaTeX_Size3-Regular-CTq5MqoE.woff                4.42 kB
+dist/assets/KaTeX_Size4-Regular-Dl5lxZxV.woff2               4.92 kB
+dist/assets/KaTeX_Size2-Regular-Dy4dx90m.woff2               5.20 kB
+dist/assets/KaTeX_Size1-Regular-mCD8mA8B.woff2               5.46 kB
+dist/assets/KaTeX_Size4-Regular-BF-4gkZK.woff                5.98 kB
+dist/assets/KaTeX_Size2-Regular-oD1tc_U0.woff                6.18 kB
+dist/favicon.svg                                             6.19 kB │ gzip:     2.81 kB
+dist/assets/KaTeX_Size1-Regular-C195tn64.woff                6.49 kB
+dist/assets/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2         6.90 kB
+dist/assets/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2            6.91 kB
+dist/assets/KaTeX_Size3-Regular-DgpXs0kz.ttf                 7.58 kB
+dist/assets/KaTeX_Caligraphic-Regular-CTRA-rTL.woff          7.65 kB
+dist/assets/KaTeX_Caligraphic-Bold-BEiXGLvX.woff             7.71 kB
+dist/assets/PretendardVariable.subset.66-C3HqaDeY.woff2      8.25 kB
+dist/assets/PretendardVariable.subset.64-CTbrgYF9.woff2      8.26 kB
+dist/assets/recovery-diff.worker-CncwSLKX.js                 9.51 kB
+dist/assets/KaTeX_Script-Regular-D3wIWfF6.woff2              9.64 kB
+dist/assets/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2          10.34 kB
+dist/assets/KaTeX_Size4-Regular-DWFBv043.ttf                10.36 kB
+dist/assets/KaTeX_Script-Regular-D5yQViql.woff              10.58 kB
+dist/assets/PretendardVariable.subset.65-B66rjuyf.woff2     11.10 kB
+dist/assets/KaTeX_Fraktur-Regular-CTYiF6lA.woff2            11.31 kB
+dist/assets/KaTeX_Fraktur-Bold-CL6g_b3V.woff2               11.34 kB
+dist/assets/KaTeX_Size2-Regular-B7gKUWhC.ttf                11.50 kB
+dist/assets/KaTeX_SansSerif-Italic-C3H0VqGB.woff2           12.02 kB
+dist/assets/KaTeX_SansSerif-Bold-D1sUS0GD.woff2             12.21 kB
+dist/assets/KaTeX_Size1-Regular-Dbsnue_I.ttf                12.22 kB
+dist/assets/KaTeX_SansSerif-Regular-CS6fqUqJ.woff           12.31 kB
+dist/assets/KaTeX_Caligraphic-Regular-wX97UBjC.ttf          12.34 kB
+dist/assets/KaTeX_Caligraphic-Bold-ATXxdsX0.ttf             12.36 kB
+dist/assets/KaTeX_Fraktur-Regular-Dxdc4cR9.woff             13.20 kB
+dist/assets/KaTeX_Fraktur-Bold-BsDP51OF.woff                13.29 kB
+dist/assets/KaTeX_Typewriter-Regular-CO6r4hn1.woff2         13.56 kB
+dist/assets/KaTeX_SansSerif-Italic-DN2j7dab.woff            14.11 kB
+dist/assets/KaTeX_SansSerif-Bold-DbIhKOiC.woff              14.40 kB
+dist/assets/KaTeX_Typewriter-Regular-C0xS9mPB.woff          16.02 kB
+dist/assets/PretendardVariable.subset.68-DS9B48d0.woff2     16.34 kB
+dist/assets/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2            16.40 kB
+dist/assets/KaTeX_Math-Italic-t53AETM-.woff2                16.44 kB
+dist/assets/KaTeX_Script-Regular-C5JkGWo-.ttf               16.64 kB
+dist/assets/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2            16.78 kB
+dist/assets/KaTeX_Main-Italic-NWA7e6Wa.woff2                16.98 kB
+dist/assets/PretendardVariable.subset.73-DMrK970F.woff2     18.33 kB
+dist/assets/KaTeX_Math-BoldItalic-iY-2wyZ7.woff             18.66 kB
+dist/assets/KaTeX_Math-Italic-DA0__PXp.woff                 18.74 kB
+dist/assets/KaTeX_Main-BoldItalic-SpSLRI95.woff             19.41 kB
+dist/assets/KaTeX_SansSerif-Regular-BNo7hRIc.ttf            19.43 kB
+dist/assets/PretendardVariable.subset.72-pYYGrEQR.woff2     19.50 kB
+dist/assets/KaTeX_Fraktur-Regular-CB_wures.ttf              19.57 kB
+dist/assets/KaTeX_Fraktur-Bold-BdnERNNW.ttf                 19.58 kB
+dist/assets/KaTeX_Main-Italic-BMLOBm91.woff                 19.67 kB
+dist/favicon.ico                                            19.97 kB
+dist/assets/PretendardVariable.subset.75-CxKdrRNf.woff2     19.99 kB
+dist/assets/PretendardVariable.subset.90-BF7RiZjm.woff2     20.85 kB
+dist/assets/PretendardVariable.subset.67-BmuXdlDy.woff2     21.84 kB
+dist/assets/PretendardVariable.subset.89-DOzqWPpX.woff2     21.86 kB
+dist/assets/KaTeX_SansSerif-Italic-YYjJ1zSn.ttf             22.36 kB
+dist/assets/PretendardVariable.subset.74-D4tQnymK.woff2     22.39 kB
+dist/assets/PretendardVariable.subset.84-Brb8EsYQ.woff2     24.49 kB
+dist/assets/KaTeX_SansSerif-Bold-CFMepnvq.ttf               24.50 kB
+dist/assets/PretendardVariable.subset.87-Lzui2vbK.woff2     24.66 kB
+dist/assets/PretendardVariable.subset.76-DhPm2b_q.woff2     24.92 kB
+dist/assets/PretendardVariable.subset.85-Byo_x2hf.woff2     25.10 kB
+dist/assets/KaTeX_Main-Bold-Cx986IdX.woff2                  25.32 kB
+dist/assets/PretendardVariable.subset.88-CqX6JSgh.woff2     25.64 kB
+dist/assets/PretendardVariable.subset.86-XG7lTN_6.woff2     25.71 kB
+dist/assets/PretendardVariable.subset.77-DwaxqOC8.woff2     26.04 kB
+dist/assets/PretendardVariable.subset.79-XpoyPP38.woff2     26.22 kB
+dist/assets/KaTeX_Main-Regular-B22Nviop.woff2               26.27 kB
+dist/assets/PretendardVariable.subset.81-BZzF9Hb3.woff2     26.30 kB
+dist/assets/PretendardVariable.subset.82-BgAHe30u.woff2     26.50 kB
+dist/assets/PretendardVariable.subset.78-DhqRbBzT.woff2     26.54 kB
+dist/assets/PretendardVariable.subset.83-DF-zBLLe.woff2     26.96 kB
+dist/assets/PretendardVariable.subset.70-BUXiAGMT.woff2     27.54 kB
+dist/assets/KaTeX_Typewriter-Regular-D3Ib7_Hf.ttf           27.55 kB
+dist/assets/PretendardVariable.subset.37-BD6FyOtY.woff2     27.91 kB
+dist/assets/KaTeX_AMS-Regular-BQhdFMY1.woff2                28.07 kB
+dist/assets/PretendardVariable.subset.71-DuPZj8us.woff2     28.32 kB
+dist/assets/PretendardVariable.subset.80-DsV9Qp_h.woff2     28.79 kB
+dist/assets/PretendardVariable.subset.63-B35xsm4O.woff2     28.81 kB
+dist/assets/PretendardVariable.subset.40-BDaOfdUe.woff2     29.84 kB
+dist/assets/KaTeX_Main-Bold-Jm3AIy58.woff                   29.91 kB
+dist/assets/PretendardVariable.subset.43-DHdpry7N.woff2     30.38 kB
+dist/assets/KaTeX_Main-Regular-Dr94JaBh.woff                30.77 kB
+dist/assets/KaTeX_Math-BoldItalic-B3XSjfu4.ttf              31.19 kB
+dist/assets/KaTeX_Math-Italic-flOr_0UB.ttf                  31.30 kB
+dist/assets/PretendardVariable.subset.7-E2HaA55t.woff2      31.91 kB
+dist/assets/PretendardVariable.subset.1-C-__qv6_.woff2      32.04 kB
+dist/assets/PretendardVariable.subset.44-qHopVhdd.woff2     32.13 kB
+dist/assets/PretendardVariable.subset.24-CmkE8Q8D.woff2     32.30 kB
+dist/assets/KaTeX_Main-BoldItalic-DzxPMmG6.ttf              32.96 kB
+dist/assets/PretendardVariable.subset.10-DzSWztS8.woff2     33.03 kB
+dist/assets/PretendardVariable.subset.41-BUACvzZC.woff2     33.18 kB
+dist/assets/PretendardVariable.subset.50-C8IyFH7L.woff2     33.22 kB
+dist/assets/PretendardVariable.subset.54-Dt2-cQkx.woff2     33.34 kB
+dist/assets/KaTeX_AMS-Regular-DMm9YOAa.woff                 33.51 kB
+dist/assets/KaTeX_Main-Italic-3WenGoN9.ttf                  33.58 kB
+dist/assets/PretendardVariable.subset.5-K_MNGNCe.woff2      33.62 kB
+dist/assets/PretendardVariable.subset.6-Bxhohlcm.woff2      33.96 kB
+dist/assets/PretendardVariable.subset.9-Btb3bmS6.woff2      34.01 kB
+dist/assets/PretendardVariable.subset.55-jFgflYjX.woff2     34.18 kB
+dist/assets/PretendardVariable.subset.39-B_7wfth9.woff2     34.25 kB
+dist/assets/PretendardVariable.subset.52-CNgqKOOJ.woff2     34.35 kB
+dist/assets/PretendardVariable.subset.0-BHUkWNFR.woff2      34.56 kB
+dist/assets/PretendardVariable.subset.53-BSRnyb-u.woff2     34.57 kB
+dist/assets/PretendardVariable.subset.42-Dp-5mnyL.woff2     34.60 kB
+dist/assets/PretendardVariable.subset.45-BniyRFfm.woff2     34.66 kB
+dist/assets/PretendardVariable.subset.36-Dn5IBRQB.woff2     34.68 kB
+dist/assets/PretendardVariable.subset.34-CaCS33Md.woff2     34.72 kB
+dist/assets/PretendardVariable.subset.69-YT16ymcp.woff2     34.78 kB
+dist/assets/PretendardVariable.subset.38-D4hu443z.woff2     34.80 kB
+dist/assets/PretendardVariable.subset.62-DGSAWCfb.woff2     34.87 kB
+dist/assets/PretendardVariable.subset.33--0OT__YQ.woff2     34.91 kB
+dist/assets/PretendardVariable.subset.17-BfZSA-Xc.woff2     34.94 kB
+dist/assets/PretendardVariable.subset.4-Bvh2YGoc.woff2      35.15 kB
+dist/assets/PretendardVariable.subset.56-BwZdvJZQ.woff2     35.18 kB
+dist/assets/PretendardVariable.subset.35-DWFYRGLp.woff2     35.35 kB
+dist/assets/PretendardVariable.subset.27-CT6nuW9L.woff2     35.42 kB
+dist/assets/PretendardVariable.subset.61-PUuTnod4.woff2     35.64 kB
+dist/assets/PretendardVariable.subset.15-D04iXIE3.woff2     35.66 kB
+dist/assets/PretendardVariable.subset.13-C42mj_j2.woff2     35.70 kB
+dist/assets/PretendardVariable.subset.47-B-cWO2pw.woff2     35.72 kB
+dist/assets/PretendardVariable.subset.57-BwFDg-Fs.woff2     35.96 kB
+dist/assets/PretendardVariable.subset.51-Bxd0gTAs.woff2     36.02 kB
+dist/assets/PretendardVariable.subset.49-BblQVys9.woff2     36.05 kB
+dist/assets/PretendardVariable.subset.20-Ig1-z3n5.woff2     36.12 kB
+dist/assets/PretendardVariable.subset.14-Bl512uUX.woff2     36.51 kB
+dist/assets/PretendardVariable.subset.46-BMRq7xC-.woff2     36.54 kB
+dist/assets/PretendardVariable.subset.8-CRbJhhyA.woff2      36.69 kB
+dist/assets/PretendardVariable.subset.21-yKPEdLXC.woff2     37.26 kB
+dist/assets/PretendardVariable.subset.11-CqVmlKJn.woff2     37.40 kB
+dist/assets/PretendardVariable.subset.48-Ct-fWrPO.woff2     37.77 kB
+dist/assets/PretendardVariable.subset.60-CeHezjjf.woff2     37.77 kB
+dist/assets/PretendardVariable.subset.16-BQUnS2GX.woff2     37.91 kB
+dist/assets/PretendardVariable.subset.12-BHuZSgT0.woff2     37.94 kB
+dist/assets/PretendardVariable.subset.91-Csm0YNoH.woff2     37.99 kB
+dist/assets/PretendardVariable.subset.30-CWDM1c0J.woff2     38.44 kB
+dist/assets/PretendardVariable.subset.28-CpO0Y96p.woff2     38.46 kB
+dist/assets/PretendardVariable.subset.22-CSqxKoOs.woff2     38.68 kB
+dist/assets/PretendardVariable.subset.59-CMkWjhdo.woff2     38.97 kB
+dist/assets/PretendardVariable.subset.29-D6hjrUWm.woff2     39.28 kB
+dist/assets/PretendardVariable.subset.32-CGnFWD2i.woff2     40.21 kB
+dist/assets/PretendardVariable.subset.23-DK80wi0t.woff2     40.28 kB
+dist/assets/PretendardVariable.subset.26-Sozl8dw8.woff2     40.32 kB
+dist/assets/PretendardVariable.subset.3-Dqw33sf4.woff2      40.64 kB
+dist/assets/PretendardVariable.subset.58-DlucQts_.woff2     41.56 kB
+dist/assets/PretendardVariable.subset.18-CwAxMC3C.woff2     41.60 kB
+dist/assets/PretendardVariable.subset.31-CdmyZ5mm.woff2     41.89 kB
+dist/assets/PretendardVariable.subset.25-CsoWBIZB.woff2     42.03 kB
+dist/assets/PretendardVariable.subset.19-CJu4Zcdo.woff2     42.32 kB
+dist/assets/PretendardVariable.subset.2-dCZkyKLw.woff2      43.92 kB
+dist/assets/KaTeX_Main-Bold-waoOVXN0.ttf                    51.33 kB
+dist/assets/KaTeX_Main-Regular-ypZvNtVU.ttf                 53.58 kB
+dist/assets/KaTeX_AMS-Regular-DRggAlZN.ttf                  63.63 kB
+dist/licenses/THIRD_PARTY_LICENSES.txt                     758.62 kB │ gzip:    87.69 kB
+dist/assets/TemplateGallery-CnIgrtoG.css                     3.13 kB │ gzip:     0.88 kB
+dist/assets/index-CQXW9odu.css                             241.40 kB │ gzip:    53.19 kB
+dist/assets/array-BifhSqXX.js                                0.10 kB │ gzip:     0.11 kB
+dist/assets/channel-BFoLKGeZ.js                              0.11 kB │ gzip:     0.12 kB
+dist/assets/pie-XZMESJXO-BopWgmuT.js                         0.12 kB │ gzip:     0.12 kB
+dist/assets/info-OHQRW6UA-DfCB76CW.js                        0.12 kB │ gzip:     0.12 kB
+dist/assets/radar-ABXABTNO-lDlPm6i1.js                       0.12 kB │ gzip:     0.12 kB
+dist/assets/packet-JDAUHWVQ-fM4qnn22.js                      0.12 kB │ gzip:     0.12 kB
+dist/assets/cynefin-EF2NZ3EQ-C4RLPdKV.js                     0.12 kB │ gzip:     0.13 kB
+dist/assets/treemap-SAJKECNS-JhuxYXWT.js                     0.12 kB │ gzip:     0.12 kB
+dist/assets/wardley-7MLQ67FV-DQYf8x1H.js                     0.12 kB │ gzip:     0.13 kB
+dist/assets/gitGraph-VSP46ZUC-D2Q7DPhw.js                    0.12 kB │ gzip:     0.13 kB
+dist/assets/railroad-I3PHUGI6-CDIzd6Tr.js                    0.12 kB │ gzip:     0.13 kB
+dist/assets/treeView-D4JQ5SDB-a-SlNQoB.js                    0.12 kB │ gzip:     0.13 kB
+dist/assets/railroad-peg-JR7BVNR7-Bw41e3vD.js                0.13 kB │ gzip:     0.13 kB
+dist/assets/architecture-WOLXFQ4H-pSjaVM9f.js                0.13 kB │ gzip:     0.13 kB
+dist/assets/railroad-abnf-LNEFI6M7-CDFKh1so.js               0.13 kB │ gzip:     0.13 kB
+dist/assets/railroad-ebnf-DWYD2UWJ-m_ooIRWD.js               0.13 kB │ gzip:     0.13 kB
+dist/assets/eventmodeling-K75KTNOO-D03tYg7o.js               0.13 kB │ gzip:     0.13 kB
+dist/assets/init-C-OQMol4.js                                 0.14 kB │ gzip:     0.12 kB
+dist/assets/chunk-Y2CYZVJY-DsF7k-Jl.js                       0.15 kB │ gzip:     0.14 kB
+dist/assets/chunk-2Q5K7J3B-C1jixKkw.js                       0.19 kB │ gzip:     0.16 kB
+dist/assets/chunk-JWPE2WC7-DVXcaiue.js                       0.22 kB │ gzip:     0.17 kB
+dist/assets/chunk-XXDRQBXY-CazVBYiP.js                       0.26 kB │ gzip:     0.22 kB
+dist/assets/chunk-5VM5RSS4-ZNzvKenW.js                       0.36 kB │ gzip:     0.27 kB
+dist/assets/chunk-VQ5W62QI-CD6MuYVn.js                       0.57 kB │ gzip:     0.40 kB
+dist/assets/flowDiagram-IUGLLWBU-e7QvEcV4.js                 0.57 kB │ gzip:     0.31 kB
+dist/assets/chunk-J5ZVWO5B-oDCd-gWO.js                       0.63 kB │ gzip:     0.43 kB
+dist/assets/infoDiagram-MVDRKAX5-C9-cPaVp.js                 0.65 kB │ gzip:     0.41 kB
+dist/assets/swimlanesDiagram-AYQRV4AK-MFAypxAM.js            0.83 kB │ gzip:     0.48 kB
+dist/assets/sizeCapture-INFHLROL-3uHXrFqA.js                 0.87 kB │ gzip:     0.51 kB
+dist/assets/chunk-DUW6YSOI-Dgx8z5s3.js                       0.89 kB │ gzip:     0.46 kB
+dist/assets/line-zum_Nnex.js                                 0.94 kB │ gzip:     0.47 kB
+dist/assets/ordinal-BDEzSJ7C.js                              1.17 kB │ gzip:     0.56 kB
+dist/assets/rolldown-runtime-C0FnF6B9.js                     1.29 kB │ gzip:     0.71 kB
+dist/assets/chunk-ZAUX2LTX-Dl7D0soM.js                       1.41 kB │ gzip:     0.79 kB
+dist/assets/railroadDiagram-Y72NRBL7-DjD593lX.js             1.67 kB │ gzip:     0.77 kB
+dist/assets/SaveCompare-DSZLW7kq.js                          1.80 kB │ gzip:     0.98 kB
+dist/assets/abnfDiagram-WEYOIA3C-DwvHiuPw.js                 1.85 kB │ gzip:     0.89 kB
+dist/assets/chunk-UHW7PFBP-Bs9g1Wpv.js                       1.95 kB │ gzip:     0.95 kB
+dist/assets/chunk-55XCU76K-rsn8NKS0.js                       1.97 kB │ gzip:     0.88 kB
+dist/assets/pegDiagram-ECIUJNBX-DZglwePG.js                  2.01 kB │ gzip:     0.94 kB
+dist/assets/ebnfDiagram-V4P3TTPT-DVGAQyG3.js                 2.07 kB │ gzip:     0.88 kB
+dist/assets/RecoveryCompare-Dxkxsskw.js                      2.10 kB │ gzip:     0.99 kB
+dist/assets/dist-Cz2MTljl.js                                 2.17 kB │ gzip:     0.97 kB
+dist/assets/path-fybaL0A-.js                                 2.27 kB │ gzip:     0.98 kB
+dist/assets/arc-SXJSVd7o.js                                  3.47 kB │ gzip:     1.46 kB
+dist/assets/diagram-I5XIIV2D-SS-6Kx88.js                     4.35 kB │ gzip:     1.89 kB
+dist/assets/defaultLocale-BFoDCU3G.js                        4.63 kB │ gzip:     2.12 kB
+dist/assets/chunk-4EMNKR2T-BOAIos6f.js                       5.43 kB │ gzip:     2.50 kB
+dist/assets/TemplateGallery-CgJRSPx9.js                      5.46 kB │ gzip:     2.15 kB
+dist/assets/linear-Mfk4bOQu.js                               5.51 kB │ gzip:     2.25 kB
+dist/assets/chunk-YZO67HFG-62W55oCX.js                       5.83 kB │ gzip:     2.68 kB
+dist/assets/diagram-RJA3I4VV-B4LAN9-A.js                     6.07 kB │ gzip:     2.56 kB
+dist/assets/pieDiagram-GNMPY74T-C185LCcq.js                  6.21 kB │ gzip:     2.59 kB
+dist/assets/diagram-ODIL2UCW-BpLGQ1Fh.js                     8.20 kB │ gzip:     3.65 kB
+dist/assets/cynefinDiagram-WF24UDRP-BKVNKrt2.js              9.94 kB │ gzip:     3.51 kB
+dist/assets/chunk-ZCHMQSOR-2r6v4Z1m.js                      10.39 kB │ gzip:     4.31 kB
+dist/assets/diagram-PFBEJUXE-DXj9yyUk.js                    10.93 kB │ gzip:     4.25 kB
+dist/assets/SourceCompare-De3sHLaQ.js                       13.04 kB │ gzip:     4.80 kB
+dist/assets/chunk-HNE4Q36P-BaCxhOJs.js                      14.84 kB │ gzip:     4.19 kB
+dist/assets/chunk-2E7WHVMD-BsMEsn1K.js                      15.64 kB │ gzip:     4.35 kB
+dist/assets/diagram-CBK3MWTC-BZ7AUXIr.js                    15.75 kB │ gzip:     5.52 kB
+dist/assets/mermaid-parser.core-BnYN-U1e.js                 16.45 kB │ gzip:     3.92 kB
+dist/assets/ishikawaDiagram-HPEHV2GE-DbKdHlCh.js            17.30 kB │ gzip:     6.53 kB
+dist/assets/kanban-definition-FNSA4HC5-CdZ96S-D.js          20.26 kB │ gzip:     7.15 kB
+dist/assets/sankeyDiagram-SY24JHO5-C9cnbXhu.js              22.79 kB │ gzip:     8.25 kB
+dist/assets/journeyDiagram-BOSHW7O7-CPl8TU5W.js             23.15 kB │ gzip:     8.16 kB
+dist/assets/mindmap-definition-6OY57UG3-D84BRqvh.js         23.66 kB │ gzip:     8.06 kB
+dist/assets/graphlib-DS17s2tU.js                            23.90 kB │ gzip:     8.31 kB
+dist/assets/wardleyDiagram-IVAIDKWA-CFZI-Ucy.js             25.20 kB │ gzip:     6.55 kB
+dist/assets/rough.esm-Dy-Kn_BL.js                           27.10 kB │ gzip:     8.85 kB
+dist/assets/gitGraphDiagram-PDYL7XHY-UjA9ygbU.js            29.01 kB │ gzip:     8.57 kB
+dist/assets/chunk-7S6XSTFO-C85NTas_.js                      30.36 kB │ gzip:     8.44 kB
+dist/assets/timeline-definition-JXYKGLGB-i1rxzZKM.js        30.46 kB │ gzip:    10.03 kB
+dist/assets/erDiagram-KYQIGQAA-kwdw3N8e.js                  30.65 kB │ gzip:    10.57 kB
+dist/assets/requirementDiagram-EQYSW5RA-DvPGtUb6.js         31.07 kB │ gzip:     9.82 kB
+dist/assets/quadrantDiagram-D57K4MC3-CCqZ9_qI.js            33.52 kB │ gzip:     9.74 kB
+dist/assets/chunk-WQQL4CDK-C06gTgyI.js                      37.88 kB │ gzip:     8.20 kB
+dist/assets/vennDiagram-Q3Y3IDCW-B3b1o8En.js                41.18 kB │ gzip:    15.11 kB
+dist/assets/stateDiagram-v2-A6IESKWZ-DU3ORu8h.js            41.55 kB │ gzip:    13.89 kB
+dist/assets/blockDiagram-RJAE7QA3-_IIQ3RcD.js               42.44 kB │ gzip:    13.88 kB
+dist/assets/xychartDiagram-4URNHDU4-C7SfD2Pu.js             44.52 kB │ gzip:    12.35 kB
+dist/assets/src-CllyRBe0.js                                 45.68 kB │ gzip:    16.00 kB
+dist/assets/dagre-NK4GIZVX-DSvoFWZF.js                      47.84 kB │ gzip:    17.10 kB
+dist/assets/classDiagram-v2-4MYWR3UA-BsAG30hL.js            49.71 kB │ gzip:    16.15 kB
+dist/assets/chunk-AQDTSKZB-DOCezJXr.js                      51.87 kB │ gzip:    16.63 kB
+dist/assets/chunk-NQOKRVIF-5FmZw8uc.js                      62.80 kB │ gzip:    20.36 kB
+dist/assets/c4Diagram-XDPPPE54-jBhu01V_.js                  65.08 kB │ gzip:    18.60 kB
+dist/assets/ganttDiagram-R7GPNTJY-DdoPl8kT.js               70.04 kB │ gzip:    23.02 kB
+dist/assets/diagram-TYUNFSNR-BswLF7KB.js                    80.48 kB │ gzip:    25.15 kB
+dist/assets/cose-bilkent-JH36ORCC-CAm9kvAs.js               81.25 kB │ gzip:    21.54 kB
+dist/assets/mermaid-render-BfCdScO-.js                      86.10 kB │ gzip:    29.81 kB
+dist/assets/swimlanes-B3ENRKFQ-DC1JjgU6.js                 106.49 kB │ gzip:    36.23 kB
+dist/assets/chunk-HAGFOTED-CXz7Vppo.js                     115.55 kB │ gzip:    29.28 kB
+dist/assets/sequenceDiagram-BLEHNHQU-B-zGh6Ie.js           117.68 kB │ gzip:    31.37 kB
+dist/assets/code-languages-JNi_OB1W.js                     139.88 kB │ gzip:    43.49 kB
+dist/assets/architectureDiagram-ZHVYKT53-CoN6Omgj.js       148.90 kB │ gzip:    41.13 kB
+dist/assets/usecaseDiagram-WPOLBNNX-D_nnBhjv.js            187.92 kB │ gzip:    49.21 kB
+dist/assets/chunk-DSNLSHJZ-BwaMM6ui.js                     241.60 kB │ gzip:    40.42 kB
+dist/assets/katex-B1hQetKZ.js                              259.22 kB │ gzip:    77.68 kB
+dist/assets/cytoscape.esm-ZKjJ8woK.js                      434.99 kB │ gzip:   137.81 kB
+dist/assets/chunk-NGNAAXSQ-DqoPQk1a.js                     629.05 kB │ gzip:   127.32 kB
+dist/assets/elk-QONTBCTQ-Bs0U05IQ.js                     1,463.33 kB │ gzip:   455.96 kB
+dist/assets/index-BLZWbY9h.js                            3,449.74 kB │ gzip: 1,066.75 kB
+
+[plugin builtin:vite-reporter]
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: http<LOCAL_PATH>
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 7.49s
+[PLUGIN_TIMINGS] Plugin hooks ran for 6.5s of this 7.5s build (86%).
+The slowest hooks, timed inside each callback (the wait before a callback starts is excluded, the time it awaits is included):
+  - third-party-notices generateBundle (65%, 4.8s, 1 call)
+  - vite:worker-import-meta-url transform (18%, 1.4s, 1 call)
+Additional hook time came from the hooks below and from hooks under 1s.
+3 hooks are listed without a time. Their calls overlapped, so the time inside one call includes work from other calls. To find their cost, profile the build with `node --cpu-prof`:
+  - vite:css transform (13 calls)
+  - @tailwindcss/vite:generate:build transform (13 calls)
+  - vite:asset load (2 calls)
+See http<LOCAL_PATH>
+
+CLI and Editor built in packages\cli\dist

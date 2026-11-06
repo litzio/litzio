@@ -1,0 +1,86 @@
+{
+  "multiTargets": 12,
+  "multiSources": 14,
+  "groups": 1,
+  "records": [
+    {
+      "input": {
+        "kind": "mapping"
+      },
+      "ms": 935.8076000000001,
+      "state": "ready",
+      "receipt": {
+        "requestId": "37a28bc3-f00f-4d8c-883b-4dec4aa6ceeb",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "bytes": 20445
+    },
+    {
+      "input": {
+        "kind": "snapshot",
+        "pageNo": 1
+      },
+      "ms": 976.2466999999999,
+      "state": "stale",
+      "receipt": {
+        "requestId": "ba6b43f1-1463-40bf-8698-cbc4d13adf30",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "bytes": 1018400
+    },
+    {
+      "input": {
+        "kind": "bundle"
+      },
+      "ms": 909.2640999999999,
+      "state": "ready",
+      "receipt": {
+        "requestId": "d1debc07-f217-412c-a001-8a1745bfe991",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "bytes": 962
+    },
+    {
+      "input": {
+        "kind": "snapshot",
+        "pageNo": 1
+      },
+      "ms": 944.8508000000002,
+      "state": "stale",
+      "receipt": {
+        "requestId": "85173556-6e21-46d7-9cdb-86a18e3a3aed",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "bytes": 1018400
+    },
+    {
+      "input": {
+        "kind": "bundle"
+      },
+      "ms": 900.5997000000002,
+      "state": "ready",
+      "receipt": {
+        "requestId": "1cce0a04-6a31-42a2-9ab2-938907db70d3",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "bytes": 962
+    }
+  ],
+  "inputHash": "9940863e6110fea3ca065e65d3dc9da573b7f807a7b2a8edcf32688a67f3927d",
+  "resultHash": "f8aca0a49d9324ea44c59ca5f88c84820c44470266223bb1907a1bd5728da37c"
+}

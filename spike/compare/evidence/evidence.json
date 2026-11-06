@@ -1,0 +1,810 @@
+[
+  {
+    "args": [
+      "plugins",
+      "scaffold",
+      "<FIXTURE_ROOT>\\artifact",
+      "--id",
+      "spike.nist"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "id": "spike.nist",
+      "directory": "<FIXTURE_ROOT>\\artifact",
+      "files": [
+        "litzio-plugin.json",
+        "package.json",
+        "jsconfig.json",
+        "plugin-sdk.d.ts",
+        "host.js"
+      ],
+      "receipt": {
+        "requestId": "8e6729ab-2a24-4086-99f4-e5c22e33ac5a",
+        "operation": "plugins.scaffold",
+        "version": 1,
+        "scope": "host",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "plugins",
+      "validate",
+      "<FIXTURE_ROOT>\\artifact"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "id": "spike.nist",
+      "valid": true,
+      "errors": [],
+      "limitations": "Static literal handlers only; computed output and activation behavior are checked at runtime.",
+      "receipt": {
+        "requestId": "5543e20c-4f7c-4abc-86dd-b842fd912ce4",
+        "operation": "plugins.validate",
+        "version": 1,
+        "scope": "host",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "plugins",
+      "register",
+      "<FIXTURE_ROOT>\\artifact"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "id": "spike.nist",
+      "plugins": [
+        {
+          "id": "litzio.onedrive",
+          "publisher": {
+            "id": "litzio",
+            "name": "Litzio"
+          },
+          "name": "OneDrive",
+          "description": "Detect OneDrive folders on the target Windows Host. Folder detection does not confirm login or synchronization.",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": true,
+          "official": true,
+          "trusted": true,
+          "enabled": false,
+          "running": false,
+          "jobs": [],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "status": null,
+          "digest": "c49adb338b4c0470f48af3f6a90c8d5d36cc66dd54b9e809de59c3794d0b6a7c"
+        },
+        {
+          "id": "spike.nist",
+          "publisher": {
+            "id": "spike",
+            "name": "Spike"
+          },
+          "name": "NIST comparison",
+          "description": "",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": false,
+          "official": false,
+          "trusted": false,
+          "enabled": false,
+          "running": false,
+          "jobs": [
+            {
+              "id": "nist",
+              "title": "NIST",
+              "accept": [
+                ".json"
+              ],
+              "start": "start",
+              "status": "status",
+              "stop": "stop",
+              "resultKind": "native-document"
+            }
+          ],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "additionalProperties": false
+          },
+          "status": null,
+          "digest": "5390b3ba517c817c2c38aa5ad9d4af6b43b58551348460f6894f2a22eb521dbe"
+        }
+      ],
+      "receipt": {
+        "requestId": "37117759-1d2f-41ce-b2a8-f5a644930278",
+        "operation": "plugins.register",
+        "version": 1,
+        "scope": "host",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "plugins",
+      "list"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "plugins": [
+        {
+          "id": "litzio.onedrive",
+          "publisher": {
+            "id": "litzio",
+            "name": "Litzio"
+          },
+          "name": "OneDrive",
+          "description": "Detect OneDrive folders on the target Windows Host. Folder detection does not confirm login or synchronization.",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": true,
+          "official": true,
+          "trusted": true,
+          "enabled": false,
+          "running": false,
+          "jobs": [],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "status": null,
+          "digest": "c49adb338b4c0470f48af3f6a90c8d5d36cc66dd54b9e809de59c3794d0b6a7c"
+        },
+        {
+          "id": "spike.nist",
+          "publisher": {
+            "id": "spike",
+            "name": "Spike"
+          },
+          "name": "NIST comparison",
+          "description": "",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": false,
+          "official": false,
+          "trusted": false,
+          "enabled": false,
+          "running": false,
+          "jobs": [
+            {
+              "id": "nist",
+              "title": "NIST",
+              "accept": [
+                ".json"
+              ],
+              "start": "start",
+              "status": "status",
+              "stop": "stop",
+              "resultKind": "native-document"
+            }
+          ],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "additionalProperties": false
+          },
+          "status": null,
+          "digest": "5390b3ba517c817c2c38aa5ad9d4af6b43b58551348460f6894f2a22eb521dbe"
+        }
+      ]
+    }
+  },
+  {
+    "args": [
+      "plugins",
+      "trust",
+      "spike.nist",
+      "--digest",
+      "5390b3ba517c817c2c38aa5ad9d4af6b43b58551348460f6894f2a22eb521dbe"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "id": "spike.nist",
+      "plugins": [
+        {
+          "id": "litzio.onedrive",
+          "publisher": {
+            "id": "litzio",
+            "name": "Litzio"
+          },
+          "name": "OneDrive",
+          "description": "Detect OneDrive folders on the target Windows Host. Folder detection does not confirm login or synchronization.",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": true,
+          "official": true,
+          "trusted": true,
+          "enabled": false,
+          "running": false,
+          "jobs": [],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "status": null,
+          "digest": "c49adb338b4c0470f48af3f6a90c8d5d36cc66dd54b9e809de59c3794d0b6a7c"
+        },
+        {
+          "id": "spike.nist",
+          "publisher": {
+            "id": "spike",
+            "name": "Spike"
+          },
+          "name": "NIST comparison",
+          "description": "",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": false,
+          "official": false,
+          "trusted": true,
+          "enabled": false,
+          "running": false,
+          "jobs": [
+            {
+              "id": "nist",
+              "title": "NIST",
+              "accept": [
+                ".json"
+              ],
+              "start": "start",
+              "status": "status",
+              "stop": "stop",
+              "resultKind": "native-document"
+            }
+          ],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "additionalProperties": false
+          },
+          "status": null,
+          "digest": "5390b3ba517c817c2c38aa5ad9d4af6b43b58551348460f6894f2a22eb521dbe"
+        }
+      ],
+      "receipt": {
+        "requestId": "a4785d92-87d5-499a-893b-a3d6e1b2e308",
+        "operation": "plugins.trust",
+        "version": 1,
+        "scope": "host",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "plugins",
+      "enable",
+      "spike.nist"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "id": "spike.nist",
+      "plugins": [
+        {
+          "id": "litzio.onedrive",
+          "publisher": {
+            "id": "litzio",
+            "name": "Litzio"
+          },
+          "name": "OneDrive",
+          "description": "Detect OneDrive folders on the target Windows Host. Folder detection does not confirm login or synchronization.",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": true,
+          "official": true,
+          "trusted": true,
+          "enabled": false,
+          "running": false,
+          "jobs": [],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          },
+          "status": null,
+          "digest": "c49adb338b4c0470f48af3f6a90c8d5d36cc66dd54b9e809de59c3794d0b6a7c"
+        },
+        {
+          "id": "spike.nist",
+          "publisher": {
+            "id": "spike",
+            "name": "Spike"
+          },
+          "name": "NIST comparison",
+          "description": "",
+          "version": "0.1.0",
+          "installed": true,
+          "bundled": false,
+          "official": false,
+          "trusted": true,
+          "enabled": true,
+          "running": true,
+          "jobs": [
+            {
+              "id": "nist",
+              "title": "NIST",
+              "accept": [
+                ".json"
+              ],
+              "start": "start",
+              "status": "status",
+              "stop": "stop",
+              "resultKind": "native-document"
+            }
+          ],
+          "secrets": {
+            "supported": true,
+            "declarations": []
+          },
+          "settings": {},
+          "settingsSchema": {
+            "type": "object",
+            "additionalProperties": false
+          },
+          "status": {
+            "available": true,
+            "message": "NIST comparison spike",
+            "folders": [],
+            "decorations": [],
+            "accounts": []
+          },
+          "digest": "5390b3ba517c817c2c38aa5ad9d4af6b43b58551348460f6894f2a22eb521dbe"
+        }
+      ],
+      "receipt": {
+        "requestId": "45e229a8-a02d-43c0-bb70-e19ed2da862e",
+        "operation": "plugins.enable",
+        "version": 1,
+        "scope": "host",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "operation",
+      "invoke",
+      "spike.nist.probe",
+      "--input",
+      "<FIXTURE_ROOT>\\probe.json"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "result": {
+        "pid": 50664,
+        "sdk": "0.1.0",
+        "results": [
+          {
+            "specifier": "@litzio/core",
+            "rejected": true
+          },
+          {
+            "specifier": "@litzio/plugin-sdk/schema",
+            "rejected": true
+          },
+          {
+            "specifier": "fil<LOCAL_PATH><WORKTREE>/apps/editor/server/plugins/reviews.ts",
+            "rejected": true
+          }
+        ]
+      },
+      "receipt": {
+        "requestId": "9f0c650e-7e40-4b7b-b25f-5503bafaf981",
+        "operation": "spike.nist.probe",
+        "version": 1,
+        "scope": "host",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "plugins",
+      "start",
+      "spike.nist",
+      "--input",
+      "<FIXTURE_ROOT>\\job.json"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "job": {
+        "requestId": "dc1536ab-f90f-4c4f-9226-e1bc173fe6a0",
+        "plugin": "spike.nist",
+        "job": "nist",
+        "root": "<FIXTURE_ROOT>",
+        "elapsedMs": 589,
+        "state": "running",
+        "phase": "Accepted",
+        "stopRequested": false
+      },
+      "receipt": {
+        "requestId": "dc1536ab-f90f-4c4f-9226-e1bc173fe6a0",
+        "operation": "plugins.job-start",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "plugins",
+      "status",
+      "dc1536ab-f90f-4c4f-9226-e1bc173fe6a0"
+    ],
+    "value": {
+      "target": "htt<LOCAL_PATH>",
+      "job": {
+        "requestId": "dc1536ab-f90f-4c4f-9226-e1bc173fe6a0",
+        "plugin": "spike.nist",
+        "job": "nist",
+        "root": "<FIXTURE_ROOT>",
+        "elapsedMs": 1689,
+        "state": "completed",
+        "phase": "Prepared",
+        "stopRequested": false,
+        "result": {
+          "path": "<FIXTURE_ROOT>\\result.md",
+          "revision": "f8aca0a49d9324ea44c59ca5f88c84820c44470266223bb1907a1bd5728da37c",
+          "bundle": {
+            "generation": "dc1536ab-f90f-4c4f-9226-e1bc173fe6a0",
+            "documentRevision": "f8aca0a49d9324ea44c59ca5f88c84820c44470266223bb1907a1bd5728da37c",
+            "documentHash": "f8aca0a49d9324ea44c59ca5f88c84820c44470266223bb1907a1bd5728da37c",
+            "sourceRevision": "9940863e6110fea3ca065e65d3dc9da573b7f807a7b2a8edcf32688a67f3927d",
+            "mappingRevision": "nist-m1",
+            "bundleRef": "7a4a5c9a-08f2-4a8b-bbe0-fdf8ad426516",
+            "documentRef": "18071289-e299-4d94-9cdb-7d2ec1ffb1fd"
+          },
+          "review": "compare"
+        }
+      },
+      "receipt": {
+        "requestId": "dc1536ab-f90f-4c4f-9226-e1bc173fe6a0",
+        "operation": "plugins.job-status",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      }
+    }
+  },
+  {
+    "args": [
+      "review",
+      "read",
+      "spike.nist",
+      "compare",
+      "--input",
+      "<FIXTURE_ROOT>\\read.json",
+      "--root",
+      "<FIXTURE_ROOT>"
+    ],
+    "value": {
+      "state": "ready",
+      "receipt": {
+        "requestId": "512ae423-efbb-40e3-a8f8-69daa0598703",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "pageNo": 1,
+      "regions": 11,
+      "entries": 86,
+      "blocks": 86,
+      "imageBytes": 916854
+    }
+  },
+  {
+    "args": [
+      "review",
+      "read",
+      "spike.nist",
+      "compare",
+      "--input",
+      "<FIXTURE_ROOT>\\read.json",
+      "--root",
+      "<FIXTURE_ROOT>"
+    ],
+    "value": {
+      "state": "ready",
+      "receipt": {
+        "requestId": "58f2ea1f-aba4-4fdc-baae-6c4683612d1a",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "pageNo": 2,
+      "regions": 7,
+      "entries": 86,
+      "blocks": 86,
+      "imageBytes": 1193678
+    }
+  },
+  {
+    "args": [
+      "review",
+      "read",
+      "spike.nist",
+      "compare",
+      "--input",
+      "<FIXTURE_ROOT>\\read.json",
+      "--root",
+      "<FIXTURE_ROOT>"
+    ],
+    "value": {
+      "state": "ready",
+      "receipt": {
+        "requestId": "be9a000c-f807-413b-b437-bfdb4443616f",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "pageNo": 3,
+      "regions": 17,
+      "entries": 86,
+      "blocks": 86,
+      "imageBytes": 952874
+    }
+  },
+  {
+    "args": [
+      "review",
+      "read",
+      "spike.nist",
+      "compare",
+      "--input",
+      "<FIXTURE_ROOT>\\read.json",
+      "--root",
+      "<FIXTURE_ROOT>"
+    ],
+    "value": {
+      "state": "ready",
+      "receipt": {
+        "requestId": "45dc505e-3eba-43a3-831f-5466aad9ed1d",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "pageNo": 4,
+      "regions": 11,
+      "entries": 86,
+      "blocks": 86,
+      "imageBytes": 1128102
+    }
+  },
+  {
+    "args": [
+      "review",
+      "read",
+      "spike.nist",
+      "compare",
+      "--input",
+      "<FIXTURE_ROOT>\\read.json",
+      "--root",
+      "<FIXTURE_ROOT>"
+    ],
+    "value": {
+      "state": "ready",
+      "receipt": {
+        "requestId": "2973c8f7-fd2f-4052-8256-78d387125b8f",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "pageNo": 5,
+      "regions": 8,
+      "entries": 86,
+      "blocks": 86,
+      "imageBytes": 1084282
+    }
+  },
+  {
+    "args": [
+      "review",
+      "read",
+      "spike.nist",
+      "compare",
+      "--input",
+      "<FIXTURE_ROOT>\\read.json",
+      "--root",
+      "<FIXTURE_ROOT>"
+    ],
+    "value": {
+      "state": "ready",
+      "receipt": {
+        "requestId": "49af60b6-3235-47c4-983b-2c494ec418e8",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "pageNo": 6,
+      "regions": 9,
+      "entries": 86,
+      "blocks": 86,
+      "imageBytes": 1171770
+    }
+  },
+  {
+    "args": [
+      "review",
+      "read",
+      "spike.nist",
+      "compare",
+      "--input",
+      "<FIXTURE_ROOT>\\read.json",
+      "--root",
+      "<FIXTURE_ROOT>"
+    ],
+    "value": {
+      "state": "ready",
+      "receipt": {
+        "requestId": "43b948d8-38b0-4a97-b2e3-41967d748c39",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "pageNo": 7,
+      "regions": 19,
+      "entries": 86,
+      "blocks": 86,
+      "imageBytes": 893822
+    }
+  },
+  {
+    "args": [
+      "review",
+      "read",
+      "spike.nist",
+      "compare",
+      "--input",
+      "<FIXTURE_ROOT>\\read.json",
+      "--root",
+      "<FIXTURE_ROOT>"
+    ],
+    "value": {
+      "state": "ready",
+      "receipt": {
+        "requestId": "1d9fb665-8b93-4790-9717-558af55b23a7",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "pageNo": 8,
+      "regions": 9,
+      "entries": 86,
+      "blocks": 86,
+      "imageBytes": 828506
+    }
+  },
+  {
+    "args": [
+      "review",
+      "read",
+      "spike.nist",
+      "compare",
+      "--input",
+      "<FIXTURE_ROOT>\\read.json",
+      "--root",
+      "<FIXTURE_ROOT>"
+    ],
+    "value": {
+      "state": "ready",
+      "receipt": {
+        "requestId": "10772b06-8964-46fe-836a-76e598ec7f2e",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "pageNo": 9,
+      "regions": 7,
+      "entries": 86,
+      "blocks": 86,
+      "imageBytes": 1001726
+    }
+  },
+  {
+    "args": [
+      "review",
+      "read",
+      "spike.nist",
+      "compare",
+      "--input",
+      "<FIXTURE_ROOT>\\read.json",
+      "--root",
+      "<FIXTURE_ROOT>"
+    ],
+    "value": {
+      "state": "ready",
+      "receipt": {
+        "requestId": "25419c0b-3f5e-4958-857b-e9df05811bc4",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "pageNo": 10,
+      "regions": 8,
+      "entries": 86,
+      "blocks": 86,
+      "imageBytes": 692974
+    }
+  },
+  {
+    "args": [
+      "review",
+      "read",
+      "spike.nist",
+      "compare",
+      "--input",
+      "<FIXTURE_ROOT>\\read.json",
+      "--root",
+      "<FIXTURE_ROOT>"
+    ],
+    "value": {
+      "state": "ready",
+      "receipt": {
+        "requestId": "0f1ecfd4-06e4-4307-aa3f-ec1e3c49aa08",
+        "operation": "review.read",
+        "version": 1,
+        "scope": "<FIXTURE_ROOT>",
+        "outcome": "success"
+      },
+      "pageNo": 11,
+      "regions": 3,
+      "entries": 86,
+      "blocks": 86,
+      "imageBytes": 727050
+    }
+  }
+]

@@ -1,0 +1,10 @@
+{
+  "method": "Ctrl-C followed by targeted forced stop of verified owned node PIDs",
+  "listener": [],
+  "remaining": [],
+  "ownedPids": [
+    42572,
+    14340,
+    50664
+  ]
+}

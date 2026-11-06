@@ -26,7 +26,7 @@ export class PluginJobs {
       accessPath(record.input.output, this.access, true);
       const created = createDocumentSourceFile(record.input.output, update.document.source, record.access);
       const bundle = update.review ? this.publishReview?.(current.plugin, current.root, created.path, record.input.file, update.review) : undefined;
-      current.result = { path: created.path, revision: created.revision, ...(bundle ? { bundle } : {}) };
+      current.result = { path: created.path, revision: created.revision, ...(bundle ? { bundle, review: update.review!.review } : {}) };
     }
     if (["completed", "failed", "stopped"].includes(update.state)) record.finishedAt = Date.now();
     const failure = update.state === "failed" || update.state === "uncertain";

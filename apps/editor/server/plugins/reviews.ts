@@ -104,7 +104,7 @@ export class PluginReviews {
         const page = b.pages.find(p => p.pageNo === (input.pageNo ?? 1));
         if (!page && b.pages.length) throw new Error("Review page unavailable");
         const document = loadDocumentFile(accessPath(b.file, this.access), b.access);
-        const snapshot = bounded({ bundle: b.bundle, page, mapping: b.mapping, proposals: this.proposals(b), unresolved: [...b.unresolved.values()],
+        const snapshot = bounded({ bundle: b.bundle, pageIndex: b.pages, page, mapping: b.mapping, proposals: this.proposals(b), unresolved: [...b.unresolved.values()],
           document: document.document, documentRevision: document.revision, documentHash: document.revision, documentPath: document.path,
           baseline: { ...this.baseline(b), sourceRevision: hash(readFileSync(b.source)) }, pageCount: b.pages.length });
         const image = page?.imageRef ? this.image(b, page.imageRef) : undefined;

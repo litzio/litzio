@@ -112,7 +112,7 @@ export const jobUpdateSchema = z.strictObject({
   errorKind: z.unknown().transform(pluginErrorKind).optional(), document: z.strictObject({ source: z.string() }).optional(), review: completedReviewSchema.optional(),
 });
 export type JobContribution = PluginManifest["contributes"]["jobs"][number];
-export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { path: string; revision: string; bundle?: ReviewBundle } };
+export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { path: string; revision: string; bundle?: ReviewBundle; review?: string } };
 export const jobRequestSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("job-list"), plugin: id.optional() }),
   z.strictObject({ action: z.literal("job-start"), plugin: id, job: id, requestId: z.string().uuid(), root: z.string().min(1), file: z.string().min(1), output: z.string().min(1) }),
@@ -143,3 +143,4 @@ export const PLUGIN_ERROR_MESSAGES: Readonly<Record<PluginErrorKind, string>> = 
 export type ViewContribution = PluginManifest["contributes"]["views"][number];
 
 export type ScreenContribution = PluginManifest["contributes"]["screens"][number];
+export { createComparisonDocument } from "./compare-spike.ts";
