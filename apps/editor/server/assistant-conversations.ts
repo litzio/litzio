@@ -1,3 +1,4 @@
+import { copilotLogRoot, sessionIdPattern, validateProviderLog } from "./provider-session-log.ts";
 import { executeViewOperation } from "./views.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
 import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool } from "./assistant-plugin-tools.ts";
@@ -27,6 +28,7 @@ type ConversationIndexEntry = AssistantConversationInfo & { copilotCliReasoningE
 
 /** Litzio persists only its history index. Each CLI owns its conversation content. */
 export class AssistantConversations {
+  private readonly copilotRoot = copilotLogRoot();
   readonly display = new AgentDisplayRequests();
   private conversations = new Map<string, AssistantConversation>();
   private generationScopes = new Map<string, { owner: string; provenance: ViewProvenance[]; operationOwners: Map<string, string> }>();
@@ -154,6 +156,22 @@ export class AssistantConversations {
     const conversation = this.conversations.get(id);
     if (!conversation) throw new Error("Resume the conversation first.");
     return conversation;
+  }
+  async providerLog(id: string, provider: unknown) {
+    const info = this.list().find(entry => entry.id === id);
+    if (!sessionIdPattern.test(id) || !info || (info.provider ?? "codex") !== provider) return { available: false as const, reason: "unknown" as const };
+    try {
+      let file: string;
+      if (provider === "codex") {
+        const result = await this.connection.client.request("thread/read", { threadId: id, includeTurns: false });
+        if (result.thread?.id !== id || typeof result.thread.path !== "string") throw new Error("No provider log location.");
+        file = result.thread.path;
+      } else file = path.join(this.copilotRoot, "session-state", id, "events.jsonl");
+      return { available: true as const, id, provider, path: validateProviderLog(file, provider as "codex" | "copilot", id), checkedAt: Date.now() };
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      return { available: false as const, reason: code === "ENOENT" ? "missing" as const : code === "EACCES" || code === "EPERM" ? "denied" as const : "unverified" as const };
+    }
   }
   async resume(id: string, settings: AssistantSettings, turnPermissionMode?: AssistantSettings["permissionMode"]) {
     if (typeof id !== "string") throw new Error("Invalid conversation selection.");

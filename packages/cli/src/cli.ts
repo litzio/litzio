@@ -194,7 +194,7 @@ const COMMANDS: CommandSpec[] = [
   { name: "jobs", group: "Serve", summary: "List running and recent plugin jobs on a Host", usage: `${brand.cliCommand} jobs list [pluginId] --host <origin> --json`, details: ["Daemon-lifetime observations only. Never restarts a job."] },
   { name: "operation", group: "Serve", summary: "Invoke a declared plugin operation", usage: `${brand.cliCommand} operation invoke <pluginId.operationId> --input <json-file> --host <origin> --json`, details: ["Uses only the named Host. Does not retry or fall back to local execution."] },
   { name: "assistant", group: "Serve", summary: "Read or configure official Assistant settings",
-    usage: `${brand.cliCommand} assistant settings | assistant configure --file <json-file>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero."] },
+    usage: `${brand.cliCommand} assistant settings | assistant configure --file <json-file> | assistant provider-log <id> <codex|copilot> --host <origin>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero."] },
   {
     name: "apply-batch",
     group: "Edit — batch",
@@ -1939,6 +1939,15 @@ export async function runCliAsync(args: string[]): Promise<number> {
   if (args[0] !== "assistant" || args.includes("--version") || isCommandHelpRequest(args.slice(1))) return runCli(args);
   try {
     const operation = args[1];
+    if (operation === "provider-log") {
+      if (args.length !== 6 || args[4] !== "--host" || !["codex", "copilot"].includes(args[3])) throw new Error(commandHelp("assistant"));
+      const origin = new URL(args[5]);
+      if (!["http:", "https:"].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash) throw new Error("Expected a Host origin.");
+      const response = await fetch(`${origin.origin}/api/assistant/conversations`, { method: "POST", headers: { "Content-Type": "application/json", "X-Litzio-Protocol": "4" }, body: JSON.stringify({ action: "provider-log", id: args[2], provider: args[3] }), signal: AbortSignal.timeout(30000) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "Provider log lookup failed.");
+      process.stdout.write(JSON.stringify(result) + "\n"); return result.available === false ? 1 : 0;
+    }
     if (operation === "settings" ? args.length !== 2 : operation !== "configure" || args.length !== 4 || args[2] !== "--file") throw new Error(commandHelp("assistant"));
     const host = createAssistantHost();
     try { process.stdout.write(JSON.stringify(await host.invoke(operation, operation === "configure" ? JSON.parse(readFileSync(args[3], "utf8")) : {})) + "\n"); }
