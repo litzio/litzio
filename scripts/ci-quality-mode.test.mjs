@@ -236,6 +236,7 @@ test('ordinary CI retains failure diagnostics without manual captures or distrib
   assert.deepEqual(new Set(diagnostics.with.path.trim().split('\n')), new Set([
     'tmp/desktop-e2e/profiles/*/logs/desktop.log*',
     'tmp/desktop-e2e/recovery-proof.json',
+    'tmp/desktop-e2e/reset-proof.json',
     'tmp/desktop-update/*-diagnostics.json',
     'tmp/desktop-update/v*/latest.yml',
     'tmp/desktop-update/v*/beta.yml',

@@ -1,6 +1,6 @@
 import { DAEMON_PROTOCOL } from "../../../editor/server/daemon-protocol.ts";
 import { DESKTOP_ENTRY, DESKTOP_ORIGIN } from "../../../editor/shared/desktop-origin.ts";
-import { daemonPort } from "../../../editor/server/daemon-state.ts";
+import { daemonPort, processStart } from "../../../editor/server/daemon-state.ts";
 import { brand } from "../../../../brand.ts";
 import { createRequire } from "node:module";
 // The packaged Windows app (release/win-unpacked, or LITZIO_DESKTOP_EXE for an installed copy)
@@ -649,4 +649,110 @@ test("Host removal preserves and ignores unscoped recovery (#1196)", async () =>
     await expect(page.getByTestId("host-settings").getByText("No remote Hosts registered.", { exact: true })).toBeVisible();
     assert.deepEqual(await recoveryRecords(page), before);
   } finally { await answerClose(app, 0); await closeApp(app); }
+});
+
+// One representative packaged reset is needed: source mocks cannot prove that RunAsNode
+// can delete Chromium's profile AFTER the real Electron process releases its handles.
+test("complete reset closes the packaged app, deletes isolated owned data and restarts with clean samples and work", async () => {
+  const root = path.join(work, "complete-reset"), userData = profile("complete-reset");
+  const data = path.join(root, "data"), assistant = path.join(root, "assistant");
+  const environment = { LITZIO_DATA_DIR: data, LITZIO_DAEMON_DIR: path.join(root, "daemon"), LITZIO_RESET_DIR: path.join(root, "guard"),
+    LITZIO_ASSISTANT_CWD: assistant, LITZIO_ASSISTANT_SETTINGS_FILE: path.join(data, "assistant.json"), LITZIO_PLUGINS_SETTINGS_FILE: path.join(data, "plugins.json"),
+    LOCALAPPDATA: path.join(root, "local-app-data") };
+  mkdirSync(environment.LOCALAPPDATA, { recursive: true });
+  const { app, page } = await launch(userData, [], environment);
+  // On Windows Playwright launches through cmd.exe: app.process() is the launcher,
+  // not the Electron main whose exit releases Chromium's profile handles.
+  const originalPid = await app.evaluate(() => process.pid);
+  const originalStarted = processStart(originalPid);
+  const proof: Record<string, unknown> = { stage: "launched", originalPid, launcherPid: app.process().pid };
+  let bodyFailure: unknown;
+  let restarted: { pid: number; processStartedAt: string } | undefined;
+  const workOwners = path.join(data, "desktop", "remote-hosts.json.work");
+  const readOwner = (file: string) => {
+    try { return JSON.parse(readFileSync(file, "utf8")); }
+    catch (error) {
+      // The first owner publication can be observed between create and write.
+      // A persistently malformed record still fails the readiness assertion.
+      if (error instanceof SyntaxError || (error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      throw error;
+    }
+  };
+  const currentOwner = () => {
+    for (const name of existsSync(workOwners) ? readdirSync(workOwners) : []) {
+      if (!name.endsWith(".json")) continue;
+      const owner = readOwner(path.join(workOwners, name));
+      if (Number.isSafeInteger(owner?.pid) && (owner.pid !== originalPid || owner.processStartedAt !== originalStarted) && processStart(owner.pid) === owner.processStartedAt) return owner;
+    }
+    return undefined;
+  };
+  try {
+    const startup = await page.evaluate(() => window.litzioDesktop!.startup());
+    assert.ok(startup.samples);
+    const sample = startup.samples.en, pristineSample = readFileSync(sample, "utf8");
+    writeFileSync(sample, pristineSample + "\nUser sample edits\n");
+    for (const file of [path.join(userData, "owned-canary"), path.join(data, "templates", "custom.md"),
+      path.join(data, "plugins", "builtin", "views", "custom.view.json"), path.join(assistant, ".agents", "skills", "custom", "SKILL.md"),
+      path.join(assistant, "conversations.json"), path.join(data, "plugins.json.secrets", "synthetic-secret"),
+      path.join(environment.LOCALAPPDATA, `${brand.appName}-updater`, "cached-update")]) {
+      mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, "isolated user data");
+    }
+    const external = path.join(root, "external-document.md"); writeFileSync(external, "external document must remain");
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("button", { name: "Saving & recovery", exact: true }).click();
+    await page.getByRole("button", { name: "Review app reset…", exact: true }).click();
+    const confirmation = page.getByRole("dialog", { name: "Reset app?", exact: true });
+    await expect(confirmation.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+    await confirmation.getByRole("checkbox", { name: "Also remove empty settings folders", exact: true }).check();
+    await confirmation.getByRole("button", { name: "Delete data and restart", exact: true }).click();
+    await expect.poll(() => processStart(originalPid), { timeout: 30_000 }).not.toBe(originalStarted);
+    proof.stage = "parent-closed";
+    await expect.poll(() => { restarted = currentOwner(); return Array.isArray((restarted as any)?.summary); }, { timeout: 60_000 }).toBe(true);
+    proof.restartedPid = restarted!.pid;
+    // A process and renderer summary do not prove a visible interactive window.
+    await expect.poll(() => Number(execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${restarted!.pid} -ErrorAction Stop).MainWindowHandle.ToInt64()`], { windowsHide: true, encoding: "utf8" }).trim()), { timeout: 15_000 }).not.toBe(0);
+    proof.stage = "visible-restart";
+    assert.equal(existsSync(path.join(userData, "owned-canary")), false);
+    assert.equal(existsSync(path.join(data, "templates", "custom.md")), false);
+    assert.equal(existsSync(path.join(assistant, "conversations.json")), false);
+    assert.equal(existsSync(path.join(assistant, ".agents", "skills", "custom")), false);
+    assert.equal(existsSync(path.join(data, "plugins.json.secrets")), false);
+    assert.equal(existsSync(path.join(environment.LOCALAPPDATA, `${brand.appName}-updater`, "cached-update")), false);
+    assert.equal(readFileSync(sample, "utf8"), pristineSample);
+    assert.equal(readFileSync(external, "utf8"), "external document must remain");
+    assert.ok((restarted as any).summary.every((row: any) => row.openWork === 0 && row.recovery === 0));
+    proof.dataVerified = true;
+  } catch (error) {
+    bodyFailure = error; proof.bodyFailure = error instanceof Error ? error.message : String(error); throw error;
+  } finally {
+    try {
+    if (processStart(originalPid) === originalStarted) { await answerClose(app, 0); await closeApp(app); }
+    restarted ??= currentOwner();
+    // A startup failure before work-summary publication must not orphan our relaunch.
+    for (const name of !restarted && existsSync(environment.LITZIO_RESET_DIR) ? readdirSync(environment.LITZIO_RESET_DIR) : []) {
+      if (!name.startsWith("actor-") || !name.endsWith(".json")) continue;
+      const owner = readOwner(path.join(environment.LITZIO_RESET_DIR, name));
+      if (owner?.role === "desktop" && Number.isSafeInteger(owner.pid) && (owner.pid !== originalPid || owner.started !== originalStarted) && processStart(owner.pid) === owner.started) restarted = { pid: owner.pid, processStartedAt: owner.started };
+    }
+    if (restarted && processStart(restarted.pid) === restarted.processStartedAt) {
+      // Exact fixture-owned PID/creation identity; no image-name or other workspace cleanup.
+      const accepted = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${restarted.pid}).CloseMainWindow()`], { windowsHide: true, encoding: "utf8" }).trim();
+      proof.nativeCloseAccepted = accepted;
+      try { await expect.poll(() => processStart(restarted!.pid), { timeout: 15_000 }).not.toBe(restarted.processStartedAt); }
+      catch (error) {
+        if (processStart(restarted.pid) === restarted.processStartedAt) execFileSync("taskkill.exe", ["/PID", String(restarted.pid), "/T", "/F"], { windowsHide: true });
+        throw error;
+      }
+    }
+    await expect.poll(() => app.process().exitCode !== null || app.process().signalCode !== null, { timeout: 15_000 }).toBe(true);
+    proof.cleanup = "confirmed";
+    } catch (error) {
+      proof.cleanupFailure = error instanceof Error ? error.message : String(error);
+      if (!bodyFailure) throw error;
+      console.error("Reset cleanup also failed; preserving the original assertion:", error);
+    } finally {
+      writeFileSync(path.join(work, "reset-proof.json"), JSON.stringify(proof, null, 2));
+      console.log(`Complete reset proof: ${JSON.stringify(proof)}`);
+    }
+  }
 });

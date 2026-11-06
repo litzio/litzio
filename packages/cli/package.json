@@ -8,7 +8,7 @@
     "build": "tsx scripts/build.ts",
     "package": "pnpm build && npm pack ./dist --pack-destination ./dist --ignore-scripts",
     "test:packaged": "tsx --test test/packaged.test.ts",
-    "test": "tsx --test test/cli.test.ts test/daemon.test.ts test/notices.test.ts test/remote-host.test.ts",
+    "test": "tsx --test test/cli.test.ts test/daemon.test.ts test/notices.test.ts test/remote-host.test.ts test/app-reset.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

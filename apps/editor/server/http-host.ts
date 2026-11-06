@@ -12,6 +12,7 @@ import { LOCAL_FILE_ACCESS, RootAccess } from "./file-access.ts";
 import { daemonRequest, type DaemonControl } from "./daemon-protocol.ts";
 import { trashFile } from "./os-trash.ts";
 import { requestQuery } from "./request-query.ts";
+import { ResetGuard } from "./reset-guard.ts";
 
 export const MAX_JSON_BYTES = 32 * 1024 * 1024;
 
@@ -56,10 +57,15 @@ export async function startHttpHost(options: HttpHostOptions) {
   if (!statSync(path.join(editorDir, "index.html")).isFile()) throw new Error("The production Editor build is missing.");
   // One runtime per daemon. HTTP client/window disconnects never close its
   // workers or AI connections; only Host shutdown does.
-  const services = createHostServices(access);
+  const resetGuard = new ResetGuard();
+  const releaseResetGuard = resetGuard.actor("host");
+  let services: ReturnType<typeof createHostServices>;
+  try { services = createHostServices(access); }
+  catch (error) { releaseResetGuard(); throw error; }
   const key = randomBytes(32);
   const origins = new Set<string>();
   const authorities = new Set<string>();
+  const inFlight = new Set<Promise<unknown>>();
 
   const respond = async (req: IncomingMessage, res: ServerResponse) => {
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
@@ -115,6 +121,11 @@ export async function startHttpHost(options: HttpHostOptions) {
       return json(res, 415, "Expected application/json.");
     }
     if (options.daemon && await daemonRequest(req, res, url, options.daemon)) return;
+    if (url.pathname === "/api/app-reset/paths") {
+      if (req.method !== "GET" || url.search) return json(res, 405, "Use GET without a query.");
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.end(JSON.stringify(services.resetPaths)); return;
+    }
     // Full filesystem access must not select Vite's checkout-relative development sample.
     if (!access && url.pathname === "/api/document" && req.method === "GET" && !url.searchParams.get("path")?.trim()) {
       res.setHeader("Content-Type", "application/json; charset=utf-8"); res.end(JSON.stringify({ start: true })); return;
@@ -136,15 +147,17 @@ export async function startHttpHost(options: HttpHostOptions) {
 
   const server = createServer({ maxHeaderSize: 16 * 1024, headersTimeout: 15_000, requestTimeout: 60_000,
     keepAliveTimeout: 5_000 }, (req, res) => {
-    void respond(req, res).catch(() => {
+    const pending = respond(req, res).catch(() => {
       if (!res.headersSent) json(res, 500, "The Host could not complete this request.");
       else res.destroy();
     });
+    inFlight.add(pending);
+    void pending.then(() => inFlight.delete(pending), () => inFlight.delete(pending));
   });
   try { await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, host, () => { server.off("error", reject); resolve(); });
-  }); } catch (error) { await services.close(); throw error; }
+  }); } catch (error) { try { await services.close(); } finally { releaseResetGuard(); } throw error; }
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("The HTTP listener has no address.");
   if (loopback(host)) {
@@ -158,19 +171,28 @@ export async function startHttpHost(options: HttpHostOptions) {
   if (external) origins.add(external);
   for (const origin of origins) authorities.add(new URL(origin).host.toLowerCase());
   if (!loopback(host)) console.warn("WARNING: this daemon has no authentication. Anyone on the same network who can reach this port can access it. Without --root, the entire disk and assistant (AI) execution are exposed with this OS user's permissions.");
+  let closing: Promise<void> | undefined;
   return {
     server,
     roots: access?.roots ?? [],
     url: external ?? `http://${authority(host, address.port)}`,
-    async close(): Promise<void> {
-      try { await services.close(); } finally {
-        if (server.listening) {
-          const forced = setTimeout(() => server.closeAllConnections(), 5_000);
-          forced.unref();
-          try { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
-          finally { clearTimeout(forced); }
-        }
+    close(): Promise<void> { return closing ??= (async () => {
+      try { await services.close(); }
+      catch (error) { resetGuard.blockAfterFailedShutdown(); throw error; }
+      finally {
+        try {
+          if (server.listening) {
+            const forced = setTimeout(() => server.closeAllConnections(), 5_000);
+            forced.unref();
+            try { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
+            finally { clearTimeout(forced); }
+          }
+          // Socket closure does not cancel an already accepted filesystem write.
+          // Retain the writer lease until its handler has actually settled.
+          await Promise.allSettled([...inFlight]);
+        } catch (error) { resetGuard.blockAfterFailedShutdown(); throw error; }
+        finally { releaseResetGuard(); }
       }
-    },
+    })(); },
   };
 }

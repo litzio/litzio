@@ -30,7 +30,7 @@ const source = transformSync(readFileSync(main, "utf8"), {
   loader: "ts", format: "cjs", define: { "import.meta.url": JSON.stringify(main.href), __LITZIO_REQUIRE_SIGNED_UPDATES__: "false" },
 }).code;
 
-async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwritable"; registryDamage?: boolean; restartAllowed?: boolean; startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState; daemonVersion?: string; daemonError?: string; daemonPending?: boolean; stopChoice?: number; closeError?: string; installationError?: string; packaged?: boolean } = {}) {
+async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwritable"; registryDamage?: boolean; restartAllowed?: boolean; startupError?: boolean; logError?: boolean; openError?: string; loadError?: boolean; lock?: boolean; update?: UpdateState; daemonVersion?: string; daemonError?: string; daemonPending?: boolean; stopChoice?: number; closeError?: string; installationError?: string; packaged?: boolean; resetCloseRefused?: boolean } = {}) {
   const registry = new RemoteHostRegistry(path.join(registryRoot, randomUUID() + ".json"));
   const workFile = registry.desktopWorkFile("/fake-user-data");
   if (options.workDamage) {
@@ -55,7 +55,8 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
   const logs: string[] = [], errors: unknown[][] = [], alerts: string[] = [];
   const directories: string[] = [], opened: string[] = [];
   const daemonCalls: string[] = [], confirmations: any[] = [];
-  const mainProcess = Object.assign(new EventEmitter(), { argv: [], platform: "win32", env: {}, resourcesPath: "/fake-resources" });
+  const resetCalls: any[] = [];
+  const mainProcess = Object.assign(new EventEmitter(), { argv: [], platform: "win32", env: {}, resourcesPath: "/fake-resources", pid: 123, execPath: "/fake-app.exe" });
   const timers = new Map<number, { run: () => void; ms: number }>();
   const handlers = new Map<string, (event: unknown, ...args: unknown[]) => unknown>();
   let timerId = 0, exits = 0, quits = 0;
@@ -77,7 +78,10 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
     focus() { this.focused = true; }
     show() { this.visible = true; this.shows++; }
     setEnabled(_enabled: boolean) {}
-    close() { this.destroyed = true; this.emit("closed"); app.emit("window-all-closed"); }
+    close() {
+      if (options.resetCloseRefused) { this.webContents.emit("will-prevent-unload", { preventDefault() {} }); return; }
+      this.destroyed = true; this.emit("closed"); app.emit("window-all-closed");
+    }
     setBackgroundColor(color: string) { this.background = color; }
     setTitleBarOverlay(overlay: unknown) { this.overlay = overlay; }
     loadURL(url: string) { this.loaded = url; return options.loadError ? Promise.reject(new Error("load rejected")) : Promise.resolve(); }
@@ -101,8 +105,23 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
     },
     "node:fs": {
       mkdirSync(directory: string) { if (options.logError && directory.endsWith("logs")) throw new Error("log directory denied"); directories.push(directory); },
-      appendFileSync: (_file: string, message: string) => logs.push(message), existsSync: () => false,
+      appendFileSync: (_file: string, message: string) => logs.push(message), existsSync: (file: string) => file.endsWith("reset-helper.cjs"),
+      mkdtempSync: () => "/fake-temp/litzio-reset-result-fixture", rmSync() {}, writeFileSync: (file: string) => resetCalls.push({ cancelledFile: file }),
     },
+    "node:os": { tmpdir: () => "/fake-temp" },
+    "node:child_process": { spawn: (_exe: string, args: string[], settings: unknown) => {
+      resetCalls.push({ spawn: args, settings });
+      const child = Object.assign(new EventEmitter(), { connected: true, stdout: { resume() {} }, stderr: { resume() {} }, unref() {}, send(request: any) {
+        resetCalls.push(request);
+        if (!request.cancel) void setImmediate().then(() => child.emit("message", { waiting: true }));
+      } });
+      return child;
+    } },
+    "../../editor/server/codex-app-server.ts": { stopAgentProcess: async () => resetCalls.push({ stopped: true }) },
+    "electron-updater/out/AppAdapter.js": { getAppCacheDir: () => "/fake-cache" },
+    "../../editor/server/reset-guard.ts": { ResetGuard: class { actor() { return () => {}; } blockAfterFailedShutdown() { resetCalls.push({ uncertainWriter: true }); } } },
+    "../../editor/server/app-reset.ts": { localResetLocations: () => ({ host: "fixture-host" }), resetHostPaths: () => ({ same: true }),
+      inspectAppReset: () => ({ revision: "reviewed-fixture", targets: [], retained: [] }) },
     "../../editor/server/remote-host-registry.ts": { RemoteHostRegistry: class { constructor() { return registry; } } },
     "electron-updater": { autoUpdater: {} }, "js-yaml": {},
     "../../editor/shared/desktop-origin.ts": { DESKTOP_ENTRY, trustedDesktopUrl },
@@ -113,7 +132,7 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
       async connect() { daemonCalls.push("connect"); if (options.daemonPending) await new Promise(() => {}); if (options.daemonError) throw new Error(options.daemonError); } async close() { daemonCalls.push("close"); if (options.closeError) throw new Error(options.closeError); }
       async check() { daemonCalls.push("check"); } async stopExplicitly() { daemonCalls.push("stop"); }
     } },
-    "../../editor/server/daemon-state.ts": { daemonPort, async daemonRpc() {} },
+    "../../editor/server/daemon-state.ts": { daemonPort, async daemonRpc() { return { same: true }; }, processStart: () => "fixture-parent" },
     "./explorer.ts": { ExplorerFolders },
     "./first-document.ts": { firstDocument() {} },
     "./preferences.ts": { readPreferences: () => ({ channel: "beta", seenUpdate: null }), writePreferences: (_file: string, value: unknown) => preferences.push(JSON.parse(JSON.stringify(value))) },
@@ -150,9 +169,35 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
   const invoke = (channel: string, args: unknown[], trusted = true) => handlers.get(channel)!({
     sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {},
   }, ...args);
-  return { registry, daemonCalls, confirmations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
+  return { registry, daemonCalls, resetCalls, confirmations, app, mainProcess, directories, opened, window, logs, errors, alerts, timers, appearance, timeout, preferences, invoke,
     seen: (version: unknown, trusted = true) => handlers.get("desktop:seen-update")!({ sender: window.webContents, senderFrame: trusted ? window.webContents.mainFrame : {} }, version), exits: () => exits, quits: () => quits };
 }
+
+test("reset handoff requires a reviewed plan, trusted sender and clean work; late unload refusal cancels its helper", async () => {
+  const dirty = await start({ restartAllowed: false });
+  assert.equal((await dirty.invoke("desktop:reset-app", [true, "reviewed-fixture"]) as any).ok, false);
+  assert.deepEqual(dirty.resetCalls, []);
+  assert.equal(dirty.window.destroyed, false);
+  const stale = await start();
+  assert.equal((await stale.invoke("desktop:reset-app", [false, "stale"]) as any).ok, false);
+  assert.deepEqual(stale.resetCalls, []);
+  assert.throws(() => stale.invoke("desktop:reset-app", [false, "reviewed-fixture"], false), /Untrusted/);
+  const allowed = await start();
+  assert.equal((await allowed.invoke("desktop:reset-app", [true, "reviewed-fixture"]) as any).ok, true);
+  assert.equal(allowed.window.destroyed, true);
+  assert.equal(allowed.resetCalls[1].parentStarted, "fixture-parent");
+  assert.equal(allowed.resetCalls[1].removeFolders, true);
+  assert.equal(allowed.resetCalls[0].settings.windowsHide, true);
+  const late = await start({ resetCloseRefused: true });
+  assert.equal((await late.invoke("desktop:reset-app", [false, "reviewed-fixture"]) as any).ok, false);
+  assert.equal(late.window.destroyed, false);
+  assert.ok(late.resetCalls.some(call => call.cancel));
+  assert.ok(late.resetCalls.findIndex(call => call.cancelledFile) < late.resetCalls.findIndex(call => call.stopped), "revoke on disk before confirming helper stop");
+  const unconfirmed = await start({ closeError: "Daemon exit was not confirmed" });
+  await unconfirmed.invoke("desktop:reset-app", [false, "reviewed-fixture"]);
+  await setImmediate();
+  assert.ok(unconfirmed.resetCalls.some(call => call.uncertainWriter), "unconfirmed daemon exit blocks the post-exit helper from deleting data");
+});
 
 test("startup waits for paint and appearance in either order; later updates never reveal a hidden window", async () => {
   for (const paintFirst of [true, false]) {

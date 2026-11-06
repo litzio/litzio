@@ -1,4 +1,5 @@
 import { PluginSettings } from "../PluginSettings.tsx";
+import { ResetSettings } from "./ResetSettings.tsx";
 import { HostSettings } from "./HostSettings.tsx";
 import { AssistantSettings } from "../AssistantSettings.tsx";
 import { useNativeHistoryBoundary } from "../ui/use-native-history-boundary.ts";
@@ -249,6 +250,7 @@ export function SettingsDialog({ onCloseHostWork, onPrepareHostRemoval, onAssist
                     void onClearRecovery?.().then(() => setClearConfirm(false)).catch(error => setRecoveryProblem(String(error))).finally(() => { setClearConfirm(false); setClearing(false); });
                   }} />
                 {recoveryProblem ? <p role="alert">{recoveryProblem}</p> : null}
+                {desktop ? <ResetSettings desktop={desktop} /> : null}
               </section> : null}
               {category === "about" && info && desktop ? (
                 <section className="settings-group" aria-labelledby="settings-about">

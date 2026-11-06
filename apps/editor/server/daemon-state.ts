@@ -71,7 +71,10 @@ export const daemonDirectory = (channel: DaemonChannel) => path.join(process.env
 export function processStart(pid: number): string | undefined {
   try { process.kill(pid, 0); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ESRCH") return; throw error; }
   if (process.platform === "win32") {
-    const value = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `$p = Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}' -ErrorAction Stop; if ($p) { $p.CreationDate.ToUniversalTime().Ticks }`], { encoding: "utf8", windowsHide: true }).trim();
+    // Keep mandatory identity queries working when optional CLI cleanup has a damaged
+    // SystemRoot; never repair the caller's own environment.
+    const windows = process.env.WINDIR ?? "C:\\Windows";
+    const value = execFileSync(path.join(windows, "System32/WindowsPowerShell/v1.0/powershell.exe"), ["-NoProfile", "-NonInteractive", "-Command", `$p = Get-CimInstance Win32_Process -Filter 'ProcessId = ${pid}' -ErrorAction Stop; if ($p) { $p.CreationDate.ToUniversalTime().Ticks }`], { encoding: "utf8", windowsHide: true, env: { ...process.env, SystemRoot: windows } }).trim();
     return value || undefined;
   }
   if (process.platform === "linux") {

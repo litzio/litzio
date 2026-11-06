@@ -2,17 +2,23 @@ import { RemoteHostRegistry } from "../../editor/server/remote-host-registry.ts"
 import { brand } from "../../../brand.ts";
 // Litzio Desktop: one window with the bundled Editor, the shared daemon HTTP Host, preferences
 // and updates. Documents are read and written only through the existing Host handlers.
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync } from "node:fs";
+import { appendFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { stopAgentProcess } from "../../editor/server/codex-app-server.ts";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, protocol, session, shell, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import electronUpdater from "electron-updater";
+import { getAppCacheDir } from "electron-updater/out/AppAdapter.js";
 import { load as loadYaml } from "js-yaml";
 import type { DesktopInfo, HostWorkSummary, RestartCheck } from "../../editor/shared/desktop-bridge.ts";
 import { DesktopDaemon } from "./daemon-client.ts";
 import { DESKTOP_ENTRY, trustedDesktopUrl } from "../../editor/shared/desktop-origin.ts";
 import { bundledUiResponse } from "./bundled-ui.ts";
-import { daemonPort, daemonRpc } from "../../editor/server/daemon-state.ts";
+import { daemonPort, daemonRpc, processStart } from "../../editor/server/daemon-state.ts";
+import { ResetGuard } from "../../editor/server/reset-guard.ts";
+import { inspectAppReset, localResetLocations, resetHostPaths } from "../../editor/server/app-reset.ts";
 import { ExplorerFolders } from "./explorer.ts";
 import { firstDocument } from "./first-document.ts";
 import { readPreferences, writePreferences, type Preferences } from "./preferences.ts";
@@ -30,6 +36,8 @@ declare const __LITZIO_REQUIRE_SIGNED_UPDATES__: boolean;
 
 protocol.registerSchemesAsPrivileged([{ scheme: "litzio", privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true } }]);
 app.setAppUserModelId(brand.appId);
+const releaseResetGuard = new ResetGuard().actor("desktop");
+process.once("exit", releaseResetGuard);
 // Explicit automation/operator profile overrides remain authoritative.
 if (!process.argv.some(arg => arg === "--user-data-dir" || arg.startsWith("--user-data-dir="))) {
   const directory = path.join(app.getPath("appData"), brand.folders.desktopData);
@@ -74,6 +82,7 @@ const explorerFolders = new ExplorerFolders();
 /** Set after the Editor agreed to restart for an update; the installer starts once the window closed. */
 let installing = false;
 let restartingHosts = false;
+let resetting = false;
 const remoteHosts = new RemoteHostRegistry();
 let allowedHostIds: string[] = [];
 let hostWork: HostWorkSummary[] | null = null;
@@ -197,6 +206,82 @@ async function hostConnection() {
   return { url: daemon.record.url, productVersion: daemon.health.productVersion, desktopVersion: app.getVersion() };
 }
 
+async function resetPlan() {
+  await initialConnection;
+  // An attached daemon may have been started by a different shell with different overrides.
+  const actual = await daemonRpc(daemon.record, "/api/app-reset/paths");
+  const locations = localResetLocations(app.getPath("userData"), path.join(getAppCacheDir(), `${brand.appName}-updater`), { packaged: true });
+  if (JSON.stringify(actual) !== JSON.stringify(resetHostPaths(locations.host))) throw new Error("The local daemon uses different data locations. Stop it and use its matching environment to inspect/reset data with the CLI.");
+  return inspectAppReset(locations);
+}
+
+async function resetApp(removeFolders: unknown, revision: unknown): Promise<RestartCheck> {
+  const target = window;
+  if (!target || typeof removeFolders !== "boolean" || typeof revision !== "string") return { ok: false, reason: "Invalid reset request." };
+  if (resetting || restartAnswers.size || installing || updates.state.phase === "downloading") return { ok: false, reason: "Finish the current restart or update before resetting." };
+  resetting = true;
+  target.setEnabled(false);
+  let temporary: string | undefined;
+  let child: ChildProcessWithoutNullStreams | undefined;
+  const cancelHelper = async () => {
+    if (!child) return;
+    // Persist revocation before returning control: a synchronous OS identity query in
+    // the helper must not overtake an IPC cancellation when the parent later exits.
+    if (temporary) writeFileSync(path.join(temporary, "result.json.cancel"), "");
+    if (child.connected) child.send({ cancel: true });
+    await stopAgentProcess(child);
+    if (temporary) rmSync(temporary, { recursive: true, force: true });
+  };
+  try {
+    const plan = await resetPlan();
+    if (plan.revision !== revision) throw new Error("The reset plan changed. Review it again.");
+    const check = await askEditorToRestart(target);
+    if (!check.ok || target.isDestroyed()) return check.ok ? { ok: false, reason: "The editor closed." } : check;
+    const parentStarted = processStart(process.pid);
+    if (!parentStarted) throw new Error("Could not identify the Desktop process.");
+    const helper = path.join(app.isPackaged ? process.resourcesPath : path.dirname(appRoot), "reset-helper.cjs");
+    if (!existsSync(helper)) throw new Error("The reset helper is missing. Rebuild or reinstall this version.");
+    temporary = mkdtempSync(path.join(os.tmpdir(), "litzio-reset-result-"));
+    child = spawn(process.execPath, [helper], { detached: true, windowsHide: true, stdio: ["pipe", "pipe", "pipe", "ipc"], env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" } }) as ChildProcessWithoutNullStreams;
+    child.stdout.resume(); child.stderr.resume();
+    const helperChild = child;
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("Reset helper startup was not confirmed.")), 10_000);
+      const failed = (error: Error) => { clearTimeout(timer); reject(error); };
+      helperChild.once("error", failed);
+      helperChild.once("exit", () => failed(new Error("Reset helper exited before it was ready.")));
+      helperChild.once("message", message => { if ((message as { waiting?: boolean })?.waiting) { clearTimeout(timer); resolve(); } });
+      helperChild.send({ parentPid: process.pid, parentStarted, profile: app.getPath("userData"),
+        updaterCache: path.join(getAppCacheDir(), `${brand.appName}-updater`), revision, removeFolders,
+        receipt: path.join(temporary!, "result.json"), executable: process.execPath,
+        args: [...(app.isPackaged ? [] : [appRoot]), `--user-data-dir=${app.getPath("userData")}`] });
+    });
+    child.unref();
+    return await new Promise<RestartCheck>(resolve => {
+      const contents = target.webContents;
+      const finish = async (result: RestartCheck) => {
+        clearTimeout(timer); target.removeListener("closed", closed); contents.removeListener("will-prevent-unload", prevented);
+        if (!result.ok) {
+          try { await cancelHelper(); }
+          catch { return resolve({ ok: false, reason: "Reset cancellation could not be confirmed. Inspect its helper before closing." }); }
+        }
+        resolve(result);
+      };
+      const closed = () => { void finish({ ok: true }); };
+      const prevented = () => { void finish({ ok: false, reason: "Work appeared before closing. Save it and review reset again." }); };
+      const timer = setTimeout(() => { void finish({ ok: false, reason: "Desktop close was not confirmed; no data was deleted." }); }, 10_000);
+      target.once("closed", closed);
+      contents.once("will-prevent-unload", prevented);
+      target.close();
+    });
+  } catch (error) {
+    try { await cancelHelper(); }
+    catch { return { ok: false, reason: "Reset cancellation could not be confirmed. Inspect its helper before closing." }; }
+    if (temporary && !child) rmSync(temporary, { recursive: true, force: true });
+    return { ok: false, reason: (error as Error).message };
+  } finally { if (!target.isDestroyed()) { resetting = false; target.setEnabled(true); } }
+}
+
 function registerIpc(): void {
   let folderRequest = 0;
   const handle = (channel: string, run: (...args: unknown[]) => unknown) => {
@@ -240,6 +325,8 @@ function registerIpc(): void {
     return check;
   });
   handle("desktop:startup", () => first);
+  handle("desktop:reset-plan", () => resetPlan());
+  handle("desktop:reset-app", (removeFolders, revision) => resetApp(removeFolders, revision));
   handle("desktop:host-connection", () => hostConnection());
   handle("desktop:browser", () => shell.openExternal(daemon.record.url));
   handle("desktop:daemon-info", async () => {
@@ -353,6 +440,11 @@ function createWindow(): void {
   });
   // The Editor's beforeunload asks before losing work; Electron needs the question shown here.
   created.webContents.on("will-prevent-unload", (event) => {
+    if (resetting) {
+      // The reset caller persists cancellation and confirms its helper has stopped
+      // before enabling the window again.
+      return;
+    }
     if (restartingHosts) {
       restartingHosts = false;
       created.setEnabled(true);
@@ -407,6 +499,18 @@ if (!app.requestSingleInstanceLock()) {
     contents.on("will-attach-webview", (event) => event.preventDefault());
   });
   app.whenReady().then(async () => {
+    const resetResult = process.argv.find(arg => arg.startsWith("--app-reset-result="))?.slice("--app-reset-result=".length);
+    if (resetResult) {
+      try {
+        if (path.basename(resetResult) !== "result.json" || path.dirname(path.dirname(path.resolve(resetResult))) !== path.resolve(os.tmpdir()) || !path.basename(path.dirname(resetResult)).startsWith("litzio-reset-result-")) throw new Error("Invalid reset receipt location.");
+        if (lstatSync(resetResult).isSymbolicLink() || lstatSync(path.dirname(resetResult)).isSymbolicLink()) throw new Error("Reset receipts must be local regular files.");
+        const result = JSON.parse(readFileSync(resetResult, "utf8"));
+        if (result.outcome !== "success") dialog.showMessageBoxSync({ type: "warning", message: "App reset was not completed.",
+          detail: `${result.reason ?? "Some data could not be deleted."}\n${JSON.stringify(result.receipt?.results ?? [])}`, buttons: ["OK"] });
+        rmSync(resetResult);
+        try { const { rmdirSync } = await import("node:fs"); rmdirSync(path.dirname(resetResult)); } catch { /* Preserve any unexpected extra files. */ }
+      } catch { dialog.showErrorBox(brand.name.en, "The app reset result could not be read. Inspect the reset result before trying again."); }
+    }
     log(`starting ${app.getVersion()}`);
     session.defaultSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
     session.defaultSession.setPermissionCheckHandler(() => false);
@@ -477,6 +581,7 @@ if (!app.requestSingleInstanceLock()) {
     if (restartingHosts) app.relaunch();
     updates?.stop();
     try { await daemon?.close(); } catch (error) {
+      if (resetting) new ResetGuard().blockAfterFailedShutdown();
       log(`daemon shutdown failed: ${String(error)}`);
       dialog.showErrorBox(brand.name.en, String(error));
       // A timeout is not proof that the installed executable is no longer in use.

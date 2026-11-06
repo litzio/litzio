@@ -183,6 +183,9 @@ const CODE_NOTE = [
 ];
 const ADMONITION_KIND_NOTE = `Kinds: ${ADMONITION_VARIANTS.join(", ")}.`;
 const COMMANDS: CommandSpec[] = [
+  { name: "app-reset", group: "Serve", summary: "Inspect or reset local app and Host data after closing every client",
+    usage: `${brand.cliCommand} app-reset inspect|apply [--profile <directory>] [--updater-cache <directory>] [--remove-folders] [--confirm --revision <plan-sha>]`,
+    details: ["inspect lists deleted and retained data. apply requires the reviewed revision and confirmation; live Desktop/Host/CLI writers refuse reset. External browser profiles and provider accounts remain untouched."] },
   { name: "compare", group: "Create and inspect", summary: "Compare native document block meaning (read-only)", usage: `${brand.cliCommand} compare <before> <after> --json`, details: ["Read-only native source snapshots; block paths are snapshot-local. Moves are removed + added. Returns source revision receipts; does not contact a live daemon."] },
   { name: "templates", group: "Create and inspect", summary: "List, read or save document templates",
     usage: `${brand.cliCommand} templates list [--json] [--language <ko|en>]`,
@@ -1471,7 +1474,7 @@ function topLevelHelp(): string {
 function commandHelp(name: string): string {
   const spec = findCommand(name);
   if (!spec) return topLevelHelp();
-  if (name === "assistant") return ["Usage:", `  ${spec.usage}`, "", ...spec.details, ""].join("\n");
+  if (name === "assistant" || name === "app-reset") return ["Usage:", `  ${spec.usage}`, "", ...spec.details, ""].join("\n");
   const editing = isEditCommand(name);
   const addressed = /--(?:at|path|from) <(?:index|heading index|table)/.test(spec.usage);
   return ["Usage:", `  ${spec.usage}${editing ? " [--if-revision <revision>] [--dry-run [--format <text|json>]]" : ""}`, "", ...spec.details,
@@ -1930,6 +1933,7 @@ export function runCli(args: string[]): number {
 
 /** Asynchronous command surface; synchronous commands keep the existing runCli API. */
 export async function runCliAsync(args: string[]): Promise<number> {
+  if (args[0] === "app-reset" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./app-reset.ts")).appResetCli(args.slice(1));
   if (args[0] === "view" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./views.ts")).viewCli(args.slice(1));
   if (["plugins", "operation", "jobs", "review"].includes(args[0]) && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./plugins.ts")).pluginCli(args);
   if (args[0] === "host" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
@@ -1949,7 +1953,11 @@ export async function runCliAsync(args: string[]): Promise<number> {
 
 if (import.meta.main) {
   const args = process.argv.slice(2);
+  let releaseResetGuard: (() => void) | undefined;
   try {
+    if (args.length && args[0] !== "app-reset" && args[0] !== "help" && !args.includes("--help") && !args.includes("--version")) {
+      releaseResetGuard = new (await import("../../../apps/editor/server/reset-guard.ts")).ResetGuard().actor("cli");
+    }
     if (args[0] === "daemon" && ["run", "start", "stop", "status"].includes(args[1]) && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
       const { daemonCli } = await import("./daemon.ts");
       // Source checkout runs use an explicit Editor build; the distributable carries it beside cli.mjs.
@@ -1959,4 +1967,5 @@ if (import.meta.main) {
   } catch (error) {
     process.exitCode = reportError(args, error);
   }
+  finally { releaseResetGuard?.(); }
 }

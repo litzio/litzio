@@ -1,5 +1,7 @@
 # Editing session and Save v1
 
+#1285의 [완전 초기화](app-reset-v1.md)는 기존 pending-work/restart 검사를 재사용하며 현재 미저장 편집·초안·진행 작업을 먼저 정리해야 한다. 사용자가 삭제 범위를 확인한 뒤 로컬 복구 기록도 제거하므로 기존 일반 닫기에서의 복구 보존과 구분한다. 늦은 `beforeunload` 거부는 종료 후 helper 취소로 연결하며, CLI가 살아 있는 편집 owner를 확인 flag로 우회하지 못한다.
+
 - Status: Implemented
 - Last verified: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
 - Host identity verification: 2026-11-05 (#1174 PR1: targeted Editor unit tests, workspace typecheck, boundaries/docs and persistent-Chrome recovery/storage/structure, document-tabs, folder-memory and file-actions; no multi-Host connection or packaged Desktop execution).

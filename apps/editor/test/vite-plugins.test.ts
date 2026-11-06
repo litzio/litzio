@@ -6,10 +6,12 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createServer, createLogger } from "vite";
+import { ResetGuard } from "../server/reset-guard.ts";
+import { once } from "node:events";
 
 test("Vite development HTTP Host activates an external artifact with the Host SDK without import warnings", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-vite-plugins-"));
-  const keys = ["LITZIO_DATA_DIR", "LITZIO_PLUGINS_SETTINGS_FILE", "LITZIO_ASSISTANT_SETTINGS_FILE", "LITZIO_ASSISTANT_CWD"];
+  const keys = ["LITZIO_DATA_DIR", "LITZIO_PLUGINS_SETTINGS_FILE", "LITZIO_ASSISTANT_SETTINGS_FILE", "LITZIO_ASSISTANT_CWD", "LITZIO_RESET_DIR"];
   const previous = keys.map(key => process.env[key]);
   for (const key of keys) process.env[key] = key.endsWith("FILE") ? path.join(root, `${key}.json`) : root;
   const warnings: string[] = [];
@@ -53,6 +55,60 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
   } finally {
     await server?.close();
     keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("Vite retains its reset writer lease until an accepted mutation settles after disconnect and listener close", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-vite-reset-"));
+  const previous = process.env.LITZIO_RESET_DIR;
+  process.env.LITZIO_RESET_DIR = path.join(root, "guard");
+  let begin!: () => void, permit!: () => void, complete!: () => void, servicesClosed!: () => void;
+  const began = new Promise<void>(resolve => { begin = resolve; });
+  const allowed = new Promise<void>(resolve => { permit = resolve; });
+  const completed = new Promise<void>(resolve => { complete = resolve; });
+  const hostClosed = new Promise<void>(resolve => { servicesClosed = resolve; });
+  let server: Awaited<ReturnType<typeof createServer>> | undefined;
+  let settled = false;
+  const guard = new ResetGuard();
+  try {
+    const editor = path.resolve(import.meta.dirname, "..");
+    server = await createServer({ root: editor, configFile: path.join(editor, "vite.config.ts"), logLevel: "error", server: { port: 0, open: false } });
+    // Keep the real config, middleware, listener and ResetGuard. Only the handler
+    // and service modules are fixtures, so completion has an explicit boundary.
+    const load = server.ssrLoadModule.bind(server);
+    server.ssrLoadModule = async (url, ...args) => {
+      if (url === "/server/host-services.ts") return { createHostServices: () => ({ close: async () => { servicesClosed(); } }) };
+      if (url === "/server/document-api.ts") return { handleDocumentRequest: async () => {
+        begin(); await allowed;
+        try { writeFileSync(path.join(root, "accepted-write"), "isolated fixture"); settled = true; }
+        finally { complete(); }
+      } };
+      return load(url, ...args);
+    };
+    await server.listen();
+    const address = server.httpServer!.address();
+    assert.ok(address && typeof address !== "string");
+    const controller = new AbortController();
+    const response = fetch(`http://127.0.0.1:${address.port}/api/file`, { method: "DELETE", signal: controller.signal })
+      .catch(error => { if (error.name !== "AbortError") throw error; });
+    await began; controller.abort(); await response;
+    const listenerClosed = once(server.httpServer!, "close");
+    let closeResolved = false;
+    const closing = server.close().then(() => { closeResolved = true; });
+    await listenerClosed; await hostClosed;
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(settled, false);
+    assert.throws(() => guard.exclusive(), /Close host/, "listener/service close cannot authorize reset while its accepted write remains pending");
+    assert.equal(closeResolved, false, "Vite close must wait for its accepted write, too");
+    permit(); await completed;
+    await closing;
+    const release = guard.exclusive(); release();
+  } finally {
+    permit();
+    await server?.close();
+    await new Promise(resolve => setImmediate(resolve));
+    if (previous === undefined) delete process.env.LITZIO_RESET_DIR; else process.env.LITZIO_RESET_DIR = previous;
     rmSync(root, { recursive: true, force: true });
   }
 });

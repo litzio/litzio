@@ -96,6 +96,7 @@ export const STABLE_SCENARIOS = [
   "review-v5",
   "reveal-folder",
   "document-session",
+  "app-reset",
 ];
 
 /** These scenarios inspect notification content, actions, history or stacking.
