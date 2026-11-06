@@ -134,6 +134,52 @@ test("plugin and view services work without an assistant and survive assistant s
 });
 
 
+// Provider identity/filesystem risks live here; browser coverage checks only explicit UI dispatch.
+test("provider log lookup binds Litzio index, provider RPC ID and original metadata", async t => {
+  const { writeFileSync, mkdirSync, symlinkSync, unlinkSync } = await import("node:fs");
+  const { validateProviderLog } = await import("../server/provider-session-log.ts");
+  const directory = mkdtempSync(path.join(tmpdir(), "litzio-provider-log-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const id = "00000000-0000-4000-8000-000000000001", other = "00000000-0000-4000-8000-000000000002";
+  const log = path.join(directory, "session.jsonl");
+  writeFileSync(log, JSON.stringify({ type: "session_meta", payload: { id } }) + "\n");
+  assert.equal(validateProviderLog(log, "codex", id), log);
+  assert.throws(() => validateProviderLog(log, "codex", other), /another session/);
+  assert.throws(() => validateProviderLog(log, "copilot", id), /another session/);
+  assert.throws(() => validateProviderLog(log, "codex", "../bad"), /Invalid/);
+  const link = path.join(directory, "linked");
+  mkdirSync(path.join(directory, "original"));
+  symlinkSync(path.join(directory, "original"), link, "junction");
+  writeFileSync(path.join(link, "log.jsonl"), JSON.stringify({ type: "session_meta", payload: { id } }) + "\n");
+  assert.throws(() => validateProviderLog(path.join(link, "log.jsonl"), "codex", id), /Linked/);
+  const agent = new ProviderConnections(directory);
+  t.after(() => agent.close());
+  const host = createAssistantHost(undefined, undefined, { agent }); t.after(() => host.close());
+  writeFileSync(path.join(directory, "conversations.json"), JSON.stringify([{ id, provider: "codex" }]));
+  const rpc = t.mock.method(agent.client, "request", async () => ({ thread: { id, path: log } }));
+  const lookup = (value = id, provider = "codex") => host.invoke("assistantConversation", { action: "provider-log", id: value, provider });
+  assert.equal((await lookup()).path, log);
+  const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, null, Infinity, undefined, undefined, { assistant: host }); });
+  await listenForFetch(server);
+  t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
+  const url = `http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const cli = await promisify(execFile)(process.execPath, [fileURLToPath(import.meta.resolve("tsx/cli")), fileURLToPath(new URL("../../../packages/cli/src/cli.ts", import.meta.url)), "assistant", "provider-log", id, "codex", "--host", url], { windowsHide: true });
+  assert.equal(JSON.parse(cli.stdout).path, log);
+  const calls = rpc.mock.callCount();
+  assert.equal((await lookup(other)).reason, "unknown"); assert.equal((await lookup(id, "copilot")).reason, "unknown");
+  assert.equal(rpc.mock.callCount(), calls);
+  rpc.mock.mockImplementation(async () => ({ thread: { id: other, path: log } }));
+  assert.equal((await lookup()).reason, "unverified");
+  rpc.mock.mockImplementation(async () => { throw Object.assign(new Error("sensitive auth details"), { code: "EACCES" }); });
+  assert.equal((await lookup()).reason, "denied");
+  rpc.mock.mockImplementation(async () => ({ thread: { id, path: log } }));
+  unlinkSync(log); assert.equal((await lookup()).reason, "missing");
+  writeFileSync(log, JSON.stringify({ type: "session.start", data: { sessionId: id } }) + "\n");
+  assert.equal(validateProviderLog(log, "copilot", id), log);
+});
+
 test("generation proposals use the admitted Host request, owner and material identities rather than public client scope", async t => {
   const { writeFileSync } = await import("node:fs");
   const { executeViewOperation } = await import("../server/views.ts");
@@ -206,50 +252,4 @@ test("generation proposals use the admitted Host request, owner and material ide
   assert.equal(overTurn.status, "failed"); assert.match(overTurn.error, /output exceeds byte limit/);
 
 
-});
-
-// Provider identity/filesystem risks live here; browser coverage checks only explicit UI dispatch.
-test("provider log lookup binds Litzio index, provider RPC ID and original metadata", async t => {
-  const { writeFileSync, mkdirSync, symlinkSync, unlinkSync } = await import("node:fs");
-  const { validateProviderLog } = await import("../server/provider-session-log.ts");
-  const directory = mkdtempSync(path.join(tmpdir(), "litzio-provider-log-"));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
-  const id = "00000000-0000-4000-8000-000000000001", other = "00000000-0000-4000-8000-000000000002";
-  const log = path.join(directory, "session.jsonl");
-  writeFileSync(log, JSON.stringify({ type: "session_meta", payload: { id } }) + "\n");
-  assert.equal(validateProviderLog(log, "codex", id), log);
-  assert.throws(() => validateProviderLog(log, "codex", other), /another session/);
-  assert.throws(() => validateProviderLog(log, "copilot", id), /another session/);
-  assert.throws(() => validateProviderLog(log, "codex", "../bad"), /Invalid/);
-  const link = path.join(directory, "linked");
-  mkdirSync(path.join(directory, "original"));
-  symlinkSync(path.join(directory, "original"), link, "junction");
-  writeFileSync(path.join(link, "log.jsonl"), JSON.stringify({ type: "session_meta", payload: { id } }) + "\n");
-  assert.throws(() => validateProviderLog(path.join(link, "log.jsonl"), "codex", id), /Linked/);
-  const agent = new ProviderConnections(directory);
-  t.after(() => agent.close());
-  const host = createAssistantHost(undefined, undefined, { agent }); t.after(() => host.close());
-  writeFileSync(path.join(directory, "conversations.json"), JSON.stringify([{ id, provider: "codex" }]));
-  const rpc = t.mock.method(agent.client, "request", async () => ({ thread: { id, path: log } }));
-  const lookup = (value = id, provider = "codex") => host.invoke("assistantConversation", { action: "provider-log", id: value, provider });
-  assert.equal((await lookup()).path, log);
-  const server = createServer((req, res) => { void handleDocumentRequest(req, res, () => { res.statusCode = 404; res.end(); }, null, Infinity, undefined, undefined, { assistant: host }); });
-  await listenForFetch(server);
-  t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
-  const url = `http://127.0.0.1:${(server.address() as import("node:net").AddressInfo).port}`;
-  const { execFile } = await import("node:child_process");
-  const { promisify } = await import("node:util");
-  const cli = await promisify(execFile)(process.execPath, [fileURLToPath(import.meta.resolve("tsx/cli")), fileURLToPath(new URL("../../../packages/cli/src/cli.ts", import.meta.url)), "assistant", "provider-log", id, "codex", "--host", url], { windowsHide: true });
-  assert.equal(JSON.parse(cli.stdout).path, log);
-  const calls = rpc.mock.callCount();
-  assert.equal((await lookup(other)).reason, "unknown"); assert.equal((await lookup(id, "copilot")).reason, "unknown");
-  assert.equal(rpc.mock.callCount(), calls);
-  rpc.mock.mockImplementation(async () => ({ thread: { id: other, path: log } }));
-  assert.equal((await lookup()).reason, "unverified");
-  rpc.mock.mockImplementation(async () => { throw Object.assign(new Error("sensitive auth details"), { code: "EACCES" }); });
-  assert.equal((await lookup()).reason, "denied");
-  rpc.mock.mockImplementation(async () => ({ thread: { id, path: log } }));
-  unlinkSync(log); assert.equal((await lookup()).reason, "missing");
-  writeFileSync(log, JSON.stringify({ type: "session.start", data: { sessionId: id } }) + "\n");
-  assert.equal(validateProviderLog(log, "copilot", id), log);
 });
