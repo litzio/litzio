@@ -52,6 +52,51 @@ Role: alignment, spacing, control dimensions and deliberate geometry exceptions;
 
 ## Alignment and ownership
 
+- Document scrollbars (#1183/#1182): Base UI 1.8.0 ScrollArea retains the native
+  `.document-scroll` viewport and its scrollTop/client bounds. Its 12px overlay track
+  occupies the existing 16px trailing document inset, before docked navigation (or
+  at the owning split group's edge), below the measured tabs. It consumes no layout
+  width and is present whenever the viewport overflows, without hover/idle hiding.
+  Short documents have no track. Hidden tabs retain native scroll state; pressing a
+  track in another group focuses that group without replacing the viewport/editor.
+  Overlay navigation retains its existing document occlusion and stacking priority.
+  The 1424px docking boundary, 928px Standard column and centered content axis remain
+  unchanged. Native print flow releases both the frame and viewport; the track is hidden.
+
+  Windows persistent Chrome manual captures (2026-11-06), in Light/Dark at
+  1440/1424/1423/640px (640px Korean), use the same long/short fixtures before/after.
+  [Before geometry](assets/scrollbar-overlay-1183/before.json) /
+  [After geometry](assets/scrollbar-overlay-1183/after.json) show zero native gutter
+  and identical paper/header/panel x/width between long/short documents after the fix;
+  the column remains 928px at 1424px in both themes. The
+  [capture body](assets/scrollbar-overlay-1183/capture.browser.js) temporarily replaces
+  `apps/editor/test/document-scroll.browser.js` for `pnpm browser:test document-scroll --screenshots`;
+  restore the regression afterwards. Committed images are lossless WebP encodings
+  of the original PNGs, with no pixel edits. All pairs are in the same asset directory:
+  `before/after-{width}-{light/dark}-{long/short}.webp`.
+
+  | Width/theme | Long before / after | Short before / after |
+  | --- | --- | --- |
+  | 1440 Light | [Before](assets/scrollbar-overlay-1183/before-1440-light-long.webp) / [After](assets/scrollbar-overlay-1183/after-1440-light-long.webp) | [Before](assets/scrollbar-overlay-1183/before-1440-light-short.webp) / [After](assets/scrollbar-overlay-1183/after-1440-light-short.webp) |
+  | 1440 Dark | [Before](assets/scrollbar-overlay-1183/before-1440-dark-long.webp) / [After](assets/scrollbar-overlay-1183/after-1440-dark-long.webp) | [Before](assets/scrollbar-overlay-1183/before-1440-dark-short.webp) / [After](assets/scrollbar-overlay-1183/after-1440-dark-short.webp) |
+  | 1424 Light | [Before](assets/scrollbar-overlay-1183/before-1424-light-long.webp) / [After](assets/scrollbar-overlay-1183/after-1424-light-long.webp) | [Before](assets/scrollbar-overlay-1183/before-1424-light-short.webp) / [After](assets/scrollbar-overlay-1183/after-1424-light-short.webp) |
+  | 1424 Dark | [Before](assets/scrollbar-overlay-1183/before-1424-dark-long.webp) / [After](assets/scrollbar-overlay-1183/after-1424-dark-long.webp) | [Before](assets/scrollbar-overlay-1183/before-1424-dark-short.webp) / [After](assets/scrollbar-overlay-1183/after-1424-dark-short.webp) |
+  | 1423 Light | [Before](assets/scrollbar-overlay-1183/before-1423-light-long.webp) / [After](assets/scrollbar-overlay-1183/after-1423-light-long.webp) | [Before](assets/scrollbar-overlay-1183/before-1423-light-short.webp) / [After](assets/scrollbar-overlay-1183/after-1423-light-short.webp) |
+  | 1423 Dark | [Before](assets/scrollbar-overlay-1183/before-1423-dark-long.webp) / [After](assets/scrollbar-overlay-1183/after-1423-dark-long.webp) | [Before](assets/scrollbar-overlay-1183/before-1423-dark-short.webp) / [After](assets/scrollbar-overlay-1183/after-1423-dark-short.webp) |
+  | 640 Light/Korean | [Before](assets/scrollbar-overlay-1183/before-640-light-long.webp) / [After](assets/scrollbar-overlay-1183/after-640-light-long.webp) | [Before](assets/scrollbar-overlay-1183/before-640-light-short.webp) / [After](assets/scrollbar-overlay-1183/after-640-light-short.webp) |
+  | 640 Dark/Korean | [Before](assets/scrollbar-overlay-1183/before-640-dark-long.webp) / [After](assets/scrollbar-overlay-1183/after-640-dark-long.webp) | [Before](assets/scrollbar-overlay-1183/before-640-dark-short.webp) / [After](assets/scrollbar-overlay-1183/after-640-dark-short.webp) |
+
+  The owner approved the scrollbar visuals. Public captures were subsequently
+  recaptured with a synthetic Host capability identity (`DEMO-PC\\demo`); the capture
+  body asserts that synthetic label before every image. Geometry was compared with
+  the previous evidence; this replacement does not change product behavior or design.
+  [Pixel comparison bounds](assets/scrollbar-overlay-1183/identity-pixel-audit.json)
+  for all 32 images are confined to the Host identity footer; all other pixels match.
+  This updates current evidence, not historical commits or external caches.
+  Actual packaged Desktop and OS scrollbar settings
+  are not proven by these Chrome captures. Other scroll surfaces (navigation lists,
+  tabs, tables, textarea interiors) retain their existing behavior.
+
 - Editing flow-block bar (#1022) reuses BlockHandles’ top-level geometry, with absolute
   top/height and no reflow or transition. Its left edge is the text edge minus the
   existing `--space-block-hover-inline`; only thickness and pale accent color add

@@ -62,7 +62,7 @@ button {
   --shell-sidebar: var(--sidebar-effective-width);
   --shell-panel: var(--document-panel-effective-width);
   display: grid;
-  grid-template-columns: var(--shell-sidebar) minmax(0, 1fr) calc(var(--shell-panel) + var(--document-scrollbar-width, 0px));
+  grid-template-columns: var(--shell-sidebar) minmax(0, 1fr) var(--shell-panel);
   grid-template-rows: auto 1fr;
   height: 100dvh;
   width: 100%;
@@ -451,7 +451,6 @@ button {
 /* The document panel mirrors the sidebar on the right: sticky and scrolling by itself. */
 .document-panel {
   z-index: 1;
-  margin-right: var(--document-scrollbar-width, 0px);
   grid-column: 3;
   grid-row: 2;
   position: sticky;
@@ -473,7 +472,7 @@ button {
   margin-right: 0;
   position: fixed;
   top: var(--app-header-height, var(--layout-header-row));
-  right: var(--document-scrollbar-width, 0px);
+  right: 0;
   z-index: 4;
   width: min(var(--document-panel-effective-width), 100vw);
   height: calc(100vh - var(--app-header-height, var(--layout-header-row)));
@@ -610,9 +609,9 @@ button {
   min-height: 0;
 }
 
-/* Each mounted tab keeps its native scroll position, including while hidden. Its viewport
- * starts below tabs; the native scrollbar stays at the window's right edge only
- * below that line. Insets keep content between the independent Sidebar/Document panel. */
+/* Each mounted tab keeps its native scroll position, including while hidden. Base UI
+ * hides native scrollbar paint and places the product track in the document's existing
+ * trailing inset, below tabs and before docked navigation. No shell width is reserved. */
 .document-scroll {
   position: fixed;
   inset: 0;
@@ -621,6 +620,13 @@ button {
   padding: 0 var(--shell-panel) 0 var(--shell-sidebar);
 }
 .document-scroll[hidden] { display: none; }
+.document-scroll-frame { position: fixed; inset: var(--app-header-height, var(--layout-header-row)) 0 0; pointer-events: none; }
+.document-scroll-frame[hidden] { display: none; }
+.document-scroll-frame .document-scroll { pointer-events: auto; }
+.document-scrollbar { width: var(--space-3); padding: var(--space-1) calc(var(--border-width) * 2); pointer-events: auto; }
+.document-scrollbar-thumb { width: 100%; border-radius: var(--radius-sm); background: var(--id-color-border-strong); }
+.document-scrollbar:hover .document-scrollbar-thumb, .document-scrollbar:active .document-scrollbar-thumb { background: var(--id-color-text-muted); }
+.text-document-scroll > .document-scroll-content { height: 100%; }
 .document-stage { flex: 1; min-height: 0; }
 
 /* Group headers and viewports share the same equal columns. Tabs remain under their
@@ -628,14 +634,14 @@ button {
 .editor-group-headers { display: flex; min-width: 0; }
 .editor-group-headers > section { flex: 1; min-width: 0; }
 .editor-group-headers > section + section { border-left: var(--border-width) solid var(--id-color-border); }
-.app-shell--split { --document-scrollbar-width: 0px !important; }
-.app-shell--split .document-scroll {
+.app-shell--split .document-scroll, .app-shell--split .document-scroll-frame {
   --editor-group-width: calc((100vw - var(--shell-sidebar) - var(--shell-panel) - var(--border-width)) / 2);
   left: calc(var(--shell-sidebar) + var(--editor-group-index) * (var(--editor-group-width) + var(--border-width)));
   right: auto;
   width: var(--editor-group-width);
   padding: 0;
 }
+.app-shell--split .document-scroll-frame { --document-scrollbar-inset: 0px; }
 .app-shell--split .document-scroll[data-group-index="1"] {
   box-shadow: calc(-1 * var(--border-width)) 0 var(--id-color-border);
 }
@@ -3378,7 +3384,9 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
   body { overflow: visible; }
   .app-shell { display: block; width: auto; height: auto; }
   .app-titlebar, .sidebar, .app-header, .document-panel { display: none; }
-  .document-scroll { position: static; overflow: visible; padding: 0; }
+  .document-scroll { position: static; overflow: visible !important; padding: 0; }
+  .document-scroll-frame { position: static !important; }
+  .document-scrollbar { display: none; }
   .document-scroll[data-active="false"] { display: none; }
   .app-shell--split .document-scroll { width: auto; padding: 0; }
   .document-column, .app-shell--wide .document-column { max-width: none; min-height: 0; padding: 0; }

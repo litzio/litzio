@@ -7,6 +7,7 @@ import { Fragment, memo, useCallback, useLayoutEffect, useState, type CSSPropert
 import type { DocumentFileResponse, EditorFileResponse } from "../shared/document-protocol.ts";
 import { TextDocumentTab, type TextSession, type TextSessionSnapshot } from "./TextDocumentTab.tsx";
 import { DocumentEditor } from "./DocumentEditor.tsx";
+import { DocumentScroll } from "./DocumentScroll.tsx";
 import type { ImageRenamer } from "./image-rename.ts";
 import { EditorVisibility } from "./editor-visibility.ts";
 import { NotificationScope } from "./components/ui/notification-center.tsx";
@@ -69,7 +70,7 @@ const NativeDocumentTab = memo(function NativeDocumentTab({ settingsDisabled, id
       saveError={session.saveFailure ? { failure: session.saveFailure, locations: session.saveLocations,
         onReveal(index) { onReveal(id); requestAnimationFrame(() => session.revealSaveLocation(index)); } } : undefined}
       onReveal={() => session.editorRef.current?.focusEnd(0)} onNoticeExpired={() => session.setNotice("")} />
-    <div className="document-scroll" role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`} hidden={!active} inert={!active}
+    <DocumentScroll role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`} hidden={!active} inert={!active}
       data-document-tab={id} data-active={focused ? "true" : "false"} data-visible={active ? "true" : "false"} data-group-index={groupIndex}
       style={{ "--editor-group-index": groupIndex } as CSSProperties}
       onFocusCapture={() => onFocus(id)} onPointerDownCapture={() => onFocus(id)}>
@@ -87,7 +88,7 @@ const NativeDocumentTab = memo(function NativeDocumentTab({ settingsDisabled, id
           </EditorVisibility>
         </div>
       </div>
-    </div>
+    </DocumentScroll>
     </NotificationScope>
   );
 });

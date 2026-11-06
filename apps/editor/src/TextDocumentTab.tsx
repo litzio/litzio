@@ -17,6 +17,7 @@ import { createPortal } from "react-dom";
 import { CopyButton } from "./components/CopyButton.tsx";
 import { renderPlainMarkdown } from "./plain-markdown.ts";
 import { openExternalLink } from "./link-opening.ts";
+import { DocumentScroll } from "./DocumentScroll.tsx";
 
 export type TextSessionSnapshot = { kind: "text"; file: TextFileResponse; text: string; savedSource: string };
 
@@ -145,7 +146,7 @@ export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restore
   } }}>
     <ExternalChangeNotice session={session} onReveal={() => onReveal(id)} onCompare={onCompare} />
     <MessageArea onReveal={() => session.input.current?.focus()} notice="" onNoticeExpired={() => {}} error={session.status === "save-conflict" ? "" : session.error} errorCause={session.errorCause} warnings={session.recoveryError ? [{ id: "text-recovery", message: session.recoveryError }] : []} />
-    <div className="document-scroll text-document-scroll" role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`} hidden={!active} inert={!active}
+    <DocumentScroll className="text-document-scroll" role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`} hidden={!active} inert={!active}
       data-document-tab={id} data-active={focused ? "true" : "false"} data-visible={active ? "true" : "false"} data-group-index={groupIndex}
       style={{ "--editor-group-index": groupIndex } as CSSProperties} onFocusCapture={() => onFocus(id)} onPointerDownCapture={() => onFocus(id)}>
       <div className="text-document" data-view={session.view}>
@@ -162,6 +163,6 @@ export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restore
         <textarea hidden={session.view === "read"} ref={session.input} className="text-document-input" data-testid="text-editor" aria-label={i18n.t("Text editor")}
           defaultValue={session.initialText} onChange={event => session.change(event.currentTarget.value)} spellCheck={false} wrap="off" />
       </div>
-    </div>
+    </DocumentScroll>
   </NotificationScope>;
 });

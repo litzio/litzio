@@ -1,5 +1,13 @@
 # Editor Visual Language — Quiet Document
 
+Document scrollbar (#1182/#1183) reuses `--id-color-border-strong` for its thumb,
+`--id-color-text-muted` on track hover/press, and a transparent track. The shared
+Base UI ScrollArea implementation keeps it visible whenever the document overflows;
+the [Layout Rules](editor-layout-rules-v1.md#alignment-and-ownership) own dimensions,
+native scroll ownership and the approved before/after visual review. Current public
+captures use a synthetic Host identity; the identity-only recapture does not alter
+the approved scrollbar design.
+
 Role: current visual rules for tokens, palette, typography, surfaces, themes and states; [Layout Rules](editor-layout-rules-v1.md) owns placement/control dimensions and [UI patterns](ui-patterns-v1.md) owns repeated interaction targets.
 
 - Status: Implemented
