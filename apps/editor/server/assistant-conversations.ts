@@ -1,8 +1,9 @@
 import { executeViewOperation } from "./views.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
 import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool } from "./assistant-plugin-tools.ts";
+import { provenanceSchema } from "@litzio/core/views-v2";
 import { collectViewMaterials } from "./assistant-view-materials.ts";
-import { VIEW_GENERATION_OUTPUT_BYTES } from "../shared/view-generation.ts";
+import { VIEW_GENERATION_CONTEXT_BYTES, VIEW_GENERATION_OUTPUT_BYTES } from "../shared/view-generation.ts";
 import { viewGenerationContext } from "../shared/view-generation.ts";
 import type { PluginHost } from "./plugins/plugin-host.ts";
 import { templateTools, executeTemplateOperation, templateOperations } from "./document-templates.ts";
@@ -27,6 +28,7 @@ type ConversationIndexEntry = AssistantConversationInfo & { copilotCliReasoningE
 export class AssistantConversations {
   readonly display = new AgentDisplayRequests();
   private conversations = new Map<string, AssistantConversation>();
+  private viewContexts = new Map<string, AssistantConversationInput["viewContext"]>();
   private viewMaterials = new Map<string, ReturnType<typeof collectViewMaterials>>();
   private pending = new Set<string>();
   private scopes = new Map<string, DocumentToolScope & { turnId?: string; displayClient?: string; viewGeneration?: boolean; viewProposals?: number }>();
@@ -63,12 +65,18 @@ export class AssistantConversations {
           if (scope.viewProposals > 1 && scope.viewProposals <= 3) active.items.push({ id: randomUUID(), kind: "plan", text: `Correcting view (${scope.viewProposals - 1}/2)` });
           if (scope.viewProposals > 3) throw new Error("View correction limit reached (2). Start a new turn after revising the request.");
         }
-        const result = await executeViewOperation(params.tool === "view_catalog" ? { action: "catalog" } : { action: "propose", view: params.arguments?.view }, { access: this.access, plugins: this.plugins });
+        const source = params.arguments?.view?.profile === "query" ? params.arguments.view.sources?.stats : undefined;
+        const proposalOwner = source?.kind === "operation" ? (source.operation === "folder.statistics" ? "litzio.statistics" : this.plugins?.viewOperationOwner(source.operation)) : "litzio.assistant";
+        const proposalScope = { access: this.access, plugins: this.plugins, proposal: { owner: proposalOwner ?? "litzio.assistant", provenance: [
+          ...(this.viewMaterials.get(params.threadId) ?? []).map(material => material.provenance),
+          ...collectViewMaterials({ message: "", model: "", reasoningEffort: "", folders: [], viewContext: this.viewContexts.get(params.threadId) }, [], [], this.access, this.current(params.threadId)).map(material => material.provenance),
+        ] } };
+        const result = await executeViewOperation(params.tool === "view_catalog" ? { action: "catalog" } : { action: "propose", view: params.arguments?.view }, proposalScope);
         if (active.status !== "inProgress") throw new Error("View proposal arrived after the turn ended.");
         // Authoring exposes the same finite generation scope as Generate view,
         // not contributed definitions or live review materials.
         const toolResult = params.tool === "view_catalog"
-          ? { catalog: viewGenerationContext(this.plugins?.viewOperations()).catalog, receipt: result.receipt }
+          ? { catalog: viewGenerationContext(this.plugins?.viewOperations(), Object.fromEntries((this.plugins?.viewOperations() ?? []).map(operation => [operation.operation, this.plugins?.viewOperationOwner(operation.operation) ?? "litzio.statistics"]))).catalog, receipt: result.receipt }
           : result;
         return { success: result.receipt.outcome === "success", contentItems: [{ type: "inputText", text: JSON.stringify(toolResult) }] };
       }
@@ -99,7 +107,15 @@ export class AssistantConversations {
         : params.tool === templateOperations.read.name ? executeTemplateOperation("read", params.arguments, templateScope)
         : params.tool === templateOperations.save.name ? executeTemplateOperation("save", params.arguments, templateScope)
         : executeDocumentTool(params.tool, params.arguments, templateScope);
-      return { contentItems: [{ type: "inputText", text: JSON.stringify(result) }], success: !(result && typeof result === "object" && "error" in result && result.error) };
+      const text = JSON.stringify(result);
+      const dataRead = ["read_document", "list_documents", "read_template", "list_templates"].includes(params.tool) || params.tool === "manage_plugins" && params.arguments?.action === "invoke";
+      const provenance = dataRead ? provenanceSchema.parse({ kind: "reference", label: params.tool, refId: randomUUID() }) : undefined;
+      if (provenance) {
+        const materials = this.viewMaterials.get(params.threadId) ?? [];
+        if (Buffer.byteLength(JSON.stringify([...materials, { provenance, text }]), "utf8") > VIEW_GENERATION_CONTEXT_BYTES || materials.length >= 64) throw new Error("View material exceeds context limit.");
+        this.viewMaterials.set(params.threadId, [...materials, { provenance, text }]);
+      }
+      return { contentItems: [{ type: "inputText", text }, ...(provenance ? [{ type: "inputText", text: JSON.stringify({ viewProvenance: provenance }) }] : [])], success: !(result && typeof result === "object" && "error" in result && result.error) };
     };
     connection.client.on("notification", (method, params) => this.notification(method, params));
     connection.client.on("disconnected", (message: string) => {
@@ -238,7 +254,7 @@ export class AssistantConversations {
       }
       references = checkedReferences([...(input.references ?? []), ...(input.viewGeneration && input.document ? [input.document.path] : [])], folders, this.access);
       // Keep all injected text inside the envelope: Codex may flatten text inputs in history.
-      const context = { userMessage: input.viewGenerationCorrection ? "" : input.message, ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))], ...(input.viewGeneration ? { viewGeneration: { ...viewGenerationContext(this.plugins?.viewOperations()), owner: input.viewContext?.owner ?? "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation), currentView: input.viewDefinition, correction: input.viewGenerationCorrection ?? 0 } } : {}) };
+      const context = { userMessage: input.viewGenerationCorrection ? "" : input.message, ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))], ...(!input.viewGeneration && input.viewContext ? { viewAuthoring: { owner: "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation) } } : {}), ...(input.viewGeneration ? { viewGeneration: { ...viewGenerationContext(this.plugins?.viewOperations(), Object.fromEntries((this.plugins?.viewOperations() ?? []).map(operation => [operation.operation, this.plugins?.viewOperationOwner(operation.operation) ?? "litzio.statistics"]))), owner: input.viewContext?.owner ?? "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation), currentView: input.viewDefinition, correction: input.viewGenerationCorrection ?? 0 } } : {}) };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
@@ -334,8 +350,8 @@ export class AssistantConversations {
     }
     conversation.copilot = options;
     references = checkedReferences([...(input.references ?? []), ...(input.viewGeneration && input.document ? [input.document.path] : [])], folders, this.access);
-    const context = { userMessage: input.viewGenerationCorrection ? "" : input.message, ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references, ...(input.viewGeneration ? { viewGeneration: { ...viewGenerationContext(this.plugins?.viewOperations()), owner: input.viewContext?.owner ?? "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation), currentView: input.viewDefinition, correction: input.viewGenerationCorrection ?? 0 } } : {}) };
-    const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.viewGenerationCorrection ? "" : input.message, references, ...(input.viewGeneration ? { viewGeneration: { correction: input.viewGenerationCorrection ?? 0 } } : {}) }] };
+    const context = { userMessage: input.viewGenerationCorrection ? "" : input.message, ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references, ...(!input.viewGeneration && input.viewContext ? { viewAuthoring: { owner: "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation) } } : {}), ...(input.viewGeneration ? { viewGeneration: { ...viewGenerationContext(this.plugins?.viewOperations(), Object.fromEntries((this.plugins?.viewOperations() ?? []).map(operation => [operation.operation, this.plugins?.viewOperationOwner(operation.operation) ?? "litzio.statistics"]))), owner: input.viewContext?.owner ?? "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation), currentView: input.viewDefinition, correction: input.viewGenerationCorrection ?? 0 } } : {}) };
+    const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.viewGenerationCorrection ? "" : input.message, references, ...(!input.viewGeneration && input.viewContext ? { viewAuthoring: { owner: "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation) } } : {}), ...(input.viewGeneration ? { viewGeneration: { correction: input.viewGenerationCorrection ?? 0 } } : {}) }] };
     conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort;
     conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;
     this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, permissionMode: settings.permissionMode, turnId: turn.id, viewGeneration: input.viewGeneration });
@@ -405,13 +421,14 @@ export class AssistantConversations {
       return materials;
     }
     const materials = collectViewMaterials(input, references, folders, this.access, conversation);
+    this.viewContexts.set(conversation.id, input.viewContext);
     this.viewMaterials.set(conversation.id, materials);
     return materials;
   }
-  private acceptViewOutput(id: string, turn: AssistantConversationTurn, delta: string) {
+  private acceptViewOutput(id: string, turn: AssistantConversationTurn, delta: string, replaceId?: string) {
     if (!this.scopes.get(id)?.viewGeneration) return true;
     if (turn.status !== "inProgress") return false;
-    if (Buffer.byteLength(turn.items.map(item => item.text).join(""), "utf8") + Buffer.byteLength(delta, "utf8") <= VIEW_GENERATION_OUTPUT_BYTES) return true;
+    if (Buffer.byteLength(turn.items.filter(item => item.id !== replaceId).map(item => item.text).join(""), "utf8") + Buffer.byteLength(delta, "utf8") <= VIEW_GENERATION_OUTPUT_BYTES) return true;
     void this.interrupt(id).catch(() => {});
     turn.status = "failed"; turn.error = "View generation output exceeds byte limit.";
     return false;
@@ -431,13 +448,15 @@ export class AssistantConversations {
     let turn = conversation.turns.find(turn => turn.id === turnId);
     if (!turn) { turn = { id: turnId, status: "inProgress", items: [] }; conversation.turns.push(turn); }
     if (method === "turn/started" || method === "turn/completed") {
+      if (turn.error === "View generation output exceeds byte limit.") return;
       turn.status = params.turn.status;
       if (method === "turn/started") { const scope = this.scopes.get(params.threadId); if (scope) scope.turnId = turnId; }
       else { this.display.cancel(params.threadId); this.scopes.delete(params.threadId); if (conversation.userInput?.turnId === turnId) this.expireQuestion(conversation); }
       if (params.turn.error) turn.error = params.turn.error.message;
     } else if (method === "item/started" || method === "item/completed") {
       const item = itemFrom(params.item);
-      if (item && (!this.scopes.get(params.threadId)?.viewGeneration || Buffer.byteLength(item.text, "utf8") <= VIEW_GENERATION_OUTPUT_BYTES)) { const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item; }
+      if (item && !this.acceptViewOutput(params.threadId, turn, item.text, item.id)) return;
+      if (item) { const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item; }
     } else if (["item/agentMessage/delta", "item/reasoning/summaryTextDelta", "item/plan/delta"].includes(method)) {
       let item = turn.items.find(item => item.id === params.itemId);
       if (!item) { item = { id: params.itemId, kind: method.includes("reasoning") ? "reasoning" : method.includes("plan") ? "plan" : "assistant", text: "" }; turn.items.push(item); }

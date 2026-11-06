@@ -17,25 +17,30 @@ import { RootAccess } from "../server/file-access.ts";
 
 export const fakeServer = fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url));
 
-test("view proposals pass the finite catalog through both stdio adapters without document access or transcript schema", async t => {
+test("view proposals pass the finite catalog through both stdio adapters with checked material snapshots and no tool access or transcript schema", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "view-adapters-"));
   const codexLog = path.join(root, "codex.jsonl"), copilotLog = path.join(root, "copilot.jsonl");
   const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, codexLog] }, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), copilotLog] });
   const conversations = new AssistantConversations(connection, new RootAccess([root]));
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const settings = { provider: "codex" as const, model: "gpt-6.1-sol", reasoningEffort: "medium", permissionMode: "full-access" as const };
-  const codex = await conversations.send({ ...settings, viewGeneration: true, folders: [root], message: "Show a document chart" }, settings);
+  writeFileSync(path.join(root, "a.md"), "Revenue A: 100");
+  writeFileSync(path.join(root, "b.md"), "Revenue B: 200");
+  const attached = [path.join(root, "a.md"), path.join(root, "b.md")];
+  const codex = await conversations.send({ ...settings, viewGeneration: true, references: attached, folders: [root], message: "Show a document chart" }, settings);
   const request = await connection.client.request("fixture/tool", { threadId: codex.id, tool: "change_display_settings", arguments: {} });
   assert.ok(request.error || request.result?.success === false, "view proposal cannot execute app tools");
   await conversations.interrupt(codex.id);
-  const copilot = await conversations.send({ provider: "copilot", model: "copilot-model", reasoningEffort: "low", viewGeneration: true, folders: [root], message: "Show a document chart" }, settings);
+  const copilot = await conversations.send({ provider: "copilot", model: "copilot-model", reasoningEffort: "low", viewGeneration: true, references: attached, folders: [root], message: "Show a document chart" }, settings);
   await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: copilot.id, modelId: "copilot-model" }));
   assert.deepEqual(connection.copilot.permission!({ sessionId: copilot.id, toolCall: { toolCallId: "read", kind: "read", locations: [{ path: path.join(root, "doc.md") }] }, options: [{ optionId: "yes", name: "Yes", kind: "allow_once" }] }), { outcome: { outcome: "cancelled" } });
   await conversations.interrupt(copilot.id);
   const codexRpc = readFileSync(codexLog, "utf8").trim().split("\n").map(line => JSON.parse(line));
   const turn = codexRpc.find(call => call.method === "turn/start");
   const context = JSON.parse(turn.params.input[1].text.split("(JSON):\n")[1]);
-  assert.ok(context.viewGeneration.catalog.schema); assert.deepEqual(context.folders, []);
+  assert.ok(context.viewGeneration.catalog.schema); assert.deepEqual(context.folders, [root]);
+  assert.deepEqual(context.viewGeneration.materials.map((item: any) => item.text), ["Revenue A: 100", "Revenue B: 200"]);
+  assert.ok(context.viewGeneration.materials.every((item: any) => item.provenance.kind === "reference"));
   assert.equal(turn.params.sandboxPolicy.type, "readOnly");
   assert.equal(codex.turns[0]!.items.find(item => item.kind === "user")?.text, "Show a document chart");
   const acpRpc = readFileSync(copilotLog, "utf8").trim().split("\n").map(line => JSON.parse(line));

@@ -207,7 +207,7 @@ export function AssistantPanel({ generationRequest, onGenerationConsumed, onGene
     const value = message.trim(); if (!value && !references.length) return;
     const document = documentPath ? { path: documentPath } : undefined;
     const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "send", displayClient, id: conversation?.id, message: value,
-      provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: provider !== "codex" ? [] : references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document });
+      provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: provider !== "codex" ? [] : references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document, viewContext: { owner: "litzio.assistant", hostId, roots: [] } });
     if (!isCurrent()) return;
     setConversation(next); rememberConversation(conversationKey, next.id); setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
@@ -216,7 +216,6 @@ export function AssistantPanel({ generationRequest, onGenerationConsumed, onGene
     if (active || !onGeneratedView || !model || !message.trim()) return;
     const target = viewTarget;
     const root = target?.token.destination.root ?? (folders.includes(viewRoot) ? viewRoot : folders[0]);
-    if (!root) throw new Error(i18n.t("Choose a folder"));
     const controller = new AbortController(); generation.current = controller; cancelledViewConversation.current = undefined;
     setGenerationStatus(""); setHistory(null);
     let corrections = 0;
@@ -231,7 +230,7 @@ export function AssistantPanel({ generationRequest, onGenerationConsumed, onGene
         } },
         validate: async (value, signal) => (await viewRequest(client, { action: "propose", view: value }, signal)).view!,
       });
-      if (isCurrent() && !controller.signal.aborted && !target?.token.signal.aborted) { if (target) onGeneratedDestination?.(target.token, view); setViewTarget(undefined); setViewCards(previous => [...previous, { conversation: current.current!.id, turn: current.current!.turns.at(-1)!.id, view, root, corrections }]); setMessage(""); setPermissionMode("read-only"); }
+      if (isCurrent() && !controller.signal.aborted && !target?.token.signal.aborted) { if (target) onGeneratedDestination?.(target.token, view); setViewTarget(undefined); setViewCards(previous => [...previous, { conversation: current.current!.id, turn: current.current!.turns.at(-1)!.id, view, root: root ?? "", corrections }]); setMessage(""); setPermissionMode("read-only"); }
     } catch (error) { setGenerationStatus(""); throw error; } finally { generation.current = null; }
   });
   const addReference = (file: AssistantFileReference) => {
@@ -504,7 +503,7 @@ export function AssistantPanel({ generationRequest, onGenerationConsumed, onGene
 
         {provider === "copilot" && copilot?.modes.length ? <AssistantChoice label={i18n.t("Session mode")} value={copilot.modes.find(value => value.id === mode)?.name ?? mode} help={i18n.t("Model, reasoning effort and mode changes apply to the next message.")} disabled={active || pending} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={mode} options={copilot.modes.map(value => ({ value: value.id, label: value.name }))} onSelect={setMode} /> : null}
       </div>
-        {onGeneratedView ? <div className="assistant-view-controls"><select aria-label={i18n.t("View folder")} disabled={pending || active} value={folders.includes(viewRoot) ? viewRoot : folders[0] ?? ""} onChange={event => setViewRoot(event.target.value)} className="settings-select" ><option value="">{i18n.t("Choose a folder")}</option>{folders.map(folder => <option key={folder} value={folder}>{pathName(folder)}</option>)}</select><Button type="button" variant="secondary" size="sm" disabled={pending || active || !ready || !model || !folders.length || !message.trim() || !!setup} onClick={() => void proposeView()}>{i18n.t("Generate view")}</Button></div> : null}
+        {onGeneratedView ? <div className="assistant-view-controls"><select aria-label={i18n.t("View folder")} disabled={pending || active} value={folders.includes(viewRoot) ? viewRoot : folders[0] ?? ""} onChange={event => setViewRoot(event.target.value)} className="settings-select" ><option value="">{i18n.t("Choose a folder")}</option>{folders.map(folder => <option key={folder} value={folder}>{pathName(folder)}</option>)}</select><Button type="button" variant="secondary" size="sm" disabled={pending || active || !ready || !model || !message.trim() || !!setup} onClick={() => void proposeView()}>{i18n.t("Generate view")}</Button></div> : null}
       <div className="assistant-footer">
 
         <Tooltip><TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>

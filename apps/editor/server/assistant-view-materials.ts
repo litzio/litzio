@@ -33,7 +33,7 @@ export function collectViewMaterials(input: AssistantConversationInput, referenc
   }
   // Only completed public dynamic tool results, never commands, reasoning or provider internals.
   for (const turn of conversation?.turns ?? []) for (const item of turn.items) {
-    if (turn.status !== "completed" || item.kind !== "tool" || item.toolResult?.success !== true) continue;
+    if ((turn.status !== "completed" && !(turn.status === "inProgress" && item.status === "completed")) || item.kind !== "tool" || item.toolResult?.success !== true) continue;
     for (const part of item.toolResult.contentItems) {
       if (part.type !== "inputText" || !part.text) continue;
       let result: any; try { result = JSON.parse(part.text); } catch { continue; }

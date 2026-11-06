@@ -2,11 +2,11 @@ import { z } from "zod";
 import { catalogViewSchema, createCatalogV2, VIEW_LIMITS, type ViewOperation } from "@litzio/core/views-v2";
 // One authoring scope for Generate view and ordinary-chat view_catalog.
 const generationSchema = z.toJSONSchema(catalogViewSchema);
-function generationCatalog(operations?: readonly ViewOperation[]) {
+function generationCatalog(operations?: readonly ViewOperation[], owners?: Record<string, string>) {
   const catalog = createCatalogV2(operations?.filter(operation => {
     try { createCatalogV2([operation]); return true; } catch { return false; }
   }));
-  return { ...catalog, schema: generationSchema };
+  return { ...catalog, operations: catalog.operations.map(operation => ({ ...operation, plugin: owners?.[operation.operation] ?? (operation.operation === "folder.statistics" ? "litzio.statistics" : undefined) })), schema: generationSchema };
 }
 const viewCatalog = generationCatalog();
 export const VIEW_GENERATION_OUTPUT_BYTES = VIEW_LIMITS.assistantBytes;
@@ -18,4 +18,4 @@ export const VIEW_GENERATION_CONTEXT = {
   catalog: viewCatalog,
 };
 
-export function viewGenerationContext(operations?: readonly ViewOperation[]) { return { ...VIEW_GENERATION_CONTEXT, catalog: generationCatalog(operations) }; }
+export function viewGenerationContext(operations?: readonly ViewOperation[], owners?: Record<string, string>) { return { ...VIEW_GENERATION_CONTEXT, catalog: generationCatalog(operations, owners) }; }

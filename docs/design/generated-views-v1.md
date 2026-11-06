@@ -245,3 +245,38 @@ V6 대화 표시 보완: 생성 명세는 ‘뷰 명세’에 기본 접힘으�
 V4 review의 Host·CLI·K1 완료 bundle은 [플러그인 1단계 V4 계약](plugin-stage1-v1.md#v4-공용-review-hostcli)에 구현했다. V3/V5의 /api/reviews snapshot transport와 연결하며 Core read model은 document-reader 경계를 사용한다. 실제 브라우저·외부 서비스 수락은 별도 검증이다. 공용 자료 읽기·제안·승인·거절·Undo·status는 같은 PluginHost dispatcher를 사용하며 문서 의미를 renderer나 CLI에 구현하지 않는다.
 
 이미지가 없거나 로드에 실패한 PageSurface는 영역 좌표계 바깥, 도구줄 아래 별도 줄에 안내를 표시한다. 독립 페이지와 SourceDocumentCompare에 동일하게 적용한다. `review-v5`에서 두 사용처의 안내와 영역이 겹치지 않는지 확인한다(#1278).
+
+
+## D4 assistant material context (integration pending)
+
+D4 supplies source-specific authoring instructions from `shared/view-generation.ts` to both
+provider adapters. Generate view remains read-only and tool-free. Host preparation reuses
+`checkedReferences` and Explorer visibility for multiple attached files and the saved current
+document inside existing opened Roots. App-supplied Root/Host identities describe provenance;
+they do not grant access. Without document identity, Host-issued reference IDs are used.
+Unsaved editor content is not presented as a saved revision. Completed public tool receipts
+already in the conversation can join the supplied snapshot. Material text is context, never a
+human transcript item or a persisted view source. The correction attempts reuse the original
+material bytes; later disk changes do not silently alter those bytes.
+
+Assistant calculations can combine those materials into completed scalar rows and a plain-text
+method. Connected sources retain operation-owner/manual-refresh instructions. Assistant source
+instructions use the request owner, assistant refresh, supplied provenance and the D1 limits.
+Missing material asks for references or ordinary-chat reads. Both context material and provider
+view output have a 1 MiB byte cap; limit errors fail explicitly without sampling or model changes.
+The existing state machine retains at most two validation corrections, one 180-second deadline
+per attempt and no transport retries. Destination cancellation signals are combined with the
+request signal; invalidated destinations cannot receive late successful results.
+
+The existing assistant-result card and common Button are reused, with collapsed provenance,
+plain-text method and paged complete-row inspection. No new style tokens or UI surface are
+introduced. D3's common DataTable and destination registry imports await its prior merge;
+D2's trusted proposal scope and transport envelope integration also remain pending. Until then,
+public generation proposal results remain unverified. Provenance identity checking never proves
+factual correctness. Source opening and final destination/save acceptance require D3 integration.
+
+Verification covers Host snapshot scope/byte limits, completed tool receipts, both provider
+stdio envelopes and the existing correction/cancellation state machine. The new Host material
+case protects the read boundary, rather than duplicating Core row-schema cases. The card browser
+case checks complete-row pagination and visible provenance with a synthetic assistant source;
+this is fixture evidence, not actual AI, external service or multi-destination product acceptance.

@@ -189,3 +189,44 @@ test("field advice uses keywords and public limits without echoing input or patt
     assert.equal(inputIssueMessage("minimum", schema), "1 이상의 값을 입력하세요.");
   } finally { await i18n.changeLanguage(language); }
 });
+
+// Host material ownership differs from Core row validation: no new Root grants,
+// immutable read bytes and explicit context/output failures instead of sampling.
+test("view materials combine checked documents and completed public tool receipts within the supplied roots", async () => {
+  const { collectViewMaterials } = await import("../server/assistant-view-materials.ts");
+  const { mkdtempSync, writeFileSync, unlinkSync, rmdirSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  const root = mkdtempSync(path.join(tmpdir(), "view-materials-"));
+  const files = [path.join(root, "a.md"), path.join(root, "b.md")];
+  try {
+    files.forEach((file, index) => writeFileSync(file, `Revenue: ${index + 1}`));
+    const input = { message: "Combine", model: "selected", reasoningEffort: "low", folders: [root], viewContext: { owner: "litzio.assistant", hostId: "host-a", roots: [{ path: root, id: "root-a" }] } };
+    const conversation = { turns: [{ status: "completed", items: [{ id: "tool-a", kind: "tool", toolResult: { success: true, contentItems: [{ type: "inputText", text: JSON.stringify({ rows: [{ rate: 2 }], receipt: { outcome: "success", operation: "example.rates", requestId: "request-a" } }) }] } }] }] } as AssistantConversation;
+    const references = files.map(file => ({ path: file, name: path.basename(file), kind: "native" }));
+    const materials = collectViewMaterials(input, references, [root], null, conversation);
+    assert.equal(materials.length, 3);
+    assert.deepEqual(materials.map(item => item.provenance.kind), ["document", "document", "tool"]);
+    assert.equal(materials[0].text, "Revenue: 1");
+    assert.equal(materials[0].provenance.kind === "document" && materials[0].provenance.path, "a.md");
+    writeFileSync(files[0], "Changed later");
+    assert.equal(materials[0].text, "Revenue: 1");
+    assert.throws(() => collectViewMaterials({ ...input, viewContext: { ...input.viewContext, roots: [{ path: path.dirname(root), id: "outside" }] } }, references, [root], null), /context roots/);
+    assert.equal(collectViewMaterials({ ...input, viewContext: undefined }, references, [root], null)[0].provenance.kind, "reference");
+    writeFileSync(files[0], "a".repeat(1048577));
+    assert.throws(() => collectViewMaterials(input, references, [root], null), /context limit/);
+  } finally { files.forEach(file => unlinkSync(file)); rmdirSync(root); }
+});
+
+test("oversized final model output fails without validation correction or sampling", async () => {
+  let sends = 0;
+  await assert.rejects(generateView({ signal: new AbortController().signal,
+    input: { model: "selected", reasoningEffort: "low", folders: [], message: "View" },
+    request: async <T>(_url: string, body?: any): Promise<T> => {
+      if (body?.action === "prepare-view-generation") return { requestId: "prepared" } as T;
+      sends++;
+      return { id: "thread", model: "selected", reasoningEffort: "low", turns: [{ id: "turn", status: "completed", items: [{ kind: "assistant", text: "x".repeat(1048577) }] }] } as T;
+    }, snapshot: () => {}, status: () => {}, validate: async () => assert.fail("must not parse or sample oversized output"),
+  }), /output exceeds/);
+  assert.equal(sends, 1);
+});

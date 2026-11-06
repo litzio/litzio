@@ -13,7 +13,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
 
   let captureEnvironment;
   const root = pluginFixture.folder, favorite = 'Folder document totals';
-  const proposal = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', owner: 'fixture.issues', title: 'Folder document totals', refresh: 'manual', sources: { stats: { kind: "operation", operation: 'fixture.issues.read', version: 1, args: { preset: 'assigned-open' }, groupBy: { field: 'status' }, aggregate: { op: 'sum', field: 'points' }, sort: { field: 'value', direction: 'desc' }, limit: 10 } }, layout: { component: "Panel", direction: "vertical", children: [{ component: 'Table', title: 'Document totals', source: 'stats', data: '/rows', columns: ['group', 'value'] }, { component: "Chart", type: "bar", title: 'Document totals chart', source: 'stats', data: '/rows', x: 'group', y: 'value' }] } };
+  let proposal = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', owner: 'fixture.issues', title: 'Folder document totals', refresh: 'manual', sources: { stats: { kind: "operation", operation: 'fixture.issues.read', version: 1, args: { preset: 'assigned-open' }, groupBy: { field: 'status' }, aggregate: { op: 'sum', field: 'points' }, sort: { field: 'value', direction: 'desc' }, limit: 10 } }, layout: { component: "Panel", direction: "vertical", children: [{ component: 'Table', title: 'Document totals', source: 'stats', data: '/rows', columns: ['group', 'value'] }, { component: "Chart", type: "bar", title: 'Document totals chart', source: 'stats', data: '/rows', x: 'group', y: 'value' }] } };
   let conversation, sends = [], queries = 0, validates = 0, latestRows, latestReceipt, delayPoll = false;
   const settings = { provider: 'codex', model: 'gpt-6-luna', reasoningEffort: 'low', permissionMode: 'read-only', responseLanguage: 'en' };
   await page.route('**/api/assistant/settings*', route => route.fulfill({ json: settings }));
@@ -422,6 +422,28 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   if (screenshots) for (const width of [1440, 960, 640]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.screenshot({ path: `tmp/v3-review/review-entry-${width}.png` });
+  }
+  // D4 owns card data/provenance pagination; destination/save integration is D2/D3.
+  proposal = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', owner: 'litzio.assistant', title: '예시: 두 문서 합계', refresh: 'assistant',
+    sources: { stats: { kind: 'assistant', generatedAt: '2026-11-06T00:00:00.000Z', rowSchema: { month: { type: 'string', label: '월' }, total: { type: 'number', label: '합계' } }, rows: Array.from({ length: 51 }, (_, i) => ({ month: `row-${i + 1}`, total: i + 100 })), provenance: [{ kind: 'reference', label: '예시: 매출 A', refId: 'reference-a' }, { kind: 'reference', label: '예시: 매출 B', refId: 'reference-b' }], method: '두 문서의 같은 월 매출을 합산했습니다.' } },
+    layout: { component: 'Panel', direction: 'vertical', children: [{ component: 'Table', title: '예시: 합계', source: 'stats', data: '/rows', columns: ['month', 'total'] }] } };
+  if (!await panel.isVisible()) await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  await panel.getByRole('textbox', { name: 'Message assistant' }).fill('Combine the attached document totals.');
+  await panel.getByRole('button', { name: 'Generate view', exact: true }).click();
+  const assistantCard = panel.getByTestId('assistant-view-result').last();
+  await expect(assistantCard).toContainText('예시: 두 문서 합계');
+  await expect(assistantCard).toContainText('Assistant data may be inaccurate.');
+  await assistantCard.locator('summary').filter({ hasText: 'Sources' }).click();
+  await expect(assistantCard).toContainText('reference-a');
+  await assistantCard.locator('summary').filter({ hasText: 'View data' }).click();
+  await expect(assistantCard.locator('tbody tr')).toHaveCount(50);
+  await assistantCard.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(assistantCard.locator('tbody tr')).toHaveCount(1);
+  await expect(assistantCard.getByRole('cell', { name: 'row-51', exact: true })).toBeVisible();
+  if (screenshots) for (const width of [1440, 640]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await assistantCard.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `tmp/d4-evidence/card-${width}.png` });
   }
   pluginFixture.cli(['plugins', 'disable', 'fixture.issues']);
   return { favorite, root, rows, captureEnvironment, providers: sends.map(send => send.provider) };
