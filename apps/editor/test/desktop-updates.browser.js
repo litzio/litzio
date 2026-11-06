@@ -227,11 +227,11 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
                 const checked = r.width || node.matches('.top-bar button, .document-tab-row button, .sidebar-header button');
                 return checked && (r.right > innerWidth || (r.top < 40 && r.right > innerWidth - reserved) || getComputedStyle(node).getPropertyValue('app-region') !== 'no-drag');
               }).map(node => node.getAttribute('aria-label') || node.textContent);
-              const panel = document.querySelector('.document-panel--overlay');
+              const panel = document.querySelector('.document-panel--overlay:not([hidden])');
               const usableWidth = document.querySelector('.top-bar').getBoundingClientRect().width;
               const brand = document.querySelector('.app-brand');
               const sidebar = document.querySelector('.sidebar-header').getBoundingClientRect();
-              const docked = document.querySelector('.document-panel:not(.document-panel--overlay) .document-panel-navigation')?.getBoundingClientRect();
+              const docked = document.querySelector('.document-panel:not([hidden]):not(.document-panel--overlay) .document-panel-navigation')?.getBoundingClientRect();
               const aligned = sidebar.top === tabs.top && sidebar.bottom === tabs.bottom && (!docked || docked.top === tabs.top && docked.bottom === tabs.bottom);
               const branded = brand.querySelector('img').complete && !!brand.querySelector('span') === !document.querySelector('.sidebar--collapsed');
               const settingsBox = settings.getBoundingClientRect();

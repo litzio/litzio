@@ -59,13 +59,13 @@ async (page, { openDocument }) => {
   await page.getByTestId('equation-latex').fill('x + draft');
   const local = await snapshot();
   // Failed Open adds no tab and preserves current applied work and property drafts.
-  const tabCount = await page.getByRole('tab').count();
+  const tabCount = await page.locator('.document-tabs [role=tab]').count();
   let reads = 0;
   await page.route('**/api/document?*', route => { reads++; return route.fulfill({status:400, json:refusal}); });
   try {
     await page.getByRole('treeitem', {name:'blocked-markdown.md',exact:true}).click();
     await assertAlert('blocked-markdown.md', refusal);
-    assert(reads === 1 && await page.getByRole('tab', {includeHidden:true}).count() === tabCount, 'Failed Open added a tab or skipped the Host');
+    assert(reads === 1 && await page.locator('.document-tabs [role=tab]').count() === tabCount, 'Failed Open added a tab or skipped the Host');
     assert(await page.getByRole('dialog', {name:'Save changes?',exact:true}).count() === 0 && await page.getByTestId('error').count() === 0, 'Open failure duplicated confirmation/error surfaces');
     assert(await snapshot() === local && await page.getByTestId('equation-latex').inputValue() === 'x + draft', 'Failed Open discarded local work');
     await alert.getByRole('button', {name:'OK',exact:true}).click();

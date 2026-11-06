@@ -79,7 +79,7 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
   const rightmost = async selector => {
     const nodes = overlaySurface.locator(selector);
     const index = await nodes.evaluateAll(nodes => nodes.map((n,index) => ({index,r:n.getBoundingClientRect()}))
-      .filter(({r}) => r.top > 150 && r.top < 600 && r.right < (document.querySelector('.document-panel')?.getBoundingClientRect().left ?? innerWidth)-20).sort((a,b)=>b.r.right-a.r.right)[0]?.index);
+      .filter(({r}) => r.top > 150 && r.top < 600 && r.right < (document.querySelector('.document-panel:not([hidden])')?.getBoundingClientRect().left ?? innerWidth)-20).sort((a,b)=>b.r.right-a.r.right)[0]?.index);
     if (index === undefined) throw Error(`No right-edge target: ${selector}`);
     return nodes.nth(index);
   };
@@ -91,7 +91,7 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
       const viewport = document.querySelector('.document-scroll[data-active="true"]');
       const r = viewport.getBoundingClientRect(), style = getComputedStyle(viewport);
       const left = r.left + viewport.clientLeft + parseFloat(style.paddingLeft);
-      const panel = document.querySelector('.document-panel')?.getBoundingClientRect();
+      const panel = document.querySelector('.document-panel:not([hidden])')?.getBoundingClientRect();
       const right = Math.min(r.right, r.left + viewport.clientLeft + viewport.clientWidth - parseFloat(style.paddingRight), panel?.left ?? innerWidth);
       const top = r.top + viewport.clientTop, bottom = Math.min(r.bottom, top + viewport.clientHeight);
       const box = n.getBoundingClientRect();
