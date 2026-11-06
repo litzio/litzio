@@ -15,7 +15,7 @@ import { supportedListContent } from "./myst/list.ts";
 import { isDivider, supportedQuoteContent } from "./myst/quote.ts";
 import { supportedTargetLabel } from "./myst/reference.ts";
 import { supportedHeadingContent as headingContent } from "./myst/native.ts";
-import { FRONT_MATTER_FIELD } from "./myst/parse.ts";
+import { FRONT_MATTER_FIELD } from "./myst/constants.ts";
 import { supportedFootnoteContent } from "./myst/footnote.ts";
 import { type MystDocument, type MystNode, toText } from "./myst/tree.ts";
 

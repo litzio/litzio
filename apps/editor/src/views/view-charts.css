@@ -1,0 +1,12 @@
+.view-panel-container { container: view-layout / inline-size; min-width: 0; width: 100%; }
+.view-panels-horizontal { display: grid; grid-template-columns: minmax(0, 1fr); }
+@container view-layout (min-width: 960px) { .view-panels-horizontal { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.view-plot { min-width: 0; }
+.view-plot svg { display: block; width: 100%; height: auto; aspect-ratio: 612 / 252; border-bottom: var(--border-width) solid var(--id-color-border-subtle); }
+.view-plot circle { fill: var(--id-color-accent); }
+.view-plot-line { fill: none; stroke: var(--id-color-accent); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.view-plot-range { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); font-size: var(--font-size-sm); color: var(--id-color-text-muted); overflow-wrap: anywhere; }
+.view-chart-values { font-size: var(--font-size-sm); overflow-wrap: anywhere; }
+.view-chart-values summary { cursor: pointer; width: fit-content; padding: var(--space-2) 0; }
+.view-chart-values ol { padding-left: var(--space-6); }
+.view-chart-pagination { display: flex; align-items: center; gap: var(--space-3); }

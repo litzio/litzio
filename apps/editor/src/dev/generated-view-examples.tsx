@@ -1,3 +1,4 @@
+import { ChartExamples } from "./chart-examples.tsx";
 import { useMemo, useState } from "react";
 import { parse, getEditableDocument } from "@litzio/core";
 import { operationQueryViewSchema as queryViewSchema, reviewViewSchema } from "@litzio/core/views-v2";
@@ -69,5 +70,6 @@ export function GeneratedViewExamples({ state }: { state: string }) {
       {failure ? <Notice tone="error">{failure.message}</Notice> : null}
       <div aria-busy={loading}><ViewRenderer view={view} rows={["idle", "loading", "empty", "new-view"].includes(mode) ? undefined : rows} /></div>
     </div> : <ReviewRenderer key={reviewState} view={review} adapter={adapter} />}
+    <ChartExamples />
   </section>;
 }

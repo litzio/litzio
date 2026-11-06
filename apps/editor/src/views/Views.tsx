@@ -1,6 +1,6 @@
 import { i18n } from "../i18n.ts";
 import { useEffect, useRef, useState } from "react";
-import { builtinViewOperations, type ViewRow, queryLeaves } from "@litzio/core/views";
+import { builtinViewOperations, type ViewRow } from "@litzio/core/views";
 import { operationQueryViewSchema as queryViewSchema, compilePortableViewInputSchema, validateViewInputs, ViewInputError, type ViewOperation, type CatalogView, type OperationQueryView as View, type SourceState } from "@litzio/core/views-v2";
 import { Button } from "../components/ui/button.tsx";
 import { Input } from "../components/ui/input.tsx";
@@ -17,32 +17,18 @@ import { ReviewRenderer, type ReviewAdapter } from "../review/ReviewRenderer.tsx
 import { createReviewAdapter, type ReviewObservation } from "./review-api.ts";
 import { readableLabel } from "./view-label.ts";
 import "./views.css";
+import { ViewChart } from "./ViewChart.tsx";
+import { ViewPanels } from "./ViewPanels.tsx";
 
 export type ViewTab = { id: string; hostId: string; root: string; view?: CatalogView; basic?: boolean; jobs?: boolean; label?: string };
-function ViewBars({ rows, x, y, label }: { rows: ViewRow[]; x: string; y: string; label(field: string, value: ViewRow[string]): string }) {
-  const values = rows.map(row => Number(row[y]));
-  const min = Math.min(0, ...values), max = Math.max(0, ...values);
-  const scale = Math.max(1, Math.abs(min), Math.abs(max));
-  const range = (max / scale - min / scale) || 1;
-  const position = (value: number) => (value / scale - min / scale) / range * 100;
-  const zero = position(0);
-  return <div className="view-bars">{rows.map((row, i) => {
-    const value = values[i], end = position(value);
-    return <div key={i}><span>{label(x, row[x])}</span><div className="view-bar-track" role="meter" aria-label={label(x, row[x])} aria-valuemin={min} aria-valuemax={max || (min === 0 ? 1 : 0)} aria-valuenow={value}>
-      <span className="view-bar-zero" style={{ left: `${zero}%` }} />
-      <span className="view-bar-value" style={{ left: `${Math.min(zero, end)}%`, width: `${Math.abs(end - zero)}%` }} />
-    </div><output>{String(row[y])}</output></div>;
-  })}</div>;
-}
 export function ViewRenderer({ view, rows, fields }: { view: View; rows?: ViewRow[]; fields?: Record<string, string> }) {
   const valid = queryViewSchema.parse(view);
-  if (valid.layout.direction !== "vertical" || valid.layout.children.some(p => p.component === "Panel")) return <Notice>{i18n.t("Unavailable")}</Notice>;
   const label = (field: string, value: ViewRow[string]) => valid.sources.stats.operation === "folder.statistics" && value === "." && (field === "folder" || field === "group" && valid.sources.stats.groupBy?.field === "folder")
     ? i18n.t("(Root)") : value === null ? "—" : String(value);
-  return <div className="view-panels">{queryLeaves(valid.layout).map((panel, index) => <section key={index} className="view-panel" aria-label={panel.title}>
+  return <ViewPanels layout={valid.layout} renderLeaf={(panel, index) => <section key={index} className="view-panel" aria-label={panel.title}>
     <h3>{panel.title}</h3>
-    {!rows?.length ? null : panel.component === "Table" ? <div className="view-table-scroll" tabIndex={0} aria-label={panel.title}><table><thead><tr>{panel.columns.map(column => <th key={column} scope="col">{fields?.[column] ?? readableLabel(column)}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={i}>{panel.columns.map(column => <td key={column}>{label(column, row[column])}</td>)}</tr>)}</tbody></table></div> : panel.type !== "bar" ? <Notice>{i18n.t("Unavailable")}</Notice> : <ViewBars rows={rows} x={panel.x} y={panel.y} label={label} />}
-  </section>)}</div>;
+    {!rows?.length ? null : panel.component === "Table" ? <div className="view-table-scroll" tabIndex={0} aria-label={panel.title}><table><thead><tr>{panel.columns.map(column => <th key={column} scope="col">{fields?.[column] ?? readableLabel(column)}</th>)}</tr></thead><tbody>{rows.map((row, i) => <tr key={i}>{panel.columns.map(column => <td key={column}>{label(column, row[column])}</td>)}</tr>)}</tbody></table></div> : <ViewChart chart={panel} rows={rows} label={label} fields={fields} />}
+  </section>} />;
 }
 const emptyInputErrors = () => ({ fields: Object.create(null) as Record<string, string> });
 
