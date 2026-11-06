@@ -29,7 +29,7 @@ const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
 // Structural token contract supplied by the app destination registry (D3).
-type ViewDestinationToken = { destination: { kind: "tab" | "document" | "screen"; id: string; hostId: string; owner: string; root: string }; generation: number; signal: AbortSignal };
+type ViewDestinationToken = { destination: { kind: "tab" | "document" | "screen"; id: string; hostId: string; owner: string; root: string; documentPath?: string }; generation: number; signal: AbortSignal };
 type Props = { onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
   generationRequest?: { token: ViewDestinationToken; view?: View };
   onGenerationConsumed?(): void;
@@ -215,13 +215,15 @@ export function AssistantPanel({ generationRequest, onGenerationConsumed, onGene
   const proposeView = () => run(async isCurrent => {
     if (active || !onGeneratedView || !model || !message.trim()) return;
     const target = viewTarget;
+    if (target && target.token.destination.hostId !== hostId) throw new Error(i18n.t("View generation target belongs to another Host."));
+    const sourceDocument = target?.token.destination.documentPath ?? (documentPath && !documentDirty ? documentPath : undefined);
     const root = target?.token.destination.root ?? (folders.includes(viewRoot) ? viewRoot : folders[0]);
     const controller = new AbortController(); generation.current = controller; cancelledViewConversation.current = undefined;
     setGenerationStatus(""); setHistory(null);
     let corrections = 0;
     try {
       const view = await generateView({ request, signal: target ? AbortSignal.any([controller.signal, target.token.signal]) : controller.signal,
-        input: { id: conversation?.id, provider, model, reasoningEffort: effort, mode: provider === "copilot" ? mode : undefined, permissionMode: "read-only", folders, references: references.filter(file => file.kind !== "skill").map(file => file.path), document: documentPath && !documentDirty ? { path: documentPath } : undefined, viewContext: { owner: target?.token.destination.owner ?? "litzio.assistant", hostId, roots: [] }, viewDefinition: target?.view, message: message.trim() },
+        input: { id: conversation?.id, provider, model, reasoningEffort: effort, mode: provider === "copilot" ? mode : undefined, permissionMode: "read-only", folders, references: references.filter(file => file.kind !== "skill").map(file => file.path), document: sourceDocument ? { path: sourceDocument } : undefined, viewContext: { owner: target?.token.destination.owner ?? "litzio.assistant", hostId, roots: [] }, viewDefinition: target?.view, message: message.trim() },
         snapshot: next => { corrections = next.turns.at(-1)?.items.find(item => item.viewGeneration)?.viewGeneration?.correction ?? 0; if (isCurrent()) { current.current = next; setConversation(next); setPermissionMode("read-only"); rememberConversation(conversationKey, next.id); } },
         status: value => { if (isCurrent()) setGenerationStatus(value); },
         cancelled: () => { if (isCurrent()) {

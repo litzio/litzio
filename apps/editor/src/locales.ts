@@ -1,6 +1,7 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "View generation target belongs to another Host.": "View generation target belongs to another Host.",
   "Next": "Next",
   "Previous": "Previous",
   "Request a view": "Request a view",
@@ -1188,6 +1189,7 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "View generation target belongs to another Host.": "뷰 생성 대상이 다른 Host에 속해 있습니다.",
   "Next": "다음",
   "Previous": "이전",
   "Request a view": "보기를 만들어 주세요",
