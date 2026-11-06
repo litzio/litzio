@@ -4,8 +4,8 @@ const log = process.argv[2];
 if (log) appendFileSync(log, JSON.stringify({ pid: process.pid, args: process.argv.slice(3) }) + "\n");
 const modes = { currentModeId: "agent", availableModes: ["agent", "plan", "autopilot", "allow-all"].map(id => ({ id, name: id === "agent" ? "Agent" : id === "plan" ? "Plan" : id })) };
 const configOptions = [{ id: "allow_all", name: "Allow All", type: "select", currentValue: "off", options: ["on", "off"].map(value => ({ value, name: value })) },
-  ...(process.argv.includes("--fixture-config") ? [{ id: "model", category: "model", name: "Model", type: "select", currentValue: "copilot-model", options: ["auto", "copilot-model"].map(value => ({ value, name: value })) }, { id: "reasoning", category: "thought_level", name: "Thought level", type: "select", currentValue: "low", options: ["low", "high"].map(value => ({ value, name: value })) }] : [])];
-const sessionState = () => ({ models: { currentModelId: "copilot-model", availableModels: [{ modelId: "copilot-model", name: "Copilot fixture model" }] }, modes, configOptions });
+  ...(process.argv.includes("--fixture-config") ? [{ id: "model", category: "model", name: "Model", type: "select", currentValue: "copilot-model", options: ["auto", "copilot-model", "max-only"].map(value => ({ value, name: value })) }, { id: "reasoning", category: "thought_level", name: "Thought level", type: "select", currentValue: "low", options: ["low", "high"].map(value => ({ value, name: value })) }] : [])];
+const sessionState = () => ({ models: { currentModelId: "copilot-model", availableModels: [{ modelId: "copilot-model", name: "Copilot fixture model" }, ...(process.argv.includes("--fixture-config") ? [{ modelId: "max-only", name: "Max only" }] : [])] }, modes, configOptions });
 const send = message => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n");
 let session = 0, pending;
 const selectedModels = new Map();
@@ -25,7 +25,9 @@ createInterface({ input: process.stdin }).on("line", line => {
   else if (method === "session/set_config_option") {
     if (params.configId === "model") {
       selectedModels.set(params.sessionId, params.value);
-      configOptions.find(option => option.id === "reasoning").options = ["low", "max"].map(value => ({ value, name: value }));
+      const reasoning = configOptions.find(option => option.id === "reasoning");
+      reasoning.options = (params.value === "max-only" ? ["max"] : ["low", "max"]).map(value => ({ value, name: value }));
+      if (params.value === "max-only") reasoning.currentValue = "max";
     }
     if (process.argv.includes("--fixture-config") && params.configId === "reasoning" && selectedModels.get(params.sessionId) === "auto") { send({ id, error: { code: -32602, message: "This model does not support reasoning_effort configuration." } }); return; }
     configOptions.find(option => option.id === params.configId).currentValue = params.value;

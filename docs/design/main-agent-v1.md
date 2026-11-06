@@ -1074,6 +1074,14 @@ from the separate catalog session. The catalog supplies initial defaults only;
 its effort list cannot veto a newly advertised conversation value. Only the CLI
 fallback uses the fixed seven-value validation. Settings defaults affect new conversations; active conversations retain
 their effort selection. ACP config updates are retained for subsequent validation.
+Model setup publishes the latest options and provider current effort to the
+conversation snapshot even when a subsequent setting is rejected. Polling can
+therefore restore choices after Auto → a model with different reasoning support.
+The composer preserves the user's requested effort across Copilot model changes;
+it does not replace it with a catalog default or automatically retry an invalid
+value. The existing choice tooltip reports the provider's current value separately.
+An invalid request retains the message draft and readable error until the user
+selects an advertised value and sends again.
 
 #1181 verification (2026-11-06): the owner observed Copilot 1.0.105 rejecting an
 Auto reasoning configuration while model/session lookup succeeded; that version's

@@ -227,6 +227,17 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
       const autoRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.params?.sessionId === auto.id);
       assert.ok(autoRpc.some(message => message.method === "session/set_config_option" && message.params.configId === "model"));
       assert.equal(autoRpc.some(message => message.method === "session/set_config_option" && message.params.configId === "reasoning"), false);
+      const turnsBeforeSwitch = auto.turns.length;
+      await assert.rejects(configConversations.send({ ...input, id: auto.id, model: "max-only", reasoningEffort: "low" }, settings), /Invalid Copilot reasoning effort/);
+      const rejected = configConversations.current(auto.id);
+      assert.equal(rejected.model, "max-only");
+      assert.equal(rejected.reasoningEffort, "max", "snapshot retains the provider's actual current value after rejection");
+      assert.deepEqual(rejected.copilot?.reasoningEfforts?.map(value => value.reasoningEffort), ["max"], "new choices survive validation failure without a notification");
+      assert.equal(rejected.turns.length, turnsBeforeSwitch, "invalid effort must not start a prompt or silently use the provider default");
+      await configConversations.send({ ...input, id: auto.id, model: "max-only", reasoningEffort: "max" }, settings);
+      await configConnection.copilot.call(async () => (await configConnection.copilot.connect()).setSessionMode({ sessionId: auto.id, modeId: "plan" }));
+      assert.ok(auto.turns.at(-1)!.items.some(item => item.kind === "assistant" && item.text === "한글 ACP answer"));
+      await configConversations.interrupt(auto.id);
     } finally { await configConnection.close(); }
   });
   assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("Do not modify existing documents"));
