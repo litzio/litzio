@@ -79,6 +79,7 @@ test("unavailable provider rejects new work with a reason; settings do not close
   assert.equal((await host.invoke("assistantConversations", { id })).turns[0], turn);
   await assert.rejects(host.invoke("assistantConversation", { action: "send", message: "New work", folders: [root], model: settings.model, reasoningEffort: settings.reasoningEffort }), /AI provider copilot is unavailable: Fixture provider unavailable/);
   await host.invoke("assistantConversation", { action: "interrupt", id });
+  await Promise.all([host.close(), host.close()]);
   await host.close();
   assert.throws(() => process.kill(pid!, 0), "daemon shutdown waits for its exact provider process");
   await assert.rejects(host.invoke("assistantConversations", {}), /closing/);
@@ -128,8 +129,11 @@ test("plugin and view services work without an assistant and survive assistant s
   assert.deepEqual((await services.plugins.invoke("pluginsList")).plugins.map((p: any) => p.id), (await (await fetch(`${url}/api/plugins`)).json()).plugins.map((p: any) => p.id));
   assert.equal((await services.views.execute({ action: "list", plugin: STATISTICS_PLUGIN_ID })).receipt.outcome, "success");
   // A service failure still lets Host shutdown close the independent runtime.
-  t.mock.method(services.assistant, "close", async () => { throw new Error("fixture close failed"); });
+  const assistantClose = t.mock.method(services.assistant, "close", async () => { throw new Error("fixture close failed"); });
+  const closing = services.close();
+  await Promise.all([assert.rejects(closing, /could not close/), assert.rejects(services.close(), /could not close/)]);
   await assert.rejects(services.close(), /could not close/);
+  assert.equal(assistantClose.mock.callCount(), 1, "all callers retain the same shutdown failure without running cleanup again");
   await assert.rejects(services.plugins.invoke("pluginsList"), /closing/);
 });
 
@@ -206,4 +210,22 @@ test("generation proposals use the admitted Host request, owner and material ide
   assert.equal(overTurn.status, "failed"); assert.match(overTurn.error, /output exceeds byte limit/);
 
 
+});
+
+
+test("assistant shutdown rejects a send still waiting for plugin startup before provider admission", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-admission-close-"));
+  const connection = new ProviderConnections(path.join(root, "assistant"));
+  let release!: () => void, entered!: () => void;
+  const waiting = new Promise<void>(resolve => { entered = resolve; });
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const plugins = { start: async () => { entered(); await gate; } } as unknown as import("../server/plugin-service.ts").PluginService;
+  const diagnostics = t.mock.method(connection, "diagnostics", async () => { throw new Error("provider admission after shutdown"); });
+  const host = createAssistantHost(null, path.join(root, "settings.json"), { agent: connection, plugins });
+  t.after(async () => { release(); await host.close(); rmSync(root, { recursive: true, force: true }); });
+  const sending = assert.rejects(host.invoke("assistantConversation", { action: "send", message: "Question", folders: [] }), /closing/);
+  await waiting;
+  await Promise.all([host.close(), host.close()]);
+  release(); await sending;
+  assert.equal(diagnostics.mock.callCount(), 0, "no provider resources may be created after close");
 });

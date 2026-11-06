@@ -232,6 +232,7 @@ test("K1 accepted work survives the RPC budget; completion, failure, stop and pr
         assert.ok(host.jobs.list().jobs[0]!.elapsedMs > 10_000);
         if (mode === "reload" || mode === "disable") await host.invoke(mode, { id: "fixture.jobs" });
         if (mode === "host-close") {
+          await Promise.all([services!.close(), services!.close()]);
           await services!.close();
           await assert.rejects(services!.plugins.invoke("pluginsList"), /closing/);
         }

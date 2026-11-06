@@ -73,6 +73,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   };
   const sendConversation = async (args: any, generationOwner?: string): Promise<any> => {
       if (args.action === "send") await plugins?.start();
+      if (closed) throw new Error("The Assistant Host is closing.");
       const currentSettings = settings();
       if (args.action === "display-result") { history().display.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
       if (args.action === "display-undo") return history().display.undo(args.id, args.displayClient, args.requestId);

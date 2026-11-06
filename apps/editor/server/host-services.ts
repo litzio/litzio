@@ -19,6 +19,7 @@ export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS) {
   const views = createViewService(access, plugins, path.join(path.dirname(paths.settingsFile("plugins")), "plugins"));
   let assistant: ReturnType<typeof createAssistantHost> | undefined;
   let closed = false;
+  let closing: Promise<void> | undefined;
   return {
     resetPaths: resetHostPaths(paths),
     plugins, views,
@@ -26,11 +27,13 @@ export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS) {
       if (closed) throw new Error("The Host is closing.");
       return assistant ??= createAssistantHost(access, undefined, { plugins, paths });
     },
-    async close() {
+    close() {
       closed = true;
-      const results = await Promise.allSettled([Promise.resolve().then(() => assistant?.close()), Promise.resolve().then(() => plugins.close())]);
-      const errors = results.flatMap(result => result.status === "rejected" ? [result.reason] : []);
-      if (errors.length) throw new AggregateError(errors, "Host services could not close.");
+      return closing ??= (async () => {
+        const results = await Promise.allSettled([Promise.resolve().then(() => assistant?.close()), Promise.resolve().then(() => plugins.close())]);
+        const errors = results.flatMap(result => result.status === "rejected" ? [result.reason] : []);
+        if (errors.length) throw new AggregateError(errors, "Host services could not close.");
+      })();
     },
   };
 }
