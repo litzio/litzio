@@ -261,6 +261,20 @@ test("transmission receipts retain full paged payloads and survive partial stora
     diskFull.invoke({ action: "delete", id: partial.entries[0].id });
     assert.deepEqual((diskFull.invoke() as any).entries, []);
   } finally { mocked.mock.restore(); syncBuiltinESMExports(); }
+  const concurrent = new AssistantTransmissionLog(path.join(root, "concurrent-delete"));
+  const concurrentWrite = t.mock.method(fs, "writeFileSync", ((file: any, data: any, options: any) => {
+    if (String(file).startsWith(concurrent.directory) && String(file).endsWith(".json.tmp")) {
+      const id = path.basename(String(file)).slice(0, 36);
+      new AssistantTransmissionLog(concurrent.directory).invoke({ action: "delete", id });
+    }
+    return originalWrite(file, data, options);
+  }) as typeof fs.writeFileSync);
+  syncBuiltinESMExports();
+  try {
+    observeTransmission(concurrent.record, { provider: "codex", method: "turn/start" }, payload);
+    assert.deepEqual((concurrent.invoke() as any).entries, [], "a CLI deletion between admission and metadata publication wins");
+    assert.equal(fs.readdirSync(concurrent.directory).filter(name => !name.endsWith(".deleted")).length, 0);
+  } finally { concurrentWrite.mock.restore(); syncBuiltinESMExports(); }
   const observerEvents: string[] = [];
   const isolated = observeTransmission(event => { observerEvents.push((event.payload as any).text); (event.payload as any).text = "observer mutation"; }, { provider: "codex", method: "turn/start" }, payload);
   isolated("acknowledged");

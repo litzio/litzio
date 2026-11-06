@@ -24,6 +24,12 @@ export class AssistantTransmissionLog {
         writeFileSync(temporary, JSON.stringify({ ...metadata, complete: existsSync(body) }), { mode: 0o600 });
         renameSync(temporary, file);
       } finally { if (existsSync(temporary)) unlinkSync(temporary); }
+      // A separate CLI process can delete while synchronous writes are in progress.
+      // Recheck after publication so that a completed deletion cannot be resurrected.
+      if (existsSync(path.join(this.directory, `${event.id}.deleted`))) {
+        if (existsSync(body)) unlinkSync(body);
+        if (existsSync(file)) unlinkSync(file);
+      }
     } catch { this.failures++; } // Disk full/permissions must never mask provider execution.
   };
   invoke(args: { action?: string; id?: string; offset?: number; conversationId?: string } = {}) {
@@ -31,12 +37,18 @@ export class AssistantTransmissionLog {
     if (args.offset !== undefined && (!Number.isSafeInteger(args.offset) || args.offset < 0)) throw new Error("Invalid transmission offset.");
     if (action === "list") {
       const entries: Omit<AssistantTransmission, "payload">[] = [];
-      if (existsSync(this.directory)) for (const name of readdirSync(this.directory).filter(name => /^[0-9a-f-]{36}\.json$/.test(name))) {
-        try { const entry = JSON.parse(readFileSync(path.join(this.directory, name), "utf8")); if (!args.conversationId || entry.conversationId === args.conversationId) { const { sources: _sources, ...summary } = entry; entries.push(summary); } }
-        catch { this.failures++; }
-      }
       const names = existsSync(this.directory) ? readdirSync(this.directory) : [];
-      const incomplete = names.filter(name => /^[0-9a-f-]{36}\.body(\.tmp)?$/.test(name) && !names.includes(`${name.slice(0, 36)}.json`)).map(name => name.slice(0, 36));
+      const incomplete = names.filter(name => /^[0-9a-f-]{36}\.(body(\.tmp)?|json\.tmp)$/.test(name)
+        && !names.includes(`${name.slice(0, 36)}.json`)).map(name => name.slice(0, 36));
+      for (const name of names.filter(name => /^[0-9a-f-]{36}\.json$/.test(name))) {
+        try {
+          const entry = JSON.parse(readFileSync(path.join(this.directory, name), "utf8"));
+          if (!args.conversationId || entry.conversationId === args.conversationId) {
+            const { sources: _sources, ...summary } = entry;
+            entries.push(summary);
+          }
+        } catch { this.failures++; incomplete.push(name.slice(0, 36)); }
+      }
       return { incomplete: [...new Set(incomplete)], entries: entries.sort((a, b) => b.at - a.at).slice(args.offset ?? 0, (args.offset ?? 0) + 50), nextOffset: (args.offset ?? 0) + 50 < entries.length ? (args.offset ?? 0) + 50 : null, failures: this.failures,
         scope: "Litzio sends only; provider internal history and final model input are unobserved. Retained until deleted on this Host." };
     }
