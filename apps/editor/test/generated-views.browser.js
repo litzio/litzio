@@ -445,6 +445,23 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     await assistantCard.scrollIntoViewIfNeeded();
     await page.screenshot({ path: `tmp/d4-evidence/card-${width}.png` });
   }
+  if (screenshots) {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await panel.getByRole('button', { name: 'Close assistant' }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByTestId('theme').selectOption('dark');
+    await page.getByTestId('ui-language').selectOption('ko');
+    await page.keyboard.press('Escape');
+    await page.getByTestId('settings-dialog').waitFor({ state: 'detached' });
+    await page.getByRole('button', { name: '비서', exact: true }).click();
+    await expect(panel.getByRole('textbox', { name: '비서에게 메시지' })).toBeEnabled();
+    await expect(assistantCard).toBeVisible();
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await assistantCard.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `tmp/d4-evidence/card-ko-dark-${width}.png` });
+    }
+  }
   pluginFixture.cli(['plugins', 'disable', 'fixture.issues']);
   return { favorite, root, rows, captureEnvironment, providers: sends.map(send => send.provider) };
 }

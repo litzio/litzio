@@ -37,6 +37,11 @@ export function collectViewMaterials(input: AssistantConversationInput, referenc
     for (const part of item.toolResult.contentItems) {
       if (part.type !== "inputText" || !part.text) continue;
       let result: any; try { result = JSON.parse(part.text); } catch { continue; }
+      if (part === item.toolResult.contentItems.at(-1) && result?.viewProvenance?.kind === "reference" && Object.keys(result).length === 1) {
+        const supplied = provenanceSchema.safeParse(result.viewProvenance);
+        if (supplied.success) add({ provenance: supplied.data, text: item.toolResult.contentItems.filter(part => part.type === "inputText" && part.text).map(part => part.text).join("\n") });
+        continue;
+      }
       const receipt = result?.receipt;
       if (receipt?.outcome !== "success" || typeof receipt.operation !== "string" || !context || receipt.operation.startsWith("view.")) continue;
       const provenance = provenanceSchema.safeParse({ kind: "tool", label: receipt.operation, refId: item.id, hostId: context.hostId, operation: receipt.operation, requestId: receipt.requestId });

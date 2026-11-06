@@ -109,7 +109,7 @@ export class AssistantConversations {
         : executeDocumentTool(params.tool, params.arguments, templateScope);
       const text = JSON.stringify(result);
       const dataRead = ["read_document", "list_documents", "read_template", "list_templates"].includes(params.tool) || params.tool === "manage_plugins" && params.arguments?.action === "invoke";
-      const provenance = dataRead ? provenanceSchema.parse({ kind: "reference", label: params.tool, refId: randomUUID() }) : undefined;
+      const provenance = dataRead && !(result && typeof result === "object" && "error" in result && result.error) ? provenanceSchema.parse({ kind: "reference", label: params.tool, refId: randomUUID() }) : undefined;
       if (provenance) {
         const materials = this.viewMaterials.get(params.threadId) ?? [];
         if (Buffer.byteLength(JSON.stringify([...materials, { provenance, text }]), "utf8") > VIEW_GENERATION_CONTEXT_BYTES || materials.length >= 64) throw new Error("View material exceeds context limit.");

@@ -280,3 +280,10 @@ stdio envelopes and the existing correction/cancellation state machine. The new 
 case protects the read boundary, rather than duplicating Core row-schema cases. The card browser
 case checks complete-row pagination and visible provenance with a synthetic assistant source;
 this is fixture evidence, not actual AI, external service or multi-destination product acceptance.
+
+D4 independent verification on 2026-11-06: provider/view-generation/assistant-host target
+checks passed (32 cases); the material case also checks reuse of Host-issued read-result
+references. Production HTTP fixture and the runner's recovery case passed. Manual captures
+at 1440px and 640px include Korean dark mode; card-local vertical panel markup fixes an
+observed horizontal details layout without changing shared assistant-result CSS. D2/D3
+integration, actual AI, remote Host and final saved-data acceptance remain unverified.

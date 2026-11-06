@@ -203,10 +203,11 @@ test("view materials combine checked documents and completed public tool receipt
     files.forEach((file, index) => writeFileSync(file, `Revenue: ${index + 1}`));
     const input = { message: "Combine", model: "selected", reasoningEffort: "low", folders: [root], viewContext: { owner: "litzio.assistant", hostId: "host-a", roots: [{ path: root, id: "root-a" }] } };
     const conversation = { turns: [{ status: "completed", items: [{ id: "tool-a", kind: "tool", toolResult: { success: true, contentItems: [{ type: "inputText", text: JSON.stringify({ rows: [{ rate: 2 }], receipt: { outcome: "success", operation: "example.rates", requestId: "request-a" } }) }] } }] }] } as AssistantConversation;
+    conversation.turns[0].items.push({ id: "read-a", kind: "tool", status: "completed", text: "read_document", toolResult: { success: true, contentItems: [{ type: "inputText", text: JSON.stringify({ source: "Previously read material" }) }, { type: "inputText", text: JSON.stringify({ viewProvenance: { kind: "reference", label: "Read document", refId: "read-reference" } }) }] } });
     const references = files.map(file => ({ path: file, name: path.basename(file), kind: "native" }));
     const materials = collectViewMaterials(input, references, [root], null, conversation);
-    assert.equal(materials.length, 3);
-    assert.deepEqual(materials.map(item => item.provenance.kind), ["document", "document", "tool"]);
+    assert.equal(materials.length, 4);
+    assert.deepEqual(materials.map(item => item.provenance.kind), ["document", "document", "tool", "reference"]);
     assert.equal(materials[0].text, "Revenue: 1");
     assert.equal(materials[0].provenance.kind === "document" && materials[0].provenance.path, "a.md");
     writeFileSync(files[0], "Changed later");
