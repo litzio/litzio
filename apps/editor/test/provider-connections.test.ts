@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { CodexAppServer, LineDecoder } from "../server/codex-app-server.ts";
 import { ProviderConnections, ASSISTANT_INSTRUCTIONS, LITZIO_GUIDE } from "../server/provider-connections.ts";
 import { AssistantConversations } from "../server/assistant-conversations.ts";
-import { RootAccess } from "../server/file-access.ts";
+import { RootAccess, fileErrorMessage } from "../server/file-access.ts";
 
 export const fakeServer = fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url));
 
@@ -61,6 +61,23 @@ test("view proposals pass the finite catalog through both stdio adapters with ch
     assert.equal(JSON.stringify(history).includes('"catalog"'), false);
   }
 
+  // Current document is context identity only; explicit attachments supply material bytes.
+  for (const provider of ["codex", "copilot"] as const) {
+    const input = { provider, model: provider === "codex" ? settings.model : "copilot-model", reasoningEffort: provider === "codex" ? "medium" : "low", folders: [root], document: {path: attached[0]!}, message: "Use ordinary chat", viewContext: {owner:"litzio.assistant",hostId:"local",roots:[]} };
+    for (const references of [[], [attached[1]!]]) {
+      const ordinary = await conversations.send({...input,references},settings);
+      await conversations.interrupt(ordinary.id);
+      if (provider === "copilot") await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({sessionId:ordinary.id,modelId:input.model}));
+      const log = readFileSync(provider === "codex" ? codexLog : copilotLog,"utf8").trim().split("\n").map(line=>JSON.parse(line));
+      const call = log.filter(call=>call.method === (provider === "codex" ? "turn/start" : "session/prompt")).at(-1);
+      const text = provider === "codex" ? call.params.input[1].text : call.params.prompt[0].text;
+      const context = JSON.parse(text.split("(JSON):\n")[1]);
+      assert.deepEqual(context.document,{path:attached[0]});
+      assert.deepEqual(context.viewAuthoring.materials.map((item:any)=>item.text),references.length ? ["Revenue B: 200"] : []);
+      assert.equal(text.includes("Revenue A: 100"),false,"unattached current document bytes are not sent");
+    }
+  }
+
   // Reuse the two existing adapter children: ordinary image transport is independent of view text snapshots.
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
   const image = path.join(root,"ordinary.png"); writeFileSync(image,png);
@@ -87,6 +104,20 @@ test("view proposals pass the finite catalog through both stdio adapters with ch
     if(provider==="copilot") await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({sessionId:supported.id,modelId:input.model}));
   });
 
+});
+
+test("Copilot session creation errors retain a readable message across the Host error boundary", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "copilot-error-"));
+  const connection = new ProviderConnections(path.join(root, "assistant"), undefined, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), "", "--fixture-session-error"] });
+  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
+  await assert.rejects(connection.models("copilot"), error => {
+    assert.ok(error instanceof Error, "Host boundaries require Error to preserve the message instead of [object Object]");
+    assert.equal(error.message, "Copilot session fixture failure");
+    assert.equal(fileErrorMessage(error, null), "Copilot session fixture failure");
+    assert.equal(fileErrorMessage(error, new RootAccess([root])), "Copilot session fixture failure");
+    assert.equal(String(error).includes("must-not-be-displayed"), false);
+    return true;
+  });
 });
 
 test("Copilot ACP lists its models, streams one turn, applies permission scope, cancels and reports a failed turn", async t => {
@@ -191,15 +222,39 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   await t.test("live config choices override the separate catalog", async () => {
     try {
       const configConversations = new AssistantConversations(configConnection, new RootAccess([root]));
-      const configConversation = await configConversations.send({ ...input, reasoningEffort: "low" }, settings);
+      const configConversation = await configConversations.send({ ...input, model: "copilot-model", reasoningEffort: "low" }, settings);
       assert.deepEqual(configConversation.copilot?.reasoningEfforts?.map(value => value.reasoningEffort), ["low", "max"]);
       assert.deepEqual((await configConnection.models("copilot")).models[0]!.supportedReasoningEfforts.map(value => value.reasoningEffort), ["low", "high"]);
       await configConversations.interrupt(configConversation.id);
       await configConnection.copilot.call(async () => (await configConnection.copilot.connect()).setSessionMode({ sessionId: configConversation.id, modeId: "plan" }));
-      await configConversations.send({ ...input, id: configConversation.id, reasoningEffort: "max" }, settings);
+      await configConversations.send({ ...input, model: "copilot-model", id: configConversation.id, reasoningEffort: "max" }, settings);
       await configConversations.interrupt(configConversation.id);
       const configRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
       assert.ok(configRpc.some(message => message.method === "session/set_config_option" && message.params.configId === "reasoning" && message.params.value === "max"));
+      const auto = await configConversations.send({ ...input, model: "auto", reasoningEffort: "low" }, settings);
+      await configConnection.copilot.call(async () => (await configConnection.copilot.connect()).setSessionMode({ sessionId: auto.id, modeId: "plan" }));
+      assert.ok(auto.turns[0]!.items.some(item => item.kind === "assistant" && item.text === "한글 ACP answer"));
+      assert.equal(auto.copilot?.reasoningEffortSource, "config");
+      assert.deepEqual(auto.copilot?.reasoningEfforts, []);
+      await configConversations.interrupt(auto.id);
+      await configConnection.copilot.call(async () => (await configConnection.copilot.connect()).setSessionMode({ sessionId: auto.id, modeId: "plan" }));
+      await configConversations.send({ ...input, id: auto.id, model: "auto", reasoningEffort: "low" }, settings);
+      await configConversations.interrupt(auto.id);
+      await configConnection.copilot.call(async () => (await configConnection.copilot.connect()).setSessionMode({ sessionId: auto.id, modeId: "plan" }));
+      const autoRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line)).filter(message => message.params?.sessionId === auto.id);
+      assert.ok(autoRpc.some(message => message.method === "session/set_config_option" && message.params.configId === "model"));
+      assert.equal(autoRpc.some(message => message.method === "session/set_config_option" && message.params.configId === "reasoning"), false);
+      const turnsBeforeSwitch = auto.turns.length;
+      await assert.rejects(configConversations.send({ ...input, id: auto.id, model: "max-only", reasoningEffort: "low" }, settings), /Invalid Copilot reasoning effort/);
+      const rejected = configConversations.current(auto.id);
+      assert.equal(rejected.model, "max-only");
+      assert.equal(rejected.reasoningEffort, "max", "snapshot retains the provider's actual current value after rejection");
+      assert.deepEqual(rejected.copilot?.reasoningEfforts?.map(value => value.reasoningEffort), ["max"], "new choices survive validation failure without a notification");
+      assert.equal(rejected.turns.length, turnsBeforeSwitch, "invalid effort must not start a prompt or silently use the provider default");
+      await configConversations.send({ ...input, id: auto.id, model: "max-only", reasoningEffort: "max" }, settings);
+      await configConnection.copilot.call(async () => (await configConnection.copilot.connect()).setSessionMode({ sessionId: auto.id, modeId: "plan" }));
+      assert.ok(auto.turns.at(-1)!.items.some(item => item.kind === "assistant" && item.text === "한글 ACP answer"));
+      await configConversations.interrupt(auto.id);
     } finally { await configConnection.close(); }
   });
   assert.ok(rpc.find(message => message.method === "session/prompt").params.prompt[0].text.includes("Do not modify existing documents"));

@@ -295,6 +295,8 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
   const effortHelp = copilot?.reasoningEffortSource === "cli"
     ? "Copilot CLI reasoning effort is fixed for a conversation. Start a new conversation to change it."
     : "Model, reasoning effort and mode changes apply to the next message.";
+  const currentEffortHelp = copilot?.reasoningEffortSource === "config" && copilot.reasoningEfforts?.length && conversation?.model === model
+    ? i18n.t("Current model reasoning effort: {{value}}.", { value: i18n.t(conversation.reasoningEffort as MessageKey) }) : "";
   const catalogModel = models?.models.find(value => value.model === model);
   const resultPaths = [...new Set(conversation?.turns.flatMap(turn => turn.items.flatMap(item => {
     const result = createdDocument(item); return result ? [result.path] : [];
@@ -494,9 +496,9 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
           }} />
 
         <AssistantChoice label={i18n.t("Model")} value={catalogModel?.displayName ?? model} help={catalogModel?.description || i18n.t(effortHelp)} disabled={active || pending || !models} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={model} options={models?.models.map(value => ({ value: value.model, label: value.displayName })) ?? []}
-          onSelect={selection => { const value = models!.models.find(model => model.model === selection)!; setModel(value.model); if (!conversation || copilot?.reasoningEffortSource !== "cli") setEffort(value.defaultReasoningEffort); }} />
+          onSelect={selection => { const value = models!.models.find(model => model.model === selection)!; setModel(value.model); if (!conversation || provider === "codex") setEffort(value.defaultReasoningEffort); }} />
 
-        <AssistantChoice label={i18n.t("Reasoning effort")} value={i18n.t(effort as MessageKey)} help={i18n.t(effortHelp)} disabled={active || pending || !catalogModel || !!conversation && copilot?.reasoningEffortSource === "cli"} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={effort} options={(copilot?.reasoningEfforts ?? catalogModel?.supportedReasoningEfforts)?.map(value => ({ value: value.reasoningEffort, label: i18n.t(value.reasoningEffort as MessageKey) })) ?? []} onSelect={setEffort} />
+        {copilot?.reasoningEfforts?.length !== 0 && <AssistantChoice label={i18n.t("Reasoning effort")} value={i18n.t(effort as MessageKey)} help={[i18n.t(effortHelp), currentEffortHelp].filter(Boolean).join(" ")} disabled={active || pending || !catalogModel || !!conversation && copilot?.reasoningEffortSource === "cli"} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={effort} options={(copilot?.reasoningEfforts ?? catalogModel?.supportedReasoningEfforts)?.map(value => ({ value: value.reasoningEffort, label: i18n.t(value.reasoningEffort as MessageKey) })) ?? []} onSelect={setEffort} />}
 
         <AssistantChoice label={i18n.t("Write access")} value={i18n.t(permissionMode === "full-access" ? "Full access" : permissionMode === "read-only" ? "Read-only" : "Opened folders")}
           help={i18n.t("Full access removes the sandbox and automatically approves tools, paths and network access. Existing documents must still be proposed in text.")} disabled={active || pending || !settings} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={permissionMode} options={[
@@ -505,7 +507,7 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
 
         {provider === "copilot" && copilot?.modes.length ? <AssistantChoice label={i18n.t("Session mode")} value={copilot.modes.find(value => value.id === mode)?.name ?? mode} help={i18n.t("Model, reasoning effort and mode changes apply to the next message.")} disabled={active || pending} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={mode} options={copilot.modes.map(value => ({ value: value.id, label: value.name }))} onSelect={setMode} /> : null}
       </div>
-        {onGeneratedView ? <div className="assistant-view-controls">{viewFavorites}<select aria-label={i18n.t("View folder")} disabled={pending || active} value={folders.includes(viewRoot) ? viewRoot : folders[0] ?? ""} onChange={event => setViewRoot(event.target.value)} className="settings-select" ><option value="">{i18n.t("Choose a folder")}</option>{folders.map(folder => <option key={folder} value={folder}>{pathName(folder)}</option>)}</select><Button type="button" variant="secondary" size="sm" disabled={pending || active || !ready || !model || !message.trim() || !!setup} onClick={() => void proposeView()}>{i18n.t("Generate view")}</Button></div> : null}
+        {onGeneratedView ? <div className="assistant-view-controls">{viewFavorites}<select aria-label={i18n.t("View folder")} disabled={pending || active} value={folders.includes(viewRoot) ? viewRoot : folders[0] ?? ""} onChange={event => setViewRoot(event.target.value)} className="settings-select" ><option value="">{i18n.t("Choose a folder")}</option>{folders.map(folder => <option key={folder} value={folder}>{pathName(folder)}</option>)}</select></div> : null}
       <div className="assistant-footer">
 
         <Tooltip><TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>

@@ -37,7 +37,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     { name: "reading.md", create: () => nativeSource("# Reading document\n\n(section-one)=\n## Section one\n\nRead this [link](https://example.com) and $x+1$. Note[^detail]. Reference {eq}`eq-one`. Citation {cite}`missing`.\n\n```{math}\n:label: eq-one\nx=1\n```\n\n:::{figure} ./diagram.svg\n:name: fig-one\n:alt: Diagram\n\nImage caption\n:::\n\n:::{table} Table caption\n:name: tbl-one\n\n| Header |\n| --- |\n| Cell |\n:::\n\n:::{figure}\n:name: fig-flow\n\n```{mermaid}\ngraph LR\n  A --> B\n```\n\nFlow caption\n:::\n\n```python\nprint('reading')\n```\n\n[^detail]: Reading preview content.\n") },
     { name: "other.md", create: () => nativeSource("# Other document\n\nIndependent editing session.\n") },
     document("diagram.svg"),
-  ], scenarios: ["read-view", "heading-levels"] },
+  ], scenarios: ["read-view", "heading-levels", "document-scroll"] },
   "text-mode": { files: [
     document("diagram.svg"),
     { name: "foreign.md", create: () => "# 일반 Markdown\n\n**서식이 아닌 텍스트**와 <kbd>Ctrl</kbd>\n\n| Header |\n| --- |\n| Cell |\n\n![Diagram](diagram.svg)\n\n- [x] Done\n\n$x+1$ and note[^a].\n\n[^a]: Footnote.\n" },

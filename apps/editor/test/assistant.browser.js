@@ -218,6 +218,12 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
         if (!body.id) { selected = { provider: body.provider ?? settings.provider, permissionMode: body.permissionMode ?? settings.permissionMode, id: 'thread-' + (++sequence), title: body.message, folders: body.folders, createdAt: 1793590000000,
           updatedAt: 1793590000000, model: body.model, reasoningEffort: body.reasoningEffort, turns: [] }; conversations.set(selected.id, selected); }
         else { selected = conversations.get(body.id); if (!selected.turns.some(turn => turn.status === 'inProgress')) selected.permissionMode = body.permissionMode ?? selected.permissionMode; }
+        if (body.message === 'After provider switch') selected.copilot = { ...copilotOptions, reasoningEffortSource: 'config', reasoningEfforts: [] };
+        if (body.message === 'Recover supported model') {
+          selected.model = body.model; selected.reasoningEffort = 'max';
+          selected.copilot = { ...copilotOptions, reasoningEffortSource: 'config', reasoningEfforts: [{ reasoningEffort: 'max' }] };
+          if (body.reasoningEffort !== 'max') return route.fulfill({ status: 400, json: { error: 'Invalid Copilot reasoning effort for this session.' } });
+        }
         let turn = selected.turns.find(turn => turn.status === 'inProgress');
         if (!turn) { turn = { id: 'turn-' + sent.length, status: 'inProgress', items: [] }; selected.turns.push(turn); }
         turn.items.push({ id: 'user-' + sent.length, kind: 'user', text: body.message, references: [...(body.references ?? []).map(path => ({ path, name: path.split(/[\\/]/).pop(), kind: 'file' })), ...(body.skills ?? []).map(skill => ({ ...skill, kind: 'skill' }))] });
@@ -889,15 +895,59 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   await panel.getByRole('button', { name: 'New conversation' }).click();
   await panel.getByRole('button', { name: 'Session mode settings', exact: true }).click();
   await page.getByRole('menuitem', {name: 'Plan', exact: true}).click();
+  await panel.getByRole('button', { name: 'Reasoning effort settings', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'high', exact: true }).click();
   await panel.getByRole('textbox').fill('After provider switch');
   await panel.getByRole('textbox').press('Enter');
   await expect(panel.getByText('After provider switch', { exact: true })).toBeVisible();
   expect(sent.at(-1).model).toBe('auto');
   expect(sent.at(-1).mode).toBe('plan');
-  expect(sent.at(-1).reasoningEffort).toBe('medium');
+  expect(sent.at(-1).reasoningEffort).toBe('high');
   expect(sent.at(-1).id).toBeUndefined();
   expect(sent.at(-1).skills).toEqual([]);
   await expect(panel.getByRole('alert')).toHaveCount(0);
+  if (screenshots) {
+    await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Appearance & language', exact: true }).click();
+    await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.screenshot({ path: `tmp/1181/evidence/copilot-${width}-dark-ko.png` });
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
+    await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Assistant', exact: true }).click();
+  }
+  await expect(panel.getByRole('button', { name: 'Reasoning effort settings', exact: true })).toHaveCount(0);
+  await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
+  await panel.getByRole('button', { name: 'Model settings', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Copilot fixture model', exact: true }).click();
+  await panel.getByRole('textbox').fill('Recover supported model');
+  await panel.getByRole('textbox').press('Enter');
+  await expect(panel.getByRole('alert')).toHaveText('Invalid Copilot reasoning effort for this session.');
+  await expect(panel.getByRole('textbox')).toHaveValue('Recover supported model');
+  const recoveredEffort = panel.getByRole('button', { name: 'Reasoning effort settings', exact: true });
+  await expect(recoveredEffort).toBeVisible();
+  if (screenshots) {
+    await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Appearance & language', exact: true }).click();
+    await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await panel.screenshot({ path: `tmp/1181/review-capture/recovery-${width}-dark-ko.png` });
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
+    await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Assistant', exact: true }).click();
+  }
+  await expect(recoveredEffort).toHaveText('high');
+  expect(sent.at(-1).reasoningEffort).toBe('high');
+  await recoveredEffort.hover();
+  await expect(page.getByText('Reasoning effort: Model, reasoning effort and mode changes apply to the next message. Current model reasoning effort: max.', { exact: true })).toBeVisible();
+  await recoveredEffort.click();
+  await page.getByRole('menuitem', { name: 'max', exact: true }).click();
+  await panel.getByRole('textbox').press('Enter');
+  await expect(panel.getByRole('textbox')).toHaveValue('');
+  await expect(panel.getByRole('alert')).toHaveCount(0);
+  expect(sent.at(-1).reasoningEffort).toBe('max');
   await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
 
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-light-en.png' });

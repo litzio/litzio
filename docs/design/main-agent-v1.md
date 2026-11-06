@@ -28,6 +28,20 @@ are defined in [Copilot conversations](#copilot-conversations-1053).
 
 > 2026-11-05 결정 개정: [ADR-0020 비서 제작 로드맵](../adr/0020-plugin-architecture.md#비서-플러그인-제작-로드맵2026-11-05-개정)은 하위 프로세스 reload·제작 키트·관리 건별 승인 제거와 활동 기록을 결정했다. 아래 매 호출 확인 등은 현재 구현의 기록이며 새 결정의 완료 증거가 아니다. 해당 구현 PR에서 함께 갱신한다.
 
+## 명시적 생성 버튼 제거 (2026-11-06)
+
+소유자 결정으로 composer의 Generate view와 전용 요청을 준비하는 Ask assistant 버튼을
+통계·생성 탭·문서 우측 보기·플러그인 화면에서 제거했다. 아래 Generate view 관련 기록은
+유지된 내부 Host/CLI 생성 기능과 과거 검증 기록이며 현재 UI 진입점을 뜻하지 않는다.
+일반 Send 대화의 view_catalog/propose_view, 검증 결과 카드·새 탭·즐겨찾기는 유지한다.
+Copilot 일반 대화에는 동적 뷰 도구가 없으며 기존 CLI 대안의 한계도 그대로다.
+
+일반 대화는 첨부하지 않은 현재 문서의 경로만 전달한다. 현재 문서 본문을 자동 snapshot으로
+수집하지 않는다. 명시적으로 첨부한 저장 UTF-8 자료와 이전의 성공한 공개 도구 결과는 선택적
+뷰 context로 전달될 수 있다. 이 context의 1 MiB/64개 출처 상한은 일반 문서 읽기의 상한이
+아니며, 초과해도 원래 첨부/도구 결과는 보존하고 뷰 context만 unavailable로 표시한다.
+전용 내부 생성 경로의 저장 현재 문서 자동 첨부와 구분한다. 사용자 데이터 migration은 없다.
+
 ## Host 대상 고정 (#1174 PR2)
 
 비서 표면은 mount 시 Host client를 고정한다. 생성·resume·poll·발화·중단·표시 결과·모델·진단 요청은 같은 client를 사용하며 활성 탭·필터를 요청 주소로 사용하지 않는다. 마지막 대화 ID도 hostId별로 기억한다. 설정 표면 역시 선택한 Host의 client를 고정한다. 연결 해제나 화면 종료가 원격 실행 취소를 뜻하지 않는다.
@@ -904,6 +918,13 @@ Chrome scenarios cover ordinary `@` text without folder queries, explicit local/
 attachment, Host mismatch rejection and remote send rejection preserving text/chips.
 Existing provider tests own limit/deduplication/RootAccess/hidden/deleted/symlink checks.
 These are HTTP fixtures and fake providers, not real OneDrive or remote OS acceptance.
+Integration with #1301/#1306 (2026-11-06) preserves the ordinary Send view-tool
+route and removal of dedicated generation buttons, Copilot model/effort rejection
+recovery without automatic retry, and this Host-bound reference draft. Existing
+`assistant`, `multi-host` and production-HTTP `generated-views` scenarios cover the
+combined paths; provider/Host unit tests retain the lower-layer checks. These are
+synthetic provider/HTTP checks, not proof of actual model answer delivery or
+OneDrive performance. The earlier #1181 live-probe limitations remain unchanged.
 
 Manual composer captures: 1440px English Light
 [Before](assets/explicit-references-1253/before-1440.png) /
@@ -932,6 +953,10 @@ Explorer menu placement and panel/control clipping at both widths. The candidate
 disappears; the existing skill picker, Explorer menu and chip presentation are unchanged.
 The eight images linked here replace the earlier masked images at the current branch
 surface. This does not establish deletion from earlier commits or external caches.
+These captures precede integration of #1306: the dedicated Generate view button
+visible in them is removed in the integrated UI; the approved Explorer/Host attachment
+layout remains unchanged. Current ordinary-Send view behavior follows the
+[#1306 contract](#명시적-생성-버튼-제거-2026-11-06).
 
 Removable chips above the input show only file names; shared Tooltip exposes the
 full path on hover/focus. No file-type-specific presentation or read indicator is
@@ -1010,10 +1035,16 @@ API, event bus or provider framework is added.
 
 Copilot uses `copilot --acp` with the user's environment and the same Litzio-owned
 cwd/AGENTS.md. The official ACP SDK owns NDJSON framing and request dispatch.
-`session/set_model` selects a returned model before `session/prompt`;
+The advertised model config option selects a returned model through
+`session/set_config_option` before `session/prompt`; its complete response replaces
+the conversation's options. Legacy sessions without a model config option use
+`session/set_model` and its config updates.
 `session/update` text/thought/tool updates feed existing panel snapshots. Prompt
 errors and disconnection mark a turn failed. Stop sends `session/cancel`;
 a second message waits until the current turn ends (no steering emulation).
+Request failures during initialization, catalog/session creation and session setup
+preserve ACP's string `message` as an Error for the existing Host error response,
+rather than displaying `[object Object]`. Provider error `data` is not serialized.
 Provider-tagged conversation indexes are filtered to the selected provider.
 Codex `/` skill selection and `skills/list` remain Codex-only; Copilot does not
 query that catalog or send Codex skill inputs.
@@ -1074,7 +1105,11 @@ for the selected mode. Each new conversation starts with Agent when advertised.
 
 A `thought_level` select (or reasoning/thought-level config ID) supplies values and
 current default, flattened from ACP option groups as in Paseo. Host applies it with
-`session/set_config_option` before the prompt. Without one, the catalog uses CLI
+`session/set_config_option` before the prompt. An advertised model config option
+without a thought-level option means that selected model has no configurable
+reasoning effort: Host sends no reasoning config and the composer hides that
+selector. It does not reinterpret a removed model option as CLI fallback.
+Legacy sessions without either a model config or thought-level option use CLI
 `none|minimal|low|medium|high|xhigh|max`, default medium, without guessing model support.
 The CLI fallback locks effort after a conversation starts; the hover explains that a
 new conversation is required. New-conversation effort or full-access launch changes
@@ -1096,6 +1131,25 @@ from the separate catalog session. The catalog supplies initial defaults only;
 its effort list cannot veto a newly advertised conversation value. Only the CLI
 fallback uses the fixed seven-value validation. Settings defaults affect new conversations; active conversations retain
 their effort selection. ACP config updates are retained for subsequent validation.
+Model setup publishes the latest options and provider current effort to the
+conversation snapshot even when a subsequent setting is rejected. Polling can
+therefore restore choices after Auto → a model with different reasoning support.
+The composer preserves the user's requested effort across Copilot model changes;
+it does not replace it with a catalog default or automatically retry an invalid
+value. The existing choice tooltip reports the provider's current value separately.
+An invalid request retains the message draft and readable error until the user
+selects an advertised value and sends again.
+
+#1181 verification (2026-11-06): the owner observed Copilot 1.0.105 rejecting an
+Auto reasoning configuration while model/session lookup succeeded; that version's
+config event history was not recorded. A later owner check on 1.0.106 observed
+reasoning disappearing after Auto selection. These are distinct observations.
+Fake stdio regressions cover supported-model effort updates and Auto's removed
+option, plus readable RPC errors without provider data. A separate local PATH
+1.0.106 probe completed a minimal Auto prompt with no received assistant text;
+it is not evidence of successful real answer delivery. No account/default settings
+were changed. The composer reuses the existing AssistantChoice Button/menu pattern
+and omits unavailable choices; no new surface or UI pattern exception is added.
 
 The original #1091 manual review used SettingsSelect and composer Button/Popover with no
 new common implementation or UI exception. Korean Dark, 1440×1000 and 640×1000,

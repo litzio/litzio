@@ -36,8 +36,8 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
       sends.push(body);
       if (!body.id) conversation = { id: `thread-${body.provider}`, provider: body.provider, model: body.model, reasoningEffort: body.reasoningEffort, folders: [], title: 'View proposal', createdAt: 0, updatedAt: 0, turns: [] };
       const spec = JSON.parse(JSON.stringify(proposal));
-      if (sends.length === 1) spec.layout.children[0].columns = ['authorEmail'];
-      if (!body.viewGeneration) spec.title = 'Chat proposed view';
+
+      if (body.message === 'Make a common view in ordinary chat.') spec.title = 'Chat proposed view';
       conversation.turns.push({ id: `turn-${sends.length}`, status: delayPoll ? 'inProgress' : 'completed', items: [{ id: `user-${sends.length}`, kind: 'user', text: body.message, ...(body.viewGeneration ? { viewGeneration: { correction: body.viewGenerationCorrection ?? 0 } } : {}) }, { id: `answer-${sends.length}`, ...(body.viewGeneration ? { kind: 'assistant', text: JSON.stringify(spec) } : { kind: 'tool', text: 'propose_view', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ view: spec, receipt: { operation: 'view.propose', outcome: 'success' } }) }] } }) }] });
     }
     if (body.action === 'send' && !body.viewGeneration) conversation.turns.at(-1).items.push({ id: `spec-${sends.length}`, kind: 'assistant', text: JSON.stringify(proposal) });
@@ -107,10 +107,13 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
   await page.getByRole('button', { name: 'Assistant', exact: true }).click();
   const panel = page.getByTestId('assistant-panel');
   await panel.getByRole('textbox', { name: 'Message assistant' }).fill('Show document totals as a table and bar chart grouped by folder.');
-  await panel.getByRole('button', { name: 'Generate view', exact: true }).click();
+  await panel.getByRole('button', { name: 'Send message', exact: true }).click();
   const generated = () => page.locator('[data-testid="generated-view"]:visible');
   const card = panel.getByTestId('assistant-view-result');
-  await expect(card).toBeVisible(); expect(validates).toBe(2);
+  await expect(card).toBeVisible();
+  expect(sends[0].viewGeneration).toBeUndefined();
+  await expect(page.getByRole('button', {name: 'Generate view', exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button', {name: 'Ask assistant', exact:true})).toHaveCount(0);
   await expect(panel.getByRole('group', { name: 'Your message' })).toHaveCount(1);
   await expect(panel.getByRole('group', { name: 'Your message' })).not.toContainText('Return a corrected');
   await expect(panel.locator('pre:visible')).toHaveCount(0);
@@ -123,9 +126,8 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
   if (screenshots) { await card.scrollIntoViewIfNeeded(); await page.screenshot({ path: 'tmp/1218-evidence/result-card-1440.png' }); }
   await card.getByRole('button', { name: 'Open view', exact: true }).click();
   await expect(generated()).toBeVisible(); expect(queries).toBe(beforeCardOpen);
-  if (screenshots) await page.screenshot({ path: 'tmp/1218-evidence/result-tab-1440.png' }); expect(sends.length).toBe(2);
-  expect(sends[0].model).toBe('gpt-6-luna'); expect(sends[1].id).toBe('thread-codex'); expect(sends[1].model).toBe(sends[0].model);
-  await expect(panel.getByTestId('assistant-view-result')).toContainText('Corrections: 1/2');
+  if (screenshots) await page.screenshot({ path: 'tmp/1218-evidence/result-tab-1440.png' }); expect(sends.length).toBe(1);
+  expect(sends[0].model).toBe('gpt-6-luna'); expect(validates).toBe(1);
   if (await panel.isVisible()) await panel.getByRole('button', { name: 'Close assistant' }).click();
   await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
   await expect(generated().locator('tbody tr')).not.toHaveCount(0); const rows = latestRows;
@@ -217,17 +219,6 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: 'Assistant', exact: true }).click();
   await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
-  await panel.getByRole('button', { name: 'AI provider settings', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'GitHub Copilot', exact: true }).click();
-  await panel.getByRole('textbox', { name: 'Message assistant' }).fill('Show folder document totals');
-  await panel.getByRole('button', { name: 'Generate view', exact: true }).click();
-  await expect.poll(() => sends.at(-1)?.provider).toBe('copilot');
-  await expect(panel.getByTestId('assistant-view-result')).toContainText('View validated');
-  expect(sends.at(-1).model).toBe('copilot-selected');
-  if (screenshots) { await panel.getByTestId('assistant-view-result').scrollIntoViewIfNeeded(); await page.screenshot({ path: 'tmp/1218-evidence/result-card-no-correction-1440.png' }); }
-  await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
-  await panel.getByRole('button', { name: 'AI provider settings', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Codex', exact: true }).click();
   await panel.getByRole('textbox', { name: 'Message assistant' }).fill('Make a common view in ordinary chat.');
   const chatQueryCount = queries;
   await panel.getByRole('button', { name: 'Send message', exact: true }).click();
@@ -236,31 +227,6 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
   await panel.getByTestId('assistant-view-result').getByRole('button', { name: 'Open view', exact: true }).click();
   await expect(page.getByRole('tab', { name: 'Chat proposed view', exact: true })).toBeVisible();
   expect(queries).toBe(chatQueryCount);
-  // Stop must free the composer/model/new-conversation controls while a GET remains held.
-  await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
-  await expect(panel.getByRole('button', { name: 'New conversation', exact: true })).toBeEnabled();
-  let releasePoll, pollStarted = false, pollDelivered = false;
-  const pollGate = new Promise(resolve => { releasePoll = resolve; });
-  await page.route('**/api/assistant/conversations*', async route => {
-    if (route.request().method() !== 'GET' || !route.request().url().includes('?id=')) return route.fallback();
-    pollStarted = true; const late = JSON.parse(JSON.stringify(conversation)); await pollGate;
-    late.turns.at(-1).status = 'completed';
-    try { await route.fulfill({ json: late }); } finally { pollDelivered = true; }
-  });
-  delayPoll = true;
-  await panel.getByRole('textbox', { name: 'Message assistant' }).fill('Hold this proposal');
-  await panel.getByRole('button', { name: 'Generate view', exact: true }).click();
-  await expect.poll(() => pollStarted).toBe(true);
-  const abortedPoll = page.waitForEvent('requestfailed', request => request.url().includes('/api/assistant/conversations?id='));
-  await panel.getByRole('button', { name: 'Stop response', exact: true }).click();
-  await abortedPoll;
-  await expect(panel.getByRole('textbox', { name: 'Message assistant' })).toBeEnabled();
-  await expect(panel.getByRole('button', { name: 'Model settings', exact: true })).toBeEnabled();
-  await expect(panel.getByRole('button', { name: 'New conversation', exact: true })).toBeEnabled();
-  const tabsAfterStop = await page.locator('.document-tabs [role="tab"]').count();
-  await panel.getByRole('button', { name: 'New conversation', exact: true }).click();
-  releasePoll(); await expect.poll(() => pollDelivered).toBe(true);
-  await expect(page.locator('.document-tabs [role="tab"]')).toHaveCount(tabsAfterStop);
   // User interaction coverage for the shared query renderer.
   if (await panel.isVisible()) await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
   await page.keyboard.press('Control+Slash'); await page.getByRole('combobox').fill('> fixture.issues: Fixture issues Open view');
@@ -455,7 +421,7 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
     layout: { component: 'Panel', direction: 'vertical', children: [{ component: 'Table', title: '예시: 합계', source: 'stats', data: '/rows', columns: ['month', 'total'] }] } };
   if (!await panel.isVisible()) await page.getByRole('button', { name: 'Assistant', exact: true }).click();
   await panel.getByRole('textbox', { name: 'Message assistant' }).fill('Combine the attached document totals.');
-  await panel.getByRole('button', { name: 'Generate view', exact: true }).click();
+  await panel.getByRole('button', { name: 'Send message', exact: true }).click();
   const assistantCard = panel.getByTestId('assistant-view-result').last();
   await expect(assistantCard).toContainText('예시: 두 문서 합계');
   await expect(assistantCard).toContainText('Assistant content may be inaccurate.');
@@ -473,31 +439,6 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
   await page.getByRole('button',{name:'Assistant',exact:true}).click();
   await assistantCard.getByRole('button',{name:'예시: Mapped source',exact:true}).click();
   await expect(sourceEditor).toContainText('Unsaved source proof');
-  // A prepared dirty document remains the target while the composer is hidden on another file.
-  await panel.getByRole('button',{name:'Close assistant',exact:true}).click();
-  const targetDocumentId=await page.locator('.document-tabs [role="tab"][aria-selected="true"]').evaluate(el=>el.closest('[data-tab-id]').dataset.tabId);
-  const targetPanel=page.getByTestId('document-panel');
-  if(!await targetPanel.isVisible())await page.getByRole('button',{name:'Outline',exact:true}).click();
-  await targetPanel.getByRole('tab',{name:'Views',exact:true}).click();
-  await targetPanel.getByRole('button',{name:'Ask assistant',exact:true}).click();
-  const beforeHidden=sends.length,beforeCancel=cancellations;
-  let releaseTarget,pendingTarget=false;
-  const targetGate=new Promise(resolve=>{releaseTarget=resolve;});
-  await page.route('**/api/assistant/conversations?id=*',async route=>{pendingTarget=true;await targetGate;conversation.turns.at(-1).status='completed';const value=JSON.parse(JSON.stringify(conversation));await route.fulfill({json:value});});
-  delayPoll=true;
-  await panel.getByRole('textbox',{name:'Message assistant'}).fill('Refine the document view while I read another file.');
-  await panel.getByRole('button',{name:'Send message',exact:true}).click();
-  await expect.poll(()=>pendingTarget).toBe(true);
-  expect(sends.length).toBe(beforeHidden+1);expect(sends.at(-1).document).toBeUndefined();
-  await panel.getByRole('button',{name:'Close assistant',exact:true}).click();
-  await openPath(page,[pluginFixture.otherFolder,'b.md'].join(root.includes('\\')?'\\':'/'));
-  expect(cancellations).toBe(beforeCancel);
-  releaseTarget();
-  await page.locator(`.document-tabs [data-tab-id="${targetDocumentId}"] [role="tab"]`).click();
-  await expect(targetPanel.getByRole('heading',{name:'예시: 두 문서 합계',exact:true})).toBeVisible();
-  await expect(sourceEditor).toContainText('Unsaved source proof');
-  await page.unroute('**/api/assistant/conversations?id=*');delayPoll=false;
-  await page.getByRole('button',{name:'Assistant',exact:true}).click();
   if(screenshots){
     await expect(assistantCard).toBeVisible();
     for(const summary of await assistantCard.locator('summary').all())if(!await summary.evaluate(el=>el.parentElement.open))await summary.click();

@@ -66,7 +66,12 @@ the unchanged worker execution path when the assistant uses an ACP catalog model
 
 The #1091 owner decision adds Copilot Auto, reasoning effort and advertised Agent/Plan
 selection. Like Paseo, a `thought_level` select config uses `session/set_config_option`.
-Without one, CLI `--reasoning-effort` is fixed for each conversation; changing it
+When the session advertises a model config option, model selection uses
+`session/set_config_option` and its complete response supplies that model's
+current reasoning choices (#1181). A missing thought-level option then means
+no reasoning configuration is sent; it is not CLI fallback. Legacy sessions
+without a model config or thought-level option retain CLI `--reasoning-effort`,
+fixed for each conversation; changing it
 requires a new conversation and lazily restarts the process before that conversation.
 The CLI's seven accepted values remain available without model support metadata.
 The conversation index retains each fallback session's CLI effort. Resume and
