@@ -1,7 +1,9 @@
+import { ViewChart } from "./ViewChart.tsx";
+import { ViewPanels } from "./ViewPanels.tsx";
 import { DataTable, type TableField } from "../components/DataTable.tsx";
 import { i18n } from "../i18n.ts";
 import { useEffect, useRef, useState } from "react";
-import { builtinViewOperations, type ViewRow, queryLeaves } from "@litzio/core/views";
+import { builtinViewOperations, type ViewRow } from "@litzio/core/views";
 import { queryViewSchema as allQueryViewSchema, operationQueryViewSchema as queryViewSchema, compilePortableViewInputSchema, validateViewInputs, ViewInputError, type ViewOperation, type CatalogView, type OperationQueryView as View, type SourceState } from "@litzio/core/views-v2";
 import { Button } from "../components/ui/button.tsx";
 import { Input } from "../components/ui/input.tsx";
@@ -20,30 +22,14 @@ import { readableLabel } from "./view-label.ts";
 import "./views.css";
 
 export type ViewTab = { id: string; hostId: string; root: string; view?: CatalogView; basic?: boolean; jobs?: boolean; label?: string; screen?: import("./view-api.ts").ViewScreen };
-function ViewBars({ rows, x, y, label }: { rows: ViewRow[]; x: string; y: string; label(field: string, value: ViewRow[string]): string }) {
-  const values = rows.map(row => Number(row[y]));
-  const min = Math.min(0, ...values), max = Math.max(0, ...values);
-  const scale = Math.max(1, Math.abs(min), Math.abs(max));
-  const range = (max / scale - min / scale) || 1;
-  const position = (value: number) => (value / scale - min / scale) / range * 100;
-  const zero = position(0);
-  return <div className="view-bars">{rows.map((row, i) => {
-    const value = values[i], end = position(value);
-    return <div key={i}><span>{label(x, row[x])}</span><div className="view-bar-track" role="meter" aria-label={label(x, row[x])} aria-valuemin={min} aria-valuemax={max || (min === 0 ? 1 : 0)} aria-valuenow={value}>
-      <span className="view-bar-zero" style={{ left: `${zero}%` }} />
-      <span className="view-bar-value" style={{ left: `${Math.min(zero, end)}%`, width: `${Math.abs(end - zero)}%` }} />
-    </div><output>{String(row[y])}</output></div>;
-  })}</div>;
-}
 export function ViewRenderer({ view, rows, fields, fieldTypes }: { view: Extract<CatalogView, {profile: "query"}>; rows?: ViewRow[]; fields?: Record<string, string>; fieldTypes?: Record<string, TableField> }) {
   const valid = allQueryViewSchema.parse(view);
-  if (valid.layout.direction !== "vertical" || valid.layout.children.some(p => p.component === "Panel")) return <Notice>{i18n.t("Unavailable")}</Notice>;
   const label = (field: string, value: ViewRow[string]) => valid.sources.stats.kind === "operation" && valid.sources.stats.operation === "folder.statistics" && value === "." && (field === "folder" || field === "group" && valid.sources.stats.groupBy?.field === "folder")
     ? i18n.t("(Root)") : value === null ? "—" : String(value);
-  return <div className="view-panels">{queryLeaves(valid.layout).map((panel, index) => <section key={index} className="view-panel" aria-label={panel.title}>
+  return <ViewPanels layout={valid.layout} renderLeaf={(panel, index) => <section key={index} className="view-panel" aria-label={panel.title}>
     <h3>{panel.title}</h3>
-    {!rows?.length ? null : panel.component === "Table" ? <DataTable rows={rows} columns={panel.columns} title={panel.title} labels={fields} fields={valid.sources.stats.kind === "assistant" ? valid.sources.stats.rowSchema : fieldTypes} label={label} loadedOnly={valid.refresh === "manual"} /> : panel.type !== "bar" ? <Notice>{i18n.t("Unavailable")}</Notice> : <ViewBars rows={rows} x={panel.x} y={panel.y} label={label} />}
-  </section>)}</div>;
+    {!rows?.length ? null : panel.component === "Table" ? <DataTable rows={rows} columns={panel.columns} title={panel.title} labels={fields} fields={valid.sources.stats.kind === "assistant" ? valid.sources.stats.rowSchema : fieldTypes} label={label} loadedOnly={valid.refresh === "manual"} /> : <ViewChart chart={panel} rows={rows} label={label} fields={fields} />}
+  </section>} />;
 }
 const emptyInputErrors = () => ({ fields: Object.create(null) as Record<string, string> });
 

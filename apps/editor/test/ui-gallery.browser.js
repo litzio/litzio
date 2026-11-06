@@ -1,6 +1,6 @@
 // Protect the development entry's lazy module/CSS/provider connection, not primitive internals.
 // pnpm browser:test ui-gallery
-async (page, { expect, screenshots }) => {
+async (page, { expect, screenshots, brand }) => {
   await page.goto(page.url().split('/').slice(0, 3).join('/') + '/ui-gallery');
   await expect(page.getByRole('heading', { name: 'Litzio UI gallery' })).toBeVisible();
   await expect(page.locator('[data-testid="ui-gallery"]')).toHaveCSS('overflow-y', 'auto');
@@ -68,4 +68,41 @@ async (page, { expect, screenshots }) => {
   await examples.getByRole('group', { name: 'View profile', exact: true }).getByRole('button', { name: 'review', exact: true }).click();
   await states.getByRole('button', { name: 'Cannot verify request', exact: true }).click();
   await expect(examples.getByText('Status checks cannot resolve this outcome. Do not repeat this change.', { exact: false })).toBeVisible();
+  await examples.getByRole('group', { name: 'View profile', exact: true }).getByRole('button', { name: 'query', exact: true }).click();
+  const charts = page.getByRole('region', { name: '예시: Chart와 Panel', exact: true });
+  const host = charts.getByTestId('chart-example-width');
+  const line = host.getByRole('region', { name: '예시: 월별 추이 · null 단절', exact: true });
+  await expect(line.locator('circle')).toHaveCount(4);
+  // Two segments, with no line over the missing middle y.
+  await expect(line.locator('path')).toHaveAttribute('d', /^M[^M]+M[^M]+$/);
+  const scatter = charts.getByRole('region', { name: '예시: 좌표 · 중복과 null', exact: true }).last();
+  await expect(scatter.locator('circle')).toHaveCount(2);
+  await expect(scatter.locator('path')).toHaveCount(0);
+  // Excluded coordinates must not change the plotted domain.
+  await expect(scatter.locator('circle').first()).toHaveAttribute('cx', '300');
+  await scatter.getByText('Source values', { exact: true }).click();
+  await expect(scatter.getByRole('listitem')).toHaveText(['x: —; y: 1', 'x: 1; y: —', 'x: 2; y: 2', 'x: 2; y: 2']);
+  await expect(scatter.getByText('Rows with null coordinates excluded: 2', { exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const width = charts.getByRole('group', { name: '예시: 실제 배치 폭' });
+  await width.getByRole('button', { name: '960px', exact: true }).click();
+  const children = host.locator('section');
+  await expect.poll(async () => { const a = await children.nth(0).boundingBox(), b = await children.nth(1).boundingBox(); return Math.abs(a.y - b.y) < 1 && b.x > a.x; }).toBe(true);
+  await width.getByRole('button', { name: '959px', exact: true }).click();
+  await expect.poll(async () => { const a = await children.nth(0).boundingBox(), b = await children.nth(1).boundingBox(); return Math.abs(a.x - b.x) < 1 && b.y > a.y; }).toBe(true);
+  // Same window; narrow actual renderer width is what folds the Panel.
+  await page.setViewportSize({ width: 640, height: 1000 });
+  await expect.poll(async () => { const a = await children.nth(0).boundingBox(), b = await children.nth(1).boundingBox(); return Math.abs(a.x - b.x) < 1 && b.y > a.y; }).toBe(true);
+  if (screenshots) {
+    await page.evaluate(key => localStorage.setItem(key, 'ko'), `${brand.storagePrefix}.uiLanguage`);
+    await page.reload();
+    await page.getByRole('group', { name: 'Category', exact: true }).getByRole('button', { name: 'Generated views', exact: true }).click();
+    await page.getByRole('group', { name: 'Theme', exact: true }).getByRole('button', { name: 'Dark', exact: true }).click();
+    for (const viewport of [1440, 640]) {
+      await page.setViewportSize({ width: viewport, height: 1000 });
+      await charts.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `docs/design/assets/dynamic-views-v7/after-${viewport}.png` });
+    }
+  }
+
 }

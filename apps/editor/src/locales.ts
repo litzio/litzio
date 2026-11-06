@@ -23,6 +23,11 @@ export const en = {
   "Previous": "Previous",
   "Sorting and filters apply to loaded rows only.": "Sorting and filters apply to loaded rows only.",
   "Clear all filters": "Clear all filters",
+  "Source values": "Source values",
+  "Rows with null coordinates excluded: {{count}}": "Rows with null coordinates excluded: {{count}}",
+  "Next values": "Next values",
+  "Previous values": "Previous values",
+
   "Enter a valid date (YYYY-MM-DD).": "Enter a valid date (YYYY-MM-DD).",
   "Enter a value of at least {{n}}.": "Enter a value of at least {{n}}.",
   "Enter a value of at most {{n}}.": "Enter a value of at most {{n}}.",
@@ -1226,6 +1231,11 @@ export const ko: Record<keyof typeof en, string> = {
   "Previous": "이전",
   "Sorting and filters apply to loaded rows only.": "정렬·필터는 불러온 행에만 적용됩니다.",
   "Clear all filters": "모든 필터 지우기",
+  "Source values": "원자료 값",
+  "Rows with null coordinates excluded: {{count}}": "null 좌표로 표시에서 제외된 행: {{count}}개",
+  "Next values": "다음 값",
+  "Previous values": "이전 값",
+
   "Enter a valid date (YYYY-MM-DD).": "올바른 날짜를 입력하세요 (YYYY-MM-DD).",
   "Enter a value of at least {{n}}.": "{{n}} 이상의 값을 입력하세요.",
   "Enter a value of at most {{n}}.": "{{n}} 이하의 값을 입력하세요.",
