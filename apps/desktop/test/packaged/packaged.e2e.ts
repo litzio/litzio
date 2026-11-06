@@ -661,8 +661,11 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
     LOCALAPPDATA: path.join(root, "local-app-data") };
   mkdirSync(environment.LOCALAPPDATA, { recursive: true });
   const { app, page } = await launch(userData, [], environment);
-  const originalStarted = processStart(app.process().pid!);
-  const proof: Record<string, unknown> = { stage: "launched", originalPid: app.process().pid };
+  // On Windows Playwright launches through cmd.exe: app.process() is the launcher,
+  // not the Electron main whose exit releases Chromium's profile handles.
+  const originalPid = await app.evaluate(() => process.pid);
+  const originalStarted = processStart(originalPid);
+  const proof: Record<string, unknown> = { stage: "launched", originalPid, launcherPid: app.process().pid };
   let bodyFailure: unknown;
   let restarted: { pid: number; processStartedAt: string } | undefined;
   const workOwners = path.join(data, "desktop", "remote-hosts.json.work");
@@ -679,7 +682,7 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
     for (const name of existsSync(workOwners) ? readdirSync(workOwners) : []) {
       if (!name.endsWith(".json")) continue;
       const owner = readOwner(path.join(workOwners, name));
-      if (Number.isSafeInteger(owner?.pid) && (owner.pid !== app.process().pid || owner.processStartedAt !== originalStarted) && processStart(owner.pid) === owner.processStartedAt) return owner;
+      if (Number.isSafeInteger(owner?.pid) && (owner.pid !== originalPid || owner.processStartedAt !== originalStarted) && processStart(owner.pid) === owner.processStartedAt) return owner;
     }
     return undefined;
   };
@@ -701,9 +704,8 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
     const confirmation = page.getByRole("dialog", { name: "Reset app?", exact: true });
     await expect(confirmation.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
     await confirmation.getByRole("checkbox", { name: "Also remove empty settings folders", exact: true }).check();
-    const closed = app.waitForEvent("close");
     await confirmation.getByRole("button", { name: "Delete data and restart", exact: true }).click();
-    await closed;
+    await expect.poll(() => processStart(originalPid), { timeout: 30_000 }).not.toBe(originalStarted);
     proof.stage = "parent-closed";
     await expect.poll(() => { restarted = currentOwner(); return Array.isArray((restarted as any)?.summary); }, { timeout: 60_000 }).toBe(true);
     proof.restartedPid = restarted!.pid;
@@ -724,13 +726,13 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
     bodyFailure = error; proof.bodyFailure = error instanceof Error ? error.message : String(error); throw error;
   } finally {
     try {
-    if (app.process().exitCode === null && app.process().signalCode === null) { await answerClose(app, 0); await closeApp(app); }
+    if (processStart(originalPid) === originalStarted) { await answerClose(app, 0); await closeApp(app); }
     restarted ??= currentOwner();
     // A startup failure before work-summary publication must not orphan our relaunch.
     for (const name of !restarted && existsSync(environment.LITZIO_RESET_DIR) ? readdirSync(environment.LITZIO_RESET_DIR) : []) {
       if (!name.startsWith("actor-") || !name.endsWith(".json")) continue;
       const owner = readOwner(path.join(environment.LITZIO_RESET_DIR, name));
-      if (owner?.role === "desktop" && Number.isSafeInteger(owner.pid) && (owner.pid !== app.process().pid || owner.started !== originalStarted) && processStart(owner.pid) === owner.started) restarted = { pid: owner.pid, processStartedAt: owner.started };
+      if (owner?.role === "desktop" && Number.isSafeInteger(owner.pid) && (owner.pid !== originalPid || owner.started !== originalStarted) && processStart(owner.pid) === owner.started) restarted = { pid: owner.pid, processStartedAt: owner.started };
     }
     if (restarted && processStart(restarted.pid) === restarted.processStartedAt) {
       // Exact fixture-owned PID/creation identity; no image-name or other workspace cleanup.
@@ -742,6 +744,7 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
         throw error;
       }
     }
+    await expect.poll(() => app.process().exitCode !== null || app.process().signalCode !== null, { timeout: 15_000 }).toBe(true);
     proof.cleanup = "confirmed";
     } catch (error) {
       proof.cleanupFailure = error instanceof Error ? error.message : String(error);

@@ -85,4 +85,6 @@ Desktop 경로:
 
 수동 시각 검토는 persistent Chrome과 native bridge stand-in을 사용했다. 1440px English Light [이전](assets/app-reset-1285/before-1440.png) / [이후](assets/app-reset-1285/after-1440.png) / [확인](assets/app-reset-1285/confirm-1440.png), 640px 한국어 Dark [이전](assets/app-reset-1285/before-640.png) / [이후](assets/app-reset-1285/after-640.png) / [확인](assets/app-reset-1285/confirm-640.png). 정렬·버튼 여백·scroll 접근·가림·한국어 줄바꿈·공통 위험 확인의 초점을 확인했다. 640px의 추가 구역은 기존 설정 scroll로 접근한다. [촬영 body](assets/app-reset-1285/capture.browser.js)는 테스트 폴더에 임시 복사해 `pnpm browser:test app-reset-capture`로만 실행하고 자동 회귀 경로에 넣지 않는다. Host 계정은 fixture 라벨이며 실제 계정명을 공개하지 않는다.
 
+두 번째 packaged CI의 단계 기록은 앱 종료 event 대기에서 실패했으나 새 profile 로그는 재실행을 보여 주었다. Windows에서 Playwright `app.process()`는 `cmd.exe` launcher이므로 main의 실제 PID를 별도로 받아 종료와 새 세대를 판정하도록 고쳤다. 대기 시간이나 데이터 단언은 완화하지 않으며 정리 때 native 프로세스와 launcher의 종료를 모두 확인한다. CI 진단 exact allowlist도 새 `reset-proof.json` 한 항목을 명시하도록 기존 검사를 갱신했다.
+
 현재 namespace에 참여하지 않는 외부/구버전의 임의 쓰기나 외부 파일 시스템 조작을 차단한다고 주장하지 않는다. 기존 discovery에 기록된 live owner도 별도로 거부하며, 소유 범위를 확인할 수 없으면 성공 대신 거부한다. 다른 workspace와 프로세스는 초기화나 검증 대상이 아니다.
