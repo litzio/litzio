@@ -201,7 +201,7 @@ export function AssistantPanel({ generationRequest, onGenerationConsumed, onGene
     setPending(true); setProblem("");
     try { await action(isCurrent); } catch (error) { if (isCurrent()) setProblem((error as Error).message); } finally { if (isCurrent()) setPending(false); }
   };
-  const send = () => run(async isCurrent => {
+  const send = () => viewTarget ? proposeView() : run(async isCurrent => {
     if (active && provider === "copilot") return;
     cancelledViewConversation.current = undefined;
     const value = message.trim(); if (!value && !references.length) return;
@@ -213,7 +213,7 @@ export function AssistantPanel({ generationRequest, onGenerationConsumed, onGene
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
   });
   const proposeView = () => run(async isCurrent => {
-    if (active || !onGeneratedView || !model || !message.trim()) return;
+    if (active || (!onGeneratedView && !onGeneratedDestination) || !model || !message.trim()) return;
     const target = viewTarget;
     if (target && target.token.destination.hostId !== hostId) throw new Error(i18n.t("View generation target belongs to another Host."));
     const sourceDocument = target?.token.destination.documentPath ?? (documentPath && !documentDirty ? documentPath : undefined);
@@ -512,7 +512,7 @@ export function AssistantPanel({ generationRequest, onGenerationConsumed, onGene
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
         </TooltipTrigger><TooltipContent>{usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}</TooltipContent></Tooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
         {generation.current ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} onClick={() => { generation.current?.abort(new Error(i18n.t("View cancellation requested."))); }}><Square /></Button> : active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async isCurrent => { const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); })}><Square /></Button> : null}
-        <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || active && provider === "copilot" || !ready || (!message.trim() && !references.length) || !catalogModel || !enabled || !!setup}><ArrowUp /></Button>
+        <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || active && (provider === "copilot" || !!viewTarget) || !ready || (!message.trim() && !references.length) || !catalogModel || !enabled || !!setup}><ArrowUp /></Button>
       </div>
     </form>
   </aside>;

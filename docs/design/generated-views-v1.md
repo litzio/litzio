@@ -287,3 +287,8 @@ references. Production HTTP fixture and the runner's recovery case passed. Manua
 at 1440px and 640px include Korean dark mode; card-local vertical panel markup fixes an
 observed horizontal details layout without changing shared assistant-result CSS. D2/D3
 integration, actual AI, remote Host and final saved-data acceptance remain unverified.
+
+D3's destination documentPath is preferred over the currently selected document when the
+user submits a prepared request. A destination from another Host fails before provider work;
+prepared requests use the generation path on submit rather than ordinary conversation send.
+Actual document-switch behavior remains a D3 integration check.
