@@ -9,7 +9,7 @@ import { displayRequestCurrent, displayValues, type DisplayRequest, type Display
 import { PanelResize } from "./PanelResize.tsx";
 import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
-import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { MessageSquare, Plus, History, X, ArrowUp, Square, Check } from "lucide-react";
 import { ASSISTANT, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
@@ -31,6 +31,7 @@ export function rememberAssistantWidth(value: number) { try { localStorage.setIt
 // Structural token contract supplied by the app destination registry (D3).
 type ViewDestinationToken = { destination: { kind: "tab" | "document" | "screen"; id: string; hostId: string; owner: string; root: string; documentPath?: string }; generation: number; signal: AbortSignal };
 type Props = { onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
+  viewFavorites?: ReactNode;
   generationRequest?: { token: ViewDestinationToken; view?: View };
   onGenerationConsumed?(): void;
   onGeneratedDestination?(token: ViewDestinationToken, view: View): boolean;
@@ -42,7 +43,7 @@ type Props = { onNewHost?(): void; settingsRevision: number; open: boolean; over
   documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ generationRequest, onGenerationConsumed, onGeneratedDestination, onGeneratedView, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
+export function AssistantPanel({ viewFavorites, generationRequest, onGenerationConsumed, onGeneratedDestination, onGeneratedView, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
   useTranslation();
   const client = useHostClient();
   const cardVersion = useRef(0);
@@ -505,7 +506,7 @@ export function AssistantPanel({ generationRequest, onGenerationConsumed, onGene
 
         {provider === "copilot" && copilot?.modes.length ? <AssistantChoice label={i18n.t("Session mode")} value={copilot.modes.find(value => value.id === mode)?.name ?? mode} help={i18n.t("Model, reasoning effort and mode changes apply to the next message.")} disabled={active || pending} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={mode} options={copilot.modes.map(value => ({ value: value.id, label: value.name }))} onSelect={setMode} /> : null}
       </div>
-        {onGeneratedView ? <div className="assistant-view-controls"><select aria-label={i18n.t("View folder")} disabled={pending || active} value={folders.includes(viewRoot) ? viewRoot : folders[0] ?? ""} onChange={event => setViewRoot(event.target.value)} className="settings-select" ><option value="">{i18n.t("Choose a folder")}</option>{folders.map(folder => <option key={folder} value={folder}>{pathName(folder)}</option>)}</select><Button type="button" variant="secondary" size="sm" disabled={pending || active || !ready || !model || !message.trim() || !!setup} onClick={() => void proposeView()}>{i18n.t("Generate view")}</Button></div> : null}
+        {onGeneratedView ? <div className="assistant-view-controls">{viewFavorites}<select aria-label={i18n.t("View folder")} disabled={pending || active} value={folders.includes(viewRoot) ? viewRoot : folders[0] ?? ""} onChange={event => setViewRoot(event.target.value)} className="settings-select" ><option value="">{i18n.t("Choose a folder")}</option>{folders.map(folder => <option key={folder} value={folder}>{pathName(folder)}</option>)}</select><Button type="button" variant="secondary" size="sm" disabled={pending || active || !ready || !model || !message.trim() || !!setup} onClick={() => void proposeView()}>{i18n.t("Generate view")}</Button></div> : null}
       <div className="assistant-footer">
 
         <Tooltip><TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>
