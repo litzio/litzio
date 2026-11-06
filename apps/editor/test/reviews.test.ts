@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync } from "nod
 import path from "node:path";
 import os from "node:os";
 import { randomUUID, createHash } from "node:crypto";
-import { parse, serialize } from "@litzio/core";
+import { parse, serialize, getEditableDocument } from "@litzio/core";
 import { textRevision } from "@litzio/file-commit";
 import { createReviewAdapter } from "../src/views/review-api.ts";
 import { createHostClient } from "../src/host-client.ts";
@@ -173,7 +173,14 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     writeFileSync(path.join(artifact, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
     const operations = ["start", "status", "stop", "read", "propose", "approve", "reject", "undo"].map(id => ({ id, version: 1, effect: ["status", "read"].includes(id) ? "read" : "write", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } }));
     writeFileSync(path.join(artifact, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.review", name: "Review fixture", tier: "community", publisher: { id: "fixture", name: "Fixture" }, version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations, reviews: [{ id: "compare", title: "Compare", read: { operation: "fixture.review.read", version: 1 } }, { ...declaration, ...Object.fromEntries(["read", "propose", "approve", "reject", "undo"].map(action => [action, { operation: `fixture.review.${action}`, version: 1 }])) }], jobs: [{ id: "text", title: "Import", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" }] } }));
-    writeFileSync(path.join(artifact, "host.js"), `export function activate() { const completed = ${JSON.stringify({ state: "completed", phase: "Done", document: { source }, review })}; return { operations: { start: async () => ({state:"running",phase:"Accepted"}), status: async input => { const result = structuredClone(completed); if (input.output.endsWith('readonly.md')) result.review.review = 'compare'; if (input.output.endsWith('bad.md')) result.review.bundle.documentHash = 'wrong'; return result; }, stop: async () => ({state:"stopped",phase:"Stopped"}), read: async () => ({}), propose: async input => ({ id: input.requestId, kind: 'text', targets: [{path:[1],documentRevision:input.baseline.documentRevision,documentHash:input.baseline.documentRevision}], evidence:['fixture'],before:{type:'plain',text:'Original.'},after:{type:'plain',text:'Changed.'},baseline:input.baseline,state:'pending',actions:[{action:'approve',allowed:true},{action:'reject',allowed:true}] }), approve: async input => { if(input.input?.uncertain) throw Error('Observation lost'); return {kind:'text',path:[1],from:'Original.',to:'Changed.'}; }, reject: async () => ({}), undo: async () => ({}) }, status: async () => ({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}), dispose: async () => {} }; }`);
+    writeFileSync(path.join(artifact, "host.js"), `import { authorDocument } from '@litzio/plugin-sdk';
+      export function activate() { const completed = ${JSON.stringify({ state: "completed", phase: "Done", document: { source }, review })}; return { operations: { start: async () => ({state:"running",phase:"Accepted"}), status: async input => { const result = structuredClone(completed); if (input.output.endsWith('readonly.md')) {
+        const authored = await authorDocument({ title:'Imported', inputs:[{key:'source-한국어',blocks:[{kind:'heading',level:1,text:'Imported'},{kind:'paragraph',text:'Literal *text*'}]},{key:'excluded',blocks:[]}] });
+        result.document.source = authored.source;
+        result.review = { review:'compare', bundle:{...completed.review.bundle,documentRevision:authored.documentRevision,documentHash:authored.documentHash,mappingRevision:'map1'},
+          pages:[{generation:'g1',sourceRevision:completed.review.bundle.sourceRevision,pageNo:1,width:10,height:10,origin:'TOPLEFT',unit:'px',regions:[{id:'page-1-text',bbox:[0,0,1,1],category:'Text',status:'supported'}]}],
+          mapping:{generation:'g1',sourceRevision:completed.review.bundle.sourceRevision,documentRevision:authored.documentRevision,documentHash:authored.documentHash,mappingRevision:'map1',entries:[{sourceIds:['page-1-text'],targets:authored.inputs.find(i=>i.key==='source-한국어').targets}]},images:[] };
+      } if (input.output.endsWith('bad.md')) result.review.bundle.documentHash = 'wrong'; return result; }, stop: async () => ({state:"stopped",phase:"Stopped"}), read: async () => ({}), propose: async input => ({ id: input.requestId, kind: 'text', targets: [{path:[1],documentRevision:input.baseline.documentRevision,documentHash:input.baseline.documentRevision}], evidence:['fixture'],before:{type:'plain',text:'Original.'},after:{type:'plain',text:'Changed.'},baseline:input.baseline,state:'pending',actions:[{action:'approve',allowed:true},{action:'reject',allowed:true}] }), approve: async input => { if(input.input?.uncertain) throw Error('Observation lost'); return {kind:'text',path:[1],from:'Original.',to:'Changed.'}; }, reject: async () => ({}), undo: async () => ({}) }, status: async () => ({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}), dispose: async () => {} }; }`);
     writeFileSync(path.join(root, "index.html"), "<html></html>");
     host = await startFetchServer(() => startHttpHost({ port: 0, roots: [root], editorDir: root, daemon: { health: { pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), processStartedAt: new Date().toISOString(), daemonHome: root, executable: process.execPath, roots: [root], nonLoopback: false, launcher: "cli-run", productVersion: "0.0.0", protocolVersion: DAEMON_PROTOCOL }, stop() {} } }));
     const address = host.server.address(); assert.ok(address && typeof address !== "string"); const origin = `http://127.0.0.1:${address.port}`;
@@ -197,7 +204,14 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const readonlyJob = (await send("/api/plugins", { action: "job-status", requestId: readonlyId })).job;
     assert.equal(readonlyJob.state, "completed");
     const readonlyRef = readonlyJob.result.review;
-    assert.equal((await send("/api/reviews", { ...readonlyRef, action: "read", pageNo: 1 })).state, "ready");
+    const readonlySnapshot = await send("/api/reviews", { ...readonlyRef, action: "read", pageNo: 1 });
+    assert.equal(readonlySnapshot.state, "ready");
+    const readonlySource = readFileSync(readonlyJob.result.path, "utf8");
+    assert.equal(serialize(parse(readonlySource)), readonlySource);
+    assert.equal(textRevision(readonlySource), readonlyJob.result.revision);
+    const readonlyTargets = readonlySnapshot.snapshot.mapping.entries[0].targets;
+    assert.deepEqual(readonlyTargets.map((target: any) => target.path), getEditableDocument(parse(readonlySource)).blocks.map(block => block.path));
+    assert.ok(readonlyTargets.every((target: any) => target.documentRevision === readonlyJob.result.revision && target.documentHash === readonlyJob.result.revision));
     const badId = randomUUID();
     await send("/api/plugins", { action: "job-start", plugin: base.plugin, job: "text", root, file: "input.txt", output: "bad.md", requestId: badId });
     const bad = (await send("/api/plugins", { action: "job-status", requestId: badId })).job;
@@ -232,13 +246,16 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const invalidView = await fetch(origin + "/api/views", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ action: "propose", view: { ...definition, sources: { review: { ...definition.sources.review, bundleRef: "other-host" } } } }) });
     assert.equal(invalidView.status, 400); await invalidView.arrayBuffer();
 
-    const cli = async (action: string, proposalId?: string, expectedCode = 0, observedRequestId?: string, reference = base) => {
-      const inputFile = path.join(root, "request.json"); writeFileSync(inputFile, JSON.stringify({ bundleRef: reference.bundleRef, generation: reference.generation, proposalId, baseline: (await read()).baseline, requestId: observedRequestId ?? randomUUID() }));
+    const cli = async (action: string, proposalId?: string, expectedCode = 0, observedRequestId?: string, reference = base, kind?: "snapshot") => {
+      const inputFile = path.join(root, "request.json"); writeFileSync(inputFile, JSON.stringify({ bundleRef: reference.bundleRef, generation: reference.generation, ...(kind ? { kind, pageNo: 1 } : {}), proposalId, baseline: (await read()).baseline, requestId: observedRequestId ?? randomUUID() }));
       const child = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../../../packages/cli/src/cli.ts", import.meta.url)), "review", action, reference.plugin, reference.review, "--input", inputFile, "--root", root, "--host", origin, "--json"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
       let stdout = "", stderr = ""; child.stdout.on("data", b => stdout += b); child.stderr.on("data", b => stderr += b);
       const code = await new Promise(resolve => child.once("exit", resolve)); assert.equal(code, expectedCode, stdout + stderr); return JSON.parse(stdout);
     };
-    assert.equal((await cli("read", undefined, 0, undefined, readonlyRef)).state, "ready");
+    const readonlyCli = await cli("read", undefined, 0, undefined, readonlyRef, "snapshot");
+    assert.equal(readonlyCli.state, "ready");
+    assert.deepEqual(readonlyCli.snapshot.mapping.entries[0].targets, readonlyTargets);
+    assert.equal(readonlyCli.snapshot.documentRevision, readonlyJob.result.revision);
     const undeclared = await cli("propose", undefined, 1, undefined, readonlyRef);
     assert.ok(undeclared.error, "CLI rejects undeclared mutation");
     const p = await cli("propose"), id = p.proposals[0].id;
@@ -325,6 +342,10 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     await send("/api/plugins", { action: "enable", id: base.plugin });
     await send("/api/plugins", { action: "reload", id: base.plugin });
     assert.equal((await send("/api/reviews", { ...readonlyRef, action: "read" })).state, "ready");
+    writeFileSync(readonlyJob.result.path, readonlySource + "External change.\n");
+    assert.equal((await send("/api/reviews", { ...readonlyRef, action: "read", pageNo: 1 })).state, "stale");
+    writeFileSync(readonlyJob.result.path, readonlySource);
+    assert.equal((await send("/api/reviews", { ...readonlyRef, action: "read", pageNo: 1 })).state, "stale", "The actual SDK-generated snapshot remains invalidated after restoration");
     await send("/api/plugins", { action: "unregister", id: base.plugin });
     const removed = await fetch(origin + "/api/reviews", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ ...readonlyRef, action: "read" }) });
     assert.equal(removed.status, 400); await removed.arrayBuffer();

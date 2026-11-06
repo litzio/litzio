@@ -219,6 +219,7 @@ K1 result.review는 같은 Host에서 재조회할 plugin/review/root/bundleRef/
 문서 생성 후 발행 실패는 uncertain과 이미 생성한 result.path/revision을 보존한다. 같은 requestId 조회는 이를 재생성하거나 start를 재전송하지 않는다. 문서 결과와 대조 자료 발행 성공을 구분한다. 이 범위는 K1 단일 원본→새 문서이며 Docling 해석·대규모 paging·과거 형식 호환을 포함하지 않는다.
 
 검증 근거: `pnpm browser:test review-v5 --screenshots`의 [1440 이전](assets/readonly-review-1317/review-readonly-1440-before.png)·[이후](assets/readonly-review-1317/review-readonly-1440.png), [다크 1440 이전](assets/readonly-review-1317/review-readonly-dark-1440-before.png)·[이후](assets/readonly-review-1317/review-readonly-dark-1440.png), [다크 640 이전](assets/readonly-review-1317/review-readonly-dark-640-before.png)·[이후](assets/readonly-review-1317/review-readonly-dark-640.png). 같은 snapshot의 Host stale 응답이 이전에는 무시되고 이후에는 탐색을 막는 차이다. 한국어 문서·같은 행 정렬·여백·패널 내 스크롤·잘림과 다크 톤을 확인했다. 640px는 기존 넓은 비교 안내를 유지한다. review 화면의 기존 영문 안내는 지역화하지 않았으며 새 대조 화면을 설계하지 않았다.
+
 ## 공개 SDK의 중립 문서 생성 (#1316)
 
 Core `authorDocument(input)`을 공개 `@litzio/plugin-sdk`에서 제공한다. Promise 결과는 `{source, documentRevision, documentHash, inputs:[{key,targets:[]}]}`다. 외부 플러그인은 내부 패키지·AST·Markdown 구현 없이 이 함수로 생성하며, 파일 쓰기 권한이나 저장 receipt를 얻는 함수는 아니다. 원본의 해석·지원 여부 분류는 플러그인, 문서 의미·유효성·canonical 직렬화는 Core, Root·경로·충돌·실제 저장은 Host가 소유한다.
@@ -244,4 +245,4 @@ Core `authorDocument(input)`을 공개 `@litzio/plugin-sdk`에서 제공한다. 
 
 저장은 기존 K1 status 완료의 `document:{source: authored.source}`를 사용한다. 공용 `plugins job-start/job-status/job-result` HTTP/CLI·requestId·Root·충돌·receipt 경로를 유지하며 새 저장 endpoint나 직접 파일 쓰기를 만들지 않는다. start는 계속 running 접수만 반환한다. 문서 저장 이후 review 발행은 별개 단계이고 기존 uncertain·같은 requestId 확인·start 무재전송 계약을 유지한다.
 
-검증은 기존 Core native suite에서 최소 요소·입력 키별 0/N 참조·canonical 재처리와 거부를 확인한다. 기존 K1 suite의 대표 외부 artifact subprocess(약 2초)는 SDK import만 사용해 생성→Host 공식 저장→재파싱·revision/path 대조와 원본 보존을 확인한다. Core 조합을 subprocess에서 반복하지 않는다. #1317 읽기 전용 review와의 실제 결합·CLI 재조회 검증은 이 독립 PR에 포함하지 않으며 최종 통합 시 별도 확인한다. Docling 품질·대규모 paging·과거 형식 호환은 검증 범위가 아니다.
+검증은 기존 Core native suite에서 최소 요소·입력 키별 0/N 참조·canonical 재처리와 거부를 확인한다. 기존 K1 suite의 대표 외부 artifact subprocess(약 2초)는 SDK import만 사용해 생성→Host 공식 저장→재파싱·revision/path 대조와 원본 보존을 확인한다. Core 조합을 subprocess에서 반복하지 않는다. master의 #1318과 #1317 최종 결합은 기존 `reviews.test.ts`의 읽기 전용 K1 완료 경로에서 공개 SDK 생성→공식 저장→입력 key별 target으로 대조 발행→Host·실제 CLI snapshot 재조회와 revision/path 일치를 확인한다. 같은 SDK 생성 문서를 외부 변경한 뒤 원래 byte로 복원해도 stale을 유지하는 통합 경계를 함께 보호한다. 새 subprocess를 추가하지 않고 기존 완료·CLI 읽기를 보완하며 삭제·일시적 오류 분류는 Host 단위 검사가 소유한다. Docling 품질·대규모 paging·과거 형식 호환은 검증 범위가 아니다.
