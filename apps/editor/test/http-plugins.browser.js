@@ -14,15 +14,46 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
   };
+  // Isolate detection from the machine's real OneDrive account; folder listing still uses the Host.
+  await page.route("**/api/plugins", async route => {
+    if (route.request().method() !== "GET") return route.continue();
+    const response = await route.fetch();
+    const value = await response.json();
+    for (const plugin of value.plugins) if (plugin.id === "litzio.onedrive" && plugin.running) {
+      plugin.status = { available: true, folders: [pluginFixture.folder, pluginFixture.otherFolder].map((path, i) => ({ id: String(i), path, label: "Drive fixture", defaultCandidate: true })), decorations: [pluginFixture.folder, pluginFixture.otherFolder].map((path, i) => ({ id: String(i), path, icon: "onedrive" })), accounts: [] };
+    }
+    await route.fulfill({ response, json: value });
+  });
   await openSettings();
   const official = page.getByRole("switch", { name: "Enable OneDrive", exact: true });
   await expect(official).not.toBeChecked();
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "litzio.onedrive").official).toBe(true);
   if (screenshots) { await page.setViewportSize({ width: 1440, height: 900 }); await page.screenshot({ path: "docs/design/assets/bundled-plugins-1279/bundled-1440.png", mask: [page.locator(".sidebar-host-account")] }); }
   await official.click(); await expect(official).toBeChecked();
+  await page.keyboard.press("Escape");
+  if (screenshots) {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.waitForLoadState("networkidle");
+    await page.screenshot({ path: "tmp/onedrive-1287/enabled-1440.png", mask: [page.locator(".sidebar-host-account")] });
+    await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
+    await page.setViewportSize({ width: 640, height: 900 });
+    await page.reload(); await page.waitForLoadState("networkidle");
+    await page.screenshot({ path: "tmp/onedrive-1287/enabled-640-ko-dark.png", mask: [page.locator(".sidebar-host-account")] });
+    await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
+    await page.reload();
+  }
+  await expect(page.locator(".sidebar-folder-name")).toHaveCount(2);
+  await expect(page.getByLabel("OneDrive", { exact: true })).toHaveCount(2);
+  await openSettings();
   await page.reload(); await openSettings(); await expect(official).toBeChecked();
   await official.click(); await expect(official).not.toBeChecked();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".sidebar-folder-name")).toHaveCount(0);
+  const listing = await page.request.get(`${await page.evaluate(() => location.origin)}/api/folder?root=${encodeURIComponent(pluginFixture.folder)}`);
+  expect(listing.ok()).toBe(true);
+  await openSettings();
   await page.reload(); await openSettings(); await expect(official).not.toBeChecked();
+  await page.unroute("**/api/plugins");
   await page.getByRole("button", { name: "Add plugin…", exact: true }).click();
   await page.getByTestId("folder-path").fill(pluginFixture.directory);
   await page.getByTestId("folder-open").click();

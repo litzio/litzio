@@ -1,3 +1,4 @@
+import { usePlugins } from "../plugin-state.ts";
 import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { getHostClient } from "../host-client.ts";
 import { useEffect, useReducer, useRef, useState } from "react";
@@ -211,6 +212,12 @@ export function useFolderTrees(request: (root: string, path?: string, background
     reduce(action);
   };
   const requests = useRef(0);
+  const { plugins } = usePlugins(hostId === LOCAL_HOST_ID);
+  const oneDrivePaths = JSON.stringify(hostId === LOCAL_HOST_ID ? plugins.flatMap(plugin =>
+    plugin.id === "litzio.onedrive" && plugin.enabled && plugin.running ? plugin.status?.folders.map(folder => folder.path) ?? [] : []) : []);
+  // Only automatically opened roots belong to the plugin; never persist them as ordinary roots.
+  const pluginRoots = useRef(new Map<string, string>());
+
   const roots = trees.map(tree => tree.root);
   // Compare path values in the effect dependencies, independently of tree listing/expansion state.
   const serializedRoots = JSON.stringify(roots);
@@ -242,11 +249,34 @@ export function useFolderTrees(request: (root: string, path?: string, background
     return () => { cancelled = true; };
   }, []);
 
+  useEffect(() => {
+    if (!restored) return;
+    let cancelled = false;
+    const paths = JSON.parse(oneDrivePaths) as string[];
+    for (const [path, root] of pluginRoots.current) if (!paths.includes(path)) {
+      pluginRoots.current.delete(path);
+      dispatch({ type: "closeRoot", root });
+    }
+    void (async () => {
+      for (const path of paths) {
+        if (pluginRoots.current.has(path)) continue;
+        try {
+          const listing = await request(path);
+          if (cancelled) return;
+          if (latest.current.some(tree => containsFolder(tree.root, listing.root))) continue;
+          pluginRoots.current.set(path, listing.root);
+          dispatch({ type: "openRoot", listing });
+        } catch { /* Unavailable detected folders do not replace existing navigation. */ }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [oneDrivePaths, restored]);
+
   // Every explicit Open/Close remembers the current list, even after another browser tab wrote it.
   // Tree-only changes do not write. During restoration, user changes wait for all remembered paths.
   useEffect(() => {
     if (!restored || rememberVersion === 0) return;
-    writeOpenFolders(JSON.parse(serializedRoots) as string[], hostId);
+    writeOpenFolders((JSON.parse(serializedRoots) as string[]).filter(root => ![...pluginRoots.current.values()].includes(root)), hostId);
   }, [serializedRoots, restored, rememberVersion]);
 
   // Like #370, every explicit action writes the current reduced state, even if this tab wrote
