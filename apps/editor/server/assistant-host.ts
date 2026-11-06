@@ -39,6 +39,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       return { ...conversation, displayRequest: history().display.snapshot(args.id, args.displayClient) };
     },
     assistantConversation: async (args: any): Promise<any> => {
+      if (args.action === "provider-log" && Object.keys(args).every(key => ["action", "id", "provider"].includes(key))) return history().providerLog(args.id, args.provider);
       if (args.action === "prepare-view-generation") {
         const target = args.target;
         let owner = "litzio.assistant";

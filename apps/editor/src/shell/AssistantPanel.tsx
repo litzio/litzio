@@ -1,3 +1,4 @@
+import { LOCAL_HOST_ID } from "../host-locator.ts";
 import { AssistantDataDetails } from "../views/AssistantDataDetails.tsx";
 import { hostLabel } from "../host-client.ts";
 import { generateView } from "../views/generate-view.ts";
@@ -11,7 +12,7 @@ import { AssistantQuestion } from "./AssistantQuestion.tsx";
 import type { FileIdentity } from "../../shared/file-operations.ts";
 import { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { MessageSquare, Plus, History, X, ArrowUp, Square, Check } from "lucide-react";
+import { MessageSquare, Plus, History, ExternalLink, FolderOpen, X, ArrowUp, Square, Check } from "lucide-react";
 import { ASSISTANT, type AssistantSettings, type AssistantConversation, type AssistantConversationInfo, type AiModels, type AssistantFileReference, type AssistantSkills, type AssistantDiagnostics } from "../../shared/assistant.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu.tsx";
@@ -350,6 +351,15 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
         setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); input.current?.focus();
       }); }}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending || active} onClick={() => void run(async isCurrent => { const next = history ? null : await request<AssistantConversationInfo[]>(`${ASSISTANT.conversationsRoute}?provider=${provider}`); if (isCurrent()) setHistory(next); })}><History /></Button>
+      {(["open", "reveal"] as const).map(action => <Tooltip key={action}><TooltipTrigger render={<span tabIndex={0} />}>
+        <Button variant="ghost" size="icon-sm" aria-label={i18n.t(action === "open" ? "Open provider log in Notepad" : "Show provider log location")} disabled={!conversation || pending || hostId !== LOCAL_HOST_ID || !window.litzioDesktop?.providerSessionLog} onClick={() => void run(async () => {
+          try {
+            const result = await window.litzioDesktop!.providerSessionLog(hostId, conversation!.id, conversation!.provider ?? "codex", action);
+            if (result) setProblem(i18n.t(result.reason === "missing" ? "Provider log is absent or has been removed." : result.reason === "denied" ? "Provider log access was denied." : result.reason === "launch" ? "Could not open provider log. Try showing its location." : "Provider log is absent, inaccessible or could not be verified."));
+          }
+          catch { setProblem(i18n.t(action === "open" ? "Could not open provider log. Try showing its location." : "Provider log is absent, inaccessible or could not be verified.")); }
+        })}>{action === "open" ? <ExternalLink /> : <FolderOpen />}</Button>
+      </TooltipTrigger><TooltipContent>{i18n.t(hostId !== LOCAL_HOST_ID ? "Remote provider logs cannot be opened on this PC." : !window.litzioDesktop?.providerSessionLog ? "Provider log opening requires Windows Desktop." : !conversation ? "Send a message to create a provider session first." : action === "open" ? "Open provider log in Notepad" : "Show provider log location")}</TooltipContent></Tooltip>)}
       <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
     </div>
     <div className="assistant-context" title={[documentPath, ...folders].filter(Boolean).join("\n")}>

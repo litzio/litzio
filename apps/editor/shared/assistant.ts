@@ -49,3 +49,5 @@ export type AssistantDiagnostics = {
   rateLimits?: { name: string; windows: { usedPercent: number; windowDurationMins: number | null; resetsAt: number | null }[] }[];
   mcp?: { name: string; status: string; authStatus: string }[];
 };
+
+export type ProviderLogFailure = { available: false; reason: "unknown" | "missing" | "denied" | "unverified" | "launch" };

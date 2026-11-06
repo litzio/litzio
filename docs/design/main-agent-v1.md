@@ -42,6 +42,60 @@ Copilot 일반 대화에는 동적 뷰 도구가 없으며 기존 CLI 대안의 
 아니며, 초과해도 원래 첨부/도구 결과는 보존하고 뷰 context만 unavailable로 표시한다.
 전용 내부 생성 경로의 저장 현재 문서 자동 첨부와 구분한다. 사용자 데이터 migration은 없다.
 
+## 공급자 원본 로그 외부 열기 (#1304)
+
+현재 비서 대화의 두 아이콘은 공통 ghost/icon-sm Button, Lucide ExternalLink/FolderOpen,
+Tooltip을 사용한다. 원본 로그를 메모장에서 열거나 탐색기에서 파일을 선택한다.
+대화가 없으면 두 버튼을 비활성화하며 먼저 메시지를 보내도록 안내한다.
+브라우저와 원격 Host에서는 이유를 tooltip으로 표시하고 비활성화한다.
+새 로그 열람 화면·대화 복사·본문 진단 기록·문서 쓰기는 만들지 않는다.
+
+Host 공용 작업은 `assistantConversation { action: "provider-log", id, provider }`다.
+같은 `/api/assistant/conversations` POST를 호출하는
+`litzio assistant provider-log <id> <codex|copilot> --host <origin>` CLI는
+해당 Host의 검증된 `{ available: true, id, provider, path, checkedAt }`를 반환한다. 조회만 수행하고 OS를 열지 않는다.
+불가 결과는 `{ available: false, reason }`이며 unknown/missing/denied/unverified를 구별한다.
+다른 Host나 로컬 계정으로 fallback하지 않으며 불가 결과·오류는 nonzero다.
+Desktop main은 renderer 경로/URL을 받지 않고 `local`·대화 ID·provider·open/reveal만 받아,
+자신이 연결한 로컬 daemon의 identity를 확인한 뒤 동일 작업을 호출하고 원본을 재검사한다.
+OS 부작용은 이 명시적 Desktop 조작에만 있다. 원격 파일의 로컬 열기는 지원하지 않는다.
+
+Host는 자신의 Litzio 대화 인덱스에서 ID와 provider를 먼저 확인한다.
+Codex는 `thread/read { threadId, includeTurns: false }`의 ID·path와 파일 첫
+`session_meta.payload.id`를 대조한다. **Codex Thread.path는 unstable 필드**이며,
+필드 부재·공급자 인증/연결 실패·검증 실패 시 경로를 추정하거나 다른 세션으로 대체하지 않는다.
+Copilot은 Host 환경의 `COPILOT_HOME` 또는 기본 `~/.copilot`을 고정하고
+`session-state/<sessionId>/events.jsonl` 첫 `session.start.data.sessionId`를 확인한다.
+[공식 Copilot 디렉터리 계약](https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference)을 따른다.
+설정/인증 파일을 읽거나 root를 검색하지 않는다. ACP session/load 지원은 capability에 의존하며
+resume 가능 여부가 로그 파일 존재를 보장하지 않는다.
+
+메타데이터 검사는 최대 64 KiB의 첫 줄만 사용한다. 잘못된 UUID·다른 ID·provider·누락·접근 거부,
+symlink/junction이 포함된 경로·hardlink·일반 파일이 아닌 대상·UNC/ADS를 거부한다.
+로그가 없거나 비활성화·삭제되었으면 다른 파일로 대체하지 않는다.
+파일 검증 시점과 외부 앱의 실제 읽기 사이의 파일 변경까지 원자적으로 고정하는 기능은 없다.
+
+Windows의 고정 `%SystemRoot%/System32/notepad.exe`에 인자 배열로 검증된 파일 하나만 전달한다.
+셸 실행·임의 앱/코드/HTML 실행·`.jsonl` 연결 앱·`codex://` 등록에 의존하지 않는다.
+앱 실행 오류는 위치 표시를 안내하며 위치 표시는 같은 검증을 다시 한 뒤
+Electron showItemInFolder로 전달한다. UI는 실행 요청을 내용 열람 성공이라고 표시하지 않는다.
+탐색기 API 역시 표시 완료 acknowledgement를 제공하지 않는다.
+공급자 로그를 삭제·이동하지 않는다. 외부 편집기의 저장 기능은 해당 앱의 동작이다.
+
+검증: 기존 assistant Host 테스트를 확장해 ID/provider/RPC와 메타데이터 불일치,
+누락·거부·junction 및 같은 HTTP 작업의 CLI 호출을 확인했다.
+Desktop fixture는 같은 경로라도 remote 요청을 OS 호출 전에 거부하며 명시적 open/reveal과
+실행 실패를 확인한다. 기존 assistant 브라우저 회귀와 별도의 짧은 provider-session-log fixture는 무조작 시 열기 없음·
+대화 없는 상태·브라우저 비활성화와 명시적 bridge 호출을 확인한다.
+[1440px](assets/provider-log-1304/provider-log-1440-dark-ko.png)·
+[640px](assets/provider-log-1304/provider-log-640-dark-ko.png) 한국어 다크 캡처와
+[대화 없음](assets/provider-log-1304/no-conversation-640-dark-ko.png)은 비민감 합성 대화의 패널 crop이다.
+실제 Litzio 생성 합성 Codex 세션(gpt-6-luna/low)의 완료와 원본 검증을 확인했다.
+별도 합성 JSONL은 이 PC의 메모장 창 제목에서 파일 이름을 확인했으며 시험 창·파일은 정리했다.
+실제 공급자 원본을 OS에서 여는 통합 시험, Copilot 신규 실제 호출, 실제 원격 연결 및 ACL 거부는
+이번 실행에서 확인하지 않았다. Copilot 1.0.106·Codex 0.166.0의 합성 원본 일치 연구는
+이슈에 제공된 선행 근거다. 모든 최종 모델 입력·도구 결과·실패·취소가 무손실이라는 보장은 없다.
+
 ## Host 대상 고정 (#1174 PR2)
 
 비서 표면은 mount 시 Host client를 고정한다. 생성·resume·poll·발화·중단·표시 결과·모델·진단 요청은 같은 client를 사용하며 활성 탭·필터를 요청 주소로 사용하지 않는다. 마지막 대화 ID도 hostId별로 기억한다. 설정 표면 역시 선택한 Host의 client를 고정한다. 연결 해제나 화면 종료가 원격 실행 취소를 뜻하지 않는다.

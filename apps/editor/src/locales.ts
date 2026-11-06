@@ -1,6 +1,16 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Provider log access was denied.": "Provider log access was denied.",
+  "Provider log is absent or has been removed.": "Provider log is absent or has been removed.",
+  "Open provider log in Notepad": "Open provider log in Notepad",
+  "Show provider log location": "Show provider log location",
+  "Remote provider logs cannot be opened on this PC.": "Remote provider logs cannot be opened on this PC.",
+  "Provider log opening requires Windows Desktop.": "Provider log opening requires Windows Desktop.",
+  "Send a message to create a provider session first.": "Send a message to create a provider session first.",
+  "Could not open provider log. Try showing its location.": "Could not open provider log. Try showing its location.",
+  "Provider log is absent, inaccessible or could not be verified.": "Provider log is absent, inaccessible or could not be verified.",
+
   "View generation target belongs to another Host.": "View generation target belongs to another Host.",
   "Request a view": "Request a view",
   "Sources": "Sources",
@@ -1228,6 +1238,16 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Provider log access was denied.": "공급자 로그 접근이 거부되었습니다.",
+  "Provider log is absent or has been removed.": "공급자 로그가 없거나 이미 삭제되었습니다.",
+  "Open provider log in Notepad": "공급자 로그를 메모장에서 열기",
+  "Show provider log location": "공급자 로그 파일 위치 표시",
+  "Remote provider logs cannot be opened on this PC.": "원격 Host의 공급자 로그는 이 PC에서 열 수 없습니다.",
+  "Provider log opening requires Windows Desktop.": "공급자 로그 열기는 Windows Desktop에서 지원합니다.",
+  "Send a message to create a provider session first.": "메시지를 보내 공급자 대화를 먼저 만드세요.",
+  "Could not open provider log. Try showing its location.": "공급자 로그를 열 수 없습니다. 파일 위치 표시를 시도하세요.",
+  "Provider log is absent, inaccessible or could not be verified.": "공급자 로그가 없거나 접근할 수 없거나 원본을 검증할 수 없습니다.",
+
   "View generation target belongs to another Host.": "뷰 생성 대상이 다른 Host에 속해 있습니다.",
   "Request a view": "보기를 만들어 주세요",
   "Sources": "출처",

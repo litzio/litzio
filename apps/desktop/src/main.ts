@@ -1,3 +1,4 @@
+import { openProviderSessionLog } from "./provider-session-log.ts";
 import { RemoteHostRegistry } from "../../editor/server/remote-host-registry.ts";
 import { brand } from "../../../brand.ts";
 // Litzio Desktop: one window with the bundled Editor, the shared daemon HTTP Host, preferences
@@ -342,6 +343,12 @@ function registerIpc(): void {
   handle("desktop:daemon-reconnect", async () => {
     initialConnection = daemon.connect();
     return hostConnection();
+  });
+  handle("desktop:provider-session-log", async (hostId, id, provider, action) => {
+    await daemon.check();
+    return openProviderSessionLog({ hostId, id, provider, action },
+      (id, provider) => daemonRpc(daemon.record, "/api/assistant/conversations", { action: "provider-log", id, provider }),
+      shell.showItemInFolder);
   });
   handle("desktop:open-folder", folder => explorerFolders.open(folder, target => shell.openPath(target)));
   handle("desktop:open-log-folder", async () => {
