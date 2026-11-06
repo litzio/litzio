@@ -26,6 +26,7 @@ test("source and packaged paths retain overrides and the packaged user locations
   assert.equal(source.templates, path.join(root, ".litzio-dev", "templates"));
   assert.equal(source.settingsFile("assistant"), path.join(root, ".litzio-dev", "assistant.json"));
   assert.equal(source.assistant, path.join(root, ".litzio-dev", "assistant"));
+  assert.equal(source.transmissionLogs, path.join(root, ".litzio-dev", "logs", "assistant-transmissions"));
   const packaged = hostPaths({ packaged: true }, {});
   assert.deepEqual(packaged.assistantDefaults, { model: "gpt-6.1-sol", reasoningEffort: "medium" });
   assert.equal(packaged.templates, path.join(os.homedir(), brand.folders.shared, "templates"));
@@ -33,10 +34,17 @@ test("source and packaged paths retain overrides and the packaged user locations
   const data = process.platform === "win32" ? path.join(os.homedir(), "AppData", "Roaming")
     : process.platform === "darwin" ? path.join(os.homedir(), "Library", "Application Support") : path.join(os.homedir(), ".local", "share");
   assert.equal(packaged.assistant, path.join(data, brand.folders.desktopData, "assistant"));
+  assert.equal(packaged.transmissionLogs, path.join(data, brand.folders.desktopData, "logs", "assistant-transmissions"));
+  const hostData = path.join(root, "host-data"), appData = path.join(root, "app-data");
+  assert.equal(hostPaths({ packaged: false }, { LITZIO_DATA_DIR: hostData }).transmissionLogs, path.join(hostData, "logs", "assistant-transmissions"));
+  const nativeData = process.platform === "darwin" ? data : appData;
+  assert.equal(hostPaths({ packaged: true }, { LITZIO_DATA_DIR: hostData, APPDATA: appData, XDG_DATA_HOME: appData,
+    LITZIO_DAEMON_DIR: path.join(root, "separate-daemon") }).transmissionLogs, path.join(nativeData, brand.folders.desktopData, "logs", "assistant-transmissions"));
   for (const run of [{ packaged: true }, { packaged: false, checkoutRoot: root }]) {
     const paths = hostPaths(run, { LITZIO_ASSISTANT_SETTINGS_FILE: "settings-override", LITZIO_ASSISTANT_CWD: "cwd-override" });
     assert.equal(paths.settingsFile("plugins"), path.join(run.packaged ? path.join(os.homedir(), brand.folders.shared) : path.join(root, ".litzio-dev"), "plugins.json"));
     assert.equal(paths.settingsFile("assistant"), "settings-override"); assert.equal(paths.assistant, "cwd-override");
+    assert.equal(paths.transmissionLogs, path.join("cwd-override", "transmissions"));
   }
 });
 

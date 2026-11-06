@@ -61,6 +61,25 @@ test("optional folder removal changes containers only, never preserves settings,
   assert.equal(clearOfflineResetStorage(f.targets, { removeFolders: false, protectedPaths: [f.root] }).status, "cleared");
 });
 
+test("Host transmission payloads outside a custom Desktop profile are removed without deleting sibling logs", t => {
+  const f = fixture(t), logs = f.file("default-host-profile", "logs", "assistant-transmissions");
+  const locations = { ...f.locations, host: { ...f.locations.host, transmissionLogs: logs } };
+  const canary = "SYNTHETIC-RAW-TRANSMISSION-1285";
+  for (const name of ["request.body", "request.json", "interrupted.tmp", "removed.deleted"]) f.write(path.join(logs, name), canary);
+  const sibling = path.join(path.dirname(logs), "separate.log"); f.write(sibling, "keep sibling");
+  const targets = resetStorageTargets(locations);
+  assert.ok(targets.some(target => target.path === logs), "the shared Host log directory must be explicit even when Desktop uses another profile");
+  const receipt = clearOfflineResetStorage(targets, { removeFolders: true, protectedPaths: [f.root] });
+  assert.equal(receipt.status, "cleared");
+  assert.equal(fs.existsSync(logs), false);
+  assert.equal(fs.readFileSync(sibling, "utf8"), "keep sibling");
+  // The explicit log target participates in the same all-target preflight.
+  const protectedCanary = f.file("profile", "keep-until-preflight"); f.write(protectedCanary, canary);
+  const unsafe = { ...locations, host: { ...locations.host, transmissionLogs: f.root } };
+  assert.equal(clearOfflineResetStorage(resetStorageTargets(unsafe), { removeFolders: true, protectedPaths: [f.root] }).status, "refused");
+  assert.equal(fs.readFileSync(protectedCanary, "utf8"), canary);
+});
+
 test("preflight refuses unsafe paths before deleting any earlier valid target", t => {
   const f = fixture(t), safe = f.file("safe"); f.write(safe);
   const first: ResetStorageTarget = { path: safe, kind: "file", contents: "canary" };
@@ -82,6 +101,10 @@ test("junction roots are refused; nested links are removed without following ext
   const options = { removeFolders: true, protectedPaths: [f.root, outside] };
   assert.equal(clearOfflineResetStorage([target], options).status, "refused");
   assert.equal(clearOfflineResetStorage([{ ...target, path: path.join(link, "missing") }], options).status, "refused");
+  const profileCanary = f.file("profile", "keep-until-preflight"); f.write(profileCanary);
+  const redirectedLogs = { ...f.locations, host: { ...f.locations.host, transmissionLogs: link } };
+  assert.equal(clearOfflineResetStorage(resetStorageTargets(redirectedLogs), options).status, "refused");
+  assert.equal(fs.readFileSync(profileCanary, "utf8"), "fixture data");
   assert.equal(clearOfflineResetStorage([{ ...target, path: owned }], options).status, "cleared");
   assert.equal(fs.readFileSync(path.join(outside, "user.md"), "utf8"), "fixture data");
 });

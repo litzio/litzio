@@ -12,13 +12,14 @@ import { resetStorageTargets, clearOfflineResetStorage, type ResetStorageLocatio
 export function localResetLocations(userData?: string, updaterCache?: string, run?: HostRun): ResetStorageLocations {
   if (process.platform !== "win32" && (!userData || !updaterCache)) throw new Error("Specify the Desktop profile and updater cache on this platform.");
   const raw = hostPaths(run, { ...process.env });
-  const host = { ...raw, templates: path.resolve(raw.templates), assistant: path.resolve(raw.assistant), settingsFile: (id: string) => path.resolve(raw.settingsFile(id)) };
+  const host = { ...raw, templates: path.resolve(raw.templates), assistant: path.resolve(raw.assistant), transmissionLogs: path.resolve(raw.transmissionLogs), settingsFile: (id: string) => path.resolve(raw.settingsFile(id)) };
   return { userData: userData ?? path.join(process.env.APPDATA ?? path.join(os.homedir(), "AppData", "Roaming"), brand.folders.desktopData),
     updaterCache: updaterCache ?? path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local"), `${brand.appName}-updater`),
     host, remoteHostsFile: path.resolve(remoteHostsFile()), daemonDirectories: ["stable", "beta", "development"].map(channel => path.resolve(daemonDirectory(channel as "stable" | "beta" | "development"))) };
 }
 
 export const resetHostPaths = (paths = hostPaths()) => ({ templates: path.resolve(paths.templates), assistant: path.resolve(paths.assistant),
+  transmissionLogs: path.resolve(paths.transmissionLogs),
   assistantSettings: path.resolve(paths.settingsFile("assistant")), pluginSettings: path.resolve(paths.settingsFile("plugins")) });
 
 export function inspectAppReset(locations: ResetStorageLocations) {

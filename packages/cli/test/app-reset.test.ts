@@ -46,7 +46,7 @@ test("legacy live and malformed daemon records refuse reset before deleting app 
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const file = (...parts: string[]) => path.join(root, ...parts);
   const locations = { userData: file("profile"), updaterCache: file("cache"), remoteHostsFile: file("registry", "remote-hosts.json"), daemonDirectories: [file("daemons", "stable")],
-    host: { assistantDefaults: { model: "model", reasoningEffort: "low" }, templates: file("host", "templates"), assistant: file("assistant"), settingsFile: (id: string) => file("host", `${id}.json`) } };
+    host: { assistantDefaults: { model: "model", reasoningEffort: "low" }, templates: file("host", "templates"), assistant: file("assistant"), transmissionLogs: file("assistant", "transmissions"), settingsFile: (id: string) => file("host", `${id}.json`) } };
   fs.mkdirSync(locations.userData); fs.writeFileSync(file("profile", "canary"), "keep until confirmed");
   fs.mkdirSync(locations.daemonDirectories[0], { recursive: true });
   const lock = file("daemons", "stable", "daemon.lock");
@@ -66,7 +66,7 @@ test("gate cleanup errors cannot erase the actual deletion receipt", t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-reset-receipt-")), file = (...parts: string[]) => path.join(root, ...parts);
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const locations = { userData: file("profile"), updaterCache: file("cache"), remoteHostsFile: file("registry", "remote-hosts.json"), daemonDirectories: [file("daemons", "stable")],
-    host: { assistantDefaults: { model: "model", reasoningEffort: "low" }, templates: file("host", "templates"), assistant: file("assistant"), settingsFile: (id: string) => file("host", `${id}.json`) } };
+    host: { assistantDefaults: { model: "model", reasoningEffort: "low" }, templates: file("host", "templates"), assistant: file("assistant"), transmissionLogs: file("assistant", "transmissions"), settingsFile: (id: string) => file("host", `${id}.json`) } };
   class CleanupFailure extends ResetGuard {
     exclusive() { const release = super.exclusive(); return () => { release(); throw new Error("fixture cleanup failure"); }; }
   }

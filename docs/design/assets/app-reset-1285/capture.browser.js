@@ -10,7 +10,8 @@ async (page, { expect, assistantFixture, openPath }) => {
       setTheme: async () => false, setWindowBackground: async () => {}, onUpdateState: () => () => {},
       onRestartCheck: check => { restartCheck = check; return () => { restartCheck = undefined; }; },
       resetPlan: async () => ({ operation: 'app-reset', scope: 'local-app-and-host', revision: 'reviewed-fixture',
-        targets: [{ path: 'C:/isolated-fixture/Litzio/profile', kind: 'directory', contents: 'Fixture data' }], retained: [] }),
+        targets: [{ path: 'C:/isolated-fixture/Litzio/profile', kind: 'directory', contents: 'Fixture data' },
+          { path: 'C:/isolated-fixture/Host/logs/assistant-transmissions', kind: 'directory', contents: 'Synthetic transmission payloads' }], retained: [] }),
       resetApp: async (removeFolders, revision) => {
         window.__resetCalls.push({ removeFolders, revision });
         return restartCheck ? restartCheck() : { ok: false, reason: 'Not ready' };
