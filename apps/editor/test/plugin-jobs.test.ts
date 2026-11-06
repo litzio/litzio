@@ -312,3 +312,36 @@ test("K1 snapshots preserve keys and redact only the publishing plugin's secret 
     assert.equal(process.stderr.write, stderr);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
+
+test("public SDK authoring crosses the external plugin boundary and K1 official file creation", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "sdk-authoring-"));
+  const directory = path.join(root, "artifact"); cpSync(new URL("./fixtures/job-plugin", import.meta.url), directory, { recursive: true });
+  const manifestPath = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+  manifest.contributes.operations.push({ id: "inspect", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } });
+  writeFileSync(manifestPath, JSON.stringify(manifest));
+  writeFileSync(path.join(directory, "host.js"), `import { authorDocument } from '@litzio/plugin-sdk';
+    export function activate() { let authored; return { operations: {
+      start: () => ({state:'running',phase:'Accepted'}),
+      status: async () => { authored = await authorDocument({inputs:[{key:'source-z',blocks:[{kind:'heading',level:1,text:'Imported'},{kind:'paragraph',text:'Literal *text*'}]},{key:'excluded',blocks:[]}]}); return {state:'completed',phase:'Done',document:{source:authored.source}}; },
+      stop: () => ({state:'stopped',phase:'Stopped'}), inspect: () => authored,
+    }, status: () => ({available:true,message:'Ready',folders:[],decorations:[],accounts:[]}), dispose() {} }; }`);
+  const host = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
+  try {
+    await host.invoke("register", { directory });
+    await host.invoke("trust", { id: manifest.id, digest: (await host.list()).find(p => p.id === manifest.id)!.digest });
+    await host.invoke("enable", { id: manifest.id });
+    writeFileSync(path.join(root, "input.txt"), "Original input");
+    const requestId = randomUUID();
+    await host.invoke("job-start", { requestId, plugin: manifest.id, job: "text", root, file: "input.txt", output: "result.md" });
+    const response = await host.jobs.execute({ action: "job-status", requestId });
+    assert.ok("job" in response); assert.equal(response.job.state, "completed", JSON.stringify(response));
+    const authored = (await host.invokeOperation(`${manifest.id}.inspect`, {})).result as any;
+    const saved = readFileSync(response.job.result!.path, "utf8");
+    const { parse, serialize, getEditableDocument } = await import("@litzio/core");
+    assert.equal(saved, authored.source); assert.equal(serialize(parse(saved)), saved);
+    assert.equal(response.job.result!.revision, authored.documentRevision);
+    assert.deepEqual(authored.inputs[0].targets.map((target: any) => target.path), getEditableDocument(parse(saved)).blocks.map(block => block.path));
+    assert.deepEqual(authored.inputs[1], { key: "excluded", targets: [] });
+    assert.equal(readFileSync(path.join(root, "input.txt"), "utf8"), "Original input");
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});

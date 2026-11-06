@@ -205,3 +205,30 @@ OneDrive 빌드는 공용 artifact digest 계산으로 artifact 밖 `digest.json
 외부 플러그인은 “플러그인 추가…”에서 기존 Host 측 `FolderDialog`로 artifact 폴더를 선택한다. Settings의 별도 절대 경로 입력란은 제거한다. 기존 Button·FolderDialog·설정 행과 토글을 재사용하며 새 공통 UI 패턴은 없다. 폴더 탐색은 현재 Host client를 통해 수행하고 로컬 PC 파일 선택 창으로 대체하지 않는다. 1단계 설정 UI의 로컬 Host 범위는 유지하며 원격 UI를 새로 개방하지 않는다. CLI `plugins register <directory>`와 비서 도구의 외부 경로·trust·enable·unregister는 기존 공용 작업을 유지한다.
 
 기본값 전환·명시적 선택·변조 차단은 Host 단위 검사, 첫 실행 표시·토글·외부 폴더 선택 연결은 `http-plugins`, 배포물 안 공급·실행은 CI packaged 검사에서 확인한다. 수동 1440 캡처는 `pnpm browser:test http-plugins --screenshots`의 `docs/design/assets/bundled-plugins-1279/bundled-1440.png`에 남긴다. 이는 localhost와 fixture 검증이며 실제 OneDrive 계정 동기화의 증거는 아니다.
+
+## 공개 SDK의 중립 문서 생성 (#1316)
+
+Core `authorDocument(input)`을 공개 `@litzio/plugin-sdk`에서 제공한다. Promise 결과는 `{source, documentRevision, documentHash, inputs:[{key,targets:[]}]}`다. 외부 플러그인은 내부 패키지·AST·Markdown 구현 없이 이 함수로 생성하며, 파일 쓰기 권한이나 저장 receipt를 얻는 함수는 아니다. 원본의 해석·지원 여부 분류는 플러그인, 문서 의미·유효성·canonical 직렬화는 Core, Root·경로·충돌·실제 저장은 Host가 소유한다.
+
+입력은 `{title?, inputs:[{key,blocks:[]}]} ` JSON 값이다. key는 비어 있지 않은 최대 512자 문자열이며 요청 전체에서 유일하다. 하나의 입력은 여러 블록 또는 빈 배열을 가질 수 있고, 결과는 key로 찾아야 한다. `__proto__` 같은 키도 객체 속성으로 사용하지 않는다. 입력의 blocks 순서가 문서 순서이며 결과 배열 순서 자체는 대응의 식별자가 아니다.
+
+| kind | 입력 필드 | 의미 |
+| --- | --- | --- |
+| paragraph | text | literal 본문 |
+| heading | level(1–6), text | 제목 |
+| list | ordered, start?, items(string[]) | 중첩 없는 bullet/번호 목록, 최대 100항목 |
+| table | rows(string[][]) | 첫 행 header, 직사각형 표 |
+| figure | imageUrl, imageAlt, caption | 기존 Core Figure, 빈 URL은 pending |
+| code | language, code | 코드 블록 |
+| equation | latex | display 수식 |
+| divider | 없음 | 구분선 |
+
+모든 텍스트는 기존 Core literal text 연산을 통과한다. Markdown 문자열을 의미로 파싱하지 않는다. 기존 연산의 공백·개행 정규화와 native write 거부 규칙을 그대로 따른다. rich inline, 중첩 목록, 임의 HTML/AST/원본 Markdown, 외부 형식 변환과 이미지 복사·생성은 이 최소 API의 입력이 아니다. title도 기존 Core 단일 행 title 제약을 따른다. 지원하지 않는 의미를 자동으로 평탄화하거나 일부만 성공으로 반환하지 않는다.
+
+`DOCUMENT_AUTHORING_LIMITS`는 입력 JSON과 출력 canonical source 각각 UTF-8 262144 bytes, 입력 200개, 전체 블록 500개, 문자열 16384 UTF-16 code units, 표 100행×32열이다. unknown 필드·중복 key·잘못된 요소/Unicode·schema 상한 위반은 `DocumentAuthoringError.code="invalid-input"`, byte 상한 초과는 `limit`, Core의 의미·round-trip 거부는 `unsupported-content`로 Promise가 reject된다. 오류에는 입력 원문을 포함하지 않으며 부분 결과를 반환하지 않는다. `documentAuthoringSchema`는 구조 검증용이고 byte·Core 검증은 함수 실행에서 추가한다.
+
+반환 source는 canonical serialize→parse→serialize가 안정적인 native 문서다. 각 target은 `{path,documentRevision,documentHash}`이며 최종 재파싱 snapshot의 Core read-model 최상위 블록을 가리킨다. revision과 hash는 동일한 canonical source UTF-8 SHA-256(hex)으로 Host `textRevision`과 같다. key는 원본 입력의 식별자이고 path는 persistent identity가 아니다. 저장 뒤 같은 source/revision에서만 참조가 유효하며 편집 후 새 revision에 자동 재연결하지 않는다. 참조 없는 입력도 `{key,targets:[]}`로 반환한다. 원본 영역·mapping 자료는 플러그인이 이 target을 사용해 별도로 구성하고 #1317의 전역 유일 영역 ID·bundle 범위 검증을 따른다.
+
+저장은 기존 K1 status 완료의 `document:{source: authored.source}`를 사용한다. 공용 `plugins job-start/job-status/job-result` HTTP/CLI·requestId·Root·충돌·receipt 경로를 유지하며 새 저장 endpoint나 직접 파일 쓰기를 만들지 않는다. start는 계속 running 접수만 반환한다. 문서 저장 이후 review 발행은 별개 단계이고 기존 uncertain·같은 requestId 확인·start 무재전송 계약을 유지한다.
+
+검증은 기존 Core native suite에서 최소 요소·입력 키별 0/N 참조·canonical 재처리와 거부를 확인한다. 기존 K1 suite의 대표 외부 artifact subprocess(약 2초)는 SDK import만 사용해 생성→Host 공식 저장→재파싱·revision/path 대조와 원본 보존을 확인한다. Core 조합을 subprocess에서 반복하지 않는다. #1317 읽기 전용 review와의 실제 결합·CLI 재조회 검증은 이 독립 PR에 포함하지 않으며 최종 통합 시 별도 확인한다. Docling 품질·대규모 paging·과거 형식 호환은 검증 범위가 아니다.
