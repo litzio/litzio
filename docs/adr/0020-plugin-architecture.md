@@ -351,6 +351,10 @@ OneDrive 빌드는 공용 artifact digest 계산으로 artifact 밖 `digest.json
 | 새 뷰는 새 탭 | 기본 새 탭을 유지하며 우측 보기와 plugin screen 추가. 위치는 앱 상태이며 명세에 저장하지 않음 |
 | 통계 진입점의 즐겨찾기 접근 | 통계·플러그인·일반 비서 namespace를 해당 화면에서 다룸 |
 | 32 KiB·2,000행 | 연결 source 유지, 비서 source는 전체 1 MiB·10,000행 제안 |
-| V7을 4단계 뒤로 허용 | 선/산점도·HorizontalPanel을 이번 독립 구현 묶음으로 앞당김 |
+| V7을 4단계 뒤로 허용 | Chart의 line/scatter type·Panel의 horizontal direction을 이번 독립 구현 묶음으로 앞당김 |
+| Table 12열·공개 schema 64필드 제한 | 열/필드 개수 상한 제거. 데이터 규모는 행·용량으로 제한하고 넓은 표는 패널 안 가로 스크롤 |
+| BarChart/LineChart/ScatterChart, VerticalPanel/HorizontalPanel | Chart + type(bar/line/scatter), Panel + direction(vertical/horizontal). 종류별 옵션은 공통 options 틀 안에 둠 |
 
 #1241 A안의 제품 공통 부품·동작 계약 공유, Core 의미·canonical, Host 공용 작업/CLI, 사용자 선택 모델·최대 2회 교정, 공식 write path·새 이름 저장은 유지한다. 새 하위 호환·migration은 설계하지 않는다. 기존 구현의 단일 source는 단일 결과 집합으로 유지하되 비서가 그 결과에 여러 출처를 합성할 수 있다. 이 개정의 구현 분할·완료 기준은 상세 설계 D1~D4/V7을 따른다. API·상호작용의 최종 수락 전에는 이 절을 Implemented 계약으로 인용하지 않는다.
+
+D1은 기존 V1~V6의 BarChart·VerticalPanel 계약과 소비 경로를 새 Chart·Panel 형태로 전환한다. 하위 호환·migration은 없다. D3는 제품 공통 Table에 기본 열별 정렬·필터를 구현하며, 화면 조작은 데이터·명세·Core sort/filter를 바꾸지 않고 CLI parity 대상이 아니다. 불러온 행에만 적용하며 즐겨찾기에 상태를 저장하지 않는다. 동작은 [데이터 표 패턴](../design/ui-patterns-v1.md#데이터-표-정렬필터-제안)을 따른다. 예시: 갤러리의 좁은 표·넓은 표·정렬/필터 사례는 Table 사용 예시이며 별도 부품이 아니다. 모든 예시/fixture는 `예시:` 표기와 별도 영역으로 부품 목록에서 구분한다.

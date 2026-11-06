@@ -3,7 +3,7 @@
 > 후속 설계: [동적 뷰 재정의 v1](dynamic-views-v1.md)은 Draft다. 두 데이터 종류·우측 보기·플러그인 화면·V7 선행 구현을 제안하며, 아래 현재 구현/기존 로드맵의 완료 주장과 구분한다. 수락 시 변경되는 범위는 새 설계와 ADR-0020 개정안을 따른다.
 
 - Status: Draft
-- Last verified: 2026-11-06 — 소유자 정정에 따라 K2~K4를 공용 요소로 한정하고 4단계를 비서 제작 수락 시험으로 명확화. 코드·외부 문서 대조는 2026-11-05의 `d2b87e97b4845aeba1ddc65cedcbc74495e0cd84` 기준이며 제품 실행·시각 검증은 하지 않았다.
+- Last verified: 2026-11-06 — 소유자 정정: 열 상한 제거, Chart/Panel 일반화, 예시 분리와 Table 정렬·필터의 후속 D1/D3/V7 범위 반영. 소유자 정정에 따라 K2~K4를 공용 요소로 한정하고 4단계를 비서 제작 수락 시험으로 명확화. 코드·외부 문서 대조는 2026-11-05의 `d2b87e97b4845aeba1ddc65cedcbc74495e0cd84` 기준이며 제품 실행·시각 검증은 하지 않았다.
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md)의 카탈로그 v2 개정안. 기존 Accepted 결정을 유지하며, 아래 새 계약은 구현 전 제안이다.
 - Scope: 로드맵 3단계 공용 카탈로그 설계와 4단계 비서 제작 수락 시험의 진입 조건. Docling 구현 지시가 아니며 제품 코드·플러그인 제작·설치·migration은 이 문서 PR에 포함하지 않는다.
 - Related: [현재 생성 뷰](generated-views-v1.md), [플러그인·K1](plugin-stage1-v1.md), [ADR-0015](../adr/0015-shared-host-operations.md), [오류 계약 #1233](https://github.com/litzio/litzio/issues/1233).
@@ -16,14 +16,14 @@
 
 | 근거 | 이번 설계의 대응 | 완료를 주장하지 않는 것 |
 | --- | --- | --- |
-| (B), 시나리오 4: 6개 별도 뷰로 프리셋 대체, 5열을 두 표로 분할 | InputForm과 12열 상한 | 여러 뷰를 만든 것만으로 검색 폼 수락 통과 아님 |
+| (B), 시나리오 4: 6개 별도 뷰로 프리셋 대체, 5열을 두 표로 분할 | InputForm과 열 개수 상한 없는 Table | 여러 뷰를 만든 것만으로 검색 폼 수락 통과 아님 |
 | (A1), 시나리오 5: 오류 원인 소실 | #1233 결과를 SourceState로 표시 | 이 문서가 오류 계약 구현이나 timeout 시험을 대신하지 않음 |
 | (C), 시나리오 6: 공통 view와 플러그인 기여 혼동·재붙여넣기 | 스킬 보강과 명세를 직접 여는 결과 카드 | 모델 성능 향상·실제 Copilot 제작 완료 보장 아님 |
 | (A2): Root picker 부모 요청 403 | 별도 제품 결함 조사 | 카탈로그 변경이나 테스트 완화로 우회하지 않음 |
 | (A3): schema 변경 후 옛 즐겨찾기 거부 | 파일 보존·새 뷰 필요 안내 | 하위 호환·migration 추가 안 함 |
 | (D): 제한을 뒤늦게 발견, 셸/도구 실패 혼재 | 생성 전에 catalog 확인·공용 검증 진단 | 모든 실패를 문서나 모델 단독 원인으로 단정하지 않음 |
 
-현재 [Core views](../../packages/core/src/views.ts)는 `schemaVersion:1`, `catalog:litzio-v1`, 단일 `sources.stats`, `VerticalPanel` 아래 Table/BarChart다. `VIEW_LIMITS`는 32 KiB·8패널·2000행이며 Table의 4열 제한은 schema에 별도로 박혀 있다. 공개 row schema는 최대 64필드다. 폼·임의 action·K2~K4 데이터는 지원하지 않는다. 즐겨찾기는 플러그인 source도 `litzio.statistics` 컬렉션을 쓰며 SDK `generatedUi/views/dataViews`는 거부한다. v2 구현에서 이 차이를 해소하고 현재 계약도 함께 갱신한다.
+과거 설계 시점의 [Core views](../../packages/core/src/views.ts)는 `schemaVersion:1`, `catalog:litzio-v1`, 단일 `sources.stats`, `VerticalPanel` 아래 Table/BarChart다. `VIEW_LIMITS`는 32 KiB·8패널·2000행이며 Table의 4열 제한은 schema에 별도로 박혀 있다. 공개 row schema는 최대 64필드다. 폼·임의 action·K2~K4 데이터는 지원하지 않는다. 즐겨찾기는 플러그인 source도 `litzio.statistics` 컬렉션을 쓰며 SDK `generatedUi/views/dataViews`는 거부한다. 현재 v2 구현은 [Generated views](generated-views-v1.md)를 따른다. 이번 후속 D1에서 12열/64필드 개수 제한과 기존 부품 형식을 제거하며 과거 구현을 현재 요구로 유지하지 않는다.
 
 ## 참고 사례와 선택
 
@@ -42,7 +42,7 @@ v2는 `kind:litzio-view`, `schemaVersion:2`, `catalog:litzio-v2`, `refresh:manua
 
 SDK의 최소 신규 기여는 `contributes.views:[{id,title,definition}]`와 `contributes.reviews:[{id,title,read,propose,approve,reject,undo}]`다. 이름은 이 설계의 제안이며 현재 API가 아니다. views의 definition은 query profile의 v2 명세만 받는다. reviews의 binding은 같은 플러그인의 등록 operation ID/version이어야 하며 read는 read, 나머지는 write다. 미지원 action이나 다른 플러그인의 write binding은 거부한다. review binding은 K1처럼 공용 review 작업을 통해서만 호출하고 일반 invoke로 승인 경계를 우회하지 못한다.
 
-모든 플러그인은 기존 작업 탭을 쓰는 기본 진입점이 항상 있다. 명시 views는 기본 탭에서 고르는 조회 화면이고, 선언이 없으면 앱이 상태·가용 작업·K1 진입을 표시한다. rowSchema가 있는 읽기 작업은 지원 입력 타입에 대해 폼과 첫 12개 공개 필드의 표를 기본 제공한다(더 많은 필드가 있음을 안내). 미지원 입력 schema는 실행 폼을 발명하지 않고 이유와 CLI 경로를 표시한다. 비활성 상태도 기본 진입점에서 이유를 볼 수 있다. 생성·즐겨찾기는 별도 새 탭이며 기본 UI를 덮지 않는다. 설정 화면은 기존 위치에 남긴다.
+모든 플러그인은 기존 작업 탭을 쓰는 기본 진입점이 항상 있다. 명시 views는 기본 탭에서 고르는 조회 화면이고, 선언이 없으면 앱이 상태·가용 작업·K1 진입을 표시한다. rowSchema가 있는 읽기 작업은 지원 입력 타입에 대해 폼과 공개 필드의 표를 기본 제공한다(개수로 잘라내지 않고 패널 안 가로 스크롤). 미지원 입력 schema는 실행 폼을 발명하지 않고 이유와 CLI 경로를 표시한다. 비활성 상태도 기본 진입점에서 이유를 볼 수 있다. 생성·즐겨찾기는 별도 새 탭이며 기본 UI를 덮지 않는다. 설정 화면은 기존 위치에 남긴다.
 
 즐겨찾기의 소유 plugin은 query의 등록 operation 또는 review 기여에서 Host가 결정한다. 내장 통계만 `litzio.statistics`를 쓴다. `view list/open/run --name`에는 `--plugin <id>` 선택을 추가하고 save는 source의 소유자와 일치하는지 확인한다. 저장은 `<Host settings directory>/plugins/<pluginId>/views/<name>.view.json`의 신규 생성만 허용한다. 임의 경로·다른 Host 자동 연결·기존 파일 덮어쓰기는 없다. 기존 200개/컬렉션 상한을 유지한다.
 
@@ -61,22 +61,24 @@ InputForm은 query source당 하나, 필드 최대 8개와 실행 버튼 하나�
 
 필수 여부·enum·범위·설명은 operation schema를 원본으로 한다. 명세가 더 느슨하게 재정의할 수 없다. optional 입력은 명시적 지우기로 args에서 속성을 제거하고, 빈 문자열은 실제 문자열 값으로 구별한다. nullable이 허용되면 ‘값 없음’으로 null을 명시한다. required 입력이 비어 있으면 명세 구조는 저장할 수 있으나 실행은 막고 해당 필드에 오류를 연결한다. 정적 validate는 없는 필수 입력을 `needs-input`으로 반환하고, **실행 validate는 전체 effective args에 원래 JSON Schema validator를 반드시 적용**한다. missing 허용은 form으로 선언된 필수 속성에만 해당한다. 알 수 없는 필드·잘못된 타입/enum은 저장 때도 거부한다. 중첩 object/array·조건부 schema의 폼 생성은 미지원이며, 이미 유효한 고정 args의 읽기 명세는 유지할 수 있다.
 
-JQL 프리셋은 예를 들어 `preset: assigned-open | reported-open | assigned-all` enum으로 선언하고 플러그인이 실제 JQL로 해석한다. 자유 JQL을 제공하려면 작업이 별도의 string 입력을 선언해야 한다. renderer나 모델이 JQL/날짜 범위 의미를 만들어내지 않는다. 날짜 입력은 필터의 UTC timestamp와 별개다. 날짜만의 포함 범위·서비스 시간대는 operation이 정의하고 실행 조건/receipt에 알린다.
+예시: JQL 프리셋은 `preset: assigned-open | reported-open | assigned-all` enum으로 선언하고 플러그인이 실제 JQL로 해석한다. 자유 JQL을 제공하려면 작업이 별도의 string 입력을 선언해야 한다. renderer나 모델이 JQL/날짜 범위 의미를 만들어내지 않는다. 날짜 입력은 필터의 UTC timestamp와 별개다. 날짜만의 포함 범위·서비스 시간대는 operation이 정의하고 실행 조건/receipt에 알린다.
 
-아래는 v2 제안 예시다. 현재 v1 validator로 실행할 수 없다.
+### 예시: 입력 폼과 Table 구성
+
+아래는 후속 D1 형식의 사용 예시이며 부품 목록과 구별한다. 기존 validator로 실행할 수 없다.
 
 ```json
 {
   "kind": "litzio-view", "schemaVersion": 2, "catalog": "litzio-v2",
-  "profile": "query", "title": "내 이슈", "refresh": "manual",
-  "sources": {"stats": {"operation": "example.jira.search", "version": 1,
+  "profile": "query", "owner": "example.jira", "title": "내 이슈", "refresh": "manual",
+  "sources": {"stats": {"kind": "operation", "operation": "example.jira.search", "version": 1,
     "args": {"preset": "assigned-open"}, "filters": [], "limit": 2000}},
   "form": {"component": "InputForm", "source": "stats", "fields": [
     {"component": "Select", "field": "preset"},
     {"component": "TextInput", "field": "text"},
     {"component": "DateInput", "field": "updatedSince"}
   ], "submit": {"component": "SubmitButton", "label": "검색"}},
-  "layout": {"component": "VerticalPanel", "children": [
+  "layout": {"component": "Panel", "direction": "vertical", "children": [
     {"component": "Table", "title": "검색 결과", "source": "stats", "data": "/rows",
       "columns": ["key", "summary", "status", "assignee", "updated"]}
   ]}
@@ -89,13 +91,21 @@ CLI 확장: `view run <file> --input <args.json> --root <root> --host <origin> -
 
 ## 표·배치·한도
 
-Table은 **1~12개의 고유 공개 열**을 허용한다. 5열 Jira 요구와 제한적인 상세 조회 여유를 함께 충족하고, 64개 schema 필드 전체를 기본 표시하는 것을 피하는 상한이다. 숨은 열·자동 열 삭제·두 표 분할은 하지 않는다. 상한은 schema 하드코딩 대신 공개 `VIEW_LIMITS.columns`와 생성 context에 함께 노출한다.
+Table은 하나 이상의 고유 공개 열을 허용하며 **열 개수 상한은 없다**. `VIEW_LIMITS.columns`와 rowSchema의 64필드 개수 상한도 제거해 간접 열 제한을 남기지 않는다. 데이터 규모는 행 수·전체 용량으로 제한하며 타입·binding 검증은 유지한다. 기본 표는 공개 필드를 개수로 잘라내지 않는다. 넓은 표는 패널 안 가로 스크롤로 표시하고 숨은 열·자동 열 삭제·두 표 분할은 하지 않는다.
 
-조회 폼·표의 폭·스크롤·긴 값 표시는 [공통 조회 패턴](ui-patterns-v1.md#query-renderer-v3)이 소유한다. 명세는 CSS 폭을 공급하지 않는다.
+| 부품 이름 | 옵션 |
+| --- | --- |
+| Table | columns binding, 기본 열별 정렬·필터 |
+| Chart | type: bar / line / scatter, 공통 source/data/x/y/title 및 options 객체 |
+| Panel | direction: vertical / horizontal, children |
 
-`HorizontalPanel`은 최대 두 자식, 한 단계만 허용하고 가용 폭 960px 미만에서 세로 순서로 접는다. 전체 leaf panel 8개 제한은 유지한다. `LineChart`는 단일 series, 숫자 또는 날짜 x와 숫자 y만 허용한다. Core의 명시 sort 후 순서대로 그리며 중복 x는 거부, null은 단절로 표시한다. 보간·누적·다중 축·추세 계산은 없다. Table/BarChart와 동일 데이터 및 접근 가능한 값 목록을 쓴다. 선 차트·가로 배치는 로드맵 범위에 남기되 2단계 실패로 계수하지 않으며 Docling 진입의 선행 조건으로 삼지 않는다.
+종류별 차트 옵션은 Chart의 공통 options 틀 안에서 type별 strict schema로 검증한다. 새 그래프 종류는 type 값으로 추가하며 부품 이름을 늘리지 않는다. D1에서 기존 V1~V6의 BarChart/VerticalPanel 계약·기본 명세·소비 코드를 Chart(type:bar)/Panel(direction:vertical)로 전환한다. LineChart/ScatterChart/HorizontalPanel 별도 부품과 하위 호환·migration은 없다.
 
-명세 32 KiB, leaf 8개, rows 2000개, 필터 8개, label 160자와 scalar string 512자는 유지한다. 정렬·필터·제한·groupBy 하나(날짜 day/week/month)·count/sum/avg/min/max만 유지한다. review의 이미지/문서/map/proposals는 명세에 inline으로 넣지 않고 Host 자료로 읽는다. 페이지 자료는 요청당 1페이지·최대 2000영역, map/proposal 목록은 요청당 2000항목·1 MiB JSON을 상한으로 하고 continuation으로 이어 읽는다. 초과 페이지는 명시적 미지원 오류로 표시하며 조용히 잘라내지 않는다. 이미지 요청은 16 MiB·25 megapixel 이하로 검증하고 활성 페이지 주변만 로드한다. 이는 초기 자원 상한이며 실제 PDF 수락에서 미달하면 측정·계약 개정을 먼저 한다.
+Panel의 horizontal은 최대 두 자식·한 단계이며 가용 폭 960px 미만에서 세로로 접는다. leaf 8개 제한은 유지한다. Chart의 line/scatter와 horizontal 구현은 [재정의 설계의 V7](dynamic-views-v1.md#카탈로그-부품)에서 4단계 보류와 분리해 앞당긴다. line은 숫자/날짜 x·숫자 y, 중복 x 거부·null 단절, scatter는 숫자 x/y·중복 좌표 허용·null 좌표 제외와 제외 건수 표시다. 모든 type은 접근 가능한 값 목록을 제공한다.
+
+Table의 기본 정렬·타입별 열 필터, 결과 행 수·필터 해제와 서버 페이지 범위 안내는 [데이터 표 정렬·필터](ui-patterns-v1.md#데이터-표-정렬필터-제안)를 따른다. 화면 조작은 명세·Core 가공을 바꾸지 않으며 CLI parity 대상이 아니고 즐겨찾기에 저장하지 않는다. 폭·스크롤·긴 값 표시는 [공통 조회 패턴](ui-patterns-v1.md#query-renderer-v3)이 소유하며 명세는 CSS 폭을 공급하지 않는다.
+
+연결 데이터 명세 32 KiB(비서 데이터는 재정의 설계의 1 MiB·10,000행), leaf 8개, rows 2000개, 필터 8개, label 160자와 scalar string 512자는 유지한다. 정렬·필터·제한·groupBy 하나(날짜 day/week/month)·count/sum/avg/min/max만 유지한다. review의 이미지/문서/map/proposals는 명세에 inline으로 넣지 않고 Host 자료로 읽는다. 페이지 자료는 요청당 1페이지·최대 2000영역, map/proposal 목록은 요청당 2000항목·1 MiB JSON을 상한으로 하고 continuation으로 이어 읽는다. 초과 페이지는 명시적 미지원 오류로 표시하며 조용히 잘라내지 않는다. 이미지 요청은 16 MiB·25 megapixel 이하로 검증하고 활성 페이지 주변만 로드한다. 이는 초기 자원 상한이며 실제 PDF 수락에서 미달하면 측정·계약 개정을 먼저 한다.
 
 ## 안전한 오류와 화면 상태
 
@@ -103,7 +113,7 @@ Table은 **1~12개의 고유 공개 열**을 허용한다. 5열 Jira 요구와 �
 
 ## K2·K3·K4 공용 요소
 
-공용 요소의 검증 ID는 G1 파일 작업 완료 자료 연결, G2 페이지·영역 대조, G3 원본↔문서 탐색, G4 문서 변경 제안·승인·거절·Undo·갱신이다. 아래는 특정 플러그인의 저장·재처리 방식이나 변경 종류를 가정하지 않는 번들 화면과 Host 계약이다. 4단계는 비서가 Docling 플러그인을 만들어 이 요소들을 연결하는 수락 시험이며 Docling 제품 구현 단계가 아니다. 공용 fixture 검증은 그 실제 제작·변환 품질 판정이 아니다.
+공용 요소의 검증 ID는 G1 파일 작업 완료 자료 연결, G2 페이지·영역 대조, G3 원본↔문서 탐색, G4 문서 변경 제안·승인·거절·Undo·갱신이다. 아래는 특정 플러그인의 저장·재처리 방식이나 변경 종류를 가정하지 않는 번들 화면과 Host 계약이다. 4단계는 비서가 Docling 플러그인을 만들어 이 요소들을 연결하는 수락 시험이며 Docling 제품 구현 단계가 아니다. 예시: 공용 fixture 검증은 그 실제 제작·변환 품질 판정이 아니다.
 
 | 요소 | 최소 입력/출력 계약 | 막히는 수락 시나리오 |
 | --- | --- | --- |
@@ -131,13 +141,15 @@ Host는 공식 write path의 revision 보호와 실패 시 데이터 보존을 �
 
 제품에 번들된 [authoring-skill.ts](../../apps/editor/server/plugins/authoring-skill.ts)를 해당 구현 PR에서 보강한다. V6는 번들 안내와 일반 대화의 view_catalog/propose_view, Generate view 결과 카드를 구현한다.
 
-1. **공통 view 경로:** rowSchema 읽기 작업 → Host 카탈로그 → Core validate → 공용 view save/run → 앱 renderer. SDK 기여와 공통 view 지원을 별개로 설명하고 현재 지원 version을 먼저 확인한다. v2 병합 전에 새 `contributes.views/reviews` 예시를 제공하지 않는다.
-2. **한도 사전 확인:** 실제 catalog에서 12열/8패널/폼 8입력/32 KiB와 operation input/output을 읽고 한 번의 대표 명세를 검증한다. v1 Host라면 4열 제한을 정직하게 알리고 5열 수락을 두 표로 대체해 성공 선언하지 않는다. 제거된 필드의 즐겨찾기는 새 명세가 필요하다.
+1. **공통 view 경로:** rowSchema 읽기 작업 → Host 카탈로그 → Core validate → 공용 view save/run → 앱 renderer. SDK 기여와 공통 view 지원을 별개로 설명하고 현재 지원 version을 먼저 확인한다. v2 병합 전에 `예시:`로 표시한 새 `contributes.views/reviews` 사용 사례를 제공하지 않는다.
+2. **한도 사전 확인:** 실제 catalog에서 행·용량/8패널/폼 8입력 한도(열 개수 상한 없음)와 operation input/output을 읽고 한 번의 대표 명세를 검증한다. v1 Host라면 4열 제한을 정직하게 알리고 5열 수락을 두 표로 대체해 성공 선언하지 않는다. 제거된 필드의 즐겨찾기는 새 명세가 필요하다.
 3. **일반 채팅 vs Generate view:** 일반 채팅은 제작·수정·등록 도구 사용, Generate view는 선택한 같은 모델의 읽기 전용 최종 명세 생성이다. Generate view turn에서 plugin 설치나 작업 실행을 시도하지 않는다. 검증 오류 교정은 보이게 최대 2회, provider/transport 오류는 별도 실패이며 모델 자동 교체 없음.
-4. **Windows 호출:** 실행 가능한 절대 CLI와 명시 Host를 제공하고 argv JSON 대신 UTF-8 파일을 쓴다. `Invoke-Expression`, POSIX heredoc, PATH 추측을 쓰지 않는다. 아래 예시는 PowerShell 7이며 입력/뷰 파일은 artifact 밖에 둬 digest를 바꾸지 않는다.
+4. **Windows 호출:** 실행 가능한 절대 CLI와 명시 Host를 제공하고 argv JSON 대신 UTF-8 파일을 쓴다. `Invoke-Expression`, POSIX heredoc, PATH 추측을 쓰지 않는다. 예시: 아래 호출은 PowerShell 7이며 입력/뷰 파일은 artifact 밖에 둬 digest를 바꾸지 않는다.
 5. **검증 주장:** schema 검증, 실제 invoke, 브라우저 확인, 실제 외부 서비스/AI 결과를 구별한다. 비서가 화면을 보지 않았다면 화면 검증 완료라고 쓰지 않는다. 사용자가 고른 모델은 유지하되 개발 수락 시험의 실제 AI 호출은 저장소 기준 Luna low를 쓴다.
 
-현재 지원 경로의 예시(자리표시자는 실제 대상·존재하는 CLI로 교체, 이 문서에서 실행하지 않음):
+### 예시: 현재 지원 CLI 경로
+
+자리표시자 안내(자리표시자는 실제 대상·존재하는 CLI로 교체, 이 문서에서 실행하지 않음):
 
 ```powershell
 $cliPath = '<repo>\packages\cli\dist\cli.mjs'
@@ -151,7 +163,7 @@ $viewPath = 'C:\Work\scratch\jira.view.json'
 & node $cliPath view run $viewPath --root 'C:\Work\documents' --host $targetHost --json
 ```
 
-v2 CLI의 추가 호출:
+### 예시: v2 CLI의 추가 호출
 
 ```powershell
 & node $cliPath view run $viewPath --input $inputPath --root 'C:\Work\documents' --host $targetHost --json
@@ -165,21 +177,21 @@ v2 CLI의 추가 호출:
 
 ## 구현 분할과 검증 책임
 
-각 행은 sol 작업자 한 명의 PR 단위다. 이 문서 PR은 작업자를 실행하지 않는다. 계약 PR V1을 먼저 병합한 뒤 병렬 작업하며 공통 파일 충돌은 아래 소유권으로 제한한다. 구현 시 [테스트 지침](../contributing/test-design.md)에 따라 기존 보호를 우선 보완하고 필수 CI를 모두 통과한다.
+아래 V1~V6는 기존 구현 분할 기록이다. 당시 12열·BarChart·VerticalPanel은 후속 D1에서 제거/전환하며 현재 구현 계획은 [D1~D4/V7](dynamic-views-v1.md#구현-분할과-완료-조건)을 따른다. 각 행은 sol 작업자 한 명의 PR 단위다. 이 문서 PR은 작업자를 실행하지 않는다. 계약 PR V1을 먼저 병합한 뒤 병렬 작업하며 공통 파일 충돌은 아래 소유권으로 제한한다. 구현 시 [테스트 지침](../contributing/test-design.md)에 따라 기존 보호를 우선 보완하고 필수 CI를 모두 통과한다.
 
 | PR | 범위·주 소유 파일 | 완료 기준과 주 검증 계층 | 의존 / 시점 |
 | --- | --- | --- | --- |
-| V1 Core·SDK v2 계약 | Core views의 query/review 명세·입력·한도·중립 refs, SDK views/reviews 타입. 실제 화면·Docling 없음 | Core에서 canonical 왕복, input 타입/누락, 12열 경계, unknown action·secret binding·cross-profile 거부. SDK entry 전 기여 검증 | 설계 수락 후 첫 PR. 4단계 전 필수 |
+| V1 Core·SDK v2 계약 | Core views의 query/review 명세·입력·한도·중립 refs, SDK views/reviews 타입. 실제 화면·Docling 없음 | Core에서 canonical 왕복, input 타입/누락, 당시 열 경계(후속 D1에서 개수 제한 제거), unknown action·secret binding·cross-profile 거부. SDK entry 전 기여 검증 | 설계 수락 후 첫 PR. 4단계 전 필수 |
 | V2 Host·CLI 조회/저장·기본 기여 | server/views·plugin view 등록, CLI views. plugin namespace·input 대체·view.propose | HTTP/CLI 같은 args/rows/receipt, 신규 저장·입력 복원·조회 없는 open, 가용성 재검사. renderer 계산 없음 | V1. V3/V4/V5와 병렬. 4단계 전 필수 |
-| V3 폼·12열·상태 renderer | apps/editor/src/views 및 공통 상태 adapter | 실제 조작으로 6프리셋 중 대표 전환·5열/12열·입력 저장/열기, 640/960/1440 폭. #1233 5종 고정 상태·secret 원문 비노출. 기존 generated-views 시나리오 보완 | V1; 통합 완료는 V2 + #1233 필요. 4단계 전 필수 |
-| V4 review Host·CLI/K1 완료 자료 | 공용 review dispatcher·자료 읽기·K1 bundle 공개, CLI review | 공용 fixture로 Core operation·공식 write path 연결, Root 밖/다른 Host·혼합 자료 거부, baseline/stale·충돌·응답 유실 no-replay 확인. 완료된 이미지/map refs만 공개 | V1. #1233 오류 타입 소비. V5와 병렬. 4단계 전 필수 |
-| V5 K2/K3/K4 번들 화면 | 공용 PageSurface/SourceDocumentCompare/ReviewList·Detail, 기존 Read 연결 | 공용 fixture로 이미지/bbox·양방향 선택·불필요 점프 없음·stale 차단·승인/거절/Undo/갱신 중 표시. 실제 1440px 대조, 좁은 창 안내 | V1; 공용 fixture로 병렬 진행, 통합 완료는 V4. 4단계 전 필수 |
-| V6 제작 스킬·비서 결과 카드 | authoring-skill·assistant view 결과 연결·관련 계약 | 일반 제작→validated 결과 카드→새 탭에 재붙여넣기 없음. Generate view와 도구 범위 구별, 2회 cap·중단/닫기/늦은 결과 폐기. 스킬 PowerShell 예시 확인 | V2/V3. 문안 초안은 병렬 가능. 4단계 전 필수 |
-| V7 LineChart·HorizontalPanel | chart/layout renderer와 Core 해당 union 보완 | 순서·중복 x·null 단절은 Core, 실제 접근성·두 열→세로 전환은 browser. 라이브러리는 기존 자산 우선 | V1 이후 병렬 가능, **4단계 진입 뒤 가능**. 로드맵 3단계 전체 완료에는 필요 |
+| V3 폼·표·상태 renderer | apps/editor/src/views 및 공통 상태 adapter | 실제 조작으로 6프리셋 중 대표 전환·예시: 좁은 표/넓은 표·입력 저장/열기, 640/960/1440 폭. #1233 5종 고정 상태·secret 원문 비노출. 기존 generated-views 시나리오 보완 | V1; 통합 완료는 V2 + #1233 필요. 4단계 전 필수 |
+| V4 review Host·CLI/K1 완료 자료 | 공용 review dispatcher·자료 읽기·K1 bundle 공개, CLI review | 예시: 공용 fixture로 Core operation·공식 write path 연결, Root 밖/다른 Host·혼합 자료 거부, baseline/stale·충돌·응답 유실 no-replay 확인. 완료된 이미지/map refs만 공개 | V1. #1233 오류 타입 소비. V5와 병렬. 4단계 전 필수 |
+| V5 K2/K3/K4 번들 화면 | 공용 PageSurface/SourceDocumentCompare/ReviewList·Detail, 기존 Read 연결 | 예시: 공용 fixture로 이미지/bbox·양방향 선택·불필요 점프 없음·stale 차단·승인/거절/Undo/갱신 중 표시. 실제 1440px 대조, 좁은 창 안내 | V1; 예시: 공용 fixture로 병렬 진행, 통합 완료는 V4. 4단계 전 필수 |
+| V6 제작 스킬·비서 결과 카드 | authoring-skill·assistant view 결과 연결·관련 계약 | 일반 제작→validated 결과 카드→새 탭에 재붙여넣기 없음. Generate view와 도구 범위 구별, 2회 cap·중단/닫기/늦은 결과 폐기. 예시: 스킬 PowerShell 호출 확인 | V2/V3. 문안 초안은 병렬 가능. 4단계 전 필수 |
+| V7 Chart·Panel 확장 | Chart의 line/scatter type·공통 options, Panel horizontal direction | 순서·중복 x·null·좌표는 Core, 접근성·가로→세로 전환은 browser. 별도 부품 이름 없음 | D1 후 병렬, 4단계 보류와 분리해 앞당김 |
 
 V1에서 공통 contract/schema를 소유하고, V2는 조회용 Host/CLI, V4는 review/K1용 Host/CLI를 소유한다. V3·V5는 별도 renderer 파일을 쓰며 공통 Views 진입점 통합은 V3 소유다. V6가 비서·스킬 파일을 단독 수정한다. `docs/README.md`·기존 Implemented 계약의 각 절은 해당 동작 구현 PR에서 갱신한다. 아직 미구현인 이 문서 전체를 첫 PR만으로 Implemented로 바꾸지 않는다.
 
-4단계 시작 gate는 V1~V6 + #1233이다. Jira 재수락에서 검색 폼·5열 단일 표·오류 구분·즐겨찾기 입력 복원·수동 run·CLI rows 일치를 확인하고, 공용 review fixture가 G1~G4를 연결해야 한다. 기존 Root picker 결함으로 runner가 실패하면 별도 수정/원인 확인이 필요하며 통과로 계산하지 않는다. 이후 **4단계는 비서가 Docling 플러그인을 만드는 수락 시험**이며 이 구현 분할에 Docling 제품 구현을 추가하지 않는다. V4/V5 공용 fixture 통과를 그 실제 수락으로 대체하지 않는다.
+4단계 시작 gate는 V1~V6 + #1233이다. Jira 재수락에서 검색 폼·5열 단일 표·오류 구분·즐겨찾기 입력 복원·수동 run·CLI rows 일치를 확인하고, 예시: 공용 review fixture가 G1~G4를 연결해야 한다. 기존 Root picker 결함으로 runner가 실패하면 별도 수정/원인 확인이 필요하며 통과로 계산하지 않는다. 이후 **4단계는 비서가 Docling 플러그인을 만드는 수락 시험**이며 이 구현 분할에 Docling 제품 구현을 추가하지 않는다. 예시: V4/V5 공용 fixture 통과를 그 실제 수락으로 대체하지 않는다.
 
 4단계 전에는 실제 교정 저장·재처리를 검증하지 않는다.
 
@@ -189,17 +201,21 @@ V1에서 공통 contract/schema를 소유하고, V2는 조회용 Host/CLI, V4는
 
 소유자 결정 필요 항목: 없음.
 
-나머지 작은 결정은 직접 정했다: 12열 상한(5열 요구와 표시 비용), 8필드 단일 form·전체 args 대체(별도 상태 DSL 불필요), 단일 source 유지(조인 요구 없음), 1024px 대조 최소 폭(확정된 넓은 화면 전제), 앱 기존 작업 탭·공통 control 재사용, V7을 Docling 선행 조건에서 분리(시험에서 요구되지 않음). 이 PR의 제안 수락으로 함께 검토할 공개 API/상호작용이며 별도 선호 질문으로 쪼개지 않는다. 이미 결정된 기본 UI·새 탭·저장 위치·수동 조회·모델 선택·2회 교정·원격 코드 금지·migration 없음은 재결정 항목이 아니다.
+열 개수 상한 제거와 Chart/Panel 일반화는 2026-11-06 소유자 정정이다. 나머지 작은 결정은 직접 정했다: 8필드 단일 form·전체 args 대체(별도 상태 DSL 불필요), 단일 source 유지(조인 요구 없음), 1024px 대조 최소 폭(확정된 넓은 화면 전제), 앱 기존 작업 탭·공통 control 재사용, V7을 Docling 선행 조건에서 분리(시험에서 요구되지 않음). 이 PR의 제안 수락으로 함께 검토할 공개 API/상호작용이며 별도 선호 질문으로 쪼개지 않는다. 이미 결정된 기본 UI·새 탭·저장 위치·수동 조회·모델 선택·2회 교정·원격 코드 금지·migration 없음은 재결정 항목이 아니다.
 
 공통 구현은 DocumentTabs/ViewRenderer, SettingsSelect/SettingsInput/Button/Notice/Dialog 및 기존 Read를 재사용한다. [UI 결정표](ui-decision-table-v1.md)·[UI 패턴](ui-patterns-v1.md)의 입력 오류·적용·범위 규칙과 [Layout Rules](editor-layout-rules-v1.md)·[Visual Language](editor-visual-language-v1.md)의 높이/간격/톤을 따른다. 새 번들 PageSurface와 대조/교정 조합은 기존 표로 표현할 수 없는 K2~K4 때문에 필요한 예외다. 새 색·임의 CSS·별도 Editor를 도입하지 않는다. 구현 PR에서 생성 뷰·Plugin jobs·설정 입력의 같은 패턴 사용처를 함께 확인하고 Before/After 수동 근거를 남긴다.
 
-### V5 fixture 구현 상태
+### 예시: V5 fixture 구현 상태
 
 [공용 review renderer](../../apps/editor/src/review/ReviewRenderer.tsx)가 V1 중립 자료 계약과
 기존 Read를 조합한다. 선택·승인·pending/applied·stale/unavailable·Undo·갱신 중·폭 안내의
 동작 소유권은 [UI 패턴](ui-patterns-v1.md#공용-원본-대조와-변경-제안-catalog-v5-1241-a안)에 둔다.
-명세에는 자료와 binding만 남긴다. V3 공통 진입점의 query/review 분기와 V5 연결은 #1263의 공용 fixture로 검증한다. V4 실제 Host·CLI 통합은 아직 검증하지 않았다.
+명세에는 자료와 binding만 남긴다. V3 공통 진입점의 query/review 분기와 V5 연결은 예시: #1263 공용 fixture로 검증한다. V4 실제 Host·CLI 통합은 아직 검증하지 않았다.
 
 ## V4 구현 기록
 
-V4 Host·CLI와 K1 완료 자료 연결의 구현 계약은 [플러그인 1단계](plugin-stage1-v1.md#v4-공용-review-hostcli)에 기록했다. SDK completedReviewSchema, Core Review 타입·중립 operation, PluginHost 소유 dispatcher와 공식 file-commit을 사용한다. 제품 HTTP/CLI fixture는 공용 흐름의 근거이며 V5 화면의 실제 통합·Docling 수락을 대신하지 않는다. 전체 Draft 상태와 나머지 구현 gate는 유지한다.
+V4 Host·CLI와 K1 완료 자료 연결의 구현 계약은 [플러그인 1단계](plugin-stage1-v1.md#v4-공용-review-hostcli)에 기록했다. SDK completedReviewSchema, Core Review 타입·중립 operation, PluginHost 소유 dispatcher와 공식 file-commit을 사용한다. 예시: 제품 HTTP/CLI fixture는 공용 흐름의 근거이며 V5 화면의 실제 통합·Docling 수락을 대신하지 않는다. 전체 Draft 상태와 나머지 구현 gate는 유지한다.
+
+### 예시: Table 갤러리
+
+부품 목록과 별도 영역에서 같은 Table의 사용 사례를 보여 준다. D3는 `apps/editor/src/dev/ui-gallery.tsx`의 Five columns/Twelve columns를 `Table — 예시: 좁은 표`, `Table — 예시: 넓은 표(가로 스크롤)`로 바꾸고 `Table — 예시: 열별 정렬·필터`를 추가한다. 예시의 열 개수·자료·fixture 이름은 부품이나 variant 이름이 아니다.

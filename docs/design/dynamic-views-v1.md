@@ -1,7 +1,7 @@
 # 동적 뷰 재정의 v1
 
 - Status: Draft
-- Last verified: 2026-11-06 — `b49c5d51`의 Core views-v2, shared/view-generation, Views·V6 계약과 #1241 결정, #1254를 정적 대조. 외부 공식 문서 조사. 제품 실행·AI 수락 시험 없음.
+- Last verified: 2026-11-06 — 소유자 정정(열 상한 제거·Chart/Panel·예시 분리·열별 정렬/필터) 반영. `b49c5d51`의 Core views-v2, shared/view-generation, Views·V6 계약과 #1241 결정, #1254를 정적 대조. 외부 공식 문서 조사. 제품 실행·AI 수락 시험 없음.
 - Authority: [ADR-0020 개정안](../adr/0020-plugin-architecture.md#동적-뷰-재정의-개정안-2026-11-06), 2026-11-06 소유자 확정 결정. 세부 API·한도·수명은 이 설계의 제안이다.
 - Scope: 연결 데이터·비서 데이터, 표시 위치, 플러그인 화면, 비서 경로와 구현 분할. 현재 구현은 [Generated views](generated-views-v1.md), 공용 review는 [catalog v2](catalog-v2.md). 본 문서의 v1은 설계 첫 판이며 wire schemaVersion 1로의 복귀가 아니다.
 
@@ -21,6 +21,10 @@
 ## 명세와 canonical 형식
 
 현재 `schemaVersion: 2`, `catalog: litzio-v2`, query/review profile을 기반으로 query의 `sources.stats`를 두 종류로 확장한다. 연결 source는 `{kind:"operation", operation, version, args}`로 명시하고 비서 source는 아래 형식을 쓴다. query의 최상위 `owner`를 필수화한다. review 형식은 변경하지 않는다. 이전 파일 reader·migration·자동 필드 보충은 만들지 않으며 거부된 파일은 보존한다. catalog endpoint가 현재 schema와 한도를 공개하고 생성기는 항상 그 schema를 사용한다.
+
+### 예시: 여러 문서의 합계 명세
+
+예시는 부품 이름이나 별도 부품 종류가 아니다. 아래는 부품 목록과 분리한 사용 예시다.
 
 ```json
 {
@@ -47,13 +51,13 @@
       "method": "두 문서의 같은 월 매출을 합산했다. 단위는 원이다."
     }
   },
-  "layout": {"component":"VerticalPanel","children":[
+  "layout": {"component":"Panel","direction":"vertical","children":[
     {"component":"Table","title":"합계","source":"stats","data":"/rows","columns":["month","total"]}
   ]}
 }
 ```
 
-위 참조 ID·revision은 형태를 보이는 예시다. 실제 참조는 앱/Host가 공급한 값을 사용한다. 연결 source는 `refresh: manual`, 비서 source는 `refresh: assistant`만 허용한다. 비서 source에는 form, args, operation, transform을 허용하지 않는다. 행 순서는 비서가 준 순서를 보존하며 차트에 필요한 정렬도 명세 제출 전에 끝낸다. query 하나는 하나의 데이터 집합을 유지한다. 복합 출처를 비서가 하나의 schema/rows로 합칠 수 있으므로 여러 원본 요구를 단일 원본으로 제한하지 않는다. 서로 독립된 여러 실시간 작업의 join·혼합 새로고침은 이번 범위에 없다.
+예시: 위 참조 ID·revision은 형태만 보이며 실제 자료를 가리키지 않는다. 실제 참조는 앱/Host가 공급한 값을 사용한다. 연결 source는 `refresh: manual`, 비서 source는 `refresh: assistant`만 허용한다. 비서 source에는 form, args, operation, transform을 허용하지 않는다. 행 순서는 비서가 준 순서를 보존하며 차트에 필요한 정렬도 명세 제출 전에 끝낸다. query 하나는 하나의 데이터 집합을 유지한다. 복합 출처를 비서가 하나의 schema/rows로 합칠 수 있으므로 여러 원본 요구를 단일 원본으로 제한하지 않는다. 서로 독립된 여러 실시간 작업의 join·혼합 새로고침은 이번 범위에 없다.
 
 ### 출처와 크기
 
@@ -65,11 +69,12 @@
 | --- | --- | --- |
 | 입력 및 canonical UTF-8 명세 | 32 KiB | 1 MiB (전체 명세, 행·출처 포함) |
 | 행 | 2,000 | 10,000 |
-| 공개 필드 / 표시 열 / leaf | 기존 64 / 12 / 8 | 64 / 12 / 8 |
+| 공개 필드 / 표시 열 | 개수 상한 없음 | 개수 상한 없음 |
+| leaf | 8 | 8 |
 | scalar string / label | 기존 512 / 160자 | 4,096 / 160자 |
 | method | 없음 | 선택 plain text, 4,096자 |
 
-이는 초기 구현 상한 제안이며 처리 속도 보증이 아니다. 바이트·행·문자 제한을 모두 만족해야 한다. HTTP body, provider output 수집, 결과 카드 저장/전달, CLI 파일 읽기에도 같은 상한을 적용하고 한도 초과는 명시적으로 실패한다. 조용한 잘라내기·표 샘플로의 대체는 하지 않는다. 모델 context/output 한도가 더 작으면 그 요청은 완료 불가로 표시하며 모델을 자동 교체하지 않는다. 전체 행은 공통 표의 페이지 단위 표시로 펼쳐 볼 수 있어야 한다.
+Table의 12열 제한과 간접 제한이 되는 rowSchema의 64필드 개수 제한을 제거한다. 열은 하나 이상의 고유한 공개 필드여야 하지만 최대 개수는 두지 않는다. 데이터 규모는 행 수·전체 용량으로 제한하고, 넓은 표는 패널 안에서 가로 스크롤한다. 자동 열 삭제·두 표 분할은 하지 않는다. 타입·문자 길이·binding 검증은 유지한다. 이는 초기 구현 상한 제안이며 처리 속도 보증이 아니다. 바이트·행·문자 제한을 모두 만족해야 한다. HTTP body, provider output 수집, 결과 카드 저장/전달, CLI 파일 읽기에도 같은 상한을 적용하고 한도 초과는 명시적으로 실패한다. 조용한 잘라내기·표 샘플로의 대체는 하지 않는다. 모델 context/output 한도가 더 작으면 그 요청은 완료 불가로 표시하며 모델을 자동 교체하지 않는다. 전체 행은 공통 표의 페이지 단위 표시로 펼쳐 볼 수 있어야 한다.
 
 Core가 strict union, unknown 필드, rowSchema의 공개 scalar 타입·nullable·유한 숫자·UTC date, 행/필드 일치, component binding과 한도를 검증한다. 연결 작업의 secret 필드 제거는 기존 Host 공개 결과 경계를 유지한다. 비서 rowSchema의 secret 필드는 허용하지 않는다. 내용의 사실성·출처 주장 진실성을 schema 성공으로 보증하지 않는다. canonical은 기존 key code-unit 정렬·배열 순서 보존·기본값 정규화·2칸 들여쓰기·마지막 LF를 재사용한다. 원본과 canonical 모두 바이트 상한을 검사한다.
 
@@ -98,7 +103,11 @@ Core가 strict union, unknown 필드, rowSchema의 공개 scalar 타입·nullabl
 
 ## 플러그인 화면 기여와 진입점
 
-SDK의 기존 `contributes.views`에 선언된 기본 query 뷰를 참조하는 `contributes.screens`를 추가한다. 예: `{id:"dashboard",title:"Jira",icon:"LayoutDashboard",defaultViewIds:["issues"],primary:true}`. 화면 ID는 plugin 안에서 고유, primary는 최대 하나, defaultViewIds는 1~8개 고유 ID이며 같은 plugin의 선언된 query view만 참조한다. icon은 앱 번들 allowlist key다. SDK는 entry 실행 전에 중복·미정의 ID·다른 plugin 소유 연결 source를 거부한다. 플러그인 UI 코드·route 문자열·원격 자산은 받지 않는다.
+SDK의 기존 `contributes.views`에 선언된 기본 query 뷰를 참조하는 `contributes.screens`를 추가한다.
+
+> 예시: 화면 기여 — `{id:"dashboard",title:"Jira",icon:"LayoutDashboard",defaultViewIds:["issues"],primary:true}`
+
+ 화면 ID는 plugin 안에서 고유, primary는 최대 하나, defaultViewIds는 1~8개 고유 ID이며 같은 plugin의 선언된 query view만 참조한다. icon은 앱 번들 allowlist key다. SDK는 entry 실행 전에 중복·미정의 ID·다른 plugin 소유 연결 source를 거부한다. 플러그인 UI 코드·route 문자열·원격 자산은 받지 않는다.
 
 Host catalog는 활성 기여를 `{plugin,id,title,icon,defaultViewIds,primary}`로 공개한다. 화면 body는 기본 뷰 선택과 공통 renderer를 사용하고 앱이 header·Host picker·닫기·오류·수명을 맡는다. 기본 뷰는 항상 다시 선택할 수 있고 즐겨찾기로 덮어쓰지 않는다. screens가 없는 플러그인은 기존 공개 operation의 기본 조회 UI를 유지한다. 설정·계정은 설정 화면에 남긴다.
 
@@ -114,27 +123,45 @@ Host catalog는 활성 기여를 `{plugin,id,title,icon,defaultViewIds,primary}`
 
 Codex의 view_catalog/propose_view, Copilot의 현재 CLI 대안과 양 공급자의 Generate view를 유지한다. 별도 provider 도구 지원을 완료로 주장하지 않는다. 최초 시도 뒤 검증 오류 자가 교정은 **최대 2회**이며 각 실패와 교정을 보인다. 교정에는 해당 요청의 자료와 진단만 전달한다. transport/provider 오류는 교정 횟수로 재시도하지 않는다. 모델을 바꾸거나 실패 원인을 숨겨 다른 차트로 대체하지 않는다. 필요한 공개 proposal 입력·결과·CLI는 D2가 함께 제공한다.
 
-## 카탈로그 추가
+## 카탈로그 부품
 
-기존 V7을 4단계 보류와 분리해 이번 구현에 포함한다. `LineChart`는 기존 제안대로 숫자 또는 날짜 x, 숫자 y의 단일 series이며 순서·중복 x·null 단절을 Core가 검증한다. 비서 행은 x 오름차순이어야 하며 잘못된 순서는 교정 대상으로 반환한다. `ScatterChart`는 유한 숫자 x/y, 중복 좌표 허용, null 좌표는 표시 제외하고 제외 건수를 값 목록에 알린다. 점을 선으로 연결하거나 회귀선·보간·새 통계를 계산하지 않는다. 각 차트는 같은 원자료 값 목록을 제공한다.
+| 부품 이름 | 공통 옵션과 binding |
+| --- | --- |
+| `Table` | columns로 공개 필드 선택. 열 개수 상한 없음. 기본 열별 정렬·필터는 명세 옵션이 아닌 제품 공통 동작 |
+| `Chart` | `type: "bar" 또는 "line" 또는 "scatter"`, source/data/x/y/title와 공통 `options` 객체 |
+| `Panel` | `direction: "vertical" 또는 "horizontal"`, children |
 
-`HorizontalPanel`은 두 자식·한 단계·전체 leaf 8개를 유지하고 가용 renderer 폭 960px 미만에서 세로로 접는다. 창 폭이 아니라 실제 배치 폭을 쓴다. 우측 보기에서는 세로 표시가 기본이다. review의 넓은 대조 화면은 별도 작업 탭을 유지한다. [공통 UI 패턴](ui-patterns-v1.md), [Layout Rules](editor-layout-rules-v1.md), [Visual Language](editor-visual-language-v1.md)를 재사용하고 새 스타일 DSL은 만들지 않는다.
+그래프 종류가 늘면 Chart의 type 값을 추가하고, 배치 방향이 늘면 Panel의 direction 값으로 다룬다. 종류별 부품 이름을 늘리지 않는다. 종류별 고유 옵션은 공통 options 객체 안에서 type별 strict schema로 검증하며 알 수 없는 옵션은 거부한다. 이번 범위에서 필요하지 않은 옵션·CSS·실행 코드·범용 확장 bag은 만들지 않는다. options 생략은 기본 동작이다.
+
+D1은 기존 V1~V6의 BarChart/VerticalPanel 계약과 기본 명세·생성 schema·소비 코드를 Chart(type:bar)/Panel(direction:vertical)로 함께 바꾼다. LineChart/ScatterChart/HorizontalPanel이라는 별도 부품은 도입하지 않는다. 예전 형태를 읽는 alias·하위 호환·migration은 없다. 기존 파일을 거부하더라도 보존한다.
+
+V7은 Chart의 line/scatter와 Panel의 horizontal 동작을 확장하며 4단계 보류와 분리한다. line은 숫자 또는 날짜 x, 숫자 y의 단일 series이며 순서·중복 x·null 단절을 Core가 검증한다. 비서 행은 x 오름차순이어야 하며 잘못된 순서는 교정 대상으로 반환한다. scatter는 유한 숫자 x/y, 중복 좌표 허용, null 좌표는 표시 제외하고 제외 건수를 값 목록에 알린다. 점을 선으로 연결하거나 회귀선·보간·새 통계를 계산하지 않는다. bar는 기존 부호·영점 기준 동작을 유지한다. 각 type은 같은 원자료 값 목록을 제공한다.
+
+Panel의 horizontal은 두 자식·한 단계·전체 leaf 8개를 유지하고 가용 renderer 폭 960px 미만에서 세로로 접는다. 창 폭이 아니라 실제 배치 폭을 쓴다. 우측 보기에서는 세로 표시가 기본이다. review의 넓은 대조 화면은 별도 작업 탭을 유지한다. [공통 UI 패턴](ui-patterns-v1.md), [Layout Rules](editor-layout-rules-v1.md), [Visual Language](editor-visual-language-v1.md)를 재사용하고 새 스타일 DSL은 만들지 않는다.
+
+### 데이터 표의 기본 보기 조작
+
+Table은 별도 명세 opt-in 없이 열별 정렬·필터를 제공한다. 동작의 단일 기준은 [데이터 표 정렬·필터](ui-patterns-v1.md#데이터-표-정렬필터-제안)다. 정렬은 오름차순 → 내림차순 → 원래 순서, 필터는 열 머리글에서 타입별로 설정하며 여러 열은 AND로 결합한다. 화면의 정렬·필터는 원자료·명세·Core sort/filter를 바꾸지 않으며 CLI parity 대상이 아니다. 서버 페이지가 있는 연결 데이터는 불러온 행에만 적용하고 그 범위를 안내한다. 즐겨찾기에 이 상태를 저장하지 않고 열 때마다 원래 순서·필터 없음으로 시작한다.
+
+### 예시: 갤러리 사용 사례
+
+이 절의 이름은 부품이 아니라 같은 Table의 사용 예시다. D3에서 `apps/editor/src/dev/ui-gallery.tsx`의 Five columns/Twelve columns 제목을 각각 `Table — 예시: 좁은 표`, `Table — 예시: 넓은 표(가로 스크롤)`로 고친다. `Table — 예시: 열별 정렬·필터`도 제공한다. 열 개수는 예시 자료의 특성일 뿐 제한이나 variant 이름이 아니다. 모든 예시·fixture 제목과 설명에는 `예시:`를 붙이고 부품 목록과 별도 절/영역에 배치한다.
 
 ## 구현 분할과 완료 조건
 
-각 행은 sol 작업자 한 명의 PR이다. 이 설계 PR은 제품 코드를 변경하거나 작업자를 실행하지 않는다. 기존 V1~V6를 다시 구현하지 않는다.
+각 행은 sol 작업자 한 명의 PR이다. 이 설계 PR은 제품 코드를 변경하거나 작업자를 실행하지 않는다. 기존 V1~V6 기능은 재사용하되 D1이 부품 계약과 소비 코드를 새 형태로 바꾼다.
 
 | PR | 범위·파일 소유 | 완료 기준 | 의존 |
 | --- | --- | --- | --- |
-| D1 Core·SDK 계약 | views-v2, SDK screens schema, 공개 limits | 두 source·owner·출처·canonical·1 MiB/10,000행 경계, unknown/잘못된 binding 거부. 기존 Core/SDK 검사 보완 | 설계 수락 후 선행 |
+| D1 Core·SDK 계약 | views-v2, SDK screens schema, 공개 limits | 두 source·owner·출처·canonical·1 MiB/10,000행 경계, Table 열/공개 필드 개수 상한 제거, Chart/Panel 계약과 기존 V1~V6 소비 경로 전환, unknown/잘못된 binding 거부. 기존 Core/SDK 검사 보완 | 설계 수락 후 선행 |
 | D2 Host·CLI | server/views, view-service, plugin catalog, CLI view | 두 source validate/propose/save/open/run의 동일 결과·receipt, owner 확인·snapshot 저장/재열기·disabled 보존, body/출력 한도 관통 | D1 |
-| D3 앱 위치·화면 | Views 진입점·shell·우측 보기·SDK 화면 소비 | 3개 위치, 사이드바/명령/목록, Host 고정·전환·닫기·늦은 결과·즐겨찾기 namespace를 실제 조작으로 확인 | D1 뒤 D2/D4/V7과 병렬, 통합은 D2 |
+| D3 앱 위치·화면 | Views 진입점·shell·우측 보기·SDK 화면 소비·제품 공통 Table·ui-gallery | 3개 위치·진입점·Host 수명·즐겨찾기 namespace, 공통 Table 정렬·타입별 열 필터·불러온 행 범위·접근성·상태 비저장, 넓은 표 가로 스크롤 및 갤러리 예시 제목을 실제 조작으로 확인 | D1 뒤 D2/D4/V7과 병렬, 통합은 D2 |
 | D4 비서 context·카드 | shared/view-generation, assistant adapters·번들 제작 안내 | 기존 열린 Root 범위의 여러 문서+공개 도구 결과 합성, 두 source 안내·출처·행 펼치기, 최대 2회 교정·취소·timeout·출력 한도, 일반 대화/Generate view/보기 연결 | D1 뒤 병렬, 통합은 D2/D3 |
-| V7 선·산점도·가로 배치 | 공통 chart/layout 부품과 Core component union | LineChart 순서·중복/null, ScatterChart 좌표/null, accessible 값 목록, 실제 배치 폭별 세로 접기. UI·CLI 값 동일 | D1 후 즉시 병렬; 4단계 진입 조건과 독립 |
+| V7 Chart type·Panel direction 확장 | 공통 Chart/Panel과 Core type별 options schema | line 순서·중복/null, scatter 좌표/null, accessible 값 목록, 실제 배치 폭별 세로 접기. UI·CLI 값 동일 | D1 후 즉시 병렬; 4단계 진입 조건과 독립 |
 
-D1이 공통 schema를 먼저 병합하고 V7은 chart/layout union만 후속 수정한다. D3가 Views 진입점과 공통 UI 패턴·결정표 갱신을 소유한다. D4는 D3가 제공하는 destination token 계약만 소비한다. D2/D4는 provider 수집→HTTP→receipt/카드→파일까지 출력 한도를 함께 검토하고, D3/D4는 180초 timeout·중단·닫힘·늦은 결과를 함께 확인한다. 문서의 각 절은 해당 구현 PR에서만 Implemented 계약으로 옮긴다.
+D1이 공통 schema를 먼저 병합하고 V7은 Chart type·Panel direction과 해당 옵션/렌더링만 확장한다. D1이 bar/vertical 소비 코드 전환까지 완료해 중간 PR의 동작을 유지한다. D3가 Views 진입점과 공통 UI 패턴·결정표 갱신을 소유한다. D4는 D3가 제공하는 destination token 계약만 소비한다. D2/D4는 provider 수집→HTTP→receipt/카드→파일까지 출력 한도를 함께 검토하고, D3/D4는 180초 timeout·중단·닫힘·늦은 결과를 함께 확인한다. 문서의 각 절은 해당 구현 PR에서만 Implemented 계약으로 옮긴다.
 
-최종 수락은 일반 대화에서 기존 열린 Root 범위의 두 문서와 도구 결과로 계산한 표·선/산점도를 만들고, 새 탭·보기·플러그인 화면에서 동일 행을 확인하며, 비서 데이터 즐겨찾기를 다시 열어 재계산 없이 같은 값·출처가 남는 흐름이다. 별도로 연결 데이터 수동 새로고침과 플러그인별 즐겨찾기 격리를 확인한다. `pnpm browser:test` 기존 시나리오를 보완하며 640px 이상 데스크톱과 실제 우측 영역 폭을 확인한다. 실제 AI 시험은 Codex gpt-6-luna low, fixture/브라우저/실제 AI/외부 서비스 근거는 구분한다. 원격 Host·큰 자료를 시험하지 않았다면 그 조건은 미확인으로 남긴다. 필수 CI 통과와 작업자가 시작한 프로세스 정리도 완료 조건이다.
+최종 수락은 일반 대화에서 기존 열린 Root 범위의 두 문서와 도구 결과로 계산한 표·선/산점도를 만들고, 새 탭·보기·플러그인 화면에서 동일 행을 확인하며, 비서 데이터 즐겨찾기를 다시 열어 재계산 없이 같은 값·출처가 남는 흐름이다. 별도로 연결 데이터 수동 새로고침과 플러그인별 즐겨찾기 격리를 확인한다. `pnpm browser:test` 기존 시나리오를 보완하며 640px 이상 데스크톱과 실제 우측 영역 폭을 확인한다. 실제 AI 시험은 Codex gpt-6-luna low를 쓴다. 예시: fixture의 검증 근거와 브라우저/실제 AI/외부 서비스 근거는 구분한다. 원격 Host·큰 자료를 시험하지 않았다면 그 조건은 미확인으로 남긴다. 필수 CI 통과와 작업자가 시작한 프로세스 정리도 완료 조건이다.
 
 ## 참고 사례와 선택
 
