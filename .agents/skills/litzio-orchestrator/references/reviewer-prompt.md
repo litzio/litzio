@@ -18,4 +18,5 @@
 
 ## 결과
 결과를 PR 댓글로 남긴다. 첫 줄에 `Reviewer: <agent> <model> (independent)`, verdict(`APPROVE` 또는 `REQUEST_CHANGES`), 검토한 전체 head SHA를 쓴다. 결함은 심각도, 재현 절차, 근거와 함께 쓰고 비차단 메모는 구분한다. 리뷰 중 head가 바뀌면 최종 head 기준으로 판정한다. 끝나면 직접 시작한 서버와 브라우저를 정리하고 verdict 요약과 남은 프로세스를 한국어 정상 문장으로 짧게 보고한다.
+부모에게 보내는 완료 보고는 최종 답변에 한 번만 작성하며 PR 댓글 URL, 검토한 head SHA, verdict와 남은 일을 포함한다. Paseo의 자동 finish 알림으로 전달되므로 `send_agent_prompt`나 CLI 메시지로 같은 완료 보고를 별도 전송하지 않는다. 부모 또는 동료에게 보내는 직접 메시지는 중간 질문·차단 사항·진행에 필요한 인계에만 사용한다. 상대의 `serverId`를 확인한 뒤 `notifyOnFinish: false`로 보내 메시지는 전달하되 상대의 종료 알림을 역방향으로 구독하지 않는다. 부모가 작업 배정·후속 작업·queue 감시를 맡길 때는 `notifyOnFinish: true`를 유지한다. 최종 답변은 그 메시지를 읽지 않아도 이해할 수 있게 작성한다.
 ```

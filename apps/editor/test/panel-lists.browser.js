@@ -23,7 +23,7 @@ async (page, { openDocument, expect, screenshots }) => {
   const tables = panel.getByTestId('tables');
   const figures = panel.getByTestId('figures');
   const editor = page.locator('[data-document-tab][data-active=true] .document-editor');
-  await expect(tabs).toHaveText(['Outline', 'Tables', 'Figures']);
+  await expect(tabs).toHaveText(['Outline', 'Tables', 'Figures', 'Views']);
   await expect(panel.getByRole('tab', { name: 'Outline', exact: true })).toHaveAttribute('aria-selected', 'true');
   // Every tab controls a mounted panel, and only the chosen panel is exposed.
   for (const tab of await tabs.all()) {
@@ -50,11 +50,18 @@ async (page, { openDocument, expect, screenshots }) => {
   }
 
   // Roving tab stop, automatic arrow activation, Home/End and connection to the list.
-  await tabs.nth(2).focus();
+  await tabs.nth(3).click();
+  await tabs.nth(3).focus();
   await page.keyboard.press('ArrowRight');
   await expect(tabs.nth(0)).toBeFocused();
   await expect(tabs.nth(0)).toHaveAttribute('aria-selected', 'true');
   await page.keyboard.press('End');
+  await expect(tabs.nth(3)).toBeFocused();
+  await page.keyboard.press('Home');
+  await expect(tabs.nth(0)).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(tabs.nth(3)).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
   await expect(tabs.nth(2)).toBeFocused();
   await page.keyboard.press('ArrowLeft');
   await expect(tabs.nth(1)).toBeFocused();
@@ -200,7 +207,7 @@ async (page, { openDocument, expect, screenshots }) => {
   try {
     await page.evaluate(() => localStorage.setItem('litzio.uiLanguage', 'ko'));
     await page.reload();
-    await expect(tabs).toHaveText(['개요', '표', '그림']);
+    await expect(tabs).toHaveText(['개요', '표', '그림', '보기']);
     await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
     await tabs.nth(1).click();
     await expect(tables).toHaveText('표 없음');

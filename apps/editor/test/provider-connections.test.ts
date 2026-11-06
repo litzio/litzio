@@ -130,6 +130,8 @@ test("Copilot ACP lists its models, streams one turn, applies permission scope, 
   const restricted = await conversations.send({ ...input, id: full.id, permissionMode: "read-only" }, settings);
   assert.deepEqual(connection.copilot.permission!({ ...execution, sessionId: restricted.id }), { outcome: { outcome: "cancelled" } });
   await conversations.interrupt(restricted.id);
+  // Wait for the fixture to finish logging prior requests before reading its JSONL.
+  await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: restricted.id, modelId: input.model }));
   const restrictedRpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
   assert.ok(restrictedRpc.filter(message => message.args).at(-1).args.includes("--deny-tool=shell"));
   assert.equal(restrictedRpc.filter(message => message.method === "session/set_config_option" && message.params.configId === "allow_all").at(-1).params.value, "off");

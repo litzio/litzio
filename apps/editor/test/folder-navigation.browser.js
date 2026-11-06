@@ -598,8 +598,25 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
 
   // #927: a real external write must appear without a manual refresh or focus event.
   await row('install.md').focus();
-  await folderFixture.change('add');
-  await row('external.txt').waitFor({timeout:8000});
+  const refreshObservations = [];
+  const writeStarted = Date.now();
+  const observeRefresh = async response => {
+    const url = response.url();
+    const version = url.startsWith(`${origin}/api/folder-version?`);
+    if ((!version && !url.startsWith(`${origin}/api/folder?`)) || !decodeURIComponent(url).includes(folder)) return;
+    try {
+      const value = await response.json();
+      refreshObservations.push({ms:Date.now() - writeStarted, kind:version ? 'version' : 'listing', status:response.status(),
+        ...(version ? {version:value.version} : {entries:value.entries?.map(entry => entry.name)})});
+    } catch { /* A failed response is already covered by the console diagnostics. */ }
+  };
+  page.on('response', observeRefresh);
+  try {
+    await folderFixture.change('add');
+    await row('external.txt').waitFor({timeout:8000});
+  } catch (cause) {
+    throw new Error(`External write did not appear. Host observations: ${JSON.stringify(refreshObservations)}`, {cause});
+  } finally { page.off('response', observeRefresh); }
   assert(await row('guides').getAttribute('aria-expanded') === 'true' &&
     await row('install.md').getAttribute('aria-current') === 'page' && await focusedRow() === 'install.md',
     'External changes preserve expansion, selection and keyboard focus');

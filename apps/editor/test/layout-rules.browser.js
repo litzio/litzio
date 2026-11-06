@@ -64,7 +64,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
   };
   for(const width of [1440,640])for(const locale of ['en','ko']){
   await page.setViewportSize({width,height:1000});
-  await page.getByTestId('document-panel').waitFor({state:width>=1424?'visible':'detached'});
+  await page.getByTestId('document-panel').waitFor({state:width>=1424?'visible':'hidden'});
   await language(locale,width===640&&locale==='en');
   await openFolderPicker(page, locale);
   await page.getByTestId('folder-path').fill(file.slice(0,file.lastIndexOf(sep)+1));
@@ -327,7 +327,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
   };
   for(const width of (fullLayout ? [1423,1280,1279,1024,768,704] : [1423,1024,704])) {
     await page.setViewportSize({width,height:1000});
-    await page.locator('.document-panel').waitFor({state:'detached'});
+    await page.locator('.document-panel').waitFor({state:'hidden'});
     const closed=await shell();
     await outlineToggle.click();
     await page.getByTestId('outline').waitFor();
@@ -337,7 +337,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
       throw Error(`Narrow document panel: ${JSON.stringify({width,closed,open})}`);
     await page.getByTestId('outline').getByRole('button').first().focus();
     await page.keyboard.press('Escape');
-    await page.locator('.document-panel').waitFor({state:'detached'});
+    await page.locator('.document-panel').waitFor({state:'hidden'});
     if(!await outlineToggle.evaluate(n=>n===document.activeElement)||await outlineToggle.getAttribute('aria-pressed')!=='false')throw Error('Escape did not return focus to the Outline button');
     results.push({panel:{width,closed,open}});
   }
@@ -351,7 +351,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
   });
   if(panelHeader.height!==panelHeader.sidebarHeight||panelHeader.titleCenterDelta>0.5)throw Error(`Outline header alignment: ${JSON.stringify(panelHeader)}`);
   await outlineToggle.click();
-  await page.locator('.document-panel').waitFor({state:'detached'});
+  await page.locator('.document-panel').waitFor({state:'hidden'});
   const hidden=await shell();
   const hiddenFocus=await outlineToggle.evaluate(n=>n===document.activeElement);
   await outlineToggle.click();
@@ -445,7 +445,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
   // Inline settings fits the document at supported widths independently of Sidebar state.
   for(const width of (fullLayout ? [1920,1440,1280,1024,768,640] : [1440,640])) {
     await page.setViewportSize({width,height:800});
-    await page.getByTestId('document-panel').waitFor({state:width>=1424?'visible':'detached'});
+    await page.getByTestId('document-panel').waitFor({state:width>=1424?'visible':'hidden'});
     const opener=page.getByRole('button',{name:'Document settings',exact:true});
     await opener.click();
     const dialog=page.getByRole('region', {name:'Document settings',exact:true}).locator('.display-settings');
@@ -474,7 +474,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
         for(const panel of [true,false]) {
           const outline=page.getByRole('button',{name:lang==='ko'?'개요':'Outline',exact:true});
           if((await outline.getAttribute('aria-pressed')==='true')!==panel)await outline.click();
-          await page.getByTestId('document-panel').waitFor({state:panel?'visible':'detached'});
+          await page.getByTestId('document-panel').waitFor({state:panel?'visible':'hidden'});
           // ResizeObserver commits the responsive details before the measured paint.
           await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
           const geometry=await page.locator('.top-bar').evaluate(header=>{

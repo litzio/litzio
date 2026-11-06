@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from "rea
 import { ASSISTANT, type AssistantSettings, type AiModels, type AssistantDiagnostics, type AssistantEnvironment, type AiProvider } from "../shared/assistant.ts";
 import "./assistant-settings.css";
 import { SettingsSelect } from "./components/ui/settings.tsx";
+import { Notice } from "./ui/primitives.tsx";
 import { Input } from "./components/ui/input.tsx";
 import { Button } from "./components/ui/button.tsx";
 import { Dialog as BaseDialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./components/ui/dialog.tsx";
@@ -113,7 +114,7 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
         <p className="agent-muted">{t("Last checked")}: {date(diagnostics?.checkedAt)}</p>
         <div className="agent-diagnostics">
           {row(`${providerName} CLI`, <>{diagnostics?.version ?? t("Unavailable")}<code>{diagnostics?.path ?? "—"}</code></>)}
-          {row(copilot ? "ACP" : "app-server", <>{t(diagnostics?.connected ? "Connected" : "Unavailable")}<p>{diagnostics?.error}</p></>)}
+          {row(copilot ? "ACP" : "app-server", <>{t(diagnostics?.connected ? "Connected" : "Unavailable")}{diagnostics?.error ? <Notice tone="error">{diagnostics.error}</Notice> : null}</>)}
           {!copilot ? <>{row(t("Account"), <>{diagnostics?.accountError ?? (diagnostics?.account ? `${diagnostics.account.email ?? diagnostics.account.type} · ${diagnostics.account.planType ?? ""}` : t("Codex login is required on the Host."))}<code>account/read</code></>)}
           {row(t("Usage and limits"), <>{diagnostics?.rateLimitsError ?? (diagnostics?.rateLimits?.length ? diagnostics.rateLimits.map(bucket => <div key={bucket.name}><strong>{bucket.name}</strong>{bucket.windows.map((window, index) => <p key={index}>{window.windowDurationMins ?? "—"} {t("minutes")} · {window.usedPercent}% {t("used")}{window.resetsAt ? ` · ${t("Resets")}: ${date(window.resetsAt * 1000)}` : ""}</p>)}</div>) : t("Unavailable"))}<code>account/rateLimits/read</code></>)}
           {row(t("MCP servers"), <>{diagnostics?.mcpError ?? (diagnostics?.mcp?.length ? diagnostics.mcp.map(server => <p key={server.name}>{server.name} · {t(server.status)} · {t(server.authStatus)}</p>) : t("No MCP servers reported."))}<code>mcpServerStatus/list</code></>)}</> : null}
@@ -154,7 +155,7 @@ export function AssistantSettings({ onSaved }: { onSaved(): void }) {
           {settings?.provider !== "copilot" ? row(t("Litzio skills"), environment?.skills.length ? environment.skills.join(", ") : t("No Litzio skills installed.")) : null}
         </div>
       </>}
-      {problem ? <p role="alert">{problem}</p> : null}
+      {problem ? <Notice tone="error">{problem}</Notice> : null}
       {busy ? <p role="status">{t("Saving…")}</p> : null}
       <Dialog open={dialog} onClose={() => setDialog(false)} title={t(copilot ? "Copilot models" : "Codex models")} description={t(copilot ? "Models reported by Copilot CLI. Account access and quota may vary." : "Models and supported reasoning efforts reported by Codex.")} returnFocus={focus} testId="assistant-models-dialog"
         footer={<><span className="agent-updated">{t("Updated")}: {date(models?.updatedAt)}</span><Button variant="secondary" onClick={() => { setDialog(false); setView("diagnostics"); }}>{t("Diagnostics")}</Button><Button variant="default" disabled={loading} onClick={() => void refresh()}>{t("Refresh")}</Button></>}>

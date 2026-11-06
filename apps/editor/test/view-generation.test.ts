@@ -242,3 +242,48 @@ test("assistant transport enforces D2 envelopes without truncation", async () =>
   assert.equal(calls, 0);
   await assert.rejects(request("/api/assistant/conversations"), /response exceeds/);
 });
+
+// D3: destination identity is an app boundary, distinct from provider cancellation tests above.
+test('destination delivery rejects closed, replaced and disconnected targets', async () => {
+  const { ViewDestinationRegistry } = await import('../src/views/view-destination.ts');
+  const registry = new ViewDestinationRegistry(), applied: unknown[] = [];
+  const destination = {kind:'document' as const,id:'document-a',hostId:'host-a',owner:'litzio.assistant',root:'reports',documentPath:'reports/a.md',documentDirty:true};
+  const view = {profile:'query',owner:'litzio.assistant'} as never;
+  registry.register(destination.id, view => applied.push(view));
+  const old=registry.begin(destination), current=registry.begin(destination);
+  destination.documentDirty=false;
+  assert.equal(current.destination.documentDirty,true);
+  assert.equal(current.destination.documentPath,"reports/a.md");
+  assert.equal(old.signal.aborted,true); assert.equal(registry.apply(old,view),false);
+  assert.equal(registry.apply(current,{profile:"query",owner:"other.owner"} as never),false);
+  assert.equal(registry.apply(current,view),true);
+  assert.equal(registry.apply(current,view),false);
+  registry.invalidate(destination.id); assert.equal(registry.apply(current,view),false);
+  registry.register(destination.id,view=>applied.push(view));
+  const changed=registry.begin({...destination,hostId:'host-b'});
+  assert.equal(registry.apply(current,view),false);
+  registry.invalidateHost('host-b'); assert.equal(changed.signal.aborted,true);
+  assert.equal(registry.apply(changed,view),false); assert.equal(applied.length,1);
+});
+
+test('read table keeps source order stable, treats zero/false as values and combines typed filters', async () => {
+  const { tableRows } = await import('../src/components/data-table-model.ts');
+  const rows=[{name:'same',n:0,b:false},{name:'same',n:3,b:true},{name:'',n:null,b:null},{name:'a',n:1,b:false}];
+  const fields={name:{type:'string' as const},n:{type:'number' as const},b:{type:'boolean' as const}};
+  const original=structuredClone(rows);
+  assert.deepEqual(tableRows(rows,{}, {column:'n',descending:true}, fields,'en').map(r=>r.n),[3,1,0,null]);
+  assert.deepEqual(tableRows(rows,{}, {column:'name',descending:true}, fields,'en').map(r=>r.n),[0,3,1,null]);
+  const filter={mode:'contains',text:'',values:[],min:'0',max:'1',empty:false};
+  assert.deepEqual(tableRows(rows,{n:filter,b:{...filter,min:'',max:'',text:'false'}},undefined,fields,'en').map(r=>r.n),[0,1]);
+  assert.equal(tableRows(rows,{n:{...filter,mode:'empty',empty:true}},undefined,fields,'en').length,1);
+  assert.deepEqual(rows,original);
+});
+
+test('document provenance opens only with a matching trusted Host and Root identity', async () => {
+  const {resolveViewDocument}=await import('../src/views/view-provenance.ts');
+  const source={kind:'document' as const,label:'예시: Source',hostId:'host-a',rootId:'root-a',path:'reports/a.md',revision:'revision-a'};
+  assert.equal(resolveViewDocument(source,[]),undefined);
+  assert.equal(resolveViewDocument(source,[{hostId:'host-b',id:'root-a',path:'documents'}]),undefined);
+  assert.equal(resolveViewDocument(source,[{hostId:'host-a',id:'root-b',path:'documents'}]),undefined);
+  assert.deepEqual(resolveViewDocument(source,[{hostId:'host-a',id:'root-a',path:'documents'}]),{hostId:'host-a',path:'documents/reports/a.md'});
+});

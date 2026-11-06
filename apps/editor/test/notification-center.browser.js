@@ -35,7 +35,7 @@ async (page, { openPath, expect, screenshots }) => {
     // Resizing crosses the docked/overlay boundary. Wait for that state transition
     // before deciding whether the user's Outline toggle needs to be clicked.
     if (width === 1440) await expect(page.locator('.document-panel')).toBeVisible();
-    else await expect(page.locator('.document-panel')).toHaveCount(0);
+    else await expect(page.locator('.document-panel')).toBeHidden();
     for (const open of [true, false]) {
       const panel = page.locator('.document-panel');
       if (await panel.isVisible() !== open) await page.getByRole('button', { name: 'Outline', exact: true }).click();
@@ -188,7 +188,9 @@ async (page, { openPath, expect, screenshots }) => {
     await page.emulateMedia({colorScheme:'light'});
   }
   await center.getByRole('button', { name:'Go to problem', exact:true }).click();
-  expect(await engine.evaluate(el => el.editor.state.selection.$from.parent.type.name)).toBe('tableCell');
+  // NotificationScope reveals the document before navigating on the next animation frame.
+  // Observe that completed navigation, rather than the selection before its callback runs.
+  await expect.poll(() => engine.evaluate(el => el.editor.state.selection.$from.parent.type.name)).toBe('tableCell');
   await diagram('this is not Mermaid');
   await expect(center.getByTestId('mermaid-error')).toBeVisible();
   await expect(center).toHaveAttribute('data-severity', 'error');

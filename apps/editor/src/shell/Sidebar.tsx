@@ -14,7 +14,7 @@ import { THEME_LABELS, type ThemePreference } from "../preferences.ts";
 import type { FileActionHandler } from "./FileActionDialog.tsx";
 import { useTranslation } from "react-i18next";
 import { i18n, type MessageKey } from "../i18n.ts";
-import { useSyncExternalStore, useRef, useState, type RefObject } from "react";
+import { useSyncExternalStore, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Sun, Moon, FileText, Files as FilesIcon, Folder, FolderOpen, PanelLeftClose, Plus, Settings } from "lucide-react";
 import { DesktopMenu } from "./DesktopDaemon.tsx";
 import { Button } from "@/components/ui/button.tsx";
@@ -28,7 +28,7 @@ type SidebarProps = {
   onHostDirty?(hostId: string, path: string): boolean;
   onHostOpen?(hostId: string, path: string): Promise<void>;
   onHostFileAction?(hostId: string, ...args: Parameters<FileActionHandler>): Promise<string>;
-  contributions?: { id: string; label: string; run(returnFocus: HTMLElement): void }[];
+  contributions?: { icon?: ReactNode; id: string; label: string; run(returnFocus: HTMLElement): void }[];
   onAddToChat?(path: string, returnFocus: HTMLElement): void;
   onFileAction: FileActionHandler;
   fileActionsDisabled: boolean;
@@ -178,7 +178,7 @@ export function Sidebar({
       {onSettings || onThemeChange || contributions.length ? (
         <div className="sidebar-footer">
           {open ? contributions.map(item => <Button key={item.id} size="sm" variant="ghost" className="min-w-0 justify-start" disabled={fileActionsDisabled}
-            onClick={event => item.run(event.currentTarget)}><FileText aria-hidden="true" />{i18n.t(item.label as MessageKey)}</Button>) : null}
+            onClick={event => item.run(event.currentTarget)}>{item.icon ?? <FileText aria-hidden="true" />}{i18n.t(item.label as MessageKey)}</Button>) : null}
           <div className="sidebar-preferences">
             {onSettings ? <SettingsEntry disabled={settingsDisabled} iconOnly={!open} onOpen={onSettings} updateVersion={updateVersion} /> : null}
             {onThemeChange ? <Button variant="ghost" size="icon-sm"
