@@ -663,9 +663,12 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
   const { app, page } = await launch(userData, [], environment);
   // On Windows Playwright launches through cmd.exe: app.process() is the launcher,
   // not the Electron main whose exit releases Chromium's profile handles.
+  // Retain the ChildProcess while the application is live: reset disposes the
+  // Playwright application, so process() cannot be queried again during cleanup.
+  const launcher = app.process();
   const originalPid = await app.evaluate(() => process.pid);
   const originalStarted = processStart(originalPid);
-  const proof: Record<string, unknown> = { stage: "launched", originalPid, launcherPid: app.process().pid };
+  const proof: Record<string, unknown> = { stage: "launched", originalPid, launcherPid: launcher.pid };
   let bodyFailure: unknown;
   let restarted: { pid: number; processStartedAt: string } | undefined;
   const workOwners = path.join(data, "desktop", "remote-hosts.json.work");
@@ -744,7 +747,7 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
         throw error;
       }
     }
-    await expect.poll(() => app.process().exitCode !== null || app.process().signalCode !== null, { timeout: 15_000 }).toBe(true);
+    await expect.poll(() => launcher.exitCode !== null || launcher.signalCode !== null, { timeout: 15_000 }).toBe(true);
     proof.cleanup = "confirmed";
     } catch (error) {
       proof.cleanupFailure = error instanceof Error ? error.message : String(error);
