@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
+import { fileIdentity } from "../shared/file-operations.ts";
 import { assertUnicode } from "@litzio/file-commit";
 
 /** An explicit local Host policy; only the HTTP Host requires RootAccess. */
@@ -145,4 +147,12 @@ export function fileErrorMessage(error: unknown, access: FileAccess): string {
 
 export function fileErrorStatus(error: unknown, fallback = 400): number {
   return error instanceof FileAccessError ? error.status : fallback;
+}
+
+/** Opaque directory identity from the same filesystem metadata used by file operations. */
+export function rootIdentity(value: string, access: FileAccess): string {
+  const folder = accessPath(value, access);
+  const stat = fs.statSync(folder, { bigint: true });
+  if (!stat.isDirectory()) throw new FileAccessError("Root must be a directory.");
+  return createHash("sha256").update(JSON.stringify(fileIdentity(stat))).digest("hex");
 }

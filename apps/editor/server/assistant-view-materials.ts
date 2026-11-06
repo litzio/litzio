@@ -2,10 +2,10 @@ import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { decodeUtf8, textRevision } from "@litzio/file-commit";
-import { provenanceSchema, VIEW_LIMITS, type ViewProvenance } from "@litzio/core/views-v2";
+import { catalogViewSchema, provenanceSchema, VIEW_LIMITS, type ViewProvenance } from "@litzio/core/views-v2";
 import type { AssistantConversation, AssistantConversationInput, AssistantFileReference } from "../shared/assistant.ts";
 import { VIEW_GENERATION_CONTEXT_BYTES } from "../shared/view-generation.ts";
-import { accessPath, inside, RootAccess, type FileAccess } from "./file-access.ts";
+import { accessPath, inside, rootIdentity, RootAccess, type FileAccess } from "./file-access.ts";
 
 export type ViewMaterial = { provenance: ViewProvenance; text: string };
 /** Inputs have already passed checkedReferences. Recheck access immediately before reading. */
@@ -13,6 +13,11 @@ export function collectViewMaterials(input: AssistantConversationInput, referenc
   const materials: ViewMaterial[] = [];
   const context = input.viewContext;
   if (context && (!/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/.test(context.owner) || !Array.isArray(context.roots) || context.roots.some(root => !folders.includes(root.path)))) throw new Error("Invalid view context roots or owner.");
+  const roots = context?.roots.map(root => {
+    const id = rootIdentity(root.path, access);
+    if (root.id !== id) throw new Error("View context Root identity changed or is unavailable.");
+    return { path: root.path, id };
+  });
   let bytes = 0;
   const add = (material: ViewMaterial) => {
     bytes += Buffer.byteLength(JSON.stringify(material), "utf8");
@@ -26,7 +31,7 @@ export function collectViewMaterials(input: AssistantConversationInput, referenc
     const source = readFileSync(file);
     if (source.length > VIEW_GENERATION_CONTEXT_BYTES) throw new Error("View material exceeds context limit.");
     const text = decodeUtf8(source);
-    const root = context?.roots.find(root => inside(root.path, file));
+    const root = roots?.find(root => inside(root.path, file));
     const provenance = provenanceSchema.parse(root ? { kind: "document", label: reference.name, hostId: context!.hostId, rootId: root.id, path: path.relative(root.path, file).split(path.sep).join("/"), revision: textRevision(text) }
       : { kind: "reference", label: reference.name, refId: randomUUID() });
     add({ provenance, text });
@@ -49,8 +54,8 @@ export function collectViewMaterials(input: AssistantConversationInput, referenc
     }
   }
   if (input.viewDefinition !== undefined) {
-    const size = Buffer.byteLength(JSON.stringify(input.viewDefinition), "utf8");
-    if (bytes + size > VIEW_GENERATION_CONTEXT_BYTES) throw new Error("View material exceeds context limit.");
+    const view = catalogViewSchema.parse(input.viewDefinition);
+    add({provenance:{kind:"reference",label:"Current view",refId:randomUUID()},text:JSON.stringify(view)});
   }
   return materials;
 }

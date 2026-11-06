@@ -190,6 +190,13 @@ test("generation proposals use the admitted Host request, owner and material ide
   const crossOwner = { ...view, owner: "example.data", refresh: "manual", sources: { stats: { kind: "operation", operation: operation.operation, version: 1, args: {} } } };
   const cross = await host.invoke("assistantConversation", { action: "propose-view-generation", requestId: statistics.requestId, id: conversation.id, turnId: next.turns.at(-1).id, view: crossOwner });
   assert.equal(cross.receipt.outcome, "failure", "a catalog operation cannot change an explicitly admitted destination namespace");
+  await assert.rejects(host.invoke("assistantConversation", { action:"prepare-view-generation", target:{kind:"operation",operation:operation.operation,version:99} }), /unavailable/);
+  const operationTarget = await host.invoke("assistantConversation", {action:"prepare-view-generation",target:{kind:"operation",operation:operation.operation,version:1}});
+  const targeted = await host.invoke("assistantConversation", {action:"send",id:conversation.id,viewGeneration:true,viewGenerationRequest:operationTarget.requestId,
+    message:"Refine this connected view",folders:[root],model:"gpt-6.1-sol",reasoningEffort:"medium",viewContext:{owner:"example.data",hostId:"host-a",roots:[]}});
+  await connection.client.request("fixture/finish",{threadId:conversation.id});
+  const targetedResult = await host.invoke("assistantConversation",{action:"propose-view-generation",requestId:operationTarget.requestId,id:conversation.id,turnId:targeted.turns.at(-1).id,view:crossOwner});
+  assert.equal(targetedResult.receipt.outcome,"success","a connected tab admits the registered operation owner without inventing a screen");
   const large = await host.invoke("assistantConversation", { action: "prepare-view-generation" });
   const over = await host.invoke("assistantConversation", { action: "send", id: conversation.id, viewGeneration: true, viewGenerationRequest: large.requestId,
     message: "Over limit", folders: [], model: "gpt-6.1-sol", reasoningEffort: "medium" });

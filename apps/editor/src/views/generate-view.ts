@@ -1,4 +1,4 @@
-import type { CatalogView as View } from "@litzio/core/views-v2";
+import { assistantQueryViewSchema, validateCatalogView, type CatalogView as View } from "@litzio/core/views-v2";
 import { ASSISTANT, type AssistantConversation, type AssistantConversationInput } from "../../shared/assistant.ts";
 import { VIEW_GENERATION_TIMEOUT_MS, VIEW_GENERATION_OUTPUT_BYTES } from "../../shared/view-generation.ts";
 import { i18n } from "../i18n.ts";
@@ -58,6 +58,12 @@ export async function generateView(options: {
             let proposed: unknown;
             try { proposed = JSON.parse(text.replace(/^\x60\x60\x60(?:json)?\s*\n([\s\S]*?)\n\x60\x60\x60$/i, "$1")); }
             catch { throw new ViewValidationError(i18n.t("Expected a complete JSON view proposal. Provider said: {{text}}", { text: text.slice(0, 400) })); }
+            // Assistant rows need no operation catalog. Reuse Core to give corrections its exact
+            // shape/chart diagnostics while keeping Host scope and provenance validation authoritative.
+            if ((proposed as any)?.sources?.stats?.kind === "assistant") {
+              try { validateCatalogView(assistantQueryViewSchema.parse(proposed)); }
+              catch (error) { throw new ViewValidationError(error instanceof Error ? error.message : String(error)); }
+            }
             const view = await abortable(options.validate(proposed, signal, { id, turnId: turn.id, requestId: requestId! }), signal);
             signal.throwIfAborted(); options.status(attempt ? i18n.t("View validated · Corrections: {{count}}/2", { count: attempt }) : i18n.t("View validated")); return view;
           } catch (error) {

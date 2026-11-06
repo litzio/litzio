@@ -1,3 +1,5 @@
+import type { AssistantConversationInput } from "../shared/assistant.ts";
+import type { ViewRootBinding } from "./views/view-provenance.ts";
 import { ViewFavoritesMenu } from "./views/ViewFavoritesMenu.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
 import { viewScreenIcon } from "./views/view-screen-icon.ts";
@@ -208,7 +210,7 @@ function EditorApp() {
   const [navigation, navigate] = useReducer(editorGroups, initialEditorGroups);
   const [viewTabs, setViewTabs] = useState<ViewTab[]>([]);
   const destinations = useRef(new ViewDestinationRegistry());
-  const [generationRequest, setGenerationRequest] = useState<{token: ViewDestinationToken; view?: View}>();
+  const [generationRequest, setGenerationRequest] = useState<{token: ViewDestinationToken; view?: View; target?: AssistantConversationInput["viewGenerationTarget"]}>();
   const [documentViews, setDocumentViews] = useState<Record<string, View>>({});
   const screens = useViewScreens();
   useEffect(() => hostRegistry.subscribe(() => {
@@ -218,13 +220,15 @@ function EditorApp() {
     const open = (event: Event) => { const screen = (event as CustomEvent<ViewScreen & {hostId:string}>).detail; openScreen(screen); };
     window.addEventListener("open-plugin-screen", open); return () => window.removeEventListener("open-plugin-screen", open);
   });
-  function requestView(destination: ViewDestination, view?: View) {
+  function requestView(destination: ViewDestination, view?: View, target?: AssistantConversationInput["viewGenerationTarget"]) {
     if (hostRegistry.get(destination.hostId).state !== "connected") { setError(i18n.t("Unavailable")); return; }
     destinations.current.register(destination.id, next => {
       if (destination.kind === "document") setDocumentViews(previous => ({...previous, [destination.id]: next}));
       else setViewTabs(previous => previous.map(tab => tab.id === destination.id ? {...tab, view: next, label:undefined} : tab));
     });
-    setGenerationRequest({ token: destinations.current.begin(destination), view });
+    const source = view?.profile === "query" && view.refresh === "manual" ? view.sources.stats : undefined;
+    target ??= destination.owner === "litzio.statistics" ? {kind:"statistics"} : source ? {kind:"operation",operation:source.operation,version:source.version} : undefined;
+    setGenerationRequest({ token: destinations.current.begin(destination), view, target });
     if (assistantHost !== destination.hostId) chooseHost(destination.hostId);
     setAssistantOpen(true);
   }
@@ -331,6 +335,22 @@ function EditorApp() {
     if (desktop?.setOpenedFolders) void desktop.setOpenedFolders(openedFolderPaths).catch(cause => setError(messageOf(cause)));
   }, [JSON.stringify(openedFolderPaths)]);
 
+  const provenanceRoots: ViewRootBinding[] = folders.trees.flatMap(tree => {
+    const id = tree.nodes.get(tree.root)?.rootId;
+    return id ? [{hostId:tree.hostId,path:tree.root,id}] : [];
+  });
+  // Resolve only already-opened Roots and recheck physical identity before the existing open path.
+  const openViewDocument = (path: string, hostId: string) => {
+    const root = provenanceRoots.find(root => root.hostId === hostId && folderChain(root.path,path).length > 0);
+    if (!root) { setError(i18n.t("Unavailable")); return; }
+    void (async () => {
+      const response = await getHostClient(hostId).request(`/api/folder?root=${encodeURIComponent(root.path)}`, {cache:"no-store"});
+      const listing = await response.json() as Partial<FolderResponse>;
+      if (!response.ok || listing.rootId !== root.id || !foldersRef.current.trees.some(tree => tree.hostId === hostId && tree.root === root.path && tree.nodes.get(tree.root)?.rootId === root.id)) throw new Error(i18n.t("Unavailable"));
+      const problem = await openFile(path,"",navigation.focused,hostId);
+      if (problem) throw new Error(problem);
+    })().catch(cause => setError(messageOf(cause)));
+  };
   const foldersRef = useRef(folders);
   foldersRef.current = folders;
   const revisionChecksRef = useRef(revisionChecks);
@@ -1391,7 +1411,7 @@ function EditorApp() {
               hidden={group?.active !== tab.id} inert={group?.active !== tab.id} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
               data-group-index={groupIndex} style={{ "--editor-group-index": groupIndex } as React.CSSProperties}
               onFocusCapture={() => focusDocument(tab.id)} onPointerDownCapture={() => focusDocument(tab.id)}>
-              {tab.screen ? <ViewWorkspace key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} view={tab.view} onHost={hostId => {destinations.current.invalidate(tab.id); setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item));}} onSelect={() => destinations.current.invalidate(tab.id)} onOpenReview={view=>openGeneratedView(view,tab.root,tab.hostId)} onOpenDocument={(path,hostId)=>{void openFile(path,"",navigation.focused,hostId);}} onGenerate={(root,view) => requestView({kind:"screen",id:tab.id,hostId:tab.hostId,owner:tab.screen!.plugin,root},view)} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} /> : <Views onGenerate={view=>requestView({kind:"tab",id:tab.id,hostId:tab.hostId,owner:view?.profile==="query"?view.owner:"litzio.statistics",root:tab.root},view)} tab={tab} client={getHostClient(tab.hostId)} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} onOpen={openGeneratedView} onOpenDocument={(path, hostId) => { void openFile(path, "", navigation.focused, hostId).then(problem => { if (problem) setError(problem); }); }} onRoot={root => {destinations.current.invalidate(tab.id); setViewTabs(previous => previous.map(item => item.id === tab.id ? { ...item, root } : item));}} />}
+              {tab.screen ? <ViewWorkspace provenanceRoots={provenanceRoots} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} view={tab.view} onHost={hostId => {destinations.current.invalidate(tab.id); setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item));}} onSelect={() => destinations.current.invalidate(tab.id)} onOpenReview={view=>openGeneratedView(view,tab.root,tab.hostId)} onOpenDocument={openViewDocument} onGenerate={(root,view) => requestView({kind:"screen",id:tab.id,hostId:tab.hostId,owner:tab.screen!.plugin,root},view,{kind:"screen",plugin:tab.screen!.plugin,id:tab.screen!.id})} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} /> : <Views provenanceRoots={provenanceRoots} onGenerate={view=>requestView({kind:"tab",id:tab.id,hostId:tab.hostId,owner:view?.profile==="query"?view.owner:"litzio.statistics",root:tab.root},view)} tab={tab} client={getHostClient(tab.hostId)} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} onOpen={openGeneratedView} onOpenDocument={openViewDocument} onRoot={root => {destinations.current.invalidate(tab.id); setViewTabs(previous => previous.map(item => item.id === tab.id ? { ...item, root } : item));}} />}
             </div>;
           })}
           {galleryGroup ? <div className="shell-tab" role="tabpanel" tabIndex={-1} id="panel-templates" aria-labelledby="tab-templates"
@@ -1444,11 +1464,11 @@ function EditorApp() {
             const ownerSession = sessions.current.get(tab.id);
             const root = (tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)).find(root => folderChain(root, tab.path).length > 0) ?? "";
             return <div className="document-view-slot" key={tab.id} hidden={activeId !== tab.id} inert={activeId !== tab.id}>
-              <ViewWorkspace id={tab.id} hostId={tab.hostId} root={root} owner="litzio.assistant" view={documentViews[tab.id]}
+              <ViewWorkspace provenanceRoots={provenanceRoots} id={tab.id} hostId={tab.hostId} root={root} owner="litzio.assistant" view={documentViews[tab.id]}
                 onSelect={() => destinations.current.invalidate(tab.id)}
                 onOpenReview={view => openGeneratedView(view,root,tab.hostId)}
                 onGenerate={(chosenRoot,view) => requestView({kind:"document",id:tab.id,hostId:tab.hostId,documentPath:tab.path,documentDirty:Boolean(ownerSession?.documentDirty || ownerSession?.draftActive),owner:"litzio.assistant",root:chosenRoot},view)}
-                onOpenDocument={(path,hostId)=>{void openFile(path,"",navigation.focused,hostId).then(problem=>{if(problem)setError(problem);});}} />
+                onOpenDocument={openViewDocument} />
             </div>;
           })}
           onWidth={setDocumentPanelSize}
@@ -1464,7 +1484,7 @@ function EditorApp() {
       {undoConfirmation ? <DangerConfirmation title={i18n.t("Undo document creation?")} description={i18n.t("“{{name}}” has changed since creation. Delete it and discard unsaved changes and recovery records?", { name: undoConfirmation.name })}
         action={i18n.t("Delete and discard changes")} pending={false} error="" returnFocus={undoFocus}
         onConfirm={() => undoConfirmation.resolve(true)} onClose={() => undoConfirmation.resolve(false)} /> : null}
-      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel {...{viewFavorites:<ViewFavoritesMenu key={assistantHost} hostId={assistantHost} onOpen={view=>openGeneratedView(view,session?.hostId===assistantHost?(assistantHost===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(assistantHost))[0]??"":"",assistantHost)} />,generationRequest, onGenerationConsumed: () => setGenerationRequest(undefined), onGeneratedDestination: (token: ViewDestinationToken, view: View) => destinations.current.apply(token, view)}} key={assistantHost} onGeneratedView={(view, root) => openGeneratedView(view, root, assistantHost)} onNewHost={hostRegistry.list().length > 1 ? newConversation : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
+      {assistantAvailable && assistantHost ? <HostContext.Provider value={assistantHost}><AssistantPanel provenanceRoots={provenanceRoots} onOpenViewDocument={openViewDocument} {...{viewFavorites:<ViewFavoritesMenu key={assistantHost} hostId={assistantHost} onOpen={view=>openGeneratedView(view,session?.hostId===assistantHost?(assistantHost===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(assistantHost))[0]??"":"",assistantHost)} />,generationRequest, onGenerationConsumed: () => setGenerationRequest(undefined), onGeneratedDestination: (token: ViewDestinationToken, view: View) => destinations.current.apply(token, view)}} key={assistantHost} onGeneratedView={(view, root) => openGeneratedView(view, root, assistantHost)} onNewHost={hostRegistry.list().length > 1 ? newConversation : undefined} onDisplay={(request, pollStartedAt) => handleDisplayRequest(request, documentWidth, setDocumentWidth, setTheme, pollStartedAt)} settingsRevision={assistantSettingsRevision} settingsDisabled={settingsDisabled || assistantHost !== LOCAL_HOST_ID} referenceRequest={referenceRequest} onReferenceConsumed={consumeReference} open={assistantOpen} overlay={assistantOverlay} width={assistantSize}
         onWidth={value => { setAssistantSize(value); rememberAssistantWidth(value); }} onClose={closeAssistant}
         onOpen={async path => { const message = await openFile(path, "", navigation.focused, assistantHost); if (message) throw new Error(message); }}
         onUndo={async result => {

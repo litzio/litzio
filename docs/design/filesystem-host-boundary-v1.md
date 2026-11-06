@@ -623,3 +623,7 @@ requires the remote trash capability before dispatch; unsupported trash is a fai
 permanent-delete fallback. File Explorer, log-folder and daemon start/stop remain local-only.
 The browser multi-host fixture checks remote Explorer omission; OS trash execution remains
 covered by the existing Host/OS-trash tests rather than a browser fixture claim.
+
+### Root identity metadata for view provenance
+
+Existing `GET /api/folder` responses include an opaque `rootId` computed from the chosen directory’s bigint file identity (`dev`, `ino`, `birthtimeMs`), after the existing RootAccess and real-path checks. No absolute path or account name is encoded in the ID. The app combines this metadata with its registered Host ID and already-opened folder. Source opening rechecks the same metadata before the existing document-open callback; missing, changed or unknown bindings remain unavailable. This metadata grants no additional filesystem access and introduces no Host registry or persistence.

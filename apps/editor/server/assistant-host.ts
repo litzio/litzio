@@ -49,6 +49,12 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
             const screen = plugins?.host.viewScreens().find(screen => screen.plugin === target.plugin && screen.id === target.id);
             if (!screen) throw new Error("View screen is unavailable.");
             owner = screen.plugin;
+          } else if (target?.kind === "operation" && Object.keys(target).every(key => ["kind", "operation", "version"].includes(key))) {
+            await plugins?.start();
+            const operation = plugins?.host.viewOperations().find(operation => operation.operation === target.operation && operation.version === target.version);
+            const registeredOwner = operation && plugins?.host.viewOperationOwner(operation.operation);
+            if (!registeredOwner) throw new Error("View operation is unavailable.");
+            owner = registeredOwner;
           } else throw new Error("Invalid view generation destination.");
         }
         return viewGenerations.prepare(owner);
