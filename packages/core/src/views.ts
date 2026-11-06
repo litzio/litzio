@@ -64,7 +64,7 @@ export function validateQueryBindings(view: Pick<View, "sources" | "layout">, op
     if (f.op === "contains" && (definition.type !== "string" || definition.date)) throw new Error("Contains requires text field");
     if (f.op === "range" && (!(definition.type === "number" || definition.date) || f.min === undefined && f.max === undefined || [f.min, f.max].some(v => v !== undefined && (v === null || !valid(v))) || f.min != null && f.max != null && compare(f.min, f.max) > 0)) throw new Error("Invalid range bounds");
   }
-  const output: RowSchema = s.groupBy ? { group: { ...get(s.groupBy.field), date: false }, value: { type: "number", label: "value", date: false, nullable: false, secret: false } } : fields;
+  const output: RowSchema = s.groupBy ? { group: { ...get(s.groupBy.field) }, value: { type: "number", label: "value", date: false, nullable: false, secret: false } } : fields;
   const outputField = (name: string) => { if (!Object.hasOwn(output, name)) throw new Error("Binding outside operation output schema"); return output[name]!; };
   for (const p of queryLeaves(view.layout)) {
     for (const name of p.component === "Table" ? p.columns : [p.x, p.y]) outputField(name);

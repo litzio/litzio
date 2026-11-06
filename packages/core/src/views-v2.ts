@@ -30,7 +30,7 @@ export const assistantSourceSchema = z.strictObject({ kind: z.literal("assistant
   rowSchema: rowSchema.refine(fields => Object.values(fields).every(f => !f.secret), "Assistant fields cannot be secret"),
   rows: z.array(z.record(z.string(), z.union([z.string().max(VIEW_LIMITS.assistantString), z.number().finite(), z.boolean(), z.null()]))).max(VIEW_LIMITS.assistantRows),
   provenance: z.array(provenanceSchema).min(1).max(VIEW_LIMITS.provenance),
-  method: z.string().max(4096).refine(v => !/[<>\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(v), "Plain text required").optional(),
+  method: z.string().max(4096).refine(v => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(v), "Plain text required").optional(),
 });
 export const connectedSourceSchema = operationSourceSchema.extend({ kind: z.literal("operation") });
 const queryBase = viewSchema.omit({ refresh: true, sources: true }).extend({ schemaVersion: z.literal(2), catalog: z.literal("litzio-v2"), profile: z.literal("query"), owner: id, layout: queryLayoutSchema });

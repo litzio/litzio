@@ -283,3 +283,32 @@ test("Chart types and Panel structure have strict, shared Core semantics", () =>
   panel.layout.children.push(leaf); assert.throws(() => validateCatalogView(panel));
   panel.layout.children = [{ ...panel.layout, children: [leaf, leaf] }, leaf]; assert.throws(() => validateCatalogView(panel));
 });
+
+
+test("monthly date aggregation binds to line x and validates final bucket order", () => {
+  const view: any = { ...grouped({ field: "modified", interval: "month" }, { op: "count" }), schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.statistics" };
+  view.layout.children = [{ component: "Chart", type: "line", title: "Monthly documents", source: "stats", data: "/rows", x: "group", y: "value" }];
+  const data = [rows[0], { ...rows[1], modified: "2026-10-02T00:00:00.000Z" }, { ...rows[2], modified: "2026-11-02T00:00:00.000Z" }];
+  const canonical = serializeCatalogView(view);
+  assert.equal(serializeCatalogView(parseCatalogView(canonical)), canonical);
+  const expected = { rows: [{ group: "2026-10", value: 1 }, { group: "2026-11", value: 2 }] };
+  assert.deepEqual(evaluateQueryView(view, data), expected);
+  assert.deepEqual(evaluateQueryView(view, [...data].reverse()), expected);
+  // Repeated dates collapse to unique buckets; descending final output still fails line order.
+  view.sources.stats.sort = { field: "group", direction: "desc" };
+  assert.throws(() => evaluateQueryView(view, data), /ascending/);
+  delete view.sources.stats.sort;
+  assert.throws(() => evaluateQueryView(view, rows), /non-null/);
+});
+
+test("assistant calculation method preserves comparison expressions as plain text", () => {
+  const view = assistantView();
+  const method = "매출 > 0인 행만 합산하고 비용 < 100인 행과 비교한다.\n<b>도 텍스트다.</b>";
+  view.sources.stats.method = method;
+  const parsed = parseCatalogView(serializeCatalogView(view));
+  assert.equal(parsed.profile === "query" && parsed.sources.stats.kind === "assistant" && parsed.sources.stats.method, method);
+  view.sources.stats.method = "a".repeat(4097);
+  assert.throws(() => validateCatalogView(view));
+  view.sources.stats.method = "설명\u0000";
+  assert.throws(() => validateCatalogView(view));
+});
