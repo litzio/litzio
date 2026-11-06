@@ -1,4 +1,4 @@
-async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
+async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots }) => {
   pluginFixture.cli(['plugins', 'register', pluginFixture.directory]);
   const registered = pluginFixture.cli(['plugins', 'list']).plugins.find(p => p.id === 'fixture.issues');
   pluginFixture.cli(['plugins', 'trust', 'fixture.issues', '--digest', registered.digest]);
@@ -14,6 +14,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   let captureEnvironment;
   const root = pluginFixture.folder, favorite = 'Folder document totals';
   const proposal = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', owner: 'fixture.issues', title: 'Folder document totals', refresh: 'manual', sources: { stats: { kind: "operation", operation: 'fixture.issues.read', version: 1, args: { preset: 'assigned-open' }, groupBy: { field: 'status' }, aggregate: { op: 'sum', field: 'points' }, sort: { field: 'value', direction: 'desc' }, limit: 10 } }, layout: { component: "Panel", direction: "vertical", children: [{ component: 'Table', title: 'Document totals', source: 'stats', data: '/rows', columns: ['group', 'value'] }, { component: "Chart", type: "bar", title: 'Document totals chart', source: 'stats', data: '/rows', x: 'group', y: 'value' }] } };
+  const assistantSnapshot={kind:'litzio-view',schemaVersion:2,catalog:'litzio-v2',profile:'query',owner:'litzio.assistant',title:'예시: Saved assistant rows',refresh:'assistant',sources:{stats:{kind:'assistant',generatedAt:'2026-11-06T00:00:00.000Z',rowSchema:{label:{type:'string',label:'Label'},total:{type:'number',label:'Total'}},rows:[{label:'Saved result',total:42}],provenance:[{kind:'reference',label:'예시: Reference',refId:'reference-one'},{kind:'document',label:'예시: Unmapped source',hostId:'local',rootId:'fixture-root',path:'a.md',revision:'revision-one'}]}},layout:{component:'Panel',direction:'vertical',children:[{component:'Table',title:'예시: Snapshot rows',source:'stats',data:'/rows',columns:['label','total']}]}};
   let conversation, sends = [], queries = 0, validates = 0, latestRows, latestReceipt, delayPoll = false;
   const settings = { provider: 'codex', model: 'gpt-6-luna', reasoningEffort: 'low', permissionMode: 'read-only', responseLanguage: 'en' };
   await page.route('**/api/assistant/settings*', route => route.fulfill({ json: settings }));
@@ -66,10 +67,10 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     const body = route.request().postDataJSON();
     const receipt = { operation: `view.${body.action}`, version: 1, requestId: 'fixture-request', outcome: 'success', scope: 'folder', timestamp: '2026-11-06T00:00:00Z' };
     let value = { receipt };
-    if (body.action === "catalog") value.catalog = catalog;
+    if (body.action === "catalog") {value.catalog = catalog;value.screens=[{plugin:'fixture.issues',id:'issues',title:'Fixture issues',icon:'LayoutDashboard',defaultViewIds:['issues'],primary:true}];value.views=[{plugin:'fixture.issues',id:'issues',title:'Issue search',definition:formView}];}
     if (['validate', 'propose'].includes(body.action)) { validates++; if (body.view.layout.children[0].columns.includes('authorEmail')) return route.fulfill({ status: 400, json: { error: 'Invalid binding', receipt: { ...receipt, outcome: 'failure' } } }); value.view = body.view; }
-    if (body.action === 'list') value.favourites = body.plugin === 'fixture.issues' ? [...saved.keys()] : [];
-    if (body.action === 'open') { value.view = saved.get(body.name); value.name = body.name; }
+    if (body.action === 'list') value.favourites = body.plugin === 'fixture.issues' ? [...saved.keys()] : body.plugin==='litzio.assistant'?['예시: Saved assistant rows']:[];
+    if (body.action === 'open') { value.view = body.plugin==='litzio.assistant'?assistantSnapshot:saved.get(body.name); value.name = body.name; }
     if (body.action === 'save') {
       expect(body.plugin).toBe(body.view.profile === 'review' ? body.view.sources.review.plugin : 'fixture.issues');
       if (saved.has(body.name)) return route.fulfill({ status: 400, json: { error: 'SECRET duplicate detail', receipt: { ...receipt, outcome: 'failure' } } });
@@ -160,15 +161,16 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   const save = async () => { await generated().getByRole('button', { name: 'Add to favorites', exact: true }).click(); const dialog = page.getByRole('dialog', { name: 'Add to favorites', exact: true }); await expect(dialog.getByRole('textbox', { name: 'New favorite name' })).toHaveValue(proposal.title); await dialog.getByRole('textbox', { name: 'New favorite name' }).fill(favorite); await dialog.getByRole('button', { name: 'Add favorite', exact: true }).click(); return dialog; };
   await expect(await save()).not.toBeVisible();
   const duplicate = await save(); await expect(duplicate.getByRole('alert')).toBeVisible(); await duplicate.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
-  await expect(basic.getByRole('button', { name: favorite, exact: true })).toBeVisible();
+  await page.getByRole('button',{name:'Fixture issues',exact:true}).click();
+  const hub = page.getByTestId('view-workspace').filter({visible:true}).getByRole('region',{name:'Favorites',exact:true});
+  await expect(hub.getByRole('button', { name: favorite, exact: true })).toBeVisible();
   const queryCount = queries;
-  await basic.getByRole('button', { name: 'Refresh favorites', exact: true }).click();
-  await expect(basic.getByRole('button', { name: favorite, exact: true })).toBeVisible();
+  await hub.getByRole('button', { name: 'Refresh favorites', exact: true }).click();
+  await expect(hub.getByRole('button', { name: favorite, exact: true })).toBeVisible();
   expect(queries).toBe(queryCount);
-  await basic.getByRole('combobox', { name: 'Statistics folder' }).selectOption('');
+  await hub.getByRole('combobox', { name: 'Statistics folder' }).selectOption('');
   const before = { queries, sends: sends.length };
-  await basic.getByRole('button', { name: favorite, exact: true }).click();
+  await hub.getByRole('button', { name: favorite, exact: true }).click();
   await expect(generated().getByText('Data has not been queried. Refresh manually.').first()).toBeVisible();
   expect(queries).toBe(before.queries); expect(sends.length).toBe(before.sends);
   await expect(generated().getByRole('button', { name: 'Refresh data', exact: true })).toBeDisabled();
@@ -181,14 +183,14 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     await expect(generated().locator('tbody tr')).not.toHaveCount(0);
     expect(await generated().evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     await page.screenshot({ path: `tmp/1210-evidence/captures/generated-${width}.png` });
-    await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
+    await page.getByRole('tab', { name: 'Fixture issues', exact: true }).click();
     await page.screenshot({ path: `tmp/1210-evidence/captures/favorites-${width}.png` });
-    await basic.getByRole('button', { name: favorite, exact: true }).click();
+    await hub.getByRole('button', { name: favorite, exact: true }).click();
     await generated().getByRole('combobox', { name: 'Statistics folder' }).selectOption(root);
     await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
   }
   // Closing the owning basic tab aborts a held open request; a late response cannot recreate tabs.
-  await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
+  await page.getByRole('tab', { name: 'Fixture issues', exact: true }).click();
   let releaseOpen, openStarted = false, openDelivered = false;
   const openGate = new Promise(resolve => { releaseOpen = resolve; });
   await page.route('**/api/views', async route => {
@@ -196,14 +198,14 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     const response = await route.fetch(); openStarted = true; await openGate;
     try { await route.fulfill({ response }); } finally { openDelivered = true; }
   });
-  await basic.getByRole('button', { name: favorite, exact: true }).click();
+  await hub.getByRole('button', { name: favorite, exact: true }).click();
   await expect.poll(() => openStarted).toBe(true);
   const abortedOpen = page.waitForEvent('requestfailed', request => request.url().endsWith('/api/views') && request.postDataJSON()?.action === 'open');
-  await page.locator('[data-tab-id="statistics-local"] .document-tab-close').click();
+  await page.locator('[data-tab-id="screen-fixture.issues-issues"] .document-tab-close').click();
   await abortedOpen;
   const tabsAfterClose = await page.locator('.document-tabs [role="tab"]').count();
   releaseOpen(); await expect.poll(() => openDelivered).toBe(true);
-  await expect(page.getByRole('tab', { name: 'Document statistics', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'Fixture issues', exact: true })).toHaveCount(0);
   await expect(page.locator('.document-tabs [role="tab"]')).toHaveCount(tabsAfterClose);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole('button', { name: 'Assistant', exact: true }).click();
@@ -254,9 +256,9 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect(page.locator('.document-tabs [role="tab"]')).toHaveCount(tabsAfterStop);
   // User interaction coverage for the shared query renderer.
   if (await panel.isVisible()) await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
-  await page.keyboard.press('Control+Slash'); await page.getByRole('combobox').fill('> Document statistics');
-  await page.getByRole('option', { name: 'Document statistics', exact: true }).click();
-  const statistics = page.getByTestId('statistics-view');
+  await page.keyboard.press('Control+Slash'); await page.getByRole('combobox').fill('> fixture.issues: Fixture issues Open view');
+  await page.getByRole('option', { name: 'fixture.issues: Fixture issues Open view', exact: true }).click();
+  const statistics = page.getByTestId('view-workspace').filter({visible:true}).getByRole('region',{name:'Favorites',exact:true});
   await statistics.getByRole('combobox', { name: 'Statistics folder' }).selectOption(root);
   await statistics.getByRole('button', { name: 'Issue search', exact: true }).click();
   await expect(generated().getByRole('combobox', { name: 'Preset *', exact: true })).toHaveValue('0');
@@ -351,7 +353,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect(inputSave).not.toBeVisible();
   expect(saved.get('Saved inputs').sources.stats.args.closed).toBe(true);
   expect(saved.get('Saved inputs').sources.stats.args.limit).toBe(12);
-  await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
+  await page.getByRole('tab', { name: 'Fixture issues', exact: true }).click();
   const beforeOpen = queries;
   await statistics.getByRole('button', { name: 'Saved inputs', exact: true }).click();
   await expect(generated().getByLabel('Text', { exact: true })).toHaveValue('changed'); expect(queries).toBe(beforeOpen);
@@ -368,12 +370,12 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect(generated().getByLabel('Closed', { exact: true })).toHaveValue('true');
   await expect(generated().getByText('Data has not been queried. Refresh manually.')).toBeVisible();
   await captureStates('reopened');
-  await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
+  await page.getByRole('tab', { name: 'Fixture issues', exact: true }).click();
   await statistics.getByRole('button', { name: 'Twelve columns', exact: true }).click();
   await generated().getByRole('button', { name: 'Search', exact: true }).click();
   await expect(generated().locator('th')).toHaveCount(12);
-  await expect(generated().locator('th').first()).toHaveText('Issue key');
-  await expect(generated().locator('th').last()).toHaveText('Link');
+  await expect(generated().locator('th').first().getByRole('button',{name:'Issue key',exact:true})).toBeVisible();
+  await expect(generated().locator('th').last().getByRole('button',{name:'Link',exact:true})).toBeVisible();
   for (const width of [640, 960, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     expect(await generated().evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
@@ -387,7 +389,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     if (screenshots) await page.screenshot({ path: `tmp/v3-review/table12-${width}-start.png` });
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
+  await page.getByRole('tab', { name: 'Fixture issues', exact: true }).click();
   await statistics.getByRole('button', { name: 'Form name input', exact: true }).click();
   await generated().getByLabel('Form value', { exact: true }).fill('x');
   await generated().getByRole('button', { name: 'Search', exact: true }).click();
@@ -402,7 +404,20 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect(generated().getByLabel('Form value', { exact: true })).toHaveAttribute('aria-invalid', 'false');
   await expect(generated().getByLabel('Form value', { exact: true })).not.toHaveAttribute('aria-describedby');
   hostCommonRefusal = false;
-  await page.getByRole('tab', { name: 'Document statistics', exact: true }).click();
+  await page.getByRole('tab', { name: 'Fixture issues', exact: true }).click();
+  let releaseLateFavorite,lateFavoriteStarted=false,lateFavoriteDelivered=false;
+  const lateFavoriteGate=new Promise(resolve=>{releaseLateFavorite=resolve;});
+  await page.route('**/api/views',async route=>{
+    const body=route.request().postDataJSON();if(body.action!=='open'||body.name!=='Saved inputs')return route.fallback();
+    const response=await route.fetch();lateFavoriteStarted=true;await lateFavoriteGate;
+    try{await route.fulfill({response});}finally{lateFavoriteDelivered=true;}
+  });
+  await statistics.getByRole('button',{name:'Saved inputs',exact:true}).click();
+  await expect.poll(()=>lateFavoriteStarted).toBe(true);
+  await page.getByRole('region',{name:'Default views',exact:true}).getByRole('button',{name:'Issue search',exact:true}).click();
+  await expect(generated().getByLabel('Text',{exact:true})).toHaveValue('');
+  releaseLateFavorite();await expect.poll(()=>lateFavoriteDelivered).toBe(true);
+  await expect(generated().getByLabel('Text',{exact:true})).toHaveValue('');
   const queriesBeforeReview = queries;
   await statistics.getByRole('button', { name: 'Review entry', exact: true }).click();
   const review = page.getByTestId('review-view');
@@ -422,6 +437,50 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   if (screenshots) for (const width of [1440, 960, 640]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.screenshot({ path: `tmp/v3-review/review-entry-${width}.png` });
+  }
+  // Document-owned favorites use their own namespace and preserve snapshot rows without querying.
+  await openPath(page,[root,'a.md'].join(root.includes('\\')?'\\':'/'));
+  const outlineToggle=page.getByRole('button',{name:'Outline',exact:true});
+  if(await outlineToggle.getAttribute('aria-pressed')!=='true') await outlineToggle.click();
+  const documentPanel=page.getByTestId('document-panel');
+  await documentPanel.getByRole('tab',{name:'Views',exact:true}).click();
+  const beforeSnapshot=queries;
+  await documentPanel.getByRole('button',{name:'예시: Saved assistant rows',exact:true}).click();
+  await expect(documentPanel.getByRole('cell',{name:'42',exact:true})).toBeVisible();
+  await expect(documentPanel).toContainText('Assistant content may be inaccurate.');
+  expect(queries).toBe(beforeSnapshot);
+  const snapshotTable=documentPanel.getByRole('region',{name:'예시: Snapshot rows',exact:true}).first();
+  await snapshotTable.getByRole('button',{name:'Total',exact:true}).click();
+  await documentPanel.getByRole('tab',{name:'Outline',exact:true}).click();
+  await documentPanel.getByRole('tab',{name:'Views',exact:true}).click();
+  await expect(snapshotTable.locator('th').last()).toHaveAttribute('aria-sort','ascending');
+  const documentTabId=await page.locator('.document-tabs [role="tab"][aria-selected="true"]').evaluate(el=>el.closest('[data-tab-id]').dataset.tabId);
+  await openPath(page,[pluginFixture.otherFolder,'b.md'].join(root.includes('\\')?'\\':'/'));
+  await expect(documentPanel.getByRole('cell',{name:'42',exact:true})).toHaveCount(0);
+  await page.locator(`.document-tabs [data-tab-id="${documentTabId}"] [role="tab"]`).click();
+  await expect(snapshotTable.locator('th').last()).toHaveAttribute('aria-sort','ascending');
+  await page.getByRole('button',{name:'Assistant',exact:true}).click();
+  await expect(documentPanel).toBeHidden();
+  await page.getByTestId('assistant-panel').getByRole('button',{name:'Close assistant',exact:true}).click();
+  await expect(snapshotTable.locator('th').last()).toHaveAttribute('aria-sort','ascending');
+  await documentPanel.getByText('Sources (2)',{exact:true}).click();
+  await expect(documentPanel.getByRole('button',{name:'예시: Unmapped source',exact:true})).toBeDisabled();
+  expect(queries).toBe(beforeSnapshot);
+  if(screenshots){
+    for(const width of [1440,640]){
+      await page.setViewportSize({width,height:1000});
+      if(width===640){
+        await page.getByRole('button',{name:'Settings',exact:true}).click();
+        await page.getByTestId('ui-language').selectOption('ko');
+        await page.getByTestId('theme').selectOption('dark');
+        await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+        await page.locator(`.document-tabs [data-tab-id="${documentTabId}"] [role="tab"]`).click();
+      }
+      if(!await documentPanel.isVisible())await page.getByRole('button',{name:width===640?'개요':'Outline',exact:true}).click();
+      await expect(snapshotTable).toBeVisible();
+      await page.mouse.move(0,0);
+      await page.screenshot({path:`tmp/d3-reviewed-${width}.png`,mask:[page.getByTestId('sidebar'),documentPanel.locator('select')]});
+    }
   }
   pluginFixture.cli(['plugins', 'disable', 'fixture.issues']);
   return { favorite, root, rows, captureEnvironment, providers: sends.map(send => send.provider) };

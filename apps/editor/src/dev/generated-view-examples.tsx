@@ -1,4 +1,5 @@
 import { ChartExamples } from "./chart-examples.tsx";
+import { DataTable } from "../components/DataTable.tsx";
 import { useMemo, useState } from "react";
 import { parse, getEditableDocument } from "@litzio/core";
 import { operationQueryViewSchema as queryViewSchema, reviewViewSchema } from "@litzio/core/views-v2";
@@ -11,13 +12,13 @@ import { Button } from "../components/ui/button.tsx";
 import { Notice, FieldError } from "../ui/primitives.tsx";
 
 const columns = ["key", "summary", "status", "assignee", "updated", "priority", "project", "type", "reporter", "created", "labels", "count"];
-const query = queryViewSchema.parse({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.statistics", title: "Issue search", refresh: "manual",
+const query = queryViewSchema.parse({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.statistics", title: "예시: Issue search", refresh: "manual",
   sources: { stats: { kind: "operation", operation: "fixture.issues", version: 1, args: {} } },
   form: { component: "InputForm", source: "stats", fields: [{ component: "Select", field: "preset" }, { component: "TextInput", field: "text" }, { component: "DateInput", field: "date" }, { component: "Checkbox", field: "enabled" }], submit: { component: "SubmitButton", label: "Search" } },
-  layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Five columns", source: "stats", data: "/rows", columns: columns.slice(0, 5) }, { component: "Table", title: "Twelve columns", source: "stats", data: "/rows", columns }, { component: "Chart", type: "bar", title: "Issue count", source: "stats", data: "/rows", x: "key", y: "count" }] } });
+  layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Table — 예시: 좁은 표", source: "stats", data: "/rows", columns: columns.slice(0, 5) }, { component: "Table", title: "Table — 예시: 넓은 표(가로 스크롤)", source: "stats", data: "/rows", columns }, { component: "Chart", type: "bar", title: "예시: Issue count", source: "stats", data: "/rows", x: "key", y: "count" }] } });
 const schema: InputSchema = { properties: { preset: { type: "string", title: "Preset", enum: ["Assigned", "Reported", "All"] }, text: { type: "string", title: "Search text" }, date: { type: "string", format: "date", title: "Updated after" }, enabled: { type: "boolean", title: "Enabled" } } };
-const rows = [1, 2, 3].map(n => Object.fromEntries(columns.map(c => [c, c === "count" ? n * 3 : c === "key" ? `ISSUE-${n}` : c === "summary" ? `Example issue ${n}: a readable summary` : c === "status" ? "Open" : c === "updated" ? "2026-11-06" : `${c} example`])));
-const review = reviewViewSchema.parse({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review changes", refresh: "manual", sources: { review: { plugin: "fixture.review", review: "sample", bundleRef: "bundle" } }, layout: { component: "Panel", direction: "vertical", children: ["PageSurface", "SourceDocumentCompare", "ReviewList", "ReviewDetail"].map(component => ({ component, title: component, source: "review" })) } });
+const rows = [1, 2, 3].map(n => Object.fromEntries(columns.map(c => [c, c === "count" ? n * 3 : c === "key" ? `ISSUE-${n}` : c === "summary" ? `예시: Issue ${n}: a readable summary` : c === "status" ? "Open" : c === "updated" ? "2026-11-06" : `예시: ${c}`])));
+const review = reviewViewSchema.parse({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "예시: Review changes", refresh: "manual", sources: { review: { plugin: "fixture.review", review: "sample", bundleRef: "bundle" } }, layout: { component: "Panel", direction: "vertical", children: ["PageSurface", "SourceDocumentCompare", "ReviewList", "ReviewDetail"].map(component => ({ component, title: `예시: ${component}`, source: "review" })) } });
 const queryStates = ["success", "idle", "loading", "loading-previous", "empty", "auth", "forbidden", "not_found", "unavailable", "timeout", "new-view", "inputIssues", "common-input"];
 const stateLabels: Record<string, string> = {
  success: "Results", idle: "Not queried", loading: "Loading", "loading-previous": "Loading (previous data)", empty: "Empty results",
@@ -73,3 +74,9 @@ export function GeneratedViewExamples({ state }: { state: string }) {
     <ChartExamples />
   </section>;
 }
+
+export function TableInteractionExample() {
+ return <section className="view-panel" aria-label="Table — 예시: 열별 정렬·필터"><h3>Table — 예시: 열별 정렬·필터</h3><DataTable title="Table — 예시: 열별 정렬·필터" columns={tableColumns} rows={tableRows} fields={{score:{type:"number"},enabled:{type:"boolean"},date:{type:"string",date:true}}} /></section>;
+}
+const tableColumns=["name","score","enabled","date"];
+const tableRows=Array.from({length:61},(_,i)=>({name:`Item ${i+1}`,score:i===60?100:i,enabled:i%2===0,date:`2026-11-${String(i%28+1).padStart(2,"0")}T00:00:00.000Z`}));

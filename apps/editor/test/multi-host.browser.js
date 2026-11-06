@@ -71,6 +71,15 @@ async (page, { expect, screenshots, recoveryRecords, showNotifications }) => {
     }
     return route.fulfill({ json });
   });
+  let offlineCatalogReads=0;
+  await page.route('**/fixture/off/api/views',route=>{offlineCatalogReads++;return route.fulfill({status:503,json:{error:'Offline Host'}});});
+  await page.route('**/api/views',route=>{
+    const host=route.request().url().includes('/fixture/remote/')?'remote':'local';
+    if(route.request().url().includes('/fixture/off/'))return route.fallback();
+    const {action}=route.request().postDataJSON();expect(['catalog','list']).toContain(action);
+    const definition={kind:'litzio-view',schemaVersion:2,catalog:'litzio-v2',profile:'query',owner:'fixture.screen',title:'예시: Host screen',refresh:'manual',sources:{stats:{kind:'operation',operation:'fixture.screen.read',version:1,args:{}}},layout:{component:'Panel',direction:'vertical',children:[{component:'Table',title:'예시: Rows',source:'stats',data:'/rows',columns:['label']}]}};
+    return route.fulfill({json:{catalog:{operations:[{plugin:'fixture.screen',operation:'fixture.screen.read',version:1,inputSchema:{type:'object',properties:{},additionalProperties:false},rowSchema:{label:{type:'string',label:'Label'}}}]},views:[{plugin:'fixture.screen',id:'summary',title:'예시: Host screen',definition}],screens:[{plugin:'fixture.screen',id:'summary',title:'예시: Host screen',icon:'Table',defaultViewIds:['summary'],primary:true}],favourites:[],receipt:{operation:`view.${action}`,outcome:'success'}}});
+  });
   await page.route('**/api/file', route => {
     const host = route.request().url().includes('/fixture/remote/') ? 'remote' : 'local';
     const body = route.request().postDataJSON();
@@ -475,4 +484,13 @@ async (page, { expect, screenshots, recoveryRecords, showNotifications }) => {
   await expect(localExplorer.getByTestId('folder')).toHaveCount(1);
   await expect(createdTab).toHaveCount(1);
 
+  // Explicit entry Host must replace a different Host selected in the existing screen.
+  await page.getByTestId('sidebar').getByRole('button',{name:'예시: Host screen',exact:true}).click();
+  const screen=page.getByTestId('view-workspace').filter({visible:true});
+  await expect(screen.getByRole('combobox',{name:'Host',exact:true})).toHaveValue('local');
+  await screen.getByRole('combobox',{name:'Host',exact:true}).selectOption('remote');
+  await expect(screen.getByRole('combobox',{name:'Host',exact:true})).toHaveValue('remote');
+  await page.getByTestId('sidebar').getByRole('button',{name:'예시: Host screen',exact:true}).click();
+  await expect(screen.getByRole('combobox',{name:'Host',exact:true})).toHaveValue('local');
+  expect(offlineCatalogReads).toBe(0);
 }

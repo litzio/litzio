@@ -29,7 +29,7 @@ export function documentContentBounds(viewport: HTMLElement) {
   const x = rect.left + viewport.clientLeft + parseFloat(style.paddingLeft);
   const y = rect.top + viewport.clientTop;
   // Below the docking width Outline covers content without changing its padding.
-  const panel = viewport.closest(".app-shell")?.querySelector(".document-panel")?.getBoundingClientRect();
+  const panel = viewport.closest(".app-shell")?.querySelector(".document-panel:not([hidden])")?.getBoundingClientRect();
   const right = Math.min(rect.right, rect.left + viewport.clientLeft + viewport.clientWidth - parseFloat(style.paddingRight), panel?.left ?? window.innerWidth);
   return { x, y, width: Math.max(0, right - x), height: Math.min(rect.bottom - y, viewport.clientHeight) };
 }

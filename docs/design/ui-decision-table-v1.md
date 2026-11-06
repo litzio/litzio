@@ -59,7 +59,7 @@
 
 ## 갤러리 열기와 검토
 
-Generated views 범주는 query(InputForm, 5열·12열 Table, BarChart, VerticalPanel)와 review(PageSurface, SourceDocumentCompare, ReviewList, ReviewDetail)의 실제 제품 renderer를 사용한다. 메모리 fixture와 adapter만 사용하며 Host 호출·저장은 없다. query/review와 개별 상태를 ChoiceGroup으로 선택한다. review의 refreshing은 Refresh data를 눌러 이전 자료 유지 상태를 확인하고, Changes에서 항목을 선택하면 Details와 메모리 적용·Undo를 확인한다. 외부 서비스나 실제 저장 성공을 증명하는 fixture는 아니다.
+Generated views 범주는 query(InputForm, Table, Chart, Panel)와 review(PageSurface, SourceDocumentCompare, ReviewList, ReviewDetail)의 실제 제품 renderer를 사용한다. 메모리 fixture와 adapter만 사용하며 Host 호출·저장은 없다. query/review와 개별 상태를 ChoiceGroup으로 선택한다. review의 refreshing은 Refresh data를 눌러 이전 자료 유지 상태를 확인하고, Changes에서 항목을 선택하면 Details와 메모리 적용·Undo를 확인한다. 외부 서비스나 실제 저장 성공을 증명하는 fixture는 아니다.
 
 수동 검토(2026-11-06, Windows persistent Chrome, 1440×1100, English, Plum): query [Light](assets/generated-views-1241/query-1440-light.png) / [Dark](assets/generated-views-1241/query-1440-dark.png), [인증 오류](assets/generated-views-1241/error-1440-dark.png), 원본 대조 [Light](assets/generated-views-1241/review-1440-light.png) / [Dark](assets/generated-views-1241/review-1440-dark.png), 상세·동작 [Light](assets/generated-views-1241/details-1440-light.png) / [Dark](assets/generated-views-1241/details-1440-dark.png). 입력 간격·테마 대비·12열 overflow와 검토 전후 표시를 확인했다. 원본 이미지는 없는 fixture로 영역 표시를 확인했다. #1278 검토 후 안내를 영역 좌표계 밖으로 이동하고 [단독 PageSurface Light](assets/generated-views-1241/page-1440-light.png) / [Dark](assets/generated-views-1241/page-1440-dark.png)를 추가했다. query·오류·대조·상세 캡처도 갱신했다. Search 배치 차이는 갤러리 wrapper가 제품의 `.form-actions.view-query-actions`를 누락한 것이며 같은 마지막 행·오른쪽 정렬로 수정했다. 상태 선택 label은 읽기 쉬운 표시명으로 바꿨다. `pnpm browser:test ui-gallery --screenshots`의 임시 촬영 body를 실행한 뒤 자동 검사 body를 복원했다. 자동 검사에는 범주 진입·이전 자료 유지·필드 오류·재실행 금지 안내의 대표 연결만 추가하며 픽셀 판정은 없다.
 
@@ -208,3 +208,19 @@ SettingsSelect 레시피의 Any/Yes/No, 날짜는 공통 Input의 ISO 텍스트/
 #1263 차단 결함 보완: 공통 Views는 CatalogView를 query/review로 분기해 각각 QueryViews와
 V5 ReviewRenderer를 mount한다. Core ViewInputError의 field diagnostics를 기존 FieldError에
 연결한다. JSON Schema 의미를 UI에 복제하지 않으며 Core의 CSP-safe 해석 compiler를 사용한다.
+
+## 동적 뷰 D3 공통 구현
+
+새 작업 탭·문서 우측 보기·SDK 화면은 `Views`와 `ViewWorkspace`로 앱의 Host·owner를 고정한다. SDK 화면 진입은 Sidebar 기여, 명령 찾기, 플러그인 목록을 공유하며 설정은 기존 Settings에 남긴다. 우측 보기는 기존 DocumentPanel의 tablist 예외를 따른다. 생성 요청은 앱의 destination token을 사용하며 닫힘·새 요청·Host 연결 해제로 무효화한다. D4 생성 서비스와 V7 차트 확장의 통합 수락은 별도다.
+
+읽기 표는 제품 공통 `DataTable`을 사용한다. Button·Input·Popover·Notice·기존 table scroll/token을 재사용하고 새 스타일 DSL은 없다. 정렬/필터는 화면 상태이며 저장하지 않는다. 갤러리의 `예시: 좁은 표`, `예시: 넓은 표(가로 스크롤)`, `예시: 열별 정렬·필터`는 같은 Table의 사용 사례다. 예외는 Editor의 문서 표 편집으로, ProseMirror selection/semantic operation을 유지하며 읽기 표로 전환하지 않는다.
+
+검사: 기존 `ui-gallery`에 페이지 밖 61번째 행을 내림차순·범위 필터로 찾고 필터 해제 뒤 정렬이 남는 조작을 추가했다. 이는 Core 의미 검사가 아닌 실제 공통 Popover/표 연결을 보호한다. `view-generation.test.ts`의 대표 대상 교체·닫힘·Host 해제 검사는 provider 취소와 별개인 앱 전달 경계를 보호한다. 전수 조합·새 subprocess는 추가하지 않았다. fixture는 외부 서비스·실제 AI·원격 Host 수락 근거가 아니다.
+
+시각 점검은 checkout 전용 서버·기존 persistent Chrome profile로 수행했다. 1440px English Light [변경 전](assets/dynamic-views-d3/before-1440.png) / [변경 후](assets/dynamic-views-d3/after-1440.png), 640px Korean Dark [변경 전](assets/dynamic-views-d3/before-640.png) / [변경 후](assets/dynamic-views-d3/after-640.png). Before는 기준 renderer를 잠시 복원해 촬영했고 After는 같은 좁은 표 예시의 새 renderer다. 예시 제목·행의 예시 표기 변경과 공통 정렬/필터 controls, 여백·스크롤을 수동 점검했다. 계정·로컬 파일 경로가 없는 개발 갤러리만 촬영했다.
+
+D3 후속 검증은 기존 panel-lists의 4탭·양방향 wrap·Home/End·항상 존재하는 aria-controls를 보완한다. 기존 multi-host에는 연결된 Host의 catalog fixture와 offline Host 무요청·명시 Host 진입 재선택을 추가한다. generated-views는 문서 숨김/전환/비서 표시 중 표 상태와 늦은 favorite open의 수동 선택 우선권을, ui-gallery는 실제 Views의 명세 교체/이전 응답 폐기·offline 결과 보존 및 생성 뷰 재선택을 보호한다. 갤러리의 수명 예시는 메모리 HostClient만 사용하며 실제 Host/AI 수락을 뜻하지 않는다. DOM 해제 대신 hidden으로 바뀐 기존 layout/scroll/notification 단언은 같은 비노출 조건을 계속 확인한다. 별도 subprocess나 전수 조합은 추가하지 않는다.
+
+후속 보기 화면은 1440px English Light [캡처](assets/dynamic-views-d3/view-1440.png), 640px Korean Dark [캡처](assets/dynamic-views-d3/view-640.png)에서 4탭 정렬, 줄바꿈, 패널 내부 세로 스크롤과 표 내부 가로 스크롤을 확인했다. 계정/폴더 경로를 포함할 수 있는 사이드바와 Root select는 촬영 시 mask했다. 출처의 unavailable은 현재 신뢰된 Root identity 공급이 없는 실제 제한이며 숨기지 않는다.
+
+숨김 상태로 유지되는 문서 패널은 documentContentBounds에서 보이는 panel만 제외하도록 함께 대조했다. 기존 document-scroll·layout-rules·command-center의 비노출/포커스/가용 영역 단언을 유지하며 로컬 layout-rules는 문서화된 representative 범위로 실행하고 전수 회귀는 CI에 맡긴다.
