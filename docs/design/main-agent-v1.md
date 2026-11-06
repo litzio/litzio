@@ -992,10 +992,16 @@ API, event bus or provider framework is added.
 
 Copilot uses `copilot --acp` with the user's environment and the same Litzio-owned
 cwd/AGENTS.md. The official ACP SDK owns NDJSON framing and request dispatch.
-`session/set_model` selects a returned model before `session/prompt`;
+The advertised model config option selects a returned model through
+`session/set_config_option` before `session/prompt`; its complete response replaces
+the conversation's options. Legacy sessions without a model config option use
+`session/set_model` and its config updates.
 `session/update` text/thought/tool updates feed existing panel snapshots. Prompt
 errors and disconnection mark a turn failed. Stop sends `session/cancel`;
 a second message waits until the current turn ends (no steering emulation).
+Request failures during initialization, catalog/session creation and session setup
+preserve ACP's string `message` as an Error for the existing Host error response,
+rather than displaying `[object Object]`. Provider error `data` is not serialized.
 Provider-tagged conversation indexes are filtered to the selected provider.
 Codex `/` skill selection and `skills/list` remain Codex-only; Copilot does not
 query that catalog or send Codex skill inputs.
@@ -1056,7 +1062,11 @@ for the selected mode. Each new conversation starts with Agent when advertised.
 
 A `thought_level` select (or reasoning/thought-level config ID) supplies values and
 current default, flattened from ACP option groups as in Paseo. Host applies it with
-`session/set_config_option` before the prompt. Without one, the catalog uses CLI
+`session/set_config_option` before the prompt. An advertised model config option
+without a thought-level option means that selected model has no configurable
+reasoning effort: Host sends no reasoning config and the composer hides that
+selector. It does not reinterpret a removed model option as CLI fallback.
+Legacy sessions without either a model config or thought-level option use CLI
 `none|minimal|low|medium|high|xhigh|max`, default medium, without guessing model support.
 The CLI fallback locks effort after a conversation starts; the hover explains that a
 new conversation is required. New-conversation effort or full-access launch changes
@@ -1078,6 +1088,25 @@ from the separate catalog session. The catalog supplies initial defaults only;
 its effort list cannot veto a newly advertised conversation value. Only the CLI
 fallback uses the fixed seven-value validation. Settings defaults affect new conversations; active conversations retain
 their effort selection. ACP config updates are retained for subsequent validation.
+Model setup publishes the latest options and provider current effort to the
+conversation snapshot even when a subsequent setting is rejected. Polling can
+therefore restore choices after Auto → a model with different reasoning support.
+The composer preserves the user's requested effort across Copilot model changes;
+it does not replace it with a catalog default or automatically retry an invalid
+value. The existing choice tooltip reports the provider's current value separately.
+An invalid request retains the message draft and readable error until the user
+selects an advertised value and sends again.
+
+#1181 verification (2026-11-06): the owner observed Copilot 1.0.105 rejecting an
+Auto reasoning configuration while model/session lookup succeeded; that version's
+config event history was not recorded. A later owner check on 1.0.106 observed
+reasoning disappearing after Auto selection. These are distinct observations.
+Fake stdio regressions cover supported-model effort updates and Auto's removed
+option, plus readable RPC errors without provider data. A separate local PATH
+1.0.106 probe completed a minimal Auto prompt with no received assistant text;
+it is not evidence of successful real answer delivery. No account/default settings
+were changed. The composer reuses the existing AssistantChoice Button/menu pattern
+and omits unavailable choices; no new surface or UI pattern exception is added.
 
 The original #1091 manual review used SettingsSelect and composer Button/Popover with no
 new common implementation or UI exception. Korean Dark, 1440×1000 and 640×1000,
