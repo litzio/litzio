@@ -9,11 +9,11 @@
 .agent-dot.available { background: var(--id-color-interaction); }
 .agent-provider-open:disabled { opacity: .5; cursor: default; }
 .agent-provider-open:focus-visible { outline: 2px solid var(--id-color-interaction); outline-offset: 2px; }
-.agent-diagnostics { border-top: 1px solid var(--id-color-border-subtle); }
+.agent-diagnostics { font-size: var(--font-size-sm); line-height: var(--line-height-label); border-top: 1px solid var(--id-color-border-subtle); }
 .agent-diagnostic-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--id-color-border-subtle); align-items: start; }
 .agent-diagnostic-row > span { color: var(--id-color-text-muted); }
 .agent-diagnostic-row > div { min-width: 0; overflow-wrap: anywhere; }
-.agent-diagnostic-row code { display: block; white-space: normal; overflow-wrap: anywhere; font-size: var(--font-size-xs); color: var(--id-color-text-muted); }
+.agent-diagnostic-row code { display: block; white-space: normal; overflow-wrap: anywhere; font-size: var(--font-size-xs); line-height: var(--line-height-meta); color: var(--id-color-text-muted); }
 .agent-models { display: flex; flex-direction: column; gap: var(--space-3); min-width: 0; }
 [data-testid="assistant-models-dialog"] { max-width: min(var(--layout-settings-content-width), calc(100vw - 2rem)); }
 .agent-model-list { max-height: var(--layout-agent-model-list-height); overflow-y: auto; border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); }

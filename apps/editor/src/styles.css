@@ -921,8 +921,11 @@ button {
 /* Settings and Color mode share footer row geometry in both sidebar states. */
 .sidebar-preferences { display: flex; align-items: center; gap: var(--space-1); }
 .sidebar--collapsed .sidebar-preferences { flex-direction: column; }
-.sidebar-host-account { display: flex; align-items: center; gap: var(--space-1); min-width: 0; height: var(--size-control-compact); padding-inline: var(--space-2); color: var(--id-color-text-muted); font-size: var(--font-size-xs); }
+.sidebar-host-account { display: flex; align-items: center; gap: var(--space-2); min-width: 0; height: var(--size-control-compact); padding-inline: calc(var(--space-3) + var(--border-width)); color: var(--id-color-text-muted); font-size: var(--font-size-xs); }
 .sidebar-host-account .host-status { flex-shrink: 0; }
+.sidebar-host-account .host-status .agent-dot { width: var(--size-icon-slot); height: var(--size-icon-slot); display: grid; place-items: center; background: none; }
+.sidebar-host-account .agent-dot::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.sidebar-host-account:focus-visible { outline: none; box-shadow: var(--focus-ring-inset); border-radius: var(--id-radius-md); }
 .sidebar-host-account .sidebar-tree-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar--collapsed .sidebar-host-account { justify-content: center; }
 /* Whole-screen theme crossfade; other controls retain immediate state changes. */

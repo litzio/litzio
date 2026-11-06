@@ -109,6 +109,39 @@ skills·진단 항목은 숨긴다. #1091은 같은 SettingsSelect로 추론 강
 
 ## P07 입력 오류와 알림 센터
 
+#1292 비서 공통 작업 환경·공급자 진단은 일반 label/값에 UI 14/20,
+경로·프로토콜에 mono metadata 12/16을 사용한다. 공급자 연결 실패와 설정 요청 실패는
+기존 `Notice tone="error"`로 표시하며 특정 입력의 오류로 재분류하지 않는다.
+같은 설정 패턴인 Host 주소는 공통 description 12/18, About daemon 값·facts는
+공통 SettingsRow/facts 16/24를 사용한다([fixture 측정](assets/ui-consistency-1292-synthetic/host-about-roles.json)).
+이 공용 표면의 read-only 타이포 변경은 이번 비서 진단 적용 범위에 포함하지 않는다. 본문·제목·안내 문구를 일괄 축소하지 않는다.
+Host footer는 Settings와 같은 16px 슬롯·padding·8px 간격을 사용하고,
+6px 상태 점은 슬롯 가운데에 둔다. 읽기 전용 실행 계정은 Tab focus·Tooltip을 유지한다.
+
+수동 검토(2026-11-06, Windows persistent Chrome, base `3de135cb`, 합성 Host/account/path·Desktop bridge·AI fixture):
+[1440 환경 Before](assets/ui-consistency-1292-synthetic/before-1440-light-environment.png) /
+[After](assets/ui-consistency-1292-synthetic/after-1440-light-environment.png),
+[640 긴 경로 Before](assets/ui-consistency-1292-synthetic/before-640-dark-environment.png) /
+[After](assets/ui-consistency-1292-synthetic/after-640-dark-environment.png),
+[1440 오류 Before](assets/ui-consistency-1292-synthetic/before-1440-light-error-focus.png) /
+[After](assets/ui-consistency-1292-synthetic/after-1440-light-error-focus.png),
+[640 오류·focus Before](assets/ui-consistency-1292-synthetic/before-640-dark-error-focus.png) /
+[After](assets/ui-consistency-1292-synthetic/after-640-dark-error-focus.png),
+[footer focus Before](assets/ui-consistency-1292-synthetic/before-1440-light-footer-focus.png) /
+[After](assets/ui-consistency-1292-synthetic/after-1440-light-footer-focus.png),
+[640 접힘 Before](assets/ui-consistency-1292-synthetic/before-640-dark-collapsed.png) /
+[After](assets/ui-consistency-1292-synthetic/after-640-dark-collapsed.png).
+[Before 측정](assets/ui-consistency-1292-synthetic/before-measurements.json) /
+[After 측정](assets/ui-consistency-1292-synthetic/after-measurements.json): 펼침 점 중심 x23→33,
+Settings 중심 x33 유지. Tab으로 진단 실행·Host footer에 도달했다.
+`pnpm browser:test quiet-document --screenshots`에 임시 수동 촬영 body를 적용하고 원래 regression을 복원했다.
+이 캡처는 실제 공급자 연결·설치 앱·원격 Host 성공이나 픽셀 자동 단언을 뜻하지 않는다.
+알림 위치 이동의 `notification-center` 검사는 기존 `tableCell` selection 기대값을 유지하며
+`NotificationScope`의 다음 animation frame 이동이 완료된 상태를 기다린다. #1293 merge-group 실패
+artifact에는 즉시 단언 실패 뒤 같은 클릭의 selection이 `tableCell`로 도달한 기록이 있어,
+기본 timeout이나 제품 동작을 바꾸지 않고 단언 시점만 보완했다.
+
+
 조회 입력의 구체 오류 안내는 validator keyword와 이미 가진 공개 schema만 사용한다.
 required는 값 입력, date format은 유효한 YYYY-MM-DD 날짜, minimum/maximum은 해당
 하한/상한, minLength/maxLength는 해당 최소/최대 글자 수를 짧게 안내한다. pattern은
@@ -519,7 +552,7 @@ ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의
 명시 적용·격리 preview 패턴을 대조했다. 공유 상태 adapter는 V3 소유이므로 수정하지 않는다.
 
 검증 경로: `pnpm browser:test review-v5`. `--screenshots`는 수동 시각 검토용
-`tmp/review-v5-1440.png`, `tmp/review-v5-narrow.png`를 남긴다. fixture는 서비스별
+1440px·좁은 창 수동 캡처를 소유자 로컬에 남긴다. fixture는 서비스별
 저장 의미를 정의하지 않으며 Docling 수락이나 V4 통합 완료 증거가 아니다.
 
 ## Query renderer V3
@@ -576,7 +609,7 @@ camelCase·구분자를 읽기 쉬운 기본 표기로만 바꾸고 바인딩 �
 둔다. 조회 표는 문서 표와 같은 thin scrollbar·border-strong thumb 규칙으로 내부 가로
 스크롤을 드러낸다. 모든 열을 유지하며, 폭별 시작/끝 캡처로 12열과 마지막 열 도달을 확인한다.
 검증 근거는 `pnpm browser:test generated-views --screenshots`의
-`tmp/v3-review/{table12-<width>-start,table12-<width>-end,reopened-<width>,error-<width>}.png`
+소유자 로컬의 table12 시작·끝, 다시 열기·오류 캡처
 (1440/960/640)이며 최종 이미지는 수동 검토한다.
 
 수동 `--screenshots` 실행에서는 Playwright headless의 기본 `--hide-scrollbars`만 제외해 실제 scrollbar도 캡처한다. persistent profile·시나리오 격리·검증 단언은 동일하다.
