@@ -61,6 +61,8 @@ Windows에서 profile·cache를 생략하면 공식 기본 위치를 사용한�
 
 Desktop·HTTP/Vite Host·실행 CLI가 PID/OS 생성 identity를 가진 actor lease를 등록한다. 일반 CLI의 순수 help/version은 참여하지 않는다. writer는 먼저 등록하고 exclusive 존재를 확인한다. 초기화는 exclusive를 먼저 만든 뒤 기존 actor를 검사하므로 새 writer와의 시작 경쟁도 둘 중 하나가 거부된다. 다른 프로세스를 죽이지 않는다. dead PID 세대의 고유 actor 파일만 회수한다. 중단된 exclusive, 알 수 없는 기록, Host 하위 프로세스 종료 실패 marker는 자동 회수하지 않고 검사할 위치를 보고한다. gate 자체를 포함하거나 home·현재 cwd·설치 실행 파일·사용자 문서/OS 데이터 root를 포함하는 삭제 대상은 거부한다.
 
+Vite도 문서·asset middleware가 수락한 promise를 SSR module loading부터 추적한다. listener 종료 이벤트는 서비스 종료와 수락된 handler의 settle까지 기다린 뒤 lease를 해제한다. 종료 중 새 Host 서비스를 초기화하지 않으며 `server.close()`도 같은 정리를 기다린다. Vite 내부 restart가 listener를 닫는 경로에도 같은 lease 보호가 적용된다. 이미 수락된 파일 변경은 소켓 단절로 취소됐다고 간주하지 않는다.
+
 Desktop 경로:
 
 1. 실제 경로 계획을 검토하고 삭제 범위와 외부 유지 데이터를 확인한다.
@@ -80,11 +82,14 @@ Desktop 경로:
 - [main 연결](../../apps/desktop/test/window-startup.test.ts): 실제 main 코드를 격리 port로 실행해 sender·계획·미저장 작업·늦은 unload 거부와 helper 취소를 확인한다. 실제 앱/OS 파일을 조작하지 않는다.
 - [helper fixture](../../apps/desktop/test/reset-helper.test.ts): 실제 자식 프로세스에서 부모 종료 전 데이터 보존, 종료 후 삭제·receipt·재실행을 확인한다. 세 subprocess(가짜 부모, 실제 source helper, 즉시 종료하는 재실행 표식)가 필요하며 인메모리 mock으로 process-exit/IPC 경계를 증명할 수 없다. 별도 helper 한 개로 IPC 유실 뒤 취소 기록을 존중하는지도 검사한다. 취소 파일 확인 전 canary 삭제 실패를 재현한 뒤 수정했고 두 검사가 통과했다. Windows 단독 실행 관측 약 2초, 다른 검사 병렬 실행 중 약 6초. 폴더·secret은 합성이며 외부 서비스 호출은 없다.
 - [HTTP 검사](../../apps/editor/test/http-host.test.ts): runtime 경로 고정과 활성 Host의 gate 참여·HTTP method 경계. 클라이언트 socket을 닫아도 이미 수락한 비동기 파일 변경은 계속될 수 있으므로 handler가 끝나기 전 Host close/gate 해제가 완료되지 않는지도 검사한다. 기존 close가 먼저 완료되는 실패를 재현했고, listener 종료 뒤 in-flight handler가 settle할 때까지 lease를 유지하도록 수정했다. subprocess·timeout 완화 없이 네트워크 close event와 명시적 fixture 작업 경계로 검사한다.
+- [Vite 경계 검사](../../apps/editor/test/vite-plugins.test.ts): 실제 config·Vite listener·middleware·ResetGuard에서 요청 단절 후 listener와 services가 닫혀도 대기 중인 쓰기가 있으면 exclusive와 close 완료를 거부하는지 확인한다. handler/service module만 fixture이며 명시적 Promise를 풀면 임시 파일 쓰기가 끝나고 lease가 해제된다. 기존 HTTP 검사와 달리 Vite의 configureServer/비동기 module loader/close 연결을 보호한다. 수정 전 배타권이 잘못 승인되는 실패를 확인했고 수정 후 약 2초에 통과했다. 새 subprocess·브라우저·OS trash 작업·전수 조합은 추가하지 않았다. 기존 플러그인 연결 검사도 guard를 임시 fixture로 격리한다.
 - [브라우저](../../apps/editor/test/app-reset.browser.js): 공통 확인 모달·Cancel focus·삭제/유지 안내·옵션 전달·실제 Editor restart-check의 미저장 작업 거부. bridge만 stand-in이며 실제 삭제 성공을 주장하지 않는다.
 - [packaged CI](../../apps/desktop/test/packaged/packaged.e2e.ts): 실제 Electron 종료 후 Chromium profile handle 해제, 번들 RunAsNode helper, 격리 사용자 데이터 제거, 새 프로세스 세대/기본 sample/빈 작업 상태와 외부 문서 보존을 한 대표 사례로 확인한다. 프로세스와 renderer summary뿐 아니라 실제 native window handle도 확인한다. helper만 숨기고 사용자 GUI 재실행에는 `windowsHide`를 적용하지 않는다([libuv의 Windows spawn 처리](https://github.com/libuv/libuv/blob/v1.x/src/win/process.c#L1042-L1048)). 첫 CI case는 48.7초 후 native 종료 정리에 실패했으며 로그/artifact를 분석해 GUI 숨김을 수정하고 단계별 `reset-proof.json`을 추가했다. 정리 오류가 본문의 최초 실패를 덮지 않게 한다. 실제 Desktop 재실행은 source mock이나 가짜 Node 부모로 대체할 수 없고 로컬 실행 금지이므로 성공 실행 시간은 후속 CI에서 측정한다. install/update/uninstall 자체를 로컬에서 실행하지 않는다.
 
 수동 시각 검토는 persistent Chrome과 native bridge stand-in을 사용했다. 1440px English Light [이전](assets/app-reset-1285/before-1440.png) / [이후](assets/app-reset-1285/after-1440.png) / [확인](assets/app-reset-1285/confirm-1440.png), 640px 한국어 Dark [이전](assets/app-reset-1285/before-640.png) / [이후](assets/app-reset-1285/after-640.png) / [확인](assets/app-reset-1285/confirm-640.png). 정렬·버튼 여백·scroll 접근·가림·한국어 줄바꿈·공통 위험 확인의 초점을 확인했다. 640px의 추가 구역은 기존 설정 scroll로 접근한다. [촬영 body](assets/app-reset-1285/capture.browser.js)는 테스트 폴더에 임시 복사해 `pnpm browser:test app-reset-capture`로만 실행하고 자동 회귀 경로에 넣지 않는다. Host 계정은 fixture 라벨이며 실제 계정명을 공개하지 않는다.
 
 두 번째 packaged CI의 단계 기록은 앱 종료 event 대기에서 실패했으나 새 profile 로그는 재실행을 보여 주었다. Windows에서 Playwright `app.process()`는 `cmd.exe` launcher이므로 main의 실제 PID를 별도로 받아 종료와 새 세대를 판정하도록 고쳤다. 대기 시간이나 데이터 단언은 완화하지 않으며 정리 때 native 프로세스와 launcher의 종료를 모두 확인한다. CI 진단 exact allowlist도 새 `reset-proof.json` 한 항목을 명시하도록 기존 검사를 갱신했다.
+
+#1304의 원문 전송 로그는 이 구현 head에 포함되지 않았다. 작업자 보고의 `host.assistant/transmissions`는 현재 전체 assistant cwd 제거 범위 안이며, `assistant.close()`가 provider 종료 뒤 `log.close()`를 기다린다면 Host 서비스 종료와 writer lease의 경계에도 맞는다. 이는 보고에 대한 경로·수명 계약 대조이며 통합 runtime 검증이 아니다. 병합 후 합성 원문 canary를 실제 logger로 기록하고 provider 종료·log flush를 지연시킨 상태에서 reset 거부, 종료 후 초기화 시 canary 부재와 재생성 쓰기 부재를 검증해야 한다. 다른 경로나 종료 후 비동기 flush를 도입하면 inventory와 drain을 함께 재검토한다.
 
 현재 namespace에 참여하지 않는 외부/구버전의 임의 쓰기나 외부 파일 시스템 조작을 차단한다고 주장하지 않는다. 기존 discovery에 기록된 live owner도 별도로 거부하며, 소유 범위를 확인할 수 없으면 성공 대신 거부한다. 다른 workspace와 프로세스는 초기화나 검증 대상이 아니다.

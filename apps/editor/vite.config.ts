@@ -61,10 +61,39 @@ export default defineConfig({
         const releaseResetGuard = resetGuard.actor("host");
         const assetSigningKey = randomBytes(32);
         let services: Promise<ReturnType<typeof import("./server/host-services.ts").createHostServices>> | undefined;
-        const hostServices = () => services ??= server.ssrLoadModule("/server/host-services.ts").then(mod => mod.createHostServices());
+        let stopping = false;
+        const inFlight = new Set<Promise<unknown>>();
+        const track = (pending: Promise<unknown>) => {
+          inFlight.add(pending);
+          void pending.then(() => inFlight.delete(pending), () => inFlight.delete(pending));
+        };
+        const hostServices = () => {
+          if (stopping) throw new Error("The Host is closing.");
+          return services ??= server.ssrLoadModule("/server/host-services.ts").then(mod => mod.createHostServices());
+        };
+        let shutdown: Promise<void> | undefined;
+        const finishClosing = () => shutdown ??= (async () => {
+          stopping = true;
+          try { await services?.then(host => host.close()); }
+          catch (error) { resetGuard.blockAfterFailedShutdown(); throw error; }
+          finally {
+            // A closed socket does not cancel accepted filesystem work, including
+            // handlers still loading their SSR module. Keep their writer lease.
+            await Promise.allSettled([...inFlight]);
+            releaseResetGuard();
+          }
+        })();
         server.httpServer?.once("close", () => {
-          void (services?.then(host => host.close()) ?? Promise.resolve()).catch(() => resetGuard.blockAfterFailedShutdown()).finally(releaseResetGuard);
+          void finishClosing().catch(() => server.config.logger.error("Host shutdown failed; inspect the reset guard before resetting."));
         });
+        const closeServer = server.close.bind(server);
+        let closing: Promise<void> | undefined;
+        server.close = () => closing ??= (async () => {
+          stopping = true;
+          try { await closeServer(); }
+          catch (error) { resetGuard.blockAfterFailedShutdown(); throw error; }
+          await finishClosing();
+        })();
         const sampleAvailability = prepareSampleDocuments(fileURLToPath(new URL("./samples", import.meta.url)), fileURLToPath(new URL("../../tmp/sample-native-v1", import.meta.url)));
         server.middlewares.use((req, res, next) => {
           const requestUrl = req.url ?? "";
@@ -72,11 +101,11 @@ export default defineConfig({
           const localUrl = requestUrl.startsWith(base) ? `/${requestUrl.slice(base.length)}` : requestUrl;
           const url = localUrl.split("?")[0];
           if (url === "/api/asset") {
-            void server.ssrLoadModule("/server/asset-api.ts").then(mod => mod.handleAssetRequest(req, res, assetSigningKey, LOCAL_FILE_ACCESS)).catch((error: unknown) => {
+            track(server.ssrLoadModule("/server/asset-api.ts").then(mod => mod.handleAssetRequest(req, res, assetSigningKey, LOCAL_FILE_ACCESS)).catch((error: unknown) => {
               res.statusCode = 500;
               res.setHeader("Content-Type", "application/json; charset=utf-8");
               res.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
-            });
+            }));
             return;
           }
           if (!url.startsWith("/api/") && !url.startsWith("/document/")) {
@@ -84,7 +113,7 @@ export default defineConfig({
             return;
           }
           req.url = localUrl;
-          void server.ssrLoadModule("/server/document-api.ts").then(async (mod) => {
+          track(server.ssrLoadModule("/server/document-api.ts").then(async (mod) => {
             const handle = (mod as { handleDocumentRequest: typeof import("./server/document-api.ts").handleDocumentRequest })
               .handleDocumentRequest;
             return handle(req, res, next, LOCAL_FILE_ACCESS, Infinity, undefined, sampleAvailability, await hostServices());
@@ -92,7 +121,7 @@ export default defineConfig({
             res.statusCode = 500;
             res.setHeader("Content-Type", "application/json; charset=utf-8");
             res.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
-          });
+          }));
         });
       },
     },
