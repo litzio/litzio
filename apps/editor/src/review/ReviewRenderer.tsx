@@ -206,7 +206,7 @@ export function ReviewRenderer({ view, adapter }: { view: ReviewView; adapter: R
       ? <Tooltip><TooltipTrigger render={<Button variant="outline" onClick={adapter.openDocument} />}>Open result document</TooltipTrigger><TooltipContent>{REVIEW_UNAVAILABLE_GUIDANCE}</TooltipContent></Tooltip>
       : <><Button variant="outline" onClick={adapter.openDocument}>Open document</Button><Button variant="outline" disabled={state === "loading" || state === "refreshing"} onClick={() => void read(snapshot?.page?.pageNo ?? 1)}>{unresolved ? "Check request status" : "Refresh data"}</Button></>}</header>
     {(state !== "ready" || unresolved) && <Notice tone={state === "unavailable" || state === "uncertain" || unresolved ? "warning" : "info"}>{state === "refreshing" ? "Refreshing data…" : state === "loading" ? "Loading data…" : unverifiable ? "Status checks cannot resolve this outcome. Do not repeat this change." : state === "uncertain" || unresolved ? "Outcome unknown. Check the same request ID; do not resend this change." : "Data unavailable."}{unresolved && <span> Request: {unresolved.requestId}</span>}</Notice>}
-    {stale && <Notice tone="warning">Data is out of date. Refresh data to navigate or apply changes.</Notice>}
+    {stale && <Notice tone="warning">Data is out of date. Open newly verified comparison data to continue.</Notice>}
     {!wide && <Notice>Widen the window to compare. Comparison requires at least 1024px.</Notice>}
     {snapshot && wide && <div className="review-panels">{view.layout.children.map((child, index) => <section key={index} aria-label={child.title} className="review-panel">
       <h3>{child.title}</h3>

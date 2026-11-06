@@ -105,7 +105,10 @@ export const JOB_START_CONTRACT_MESSAGE = "K1 start must accept work and return 
 /** Completed K1 review materials are admitted and assigned opaque refs by the Host. */
 export const completedReviewSchema = z.strictObject({ review: z.string().min(1).max(512),
   bundle: reviewBundleSchema.omit({ bundleRef: true, documentRef: true }), pages: z.array(reviewPageSchema).max(2000),
-  mapping: reviewMappingSchema.optional(), images: z.array(z.strictObject({ ref: z.string().min(1).max(512), path: z.string().min(1), revision: z.string().min(1).max(512) })).max(2000) });
+  mapping: reviewMappingSchema.optional(), images: z.array(z.strictObject({ ref: z.string().min(1).max(512), path: z.string().min(1), revision: z.string().min(1).max(512) })).max(2000) }).superRefine((value, ctx) => {
+    const ids = value.pages.flatMap(page => page.regions.map(region => region.id));
+    if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", message: "Duplicate region across review pages" });
+  });
 export type CompletedReview = z.infer<typeof completedReviewSchema>;
 export const jobUpdateSchema = z.strictObject({
   state: z.enum(["running", "completed", "failed", "stopped", "uncertain"]), phase: z.string(),

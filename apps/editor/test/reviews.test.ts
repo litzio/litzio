@@ -335,3 +335,20 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("a delayed ready response cannot undo an observed Host stale state", async () => {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => release = resolve);
+  const client = createHostClient("http://localhost");
+  const view = reviewViewSchema.parse({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Compare", refresh: "manual", sources: { review: { plugin: "fixture", review: "text", bundleRef: "bundle" } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "SourceDocumentCompare", title: "Compare", source: "review" }] } });
+  const adapter = createReviewAdapter({ ...client, request: async (_url, init) => {
+    const input = JSON.parse(String(init?.body));
+    if (input.pageNo === 1) await held;
+    return new Response(JSON.stringify({ state: input.pageNo === 2 ? "stale" : "ready", snapshot: { bundle: { bundleRef: "bundle" }, documentPath: "/doc.md" }, receipt: { outcome: "success" } }));
+  } }, view, "/", new AbortController().signal, () => {});
+  const previous = adapter.read(1);
+  assert.equal((await adapter.read(2)).state, "stale");
+  release();
+  assert.equal((await previous).state, "stale");
+  assert.equal((await adapter.read(3)).state, "stale");
+});

@@ -46,7 +46,6 @@ export class PluginReviews {
     for (const page of data.pages) if (page.imageRef && !data.images.some(i => i.ref === page.imageRef)) throw new Error("Missing image");
     const regionIds = data.pages.flatMap(p => p.regions.map(r => r.id));
     const regions = new Set(regionIds);
-    if (regions.size !== regionIds.length) throw new Error("Duplicate region across review pages");
     if (data.mapping?.continuation) throw new Error("Incomplete review mapping unsupported");
     const targets = new Set(loadDocumentFile(file, boundary).document.blocks.map(b => JSON.stringify(b.path)));
     for (const entry of data.mapping?.entries ?? []) {
