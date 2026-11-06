@@ -1,4 +1,5 @@
-import { parseTree } from "jsonc-parser";
+// Use the published ESM entry: its UMD factory leaves dynamic relative require calls in CLI bundles.
+import { parseTree } from "jsonc-parser/lib/esm/main.js";
 import { catalogViewByteLimit, type CatalogView } from "@litzio/core/views-v2";
 import { documentRevision, loadDocumentFile, loadEditorFile, editorFile, MEDIA_TYPES } from "./document-reader.ts";
 export { documentRevision, loadDocumentFile, loadEditorFile, MEDIA_TYPES } from "./document-reader.ts";
