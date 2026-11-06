@@ -14,13 +14,21 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
   };
+  let holdEnabled = false, releaseEnabled;
+  const heldEnabled = new Promise(resolve => { releaseEnabled = resolve; });
+  const delayedResponses = [];
   // Isolate detection from the machine's real OneDrive account; folder listing still uses the Host.
   await page.route("**/api/plugins", async route => {
     if (route.request().method() !== "GET") return route.continue();
+    const delayed = holdEnabled;
     const response = await route.fetch();
     const value = await response.json();
     for (const plugin of value.plugins) if (plugin.id === "litzio.onedrive" && plugin.running) {
       plugin.status = { available: true, folders: [pluginFixture.folder, pluginFixture.otherFolder].map((path, i) => ({ id: String(i), path, label: "Drive fixture", defaultCandidate: true })), decorations: [pluginFixture.folder, pluginFixture.otherFolder].map((path, i) => ({ id: String(i), path, icon: "onedrive" })), accounts: [] };
+    }
+    if (delayed && value.plugins.some(plugin => plugin.id === "litzio.onedrive" && plugin.enabled)) {
+      delayedResponses.push(value);
+      await heldEnabled;
     }
     await route.fulfill({ response, json: value });
   });
@@ -46,7 +54,20 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(page.getByLabel("OneDrive", { exact: true })).toHaveCount(2);
   await openSettings();
   await page.reload(); await openSettings(); await expect(official).toBeChecked();
+  // Hold a completed Host GET in transport, then finish a later user disable first.
+  // The event requests the same refresh used after plugin management; only its response is delayed.
+  holdEnabled = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("plugins-changed")));
+  await expect.poll(() => delayedResponses.length).toBeGreaterThan(0);
+  holdEnabled = false;
   await official.click(); await expect(official).not.toBeChecked();
+  await expect(page.locator(".sidebar-folder-name")).toHaveCount(0);
+  const lateResponse = page.waitForResponse(response => response.url().endsWith("/api/plugins") && response.request().method() === "GET" && response.ok());
+  releaseEnabled();
+  await (await lateResponse).finished();
+  // Give the delivered JSON and React render a browser frame before checking the retained state.
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(official).not.toBeChecked();
   await page.keyboard.press("Escape");
   await expect(page.locator(".sidebar-folder-name")).toHaveCount(0);
   const listing = await page.request.get(`${await page.evaluate(() => location.origin)}/api/folder?root=${encodeURIComponent(pluginFixture.folder)}`);
