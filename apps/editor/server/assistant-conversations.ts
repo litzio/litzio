@@ -443,8 +443,10 @@ export class AssistantConversations {
     if (!admitted || turn?.id !== turnId || turn.status !== "completed" || !turn.items.some(item => item.viewGeneration)) throw new Error("No completed view generation for this request.");
     const parsed = catalogViewSchema.safeParse(value);
     const operation = parsed.success && parsed.data.profile === "query" && parsed.data.refresh === "manual" ? parsed.data.sources.stats.operation : undefined;
-    const owner = operation ? admitted.operationOwners.get(operation) : admitted.owner;
-    if (!owner) throw new Error("Operation was not in the admitted view catalog.");
+    const operationOwner = operation ? admitted.operationOwners.get(operation) : undefined;
+    if (operation && !operationOwner) throw new Error("Operation was not in the admitted view catalog.");
+    // General chat may choose a catalog operation. A screen/statistics request keeps its namespace.
+    const owner = operation && admitted.owner === "litzio.assistant" ? operationOwner! : admitted.owner;
     return executeViewOperation({ action: "propose", view: value }, { access: this.access, plugins: this.plugins, proposal: { owner, provenance: admitted.provenance } });
   }
   private acceptViewOutput(id: string, turn: AssistantConversationTurn, delta: string, replaceId?: string) {
