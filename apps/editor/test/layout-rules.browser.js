@@ -327,7 +327,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
   };
   for(const width of (fullLayout ? [1423,1280,1279,1024,768,704] : [1423,1024,704])) {
     await page.setViewportSize({width,height:1000});
-    await page.locator('.document-panel').waitFor({state:'detached'});
+    await page.locator('.document-panel').waitFor({state:'hidden'});
     const closed=await shell();
     await outlineToggle.click();
     await page.getByTestId('outline').waitFor();
@@ -337,7 +337,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
       throw Error(`Narrow document panel: ${JSON.stringify({width,closed,open})}`);
     await page.getByTestId('outline').getByRole('button').first().focus();
     await page.keyboard.press('Escape');
-    await page.locator('.document-panel').waitFor({state:'detached'});
+    await page.locator('.document-panel').waitFor({state:'hidden'});
     if(!await outlineToggle.evaluate(n=>n===document.activeElement)||await outlineToggle.getAttribute('aria-pressed')!=='false')throw Error('Escape did not return focus to the Outline button');
     results.push({panel:{width,closed,open}});
   }
@@ -351,7 +351,7 @@ async (page, { fullLayout = true, openFolderPicker, openPath, withBlockHover, ex
   });
   if(panelHeader.height!==panelHeader.sidebarHeight||panelHeader.titleCenterDelta>0.5)throw Error(`Outline header alignment: ${JSON.stringify(panelHeader)}`);
   await outlineToggle.click();
-  await page.locator('.document-panel').waitFor({state:'detached'});
+  await page.locator('.document-panel').waitFor({state:'hidden'});
   const hidden=await shell();
   const hiddenFocus=await outlineToggle.evaluate(n=>n===document.activeElement);
   await outlineToggle.click();

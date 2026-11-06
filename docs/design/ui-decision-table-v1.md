@@ -222,3 +222,5 @@ V5 ReviewRenderer를 mount한다. Core ViewInputError의 field diagnostics를 �
 D3 후속 검증은 기존 panel-lists의 4탭·양방향 wrap·Home/End·항상 존재하는 aria-controls를 보완한다. 기존 multi-host에는 연결된 Host의 catalog fixture와 offline Host 무요청·명시 Host 진입 재선택을 추가한다. generated-views는 문서 숨김/전환/비서 표시 중 표 상태와 늦은 favorite open의 수동 선택 우선권을, ui-gallery는 실제 Views의 명세 교체/이전 응답 폐기·offline 결과 보존 및 생성 뷰 재선택을 보호한다. 갤러리의 수명 예시는 메모리 HostClient만 사용하며 실제 Host/AI 수락을 뜻하지 않는다. DOM 해제 대신 hidden으로 바뀐 기존 layout/scroll/notification 단언은 같은 비노출 조건을 계속 확인한다. 별도 subprocess나 전수 조합은 추가하지 않는다.
 
 후속 보기 화면은 1440px English Light [캡처](assets/dynamic-views-d3/view-1440.png), 640px Korean Dark [캡처](assets/dynamic-views-d3/view-640.png)에서 4탭 정렬, 줄바꿈, 패널 내부 세로 스크롤과 표 내부 가로 스크롤을 확인했다. 계정/폴더 경로를 포함할 수 있는 사이드바와 Root select는 촬영 시 mask했다. 출처의 unavailable은 현재 신뢰된 Root identity 공급이 없는 실제 제한이며 숨기지 않는다.
+
+숨김 상태로 유지되는 문서 패널은 documentContentBounds에서 보이는 panel만 제외하도록 함께 대조했다. 기존 document-scroll·layout-rules·command-center의 비노출/포커스/가용 영역 단언을 유지하며 로컬 layout-rules는 문서화된 representative 범위로 실행하고 전수 회귀는 CI에 맡긴다.

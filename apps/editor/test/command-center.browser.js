@@ -482,7 +482,7 @@ async (page, { openPath, waitForActivePath, activeDocument, screenshots = false 
   await panel.waitFor();
   await panel.getByRole('button').first().focus();
   await run('Hide outline');
-  await panel.waitFor({state:'detached'});
+  await panel.waitFor({state:'hidden'});
   await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label')==='Outline', null, {timeout:5000});
   await run('Show outline');
   await panel.waitFor();
