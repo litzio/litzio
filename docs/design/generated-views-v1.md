@@ -262,11 +262,111 @@ V4 review의 Host·CLI·K1 완료 bundle은 [플러그인 1단계 V4 계약](plu
 
 이미지가 없거나 로드에 실패한 PageSurface는 영역 좌표계 바깥, 도구줄 아래 별도 줄에 안내를 표시한다. 독립 페이지와 SourceDocumentCompare에 동일하게 적용한다. `review-v5`에서 두 사용처의 안내와 영역이 겹치지 않는지 확인한다(#1278).
 
+
+## D4 assistant material context
+
+D4 supplies source-specific authoring instructions from `shared/view-generation.ts` to both
+provider adapters. Generate view remains read-only and tool-free. Host preparation reuses
+`checkedReferences` and Explorer visibility for multiple attached files and the saved current
+document inside existing opened Roots. The existing folder API supplies opaque directory IDs from filesystem identity. The app combines these with its registered Host and opened Root; Host snapshot admission recomputes and compares each ID. These display identities do not grant access or authenticate a client. Without document identity, Host-issued reference IDs are used.
+Unsaved editor content is not presented as a saved revision. Completed public tool receipts
+already in the conversation can join the supplied snapshot. Material text is context, never a
+human transcript item or a persisted view source. The correction attempts reuse the original
+material bytes; later disk changes do not silently alter those bytes.
+
+Assistant calculations can combine those materials into completed scalar rows and a plain-text
+method. Connected sources retain operation-owner/manual-refresh instructions. Assistant source
+instructions use the request owner, assistant refresh, supplied provenance and the D1 limits.
+Missing material asks for references or ordinary-chat reads. Both context material and provider
+view output have a 1 MiB byte cap; limit errors fail explicitly without sampling or model changes.
+The existing state machine retains at most two validation corrections, one 180-second deadline
+per attempt and no transport retries. Destination cancellation signals are combined with the
+request signal; invalidated destinations cannot receive late successful results.
+
+The existing assistant-result card and common Button are reused, with collapsed provenance,
+plain-text method and paged complete-row inspection. No new style tokens or UI surface are
+introduced. Cards and all destinations consume D3's common DataTable and destination registry;
+D2's Host/CLI contract is merged. Generate view now calls `propose-view-generation`
+through the existing assistant service. The Host checks the prepared request ID, its actual
+conversation/turn, completion, cancellation and deadline before supplying D2's in-process
+proposal scope. The scope contains the captured material identities and admitted owner; clients
+cannot send a proposal scope in the body. Ordinary `propose_view` uses the same D2 validation.
+Public HTTP/CLI propose, card reopen and saved-data reopen remain unverified. Provenance identity checking never proves
+factual correctness. Source opening requires a matching already-opened Host/Root binding and a fresh Root identity check before the existing document-open path, preserving unsaved tabs. Unknown or replaced Roots remain unavailable.
+
+Verification covers Host snapshot scope/byte limits, completed tool receipts, both provider
+stdio envelopes and the existing correction/cancellation state machine. The new Host material
+case protects the read boundary, rather than duplicating Core row-schema cases. The card browser
+case checks complete-row pagination and visible provenance with a synthetic assistant source;
+this is fixture evidence, not actual AI, external service or multi-destination product acceptance.
+
+D4 pre-integration verification on 2026-11-06: provider/view-generation/assistant-host target
+checks passed (32 cases); the material case also checks reuse of Host-issued read-result
+references. Production HTTP fixture and the runner's recovery case passed. Manual captures
+at 1440px and 640px include Korean dark mode; card-local vertical panel markup fixes an
+observed horizontal details layout without changing shared assistant-result CSS. D2/D3
+integration, actual AI, remote Host and final saved-data acceptance were still unverified at that independent stage.
+
+D3's destination documentPath is preferred over the currently selected document when the
+user submits a prepared request. A destination from another Host fails before provider work;
+prepared requests use the generation path on submit rather than ordinary conversation send.
+The destination pins documentPath/documentDirty together. Document switching and panel hiding retain the original target; manual selection, target close and Host invalidation abort it. A cancelled target is removed from the composer, so a later ordinary message cannot reuse its expired token. Screen admission receives the actual contribution plugin/id rather than the app instance token ID.
+
+A current-view refinement is supplied once as a bounded Host-issued reference material, including its stored rows and historical provenance. It is not promoted to a fresh read of those historical documents; the generated result cites that supplied snapshot unless the files are attached and read again. Assistant output reuses Core's schema and semantic checks before Host proposal, so chart/type diagnostics reach the existing maximum-two-correction loop without exposing upstream provider errors or duplicating chart rules. Host owner/provenance admission remains authoritative.
+
+### D2/D4 admission and transport
+
+A prepared request defaults to the server's assistant namespace. A statistics target selects
+the built-in namespace; a screen target must match an active Host screen contribution before
+its plugin namespace is captured. A client namespace assertion is compared with that admitted
+owner rather than promoted to authority. Connected proposals use the operation-owner catalog
+captured for that request. Correction attempts preserve the original owner/material scope.
+The generated proposal action rejects arbitrary extra scope fields, other turns and cancelled
+or expired handles. Verified provenance means membership in the supplied request snapshot,
+not factual correctness or authentication of app display identities.
+
+The assistant transport uses D2's request envelope (1 MiB + 64 KiB) and response/card envelope
+(8 MiB, including definition plus canonical text); each definition retains Core's smaller
+source-specific limit. Exceeding a bound fails explicitly without truncation or sampling.
+The app supplies only Host-issued IDs from its opened folder listings. The Host rechecks the existing Root boundary and physical identity before providing document provenance. No Root ID is derived from an absolute path, account, URL or model claim. Connected tabs admit their exact registered operation/version through the existing Host catalog, keeping its owner without inventing a screen contribution.
+
+The added Host test uses one existing fixture child to protect the new admitted-request
+boundary: matching scope versus public unverified proposals, substituted provenance/owner,
+wrong turn, cancelled handle and attempted client scope injection. Existing state-machine
+cases retain timeout/cancellation/correction protection; they do not repeat Core row cases.
+The streamed-output boundary excludes user input from the provider byte budget. The fixture
+checks an exact-budget completion and an explicit one-byte overflow; it first reproduced the
+incorrect rejection caused by charging user text to output. The browser correction expectation
+follows the new assistant proposal route while keeping
+both binding refusal and duplicate-save refusal required.
+
+### Ordinary transport and optional view capture
+
+Ordinary conversation keeps checked attachment descriptors unchanged: Codex receives its existing localImage input and Copilot receives the existing path reference. Images are not decoded as view text. View text capture supports saved UTF-8 text, and an unsupported image/binary attachment produces an explicit text-material guidance error only for a view request. An ordinary send whose optional snapshot cannot be collected still proceeds, supplying `viewAuthoring.unavailable` rather than an incomplete material prefix. Replacing unsupported attachments with supported text allows a later view request.
+
+A successful ordinary public read/execution result remains successful and complete when optional view capture crosses 1 MiB or 64 provenance entries. The original result is preserved; separate metadata describes view unavailability. The conversation retains only the capture failure state, not a partial snapshot that could be mistaken for complete data. Subsequent ordinary messages and restored history remain usable. A Generate view or assistant proposal still explicitly refuses an oversized/unavailable snapshot; there is no sampling, silent truncation or increased limit. The failure state is owned by the existing conversation, without a new registry or persistence system; restored histories are checked again from their full public results.
+
+Regression coverage reuses the existing Codex/Copilot adapter children with a valid 1x1 PNG, including Codex localImage and Copilot path preservation, unsupported view rejection and later text recovery. The existing document-tool case protects an oversized successful read and the 64/65 read boundary, subsequent ordinary sends and restored history, with explicit view rejection. Sixty-five sequential public reads are necessary to exercise this boundary through the real tool callback; they took about 0.56 seconds locally and add no subprocess. These are fixture regressions; the earlier actual-AI acceptance below was not rerun for this bounded transport correction.
+
+### D4 integrated verification (2026-11-06)
+
+D2 and D3 were merged through master before this integration. The existing target checks cover Host-issued Root metadata, same-path directory replacement, rejected client identity claims, current-view reference snapshots, exact operation/version admission, Core chart diagnostics and request cancellation. The existing generated-view browser scenario now protects mapped source opening with an unsaved editor, the pinned dirty-document boundary, hidden-panel completion on the original document, and full-row common-table pagination. It adds one synthetic generation to that scenario, without a new subprocess or a combinatorial suite (production HTTP scenario about 22 seconds locally).
+
+Actual app acceptance used Codex `gpt-6-luna` / `low`, normal speed and isolated synthetic data. Two saved sales documents contained January 10/30 and February 20/40; the existing public `read_document` tool read a third document supplying a +3 adjustment. Generate view produced completed rows 43/63 with the two supplied document identities and the public-result reference. The admitted proposal was verified as supplied-list membership. The same conversation was used to refine document and plugin-screen destinations, including a Table and line Chart with UTC datetime coordinates. An initial string-x line proposal failed; Core's specific chart diagnostic now reaches the existing two-correction loop, and the follow-up request made the date requirement explicit. This is an iterative authoring acceptance, not a one-shot accuracy guarantee.
+
+The actual result opened in a new task tab and saved/reopened as an assistant snapshot without another model call or query. A mapped source reopened an existing dirty document without losing its unsaved marker. DocumentPath/documentDirty remained pinned after switching to another document before submit; hiding the assistant during generation delivered only to the original document. Manual favorite selection cancelled a subsequent refinement and retained the manually selected snapshot. A real local synthetic plugin screen received the explicit `fixture.sales` / `dashboard` descriptor and its own owner, accepted a generated assistant snapshot and saved it in that namespace. Reopening the plugin snapshot caused no query or model call; general assistant, statistics and plugin lists stayed separate. The connected default view queried only on manual refresh, its rows matched CLI `view run`, and switching back preserved the already-loaded default state without another query.
+
+These results use local synthetic documents and a local synthetic plugin, not a real remote service or large data set. Remote/large-data acceptance remains unverified. Core meaning, write paths, limits, maximum corrections and deadlines were not relaxed. The dynamic-views proposal remains Draft; this section does not declare all future product acceptance complete.
+
+Card visual comparison uses the earlier `2ab8bcbe` AssistantDataDetails implementation and the integrated component in the same app fixture. Common Notice, Button, DataTable and native details are reused; there are no new tokens or interaction exceptions. At 1440px and Korean dark 640px, labels, borders, table/filter centers, pagination and expanded details were inspected. Background account/path surfaces are masked, and all visible data is synthetic:
+[1440 before](assets/dynamic-views-d4/before-1440.png) / [1440 after](assets/dynamic-views-d4/after-1440.png),
+[640 before](assets/dynamic-views-d4/before-640-ko-dark.png) / [640 after](assets/dynamic-views-d4/after-640-ko-dark.png).
+
 ## D3 앱 위치와 읽기 표
 
 D3는 새 작업 탭의 두 query source 표시, 문서 탭별 우측 보기, SDK screens의 앱 번들 화면을 제공한다. 통계 즐겨찾기는 `litzio.statistics`, 우측 보기는 `litzio.assistant`, 플러그인 화면은 plugin owner로 목록을 분리한다. 뷰를 새 탭으로 열 때 통계 탭을 자동 생성하지 않는다. 화면 Host 선택은 다른 Host로 자동 fallback하지 않으며 저장 파일을 지우지 않는다.
 
-앱 destination은 kind/id/Host/owner/Root와 generation·AbortSignal로 요청 위치를 고정한다. 문서 숨김은 결과 소유권을 바꾸지 않고 문서 닫힘·새 요청·화면 Host 변경·연결 해제는 token을 무효화한다. D4의 생성 서비스/카드 props 연결은 병렬 PR의 통합 대상이며 이 절은 실제 AI 수락 완료를 뜻하지 않는다.
+앱 destination은 kind/id/Host/owner/Root와 generation·AbortSignal로 요청 위치를 고정한다. 문서 숨김은 결과 소유권을 바꾸지 않고 문서 닫힘·새 요청·화면 Host 변경·연결 해제는 token을 무효화한다. 생성 서비스/카드 연결과 통합 수락 범위는 위 D4 절을 따른다. 이 절 자체는 실제 AI 수락 완료를 뜻하지 않는다.
 
 공통 DataTable은 타입별 열 정렬/필터, AND 결합, 불러온 자료 범위 안내, 50행 페이지와 내부 가로 스크롤을 제공한다. 필터와 정렬은 전체 불러온 행에 적용한 뒤 페이지를 나누며 명세·args·원행을 바꾸지 않는다. 저장/다시 열기는 원래 순서와 필터 없음으로 시작한다. 동작 기준은 [UI 패턴](ui-patterns-v1.md#데이터-표-정렬필터-제안), 공통 선택과 검증 범위는 [UI 결정표](ui-decision-table-v1.md#동적-뷰-d3-공통-구현)를 따른다.
 ## V7 Chart and Panel renderer

@@ -1,9 +1,10 @@
-import type { CatalogView as View } from "@litzio/core/views-v2";
+import { assistantQueryViewSchema, validateCatalogView, type CatalogView as View } from "@litzio/core/views-v2";
 import { ASSISTANT, type AssistantConversation, type AssistantConversationInput } from "../../shared/assistant.ts";
-import { VIEW_GENERATION_TIMEOUT_MS } from "../../shared/view-generation.ts";
+import { VIEW_GENERATION_TIMEOUT_MS, VIEW_GENERATION_OUTPUT_BYTES } from "../../shared/view-generation.ts";
 import { i18n } from "../i18n.ts";
 import { ViewValidationError } from "./view-api.ts";
 
+export type GenerationValidationContext = { id: string; turnId: string; requestId: string };
 export type GenerationRequest = <T>(url: string, body?: unknown, signal?: AbortSignal) => Promise<T>;
 /** Protect against a transport that completes after cancellation as well as native fetch. */
 function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -19,7 +20,7 @@ export async function generateView(options: {
   request: GenerationRequest; input: AssistantConversationInput; signal: AbortSignal;
   snapshot(value: AssistantConversation): void; status(value: string): void;
   cancelled?(): void;
-  validate(value: unknown, signal: AbortSignal): Promise<View>;
+  validate(value: unknown, signal: AbortSignal, context: GenerationValidationContext): Promise<View>;
   pollMs?: number; timeoutMs?: number;
 }): Promise<View> {
   const { request } = options;
@@ -37,7 +38,7 @@ export async function generateView(options: {
     signal.addEventListener("abort", cancel, { once: true });
     try {
       options.status(attempt ? i18n.t("Correcting view ({{attempt}}/2)", { attempt }) : i18n.t("Proposing view…"));
-      const prepared = await abortable(request<{ requestId: string }>(ASSISTANT.conversationsRoute, { action: "prepare-view-generation" }, signal), signal);
+      const prepared = await abortable(request<{ requestId: string }>(ASSISTANT.conversationsRoute, { action: "prepare-view-generation", ...(options.input.viewGenerationTarget ? { target: options.input.viewGenerationTarget } : {}) }, signal), signal);
       requestId = prepared.requestId;
       signal.throwIfAborted();
       let conversation = await abortable(request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "send", ...options.input, id, message, viewGeneration: true, viewGenerationCorrection: attempt, viewGenerationRequest: requestId }, signal), signal);
@@ -52,11 +53,18 @@ export async function generateView(options: {
         if (turn.status !== "inProgress") {
           if (turn.status !== "completed") throw new Error(turn.error ?? i18n.t("View generation did not complete."));
           const text = turn.items.filter(item => item.kind === "assistant").map(item => item.text).join("\n").trim();
+          if (new TextEncoder().encode(text).byteLength > VIEW_GENERATION_OUTPUT_BYTES) throw new Error("View generation output exceeds byte limit.");
           try {
             let proposed: unknown;
             try { proposed = JSON.parse(text.replace(/^\x60\x60\x60(?:json)?\s*\n([\s\S]*?)\n\x60\x60\x60$/i, "$1")); }
             catch { throw new ViewValidationError(i18n.t("Expected a complete JSON view proposal. Provider said: {{text}}", { text: text.slice(0, 400) })); }
-            const view = await abortable(options.validate(proposed, signal), signal);
+            // Assistant rows need no operation catalog. Reuse Core to give corrections its exact
+            // shape/chart diagnostics while keeping Host scope and provenance validation authoritative.
+            if ((proposed as any)?.sources?.stats?.kind === "assistant") {
+              try { validateCatalogView(assistantQueryViewSchema.parse(proposed)); }
+              catch (error) { throw new ViewValidationError(error instanceof Error ? error.message : String(error)); }
+            }
+            const view = await abortable(options.validate(proposed, signal, { id, turnId: turn.id, requestId: requestId! }), signal);
             signal.throwIfAborted(); options.status(attempt ? i18n.t("View validated · Corrections: {{count}}/2", { count: attempt }) : i18n.t("View validated")); return view;
           } catch (error) {
             signal.throwIfAborted();

@@ -92,6 +92,7 @@ createInterface({ input: process.stdin }).on("line", line => {
   }
   if (method === "turn/interrupt" || method === "fixture/finish") {
     const thread = threads[params.threadId], turn = thread.turns.at(-1);
+    if (method === "fixture/finish" && typeof params.finalText === "string") for (const item of turn.items.filter(item => item.type === "agentMessage")) item.text = params.finalText;
     turn.status = method === "turn/interrupt" ? "interrupted" : "completed";
     for (const item of turn.items.filter(item => item.type === "agentMessage")) notify("item/completed", { threadId: thread.id, turnId: turn.id, item });
     notify("turn/completed", { threadId: thread.id, turn }); persist(); send({ id, result: {} }); return;

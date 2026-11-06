@@ -49,6 +49,9 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
     assert.equal(readFileSync(file, "utf8"), before);
     assert.equal((await fetch(`${url}/api/worker-plugins`)).status, 404);
     assert.equal((await fetch(`${url}/api/ai-tasks`)).status, 404);
+    const { VIEW_TRANSPORT_LIMITS } = await import("../shared/view-limits.ts");
+    const oversized = await fetch(`${url}/api/assistant/conversations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "send", message: "x".repeat(VIEW_TRANSPORT_LIMITS.requestBytes) }) });
+    assert.equal(oversized.status, 413, "the Host enforces the envelope even when the app transport is bypassed");
   } finally {
     stdout.mock.restore(); stderr.mock.restore();
     if (previous === undefined) delete process.env.LITZIO_ASSISTANT_SETTINGS_FILE; else process.env.LITZIO_ASSISTANT_SETTINGS_FILE = previous;
@@ -128,4 +131,79 @@ test("plugin and view services work without an assistant and survive assistant s
   t.mock.method(services.assistant, "close", async () => { throw new Error("fixture close failed"); });
   await assert.rejects(services.close(), /could not close/);
   await assert.rejects(services.plugins.invoke("pluginsList"), /closing/);
+});
+
+
+test("generation proposals use the admitted Host request, owner and material identities rather than public client scope", async t => {
+  const { writeFileSync } = await import("node:fs");
+  const { executeViewOperation } = await import("../server/views.ts");
+  const root = mkdtempSync(path.join(tmpdir(), "view-proposal-host-"));
+  const log = path.join(root, "provider.jsonl"), file = path.join(root, "a.md");
+  writeFileSync(file, "Revenue: 100");
+  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath,
+    args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url)), log] });
+  const { builtinViewOperations } = await import("@litzio/core/views");
+  const operation = { operation: "example.data.read", version: 1, inputSchema: { type: "object", properties: {}, additionalProperties: false }, rowSchema: { total: { type: "number" as const, label: "Total" } }, validateArgs: () => true };
+  const plugins = { start: async () => {}, host: {
+    viewOperations: () => [...builtinViewOperations, operation], viewOperationOwner: (name: string) => name === operation.operation ? "example.data" : undefined,
+    viewScreens: () => [{ plugin: "example.data", id: "dashboard" }], hasViewOwner: (owner: string) => owner === "example.data",
+  } } as unknown as import("../server/plugin-service.ts").PluginService;
+  const host = createAssistantHost(null, path.join(root, "settings.json"), { agent: connection, plugins });
+  t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
+  const prepared = await host.invoke("assistantConversation", { action: "prepare-view-generation" });
+  const conversation = await host.invoke("assistantConversation", { action: "send", viewGeneration: true, viewGenerationRequest: prepared.requestId,
+    message: "Total", folders: [root], references: [file], model: "gpt-6.1-sol", reasoningEffort: "medium", viewContext: { owner: "litzio.assistant", hostId: "host-a", roots: [] } });
+  const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
+  const context = JSON.parse(rpc.find(call => call.method === "turn/start").params.input[1].text.split("(JSON):\n")[1]);
+  const provenance = context.viewGeneration.materials.map((material: any) => material.provenance);
+  assert.equal(provenance[0].kind, "reference", "absence of app Root identity never fabricates a document binding");
+  const view = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.assistant", title: "예시: Total", refresh: "assistant",
+    sources: { stats: { kind: "assistant", generatedAt: "2026-11-06T00:00:00.000Z", rowSchema: { total: { type: "number", label: "Total" } }, rows: [{ total: 100 }], provenance } },
+    layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "예시: Total", source: "stats", data: "/rows", columns: ["total"] }] } };
+  const proposal = { action: "propose-view-generation", requestId: prepared.requestId, id: conversation.id, turnId: conversation.turns.at(-1).id, view };
+  await assert.rejects(host.invoke("assistantConversation", proposal), /completed view generation/);
+  const { VIEW_GENERATION_OUTPUT_BYTES } = await import("../shared/view-generation.ts");
+  const otherOutput = conversation.turns.at(-1).items.filter((item: any) => item.kind !== "user" && item.kind !== "assistant").map((item: any) => item.text).join("");
+  const encodedView = JSON.stringify(view);
+  const finalText = encodedView + " ".repeat(VIEW_GENERATION_OUTPUT_BYTES - Buffer.byteLength(otherOutput + encodedView, "utf8"));
+  await connection.client.request("fixture/finish", { threadId: conversation.id, finalText });
+  assert.equal(conversation.turns.at(-1).status, "completed", "user input is not charged to the provider output budget");
+  const result = await host.invoke("assistantConversation", proposal);
+  assert.equal(result.receipt.outcome, "success"); assert.equal(result.provenanceStatus, "verified");
+  const publicResult = await executeViewOperation({ action: "propose", view }, { access: null });
+  assert.ok("provenanceStatus" in publicResult); assert.equal(publicResult.provenanceStatus, "unverified");
+  const forged = { ...view, sources: { stats: { ...view.sources.stats, provenance: [{ kind: "reference", label: "Forged", refId: "not-supplied" }] } } };
+  assert.equal((await host.invoke("assistantConversation", { ...proposal, view: forged })).receipt.outcome, "failure");
+  assert.equal((await host.invoke("assistantConversation", { ...proposal, view: { ...view, owner: "litzio.statistics" } })).receipt.outcome, "failure");
+  await assert.rejects(host.invoke("assistantConversation", { ...proposal, turnId: "other-turn" }), /mismatched/);
+  await assert.rejects(host.invoke("assistantConversation", { ...proposal, proposal: { owner: "litzio.statistics", provenance } }), /Invalid view generation proposal/);
+  await host.invoke("assistantConversation", { action: "cancel-view-generation", requestId: prepared.requestId });
+  await assert.rejects(host.invoke("assistantConversation", proposal), /expired or mismatched/);
+  const wrongOwner = await host.invoke("assistantConversation", { action: "prepare-view-generation" });
+  await assert.rejects(host.invoke("assistantConversation", { action: "send", id: conversation.id, viewGeneration: true, viewGenerationRequest: wrongOwner.requestId,
+    message: "New request", folders: [root], model: "gpt-6.1-sol", reasoningEffort: "medium", viewContext: { owner: "litzio.statistics", hostId: "host-a", roots: [] } }), /admitted destination/);
+  await assert.rejects(host.invoke("assistantConversation", { action: "prepare-view-generation", target: { kind: "screen", plugin: "missing.plugin", id: "dashboard" } }), /unavailable/);
+  const statistics = await host.invoke("assistantConversation", { action: "prepare-view-generation", target: { kind: "statistics" } });
+  const next = await host.invoke("assistantConversation", { action: "send", id: conversation.id, viewGeneration: true, viewGenerationRequest: statistics.requestId,
+    message: "Statistics", folders: [root], model: "gpt-6.1-sol", reasoningEffort: "medium", viewContext: { owner: "litzio.statistics", hostId: "host-a", roots: [] } });
+  await connection.client.request("fixture/finish", { threadId: conversation.id });
+  const crossOwner = { ...view, owner: "example.data", refresh: "manual", sources: { stats: { kind: "operation", operation: operation.operation, version: 1, args: {} } } };
+  const cross = await host.invoke("assistantConversation", { action: "propose-view-generation", requestId: statistics.requestId, id: conversation.id, turnId: next.turns.at(-1).id, view: crossOwner });
+  assert.equal(cross.receipt.outcome, "failure", "a catalog operation cannot change an explicitly admitted destination namespace");
+  await assert.rejects(host.invoke("assistantConversation", { action:"prepare-view-generation", target:{kind:"operation",operation:operation.operation,version:99} }), /unavailable/);
+  const operationTarget = await host.invoke("assistantConversation", {action:"prepare-view-generation",target:{kind:"operation",operation:operation.operation,version:1}});
+  const targeted = await host.invoke("assistantConversation", {action:"send",id:conversation.id,viewGeneration:true,viewGenerationRequest:operationTarget.requestId,
+    message:"Refine this connected view",folders:[root],model:"gpt-6.1-sol",reasoningEffort:"medium",viewContext:{owner:"example.data",hostId:"host-a",roots:[]}});
+  await connection.client.request("fixture/finish",{threadId:conversation.id});
+  const targetedResult = await host.invoke("assistantConversation",{action:"propose-view-generation",requestId:operationTarget.requestId,id:conversation.id,turnId:targeted.turns.at(-1).id,view:crossOwner});
+  assert.equal(targetedResult.receipt.outcome,"success","a connected tab admits the registered operation owner without inventing a screen");
+  const large = await host.invoke("assistantConversation", { action: "prepare-view-generation" });
+  const over = await host.invoke("assistantConversation", { action: "send", id: conversation.id, viewGeneration: true, viewGenerationRequest: large.requestId,
+    message: "Over limit", folders: [], model: "gpt-6.1-sol", reasoningEffort: "medium" });
+  const overTurn = over.turns.at(-1);
+  const otherBytes = Buffer.byteLength(overTurn.items.filter((item: any) => item.kind !== "user" && item.kind !== "assistant").map((item: any) => item.text).join(""), "utf8");
+  await connection.client.request("fixture/finish", { threadId: conversation.id, finalText: "x".repeat(VIEW_GENERATION_OUTPUT_BYTES - otherBytes + 1) });
+  assert.equal(overTurn.status, "failed"); assert.match(overTurn.error, /output exceeds byte limit/);
+
+
 });

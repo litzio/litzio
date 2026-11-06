@@ -11,20 +11,8 @@ import { Input } from "./components/ui/input.tsx";
 import { SettingsSwitch } from "./components/ui/settings.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./components/ui/dialog.tsx";
 export { OneDriveIcon } from "./OneDriveIcon.tsx";
-import type { PluginStatus } from "@litzio/plugin-sdk";
-type SecretStatus = { supported: boolean; declarations: { id: string; configured: boolean; error?: string }[] };
-type Plugin = { secrets?: SecretStatus; id: string; name?: string; description?: string; version?: string; digest?: string; official?: boolean; bundled?: boolean; publisher?: { id: string; name: string }; trusted?: boolean; enabled: boolean; running: boolean; error?: string; status?: PluginStatus | null; settings?: Record<string, unknown>; settingsSchema?: { properties?: Record<string, { type?: string; title?: string }> } };
-export function usePlugins() {
-  const client = useHostClient(), [plugins, setPlugins] = useState<Plugin[]>([]), [error, setError] = useState("");
-  const refresh = async () => {
-    try { const response = await client.request("/api/plugins"); const value = await response.json(); if (!response.ok) throw new Error(value.error); setPlugins(value.plugins); setError(""); } catch (e) { setError(String(e)); }
-  };
-  useEffect(() => { void refresh(); const listener = () => void refresh(); window.addEventListener("plugins-changed", listener); return () => window.removeEventListener("plugins-changed", listener); }, [client]);
-  return { plugins, error, async change(action: string, args: Record<string, unknown>) {
-    const response = await client.request("/api/plugins", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...args }) });
-    const value = await response.json(); if (!response.ok) throw new Error(value.error ?? "Plugin operation failed"); window.dispatchEvent(new Event("plugins-changed")); await refresh();
-  } };
-}
+import { usePlugins, type Plugin } from "./plugin-state.ts";
+export { usePlugins } from "./plugin-state.ts";
 export function PluginSettings() {
   const screens = useViewScreens();
   const hostId = useHostId();

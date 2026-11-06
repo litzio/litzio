@@ -190,6 +190,76 @@ test("field advice uses keywords and public limits without echoing input or patt
   } finally { await i18n.changeLanguage(language); }
 });
 
+// Host material ownership differs from Core row validation: no new Root grants,
+// immutable read bytes and explicit context/output failures instead of sampling.
+test("view materials combine checked documents and completed public tool receipts within the supplied roots", async () => {
+  const { collectViewMaterials } = await import("../server/assistant-view-materials.ts");
+  const { mkdtempSync, writeFileSync, unlinkSync, rmdirSync, mkdirSync, renameSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  const root = mkdtempSync(path.join(tmpdir(), "view-materials-"));
+  const files = [path.join(root, "a.md"), path.join(root, "b.md")];
+  try {
+    files.forEach((file, index) => writeFileSync(file, `Revenue: ${index + 1}`));
+    const { listFolder } = await import("../server/document-api.ts");
+    const rootId = listFolder(root).rootId!;
+    const nested = path.join(root,"reports"), moved = path.join(root,"old-reports");
+    mkdirSync(nested);
+    const oldRoot = listFolder(nested).rootId;
+    renameSync(nested,moved); mkdirSync(nested);
+    assert.notEqual(listFolder(nested).rootId,oldRoot,"replacing a chosen Root at the same path changes its opaque identity");
+    rmdirSync(nested); rmdirSync(moved);
+
+    const input = { message: "Combine", model: "selected", reasoningEffort: "low", folders: [root], viewContext: { owner: "litzio.assistant", hostId: "host-a", roots: [{ path: root, id: rootId }] } };
+    const conversation = { turns: [{ status: "completed", items: [{ id: "tool-a", kind: "tool", toolResult: { success: true, contentItems: [{ type: "inputText", text: JSON.stringify({ rows: [{ rate: 2 }], receipt: { outcome: "success", operation: "example.rates", requestId: "request-a" } }) }] } }] }] } as AssistantConversation;
+    conversation.turns[0].items.push({ id: "read-a", kind: "tool", status: "completed", text: "read_document", toolResult: { success: true, contentItems: [{ type: "inputText", text: JSON.stringify({ source: "Previously read material" }) }, { type: "inputText", text: JSON.stringify({ viewProvenance: { kind: "reference", label: "Read document", refId: "read-reference" } }) }] } });
+    const references = files.map(file => ({ path: file, name: path.basename(file), kind: "native" }));
+    const materials = collectViewMaterials(input, references, [root], null, conversation);
+    assert.equal(materials.length, 4);
+    assert.equal(materials[0].provenance.kind === "document" && materials[0].provenance.rootId, rootId);
+    assert.throws(() => collectViewMaterials({ ...input, viewContext: { ...input.viewContext, roots: [{ path: root, id: "client-claim" }] } }, references, [root], null), /identity changed/);
+    assert.deepEqual(materials.map(item => item.provenance.kind), ["document", "document", "tool", "reference"]);
+    assert.equal(materials[0].text, "Revenue: 1");
+    assert.equal(materials[0].provenance.kind === "document" && materials[0].provenance.path, "a.md");
+    const currentView = {kind:"litzio-view",schemaVersion:2,catalog:"litzio-v2",profile:"query",owner:"litzio.assistant",title:"Stored result",refresh:"assistant",sources:{stats:{kind:"assistant",generatedAt:"2026-11-06T00:00:00.000Z",rowSchema:{total:{type:"number",label:"Total"}},rows:[{total:100}],provenance:[{kind:"reference",label:"Historical source",refId:"old-reference"}]}},layout:{component:"Panel",direction:"vertical",children:[{component:"Table",title:"Stored rows",source:"stats",data:"/rows",columns:["total"]}]}};
+    const snapshot = collectViewMaterials({...input,viewDefinition:currentView},[],[root],null);
+    assert.equal(snapshot.length,1); assert.equal(snapshot[0].provenance.kind,"reference");
+    assert.equal(snapshot[0].provenance.label,"Current view");
+    assert.notEqual(snapshot[0].provenance.kind==="reference"&&snapshot[0].provenance.refId,"old-reference");
+    assert.equal(JSON.parse(snapshot[0].text).sources.stats.rows[0].total,100);
+    writeFileSync(files[0], "Changed later");
+    assert.equal(materials[0].text, "Revenue: 1");
+    assert.throws(() => collectViewMaterials({ ...input, viewContext: { ...input.viewContext, roots: [{ path: path.dirname(root), id: "outside" }] } }, references, [root], null), /context roots/);
+    assert.equal(collectViewMaterials({ ...input, viewContext: undefined }, references, [root], null)[0].provenance.kind, "reference");
+    writeFileSync(files[0], "a".repeat(1048577));
+    assert.throws(() => collectViewMaterials(input, references, [root], null), /context limit/);
+  } finally { files.forEach(file => unlinkSync(file)); rmdirSync(root); }
+});
+
+test("oversized final model output fails without validation correction or sampling", async () => {
+  let sends = 0;
+  await assert.rejects(generateView({ signal: new AbortController().signal,
+    input: { model: "selected", reasoningEffort: "low", folders: [], message: "View" },
+    request: async <T>(_url: string, body?: any): Promise<T> => {
+      if (body?.action === "prepare-view-generation") return { requestId: "prepared" } as T;
+      sends++;
+      return { id: "thread", model: "selected", reasoningEffort: "low", turns: [{ id: "turn", status: "completed", items: [{ kind: "assistant", text: "x".repeat(1048577) }] }] } as T;
+    }, snapshot: () => {}, status: () => {}, validate: async () => assert.fail("must not parse or sample oversized output"),
+  }), /output exceeds/);
+  assert.equal(sends, 1);
+});
+
+
+test("assistant transport enforces D2 envelopes without truncation", async () => {
+  const { VIEW_TRANSPORT_LIMITS } = await import("../shared/view-limits.ts");
+  let calls = 0;
+  const client = { request: async () => { calls++; return new Response(" ".repeat(VIEW_TRANSPORT_LIMITS.responseBytes + 1)); } } as unknown as import("../src/host-client.ts").HostClient;
+  const request = createAssistantRequest(client);
+  await assert.rejects(request("/api/assistant/conversations", { text: "x".repeat(VIEW_TRANSPORT_LIMITS.requestBytes) }), /request exceeds/);
+  assert.equal(calls, 0);
+  await assert.rejects(request("/api/assistant/conversations"), /response exceeds/);
+});
+
 // D3: destination identity is an app boundary, distinct from provider cancellation tests above.
 test('destination delivery rejects closed, replaced and disconnected targets', async () => {
   const { ViewDestinationRegistry } = await import('../src/views/view-destination.ts');
@@ -233,4 +303,17 @@ test('document provenance opens only with a matching trusted Host and Root ident
   assert.equal(resolveViewDocument(source,[{hostId:'host-b',id:'root-a',path:'documents'}]),undefined);
   assert.equal(resolveViewDocument(source,[{hostId:'host-a',id:'root-b',path:'documents'}]),undefined);
   assert.deepEqual(resolveViewDocument(source,[{hostId:'host-a',id:'root-a',path:'documents'}]),{hostId:'host-a',path:'documents/reports/a.md'});
+});
+
+// The actual Luna run repeated a line-x mismatch because the Host refusal hid its reason.
+test("assistant correction receives Core chart diagnostics before the generic Host refusal", async () => {
+  let sends = 0, validations = 0;
+  const view = {kind:"litzio-view",schemaVersion:2,catalog:"litzio-v2",profile:"query",owner:"litzio.assistant",title:"Example",refresh:"assistant",sources:{stats:{kind:"assistant",generatedAt:"2026-11-06T00:00:00.000Z",rowSchema:{month:{type:"string",label:"Month"},total:{type:"number",label:"Total"}},rows:[{month:"January",total:43}],provenance:[{kind:"reference",label:"Example",refId:"example"}]}},layout:{component:"Panel",direction:"vertical",children:[{component:"Chart",type:"line",title:"Example",source:"stats",data:"/rows",x:"month",y:"total"}]}};
+  await generateView({signal:new AbortController().signal,input:{model:"selected",reasoningEffort:"low",folders:[],message:"Line chart"},snapshot:()=>{},status:()=>{},
+    request:async <T>(_url:string, body?:any):Promise<T> => {
+      if(body?.action==="prepare-view-generation") return {requestId:"prepared"} as T;
+      if(sends++) { assert.match(body.message,/Chart x type mismatch/); Object.assign(view.sources.stats.rowSchema.month,{date:true}); view.sources.stats.rows[0].month="2026-01-01T00:00:00.000Z"; }
+      return {id:"thread",model:"selected",reasoningEffort:"low",turns:[{id:"turn",status:"completed",items:[{kind:"assistant",text:JSON.stringify(view)}]}]} as T;
+    },validate:async value=>{validations++; if(validations===1&&sends===1)throw new ViewValidationError("generic Host refusal");return value as never;}});
+  assert.equal(sends,2); assert.equal(validations,1);
 });

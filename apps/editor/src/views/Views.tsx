@@ -1,4 +1,5 @@
-import { resolveViewDocument, type ViewRootBinding } from "./view-provenance.ts";
+import { AssistantDataDetails } from "./AssistantDataDetails.tsx";
+import { type ViewRootBinding } from "./view-provenance.ts";
 import { DataTable, type TableField } from "../components/DataTable.tsx";
 import { i18n } from "../i18n.ts";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -200,56 +201,6 @@ function AssistantView({
           .join(", ")}
         {source.provenance.length > 3 ? "…" : ""}
       </p>
-      <details className="view-sources">
-        <summary>
-          {i18n.t("View sources", { count: source.provenance.length })}
-        </summary>
-        <ul>
-          {source.provenance.map((item, index) => {
-            const target = resolveViewDocument(item, provenanceRoots);
-            const available =
-              target &&
-              onOpenDocument &&
-              hostRegistry
-                .list()
-                .some(
-                  (host) =>
-                    host.hostId === target.hostId &&
-                    hostRegistry.get(host.hostId).state === "connected",
-                );
-            return (
-              <li key={index}>
-                {item.kind === "document" ? (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="max-w-full whitespace-normal text-left h-auto"
-                      disabled={!available}
-                      onClick={() => {
-                        if (available)
-                          onOpenDocument!(target!.path, target!.hostId);
-                      }}
-                    >
-                      {item.label}
-                    </Button>
-                    {!available ? <span>{i18n.t("Unavailable")}</span> : null}
-                    <p>
-                      {item.path} · {item.revision}
-                    </p>
-                  </>
-                ) : (
-                  <span>{item.label}</span>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      </details>
-      <p>{source.generatedAt}</p>
-      <Notice tone="warning">
-        {i18n.t("Assistant content may be inaccurate.")}
-      </Notice>
       <ViewRenderer
         view={view}
         rows={source.rows}
@@ -257,16 +208,7 @@ function AssistantView({
           Object.entries(source.rowSchema).map(([k, v]) => [k, v.label]),
         )}
       />
-      <details>
-        <summary>{i18n.t("View data")}</summary>
-        {source.method ? <p>{source.method}</p> : null}
-        <DataTable
-          title={i18n.t("View data")}
-          rows={source.rows}
-          columns={Object.keys(source.rowSchema)}
-          fields={source.rowSchema}
-        />
-      </details>
+      <AssistantDataDetails source={source} provenanceRoots={provenanceRoots} onOpenDocument={onOpenDocument} />
       <Dialog open={saving} onOpenChange={setSaving}>
         <DialogContent>
           <DialogHeader>
