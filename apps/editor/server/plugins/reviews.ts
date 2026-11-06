@@ -82,7 +82,7 @@ export class PluginReviews {
     try {
       this.checkAccess(b);
       for (const image of b.images) this.image(b, image.ref);
-      if (hash(readFileSync(b.source)) !== b.sourceHash || textRevision(decodeUtf8(readFileSync(b.file))) !== b.bundle.documentRevision) throw new ReviewStaleError("Review baseline is stale");
+      if (hash(readFileSync(b.source)) !== b.sourceHash || hash(readFileSync(b.file)) !== b.bundle.documentRevision) throw new ReviewStaleError("Review baseline is stale");
     } catch (cause) { if (invalidatesReview(cause)) b.stale = true; throw cause; }
   }
   private baseline(b: Bundle) { return { documentRevision: b.bundle.documentRevision, proposalRevision: b.revision, sourceRevision: b.bundle.sourceRevision, mappingRevision: b.bundle.mappingRevision }; }

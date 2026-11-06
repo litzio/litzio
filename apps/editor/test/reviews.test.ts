@@ -395,6 +395,11 @@ test("observed deletion invalidates only the matching review bundle after byte r
       failure = undefined;
       assert.equal((await reviews.execute({ ...transient, action: "read" })).state, "ready", "Transient access errors do not poison either access/check path");
     }
+    const malformed = publish();
+    writeFileSync(file, Buffer.from([0xff]));
+    assert.equal((await reviews.execute({ ...malformed, action: "read" })).state, "stale", "Non-UTF8 replacements are definite byte mismatches too");
+    writeFileSync(file, original);
+    assert.equal((await reviews.execute({ ...malformed, action: "read" })).state, "stale");
     // Inject access failures instead of changing the user's ACLs or replacing a Host root.
     for (const deniedKind of ["EACCES", "BOUNDARY"]) {
       const denied = publish();
