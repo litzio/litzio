@@ -13,9 +13,9 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
 
   let captureEnvironment;
   const root = pluginFixture.folder, favorite = 'Folder document totals';
-  const proposal = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', owner: 'fixture.issues', title: 'Folder document totals', refresh: 'manual', sources: { stats: { kind: "operation", operation: 'fixture.issues.read', version: 1, args: { preset: 'assigned-open' }, groupBy: { field: 'status' }, aggregate: { op: 'sum', field: 'points' }, sort: { field: 'value', direction: 'desc' }, limit: 10 } }, layout: { component: "Panel", direction: "vertical", children: [{ component: 'Table', title: 'Document totals', source: 'stats', data: '/rows', columns: ['group', 'value'] }, { component: "Chart", type: "bar", title: 'Document totals chart', source: 'stats', data: '/rows', x: 'group', y: 'value' }] } };
+  let proposal = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', owner: 'fixture.issues', title: 'Folder document totals', refresh: 'manual', sources: { stats: { kind: "operation", operation: 'fixture.issues.read', version: 1, args: { preset: 'assigned-open' }, groupBy: { field: 'status' }, aggregate: { op: 'sum', field: 'points' }, sort: { field: 'value', direction: 'desc' }, limit: 10 } }, layout: { component: "Panel", direction: "vertical", children: [{ component: 'Table', title: 'Document totals', source: 'stats', data: '/rows', columns: ['group', 'value'] }, { component: "Chart", type: "bar", title: 'Document totals chart', source: 'stats', data: '/rows', x: 'group', y: 'value' }] } };
   const assistantSnapshot={kind:'litzio-view',schemaVersion:2,catalog:'litzio-v2',profile:'query',owner:'litzio.assistant',title:'예시: Saved assistant rows',refresh:'assistant',sources:{stats:{kind:'assistant',generatedAt:'2026-11-06T00:00:00.000Z',rowSchema:{label:{type:'string',label:'Label'},total:{type:'number',label:'Total'}},rows:[{label:'Saved result',total:42}],provenance:[{kind:'reference',label:'예시: Reference',refId:'reference-one'},{kind:'document',label:'예시: Unmapped source',hostId:'local',rootId:'fixture-root',path:'a.md',revision:'revision-one'}]}},layout:{component:'Panel',direction:'vertical',children:[{component:'Table',title:'예시: Snapshot rows',source:'stats',data:'/rows',columns:['label','total']}]}};
-  let conversation, sends = [], queries = 0, validates = 0, latestRows, latestReceipt, delayPoll = false;
+  let conversation, sends = [], queries = 0, validates = 0, latestRows, latestReceipt, delayPoll = false, cancellations = 0;
   const settings = { provider: 'codex', model: 'gpt-6-luna', reasoningEffort: 'low', permissionMode: 'read-only', responseLanguage: 'en' };
   await page.route('**/api/assistant/settings*', route => route.fulfill({ json: settings }));
   await page.route('**/api/assistant/diagnostics*', route => route.fulfill({ json: { provider: 'codex', connected: true, account: { type: 'chatgpt' } } }));
@@ -24,7 +24,14 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
     if (route.request().method() === 'GET') return route.fulfill({ json: route.request().url().includes('?id=') ? conversation : [] });
     const body = route.request().postDataJSON();
     if (body.action === 'prepare-view-generation') return route.fulfill({ json: { requestId: 'prepared' } });
-    if (body.action === 'cancel-view-generation') return route.fulfill({ json: { acknowledged: true } });
+    if (body.action === 'cancel-view-generation') { cancellations++; return route.fulfill({ json: { acknowledged: true } }); }
+    if (body.action === 'propose-view-generation') {
+      expect(body.requestId).toBe('prepared'); expect(body.id).toBe(conversation.id); expect(body.turnId).toBe(conversation.turns.at(-1).id);
+      validates++;
+      const receipt = { operation: 'view.propose', outcome: 'success' };
+      if (body.view.layout.children[0].columns.includes('authorEmail')) return route.fulfill({ status: 400, json: { receipt: { ...receipt, outcome: 'failure' } } });
+      return route.fulfill({ json: { view: body.view, receipt } });
+    }
     if (body.action === 'send') {
       sends.push(body);
       if (!body.id) conversation = { id: `thread-${body.provider}`, provider: body.provider, model: body.model, reasoningEffort: body.reasoningEffort, folders: [], title: 'View proposal', createdAt: 0, updatedAt: 0, turns: [] };
@@ -437,6 +444,93 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
   if (screenshots) for (const width of [1440, 960, 640]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.screenshot({ path: `tmp/v3-review/review-entry-${width}.png` });
+  }
+  delayPoll = false;
+  // Host metadata ties the card's document source to the already-opened Root.
+  const origin = page.url().split('/').slice(0,3).join('/');
+  const rootMetadata = await (await page.request.get(`${origin}/api/folder?root=${encodeURIComponent(root)}`)).json();
+
+  proposal = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', owner: 'litzio.assistant', title: '예시: 두 문서 합계', refresh: 'assistant',
+    sources: { stats: { kind: 'assistant', generatedAt: '2026-11-06T00:00:00.000Z', rowSchema: { month: { type: 'string', label: '월' }, total: { type: 'number', label: '합계' } }, rows: Array.from({ length: 51 }, (_, i) => ({ month: `row-${i + 1}`, total: i + 100 })), provenance: [{ kind: 'reference', label: '예시: 매출 A', refId: 'reference-a' }, { kind: 'reference', label: '예시: 매출 B', refId: 'reference-b' }, {kind:'document',label:'예시: Mapped source',hostId:'local',rootId:rootMetadata.rootId,path:'a.md',revision:'fixture-revision'}], method: '두 문서의 같은 월 매출을 합산했습니다.' } },
+    layout: { component: 'Panel', direction: 'vertical', children: [{ component: 'Table', title: '예시: 합계', source: 'stats', data: '/rows', columns: ['month', 'total'] }] } };
+  if (!await panel.isVisible()) await page.getByRole('button', { name: 'Assistant', exact: true }).click();
+  await panel.getByRole('textbox', { name: 'Message assistant' }).fill('Combine the attached document totals.');
+  await panel.getByRole('button', { name: 'Generate view', exact: true }).click();
+  const assistantCard = panel.getByTestId('assistant-view-result').last();
+  await expect(assistantCard).toContainText('예시: 두 문서 합계');
+  await expect(assistantCard).toContainText('Assistant content may be inaccurate.');
+  await assistantCard.locator('summary').filter({ hasText: 'Sources' }).click();
+  await expect(assistantCard).toContainText('reference-a');
+  await assistantCard.locator('summary').filter({ hasText: 'View data' }).click();
+  await expect(assistantCard.locator('tbody tr')).toHaveCount(50);
+  await assistantCard.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(assistantCard.locator('tbody tr')).toHaveCount(1);
+  await expect(assistantCard.getByRole('cell', { name: 'row-51', exact: true })).toBeVisible();
+  await panel.getByRole('button',{name:'Close assistant',exact:true}).click();
+  await openPath(page,[root,'a.md'].join(root.includes('\\')?'\\':'/'));
+  const sourceEditor=page.locator('[data-document-tab][data-active="true"] .document-editor');
+  await sourceEditor.locator('p').first().click();await page.keyboard.press('End');await page.keyboard.type(' Unsaved source proof');
+  await page.getByRole('button',{name:'Assistant',exact:true}).click();
+  await assistantCard.getByRole('button',{name:'예시: Mapped source',exact:true}).click();
+  await expect(sourceEditor).toContainText('Unsaved source proof');
+  // A prepared dirty document remains the target while the composer is hidden on another file.
+  await panel.getByRole('button',{name:'Close assistant',exact:true}).click();
+  const targetDocumentId=await page.locator('.document-tabs [role="tab"][aria-selected="true"]').evaluate(el=>el.closest('[data-tab-id]').dataset.tabId);
+  const targetPanel=page.getByTestId('document-panel');
+  if(!await targetPanel.isVisible())await page.getByRole('button',{name:'Outline',exact:true}).click();
+  await targetPanel.getByRole('tab',{name:'Views',exact:true}).click();
+  await targetPanel.getByRole('button',{name:'Ask assistant',exact:true}).click();
+  const beforeHidden=sends.length,beforeCancel=cancellations;
+  let releaseTarget,pendingTarget=false;
+  const targetGate=new Promise(resolve=>{releaseTarget=resolve;});
+  await page.route('**/api/assistant/conversations?id=*',async route=>{pendingTarget=true;await targetGate;conversation.turns.at(-1).status='completed';const value=JSON.parse(JSON.stringify(conversation));await route.fulfill({json:value});});
+  delayPoll=true;
+  await panel.getByRole('textbox',{name:'Message assistant'}).fill('Refine the document view while I read another file.');
+  await panel.getByRole('button',{name:'Send message',exact:true}).click();
+  await expect.poll(()=>pendingTarget).toBe(true);
+  expect(sends.length).toBe(beforeHidden+1);expect(sends.at(-1).document).toBeUndefined();
+  await panel.getByRole('button',{name:'Close assistant',exact:true}).click();
+  await openPath(page,[pluginFixture.otherFolder,'b.md'].join(root.includes('\\')?'\\':'/'));
+  expect(cancellations).toBe(beforeCancel);
+  releaseTarget();
+  await page.locator(`.document-tabs [data-tab-id="${targetDocumentId}"] [role="tab"]`).click();
+  await expect(targetPanel.getByRole('heading',{name:'예시: 두 문서 합계',exact:true})).toBeVisible();
+  await expect(sourceEditor).toContainText('Unsaved source proof');
+  await page.unroute('**/api/assistant/conversations?id=*');delayPoll=false;
+  await page.getByRole('button',{name:'Assistant',exact:true}).click();
+  if(screenshots){
+    await expect(assistantCard).toBeVisible();
+    for(const summary of await assistantCard.locator('summary').all())if(!await summary.evaluate(el=>el.parentElement.open))await summary.click();
+    const next=assistantCard.getByRole('button',{name:'Next',exact:true});if(await next.isEnabled())await next.click();
+  }
+  if (screenshots) for (const width of [1440, 640]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await assistantCard.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `tmp/d4-evidence/card-${width}.png`, mask:width===1440?[page.getByTestId("sidebar")]:[],maskColor:"#e7e9ef" });
+  }
+  if (screenshots) {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await panel.getByRole('button', { name: 'Close assistant' }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await page.getByTestId('theme').selectOption('dark');
+    await page.getByTestId('ui-language').selectOption('ko');
+    await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+    await page.getByRole('button', { name: '비서', exact: true }).click();
+    await expect(panel.getByRole('textbox', { name: '비서에게 메시지' })).toBeEnabled();
+    await expect(assistantCard).toBeVisible();
+    for(const summary of await assistantCard.locator('summary').all())if(!await summary.evaluate(el=>el.parentElement.open))await summary.click();
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await assistantCard.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `tmp/d4-evidence/card-ko-dark-${width}.png`, mask:width===1440?[page.getByTestId("sidebar")]:[],maskColor:"#e7e9ef" });
+    }
+  }
+  if (screenshots) {
+    await panel.getByRole('button', {name:'비서 닫기',exact:true}).click();
+    await page.getByRole('button',{name:'설정',exact:true}).click();
+    await page.getByTestId('ui-language').selectOption('en');
+    await page.getByTestId('theme').selectOption('light');
+    await page.locator('[data-tab-id="settings"] .document-tab-close').click();
   }
   // Document-owned favorites use their own namespace and preserve snapshot rows without querying.
   await openPath(page,[root,'a.md'].join(root.includes('\\')?'\\':'/'));

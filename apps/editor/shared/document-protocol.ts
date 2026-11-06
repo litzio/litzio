@@ -216,7 +216,7 @@ export type FolderEntry = { name: string; kind: "folder" | "document" | "image" 
  * One level of a folder the user chose (`root`). `path` is the listed folder inside it and
  * `parent` the folder above it, absent at the root.
  */
-export type FolderResponse = { root: string; path: string; parent?: string; entries: FolderEntry[] };
+export type FolderResponse = { rootId?: string; root: string; path: string; parent?: string; entries: FolderEntry[] };
 
 /** A folder on the way from the filesystem root to a browsed folder. */
 export type FolderCrumb = { name: string; path: string };

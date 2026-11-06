@@ -22,7 +22,7 @@ import os from "node:os";
 import path from "node:path";
 import { createDocument, parse, hasNativeMarker, serialize, NativeDocumentError, writeIssueOf } from "@litzio/core";
 import { assertUnicode, commitFile, decodeUtf8, FileChangedError } from "@litzio/file-commit";
-import { accessPath, FileAccessError, fileErrorMessage, fileErrorStatus, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
+import { rootIdentity, accessPath, FileAccessError, fileErrorMessage, fileErrorStatus, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 import { readRequestBody, RequestBodyError } from "./request-body.ts";
 import { requestQuery } from "./request-query.ts";
 import { deleteFile, renameFile, ReferencedImageError, ImageRenameError } from "./file-operations.ts";
@@ -408,8 +408,9 @@ export async function handleDocumentRequest(
       if (route) {
         const operation = route[req.method ?? ""];
         if (!operation) { res.statusCode = 405; res.end(); return; }
-        const args = req.method === "GET" ? Object.fromEntries(query) : JSON.parse(await readBody(req));
-        sendJson(res, 200, await service!.invoke(operation, args));
+        const args = req.method === "GET" ? Object.fromEntries(query) : JSON.parse(url.startsWith("/api/assistant/") ? decodeUtf8(await readRequestBody(req, Math.min(bodyLimit, VIEW_TRANSPORT_LIMITS.requestBytes))) : await readBody(req));
+        const result = await service!.invoke(operation, args);
+        sendJson(res, url.startsWith("/api/assistant/") && args.action === "propose-view-generation" && result?.receipt?.outcome === "failure" ? 400 : 200, result);
         return;
       }
     } catch (error) { failure(error); return; }
@@ -507,7 +508,7 @@ export function listFolder(requestedRoot: string | undefined, requestedPath?: st
   if (!isInside(root, folder)) throw new Error("folder is outside the chosen folder");
   const listed = readFolder(folder, "all", () => {
     if (!isInside(fs.realpathSync(root), fs.realpathSync(folder))) throw new Error("folder symlink escapes the chosen folder");
-    return { root, path: folder, ...(path.relative(root, folder) === "" ? {} : { parent: path.dirname(folder) }) };
+    return { rootId: rootIdentity(root, access), root, path: folder, ...(path.relative(root, folder) === "" ? {} : { parent: path.dirname(folder) }) };
   });
   return { ...listed, entries: listed.entries.map(entry => entry.kind === "document" ? withNativeMarker(entry) : entry) };
 }
