@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex } from "@noble/hashes/utils.js";
 import { createDocument, parseNativeDocument, serializeNativeDocument } from "./myst/native.ts";
 import { updateDocumentTitle } from "./myst/title.ts";
 import * as operations from "./operations.ts";
@@ -65,8 +67,7 @@ export async function authorDocument(raw: unknown): Promise<AuthoredDocument> {
     if (paths.length !== input.inputs.reduce((sum, item) => sum + item.blocks.length, 0)) throw new Error();
   } catch { throw new DocumentAuthoringError("unsupported-content"); }
   if (bytes(source).length > DOCUMENT_AUTHORING_LIMITS.bytes) throw new DocumentAuthoringError("limit");
-  const hash = await globalThis.crypto.subtle.digest("SHA-256", bytes(source));
-  const revision = Array.from(new Uint8Array(hash), byte => byte.toString(16).padStart(2, "0")).join("");
+  const revision = bytesToHex(sha256(bytes(source)));
   let offset = 0;
   return { source, documentRevision: revision, documentHash: revision, inputs: input.inputs.map(item => ({ key: item.key,
     targets: item.blocks.map(() => ({ path: [...paths[offset++]!], documentRevision: revision, documentHash: revision })),

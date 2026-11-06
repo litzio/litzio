@@ -661,3 +661,17 @@ test("structured authoring rejects invalid, excessive and unrepresentable conten
   await assert.rejects(authorDocument({ inputs: [{ key: "x", blocks: [{ kind: "figure", imageUrl: "one\ntwo", imageAlt: "", caption: "" }] }] }), (error: any) => error.code === "unsupported-content");
   assert.deepEqual((await authorDocument({ inputs: [] })).inputs, []);
 });
+
+test("structured authoring computes Host-compatible revisions without secure-context Crypto APIs", async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto")!;
+  const original = globalThis.crypto;
+  try {
+    Object.defineProperty(globalThis, "crypto", { configurable: true, value: { getRandomValues: original.getRandomValues.bind(original) } });
+    for (const input of [{ inputs: [] }, { inputs: [{ key: "unicode", blocks: [{ kind: "paragraph", text: "한글 · 😀 literal *text*" }] }] }]) {
+      const result = await authorDocument(input);
+      assert.equal(result.documentRevision, createHash("sha256").update(result.source, "utf8").digest("hex"));
+      assert.equal(result.documentHash, result.documentRevision);
+      for (const target of result.inputs.flatMap(item => item.targets)) assert.equal(target.documentRevision, result.documentRevision);
+    }
+  } finally { Object.defineProperty(globalThis, "crypto", descriptor); }
+});
