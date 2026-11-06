@@ -3,7 +3,7 @@ import type { ReviewView, ReviewBaseline, ReviewProposal } from "@litzio/core/vi
 import type { HostClient } from "../host-client.ts";
 import type { ReviewAdapter, ReviewSnapshot } from "../review/ReviewRenderer.tsx";
 
-export type ReviewObservation = { pending?: NonNullable<ReviewAdapter["pending"]> };
+export type ReviewObservation = { stale?: boolean; pending?: NonNullable<ReviewAdapter["pending"]> };
 
 /** Thin transport boundary; V4 owns snapshot assembly and all semantic writes. */
 export function createReviewAdapter(client: HostClient, view: ReviewView, root: string, signal: AbortSignal, open: (path: string) => void, observation: ReviewObservation = {}): ReviewAdapter {
@@ -30,6 +30,8 @@ export function createReviewAdapter(client: HostClient, view: ReviewView, root: 
       if (!result.ok || result.receipt?.outcome !== "success") throw new Error("Review data unavailable");
       const snapshot: ReviewSnapshot = result.snapshot;
       if (!snapshot?.bundle || !snapshot.documentPath) throw new Error("Review data unavailable");
+      observation.stale ||= result.state === "stale";
+      snapshot.state = observation.stale ? "stale" : "ready";
       documentPath = snapshot.documentPath;
       // A new tab has no local observation: restore it from the authoritative Host snapshot.
       const unresolved = snapshot.unresolved?.[0];

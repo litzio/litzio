@@ -14,7 +14,7 @@
 
 `packages/plugin-sdk`는 React·Editor·Core AST 의존 없이 manifest, JSON Schema 검증과 공용 작업·폴더·계정 타입을 공급한다. `litzio-plugin.json`이 실행 선언이며 패키지 버전은 package.json과 일치해야 한다. ID, tier, publisher, SemVer SDK 범위, 패키지 안 entry, contributes와 settingsSchema를 import 전에 검증한다. JSON Schema는 Ajv, manifest는 Zod, 버전은 SemVer를 재사용한다. 외부 `$ref`와 알 수 없는 필드·중복 기여를 거부한다.
 
-확장 자리 `contributes.dataViews`, `generatedUi`, `secretUses`는 비어 있지 않으면 미지원으로 등록을 거부한다. 카탈로그 V1에서 `contributes.views:[{id,title,definition}]`는 inline query v2 명세만 받고, `contributes.reviews:[{id,title,read,propose,approve,reject,undo}]`는 `{operation,version}` binding을 받는다. 같은 플러그인의 완전 이름 `<plugin-id>.<operation-id>`와 등록 version만 허용하며 view는 rowSchema 읽기, review read는 read, 나머지는 write여야 한다. unknown action·cross-plugin·effect/version 불일치는 entry 전에 거부한다. [Core/SDK v2 계약](generated-views-v1.md#catalog-v2-contract-layer-v1)을 SDK가 재노출한다. 실제 Host dispatch·기본 UI·CLI와 승인 경계 연결은 V2/V4 범위다. `secrets`는 중복 없는 id·connection scope·required 선언을 지원한다. secret 값 조회 API와 생성 UI·저장 뷰 runtime은 없다.
+확장 자리 `contributes.dataViews`, `generatedUi`, `secretUses`는 비어 있지 않으면 미지원으로 등록을 거부한다. 카탈로그 V1에서 `contributes.views:[{id,title,definition}]`는 inline query v2 명세만 받고, `contributes.reviews:[{id,title,read,propose?,approve?,reject?,undo?}]`는 `{operation,version}` binding을 받는다. 같은 플러그인의 완전 이름 `<plugin-id>.<operation-id>`와 등록 version만 허용하며 view는 rowSchema 읽기, review read는 read, 나머지는 write여야 한다. unknown action·cross-plugin·effect/version 불일치는 entry 전에 거부한다. [Core/SDK v2 계약](generated-views-v1.md#catalog-v2-contract-layer-v1)을 SDK가 재노출한다. 실제 Host dispatch·기본 UI·CLI와 승인 경계 연결은 V2/V4 범위다. `secrets`는 중복 없는 id·connection scope·required 선언을 지원한다. secret 값 조회 API와 생성 UI·저장 뷰 runtime은 없다.
 
 공용 작업은 id/version/effect/scope와 입력·결과 schema를 선언하고 같은 id의 handler를 연결한다. 1단계 기능 작업은 host scope만 지원하며 folder scope 선언은 미지원으로 거부한다. `activate(context)`는 operations/status/dispose를 반환한다. 미선언·누락 작업 handler는 활성화 실패다. 폴더 소스와 장식·계정은 선언한 기여의 상태 결과이며 앱 번들 아이콘만 표시한다. 폴더 열기는 기존 파일 Host가 검증한다. 문서 의미·공식 쓰기 경계는 변경하지 않는다.
 
@@ -205,3 +205,13 @@ OneDrive 빌드는 공용 artifact digest 계산으로 artifact 밖 `digest.json
 외부 플러그인은 “플러그인 추가…”에서 기존 Host 측 `FolderDialog`로 artifact 폴더를 선택한다. Settings의 별도 절대 경로 입력란은 제거한다. 기존 Button·FolderDialog·설정 행과 토글을 재사용하며 새 공통 UI 패턴은 없다. 폴더 탐색은 현재 Host client를 통해 수행하고 로컬 PC 파일 선택 창으로 대체하지 않는다. 1단계 설정 UI의 로컬 Host 범위는 유지하며 원격 UI를 새로 개방하지 않는다. CLI `plugins register <directory>`와 비서 도구의 외부 경로·trust·enable·unregister는 기존 공용 작업을 유지한다.
 
 기본값 전환·명시적 선택·변조 차단은 Host 단위 검사, 첫 실행 표시·토글·외부 폴더 선택 연결은 `http-plugins`, 배포물 안 공급·실행은 CI packaged 검사에서 확인한다. 수동 1440 캡처는 `pnpm browser:test http-plugins --screenshots`의 `docs/design/assets/bundled-plugins-1279/bundled-1440.png`에 남긴다. 이는 localhost와 fixture 검증이며 실제 OneDrive 계정 동기화의 증거는 아니다.
+
+### 읽기 전용 대조 자료 (#1317)
+
+review 기여는 read가 필수이며 propose/approve/reject/undo는 선택이다. Host는 선언하지 않은 변경을 plugin 호출 전에 거부한다. 기존 review 화면·Read·Button·Notice를 재사용하며 새 화면이나 공통 상호작용 예외는 없다.
+
+K1 result.review는 같은 Host에서 재조회할 plugin/review/root/bundleRef/generation을 제공한다. result.bundle의 문서 참조도 유지한다. 발행은 canonical 파일의 revision/hash와 Core read model의 실제 block path를 함께 대조한다. 영역 ID는 페이지 안뿐 아니라 발행 자료 전체에서 유일해야 한다. 여러 페이지의 같은 이름은 plugin이 page 식별자를 포함한 opaque ID로 구분한다. 미지원 continuation이나 기존 JSON/목록/PNG 상한 초과는 거부한다.
+
+모든 read는 문서·원본·이미지를 확인하며 불일치를 본 bundle은 같은 Host 수명 동안 stale을 유지한다. snapshot에도 응답 state를 전달하고 Editor adapter가 stale을 보존하므로 뒤늦은 ready 응답이나 이전 byte 복원으로 탐색을 재활성화하지 않는다. 바뀐 이미지는 전달하지 않는다. 새로 발행·검증한 bundle을 명시적으로 열어야 다시 사용할 수 있다. disable/unregister 동안 조회를 거부하고 reload·재활성 후 같은 신뢰 artifact의 기존 bundle은 다시 확인할 수 있다. daemon 재시작 후 복원하지 않는다.
+
+문서 생성 후 발행 실패는 uncertain과 이미 생성한 result.path/revision을 보존한다. 같은 requestId 조회는 이를 재생성하거나 start를 재전송하지 않는다. 문서 결과와 대조 자료 발행 성공을 구분한다. 이 범위는 K1 단일 원본→새 문서이며 Docling 해석·대규모 paging·과거 형식 호환을 포함하지 않는다.

@@ -59,6 +59,7 @@ export function validateManifest(input: unknown): PluginManifest {
   for (const review of m.contributes.reviews) {
     for (const action of ["read", "propose", "approve", "reject", "undo"] as const) {
       const binding = review[action];
+      if (!binding) continue;
       const op = m.contributes.operations.find(op => `${m.id}.${op.id}` === binding.operation && op.version === binding.version);
       if (!op || op.effect !== (action === "read" ? "read" : "write")) throw new Error("Invalid review operation binding");
     }
@@ -112,7 +113,7 @@ export const jobUpdateSchema = z.strictObject({
   errorKind: z.unknown().transform(pluginErrorKind).optional(), document: z.strictObject({ source: z.string() }).optional(), review: completedReviewSchema.optional(),
 });
 export type JobContribution = PluginManifest["contributes"]["jobs"][number];
-export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { path: string; revision: string; bundle?: ReviewBundle } };
+export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { path: string; revision: string; bundle?: ReviewBundle; review?: { plugin: string; review: string; root: string; bundleRef: string; generation: string } } };
 export const jobRequestSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("job-list"), plugin: id.optional() }),
   z.strictObject({ action: z.literal("job-start"), plugin: id, job: id, requestId: z.string().uuid(), root: z.string().min(1), file: z.string().min(1), output: z.string().min(1) }),

@@ -39,6 +39,17 @@ test("review baseline, Root/Host/generation, serialized writes, conflict and no 
       if (name.endsWith("approve") && approvalOverride) { input.proposal.after.text = approvalOverride.to; input.proposal.targets[0].path = approvalOverride.path; return { result: approvalOverride }; }
       return { result: name.endsWith("propose") ? { id: randomUUID(), kind: "text", targets: [{ path: [1], documentRevision: input.baseline.documentRevision, documentHash: input.baseline.documentRevision }], evidence: ["fixture"], before: { type: "plain", text: "Original." }, after: { type: "plain", text: "Changed." }, baseline: input.baseline, state: "pending", actions: [{ action: "approve", allowed: true }, { action: "reject", allowed: true }] } : { kind: "text", path: [1], from: "Original.", to: "Changed." } };
     });
+    const mapped = { ...data, mapping: { ...(data as any).mapping, entries: [{ sourceIds: [], targets: [{ path: [999], documentRevision: revision, documentHash: revision }] }] } };
+    mapped.mapping.entries[0]!.sourceIds = ["region"] as never[];
+    const region = { id: "region", bbox: [0, 0, 1, 1], category: "Text", status: "supported" };
+    const page = { ...data.pages[0], regions: [region] };
+    assert.throws(() => reviews.publish("fixture", root, file, source, { ...mapped, pages: [page] }), /target/i);
+    assert.throws(() => reviews.publish("fixture", root, file, source, { ...data, pages: [page, { ...page, pageNo: 2 }] }), /region/i);
+    const readonly = new PluginReviews(new RootAccess([root]), () => ({ id: "text", title: "Compare", read: declaration.read }), async () => { throw Error("Must not invoke"); });
+    const roBundle = readonly.publish("fixture", root, file, source, data);
+    const ro = { plugin: "fixture", review: "text", root, bundleRef: roBundle.bundleRef };
+    assert.equal((await readonly.execute({ ...ro, action: "read", pageNo: 1 })).state, "ready");
+    await assert.rejects(readonly.execute({ ...ro, action: "propose" }), /not declared/);
     const bundle = reviews.publish("fixture", root, file, source, data);
     const base = { plugin: "fixture", review: "text", root, bundleRef: bundle.bundleRef, generation: "g1" };
     assert.throws(() => reviews.publish("fixture", root, file, source, { ...data, images: [{ ...data.images[0], path: "../outside.png" }] }));
@@ -100,6 +111,11 @@ test("review baseline, Root/Host/generation, serialized writes, conflict and no 
     assert.equal((await flight).receipt.outcome, "uncertain");
     assert.equal(readFileSync(file, "utf8"), original + "External\n");
     assert.equal((await read()).state, "stale"); await assert.rejects(mutate("propose"), /stale/);
+    writeFileSync(file, original);
+    assert.equal((await read()).state, "stale", "Restored bytes do not reactivate an invalidated bundle");
+    writeFileSync(path.join(root, "page.png"), "changed");
+    assert.equal((await readonly.execute({ ...ro, action: "read", pageNo: 1 })).state, "stale");
+    assert.equal((await readonly.execute({ ...ro, action: "read", kind: "image", pageNo: 1 })).state, "stale");
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -156,8 +172,8 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const artifact = path.join(root, "artifact"); mkdirSync(artifact);
     writeFileSync(path.join(artifact, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
     const operations = ["start", "status", "stop", "read", "propose", "approve", "reject", "undo"].map(id => ({ id, version: 1, effect: ["status", "read"].includes(id) ? "read" : "write", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } }));
-    writeFileSync(path.join(artifact, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.review", name: "Review fixture", tier: "community", publisher: { id: "fixture", name: "Fixture" }, version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations, reviews: [{ ...declaration, ...Object.fromEntries(["read", "propose", "approve", "reject", "undo"].map(action => [action, { operation: `fixture.review.${action}`, version: 1 }])) }], jobs: [{ id: "text", title: "Import", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" }] } }));
-    writeFileSync(path.join(artifact, "host.js"), `export function activate() { const completed = ${JSON.stringify({ state: "completed", phase: "Done", document: { source }, review })}; return { operations: { start: async () => ({state:"running",phase:"Accepted"}), status: async () => completed, stop: async () => ({state:"stopped",phase:"Stopped"}), read: async () => ({}), propose: async input => ({ id: input.requestId, kind: 'text', targets: [{path:[1],documentRevision:input.baseline.documentRevision,documentHash:input.baseline.documentRevision}], evidence:['fixture'],before:{type:'plain',text:'Original.'},after:{type:'plain',text:'Changed.'},baseline:input.baseline,state:'pending',actions:[{action:'approve',allowed:true},{action:'reject',allowed:true}] }), approve: async input => { if(input.input?.uncertain) throw Error('Observation lost'); return {kind:'text',path:[1],from:'Original.',to:'Changed.'}; }, reject: async () => ({}), undo: async () => ({}) }, status: async () => ({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}), dispose: async () => {} }; }`);
+    writeFileSync(path.join(artifact, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.review", name: "Review fixture", tier: "community", publisher: { id: "fixture", name: "Fixture" }, version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations, reviews: [{ id: "compare", title: "Compare", read: { operation: "fixture.review.read", version: 1 } }, { ...declaration, ...Object.fromEntries(["read", "propose", "approve", "reject", "undo"].map(action => [action, { operation: `fixture.review.${action}`, version: 1 }])) }], jobs: [{ id: "text", title: "Import", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" }] } }));
+    writeFileSync(path.join(artifact, "host.js"), `export function activate() { const completed = ${JSON.stringify({ state: "completed", phase: "Done", document: { source }, review })}; return { operations: { start: async () => ({state:"running",phase:"Accepted"}), status: async input => { const result = structuredClone(completed); if (input.output.endsWith('readonly.md')) result.review.review = 'compare'; if (input.output.endsWith('bad.md')) result.review.bundle.documentHash = 'wrong'; return result; }, stop: async () => ({state:"stopped",phase:"Stopped"}), read: async () => ({}), propose: async input => ({ id: input.requestId, kind: 'text', targets: [{path:[1],documentRevision:input.baseline.documentRevision,documentHash:input.baseline.documentRevision}], evidence:['fixture'],before:{type:'plain',text:'Original.'},after:{type:'plain',text:'Changed.'},baseline:input.baseline,state:'pending',actions:[{action:'approve',allowed:true},{action:'reject',allowed:true}] }), approve: async input => { if(input.input?.uncertain) throw Error('Observation lost'); return {kind:'text',path:[1],from:'Original.',to:'Changed.'}; }, reject: async () => ({}), undo: async () => ({}) }, status: async () => ({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}), dispose: async () => {} }; }`);
     writeFileSync(path.join(root, "index.html"), "<html></html>");
     host = await startFetchServer(() => startHttpHost({ port: 0, roots: [root], editorDir: root, daemon: { health: { pid: process.pid, startedAt: new Date().toISOString(), instanceId: randomUUID(), processStartedAt: new Date().toISOString(), daemonHome: root, executable: process.execPath, roots: [root], nonLoopback: false, launcher: "cli-run", productVersion: "0.0.0", protocolVersion: DAEMON_PROTOCOL }, stop() {} } }));
     const address = host.server.address(); assert.ok(address && typeof address !== "string"); const origin = `http://127.0.0.1:${address.port}`;
@@ -175,6 +191,19 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     for (let i = 0; i < 100; i++) { job = (await send("/api/plugins", { action: "job-status", requestId })).job; if (job.state === "completed") break; await new Promise(r => setTimeout(r, 20)); }
     assert.equal(job.state, "completed", JSON.stringify(job)); assert.ok(job.result.bundle);
     const base = { plugin: "fixture.review", review: "text", root, bundleRef: job.result.bundle.bundleRef, generation: "g1" };
+    assert.deepEqual(job.result.review, base);
+    const readonlyId = randomUUID();
+    await send("/api/plugins", { action: "job-start", plugin: base.plugin, job: "text", root, file: "input.txt", output: "readonly.md", requestId: readonlyId });
+    const readonlyJob = (await send("/api/plugins", { action: "job-status", requestId: readonlyId })).job;
+    assert.equal(readonlyJob.state, "completed");
+    const readonlyRef = readonlyJob.result.review;
+    assert.equal((await send("/api/reviews", { ...readonlyRef, action: "read", pageNo: 1 })).state, "ready");
+    const badId = randomUUID();
+    await send("/api/plugins", { action: "job-start", plugin: base.plugin, job: "text", root, file: "input.txt", output: "bad.md", requestId: badId });
+    const bad = (await send("/api/plugins", { action: "job-status", requestId: badId })).job;
+    assert.equal(bad.state, "uncertain"); assert.equal(bad.result.revision, revision);
+    assert.equal(readFileSync(bad.result.path, "utf8"), source);
+    assert.deepEqual((await send("/api/plugins", { action: "job-status", requestId: badId })).job.result, bad.result);
     const read = () => send("/api/reviews", { ...base, action: "read", kind: "proposals" });
     const definition = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
       sources: { review: { plugin: base.plugin, review: base.review, bundleRef: base.bundleRef } },
@@ -203,12 +232,15 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const invalidView = await fetch(origin + "/api/views", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ action: "propose", view: { ...definition, sources: { review: { ...definition.sources.review, bundleRef: "other-host" } } } }) });
     assert.equal(invalidView.status, 400); await invalidView.arrayBuffer();
 
-    const cli = async (action: string, proposalId?: string, expectedCode = 0, observedRequestId?: string) => {
-      const inputFile = path.join(root, "request.json"); writeFileSync(inputFile, JSON.stringify({ bundleRef: base.bundleRef, generation: "g1", proposalId, baseline: (await read()).baseline, requestId: observedRequestId ?? randomUUID() }));
-      const child = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../../../packages/cli/src/cli.ts", import.meta.url)), "review", action, base.plugin, base.review, "--input", inputFile, "--root", root, "--host", origin, "--json"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    const cli = async (action: string, proposalId?: string, expectedCode = 0, observedRequestId?: string, reference = base) => {
+      const inputFile = path.join(root, "request.json"); writeFileSync(inputFile, JSON.stringify({ bundleRef: reference.bundleRef, generation: reference.generation, proposalId, baseline: (await read()).baseline, requestId: observedRequestId ?? randomUUID() }));
+      const child = spawn(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../../../packages/cli/src/cli.ts", import.meta.url)), "review", action, reference.plugin, reference.review, "--input", inputFile, "--root", root, "--host", origin, "--json"], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
       let stdout = "", stderr = ""; child.stdout.on("data", b => stdout += b); child.stderr.on("data", b => stderr += b);
       const code = await new Promise(resolve => child.once("exit", resolve)); assert.equal(code, expectedCode, stdout + stderr); return JSON.parse(stdout);
     };
+    assert.equal((await cli("read", undefined, 0, undefined, readonlyRef)).state, "ready");
+    const undeclared = await cli("propose", undefined, 1, undefined, readonlyRef);
+    assert.ok(undeclared.error, "CLI rejects undeclared mutation");
     const p = await cli("propose"), id = p.proposals[0].id;
     const approve = await cli("approve", id); assert.equal(approve.receipt.outcome, "success"); assert.match(readFileSync(path.join(root, "doc.md"), "utf8"), /Changed/);
     const appliedSnapshot = (await snapshotRead()).snapshot;
@@ -287,6 +319,15 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     }
 
     assert.equal(readFileSync(path.join(root, "doc.md"), "utf8"), source);
+    await send("/api/plugins", { action: "disable", id: base.plugin });
+    const unavailable = await fetch(origin + "/api/reviews", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ ...readonlyRef, action: "read" }) });
+    assert.equal(unavailable.status, 400); await unavailable.arrayBuffer();
+    await send("/api/plugins", { action: "enable", id: base.plugin });
+    await send("/api/plugins", { action: "reload", id: base.plugin });
+    assert.equal((await send("/api/reviews", { ...readonlyRef, action: "read" })).state, "ready");
+    await send("/api/plugins", { action: "unregister", id: base.plugin });
+    const removed = await fetch(origin + "/api/reviews", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ ...readonlyRef, action: "read" }) });
+    assert.equal(removed.status, 400); await removed.arrayBuffer();
   } finally {
     await host?.close();
     if (previous === undefined) delete process.env.LITZIO_DATA_DIR; else process.env.LITZIO_DATA_DIR = previous;

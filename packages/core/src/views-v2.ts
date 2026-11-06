@@ -12,7 +12,7 @@ const label = viewSchema.shape.title;
 const opaque = z.string().min(1).max(512).regex(/^[a-zA-Z0-9_.-]+$/, "Opaque Host reference required");
 const operationBinding = z.strictObject({ operation: id, version: z.number().int().positive() });
 export const reviewContributionSchema = z.strictObject({ id, title: label,
-  read: operationBinding, propose: operationBinding, approve: operationBinding, reject: operationBinding, undo: operationBinding });
+  read: operationBinding, propose: operationBinding.optional(), approve: operationBinding.optional(), reject: operationBinding.optional(), undo: operationBinding.optional() });
 export type ReviewContribution = z.infer<typeof reviewContributionSchema>;
 export const REVIEW_ACTIONS = ["read", "propose", "approve", "reject", "undo"] as const;
 export const reviewSourceSchema = z.strictObject({ plugin: id, review: id, bundleRef: opaque });

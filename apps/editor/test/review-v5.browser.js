@@ -6,6 +6,18 @@ async (page, { expect, screenshots }) => {
   const region = page.getByRole('button', { name: 'Sentence · Supported', exact: true });
   await expect(source.getByRole('img')).toBeVisible();
   await expect(region).toBeVisible();
+  if (screenshots) {
+    await page.getByRole('button', { name: 'host-stale', exact: true }).click();
+    await page.getByRole('button', { name: 'Next page', exact: true }).click();
+    await expect(source.getByRole('img')).toHaveAttribute('alt', 'Source page 2');
+    await page.screenshot({ path: 'tmp/review-readonly-1440.png', fullPage: true });
+    await page.locator('html').evaluate(e => { e.dataset.theme = 'dark'; e.lang = 'ko'; });
+    await page.screenshot({ path: 'tmp/review-readonly-dark-1440.png', fullPage: true });
+    await page.setViewportSize({ width: 640, height: 900 });
+    await expect(page.getByText('Widen the window to compare.', { exact: false })).toBeVisible();
+    await page.screenshot({ path: 'tmp/review-readonly-dark-640.png', fullPage: true });
+    return;
+  }
   const imageBox = await source.getByRole('img').boundingBox(), regionBox = await region.boundingBox();
   expect(Math.abs((regionBox.x-imageBox.x)/imageBox.width - 45/600)).toBeLessThan(.01);
   expect(Math.abs((regionBox.y-imageBox.y)/imageBox.height - 130/800)).toBeLessThan(.01);
@@ -74,6 +86,14 @@ async (page, { expect, screenshots }) => {
   await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Reject', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Approve', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'host-stale', exact: true }).click();
+  await expect(region).toBeEnabled();
+  await page.getByRole('button', { name: 'Next page', exact: true }).click();
+  await expect(region).toBeDisabled();
+  await expect(page.getByText('Data is out of date.', { exact: false })).toBeVisible();
+  await page.getByRole('button', { name: 'Refresh data', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Refresh data', exact: true })).toBeEnabled();
+  await expect(region).toBeDisabled();
   await page.getByRole('button', { name: 'stale', exact: true }).click();
   await expect(page.getByText('Data is out of date.', { exact: false })).toBeVisible();
   await expect(region).toBeDisabled();

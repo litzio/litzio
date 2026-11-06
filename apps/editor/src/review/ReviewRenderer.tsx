@@ -12,6 +12,7 @@ import { REVIEW_UNAVAILABLE_GUIDANCE, type ReviewPendingChange, type ReviewVerif
 
 /** Host supplies one coherent snapshot, including the identity of the actual Read model. */
 export type ReviewSnapshot = {
+  state?: "ready" | "stale";
   bundle: ReviewBundle; page?: ReviewPage; mapping?: ReviewMapping; proposals: ReviewProposal[];
   document: EditableDocument; documentRevision: string; documentHash: string; documentPath: string;
   baseline: ReviewBaseline; pageCount: number; imageUrl?: string;
@@ -27,7 +28,7 @@ export type ReviewAdapter = {
 };
 function documentCoherent(s: ReviewSnapshot) {
   const b = s.bundle;
-  return b.documentRevision === s.documentRevision && b.documentHash === s.documentHash
+  return s.state !== "stale" && b.documentRevision === s.documentRevision && b.documentHash === s.documentHash
     && s.baseline.documentRevision === b.documentRevision && s.baseline.sourceRevision === b.sourceRevision
     && s.baseline.mappingRevision === b.mappingRevision;
 }
