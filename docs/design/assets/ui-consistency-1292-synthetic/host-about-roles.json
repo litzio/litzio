@@ -1,0 +1,206 @@
+[
+  {
+    "name": "Hosts",
+    "width": 1440,
+    "values": [
+      {
+        "text": "Connected",
+        "font": "12px",
+        "line": "18px"
+      },
+      {
+        "text": "Connected",
+        "font": "12px",
+        "line": "18px"
+      },
+      {
+        "text": "Connected",
+        "font": "12px",
+        "line": "18px"
+      },
+      {
+        "text": "http://127.0.0.1:5173",
+        "font": "12px",
+        "line": "18px"
+      },
+      {
+        "text": "Connected",
+        "font": "14px",
+        "line": "21px"
+      }
+    ]
+  },
+  {
+    "name": "About & updates",
+    "width": 1440,
+    "values": [
+      {
+        "text": "Connected",
+        "font": "12px",
+        "line": "18px"
+      },
+      {
+        "text": "Connected",
+        "font": "12px",
+        "line": "18px"
+      },
+      {
+        "text": "Connected",
+        "font": "12px",
+        "line": "18px"
+      },
+      {
+        "text": "running · CLI (start) · 0.2.0",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "http://127.0.0.1:25887",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "1",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "1234",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "2026-11-04T00:00:00Z",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "unrestricted",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "false",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "C:/temporary/daemon/beta",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "C:/Litzio/Litzio.exe",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "0.2.0",
+        "font": "16px",
+        "line": "24px"
+      }
+    ]
+  },
+  {
+    "name": "Hosts",
+    "width": 640,
+    "values": [
+      {
+        "text": "Connected",
+        "font": "12px",
+        "line": "18px"
+      },
+      {
+        "text": "Connected",
+        "font": "12px",
+        "line": "18px"
+      },
+      {
+        "text": "Connected",
+        "font": "12px",
+        "line": "18px"
+      },
+      {
+        "text": "http://127.0.0.1:5173",
+        "font": "12px",
+        "line": "18px"
+      },
+      {
+        "text": "Connected",
+        "font": "14px",
+        "line": "21px"
+      }
+    ]
+  },
+  {
+    "name": "About & updates",
+    "width": 640,
+    "values": [
+      {
+        "text": "Connected",
+        "font": "12px",
+        "line": "18px"
+      },
+      {
+        "text": "Connected",
+        "font": "12px",
+        "line": "18px"
+      },
+      {
+        "text": "Connected",
+        "font": "12px",
+        "line": "18px"
+      },
+      {
+        "text": "running · CLI (start) · 0.2.0",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "http://127.0.0.1:25887",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "1",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "1234",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "2026-11-04T00:00:00Z",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "unrestricted",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "false",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "C:/temporary/daemon/beta",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "C:/Litzio/Litzio.exe",
+        "font": "16px",
+        "line": "24px"
+      },
+      {
+        "text": "0.2.0",
+        "font": "16px",
+        "line": "24px"
+      }
+    ]
+  }
+]
