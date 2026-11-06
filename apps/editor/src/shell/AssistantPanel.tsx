@@ -72,8 +72,7 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
   const [effort, setEffort] = useState("");
   const [mode, setMode] = useState("");
   const [references, setReferences] = useState<AssistantFileReference[]>([]);
-  const [candidates, setCandidates] = useState<AssistantFileReference[]>([]);
-  const [mention, setMention] = useState<{ start: number; end: number; query: string; skill: boolean } | null>(null);
+  const [mention, setMention] = useState<{ start: number; end: number; query: string } | null>(null);
   const [skillCatalog, setSkillCatalog] = useState<AssistantSkills>();
   const [skillProblem, setSkillProblem] = useState("");
   const [candidateIndex, setCandidateIndex] = useState(0);
@@ -269,29 +268,14 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
     onReferenceConsumed(referenceRequest);
   }, [referenceRequest, hostId, onReferenceConsumed]);
   const mentionOpen = mention !== null;
-  const skillOpen = mention?.skill ?? false;
-  // Parent renders create a fresh folders array; only changed paths invalidate the lookup.
-  const candidateFolders = JSON.stringify(folders);
   useEffect(() => {
     if (!mentionOpen || !open) return;
     let alive = true;
-    setCandidates([]);
-    if (skillOpen) {
-      setSkillCatalog(undefined); setSkillProblem("");
-      void request<AssistantSkills>(`${ASSISTANT.skillsRoute}?provider=${provider}`).then(value => { if (alive) setSkillCatalog(value); }).catch(error => { if (alive) setSkillProblem(error.message); });
-      return () => { alive = false; };
-    }
-    const walk = async (root: string, folder: string): Promise<void> => {
-      if (!alive) return;
-      const listing = await request<{ entries: AssistantFileReference[] }>(`/api/folder?${new URLSearchParams({ root, path: folder })}`);
-      if (!alive) return;
-      setCandidates(previous => [...previous, ...listing.entries.filter(file => file.kind !== "folder")].filter((file, index, all) => all.findIndex(other => samePath(other.path, file.path)) === index));
-      for (const entry of listing.entries) if (entry.kind === "folder") await walk(root, entry.path);
-    };
-    void (async () => { for (const root of JSON.parse(candidateFolders) as string[]) await walk(root, root); })().catch(error => { if (alive) setProblem(error.message); });
+    setSkillCatalog(undefined); setSkillProblem("");
+    void request<AssistantSkills>(`${ASSISTANT.skillsRoute}?provider=${provider}`).then(value => { if (alive) setSkillCatalog(value); }).catch(error => { if (alive) setSkillProblem(error.message); });
     return () => { alive = false; };
-  }, [mentionOpen, skillOpen, open, candidateFolders]);
-  const matches = mention ? (mention.skill ? (skillCatalog?.skills ?? []).map(skill => ({ ...skill, kind: "skill" })) : candidates).filter(file => `${file.name} ${file.kind === "skill" ? skillCatalog?.skills.find(skill => skill.path === file.path)?.description : file.path}`.toLocaleLowerCase().includes(mention.query.toLocaleLowerCase())) : [];
+  }, [mentionOpen, open, provider]);
+  const matches = mention ? (skillCatalog?.skills ?? []).map(skill => ({ ...skill, kind: "skill" })).filter(file => `${file.name} ${file.description}`.toLocaleLowerCase().includes(mention.query.toLocaleLowerCase())) : [];
   useEffect(() => { if (mention) document.getElementById(`assistant-reference-${candidateIndex}`)?.scrollIntoView({ block: "nearest" }); }, [candidateIndex, mention?.query]);
   const chooseReference = (file: AssistantFileReference) => {
     addReference(file);
@@ -471,20 +455,18 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
       {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
       {models && !catalogModel ? <p role="status">{i18n.t("Choose a model and reasoning effort from the available list.")}</p> : null}
       <ReferenceChips references={references} remove={removeReference} />
-      {mention ? <div className="assistant-reference-options" role="listbox" id="assistant-reference-options" aria-label={i18n.t(mention.skill ? "Codex skills" : "File references")}>
+      {mention ? <div className="assistant-reference-options" role="listbox" id="assistant-reference-options" aria-label={i18n.t("Codex skills")}>
         {matches.map((file, index) => <Button variant="ghost" size="sm" type="button" role="option" id={`assistant-reference-${index}`} aria-selected={candidateIndex === index} key={file.path} title={file.path} onMouseDown={event => event.preventDefault()} onClick={() => chooseReference(file)}>{file.name}<small>{file.kind === "skill" ? skillCatalog?.skills.find(skill => skill.path === file.path)?.description : file.path}</small></Button>)}
-        {mention.skill && !skillCatalog && !skillProblem ? <p role="status">{i18n.t("Loading skills…")}</p> : null}
-        {mention.skill && (skillProblem || skillCatalog?.errors.length) ? <p role="alert">{i18n.t("Could not load some skills.")} {skillProblem || skillCatalog?.errors.map(error => `${error.path}: ${error.message}`).join("; ")}</p> : null}
-        {!matches.length && (!mention.skill || skillCatalog) ? <p>{i18n.t(mention.skill ? "No matching skills." : "No matching files.")}</p> : null}
+        {!skillCatalog && !skillProblem ? <p role="status">{i18n.t("Loading skills…")}</p> : null}
+        {(skillProblem || skillCatalog?.errors.length) ? <p role="alert">{i18n.t("Could not load some skills.")} {skillProblem || skillCatalog?.errors.map(error => `${error.path}: ${error.message}`).join("; ")}</p> : null}
+        {!matches.length && skillCatalog ? <p>{i18n.t("No matching skills.")}</p> : null}
       </div> : null}
       <textarea ref={input} aria-controls={mention ? "assistant-reference-options" : undefined} aria-expanded={mention ? true : undefined} aria-activedescendant={mention && matches[candidateIndex] ? `assistant-reference-${candidateIndex}` : undefined} aria-label={i18n.t("Message assistant")} placeholder={i18n.t(active ? "Send a message to steer the current work…" : "Ask a question…")} value={message} onChange={event => {
         const value = event.target.value, end = event.target.selectionStart;
         setReferences(previous => previous.filter(file => file.kind !== "skill" || hasSkillToken(value, file.name)));
-        setMessage(value); const match = /(?:^|\s)([@/])([^\s@]*)$/.exec(value.slice(0, end));
-        // Retired results must not appear selectable before the new lookup starts.
-        if (match?.[1] === "@" && (!mention || mention.skill)) setCandidates([]);
-        if (match?.[1] === "/" && !skillOpen) { setSkillCatalog(undefined); setSkillProblem(""); }
-        setMention(match && (match[1] !== "/" || provider === "codex") ? { start: end - match[2].length - 1, end, query: match[2], skill: match[1] === "/" } : null); setCandidateIndex(0);
+        setMessage(value); const match = /(?:^|\s)\/([^\s]*)$/.exec(value.slice(0, end));
+        if (match && !mentionOpen) { setSkillCatalog(undefined); setSkillProblem(""); }
+        setMention(match && provider === "codex" ? { start: end - match[1].length - 1, end, query: match[1] } : null); setCandidateIndex(0);
       }}
         disabled={!!generation.current || !ready || !enabled || !!setup} onKeyDown={event => {
           if (mention && !event.nativeEvent.isComposing) {

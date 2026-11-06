@@ -276,7 +276,7 @@ async (page, { expect, screenshots, recoveryRecords, showNotifications }) => {
   await expect(page.getByRole('textbox', { name: 'Text editor' })).toHaveValue('Local saved');
   if ((await page.evaluate(() => window.__explorerCalls)).length) throw new Error('Remote paths reached the Desktop shell');
   const assistantRequests = [];
-  await page.route('**/api/assistant/**', route => { assistantRequests.push(route.request().url()); return route.fulfill({ json: route.request().url().includes('/models') ? { models: [], provider: 'codex' } : route.request().url().includes('/diagnostics') ? { connected: false, error: 'Fixture: no model call' } : { provider: 'codex', permissionMode: 'opened-folders', model: '', reasoningEffort: '' } }); });
+  await page.route('**/api/assistant/**', route => { assistantRequests.push(route.request().url()); return route.fulfill({ json: route.request().url().includes('/models') ? { models: [{ id: 'fixture', model: 'fixture', displayName: 'Fixture model', supportedReasoningEfforts: [{ reasoningEffort: 'low' }], defaultReasoningEffort: 'low' }], provider: 'codex' } : route.request().url().includes('/diagnostics') ? { connected: true, account: { type: 'apiKey' } } : { provider: 'codex', permissionMode: 'opened-folders', model: 'fixture', reasoningEffort: 'low' } }); });
   // A consumed local reference must not be replayed when New conversation selects another Host.
   await page.locator('[data-host-id="local"]').getByRole('treeitem', { name: /same.txt/ }).click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Add to chat', exact: true }).click();
@@ -296,6 +296,29 @@ async (page, { expect, screenshots, recoveryRecords, showNotifications }) => {
   await page.getByRole('button', { name: /^Remote/ }).click();
   await expect(page.locator('.assistant-context')).toContainText('Remote');
   await expect(page.getByRole('button', { name: 'Remove reference: same.txt', exact: true })).toHaveCount(0);
+  await page.locator('[data-host-id="remote"]').getByRole('treeitem', { name: /same.txt/ }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Add to chat', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Remove reference: same.txt', exact: true })).toHaveCount(1);
+  await expect(page.locator('.assistant-context')).toContainText('Remote');
+  await page.getByLabel('Message assistant').fill('Keep this remote draft');
+  await page.locator('[data-host-id="local"]').getByRole('treeitem', { name: /same.txt/ }).click({ button: 'right' });
+  await page.getByRole('menuitem', { name: 'Add to chat', exact: true }).click();
+  await showNotifications(page);
+  await expect(page.getByTestId('error')).toContainText('Start a conversation on the file’s Host');
+  await expect(page.getByLabel('Message assistant')).toHaveValue('Keep this remote draft');
+  await expect(page.getByRole('button', { name: 'Remove reference: same.txt', exact: true })).toHaveCount(1);
+  await page.getByRole('button', { name: 'Dismiss error', exact: true }).click();
+  let rejectedSend;
+  const rejectSend = route => { rejectedSend = route.request().postDataJSON(); return route.fulfill({ status: 400, json: { error: 'Fixture reference rejected' } }); };
+  await page.route('**/fixture/remote/api/assistant/conversations', rejectSend);
+  await page.getByRole('button', { name: 'Send message', exact: true }).click();
+  await expect(page.getByTestId('assistant-panel').getByRole('alert')).toContainText('Fixture reference rejected');
+  expect(rejectedSend.references).toEqual([path]);
+  expect(rejectedSend.folders).toEqual([root]);
+  expect(rejectedSend.document).toBeUndefined();
+  await expect(page.getByLabel('Message assistant')).toHaveValue('Keep this remote draft');
+  await expect(page.getByRole('button', { name: 'Remove reference: same.txt', exact: true })).toHaveCount(1);
+  await page.unroute('**/fixture/remote/api/assistant/conversations', rejectSend);
   await expect.poll(() => assistantRequests.some(url => url.endsWith('/settings'))).toBe(true);
   await local.click();
   await page.getByLabel('Host', { exact: true }).selectOption('local');
