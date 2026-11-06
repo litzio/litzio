@@ -7,7 +7,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/toolti
 import { HostExplorer, HostHeading } from "./HostExplorer.tsx";
 import { hostRegistry, hostLabel, type HostClient } from "../host-client.ts";
 import { SettingsSelect } from "@/components/ui/settings.tsx";
-import { locatorKey } from "../host-locator.ts";
+import { locatorKey, type HostLocator } from "../host-locator.ts";
 import { PanelResize } from "./PanelResize.tsx";
 import { usePanelWidthBounds } from "./panel-width.ts";
 import { THEME_LABELS, type ThemePreference } from "../preferences.ts";
@@ -29,7 +29,7 @@ type SidebarProps = {
   onHostOpen?(hostId: string, path: string): Promise<void>;
   onHostFileAction?(hostId: string, ...args: Parameters<FileActionHandler>): Promise<string>;
   contributions?: { icon?: ReactNode; id: string; label: string; run(returnFocus: HTMLElement): void }[];
-  onAddToChat?(path: string, returnFocus: HTMLElement): void;
+  onAddToChat?(locator: HostLocator, returnFocus: HTMLElement): void;
   onFileAction: FileActionHandler;
   fileActionsDisabled: boolean;
   isFileDirty(path: string): boolean;
@@ -126,7 +126,7 @@ export function Sidebar({
         {folders.length > 0 ? folders.map(tree => (
           <FolderTree
             key={locatorKey({ hostId: tree.hostId, path: tree.root })}
-            onAddToChat={onAddToChat}
+            onAddToChat={onAddToChat ? (path, focus) => onAddToChat({ hostId: tree.hostId, path }, focus) : undefined}
             onFileAction={onFileAction} fileActionsDisabled={fileActionsDisabled} isFileDirty={isFileDirty}
             tree={tree} decoration={plugins.some(p => p.running && p.status?.decorations.some(d => d.path === tree.root))}
             focusFolder={focusFolder}
@@ -172,7 +172,7 @@ export function Sidebar({
           </section>
         )}
         </section>
-        {hosts.filter(host => host.hostId !== "local").map(host => <div className="sidebar-host" key={host.hostId} hidden={!!hostFilter && hostFilter !== host.hostId}><HostExplorer onCreate={(client, path, root) => onHostCreate?.(host.hostId, client, path, root) ?? Promise.resolve("Host creation unavailable")} createdDocumentFocus={createdDocumentFocus} documentPath={documentHostId === host.hostId ? documentPath : ""} isFileDirty={path => onHostDirty?.(host.hostId, path) ?? false} hostId={host.hostId} onOpen={path => onHostOpen?.(host.hostId, path) ?? Promise.reject(new Error("Host navigation unavailable"))} onFileAction={(...args) => onHostFileAction?.(host.hostId, ...args) ?? Promise.reject(new Error("Host file actions unavailable"))} disabled={fileActionsDisabled} /></div>)}
+        {hosts.filter(host => host.hostId !== "local").map(host => <div className="sidebar-host" key={host.hostId} hidden={!!hostFilter && hostFilter !== host.hostId}><HostExplorer onAddToChat={onAddToChat ? (path, focus) => onAddToChat({ hostId: host.hostId, path }, focus) : undefined} onCreate={(client, path, root) => onHostCreate?.(host.hostId, client, path, root) ?? Promise.resolve("Host creation unavailable")} createdDocumentFocus={createdDocumentFocus} documentPath={documentHostId === host.hostId ? documentPath : ""} isFileDirty={path => onHostDirty?.(host.hostId, path) ?? false} hostId={host.hostId} onOpen={path => onHostOpen?.(host.hostId, path) ?? Promise.reject(new Error("Host navigation unavailable"))} onFileAction={(...args) => onHostFileAction?.(host.hostId, ...args) ?? Promise.reject(new Error("Host file actions unavailable"))} disabled={fileActionsDisabled} /></div>)}
       </div>
       <ContextMenu actions={blankActions} trigger={<div ref={blankTrigger} className="contents" />} />
       {onSettings || onThemeChange || contributions.length ? (

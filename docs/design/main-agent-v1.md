@@ -890,16 +890,34 @@ new scenario is added. Captures run only with `--screenshots` for manual review.
 
 ## File references (#1047 PR A, #984, #952)
 
-`@` at a word boundary opens file candidates from the opened folders. The shell
-reuses `/api/folder` enumeration recursively only while the picker is open; there
-is no index, watcher, new search service or PC-wide search. While either the `@`
-file picker or `/` skill picker is open, unrelated shell renders and conversation
-snapshots retain its candidates, scroll position and highlighted item (#1108).
-Filtering and highlight reset follow composer input changes; catalog lookup is
-not repeated for an unchanged opened-folder path list. Arrow keys / Enter
-select, Escape dismisses, and pointer selection retains composer focus. Explorer's
-file context menu **Add to chat** opens the same composer draft. Folders cannot be
-added. Both entry points deduplicate paths and allow at most 10 references.
+Explorer's file context menu **Add to chat** opens the composer draft on the
+file's Host (#1253). Folders cannot be added. Paths are deduplicated and at most
+10 file references are allowed. A conversation fixed to another Host rejects the
+handoff without replacing its draft; start a conversation on the file's Host first.
+`@` is ordinary message text and never starts folder enumeration or file search.
+The `/` Codex skill picker retains candidates, scroll position and highlighted
+item across unrelated shell renders and conversation snapshots (#1108). Arrow
+keys / Enter select, Escape dismisses, and pointer selection retains composer focus.
+
+#1253 verification (2026-11-06): existing `assistant` and `multi-host` persistent
+Chrome scenarios cover ordinary `@` text without folder queries, explicit local/remote
+attachment, Host mismatch rejection and remote send rejection preserving text/chips.
+Existing provider tests own limit/deduplication/RootAccess/hidden/deleted/symlink checks.
+These are HTTP fixtures and fake providers, not real OneDrive or remote OS acceptance.
+
+Manual composer captures: 1440px English Light
+[Before](assets/explicit-references-1253/before-1440.png) /
+[After](assets/explicit-references-1253/after-1440.png), 640px Korean Dark
+[Before](assets/explicit-references-1253/before-640.png) /
+[After](assets/explicit-references-1253/after-640.png).
+The baseline panel was temporarily restored for Before; the same `@document` draft
+and Explorer chip are used in both states. Paths and Host context are masked.
+Capture uses a temporary shortened scenario through `pnpm browser:test assistant --screenshots`,
+then restores the regression body; the shortened run intentionally omits later expected
+HTTP failures and is not counted as a passing regression run. No capture-only CI loop is added.
+Visual inspection confirms aligned chips/remove controls, input padding, readable Korean
+and no panel/control clipping at either width. The file candidate row disappears; the
+existing skill picker and Explorer chip presentation retain their common implementation.
 
 Removable chips above the input show only file names; shared Tooltip exposes the
 full path on hover/focus. No file-type-specific presentation or read indicator is
@@ -926,7 +944,7 @@ The `/` skill picker is a separate PR B and remains outside this delivery.
 Verification extends existing fake stdio/Host tests for context + localImage,
 send/steer/live/resume, reference-only sends, duplicate/limit, deleted/hidden files
 and scope rejection. The existing `assistant` browser scenario owns Explorer →
-composer, keyboard candidate selection, deduplication/removal, reference-only steer,
+composer, no folder lookup on `@`, deduplication/removal, reference-only steer,
 chip restoration, and no conversation-language control. Worker prompt tests own
 language injection; receipt tests retain retry identity after settings changes.
 No real model turn or new browser process framework is used.
@@ -1095,7 +1113,7 @@ Implementation reference: [Paseo Copilot ACP](https://github.com/getpaseo/paseo/
 
 ## Codex skill selection (#1047 PR B)
 
-Typing `/` at a word boundary opens the same inline candidate surface as `@`.
+Typing `/` at a word boundary opens the inline skill candidate surface.
 The Host calls `skills/list({cwds:[assistantCwd],forceReload:true})` using only
 parameters supported by Codex 0.141.0. Only enabled skills returned for that cwd
 appear, with name and description, filtered by the typed query. Loading, empty
@@ -1247,7 +1265,7 @@ and AI run in the target Host's OS-account context.
 
 The panel is keyed by Host and uses that Host's bound client for settings/catalog/history,
 references and execution. Active tabs and the Explorer visibility filter cannot change it.
-Only a document from the same Host is included in the current-document context. The local
+Only a document from the same Host is included in the current-document context. Each Host’s
 Explorer refuses adding a reference to a conversation fixed to another Host. Each queued
 Explorer reference carries its Host ID; a panel accepts only its own Host and acknowledges
 consumption so remounting or choosing a new conversation cannot replay the request. A fresh Host
