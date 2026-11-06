@@ -87,6 +87,7 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
+| [동적 뷰 재정의 v1](design/dynamic-views-v1.md) | Draft | 2026-11-06 소유자 확정 방향: 연결/비서 데이터·출처·snapshot 즐겨찾기, 새 탭/우측 보기/플러그인 화면, SDK 화면 기여와 D1~D4/V7 분할. ADR-0020의 해당 개정 절은 Proposed. 제품 구현 완료 아님. |
 | [카탈로그 v2](design/catalog-v2.md) | Draft | ADR-0020 개정안. 2단계 Jira 수락 부족 대응: 입력·12열 표·안전한 오류·공용 K2/K3/K4·제작 스킬과 병렬 구현 PR 분할. 소유자 결정 필요 항목 없음. V5 공용 번들 renderer는 독립 fixture 구현이며 Host·진입점 통합은 대기. 4단계는 비서 제작 수락 시험이며 문서 전체는 현재 구현 계약 아님. |
 
 ## UI pattern targets awaiting implementation

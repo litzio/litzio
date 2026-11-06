@@ -9,6 +9,8 @@
 
 ## 배경과 근거
 
+2026-11-06 동적 뷰의 새 정의와 두 데이터 종류에 관한 소유자 결정은 아래 [개정안](#동적-뷰-재정의-개정안-2026-11-06)에 정리했다. 해당 절은 Proposed이며 기존 구현 완료를 뜻하지 않는다.
+
 네 사례(OneDrive, GitHub/GitLab, Docling, Jira)를 같은 제작·실행·표시·저장 계약으로 설명한다. 특정 기능을 먼저 제품에 심고 나중에 플러그인으로 일반화하지 않는다. 문서 의미는 Core, 실행·연결·자격 증명은 대상 Host, 렌더러는 앱이 소유한다.
 
 입력은 2026-11-05의 `<local-research>/plugin-architecture-proposal.md` 및 같은 폴더의 `plugin-arch-a-structure.md`, `plugin-arch-b-genui.md`다. 제안·정적 조사이며 실행 증명이 아니다. 보관 소스 기준은 `archive/plugins-docling-2026-11`의 `ce90560aacaee2482d37c4b25e36e93060ed156c`다. 제안서의 비서 관리 금지 추천과 저장 설명은 아래 소유자 정정으로 대체한다. 외부 프레임워크의 기능·안전성·직접 호환을 이 ADR로 보증하지 않는다.
@@ -328,3 +330,31 @@ OneDrive 빌드는 공용 artifact digest 계산으로 artifact 밖 `digest.json
 외부 플러그인은 “플러그인 추가…”에서 기존 Host 측 `FolderDialog`로 artifact 폴더를 선택한다. Settings의 별도 절대 경로 입력란은 제거한다. 기존 Button·FolderDialog·설정 행과 토글을 재사용하며 새 공통 UI 패턴은 없다. 폴더 탐색은 현재 Host client를 통해 수행하고 로컬 PC 파일 선택 창으로 대체하지 않는다. 1단계 설정 UI의 로컬 Host 범위는 유지하며 원격 UI를 새로 개방하지 않는다. CLI `plugins register <directory>`와 비서 도구의 외부 경로·trust·enable·unregister는 기존 공용 작업을 유지한다.
 
 기본값 전환·명시적 선택·변조 차단은 Host 단위 검사, 첫 실행 표시·토글·외부 폴더 선택 연결은 `http-plugins`, 배포물 안 공급·실행은 CI packaged 검사에서 확인한다. 수동 1440 캡처는 `pnpm browser:test http-plugins --screenshots`의 `docs/design/assets/bundled-plugins-1279/bundled-1440.png`에 남긴다. 이는 localhost와 fixture 검증이며 실제 OneDrive 계정 동기화의 증거는 아니다.
+
+## 동적 뷰 재정의 개정안 (2026-11-06)
+
+- Status: Proposed
+- Last verified: 2026-11-06 — 소유자 확정 방향과 현재 v2 Core·Host·비서 계약 대조. 제품 실행 없음.
+- Scope: 이 절의 API·수명·한도는 제안이며 앞선 Accepted 결정 전체를 미수락으로 바꾸지 않는다. 상세는 [동적 뷰 재정의 v1](../design/dynamic-views-v1.md).
+
+동적 뷰는 비서가 사용자의 요청에 맞춰 만들고 사용자와 함께 보며 다듬는 표현 수단이다. 문서 통계에 종속되지 않고 현재 문서·여러 문서·폴더·플러그인 자료를 새 탭·우측 `보기` 탭·플러그인 자기 화면에서 표현한다. 문서 통계는 동적 뷰를 쓰는 내장 화면 중 하나이며 전체 즐겨찾기의 허브가 아니다. 각 플러그인은 자기 화면과 그 안의 즐겨찾기를 가진다.
+
+연결 데이터는 Host/플러그인 읽기 작업을 수동 조회하며 기존 Core 정렬·필터·groupBy·집계만 쓴다. 비서 데이터는 비서가 문서·대화·참조·도구 결과로 요약하거나 자유 계산한 행을 명세에 직접 담는다. 계산식 금지를 비서의 계산 과정에 적용하지 않는다. renderer가 실행 코드를 받거나 수식 엔진을 제공한다는 뜻은 아니다. 비서 데이터에는 자동 새로고침이 없고 갱신은 비서에게 다시 요청한다. 즐겨찾기는 그 시점의 행과 출처를 포함한다. 여러 자료를 합성한 결과도 지원한다.
+
+앱은 `비서가 정리한 데이터 · 출처: 문서명들`과 내용 정확도를 보증하지 않는다는 안내, 펼쳐 볼 수 있는 행 데이터를 제공한다. 카탈로그 번들 부품만 렌더링하고 HTML·CSS·코드 생성은 금지한다. 선 그래프·산점도·가로 배치는 필요한 공통 부품으로 공급하며 V7을 4단계 보류에서 분리한다. 뷰 자체는 문서를 바꾸지 않으며 기존 공용 review의 명시적 변경 작업은 별도 계약을 유지한다.
+
+| 기존 결정 | 개정 범위 |
+| --- | --- |
+| ⑥ 명세만 저장·데이터는 별도 snapshot | 연결 데이터에는 유지. 비서 데이터는 명세에 행·출처·생성 시점을 함께 저장 |
+| 계산식·join·custom 통계 없음 | 연결 source의 실행 가공에만 적용. 비서의 사전 계산·여러 출처 합성은 허용 |
+| Host identity를 명세에 넣지 않음 | 실행 대상 Host는 계속 외부 context. 비서 데이터의 문서 출처에만 Host identity·Root 상대 경로·revision 허용; 접속 URL·secret 불허 |
+| 새 뷰는 새 탭 | 기본 새 탭을 유지하며 우측 보기와 plugin screen 추가. 위치는 앱 상태이며 명세에 저장하지 않음 |
+| 통계 진입점의 즐겨찾기 접근 | 통계·플러그인·일반 비서 namespace를 해당 화면에서 다룸 |
+| 32 KiB·2,000행 | 연결 source 유지, 비서 source는 전체 1 MiB·10,000행 제안 |
+| V7을 4단계 뒤로 허용 | Chart의 line/scatter type·Panel의 horizontal direction을 이번 독립 구현 묶음으로 앞당김 |
+| Table 12열·공개 schema 64필드 제한 | 열/필드 개수 상한 제거. 데이터 규모는 행·용량으로 제한하고 넓은 표는 패널 안 가로 스크롤 |
+| BarChart/LineChart/ScatterChart, VerticalPanel/HorizontalPanel | Chart + type(bar/line/scatter), Panel + direction(vertical/horizontal). 종류별 옵션은 공통 options 틀 안에 둠 |
+
+#1241 A안의 제품 공통 부품·동작 계약 공유, Core 의미·canonical, Host 공용 작업/CLI, 사용자 선택 모델·최대 2회 교정, 공식 write path·새 이름 저장은 유지한다. 새 하위 호환·migration은 설계하지 않는다. 기존 구현의 단일 source는 단일 결과 집합으로 유지하되 비서가 그 결과에 여러 출처를 합성할 수 있다. 이 개정의 구현 분할·완료 기준은 상세 설계 D1~D4/V7을 따른다. API·상호작용의 최종 수락 전에는 이 절을 Implemented 계약으로 인용하지 않는다.
+
+D1은 기존 V1~V6의 BarChart·VerticalPanel 계약과 소비 경로를 새 Chart·Panel 형태로 전환한다. 하위 호환·migration은 없다. D3는 제품 공통 Table에 기본 열별 정렬·필터를 구현하며, 화면 조작은 데이터·명세·Core sort/filter를 바꾸지 않고 CLI parity 대상이 아니다. 불러온 행에만 적용하며 즐겨찾기에 상태를 저장하지 않는다. 동작은 [데이터 표 패턴](../design/ui-patterns-v1.md#데이터-표-정렬필터-제안)을 따른다. 예시: 갤러리의 좁은 표·넓은 표·정렬/필터 사례는 Table 사용 예시이며 별도 부품이 아니다. 모든 예시/fixture는 `예시:` 표기와 별도 영역으로 부품 목록에서 구분한다.
