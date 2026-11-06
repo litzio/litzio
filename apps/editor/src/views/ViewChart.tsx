@@ -18,7 +18,7 @@ function Plot({ chart, rows, label, fields }: { chart: Chart; rows: ViewRow[]; l
   const points = rows.map(row => ({ x: row[chart.x] === null ? null : typeof row[chart.x] === "number" ? row[chart.x] as number : Date.parse(String(row[chart.x])), y: row[chart.y] as number | null }));
   const visible = points.filter((p): p is { x: number; y: number } => p.x !== null && p.y !== null);
   if (!visible.length) return null;
-  const xs = axis(points.flatMap(p => p.x === null ? [] : [p.x])), ys = axis(visible.map(p => p.y));
+  const xs = axis((chart.type === "scatter" ? visible : points).flatMap(p => p.x === null ? [] : [p.x])), ys = axis(visible.map(p => p.y));
   let path = "", connected = false;
   for (const p of points) {
     if (p.x === null || p.y === null) { connected = false; continue; }

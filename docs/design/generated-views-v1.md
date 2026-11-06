@@ -259,3 +259,7 @@ V4 review의 Host·CLI·K1 완료 bundle은 [플러그인 1단계 V4 계약](plu
 `ViewPanels`는 renderer 자체의 inline-size container를 사용한다. 가용 폭 960px 이상에서 horizontal의 두 자식을 같은 폭으로 나란히 표시하며 960px 미만에서는 세로로 접는다. 창이 넓어도 좁은 우측 영역에서는 세로다. 한 단계·두 자식·전체 leaf 8개 검증은 Core를 재사용한다. Table, shell, context와 요청 수명은 이 renderer가 소유하지 않는다.
 
 UI 선택은 기존 작업 탭의 ViewRenderer·제품 색/간격 토큰·공통 Button과 native 목록을 재사용한다. 새로운 스타일 DSL이나 공용 상호작용 예외는 없다. 개발 갤러리의 `예시: Chart와 Panel`은 메모리 행으로 렌더링·폭 경계만 확인하며 실제 AI·Host/CLI 연결 증거를 대신하지 않는다.
+
+V7 시각 검토: 같은 메모리 예시·Dark/Korean·100% zoom에서 [1440px Before](assets/dynamic-views-v7/before-1440.png) / [After](assets/dynamic-views-v7/after-1440.png), [640px Before](assets/dynamic-views-v7/before-640.png) / [After](assets/dynamic-views-v7/after-640.png)를 확인했다. 960px 경계는 창 폭을 유지하고 실제 renderer 폭을 959/960px로 선택하는 브라우저 단언으로 보호한다. 정렬·간격·한국어 줄바꿈·패널 내부 잘림은 캡처 수동 검토이며 픽셀 단언은 아니다. Before는 D1 renderer, After는 V7 renderer로 동일 예시를 렌더링했다.
+
+검증 역할: 기존 Core views 검사는 line 순서/중복/null과 타입·옵션 거부를 보호한다. 기존 `ui-gallery` 시나리오 보완은 SVG의 null 단절·scatter 중복/제외 좌표의 축 영향·접근 가능한 원자료 순서 및 실제 container 폭 접힘이라는 브라우저 고유 위험을 보호한다. 별도 subprocess·전수 조합·실제 AI 호출은 추가하지 않는다. 캡처는 `--screenshots` 수동 실행에서만 생성한다. 직접 소유한 전용 서버에서 fixture를 검증했으며 CLI/비서 데이터의 실제 UI 통합 수락은 후속 통합에서 확인한다.
