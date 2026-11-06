@@ -635,3 +635,40 @@ test("bundled defaults follow supply until an explicit choice; update verificati
     await assert.rejects(host.invoke("enable", { id: manifest.id }), /verification/);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
+
+
+test("plugin service shutdown waits for startup and confirms the started child exits once", async t => {
+  const { createPluginService } = await import("../server/plugin-service.ts");
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-start-close-"));
+  const file = path.join(root, "state.json");
+  const directory = lifecycleFixture(root, "fixture.start", `export function activate(){return {operations:{},status:()=>({available:true,message:String(process.pid),folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+  const seed = new PluginHost(file, { officialPlugins: [] });
+  try {
+    await seed.invoke("register", { directory });
+    await seed.invoke("trust", { id: "fixture.start", digest: (await seed.list())[0]!.digest });
+    await seed.invoke("enable", { id: "fixture.start" });
+  } finally { await seed.close(); }
+  const service = createPluginService(null, file);
+  let release!: () => void, entered!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const waiting = new Promise<void>(resolve => { entered = resolve; });
+  const start = service.host.start.bind(service.host);
+  t.mock.method(service.host, "start", async () => { await start(); entered(); await gate; });
+  const cleanup = t.mock.method(service.host, "close", service.host.close.bind(service.host));
+  t.after(async () => { release(); await service.close(); rmSync(root, { recursive: true, force: true }); });
+  const starting = service.start();
+  await waiting;
+  const pid = Number((await service.host.list()).find(plugin => plugin.id === "fixture.start")!.status!.message);
+  assert.ok(pid > 0); assert.doesNotThrow(() => process.kill(pid, 0));
+  let closed = false;
+  const closing = service.close();
+  void closing.then(() => { closed = true; });
+  assert.equal(service.close(), closing);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(closed, false, "startup owns its resources until it settles");
+  await assert.rejects(service.start(), /closing/);
+  release(); await starting; await closing;
+  await service.close();
+  assert.equal(cleanup.mock.callCount(), 1);
+  assert.throws(() => process.kill(pid, 0), "shutdown confirms the exact child has exited");
+});
