@@ -49,7 +49,7 @@ export class AssistantTransmissionLog {
           }
         } catch { this.failures++; incomplete.push(name.slice(0, 36)); }
       }
-      return { incomplete: [...new Set(incomplete)], entries: entries.sort((a, b) => b.at - a.at).slice(args.offset ?? 0, (args.offset ?? 0) + 50), nextOffset: (args.offset ?? 0) + 50 < entries.length ? (args.offset ?? 0) + 50 : null, failures: this.failures,
+      return { directory: this.directory, incomplete: [...new Set(incomplete)], entries: entries.sort((a, b) => b.at - a.at).slice(args.offset ?? 0, (args.offset ?? 0) + 50), nextOffset: (args.offset ?? 0) + 50 < entries.length ? (args.offset ?? 0) + 50 : null, failures: this.failures,
         scope: "Litzio sends only; provider internal history and final model input are unobserved. Retained until deleted on this Host." };
     }
     if (!args.id || !/^[0-9a-f-]{36}$/.test(args.id)) throw new Error("Invalid transmission ID.");

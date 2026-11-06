@@ -1310,8 +1310,22 @@ unconfirmed). Explicit protocol errors report `rejected`; disconnect, deadline o
 arrives when the ACP prompt completes, including cancellation. Its provider-owned
 tool events are never presented as Litzio tool-result sends.
 
-Records belong to the Host, under `<assistant cwd>/transmissions`, alongside but
-separate from the conversation index. They survive Host restarts until the user
+Records belong to the Host. In default packaged Windows installations they reuse
+`<default userData>/logs/assistant-transmissions`, discoverable inside the existing
+Desktop log folder. They are separate files from `desktop.log`, its `.old`
+rotation and daemon stdio diagnostics; original content is not appended to those
+streams or automatically uploaded as diagnostics. Packaged macOS uses the existing
+Application Support/brand data root and other platforms use XDG data home/brand.
+Source runs instead use `<checkout>/.litzio-dev/logs/assistant-transmissions`, or
+`<LITZIO_DATA_DIR>/logs/assistant-transmissions` when that source base is overridden.
+An explicit `LITZIO_ASSISTANT_CWD` keeps receipts under `<override>/transmissions`.
+`LITZIO_DAEMON_DIR` and assistant settings-file overrides do not retarget this root.
+No new path override, shortcut or link is introduced. Desktop `--user-data-dir`
+only selects its own profile: it cannot redirect an already-running shared Host.
+Such a profile's Open log folder may differ from the shared Host's directory;
+CLI `list` returns the actual Host-owned `directory` for discovery. Remote records
+remain on the remote Host; no remote filesystem path is opened locally.
+The log is separate from the conversation index. They survive Host restarts until the user
 deletes them; no automatic age or size eviction is applied. Document-sensitive
 text is included by owner decision. Existing trusted HTTP caller/OS-account
 boundaries apply; this is not an encrypted archive or an account audit service.
@@ -1329,8 +1343,15 @@ explicit deletion. Deletion removes original content and metadata and leaves an
 empty tombstone so a late callback or another local reader cannot resurrect the
 record. Deleting a receipt does not delete provider history or conversation
 history. The writer closes with the Assistant Host after provider shutdown;
-#1285's reset inventory includes the whole Assistant cwd, including tombstones
-and interrupted writes. Reset must stop the owning Host before clearing it.
+#1300 must include `hostPaths().transmissionLogs` explicitly in its reset inventory,
+including original bodies, metadata, tombstones and interrupted writes. It must
+resolve/preflight that exact owned directory using its existing root/home/protected
+location and symlink-ancestor checks, with containing-directory deduplication;
+it must not broaden deletion to `dirname(logs)`. Some default targets already
+contain this folder, but custom profiles/settings overrides need explicit coverage.
+Reset must stop the owning Host before clearing it. Resolver/override isolation
+is covered here; actual integration of both PRs and reset drain/provider shutdown
+remains to be verified together.
 
 The shared Host operation `assistantTransmissions` accepts `list` (optional
 conversation ID and offset), `read` (UUID and character offset), or `delete`

@@ -15,7 +15,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   const paths = options?.paths ?? hostPaths(options?.run, { ...process.env });
   const { settings, configure } = createAssistantSettings(settingsFile ?? paths.settingsFile("assistant"), paths.assistantDefaults);
   const plugins = options?.plugins;
-  const transmissions = new AssistantTransmissionLog(path.join(options?.agent?.cwd ?? paths.assistant, "transmissions"));
+  const transmissions = new AssistantTransmissionLog(options?.agent ? path.join(options.agent.cwd, "transmissions") : paths.transmissionLogs);
   const attach = (connection: ProviderConnections) => { connection.client.transmission = transmissions.record; connection.copilot.transmission = transmissions.record; return connection; };
   let closed = false, closing: Promise<void> | undefined;
   let agent = options?.agent ? attach(options.agent) : undefined;

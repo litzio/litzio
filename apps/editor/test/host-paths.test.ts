@@ -25,6 +25,7 @@ test("source and packaged paths retain overrides and the packaged user locations
   assert.deepEqual(source.assistantDefaults, { model: "gpt-6-luna", reasoningEffort: "low" });
   assert.equal(source.templates, path.join(root, ".litzio-dev", "templates"));
   assert.equal(source.settingsFile("assistant"), path.join(root, ".litzio-dev", "assistant.json"));
+  assert.equal(source.transmissionLogs, path.join(root, ".litzio-dev", "logs", "assistant-transmissions"));
   assert.equal(source.assistant, path.join(root, ".litzio-dev", "assistant"));
   const packaged = hostPaths({ packaged: true }, {});
   assert.deepEqual(packaged.assistantDefaults, { model: "gpt-6.1-sol", reasoningEffort: "medium" });
@@ -32,10 +33,16 @@ test("source and packaged paths retain overrides and the packaged user locations
   assert.equal(packaged.settingsFile("assistant"), path.join(os.homedir(), brand.folders.shared, "assistant.json"));
   const data = process.platform === "win32" ? path.join(os.homedir(), "AppData", "Roaming")
     : process.platform === "darwin" ? path.join(os.homedir(), "Library", "Application Support") : path.join(os.homedir(), ".local", "share");
+  assert.equal(packaged.transmissionLogs, path.join(data, brand.folders.desktopData, "logs", "assistant-transmissions"));
   assert.equal(packaged.assistant, path.join(data, brand.folders.desktopData, "assistant"));
+  assert.equal(hostPaths({ packaged: false }, { LITZIO_DATA_DIR: path.join(root, "isolated") }).transmissionLogs,
+    path.join(root, "isolated", "logs", "assistant-transmissions"));
+  assert.equal(hostPaths({ packaged: true }, { LITZIO_DAEMON_DIR: "another-daemon-root", LITZIO_DATA_DIR: "settings-only" }).transmissionLogs,
+    packaged.transmissionLogs, "daemon/settings locations cannot retarget the packaged Host's raw log root");
   for (const run of [{ packaged: true }, { packaged: false, checkoutRoot: root }]) {
     const paths = hostPaths(run, { LITZIO_ASSISTANT_SETTINGS_FILE: "settings-override", LITZIO_ASSISTANT_CWD: "cwd-override" });
     assert.equal(paths.settingsFile("plugins"), path.join(run.packaged ? path.join(os.homedir(), brand.folders.shared) : path.join(root, ".litzio-dev"), "plugins.json"));
+    assert.equal(paths.transmissionLogs, path.join("cwd-override", "transmissions"));
     assert.equal(paths.settingsFile("assistant"), "settings-override"); assert.equal(paths.assistant, "cwd-override");
   }
 });
@@ -49,6 +56,7 @@ test("Host pins official settings and lazy agent cwd after environment restorati
   process.env.LITZIO_ASSISTANT_CWD = path.join(root, "assistant");
   const host = createAssistantHost(); process.env = previous;
   t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
+  assert.equal((await host.invoke("assistantTransmissions")).directory, path.join(root, "assistant", "transmissions"));
   const settings = await host.invoke("settings");
   assert.deepEqual({ model: settings.model, reasoningEffort: settings.reasoningEffort }, { model: "gpt-6-luna", reasoningEffort: "low" });
   assert.equal((await host.invoke("assistantEnvironment")).cwd, path.join(root, "assistant"));
