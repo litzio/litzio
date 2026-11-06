@@ -64,6 +64,25 @@ async (page, { openPath, expect, screenshots }) => {
   expect(await chrome(), 'Scrolling moved shell chrome').toEqual(before);
   expect((await state()).window).toBe(0);
 
+  // Native text selection must still auto-scroll the owning viewport at its bottom edge.
+  // Keep this independent of Chromium's native DND cancellation/release handoff below.
+  await viewport.evaluate(node => node.scrollTop = 0);
+  await viewport.locator('.document-editor > p').first().click({position:{x:8,y:12}});
+  await expect.poll(() => viewport.locator('.document-editor > p').first().evaluate(node => {
+    const selection = getSelection();
+    return selection?.isCollapsed && node.contains(selection.anchorNode);
+  })).toBe(true);
+  const selectionStart = await viewport.locator('.document-editor > p').first().boundingBox();
+  await page.mouse.move(selectionStart.x+8, selectionStart.y+12);
+  await page.mouse.down();
+  try {
+    await page.mouse.move(selectionStart.x+120,896,{steps:12});
+    await page.mouse.move(selectionStart.x+121,896);
+    await expect.poll(() => viewport.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+    await expect.poll(() => page.evaluate(() => getSelection().toString().length)).toBeGreaterThan(0);
+    expect((await state()).window).toBe(0);
+  } finally { await page.mouse.up(); }
+
   // A native drag near the window edge must scroll this document, with the shell stationary.
   await viewport.evaluate(node => node.scrollTop = 0);
   const paragraph = viewport.locator('.document-editor > p').first();
@@ -80,19 +99,6 @@ async (page, { openPath, expect, screenshots }) => {
     expect((await state()).window).toBe(0);
     expect(await chrome()).toEqual(before);
     await page.keyboard.press('Escape');
-  } finally { await page.mouse.up(); }
-
-  // Native text selection must still auto-scroll the owning viewport at its bottom edge.
-  await viewport.evaluate(node => node.scrollTop = 0);
-  const selectionStart = await viewport.locator('.document-editor > p').first().boundingBox();
-  await page.mouse.move(selectionStart.x+8, selectionStart.y+12);
-  await page.mouse.down();
-  try {
-    await page.mouse.move(selectionStart.x+120,896,{steps:12});
-    await page.mouse.move(selectionStart.x+121,896);
-    await expect.poll(() => viewport.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
-    expect(await page.evaluate(() => getSelection().toString().length)).toBeGreaterThan(0);
-    expect((await state()).window).toBe(0);
   } finally { await page.mouse.up(); }
 
   // Source uses the same owning viewport and native keys, without involving the editor engine.
