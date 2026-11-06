@@ -661,13 +661,25 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
     LOCALAPPDATA: path.join(root, "local-app-data") };
   mkdirSync(environment.LOCALAPPDATA, { recursive: true });
   const { app, page } = await launch(userData, [], environment);
+  const originalStarted = processStart(app.process().pid!);
+  const proof: Record<string, unknown> = { stage: "launched", originalPid: app.process().pid };
+  let bodyFailure: unknown;
   let restarted: { pid: number; processStartedAt: string } | undefined;
   const workOwners = path.join(data, "desktop", "remote-hosts.json.work");
+  const readOwner = (file: string) => {
+    try { return JSON.parse(readFileSync(file, "utf8")); }
+    catch (error) {
+      // The first owner publication can be observed between create and write.
+      // A persistently malformed record still fails the readiness assertion.
+      if (error instanceof SyntaxError || (error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      throw error;
+    }
+  };
   const currentOwner = () => {
     for (const name of existsSync(workOwners) ? readdirSync(workOwners) : []) {
       if (!name.endsWith(".json")) continue;
-      const owner = JSON.parse(readFileSync(path.join(workOwners, name), "utf8"));
-      if (owner.pid !== app.process().pid && processStart(owner.pid) === owner.processStartedAt) return owner;
+      const owner = readOwner(path.join(workOwners, name));
+      if (Number.isSafeInteger(owner?.pid) && (owner.pid !== app.process().pid || owner.processStartedAt !== originalStarted) && processStart(owner.pid) === owner.processStartedAt) return owner;
     }
     return undefined;
   };
@@ -692,7 +704,12 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
     const closed = app.waitForEvent("close");
     await confirmation.getByRole("button", { name: "Delete data and restart", exact: true }).click();
     await closed;
+    proof.stage = "parent-closed";
     await expect.poll(() => { restarted = currentOwner(); return Array.isArray((restarted as any)?.summary); }, { timeout: 60_000 }).toBe(true);
+    proof.restartedPid = restarted!.pid;
+    // A process and renderer summary do not prove a visible interactive window.
+    await expect.poll(() => Number(execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${restarted!.pid} -ErrorAction Stop).MainWindowHandle.ToInt64()`], { windowsHide: true, encoding: "utf8" }).trim()), { timeout: 15_000 }).not.toBe(0);
+    proof.stage = "visible-restart";
     assert.equal(existsSync(path.join(userData, "owned-canary")), false);
     assert.equal(existsSync(path.join(data, "templates", "custom.md")), false);
     assert.equal(existsSync(path.join(assistant, "conversations.json")), false);
@@ -702,17 +719,37 @@ test("complete reset closes the packaged app, deletes isolated owned data and re
     assert.equal(readFileSync(sample, "utf8"), pristineSample);
     assert.equal(readFileSync(external, "utf8"), "external document must remain");
     assert.ok((restarted as any).summary.every((row: any) => row.openWork === 0 && row.recovery === 0));
+    proof.dataVerified = true;
+  } catch (error) {
+    bodyFailure = error; proof.bodyFailure = error instanceof Error ? error.message : String(error); throw error;
   } finally {
-    if (app.process().exitCode === null) { await answerClose(app, 0); await closeApp(app); }
+    try {
+    if (app.process().exitCode === null && app.process().signalCode === null) { await answerClose(app, 0); await closeApp(app); }
     restarted ??= currentOwner();
+    // A startup failure before work-summary publication must not orphan our relaunch.
+    for (const name of !restarted && existsSync(environment.LITZIO_RESET_DIR) ? readdirSync(environment.LITZIO_RESET_DIR) : []) {
+      if (!name.startsWith("actor-") || !name.endsWith(".json")) continue;
+      const owner = readOwner(path.join(environment.LITZIO_RESET_DIR, name));
+      if (owner?.role === "desktop" && Number.isSafeInteger(owner.pid) && (owner.pid !== app.process().pid || owner.started !== originalStarted) && processStart(owner.pid) === owner.started) restarted = { pid: owner.pid, processStartedAt: owner.started };
+    }
     if (restarted && processStart(restarted.pid) === restarted.processStartedAt) {
       // Exact fixture-owned PID/creation identity; no image-name or other workspace cleanup.
-      execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${restarted.pid}).CloseMainWindow() | Out-Null`], { windowsHide: true });
+      const accepted = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${restarted.pid}).CloseMainWindow()`], { windowsHide: true, encoding: "utf8" }).trim();
+      proof.nativeCloseAccepted = accepted;
       try { await expect.poll(() => processStart(restarted!.pid), { timeout: 15_000 }).not.toBe(restarted.processStartedAt); }
       catch (error) {
         if (processStart(restarted.pid) === restarted.processStartedAt) execFileSync("taskkill.exe", ["/PID", String(restarted.pid), "/T", "/F"], { windowsHide: true });
         throw error;
       }
+    }
+    proof.cleanup = "confirmed";
+    } catch (error) {
+      proof.cleanupFailure = error instanceof Error ? error.message : String(error);
+      if (!bodyFailure) throw error;
+      console.error("Reset cleanup also failed; preserving the original assertion:", error);
+    } finally {
+      writeFileSync(path.join(work, "reset-proof.json"), JSON.stringify(proof, null, 2));
+      console.log(`Complete reset proof: ${JSON.stringify(proof)}`);
     }
   }
 });

@@ -302,6 +302,31 @@ test("HTTP trash failure preserves the original file without permanent deletion"
   assert.doesNotMatch(message, /outside-secret-path/);
 });
 
+test("Host close waits for an accepted filesystem mutation even after its caller disconnects", async t => {
+  const { a, editorDir } = await fixture(t);
+  let begin!: () => void, permit!: () => void, complete!: () => void;
+  const began = new Promise<void>(resolve => { begin = resolve; });
+  const allowed = new Promise<void>(resolve => { permit = resolve; });
+  const completed = new Promise<void>(resolve => { complete = resolve; });
+  const host = await startFetchServer(() => startHttpHost({ roots: [a], editorDir, port: 0, removeFile: async file => {
+    begin(); await allowed;
+    try { fs.renameSync(file, file + ".trashed"); } finally { complete(); }
+  } }));
+  const controller = new AbortController(), file = path.join(a, "document.md");
+  const mutation = fetch(host.url + "/api/file", { method: "DELETE", headers: { Origin: host.url, "Content-Type": "application/json" },
+    body: JSON.stringify({ root: a, path: file }), signal: controller.signal }).catch(error => { if (error.name !== "AbortError") throw error; });
+  await began; controller.abort(); await mutation;
+  let closed = false;
+  const listenerClosed = once(host.server, "close");
+  const closing = host.close().then(() => { closed = true; });
+  try {
+    await listenerClosed;
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(closed, false, "a closed socket is not proof that its accepted write finished");
+  } finally { permit(); await completed; await closing; }
+  assert.equal(fs.existsSync(file + ".trashed"), true);
+});
+
 const documentQuery = (file: string) => `/api/document?${new URLSearchParams({ path: file })}`;
 // fetch normalizes/overrides Host; use an actual Node request to test a forged wire header.
 const rawStatus = (url: string, headers: Record<string, string>) => new Promise<number>((resolve, reject) => {

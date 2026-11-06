@@ -27,7 +27,8 @@ process.once("message", async message => {
   try { fs.writeFileSync(request.receipt, JSON.stringify(result), { mode: 0o600 }); } catch {}
   // Keep only the result file outside the deleted profile. The next start reads/removes it.
   const env = { ...process.env }; delete env.ELECTRON_RUN_AS_NODE;
-  const child = spawn(request.executable, [...request.args, `--app-reset-result=${request.receipt}`], { detached: true, windowsHide: true, stdio: "ignore", env });
+  // The helper is hidden; the relaunched user-facing GUI must be visible.
+  const child = spawn(request.executable, [...request.args, `--app-reset-result=${request.receipt}`], { detached: true, windowsHide: false, stdio: "ignore", env });
   child.unref();
   if (process.connected) process.disconnect();
 });

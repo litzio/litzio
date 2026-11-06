@@ -65,6 +65,7 @@ export async function startHttpHost(options: HttpHostOptions) {
   const key = randomBytes(32);
   const origins = new Set<string>();
   const authorities = new Set<string>();
+  const inFlight = new Set<Promise<unknown>>();
 
   const respond = async (req: IncomingMessage, res: ServerResponse) => {
     for (const [name, value] of Object.entries(SECURITY_HEADERS)) res.setHeader(name, value);
@@ -146,10 +147,12 @@ export async function startHttpHost(options: HttpHostOptions) {
 
   const server = createServer({ maxHeaderSize: 16 * 1024, headersTimeout: 15_000, requestTimeout: 60_000,
     keepAliveTimeout: 5_000 }, (req, res) => {
-    void respond(req, res).catch(() => {
+    const pending = respond(req, res).catch(() => {
       if (!res.headersSent) json(res, 500, "The Host could not complete this request.");
       else res.destroy();
     });
+    inFlight.add(pending);
+    void pending.then(() => inFlight.delete(pending), () => inFlight.delete(pending));
   });
   try { await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
@@ -168,22 +171,28 @@ export async function startHttpHost(options: HttpHostOptions) {
   if (external) origins.add(external);
   for (const origin of origins) authorities.add(new URL(origin).host.toLowerCase());
   if (!loopback(host)) console.warn("WARNING: this daemon has no authentication. Anyone on the same network who can reach this port can access it. Without --root, the entire disk and assistant (AI) execution are exposed with this OS user's permissions.");
+  let closing: Promise<void> | undefined;
   return {
     server,
     roots: access?.roots ?? [],
     url: external ?? `http://${authority(host, address.port)}`,
-    async close(): Promise<void> {
+    close(): Promise<void> { return closing ??= (async () => {
       try { await services.close(); }
       catch (error) { resetGuard.blockAfterFailedShutdown(); throw error; }
       finally {
-        if (server.listening) {
-          const forced = setTimeout(() => server.closeAllConnections(), 5_000);
-          forced.unref();
-          try { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
-          finally { clearTimeout(forced); releaseResetGuard(); }
-        }
-        else releaseResetGuard();
+        try {
+          if (server.listening) {
+            const forced = setTimeout(() => server.closeAllConnections(), 5_000);
+            forced.unref();
+            try { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
+            finally { clearTimeout(forced); }
+          }
+          // Socket closure does not cancel an already accepted filesystem write.
+          // Retain the writer lease until its handler has actually settled.
+          await Promise.allSettled([...inFlight]);
+        } catch (error) { resetGuard.blockAfterFailedShutdown(); throw error; }
+        finally { releaseResetGuard(); }
       }
-    },
+    })(); },
   };
 }

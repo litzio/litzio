@@ -581,6 +581,7 @@ if (!app.requestSingleInstanceLock()) {
     if (restartingHosts) app.relaunch();
     updates?.stop();
     try { await daemon?.close(); } catch (error) {
+      if (resetting) new ResetGuard().blockAfterFailedShutdown();
       log(`daemon shutdown failed: ${String(error)}`);
       dialog.showErrorBox(brand.name.en, String(error));
       // A timeout is not proof that the installed executable is no longer in use.

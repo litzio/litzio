@@ -119,7 +119,7 @@ async function start(options: { workDamage?: "corrupt" | "interrupted" | "unwrit
     } },
     "../../editor/server/codex-app-server.ts": { stopAgentProcess: async () => resetCalls.push({ stopped: true }) },
     "electron-updater/out/AppAdapter.js": { getAppCacheDir: () => "/fake-cache" },
-    "../../editor/server/reset-guard.ts": { ResetGuard: class { actor() { return () => {}; } } },
+    "../../editor/server/reset-guard.ts": { ResetGuard: class { actor() { return () => {}; } blockAfterFailedShutdown() { resetCalls.push({ uncertainWriter: true }); } } },
     "../../editor/server/app-reset.ts": { localResetLocations: () => ({ host: "fixture-host" }), resetHostPaths: () => ({ same: true }),
       inspectAppReset: () => ({ revision: "reviewed-fixture", targets: [], retained: [] }) },
     "../../editor/server/remote-host-registry.ts": { RemoteHostRegistry: class { constructor() { return registry; } } },
@@ -193,6 +193,10 @@ test("reset handoff requires a reviewed plan, trusted sender and clean work; lat
   assert.equal(late.window.destroyed, false);
   assert.ok(late.resetCalls.some(call => call.cancel));
   assert.ok(late.resetCalls.findIndex(call => call.cancelledFile) < late.resetCalls.findIndex(call => call.stopped), "revoke on disk before confirming helper stop");
+  const unconfirmed = await start({ closeError: "Daemon exit was not confirmed" });
+  await unconfirmed.invoke("desktop:reset-app", [false, "reviewed-fixture"]);
+  await setImmediate();
+  assert.ok(unconfirmed.resetCalls.some(call => call.uncertainWriter), "unconfirmed daemon exit blocks the post-exit helper from deleting data");
 });
 
 test("startup waits for paint and appearance in either order; later updates never reveal a hidden window", async () => {
