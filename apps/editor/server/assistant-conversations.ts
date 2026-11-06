@@ -1,6 +1,7 @@
 import { executeViewOperation } from "./views.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
 import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool } from "./assistant-plugin-tools.ts";
+import { catalogViewSchema, type ViewProvenance } from "@litzio/core/views-v2";
 import { provenanceSchema } from "@litzio/core/views-v2";
 import { collectViewMaterials } from "./assistant-view-materials.ts";
 import { VIEW_GENERATION_CONTEXT_BYTES, VIEW_GENERATION_OUTPUT_BYTES } from "../shared/view-generation.ts";
@@ -28,6 +29,7 @@ type ConversationIndexEntry = AssistantConversationInfo & { copilotCliReasoningE
 export class AssistantConversations {
   readonly display = new AgentDisplayRequests();
   private conversations = new Map<string, AssistantConversation>();
+  private generationScopes = new Map<string, { owner: string; provenance: ViewProvenance[]; operationOwners: Map<string, string> }>();
   private viewContexts = new Map<string, AssistantConversationInput["viewContext"]>();
   private viewMaterials = new Map<string, ReturnType<typeof collectViewMaterials>>();
   private pending = new Set<string>();
@@ -69,7 +71,7 @@ export class AssistantConversations {
         const proposalOwner = source?.kind === "operation" ? (source.operation === "folder.statistics" ? "litzio.statistics" : this.plugins?.viewOperationOwner(source.operation)) : "litzio.assistant";
         const proposalScope = { access: this.access, plugins: this.plugins, proposal: { owner: proposalOwner ?? "litzio.assistant", provenance: [
           ...(this.viewMaterials.get(params.threadId) ?? []).map(material => material.provenance),
-          ...collectViewMaterials({ message: "", model: "", reasoningEffort: "", folders: [], viewContext: this.viewContexts.get(params.threadId) }, [], [], this.access, this.current(params.threadId)).map(material => material.provenance),
+          ...collectViewMaterials({ message: "", model: "", reasoningEffort: "", folders: [], viewContext: this.viewContexts.get(params.threadId) }, [], [...(scope.folders?.roots ?? [])], this.access, this.current(params.threadId)).map(material => material.provenance),
         ] } };
         const result = await executeViewOperation(params.tool === "view_catalog" ? { action: "catalog" } : { action: "propose", view: params.arguments?.view }, proposalScope);
         if (active.status !== "inProgress") throw new Error("View proposal arrived after the turn ended.");
@@ -191,13 +193,16 @@ export class AssistantConversations {
     this.loaded.add(id);
     return conversation;
   }
-  async send(input: AssistantConversationInput, settings: AssistantSettings, displayClient?: string) {
+  async send(input: AssistantConversationInput, settings: AssistantSettings, displayClient?: string, generationOwner = "litzio.assistant") {
     if (input?.viewGeneration !== undefined && typeof input.viewGeneration !== "boolean") throw new Error("Invalid view generation input");
     if (input?.viewGenerationCorrection !== undefined && (!Number.isInteger(input.viewGenerationCorrection) || input.viewGenerationCorrection < 0 || input.viewGenerationCorrection > 2)) throw new Error("Invalid view correction");
-    if (input?.viewGeneration) input = { ...input, permissionMode: "read-only", skills: [] };
+    if (input?.viewGeneration && generationOwner !== "litzio.assistant" && !input.viewContext) throw new Error("View context is required for this destination.");
+    if (input?.viewGeneration && input.viewContext && input.viewContext.owner !== generationOwner) throw new Error("View generation owner differs from the admitted destination.");
+    if (input?.viewGeneration) input = { ...input, viewContext: input.viewContext ? { ...input.viewContext, owner: generationOwner } : undefined, permissionMode: "read-only", skills: [] };
     if (!input || typeof input.message !== "string" || (!input.message.trim() && !input.references?.length) ||
       typeof input.model !== "string" || typeof input.reasoningEffort !== "string" || !Array.isArray(input.folders)) throw new Error("Invalid conversation input.");
     const existing = input.id ? this.current(input.id) : undefined;
+    if (input.viewGenerationCorrection && (!existing || this.generationScopes.get(existing.id)?.owner !== generationOwner)) throw new Error("View generation owner changed during correction.");
     if (input.viewGeneration && existing?.turns.some(turn => turn.status === "inProgress")) throw new Error("Stop the response before generating a view.");
     if (input.provider !== undefined && input.provider !== "codex" && input.provider !== "copilot") throw new Error("Invalid AI provider.");
     if (input.permissionMode !== undefined && !["opened-folders", "read-only", "full-access"].includes(input.permissionMode)) throw new Error("Invalid permission mode.");
@@ -421,9 +426,26 @@ export class AssistantConversations {
       return materials;
     }
     const materials = collectViewMaterials(input, references, folders, this.access, conversation);
+    if (input.viewGeneration) {
+      const operationOwners = new Map<string, string>([["folder.statistics", "litzio.statistics"]]);
+      for (const operation of this.plugins?.viewOperations() ?? []) {
+        const owner = this.plugins?.viewOperationOwner(operation.operation);
+        if (owner) operationOwners.set(operation.operation, owner);
+      }
+      this.generationScopes.set(conversation.id, { owner: input.viewContext?.owner ?? "litzio.assistant", provenance: materials.map(material => material.provenance), operationOwners });
+    }
     this.viewContexts.set(conversation.id, input.viewContext);
     this.viewMaterials.set(conversation.id, materials);
     return materials;
+  }
+  async proposeGenerated(id: string, turnId: string, value: unknown) {
+    const conversation = this.current(id), turn = conversation.turns.at(-1), admitted = this.generationScopes.get(id);
+    if (!admitted || turn?.id !== turnId || turn.status !== "completed" || !turn.items.some(item => item.viewGeneration)) throw new Error("No completed view generation for this request.");
+    const parsed = catalogViewSchema.safeParse(value);
+    const operation = parsed.success && parsed.data.profile === "query" && parsed.data.refresh === "manual" ? parsed.data.sources.stats.operation : undefined;
+    const owner = operation ? admitted.operationOwners.get(operation) : admitted.owner;
+    if (!owner) throw new Error("Operation was not in the admitted view catalog.");
+    return executeViewOperation({ action: "propose", view: value }, { access: this.access, plugins: this.plugins, proposal: { owner, provenance: admitted.provenance } });
   }
   private acceptViewOutput(id: string, turn: AssistantConversationTurn, delta: string, replaceId?: string) {
     if (!this.scopes.get(id)?.viewGeneration) return true;

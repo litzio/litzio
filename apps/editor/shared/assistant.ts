@@ -30,6 +30,7 @@ export type AssistantConversationInput = Pick<AssistantExecutionSettings, "model
   /** Display identities only; checked against existing opened roots, never an access grant. */
   viewContext?: { owner: string; hostId: string; roots: { path: string; id: string }[] };
   viewDefinition?: unknown;
+  viewGenerationTarget?: { kind: "statistics" } | { kind: "screen"; plugin: string; id: string };
   viewGenerationRequest?: string;
   viewGenerationCorrection?: number;
   /** User-selected conversation overrides; never persisted as global defaults. */

@@ -287,8 +287,12 @@ request signal; invalidated destinations cannot receive late successful results.
 The existing assistant-result card and common Button are reused, with collapsed provenance,
 plain-text method and paged complete-row inspection. No new style tokens or UI surface are
 introduced. D3's common DataTable and destination registry imports await its prior merge;
-D2's trusted proposal scope and transport envelope integration also remain pending. Until then,
-public generation proposal results remain unverified. Provenance identity checking never proves
+D2's Host/CLI contract is merged. Generate view now calls `propose-view-generation`
+through the existing assistant service. The Host checks the prepared request ID, its actual
+conversation/turn, completion, cancellation and deadline before supplying D2's in-process
+proposal scope. The scope contains the captured material identities and admitted owner; clients
+cannot send a proposal scope in the body. Ordinary `propose_view` uses the same D2 validation.
+Public HTTP/CLI propose, card reopen and saved-data reopen remain unverified. Provenance identity checking never proves
 factual correctness. Source opening and final destination/save acceptance require D3 integration.
 
 Verification covers Host snapshot scope/byte limits, completed tool receipts, both provider
@@ -308,6 +312,32 @@ D3's destination documentPath is preferred over the currently selected document 
 user submits a prepared request. A destination from another Host fails before provider work;
 prepared requests use the generation path on submit rather than ordinary conversation send.
 Actual document-switch behavior remains a D3 integration check.
+
+### D2/D4 admission and transport
+
+A prepared request defaults to the server's assistant namespace. A statistics target selects
+the built-in namespace; a screen target must match an active Host screen contribution before
+its plugin namespace is captured. A client namespace assertion is compared with that admitted
+owner rather than promoted to authority. Connected proposals use the operation-owner catalog
+captured for that request. Correction attempts preserve the original owner/material scope.
+The generated proposal action rejects arbitrary extra scope fields, other turns and cancelled
+or expired handles. Verified provenance means membership in the supplied request snapshot,
+not factual correctness or authentication of app display identities.
+
+The assistant transport uses D2's request envelope (1 MiB + 64 KiB) and response/card envelope
+(8 MiB, including definition plus canonical text); each definition retains Core's smaller
+source-specific limit. Exceeding a bound fails explicitly without truncation or sampling.
+The app still supplies `roots: []`, so checked document bytes receive Host-issued `reference`
+IDs. Actual app Host/Root mapping and source opening remain D3 integration gates. No Root ID
+is derived from a local absolute path or invented to claim a document-source acceptance.
+
+The added Host test uses one existing fixture child to protect the new admitted-request
+boundary: matching scope versus public unverified proposals, substituted provenance/owner,
+wrong turn, cancelled handle and attempted client scope injection. Existing state-machine
+cases retain timeout/cancellation/correction protection; they do not repeat Core row cases.
+The browser correction expectation follows the new assistant proposal route while keeping
+both binding refusal and duplicate-save refusal required.
+
 ## V7 Chart and Panel renderer
 
 - Status: Implemented

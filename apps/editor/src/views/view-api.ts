@@ -14,7 +14,7 @@ export class ViewValidationError extends Error {
   }
 }
 export const statisticsView = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.statistics", title: "Document statistics", refresh: "manual", sources: { stats: { kind: "operation", operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Documents by folder", source: "stats", data: "/rows", columns: ["folder", "documents", "headings", "modified"] }] } } as const;
-export type ViewResult = { catalog?: { operations: PublicViewOperation[] }; fields?: Record<string, string>; view?: View; rows?: ViewRow[]; favourites?: string[]; name?: string; target?: { root: string }; receipt: { requestId: string; operation: string; version: number; scope: string; outcome: string; timestamp: string } };
+export type ViewResult = { provenanceStatus?: "verified" | "unverified"; catalog?: { operations: PublicViewOperation[] }; fields?: Record<string, string>; view?: View; rows?: ViewRow[]; favourites?: string[]; name?: string; target?: { root: string }; receipt: { requestId: string; operation: string; version: number; scope: string; outcome: string; timestamp: string } };
 export async function viewRequest(client: HostClient, input: unknown, signal?: AbortSignal): Promise<ViewResult> {
   signal?.throwIfAborted();
   const response = await client.request("/api/views", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input), signal });

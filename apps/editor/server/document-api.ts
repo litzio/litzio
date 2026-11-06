@@ -408,8 +408,9 @@ export async function handleDocumentRequest(
       if (route) {
         const operation = route[req.method ?? ""];
         if (!operation) { res.statusCode = 405; res.end(); return; }
-        const args = req.method === "GET" ? Object.fromEntries(query) : JSON.parse(await readBody(req));
-        sendJson(res, 200, await service!.invoke(operation, args));
+        const args = req.method === "GET" ? Object.fromEntries(query) : JSON.parse(url.startsWith("/api/assistant/") ? decodeUtf8(await readRequestBody(req, Math.min(bodyLimit, VIEW_TRANSPORT_LIMITS.requestBytes))) : await readBody(req));
+        const result = await service!.invoke(operation, args);
+        sendJson(res, url.startsWith("/api/assistant/") && args.action === "propose-view-generation" && result?.receipt?.outcome === "failure" ? 400 : 200, result);
         return;
       }
     } catch (error) { failure(error); return; }

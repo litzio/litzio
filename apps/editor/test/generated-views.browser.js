@@ -24,6 +24,13 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     const body = route.request().postDataJSON();
     if (body.action === 'prepare-view-generation') return route.fulfill({ json: { requestId: 'prepared' } });
     if (body.action === 'cancel-view-generation') return route.fulfill({ json: { acknowledged: true } });
+    if (body.action === 'propose-view-generation') {
+      expect(body.requestId).toBe('prepared'); expect(body.id).toBe(conversation.id); expect(body.turnId).toBe(conversation.turns.at(-1).id);
+      validates++;
+      const receipt = { operation: 'view.propose', outcome: 'success' };
+      if (body.view.layout.children[0].columns.includes('authorEmail')) return route.fulfill({ status: 400, json: { receipt: { ...receipt, outcome: 'failure' } } });
+      return route.fulfill({ json: { view: body.view, receipt } });
+    }
     if (body.action === 'send') {
       sends.push(body);
       if (!body.id) conversation = { id: `thread-${body.provider}`, provider: body.provider, model: body.model, reasoningEffort: body.reasoningEffort, folders: [], title: 'View proposal', createdAt: 0, updatedAt: 0, turns: [] };

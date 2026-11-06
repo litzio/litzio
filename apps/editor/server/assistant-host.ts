@@ -1,3 +1,4 @@
+import { VIEW_TRANSPORT_LIMITS } from "../shared/view-limits.ts";
 import type { PluginService } from "./plugin-service.ts";
 import { hostPaths, type HostRun } from "./host-paths.ts";
 import { type FileAccess, LOCAL_FILE_ACCESS } from "./file-access.ts";
@@ -38,13 +39,33 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       return { ...conversation, displayRequest: history().display.snapshot(args.id, args.displayClient) };
     },
     assistantConversation: async (args: any): Promise<any> => {
-      if (args.action === "prepare-view-generation") return viewGenerations.prepare();
+      if (args.action === "prepare-view-generation") {
+        const target = args.target;
+        let owner = "litzio.assistant";
+        if (target !== undefined) {
+          if (target?.kind === "statistics" && Object.keys(target).length === 1) owner = "litzio.statistics";
+          else if (target?.kind === "screen" && Object.keys(target).every(key => ["kind", "plugin", "id"].includes(key))) {
+            await plugins?.start();
+            const screen = plugins?.host.viewScreens().find(screen => screen.plugin === target.plugin && screen.id === target.id);
+            if (!screen) throw new Error("View screen is unavailable.");
+            owner = screen.plugin;
+          } else throw new Error("Invalid view generation destination.");
+        }
+        return viewGenerations.prepare(owner);
+      }
       if (args.action === "cancel-view-generation") return viewGenerations.cancel(args.requestId);
-      if (args.action === "send" && args.viewGeneration) return viewGenerations.run(args.viewGenerationRequest, () => sendConversation(args));
+      if (args.action === "send" && args.viewGeneration) return viewGenerations.run(args.viewGenerationRequest, owner => sendConversation(args, owner));
+      if (args.action === "propose-view-generation") {
+        if (Object.keys(args).some(key => !["action", "requestId", "id", "turnId", "view"].includes(key))) throw new Error("Invalid view generation proposal.");
+        viewGenerations.assertResult(args.requestId, args.id, args.turnId);
+        const result = await history().proposeGenerated(args.id, args.turnId, args.view);
+        viewGenerations.assertResult(args.requestId, args.id, args.turnId);
+        return result;
+      }
       return sendConversation(args);
     },
   };
-  const sendConversation = async (args: any): Promise<any> => {
+  const sendConversation = async (args: any, generationOwner?: string): Promise<any> => {
       if (args.action === "send") await plugins?.start();
       const currentSettings = settings();
       if (args.action === "display-result") { history().display.reply(args.id, args.displayClient, args.requestId, args.reply); return { acknowledged: true }; }
@@ -59,7 +80,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
           if (!status.connected || selected === "codex" && !status.account) throw new Error(`AI provider ${selected} is unavailable: ${status.error ?? status.accountError ?? "Sign in on the Host."}`);
           if (closed) throw new Error("The Assistant Host is closing.");
         }
-        return history().send(args, currentSettings, args.displayClient);
+        return history().send(args, currentSettings, args.displayClient, generationOwner);
       }
       if (args.action === "answer") return history().answer(args.id, args.turnId, args.requestId, args.answers);
       if (args.action === "interrupt") return history().interrupt(args.id);
@@ -81,7 +102,9 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
       return configure(next);
     }
     if (!Object.hasOwn(assistantOperations, operation)) throw new Error("Unknown assistant operation.");
-    return assistantOperations[operation as keyof typeof assistantOperations](args);
+    const result = await assistantOperations[operation as keyof typeof assistantOperations](args);
+    if (Buffer.byteLength(JSON.stringify(result), "utf8") > VIEW_TRANSPORT_LIMITS.responseBytes) throw new Error("Assistant response exceeds view transport byte limit.");
+    return result;
   };
   const route = (url: string): Record<string, string> | undefined => {
     if (url === ASSISTANT.settingsRoute) return { GET: "settings", PUT: "configure" };

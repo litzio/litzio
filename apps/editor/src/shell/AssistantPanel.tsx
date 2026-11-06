@@ -1,7 +1,7 @@
 import { AssistantDataDetails } from "../views/AssistantDataDetails.tsx";
 import { hostLabel } from "../host-client.ts";
 import { generateView } from "../views/generate-view.ts";
-import { viewRequest } from "../views/view-api.ts";
+import { viewRequest, ViewValidationError, type ViewResult } from "../views/view-api.ts";
 import type { CatalogView as View } from "@litzio/core/views-v2";
 import { createAssistantRequest } from "../assistant-api.ts";
 import { useHostClient, HostContext } from "../host-context.tsx";
@@ -224,14 +224,18 @@ export function AssistantPanel({ viewFavorites, generationRequest, onGenerationC
     let corrections = 0;
     try {
       const view = await generateView({ request, signal: target ? AbortSignal.any([controller.signal, target.token.signal]) : controller.signal,
-        input: { id: conversation?.id, provider, model, reasoningEffort: effort, mode: provider === "copilot" ? mode : undefined, permissionMode: "read-only", folders, references: references.filter(file => file.kind !== "skill").map(file => file.path), document: sourceDocument ? { path: sourceDocument } : undefined, viewContext: { owner: target?.token.destination.owner ?? "litzio.assistant", hostId, roots: [] }, viewDefinition: target?.view, message: message.trim() },
+        input: { viewGenerationTarget: target?.token.destination.owner === "litzio.statistics" ? { kind: "statistics" } : undefined, id: conversation?.id, provider, model, reasoningEffort: effort, mode: provider === "copilot" ? mode : undefined, permissionMode: "read-only", folders, references: references.filter(file => file.kind !== "skill").map(file => file.path), document: sourceDocument ? { path: sourceDocument } : undefined, viewContext: { owner: target?.token.destination.owner ?? "litzio.assistant", hostId, roots: [] }, viewDefinition: target?.view, message: message.trim() },
         snapshot: next => { corrections = next.turns.at(-1)?.items.find(item => item.viewGeneration)?.viewGeneration?.correction ?? 0; if (isCurrent()) { current.current = next; setConversation(next); setPermissionMode("read-only"); rememberConversation(conversationKey, next.id); } },
         status: value => { if (isCurrent()) setGenerationStatus(value); },
         cancelled: () => { if (isCurrent()) {
           cancelledViewConversation.current = current.current?.id;
           setConversation(previous => previous ? { ...previous, turns: previous.turns.map(turn => turn.status === "inProgress" ? { ...turn, status: "interrupted" } : turn) } : previous);
         } },
-        validate: async (value, signal) => (await viewRequest(client, { action: "propose", view: value }, signal)).view!,
+        validate: async (value, signal, context) => {
+          const result = await request<ViewResult>(ASSISTANT.conversationsRoute, { action: "propose-view-generation", requestId: context.requestId, id: context.id, turnId: context.turnId, view: value }, signal);
+          if (result.receipt?.outcome !== "success" || !result.view) throw new ViewValidationError("The view definition is invalid. Check the catalog and bindings.");
+          return result.view;
+        },
       });
       if (isCurrent() && !controller.signal.aborted && !target?.token.signal.aborted) { if (target) onGeneratedDestination?.(target.token, view); setViewTarget(undefined); setViewCards(previous => [...previous, { conversation: current.current!.id, turn: current.current!.turns.at(-1)!.id, view, root: root ?? "", corrections }]); setMessage(""); setPermissionMode("read-only"); }
     } catch (error) { setGenerationStatus(""); throw error; } finally { generation.current = null; }

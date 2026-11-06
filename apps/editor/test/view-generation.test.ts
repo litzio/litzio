@@ -231,3 +231,14 @@ test("oversized final model output fails without validation correction or sampli
   }), /output exceeds/);
   assert.equal(sends, 1);
 });
+
+
+test("assistant transport enforces D2 envelopes without truncation", async () => {
+  const { VIEW_TRANSPORT_LIMITS } = await import("../shared/view-limits.ts");
+  let calls = 0;
+  const client = { request: async () => { calls++; return new Response(" ".repeat(VIEW_TRANSPORT_LIMITS.responseBytes + 1)); } } as unknown as import("../src/host-client.ts").HostClient;
+  const request = createAssistantRequest(client);
+  await assert.rejects(request("/api/assistant/conversations", { text: "x".repeat(VIEW_TRANSPORT_LIMITS.requestBytes) }), /request exceeds/);
+  assert.equal(calls, 0);
+  await assert.rejects(request("/api/assistant/conversations"), /response exceeds/);
+});
