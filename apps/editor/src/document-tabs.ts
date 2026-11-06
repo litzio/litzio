@@ -20,7 +20,7 @@ export const initialEditorGroups: EditorGroups = { groups: [{ id: 0, tabs: [], a
 export type GroupAction =
   | { type: "reset"; tabs: string[]; active: string | null }
   | { type: "select"; id: string }
-  | { type: "open"; id: string; group?: number }
+  | { type: "open"; id: string; group?: number; background?: boolean }
   | { type: "close"; id: string }
   | { type: "merge" };
 
@@ -37,7 +37,7 @@ export function editorGroups(state: EditorGroups, action: GroupAction): EditorGr
     return { groups: state.groups.map(group => group === owner ? { ...group, active: action.id } : group), focused: owner.id };
   }
   const target = action.type === "open" ? action.group ?? state.focused : undefined;
-  if (action.type === "open" && owner?.id === target) return editorGroups(state, { type: "select", id: action.id });
+  if (action.type === "open" && owner?.id === target) return action.background ? state : editorGroups(state, { type: "select", id: action.id });
   let groups = state.groups.map(group => {
     if (group === owner) {
       const active = activeAfterClose(group.tabs.map(id => ({ id })), group.active, action.id);
@@ -51,7 +51,7 @@ export function editorGroups(state: EditorGroups, action: GroupAction): EditorGr
       if (groups.length >= 2 || target !== 0 && target !== 1) return state;
       groups = [...groups, { id: target, tabs: [], active: null }];
     }
-    groups = groups.map(group => group.id === target ? { ...group, tabs: [...group.tabs, action.id], active: action.id } : group);
+    groups = groups.map(group => group.id === target ? { ...group, tabs: [...group.tabs, action.id], active: action.background ? group.active ?? action.id : action.id } : group);
   }
   groups = groups.filter(group => group.tabs.length);
   if (!groups.length) return initialEditorGroups;

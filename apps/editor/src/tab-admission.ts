@@ -72,7 +72,8 @@ export function createTabAdmission({ tabs, latestTabs, nextId, startupOverrides,
     client.assertCurrent();
     if (!openedTab(initialTabs, file.path)) initialTabs.push({ client, hostId: LOCAL_HOST_ID, id: `document-${++nextId.current}`, path: file.path, file, recoveryId: newRecoveryId() });
   }
-  function acceptRestored(file: EditorFileResponse, client: HostClient, hostId: string, path: string): void {
+  function acceptRestored(file: EditorFileResponse, client: HostClient, hostId: string, path: string): string | undefined {
+    client.assertCurrent();
     if (startupOverrides.current.has(locatorKey({ hostId, path })) ||
         startupOverrides.current.has(locatorKey({ hostId, path: file.path })) ||
         openedTab(latestTabs.current, file.path, hostId)) return;
@@ -81,7 +82,8 @@ export function createTabAdmission({ tabs, latestTabs, nextId, startupOverrides,
     // Reserve this admission before another restoration response can allocate a duplicate ID.
     latestTabs.current = [...latestTabs.current, tab];
     setTabs(previous => [...previous, tab]);
-    navigate({ type: "open", id });
+    navigate({ type: "open", id, background: true });
+    return id;
   }
   return { acceptFile, restoreRecovery, addInitial, acceptRestored };
 }
