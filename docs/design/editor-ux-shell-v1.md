@@ -3099,6 +3099,11 @@ names, full-path tooltips and the hidden-tabs menu also include it. Same-path ta
 suffixes disambiguate paths within a Host. Tab tooltips include Host and full path.
 Navigation and folder preferences are read/written for each Host. A failed startup read does
 not overwrite that Host's navigation memory; recovery records remain available for review.
+Remote startup reads run concurrently per Host, but clean tabs are admitted in the saved order
+after that Host's reads settle. The saved active path is selected (or the first admitted tab if
+that path cannot be restored). A Host with no saved active path does not replace another Host's
+selection. Explicit navigation during startup takes precedence over delayed restoration selection.
+Recovery records still require the existing review flow; they are never silently opened from disk.
 That startup protection is separate from explicit navigation: selecting, opening, moving,
 restoring, renaming or closing a tab on the affected Host resumes saving its current tab list.
 Navigation on another Host alone does not release the failed Host's startup protection.

@@ -21,7 +21,7 @@ async (page, { expect, screenshots, recoveryRecords, showNotifications }) => {
   });
   const missing = root + sep + 'missing.txt', fresh = root + sep + 'fresh.txt';
   let failRemembered = false, failedReads = 0, showFresh = false;
-  let delayStartup = false, releaseStartup;
+  let delayStartup = false, releaseStartup, freshReads = 0;
   const sources = { local: 'Local text', remote: 'Remote text' };
   const saves = [];
   const created = { local: new Map(), remote: new Map() };
@@ -63,6 +63,7 @@ async (page, { expect, screenshots, recoveryRecords, showNotifications }) => {
     if (requestedPath === nativePath) return route.fulfill({ json: native });
     if (created[host].get(requestedPath) === 'document') return route.fulfill({ json: { ...empty, path: requestedPath } });
     if (host === 'remote' && requestedPath === missing && failRemembered) { failedReads++; return route.fulfill({ status: 503, json: { error: 'Fixture startup read failure' } }); }
+    if (host === 'remote' && requestedPath === fresh) freshReads++;
     const json = { kind: 'text', path: requestedPath, source: sources[host], revision: revision(host) };
     if (host === 'remote' && requestedPath === path && delayStartup) {
       delayStartup = false;
@@ -342,6 +343,21 @@ async (page, { expect, screenshots, recoveryRecords, showNotifications }) => {
   await expect(local).toHaveCount(1);
   await expect(remote).toHaveCount(0);
   expect((await rememberedRemote()).paths).toEqual([]);
+
+  // Saved order/selection must survive replies completing in the opposite order (#1184).
+  delayStartup = true; releaseStartup = undefined; freshReads = 0;
+  await page.evaluate(({ path, fresh }) => localStorage.setItem(JSON.stringify(['remote', 'litzio.openTabs']), JSON.stringify({ paths: [path, fresh], activePath: fresh })), { path, fresh });
+  await page.reload();
+  await expect.poll(() => typeof releaseStartup).toBe('function');
+  await expect.poll(() => freshReads).toBe(1);
+  await releaseStartup();
+  const freshTab = page.getByRole('tab', { name: /fresh.txt.*Remote/ });
+  await expect(remote).toHaveCount(1);
+  await expect(freshTab).toHaveCount(1);
+  await expect(page.getByRole('tab').filter({ hasText: /Remote/ })).toHaveText([/same.txt/, /fresh.txt/]);
+  await expect(freshTab).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('button', { name: /^Close fresh.txt.*Remote$/ }).click();
+  await local.click();
 
   // A late startup read must neither replace an explicit open nor resurrect an explicitly closed tab.
   for (const closeBeforeReply of [false, true]) {

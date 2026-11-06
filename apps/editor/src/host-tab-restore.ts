@@ -18,8 +18,10 @@ export function useTabNavigationMemory(tabs: Tab[], navigation: EditorGroups, ac
   const restoredHosts = useRef(new Set([LOCAL_HOST_ID]));
   // A startup failure protects old memory until the user navigates this Host explicitly.
   const navigatedHosts = useRef(new Set<string>());
+  const explicitNavigation = useRef(false);
   const [rememberVersion, advanceTabMemory] = useReducer(version => version + 1, 0);
   function rememberTabs(hostId?: string): void {
+    explicitNavigation.current = true;
     if (hostId) navigatedHosts.current.add(hostId);
     advanceTabMemory();
   }
@@ -40,7 +42,7 @@ export function useTabNavigationMemory(tabs: Tab[], navigation: EditorGroups, ac
   function markStartupOverride(locator: HostLocator): void {
     startupOverrides.current.add(locatorKey(locator));
   }
-  return { tabsRestored, setTabsRestored, restoredHosts, startupOverrides, rememberTabs, markStartupOverride, hasExplicitNavigation: rememberVersion > 0 };
+  return { tabsRestored, setTabsRestored, restoredHosts, startupOverrides, rememberTabs, markStartupOverride, explicitNavigation, hasExplicitNavigation: rememberVersion > 0 };
 }
 
 /** Restore each Host independently; admission owns tab registration, not this request lifetime. */
@@ -141,7 +143,8 @@ export function useHostTabRestore({ memory, folders, desktop, connectedHostIds, 
       const client = getHostClient(host.hostId);
       const reader = createDocumentRequests(client); requests.push(reader);
       let failed = false;
-      void Promise.all((readOpenTabs(host.hostId)?.paths ?? []).map(async path => {
+      const saved = readOpenTabs(host.hostId);
+      void Promise.all((saved?.paths ?? []).map(async path => {
         try {
           const records = await refreshRecovery();
           if (!alive) return;
@@ -149,9 +152,21 @@ export function useHostTabRestore({ memory, folders, desktop, connectedHostIds, 
           if (recovery) { if (alive) reviewRecovery(recovery, true); return; }
           const file = await reader.requestDocument("GET", path);
           if (!alive || "start" in file) return;
-          acceptRestored(file, client, host.hostId, path);
+          return { file, path };
         } catch { failed = true; /* Keep Host navigation and recovery records for a later connection. */ }
-      })).then(() => { if (alive && !failed) restoredHosts.current.add(host.hostId); });
+      })).then(results => {
+        if (!alive) return;
+        let first: string | undefined, active: string | undefined;
+        // Promise.all retains the saved order without serializing network requests.
+        for (const result of results) {
+          if (!result) continue;
+          const id = acceptRestored(result.file, client, host.hostId, result.path);
+          first ??= id;
+          if (result.path === saved?.activePath) active = id;
+        }
+        if (saved?.activePath && !memory.explicitNavigation.current && (active ?? first)) navigate({ type: "select", id: (active ?? first)! });
+        if (!failed) restoredHosts.current.add(host.hostId);
+      }).catch(() => { /* A replaced client must not admit stale startup results. */ });
     }
     return () => { alive = false; for (const reader of requests) reader.cancelReads(); };
   }, [tabsRestored, connectedHostIds]);

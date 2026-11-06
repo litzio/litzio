@@ -53,6 +53,9 @@ test("group Open moves a document once, selects it, and closes an emptied group"
   assert.equal(editorGroups(state, { type: "open", id: "x", group: 2 }), state, "Cannot create a third group");
   state = editorGroups(state, { type: "open", id: "b", group: 0 });
   assert.deepEqual(state, { groups: [{ id: 0, tabs: ["a", "c", "b"], active: "b" }], focused: 0 });
+  const restored = editorGroups(state, { type: "open", id: "restored", background: true });
+  assert.deepEqual(restored.groups[0], { id: 0, tabs: ["a", "c", "b", "restored"], active: "b" }, "Startup admission preserves the user's selected tab");
+  assert.equal(editorGroups(restored, { type: "open", id: "a", background: true }), restored, "Existing startup tabs are not reselected");
 });
 
 test("closing a group tab chooses its own neighbour and retains another group's active tab", () => {
