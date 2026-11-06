@@ -28,7 +28,6 @@ async (page, { expect, assistantFixture, openPath }) => {
   const confirmation = page.getByRole('dialog', { name: 'Reset app?', exact: true });
   await expect(confirmation.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
   await expect(confirmation).toContainText('other browser profiles');
-  await expect(confirmation).toContainText('AI transmission logs');
   await confirmation.getByText('Deletion locations', { exact: true }).click();
   await expect(confirmation).toContainText('C:/isolated-fixture/Litzio/profile');
   await confirmation.getByRole('button', { name: 'Cancel', exact: true }).click();

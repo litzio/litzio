@@ -45,14 +45,11 @@ Windows에서 profile·cache를 생략하면 공식 기본 위치를 사용한�
 | secret | 실제 plugins 설정 파일 경로 + `.secrets` | DPAPI 암호문 전체 제거; 복호화/값 출력 없음 |
 | 저장 뷰·snapshot | 실제 plugins 설정 파일 부모 아래 `plugins/<owner>/views` | Host 소유 `plugins` 데이터 전체 제거 |
 | 비서 cwd | 기본 `%APPDATA%/litzio/assistant`, `LITZIO_ASSISTANT_CWD` 우선 | 로컬 대화 목록·파일·instructions·사용자 스킬 전체 제거; 기본 가이드는 정상 환경 생성 시 다시 제공 |
-| AI 전송 원문 기록 | 설치형 `<Host OS 앱 데이터>/litzio/logs/assistant-transmissions`, 개발 `<Host base>/logs/assistant-transmissions`, cwd override `<LITZIO_ASSISTANT_CWD>/transmissions` | 원문 `.body`·metadata `.json`·중단된 `.tmp`·빈 `.deleted` 전체 제거; sibling 로그나 부모 logs 폴더 전체로 범위를 넓히지 않음 |
 | 원격 등록·작업 요약 | `<LITZIO_DATA_DIR 또는 ~/.litzio>/desktop` | 로컬 등록·요약·중단된 쓰기 제거. 원격 서비스·파일은 그대로 유지 |
 | daemon 데이터 | `<LITZIO_DAEMON_DIR 또는 ~/.litzio/daemon>` | 모든 채널의 discovery·lock·log 포함 전체 내용; 살아 있는 owner가 있으면 삭제 전에 거부 |
 | updater cache | `%LOCALAPPDATA%/litzio-updater` | 내려받은 업데이트·cache 제거. Desktop은 잠긴 electron-updater의 cache base resolver를 재사용 |
 
 설정 파일을 개별 override한 경우 그 부모의 임의 사용자 파일까지 제거하지 않는다. 해당 파일·제품이 만든 UUID 임시 sibling·secret·Host 저장 뷰를 정확히 포함한다. 등록 파일에 들어 있는 외부 artifact `directory`를 따라 삭제하지 않는다. 외부 문서·별도로 저장한 `.view.json`·plugin scaffold/artifact·계정과 공급자 서버 데이터·설치물은 유지한다. 앱 소유 저장소 안에 보관한 데이터는 별도 보존 예외를 만들지 않는다.
-
-전송 기록의 공용 경로는 `hostPaths.transmissionLogs`다. 설치형 Host OS 앱 데이터는 Windows `APPDATA`(없으면 `~/AppData/Roaming`), macOS `~/Library/Application Support`, 그 외 `XDG_DATA_HOME`(없으면 `~/.local/share`)를 쓴다. 별도 전송 기록 override는 없다. `LITZIO_DATA_DIR`은 개발 기본 경로에 적용되며 설치형 기본 기록 위치를 옮기지 않는다. Desktop의 `--user-data-dir`이나 `LITZIO_DAEMON_DIR`도 공유 Host의 기록 위치를 옮기지 않는다. 따라서 custom Desktop profile 밖의 기본 Host 기록도 명시 target으로 포함하고, 소유 cwd에서 절대 경로로 고정해 실행 중 Host와 대조한다. 중첩되는 기본 profile/Host base/cwd는 기존 중복 제거로 한 번만 삭제하며 이 target도 root·보호 위치·symlink ancestor 사전 검사를 거친다. 원격 기록은 원격 Host 소유이며 삭제하지 않는다.
 
 ## 선택적 폴더 제거
 
@@ -80,6 +77,7 @@ Desktop 경로:
 주된 보호 계층을 나누며 같은 파일 삭제 사례를 브라우저에서 반복하지 않는다.
 
 - [파일 fixture](../../apps/desktop/test/reset-storage.test.ts): override·모든 데이터 분류·빈 폴더 옵션·중첩 삭제·외부 문서/artifact·junction·실패/잔존 결과. 정상 startup의 실제 templates/settings/skills/sample loader로 초기화 후와 깨끗한 최초 실행 결과를 비교한다. 실제 AI 호출은 없다.
+  custom Desktop profile과 별도 OS 앱 데이터의 무관한 logs ancestor junction도 검사한다. 수정 전에는 불필요한 경로 preflight로 전체 거부됐고, 수정 후 현행 profile·Host base·assistant cwd의 canary는 제거하면서 외부 로그와 junction을 보존한다. 기존 위험 root/junction 사전 거부 검사는 유지한다. 새 subprocess·전수 조합 없이 기존 파일 검사에 한 대표 사례를 추가했으며 Windows 단독 약 20ms다. home과 APPDATA/XDG를 fixture로 격리해 실제 사용자 앱 데이터는 사용하지 않는다.
 - [gate fixture](../../apps/desktop/test/reset-guard.test.ts): 여러 actor 역할·새 writer·PID 세대·중단된 exclusive와 종료 실패 보호. 손상된 optional-cleanup SystemRoot에서도 필수 OS identity 확인이 되고 호출자 환경은 바꾸지 않는지 확인한다.
 - [CLI fixture](../../packages/cli/test/app-reset.test.ts): 공용 작업 호출·검토 revision/명시 확인·live/불명확 owner 거부와 최초 설정 복원. 임시 경로만 삭제한다.
 - [main 연결](../../apps/desktop/test/window-startup.test.ts): 실제 main 코드를 격리 port로 실행해 sender·계획·미저장 작업·늦은 unload 거부와 helper 취소를 확인한다. 실제 앱/OS 파일을 조작하지 않는다.
@@ -92,11 +90,5 @@ Desktop 경로:
 수동 시각 검토는 persistent Chrome과 native bridge stand-in을 사용했다. 1440px English Light [이전](assets/app-reset-1285/before-1440.png) / [이후](assets/app-reset-1285/after-1440.png) / [확인](assets/app-reset-1285/confirm-1440.png), 640px 한국어 Dark [이전](assets/app-reset-1285/before-640.png) / [이후](assets/app-reset-1285/after-640.png) / [확인](assets/app-reset-1285/confirm-640.png). 정렬·버튼 여백·scroll 접근·가림·한국어 줄바꿈·공통 위험 확인의 초점을 확인했다. 640px의 추가 구역은 기존 설정 scroll로 접근한다. [촬영 body](assets/app-reset-1285/capture.browser.js)는 테스트 폴더에 임시 복사해 `pnpm browser:test app-reset-capture`로만 실행하고 자동 회귀 경로에 넣지 않는다. Host 계정은 fixture 라벨이며 실제 계정명을 공개하지 않는다.
 
 두 번째 packaged CI의 단계 기록은 앱 종료 event 대기에서 실패했으나 새 profile 로그는 재실행을 보여 주었다. Windows에서 Playwright `app.process()`는 `cmd.exe` launcher이므로 main의 실제 PID를 별도로 받아 종료와 새 세대를 판정하도록 고쳤다. 대기 시간이나 데이터 단언은 완화하지 않으며 정리 때 native 프로세스와 launcher의 종료를 모두 확인한다. CI 진단 exact allowlist도 새 `reset-proof.json` 한 항목을 명시하도록 기존 검사를 갱신했다.
-
-#1304/#1307의 실제 전송 logger는 이 구현 head에 포함되지 않았다. 작업자 직접 인계와 [#1307 head](https://github.com/litzio/litzio/commit/1c5ca5faf4e0a5436ea4fa9e9fc6ce22c3552731)에서 위 resolver와 production logger의 경로 사용을 대조했다. `assistant.close()`는 provider close의 성공·실패 모두 `finally`에서 logger close를 실행하며 오류를 propagate한다. logger 기록은 동기 write/rename이며 queue나 지연 flush가 없고 close 후 record는 쓰지 않는다. 이는 소스·계약 대조이며 두 PR을 합친 runtime 검증은 아니다.
-
-현재 검증은 reset storage fixture에서 custom Desktop profile 밖의 별도 Host 로그 target에 합성 원문 `.body/.json/.tmp/.deleted` canary를 두어 제거와 sibling 로그 보존, 보호 위치·junction의 전체 사전 거부를 확인한다. target 누락 실패를 수정 전에 확인했다. 기존 경로 검사에 source/packaged/APPDATA/XDG_DATA_HOME/DATA_DIR/DAEMON_DIR/CWD override의 소유 경계를 보완하며, 새 subprocess·전수 조합은 없다. 이 파일 canary 검증을 실제 logger 통합 검증으로 간주하지 않는다.
-
-두 PR 통합 후 실제 logger로 합성 원문 canary를 기록하고 accepted handler/provider 종료를 지연시켜 그동안 reset이 거부되는지, 정상 종료 후 canary가 제거되고 close 뒤 record가 다시 파일을 만들지 않는지 확인해야 한다. provider 종료 실패는 reset 거부/종료 실패 marker로 남아야 한다. 존재하지 않는 flush queue를 가짜로 지연시켜 제품 근거로 삼지 않는다. 다른 저장 위치나 비동기 writer를 도입하면 inventory와 drain을 함께 재검토한다.
 
 현재 namespace에 참여하지 않는 외부/구버전의 임의 쓰기나 외부 파일 시스템 조작을 차단한다고 주장하지 않는다. 기존 discovery에 기록된 live owner도 별도로 거부하며, 소유 범위를 확인할 수 없으면 성공 대신 거부한다. 다른 workspace와 프로세스는 초기화나 검증 대상이 아니다.

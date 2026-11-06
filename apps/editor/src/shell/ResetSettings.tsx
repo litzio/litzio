@@ -35,7 +35,7 @@ export function ResetSettings({ desktop }: { desktop: DesktopBridge }) {
       }}>
       <div className="max-h-[45vh] overflow-y-auto space-y-3 text-sm [overflow-wrap:anywhere]">
         <h4 className="font-medium">{t("Data to delete")}</h4>
-        <p>{t("Settings, secrets, templates, favorites, skills, edited samples, local conversations, AI transmission logs, recovery and caches.")}</p>
+        <p>{t("Settings, secrets, templates, favorites, skills, edited samples, local conversations, recovery and caches.")}</p>
         <details><summary>{t("Deletion locations")}</summary><ul className="list-disc pl-5 space-y-1">
           {Array.from(new Set(plan.targets.map(target => target.path))).map(target => <li key={target}><code>{target}</code></li>)}
         </ul></details>

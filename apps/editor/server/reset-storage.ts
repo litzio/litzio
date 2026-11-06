@@ -21,7 +21,6 @@ export function resetStorageTargets(locations: ResetStorageLocations): ResetStor
     { path: locations.userData, kind: "directory", contents: "Desktop preferences, browser storage/recovery, logs and edited samples" },
     { path: locations.host.templates, kind: "directory", contents: "User templates" },
     { path: locations.host.assistant, kind: "directory", contents: "Local conversations, assistant files and skills" },
-    { path: path.resolve(locations.host.transmissionLogs), kind: "directory", contents: "Assistant transmission payloads, receipts, interrupted writes and tombstones" },
     { path: locations.host.settingsFile("assistant"), kind: "file", contents: "Assistant settings" },
     { path: plugins, kind: "file", contents: "Plugin registrations, trust and settings" },
     { path: `${plugins}.secrets`, kind: "directory", contents: "Plugin secrets" },

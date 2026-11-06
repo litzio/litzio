@@ -11,6 +11,7 @@ import { listTemplates, saveTemplate } from "../../editor/server/document-templa
 import { ProviderConnections } from "../../editor/server/provider-connections.ts";
 import { createAssistantSettings } from "../../editor/server/assistant-settings.ts";
 import { firstDocument } from "../src/first-document.ts";
+import { brand } from "../../../brand.ts";
 
 function fixture(t: TestContext) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-reset-storage-"));
@@ -61,23 +62,25 @@ test("optional folder removal changes containers only, never preserves settings,
   assert.equal(clearOfflineResetStorage(f.targets, { removeFolders: false, protectedPaths: [f.root] }).status, "cleared");
 });
 
-test("Host transmission payloads outside a custom Desktop profile are removed without deleting sibling logs", t => {
-  const f = fixture(t), logs = f.file("default-host-profile", "logs", "assistant-transmissions");
-  const locations = { ...f.locations, host: { ...f.locations.host, transmissionLogs: logs } };
-  const canary = "SYNTHETIC-RAW-TRANSMISSION-1285";
-  for (const name of ["request.body", "request.json", "interrupted.tmp", "removed.deleted"]) f.write(path.join(logs, name), canary);
-  const sibling = path.join(path.dirname(logs), "separate.log"); f.write(sibling, "keep sibling");
-  const targets = resetStorageTargets(locations);
-  assert.ok(targets.some(target => target.path === logs), "the shared Host log directory must be explicit even when Desktop uses another profile");
-  const receipt = clearOfflineResetStorage(targets, { removeFolders: true, protectedPaths: [f.root] });
-  assert.equal(receipt.status, "cleared");
-  assert.equal(fs.existsSync(logs), false);
-  assert.equal(fs.readFileSync(sibling, "utf8"), "keep sibling");
-  // The explicit log target participates in the same all-target preflight.
-  const protectedCanary = f.file("profile", "keep-until-preflight"); f.write(protectedCanary, canary);
-  const unsafe = { ...locations, host: { ...locations.host, transmissionLogs: f.root } };
-  assert.equal(clearOfflineResetStorage(resetStorageTargets(unsafe), { removeFolders: true, protectedPaths: [f.root] }).status, "refused");
-  assert.equal(fs.readFileSync(protectedCanary, "utf8"), canary);
+test("custom Desktop profile reset ignores an unrelated redirected log ancestor", t => {
+  const f = fixture(t), appData = f.file("app-data"), hostBase = f.file("host-data");
+  t.mock.method(os, "homedir", () => f.file("home"));
+  const host = hostPaths({ packaged: true }, { APPDATA: appData, XDG_DATA_HOME: appData, LITZIO_DATA_DIR: hostBase });
+  const locations = { ...f.locations, userData: f.file("custom-profile"), host,
+    remoteHostsFile: path.join(hostBase, "desktop", "remote-hosts.json") };
+  const canaries = [path.join(locations.userData, "preferences.json"), path.join(locations.userData, "logs", "desktop.log"),
+    path.join(hostBase, "logs", "host.log"), path.join(host.assistant, "conversations.json")];
+  for (const file of canaries) f.write(file);
+  const externalLogs = f.file("external-logs"), external = path.join(externalLogs, "keep.log"); f.write(external);
+  const nativeAppData = process.platform === "darwin" ? path.join(os.homedir(), "Library", "Application Support") : appData;
+  const defaultProfile = path.join(nativeAppData, brand.folders.desktopData);
+  fs.mkdirSync(defaultProfile, { recursive: true });
+  fs.symlinkSync(externalLogs, path.join(defaultProfile, "logs"), process.platform === "win32" ? "junction" : "dir");
+  const result = clearOfflineResetStorage(resetStorageTargets(locations), { removeFolders: true, protectedPaths: [f.root, externalLogs] });
+  assert.equal(result.status, "cleared", "an unrelated log ancestor must not refuse cleanup of existing owned data");
+  for (const file of canaries) assert.equal(fs.existsSync(file), false);
+  assert.equal(fs.readFileSync(external, "utf8"), "fixture data");
+  assert.equal(fs.lstatSync(path.join(defaultProfile, "logs")).isSymbolicLink(), true);
 });
 
 test("preflight refuses unsafe paths before deleting any earlier valid target", t => {
@@ -101,10 +104,6 @@ test("junction roots are refused; nested links are removed without following ext
   const options = { removeFolders: true, protectedPaths: [f.root, outside] };
   assert.equal(clearOfflineResetStorage([target], options).status, "refused");
   assert.equal(clearOfflineResetStorage([{ ...target, path: path.join(link, "missing") }], options).status, "refused");
-  const profileCanary = f.file("profile", "keep-until-preflight"); f.write(profileCanary);
-  const redirectedLogs = { ...f.locations, host: { ...f.locations.host, transmissionLogs: link } };
-  assert.equal(clearOfflineResetStorage(resetStorageTargets(redirectedLogs), options).status, "refused");
-  assert.equal(fs.readFileSync(profileCanary, "utf8"), "fixture data");
   assert.equal(clearOfflineResetStorage([{ ...target, path: owned }], options).status, "cleared");
   assert.equal(fs.readFileSync(path.join(outside, "user.md"), "utf8"), "fixture data");
 });
