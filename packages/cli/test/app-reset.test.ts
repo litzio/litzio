@@ -61,3 +61,18 @@ test("legacy live and malformed daemon records refuse reset before deleting app 
   assert.equal(JSON.stringify(malformed).includes("secret-like"), false);
   assert.equal(fs.readFileSync(file("profile", "canary"), "utf8"), "keep until confirmed");
 });
+
+test("gate cleanup errors cannot erase the actual deletion receipt", t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-reset-receipt-")), file = (...parts: string[]) => path.join(root, ...parts);
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const locations = { userData: file("profile"), updaterCache: file("cache"), remoteHostsFile: file("registry", "remote-hosts.json"), daemonDirectories: [file("daemons", "stable")],
+    host: { assistantDefaults: { model: "model", reasoningEffort: "low" }, templates: file("host", "templates"), assistant: file("assistant"), settingsFile: (id: string) => file("host", `${id}.json`) } };
+  class CleanupFailure extends ResetGuard {
+    exclusive() { const release = super.exclusive(); return () => { release(); throw new Error("fixture cleanup failure"); }; }
+  }
+  fs.mkdirSync(locations.userData); fs.writeFileSync(file("profile", "canary"), "fixture user data");
+  const result = executeAppReset(locations, { confirmed: true, revision: inspectAppReset(locations).revision, removeFolders: true }, new CleanupFailure(file("guard"), () => "self"));
+  assert.equal(result.outcome, "uncertain");
+  assert.equal(result.receipt?.status, "cleared");
+  assert.equal(fs.existsSync(locations.userData), false);
+});

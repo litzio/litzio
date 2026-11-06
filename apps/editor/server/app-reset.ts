@@ -7,7 +7,7 @@ import { hostPaths, type HostRun } from "./host-paths.ts";
 import { daemonDirectory, processStart } from "./daemon-state.ts";
 import { remoteHostsFile } from "./remote-host-registry.ts";
 import { ResetGuard } from "./reset-guard.ts";
-import { resetStorageTargets, clearOfflineResetStorage, type ResetStorageLocations } from "./reset-storage.ts";
+import { resetStorageTargets, clearOfflineResetStorage, type ResetStorageLocations, type ResetStorageReceipt } from "./reset-storage.ts";
 
 export function localResetLocations(userData?: string, updaterCache?: string, run?: HostRun): ResetStorageLocations {
   if (process.platform !== "win32" && (!userData || !updaterCache)) throw new Error("Specify the Desktop profile and updater cache on this platform.");
@@ -47,11 +47,13 @@ function checkRecordedWriters(locations: ResetStorageLocations, identify: typeof
 }
 
 /** Shared local operation for the CLI and Desktop's post-exit helper. No remote execution. */
+export type AppResetResult = { outcome: "success" | "refused" | "partial" | "uncertain"; plan: ReturnType<typeof inspectAppReset>; receipt?: ResetStorageReceipt; reason?: string };
 export function executeAppReset(locations: ResetStorageLocations, input: { confirmed: boolean; revision: string; removeFolders: boolean },
-  guard = new ResetGuard(), identify = processStart) {
+  guard = new ResetGuard(), identify = processStart): AppResetResult {
   const plan = inspectAppReset(locations);
   if (!input.confirmed || input.revision !== plan.revision) return { outcome: "refused" as const, reason: "Review the current reset plan and explicitly confirm it.", plan };
   let release: (() => void) | undefined;
+  let result: AppResetResult;
   try {
     release = guard.exclusive();
     checkRecordedWriters(locations, identify);
@@ -59,8 +61,10 @@ export function executeAppReset(locations: ResetStorageLocations, input: { confi
       protectedPaths: [os.homedir(), guard.directory, process.execPath, process.cwd(),
         ...["Documents", "Desktop", "Downloads"].map(name => path.join(os.homedir(), name)),
         ...[process.env.APPDATA, process.env.LOCALAPPDATA].filter((value): value is string => !!value)] });
-    return { outcome: receipt.status === "cleared" ? "success" as const : receipt.status === "refused" ? "refused" as const : "partial" as const,
+    result = { outcome: receipt.status === "cleared" ? "success" : receipt.status === "refused" ? "refused" : "partial",
       plan, receipt };
-  } catch (error) { return { outcome: "refused" as const, reason: (error as Error).message, plan }; }
-  finally { release?.(); }
+  } catch (error) { result = { outcome: "refused", reason: (error as Error).message, plan }; }
+  try { release?.(); }
+  catch { return { ...result, outcome: "uncertain", reason: "Reset processing finished, but gate cleanup was not confirmed. Inspect the receipt and reset guard before retrying." }; }
+  return result;
 }

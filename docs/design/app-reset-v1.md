@@ -22,7 +22,7 @@ Desktop 설정 → 저장·복구 → 앱 초기화에서 확인 화면을 연�
 | 단계 | 입력 | 결과와 receipt | 범위 |
 | --- | --- | --- | --- |
 | inspect | 실제 profile·cache·Host 경로 | 삭제 대상·외부 유지 항목·경로 계획의 SHA-256 revision | 로컬 읽기 전용. 파일 내용·secret 값은 읽거나 출력하지 않음 |
-| apply | 검토한 revision·명시 확인·폴더 옵션 | success / refused / partial; 삭제한 경로와 실제 잔존/실패 결과 | 모든 writer가 종료되고 계정 공용 배타 gate를 획득한 로컬 저장소 |
+| apply | 검토한 revision·명시 확인·폴더 옵션 | success / refused / partial / uncertain; 삭제한 경로와 실제 잔존/실패 결과 | 모든 writer가 종료되고 계정 공용 배타 gate를 획득한 로컬 저장소 |
 
 ```sh
 litzio app-reset inspect --profile <absolute-profile-directory> --updater-cache <absolute-cache-directory>
@@ -68,7 +68,7 @@ Desktop 경로:
 3. 종료 후 helper의 준비 응답을 받은 다음 창을 닫는다. 기존 `window-all-closed` 경로가 업데이트 timer를 멈추고 자신이 시작한 daemon의 종료를 기다린다. CLI-owned daemon·다른 채널 writer는 남겨 두며 이후 gate가 삭제를 거부한다.
 4. helper는 정확한 부모 PID/생성 identity의 종료를 확인한 뒤 공용 apply를 호출한다. 다른 Desktop/Host/CLI actor 및 기존 discovery/work 기록의 live owner도 거부한다. Host 종료 실패는 marker로 남아 자식이 살아 있을 수 있는 상태의 삭제를 막는다.
 5. 경로 전체를 사전 검사하고 root·보호 위치·junction/symlink 대상/ancestor·종류 오류를 거부한다. 소유 디렉터리 내부 링크는 외부를 따라가지 않고 링크만 제거한다. 각 실제 삭제 뒤 잔존을 검사하며 실패를 성공으로 바꾸지 않는다. 외부 프로세스의 임의 경로 교체에 대한 OS sandbox를 주장하지 않는다.
-6. helper가 프로필 밖 임시 receipt를 남기고 앱을 다시 시작한다. 다음 시작은 실패/부분 실패를 실제 경로 결과와 함께 알린다. receipt 쓰기 실패도 다시 시작해 누락 결과를 알린다. atomic rollback이나 자동 retry는 없다.
+6. helper가 프로필 밖 임시 receipt를 남기고 앱을 다시 시작한다. 다음 시작은 실패/부분 실패를 실제 경로 결과와 함께 알린다. exclusive gate 해제 실패도 이미 얻은 삭제 receipt를 버리지 않고 uncertain으로 보고한다. receipt 쓰기 실패도 다시 시작해 누락 결과를 알린다. atomic rollback이나 자동 retry는 없다.
 
 ## 검증과 한계
 
