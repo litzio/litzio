@@ -13,17 +13,21 @@ async (page, { expect, screenshots, brand }) => {
     }
     return r.fulfill({ json: conversation ?? [] });
   });
+  await page.setViewportSize({ width: 640, height: 1000 });
   await page.reload();
   await page.keyboard.press('Control+Shift+Y');
   const panel = page.getByTestId('assistant-panel');
+  await expect(panel).toBeVisible();
   const open = panel.getByRole('button', { name: '공급자 로그를 메모장에서 열기', exact: true });
   await expect(open).toBeDisabled();
   await page.evaluate(() => { window.logCalls = []; window.litzioDesktop = { providerSessionLog: async (...args) => { window.logCalls.push(args); } }; });
-  for (const width of [1440, 640]) {
-    await page.setViewportSize({ width, height: 1000 });
-    await expect(panel).toBeVisible();
-    await page.mouse.move(0, 999);
-    if (screenshots) await panel.screenshot({ path: `tmp/1304/no-conversation-${width}-dark-ko.png` });
+  if (screenshots) {
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await expect(panel).toBeVisible();
+      await page.mouse.move(0, 999);
+      await panel.screenshot({ path: `tmp/1304/no-conversation-${width}-dark-ko.png` });
+    }
   }
   await panel.getByRole('textbox').fill('이 합성 대화의 공급자 로그를 확인하고 싶습니다.');
   await panel.getByRole('button', { name: '메시지 보내기', exact: true }).click();
@@ -31,11 +35,13 @@ async (page, { expect, screenshots, brand }) => {
   expect(await page.evaluate(() => window.logCalls)).toEqual([]);
   await open.click();
   await expect.poll(() => page.evaluate(() => window.logCalls)).toEqual([['local', id, 'codex', 'open']]);
-  for (const width of [1440, 640]) {
-    await page.setViewportSize({ width, height: 1000 });
-    await expect(panel).toBeVisible();
-    await page.mouse.move(0, 999);
-    if (screenshots) await panel.screenshot({ path: `tmp/1304/provider-log-${width}-dark-ko.png` });
+  if (screenshots) {
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await expect(panel).toBeVisible();
+      await page.mouse.move(0, 999);
+      await panel.screenshot({ path: `tmp/1304/provider-log-${width}-dark-ko.png` });
+    }
   }
   await panel.getByRole('button', { name: '공급자 로그 파일 위치 표시', exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.logCalls.at(-1))).toEqual(['local', id, 'codex', 'reveal']);
