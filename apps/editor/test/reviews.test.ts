@@ -178,7 +178,7 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const read = () => send("/api/reviews", { ...base, action: "read", kind: "proposals" });
     const definition = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
       sources: { review: { plugin: base.plugin, review: base.review, bundleRef: base.bundleRef } },
-      layout: { component: "VerticalPanel", children: [{ component: "ReviewDetail", title: "Change", source: "review" }] } };
+      layout: { component: "Panel", direction: "vertical", children: [{ component: "ReviewDetail", title: "Change", source: "review" }] } };
     for (const action of ["validate", "propose"]) {
       const proposedView = await send("/api/views", { action, view: definition });
       assert.equal(proposedView.receipt.outcome, "success"); assert.equal(proposedView.view.profile, "review");

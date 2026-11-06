@@ -25,20 +25,26 @@ export const statisticsOperation: ViewOperation = {
   rowSchema: rowSchema.parse({ folder: { type: "string", label: "folder" }, documents: { type: "number", label: "documents" }, headings: { type: "number", label: "headings" }, modified: { type: "string", date: true, nullable: true, label: "modified" } }),
 };
 export const builtinViewOperations = [statisticsOperation];
-const source = z.strictObject({
+export const operationSourceSchema = z.strictObject({ kind: z.literal("operation"),
   operation: z.string().min(1).max(160), version: z.number().int().positive(), args: z.record(z.string(), z.unknown()),
   filters: z.array(filter).max(8).default([]), groupBy: groupBy.optional(), aggregate: aggregate.optional(),
   sort: z.strictObject({ field: outputField, direction: z.enum(["asc", "desc"]) }).optional(),
   limit: z.number().int().min(1).max(VIEW_LIMITS.rows).default(VIEW_LIMITS.rows),
 });
 const binding = { title: label, source: z.literal("stats"), data: z.literal("/rows") };
-const table = z.strictObject({ component: z.literal("Table"), ...binding, columns: z.array(outputField).min(1).max(4).refine(v => new Set(v).size === v.length, "Duplicate columns") });
-const chart = z.strictObject({ component: z.literal("BarChart"), ...binding, x: outputField, y: outputField });
+export const tableSchema = z.strictObject({ component: z.literal("Table"), ...binding, columns: z.array(outputField).min(1).refine(v => new Set(v).size === v.length, "Duplicate columns") });
+const chart = <T extends "bar" | "line" | "scatter">(type: T) => z.strictObject({ component: z.literal("Chart"), type: z.literal(type), ...binding, x: outputField, y: outputField, options: z.strictObject({}).optional() });
+export const chartSchema = z.discriminatedUnion("type", [chart("bar"), chart("line"), chart("scatter")]);
+export const queryLeafSchema = z.union([tableSchema, chartSchema]);
+export const horizontalPanelSchema = z.strictObject({ component: z.literal("Panel"), direction: z.literal("horizontal"), children: z.array(queryLeafSchema).length(2) });
+const verticalPanelSchema = z.strictObject({ component: z.literal("Panel"), direction: z.literal("vertical"), children: z.array(z.union([queryLeafSchema, horizontalPanelSchema])).min(1).max(VIEW_LIMITS.panels) }).refine(p => queryLeaves(p).length <= VIEW_LIMITS.panels, "Too many leaves");
+export const queryLayoutSchema = z.union([verticalPanelSchema, horizontalPanelSchema]);
+export function queryLeaves(layout: { children: (z.infer<typeof queryLeafSchema> | z.infer<typeof horizontalPanelSchema>)[] }) { return layout.children.flatMap(p => p.component === "Panel" ? p.children : [p]); }
 export const viewSchema = z.strictObject({
   kind: z.literal("litzio-view"), schemaVersion: z.literal(1), catalog: z.literal("litzio-v1"),
   title: label, refresh: z.literal("manual"),
-  sources: z.strictObject({ stats: source }),
-  layout: z.strictObject({ component: z.literal("VerticalPanel"), children: z.array(z.discriminatedUnion("component", [table, chart])).min(1).max(VIEW_LIMITS.panels) }),
+  sources: z.strictObject({ stats: operationSourceSchema }),
+  layout: queryLayoutSchema,
 });
 export function validateQueryBindings(view: Pick<View, "sources" | "layout">, operations: readonly ViewOperation[]) {
   const s = view.sources.stats;
@@ -60,9 +66,13 @@ export function validateQueryBindings(view: Pick<View, "sources" | "layout">, op
   }
   const output: RowSchema = s.groupBy ? { group: { ...get(s.groupBy.field), date: false }, value: { type: "number", label: "value", date: false, nullable: false, secret: false } } : fields;
   const outputField = (name: string) => { if (!Object.hasOwn(output, name)) throw new Error("Binding outside operation output schema"); return output[name]!; };
-  for (const p of view.layout.children) {
+  for (const p of queryLeaves(view.layout)) {
     for (const name of p.component === "Table" ? p.columns : [p.x, p.y]) outputField(name);
-    if (p.component === "BarChart" && outputField(p.y).type !== "number") throw new Error("BarChart y must be numeric");
+    if (p.component === "Chart" && outputField(p.y).type !== "number") throw new Error("Chart y must be numeric");
+  }
+  for (const p of queryLeaves(view.layout)) if (p.component === "Chart" && p.type !== "bar") {
+    const x = outputField(p.x);
+    if (p.type === "scatter" ? x.type !== "number" : x.type !== "number" && !x.date) throw new Error("Chart x type mismatch");
   }
   if (s.sort) outputField(s.sort.field);
   return fields;
@@ -145,10 +155,24 @@ export function evaluateQueryRows(view: Pick<View, "sources" | "layout">, data: 
     });
   }
   if (s.sort) { const sort = s.sort; rows.sort((a, b) => compare(a[sort.field], b[sort.field]) * (sort.direction === "desc" ? -1 : 1)); }
-  return { rows: rows.slice(0, s.limit) };
+  rows = rows.slice(0, s.limit);
+  validateChartRows(view.layout, rows);
+  return { rows };
 }
 
 export function createViewCatalog(operations: readonly ViewOperation[] = builtinViewOperations) {
   return { schema: z.toJSONSchema(viewSchema), operations: operations.map(op => ({ operation: op.operation, version: op.version, inputSchema: op.inputSchema, rowSchema: Object.fromEntries(Object.entries(op.rowSchema).filter(([, f]) => !f.secret)) })), limits: VIEW_LIMITS, effect: "read", scope: "target Host" };
 }
 export const viewCatalog = createViewCatalog();
+
+/** line retains null y as a gap; scatter retains null coordinates for the value list. */
+export function validateChartRows(layout: z.infer<typeof queryLayoutSchema>, rows: ViewRow[]): void {
+  for (const chart of queryLeaves(layout)) if (chart.component === "Chart" && chart.type === "line") {
+    let previous: string | number | undefined;
+    for (const row of rows) {
+      const x = row[chart.x];
+      if (x === null || typeof x !== "string" && typeof x !== "number" || previous !== undefined && x <= previous) throw new Error("Line x must be non-null, unique and ascending");
+      previous = x;
+    }
+  }
+}

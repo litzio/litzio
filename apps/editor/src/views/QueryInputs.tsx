@@ -1,6 +1,6 @@
 import { i18n } from "../i18n.ts";
 import { useId } from "react";
-import type { QueryView } from "@litzio/core/views-v2";
+import type { OperationQueryView as QueryView } from "@litzio/core/views-v2";
 import { Input } from "../components/ui/input.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";

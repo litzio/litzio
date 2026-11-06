@@ -12,7 +12,7 @@ import { viewCli } from "../../../packages/cli/src/views.ts";
 import { DAEMON_PROTOCOL } from "../shared/daemon-version.ts";
 import { nativeSource } from "./helpers/document.ts";
 
-const view = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", title: "Statistics", refresh: "manual", sources: { stats: { operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Documents", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } };
+const view = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.statistics", title: "Statistics", refresh: "manual", sources: { stats: { kind: "operation", operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Documents", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } };
 test("Host favourites create exclusively, open definition without reading root, and run current data", async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "litzio-views-"));
   const root = path.join(dir, "documents"), directory = path.join(dir, "data");
@@ -113,9 +113,9 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
     const presets = ["assigned-open", "reported-open", "assigned-all", "reported-all", "recent", "all"];
     const rowSchema = Object.fromEntries(["key", "summary", "status", "assignee", "updated"].map(key => [key, { type: "string", label: key }]));
-    const jiraView = { ...structuredClone(view), title: "My issues", sources: { stats: { operation: `${jira}.search`, version: 1, args: { preset: presets[0], text: "old" } } },
+    const jiraView = { ...structuredClone(view), owner: jira, title: "My issues", sources: { stats: { kind: "operation", operation: `${jira}.search`, version: 1, args: { preset: presets[0], text: "old" } } },
       form: { component: "InputForm", source: "stats", fields: [{ component: "Select", field: "preset" }, { component: "TextInput", field: "text" }], submit: { component: "SubmitButton", label: "Search" } },
-      layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Issues", source: "stats", data: "/rows", columns: Object.keys(rowSchema) }] } };
+      layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Issues", source: "stats", data: "/rows", columns: Object.keys(rowSchema) }] } };
     manifest.contributes.operations = [{ id: "search", version: 1, effect: "read", scope: "host", rowSchema,
       inputSchema: { type: "object", properties: { preset: { type: "string", enum: presets }, text: { type: "string", minLength: 2, pattern: "^[A-Za-z]+$" }, credential: { type: "string", writeOnly: true } }, required: ["preset"], additionalProperties: false },
       outputSchema: { type: "array", items: { type: "object" } } }];
@@ -150,7 +150,7 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     fs.writeFileSync(inputFile, JSON.stringify({ preset: "reported-open" }));
     const catalog = await request({ action: "catalog" });
     assert.equal(catalog.receipt.outcome, "success");
-    assert.ok(catalog.catalog.schema); assert.equal(catalog.catalog.limits.columns, 12);
+    assert.ok(catalog.catalog.schema); assert.equal("columns" in catalog.catalog.limits, false);
     assert.ok(!("operations" in catalog)); // One response contract: catalog.operations.
     assert.ok(catalog.catalog.operations.some((op: any) => op.operation === "folder.statistics"));
     assert.ok(catalog.catalog.operations.some((op: any) => op.operation === `${jira}.search` && op.plugin === jira));

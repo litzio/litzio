@@ -5,6 +5,10 @@
 - Authority: [ADR-0020 개정안](../adr/0020-plugin-architecture.md#동적-뷰-재정의-개정안-2026-11-06), 2026-11-06 소유자 확정 결정. 세부 API·한도·수명은 이 설계의 제안이다.
 - Scope: 연결 데이터·비서 데이터, 표시 위치, 플러그인 화면, 비서 경로와 구현 분할. 현재 구현은 [Generated views](generated-views-v1.md), 공용 review는 [catalog v2](catalog-v2.md). 본 문서의 v1은 설계 첫 판이며 wire schemaVersion 1로의 복귀가 아니다.
 
+## 구현 상태
+
+D1의 Core/SDK 두 source·owner·출처·inline snapshot·canonical·공개 한도·열 상한 제거·Chart/Panel schema와 screens 선언은 구현했다. 현재 실행 계약과 공용 진입점은 [Generated views의 D1 절](generated-views-v1.md#d1-dynamic-data-contract-core-and-sdk)을 따른다. D2/D3/D4 및 V7의 Host·CLI 실행·앱 위치·비서 자료 경로·확장 renderer는 이 상태에 포함하지 않는다. 문서 전체는 후속 구현 설계로 유지한다.
+
 ## 정의와 경계
 
 동적 뷰는 **비서가 사용자의 요청에 맞춰 만들고, 사용자와 함께 보며 다듬는 표현 수단**이다. 특정 기능, 데이터 제공자, 표시 위치로 정의하지 않는다. 현재 문서·여러 문서·폴더·플러그인 자료를 표현하며 문서 통계는 이를 사용하는 화면 중 하나다.

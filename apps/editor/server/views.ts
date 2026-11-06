@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { getEditableDocument, hasNativeMarker, parse } from "@litzio/core";
 import { validateQueryBindings, builtinViewOperations, type ViewOperation, type StatisticsRow } from "@litzio/core/views";
-import { ViewInputError, evaluateQueryView, serializeCatalogView, validateCatalogView, validateViewInputs, createCatalogV2, catalogViewSchema, VIEW_LIMITS, type QueryView } from "@litzio/core/views-v2";
+import { ViewInputError, evaluateQueryView, serializeCatalogView, validateCatalogView, validateViewInputs, createCatalogV2, catalogViewSchema, VIEW_LIMITS, type OperationQueryView as QueryView } from "@litzio/core/views-v2";
 import { publicOperationError } from "./plugins/operation-result.ts";
 import { createFile, decodeUtf8, textRevision } from "@litzio/file-commit";
 import { accessPath, inside, RootAccess, type FileAccess } from "./file-access.ts";
@@ -39,7 +39,7 @@ function query(value: unknown, operations: readonly ViewOperation[], input?: Rec
     value = { ...envelope, sources: { ...envelope?.sources, stats: { ...envelope?.sources?.stats, args: input } } };
   }
   const parsed = catalogViewSchema.parse(value);
-  if (parsed.profile === "query") {
+  if (parsed.profile === "query" && parsed.refresh === "manual") {
     const operation = operations.find(op => op.operation === parsed.sources.stats.operation && op.version === parsed.sources.stats.version);
     if (!operation) throw new ViewRefusal("unavailable");
     // Core owns binding semantics. A removed/private or incompatible output field
@@ -48,7 +48,7 @@ function query(value: unknown, operations: readonly ViewOperation[], input?: Rec
     catch { throw new ViewRefusal("unavailable"); }
   }
   const view = validateCatalogView(parsed, operations);
-  if (view.profile !== "query") throw new Error("Query profile required");
+  if (view.profile !== "query" || view.refresh !== "manual") throw new Error("Query profile required");
   return view;
 }
 

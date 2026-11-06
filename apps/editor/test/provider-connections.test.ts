@@ -395,9 +395,9 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   const acceptsGeneratedView = compileViewInputSchema(authoringCatalog.catalog.schema);
   assert.equal(acceptsGeneratedView({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
     sources: { review: { plugin: "example.demo", review: "compare", bundleRef: "bundle-1" } },
-    layout: { component: "VerticalPanel", children: [{ component: "PageSurface", title: "Page", source: "review" }] } }), true);
+    layout: { component: "Panel", direction: "vertical", children: [{ component: "PageSurface", title: "Page", source: "review" }] } }), true);
   assert.match(JSON.stringify(authoringCatalog.catalog.schema), /ReviewList|ReviewDetail|PageSurface|SourceDocumentCompare/);
-  const view = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", title: "Statistics", refresh: "manual", sources: { stats: { operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Documents", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } };
+  const view = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.statistics", title: "Statistics", refresh: "manual", sources: { stats: { kind: "operation", operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Documents", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } };
   const generatedView = queryViewSchema.parse(view);
   assert.equal(acceptsGeneratedView(generatedView), true);
   assert.equal(acceptsGeneratedView({ ...generatedView, form: { component: "InputForm", source: "stats", fields: [], submit: { component: "SubmitButton", label: "Search" } } }), true);

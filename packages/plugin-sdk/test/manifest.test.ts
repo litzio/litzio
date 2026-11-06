@@ -32,11 +32,29 @@ test("v2 view and review contributions validate local bindings before entry exec
   const write = { ...read, id: "change", effect: "write", rowSchema: undefined };
   const binding = (operation: string) => ({ operation: `example.demo.${operation}`, version: 1 });
   const review = { id: "review", title: "Review", read: binding("search"), propose: binding("change"), approve: binding("change"), reject: binding("change"), undo: binding("change") };
-  const definition = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", title: "Search", refresh: "manual",
-    sources: { stats: { operation: "example.demo.search", version: 1, args: { query: "hello" } } },
-    layout: { component: "VerticalPanel", children: [{ component: "Table", title: "Results", source: "stats", data: "/rows", columns: ["title"] }] } };
+  const definition = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: manifest().id, title: "Search", refresh: "manual",
+    sources: { stats: { kind: "operation", operation: "example.demo.search", version: 1, args: { query: "hello" } } },
+    layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Results", source: "stats", data: "/rows", columns: ["title"] }] } };
   const m = { ...manifest(), contributes: { operations: [read, write], views: [{ id: "search", title: "Search", definition }], reviews: [review] } };
   assert.equal(validateManifest(m).contributes.views[0]!.definition.profile, "query");
+  const screen = { id: "dashboard", title: "Dashboard", icon: "LayoutDashboard", defaultViewIds: ["search"], primary: true };
+  const screened = { ...m, contributes: { ...m.contributes, screens: [screen] } };
+  assert.equal(validateManifest(screened).contributes.screens[0].primary, true);
+  const snapshot = structuredClone(screened) as any;
+  snapshot.contributes.views[0].definition.refresh = "assistant";
+  snapshot.contributes.views[0].definition.sources.stats = { kind: "assistant", generatedAt: "2026-11-06T00:00:00.000Z", rowSchema: { title: { type: "string", label: "Title" } }, rows: [{ title: "Saved result" }], provenance: [{ kind: "reference", label: "Source", refId: "ref-1" }] };
+  assert.equal(validateManifest(snapshot).contributes.screens.length, 1);
+
+  for (const change of [
+    (v: any) => v.contributes.screens.push(screen),
+    (v: any) => v.contributes.screens.push({ ...screen, id: "second" }),
+    (v: any) => v.contributes.screens[0].defaultViewIds = ["missing"],
+    (v: any) => v.contributes.screens[0].defaultViewIds = ["search", "search"],
+    (v: any) => v.contributes.screens[0].icon = "https://example.test/icon",
+    (v: any) => v.contributes.screens[0].route = "/custom",
+    (v: any) => v.contributes.views[0].definition.owner = "other.plugin",
+  ]) { const bad = structuredClone(screened); change(bad); assert.throws(() => validateManifest(bad)); }
+
   for (const change of [(v: any) => v.contributes.views[0].definition.profile = "review", (v: any) => v.contributes.views[0].definition.sources.stats.operation = "other.plugin.search",
     (v: any) => v.contributes.reviews[0].approve = binding("search"), (v: any) => v.contributes.reviews[0].read = binding("change"),
     (v: any) => v.contributes.reviews[0].approve.operation = "other.plugin.change", (v: any) => v.contributes.reviews[0].undo.version = 2,
