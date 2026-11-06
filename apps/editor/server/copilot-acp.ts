@@ -6,9 +6,11 @@ import { EventEmitter } from "node:events";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION, type RequestPermissionRequest, type RequestPermissionResponse, type NewSessionResponse, type SessionConfigOption } from "@agentclientprotocol/sdk";
 import type { AiCopilotOptions } from "../shared/assistant.ts";
 import { stopAgentProcess } from "./codex-app-server.ts";
+import { observeTransmission, type TransmissionObserver, type AssistantTransmission } from "./assistant-transmissions.ts";
 
 /** Concrete Copilot stdio connection, following Paseo's copilot --acp integration. */
 export class CopilotAcp extends EventEmitter {
+  transmission?: TransmissionObserver;
   permission?: (request: RequestPermissionRequest) => RequestPermissionResponse;
   private child?: ChildProcessWithoutNullStreams;
   private ready?: Promise<ClientSideConnection>;
@@ -68,6 +70,16 @@ export class CopilotAcp extends EventEmitter {
     return this.probe ??= this.call(() => client.newSession({ cwd: this.cwd, mcpServers: [] })).then(session => this.remember(session)).catch(error => { this.probe = undefined; throw error; });
   }
   remember(session: NewSessionResponse) { this.sessions.set(session.sessionId, session); return session; }
+  async prompt(params: Parameters<ClientSideConnection["prompt"]>[0], turnId: string, sources?: AssistantTransmission["sources"]) {
+    const client = await this.connect();
+    const serialized = JSON.stringify(params);
+    const report = observeTransmission(this.transmission, { provider: "copilot", method: "session/prompt", conversationId: params.sessionId, turnId, sources }, serialized);
+    try {
+      const result = await client.prompt(JSON.parse(serialized));
+      report("acknowledged");
+      return result;
+    } catch (error) { report(error && typeof error === "object" && "code" in error && typeof error.code === "number" ? "rejected" : "uncertain"); throw error; }
+  }
   /** CLI fallback is fixed for a conversation. Caller must exclude active turns before restarting. */
   async useLaunchSettings(effort: string, fullAccess: boolean) {
     if (!COPILOT_EFFORTS.includes(effort)) throw new Error("Invalid Copilot reasoning effort.");

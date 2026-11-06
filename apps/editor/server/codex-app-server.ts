@@ -3,6 +3,9 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { EventEmitter } from "node:events";
 import { StringDecoder } from "node:string_decoder";
+import { observeTransmission, type TransmissionObserver, type AssistantTransmission } from "./assistant-transmissions.ts";
+
+class ProviderRejection extends Error {}
 
 type Message = { id?: number | string; method?: string; params?: any; result?: any; error?: { code?: number; message: string } };
 /** Same newline JSON-RPC transport as the 10-28 spike; no provider framework. */
@@ -32,6 +35,7 @@ function command(bin: string) {
   return { bin: shell ? `"${bin}"` : bin, shell };
 }
 export class CodexAppServer extends EventEmitter {
+  transmission?: TransmissionObserver;
   userInput?: (id: string | number, params: any, respond: (answers: unknown) => void) => void;
   toolCall?: (params: any) => unknown;
   private child?: ChildProcessWithoutNullStreams;
@@ -79,10 +83,18 @@ export class CodexAppServer extends EventEmitter {
     if (message.id !== undefined && message.method) {
       if (message.method === "item/tool/call" && this.toolCall) {
         const child = this.child;
+        const reply = (result: unknown) => {
+          if (this.child !== child) return;
+          const serialized = JSON.stringify({ id: message.id, result });
+          const report = observeTransmission(this.transmission, { provider: "codex", method: "item/tool/call/result",
+            conversationId: message.params?.threadId, turnId: message.params?.turnId, tool: message.params?.tool, requestId: message.id, sources: [{ kind: "tool-result", label: message.params?.tool ?? "tool", bytes: Buffer.byteLength(JSON.stringify(result), "utf8") }] }, serialized);
+          if (!child || child.exitCode !== null || child.stdin.destroyed) { report("uncertain"); return; }
+          child.stdin.write(serialized + "\n", error => report(error ? "uncertain" : "written"));
+        };
         Promise.resolve().then(() => this.toolCall!(message.params)).then(result => {
-          if (this.child === child) this.write({ id: message.id, result });
+          reply(result);
         }, error => {
-          if (this.child === child) this.write({ id: message.id, result: { success: false, contentItems: [{ type: "inputText", text: JSON.stringify({ error: error.message }) }] } });
+          reply({ success: false, contentItems: [{ type: "inputText", text: JSON.stringify({ error: error.message }) }] });
         });
         return;
       }
@@ -102,18 +114,25 @@ export class CodexAppServer extends EventEmitter {
     if (message.id !== undefined) {
       const waiter = this.pending.get(Number(message.id)); if (!waiter) return;
       this.pending.delete(Number(message.id)); clearTimeout(waiter.timer);
-      if (message.error) waiter.reject(new Error(message.error.message)); else waiter.resolve(message.result);
+      if (message.error) waiter.reject(new ProviderRejection(message.error.message)); else waiter.resolve(message.result);
     } else if (message.method) this.emit("notification", message.method, message.params ?? {});
   }
-  private call<T = any>(method: string, params: unknown): Promise<T> {
+  private call<T = any>(method: string, params: unknown, sources?: AssistantTransmission["sources"]): Promise<T> {
     if (!this.child || this.child.exitCode !== null) return Promise.reject(new Error("Codex app-server is not running."));
     const id = ++this.nextId;
+    const serialized = JSON.stringify({ id, method, params });
+    const scope = params as any;
+    const report = ["thread/start", "turn/start", "turn/steer"].includes(method)
+      ? observeTransmission(this.transmission, { provider: "codex", method, requestId: id,
+        sources: sources ?? [{ kind: "automatic", label: method, bytes: Buffer.byteLength(serialized, "utf8") }], conversationId: scope?.threadId, turnId: scope?.expectedTurnId }, serialized) : undefined;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`Codex request timed out: ${method}`)); }, this.options.timeoutMs ?? 15000);
-      this.pending.set(id, { resolve, reject, timer }); this.write({ id, method, params });
+      const failed = (error: Error) => { report?.(error instanceof ProviderRejection ? "rejected" : "uncertain"); reject(error); };
+      const timer = setTimeout(() => { this.pending.delete(id); failed(new Error(`Codex request timed out: ${method}`)); }, this.options.timeoutMs ?? 15000);
+      this.pending.set(id, { resolve: result => { report?.("acknowledged", result?.turn?.id ?? result?.turnId, result?.thread?.id ?? scope?.threadId); resolve(result); }, reject: failed, timer });
+      this.child!.stdin.write(serialized + "\n");
     });
   }
-  async request<T = any>(method: string, params: unknown = {}): Promise<T> { await this.connect(); return this.call<T>(method, params); }
+  async request<T = any>(method: string, params: unknown = {}, sources?: AssistantTransmission["sources"]): Promise<T> { await this.connect(); return this.call<T>(method, params, sources); }
   close() {
     this.closed = true;
     // Retain a rejected shutdown promise so the owning Host observes cleanup failure.

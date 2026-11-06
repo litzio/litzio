@@ -1,3 +1,4 @@
+import { transmissionSources } from "./assistant-transmissions.ts";
 import { executeViewOperation } from "./views.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
 import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool } from "./assistant-plugin-tools.ts";
@@ -25,7 +26,7 @@ import { AgentDisplayRequests, displayTools } from "./assistant-display-tools.ts
 
 type ConversationIndexEntry = AssistantConversationInfo & { copilotCliReasoningEffort?: string };
 
-/** Litzio persists only its history index. Each CLI owns its conversation content. */
+/** Each CLI owns conversation history; Litzio keeps its index and separate transmission receipts. */
 export class AssistantConversations {
   readonly display = new AgentDisplayRequests();
   private conversations = new Map<string, AssistantConversation>();
@@ -270,14 +271,14 @@ export class AssistantConversations {
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
       if (active) {
-        await this.connection.client.request("turn/steer", { threadId: conversation.id, expectedTurnId: active.id, input: messages });
+        await this.connection.client.request("turn/steer", { threadId: conversation.id, expectedTurnId: active.id, input: messages }, transmissionSources(context, input.references ?? [], input.message));
       } else {
         conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort; conversation.permissionMode = settings.permissionMode;
         this.scopes.set(conversation.id, { folders: folders.length ? new RootAccess(folders) : null, permissionMode: settings.permissionMode, access: this.access, displayClient, viewGeneration: input.viewGeneration });
         const result = await this.connection.client.request("turn/start", { threadId: conversation.id, input: messages,
           cwd: this.connection.cwd, model: input.model, effort: input.reasoningEffort, summary: "auto", approvalPolicy: "never",
           sandboxPolicy: settings.permissionMode === "full-access" ? { type: "dangerFullAccess" } : settings.permissionMode === "opened-folders" ? { type: "workspaceWrite", writableRoots: folders,
-            networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true } : { type: "readOnly", networkAccess: false } });
+            networkAccess: false, excludeTmpdirEnvVar: true, excludeSlashTmp: true } : { type: "readOnly", networkAccess: false } }, transmissionSources(context, input.references ?? [], input.message));
         const scope = this.scopes.get(conversation.id); if (scope) scope.turnId = result.turn.id;
         if (!conversation.turns.some(turn => turn.id === result.turn.id)) conversation.turns.push(turnFrom(result.turn));
       }
@@ -368,7 +369,7 @@ export class AssistantConversations {
     this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, permissionMode: settings.permissionMode, turnId: turn.id, viewGeneration: input.viewGeneration });
     this.save(conversation);
     // ACP prompt resolves at turn completion; return the snapshot immediately for existing panel polling.
-    void client.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] }).then(result => {
+    void this.connection.copilot.prompt({ sessionId: id, prompt: [{ type: "text", text: ASSISTANT_INSTRUCTIONS.replace("Images are also supplied as localImage inputs.", "Image references are local paths; no image bytes are attached.") + "\nUser message:\n" + input.message + "\n\n" + CONTEXT + JSON.stringify(context) }] }, turn.id, transmissionSources(context, input.references ?? [], input.message)).then(result => {
       if (turn.status === "inProgress") {
         turn.status = result.stopReason === "cancelled" ? "interrupted" : result.stopReason === "end_turn" ? "completed" : "failed";
         if (turn.status === "failed") turn.error = `Copilot stopped: ${result.stopReason}`;

@@ -9,6 +9,7 @@ export type AssistantSettings = AssistantExecutionSettings & { provider: AiProvi
 export const ASSISTANT = {
   settingsRoute: "/api/assistant/settings",
   skillsRoute: "/api/assistant/skills", modelsRoute: "/api/assistant/models", diagnosticsRoute: "/api/assistant/diagnostics", environmentRoute: "/api/assistant/environment",
+  transmissionsRoute: "/api/assistant/transmissions",
   conversationsRoute: "/api/assistant/conversations",
 } as const;
 export type AssistantConversationInfo = { id: string; provider?: AiProvider; permissionMode?: AssistantSettings["permissionMode"]; title: string; folders: string[]; createdAt: number; updatedAt: number };

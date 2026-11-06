@@ -193,8 +193,8 @@ const COMMANDS: CommandSpec[] = [
   { name: "view", group: "Serve", summary: "Validate, save or run a view on an explicit Host", usage: `${brand.cliCommand} view validate|propose|save|run <file> --host <origin> [--input <args.json>] [--name <favourite>] [--plugin <id>] [--root <folder>] --json`, details: [`${brand.cliCommand} view list|open <name> [--plugin <id>] --host <origin> --json`, "catalog lists current query operations and contributed views. Opening a favourite returns its definition only. --input replaces all source args; run always requires an explicit root."] },
   { name: "jobs", group: "Serve", summary: "List running and recent plugin jobs on a Host", usage: `${brand.cliCommand} jobs list [pluginId] --host <origin> --json`, details: ["Daemon-lifetime observations only. Never restarts a job."] },
   { name: "operation", group: "Serve", summary: "Invoke a declared plugin operation", usage: `${brand.cliCommand} operation invoke <pluginId.operationId> --input <json-file> --host <origin> --json`, details: ["Uses only the named Host. Does not retry or fall back to local execution."] },
-  { name: "assistant", group: "Serve", summary: "Read or configure official Assistant settings",
-    usage: `${brand.cliCommand} assistant settings | assistant configure --file <json-file>`, details: ["configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero."] },
+  { name: "assistant", group: "Serve", summary: "Read Assistant transmission logs or configure settings",
+    usage: `${brand.cliCommand} assistant settings | assistant configure --file <json-file> | assistant transmissions list [--offset <entries>] | read <id> [--offset <characters>] | delete <id>`, details: ["transmissions reads the same local Assistant data as this CLI build; use LITZIO_ASSISTANT_CWD for another local data directory. list offsets count entries; read offsets count UTF-16 characters. Logs persist until explicitly deleted.", "configure takes the complete Assistant settings snapshot; validation errors name the field and allowed values or reason. Uses the same Host operation as HTTP; failures exit nonzero."] },
   {
     name: "apply-batch",
     group: "Edit — batch",
@@ -1939,9 +1939,21 @@ export async function runCliAsync(args: string[]): Promise<number> {
   if (args[0] !== "assistant" || args.includes("--version") || isCommandHelpRequest(args.slice(1))) return runCli(args);
   try {
     const operation = args[1];
-    if (operation === "settings" ? args.length !== 2 : operation !== "configure" || args.length !== 4 || args[2] !== "--file") throw new Error(commandHelp("assistant"));
+    const transmission = operation === "transmissions";
+    let transmissionArgs: { action: string; id?: string; offset?: number } | undefined;
+    if (transmission) {
+      const action = args[2], rest = args.slice(3);
+      const offsetPosition = rest.indexOf("--offset");
+      let offset: number | undefined;
+      if (offsetPosition >= 0) {
+        if (action === "delete" || offsetPosition !== rest.length - 2) throw new Error(commandHelp("assistant"));
+        offset = Number(rest.at(-1)); rest.splice(-2);
+      }
+      if (action === "list" ? rest.length !== 0 : !["read", "delete"].includes(action) || rest.length !== 1) throw new Error(commandHelp("assistant"));
+      transmissionArgs = { action, id: rest[0], offset };
+    } else if (operation === "settings" ? args.length !== 2 : operation !== "configure" || args.length !== 4 || args[2] !== "--file") throw new Error(commandHelp("assistant"));
     const host = createAssistantHost();
-    try { process.stdout.write(JSON.stringify(await host.invoke(operation, operation === "configure" ? JSON.parse(readFileSync(args[3], "utf8")) : {})) + "\n"); }
+    try { process.stdout.write(JSON.stringify(await host.invoke(transmission ? "assistantTransmissions" : operation, transmissionArgs ?? (operation === "configure" ? JSON.parse(readFileSync(args[3], "utf8")) : {}))) + "\n"); }
     finally { await host.close(); }
     return 0;
   } catch (error) { return reportError(args, error); }

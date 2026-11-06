@@ -1280,3 +1280,85 @@ Both providers carry the exact user message in the structured Litzio context. Fi
 The app supplies its registered Host identity and opaque Root IDs from existing folder listings. The Host recomputes each ID from filesystem identity and checks the existing opened-folder boundary before reading attached saved files. These bytes and completed public tool results are bounded read-only context, separate from the human transcript. Unsaved editor content is not sent. Corrections retain the initial snapshot and selected model. Cards, document views and plugin screens share provenance and complete-row inspection; source opening rechecks Root identity before using the existing document-open path and its unsaved-work protection. Display identities are not authentication or factual verification.
 
 Ordinary attachment and tool-result delivery does not depend on optional dynamic-view text capture. Codex localImage and Copilot path references are preserved for images. Capture failures are described separately as unavailable view context while ordinary sends and completed reads keep their original results. Generate/propose still reject unsupported or oversized text snapshots explicitly; view limits never become ordinary document-read limits.
+
+
+## Litzio transmission receipts (#1304)
+
+The target Host records the original JSON payload by default before sending it to
+Codex `thread/start`, `turn/start`, `turn/steer`, and Copilot `session/prompt`.
+Codex public dynamic-tool replies (including unsuccessful replies) use the same
+serialized envelope as the actual stdio write. Diagnostic/account responses,
+environment variables, authorization/permission replies, and question answers
+are not captured. Provider-internal tools, history assembly, image file bytes,
+and final model input are unobserved; image path references remain visible.
+The product-owned cwd instructions can also be read by providers independently;
+this log records explicit sends, not every filesystem read made by a provider.
+
+Each receipt has its own UUID, provider/protocol request ID where available,
+conversation/turn identity, timestamp, exact UTF-8 serialized size, and original
+payload. Source sizes are JSON-encoded component sizes, not token counts or
+additive totals: user message, explicit attachment/skill, automatically injected
+paths/instructions/catalog/materials and public tool results are distinguished.
+Steering is a separate receipt in the running turn. A thread-creation receipt
+covers the automatically supplied tool definitions.
+
+`attempted` means the payload was captured before the call; `acknowledged` means
+a provider response was received, not that a model used every byte. A Codex tool
+reply can only report `written` (local stdio write completed, provider receipt
+unconfirmed). Explicit protocol errors report `rejected`; disconnect, deadline or uncertain completion report
+`uncertain`; no automatic resend is introduced. Copilot prompt acknowledgement
+arrives when the ACP prompt completes, including cancellation. Its provider-owned
+tool events are never presented as Litzio tool-result sends.
+
+Records belong to the Host, under `<assistant cwd>/transmissions`, alongside but
+separate from the conversation index. They survive Host restarts until the user
+deletes them; no automatic age or size eviction is applied. Document-sensitive
+text is included by owner decision. Existing trusted HTTP caller/OS-account
+boundaries apply; this is not an encrypted archive or an account audit service.
+The reader must have access to that Host's Assistant data directory. A different
+Host does not read these records. Source CLI uses source data paths; packaged CLI
+uses packaged data paths, with the existing `LITZIO_ASSISTANT_CWD` override.
+
+Raw content is written to a temporary sibling and renamed before metadata is
+published. Metadata updates are replaced separately; a crash may leave an
+attempted receipt, missing body or an orphan temporary file. These are incomplete,
+not complete histories. Disk/permission failures are counted for this Host
+lifetime and never replace provider success or failure. Failures before any file
+can be written cannot leave a durable receipt. Orphan body IDs remain listed for
+explicit deletion. Deletion removes original content and metadata and leaves an
+empty tombstone so a late callback or another local reader cannot resurrect the
+record. Deleting a receipt does not delete provider history or conversation
+history. The writer closes with the Assistant Host after provider shutdown;
+#1285's reset inventory includes the whole Assistant cwd, including tombstones
+and interrupted writes. Reset must stop the owning Host before clearing it.
+
+The shared Host operation `assistantTransmissions` accepts `list` (optional
+conversation ID and offset), `read` (UUID and character offset), or `delete`
+(UUID), returning metadata/pages or a deletion receipt. HTTP GET/POST
+`/api/assistant/transmissions`, the conversation's fixed-Host UI and thin CLI
+`litzio assistant transmissions list|read|delete` use this operation. CLI `read`
+accepts `--offset <characters>`. Lists page 50 summaries and body reads page
+65,536 UTF-16 characters to fit existing transport envelopes; these are paging
+sizes, not recording limits. Pages reconstruct the original JSON without
+truncation. Full records are never silently substituted with summaries.
+
+UI reuses Button/Tooltip/Dialog and the existing preformatted-content tokens.
+The header's Transmission log button opens a Host-wide list, source sizes,
+transmission state, paged sent content and explicit two-step deletion. Scope and
+sensitive-content details are accessible in a disclosure. No view-generation
+button or common interaction contract is changed. Visual approval remains a
+merge prerequisite. Synthetic adapter tests compare actual wire payloads and
+public tool replies; storage tests protect Unicode paging, restart/deletion and
+failure isolation. The focused assistant-transmissions browser scenario checks the fixed-Host
+request wiring, readable content and dialog bounds at 1440px and Korean Dark
+640px without model calls.
+
+
+Manual evidence (synthetic content, persistent Chrome):
+[1440px closed](assets/assistant-transmissions-1304/closed-1440.png),
+[1440px open](assets/assistant-transmissions-1304/open-1440.png),
+[640px Korean Dark closed](assets/assistant-transmissions-1304/closed-640.png),
+[640px Korean Dark open](assets/assistant-transmissions-1304/open-640.png).
+These compare the closed/open interaction, not pre-implementation screenshots.
+Alignment, control padding, Korean wrapping, dark contrast and viewport margins
+were reviewed; visual approval by the owner is still required before merge.

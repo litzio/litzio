@@ -1,3 +1,5 @@
+import path from "node:path";
+import { AssistantTransmissionLog } from "./assistant-transmission-log.ts";
 import { VIEW_TRANSPORT_LIMITS } from "../shared/view-limits.ts";
 import type { PluginService } from "./plugin-service.ts";
 import { hostPaths, type HostRun } from "./host-paths.ts";
@@ -13,10 +15,12 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
   const paths = options?.paths ?? hostPaths(options?.run, { ...process.env });
   const { settings, configure } = createAssistantSettings(settingsFile ?? paths.settingsFile("assistant"), paths.assistantDefaults);
   const plugins = options?.plugins;
+  const transmissions = new AssistantTransmissionLog(path.join(options?.agent?.cwd ?? paths.assistant, "transmissions"));
+  const attach = (connection: ProviderConnections) => { connection.client.transmission = transmissions.record; connection.copilot.transmission = transmissions.record; return connection; };
   let closed = false, closing: Promise<void> | undefined;
-  let agent = options?.agent;
+  let agent = options?.agent ? attach(options.agent) : undefined;
   let conversations: AssistantConversations | undefined;
-  const history = () => conversations ??= new AssistantConversations(agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run), access, plugins?.host);
+  const history = () => conversations ??= new AssistantConversations(agent ??= attach(new ProviderConnections(paths.assistant, undefined, undefined, options?.run)), access, plugins?.host);
   const viewGenerations = new AssistantViewGenerations(async (id, turnId) => {
     if (history().current(id).turns.some(turn => turn.id === turnId && turn.status === "inProgress")) await history().interrupt(id);
   });
@@ -26,13 +30,14 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     return value;
   };
   const assistantOperations = {
+    assistantTransmissions: (args: any) => transmissions.invoke({ ...args, ...(typeof args?.offset === "string" ? { offset: Number(args.offset) } : {}) }),
     assistantSkills: (args?: { provider?: AiProvider }) => {
       if (provider(args) !== "codex") throw new Error("Skill selection is available only with Codex.");
-      return (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).skills();
+      return (agent ??= attach(new ProviderConnections(paths.assistant, undefined, undefined, options?.run))).skills();
     },
-    assistantModels: (args?: { provider?: AiProvider }) => (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).models(provider(args)),
-    assistantDiagnostics: (args?: { provider?: AiProvider }) => (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).diagnostics(provider(args)),
-    assistantEnvironment: () => (agent ??= new ProviderConnections(paths.assistant, undefined, undefined, options?.run)).environment(),
+    assistantModels: (args?: { provider?: AiProvider }) => (agent ??= attach(new ProviderConnections(paths.assistant, undefined, undefined, options?.run))).models(provider(args)),
+    assistantDiagnostics: (args?: { provider?: AiProvider }) => (agent ??= attach(new ProviderConnections(paths.assistant, undefined, undefined, options?.run))).diagnostics(provider(args)),
+    assistantEnvironment: () => (agent ??= attach(new ProviderConnections(paths.assistant, undefined, undefined, options?.run))).environment(),
     assistantConversations: (args: any) => {
       if (!args.id) return history().list().filter(info => (info.provider ?? "codex") === provider(args));
       const conversation = history().current(args.id);
@@ -113,6 +118,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     return result;
   };
   const route = (url: string): Record<string, string> | undefined => {
+    if (url === ASSISTANT.transmissionsRoute) return { GET: "assistantTransmissions", POST: "assistantTransmissions" };
     if (url === ASSISTANT.settingsRoute) return { GET: "settings", PUT: "configure" };
     if (url === ASSISTANT.conversationsRoute) return { GET: "assistantConversations", POST: "assistantConversation" };
     const operation = { [ASSISTANT.skillsRoute]: "assistantSkills", [ASSISTANT.modelsRoute]: "assistantModels", [ASSISTANT.diagnosticsRoute]: "assistantDiagnostics", [ASSISTANT.environmentRoute]: "assistantEnvironment" }[url];
@@ -122,7 +128,7 @@ export function createAssistantHost(access: FileAccess = LOCAL_FILE_ACCESS, sett
     closed = true;
     viewGenerations.close();
     conversations?.display.cancel();
-    return closing ??= Promise.resolve(agent?.close());
+    return closing ??= Promise.resolve(agent?.close()).finally(() => transmissions.close());
   };
   return { invoke, route, close };
 }

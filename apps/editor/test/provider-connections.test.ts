@@ -1,3 +1,4 @@
+import type { AssistantTransmission } from "../server/assistant-transmissions.ts";
 import { viewGenerationContext } from "../shared/view-generation.ts";
 import { compileViewInputSchema, queryViewSchema } from "@litzio/core/views-v2";
 import { assistantCliEnvironment } from "../server/assistant-cli.ts";
@@ -21,6 +22,11 @@ test("view proposals pass the finite catalog through both stdio adapters with ch
   const root = mkdtempSync(path.join(tmpdir(), "view-adapters-"));
   const codexLog = path.join(root, "codex.jsonl"), copilotLog = path.join(root, "copilot.jsonl");
   const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, codexLog] }, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), copilotLog] });
+  const transmissions: AssistantTransmission[] = [];
+  connection.client.transmission = event => { transmissions.push(event); };
+  let acknowledged!: () => void;
+  const copilotAcknowledged = new Promise<void>(resolve => { acknowledged = resolve; });
+  connection.copilot.transmission = event => { transmissions.push(event); if (event.status === "acknowledged") acknowledged(); };
   const conversations = new AssistantConversations(connection, new RootAccess([root]));
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const settings = { provider: "codex" as const, model: "gpt-6.1-sol", reasoningEffort: "medium", permissionMode: "full-access" as const };
@@ -31,6 +37,8 @@ test("view proposals pass the finite catalog through both stdio adapters with ch
   const request = await connection.client.request("fixture/tool", { threadId: codex.id, tool: "change_display_settings", arguments: {} });
   assert.ok(request.error || request.result?.success === false, "view proposal cannot execute app tools");
   await conversations.interrupt(codex.id);
+  await assert.rejects(connection.client.request("turn/steer", { threadId: codex.id, expectedTurnId: "expired", input: [] }), /No matching active turn/);
+  assert.ok(transmissions.some(event => event.method === "turn/steer" && event.status === "rejected"));
   const copilot = await conversations.send({ provider: "copilot", model: "copilot-model", reasoningEffort: "low", viewGeneration: true, references: attached, folders: [root], message: "Show a document chart" }, settings);
   await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: copilot.id, modelId: "copilot-model" }));
   assert.deepEqual(connection.copilot.permission!({ sessionId: copilot.id, toolCall: { toolCallId: "read", kind: "read", locations: [{ path: path.join(root, "doc.md") }] }, options: [{ optionId: "yes", name: "Yes", kind: "allow_once" }] }), { outcome: { outcome: "cancelled" } });
@@ -45,6 +53,18 @@ test("view proposals pass the finite catalog through both stdio adapters with ch
   assert.equal(codex.turns[0]!.items.find(item => item.kind === "user")?.text, "Show a document chart");
   const acpRpc = readFileSync(copilotLog, "utf8").trim().split("\n").map(line => JSON.parse(line));
   const prompt = acpRpc.find(call => call.method === "session/prompt").params.prompt[0].text;
+  const sent = transmissions.find(event => event.method === "turn/start" && event.status === "acknowledged")!;
+  assert.deepEqual(sent.payload, turn, "recorded Codex payload equals the fixture's wire envelope");
+  assert.equal(sent.bytes, Buffer.byteLength(JSON.stringify(turn), "utf8"));
+  assert.equal(sent.turnId, codex.turns[0]!.id);
+  assert.ok(sent.sources!.some(source => source.kind === "attachment" && source.label === attached[0]));
+  await Promise.race([copilotAcknowledged, new Promise<never>((_, reject) => { const timer = setTimeout(() => reject(new Error("Missing Copilot transmission receipt")), 5000); void copilotAcknowledged.then(() => clearTimeout(timer)); })]);
+  const acp = transmissions.find(event => event.method === "session/prompt" && event.status === "acknowledged")!;
+  assert.deepEqual(acp.payload, acpRpc.find(call => call.method === "session/prompt").params);
+  const toolReceipt = transmissions.find(event => event.method === "item/tool/call/result" && event.status === "written")!;
+  assert.deepEqual(toolReceipt.payload, codexRpc.find(call => call.id === toolReceipt.requestId && !call.method));
+  assert.ok(!transmissions.some(event => /account|initialize|permission|config|environment/.test(event.method)));
+
   assert.ok(prompt.includes('"viewGeneration"') && prompt.includes('"catalog"'));
   assert.equal(copilot.turns[0]!.items[0]!.text, "Show a document chart");
   assert.equal(copilot.permissionMode, "read-only");

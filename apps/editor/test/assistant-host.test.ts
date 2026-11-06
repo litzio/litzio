@@ -1,3 +1,7 @@
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import { AssistantTransmissionLog } from "../server/assistant-transmission-log.ts";
+import { observeTransmission } from "../server/assistant-transmissions.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -26,12 +30,18 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
   const saved = await put(settings);
   assert.equal(saved.status, 200, await saved.clone().text());
   assert.deepEqual(await saved.json(), settings);
+  const oldCwd = process.env.LITZIO_ASSISTANT_CWD;
+  process.env.LITZIO_ASSISTANT_CWD = path.join(root, "assistant");
   const previous = process.env.LITZIO_ASSISTANT_SETTINGS_FILE;
   process.env.LITZIO_ASSISTANT_SETTINGS_FILE = file;
   const output: string[] = [];
   const stdout = t.mock.method(process.stdout, "write", ((value: string) => { output.push(value); return true; }) as typeof process.stdout.write);
   const stderr = t.mock.method(process.stderr, "write", (() => true) as typeof process.stderr.write);
   try {
+    const listed = await fetch(`${url}/api/assistant/transmissions`);
+    assert.equal(listed.status, 200); assert.equal((await listed.json()).entries.length, 0);
+    assert.equal(await runCliAsync(["assistant", "transmissions", "list"]), 0);
+    assert.equal(JSON.parse(output.pop()!).entries.length, 0);
     assert.equal(await runCliAsync(["assistant", "settings"]), 0);
     assert.deepEqual(JSON.parse(output.pop()!), settings);
     assert.equal(await runCliAsync(["assistant", "configure", "--file", file]), 0);
@@ -54,6 +64,7 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
     assert.equal(oversized.status, 413, "the Host enforces the envelope even when the app transport is bypassed");
   } finally {
     stdout.mock.restore(); stderr.mock.restore();
+    if (oldCwd === undefined) delete process.env.LITZIO_ASSISTANT_CWD; else process.env.LITZIO_ASSISTANT_CWD = oldCwd;
     if (previous === undefined) delete process.env.LITZIO_ASSISTANT_SETTINGS_FILE; else process.env.LITZIO_ASSISTANT_SETTINGS_FILE = previous;
   }
 });
@@ -206,4 +217,55 @@ test("generation proposals use the admitted Host request, owner and material ide
   assert.equal(overTurn.status, "failed"); assert.match(overTurn.error, /output exceeds byte limit/);
 
 
+});
+
+
+test("transmission receipts retain full paged payloads and survive partial storage, observer failure and deletion during a send", async t => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-transmissions-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const log = new AssistantTransmissionLog(path.join(root, "transmissions"));
+  const payload = JSON.stringify({ text: "한글🦊".repeat(50000) });
+  const report = observeTransmission(log.record, { provider: "codex", method: "turn/start", conversationId: "fixture-thread" }, payload);
+  report("acknowledged", "fixture-turn");
+  const listing = log.invoke() as any, id = listing.entries[0].id;
+  assert.equal(listing.entries[0].complete, true);
+  let actual = "", offset: number | null = 0;
+  while (offset !== null) { const page = log.invoke({ action: "read", id, offset }) as any; actual += page.text; offset = page.nextOffset; }
+  assert.equal(actual, payload, "pages reconstruct complete Unicode content without truncation");
+  const again = new AssistantTransmissionLog(log.directory);
+  assert.equal((again.invoke() as any).entries[0].turnId, "fixture-turn", "receipts survive Host restart");
+  again.invoke({ action: "delete", id });
+  report("uncertain");
+  assert.equal((log.invoke() as any).entries.length, 0, "a late send callback cannot resurrect deleted content");
+  assert.throws(() => log.invoke({ action: "read", id: "../outside" }), /Invalid/);
+  const broken = new AssistantTransmissionLog(path.join(root, "blocked"));
+  const { writeFileSync } = await import("node:fs"); writeFileSync(broken.directory, "fixture disk/permission obstruction");
+  assert.doesNotThrow(() => observeTransmission(broken.record, { provider: "copilot", method: "session/prompt" }, payload)("acknowledged"));
+  const diskFull = new AssistantTransmissionLog(path.join(root, "disk-full"));
+  const originalWrite = fs.writeFileSync;
+  const mocked = t.mock.method(fs, "writeFileSync", ((file: any, data: any, options: any) => {
+    if (String(file).startsWith(diskFull.directory) && String(file).endsWith(".body.tmp")) {
+      originalWrite(file, "partial fixture body", options);
+      throw Object.assign(new Error("fixture full disk"), { code: "ENOSPC" });
+    }
+    return originalWrite(file, data, options);
+  }) as typeof fs.writeFileSync);
+  syncBuiltinESMExports();
+  try {
+    const incomplete = observeTransmission(diskFull.record, { provider: "codex", method: "turn/start" }, payload);
+    incomplete("acknowledged");
+    const partial = diskFull.invoke() as any;
+    assert.equal(partial.entries[0].complete, false);
+    assert.ok(partial.failures > 0);
+    assert.throws(() => diskFull.invoke({ action: "read", id: partial.entries[0].id }));
+    diskFull.invoke({ action: "delete", id: partial.entries[0].id });
+    assert.deepEqual((diskFull.invoke() as any).entries, []);
+  } finally { mocked.mock.restore(); syncBuiltinESMExports(); }
+  const observerEvents: string[] = [];
+  const isolated = observeTransmission(event => { observerEvents.push((event.payload as any).text); (event.payload as any).text = "observer mutation"; }, { provider: "codex", method: "turn/start" }, payload);
+  isolated("acknowledged");
+  assert.deepEqual(observerEvents, [JSON.parse(payload).text, JSON.parse(payload).text], "an observer cannot mutate the next receipt or the serialized send");
+  log.close();
+  assert.doesNotThrow(() => report("acknowledged"));
+  assert.doesNotThrow(() => observeTransmission(() => { throw new Error("fixture log failure"); }, { provider: "codex", method: "turn/start" }, payload)("uncertain"));
 });
