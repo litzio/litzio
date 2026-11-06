@@ -369,6 +369,13 @@ button {
   background-size: var(--size-icon-slot);
 }
 
+/* Native popup lists can keep a light OS background despite color-scheme.
+ * Supply both roles so inherited dark-theme text never sits on that background. */
+.form-select option {
+  color: var(--id-color-text);
+  background-color: var(--id-color-surface);
+}
+
 /* Core's exact reason and action under the plain explanation of a refused Open. */
 .open-refusal-details {
   display: grid;

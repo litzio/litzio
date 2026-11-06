@@ -116,30 +116,40 @@ export function NotificationExample({ state }: { state: ExampleState }) {
 }
 
 export function UiGallery() {
-  const [category, setCategory] = useState("All"), [state, setState] = useState<ExampleState>("default");
+  const [category, setCategory] = useState("Controls"), [state, setState] = useState<ExampleState>("default");
   const [theme, setTheme] = useState<"light" | "dark">(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
   const originalTheme = useRef(currentTheme());
-  const visible = (name: string) => category === "All" || category === name;
+  const visible = (name: string) => category === name;
   return <main className="ui-gallery" data-testid="ui-gallery">
     <header><h1>Litzio UI gallery</h1><p>Production components · development only · no document or preference writes</p>
       <a href="/" onClick={() => { void applyTheme(originalTheme.current); }}>Back to editor</a></header>
-    <nav className="ui-gallery-section" aria-label="Gallery controls">
-      <div className="ui-gallery-row"><ChoiceGroup aria-label="Category" value={category} onValueChange={setCategory}
-        options={["All", "Controls", "Surfaces", "Menus", "Notifications", "Generated views"].map(value => ({ value, label: value }))} /></div>
+    <div className="ui-gallery-body">
+    <aside className="ui-gallery-navigation settings-navigation">
+      <nav aria-label="Gallery elements">
+        {["Controls", "Surfaces", "Menus", "Notifications", "Generated views", "Tables", "View lifetime"].map(value =>
+          <Button key={value} variant="ghost" size="sm" aria-current={category === value ? "page" : undefined}
+            onClick={() => setCategory(value)}>{value}</Button>)}
+      </nav>
+    </aside>
+    <div className="ui-gallery-content" key={category}>
+    <div className="ui-gallery-toolbar" role="region" aria-label="Gallery controls">
       <div className="ui-gallery-row"><ChoiceGroup aria-label="Theme" value={theme}
         options={[{ value: "light", label: "Light" }, { value: "dark", label: "Dark" }]}
         onValueChange={value => { setTheme(value); void applyTheme(value); }} /></div>
       <div className="ui-gallery-row"><ChoiceGroup<ExampleState> aria-label="Example state" value={state} onValueChange={setState}
         options={[{ value: "default", label: "Default" }, { value: "interaction", label: "Hover / focus" },
           { value: "disabled", label: "Disabled" }, { value: "error", label: "Error" }]} /></div>
-      <p>{state === "interaction" ? "Move the pointer over examples or press Tab to inspect real hover and keyboard focus. These states are not painted simulations."
-        : "State applies where supported: disabled controls; invalid input, confirmation error and error notification. Navigation remains available."}</p>
-    </nav>
+      <details><summary>Example guidance</summary><p>{state === "interaction" ? "Move the pointer over examples or press Tab to inspect real hover and keyboard focus. These states are not painted simulations."
+        : "State applies where supported: disabled controls; invalid input, confirmation error and error notification. Navigation remains available."}</p></details>
+    </div>
     {visible("Controls") ? <><ControlExamples state={state} /><ChoiceGroupExamples state={state} /></> : null}
     {visible("Surfaces") ? <SurfaceExamples state={state} /> : null}
     {visible("Menus") ? <MenuExamples state={state} /> : null}
     {visible("Notifications") ? <NotificationExample state={state} /> : null}
-    {visible("Generated views") ? <><GeneratedViewExamples state={state} /><TableInteractionExample /><ViewLifetimeExamples /></> : null}
+    {visible("Generated views") ? <GeneratedViewExamples state={state} /> : null}
+    {visible("Tables") ? <TableInteractionExample /> : null}
+    {visible("View lifetime") ? <ViewLifetimeExamples /> : null}
     <footer>Examples show current implementation, not unimplemented UI pattern targets. Review large layout changes in their actual screen.</footer>
+    </div></div>
   </main>;
 }

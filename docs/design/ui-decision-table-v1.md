@@ -15,7 +15,7 @@
 | 앱 전체 설정을 바꾼다 | 작업 탭 | Host Settings / Plugin settings contribution | 앱 설정은 즉시 반영 · 문서 Save와 분리 · 선택값 저장 오류는 입력 피드백 ([P12](ui-patterns-v1.md#p12-모달파일복구설정-범위), [P07](ui-patterns-v1.md#p07-입력-오류와-알림-센터)) | [SettingsDialog](../../apps/editor/src/shell/SettingsDialog.tsx) | [AI 설정의 순차 자동 저장](main-agent-v1.md#settings-and-read-routes), [Docling field exit 저장](ui-patterns-v1.md#p12-모달파일복구설정-범위)의 저장 시점은 각 계약을 따른다. [#1032 탭 수명·키보드·캡처](editor-ux-shell-v1.md#settings-task-tab-1032)를 따른다. |
 
 - Status: Implemented
-- Last verified: 2026-11-03 — 구현·공개 API 대조, 타입·문서·토큰 검사, production build와 개발 갤러리 연결·Light/Dark 캡처 확인.
+- Last verified: 2026-11-06 — #1298 왼쪽 탐색·native option 역할, ui-gallery 회귀·타입·문서·토큰 검사·Editor build 및 1440px Light/640px Korean Dark 캡처 확인.
 - Scope: 에이전트의 기존 UI 선택과 소유자의 개발 갤러리 검토. [#1013 승인 범위](https://github.com/litzio/litzio/issues/1013#issuecomment-6594406926).
 - Authority: [AGENTS.md](../../AGENTS.md), [Visual Language](editor-visual-language-v1.md), [Layout Rules](editor-layout-rules-v1.md), [UI Patterns](ui-patterns-v1.md). 기존 기본 경로의 안내이며 새 시각·행동 규범이 아니다. UI Patterns의 승인된 미구현 목표는 제공 중인 구현과 구별한다.
 
@@ -79,7 +79,7 @@ Generated views 범주는 query(InputForm, Table, Chart, Panel)와 review(PageSu
 | --- | --- | --- |
 | NumberField (그림·Mermaid·표·수식) | 필수 단일 선택 → ChoiceGroup | Automatic / Fixed 초안 값과 기존 콜백 유지 |
 | DocumentActions | 필수 단일 선택 → ChoiceGroup | Read / Edit / Source 및 Markdown Text 보기; disabled·접근성 이름 유지 |
-| UiGallery 범주·Theme·Example state | 필수 단일 선택 → ChoiceGroup | 메모리상의 한 값; 제품 공통 토큰 사용 |
+| UiGallery Theme·Example state | 필수 단일 선택 → ChoiceGroup | 메모리상의 한 값; 제품 공통 토큰 사용. 범주는 #1298의 왼쪽 탐색으로 이동 |
 | SelectionToolbar | 독립 서식 토글 유지 | Bold/Italic/Strike/Subscript/Superscript/Code는 editor mark 명령, Link는 편집 진입 |
 | DocumentActions Wide / Outline | 독립 토글 유지 | 각각 별도의 표시 환경설정·패널 열기 |
 | TableTools 행/열 손잡이 | 문서 selection·메뉴 anchor 유지 | 가변 문서 좌표, row/column selection과 메뉴 키보드 소유권 |
@@ -224,3 +224,37 @@ D3 후속 검증은 기존 panel-lists의 4탭·양방향 wrap·Home/End·항상
 후속 보기 화면은 1440px English Light [캡처](assets/dynamic-views-d3/view-1440.png), 640px Korean Dark [캡처](assets/dynamic-views-d3/view-640.png)에서 4탭 정렬, 줄바꿈, 패널 내부 세로 스크롤과 표 내부 가로 스크롤을 확인했다. 계정/폴더 경로를 포함할 수 있는 사이드바와 Root select는 촬영 시 mask했다. 출처의 unavailable은 현재 신뢰된 Root identity 공급이 없는 실제 제한이며 숨기지 않는다.
 
 숨김 상태로 유지되는 문서 패널은 documentContentBounds에서 보이는 panel만 제외하도록 함께 대조했다. 기존 document-scroll·layout-rules·command-center의 비노출/포커스/가용 영역 단언을 유지하며 로컬 layout-rules는 문서화된 representative 범위로 실행하고 전수 회귀는 CI에 맡긴다.
+
+
+## 갤러리 탐색과 네이티브 목록 (#1298)
+
+갤러리는 왼쪽 탐색에서 Controls / Surfaces / Menus / Notifications / Generated views /
+Tables / View lifetime 묶음을 선택한다. 기본 묶음은 Controls다. Button ghost/sm과
+Settings의 `settings-navigation` 현재 항목(`aria-current="page"`) 패턴을 재사용한다.
+Theme·Example state는 기존 ChoiceGroup을 유지하며, 반복 상태 안내는 키보드로도 열 수
+있는 Example guidance disclosure에 둔다. 선택한 묶음의 예제 상태는 전환 시 초기화하고
+테마·상태 선택은 갤러리 수명 동안 유지한다. 별도 공통 navigation 컴포넌트나 탭 계약은 만들지 않는다.
+
+필터는 제품 공통 DataTable/Popover와 native `.form-select`를 유지한다. Windows Chrome에서
+`color-scheme: dark`만으로 펼침 목록의 흰 배경과 상속한 밝은 글자가 함께 나타나는 것을
+수정 전 캡처로 재현했다. 공통 `.form-select option`에 기존 surface/text 역할을 함께 지정한다.
+같은 레시피를 사용하는 SettingsSelect·조회 입력도 이 규칙을 공유하며, 문서 의미·저장·CLI는 바뀌지 않는다.
+
+수동 검토: Windows persistent Chrome, 100% zoom, 1000px 높이. 1440px English Light
+[변경 전](assets/gallery-navigation-1298/before-1440.png) /
+[변경 후](assets/gallery-navigation-1298/after-1440.png), 640px Korean Dark
+[변경 전](assets/gallery-navigation-1298/before-640.png) /
+[변경 후](assets/gallery-navigation-1298/after-640.png).
+필터 네이티브 펼침 목록 [Dark 변경 전](assets/gallery-navigation-1298/before-native-popup.png) /
+[Dark 변경 후](assets/gallery-navigation-1298/after-native-640.png) /
+[Light 변경 후](assets/gallery-navigation-1298/after-native-1440.png).
+실제 Chrome 캡처에 목록이 포함된 것을 직접 보고 옵션 대비, 행 정렬·입력 여백·사이드바와
+패널 경계·640px 테이블 내부 가로 스크롤을 확인했다. DOM 단언을 네이티브 픽셀 검증으로
+취급하지 않는다. Windows의 모든 브라우저/OS 조합이나 패키지된 Desktop의 네이티브 목록은
+이 캡처로 검증하지 않았으며 Settings 실제 화면도 별도로 촬영하지 않았다.
+
+기존 `ui-gallery` 회귀에 묶음 이동/현재 항목/다른 예제 비노출, 공통 옵션의 paired 역할,
+빈 값 필터 실제 적용을 보완한다. CSS 연결과 갤러리 탐색이 주된 브라우저 검증 계층이다.
+기존 정렬·범위 필터/뷰 수명·차트 회귀는 유지한다. 새 subprocess나 전수 조합은 없으며,
+촬영은 임시 scenario body로 `pnpm browser:test ui-gallery --screenshots`를 실행하고 원래
+회귀 body를 복원하는 별도 수동 검토다. 외부 Host/AI 수락이나 OS별 전수 검증을 뜻하지 않는다.

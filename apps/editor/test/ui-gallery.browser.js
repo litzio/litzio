@@ -1,9 +1,13 @@
 // Protect the development entry's lazy module/CSS/provider connection, not primitive internals.
 // pnpm browser:test ui-gallery
-async (page, { expect, screenshots, brand }) => {
+async (page, { expect }) => {
   await page.goto(page.url().split('/').slice(0, 3).join('/') + '/ui-gallery');
   await expect(page.getByRole('heading', { name: 'Litzio UI gallery' })).toBeVisible();
   await expect(page.locator('[data-testid="ui-gallery"]')).toHaveCSS('overflow-y', 'auto');
+  const navigation = page.getByRole('navigation', { name: 'Gallery elements' });
+  await expect(navigation.getByRole('button', {name:'Controls',exact:true})).toHaveAttribute('aria-current','page');
+  await navigation.getByRole('button',{name:'Surfaces',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Button · Input · icons',exact:true})).toHaveCount(0);
   const trigger = page.getByRole('button', { name: 'Open dialog', exact: true });
   await trigger.click();
   const dialog = page.getByRole('dialog', { name: 'Example dialog' });
@@ -11,6 +15,7 @@ async (page, { expect, screenshots, brand }) => {
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();
   await expect(trigger).toBeFocused();
+  await navigation.getByRole('button',{name:'Controls',exact:true}).click();
   // ChoiceGroup owns required-single state; buttons retain native Tab/Enter/Space.
   const choices = page.getByRole('group', { name: 'Example numbering', exact: true });
   const automatic = choices.getByRole('button', { name: 'Automatic', exact: true });
@@ -31,7 +36,7 @@ async (page, { expect, screenshots, brand }) => {
   await expect(automatic).toBeDisabled();
   await expect(fixed).toBeDisabled();
   await page.getByRole('group', { name: 'Example state', exact: true }).getByRole('button', { name: 'Default', exact: true }).click();
-  await page.getByRole('group', { name: 'Category', exact: true }).getByRole('button', { name: 'Generated views', exact: true }).click();
+  await navigation.getByRole('button', {name:'View lifetime',exact:true}).click();
   const lifecycle=page.getByRole('region',{name:'예시: View lifecycle',exact:true});
   const replacement=lifecycle.getByTestId('generated-view').first();
   await expect(replacement.getByLabel('Text',{exact:true})).toHaveValue('alpha');
@@ -52,8 +57,20 @@ async (page, { expect, screenshots, brand }) => {
   await expect(workspace.getByLabel('Text',{exact:true})).toHaveValue('alpha');
   await workspace.getByRole('button',{name:'Current generated view',exact:true}).click();
   await expect(workspace.getByRole('cell',{name:'예시: Retained generation',exact:true})).toBeVisible();
+  await navigation.getByRole('button',{name:'Tables',exact:true}).click();
   const examples = page.getByRole('region', { name: 'Generated views examples' });
   const table = page.getByRole('region', {name:'Table — 예시: 열별 정렬·필터',exact:true}).first();
+  await page.getByRole('group',{name:'Theme',exact:true}).getByRole('button',{name:'Dark',exact:true}).click();
+  await table.getByRole('button',{name:'Filter name',exact:true}).click();
+  const condition = page.locator('.data-table-filter select').first();
+  // Native popup pixels are reviewed separately. Protect the shared paired roles.
+  const option = condition.locator('option').last();
+  await expect(option).toHaveCSS('background-color', await page.locator('[data-slot="popover-content"]').evaluate(el=>getComputedStyle(el).backgroundColor));
+  await expect(option).toHaveCSS('color', await page.locator('.ui-gallery').evaluate(el=>getComputedStyle(el).color));
+  await condition.selectOption('empty');
+  await page.locator('.data-table-filter').getByRole('button',{name:'Apply',exact:true}).click();
+  await expect(table.locator('tbody tr')).toHaveCount(0);
+  await table.getByRole('button',{name:'Clear all filters',exact:true}).click();
   await table.getByRole('button',{name:'score',exact:true}).click();
   await table.getByRole('button',{name:'score',exact:true}).click();
   await expect(table.locator('tbody tr').first()).toContainText('100');
@@ -66,16 +83,8 @@ async (page, { expect, screenshots, brand }) => {
   await table.getByRole('button',{name:'Clear all filters',exact:true}).click();
   await expect(table.locator('tbody tr')).toHaveCount(50);
   await expect(table.locator('tbody tr').first()).toContainText('100');
-  if (screenshots) {
-    await page.setViewportSize({width:1440,height:1000});
-    await table.evaluate(el=>el.scrollIntoView({block:'start'})); await page.screenshot({path:'tmp/d3-table-1440.png'});
-    await page.evaluate(async()=>{const {i18n}=await import('/src/i18n.ts');await i18n.changeLanguage('ko');});
-    await page.setViewportSize({width:640,height:1000});
-    await page.getByRole('group',{name:'Theme',exact:true}).getByRole('button',{name:'Dark',exact:true}).click();
-    await table.evaluate(el=>el.scrollIntoView({block:'start'}));await page.screenshot({path:'tmp/d3-table-640.png'});
-    await page.evaluate(async()=>{const {i18n}=await import('/src/i18n.ts');await i18n.changeLanguage('en');});
-  }
 
+  await navigation.getByRole('button',{name:'Generated views',exact:true}).click();
   await expect(examples.getByRole('table')).toHaveCount(2);
   const states = examples.getByRole('group', { name: 'Generated view state', exact: true });
   await states.getByRole('button', { name: 'Authentication required', exact: true }).click();
@@ -113,16 +122,5 @@ async (page, { expect, screenshots, brand }) => {
   // Same window; narrow actual renderer width is what folds the Panel.
   await page.setViewportSize({ width: 640, height: 1000 });
   await expect.poll(async () => { const a = await children.nth(0).boundingBox(), b = await children.nth(1).boundingBox(); return Math.abs(a.x - b.x) < 1 && b.y > a.y; }).toBe(true);
-  if (screenshots) {
-    await page.evaluate(key => localStorage.setItem(key, 'ko'), `${brand.storagePrefix}.uiLanguage`);
-    await page.reload();
-    await page.getByRole('group', { name: 'Category', exact: true }).getByRole('button', { name: 'Generated views', exact: true }).click();
-    await page.getByRole('group', { name: 'Theme', exact: true }).getByRole('button', { name: 'Dark', exact: true }).click();
-    for (const viewport of [1440, 640]) {
-      await page.setViewportSize({ width: viewport, height: 1000 });
-      await charts.scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `docs/design/assets/dynamic-views-v7/after-${viewport}.png` });
-    }
-  }
 
 }
