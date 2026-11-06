@@ -214,6 +214,8 @@ K1 result.review는 같은 Host에서 재조회할 plugin/review/root/bundleRef/
 
 모든 read는 문서·원본·이미지를 확인하며 불일치를 본 bundle은 같은 Host 수명 동안 stale을 유지한다. snapshot에도 응답 state를 전달하고 Editor adapter가 stale을 보존하므로 뒤늦은 ready 응답이나 이전 byte 복원으로 탐색을 재활성화하지 않는다. 바뀐 이미지는 전달하지 않는다. 새로 발행·검증한 bundle을 명시적으로 열어야 다시 사용할 수 있다. disable/unregister 동안 조회를 거부하고 reload·재활성 후 같은 신뢰 artifact의 기존 bundle은 다시 확인할 수 있다. daemon 재시작 후 복원하지 않는다.
 
+자료 삭제·경로 종류 변경·접근 권한 상실(ENOENT/ENOTDIR/EISDIR/EACCES/EPERM/ELOOP), 고정 Root 접근 거부와 실제 revision/hash 불일치는 조회 전 경로 검사에서도 해당 bundle의 stale을 기록하고 원래 접근 오류는 유지한다. 삭제된 문서는 snapshot을 반환하지 않으며 같은 바이트로 복원해도 기존 bundle은 stale이다. 복구한 자료는 새 bundle을 명시적으로 발행해 사용할 수 있다. 잘못된 Host/Root/generation 요청은 bundle 검사 전에 거부하며 다른 bundle을 무효화하지 않는다. EBUSY·자원 부족 등 그 밖의 일시적 I/O 오류는 실패로 전달하고 stale로 고정하지 않는다.
+
 문서 생성 후 발행 실패는 uncertain과 이미 생성한 result.path/revision을 보존한다. 같은 requestId 조회는 이를 재생성하거나 start를 재전송하지 않는다. 문서 결과와 대조 자료 발행 성공을 구분한다. 이 범위는 K1 단일 원본→새 문서이며 Docling 해석·대규모 paging·과거 형식 호환을 포함하지 않는다.
 
 검증 근거: `pnpm browser:test review-v5 --screenshots`의 [1440 이전](assets/readonly-review-1317/review-readonly-1440-before.png)·[이후](assets/readonly-review-1317/review-readonly-1440.png), [다크 1440 이전](assets/readonly-review-1317/review-readonly-dark-1440-before.png)·[이후](assets/readonly-review-1317/review-readonly-dark-1440.png), [다크 640 이전](assets/readonly-review-1317/review-readonly-dark-640-before.png)·[이후](assets/readonly-review-1317/review-readonly-dark-640.png). 같은 snapshot의 Host stale 응답이 이전에는 무시되고 이후에는 탐색을 막는 차이다. 한국어 문서·같은 행 정렬·여백·패널 내 스크롤·잘림과 다크 톤을 확인했다. 640px는 기존 넓은 비교 안내를 유지한다. review 화면의 기존 영문 안내는 지역화하지 않았으며 새 대조 화면을 설계하지 않았다.

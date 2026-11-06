@@ -6,7 +6,7 @@ import { z } from "zod";
 import { parse, serialize, updateNodeTextAtPath } from "@litzio/core";
 import { commitFile, decodeUtf8, textRevision } from "@litzio/file-commit";
 import { reviewBundleSchema, reviewPageSchema, reviewMappingSchema, reviewProposalSchema, reviewBaselineSchema, REVIEW_LIMITS, type ReviewContribution, type ReviewBundle, type ReviewProposal } from "@litzio/core/views-v2";
-import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
+import { RootAccess, FileAccessError, accessPath, type FileAccess } from "../file-access.ts";
 import { validateImage } from "../image-validation.ts";
 import { publicOperationError } from "./operation-result.ts";
 import { loadDocumentFile } from "../document-reader.ts";
@@ -21,6 +21,11 @@ type Edit = z.infer<typeof editSchema>;
 type Bundle = { stale?: boolean; actions: Set<string>; plugin: string; review: string; root: string; access: RootAccess; file: string; documentSource: string; source: string; sourceHash: string; bundle: ReviewBundle;
   pages: z.infer<typeof reviewPageSchema>[]; mapping?: z.infer<typeof reviewMappingSchema>; images: z.infer<typeof completedReviewSchema>["images"];
   proposals: Map<string, ReviewProposal>; unresolved: Map<string, ReviewPendingChange>; edits: Map<string, Edit>; revision: string; undo: Map<string, { edit: Edit; before: string }> };
+class ReviewStaleError extends Error {}
+function invalidatesReview(cause: unknown) {
+  return cause instanceof ReviewStaleError || cause instanceof FileAccessError
+    || ["ENOENT", "ENOTDIR", "EISDIR", "EACCES", "EPERM", "ELOOP"].includes((cause as NodeJS.ErrnoException | null)?.code ?? "");
+}
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
 function bounded<T>(value: T): T { if (Buffer.byteLength(JSON.stringify(value)) > REVIEW_LIMITS.jsonBytes) throw new Error("Review JSON exceeds limit"); return value; }
 /** Daemon-owned completed artifacts and no-replay observations, scoped to one PluginHost. */
@@ -56,21 +61,29 @@ export class PluginReviews {
   private image(b: Bundle, ref: string) {
     const image = b.images.find(i => i.ref === ref); if (!image || path.isAbsolute(image.path)) throw new Error("Unknown image");
     const file = accessPath(b.access.resolve(path.join(b.root, image.path)), this.access);
-    if (statSync(file).size > REVIEW_LIMITS.imageBytes) throw new Error("Image exceeds limit");
-    const bytes = readFileSync(file); if (hash(bytes) !== image.revision) throw new Error("Image changed");
+    if (statSync(file).size > REVIEW_LIMITS.imageBytes) throw new ReviewStaleError("Image exceeds limit");
+    const bytes = readFileSync(file); if (hash(bytes) !== image.revision) throw new ReviewStaleError("Image changed");
     // Initial review images use the existing validated PNG container; other encodings are explicitly unsupported.
     validateImage("image/png", bytes);
     const width = bytes.readUInt32BE(16), height = bytes.readUInt32BE(20);
-    if (width * height > REVIEW_LIMITS.imagePixels) throw new Error("Image exceeds pixel limit");
+    if (width * height > REVIEW_LIMITS.imagePixels) throw new ReviewStaleError("Image exceeds pixel limit");
     return { mime: "image/png", data: bytes.toString("base64"), width, height };
   }
-  private check(b: Bundle) {
-    if (b.stale) throw new Error("Review baseline is stale");
+  private checkAccess(b: Bundle) {
     try {
       for (const file of [b.root, b.file, b.source]) accessPath(b.access.resolve(file), this.access);
+    } catch (cause) {
+      if (invalidatesReview(cause)) b.stale = true;
+      throw cause;
+    }
+  }
+  private check(b: Bundle) {
+    if (b.stale) throw new ReviewStaleError("Review baseline is stale");
+    try {
+      this.checkAccess(b);
       for (const image of b.images) this.image(b, image.ref);
-      if (hash(readFileSync(b.source)) !== b.sourceHash || textRevision(decodeUtf8(readFileSync(b.file))) !== b.bundle.documentRevision) throw new Error("Review baseline is stale");
-    } catch (cause) { b.stale = true; throw cause; }
+      if (hash(readFileSync(b.source)) !== b.sourceHash || textRevision(decodeUtf8(readFileSync(b.file))) !== b.bundle.documentRevision) throw new ReviewStaleError("Review baseline is stale");
+    } catch (cause) { if (invalidatesReview(cause)) b.stale = true; throw cause; }
   }
   private baseline(b: Bundle) { return { documentRevision: b.bundle.documentRevision, proposalRevision: b.revision, sourceRevision: b.bundle.sourceRevision, mappingRevision: b.bundle.mappingRevision }; }
   /** Validate a view reference without querying plugins, publishing materials or changing proposals. */
@@ -96,14 +109,14 @@ export class PluginReviews {
     const input = reviewRequestSchema.parse(raw), b = this.bundles.get(input.bundleRef);
     if (!b && input.action === "status") return { state: "unknown", verification: "unavailable", guidance: REVIEW_UNAVAILABLE_GUIDANCE, nextAction: "open-document", receipt: { requestId: input.requestId ?? randomUUID(), operation: "review.status", version: 1, scope: accessPath(input.root, this.access), outcome: "unknown" } };
     if (!b || b.plugin !== input.plugin || b.review !== input.review || b.root !== accessPath(input.root, this.access) || input.generation !== undefined && b.bundle.generation !== input.generation) throw new Error("Review bundle unavailable on this Host/Root/generation");
-    for (const file of [b.root, b.file, b.source]) accessPath(b.access.resolve(file), this.access);
+    this.checkAccess(b);
     const owner = `${input.plugin}/${input.review}/${input.bundleRef}`;
     const receipt = (outcome: string) => ({ requestId: input.requestId ?? randomUUID(), operation: `review.${input.action}`, version: 1, scope: b.root, outcome });
     if (input.action === "status") { const observed = this.requests.get(input.requestId ?? ""); return observed?.owner === owner ? structuredClone(observed.value) : { state: "unknown", verification: "unavailable", guidance: REVIEW_UNAVAILABLE_GUIDANCE, nextAction: "open-document", documentPath: b.file, receipt: receipt("unknown") }; }
     const binding = this.declaration(input.plugin, input.review);
     if (input.action !== "read" && !binding[input.action]) throw new Error("Review action not declared");
     if (input.action === "read") {
-      let stale = false; try { this.check(b); } catch { stale = true; }
+      let stale = false; try { this.check(b); } catch (cause) { if (!b.stale) throw cause; stale = true; }
       if (stale) for (const p of b.proposals.values()) { p.state = "stale"; this.actions(b, p); }
       const kind = input.kind ?? (input.pageNo ? "snapshot" : "bundle");
       if (kind === "snapshot") {
@@ -115,7 +128,7 @@ export class PluginReviews {
           document: document.document, documentRevision: document.revision, documentHash: document.revision, documentPath: document.path,
           baseline: { ...this.baseline(b), sourceRevision: stale ? b.bundle.sourceRevision : hash(readFileSync(b.source)) }, pageCount: b.pages.length });
         let image;
-        if (page?.imageRef) { try { image = this.image(b, page.imageRef); } catch { b.stale = stale = true; } }
+        if (page?.imageRef) { try { image = this.image(b, page.imageRef); } catch (cause) { if (!invalidatesReview(cause)) throw cause; b.stale = stale = true; } }
         return { snapshot: structuredClone({ ...snapshot, ...(image ? { imageUrl: `data:${image.mime};base64,${image.data}` } : {}) }), state: stale ? "stale" : "ready", receipt: receipt("success") };
       }
       if (stale && kind === "image") return { state: "stale", baseline: this.baseline(b), receipt: receipt("success") };

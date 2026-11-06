@@ -11,7 +11,7 @@ import { createReviewAdapter } from "../src/views/review-api.ts";
 import { createHostClient } from "../src/host-client.ts";
 import { reviewViewSchema } from "@litzio/core/views-v2";
 import { PluginReviews } from "../server/plugins/reviews.ts";
-import { RootAccess } from "../server/file-access.ts";
+import { RootAccess, FileAccessError } from "../server/file-access.ts";
 import { nativeSource } from "./helpers/document.ts";
 import { startHttpHost } from "../server/http-host.ts";
 import { startFetchServer } from "../../../test/helpers/fetch-server.ts";
@@ -351,4 +351,58 @@ test("a delayed ready response cannot undo an observed Host stale state", async 
   release();
   assert.equal((await previous).state, "stale");
   assert.equal((await adapter.read(3)).state, "stale");
+});
+
+test("observed deletion invalidates only the matching review bundle after byte restoration", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "review-deletion-")), file = path.join(root, "doc.md"), source = path.join(root, "source.txt");
+  try {
+    const original = serialize(parse(nativeSource("Original.\n")));
+    writeFileSync(file, original); writeFileSync(source, "input");
+    const revision = textRevision(original), sourceRevision = createHash("sha256").update("input").digest("hex");
+    const access = new RootAccess([root]);
+    let failure: string | undefined, skip = 0;
+    const resolve = access.resolve.bind(access);
+    access.resolve = (value, create) => {
+      if (value === file && failure && skip-- <= 0) {
+        if (failure === "BOUNDARY") throw new FileAccessError();
+        throw Object.assign(new Error("Injected access failure"), { code: failure });
+      }
+      return resolve(value, create);
+    };
+    let calls = 0;
+    const reviews = new PluginReviews(access, () => declaration, async () => { calls++; return {}; });
+    const data = { review: "text", bundle: { generation: "g1", documentRevision: revision, documentHash: revision, sourceRevision }, pages: [], images: [] };
+    const publish = () => ({ plugin: "fixture", review: "text", root, bundleRef: reviews.publish("fixture", root, file, source, data).bundleRef, generation: "g1" });
+    for (const target of [source, file]) {
+      const reference = publish(), unaffected = publish();
+      rmSync(target);
+      const otherHost = new PluginReviews(access, () => declaration, async () => ({}));
+      await assert.rejects(otherHost.execute({ ...unaffected, action: "read" }), /unavailable on this Host/);
+      await assert.rejects(reviews.execute({ ...unaffected, root: os.tmpdir(), action: "read" }), { status: 403 });
+      await assert.rejects(reviews.execute({ ...unaffected, generation: "other", action: "read" }), /generation/);
+      await assert.rejects(reviews.execute({ ...reference, action: "read", kind: "snapshot" }), { code: "ENOENT" });
+      writeFileSync(target, target === source ? "input" : original);
+      const restored = await reviews.execute({ ...reference, action: "read", kind: "snapshot" });
+      assert.equal(restored.state, "stale", "Observed deletion cannot be forgotten after restoring identical bytes");
+      await assert.rejects(reviews.execute({ ...reference, action: "propose", requestId: randomUUID(), baseline: restored.snapshot.baseline }), /stale/);
+      assert.equal((await reviews.execute({ ...unaffected, action: "read" })).state, "ready", "Unobserved bundles are unaffected");
+      assert.equal((await reviews.execute({ ...publish(), action: "read" })).state, "ready", "Explicit new publication can recover");
+    }
+    for (const beforeFailure of [0, 1]) {
+      const transient = publish();
+      skip = beforeFailure; failure = "EBUSY";
+      await assert.rejects(reviews.execute({ ...transient, action: "read" }), { code: "EBUSY" });
+      failure = undefined;
+      assert.equal((await reviews.execute({ ...transient, action: "read" })).state, "ready", "Transient access errors do not poison either access/check path");
+    }
+    // Inject access failures instead of changing the user's ACLs or replacing a Host root.
+    for (const deniedKind of ["EACCES", "BOUNDARY"]) {
+      const denied = publish();
+      failure = deniedKind;
+      await assert.rejects(reviews.execute({ ...denied, action: "read" }), deniedKind === "BOUNDARY" ? { status: 403 } : { code: "EACCES" });
+      failure = undefined;
+      assert.equal((await reviews.execute({ ...denied, action: "read" })).state, "stale");
+    }
+    assert.equal(calls, 0, "No invalid or stale mutation reaches the plugin");
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
