@@ -26,7 +26,7 @@ export type FolderTreeState = {
 };
 
 export type FolderTreeAction = (
-  | { type: "openRoot"; listing: FolderResponse; sectionExpanded?: boolean }
+  | { type: "openRoot"; listing: FolderResponse; sectionExpanded?: boolean; initialState?: FolderTreeState }
   | { type: "closeRoot" }
   | { type: "setSectionExpanded"; expanded: boolean }
   | { type: "expand"; path: string }
@@ -38,6 +38,8 @@ export type FolderTreeAction = (
 
 export function folderTreeReducer(state: FolderTreeState | null, action: FolderTreeAction): FolderTreeState | null {
   if (action.type === "openRoot") {
+    // Restore a manual section hidden by an automatic ancestor, without reviving old requests.
+    if (action.initialState) return { ...action.initialState, pending: new Map() };
     return { hostId: action.hostId ?? LOCAL_HOST_ID, root: action.listing.root, sectionExpanded: action.sectionExpanded ?? true, nodes: new Map([[action.listing.path, action.listing]]), expanded: new Set(), pending: new Map() };
   }
   if (!state) return null;
@@ -74,7 +76,7 @@ export function folderTreeReducer(state: FolderTreeState | null, action: FolderT
 
 /** Every tree action except opening and closing names the opened folder it belongs to. */
 export type FolderTreesAction = (
-  | { type: "openRoot"; listing: FolderResponse; sectionExpanded?: boolean }
+  | { type: "openRoot"; listing: FolderResponse; sectionExpanded?: boolean; initialState?: FolderTreeState }
   | { type: "closeRoot"; root: string }
   | (Exclude<FolderTreeAction, { type: "openRoot" | "closeRoot" }> & { root: string })
 ) & { hostId?: string };
@@ -216,12 +218,14 @@ export function useFolderTrees(request: (root: string, path?: string, background
   const oneDrivePaths = JSON.stringify(hostId === LOCAL_HOST_ID ? plugins.flatMap(plugin =>
     plugin.id === "litzio.onedrive" && plugin.enabled && plugin.running ? plugin.status?.folders.map(folder => folder.path) ?? [] : []) : []);
   // Only automatically opened roots belong to the plugin; never persist them as ordinary roots.
-  const pluginRoots = useRef(new Map<string, string>());
+  const pluginRoots = useRef(new Map<string, { root: string; manual: FolderTreeState[] }>());
 
   const roots = trees.map(tree => tree.root);
   // Compare path values in the effect dependencies, independently of tree listing/expansion state.
   const serializedRoots = JSON.stringify(roots);
-  const serializedCollapsed = JSON.stringify(trees.filter(tree => !tree.sectionExpanded).map(tree => tree.root));
+  const manualTrees = trees.flatMap(tree => [...pluginRoots.current.values()].find(automatic => automatic.root === tree.root)?.manual ?? [tree]);
+  const serializedRememberedRoots = JSON.stringify(manualTrees.map(tree => tree.root));
+  const serializedCollapsed = JSON.stringify(manualTrees.filter(tree => !tree.sectionExpanded).map(tree => tree.root));
   const [restored, setRestored] = useState(false);
   const [rememberVersion, rememberFolders] = useReducer(version => version + 1, 0);
   const [sectionVersion, rememberSections] = useReducer(version => version + 1, 0);
@@ -253,9 +257,10 @@ export function useFolderTrees(request: (root: string, path?: string, background
     if (!restored) return;
     let cancelled = false;
     const paths = JSON.parse(oneDrivePaths) as string[];
-    for (const [path, root] of pluginRoots.current) if (!paths.includes(path)) {
+    for (const [path, automatic] of pluginRoots.current) if (!paths.includes(path)) {
       pluginRoots.current.delete(path);
-      dispatch({ type: "closeRoot", root });
+      dispatch({ type: "closeRoot", root: automatic.root });
+      for (const tree of automatic.manual) dispatch({ type: "openRoot", listing: tree.nodes.get(tree.root)!, initialState: tree });
     }
     void (async () => {
       for (const path of paths) {
@@ -264,7 +269,9 @@ export function useFolderTrees(request: (root: string, path?: string, background
           const listing = await request(path);
           if (cancelled) return;
           if (latest.current.some(tree => containsFolder(tree.root, listing.root))) continue;
-          pluginRoots.current.set(path, listing.root);
+          const manual = latest.current.filter(tree => containsFolder(listing.root, tree.root))
+            .flatMap(tree => [...pluginRoots.current.values()].find(automatic => automatic.root === tree.root)?.manual ?? [tree]);
+          pluginRoots.current.set(path, { root: listing.root, manual });
           dispatch({ type: "openRoot", listing });
         } catch { /* Unavailable detected folders do not replace existing navigation. */ }
       }
@@ -276,8 +283,8 @@ export function useFolderTrees(request: (root: string, path?: string, background
   // Tree-only changes do not write. During restoration, user changes wait for all remembered paths.
   useEffect(() => {
     if (!restored || rememberVersion === 0) return;
-    writeOpenFolders((JSON.parse(serializedRoots) as string[]).filter(root => ![...pluginRoots.current.values()].includes(root)), hostId);
-  }, [serializedRoots, restored, rememberVersion]);
+    writeOpenFolders(JSON.parse(serializedRememberedRoots) as string[], hostId);
+  }, [serializedRememberedRoots, restored, rememberVersion]);
 
   // Like #370, every explicit action writes the current reduced state, even if this tab wrote
   // the same value before another tab changed storage. No last-written-value cache. Defer user

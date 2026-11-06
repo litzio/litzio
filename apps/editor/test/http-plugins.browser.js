@@ -14,6 +14,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await page.getByRole("button", { name: "Settings", exact: true }).click();
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
   };
+  let detectedFolders = [pluginFixture.folder, pluginFixture.otherFolder];
   let holdEnabled = false, releaseEnabled;
   const heldEnabled = new Promise(resolve => { releaseEnabled = resolve; });
   const delayedResponses = [];
@@ -24,7 +25,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     const response = await route.fetch();
     const value = await response.json();
     for (const plugin of value.plugins) if (plugin.id === "litzio.onedrive" && plugin.running) {
-      plugin.status = { available: true, folders: [pluginFixture.folder, pluginFixture.otherFolder].map((path, i) => ({ id: String(i), path, label: "Drive fixture", defaultCandidate: true })), decorations: [pluginFixture.folder, pluginFixture.otherFolder].map((path, i) => ({ id: String(i), path, icon: "onedrive" })), accounts: [] };
+      plugin.status = { available: true, folders: detectedFolders.map((path, i) => ({ id: String(i), path, label: "Drive fixture", defaultCandidate: true })), decorations: detectedFolders.map((path, i) => ({ id: String(i), path, icon: "onedrive" })), accounts: [] };
     }
     if (delayed && value.plugins.some(plugin => plugin.id === "litzio.onedrive" && plugin.enabled)) {
       delayedResponses.push(value);
@@ -74,7 +75,29 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   expect(listing.ok()).toBe(true);
   await openSettings();
   await page.reload(); await openSettings(); await expect(official).not.toBeChecked();
-  await page.unroute("**/api/plugins");
+  // A manually opened descendant remains owned and remembered independently of its automatic parent.
+  await page.keyboard.press("Escape");
+  await openFolderPicker(page);
+  await page.getByTestId("folder-path").fill(pluginFixture.folder);
+  await page.getByTestId("folder-open").click();
+  await expect(page.getByTestId("folder-path")).not.toBeVisible();
+  const rememberedFolders = () => page.evaluate(() => JSON.parse(localStorage.getItem(JSON.stringify(["local", "litzio.openFolders"])) ?? "[]"));
+  await expect.poll(rememberedFolders).toEqual([pluginFixture.folder]);
+  detectedFolders = [pluginFixture.folder.replace(/[\\/][^\\/]+$/, "")];
+  await openSettings();
+  await official.click(); await expect(official).toBeChecked();
+  await expect(page.locator(".sidebar-folder-name")).toContainText("http-host-a");
+  await expect.poll(rememberedFolders).toEqual([pluginFixture.folder]);
+  await page.reload(); await openSettings(); await expect(official).toBeChecked();
+  await expect(page.locator(".sidebar-folder-name")).toContainText("http-host-a");
+  await official.click(); await expect(official).not.toBeChecked();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".sidebar-folder-name")).toHaveText("fixture");
+  await expect.poll(rememberedFolders).toEqual([pluginFixture.folder]);
+  await page.reload();
+  await expect(page.locator(".sidebar-folder-name")).toHaveText("fixture");
+  await openSettings();
+  await page.unrouteAll({ behavior: "wait" });
   await page.getByRole("button", { name: "Add plugin…", exact: true }).click();
   await page.getByTestId("folder-path").fill(pluginFixture.directory);
   await page.getByTestId("folder-open").click();
