@@ -23,6 +23,7 @@ Litzio 저장소 worktree(현재 디렉터리, 브랜치 <branch>, master 기준
 - 화면이 바뀌면 PR을 올리기 전에 자기 캡처로 다음을 확인하고 고친다: 같은 행의 세로 중심·글자와 테두리 사이 여백·칸 안 쏠림 / 패널·스크롤바·화면 밖 잘림과 가림 / 오해 소지가 있는 문구와 한국어 줄바꿈 / 다크 테마와 한국어 640px / `docs/design/ui-patterns-v1.md`에서 같은 패턴을 쓰는 다른 화면과의 일치.
 - 리뷰 agent나 하위 agent를 띄우지 않는다.
 - 결정 범위 밖의 제품 판단이 필요하거나 이슈와 다른 원인을 발견하면, 구현을 멈추고 근거와 선택지를 보고한다.
+- 첫 커밋 전에 `paseo inspect $env:PASEO_AGENT_ID --json`(PowerShell)으로 자신의 실행 provider·model을 확인한다. 다른 셸에서는 해당 셸의 환경 변수 문법을 사용한다. 확인한 실제 구현 모델을 CONTRIBUTING의 canonical 식별자로 기록하며, 출력이 없거나 확인할 수 없으면 추측하지 말고 부모에게 보고한다. 모델이 바뀌면 후속 구현 커밋 전에 다시 확인한다.
 - 커밋은 UTF-8 메시지 파일(`git commit --file`)로 만든다. 마지막 trailer 블록에 정확히 `AI-Agent: <agent>`, `AI-Model: <provider>/<model>`을 한 번씩 넣는다(실제 구현 모델). merge 커밋도 포함하고, Co-authored-by는 쓰지 않는다. 커밋마다 `git log -1 --format='%H%n%(trailers:only)'`로 확인한다.
 - master를 base로 PR을 만든다. 본문에 `Closes #<N>`(일부만 해결하면 `Refs #<N>`), 변경 요약, 실행한 검증을 쓴다. 시각 변경은 1440px와 640px 전후 캡처를 남긴다. 재생성 가능한 대용량 근거 파일은 커밋하지 않는다.
 - PR CI 결과까지 확인한다. 실패하면 재실행 전에 artifact를 분석해 제품 결함인지 테스트 문제인지 판정한다. 사람이 실제로 낼 수 있는 속도와 순서에서 생기면 제품 결함이다. 테스트 문제라면 단언을 약화하지 말고 실제 상태를 기다리게 고친다. 재시도나 timeout 증가로 덮지 않는다. 병합은 하지 않는다.

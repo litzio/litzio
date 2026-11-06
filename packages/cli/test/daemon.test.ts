@@ -57,12 +57,17 @@ test("daemon CLI keeps one local instance, rejects occupied ports and warns for 
   let owned: DaemonRecord | undefined;
   try {
     const results = await Promise.all([execute(["start"]), execute(["start"])]);
-    for (const result of results) assert.equal(result.code, 0, result.stderr);
+    for (const result of results) {
+      assert.equal(result.code, 0, result.stderr);
+      // Outside node_modules, Node reports deprecated builtins used by the bundle.
+      assert.doesNotMatch(result.stderr, /DEP0040|punycode/i);
+    }
     const first = JSON.parse(results[0].stdout), second = JSON.parse(results[1].stdout);
     assert.equal(first.instanceId, second.instanceId); assert.equal(first.pid, second.pid);
     assert.equal(first.url, `http://127.0.0.1:${daemonPort("development")}`);
     assert.equal((await fetch(first.url + "/api/document")).status, 200);
     const status = await execute(["status", "--json"]); assert.equal(status.code, 0, status.stderr);
+    assert.equal(status.stderr, "");
     assert.equal(JSON.parse(status.stdout).instanceId, first.instanceId);
     assert.equal(JSON.parse(status.stdout).launcher, "cli-start");
     assert.deepEqual(JSON.parse(status.stdout).identity, hostIdentity());
