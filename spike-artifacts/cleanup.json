@@ -1,0 +1,22 @@
+{
+  "checkedAtUtc": "2026-11-06T08:03:27.3446149Z",
+  "serverPort": 5196,
+  "stoppedOwnedProcessIds": [
+    39200,
+    49672,
+    31584,
+    55724,
+    53748,
+    19680,
+    23860,
+    54732,
+    67720,
+    29120,
+    33040,
+    66260
+  ],
+  "remainingOwnedProcesses": [],
+  "remainingListeners": [],
+  "remainingProfileBrowsers": [],
+  "clean": true
+}

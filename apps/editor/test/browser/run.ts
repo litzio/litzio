@@ -8,6 +8,11 @@ import { prepareBrowserFixtures, REPOSITORY_ROOT } from "./fixtures.ts";
 import { HTTP_SCENARIOS, selectBrowserScenarios, STABLE_SCENARIOS } from "./scenarios.ts";
 
 try {
+  if (process.argv[2] === 'interview-spike') {
+    const require = createRequire(import.meta.url);
+    process.argv = [process.execPath, require.resolve('@playwright/test/cli'), 'test', '--config', path.join(REPOSITORY_ROOT, 'apps/editor/test/interview-spike.config.ts')];
+    await import(pathToFileURL(require.resolve('@playwright/test/cli')).href);
+  } else {
   const { scenarios, screenshots, shard } = selectBrowserScenarios(process.argv.slice(2));
   if (scenarios.some(name => HTTP_SCENARIOS.includes(name))) {
     if (!process.env.LITZIO_BROWSER_URL && !existsSync(path.join(REPOSITORY_ROOT, "packages/cli/dist/cli.mjs"))) {
@@ -36,6 +41,7 @@ try {
   });
   // The exported CLI bin owns asynchronous completion, process signals and teardown.
   await import(pathToFileURL(cli).href);
+  }
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 2;

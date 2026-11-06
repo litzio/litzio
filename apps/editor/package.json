@@ -15,6 +15,7 @@
     "@base-ui/react": "^1.8.0",
     "@litzio/core": "workspace:*",
     "@litzio/file-commit": "workspace:*",
+    "@litzio/plugin-sdk": "workspace:*",
     "@tiptap/core": "3.31.3",
     "@tiptap/extension-code": "3.31.3",
     "@tiptap/extension-code-block-lowlight": "3.31.3",
@@ -25,6 +26,7 @@
     "@tiptap/pm": "3.31.3",
     "@tiptap/react": "3.31.3",
     "@tiptap/starter-kit": "3.31.3",
+    "@xyflow/react": "^12.12.1",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "diff": "8.0.4",
@@ -45,8 +47,7 @@
     "react-i18next": "^17.1.0",
     "semver": "7.7.3",
     "undici": "7.30.1",
-    "zod": "4.6.7",
-    "@litzio/plugin-sdk": "workspace:*"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

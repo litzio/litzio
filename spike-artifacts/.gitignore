@@ -1,0 +1,7 @@
+# Local provider/runtime files and private originals are never publication artifacts.
+/host/
+/local-only/
+/fault-*/
+/browser-results/
+/owned-processes.json
+/followup/

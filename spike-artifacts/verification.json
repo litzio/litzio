@@ -1,0 +1,69 @@
+{
+  "passed": true,
+  "calls": [
+    {
+      "stage": "interview",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "startedAt": "2026-11-06T07:56:29.604Z",
+      "finishedAt": "2026-11-06T07:56:41.631Z",
+      "tokenUsage": {
+        "used": 31149,
+        "limit": 258400
+      }
+    },
+    {
+      "stage": "flow",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "startedAt": "2026-11-06T07:56:42.080Z",
+      "finishedAt": "2026-11-06T07:56:52.947Z",
+      "tokenUsage": {
+        "used": 33784,
+        "limit": 258400
+      }
+    },
+    {
+      "stage": "revise",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "startedAt": "2026-11-06T07:56:55.798Z",
+      "finishedAt": "2026-11-06T07:57:07.087Z",
+      "tokenUsage": {
+        "used": 37377,
+        "limit": 258400
+      }
+    },
+    {
+      "stage": "revise",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "startedAt": "2026-11-06T07:58:01.969Z",
+      "finishedAt": "2026-11-06T07:58:14.616Z",
+      "tokenUsage": {
+        "used": 41222,
+        "limit": 258400
+      }
+    },
+    {
+      "stage": "report",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "startedAt": "2026-11-06T07:58:15.766Z",
+      "finishedAt": "2026-11-06T07:58:30.589Z",
+      "tokenUsage": {
+        "used": 45255,
+        "limit": 258400
+      }
+    }
+  ],
+  "nodeId": "prepare",
+  "revisions": 5,
+  "document": {
+    "name": "report-8615c3b3-c3ff-4833-94a3-c0376bfad4f6.md",
+    "valid": true,
+    "canonical": true,
+    "receiptMatches": true
+  },
+  "errors": []
+}
