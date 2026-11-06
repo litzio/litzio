@@ -1,3 +1,4 @@
+import { assertFigureRoundTrip } from "./myst/figure-round-trip.ts";
 import { assertPersistentParagraph } from "./myst/paragraph.ts";
 import { type NodePath } from "./document.ts";
 import { getEditableDocument } from "./editable.ts";
@@ -20,7 +21,6 @@ import {
 
 import { figureCaptionContent, figureContentError, type FigureContent } from "./figure.ts";
 import {
-  assertFigureRoundTrip,
   createFigureNode,
   isFigure,
   setFigureContent,
@@ -43,7 +43,8 @@ import {
 } from "./myst/footnote.ts";
 import { nextFootnoteLabel, planEndnoteLifecycle, planNumberingChange } from "./numbering.ts";
 import { canonicalCitation, type CitationContent } from "./citation.ts";
-import { FRONT_MATTER_FIELD, parse } from "./myst/parse.ts";
+import { FRONT_MATTER_FIELD } from "./myst/constants.ts";
+import { parse } from "./myst/parse.ts";
 import { serialize, serializeFor } from "./myst/serialize.ts";
 import { DocumentDiagnosticError, DocumentWriteError } from "./write-error.ts";
 import {

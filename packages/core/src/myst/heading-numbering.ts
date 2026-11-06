@@ -1,6 +1,6 @@
 import { DocumentDiagnosticError } from "../write-error.ts";
 import { defaultHeadingNumbering, type HeadingNumbering } from "../numbering.ts";
-import { FRONT_MATTER_FIELD } from "./parse.ts";
+import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { cloneDocument, type MystDocument } from "./tree.ts";
 import { serializeFor } from "./serialize.ts";
 import { metadata } from "./metadata.ts";

@@ -3,7 +3,7 @@ import { labelError } from "./label.ts";
 import { labelIdentifier } from "./myst/label.ts";
 import type { MystNode } from "./myst/tree.ts";
 import { canonicalCitation, citationContentError, type CitationContent } from "./citation.ts";
-import { citationToNode, projectCitation } from "./myst/citation.ts";
+import { citationToNode, projectCitation } from "./myst/citation-nodes.ts";
 
 /** Reference roles authored as inline content: {eq} for Equations, {numref} for Figures and
  * Tables, and {ref} for sections, through the `(label)=` target before their heading. */

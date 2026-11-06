@@ -1,6 +1,6 @@
 import { DocumentDiagnosticError } from "../write-error.ts";
 import { isMap, parseDocument } from "yaml";
-import { FRONT_MATTER_FIELD } from "./parse.ts";
+import { FRONT_MATTER_FIELD } from "./constants.ts";
 import type { MystDocument } from "./tree.ts";
 
 /** Shared YAML document for semantic metadata edits; preserves comments and unrelated settings. */

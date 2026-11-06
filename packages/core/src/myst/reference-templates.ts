@@ -1,7 +1,7 @@
 import { DocumentDiagnosticError } from "../write-error.ts";
 import { isMap, isScalar } from "yaml";
 import { NUMBERED_KINDS, referenceTemplatesError, type ReferenceTemplates, type ReferenceTemplateUpdate } from "../numbering.ts";
-import { FRONT_MATTER_FIELD } from "./parse.ts";
+import { FRONT_MATTER_FIELD } from "./constants.ts";
 import { metadata } from "./metadata.ts";
 import { serializeFor } from "./serialize.ts";
 import { cloneDocument, type MystDocument } from "./tree.ts";
