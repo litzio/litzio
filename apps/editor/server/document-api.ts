@@ -1,6 +1,7 @@
 import { documentRevision, loadDocumentFile, loadEditorFile, editorFile, MEDIA_TYPES } from "./document-reader.ts";
 export { documentRevision, loadDocumentFile, loadEditorFile, MEDIA_TYPES } from "./document-reader.ts";
 import { executeCompareOperation } from "./document-compare.ts";
+import { VIEW_TRANSPORT_LIMITS } from "../shared/view-limits.ts";
 import { executeViewOperation } from "./views.ts";
 import { hostIdentity } from "./host-identity.ts";
 import { executeTemplateOperation } from "./document-templates.ts";
@@ -235,7 +236,7 @@ export async function handleDocumentRequest(
   if (url === "/api/views") {
     if (req.method !== "POST") { res.statusCode = 405; res.end(); return; }
     try {
-      const input = JSON.parse(decodeUtf8(await readRequestBody(req, Math.min(bodyLimit, 65536))));
+      const input = JSON.parse(decodeUtf8(await readRequestBody(req, Math.min(bodyLimit, VIEW_TRANSPORT_LIMITS.requestBytes))));
       const result = services?.views ? await services.views.execute(input) : await executeViewOperation(input, { access });
       sendJson(res, result.receipt.outcome === "success" ? 200 : 400, result);
     } catch (error) { failure(error); }
