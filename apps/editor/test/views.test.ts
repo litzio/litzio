@@ -270,6 +270,17 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     large.sources.stats.rows = Array.from({ length: 8000 }, (_, total) => ({ total }));
     fs.writeFileSync(snapshotFile, JSON.stringify(large));
     parity(await request({ action: "propose", view: large }), await cliRequest(["propose", snapshotFile]));
+    const small = JSON.stringify(assistantView);
+    const rawView = small.slice(0, 1) + " ".repeat(1048577 - Buffer.byteLength(small)) + small.slice(1);
+    fs.writeFileSync(snapshotFile, rawView);
+    assert.equal((await cliRequest(["propose", snapshotFile], 1)).outcome, "failure");
+    const rawProposal = await fetch(`${host.url}/api/views`, { method: "POST", headers: { Origin: host.url, "Content-Type": "application/json" }, body: '{"action":"propose","view":' + rawView + '}' });
+    assert.equal(rawProposal.status, 400, "HTTP must reject the same oversized raw definition as CLI");
+    const atLimit = rawView.slice(0, 1) + rawView.slice(2);
+    const exactProposal = await fetch(`${host.url}/api/views`, { method: "POST", headers: { Origin: host.url, "Content-Type": "application/json" }, body: '{"action":"propose","view":' + atLimit + '}' });
+    assert.equal(exactProposal.status, 200, "A valid exact-limit raw definition must remain accepted");
+    fs.writeFileSync(snapshotFile, atLimit);
+    assert.equal((await cliRequest(["propose", snapshotFile])).receipt.outcome, "success");
     const tooLarge = JSON.stringify({ action: "propose", view: large }) + " ".repeat(1048576);
     const oversized = await fetch(`${host.url}/api/views`, { method: "POST", headers: { Origin: host.url, "Content-Type": "application/json" }, body: tooLarge });
     assert.equal(oversized.status, 413);
