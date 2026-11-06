@@ -24,13 +24,16 @@ export function collectViewMaterials(input: AssistantConversationInput, referenc
     if (bytes > VIEW_GENERATION_CONTEXT_BYTES || materials.length >= VIEW_LIMITS.provenance) throw new Error("View material exceeds context limit. Attach fewer references.");
     materials.push(material);
   };
+  const unsupported = "View text snapshots require UTF-8 text material. Image or binary attachments remain available in ordinary chat; attach text data for this view.";
   for (const reference of references) {
+    if (reference.kind === "image") throw new Error(unsupported);
     const boundary = new RootAccess(folders);
     const file = accessPath(accessPath(reference.path, boundary), access);
     if (statSync(file).size > VIEW_GENERATION_CONTEXT_BYTES) throw new Error("View material exceeds context limit.");
     const source = readFileSync(file);
     if (source.length > VIEW_GENERATION_CONTEXT_BYTES) throw new Error("View material exceeds context limit.");
-    const text = decodeUtf8(source);
+    let text: string;
+    try { text = decodeUtf8(source); } catch { throw new Error(unsupported); }
     const root = roots?.find(root => inside(root.path, file));
     const provenance = provenanceSchema.parse(root ? { kind: "document", label: reference.name, hostId: context!.hostId, rootId: root.id, path: path.relative(root.path, file).split(path.sep).join("/"), revision: textRevision(text) }
       : { kind: "reference", label: reference.name, refId: randomUUID() });

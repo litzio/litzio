@@ -1,7 +1,7 @@
 import { executeViewOperation } from "./views.ts";
 import { PLUGIN_AUTHORING_SKILL } from "./plugins/authoring-skill.ts";
 import { pluginTools, executePluginTool, pluginJobTools, executePluginJobTool } from "./assistant-plugin-tools.ts";
-import { catalogViewSchema, type ViewProvenance } from "@litzio/core/views-v2";
+import { catalogViewSchema, VIEW_LIMITS, type ViewProvenance } from "@litzio/core/views-v2";
 import { provenanceSchema } from "@litzio/core/views-v2";
 import { collectViewMaterials } from "./assistant-view-materials.ts";
 import { VIEW_GENERATION_CONTEXT_BYTES, VIEW_GENERATION_OUTPUT_BYTES } from "../shared/view-generation.ts";
@@ -31,6 +31,7 @@ export class AssistantConversations {
   private conversations = new Map<string, AssistantConversation>();
   private generationScopes = new Map<string, { owner: string; provenance: ViewProvenance[]; operationOwners: Map<string, string> }>();
   private viewContexts = new Map<string, AssistantConversationInput["viewContext"]>();
+  private viewMaterialErrors = new Map<string, { reason: string; toolResult?: true }>();
   private viewMaterials = new Map<string, ReturnType<typeof collectViewMaterials>>();
   private pending = new Set<string>();
   private scopes = new Map<string, DocumentToolScope & { turnId?: string; displayClient?: string; viewGeneration?: boolean; viewProposals?: number }>();
@@ -67,6 +68,7 @@ export class AssistantConversations {
           if (scope.viewProposals > 1 && scope.viewProposals <= 3) active.items.push({ id: randomUUID(), kind: "plan", text: `Correcting view (${scope.viewProposals - 1}/2)` });
           if (scope.viewProposals > 3) throw new Error("View correction limit reached (2). Start a new turn after revising the request.");
         }
+        if (params.tool === "propose_view" && this.viewMaterialErrors.has(params.threadId)) throw new Error(this.viewMaterialErrors.get(params.threadId)!.reason);
         const source = params.arguments?.view?.profile === "query" ? params.arguments.view.sources?.stats : undefined;
         const proposalOwner = source?.kind === "operation" ? (source.operation === "folder.statistics" ? "litzio.statistics" : this.plugins?.viewOperationOwner(source.operation)) : "litzio.assistant";
         const proposalScope = { access: this.access, plugins: this.plugins, proposal: { owner: proposalOwner ?? "litzio.assistant", provenance: [
@@ -114,10 +116,14 @@ export class AssistantConversations {
       const provenance = dataRead && !(result && typeof result === "object" && "error" in result && result.error) ? provenanceSchema.parse({ kind: "reference", label: params.tool, refId: randomUUID() }) : undefined;
       if (provenance) {
         const materials = this.viewMaterials.get(params.threadId) ?? [];
-        if (Buffer.byteLength(JSON.stringify([...materials, { provenance, text }]), "utf8") > VIEW_GENERATION_CONTEXT_BYTES || materials.length >= 64) throw new Error("View material exceeds context limit.");
-        this.viewMaterials.set(params.threadId, [...materials, { provenance, text }]);
+        if (this.viewMaterialErrors.get(params.threadId)?.toolResult || materials.length >= VIEW_LIMITS.provenance || Buffer.byteLength(text, "utf8") > VIEW_GENERATION_CONTEXT_BYTES || Buffer.byteLength(JSON.stringify([...materials, { provenance, text }]), "utf8") > VIEW_GENERATION_CONTEXT_BYTES) {
+          // The read already succeeded. Retain its full result and mark only view capture unavailable.
+          this.viewMaterialErrors.set(params.threadId, { reason: "View material exceeds context limit. Start a new conversation with fewer or smaller materials for a view.", toolResult: true });
+          this.viewMaterials.delete(params.threadId);
+        } else this.viewMaterials.set(params.threadId, [...materials, { provenance, text }]);
       }
-      return { contentItems: [{ type: "inputText", text }, ...(provenance ? [{ type: "inputText", text: JSON.stringify({ viewProvenance: provenance }) }] : [])], success: !(result && typeof result === "object" && "error" in result && result.error) };
+      const unavailable = this.viewMaterialErrors.get(params.threadId);
+      return { contentItems: [{ type: "inputText", text }, ...(provenance && unavailable ? [{ type: "inputText", text: JSON.stringify({ viewMaterialUnavailable: unavailable.reason }) }] : []), ...(provenance ? [{ type: "inputText", text: JSON.stringify({ viewProvenance: provenance }) }] : [])], success: !(result && typeof result === "object" && "error" in result && result.error) };
     };
     connection.client.on("notification", (method, params) => this.notification(method, params));
     connection.client.on("disconnected", (message: string) => {
@@ -259,7 +265,7 @@ export class AssistantConversations {
       }
       references = checkedReferences([...(input.references ?? []), ...(input.viewGeneration && input.document ? [input.document.path] : [])], folders, this.access);
       // Keep all injected text inside the envelope: Codex may flatten text inputs in history.
-      const context = { userMessage: input.viewGenerationCorrection ? "" : input.message, ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))], ...(!input.viewGeneration && input.viewContext ? { viewAuthoring: { owner: "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation) } } : {}), ...(input.viewGeneration ? { viewGeneration: { ...viewGenerationContext(this.plugins?.viewOperations(), Object.fromEntries((this.plugins?.viewOperations() ?? []).map(operation => [operation.operation, this.plugins?.viewOperationOwner(operation.operation) ?? "litzio.statistics"]))), owner: input.viewContext?.owner ?? "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation), correction: input.viewGenerationCorrection ?? 0 } } : {}) };
+      const context = { userMessage: input.viewGenerationCorrection ? "" : input.message, ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references: [...references, ...skills.map(skill => ({ ...skill, kind: "skill" }))], ...(!input.viewGeneration && input.viewContext ? { viewAuthoring: this.authoringContext(input, references, folders, conversation) } : {}), ...(input.viewGeneration ? { viewGeneration: { ...viewGenerationContext(this.plugins?.viewOperations(), Object.fromEntries((this.plugins?.viewOperations() ?? []).map(operation => [operation.operation, this.plugins?.viewOperationOwner(operation.operation) ?? "litzio.statistics"]))), owner: input.viewContext?.owner ?? "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation), correction: input.viewGenerationCorrection ?? 0 } } : {}) };
       const messages: object[] = [{ type: "text", text: input.message, text_elements: [] }, { type: "text", text: CONTEXT + JSON.stringify(context), text_elements: [] }];
       messages.push(...skills.map(skill => ({ type: "skill", name: skill.name, path: skill.path })));
       messages.push(...references.filter(file => /\.(png|jpe?g|webp|gif)$/i.test(file.path)).map(file => ({ type: "localImage", path: file.path })));
@@ -355,8 +361,8 @@ export class AssistantConversations {
     }
     conversation.copilot = options;
     references = checkedReferences([...(input.references ?? []), ...(input.viewGeneration && input.document ? [input.document.path] : [])], folders, this.access);
-    const context = { userMessage: input.viewGenerationCorrection ? "" : input.message, ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references, ...(!input.viewGeneration && input.viewContext ? { viewAuthoring: { owner: "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation) } } : {}), ...(input.viewGeneration ? { viewGeneration: { ...viewGenerationContext(this.plugins?.viewOperations(), Object.fromEntries((this.plugins?.viewOperations() ?? []).map(operation => [operation.operation, this.plugins?.viewOperationOwner(operation.operation) ?? "litzio.statistics"]))), owner: input.viewContext?.owner ?? "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation), correction: input.viewGenerationCorrection ?? 0 } } : {}) };
-    const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.viewGenerationCorrection ? "" : input.message, references, ...(!input.viewGeneration && input.viewContext ? { viewAuthoring: { owner: "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation) } } : {}), ...(input.viewGeneration ? { viewGeneration: { correction: input.viewGenerationCorrection ?? 0 } } : {}) }] };
+    const context = { userMessage: input.viewGenerationCorrection ? "" : input.message, ...(this.plugins ? { pluginAuthoring: PLUGIN_AUTHORING_SKILL } : {}), folders, document: input.document ? { path: input.document.path } : null, references, ...(!input.viewGeneration && input.viewContext ? { viewAuthoring: this.authoringContext(input, references, folders, conversation) } : {}), ...(input.viewGeneration ? { viewGeneration: { ...viewGenerationContext(this.plugins?.viewOperations(), Object.fromEntries((this.plugins?.viewOperations() ?? []).map(operation => [operation.operation, this.plugins?.viewOperationOwner(operation.operation) ?? "litzio.statistics"]))), owner: input.viewContext?.owner ?? "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation), correction: input.viewGenerationCorrection ?? 0 } } : {}) };
+    const turn: AssistantConversationTurn = { id: randomUUID(), status: "inProgress", items: [{ id: randomUUID(), kind: "user", text: input.viewGenerationCorrection ? "" : input.message, references, ...(!input.viewGeneration && input.viewContext ? { viewAuthoring: this.authoringContext(input, references, folders, conversation) } : {}), ...(input.viewGeneration ? { viewGeneration: { correction: input.viewGenerationCorrection ?? 0 } } : {}) }] };
     conversation.turns.push(turn); conversation.model = input.model; conversation.reasoningEffort = input.reasoningEffort;
     conversation.folders = folders; conversation.updatedAt = Date.now(); conversation.permissionMode = settings.permissionMode;
     this.scopes.set(id, { folders: folders.length ? new RootAccess(folders) : null, access: this.access, permissionMode: settings.permissionMode, turnId: turn.id, viewGeneration: input.viewGeneration });
@@ -419,13 +425,28 @@ export class AssistantConversations {
       if (update.status) item.status = update.status === "in_progress" ? "inProgress" : update.status;
     }
   }
+  /** Ordinary attachments and tool execution do not depend on optional view capture. */
+  private authoringContext(input: AssistantConversationInput, references: import("../shared/assistant.ts").AssistantFileReference[], folders: string[], conversation: AssistantConversation) {
+    this.viewContexts.set(conversation.id, input.viewContext);
+    try { return { owner: "litzio.assistant", materials: this.materialsFor(input, references, folders, conversation) }; }
+    catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      const previous = this.viewMaterialErrors.get(conversation.id);
+      this.viewMaterialErrors.set(conversation.id, { reason, ...(previous?.toolResult ? { toolResult: true as const } : {}) });
+      this.viewMaterials.delete(conversation.id);
+      return { owner: "litzio.assistant", materials: [], unavailable: reason };
+    }
+  }
   private materialsFor(input: AssistantConversationInput, references: import("../shared/assistant.ts").AssistantFileReference[], folders: string[], conversation: AssistantConversation) {
     if (input.viewGenerationCorrection) {
       const materials = this.viewMaterials.get(conversation.id);
       if (!materials) throw new Error("View generation material snapshot expired.");
       return materials;
     }
+    const unavailable = this.viewMaterialErrors.get(conversation.id);
+    if (unavailable?.toolResult) throw new Error(unavailable.reason);
     const materials = collectViewMaterials(input, references, folders, this.access, conversation);
+    this.viewMaterialErrors.delete(conversation.id);
     if (input.viewGeneration) {
       const operationOwners = new Map<string, string>([["folder.statistics", "litzio.statistics"]]);
       for (const operation of this.plugins?.viewOperations() ?? []) {
