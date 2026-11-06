@@ -42,7 +42,7 @@ export function packageConfiguration(appVersion: string, release: boolean): Conf
     files: ["**/*"],
     asar: true,
     extraResources: [{ from: "build/cli", to: "cli" }, { from: "build/uninstall-cli.cjs", to: "uninstall-cli.cjs" },
-      { from: "build/prepare-installation.cjs", to: "prepare-installation.cjs" }],
+      { from: "build/prepare-installation.cjs", to: "prepare-installation.cjs" }, { from: "build/reset-helper.cjs", to: "reset-helper.cjs" }],
     // RunAsNode is intentionally kept at Electron's enabled default (ADR-0004 #604).
     npmRebuild: false,
     electronLanguages: ["en-US", "ko"],

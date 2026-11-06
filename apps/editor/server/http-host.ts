@@ -12,6 +12,7 @@ import { LOCAL_FILE_ACCESS, RootAccess } from "./file-access.ts";
 import { daemonRequest, type DaemonControl } from "./daemon-protocol.ts";
 import { trashFile } from "./os-trash.ts";
 import { requestQuery } from "./request-query.ts";
+import { ResetGuard } from "./reset-guard.ts";
 
 export const MAX_JSON_BYTES = 32 * 1024 * 1024;
 
@@ -56,7 +57,11 @@ export async function startHttpHost(options: HttpHostOptions) {
   if (!statSync(path.join(editorDir, "index.html")).isFile()) throw new Error("The production Editor build is missing.");
   // One runtime per daemon. HTTP client/window disconnects never close its
   // workers or AI connections; only Host shutdown does.
-  const services = createHostServices(access);
+  const resetGuard = new ResetGuard();
+  const releaseResetGuard = resetGuard.actor("host");
+  let services: ReturnType<typeof createHostServices>;
+  try { services = createHostServices(access); }
+  catch (error) { releaseResetGuard(); throw error; }
   const key = randomBytes(32);
   const origins = new Set<string>();
   const authorities = new Set<string>();
@@ -115,6 +120,11 @@ export async function startHttpHost(options: HttpHostOptions) {
       return json(res, 415, "Expected application/json.");
     }
     if (options.daemon && await daemonRequest(req, res, url, options.daemon)) return;
+    if (url.pathname === "/api/app-reset/paths") {
+      if (req.method !== "GET" || url.search) return json(res, 405, "Use GET without a query.");
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.end(JSON.stringify(services.resetPaths)); return;
+    }
     // Full filesystem access must not select Vite's checkout-relative development sample.
     if (!access && url.pathname === "/api/document" && req.method === "GET" && !url.searchParams.get("path")?.trim()) {
       res.setHeader("Content-Type", "application/json; charset=utf-8"); res.end(JSON.stringify({ start: true })); return;
@@ -144,7 +154,7 @@ export async function startHttpHost(options: HttpHostOptions) {
   try { await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, host, () => { server.off("error", reject); resolve(); });
-  }); } catch (error) { await services.close(); throw error; }
+  }); } catch (error) { try { await services.close(); } finally { releaseResetGuard(); } throw error; }
   const address = server.address();
   if (!address || typeof address === "string") throw new Error("The HTTP listener has no address.");
   if (loopback(host)) {
@@ -163,13 +173,16 @@ export async function startHttpHost(options: HttpHostOptions) {
     roots: access?.roots ?? [],
     url: external ?? `http://${authority(host, address.port)}`,
     async close(): Promise<void> {
-      try { await services.close(); } finally {
+      try { await services.close(); }
+      catch (error) { resetGuard.blockAfterFailedShutdown(); throw error; }
+      finally {
         if (server.listening) {
           const forced = setTimeout(() => server.closeAllConnections(), 5_000);
           forced.unref();
           try { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
-          finally { clearTimeout(forced); }
+          finally { clearTimeout(forced); releaseResetGuard(); }
         }
+        else releaseResetGuard();
       }
     },
   };

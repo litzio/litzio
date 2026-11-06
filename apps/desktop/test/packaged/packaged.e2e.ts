@@ -1,6 +1,6 @@
 import { DAEMON_PROTOCOL } from "../../../editor/server/daemon-protocol.ts";
 import { DESKTOP_ENTRY, DESKTOP_ORIGIN } from "../../../editor/shared/desktop-origin.ts";
-import { daemonPort } from "../../../editor/server/daemon-state.ts";
+import { daemonPort, processStart } from "../../../editor/server/daemon-state.ts";
 import { brand } from "../../../../brand.ts";
 import { createRequire } from "node:module";
 // The packaged Windows app (release/win-unpacked, or LITZIO_DESKTOP_EXE for an installed copy)
@@ -649,4 +649,70 @@ test("Host removal preserves and ignores unscoped recovery (#1196)", async () =>
     await expect(page.getByTestId("host-settings").getByText("No remote Hosts registered.", { exact: true })).toBeVisible();
     assert.deepEqual(await recoveryRecords(page), before);
   } finally { await answerClose(app, 0); await closeApp(app); }
+});
+
+// One representative packaged reset is needed: source mocks cannot prove that RunAsNode
+// can delete Chromium's profile AFTER the real Electron process releases its handles.
+test("complete reset closes the packaged app, deletes isolated owned data and restarts with clean samples and work", async () => {
+  const root = path.join(work, "complete-reset"), userData = profile("complete-reset");
+  const data = path.join(root, "data"), assistant = path.join(root, "assistant");
+  const environment = { LITZIO_DATA_DIR: data, LITZIO_DAEMON_DIR: path.join(root, "daemon"), LITZIO_RESET_DIR: path.join(root, "guard"),
+    LITZIO_ASSISTANT_CWD: assistant, LITZIO_ASSISTANT_SETTINGS_FILE: path.join(data, "assistant.json"), LITZIO_PLUGINS_SETTINGS_FILE: path.join(data, "plugins.json"),
+    LOCALAPPDATA: path.join(root, "local-app-data") };
+  mkdirSync(environment.LOCALAPPDATA, { recursive: true });
+  const { app, page } = await launch(userData, [], environment);
+  let restarted: { pid: number; processStartedAt: string } | undefined;
+  const workOwners = path.join(data, "desktop", "remote-hosts.json.work");
+  const currentOwner = () => {
+    for (const name of existsSync(workOwners) ? readdirSync(workOwners) : []) {
+      if (!name.endsWith(".json")) continue;
+      const owner = JSON.parse(readFileSync(path.join(workOwners, name), "utf8"));
+      if (owner.pid !== app.process().pid && processStart(owner.pid) === owner.processStartedAt) return owner;
+    }
+    return undefined;
+  };
+  try {
+    const startup = await page.evaluate(() => window.litzioDesktop!.startup());
+    assert.ok(startup.samples);
+    const sample = startup.samples.en, pristineSample = readFileSync(sample, "utf8");
+    writeFileSync(sample, pristineSample + "\nUser sample edits\n");
+    for (const file of [path.join(userData, "owned-canary"), path.join(data, "templates", "custom.md"),
+      path.join(data, "plugins", "builtin", "views", "custom.view.json"), path.join(assistant, ".agents", "skills", "custom", "SKILL.md"),
+      path.join(assistant, "conversations.json"), path.join(data, "plugins.json.secrets", "synthetic-secret"),
+      path.join(environment.LOCALAPPDATA, `${brand.appName}-updater`, "cached-update")]) {
+      mkdirSync(path.dirname(file), { recursive: true }); writeFileSync(file, "isolated user data");
+    }
+    const external = path.join(root, "external-document.md"); writeFileSync(external, "external document must remain");
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("button", { name: "Saving & recovery", exact: true }).click();
+    await page.getByRole("button", { name: "Review app reset…", exact: true }).click();
+    const confirmation = page.getByRole("dialog", { name: "Reset app?", exact: true });
+    await expect(confirmation.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+    await confirmation.getByRole("checkbox", { name: "Also remove empty settings folders", exact: true }).check();
+    const closed = app.waitForEvent("close");
+    await confirmation.getByRole("button", { name: "Delete data and restart", exact: true }).click();
+    await closed;
+    await expect.poll(() => { restarted = currentOwner(); return Array.isArray((restarted as any)?.summary); }, { timeout: 60_000 }).toBe(true);
+    assert.equal(existsSync(path.join(userData, "owned-canary")), false);
+    assert.equal(existsSync(path.join(data, "templates", "custom.md")), false);
+    assert.equal(existsSync(path.join(assistant, "conversations.json")), false);
+    assert.equal(existsSync(path.join(assistant, ".agents", "skills", "custom")), false);
+    assert.equal(existsSync(path.join(data, "plugins.json.secrets")), false);
+    assert.equal(existsSync(path.join(environment.LOCALAPPDATA, `${brand.appName}-updater`, "cached-update")), false);
+    assert.equal(readFileSync(sample, "utf8"), pristineSample);
+    assert.equal(readFileSync(external, "utf8"), "external document must remain");
+    assert.ok((restarted as any).summary.every((row: any) => row.openWork === 0 && row.recovery === 0));
+  } finally {
+    if (app.process().exitCode === null) { await answerClose(app, 0); await closeApp(app); }
+    restarted ??= currentOwner();
+    if (restarted && processStart(restarted.pid) === restarted.processStartedAt) {
+      // Exact fixture-owned PID/creation identity; no image-name or other workspace cleanup.
+      execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${restarted.pid}).CloseMainWindow() | Out-Null`], { windowsHide: true });
+      try { await expect.poll(() => processStart(restarted!.pid), { timeout: 15_000 }).not.toBe(restarted.processStartedAt); }
+      catch (error) {
+        if (processStart(restarted.pid) === restarted.processStartedAt) execFileSync("taskkill.exe", ["/PID", String(restarted.pid), "/T", "/F"], { windowsHide: true });
+        throw error;
+      }
+    }
+  }
 });

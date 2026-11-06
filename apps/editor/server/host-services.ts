@@ -4,6 +4,7 @@ import { createAssistantHost } from "./assistant-host.ts";
 import { createPluginService } from "./plugin-service.ts";
 import { createViewService } from "./view-service.ts";
 import { LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
+import { resetHostPaths } from "./app-reset.ts";
 
 export type HostServices = {
   assistant?: ReturnType<typeof createAssistantHost>;
@@ -19,6 +20,7 @@ export function createHostServices(access: FileAccess = LOCAL_FILE_ACCESS) {
   let assistant: ReturnType<typeof createAssistantHost> | undefined;
   let closed = false;
   return {
+    resetPaths: resetHostPaths(paths),
     plugins, views,
     get assistant() {
       if (closed) throw new Error("The Host is closing.");

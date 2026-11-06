@@ -16,6 +16,8 @@ ipcRenderer.on("desktop:restart-check", (_event, id: number) => {
 });
 
 const bridge: DesktopBridge = {
+  resetPlan: () => ipcRenderer.invoke("desktop:reset-plan"),
+  resetApp: (removeFolders, revision) => ipcRenderer.invoke("desktop:reset-app", removeFolders, revision),
   registeredHosts: () => ipcRenderer.invoke("desktop:hosts"),
   registerHost: (origin, label) => ipcRenderer.invoke("desktop:host-register", origin, label),
   renameHost: (id, label) => ipcRenderer.invoke("desktop:host-rename", id, label),

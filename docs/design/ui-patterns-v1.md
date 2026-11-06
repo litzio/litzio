@@ -355,6 +355,8 @@ Arrow/Enter/Escape를 입력창이 처리한다. Explorer의 ContextMenu **채�
 
 ## P12 모달·파일·복구·설정 범위
 
+- **#1285 현재 구현·검증:** 설정 → 저장·복구의 [앱 초기화](app-reset-v1.md)는 기존 Settings·`DangerConfirmation`을 재사용한다. U16의 복구 삭제 및 Host 제거와 같은 Cancel 초기 focus·복귀를 유지하며, 삭제/유지 범위와 실제 경로·빈 폴더 옵션은 확인 모달 안에 둔다. 기존 일반 파일 삭제/복구의 의미는 바꾸지 않는다. 로컬 browser의 native bridge stand-in으로 확인/취소·실제 Editor pending-work 거부 연결을 검사하고 1440px Light·640px 한국어 Dark 캡처를 검토했다. 실제 파일 삭제/종료는 별도 fixture/helper 계층, 실제 Electron 경로는 Windows CI에 둔다.
+
 로드맵 1c: Plugins 설정의 secret 입력은 기존 Dialog·Input(password)·Button·Notice를 재사용한다. AI 설정·일반 플러그인 설정과 같은 설정 표면이며, 민감 값은 blur 자동 저장 대신 명시적 저장 후 즉시 비운다. 값 재조회와 비서 입력은 없다. 현재 계약·검증은 [Plugin stage 1](plugin-stage1-v1.md#secret-저장과-실행-전달-로드맵-1c)을 따른다.
 
 K1의 플러그인 파일 작업도 같은 DocumentTabs·통계 페이지 배치와 공통 SettingsSelect/SettingsInput/Button/Notice를 사용한다. 라벨·컨트롤은 U22 설정의 공통 행을 그대로 쓰며, 진행은 공용 Progress의 surface/accent·간격 토큰, 상태는 HostStatus 점·톤을 쓴다. requestId는 내부 관리하고 uncertain에서만 상태 다시 확인을 보여 준다. Host 목록으로 닫기/다시 열기를 복원한다. 대상 Host의 열린 Root와 파일 목록만 선택하고, 실행·취소 요청·실제 중단·완료 결과 열기를 분리한다. 관찰 polling은 이 활성 작업 화면에만 두며 탭 숨김/닫기 때 요청·타이머를 정리한다. U22 설정과 U23 파일 picker의 Host 범위·busy 제어, U24 결과 문서 열기의 미저장 보호를 재사용한다. 새 공통 제어·임의 UI runtime은 추가하지 않는다. [K1 계약](plugin-stage1-v1.md#k1-파일-작업), `pnpm browser:test plugin-jobs --screenshots`의 1440px·640px 결과를 검증 근거로 둔다.

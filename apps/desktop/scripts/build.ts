@@ -86,6 +86,10 @@ export async function buildDesktop(): Promise<string> {
     outfile: path.join(desktop, "build", "prepare-installation.cjs"),
     bundle: true, platform: "node", format: "cjs", target: "node24", logLevel: "warning",
   });
+  await build({
+    entryPoints: [path.join(desktop, "src", "reset-helper.ts")], outfile: path.join(desktop, "build", "reset-helper.cjs"),
+    bundle: true, platform: "node", format: "cjs", target: "node24", logLevel: "warning",
+  });
 
   cpSync(path.join(repo, "apps", "editor", "samples"), path.join(stage, "sample"), { recursive: true });
   // App/package identity decides the installer directory and updater cache, independently of UI names.

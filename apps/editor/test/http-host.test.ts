@@ -17,11 +17,25 @@ import { DAEMON_PROTOCOL } from "../server/daemon-protocol.ts";
 import { daemonRpc, inspectDaemon, stopDaemon, type DaemonRecord } from "../server/daemon-state.ts";
 import { RootAccess } from "../server/file-access.ts";
 import { trashFile } from "../server/os-trash.ts";
+import { ResetGuard } from "../server/reset-guard.ts";
+import { resetHostPaths } from "../server/app-reset.ts";
 
 const isolatedData = fs.mkdtempSync(path.join(tmpdir(), "litzio-http-unit-data-"));
 process.env.LITZIO_DATA_DIR = isolatedData;
+process.env.LITZIO_RESET_DIR = path.join(isolatedData, "reset-guard");
 process.env.LITZIO_PLUGINS_SETTINGS_FILE = path.join(isolatedData, "plugins.json");
 after(() => fs.rmSync(isolatedData, { recursive: true, force: true }));
+
+test("reset inspection pins Host paths and its lifetime gate refuses offline deletion while serving", async t => {
+  const { send } = await fixture(t);
+  const expected = resetHostPaths(), previous = process.env.LITZIO_ASSISTANT_CWD;
+  process.env.LITZIO_ASSISTANT_CWD = path.join(isolatedData, "changed-after-start");
+  try { assert.deepEqual(await (await send("/api/app-reset/paths")).json(), expected); }
+  finally { if (previous === undefined) delete process.env.LITZIO_ASSISTANT_CWD; else process.env.LITZIO_ASSISTANT_CWD = previous; }
+  assert.throws(() => new ResetGuard().exclusive(), /Close host/);
+  assert.equal((await send("/api/app-reset/paths", "POST", {})).status, 405);
+  assert.equal((await send("/api/app-reset/paths?unexpected=1")).status, 405);
+});
 
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
 

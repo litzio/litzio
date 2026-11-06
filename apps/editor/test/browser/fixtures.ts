@@ -31,6 +31,7 @@ const technical = [document("technical-document.md"), document("diagram.svg")];
 
 /** Scratch directory under `tmp/` → the files a fresh copy holds, and the scenarios using it. */
 export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: string[] }> = {
+  "app-reset": { files: [{ name: "document.md", create: () => nativeSource("# Reset fixture\n\nLocal pending work.\n") }], scenarios: ["app-reset"] },
   "read-view": { files: [
     { name: "heading-levels.md", create: () => "---\nlitzio: 1\nnumbering:\n  headings: true\n  title: false\n---\n\n" + Array.from({ length: 6 }, (_, i) =>
       `${"#".repeat(i + 1)} ${i === 2 ? "Long heading 긴 제목의 줄바꿈을 확인하는 충분히 긴 제목 repeated words for wrapping across the available document width" : `Depth ${i + 1} 제목`}\n\n`).join("") + "Body text.\n" },

@@ -10,6 +10,7 @@ import { faviconSvg } from "../../scripts/brand-icons.ts";
 import { collectPackages, packageNotices } from "../../scripts/third-party-notices.ts";
 import path from "node:path";
 import { brand } from "../../brand.ts";
+import { ResetGuard } from "./server/reset-guard.ts";
 
 export default defineConfig({
   // Prebundle the lazy renderer/worker dependencies without fetching them until needed.
@@ -56,10 +57,14 @@ export default defineConfig({
     {
       name: "litzio-document",
       async configureServer(server: ViteDevServer) {
+        const resetGuard = new ResetGuard();
+        const releaseResetGuard = resetGuard.actor("host");
         const assetSigningKey = randomBytes(32);
         let services: Promise<ReturnType<typeof import("./server/host-services.ts").createHostServices>> | undefined;
         const hostServices = () => services ??= server.ssrLoadModule("/server/host-services.ts").then(mod => mod.createHostServices());
-        server.httpServer?.once("close", () => { void services?.then(host => host.close()); });
+        server.httpServer?.once("close", () => {
+          void (services?.then(host => host.close()) ?? Promise.resolve()).catch(() => resetGuard.blockAfterFailedShutdown()).finally(releaseResetGuard);
+        });
         const sampleAvailability = prepareSampleDocuments(fileURLToPath(new URL("./samples", import.meta.url)), fileURLToPath(new URL("../../tmp/sample-native-v1", import.meta.url)));
         server.middlewares.use((req, res, next) => {
           const requestUrl = req.url ?? "";

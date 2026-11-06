@@ -1,5 +1,7 @@
 # Desktop distribution and updates v1
 
+#1285: 설정 → 저장·복구에서 [완전 초기화](app-reset-v1.md)를 제공한다. 현재 제거기의 사용자 데이터 보존 정책과 별개로 Desktop profile·로컬 Host 사용자 데이터·secret·sample·cache를 전부 비우며, 빈 대상 폴더 자체의 제거만 선택한다. 기존 pending-work/restart 보호 후 앱을 닫고 별도 helper가 정확한 부모 종료와 계정 공용 writer gate를 확인해 삭제·receipt·재실행한다. 다른 채널/CLI-owned daemon을 강제 종료하지 않는다. 외부 브라우저 profile·원격 서비스·별도 문서·계정은 유지하며 실행 전 표시한다. 로컬 fixture/main/helper 및 Chrome stand-in UI 검증과 실제 packaged CI의 경계는 연결한 계약을 따른다.
+
 #1150 ③ (2026-11-04): AI는 daemon 공식 기능이며 Settings → AI agent에서 관리한다. 공통 Button·SettingsSelect·Dialog와 기존 설정 화면 배치를 재사용한다. 플러그인 등록/관리/기여 탭·Docling은 제거했다. 아래 플러그인·Docling 관련 과거 캡처/검증 서술은 현재 기능이 아니며 [보관 소스](https://github.com/litzio/litzio/tree/archive/plugins-docling-2026-11) (`ce90560a`)의 기록이다. 현재 AI 계약은 [Main agent](main-agent-v1.md), 결정은 [ADR-0017](../adr/0017-bundled-client-and-official-ai.md)을 따른다. Host 클라이언트와 Desktop 번들 UI는 [HTTP Host 계약](http-host-v1.md#desktop-bundled-origin-1150-⑤)을 따른다.
 
 - Status: Implemented
