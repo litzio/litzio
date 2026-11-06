@@ -38,6 +38,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import type { DocumentEditorHandle } from "./DocumentEditor.tsx";
 import { DocumentTab, type EditorSession } from "./DocumentTab.tsx";
 import { documentScrollContainer, scrollDocumentFromShell } from "./document-scroll.ts";
+import { DocumentScroll } from "./DocumentScroll.tsx";
 import { DocumentTabs } from "./shell/DocumentTabs.tsx";
 import { editorGroups, initialEditorGroups, allTabsPendingWork, openedTab, tabLabels, tabNames } from "./document-tabs.ts";
 import { messageOf, NativeOpenError, createDocumentRequests } from "./document-session.ts";
@@ -718,19 +719,6 @@ function EditorApp() {
     return () => observer.disconnect();
   }, []);
 
-  // Reserve the native scrollbar's width below the full-width title strip.
-  // Content observation catches overflow changes without adding any scroll listener.
-  useLayoutEffect(() => {
-    const viewport = documentScrollContainer();
-    if (!viewport) return;
-    const measure = () => shell.current?.style.setProperty("--document-scrollbar-width", `${viewport.offsetWidth - viewport.clientWidth}px`);
-    const observer = new ResizeObserver(measure);
-    observer.observe(viewport);
-    const column = viewport.querySelector(".document-column");
-    if (column) observer.observe(column);
-    measure();
-    return () => observer.disconnect();
-  }, [activeId, tabs.length, start]);
   useEffect(() => {
     window.addEventListener("keydown", scrollDocumentFromShell);
     return () => window.removeEventListener("keydown", scrollDocumentFromShell);
@@ -1361,7 +1349,7 @@ function EditorApp() {
             owner.editorRef.current?.focusEnd(event.clientY)) event.preventDefault();
         }}>
           {tabs.length === 0 && !settingsGroup && !galleryGroup && !viewTabs.length && start ? (
-            <div className="document-scroll" data-active="true"><div className="document-column"><DocumentStart
+            <DocumentScroll data-active="true"><div className="document-column"><DocumentStart
               mark={productMark} darkMark={darkIcon}
               recovery={<RecoveryList records={recoveryRecords.filter(record => !tabs.some(tab => tab.recoveryId === record.id))} unavailable={Boolean(recoveryProblem)} onReview={reviewRecovery} />}
               recent={visibleRecent}
@@ -1374,7 +1362,7 @@ function EditorApp() {
               }}
               onOpenRecent={(folder) => void openFolder(folder).then((message) => { if (message) setError(message); })}
               onOpenSample={openSample}
-            /></div></div>
+            /></div></DocumentScroll>
           ) : null}
           {tabs.map(tab => {
             const groupIndex = navigation.groups.findIndex(group => group.tabs.includes(tab.id));

@@ -402,16 +402,20 @@ and Source share the tab's viewport. No scroll position is persisted across appl
 the focused surface, including the document start surface. #488 phase 1 bounds each
 visible document's viewport to its editor group; hidden tabs keep their viewport.
 
-The viewport spans the window width **below the measured tab row** to keep its
-native scrollbar at the right edge only in the document area (#694 follow-up). The root does
+The viewport spans the window width **below the measured tab row** (#694 follow-up).
+Since #1183/#1182, Base UI ScrollArea hides native scrollbar paint while preserving
+the native viewport. Its always-visible-when-needed overlay track stays within the
+document's existing trailing inset, before docked navigation or at each split group's
+edge ([geometry and captures](editor-layout-rules-v1.md#alignment-and-ownership)). The root does
 not scroll; the DOM title strip and its bottom boundary extend across the whole viewport.
 This removes interruption caused by the root scrollbar. Browser geometry/captures do not
 verify native window-control overlay painting; overlay height, Settings gutter and native
 pixel verification belong to [#694](https://github.com/litzio/litzio/issues/694). Its content keeps
 the existing Sidebar/Document panel insets, centered column, paper dimensions and measured
-header clearance. The shell reserves the viewport's actual native scrollbar width only below
-the full-width title strip, observed on
-viewport/content resize without a scroll listener. Sidebar and Outline retain their independent
+header clearance. No scrollbar width is added to shell columns or panel offsets;
+overflow changes therefore leave paper, tab actions and navigation geometry unchanged.
+Base UI observes viewport/content size and native scroll events for its thumb.
+Sidebar and Outline retain their independent
 scrolling. Only the visible Visual editor subscribes to document scrolling for Outline/Tables/Figures;
 the same reading line, reveal pin and bottom-of-document behavior are retained.
 

@@ -9,6 +9,38 @@ async (page, { openPath, expect, screenshots }) => {
   const viewport = page.locator('.document-scroll[data-active="true"]');
   await expect(viewport).toHaveCount(1);
   await page.evaluate(async () => { await document.fonts.ready; document.activeElement?.blur(); });
+  // Overflow changes must not move the paper, tab actions or either panel (#1183).
+  const layout = () => viewport.evaluate(node => {
+    const rect = selector => { const {x,width} = document.querySelector(selector).getBoundingClientRect(); return {x,width}; };
+    return {gutter:node.offsetWidth-node.clientWidth, paper:rect('.document-scroll[data-active="true"] .document-column'),
+      header:rect('.app-header'), panel:rect('.document-panel'), sidebar:rect('.sidebar')};
+  });
+  const scrollbar = page.locator('.document-scroll-frame:not([hidden]) .document-scrollbar');
+  await expect(scrollbar).toBeVisible();
+  const longLayout = await layout();
+  expect(longLayout.gutter, 'Overlay scrollbar must not consume native layout width').toBe(0);
+  await openPath(page, [root,'tmp','read-view','other.md'].join(sep));
+  await expect(scrollbar).toHaveCount(0);
+  await expect.poll(layout).toEqual(longLayout);
+  await page.getByRole('button', {name:'Close other.md',exact:true}).click();
+  const shortFolder = page.getByTestId('folder').filter({has:page.getByRole('treeitem', {name:'other.md',exact:true})});
+  await shortFolder.getByRole('button', {name:'More actions',exact:true}).click();
+  await page.getByRole('menuitem', {name:'Close folder',exact:true}).click();
+  await expect(scrollbar).toBeVisible();
+  // Exercise the actual library thumb and track rather than assigning scrollTop.
+  const thumb = scrollbar.locator('.document-scrollbar-thumb');
+  const thumbBox = await thumb.boundingBox();
+  await page.mouse.move(thumbBox.x+thumbBox.width/2,thumbBox.y+thumbBox.height/2);
+  await page.mouse.down();
+  await page.mouse.move(thumbBox.x+thumbBox.width/2,thumbBox.y+thumbBox.height/2+160,{steps:8});
+  await page.mouse.up();
+  await expect.poll(() => viewport.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+  await viewport.evaluate(node => node.scrollTop=0);
+  const trackBox = await scrollbar.boundingBox();
+  await page.mouse.click(trackBox.x+trackBox.width/2,trackBox.y+trackBox.height-20);
+  await expect.poll(() => viewport.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+  await viewport.evaluate(node => node.scrollTop=0);
+  await page.evaluate(() => document.activeElement?.blur());
   const state = () => viewport.evaluate(node => ({top:node.scrollTop, end:node.scrollHeight-node.clientHeight,
     window:window.scrollY, right:node.getBoundingClientRect().right, width:innerWidth}));
   const chrome = () => page.locator('.app-titlebar, .sidebar, .app-header, .document-panel:not(.document-panel--overlay)').evaluateAll(nodes => nodes.map(node => {
@@ -48,6 +80,19 @@ async (page, { openPath, expect, screenshots }) => {
     expect((await state()).window).toBe(0);
     expect(await chrome()).toEqual(before);
     await page.keyboard.press('Escape');
+  } finally { await page.mouse.up(); }
+
+  // Native text selection must still auto-scroll the owning viewport at its bottom edge.
+  await viewport.evaluate(node => node.scrollTop = 0);
+  const selectionStart = await viewport.locator('.document-editor > p').first().boundingBox();
+  await page.mouse.move(selectionStart.x+8, selectionStart.y+12);
+  await page.mouse.down();
+  try {
+    await page.mouse.move(selectionStart.x+120,896,{steps:12});
+    await page.mouse.move(selectionStart.x+121,896);
+    await expect.poll(() => viewport.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+    expect(await page.evaluate(() => getSelection().toString().length)).toBeGreaterThan(0);
+    expect((await state()).window).toBe(0);
   } finally { await page.mouse.up(); }
 
   // Source uses the same owning viewport and native keys, without involving the editor engine.
