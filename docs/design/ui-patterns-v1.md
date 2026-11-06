@@ -610,3 +610,7 @@ Generate view는 성공 JSON 대신 이 카드를 보여 주며 일반 제작 �
 성공 후에는 교정 횟수만 짧게 남긴다. 검증 실패는 고정 안내를 쓰고 원문 오류·Error 접두는 노출하지 않는다.
 
 이미지가 없거나 로드에 실패한 PageSurface는 영역 좌표계 바깥, 도구줄 아래 별도 줄에 안내를 표시한다. 독립 페이지와 SourceDocumentCompare에 동일하게 적용한다. `review-v5`에서 두 사용처의 안내와 영역이 겹치지 않는지 확인한다(#1278).
+
+## 공식 플러그인 공급 (#1279)
+
+Plugins 설정의 외부 추가는 문서 폴더 열기와 같은 Host 측 `FolderDialog` 및 공통 Button을 재사용한다. 별도 경로 입력 폼은 제거한다. 공식 공급 행은 기존 plugin-summary-row·badge·상태 점·toggle을 유지하며 기본 꺼짐으로 처음부터 보인다. 새 토큰·치수·공통 상호작용 예외는 없다. 현재 계약은 [플러그인 1단계](plugin-stage1-v1.md#공식-번들-공급과-외부-폴더-추가-1279), 실제 production HTTP의 [1440 첫 실행 캡처](assets/bundled-plugins-1279/bundled-1440.png), 검증은 `http-plugins`다.

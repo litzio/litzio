@@ -186,6 +186,13 @@ for (const name of scenarios) {
     const pluginFolder = path.join(REPOSITORY_ROOT, "tmp", "http-host-a", "fixture");
     const otherPluginFolder = path.join(REPOSITORY_ROOT, "tmp", "http-host-b", "fixture");
     const otherJobInput = path.join(REPOSITORY_ROOT, "tmp", "k1-other-root-request.json");
+    if (name === "vite-plugins") {
+      mkdirSync(pluginDirectory, { recursive: true });
+      writeFileSync(path.join(pluginDirectory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
+      writeFileSync(path.join(pluginDirectory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.vite", tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Vite fixture", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [] } }));
+      writeFileSync(path.join(pluginDirectory, "host.js"), `import { SDK_VERSION } from '@litzio/plugin-sdk';
+export function activate(){return {operations:{},status:()=>({available:true,message:SDK_VERSION,folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+    }
     if (name === "http-plugins") {
       mkdirSync(pluginDirectory, { recursive: true });
       writeFileSync(path.join(pluginDirectory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
@@ -224,7 +231,6 @@ for (const name of scenarios) {
     }, cli: (args: string[]) => JSON.parse(execFileSync(process.execPath, [path.join(REPOSITORY_ROOT, "packages/cli/dist/cli.mjs"), ...args, "--host", url, "--json"], { encoding: "utf8", windowsHide: true })) };
     const realCapture = screenshots && process.env.LITZIO_CAPTURE_ONEDRIVE === "1" && process.platform === "win32";
     const realSnapshot = realCapture && name === "http-plugins" ? () => {
-      pluginFixture.cli(["plugins", "register", path.join(REPOSITORY_ROOT, "plugins/onedrive/artifact")]);
       pluginFixture.cli(["plugins", "enable", "litzio.onedrive"]);
       const state = pluginFixture.cli(["plugins", "list"]);
       const plugin = state.plugins.find((p: any) => p.id === "litzio.onedrive");

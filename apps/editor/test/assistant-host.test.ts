@@ -122,7 +122,7 @@ test("plugin and view services work without an assistant and survive assistant s
   const response = await fetch(`${url}/api/views`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "list", plugin: STATISTICS_PLUGIN_ID }) });
   assert.equal(response.status, 200);
   await services.assistant.close();
-  assert.deepEqual(await services.plugins.invoke("pluginsList"), { plugins: [] });
+  assert.deepEqual((await services.plugins.invoke("pluginsList")).plugins.map((p: any) => p.id), (await (await fetch(`${url}/api/plugins`)).json()).plugins.map((p: any) => p.id));
   assert.equal((await services.views.execute({ action: "list", plugin: STATISTICS_PLUGIN_ID })).receipt.outcome, "success");
   // A service failure still lets Host shutdown close the independent runtime.
   t.mock.method(services.assistant, "close", async () => { throw new Error("fixture close failed"); });

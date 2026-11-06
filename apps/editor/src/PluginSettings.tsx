@@ -1,3 +1,4 @@
+import { FolderDialog } from "./shell/FolderDialog.tsx";
 import { i18n } from "./i18n.ts";
 import { Notice } from "./ui/primitives.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
@@ -11,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 export { OneDriveIcon } from "./OneDriveIcon.tsx";
 import type { PluginStatus } from "@litzio/plugin-sdk";
 type SecretStatus = { supported: boolean; declarations: { id: string; configured: boolean; error?: string }[] };
-type Plugin = { secrets?: SecretStatus; id: string; name?: string; description?: string; version?: string; digest?: string; official?: boolean; publisher?: { id: string; name: string }; trusted?: boolean; enabled: boolean; running: boolean; error?: string; status?: PluginStatus | null; settings?: Record<string, unknown>; settingsSchema?: { properties?: Record<string, { type?: string; title?: string }> } };
+type Plugin = { secrets?: SecretStatus; id: string; name?: string; description?: string; version?: string; digest?: string; official?: boolean; bundled?: boolean; publisher?: { id: string; name: string }; trusted?: boolean; enabled: boolean; running: boolean; error?: string; status?: PluginStatus | null; settings?: Record<string, unknown>; settingsSchema?: { properties?: Record<string, { type?: string; title?: string }> } };
 export function usePlugins() {
   const client = useHostClient(), [plugins, setPlugins] = useState<Plugin[]>([]), [error, setError] = useState("");
   const refresh = async () => {
@@ -24,18 +25,19 @@ export function usePlugins() {
   } };
 }
 export function PluginSettings() {
-  const { plugins, error, change } = usePlugins(), [directory, setDirectory] = useState(""), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false), [selected, setSelected] = useState<string>(), [trust, setTrust] = useState<Plugin>();
+  const { plugins, error, change } = usePlugins(), [choosing, setChoosing] = useState(false), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false), [selected, setSelected] = useState<string>(), [trust, setTrust] = useState<Plugin>();
+  const client = useHostClient();
   const current = plugins.find(p => p.id === selected);
   const run = async (action: string, args: Record<string, unknown>) => { setBusy(true); setProblem(""); try { await change(action, args); } catch (e) { setProblem(String(e)); } finally { setBusy(false); } };
   return <section className="settings-group" aria-label={i18n.t("Plugins")}>
     <Notice tone="warning" className="host-access-warning"><span>{i18n.t("Plugins use Host OS permissions")}</span>
       <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("Plugin access details")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Plugins run on this Host with its OS permissions. Enable only code you trust.")}</TooltipContent></Tooltip>
     </Notice>
-    <form className="settings-section settings-section--stacked" onSubmit={event => { event.preventDefault(); void run("register", { directory }); }}>
-      <label className="settings-heading" htmlFor="plugin-directory">{i18n.t("Local plugin artifact")}</label>
-      <Input id="plugin-directory" placeholder="C:\plugins\onedrive\artifact" value={directory} onChange={e => setDirectory(e.target.value)} />
-      <Button type="submit" size="sm" variant="secondary" disabled={busy || !directory.trim()}>{i18n.t("Register plugin")}</Button>
-    </form>
+    <Button size="sm" variant="secondary" disabled={busy} onClick={() => setChoosing(true)}>{i18n.t("Add plugin…")}</Button>
+    <FolderDialog open={choosing} title={i18n.t("Add plugin…")} showSidebarHint={false} initialPath="" recent={[]}
+      browse={async path => { const r = await client.request(`/api/folder-browse?path=${encodeURIComponent(path)}`); const v = await r.json(); if (!r.ok) throw new Error(v.error); return v; }}
+      places={async () => { const r = await client.request("/api/folder-places"); const v = await r.json(); if (!r.ok) throw new Error(v.error); return v.places; }}
+      onClose={() => setChoosing(false)} onOpen={async directory => { try { await change("register", { directory }); setChoosing(false); return ""; } catch (e) { return String(e); } }} />
     {error || problem ? <Notice tone="error">{error || problem}</Notice> : null}
     {plugins.map(plugin => <section key={plugin.id} className="settings-section settings-section--stacked host-registration" aria-label={plugin.name ?? plugin.id}>
       <div className="plugin-summary-row">
@@ -56,7 +58,7 @@ export function PluginSettings() {
         <PluginState tone={plugin.error ? "danger" : plugin.running ? "connected" : "muted"} label={i18n.t(plugin.error ? "Plugin error" : plugin.running ? "Plugin running" : plugin.enabled ? "Plugin unavailable" : "Plugin disabled")} detail={plugin.error} />
         {plugin.status ? <PluginState tone={plugin.status.available ? "connected" : "warning"} label={i18n.t(!plugin.status.available ? "Detection unsupported" : plugin.status.folders.length ? "Folder detected" : "No folder detected")} detail={plugin.status.message} /> : null}
       </div>
-      {!plugin.trusted && plugin.digest ? <Button size="sm" variant="secondary" disabled={busy} onClick={() => setTrust(plugin)}>{i18n.t("Trust this artifact")}</Button> : null}
+      {!plugin.bundled && !plugin.trusted && plugin.digest ? <Button size="sm" variant="secondary" disabled={busy} onClick={() => setTrust(plugin)}>{i18n.t("Trust this artifact")}</Button> : null}
       {plugin.status?.accounts.map(account => <p key={account.id} className="settings-description plugin-account">{i18n.t("Account: {{label}} ({{source}})", { label: account.label, source: account.source })}</p>)}
     </section>)}
     <Dialog open={!!trust} onOpenChange={open => { if (!open) setTrust(undefined); }}><DialogContent><DialogHeader><DialogTitle>Trust {trust?.name ?? trust?.id}?</DialogTitle><DialogDescription>This code runs with the Host OS account permissions. Trust only an artifact you have reviewed.</DialogDescription></DialogHeader><p style={{ overflowWrap: "anywhere" }}>{trust?.digest}</p><Button disabled={busy} onClick={() => { if (trust) void run("trust", { id: trust.id, digest: trust.digest }).then(() => setTrust(undefined)); }}>Trust this artifact</Button><Button variant="secondary" onClick={() => setTrust(undefined)}>Cancel</Button></DialogContent></Dialog>

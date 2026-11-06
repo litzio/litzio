@@ -100,7 +100,7 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     await manage({ action: "scaffold", directory, id });
     await manage({ action: "register", directory });
     const { plugins } = await (await fetch(`${host.url}/api/plugins`)).json();
-    await manage({ action: "trust", id, digest: plugins[0].digest });
+    await manage({ action: "trust", id, digest: plugins.find((p: any) => p.id === id).digest });
     await manage({ action: "enable", id });
     assert.deepEqual((await manage({ action: "invoke", operation: `${id}.greet`, input: { name: "World" } })).result, { greeting: "Hello, World!" });
     const unavailable = await fetch(`${host.url}/api/assistant/settings`);

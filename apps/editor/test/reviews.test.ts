@@ -167,7 +167,7 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     };
     await send("/api/plugins", { action: "register", directory: artifact });
     const listing = await send("/api/plugins", { action: "list" });
-    await send("/api/plugins", { action: "trust", id: "fixture.review", digest: listing.plugins[0].digest });
+    await send("/api/plugins", { action: "trust", id: "fixture.review", digest: listing.plugins.find((p: any) => p.id === "fixture.review").digest });
     await send("/api/plugins", { action: "enable", id: "fixture.review" });
     const requestId = randomUUID(); const admitted = await send("/api/plugins", { action: "job-start", plugin: "fixture.review", job: "text", root, file: "input.txt", output: "doc.md", requestId });
     assert.equal(admitted.job.state, "running"); assert.equal(admitted.job.result, undefined);

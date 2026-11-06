@@ -1,8 +1,18 @@
 async (page, { expect, pluginFixture }) => {
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Plugins", exact: true }).click();
-  const input = page.getByLabel("Local plugin artifact", { exact: true });
-  const register = page.getByRole("button", { name: "Register plugin", exact: true });
+  const official = page.getByRole("region", { name: "OneDrive", exact: true });
+  const officialToggle = official.getByRole("switch", { name: "Enable OneDrive", exact: true });
+  await expect(official.getByText("Official plugin", { exact: true })).toBeVisible();
+  await expect(officialToggle).not.toBeChecked();
+  await officialToggle.click();
+  await expect(official.getByRole("status").filter({ hasText: /^Plugin running$/ })).toBeVisible();
+  await officialToggle.click();
+  await expect(official.getByRole("status").filter({ hasText: /^Plugin disabled$/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "Add plugin…", exact: true }).click();
+  const input = page.getByTestId("folder-path");
+  const register = page.getByTestId("folder-open");
   await expect(register).toBeDisabled();
   const rejectRegistration = async directory => {
     await input.fill(directory);
@@ -16,17 +26,21 @@ async (page, { expect, pluginFixture }) => {
   };
   await rejectRegistration(pluginFixture.directory + "-missing");
   await rejectRegistration(pluginFixture.folder);
-  // The runner's fixture directory is inside the checkout's tmp directory.
-  const normalized = pluginFixture.directory.replaceAll("\\", "/");
-  await input.fill(normalized.slice(0, normalized.indexOf("/tmp/")) + "/plugins/onedrive/artifact");
+  await input.fill(pluginFixture.directory);
   await register.click();
-  await expect(page.getByRole("switch", { name: "Enable OneDrive", exact: true })).not.toBeChecked();
-  await expect(page.getByRole("status").filter({ hasText: /^Plugin disabled$/ })).toBeVisible();
-  await expect(register).toBeEnabled();
+  await expect(input).not.toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
-  await page.getByRole("switch", { name: "Enable OneDrive", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: /^Plugin running$/ })).toBeVisible();
-  await page.getByRole("switch", { name: "Enable OneDrive", exact: true }).click();
-  const removed = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { data: { action: "unregister", id: "litzio.onedrive" } });
+  const external = page.getByRole("region", { name: "Vite fixture", exact: true });
+  const toggle = external.getByRole("switch", { name: "Enable Vite fixture", exact: true });
+  await expect(toggle).toBeDisabled();
+  await external.getByRole("button", { name: "Trust this artifact", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Trust this artifact", exact: true }).click();
+  await expect(toggle).toBeEnabled();
+  await toggle.click();
+  await expect(external.getByRole("status").filter({ hasText: /^Plugin running$/ })).toBeVisible();
+  const listing = await (await page.request.get(await page.evaluate(() => location.origin + "/api/plugins"))).json();
+  expect(listing.plugins.find(p => p.id === "fixture.vite").status.message).toBe("0.1.0");
+  await toggle.click();
+  const removed = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { data: { action: "unregister", id: "fixture.vite" } });
   expect(removed.ok()).toBe(true);
 }

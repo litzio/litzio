@@ -19,6 +19,9 @@ catch { /* An exported source tree can be built without Git. */ }
 // Fixed output directory, never a caller-supplied path.
 rmSync(destination, { recursive: true, force: true });
 mkdirSync(destination, { recursive: true });
+execSync("pnpm --filter @litzio/onedrive build", { cwd: repo, stdio: "inherit" });
+cpSync(path.join(repo, "plugins/onedrive/artifact"), path.join(destination, "official-plugins/onedrive/artifact"), { recursive: true });
+cpSync(path.join(repo, "plugins/onedrive/digest.json"), path.join(destination, "official-plugins/onedrive/digest.json"));
 execSync("pnpm --filter @litzio/editor build", { cwd: repo, stdio: "inherit" });
 cpSync(path.join(repo, "apps/editor/dist"), path.join(destination, "editor"), { recursive: true });
 const result = await build({
@@ -35,7 +38,7 @@ const executable = path.join(destination, "cli.mjs");
 writeFileSync(executable, `#!/usr/bin/env node\n${readFileSync(executable, "utf8")}`, { mode: 0o755 });
 writeFileSync(path.join(destination, "package.json"), JSON.stringify({ name: "@litzio/cli", version: manifest.version,
   description: `${brand.name.en} document CLI and HTTP Editor Host`, license: "MIT", type: "module", private: true,
-  bin: { [brand.cliCommand]: "cli.mjs" }, files: ["*.mjs", "*.txt", "*.md", "editor/", "LICENSE"], engines: { node: ">=24.21.0 <25" } }, null, 2) + "\n");
+  bin: { [brand.cliCommand]: "cli.mjs" }, files: ["*.mjs", "*.txt", "*.md", "editor/", "official-plugins/", "LICENSE"], engines: { node: ">=24.21.0 <25" } }, null, 2) + "\n");
 cpSync(path.join(repo, "LICENSE"), path.join(destination, "LICENSE"));
 // Editor notices are generated inside its static boundary by Vite.
 const packages = collectPackages([...Object.keys(result.metafile.inputs), ...Object.keys(sdkResult.metafile.inputs)].map(input => path.resolve(repo, input)));
