@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { parse as parseYaml } from "yaml";
 import * as core from "@litzio/core";
 import type { MystDocument } from "../src/myst/tree.ts";
@@ -6,6 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mystParse } from "myst-parser";
 import {
+  authorDocument, DocumentAuthoringError, DOCUMENT_AUTHORING_LIMITS,
   createDocument, parse, serialize, getEditableDocument, NativeDocumentError, canonicalWriteIssue, hasNativeMarker,
   insertHeading, insertParagraph, insertFigure, updateHeadingNumbering, removeBlock,
   updateHeadingInlineContent, updateHeadingLevel, insertFootnote, updateParagraphInlineContent, moveBlock,
@@ -624,4 +626,52 @@ test("template malformed metadata refuses at admission, operations and final wri
     assert.throws(() => parse(`---\nlitzio: 1\ntemplate: ${field}\n---\n`), error => core.writeIssueOf(error).code === "native-metadata");
   }
   assert.throws(() => core.updateTemplateMetadata(createDocument(), { name: "Bad\uD800", description: "" }), /Unicode/);
+});
+
+
+test("structured authoring preserves keyed zero/multiple targets in the canonical snapshot", async () => {
+  const result = await authorDocument({ title: "Imported document", inputs: [
+    { key: "z-first", blocks: [{ kind: "heading", level: 2, text: "Heading" }, { kind: "paragraph", text: "Literal *text* and [brackets]." }] },
+    { key: "__proto__", blocks: [] },
+    { key: "a-last", blocks: [
+      { kind: "list", ordered: true, start: 3, items: ["First", "Second"] },
+      { kind: "table", rows: [["Name", "Value"], ["A", "B"]] },
+      { kind: "figure", imageUrl: "images/page.png", imageAlt: "Page", caption: "Caption" },
+      { kind: "code", language: "js", code: "const x = 1;" },
+      { kind: "equation", latex: "x^2" }, { kind: "divider" },
+    ] },
+  ] });
+  const snapshot = parse(result.source);
+  assert.equal(serialize(snapshot), result.source);
+  assert.equal(result.documentRevision, createHash("sha256").update(result.source).digest("hex"));
+  assert.equal(result.documentHash, result.documentRevision);
+  assert.deepEqual(result.inputs.map(item => [item.key, item.targets.length]), [["z-first", 2], ["__proto__", 0], ["a-last", 6]]);
+  assert.deepEqual(result.inputs.flatMap(item => item.targets.map(target => target.path)), getEditableDocument(snapshot).blocks.map(block => block.path));
+  for (const target of result.inputs.flatMap(item => item.targets)) assert.equal(target.documentRevision, result.documentRevision);
+});
+
+test("structured authoring rejects invalid, excessive and unrepresentable content without partial results", async () => {
+  for (const raw of [undefined, { inputs: [{ key: "same", blocks: [] }, { key: "same", blocks: [] }] },
+    { inputs: [{ key: "x", blocks: [{ kind: "html", text: "<b>HTML</b>" }] }] },
+    { inputs: [{ key: "x", blocks: [{ kind: "heading", level: 7, text: "bad" }] }] },
+    { inputs: [{ key: "x", blocks: [{ kind: "paragraph", text: "\ud800" }] }] },
+    { inputs: Array.from({ length: DOCUMENT_AUTHORING_LIMITS.inputs + 1 }, (_, i) => ({ key: String(i), blocks: [] })) },
+  ]) await assert.rejects(authorDocument(raw), (error: any) => error instanceof DocumentAuthoringError && error.code === "invalid-input");
+  await assert.rejects(authorDocument({ inputs: [], extra: "x".repeat(DOCUMENT_AUTHORING_LIMITS.bytes) }), (error: any) => error.code === "limit");
+  await assert.rejects(authorDocument({ inputs: [{ key: "x", blocks: [{ kind: "figure", imageUrl: "one\ntwo", imageAlt: "", caption: "" }] }] }), (error: any) => error.code === "unsupported-content");
+  assert.deepEqual((await authorDocument({ inputs: [] })).inputs, []);
+});
+
+test("structured authoring computes Host-compatible revisions without secure-context Crypto APIs", async () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto")!;
+  const original = globalThis.crypto;
+  try {
+    Object.defineProperty(globalThis, "crypto", { configurable: true, value: { getRandomValues: original.getRandomValues.bind(original) } });
+    for (const input of [{ inputs: [] }, { inputs: [{ key: "unicode", blocks: [{ kind: "paragraph", text: "한글 · 😀 literal *text*" }] }] }]) {
+      const result = await authorDocument(input);
+      assert.equal(result.documentRevision, createHash("sha256").update(result.source, "utf8").digest("hex"));
+      assert.equal(result.documentHash, result.documentRevision);
+      for (const target of result.inputs.flatMap(item => item.targets)) assert.equal(target.documentRevision, result.documentRevision);
+    }
+  } finally { Object.defineProperty(globalThis, "crypto", descriptor); }
 });

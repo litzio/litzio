@@ -1,6 +1,7 @@
 import { reviewBundleSchema, reviewPageSchema, reviewMappingSchema, type ReviewBundle } from "@litzio/core/views-v2";
 import { queryViewSchema, reviewContributionSchema, validateCatalogView, compileViewInputSchema } from "@litzio/core/views-v2";
 export * from "@litzio/core/views-v2";
+export { authorDocument, documentAuthoringSchema, DOCUMENT_AUTHORING_LIMITS, DocumentAuthoringError, type DocumentAuthoringInput, type AuthoredDocument } from "@litzio/core";
 import { rowSchema, type ViewOperation } from "@litzio/core/views";
 export { rowSchema, type RowSchema } from "@litzio/core/views";
 import { compileSchema } from "./schema.ts";
