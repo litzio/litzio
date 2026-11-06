@@ -245,3 +245,11 @@ V6 대화 표시 보완: 생성 명세는 ‘뷰 명세’에 기본 접힘으�
 V4 review의 Host·CLI·K1 완료 bundle은 [플러그인 1단계 V4 계약](plugin-stage1-v1.md#v4-공용-review-hostcli)에 구현했다. V3/V5의 /api/reviews snapshot transport와 연결하며 Core read model은 document-reader 경계를 사용한다. 실제 브라우저·외부 서비스 수락은 별도 검증이다. 공용 자료 읽기·제안·승인·거절·Undo·status는 같은 PluginHost dispatcher를 사용하며 문서 의미를 renderer나 CLI에 구현하지 않는다.
 
 이미지가 없거나 로드에 실패한 PageSurface는 영역 좌표계 바깥, 도구줄 아래 별도 줄에 안내를 표시한다. 독립 페이지와 SourceDocumentCompare에 동일하게 적용한다. `review-v5`에서 두 사용처의 안내와 영역이 겹치지 않는지 확인한다(#1278).
+
+## D3 앱 위치와 읽기 표
+
+D3는 새 작업 탭의 두 query source 표시, 문서 탭별 우측 보기, SDK screens의 앱 번들 화면을 제공한다. 통계 즐겨찾기는 `litzio.statistics`, 우측 보기는 `litzio.assistant`, 플러그인 화면은 plugin owner로 목록을 분리한다. 뷰를 새 탭으로 열 때 통계 탭을 자동 생성하지 않는다. 화면 Host 선택은 다른 Host로 자동 fallback하지 않으며 저장 파일을 지우지 않는다.
+
+앱 destination은 kind/id/Host/owner/Root와 generation·AbortSignal로 요청 위치를 고정한다. 문서 숨김은 결과 소유권을 바꾸지 않고 문서 닫힘·새 요청·화면 Host 변경·연결 해제는 token을 무효화한다. D4의 생성 서비스/카드 props 연결은 병렬 PR의 통합 대상이며 이 절은 실제 AI 수락 완료를 뜻하지 않는다.
+
+공통 DataTable은 타입별 열 정렬/필터, AND 결합, 불러온 자료 범위 안내, 50행 페이지와 내부 가로 스크롤을 제공한다. 필터와 정렬은 전체 불러온 행에 적용한 뒤 페이지를 나누며 명세·args·원행을 바꾸지 않는다. 저장/다시 열기는 원래 순서와 필터 없음으로 시작한다. 동작 기준은 [UI 패턴](ui-patterns-v1.md#데이터-표-정렬필터-제안), 공통 선택과 검증 범위는 [UI 결정표](ui-decision-table-v1.md#동적-뷰-d3-공통-구현)를 따른다.

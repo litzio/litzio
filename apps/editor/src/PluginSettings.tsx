@@ -1,10 +1,11 @@
+import { useViewScreens } from "./views/view-screens.ts";
 import { FolderDialog } from "./shell/FolderDialog.tsx";
 import { i18n } from "./i18n.ts";
 import { Notice } from "./ui/primitives.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
 import { useEffect, useState } from "react";
 import { Info } from "lucide-react";
-import { useHostClient } from "./host-context.tsx";
+import { useHostId, useHostClient } from "./host-context.tsx";
 import { Button } from "./components/ui/button.tsx";
 import { Input } from "./components/ui/input.tsx";
 import { SettingsSwitch } from "./components/ui/settings.tsx";
@@ -25,6 +26,8 @@ export function usePlugins() {
   } };
 }
 export function PluginSettings() {
+  const screens = useViewScreens();
+  const hostId = useHostId();
   const { plugins, error, change } = usePlugins(), [choosing, setChoosing] = useState(false), [problem, setProblem] = useState(""), [busy, setBusy] = useState(false), [selected, setSelected] = useState<string>(), [trust, setTrust] = useState<Plugin>();
   const client = useHostClient();
   const current = plugins.find(p => p.id === selected);
@@ -41,6 +44,7 @@ export function PluginSettings() {
     {error || problem ? <Notice tone="error">{error || problem}</Notice> : null}
     {plugins.map(plugin => <section key={plugin.id} className="settings-section settings-section--stacked host-registration" aria-label={plugin.name ?? plugin.id}>
       <div className="plugin-summary-row">
+        {screens.filter(s=>s.hostId===hostId&&s.plugin===plugin.id).map(screen=><Button key={screen.id} size="sm" variant="ghost" onClick={()=>window.dispatchEvent(new CustomEvent("open-plugin-screen",{detail:screen}))}>{i18n.t("Open view")} · {screen.title}</Button>)}
         <div className="host-summary">
           <div className="plugin-heading">
             <h3 className="settings-heading"><Button size="sm" variant="ghost" className="plugin-name" onClick={() => setSelected(plugin.id)}>{plugin.name ?? plugin.id}</Button></h3>

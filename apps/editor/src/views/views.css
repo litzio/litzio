@@ -45,3 +45,13 @@
 
 .view-input > div:first-child { min-height: var(--size-control-compact); }
 .view-input-control:has(.view-select-clear) > select { padding-right: calc(var(--size-control) * 2); }
+
+.data-table { min-width:0; max-width:100%; display:grid; gap:var(--space-2); }
+.data-table-heading { display:flex; align-items:center; justify-content:space-between; }
+.data-table-filter { display:grid; gap:var(--space-3); }
+.data-table-filter label { display:flex; gap:var(--space-2); align-items:center; flex-wrap:wrap; }
+.data-table-values { max-height:12rem; overflow:auto; display:grid; gap:var(--space-2); }
+
+.view-workspace { height:100%; min-width:0; max-width:100%; overflow:auto; display:flex; flex-direction:column; gap:var(--space-3); padding:var(--space-3); }
+.view-workspace > .views-page { height:auto; overflow:visible; padding:var(--space-3); }
+.document-outline .view-workspace .views-page { padding:0; }
