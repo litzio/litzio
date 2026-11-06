@@ -162,7 +162,12 @@ test("generation proposals use the admitted Host request, owner and material ide
     layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "예시: Total", source: "stats", data: "/rows", columns: ["total"] }] } };
   const proposal = { action: "propose-view-generation", requestId: prepared.requestId, id: conversation.id, turnId: conversation.turns.at(-1).id, view };
   await assert.rejects(host.invoke("assistantConversation", proposal), /completed view generation/);
-  await connection.client.request("fixture/finish", { threadId: conversation.id });
+  const { VIEW_GENERATION_OUTPUT_BYTES } = await import("../shared/view-generation.ts");
+  const otherOutput = conversation.turns.at(-1).items.filter((item: any) => item.kind !== "user" && item.kind !== "assistant").map((item: any) => item.text).join("");
+  const encodedView = JSON.stringify(view);
+  const finalText = encodedView + " ".repeat(VIEW_GENERATION_OUTPUT_BYTES - Buffer.byteLength(otherOutput + encodedView, "utf8"));
+  await connection.client.request("fixture/finish", { threadId: conversation.id, finalText });
+  assert.equal(conversation.turns.at(-1).status, "completed", "user input is not charged to the provider output budget");
   const result = await host.invoke("assistantConversation", proposal);
   assert.equal(result.receipt.outcome, "success"); assert.equal(result.provenanceStatus, "verified");
   const publicResult = await executeViewOperation({ action: "propose", view }, { access: null });
@@ -185,5 +190,13 @@ test("generation proposals use the admitted Host request, owner and material ide
   const crossOwner = { ...view, owner: "example.data", refresh: "manual", sources: { stats: { kind: "operation", operation: operation.operation, version: 1, args: {} } } };
   const cross = await host.invoke("assistantConversation", { action: "propose-view-generation", requestId: statistics.requestId, id: conversation.id, turnId: next.turns.at(-1).id, view: crossOwner });
   assert.equal(cross.receipt.outcome, "failure", "a catalog operation cannot change an explicitly admitted destination namespace");
+  const large = await host.invoke("assistantConversation", { action: "prepare-view-generation" });
+  const over = await host.invoke("assistantConversation", { action: "send", id: conversation.id, viewGeneration: true, viewGenerationRequest: large.requestId,
+    message: "Over limit", folders: [], model: "gpt-6.1-sol", reasoningEffort: "medium" });
+  const overTurn = over.turns.at(-1);
+  const otherBytes = Buffer.byteLength(overTurn.items.filter((item: any) => item.kind !== "user" && item.kind !== "assistant").map((item: any) => item.text).join(""), "utf8");
+  await connection.client.request("fixture/finish", { threadId: conversation.id, finalText: "x".repeat(VIEW_GENERATION_OUTPUT_BYTES - otherBytes + 1) });
+  assert.equal(overTurn.status, "failed"); assert.match(overTurn.error, /output exceeds byte limit/);
+
 
 });

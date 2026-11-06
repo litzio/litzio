@@ -335,7 +335,10 @@ The added Host test uses one existing fixture child to protect the new admitted-
 boundary: matching scope versus public unverified proposals, substituted provenance/owner,
 wrong turn, cancelled handle and attempted client scope injection. Existing state-machine
 cases retain timeout/cancellation/correction protection; they do not repeat Core row cases.
-The browser correction expectation follows the new assistant proposal route while keeping
+The streamed-output boundary excludes user input from the provider byte budget. The fixture
+checks an exact-budget completion and an explicit one-byte overflow; it first reproduced the
+incorrect rejection caused by charging user text to output. The browser correction expectation
+follows the new assistant proposal route while keeping
 both binding refusal and duplicate-save refusal required.
 
 ## V7 Chart and Panel renderer

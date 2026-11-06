@@ -452,7 +452,7 @@ export class AssistantConversations {
   private acceptViewOutput(id: string, turn: AssistantConversationTurn, delta: string, replaceId?: string) {
     if (!this.scopes.get(id)?.viewGeneration) return true;
     if (turn.status !== "inProgress") return false;
-    if (Buffer.byteLength(turn.items.filter(item => item.id !== replaceId).map(item => item.text).join(""), "utf8") + Buffer.byteLength(delta, "utf8") <= VIEW_GENERATION_OUTPUT_BYTES) return true;
+    if (Buffer.byteLength(turn.items.filter(item => item.kind !== "user" && item.id !== replaceId).map(item => item.text).join(""), "utf8") + Buffer.byteLength(delta, "utf8") <= VIEW_GENERATION_OUTPUT_BYTES) return true;
     void this.interrupt(id).catch(() => {});
     turn.status = "failed"; turn.error = "View generation output exceeds byte limit.";
     return false;
@@ -479,7 +479,7 @@ export class AssistantConversations {
       if (params.turn.error) turn.error = params.turn.error.message;
     } else if (method === "item/started" || method === "item/completed") {
       const item = itemFrom(params.item);
-      if (item && !this.acceptViewOutput(params.threadId, turn, item.text, item.id)) return;
+      if (item && item.kind !== "user" && !this.acceptViewOutput(params.threadId, turn, item.text, item.id)) return;
       if (item) { const index = turn.items.findIndex(value => value.id === item.id); if (index < 0) turn.items.push(item); else turn.items[index] = item; }
     } else if (["item/agentMessage/delta", "item/reasoning/summaryTextDelta", "item/plan/delta"].includes(method)) {
       let item = turn.items.find(item => item.id === params.itemId);
