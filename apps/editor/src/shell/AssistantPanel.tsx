@@ -1,4 +1,3 @@
-import { AssistantTransmissions } from "./AssistantTransmissions.tsx";
 import { AssistantDataDetails } from "../views/AssistantDataDetails.tsx";
 import { hostLabel } from "../host-client.ts";
 import { generateView } from "../views/generate-view.ts";
@@ -365,7 +364,6 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
         setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); input.current?.focus();
       }); }}><Plus /></Button>
       <Button variant="ghost" size="icon-sm" title={i18n.t("Conversation history")} aria-label={i18n.t("Conversation history")} disabled={!ready || pending || active} onClick={() => void run(async isCurrent => { const next = history ? null : await request<AssistantConversationInfo[]>(`${ASSISTANT.conversationsRoute}?provider=${provider}`); if (isCurrent()) setHistory(next); })}><History /></Button>
-      <AssistantTransmissions />
       <Button variant="ghost" size="icon-sm" aria-label={i18n.t("Close assistant")} onClick={onClose}><X /></Button>
     </div>
     <div className="assistant-context" title={[documentPath, ...folders].filter(Boolean).join("\n")}>

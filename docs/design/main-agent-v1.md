@@ -1335,32 +1335,19 @@ and interrupted writes. Reset must stop the owning Host before clearing it.
 The shared Host operation `assistantTransmissions` accepts `list` (optional
 conversation ID and offset), `read` (UUID and character offset), or `delete`
 (UUID), returning metadata/pages or a deletion receipt. HTTP GET/POST
-`/api/assistant/transmissions`, the conversation's fixed-Host UI and thin CLI
+`/api/assistant/transmissions` and the thin CLI
 `litzio assistant transmissions list|read|delete` use this operation. CLI `read`
 accepts `--offset <characters>`. Lists page 50 summaries and body reads page
 65,536 UTF-16 characters to fit existing transport envelopes; these are paging
 sizes, not recording limits. Pages reconstruct the original JSON without
 truncation. Full records are never silently substituted with summaries.
 
-UI reuses Button/Tooltip/Dialog and the existing preformatted-content tokens.
-The header's Transmission log button opens a Host-wide list, source sizes,
-transmission state, paged sent content and explicit two-step deletion. Scope and
-sensitive-content details are accessible in a disclosure. No view-generation
-button or common interaction contract is changed. Visual approval remains a
-merge prerequisite. Synthetic adapter tests compare actual wire payloads and
-public tool replies; storage tests protect Unicode paging, restart/deletion and
-failure isolation. The focused assistant-transmissions browser scenario checks the fixed-Host
-request wiring, readable content and dialog bounds at 1440px and Korean Dark
-640px without model calls.
+Owner decision: transmission inspection is logs/CLI only. The Editor has no
+transmission-log button, dialog or other inspection surface. No visual change or
+visual approval is required for this feature.
 
-
-Manual evidence (synthetic document, Host and account fixture, persistent Chrome):
-[1440px closed](assets/assistant-transmissions-1304/closed-1440.png),
-[1440px open](assets/assistant-transmissions-1304/open-1440.png),
-[640px Korean Dark closed](assets/assistant-transmissions-1304/closed-640.png),
-[640px Korean Dark open](assets/assistant-transmissions-1304/open-640.png).
-These compare the closed/open interaction, not pre-implementation screenshots.
-Alignment, control padding, Korean wrapping, dark contrast and viewport margins
-were reviewed; visual approval by the owner is still required before merge.
-
-Capture follow-up: the scenario fixes Host capabilities/account identity before reload and asserts the synthetic identity before each capture. All four current images were regenerated against this worktree on its own explicit server port. This replaces current public images only; prior commits and external caches are not claimed removed.
+Synthetic adapter tests compare actual wire payloads, public tool replies and
+source/size metadata without paid models. Storage tests protect Unicode paging,
+restart/deletion, ENOSPC and partial records, observer failure isolation and a
+separate CLI reader deleting during publication. Existing Host tests cover the
+shared HTTP/CLI operation, without a browser-only inspection workflow.
