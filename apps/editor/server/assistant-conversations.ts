@@ -15,7 +15,7 @@ import { listFolder } from "./document-api.ts";
 import { documentTools, executeDocumentTool, type DocumentToolScope } from "./assistant-document-tools.ts";
 import { ASSISTANT_INSTRUCTIONS } from "./provider-connections.ts";
 import type { SessionNotification, RequestPermissionRequest, RequestPermissionResponse } from "@agentclientprotocol/sdk";
-import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices } from "./copilot-acp.ts";
+import { COPILOT_EFFORTS, copilotOptions, copilotReasoning, copilotChoices, copilotModelOption } from "./copilot-acp.ts";
 
 import { AgentDisplayRequests, displayTools } from "./assistant-display-tools.ts";
 
@@ -153,8 +153,8 @@ export class AssistantConversations {
       this.connection.copilot.remember({ ...session, sessionId: id });
       conversation.copilot = copilotOptions({ ...session, sessionId: id });
       const reasoning = copilotReasoning(session);
-      if (!reasoning && !COPILOT_EFFORTS.includes(info.copilotCliReasoningEffort ?? "")) throw new Error("This Copilot conversation has no saved CLI reasoning effort. Start a new conversation.");
-      conversation.reasoningEffort = reasoning?.currentValue ?? info.copilotCliReasoningEffort!;
+      if (conversation.copilot.reasoningEffortSource === "cli" && !COPILOT_EFFORTS.includes(info.copilotCliReasoningEffort ?? "")) throw new Error("This Copilot conversation has no saved CLI reasoning effort. Start a new conversation.");
+      conversation.reasoningEffort = reasoning?.currentValue ?? info.copilotCliReasoningEffort ?? settings.reasoningEffort;
       this.loaded.add(id);
       return conversation;
     }
@@ -307,14 +307,18 @@ export class AssistantConversations {
       this.conversations.set(conversation.id, conversation); this.loaded.add(conversation.id);
     }
     const id = conversation.id;
-    await acp.call(() => client.unstable_setSessionModel({ sessionId: id, modelId: input.model }));
     const session = acp.sessions.get(id)!;
+    const modelOption = copilotModelOption(session);
+    if (modelOption) {
+      const result = await acp.call(() => client.setSessionConfigOption({ sessionId: id, configId: modelOption.id, value: input.model }));
+      session.configOptions = result.configOptions;
+    } else await acp.call(() => client.unstable_setSessionModel({ sessionId: id, modelId: input.model }));
     const reasoning = copilotReasoning(session);
     if (reasoning) {
       if (!copilotChoices(reasoning).some(value => value.value === input.reasoningEffort)) throw new Error("Invalid Copilot reasoning effort for this session.");
       const result = await acp.call(() => client.setSessionConfigOption({ sessionId: id, configId: reasoning.id, value: input.reasoningEffort }));
       session.configOptions = result.configOptions;
-    } else if (acp.reasoningEffort !== input.reasoningEffort) throw new Error("Start a new conversation to change Copilot reasoning effort.");
+    } else if (!modelOption && source === "cli" && acp.reasoningEffort !== input.reasoningEffort) throw new Error("Start a new conversation to change Copilot reasoning effort.");
     const options = copilotOptions(session);
     const mode = input.mode ?? options.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id;
     if (mode) {

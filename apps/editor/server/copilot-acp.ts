@@ -80,6 +80,13 @@ export class CopilotAcp extends EventEmitter {
   async call<T>(operation: () => Promise<T>): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
     try { return await Promise.race([operation(), new Promise<never>((_, reject) => { timer = setTimeout(() => { reject(new Error("Copilot ACP request timed out.")); void this.close().catch(() => {}); }, this.options.timeoutMs ?? 15000); })]); }
+    catch (error) {
+      // ACP rejects RPC failures with plain {code, message, data} objects.
+      // Host boundaries preserve Error.message; never stringify provider data.
+      if (error instanceof Error) throw error;
+      const message = error && typeof error === "object" && "message" in error && typeof error.message === "string" ? error.message : "Copilot ACP request failed.";
+      throw new Error(message);
+    }
     finally { clearTimeout(timer); }
   }
   close() { this.closed = true; return this.closing ??= this.stop(); }
@@ -95,13 +102,17 @@ export function copilotReasoning(session: Pick<NewSessionResponse, "configOption
 export function copilotChoices(option: SelectOption) {
   return option.options.flatMap(value => "value" in value ? [value] : value.options);
 }
+export function copilotModelOption(session: Pick<NewSessionResponse, "configOptions">) {
+  return session.configOptions?.find((option): option is SelectOption => option.type === "select" && (option.category === "model" || option.id === "model"));
+}
 export function copilotOptions(session: NewSessionResponse): AiCopilotOptions {
   const mode = session.configOptions?.find((option): option is SelectOption => option.type === "select" && option.category === "mode");
   const modes = session.modes?.availableModes ?? (mode ? copilotChoices(mode).map(value => ({ id: value.value, name: value.name, description: value.description })) : []);
   // Only protocol Agent/Plan IDs (or their short forms). Names alone cannot authorize a mode.
   const safe = modes.filter(mode => /^(agent|plan)$/.test(mode.id) || /^https:\/\/agentclientprotocol.com\/protocol\/session-modes#(agent|plan)$/.test(mode.id));
   const reasoning = copilotReasoning(session);
-  return { ...(reasoning ? { reasoningEfforts: copilotChoices(reasoning).map(value => ({ reasoningEffort: value.value, description: value.description ?? "" })) } : {}), reasoningEffortSource: reasoning ? "config" : "cli",
+  const config = !!reasoning || !!copilotModelOption(session);
+  return { ...(config ? { reasoningEfforts: reasoning ? copilotChoices(reasoning).map(value => ({ reasoningEffort: value.value, description: value.description ?? "" })) : [] } : {}), reasoningEffortSource: config ? "config" : "cli",
     modes: safe.map(mode => ({ id: mode.id, name: mode.name, description: mode.description ?? "" })),
     currentMode: session.modes?.currentModeId ?? mode?.currentValue ?? "" };
 }

@@ -218,6 +218,7 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
         if (!body.id) { selected = { provider: body.provider ?? settings.provider, permissionMode: body.permissionMode ?? settings.permissionMode, id: 'thread-' + (++sequence), title: body.message, folders: body.folders, createdAt: 1793590000000,
           updatedAt: 1793590000000, model: body.model, reasoningEffort: body.reasoningEffort, turns: [] }; conversations.set(selected.id, selected); }
         else { selected = conversations.get(body.id); if (!selected.turns.some(turn => turn.status === 'inProgress')) selected.permissionMode = body.permissionMode ?? selected.permissionMode; }
+        if (body.message === 'After provider switch') selected.copilot = { ...copilotOptions, reasoningEffortSource: 'config', reasoningEfforts: [] };
         let turn = selected.turns.find(turn => turn.status === 'inProgress');
         if (!turn) { turn = { id: 'turn-' + sent.length, status: 'inProgress', items: [] }; selected.turns.push(turn); }
         turn.items.push({ id: 'user-' + sent.length, kind: 'user', text: body.message, references: [...(body.references ?? []).map(path => ({ path, name: path.split(/[\\/]/).pop(), kind: 'file' })), ...(body.skills ?? []).map(skill => ({ ...skill, kind: 'skill' }))] });
@@ -896,6 +897,18 @@ async (page, { expect, openPath, openDocument, reloadDocument, assistantFixture,
   expect(sent.at(-1).id).toBeUndefined();
   expect(sent.at(-1).skills).toEqual([]);
   await expect(panel.getByRole('alert')).toHaveCount(0);
+  if (screenshots) {
+    await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Appearance & language', exact: true }).click();
+    await page.getByTestId('ui-language').selectOption('ko'); await page.getByTestId('theme').selectOption('dark');
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.screenshot({ path: `tmp/1181/evidence/copilot-${width}-dark-ko.png` });
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByTestId('ui-language').selectOption('en'); await page.getByTestId('theme').selectOption('light');
+    await page.getByRole('navigation', { name: 'Settings categories' }).getByRole('button', { name: 'Assistant', exact: true }).click();
+  }
+  await expect(panel.getByRole('button', { name: 'Reasoning effort settings', exact: true })).toHaveCount(0);
   await panel.getByRole('button', { name: 'Close assistant', exact: true }).click();
 
   if (screenshots) await page.screenshot({ path: 'tmp/880-evidence/copilot-1440-light-en.png' });

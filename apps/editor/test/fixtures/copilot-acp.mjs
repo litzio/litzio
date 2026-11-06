@@ -4,25 +4,41 @@ const log = process.argv[2];
 if (log) appendFileSync(log, JSON.stringify({ pid: process.pid, args: process.argv.slice(3) }) + "\n");
 const modes = { currentModeId: "agent", availableModes: ["agent", "plan", "autopilot", "allow-all"].map(id => ({ id, name: id === "agent" ? "Agent" : id === "plan" ? "Plan" : id })) };
 const configOptions = [{ id: "allow_all", name: "Allow All", type: "select", currentValue: "off", options: ["on", "off"].map(value => ({ value, name: value })) },
-  ...(process.argv.includes("--fixture-config") ? [{ id: "reasoning", category: "thought_level", name: "Thought level", type: "select", currentValue: "low", options: ["low", "high"].map(value => ({ value, name: value })) }] : [])];
+  ...(process.argv.includes("--fixture-config") ? [{ id: "model", category: "model", name: "Model", type: "select", currentValue: "copilot-model", options: ["auto", "copilot-model"].map(value => ({ value, name: value })) }, { id: "reasoning", category: "thought_level", name: "Thought level", type: "select", currentValue: "low", options: ["low", "high"].map(value => ({ value, name: value })) }] : [])];
 const sessionState = () => ({ models: { currentModelId: "copilot-model", availableModels: [{ modelId: "copilot-model", name: "Copilot fixture model" }] }, modes, configOptions });
 const send = message => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", ...message }) + "\n");
 let session = 0, pending;
+const selectedModels = new Map();
+const optionsFor = id => selectedModels.get(id) === "auto" ? configOptions.filter(option => option.id !== "reasoning") : configOptions;
 createInterface({ input: process.stdin }).on("line", line => {
   const request = JSON.parse(line); if (log) appendFileSync(log, line + "\n");
   if (!request.method) return;
   const { id, method, params } = request;
   const reply = result => send({ id, result });
   if (method === "initialize") reply({ protocolVersion: 1, agentCapabilities: { loadSession: true }, agentInfo: { name: "fake-copilot", version: "1" } });
-  else if (method === "session/new") reply({ sessionId: `copilot-${process.pid}-${++session}`, ...sessionState() });
+  else if (method === "session/new") {
+    if (process.argv.includes("--fixture-session-error")) { send({ id, error: { code: -32000, message: "Copilot session fixture failure", data: { token: "must-not-be-displayed" } } }); return; }
+    reply({ sessionId: `copilot-${process.pid}-${++session}`, ...sessionState() });
+  }
   else if (method === "session/load") reply(sessionState());
   else if (method === "session/set_mode") { modes.currentModeId = params.modeId; send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "current_mode_update", currentModeId: params.modeId } } }); reply({}); }
-  else if (method === "session/set_config_option") { configOptions.find(option => option.id === params.configId).currentValue = params.value; send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "config_option_update", configOptions } } }); reply({ configOptions }); }
+  else if (method === "session/set_config_option") {
+    if (params.configId === "model") {
+      selectedModels.set(params.sessionId, params.value);
+      configOptions.find(option => option.id === "reasoning").options = ["low", "max"].map(value => ({ value, name: value }));
+    }
+    if (process.argv.includes("--fixture-config") && params.configId === "reasoning" && selectedModels.get(params.sessionId) === "auto") { send({ id, error: { code: -32602, message: "This model does not support reasoning_effort configuration." } }); return; }
+    configOptions.find(option => option.id === params.configId).currentValue = params.value;
+    // Model config returns authoritative state even without a notification.
+    if (params.configId !== "model") send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "config_option_update", configOptions: optionsFor(params.sessionId) } } });
+    reply({ configOptions: optionsFor(params.sessionId) });
+  }
   else if (method === "session/set_model") {
+    selectedModels.set(params.sessionId, params.modelId);
     if (process.argv.includes("--fixture-config")) {
       const reasoning = configOptions.find(option => option.id === "reasoning");
       reasoning.options = ["low", "max"].map(value => ({ value, name: value }));
-      send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "config_option_update", configOptions } } });
+      send({ method: "session/update", params: { sessionId: params.sessionId, update: { sessionUpdate: "config_option_update", configOptions: params.modelId === "auto" ? configOptions.filter(option => option.id !== "reasoning") : configOptions } } });
     }
     reply({});
   }
