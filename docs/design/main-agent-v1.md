@@ -910,14 +910,28 @@ Manual composer captures: 1440px English Light
 [After](assets/explicit-references-1253/after-1440.png), 640px Korean Dark
 [Before](assets/explicit-references-1253/before-640.png) /
 [After](assets/explicit-references-1253/after-640.png).
-The baseline panel was temporarily restored for Before; the same `@document` draft
-and Explorer chip are used in both states. Paths and Host context are masked.
-Capture uses a temporary shortened scenario through `pnpm browser:test assistant --screenshots`,
-then restores the regression body; the shortened run intentionally omits later expected
-HTTP failures and is not counted as a passing regression run. No capture-only CI loop is added.
-Visual inspection confirms aligned chips/remove controls, input padding, readable Korean
-and no panel/control clipping at either width. The file candidate row disappears; the
-existing skill picker and Explorer chip presentation retain their common implementation.
+The baseline panel was temporarily restored for Before; both sides use the same
+local Explorer attachment and `@document` draft. The capture fixture supplies only
+synthetic Hosts (`Local`/`Remote`), account (`demo-user`), paths
+(`C:/demo/notes/document.txt`), saved text and model (`Demo model`). No mask hides
+product controls, Explorer or Host context; no real model or remote machine is used.
+
+Explicit remote Explorer handoff, using the unchanged product ContextMenu and chip:
+
+| Width / theme | File context menu | Attached result |
+| --- | --- | --- |
+| 1440px English Light | [Add to chat](assets/explicit-references-1253/remote-menu-1440.png) | [Remote chip](assets/explicit-references-1253/remote-result-1440.png) |
+| 640px Korean Dark | [채팅에 추가](assets/explicit-references-1253/remote-menu-640.png) | [Remote chip](assets/explicit-references-1253/remote-result-640.png) |
+
+Capture uses a temporary synthetic scenario through `pnpm browser:test assistant --screenshots`,
+then restores the regression body and current panel source. The shortened run intentionally
+omits the normal scenario's expected HTTP failures, so it is manual visual evidence,
+not a passing regression run. No capture-only CI loop is added.
+Visual inspection checks chip/remove-control alignment, input padding, readable Korean,
+Explorer menu placement and panel/control clipping at both widths. The candidate row
+disappears; the existing skill picker, Explorer menu and chip presentation are unchanged.
+The eight images linked here replace the earlier masked images at the current branch
+surface. This does not establish deletion from earlier commits or external caches.
 
 Removable chips above the input show only file names; shared Tooltip exposes the
 full path on hover/focus. No file-type-specific presentation or read indicator is
