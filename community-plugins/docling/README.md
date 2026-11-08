@@ -24,7 +24,7 @@
 
 ## 연결 확인 범위
 
-`GET <serverUrl>/health`와 `/ready`가 모두 JSON `{"status":"ok"}`이면 연결됨입니다. HTTP 오류·비정상 JSON·연결 실패·5초 시간 초과는 오류 행을 반환하며 원문 응답·예외는 노출하지 않습니다. redirect는 따르지 않습니다. 이 health/ready 확인은 요청한 모든 모델의 준비·변환 성공·인증 권한을 보증하지 않습니다. PDF 변환의 최종 저장 연결은 #1327을 기다립니다. 아래 작업 2는 보관된 `.docling`에서 문서를 만듭니다.
+`GET <serverUrl>/health`와 `/ready`가 모두 JSON `{"status":"ok"}`이면 연결됨입니다. HTTP 오류·비정상 JSON·연결 실패·5초 시간 초과는 오류 행을 반환하며 원문 응답·예외는 노출하지 않습니다. redirect는 따르지 않습니다. 이 health/ready 확인은 요청한 모든 모델의 준비·변환 성공·인증 권한을 보증하지 않습니다. PDF 변환은 아래 공용 K1 작업을 사용합니다. 작업 2는 보관된 `.docling`에서 서버 호출 없이 문서를 만듭니다.
 
 기존 `pnpm browser:test http-plugins`는 이 artifact를 validate/등록/설정/신뢰/활성화해 가짜 HTTP health의 정상 → 503 오류 → 복구를 CLI와 화면에서 대조합니다. 새 suite·workspace·subprocess를 추가하지 않고 기존 production Host/CLI/browser를 재사용합니다. 외부 endpoint만 시나리오 프로세스의 임시 HTTP 서버이며 finally에서 닫습니다. `--screenshots`는 별도 수동 검토용 1440px 및 한국어 dark 640px 캡처를 `tmp/docling-1321/`에 남깁니다. 실제 Docker 결과는 PR에 별도 기록합니다.
 
@@ -36,25 +36,29 @@ CI 경로 정책은 이 새 경로를 미분류(full)로 취급합니다. 기존
 
 플러그인 버전은 **0.0.1**입니다. [CHANGELOG](CHANGELOG.md)와 미확정 [ROADMAP](ROADMAP.md)을 참고하세요. `.docling` manifest에는 생성한 플러그인 버전(`converter.pluginVersion`)과 ZIP 형식 번호(`version: 1`)를 기록합니다. 출처·서버·프로필 기록은 원본 재현을 위해 유지하며 문서 변환 정책 버전은 두지 않습니다. 결과 `.md` 본문에는 버전이나 입력 hash 문단을 추가하지 않습니다.
 
-#1327 병합 전에는 기존 `requiresSdk`를 유지하고, 병합 시 SDK 권장 표기를 따릅니다.
+일반 파일 결과의 최소 공개 계약에 따라 `requiresSdk: ">=0.2.0 <1.0.0"`을 선언합니다.
 
 ## 두 작업으로 분리 (#1322 범위 정정)
 
-현재 PR은 Draft이며 작업 1의 최종 저장 연결은 #1327을 기다립니다. 기존 PDF → Litzio 문서 단일 작업은 제거했습니다.
+PDF 원본 보관과 Litzio 문서 만들기는 별도 K1 작업입니다. 한 요청에 파일 하나를 처리합니다.
 
-1. **PDF 변환(연결 대기):** `a.pdf` → `a.docling`. 원본 산출물은 수정하지 않고 보관합니다. `convertPdfToArchive`가 고정 프로필로 서버를 확인·변환하고 `createDoclingArchiveFromResult`가 원본 HTTP 응답 바이트와 PDF 바이트를 받아 `.docling` 바이트를 만들며 파일 쓰기는 하지 않습니다. Host 일반 파일 K1 결과는 #1327 병합 뒤 연결합니다.
+1. **PDF 변환:** `a.pdf` → `a.docling`. 원본 산출물은 수정하지 않고 보관합니다. `convertPdfToArchive`가 고정 프로필로 서버를 확인·변환하고 `createDoclingArchiveFromResult`가 원본 HTTP 응답 바이트와 PDF 바이트를 받아 `.docling` 바이트를 만들며 파일 쓰기는 하지 않습니다. 플러그인은 Host가 제공한 `resultFile.path`에 ZIP 바이트를 쓰고 닫은 뒤 `file:{path}`만 반환합니다. Host가 Root에 새 파일로 원자적으로 저장하며 기본 이름은 `a.pdf` → `a.docling`입니다. ZIP 바이트를 IPC로 보내거나 output에 직접 쓰지 않습니다.
 2. **Litzio 문서 만들기(구현):** `.docling` 한 건의 `document.json`으로 새 Litzio 문서를 만듭니다. Docling API·health·version을 호출하지 않으며 서버가 없어도 같은 원본에서 다른 결과 이름으로 다시 실행할 수 있습니다. 원본 `.docling`은 변경하지 않습니다.
 
-공용 작업 화면(명령 센터 → Plugin jobs)에서 `Docling · Litzio 문서 만들기`, 열린 Host Root, `.docling` 한 건, Root 상대 결과 경로를 선택합니다. 기존 native-document K1의 새 파일 생성·충돌 거부·결과 열기·중단 계약을 그대로 사용합니다. 기본 결과 이름은 현재 공용 화면의 `result.md`입니다. 플러그인 조회 화면에서는 시작하지 않습니다.
+공용 작업 화면(명령 센터 → Plugin jobs)에서 `Docling · PDF 변환` 또는 `Docling · Litzio 문서 만들기`, 열린 Host Root, 입력 파일과 Root 상대 결과 경로를 선택합니다. PDF 결과는 파일 경로/복사, 문서 결과는 기존 결과 열기를 제공합니다. 문서 작업의 기본 이름은 기존 `result.md`이며 `a.md`처럼 직접 지정할 수 있습니다. 플러그인 조회 화면에서는 시작하지 않습니다.
 
-CLI 입력 파일(artifact 밖): `{"requestId":"<새 UUID>","job":"create-document","root":"<Host Root>","file":"a.docling","output":"a.md"}`.
+CLI 입력 파일은 artifact 밖에 둡니다.
+
+- PDF 보관: `{"requestId":"<새 UUID>","job":"convert-pdf","root":"<Host Root>","file":"a.pdf"}`. output 생략 시 Host가 `a.docling`으로 정합니다.
+- 문서 만들기: `{"requestId":"<새 UUID>","job":"create-document","root":"<Host Root>","file":"a.docling","output":"a.md"}`.
+
 
 - `litzio plugins start community.docling --input <job.json> --host <origin> --json`
 - `litzio plugins status <requestId> --host <origin> --json`
 - `litzio plugins stop <requestId> --host <origin> --json`
 - `litzio plugins result <requestId> --host <origin> --json`
 
-작업마다 새 requestId를 쓰며 불확실 결과는 같은 ID로 조회합니다. start를 자동 재전송하지 않습니다. 여러 파일은 각각 별도 요청이며 큐·재시작 복원·자동 갱신·대조/검수·내부 이미지 대조뷰는 없습니다. 작업 2의 중단은 로컬 읽기/문서 생성을 중단하며 서버 작업과 무관합니다.
+작업마다 새 requestId를 쓰며 불확실 결과는 같은 ID로 조회합니다. start를 자동 재전송하지 않습니다. 여러 파일은 각각 별도 요청이며 큐·재시작 복원·자동 갱신·대조/검수·내부 이미지 대조뷰는 없습니다. PDF 중단은 요청/폴링과 staging writer를 닫은 뒤 stopped를 보고하며 이미 제출된 서버 작업은 계속될 수 있습니다. 문서 작업의 중단은 로컬 읽기/생성을 중단하며 서버와 무관합니다.
 
 ### `.docling` 형식 1 봉투
 
@@ -77,7 +81,7 @@ CLI 입력 파일(artifact 밖): `{"requestId":"<새 UUID>","job":"create-docume
 
 페이지는 `pages/<n>.png`, 그 밖의 picture/table/text/nested 이미지는 `document.json#<JSON pointer>`의 embedded URI에 원본 그대로 남고 해당 경로를 manifest에 기록합니다. 이미지의 크기 변경·재인코딩은 하지 않습니다. MIME/magic/base64와 별도 페이지 바이트 일치를 확인합니다. 원격/file 이미지 URI는 가져오지 않고 거부합니다. JSON의 모든 ImageRef URI·좌표·크기·DPI를 그대로 유지합니다. 숫자는 Node JSON reviver의 source와 `JSON.rawJSON`으로 원래 토큰을 보존하므로 `origin.binary_hash` 같은 uint64가 반올림되지 않습니다. 저장 JSON은 공백 형태만 달라질 수 있습니다.
 
-`createDoclingArchive({manifest,documentJson,pages})`는 Buffer만 반환하며 `readDoclingArchive`는 같은 봉투를 읽습니다. Node 표준 Buffer/crypto/zlib만 쓰며 npm 의존성·SDK 내부 import·직접 결과 파일 쓰기·디스크 압축 해제는 없습니다. Node에 ZIP API가 없어 필요한 STORE ZIP32 헤더/목록만 플러그인에 둡니다. 일반 ZIP/DEFLATE/ZIP64/분할 ZIP/암호화/알 수 없는 항목은 지원하지 않습니다. 경로·중복 항목·CRC·중앙/로컬 헤더·범위·필수 페이지·manifest의 문서/이미지 hash를 확인합니다. 원본 PDF가 없는 작업 2에서 원본의 진위를 검증했다는 뜻은 아닙니다. Host 결과 크기·저장 정책은 #1327의 최종 계약을 따를 예정입니다.
+`createDoclingArchive({manifest,documentJson,pages})`는 Buffer만 반환하며 `readDoclingArchive`는 같은 봉투를 읽습니다. Node 표준 Buffer/crypto/zlib만 쓰며 npm 의존성·SDK 내부 import·직접 결과 파일 쓰기·디스크 압축 해제는 없습니다. Node에 ZIP API가 없어 필요한 STORE ZIP32 헤더/목록만 플러그인에 둡니다. 일반 ZIP/DEFLATE/ZIP64/분할 ZIP/암호화/알 수 없는 항목은 지원하지 않습니다. 경로·중복 항목·CRC·중앙/로컬 헤더·범위·필수 페이지·manifest의 문서/이미지 hash를 확인합니다. 원본 PDF가 없는 작업 2에서 원본의 진위를 검증했다는 뜻은 아닙니다. 파일 결과 상한은 Host의 2 GiB이며 writer를 닫은 뒤 Host가 크기·확장자·Root·충돌을 확인해 저장합니다. 실패·중단 때 staging 정리도 Host가 소유합니다. 플러그인의 ZIP 생성은 현재 메모리에 전체 바이트를 준비하므로 대규모 PDF의 메모리 사용은 수락하지 않았습니다.
 
 ### 작업 1 고정 프로필과 검증
 
@@ -131,7 +135,7 @@ docker stop docling-serve
 
 기존 `http-plugins`에서 가짜 서버에 **고정 프로필 전체**를 제출하고 수신한 multipart 각 값을 대조합니다. 완전한 success의 `.docling`을 작업 2 fixture로 쓰며 큰 정수·원본/결과 hash·프로필·페이지 원본 바이트 보존을 확인합니다. task failure의 ID와 단일 제출, 변환 중 PDF 변경 거부, 전체 deadline을 각각 대표 사례로 보호합니다. 전수 조합은 아니며 새 suite·workspace·subprocess는 없습니다. 추가 가짜 서버 사례는 기존 K1 fixture로 잡지 못하는 외부 서비스 계약/원본 보존/전체 마감 결함을 검증합니다.
 
-이후 작업 2는 중첩 참조 순서·literal text·표 셀 텍스트와 SDK → Host 저장 → CLI/공용 화면 결과 열기, 같은 원본 재사용, 손상 CRC 거부를 확인합니다. 이 구간의 비-health 서버 요청 수가 0인지 확인합니다. 짧은 로컬 작업을 인위적으로 늦추지 않으며 기존 K1 중단 fixture는 유지합니다. 실제 API의 축소 옵션 결과는 앞선 단계에서 Python 표준 zipfile로 항목과 CRC를 대조했으며, 현재 고정 프로필은 모델 설치 후 별도 실제 서버 시험에서 성공했습니다. 최종 로컬 시나리오는 약 55초, 함께 실행되는 HTTP recovery 포함 약 1.3분이었습니다. 작업 1 저장 수락도 아직 아닙니다.
+공식 K1 PDF 작업의 정상 저장과 기본 `source.pdf` → `source.docling` 이름, 실패와 중단 상태를 대표 사례로 확인합니다. 같은 이름 충돌/덮어쓰기 거부는 Host suite의 기존 보호를 반복하지 않습니다. 이후 작업 2는 생성된 `.docling`의 중첩 참조 순서·literal text·표 셀 텍스트와 SDK → Host 저장 → CLI/공용 화면 결과 열기, 같은 원본 재사용, 손상 CRC 거부를 확인합니다. 이 구간의 비-health 서버 요청 수가 0인지 확인합니다. 짧은 로컬 작업을 인위적으로 늦추지 않으며 기존 K1 중단 fixture는 유지합니다. 실제 API의 축소 옵션 결과는 앞선 단계에서 Python 표준 zipfile로 항목과 CRC를 대조했으며, 현재 고정 프로필은 모델 설치 후 별도 실제 서버 시험에서 성공했습니다. 최종 로컬 시나리오는 약 55초, 함께 실행되는 HTTP recovery 포함 약 1.3분이었습니다. 선택적 `LITZIO_DOCLING_REAL_PDF`에 실제 합성 PDF를 지정한 동일 브라우저 실행에서는 상시 컨테이너로 `a.pdf` → `a.docling` → `a.md`의 공식 CLI/K1 저장과 Editor 열기까지 검증합니다. CI에서는 이 옵션 없이 가짜 서버만 사용합니다. 실제 서버의 페이지/그림 원본 바이트와 ZIP 필수 항목은 archive reader로 대조합니다. 전용 스크린샷은 `tmp/docling-1322/file-{1440,640}.png`, `completed-{1440,640}.png`, 선택적 실제 문서 `real-document-{1440,640}.png`입니다.
 
 ### 최소 문서 변환 규칙
 
@@ -152,7 +156,7 @@ docker stop docling-serve
 | 과거 표의 100,000셀 허용 범위 | **동일 범위 불가**. 현재 최대 3,200셀이고 전체 문서 한도도 적용 | packages/core/src/document-authoring.ts:10, :16 |
 | form cell·병합/계층 헤더의 원래 의미, 겹침·span 오류 | 원래 의미는 **미지원**(과거도 form은 unsupported). grid/오류 분류·notes는 플러그인 책임 | packages/core/src/document-authoring.ts:16 |
 | Figure/Table 캡션의 고정 번호 enumerator, 중복/모호성 처리 | **고정 번호 불가**. figure는 평문 caption만, table은 rows만 받음. 번호 추출·모호성 분류 자체는 가능 | packages/core/src/document-authoring.ts:16, :17 |
-| source picture+caption, child text를 그림으로 표현 | **조건부** URL·평문 caption은 가능. ZIP 내부 이미지 해제/공식 asset 저장 API 없음. data URI도 문자열 16,384 및 전체 256 KiB 한도에 걸림. 현재 이미지는 Litzio 결과에 넣지 않음 | packages/core/src/document-authoring.ts:10, :17; packages/plugin-sdk/src/index.ts:117 |
+| source picture+caption, child text를 그림으로 표현 | **조건부** URL·평문 caption은 가능. ZIP 내부 이미지 해제/공식 asset 저장 API 없음. data URI도 문자열 16,384 및 전체 256 KiB 한도에 걸림. 현재 이미지는 Litzio 결과에 넣지 않음 | packages/core/src/document-authoring.ts:10, :17; packages/plugin-sdk/src/index.ts:135 |
 | 목록 marker 보존, 평면 목록 | ordered/start/평문 items(최대100)는 가능. marker 문자열은 문단으로 보존 가능 | packages/core/src/document-authoring.ts:15 |
 | 중첩 목록·목록 안 rich inline | **불가**. items는 재귀 ListContent가 아닌 string 배열 | packages/core/src/document-authoring.ts:15, :55 |
 | standalone footnote를 문단으로 보존, 숫자만 보고 연결하지 않기 | 가능·현재 평문 보존. 설명 notes는 미구현 | packages/core/src/document-authoring.ts:13 |
@@ -164,6 +168,6 @@ docker stop docling-serve
 | sidecar block path/kind/role, group의 여러 target·여러 source의 한 target | 블록 path/hash는 반환됨. kind/role·공유 관계는 플러그인에서 연결 가능(상한 안). 현재 sidecar 미구현 | packages/core/src/document-authoring.ts:71; packages/core/src/views-v2.ts:281 |
 | sidecar 재귀 list item index·endnote definition target | **동일 계약 불가**. authoring 결과는 block path이고 중첩 list/endnote 작성 입력도 없음 | packages/core/src/document-authoring.ts:15, :30, :72 |
 | sidecar 문서 hash/target 검사·stale map 거부 | hash/path 자료는 가능. 기존 bounded review mapping은 별도 계약이며 legacy map format/notes/charspan을 그대로 받는 API는 아님 | packages/core/src/views-v2.ts:264, :281 |
-| `.md`와 `.docling-map.json` 동시 공식 저장 | **현재 불가**. native K1은 document.source 하나만 저장. #1327도 일반 파일 하나의 범위이며 compound 결과/sidecar 저장 보장은 아님 | packages/plugin-sdk/src/index.ts:117; apps/editor/server/plugins/jobs.ts:25 |
+| `.md`와 `.docling-map.json` 동시 공식 저장 | **현재 불가**. native K1은 document.source 하나만 저장. #1327도 일반 파일 하나의 범위이며 compound 결과/sidecar 저장 보장은 아님 | packages/plugin-sdk/src/index.ts:135; apps/editor/server/plugins/jobs.ts:46 |
 
 필요한 최소 보강 후보는 대용량 authoring 범위, inline/중첩 목록/endnote 입력, Figure/Table 번호·표 캡션 속성, 공식 image asset/sidecar 동반 저장입니다. 이번 PR에서 새 SDK나 우회 write path는 만들지 않습니다.
