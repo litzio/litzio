@@ -10,7 +10,12 @@ test("manifest rejects unsupported extensions, invalid identities, versions and 
   assert.throws(() => compileSchema({ $ref: "https://example.test/schema" }));
   assert.throws(() => compileSchema({ type: "not-a-type" }));
   const job = { id: "export", title: "Export", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "file", resultExtension: ".bin" };
-  const withJob = (value: unknown) => ({ ...manifest(), contributes: { jobs: [value], operations: ["start", "status", "stop"].map(id => ({ id, version: 1, effect: id === "status" ? "read" : "write", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } })) } });
+  const withJob = (value: unknown, requiresSdk = ">=0.2.0 <1.0.0") => ({ ...manifest(), requiresSdk, contributes: { jobs: [value], operations: ["start", "status", "stop"].map(id => ({ id, version: 1, effect: id === "status" ? "read" : "write", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } })) } });
+  const nativeJob = { id: "import", title: "Import", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" };
+  for (const requiresSdk of ["0.1.0", "^0.1.0"]) {
+    assert.throws(() => validateManifest(withJob(job, requiresSdk)), /File job results require SDK 0\.2\.0 or later in requiresSdk/);
+    assert.ok(validateManifest(withJob(nativeJob, requiresSdk)));
+  }
   const binding = validateManifest(withJob(job)).contributes.jobs[0];
   assert.equal(defaultJobOutput(binding, "nested/a.txt"), "nested/a.bin");
   assert.equal(defaultJobOutput({ ...binding, resultKind: "native-document" }, "a.txt"), "result.md");

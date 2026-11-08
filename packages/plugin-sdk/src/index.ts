@@ -52,6 +52,7 @@ export function validateManifest(input: unknown): PluginManifest {
   if (new Set(m.secrets.map(s => s.id)).size !== m.secrets.length) throw new Error("Duplicate secret ID");
   if (m.contributes.dataViews.length || m.contributes.generatedUi.length || m.contributes.secretUses.length) throw new Error("Unsupported contribution: dataViews, generatedUi and secretUses");
   for (const job of m.contributes.jobs) {
+    if (job.resultKind === "file" && !supportedSdkVersions.some(version => semver.gte(version, "0.2.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("File job results require SDK 0.2.0 or later in requiresSdk");
     for (const binding of [job.start, job.status, job.stop]) if (!m.contributes.operations.some(op => op.id === binding)) throw new Error("Undeclared job operation");
     if (new Set([job.start, job.status, job.stop]).size !== 3) throw new Error("Job bindings must be distinct");
     if (m.contributes.operations.find(op => op.id === job.start)?.effect !== "write") throw new Error("Job start must be a write operation");
