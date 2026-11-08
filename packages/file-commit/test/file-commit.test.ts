@@ -3,7 +3,8 @@ import fs, { chmodSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSyn
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { commitFile, createFile, decodeUtf8, preflightFileCommit, textRevision } from "../src/index.ts";
+import { commitFile, createFile, createFileFromPath, decodeUtf8, preflightFileCommit, textRevision } from "../src/index.ts";
+import { createHash } from "node:crypto";
 
 // A partial temporary write and a change found just before the rename are exercised through
 // the Editor Host's save tests; these cover the remaining file properties and failures.
@@ -20,6 +21,39 @@ test("exclusive creation publishes complete text and never replaces an existing 
     assert.equal(readFileSync(original, "utf8"), ORIGINAL);
     assert.deepEqual(readdirSync(dir).sort(), ["document.md", "new.view.json"]);
   });
+});
+
+test("opaque file creation bounds bytes, owns its snapshot and cleans failed publication", async context => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-file-bytes-"));
+  const source = path.join(dir, "staged"), target = path.join(dir, "new.bin");
+  const bytes = Buffer.from([0, 255, 128, 1]);
+  writeFileSync(source, bytes);
+  try {
+    await assert.rejects(createFileFromPath(target, source, 3), /size limit/);
+    assert.deepEqual(readdirSync(dir), ["staged"]);
+    // A file growing after preflight is still bounded by the streamed byte counter.
+    const open = fs.promises.open.bind(fs.promises);
+    context.mock.method(fs.promises, "open", async (...args: Parameters<typeof fs.promises.open>) => {
+      const handle = await open(...args);
+      if (args[0] === source) {
+        const stat = handle.stat.bind(handle);
+        handle.stat = (async () => ({ ...await stat(), size: 0, isFile: () => true })) as typeof handle.stat;
+      }
+      return handle;
+    });
+    try { await assert.rejects(createFileFromPath(target, source, 3), /size limit/); }
+    finally { context.mock.restoreAll(); }
+    assert.deepEqual(readdirSync(dir), ["staged"]);
+    const revision = await createFileFromPath(target, source, bytes.length);
+    assert.equal(revision, createHash("sha256").update(bytes).digest("hex"));
+    writeFileSync(source, "later plugin write");
+    assert.deepEqual(readFileSync(target), bytes);
+    await assert.rejects(createFileFromPath(target, source, 100), { code: "EEXIST" });
+    assert.deepEqual(readFileSync(target), bytes);
+    rmSync(target);
+    await assert.rejects(createFileFromPath(target, source, 100, () => { throw new Error("owner lost"); }), /owner lost/);
+    assert.deepEqual(readdirSync(dir), ["staged"]);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 test("partial write, flush and publication failures leave no reserved file", context => {

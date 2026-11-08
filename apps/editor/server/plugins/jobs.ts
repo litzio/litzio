@@ -1,12 +1,14 @@
 import { publicOperationError } from "./operation-result.ts";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import { statSync } from "node:fs";
-import { JOB_START_CONTRACT_MESSAGE, jobRequestSchema, jobUpdateSchema, type PluginErrorKind, type JobContribution, type JobSnapshot } from "@litzio/plugin-sdk";
+import { statSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { createFileFromPath } from "@litzio/file-commit";
+import { JOB_START_CONTRACT_MESSAGE, JOB_FILE_MAX_BYTES, defaultJobOutput, jobRequestSchema, jobUpdateSchema, type JobInput, type PluginErrorKind, type JobContribution, type JobSnapshot } from "@litzio/plugin-sdk";
 import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
 import { createDocumentSourceFile } from "../document-create.ts";
 
-type Record = { effects: Map<string, "read" | "write">; uncertainWrite?: boolean; detached?: boolean; startedAt: number; finishedAt?: number; snapshot: JobSnapshot; binding: JobContribution; input: { requestId: string; root: string; file: string; output: string }; access: RootAccess; pending: Promise<void>; stopping?: Promise<void> };
+type Record = { effects: Map<string, "read" | "write">; uncertainWrite?: boolean; detached?: boolean; staging?: string; observations?: Promise<void>; startedAt: number; finishedAt?: number; snapshot: JobSnapshot; binding: JobContribution; input: JobInput; access: RootAccess; pending: Promise<void>; stopping?: Promise<void> };
 /** Daemon-lifetime observations only; no queue, scheduler or replay ledger. */
 export class PluginJobs {
   private records = new Map<string, Record>();
@@ -18,19 +20,38 @@ export class PluginJobs {
     if (value.error) throw Object.assign(new Error(value.error), { kind: value.errorKind });
     return jobUpdateSchema.parse(value.result);
   }
-  private update(record: Record, update: ReturnType<typeof jobUpdateSchema.parse>, effect: "read" | "write") {
+  private cleanup(record: Record) {
+    if (record.staging) { rmSync(record.staging, { recursive: true, force: true }); record.staging = undefined; }
+  }
+  private async update(record: Record, update: ReturnType<typeof jobUpdateSchema.parse>, effect: "read" | "write") {
     const current = record.snapshot;
     if (record.detached || current.result || ["completed", "failed", "stopped"].includes(current.state)) return;
     if (update.state === "completed") {
-      if (!update.document) throw new Error("Completed job has no document");
-      accessPath(record.input.output, this.access, true);
-      const created = createDocumentSourceFile(record.input.output, update.document.source, record.access);
-      current.result = { path: created.path, revision: created.revision };
-      // Publication failure must not lose the successful document receipt or recreate it on status.
-      record.finishedAt = Date.now();
-      const bundle = update.review ? this.publishReview?.(current.plugin, current.root, created.path, record.input.file, update.review) : undefined;
-      current.result = { path: created.path, revision: created.revision, ...(bundle ? { bundle, review: { plugin: current.plugin, review: update.review!.review, root: current.root, bundleRef: bundle.bundleRef, generation: bundle.generation } } : {}) };
+      if (record.binding.resultKind === "file") {
+        if (!record.staging || !update.file || update.file.path !== record.input.resultFile?.path || update.document || update.review) throw new Error("Invalid file result");
+        accessPath(record.input.output, this.access, true);
+        record.access.resolve(record.input.output, true);
+        const revision = await createFileFromPath(record.input.output, update.file.path, JOB_FILE_MAX_BYTES, target => {
+          if (record.detached || !record.staging) throw new Error("File result observation lost");
+          accessPath(record.input.output, this.access, true);
+          record.access.resolve(record.input.output, true);
+          accessPath(target, this.access, true);
+          record.access.resolve(target, true);
+        });
+        current.result = { kind: "file", path: record.input.output, revision };
+      } else {
+        if (update.file) throw new Error("Unexpected file result");
+        if (!update.document) throw new Error("Completed job has no document");
+        accessPath(record.input.output, this.access, true);
+        const created = createDocumentSourceFile(record.input.output, update.document.source, record.access);
+        current.result = { path: created.path, revision: created.revision };
+        // Publication failure must not lose the successful document receipt or recreate it on status.
+        record.finishedAt = Date.now();
+        const bundle = update.review ? this.publishReview?.(current.plugin, current.root, created.path, record.input.file, update.review) : undefined;
+        current.result = { path: created.path, revision: created.revision, ...(bundle ? { bundle, review: { plugin: current.plugin, review: update.review!.review, root: current.root, bundleRef: bundle.bundleRef, generation: bundle.generation } } : {}) };
+      }
     }
+    if (update.state !== "running") this.cleanup(record);
     if (["completed", "failed", "stopped"].includes(update.state)) record.finishedAt = Date.now();
     const failure = update.state === "failed" || update.state === "uncertain";
     Object.assign(current, { state: update.state, phase: failure ? (update.state === "failed" ? "Failed" : "Observation lost") : update.phase, progress: update.progress,
@@ -40,15 +61,21 @@ export class PluginJobs {
     const failure = publicOperationError(cause, effect);
     return { ...failure, error: failure.error + (effect === "write" ? " Query the same requestId; do not resend start." : "") };
   }
-  private async observe(record: Record, operation: string) {
+  private observe(record: Record, operation: string) {
+    // A streamed commit yields; serialize observations so Stop/status cannot publish twice.
+    return record.observations = (record.observations ?? Promise.resolve()).then(() => this.observeNow(record, operation));
+  }
+  private async observeNow(record: Record, operation: string) {
+    if (record.detached || ["completed", "failed", "stopped"].includes(record.snapshot.state)) return;
     const effect = record.effects.get(operation)!;
     try {
       const update = await this.call(record, operation);
       if (operation === record.binding.start && update.state !== "running") throw Object.assign(new Error("Invalid start acknowledgement"), { startContract: true });
-      this.update(record, update, effect);
+      await this.update(record, update, effect);
       if (["completed", "failed", "stopped"].includes(record.snapshot.state)) record.uncertainWrite = false;
       else if (effect === "write") record.uncertainWrite = true;
     } catch (cause) {
+      this.cleanup(record);
       if (["completed", "failed", "stopped"].includes(record.snapshot.state)) return;
       if (effect === "write") record.uncertainWrite = true;
       const failure = this.failure(cause, record.uncertainWrite ? "write" : effect);
@@ -69,10 +96,19 @@ export class PluginJobs {
         if (path.isAbsolute(value) || /^[a-z]:|^\\\\/i.test(value)) throw new Error("Expected a Root-relative path");
         return boundary.resolve(path.join(root, value), create);
       };
-      const file = accessPath(relative(input.file), this.access), output = accessPath(relative(input.output, true), this.access, true);
+      const file = accessPath(relative(input.file), this.access), output = accessPath(relative(input.output ?? defaultJobOutput(binding, input.file), true), this.access, true);
       if (!statSync(file).isFile() || !binding.accept.includes(path.extname(file).toLowerCase())) throw new Error("Unsupported input file");
       if (file === output) throw new Error("Output must preserve input");
+      if (binding.resultKind === "file" && path.extname(output).toLowerCase() !== binding.resultExtension) throw new Error("Output extension must match resultExtension");
       const record: Record = { effects: new Map([binding.start, binding.status, binding.stop].map(operation => [operation, this.effect(`${input.plugin}.${operation}`)])), startedAt: Date.now(), snapshot: { requestId: input.requestId, plugin: input.plugin, job: input.job, root, elapsedMs: 0, state: "running", phase: "Starting", stopRequested: false }, binding, access: boundary, input: { requestId: input.requestId, root, file, output }, pending: Promise.resolve() };
+      if (binding.resultKind === "file") {
+        record.staging = mkdtempSync(path.join(tmpdir(), "litzio-job-result-"));
+        try {
+          const staged = path.join(record.staging, "result");
+          writeFileSync(staged, "", { flag: "wx", mode: 0o600 });
+          record.input.resultFile = { path: staged, maxBytes: JOB_FILE_MAX_BYTES };
+        } catch (error) { this.cleanup(record); throw error; }
+      }
       this.records.set(input.requestId, record);
       record.pending = this.observe(record, binding.start);
       await record.pending;
@@ -109,6 +145,7 @@ export class PluginJobs {
     for (const record of this.records.values()) {
       if (record.detached || (plugin && record.snapshot.plugin !== plugin) || !["running", "uncertain"].includes(record.snapshot.state)) continue;
       record.detached = true;
+      this.cleanup(record);
       record.uncertainWrite = true;
       Object.assign(record.snapshot, { state: "uncertain", phase: "Observation lost", ...this.failure({ kind: "unavailable" }, "write") });
     }
