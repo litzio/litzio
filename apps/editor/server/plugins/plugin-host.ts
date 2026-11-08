@@ -122,10 +122,14 @@ export class PluginHost {
       } catch (e) { return { id, installed: true, bundled: !!r.bundled, enabled: r.enabled, running: false, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : "Plugin status unavailable", status: null }; }
     }));
   }
-  private async enable(id: string) {
+  private async enable(id: string): Promise<void> {
     const r = this.record(id), a = this.artifact(r.directory);
     if (r.bundled && !this.official(a.manifest, a.digest)) throw new Error("Bundled plugin artifact verification failed");
-    if (a.digest !== r.digest) throw new Error("Artifact changed; trust the current digest and reload");
+    if (a.digest !== r.digest) {
+      if (r.trustedDigest !== a.digest) throw new Error("Artifact changed; trust the current digest and reload");
+      await this.reload(id);
+      return;
+    }
     if (!this.official(a.manifest, a.digest) && r.trustedDigest !== a.digest) throw new Error("Explicit digest-bound trust is required");
     if (this.loaded.has(id)) return;
     if (!compileSchema(a.manifest.settingsSchema)(r.settings)) throw new Error("Stored settings do not satisfy this artifact schema");

@@ -39,6 +39,16 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     assert.equal((await host.list())[0]?.running, true);
     await executePluginTool(host, { action: "settings", id: manifest.id, settings: { label: "live" } }, () => {});
     assert.equal((await host.invokeOperation("litzio.onedrive.read", {})).result, "live");
+    writeFileSync(path.join(directory, "extra.js"), "// updated artifact");
+    await assert.rejects(host.invoke("settings", { id: manifest.id, settings: { label: "recovered" } }), /Explicit digest-bound trust/);
+    const failedReload = (await host.list())[0]!;
+    assert.equal(failedReload.enabled, false); assert.equal(failedReload.running, false); assert.equal(failedReload.trusted, false);
+    assert.deepEqual(failedReload.settings, { label: "recovered" });
+    await assert.rejects(host.invoke("enable", { id: manifest.id }), /changed/);
+    await host.invoke("trust", { id: manifest.id, digest: failedReload.digest });
+    await host.invoke("enable", { id: manifest.id });
+    assert.equal((await host.list())[0]?.running, true);
+    assert.equal((await host.invokeOperation("litzio.onedrive.read", {})).result, "recovered");
     await host.invoke("disable", { id: manifest.id });
     writeFileSync(path.join(directory, "extra.js"), "changed");
     await assert.rejects(host.invoke("enable", { id: manifest.id }), /changed/);
