@@ -20,6 +20,11 @@ export function usePlugins(active = true) {
   return { plugins, error, async change(action: string, args: Record<string, unknown>) {
     ++latestRequest.current;
     const response = await client.request("/api/plugins", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...args }) });
-    const value = await response.json(); if (!response.ok) throw new Error(value.error ?? "Plugin operation failed"); window.dispatchEvent(new Event("plugins-changed")); await refresh();
+    const value = await response.json();
+    if (!response.ok) {
+      if (["settings", "secret-delete"].includes(action)) window.dispatchEvent(new Event("plugins-changed"));
+      throw new Error(value.error ?? "Plugin operation failed");
+    }
+    window.dispatchEvent(new Event("plugins-changed")); await refresh();
   } };
 }
