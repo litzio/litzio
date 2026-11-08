@@ -7,7 +7,7 @@
     "name": "Community"
   },
   "name": "Docling",
-  "description": "docling-serve 연결 상태를 수동으로 확인합니다.",
+  "description": "docling-serve 연결 확인과 PDF 한 건 변환",
   "version": "0.1.0",
   "requiresSdk": "0.1.0",
   "entry": "host.js",
@@ -63,6 +63,210 @@
             "label": "상세"
           }
         }
+      },
+      {
+        "id": "start",
+        "version": 1,
+        "effect": "write",
+        "scope": "host",
+        "assistant": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "type": "string"
+            },
+            "root": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string"
+            },
+            "output": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "requestId",
+            "root",
+            "file",
+            "output"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "enum": [
+                "running",
+                "completed",
+                "failed",
+                "stopped",
+                "uncertain"
+              ]
+            },
+            "phase": {
+              "type": "string"
+            },
+            "errorKind": {
+              "type": "string"
+            },
+            "document": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "state",
+            "phase"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "job-status",
+        "version": 1,
+        "effect": "read",
+        "scope": "host",
+        "assistant": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "type": "string"
+            },
+            "root": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string"
+            },
+            "output": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "requestId",
+            "root",
+            "file",
+            "output"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "enum": [
+                "running",
+                "completed",
+                "failed",
+                "stopped",
+                "uncertain"
+              ]
+            },
+            "phase": {
+              "type": "string"
+            },
+            "errorKind": {
+              "type": "string"
+            },
+            "document": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "state",
+            "phase"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "id": "job-stop",
+        "version": 1,
+        "effect": "write",
+        "scope": "host",
+        "assistant": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "requestId": {
+              "type": "string"
+            },
+            "root": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string"
+            },
+            "output": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "requestId",
+            "root",
+            "file",
+            "output"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "state": {
+              "enum": [
+                "running",
+                "completed",
+                "failed",
+                "stopped",
+                "uncertain"
+              ]
+            },
+            "phase": {
+              "type": "string"
+            },
+            "errorKind": {
+              "type": "string"
+            },
+            "document": {
+              "type": "object",
+              "properties": {
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "state",
+            "phase"
+          ],
+          "additionalProperties": false
+        }
       }
     ],
     "views": [
@@ -114,6 +318,19 @@
           "connection"
         ],
         "primary": true
+      }
+    ],
+    "jobs": [
+      {
+        "id": "convert",
+        "title": "PDF 변환",
+        "accept": [
+          ".pdf"
+        ],
+        "start": "start",
+        "status": "job-status",
+        "stop": "job-stop",
+        "resultKind": "native-document"
       }
     ]
   },
