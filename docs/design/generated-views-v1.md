@@ -431,3 +431,11 @@ V7 시각 검토: 같은 메모리 예시·Dark/Korean·100% zoom에서 [1440px 
 플러그인 화면은 기본 뷰·현재 생성 뷰·선택한 즐겨찾기의 인스턴스를 구분한다. 기본 뷰로 전환해도 생성 뷰를 다시 선택할 수 있다. 수동 기본/즐겨찾기/Root 선택은 같은 destination의 생성 token과 이전 open 요청을 무효화한다. 명시한 Host의 진입은 다른 Host로 열려 있던 화면을 전환하고 이전 임시 상태·요청을 해제한다. document destination에는 시작 documentPath와 documentDirty를 함께 고정한다.
 
 출처는 요약과 펼칠 수 있는 전체 목록으로 제공한다. `ViewRootBinding {hostId,id,path}`는 신뢰된 앱/Host 문맥의 매핑만 받으며 `resolveViewDocument`는 Host·Root identity가 모두 일치할 때만 상대 path를 해석한다. known Host가 연결되어 있고 매핑과 onOpenDocument가 있을 때 기존 문서 열기/미저장 보호 경로를 사용한다. 현재 Host의 Root identity 공급 API와 D4의 실제 매핑은 없으므로 앱은 이를 추측하지 않고 해당 문서 출처를 unavailable로 남긴다. 이 조건의 실제 출처 열기 및 실제 AI 수락은 통합 미완료다.
+
+## Table link columns (#1332)
+
+Public string row fields may declare `linkField` naming another declared public string field in the same row, e.g. `key: {type:"string",label:"Key",linkField:"url"}` with `url: {type:"string",label:"URL",nullable:true}`. Missing, secret, non-string and self targets are rejected by Core. Table displays the original cell text as a native anchor only when its target passes `externalLinkUrl` (http/https); null, empty, malformed URLs and other schemes remain text. Empty/null display values also remain text. Click and Enter use `openExternalLink`, including Desktop's existing external-browser handling. Underline/accent and focus-visible outline use existing theme tokens in shared DataTable; no surface exception is needed.
+
+URL data remains in rows, including CLI results. Sorting/filtering compare original scalar values; operation definitions/favourites and assistant canonical snapshots retain their existing persistence rules. Grouped rows have no target URL and therefore remain text. No HTML, arbitrary actions, internal links or cell formatting are introduced. Plugin link declarations require a supported SDK contract at least 0.3.0 in `requiresSdk`.
+
+Visual fixture review: [1440px](../reviews/assets/view-link-1332-1440.png), [Korean dark 640px](../reviews/assets/view-link-1332-ko-dark-640.png). Shared DataTable gallery fixture; these captures do not establish live Jira or packaged Desktop acceptance.

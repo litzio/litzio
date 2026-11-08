@@ -1,6 +1,6 @@
 // Protect the development entry's lazy module/CSS/provider connection, not primitive internals.
 // pnpm browser:test ui-gallery
-async (page, { expect }) => {
+async (page, { expect, screenshots }) => {
   await page.goto(page.url().split('/').slice(0, 3).join('/') + '/ui-gallery');
   await expect(page.getByRole('heading', { name: 'Litzio UI gallery' })).toBeVisible();
   await expect(page.locator('[data-testid="ui-gallery"]')).toHaveCSS('overflow-y', 'auto');
@@ -61,6 +61,27 @@ async (page, { expect }) => {
   const examples = page.getByRole('region', { name: 'Generated views examples' });
   const table = page.getByRole('region', {name:'Table — 예시: 열별 정렬·필터',exact:true}).first();
   await page.getByRole('group',{name:'Theme',exact:true}).getByRole('button',{name:'Dark',exact:true}).click();
+  await page.evaluate(() => { window.__openedLinks = []; window.open = (...args) => { window.__openedLinks.push(args); return null; }; });
+  const link = table.getByRole('link', { name: 'Item 1', exact: true });
+  await link.click();
+  await link.focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => page.evaluate(() => window.__openedLinks)).toEqual([['https://example.test/issues/1','_blank','noopener'],['https://example.test/issues/1','_blank','noopener']]);
+  await expect(table.getByRole('link', { name: 'Item 2', exact: true })).toHaveAttribute('href','http://example.test/issues/2');
+  for (const n of [3,4,5,6,7,8]) {
+    await expect(table.getByRole('cell',{name:`Item ${n}`,exact:true})).toBeVisible();
+    await expect(table.getByRole('link',{name:`Item ${n}`,exact:true})).toHaveCount(0);
+  }
+  if (screenshots) {
+    await page.setViewportSize({width:1440,height:1000});
+    await link.focus();
+    await page.screenshot({path:'tmp/view-link-1440.png'});
+    await page.evaluate(async () => { const {i18n} = await import('/src/i18n.ts'); await i18n.changeLanguage('ko'); });
+    await page.setViewportSize({width:640,height:1000});
+    await link.focus();
+    await page.screenshot({path:'tmp/view-link-ko-dark-640.png'});
+    await page.evaluate(async () => { const {i18n} = await import('/src/i18n.ts'); await i18n.changeLanguage('en'); });
+  }
   await table.getByRole('button',{name:'Filter name',exact:true}).click();
   const condition = page.locator('.data-table-filter select').first();
   // Native popup pixels are reviewed separately. Protect the shared paired roles.

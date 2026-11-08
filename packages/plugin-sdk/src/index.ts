@@ -7,11 +7,11 @@ export { rowSchema, type RowSchema } from "@litzio/core/views";
 import { compileSchema } from "./schema.ts";
 import { z } from "zod";
 import semver from "semver";
-export const SDK_VERSION = "0.2.0";
+export const SDK_VERSION = "0.3.0";
 // Actual SDK contracts still implemented by this Host, not hypothetical versions
 // between releases. Additive releases retain earlier contracts; breaking releases
 // remove contracts they no longer implement.
-const supportedSdkVersions = ["0.1.0", SDK_VERSION];
+const supportedSdkVersions = ["0.1.0", "0.2.0", SDK_VERSION];
 const id = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
 const schema = z.record(z.string(), z.unknown());
 const operation = z.strictObject({ id, version: z.number().int().positive(), effect: z.enum(["read", "write"]), assistant: z.boolean().default(false), scope: z.enum(["host", "folder"]), inputSchema: schema, outputSchema: schema, rowSchema: rowSchema.optional() });
@@ -57,6 +57,12 @@ export function validateManifest(input: unknown): PluginManifest {
     if (new Set([job.start, job.status, job.stop]).size !== 3) throw new Error("Job bindings must be distinct");
     if (m.contributes.operations.find(op => op.id === job.start)?.effect !== "write") throw new Error("Job start must be a write operation");
   }
+  const linkSchemas = [
+    ...m.contributes.operations.flatMap(op => op.rowSchema ? [op.rowSchema] : []),
+    ...m.contributes.views.flatMap(view => view.definition.sources.stats.kind === "assistant" ? [view.definition.sources.stats.rowSchema] : []),
+  ];
+  if (linkSchemas.some(fields => Object.values(fields).some(field => field.linkField)) &&
+      !supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Link columns require SDK 0.3.0 or later in requiresSdk");
   compileSchema(m.settingsSchema);
   for (const operation of m.contributes.operations) { if (operation.rowSchema && operation.effect !== "read") throw new Error("Only read operations can declare row schema"); compileViewInputSchema(operation.inputSchema); compileSchema(operation.outputSchema); }
   const viewOperations: ViewOperation[] = m.contributes.operations.filter(op => op.effect === "read" && op.rowSchema).map(op => ({

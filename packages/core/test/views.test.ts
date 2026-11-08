@@ -312,3 +312,14 @@ test("assistant calculation method preserves comparison expressions as plain tex
   view.sources.stats.method = "설명\u0000";
   assert.throws(() => validateCatalogView(view));
 });
+
+test("row links validate public string bindings and preserve URL data", () => {
+  const fields = { key: { type: "string", label: "Key", linkField: "url" }, url: { type: "string", label: "URL", nullable: true } };
+  const parsed = rowSchema.parse(fields);
+  for (const change of [{ url: undefined }, { url: { type: "number", label: "URL" } }, { url: { ...fields.url, secret: true } }, { key: { ...fields.key, type: "number" } }, { key: { ...fields.key, linkField: "key" } }]) assert.throws(() => rowSchema.parse({ ...fields, ...change }));
+  const op = { ...inputOperation, rowSchema: parsed, validateArgs: () => true };
+  const view = { ...base(), sources: { stats: { kind: "operation", operation: op.operation, version: op.version, args: {} } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Links", source: "stats", data: "/rows", columns: ["key"] }] } };
+  const rows = [{ key: "ISSUE-1", url: "https://example.test/issue/1" }, { key: "ISSUE-2", url: "javascript:alert(1)" }];
+  assert.deepEqual(evaluateView(view, rows, [op]).rows, rows);
+  assert.deepEqual(parseView(serializeView(view, [op]), [op]), validateView(view, [op]));
+});
