@@ -172,18 +172,18 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
   const duplicate = await save(); await expect(duplicate.getByRole('alert')).toBeVisible(); await duplicate.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('button',{name:'Fixture issues',exact:true}).click();
   const hub = page.getByTestId('view-workspace').filter({visible:true}).getByRole('region',{name:'Favorites',exact:true});
+  await hub.locator('summary').click();
   await expect(hub.getByRole('button', { name: favorite, exact: true })).toBeVisible();
   const queryCount = queries;
   await hub.getByRole('button', { name: 'Refresh favorites', exact: true }).click();
   await expect(hub.getByRole('button', { name: favorite, exact: true })).toBeVisible();
   expect(queries).toBe(queryCount);
-  await hub.getByRole('combobox', { name: 'Statistics folder' }).selectOption('');
   const before = { queries, sends: sends.length };
   await hub.getByRole('button', { name: favorite, exact: true }).click();
   await expect(generated().getByText('Data has not been queried. Refresh manually.').first()).toBeVisible();
   expect(queries).toBe(before.queries); expect(sends.length).toBe(before.sends);
-  await expect(generated().getByRole('button', { name: 'Refresh data', exact: true })).toBeDisabled();
-  await generated().getByRole('combobox', { name: 'Statistics folder' }).selectOption(root);
+  await expect(generated().getByRole('combobox', { name: 'Statistics folder' })).toHaveCount(0);
+  await expect(generated().getByRole('button', { name: 'Refresh data', exact: true })).toBeEnabled();
   expect(queries).toBe(before.queries);
   await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
   await expect(generated().locator('tbody tr')).not.toHaveCount(0); expect(latestRows).toEqual(rows);
@@ -195,7 +195,6 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
     await page.getByRole('tab', { name: 'Fixture issues', exact: true }).click();
     await page.screenshot({ path: `tmp/1210-evidence/captures/favorites-${width}.png` });
     await hub.getByRole('button', { name: favorite, exact: true }).click();
-    await generated().getByRole('combobox', { name: 'Statistics folder' }).selectOption(root);
     await generated().getByRole('button', { name: 'Refresh data', exact: true }).click();
   }
   // Closing the owning basic tab aborts a held open request; a late response cannot recreate tabs.
@@ -232,7 +231,7 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
   await page.keyboard.press('Control+Slash'); await page.getByRole('combobox').fill('> fixture.issues: Fixture issues Open view');
   await page.getByRole('option', { name: 'fixture.issues: Fixture issues Open view', exact: true }).click();
   const statistics = page.getByTestId('view-workspace').filter({visible:true}).getByRole('region',{name:'Favorites',exact:true});
-  await statistics.getByRole('combobox', { name: 'Statistics folder' }).selectOption(root);
+  if (!await statistics.evaluate(el => el.open)) await statistics.locator('summary').click();
   await statistics.getByRole('button', { name: 'Issue search', exact: true }).click();
   await expect(generated().getByRole('combobox', { name: 'Preset *', exact: true })).toHaveValue('0');
   await expect(generated().getByRole('combobox', { name: 'Preset *', exact: true }).locator('option:checked')).toHaveText('Assigned open');
@@ -479,6 +478,7 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
   if(await outlineToggle.getAttribute('aria-pressed')!=='true') await outlineToggle.click();
   const documentPanel=page.getByTestId('document-panel');
   await documentPanel.getByRole('tab',{name:'Views',exact:true}).click();
+  await documentPanel.getByRole('region', { name: 'Favorites', exact: true }).locator('summary').click();
   const beforeSnapshot=queries;
   await documentPanel.getByRole('button',{name:'예시: Saved assistant rows',exact:true}).click();
   await expect(documentPanel.getByRole('cell',{name:'42',exact:true})).toBeVisible();
