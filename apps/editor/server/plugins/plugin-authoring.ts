@@ -4,7 +4,7 @@ import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "../file-access.t
 import { SDK_VERSION, validateManifest } from "@litzio/plugin-sdk";
 
 export function scaffoldPlugin(directory: string, id: string, access: FileAccess = LOCAL_FILE_ACCESS, creationScope: FileAccess = LOCAL_FILE_ACCESS) {
-  const manifest = validateManifest({ schemaVersion: 1, id, tier: "community", publisher: { id: "local", name: "Local author" }, name: id, version: "0.1.0", requiresSdk: SDK_VERSION, entry: "host.js",
+  const manifest = validateManifest({ schemaVersion: 1, id, tier: "community", publisher: { id: "local", name: "Local author" }, name: id, version: "0.1.0", requiresSdk: `>=${SDK_VERSION} <1.0.0`, entry: "host.js",
     contributes: { operations: [{ id: "greet", version: 1, effect: "read", scope: "host", assistant: true,
       inputSchema: { type: "object", properties: { name: { type: "string" } }, required: ["name"], additionalProperties: false },
       outputSchema: { type: "object", properties: { greeting: { type: "string" } }, required: ["greeting"], additionalProperties: false } }] } });
@@ -20,6 +20,8 @@ export function scaffoldPlugin(directory: string, id: string, access: FileAccess
     "plugin-sdk.d.ts": `export declare const SDK_VERSION: string;
 export type PluginErrorKind = "auth" | "forbidden" | "not_found" | "unavailable" | "timeout" | "failed";
 export declare class PluginOperationError extends Error { readonly kind: PluginErrorKind; constructor(kind: PluginErrorKind); }
+export declare const JOB_FILE_MAX_BYTES: number;
+export type JobInput = { requestId: string; root: string; file: string; output: string; resultFile?: { path: string; maxBytes: number } };
 export type PluginContext = { secrets?: Readonly<Record<string, string>>; settings: Readonly<Record<string, unknown>>; platform: string; env: Readonly<Record<string, string | undefined>>; isDirectory(path: string): boolean };
 `,
     "host.js": `import { SDK_VERSION, PluginOperationError } from "@litzio/plugin-sdk";

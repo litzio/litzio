@@ -395,6 +395,7 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
   try {
     await executePluginTool(host, { action: "scaffold", directory, id }, e => activity.push(e), scope);
     const entry = path.join(directory, "host.js"), source = readFileSync(entry, "utf8");
+    assert.equal(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")).requiresSdk, ">=0.2.0 <1.0.0");
     assert.match(source, /import .* from "@litzio\/plugin-sdk"/);
     assert.match(readFileSync(path.join(directory, "plugin-sdk.d.ts"), "utf8"), /PluginContext/);
     // Even an artifact-local SDK must never replace the Host's public runtime.
@@ -423,7 +424,8 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
     writeFileSync(manifestFile, manifest.replace(/"requiresSdk": "[^"]+"/, '"requiresSdk": "999.0.0"'));
     assert.equal((await validate()).valid, false);
     await assert.rejects(host.invoke("register", { directory }));
-    writeFileSync(manifestFile, manifest); writeFileSync(entry, source);
+    // An unchanged pre-0.2 scaffold's exact requirement remains executable.
+    writeFileSync(manifestFile, manifest.replace(/"requiresSdk": "[^"]+"/, '"requiresSdk": "0.1.0"')); writeFileSync(entry, source);
     await executePluginTool(host, { action: "register", directory }, e => activity.push(e));
     assert.deepEqual(activity.at(-1), { action: "register", id, outcome: "success" });
     const trust = async () => host.invoke("trust", { id, digest: (await host.list())[0]!.digest });
@@ -460,7 +462,8 @@ test("Host SDK runtime is one self-contained JavaScript module with only Node bu
     }
   }
   const runtime = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles![0]!.contents).toString("base64")}`);
-  assert.equal(runtime.SDK_VERSION, "0.1.0");
+  assert.equal(runtime.SDK_VERSION, "0.2.0");
+  assert.equal(JSON.parse(readFileSync(new URL("../../../packages/plugin-sdk/package.json", import.meta.url), "utf8")).version, runtime.SDK_VERSION);
   assert.equal(typeof runtime.PluginOperationError, "function");
 });
 

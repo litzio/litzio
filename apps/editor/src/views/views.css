@@ -26,6 +26,8 @@
 .plugin-job-summary { align-items: center; }
 .plugin-job-progress { display: flex; align-items: center; gap: var(--space-3); font-size: var(--font-size-sm); color: var(--id-color-text-muted); }
 .plugin-job-progress > [role="progressbar"] { flex: 1; }
+.plugin-job-file-result { align-items: center; }
+.plugin-job-file-result > p { min-width: 0; overflow-wrap: anywhere; flex: 1; }
 .view-query-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: var(--space-3); }
 .view-query-actions { grid-column: 1 / -1; }
 .views-page { container-type: inline-size; }
