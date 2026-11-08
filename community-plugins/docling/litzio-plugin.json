@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "id": "community.docling",
+  "tier": "community",
+  "publisher": {
+    "id": "community",
+    "name": "Community"
+  },
+  "name": "Docling",
+  "description": "docling-serve 연결 상태를 수동으로 확인합니다.",
+  "version": "0.1.0",
+  "requiresSdk": "0.1.0",
+  "entry": "host.js",
+  "contributes": {
+    "operations": [
+      {
+        "id": "connection",
+        "version": 1,
+        "effect": "read",
+        "scope": "host",
+        "assistant": true,
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "server": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "detail": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "server",
+              "status",
+              "detail"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "rowSchema": {
+          "server": {
+            "type": "string",
+            "label": "서버"
+          },
+          "status": {
+            "type": "string",
+            "label": "상태"
+          },
+          "detail": {
+            "type": "string",
+            "label": "상세"
+          }
+        }
+      }
+    ],
+    "views": [
+      {
+        "id": "connection",
+        "title": "연결 상태",
+        "definition": {
+          "kind": "litzio-view",
+          "schemaVersion": 2,
+          "catalog": "litzio-v2",
+          "profile": "query",
+          "owner": "community.docling",
+          "title": "Docling 연결 상태",
+          "refresh": "manual",
+          "sources": {
+            "stats": {
+              "kind": "operation",
+              "operation": "community.docling.connection",
+              "version": 1,
+              "args": {}
+            }
+          },
+          "layout": {
+            "component": "Panel",
+            "direction": "vertical",
+            "children": [
+              {
+                "component": "Table",
+                "title": "docling-serve",
+                "source": "stats",
+                "data": "/rows",
+                "columns": [
+                  "server",
+                  "status",
+                  "detail"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "screens": [
+      {
+        "id": "connection",
+        "title": "Docling",
+        "icon": "Table",
+        "defaultViewIds": [
+          "connection"
+        ],
+        "primary": true
+      }
+    ]
+  },
+  "settingsSchema": {
+    "type": "object",
+    "properties": {
+      "serverUrl": {
+        "type": "string",
+        "title": "docling-serve URL",
+        "description": "HTTP(S) 서버 기본 주소. 인증 정보는 API key secret에 입력하세요.",
+        "default": "http://127.0.0.1:5001",
+        "minLength": 1
+      }
+    },
+    "additionalProperties": false
+  },
+  "secrets": [
+    {
+      "id": "api-key",
+      "scope": "connection",
+      "required": false
+    }
+  ]
+}
