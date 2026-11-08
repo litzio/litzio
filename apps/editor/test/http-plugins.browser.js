@@ -180,6 +180,61 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(page.locator(".sidebar-folder-name")).toContainText("fixture");
   pluginFixture.cli(["plugins", "unregister", "fixture.drive"]);
   expect(pluginFixture.cli(["plugins", "list"]).plugins.some(p => p.id === "fixture.drive")).toBe(false);
+  // Actual detachable community artifact, same Host and CLI, one fake service.
+  const docling = pluginFixture.docling;
+  const id = "community.docling";
+  let doclingRegistered = false;
+  try {
+    expect((await docling.cli(["plugins", "validate", docling.directory])).valid).toBe(true);
+    await docling.cli(["plugins", "register", docling.directory]);
+    doclingRegistered = true;
+    const registered = (await docling.cli(["plugins", "list"])).plugins.find(p => p.id === id);
+    expect(registered.official).toBe(false); expect(registered.running).toBe(false);
+    await docling.cli(["plugins", "settings", id, "--file", docling.settings]);
+    await docling.cli(["plugins", "trust", id, "--digest", registered.digest]);
+    await docling.cli(["plugins", "enable", id]);
+    const invoke = () => docling.cli(["operation", "invoke", id + ".connection", "--input", docling.input]);
+    const connected = await invoke();
+    expect(connected.result[0].status).toBe("연결됨");
+    await page.reload(); await openSettings();
+    await page.getByRole("button", { name: "Open view · Docling", exact: true }).click();
+    const refresh = page.getByRole("button", { name: "Refresh data", exact: true });
+    await refresh.click();
+    await expect(page.getByRole("cell", { name: "연결됨", exact: true })).toBeVisible();
+    await expect(page.getByRole("cell", { name: connected.result[0].detail, exact: true })).toBeVisible();
+    if (screenshots) {
+      for (const width of [1440, 640]) {
+        if (width === 640) {
+          await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
+          await page.reload();
+          await page.getByRole("button", { name: "설정", exact: true }).click();
+          await page.getByRole("button", { name: "플러그인", exact: true }).click();
+          await page.getByRole("button", { name: "뷰 열기 · Docling", exact: true }).click();
+          await page.getByRole("button", { name: "데이터 새로고침", exact: true }).click();
+          await expect(page.getByRole("cell", { name: "연결됨", exact: true })).toBeVisible();
+        }
+        await page.setViewportSize({ width, height: 900 });
+        await page.screenshot({ path: `tmp/docling-1321/connection-${width}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".view-workspace-favorites select"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
+      }
+      await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
+      await page.reload(); await openSettings();
+      await page.getByRole("button", { name: "Open view · Docling", exact: true }).click();
+    }
+    docling.setFailure(true);
+    const failed = await invoke();
+    expect(failed.result[0].status).toBe("오류");
+    await refresh.click();
+    await expect(page.getByRole("cell", { name: failed.result[0].detail, exact: true })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "연결됨", exact: true })).toHaveCount(0);
+    docling.setFailure(false);
+    await refresh.click();
+    await expect(page.getByRole("cell", { name: "연결됨", exact: true })).toBeVisible();
+  } finally {
+    if (doclingRegistered) {
+      await docling.cli(["plugins", "disable", id]);
+      await docling.cli(["plugins", "unregister", id]);
+    }
+  }
   if (screenshots && pluginFixture.realSnapshot) {
     // Manual real-plugin evidence only. Node CLI reads the isolated Host, then masks
     // account/path metadata before any real data reaches browser tracing or screenshots.

@@ -1,5 +1,7 @@
 import { cpSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { createServer } from "node:http";
+import { promisify } from "node:util";
+import { execFile, execFileSync } from "node:child_process";
 import { brand } from "../../../../brand.ts";
 import { randomUUID } from "node:crypto";
 import { citationReport, parse, getEditableDocument, type EditableDocument } from "@litzio/core";
@@ -172,7 +174,7 @@ for (const name of scenarios) {
   test(name, async ({ page }) => {
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; pluginFixture: { directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; corruptSecret(): void; realSnapshot?: () => any; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
+    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; pluginFixture: { directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; docling?: { directory: string; input: string; settings: string; setFailure(value: boolean): void; cli(args: string[]): Promise<any> }; corruptSecret(): void; realSnapshot?: () => any; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
@@ -223,6 +225,26 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
       writeFileSync(path.join(pluginFolder, "fail.txt"), "FAIL");
       writeFileSync(path.join(pluginFolder, "uncertain.txt"), "UNCERTAIN");
     }
+    // Reuse this production Host/browser; only the external health endpoint is fake.
+    const doclingServer = name === "http-plugins" ? createServer((request, response) => {
+      response.writeHead(request.url === "/health" ? (doclingFailure ? 503 : 200) : 404, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ status: "ok" }));
+    }) : undefined;
+    let doclingFailure = false;
+    if (doclingServer) await new Promise<void>(resolve => doclingServer.listen(0, "127.0.0.1", resolve));
+    const doclingAddress = doclingServer?.address();
+    const docling = doclingServer && doclingAddress && typeof doclingAddress !== "string" ? {
+      directory: path.join(REPOSITORY_ROOT, "tmp/http-host-a/docling-artifact"),
+      input: path.join(REPOSITORY_ROOT, "tmp/docling-input.json"),
+      settings: path.join(REPOSITORY_ROOT, "tmp/docling-settings.json"),
+      setFailure(value: boolean) { doclingFailure = value; },
+      async cli(args: string[]) { return JSON.parse((await promisify(execFile)(process.execPath, [path.join(REPOSITORY_ROOT, "packages/cli/dist/cli.mjs"), ...args, "--host", url, "--json"], { encoding: "utf8", windowsHide: true })).stdout); },
+    } : undefined;
+    if (docling) {
+      cpSync(path.join(REPOSITORY_ROOT, "community-plugins/docling"), docling.directory, { recursive: true });
+      writeFileSync(docling.input, "{}");
+      writeFileSync(docling.settings, JSON.stringify({ serverUrl: `http://127.0.0.1:${(doclingAddress as import("node:net").AddressInfo).port}` }));
+    }
     const pluginFixture = { directory: pluginDirectory, folder: pluginFolder, otherFolder: otherPluginFolder, otherJobInput, corruptSecret() {
       const owned = process.env.LITZIO_BROWSER_DAEMON_DIR;
       if (!owned) throw new Error("Secret corruption requires a runner-owned isolated Host");
@@ -246,7 +268,7 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
       return { plugins: [plugin] };
     } : undefined;
     let result;
-    result = await scenario(page, { pluginFixture: { ...pluginFixture, realSnapshot, reviewDocument: name === "generated-views" ? getEditableDocument(parse(readFileSync(path.join(pluginFolder, "a.md"), "utf8"))) : undefined }, fullLayout: process.env.LITZIO_TEST_LAYOUT_SCOPE !== "representative", brand, assistantFixture: { document: path.join(REPOSITORY_ROOT, "tmp/assistant/document.md") }, assertSavedSource: savedSourceAssertion(test.info()), screenshots, showNotifications, fileActionsRoot: FILE_ACTIONS_ROOT, expect, recoveryRecords, openFolderPicker, openDocument, openPath, waitForActivePath, reloadDocument, waitForEditorFocus, activeDocument, withBlockHover, bibliographyFixture,
+    try { result = await scenario(page, { pluginFixture: { ...pluginFixture, docling, realSnapshot, reviewDocument: name === "generated-views" ? getEditableDocument(parse(readFileSync(path.join(pluginFolder, "a.md"), "utf8"))) : undefined }, fullLayout: process.env.LITZIO_TEST_LAYOUT_SCOPE !== "representative", brand, assistantFixture: { document: path.join(REPOSITORY_ROOT, "tmp/assistant/document.md") }, assertSavedSource: savedSourceAssertion(test.info()), screenshots, showNotifications, fileActionsRoot: FILE_ACTIONS_ROOT, expect, recoveryRecords, openFolderPicker, openDocument, openPath, waitForActivePath, reloadDocument, waitForEditorFocus, activeDocument, withBlockHover, bibliographyFixture,
       folderFixture: {
         change: (mode: string) => {
           const dir = path.join(REPOSITORY_ROOT, "tmp/folder-navigation/guides");
@@ -265,6 +287,7 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
       // Simulate an external deletion of this one disposable file. The fixture resets it afterward.
       removeTabFixture: source => { const file = path.join(REPOSITORY_ROOT, "tmp/document-tabs/technical-1.md"); if (source === undefined) unlinkSync(file); else writeFileSync(file, source); },
     });
+    } finally { if (doclingServer) await new Promise<void>((resolve, reject) => doclingServer.close(error => error ? reject(error) : resolve())); }
     if (result !== undefined) {
       const resultPath = test.info().outputPath("scenario-result.json");
       writeFileSync(resultPath, JSON.stringify(result, null, 2));
