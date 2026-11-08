@@ -1,10 +1,11 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 export function activate() {
   const jobs = new Map();
   return {
     operations: {
       start(input) {
         const text = readFileSync(input.file, "utf8");
+        if (input.resultFile) writeFileSync(input.resultFile.path, "partial");
         if (text.startsWith("THROW")) throw Object.assign(new Error("raw-write-private"), {kind:"unavailable"});
         const job = { state: "running", phase: "Reading", progress: { done: 0, total: 3 } };
         const control = { job, text, wake: undefined, timer: undefined }; jobs.set(input.requestId, control);
@@ -21,7 +22,10 @@ export function activate() {
           if (text.startsWith("FAIL-RAW")) Object.assign(job, { state: "failed", phase: "raw-service-private", error: "raw-service-private" });
           else if (text.startsWith("FAIL")) Object.assign(job, { state: "failed", phase: "raw-service-private", errorKind: text.split(":")[1] });
           else if (text.startsWith("UNCERTAIN")) Object.assign(job, { state: "uncertain", phase: "raw-service-private", errorKind: "unavailable" });
-          else Object.assign(job, { state: "completed", phase: "Complete", document: { source: "---\nlitzio: 1\n---\n\n" + text } });
+          else if (input.resultFile) {
+            writeFileSync(input.resultFile.path, Buffer.from([0, 255, 1, 128]));
+            Object.assign(job, { state: "completed", phase: "Complete", file: { path: input.resultFile.path } });
+          } else Object.assign(job, { state: "completed", phase: "Complete", document: { source: "---\nlitzio: 1\n---\n\n" + text } });
         })().catch(() => Object.assign(job, { state: "failed", phase: "Failed", errorKind: "failed" }));
         return structuredClone(job);
       },

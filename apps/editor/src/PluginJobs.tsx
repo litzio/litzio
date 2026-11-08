@@ -1,7 +1,8 @@
 import { randomUuid } from "./uuid.ts";
 import { i18n } from "./i18n.ts";
 import { useEffect, useRef, useState } from "react";
-import type { JobContribution, JobSnapshot } from "@litzio/plugin-sdk";
+import { defaultJobOutput, type JobContribution, type JobSnapshot } from "@litzio/plugin-sdk";
+import { CopyButton } from "./components/CopyButton.tsx";
 import type { HostClient } from "./host-client.ts";
 import { hostLabel } from "./host-client.ts";
 import { Button } from "./components/ui/button.tsx";
@@ -44,6 +45,12 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
   }, [client]);
   const choices = plugins.filter(plugin => plugin.running).flatMap(plugin => (plugin.jobs ?? []).map(binding => ({ plugin, binding, key: `${plugin.id}/${binding.id}` })));
   const choice = choices.find(item => item.key === selected);
+  useEffect(() => {
+    if (choice?.binding.resultKind === "native-document") setOutput("result.md");
+  }, [choice?.binding.resultKind]);
+  useEffect(() => {
+    if (choice?.binding.resultKind === "file" && file) setOutput(defaultJobOutput(choice.binding, file.relativePath));
+  }, [selected, file]);
   const locked = busy || !!job && ["running", "uncertain"].includes(job.state);
   useEffect(() => {
     const controller = new AbortController();
@@ -98,8 +105,9 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
       <div className="view-controls">
         {job.state === "uncertain" ? <Button variant="secondary" disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-status", requestId }); setJob(value.job); })}>{i18n.t("Recheck status")}</Button> : null}
         {job.state === "running" && !job.stopRequested ? <Button variant="secondary" disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-stop", requestId }); setJob(value.job); })}>{i18n.t("Request cancellation")}</Button> : null}
-        {job.state === "completed" ? <Button disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-result", requestId }); await onOpen(value.job.result.path); })}>{i18n.t("Open result document")}</Button> : null}
+        {job.state === "completed" && job.result?.kind !== "file" ? <Button disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-result", requestId }); await onOpen(value.job.result.path); })}>{i18n.t("Open result document")}</Button> : null}
       </div>
+      {job.state === "completed" && job.result?.kind === "file" ? <div className="view-controls plugin-job-file-result"><p>{job.result.path}</p><CopyButton text={job.result.path} label={i18n.t("Copy result path")} /></div> : null}
     </section> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
   </div>;
