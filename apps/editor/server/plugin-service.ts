@@ -16,7 +16,10 @@ export function createPluginService(access: FileAccess = LOCAL_FILE_ACCESS, sett
     if (operation === "review") return host.reviews.execute(args);
     if (operation === "pluginSecretSet") {
       try { return await host.setSecret(args.id, args.name, args.value); }
-      catch { throw new Error("Unable to store plugin secret. Disable the plugin and check Windows store support."); }
+      catch (error) {
+        if (error instanceof Error && error.message === "Plugin has running or uncertain jobs; settings and secrets were not changed") throw error;
+        throw new Error("Unable to store plugin secret. Check plugin status and Windows store support.");
+      }
     }
     if (operation === "pluginsList") return { plugins: await host.list() };
     if (operation === "pluginsManage") { const { action, ...input } = args; return host.invoke(action, input); }
