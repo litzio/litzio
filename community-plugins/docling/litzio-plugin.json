@@ -7,7 +7,7 @@
     "name": "Community"
   },
   "name": "Docling",
-  "description": "docling-serve 연결 확인과 PDF 한 건 변환",
+  "description": "docling-serve 연결 확인과 .docling에서 Litzio 문서 만들기",
   "version": "0.1.0",
   "requiresSdk": "0.1.0",
   "entry": "host.js",
@@ -322,10 +322,10 @@
     ],
     "jobs": [
       {
-        "id": "convert",
-        "title": "PDF 변환",
+        "id": "create-document",
+        "title": "Litzio 문서 만들기",
         "accept": [
-          ".pdf"
+          ".docling"
         ],
         "start": "start",
         "status": "job-status",

@@ -174,7 +174,7 @@ for (const name of scenarios) {
   test(name, async ({ page }) => {
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; pluginFixture: { directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; docling?: { directory: string; input: string; settings: string; setFailure(value: boolean): void; setConversion(value: string): void; jobInput: string; cli(args: string[]): Promise<any> }; corruptSecret(): void; realSnapshot?: () => any; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
+    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; pluginFixture: { directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; docling?: { directory: string; input: string; settings: string; setFailure(value: boolean): void; setDocumentInput(invalid: boolean): void; conversionRequests(): number; jobInput: string; cli(args: string[]): Promise<any> }; corruptSecret(): void; realSnapshot?: () => any; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
@@ -225,24 +225,12 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
       writeFileSync(path.join(pluginFolder, "fail.txt"), "FAIL");
       writeFileSync(path.join(pluginFolder, "uncertain.txt"), "UNCERTAIN");
     }
-    // Same production Host/CLI/browser; only the external Docling protocol is fake.
-    let doclingFailure = false, conversionMode = "success";
-    const doclingServer = name === "http-plugins" ? createServer(async (request, response) => {
-      const reply = (body: unknown, status = 200) => { response.writeHead(status, { "Content-Type": "application/json" }); response.end(JSON.stringify(body)); };
-      if (request.url === "/health") return reply({ status: "ok" }, doclingFailure ? 503 : 200);
-      if (request.url === "/v1/convert/file/async" && request.method === "POST") {
-        let body = ""; for await (const chunk of request) body += chunk.toString();
-        if (!body.includes('name="files"') || !body.includes('name="to_formats"') || !body.includes("application/pdf")) return reply({}, 422);
-        return reply({ task_id: conversionMode, task_type: "convert", task_status: "pending" });
-      }
-      if (request.url?.startsWith("/v1/status/poll/")) return reply({ task_status: conversionMode === "hold" ? "started" : conversionMode === "failure" ? "failure" : "success" });
-      if (request.url === "/v1/result/success") return reply({ status: "success", document: { json_content: {
-        schema_name: "DoclingDocument", body: { children: [{ $ref: "#/groups/0" }] },
-        groups: [{ children: [{ $ref: "#/texts/1" }, { $ref: "#/texts/0" }, { $ref: "#/tables/0" }] }],
-        texts: [{ label: "text", text: "PDF body *literal*." }, { label: "section_header", level: 2, text: "Converted PDF" }],
-        tables: [{ data: { table_cells: [{ text: "Cell one" }, { text: "Cell two" }] } }],
-      } } });
-      return reply({}, 404);
+    // Only health is external. Document creation must work offline from .docling.
+    let doclingFailure = false, conversionRequests = 0;
+    const doclingServer = name === "http-plugins" ? createServer((request, response) => {
+      if (request.url !== "/health") conversionRequests++;
+      response.writeHead(request.url === "/health" ? (doclingFailure ? 503 : 200) : 503, { "Content-Type": "application/json" });
+      response.end(JSON.stringify({ status: "ok" }));
     }) : undefined;
     if (doclingServer) await new Promise<void>(resolve => doclingServer.listen(0, "127.0.0.1", resolve));
     const doclingAddress = doclingServer?.address();
@@ -251,7 +239,10 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
       input: path.join(REPOSITORY_ROOT, "tmp/docling-input.json"),
       settings: path.join(REPOSITORY_ROOT, "tmp/docling-settings.json"),
       setFailure(value: boolean) { doclingFailure = value; },
-      setConversion(value: string) { conversionMode = value; },
+      setDocumentInput(invalid: boolean) {
+        writeFileSync(this.jobInput, JSON.stringify({ job: "create-document", root: pluginFolder, file: invalid ? "invalid.docling" : "sample.docling", output: "docling-repeated.md" }));
+      },
+      conversionRequests() { return conversionRequests; },
       jobInput: path.join(REPOSITORY_ROOT, "tmp/docling-job.json"),
       async cli(args: string[]) {
         if (args[0] === "plugins" && args[1] === "start") {
@@ -262,8 +253,24 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
     } : undefined;
     if (docling) {
       cpSync(path.join(REPOSITORY_ROOT, "community-plugins/docling"), docling.directory, { recursive: true });
-      writeFileSync(path.join(pluginFolder, "sample.pdf"), "%PDF-1.4 synthetic upload fixture");
-      writeFileSync(docling.jobInput, JSON.stringify({ job: "convert", root: pluginFolder, file: "sample.pdf", output: "docling-cli.md" }));
+      const { createDoclingArchive, readDoclingArchive } = await import(new URL("../../../../community-plugins/docling/archive.js", import.meta.url).href);
+      const document = {
+        schema_name: "DoclingDocument", body: { children: [{ $ref: "#/groups/0" }] },
+        groups: [{ children: [{ $ref: "#/texts/1" }, { $ref: "#/texts/0" }, { $ref: "#/tables/0" }] }],
+        texts: [{ label: "text", text: "PDF body *literal*." }, { label: "section_header", level: 2, text: "Converted PDF" }],
+        tables: [{ data: { table_cells: [{ text: "Cell one" }, { text: "Cell two" }] } }],
+        pages: { "1": { page_no: 1, size: { width: 1, height: 1 } } },
+      };
+      const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFYQAAAAASUVORK5CYII=", "base64");
+      const archive = createDoclingArchive({ sourceName: "sample.pdf", sourceSha256: "a".repeat(64), serveVersion: "1.32.0", options: { include_page_images: true, images_scale: 1, image_export_mode: "embedded", target_type: "inbody" }, documentJson: JSON.stringify(document), pages: [{ page: 1, bytes: png }], createdAt: "2026-11-09T00:00:00.000Z" });
+      const decoded = readDoclingArchive(archive);
+      expect(decoded.documentJson).toBe(JSON.stringify(document));
+      expect(decoded.pages[0].bytes.equals(png)).toBe(true);
+      expect(decoded.manifest.source.sha256).toBe("a".repeat(64));
+      writeFileSync(path.join(pluginFolder, "sample.docling"), archive);
+      const corrupt = Buffer.from(archive); corrupt[43] = corrupt[43]! ^ 1;
+      writeFileSync(path.join(pluginFolder, "invalid.docling"), corrupt);
+      writeFileSync(docling.jobInput, JSON.stringify({ job: "create-document", root: pluginFolder, file: "sample.docling", output: "docling-cli.md" }));
       writeFileSync(docling.input, "{}");
       writeFileSync(docling.settings, JSON.stringify({ serverUrl: `http://127.0.0.1:${(doclingAddress as import("node:net").AddressInfo).port}` }));
     }

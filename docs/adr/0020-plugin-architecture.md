@@ -23,7 +23,7 @@
 
 공식 소스는 monorepo `plugins/<id>`, 커뮤니티 소스는 독립 저장소를 기본으로 한다. 두 계층은 같은 SDK·manifest·검증·권한을 쓴다. `tier`는 manifest 한 줄이며 ID·작업·설정·뷰 형식은 계층에 의존하지 않는다. 공식 승격은 유지 책임 인수와 **Host가 확인하는 공식 공급 목록** 갱신이 필요하다. 자칭 `official`은 확인되지 않으면 커뮤니티 신뢰 절차를 따른다. 번들 여부·신뢰·활성 상태는 각각 별도 기록이며 기본 활성값은 미정이다.
 
-2026-11-09 소유자 승인 예외 ([#1321](https://github.com/litzio/litzio/issues/1321)): 개념 검증 동안 Docling 개인 플러그인 소스는 `community-plugins/docling/`에 둔다. 커뮤니티 계층이며 공식 공급 목록·Desktop 번들·기본 활성화에 포함하지 않는다. pnpm workspace에서 제외하고 외부 scaffold 구조 및 Host 제공 공개 `@litzio/plugin-sdk`만 사용한다. 독립 배포·유지 책임이 필요해지면 해당 디렉터리를 독립 저장소로 분리하며 Litzio 내부 import나 workspace 의존을 분리 전제로 추가하지 않는다. 서버 주소 설정·수동 연결 조회에 이어 #1322에서 K1 단일 PDF 변환을 제공한다. 변환 규칙과 검증 한계는 플러그인 안내를 따른다. 사용·검증 경계는 [플러그인 안내](../../community-plugins/docling/README.md)를 따른다.
+2026-11-09 소유자 승인 예외 ([#1321](https://github.com/litzio/litzio/issues/1321)): 개념 검증 동안 Docling 개인 플러그인 소스는 `community-plugins/docling/`에 둔다. 커뮤니티 계층이며 공식 공급 목록·Desktop 번들·기본 활성화에 포함하지 않는다. pnpm workspace에서 제외하고 외부 scaffold 구조 및 Host 제공 공개 `@litzio/plugin-sdk`만 사용한다. 독립 배포·유지 책임이 필요해지면 해당 디렉터리를 독립 저장소로 분리하며 Litzio 내부 import나 workspace 의존을 분리 전제로 추가하지 않는다. 서버 주소 설정·수동 연결 조회에 이어 #1322의 정정 범위는 PDF → 원본 `.docling` 보관과 `.docling` → Litzio 문서 만들기의 두 작업이다. 현재 후자만 구현했고 전자의 K1 일반 파일 저장 연결은 #1326을 기다린다. 형식·변환 규칙·검증 한계는 플러그인 안내를 따른다. 사용·검증 경계는 [플러그인 안내](../../community-plugins/docling/README.md)를 따른다.
 
 재개 단계에 맞춰 다음 위치를 사용한다. 경로는 책임 배치이며 지금 디렉터리를 만들라는 지시가 아니다.
 
