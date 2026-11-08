@@ -1,6 +1,6 @@
 # Jira community plugin 0.0.1
 
-Jira Data Center 9.12.28의 이슈 번호 조회용 커뮤니티 플러그인입니다. 공식 공급 목록·Desktop 번들·pnpm workspace에 포함하지 않습니다. 이 폴더는 독립 저장소로 분리할 수 있는 plain ESM artifact이며 Host 제공 공개 `@litzio/plugin-sdk`만 사용합니다. 별도 설치·빌드는 필요 없습니다.
+Jira Data Center 9.12.28의 이슈 번호 조회용 커뮤니티 플러그인입니다. 공식 공급 목록·Desktop 번들·pnpm workspace에 포함하지 않습니다. 이 폴더는 독립 저장소로 분리할 수 있는 plain ESM artifact이며 Host 제공 공개 `@litzio/plugin-sdk`만 사용합니다. 별도 설치·빌드는 필요 없습니다. 현재 사용하는 기능의 최소 계약을 따라 `requiresSdk`는 `>=0.1.0 <1.0.0`이며 SDK 0.2.0 Host에서도 검증합니다.
 
 ## 설정과 실행
 
@@ -20,6 +20,10 @@ Jira Data Center 9.12.28의 이슈 번호 조회용 커뮤니티 플러그인입
 설정 파일 예: `{"baseUrl":"https://jira.example.com/jira","apiUrl":""}`. 입력 파일 예: `{"keys":"ABC-123, ABC-130"}`. artifact를 고치면 validate → 현재 digest 신뢰 → reload → 실제 조회를 반복합니다. 설정·secret 변경에는 기존 Host의 자동 재적용을 사용합니다.
 
 Plugins의 `Open view · Jira`로 화면을 엽니다. 현재 공통 화면처럼 열린 폴더를 선택해야 하지만 파일은 읽거나 쓰지 않습니다. 이슈 번호를 입력하고 조회합니다. 화면을 여는 것만으로 요청하지 않으며 polling은 없습니다. CLI와 화면은 같은 공용 읽기 작업을 사용합니다.
+
+## 링크 열 연결 대기 (#1332)
+
+각 반환 행의 `issueUrl`은 BASE_URL 뒤에 `/browse/<KEY>`를 붙인 이슈 페이지 URL입니다. API URL을 별도로 지정해도 사용자용 URL은 BASE_URL로 만듭니다. 현재 표의 키는 텍스트입니다. #1332의 범용 링크 열이 병합되면 키 열에 이 필드를 연결하고 그 기능의 최소 SDK 계약으로 requiresSdk를 올립니다. 공통 표·Core 행 형식 변경이나 링크를 흉내 내는 우회는 없습니다. PR은 그 연결 전까지 Draft입니다.
 
 ## 조회와 오류
 

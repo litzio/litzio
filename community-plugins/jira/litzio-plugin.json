@@ -9,7 +9,7 @@
   "name": "Jira",
   "description": "이슈 번호로 Jira 상세를 조회합니다.",
   "version": "0.0.1",
-  "requiresSdk": "0.1.0",
+  "requiresSdk": ">=0.1.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
     "operations": [
@@ -60,6 +60,9 @@
               },
               "updated": {
                 "type": "string"
+              },
+              "issueUrl": {
+                "type": "string"
               }
             },
             "required": [
@@ -68,7 +71,8 @@
               "status",
               "assignee",
               "priority",
-              "updated"
+              "updated",
+              "issueUrl"
             ],
             "additionalProperties": false
           }
@@ -97,6 +101,10 @@
           "updated": {
             "type": "string",
             "label": "수정일"
+          },
+          "issueUrl": {
+            "type": "string",
+            "label": "이슈 페이지 URL"
           }
         }
       }

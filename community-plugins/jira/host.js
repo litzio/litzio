@@ -10,7 +10,7 @@ function httpUrl(value) {
   } catch { throw new PluginOperationError("failed"); }
 }
 const text = value => typeof value === "string" && value.trim() ? value : "—";
-const missing = key => ({ key, summary: "—", status: "이슈를 찾을 수 없습니다. 번호와 접근 권한을 확인하세요. (404)", assignee: "—", priority: "—", updated: "—" });
+const missing = (key, issueUrl) => ({ key, issueUrl, summary: "—", status: "이슈를 찾을 수 없습니다. 번호와 접근 권한을 확인하세요. (404)", assignee: "—", priority: "—", updated: "—" });
 
 /** @param {import("@litzio/plugin-sdk").PluginContext} context */
 export function activate(context) {
@@ -29,19 +29,20 @@ export function activate(context) {
         try {
           const rows = [];
           for (const key of [...new Set(input.keys.split(",").map(value => value.trim()))]) {
+            const issueUrl = base + "/browse/" + encodeURIComponent(key);
             const response = await fetch(api + "/issue/" + encodeURIComponent(key), {
               headers: { Authorization: `Bearer ${pat}`, Accept: "application/json" },
               signal: controller.signal, redirect: "error",
             });
             if (!response.ok) {
               await response.body?.cancel();
-              if (response.status === 404) { rows.push(missing(key)); continue; }
+              if (response.status === 404) { rows.push(missing(key, issueUrl)); continue; }
               throw new PluginOperationError(response.status === 401 ? "auth" : response.status === 403 ? "forbidden" : response.status >= 500 ? "unavailable" : "failed");
             }
             const body = await response.json();
             if (!body || typeof body.fields !== "object" || body.fields === null || Array.isArray(body.fields)) throw new PluginOperationError("failed");
             const f = body.fields;
-            rows.push({ key, summary: text(f.summary), status: text(f.status?.name), assignee: text(f.assignee?.displayName), priority: text(f.priority?.name), updated: text(f.updated) });
+            rows.push({ key, issueUrl, summary: text(f.summary), status: text(f.status?.name), assignee: text(f.assignee?.displayName), priority: text(f.priority?.name), updated: text(f.updated) });
           }
           return rows;
         } catch (error) {

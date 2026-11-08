@@ -283,7 +283,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await search.click();
       for (const row of connected.result) {
         const tr = page.getByRole("row").filter({ has: page.getByRole("cell", { name: row.key, exact: true }) });
-        await expect(tr.getByRole("cell")).toHaveText(Object.values(row));
+        expect(row.issueUrl).toBe(jira.baseUrl + "/browse/" + row.key);
+        await expect(tr.getByRole("cell")).toHaveText([row.key, row.summary, row.status, row.assignee, row.priority, row.updated]);
       }
       if (screenshots) {
         for (const width of [1440, 640]) {
@@ -324,10 +325,12 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       }
       expect(jira.redirects()).toBe(0);
       jira.setFault(0);
-      jira.setSettings({ baseUrl: jira.baseUrl, apiUrl: jira.baseUrl + "/rest/api/2/" });
+      jira.setSettings({ baseUrl: "https://jira.example.com/context", apiUrl: jira.baseUrl + "/rest/api/2/" });
       await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
       jira.setInput("MOCK-2, MOCK-1, MOCK-2");
-      expect((await invoke()).result.map(row => row.key)).toEqual(["MOCK-2", "MOCK-1"]);
+      const overridden = (await invoke()).result;
+      expect(overridden.map(row => row.key)).toEqual(["MOCK-2", "MOCK-1"]);
+      expect(overridden.map(row => row.issueUrl)).toEqual(["https://jira.example.com/context/browse/MOCK-2", "https://jira.example.com/context/browse/MOCK-1"]);
       for (const baseUrl of ["https://user:password@example.com", "https://example.com?query=1", "https://example.com#fragment"]) {
         jira.setSettings({ baseUrl });
         await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
