@@ -23,7 +23,11 @@ test("request IDs use v4 UUIDs without secure-context randomUUID", () => {
 test("K1 lifecycle, exclusive request identity, Root admission, publication and disable cleanup", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-"));
   const directory = path.join(root, "artifact"); cpSync(new URL("./fixtures/job-plugin", import.meta.url), directory, { recursive: true });
-  const host = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
+  const manifestPath = path.join(directory, "litzio-plugin.json");
+  writeFileSync(manifestPath, JSON.stringify({ ...JSON.parse(readFileSync(manifestPath, "utf8")), secrets: [{ id: "pat", scope: "connection", required: false }] }));
+  let secret = "original";
+  const secrets = { supported: true, async read() { return secret; }, async status() { return !!secret; }, async set(_p: string, _n: string, value: string) { secret = value; }, async delete() { secret = ""; } };
+  const host = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]), secrets });
   try {
     await host.invoke("register", { directory });
     await host.invoke("trust", { id: "fixture.jobs", digest: (await host.list()).find(p => p.id === "fixture.jobs")!.digest });
@@ -50,6 +54,12 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
     assert.equal(simultaneous.filter(result => result.status === "rejected").length, 1);
     await host.jobs.execute({ action: "job-stop", requestId: sameId.requestId });
     await wait(sameId.requestId, "stopped");
+    const beforeSettings = readFileSync(path.join(root, "state.json"), "utf8");
+    await assert.rejects(host.invoke("settings", { id: "fixture.jobs", settings: {} }), /running or uncertain/);
+    assert.equal(readFileSync(path.join(root, "state.json"), "utf8"), beforeSettings);
+    await assert.rejects(host.setSecret("fixture.jobs", "pat", "replacement"), /running or uncertain/);
+    await assert.rejects(host.invoke("secret-delete", { id: "fixture.jobs", name: "pat" }), /running or uncertain/);
+    assert.equal(secret, "original");
     const listing = host.jobs.list("fixture.jobs");
     assert.equal(listing.jobs.filter(job => job.requestId === input.requestId).length, 1);
     assert.ok(listing.jobs[0]!.elapsedMs >= 0);
@@ -86,6 +96,11 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
     }
     const raw = await start("FAIL-RAW");
     const rejected = await wait(raw.requestId, "uncertain");
+    await assert.rejects(host.invoke("settings", { id: "fixture.jobs", settings: {} }), /running or uncertain/);
+    await assert.rejects(host.setSecret("fixture.jobs", "pat", "replacement"), /running or uncertain/);
+    await assert.rejects(host.invoke("secret-delete", { id: "fixture.jobs", name: "pat" }), /running or uncertain/);
+    assert.equal(secret, "original");
+    assert.equal(readFileSync(path.join(root, "state.json"), "utf8"), beforeSettings);
     assert.equal(rejected.errorKind, "failed"); assert.equal(rejected.error, PLUGIN_ERROR_MESSAGES.failed + safeWriteAdvice);
     for (const { input } of [...failures, { input: raw }]) {
       const status = await host.jobs.execute({ action: "job-status", requestId: input.requestId });

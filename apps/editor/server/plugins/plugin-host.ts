@@ -122,10 +122,14 @@ export class PluginHost {
       } catch (e) { return { id, installed: true, bundled: !!r.bundled, enabled: r.enabled, running: false, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : "Plugin status unavailable", status: null }; }
     }));
   }
-  private async enable(id: string) {
+  private async enable(id: string): Promise<void> {
     const r = this.record(id), a = this.artifact(r.directory);
     if (r.bundled && !this.official(a.manifest, a.digest)) throw new Error("Bundled plugin artifact verification failed");
-    if (a.digest !== r.digest) throw new Error("Artifact changed; trust the current digest and reload");
+    if (a.digest !== r.digest) {
+      if (r.trustedDigest !== a.digest) throw new Error("Artifact changed; trust the current digest and reload");
+      await this.reload(id);
+      return;
+    }
     if (!this.official(a.manifest, a.digest) && r.trustedDigest !== a.digest) throw new Error("Explicit digest-bound trust is required");
     if (this.loaded.has(id)) return;
     if (!compileSchema(a.manifest.settingsSchema)(r.settings)) throw new Error("Stored settings do not satisfy this artifact schema");
@@ -169,10 +173,11 @@ export class PluginHost {
       if (this.closed) throw new Error("Plugin Host is closing");
       this.declaredSecret(id, name);
       if (!this.secrets.supported) throw new Error("Plugin secrets unsupported on this Host (Windows required)");
-      if (this.record(id).enabled) throw new Error("Disable the plugin before changing secrets");
       if (typeof value !== "string" || !value.length || Buffer.byteLength(value) > 16384) throw new Error("Invalid secret input");
-      await this.secrets.set(id, name, value);
-      this.rememberSecret(id, name, value);
+      await this.changeConfiguration(id, async () => {
+        await this.secrets.set(id, name, value);
+        if (!this.record(id).enabled) this.rememberSecret(id, name, value);
+      });
       return { configured: true, receipt: { requestId: randomUUID(), operation: "plugins.secret-set", version: 1, scope: "host", outcome: "success" } };
     });
     this.serial = run.catch(() => {}); return run;
@@ -188,6 +193,34 @@ export class PluginHost {
       catch { this.errors.set(id, "Plugin disposal failed; reload to recover"); throw new Error("Plugin disposal failed; reload to recover"); }
       finally { this.processes.delete(id); }
     }
+  }
+  private async reload(id: string) {
+    const r = this.record(id);
+    r.enabled = false; this.save();
+    try {
+      await this.disable(id);
+      const a = this.artifact(r.directory);
+      if (a.manifest.id !== id) throw new Error("Artifact ID changed");
+      if (!this.official(a.manifest, a.digest) && r.trustedDigest !== a.digest) throw new Error("Explicit digest-bound trust is required");
+      const names = a.manifest.contributes.operations.map(op => `${id}.${op.id}`);
+      if (builtinViewOperations.some(op => names.includes(op.operation))) throw new Error("Plugin operation ID collides with built-in operation");
+      for (const [otherId, other] of Object.entries(this.installed)) if (otherId !== id && other.operationNames.some(name => names.includes(name))) throw new Error("Plugin operation ID collision");
+      r.digest = a.digest; r.operationNames = names;
+      await this.enable(id); r.enabled = true; r.enabledChoice = true;
+    } catch (error) { this.errors.set(id, String(error)); this.save(); throw error; }
+  }
+  /** Block job admission before the first asynchronous store write through reload. */
+  private async changeConfiguration(id: string, change: () => Promise<void> | void) {
+    if (this.jobs.list(id).jobs.some(job => job.state === "running" || job.state === "uncertain")) {
+      throw new Error("Plugin has running or uncertain jobs; settings and secrets were not changed");
+    }
+    const enabled = this.record(id).enabled;
+    if (enabled) this.disabling.add(id);
+    try {
+      await change();
+      this.save();
+      if (enabled) await this.reload(id);
+    } finally { if (enabled) this.disabling.delete(id); }
   }
   viewOperations(): ViewOperation[] {
     return [...builtinViewOperations, ...[...this.loaded.values()].flatMap(live => live.manifest.contributes.operations
@@ -277,35 +310,24 @@ export class PluginHost {
           return { id, secrets: await this.secretStatus(id, this.artifact(r.directory).manifest), receipt: { requestId: randomUUID(), operation: "plugins.secret-status", version: 1, scope: "host", outcome: "success" } };
         } else if (action === "secret-delete") {
           this.declaredSecret(id, args.name!);
-          if (r.enabled) throw new Error("Disable the plugin before changing secrets");
-          await this.secrets.delete(id, args.name!);
-          this.redactionSecrets.get(id)?.delete(args.name!);
+          await this.changeConfiguration(id, async () => {
+            await this.secrets.delete(id, args.name!);
+            if (!r.enabled) this.redactionSecrets.get(id)?.delete(args.name!);
+          });
         } else if (action === "trust") {
           const a = this.artifact(r.directory);
           if (a.manifest.id !== id || args.digest !== a.digest) throw new Error("Artifact digest does not match");
           r.trustedDigest = a.digest;
         } else if (action === "enable") { r.enabledChoice = true; this.save(); try { await this.enable(id); r.enabled = true; } catch (error) { this.errors.set(id, String(error)); throw error; } }
         else if (action === "reload") {
-          r.enabled = false; this.save();
-          try {
-            await this.disable(id);
-            const a = this.artifact(r.directory);
-            if (a.manifest.id !== id) throw new Error("Artifact ID changed");
-            if (!this.official(a.manifest, a.digest) && r.trustedDigest !== a.digest) throw new Error("Explicit digest-bound trust is required");
-            const names = a.manifest.contributes.operations.map(op => `${id}.${op.id}`);
-            if (builtinViewOperations.some(op => names.includes(op.operation))) throw new Error("Plugin operation ID collides with built-in operation");
-            for (const [otherId, other] of Object.entries(this.installed)) if (otherId !== id && other.operationNames.some(name => names.includes(name))) throw new Error("Plugin operation ID collision");
-            r.digest = a.digest; r.operationNames = names;
-            await this.enable(id); r.enabled = true; r.enabledChoice = true;
-          } catch (error) { this.errors.set(id, String(error)); this.save(); throw error; }
+          await this.reload(id);
         }
         else if (action === "disable") { r.enabledChoice = false; r.enabled = false; this.save(); await this.disable(id); }
         else if (action === "settings") {
           if (args.settings === undefined) return { id, secrets: await this.secretStatus(id, this.artifact(r.directory).manifest), settings: r.settings, settingsSchema: this.artifact(r.directory).manifest.settingsSchema };
           const m = this.artifact(r.directory).manifest;
           if (!args.settings || !compileSchema(m.settingsSchema)(args.settings)) throw new Error("Invalid settings; secrets are unsupported");
-          if (this.loaded.has(id)) throw new Error("Disable the plugin before changing settings");
-          r.settings = structuredClone(args.settings);
+          await this.changeConfiguration(id, () => { r.settings = structuredClone(args.settings!); });
         } else throw new Error("Unknown plugin management action");
       }
       this.save();

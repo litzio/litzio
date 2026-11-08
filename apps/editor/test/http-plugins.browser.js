@@ -160,6 +160,26 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     expect(toggle.x).toBeGreaterThan(name.x + name.width);
     if (screenshots) await page.screenshot({ path: `tmp/plugin-stage1/settings-${width}.png` });
   }
+  const cliSettings = pluginFixture.cli(["plugins", "settings", "fixture.drive", "--file", pluginFixture.otherJobInput]);
+  expect(cliSettings.plugins.find(p => p.id === "fixture.drive").status.message).toBe("CLI connection");
+  await page.getByRole("button", { name: "Drive fixture", exact: true }).click();
+  await expect(page.getByLabel("Connection label", { exact: true })).toBeEnabled();
+  await page.getByLabel("Connection label", { exact: true }).fill("UI connection");
+  await page.getByLabel("Connection label", { exact: true }).press("Tab");
+  await expect.poll(() => pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive")?.status?.message).toBe("UI connection");
+  if (registered.secrets.supported) {
+    await page.getByLabel("pat: Not configured", { exact: true }).fill("enabled-isolated-secret");
+    await saveSecret();
+    await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
+    let live = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
+    expect(live.status.accounts[0].label).toBe("Secret applied");
+    expect(JSON.stringify(live)).not.toContain("enabled-isolated-secret");
+    pluginFixture.cli(["plugins", "secret-delete", "fixture.drive", "pat"]);
+    live = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
+    expect(live.running).toBe(true);
+    expect(live.status.accounts[0].label).toBe("Fixture account");
+  }
+  await page.keyboard.press("Escape");
   // Escape exits Settings without modifying the document or opened folders.
   await page.keyboard.press("Escape");
   await openFolderPicker(page);

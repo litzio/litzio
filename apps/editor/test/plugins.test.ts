@@ -12,7 +12,7 @@ test("local artifact trust, activation, admission, drain, settings persistence a
   const manifest = { schemaVersion: 1, id: "litzio.onedrive", tier: "official", publisher: { id: "litzio", name: "Litzio" }, name: "Fixture", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "string" } }] }, settingsSchema: { type: "object", properties: { label: { type: "string" } }, additionalProperties: false } };
   writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify(manifest));
   writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
-  writeFileSync(path.join(directory, "host.js"), `export function activate(){return {operations:{read:async()=>{await new Promise(r=>setTimeout(r,50));return "done"}},status:()=>({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+  writeFileSync(path.join(directory, "host.js"), `export function activate(c){return {operations:{read:async()=>{await new Promise(r=>setTimeout(r,50));return c.settings.label ?? "done"}},status:()=>({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
   const host = new PluginHost(path.join(root, "state.json"), { officialPlugins: [] });
   try {
     await host.invoke("register", { directory });
@@ -37,6 +37,18 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     await executePluginTool(host, { action: "enable", id: manifest.id }, entry => { activities.push(entry); });
     assert.deepEqual(activities, [{ action: "enable", id: manifest.id, outcome: "success" }]);
     assert.equal((await host.list())[0]?.running, true);
+    await executePluginTool(host, { action: "settings", id: manifest.id, settings: { label: "live" } }, () => {});
+    assert.equal((await host.invokeOperation("litzio.onedrive.read", {})).result, "live");
+    writeFileSync(path.join(directory, "extra.js"), "// updated artifact");
+    await assert.rejects(host.invoke("settings", { id: manifest.id, settings: { label: "recovered" } }), /Explicit digest-bound trust/);
+    const failedReload = (await host.list())[0]!;
+    assert.equal(failedReload.enabled, false); assert.equal(failedReload.running, false); assert.equal(failedReload.trusted, false);
+    assert.deepEqual(failedReload.settings, { label: "recovered" });
+    await assert.rejects(host.invoke("enable", { id: manifest.id }), /changed/);
+    await host.invoke("trust", { id: manifest.id, digest: failedReload.digest });
+    await host.invoke("enable", { id: manifest.id });
+    assert.equal((await host.list())[0]?.running, true);
+    assert.equal((await host.invokeOperation("litzio.onedrive.read", {})).result, "recovered");
     await host.invoke("disable", { id: manifest.id });
     writeFileSync(path.join(directory, "extra.js"), "changed");
     await assert.rejects(host.invoke("enable", { id: manifest.id }), /changed/);
@@ -158,7 +170,10 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
     assert.deepEqual(safePluginValue({ value }, [value]), { value: "[secret]" });
     assert.equal(safePluginValue(`error ${value}`, [value]), "error [secret]");
     assert.equal(readFileSync(path.join(root, "state.json"), "utf8").includes(value), false);
-    await assert.rejects(host.setSecret("example.first", "pat", value), /Disable/);
+    await host.setSecret("example.first", "pat", "replacement-private");
+    assert.equal(values.get("example.first/pat"), "replacement-private");
+    assert.equal((await host.list()).find(p => p.id === "example.first")!.running, true);
+    assert.deepEqual((await host.invokeOperation("example.first.read", {})).result, { echo: "[secret]" });
     await host.invoke("disable", { id: "example.first" });
     broken.add("example.first/pat");
     const damaged = (await host.list()).find(p => p.id === "example.first")!;
