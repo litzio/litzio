@@ -478,6 +478,7 @@ async (page, { expect, pluginFixture, openFolderPicker, openPath, screenshots })
   if(await outlineToggle.getAttribute('aria-pressed')!=='true') await outlineToggle.click();
   const documentPanel=page.getByTestId('document-panel');
   await documentPanel.getByRole('tab',{name:'Views',exact:true}).click();
+  await documentPanel.getByRole('region', { name: 'Favorites', exact: true }).locator('summary').click();
   const beforeSnapshot=queries;
   await documentPanel.getByRole('button',{name:'예시: Saved assistant rows',exact:true}).click();
   await expect(documentPanel.getByRole('cell',{name:'42',exact:true})).toBeVisible();
