@@ -166,7 +166,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(page.getByLabel("Connection label", { exact: true })).toBeEnabled();
   await page.getByLabel("Connection label", { exact: true }).fill("UI connection");
   await page.getByLabel("Connection label", { exact: true }).press("Tab");
-  await expect.poll(() => pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive").status.message).toBe("UI connection");
+  await expect.poll(() => pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive")?.status?.message).toBe("UI connection");
   if (registered.secrets.supported) {
     await page.getByLabel("pat: Not configured", { exact: true }).fill("enabled-isolated-secret");
     await saveSecret();
