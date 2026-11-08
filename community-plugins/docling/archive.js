@@ -1,42 +1,68 @@
 import { createHash } from "node:crypto";
 import { crc32 } from "node:zlib";
+import { PLUGIN_VERSION, DOCLING_FORMAT_VERSION } from "./versions.js";
 
-// Plugin-owned .docling v1: ZIP32, stored entries only. No filesystem extraction.
+// Plugin-owned .docling: ZIP32, stored entries only. No filesystem extraction.
 // Node has no ZIP API; this deliberately supports our small fixed envelope, not general ZIP.
 const validName = name => name === "manifest.json" || name === "document.json" || /^pages\/[1-9]\d*\.png$/.test(name);
 const pngSignature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-function validateManifest(manifest) {
-  if (manifest?.format !== "docling" || manifest.version !== 1 ||
-      typeof manifest.source?.name !== "string" || !manifest.source.name || /[/\\]/.test(manifest.source.name) ||
-      !/^[a-f0-9]{64}$/.test(manifest.source.sha256) ||
-      typeof manifest.doclingServe?.version !== "string" || !manifest.doclingServe.version ||
-      !manifest.doclingServe.options || typeof manifest.doclingServe.options !== "object" || Array.isArray(manifest.doclingServe.options) ||
-      typeof manifest.createdAt !== "string" || !Number.isFinite(Date.parse(manifest.createdAt))) throw new Error("Invalid .docling manifest");
+const sha256 = bytes => createHash("sha256").update(bytes).digest("hex");
+const hashPattern = /^[a-f0-9]{64}$/;
+function imageBytes(image) {
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(image.uri ?? "");
+  if (!match || match[1] !== image.mimetype) throw new Error("Expected embedded image");
+  const bytes = Buffer.from(match[2], "base64");
+  const valid = image.mimetype === "image/png" ? bytes.subarray(0, 8).equals(pngSignature)
+    : image.mimetype === "image/jpeg" ? bytes.subarray(0, 3).equals(Buffer.from([255, 216, 255]))
+    : bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+  if (!valid || bytes.toString("base64") !== match[2]) throw new Error("Invalid embedded image");
+  return bytes;
+}
+function imagesOf(document) {
+  const images = [];
+  function visit(value, pointer) {
+    if (!value || typeof value !== "object") return;
+    if (Object.hasOwn(value, "uri") && Object.hasOwn(value, "mimetype")) {
+      const bytes = imageBytes(value), page = /^\/pages\/([1-9]\d*)\/image$/.exec(pointer);
+      if (page && value.mimetype !== "image/png") throw new Error("Expected PNG page");
+      images.push({ pointer, path: page ? `pages/${page[1]}.png` : `document.json#${pointer}`, sha256: sha256(bytes), bytes: bytes.length, mimetype: value.mimetype, data: bytes });
+      return;
+    }
+    for (const [key, child] of Object.entries(value)) visit(child, pointer + "/" + key.replace(/~/g, "~0").replace(/\//g, "~1"));
+  }
+  visit(document, "");
+  return images;
 }
 function validateEntries(entries) {
   if (!entries.has("manifest.json") || !entries.has("document.json")) throw new Error("Incomplete .docling");
   const manifest = JSON.parse(entries.get("manifest.json").toString("utf8"));
-  validateManifest(manifest);
-  const documentJson = entries.get("document.json").toString("utf8");
-  const document = JSON.parse(documentJson);
-  if (document?.schema_name !== "DoclingDocument" || !Array.isArray(document.body?.children)) throw new Error("Invalid DoclingDocument");
-  const pages = [];
+  if (manifest?.format !== "docling" || manifest.version !== DOCLING_FORMAT_VERSION || manifest.status !== "success" || typeof manifest.converter?.pluginVersion !== "string" ||
+      typeof manifest.source?.name !== "string" || !manifest.source.name || /[/\\]/.test(manifest.source.name) ||
+      !hashPattern.test(manifest.source.sha256) || !Number.isSafeInteger(manifest.source.bytes) || manifest.source.bytes < 0 ||
+      manifest.server?.versions?.["docling-serve"] !== "1.32.0" || !hashPattern.test(manifest.server.openapi?.sha256) ||
+      !manifest.profile?.request || typeof manifest.task?.id !== "string" || !manifest.task.id ||
+      !Number.isFinite(Date.parse(manifest.task.startedAt)) || !Number.isFinite(Date.parse(manifest.task.completedAt)) ||
+      !hashPattern.test(manifest.result?.sha256) || !Number.isSafeInteger(manifest.result.bytes)) throw new Error("Invalid .docling manifest");
+  const documentBytes = entries.get("document.json"), documentJson = documentBytes.toString("utf8"), document = JSON.parse(documentJson);
+  if (document?.schema_name !== "DoclingDocument" || document.version !== "1.10.0" || !Array.isArray(document.body?.children) ||
+      manifest.document?.sha256 !== sha256(documentBytes) || manifest.document.bytes !== documentBytes.length) throw new Error("Invalid DoclingDocument");
+  const images = imagesOf(document), pages = [];
+  if (JSON.stringify(manifest.images) !== JSON.stringify(images.map(({ data, ...record }) => record))) throw new Error("Image record mismatch");
   for (const [name, bytes] of entries) {
     if (!validName(name)) throw new Error("Unsupported .docling entry");
     if (name.startsWith("pages/")) {
-      if (!bytes.subarray(0, 8).equals(pngSignature)) throw new Error("Expected PNG page");
+      const image = images.find(image => image.path === name);
+      if (!image || !image.data.equals(bytes)) throw new Error("Page image differs from original");
       pages.push({ page: Number(name.slice(6, -4)), bytes });
     }
   }
-  // Every declared page must have its original image; images are never regenerated here.
   const expected = Object.keys(document.pages ?? {});
   if (!expected.length || expected.length !== pages.length || expected.some(page => !entries.has(`pages/${page}.png`))) throw new Error("Missing page image");
   return { manifest, documentJson, document, pages };
 }
 
-/** Return bytes only. The Host's future generic K1 file result owns all storage. */
-export function createDoclingArchive({ sourceName, sourceSha256, serveVersion, options, documentJson, pages, createdAt = new Date().toISOString() }) {
-  const manifest = { format: "docling", version: 1, source: { name: sourceName, sha256: sourceSha256 }, doclingServe: { version: serveVersion, options }, createdAt };
+/** Return bytes only; the generic K1 Host result will own storage. */
+export function createDoclingArchive({ manifest, documentJson, pages }) {
   const entries = new Map([["manifest.json", Buffer.from(JSON.stringify(manifest, null, 2))], ["document.json", Buffer.from(documentJson)]]);
   for (const { page, bytes } of pages) {
     const name = `pages/${page}.png`;
@@ -89,14 +115,25 @@ export function readDoclingArchive(raw) {
   return validateEntries(entries);
 }
 
-/** Package the verified inbody/embedded API result; no requests or storage here. */
-export function createDoclingArchiveFromResponse({ sourceName, sourceBytes, serveVersion, options, response, createdAt }) {
-  if (response?.status !== "success") throw new Error("Conversion did not succeed");
-  const document = response.document?.json_content;
-  const pages = Object.values(document?.pages ?? {}).map(page => {
-    const uri = page.image?.uri;
-    if (page.image?.mimetype !== "image/png" || typeof uri !== "string" || !/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(uri)) throw new Error("Expected embedded PNG page");
-    return { page: page.page_no, bytes: Buffer.from(uri.slice(uri.indexOf(",") + 1), "base64") };
-  });
-  return createDoclingArchive({ sourceName, sourceSha256: createHash("sha256").update(sourceBytes).digest("hex"), serveVersion, options, documentJson: JSON.stringify(document), pages, createdAt });
+/** Preserve numeric source tokens with Node's parser, including uint64 binary_hash. */
+export function createDoclingArchiveFromResult({ sourceName, sourceBytes, serverVersions, openapiBytes, profile, task, resultBody }) {
+  const raw = Buffer.from(resultBody);
+  const lossless = JSON.parse(raw.toString("utf8"), (_key, value, context) => typeof value === "number" ? JSON.rawJSON(context.source) : value);
+  if (lossless.status !== "success" || (lossless.errors?.length ?? 0) !== 0) throw new Error("Conversion did not completely succeed");
+  const documentJson = JSON.stringify(lossless.document?.json_content);
+  const document = JSON.parse(documentJson);
+  if (document.schema_name !== "DoclingDocument" || document.version !== "1.10.0") throw new Error("Unsupported document version");
+  const images = imagesOf(document), pages = images.filter(image => image.path.startsWith("pages/")).map(image => ({ page: Number(image.path.slice(6, -4)), bytes: image.data }));
+  const reference = profile.provenance.openapi_sha256, openapiHash = sha256(openapiBytes);
+  const manifest = {
+    format: "docling", version: DOCLING_FORMAT_VERSION, converter: { pluginVersion: PLUGIN_VERSION }, status: "success", createdAt: task.completedAt,
+    source: { name: sourceName, sha256: sha256(sourceBytes), bytes: sourceBytes.length },
+    server: { versions: serverVersions, openapi: { sha256: openapiHash, referenceSha256: reference, referenceMatch: openapiHash === reference } },
+    profile, task,
+    result: { sha256: sha256(raw), bytes: raw.length },
+    document: { sha256: sha256(Buffer.from(documentJson)), bytes: Buffer.byteLength(documentJson), schemaName: document.schema_name, version: document.version, pageCount: Object.keys(document.pages ?? {}).length },
+    images: images.map(({ data, ...record }) => record),
+    verification: { imageBytesMatchEmbedded: true, jsonExceptImageUrisMatches: true },
+  };
+  return createDoclingArchive({ manifest, documentJson, pages });
 }

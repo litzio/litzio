@@ -249,6 +249,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     docling.setFailure(false);
     await refresh.click();
     await expect(page.getByRole("cell", { name: "연결됨", exact: true })).toBeVisible();
+    const beforeNativeRequests = docling.conversionRequests();
     const started = await docling.cli(["plugins", "start", id, "--input", docling.jobInput]);
     expect(started.job.state).toBe("running");
     await expect.poll(async () => (await docling.cli(["plugins", "status", started.job.requestId])).job.state).toBe("completed");
@@ -263,6 +264,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await expect(editor).toContainText("Converted PDF");
     await expect(editor).toContainText("PDF body *literal*.");
     await expect(editor).toContainText("Cell one | Cell two");
+    await expect(editor).toContainText(`pluginVersion=0.0.1; policyVersion=3; sourceSha256=${docling.archiveSha256}`);
     await page.getByRole("tab", { name: /Plugin jobs/ }).click();
     await pane.getByLabel("Job", { exact: true }).selectOption("community.docling/create-document");
     await pane.getByLabel("Input file").selectOption("sample.docling");
@@ -286,7 +288,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     const failure = await docling.cli(["plugins", "start", id, "--input", docling.jobInput]);
     await expect.poll(async () => (await docling.cli(["plugins", "status", failure.job.requestId])).job.state).toBe("failed");
     expect((await docling.cli(["plugins", "status", failure.job.requestId])).job.result).toBeUndefined();
-    expect(docling.conversionRequests()).toBe(0);
+    expect(docling.conversionRequests()).toBe(beforeNativeRequests);
   } finally {
     if (doclingRegistered) {
       await docling.cli(["plugins", "disable", id]);

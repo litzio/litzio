@@ -8,7 +8,7 @@
   },
   "name": "Docling",
   "description": "docling-serve 연결 확인과 .docling에서 Litzio 문서 만들기",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "requiresSdk": "0.1.0",
   "entry": "host.js",
   "contributes": {

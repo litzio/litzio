@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto";
+import { PLUGIN_VERSION, CONVERSION_POLICY_VERSION } from "./versions.js";
 import { readFile } from "node:fs/promises";
 import { readDoclingArchive } from "./archive.js";
 import { authorDocument } from "@litzio/plugin-sdk";
 
 // Interpretation belongs to this plugin; canonical document semantics belong to the SDK.
-async function convertDocument(doc) {
+async function convertDocument(doc, sourceSha256) {
   if (doc?.schema_name !== "DoclingDocument" || !Array.isArray(doc.body?.children)) throw new Error();
   const blocks = [], visited = new Set();
   function visit(ref) {
@@ -25,6 +27,7 @@ async function convertDocument(doc) {
     for (const child of item.children ?? []) visit(child);
   }
   for (const ref of doc.body.children) visit(ref);
+  blocks.push({ kind: "paragraph", text: `Docling conversion: pluginVersion=${PLUGIN_VERSION}; policyVersion=${CONVERSION_POLICY_VERSION}; sourceSha256=${sourceSha256}` });
   return authorDocument({ inputs: [{ key: "pdf", blocks }] });
 }
 
@@ -45,17 +48,19 @@ export function activate(context) {
     const server = base.href.replace(/\/$/, "");
     const row = (status, detail) => [{ server, status, detail }];
     try {
-      const response = await fetch(server + "/health", {
-        headers: context.secrets?.["api-key"] ? { "X-Api-Key": context.secrets["api-key"] } : {},
-        signal: controller.signal, redirect: "error",
-      });
-      if (!response.ok) {
-        await response.body?.cancel();
-        const detail = response.status === 401 ? "인증 키를 확인하세요." : response.status === 403 ? "접근 권한을 확인하세요." : response.status === 404 ? "서버 주소를 확인하세요." : "서버 응답 오류입니다.";
-        return row("오류", detail + ` (HTTP ${response.status})`);
+      for (const endpoint of ["/health", "/ready"]) {
+        const response = await fetch(server + endpoint, {
+          headers: context.secrets?.["api-key"] ? { "X-Api-Key": context.secrets["api-key"] } : {},
+          signal: controller.signal, redirect: "error",
+        });
+        if (!response.ok) {
+          await response.body?.cancel();
+          const detail = response.status === 401 ? "인증 키를 확인하세요." : response.status === 403 ? "접근 권한을 확인하세요." : response.status === 404 ? "서버 주소를 확인하세요." : "서버 응답 오류입니다.";
+          return row("오류", detail + ` (HTTP ${response.status})`);
+        }
+        if ((await response.json())?.status !== "ok") return row("오류", "docling-serve health/ready 응답을 확인하세요.");
       }
-      const body = await response.json();
-      return body?.status === "ok" ? row("연결됨", "health 정상 · 변환 및 인증 권한은 미확인") : row("오류", "docling-serve health 응답을 확인하세요.");
+      return row("연결됨", "health/ready 정상 · 요청 모델 준비와 변환 권한은 미확인");
     } catch {
       return row("오류", controller.signal.aborted ? "연결 시간이 초과됐습니다." : "서버 주소와 연결을 확인하세요.");
     } finally {
@@ -75,7 +80,7 @@ export function activate(context) {
     signal.throwIfAborted();
     const archive = readDoclingArchive(bytes);
     control.job.phase = "문서 생성 중";
-    const authored = await convertDocument(archive.document);
+    const authored = await convertDocument(archive.document, createHash("sha256").update(bytes).digest("hex"));
     signal.throwIfAborted();
     control.job = { state: "completed", phase: "완료", document: { source: authored.source } };
   }
