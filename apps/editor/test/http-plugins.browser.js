@@ -255,6 +255,102 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await docling.cli(["plugins", "unregister", id]);
     }
   }
+  const jira = pluginFixture.jira;
+  expect((await jira.cli(["plugins", "validate", jira.directory])).valid).toBe(true);
+  await jira.cli(["plugins", "register", jira.directory]);
+  try {
+    const registered = (await jira.cli(["plugins", "list"])).plugins.find(p => p.id === "community.jira");
+    expect(registered.official).toBe(false);
+    // Required PAT uses the production Windows secret store; other Hosts validate only.
+    if (registered.secrets.supported) {
+      await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
+      await page.reload(); await openSettings();
+      await page.getByRole("button", { name: "Jira", exact: true }).click();
+      await page.getByLabel("pat: Not configured", { exact: true }).fill("mock-jira-token");
+      await saveSecret();
+      await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
+      await jira.cli(["plugins", "trust", "community.jira", "--digest", registered.digest]);
+      await jira.cli(["plugins", "enable", "community.jira"]);
+      const invoke = () => jira.cli(["operation", "invoke", "community.jira.issues", "--input", jira.input]);
+      const connected = await invoke();
+      expect(connected.result.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-404"]);
+      expect(connected.result[0].assignee).toBe("—");
+      expect(connected.result[2].status).toContain("404");
+      await page.reload(); await openSettings();
+      await page.getByRole("button", { name: "Open view · Jira", exact: true }).click();
+      await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
+      const search = page.getByRole("button", { name: "조회", exact: true });
+      await search.click();
+      for (const row of connected.result) {
+        const tr = page.getByRole("row").filter({ has: page.getByRole("cell", { name: row.key, exact: true }) });
+        await expect(tr.getByRole("cell")).toHaveText(Object.values(row));
+      }
+      if (screenshots) {
+        for (const width of [1440, 640]) {
+          if (width === 640) {
+            await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
+            await page.reload();
+            await page.getByRole("button", { name: "설정", exact: true }).click();
+            await page.getByRole("button", { name: "플러그인", exact: true }).click();
+            await page.getByRole("button", { name: "뷰 열기 · Jira", exact: true }).click();
+            await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
+            await search.click();
+            await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
+          }
+          await page.setViewportSize({ width, height: 900 });
+          await page.getByRole("table").scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `tmp/jira-1328/issues-${width}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".view-workspace-favorites select"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
+        }
+        await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
+        await page.reload(); await openSettings();
+        await page.getByRole("button", { name: "Open view · Jira", exact: true }).click();
+        await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
+        await search.click();
+        await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
+      }
+      for (const [status, kind, advice] of [[401, "auth", "Authentication required."], [403, "forbidden", "Access denied."], [500, "unavailable", "Service unavailable."], [302, "failed", "View operation failed."], [408, "timeout", "Operation timed out."]]) {
+        jira.setFault(status);
+        const failed = await invoke();
+        expect(failed.errorKind).toBe(kind);
+        expect(JSON.stringify(failed)).not.toMatch(/RAW-JIRA-SENTINEL|mock-jira-token/);
+        const queried = page.waitForResponse(response => response.url().endsWith("/api/views") && response.request().method() === "POST" && response.request().postDataJSON()?.action === "run");
+        await search.click();
+        const ui = await (await queried).json();
+        expect(ui.errorKind).toBe(kind);
+        expect(JSON.stringify(ui)).not.toMatch(/RAW-JIRA-SENTINEL|mock-jira-token/);
+        await expect(page.getByText(advice, { exact: false })).toBeVisible();
+        await expect(page.getByText(/Previous query result/)).toBeVisible();
+        expect(await page.locator("body").innerText()).not.toMatch(/RAW-JIRA-SENTINEL|mock-jira-token/);
+      }
+      expect(jira.redirects()).toBe(0);
+      jira.setFault(0);
+      jira.setSettings({ baseUrl: jira.baseUrl, apiUrl: jira.baseUrl + "/rest/api/2/" });
+      await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
+      jira.setInput("MOCK-2, MOCK-1, MOCK-2");
+      expect((await invoke()).result.map(row => row.key)).toEqual(["MOCK-2", "MOCK-1"]);
+      for (const baseUrl of ["https://user:password@example.com", "https://example.com?query=1", "https://example.com#fragment"]) {
+        jira.setSettings({ baseUrl });
+        await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
+        expect((await invoke()).errorKind).toBe("failed");
+      }
+      jira.setInput("MOCK-1, MOCK-2, MOCK-404");
+      jira.setSettings({ baseUrl: jira.baseUrl });
+      await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
+      await search.click();
+      await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
+      if (jira.mock) {
+        jira.setSettings({ baseUrl: "http://127.0.0.1:8081" });
+        await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
+        const mock = await invoke();
+        expect(mock.result.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-404"]);
+        expect(mock.result[2].status).toContain("404");
+        expect(mock.result[0].summary).not.toBe("—");
+      }
+    }
+  } finally {
+    await jira.cli(["plugins", "disable", "community.jira"]);
+    await jira.cli(["plugins", "unregister", "community.jira"]);
+  }
   if (screenshots && pluginFixture.realSnapshot) {
     // Manual real-plugin evidence only. Node CLI reads the isolated Host, then masks
     // account/path metadata before any real data reaches browser tracing or screenshots.
