@@ -1,12 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateManifest, compileSchema } from "../src/index.ts";
+import { validateManifest, compileSchema, defaultJobOutput } from "../src/index.ts";
 const manifest = () => ({ schemaVersion: 1, id: "example.demo", tier: "community", publisher: { id: "example", name: "Example" }, name: "Demo", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: {} });
 test("manifest rejects unsupported extensions, invalid identities, versions and unknown declarations before execution", () => {
   assert.equal(validateManifest(manifest()).id, "example.demo");
+  for (const requiresSdk of ["0.1.0", "^0.1.0", ">=0.2.0 <1.0.0"]) assert.ok(validateManifest({ ...manifest(), requiresSdk }));
+  for (const requiresSdk of ["0.1.1", "^0.3.0", ">=1.0.0"]) assert.throws(() => validateManifest({ ...manifest(), requiresSdk }), /Unsupported SDK range/);
   for (const change of [{ settingsSchema: { type: "invalid" } }, { id: "../escape" }, { requiresSdk: "^2.0.0" }, { version: "bad" }, { entry: "../host.js" }, { contributes: { surprise: [] } }, { contributes: { jobs: [{ id: "import", title: "Import", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" }] } }, { contributes: { dataViews: [{ id: "table", operation: "read", version: 1 }] } }, { contributes: { generatedUi: [{ id: "ui", catalog: "table", schemaVersion: 1 }] } }, { contributes: { views: [{ id: "saved", definition: "view.json" }] } }, { contributes: { secretUses: [{ operation: "read", secret: "token" }] } }]) assert.throws(() => validateManifest({ ...manifest(), ...change }));
   assert.throws(() => compileSchema({ $ref: "https://example.test/schema" }));
   assert.throws(() => compileSchema({ type: "not-a-type" }));
+  const job = { id: "export", title: "Export", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "file", resultExtension: ".bin" };
+  const withJob = (value: unknown) => ({ ...manifest(), contributes: { jobs: [value], operations: ["start", "status", "stop"].map(id => ({ id, version: 1, effect: id === "status" ? "read" : "write", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } })) } });
+  const binding = validateManifest(withJob(job)).contributes.jobs[0];
+  assert.equal(defaultJobOutput(binding, "nested/a.txt"), "nested/a.bin");
+  assert.equal(defaultJobOutput({ ...binding, resultKind: "native-document" }, "a.txt"), "result.md");
+  for (const resultExtension of [undefined, "bin", ".BIN", "../bin", ".tar.gz"]) assert.throws(() => validateManifest(withJob({ ...job, resultExtension })));
+  assert.throws(() => validateManifest(withJob({ ...job, resultKind: "native-document" })));
 });
 
 test("declared secrets accept unique identifiers only", () => {

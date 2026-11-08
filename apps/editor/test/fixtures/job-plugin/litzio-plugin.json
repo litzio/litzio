@@ -8,7 +8,7 @@
   },
   "name": "Job fixture",
   "version": "0.1.0",
-  "requiresSdk": "^0.1.0",
+  "requiresSdk": ">=0.2.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
     "jobs": [
@@ -22,6 +22,18 @@
         "status": "status",
         "stop": "stop",
         "resultKind": "native-document"
+      },
+      {
+        "id": "file",
+        "title": "File export",
+        "accept": [
+          ".txt"
+        ],
+        "start": "start",
+        "status": "status",
+        "stop": "stop",
+        "resultKind": "file",
+        "resultExtension": ".bin"
       }
     ],
     "operations": [

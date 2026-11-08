@@ -7,10 +7,20 @@ export { rowSchema, type RowSchema } from "@litzio/core/views";
 import { compileSchema } from "./schema.ts";
 import { z } from "zod";
 import semver from "semver";
-export const SDK_VERSION = "0.1.0";
+export const SDK_VERSION = "0.2.0";
+// Actual SDK contracts still implemented by this Host, not hypothetical versions
+// between releases. Additive releases retain earlier contracts; breaking releases
+// remove contracts they no longer implement.
+const supportedSdkVersions = ["0.1.0", SDK_VERSION];
 const id = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
 const schema = z.record(z.string(), z.unknown());
 const operation = z.strictObject({ id, version: z.number().int().positive(), effect: z.enum(["read", "write"]), assistant: z.boolean().default(false), scope: z.enum(["host", "folder"]), inputSchema: schema, outputSchema: schema, rowSchema: rowSchema.optional() });
+const extension = z.string().regex(/^\.[a-z0-9]+$/);
+const jobFields = { id, title: z.string().min(1), accept: z.array(extension).min(1), start: id, status: id, stop: id };
+const jobContributionSchema = z.discriminatedUnion("resultKind", [
+  z.strictObject({ ...jobFields, resultKind: z.literal("native-document") }),
+  z.strictObject({ ...jobFields, resultKind: z.literal("file"), resultExtension: extension }),
+]);
 export const SCREEN_ICONS = ["LayoutDashboard", "Table", "ChartColumn", "FileText", "Folder"] as const;
 export const screenContributionSchema = z.strictObject({ id, title: queryViewSchema.options[0].shape.title, icon: z.enum(SCREEN_ICONS),
   defaultViewIds: z.array(id).min(1).max(8).refine(ids => new Set(ids).size === ids.length, "Duplicate default view"), primary: z.boolean().default(false) });
@@ -18,7 +28,7 @@ export const manifestSchema = z.strictObject({
   schemaVersion: z.literal(1), id, tier: z.enum(["official", "community"]),
   publisher: z.strictObject({ id, name: z.string().min(1) }), name: z.string().min(1), description: z.string().default(""),
   version: z.string().refine(v => !!semver.valid(v), "Invalid SemVer"), requiresSdk: z.string().refine(v => !!semver.validRange(v), "Invalid SDK range"), entry: z.string().min(1),
-  contributes: z.strictObject({ operations: z.array(operation).default([]), jobs: z.array(z.strictObject({ id, title: z.string().min(1), accept: z.array(z.string().regex(/^\.[a-z0-9]+$/)).min(1), start: id, status: id, stop: id, resultKind: z.literal("native-document") })).default([]), folderSources: z.array(id).default([]), folderDecorations: z.array(id).default([]), accounts: z.array(id).default([]),
+  contributes: z.strictObject({ operations: z.array(operation).default([]), jobs: z.array(jobContributionSchema).default([]), folderSources: z.array(id).default([]), folderDecorations: z.array(id).default([]), accounts: z.array(id).default([]),
     dataViews: z.array(z.strictObject({ id, operation: id, version: z.number().int().positive() })).default([]),
     generatedUi: z.array(z.strictObject({ id, catalog: z.string(), schemaVersion: z.number().int().positive() })).default([]),
     views: z.array(z.strictObject({ id, title: z.string().min(1), definition: queryViewSchema })).default([]),
@@ -32,7 +42,7 @@ export type PluginManifest = z.infer<typeof manifestSchema>;
 export type OperationDefinition = z.infer<typeof operation>;
 export function validateManifest(input: unknown): PluginManifest {
   const m = manifestSchema.parse(input);
-  if (!semver.satisfies(SDK_VERSION, m.requiresSdk)) throw new Error("Unsupported SDK range");
+  if (!supportedSdkVersions.some(version => semver.satisfies(version, m.requiresSdk))) throw new Error("Unsupported SDK range");
   if (/^(?:[a-z]+:|[/\\])/i.test(m.entry) || m.entry.split(/[/\\]/).includes("..")) throw new Error("Entry must stay inside package");
   for (const list of Object.values(m.contributes)) {
     const ids = list.map(item => typeof item === "string" ? item : "id" in item ? item.id : JSON.stringify(item));
@@ -98,11 +108,18 @@ export const PLUGIN_MANAGEMENT = { version: 1, scope: "host", inputSchema: z.toJ
 /** K1 start accepts work and returns running within the 10s RPC budget.
  * Keep background work in the child, catch its failures, and expose it via status.
  * There is no Host job lifetime timeout. stop/dispose must cancel owned resources.
- * Host-validated absolute paths are provided; only Host publishes source.
+ * Host-validated absolute paths are provided; only Host publishes results.
  */
 export const JOB_START_CONTRACT_MESSAGE = "K1 start must accept work and return running within 10 seconds. Keep background work in the child process and report completion through status.";
+/** File bytes stay on disk, never in RPC JSON. Host enforces this limit at publication. */
+export const JOB_FILE_MAX_BYTES = 2 * 1024 ** 3;
+export type JobInput = { requestId: string; root: string; file: string; output: string; resultFile?: { path: string; maxBytes: number } };
+/** Root-relative default; native-document keeps its existing result.md default. */
+export function defaultJobOutput(job: JobContribution, file: string): string {
+  return job.resultKind === "file" ? file.replace(/\.[^./\\]+$/, "") + job.resultExtension : "result.md";
+}
 
-/** K1 handlers receive Host-validated absolute paths; source is published only by Host. */
+/** K1 handlers receive Host-validated paths; results are published only by Host. */
 /** Completed K1 review materials are admitted and assigned opaque refs by the Host. */
 export const completedReviewSchema = z.strictObject({ review: z.string().min(1).max(512),
   bundle: reviewBundleSchema.omit({ bundleRef: true, documentRef: true }), pages: z.array(reviewPageSchema).max(2000),
@@ -115,12 +132,13 @@ export const jobUpdateSchema = z.strictObject({
   state: z.enum(["running", "completed", "failed", "stopped", "uncertain"]), phase: z.string(),
   progress: z.strictObject({ done: z.number().nonnegative(), total: z.number().positive() }).refine(p => p.done <= p.total).optional(),
   errorKind: z.unknown().transform(pluginErrorKind).optional(), document: z.strictObject({ source: z.string() }).optional(), review: completedReviewSchema.optional(),
+  file: z.strictObject({ path: z.string().min(1) }).optional(),
 });
 export type JobContribution = PluginManifest["contributes"]["jobs"][number];
-export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { path: string; revision: string; bundle?: ReviewBundle; review?: { plugin: string; review: string; root: string; bundleRef: string; generation: string } } };
+export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { kind?: "native-document" | "file"; path: string; revision: string; bundle?: ReviewBundle; review?: { plugin: string; review: string; root: string; bundleRef: string; generation: string } } };
 export const jobRequestSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("job-list"), plugin: id.optional() }),
-  z.strictObject({ action: z.literal("job-start"), plugin: id, job: id, requestId: z.string().uuid(), root: z.string().min(1), file: z.string().min(1), output: z.string().min(1) }),
+  z.strictObject({ action: z.literal("job-start"), plugin: id, job: id, requestId: z.string().uuid(), root: z.string().min(1), file: z.string().min(1), output: z.string().min(1).optional() }),
   ...(["job-status", "job-stop", "job-result"] as const).map(action => z.strictObject({ action: z.literal(action), requestId: z.string().uuid() })),
 ]);
 

@@ -187,6 +187,7 @@ for (const name of scenarios) {
     const pluginDirectory = path.join(REPOSITORY_ROOT, "tmp", "http-host-a", name === "plugin-jobs" ? "job-artifact" : name === "generated-views" ? "issues-artifact" : "plugin-artifact");
     const pluginFolder = path.join(REPOSITORY_ROOT, "tmp", "http-host-a", "fixture");
     const otherPluginFolder = path.join(REPOSITORY_ROOT, "tmp", "http-host-b", "fixture");
+    const fileJobInput = path.join(REPOSITORY_ROOT, "tmp", "k1-file-request.json");
     const otherJobInput = path.join(REPOSITORY_ROOT, "tmp", "k1-other-root-request.json");
     if (name === "vite-plugins") {
       mkdirSync(pluginDirectory, { recursive: true });
@@ -221,7 +222,8 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
       rmSync(path.join(otherPluginFolder, "recent-result.md"), { force: true });
       writeFileSync(otherJobInput, JSON.stringify({ job: "text", requestId: randomUUID(), root: otherPluginFolder, file: "input.txt", output: "recent-result.md" }));
       writeFileSync(path.join(pluginFolder, "input.txt"), "# Imported\n\nJob result.\n");
-      for (const name of ["browser-result.md", "stopped-result.md", "closed-result.md", "reopened-running.md"]) rmSync(path.join(pluginFolder, name), { force: true });
+      for (const name of ["browser-result.md", "stopped-result.md", "closed-result.md", "reopened-running.md", "input.bin", "nested/input.bin"]) rmSync(path.join(pluginFolder, name), { force: true });
+      writeFileSync(fileJobInput, JSON.stringify({ job: "file", requestId: randomUUID(), root: pluginFolder, file: "nested/input.txt" }));
       writeFileSync(path.join(pluginFolder, "slow.txt"), "SLOW\n# Resume observation\n");
       writeFileSync(path.join(pluginFolder, "fail.txt"), "FAIL");
       writeFileSync(path.join(pluginFolder, "uncertain.txt"), "UNCERTAIN");
@@ -246,7 +248,7 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
       writeFileSync(docling.input, "{}");
       writeFileSync(docling.settings, JSON.stringify({ serverUrl: `http://127.0.0.1:${(doclingAddress as import("node:net").AddressInfo).port}` }));
     }
-    const pluginFixture = { directory: pluginDirectory, folder: pluginFolder, otherFolder: otherPluginFolder, otherJobInput, corruptSecret() {
+    const pluginFixture = { directory: pluginDirectory, folder: pluginFolder, otherFolder: otherPluginFolder, otherJobInput, fileJobInput, corruptSecret() {
       const owned = process.env.LITZIO_BROWSER_DAEMON_DIR;
       if (!owned) throw new Error("Secret corruption requires a runner-owned isolated Host");
       const hash = (value: string) => createHash("sha256").update(value).digest("hex");

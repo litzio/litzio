@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
 
 /** Strict text decoding preserves a leading BOM for the caller's source/revision. */
 export function decodeUtf8(bytes: Uint8Array): string {
@@ -87,5 +89,38 @@ export function createFile(filePath: string, text: string): void {
   } finally {
     if (descriptor !== undefined) fs.closeSync(descriptor);
     fs.rmSync(temporary, { force: true });
+  }
+}
+
+/** Copy opaque bytes with bounded memory into a Host-owned sibling, then publish
+ * with the same exclusive hard-link protocol as createFile. The staging inode is
+ * never published: later plugin writes cannot mutate the committed result.
+ * beforePublish lets the owner recheck its Root and cancellation/lifetime boundary.
+ */
+export async function createFileFromPath(filePath: string, source: string, maxBytes: number, beforePublish: (target: string) => void = () => {}): Promise<string> {
+  assertUnicode(filePath);
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) throw new Error("Invalid file size limit");
+  if (!fs.lstatSync(source).isFile()) throw new Error("Expected a regular staging file");
+  const target = path.join(fs.realpathSync(path.dirname(filePath)), path.basename(filePath));
+  const temporary = path.join(path.dirname(target), `.${path.basename(target)}.${randomUUID()}.tmp`);
+  const input = await fs.promises.open(source, "r");
+  let created = false;
+  try {
+    const info = await input.stat();
+    if (!info.isFile() || info.size > maxBytes) throw new Error("File result exceeds size limit or is not regular");
+    const output = fs.createWriteStream(temporary, { flags: "wx", mode: 0o600, flush: true });
+    output.once("open", () => { created = true; });
+    const hash = createHash("sha256"); let size = 0;
+    await pipeline(input.createReadStream(), new Transform({ transform(chunk: Buffer, _encoding, callback) {
+      size += chunk.length;
+      if (size > maxBytes) return callback(new Error("File result exceeds size limit"));
+      hash.update(chunk); callback(null, chunk);
+    } }), output);
+    beforePublish(target);
+    fs.linkSync(temporary, target);
+    return hash.digest("hex");
+  } finally {
+    await input.close();
+    if (created) fs.rmSync(temporary, { force: true });
   }
 }

@@ -1,6 +1,7 @@
 # 플러그인 1단계
 
 - Status: Implemented
+- Verification #1326: 2026-11-09 — K1 file 결과·공개 SDK·Host/CLI/browser fixture와 native/review 회귀, typecheck/build 확인. 실제 Docling 산출물 크기·변환 품질은 미검증.
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Concurrent/repeated Host close calls share one shutdown promise, including its failure. A send waiting for plugin startup rechecks assistant shutdown before provider admission. Request paths, lazy plugin start, receipts and stored formats are unchanged.
 - Last verified: 2026-11-06 — V4 승인 내용 고정·snapshot baseline·K1 status 완료 fixture와 대상 회귀 검사, 전체 typecheck 확인. V5 브라우저 통합은 미검증.
 - Verification #1287: 2026-11-06 — OneDrive 탐색기 자동 표시·비활성화 목록 제거의 HTTP browser fixture 검증. 실제 계정 동기화는 미검증.
@@ -86,9 +87,9 @@ Windows PowerShell의 기본 .NET ProtectedData를 통해 DPAPI CurrentUser를 �
 
 ## K1 파일 작업
 
-2026-11-05 로드맵 1(e): `contributes.jobs`에 id/title, 확장자 accept(예: `.txt`), start/status/stop 작업 ID와 `resultKind: native-document`를 선언한다. 세 binding은 등록된 operation이어야 하며 start는 write다. 일반 `operation invoke`로 이 binding을 직접 실행할 수 없다. 입력·결과 JSON schema 검사는 기존 기능 호출과 동일하다. SDK `jobRequestSchema`, `jobUpdateSchema`, `JobSnapshot`이 공용 작업의 정의다.
+2026-11-05 로드맵 1(e): `contributes.jobs`에 id/title, 확장자 accept(예: `.txt`), start/status/stop 작업 ID와 `resultKind: native-document` 또는 `resultKind: file`·`resultExtension`(예: `.docling`)을 선언한다. 결과 확장자는 점 하나와 소문자 영숫자로 구성한다. 세 binding은 등록된 operation이어야 하며 start는 write다. 일반 `operation invoke`로 이 binding을 직접 실행할 수 없다. 입력·결과 JSON schema 검사는 기존 기능 호출과 동일하다. SDK `jobRequestSchema`, `jobUpdateSchema`, `JobSnapshot`이 공용 작업의 정의다.
 
-`POST /api/plugins`의 job-start는 plugin/job/requestId(UUID)/root/file/output을 받는다. file과 output은 대상 Host Root 상대 경로다. Host의 접근 정책과 real-path Root 검사를 모두 통과해야 하며 입력은 accept와 일치하는 실제 파일이어야 한다. Desktop 파일 업로드나 로컬 fallback은 없다. 결과는 새 `.md` 문서로만 생성하며 기존 파일·입력 원본을 덮어쓰지 않는다.
+`POST /api/plugins`의 job-start는 plugin/job/requestId(UUID)/root/file과 선택 output을 받는다. file과 output은 대상 Host Root 상대 경로다. Host의 접근 정책과 real-path Root 검사를 모두 통과해야 하며 입력은 accept와 일치하는 실제 파일이어야 한다. Desktop 파일 업로드나 로컬 fallback은 없다. native-document는 새 `.md` 문서로 생성한다. file은 선언 확장자와 output의 확장자(대소문자 정규화)가 일치해야 한다. 모두 기존 파일·입력 원본을 덮어쓰지 않는다. output 생략 시 Host가 기본 경로를 정한다. file은 입력의 마지막 확장자를 바꾼다(`a.pdf` → `a.docling`, 상대 하위 폴더 유지). native-document는 기존 화면 기본값 `result.md`를 유지한다. 화면은 SDK `defaultJobOutput`으로 같은 값을 제시하고 CLI는 생략한 output을 Host에 맡긴다.
 
 Host는 실행 전에 requestId를 메모리에 기록하고 중복 start를 거부한다. running/completed/failed/stopped/uncertain, phase, 선택적 done/total, stopRequested를 유지한다. start handler는 작업을 접수하고 10초 RPC 응답 제한 안에 running을 반환한다. 긴 작업의 완료 Promise를 반환하지 않는다. requestId별 상태를 자식 프로세스에 보관하고 백그라운드 작업의 성공·실패를 status로 공개한다. 백그라운드 Promise의 rejection도 잡아 failed/errorKind로 기록한다. Host는 접수 응답을 기다린 뒤 job-start 결과를 반환하며 접수 실패는 uncertain이다. 작업 수명 자체의 Host 상한은 없다. start가 제한을 넘기면 timeout 분류와 SDK JOB_START_CONTRACT_MESSAGE 고정 제작 안내를 반환하고 자식을 종료한다. running 외 접수 결과는 failed 분류와 같은 제작 안내로 거부한다. status/stop handler는 같은 requestId/root/file/output을 받는다. handler 결과는 state/phase/progress/errorKind와 완료 시 document.source다. Host가 완료 결과의 native source를 Core 기반 공식 생성 경로로 검증·생성한 뒤에만 path/revision을 공개한다. 완료 전 document/source/부분 결과는 UI·CLI로 공개하지 않는다. 결과 문서 생성 실패도 uncertain으로 남겨 확인 없이 다시 쓰지 않는다.
 
@@ -100,7 +101,7 @@ plugins status|stop|result <requestId> --host <origin> --json
 jobs list [pluginId] --host <origin> --json
 ```
 
-start 파일은 job/requestId/root/file/output을 담는다. CLI는 앱과 같은 공용 작업·receipt를 호출하며 결과가 앱 탭을 생성하지 않는다. 응답 유실 뒤 start를 재전송하지 않고 status로 같은 ID를 조회한다.
+start 파일은 job/requestId/root/file과 선택 output을 담는다. CLI는 앱과 같은 공용 작업·receipt를 호출하며 결과가 앱 탭을 생성하지 않는다. 응답 유실 뒤 start를 재전송하지 않고 status로 같은 ID를 조회한다.
 
 명령 센터의 Plugin jobs는 현재 문서/작업 탭 Host에 고정된 앱 번들 기본 UI다. 공통 Button/Input/Notice, 기존 뷰 페이지 레이아웃과 Host 폴더 목록을 재사용한다. 열린 대상 Host 폴더 안에서 파일을 선택하고 실행·상태·중단·완료 문서 열기를 제공한다. 결과 열기는 기존 Host-aware 문서 열기와 미저장 보호를 따른다. requestId는 내부에서 생성·관리하며 입력란으로 노출하지 않는다. Host의 `job-list`는 플러그인별 진행 중·최근 작업과 경과 시간을 daemon 메모리에서 반환한다. 작업 화면을 다시 열면 이 목록으로 진행 중 작업을 복원해 관찰하고 최근 작업을 선택할 수 있다. 브라우저 자체 요청 ID 저장소나 재입력에 의존하지 않는다. 활성 작업 화면에서만 1초 간격으로 겹치지 않게 조회하고, 숨김/탭 닫기 시 타이머와 요청을 정리한다. 화면 닫기는 실행 취소가 아니다. 연결/응답 상실은 uncertain으로 표시하며 폴링을 멈춘다. uncertain일 때만 상태 다시 확인 버튼을 보여 내부의 같은 ID로 조회한다. Host의 명확한 4xx 실행 거부는 실패와 이유를 표시하고 입력 수정을 허용한다. 연결 실패·5xx·응답 유실과 구분한다. 저장된 데이터 뷰의 자동 조회 금지 계약은 그대로다.
 
@@ -113,13 +114,37 @@ Codex 비서는 SDK `PLUGIN_JOBS` 공용 정의를 그대로 쓰는 `plugin_jobs
 입력 선택은 `(Root, 상대 경로)` 쌍이다. 파일·폴더 선택은 해당 Host가 반환한 자식 이름으로 상대 경로를 구성하며 절대 경로 문자열을 잘라 재해석하지 않는다. Root 선택이나 최근 작업 이동으로 Root가 바뀌면 파일·탐색 폴더·이전 목록을 초기화하며, 새 Root에서 명시적으로 다시 선택하기 전에는 실행하지 않는다. 같은 이름의 파일이 다른 Root에 존재해도 자동 재바인딩하지 않는다.
 
 
+### 일반 파일 하나 (#1326)
+
+파일 형식의 생성·해석은 플러그인 소유다. Host는 start 전에 OS 임시 폴더의 고유 디렉터리와 파일을 만들고 SDK `JobInput.resultFile:{path,maxBytes}`를 세 handler에 전달한다. 플러그인은 이 path에만 결과 바이트를 쓰고 writer를 닫은 뒤 `completed`와 `file:{path:input.resultFile.path}`를 반환한다. document/review 동시 반환, 다른 path와 비정규 파일은 거부한다. 대용량 바이트·base64를 IPC에 넣지 않는다. staging은 공식 Root 쓰기 권한이 아니며 output에 직접 쓰는 것도 허용하지 않는다. trusted Node child가 sandbox가 아니라는 기존 경계는 유지한다.
+
+Host는 `packages/file-commit`의 `createFileFromPath`로 staging을 크기가 제한된 stream으로 Host 전용 결과 sibling에 복사하고 SHA-256을 계산한다. flush 후 기존 createFile과 같은 hard-link 방식으로 새 이름을 원자적으로 게시한다. 기존 이름은 경합 중 생겨도 교체하지 않으며 hard-link 미지원 파일시스템은 실패한다. staging inode를 직접 게시하지 않아 플러그인의 뒤늦은 쓰기가 결과를 바꾸지 못한다. 게시 직전에 요청 Root·Host 접근 정책과 실제 target을 재확인한다. 결과는 `result:{kind:"file",path,revision}`이며 revision은 저장 바이트의 SHA-256이다. 기존 native-document result 모양과 대조 자료 계약은 유지한다.
+
+상한 `JOB_FILE_MAX_BYTES`는 **2 GiB (2,147,483,648 bytes)**다. 페이지당 수 MiB인 수백 장의 이미지 zip을 수용하면서 단일 결과의 무제한 증가를 막는 초기 한도이며 실제 Docling 크기 측정치는 아니다. metadata 사전 검사와 복사 중 byte counter가 모두 한도를 강제한다. 작업 중 디스크 사용량 quota는 아니며 초과 staging은 완료 시 거부·정리한다. OS 임시 폴더를 택해 Root 부모 쓰기 권한을 요구하지 않고 선택 Root가 볼륨 루트여도 동작한다. 다른 볼륨이어도 복사 목적 sibling은 Root와 같은 파일시스템이므로 최종 게시는 원자적이다. peak 임시 공간은 staging + sibling이며 IPC/메모리에 결과 전체를 적재하지 않는다.
+
+완료·실패·stopped·uncertain·RPC 오류·프로세스 상실에서 Host가 staging을 제거한다. 복사·flush·검증·게시 실패도 sibling을 제거하고 기존 uncertain/no-replay를 유지한다. 불확실해져 정리된 file 작업은 나중 completed 응답으로 게시하지 않는다. 같은 ID 관찰·중단은 유지하되 자동 재시작·복원은 없다. 같은 requestId 관찰은 순서대로 처리해 비동기 복사 중 status/stop이 중복 게시하지 않는다. Host 프로세스의 강제 종료·전원 상실 뒤 임시 파일 scavenging은 제공하지 않는다(기존 file-commit crash 경계).
+
+화면은 기존 작업 탭·SettingsInput/SettingsSelect·Button/Notice를 재사용한다. file 완료는 저장된 Host 경로와 기존 `CopyButton`을 제공하며 형식을 해석하거나 문서 열기로 보내지 않는다. native-document의 결과 문서 열기는 유지한다. 새 표면 구조·공통 상호작용 예외는 없다. CopyButton은 기존 비서 답변·코드 복사와 같은 구현이다.
+
+대표 검증은 기존 외부 SDK K1 subprocess 안에서 native 생성 회귀와 file 성공·동명 보존·확장자/Root 거부·실패/중단/불확실/프로세스 상실 정리·중복 관찰을 확인한다. 상한의 Host 연결은 초과 metadata로 검사하고 실제 작은 byte 한도·성장 중 초과·복사 snapshot 독립성·게시 실패 정리는 file-commit 단위 검사가 소유한다. 기존 plugin-jobs browser fixture를 보완해 HTTP·실제 CLI·화면의 같은 기본 이름과 파일 결과 경로를 확인한다. 특정 포맷 생성·대규모 실제 변환 품질·zip 내부 대조는 검증 범위 밖이다.
+
+수동 시각 검토: [1440 이전](assets/k1-file-result/before-1440.png) / [이후](assets/k1-file-result/after-1440.png), [한국어 다크 1440 이전](assets/k1-file-result/before-ko-dark-1440.png) / [이후](assets/k1-file-result/after-ko-dark-1440.png), [한국어 다크 640 이전](assets/k1-file-result/before-ko-dark-640.png) / [이후](assets/k1-file-result/after-ko-dark-640.png). 같은 Host의 같은 완료 file snapshot에 대해 이전은 이 PR 직전 `PluginJobs.tsx`만 사용한 UI, 이후는 이 PR의 UI다. 이전 UI는 파일에도 문서 열기를 표시했고 이후는 저장 경로·복사를 제공한다. 새 파일 결과는 이전 master Host가 만들 수 없어 Host·SDK는 두 캡처 모두 이 PR 구현을 사용했다. 정렬·여백·긴 경로 줄바꿈·잘림·한국어 640px·다크를 확인했다. 로컬 계정 표기만 촬영 중 DOM text에서 치환하고 즉시 복원했다. [촬영 스크립트](assets/k1-file-result/capture.browser.js)는 성공한 plugin-jobs Host를 유지한 채 기존 `ui-gallery.browser.js`를 임시 백업·대체하여 `LITZIO_BROWSER_URL=<대상 origin> pnpm browser:test ui-gallery --screenshots`로 실행한 뒤 원본을 복원한다. CI 자동 판정에는 포함하지 않는다.
+
 ## Host 제공 SDK 런타임 (#1271)
 
-`@litzio/plugin-sdk`는 npm 게시·tarball 배포하지 않는다. Host가 실행 시점에 제공하며 플러그인 단독 실행은 지원하지 않는다. SDK 버전은 Host에 묶인다. manifest의 `requiresSdk`가 Host `SDK_VERSION`을 허용하지 않으면 기존 SDK/protocol 불일치 거부 정책에 따라 validate·등록·활성화를 거부한다. 자식은 로드한 SDK 버전과 Host 버전도 비교하며 자동 호환이나 대체 SDK를 사용하지 않는다.
+`@litzio/plugin-sdk`는 npm 게시·tarball 배포하지 않는다. Host가 실행 시점에 제공하며 플러그인 단독 실행은 지원하지 않는다. SDK 버전은 Host에 묶인다. 자식은 실제 로드한 SDK_VERSION과 Host SDK_VERSION의 일치를 확인하며 대체 SDK를 사용하지 않는다. manifest 호환성은 아래의 지원 계약 판정으로 validate·등록·활성화에서 동일하게 검사한다.
+
+### SDK 버전과 호환 판정
+
+플러그인이 의존할 수 있는 공개 SDK API·manifest 기능을 추가하면 `SDK_VERSION`의 minor를 올리고 `packages/plugin-sdk/package.json`도 맞춘다. #1326은 `0.2.0`이다. 기존 기능의 변경·삭제 등 하위 호환이 깨지면 major를 올린다(다음 경계는 `1.0.0`). 그 Host에서 더 이상 구현하지 않는 계약 버전은 지원 목록에서 제거하며 지원하지 않는 계약을 자동 변환하거나 같은 기능이라고 추정하지 않는다.
+
+`requiresSdk`는 필요한 기능이 처음 제공된 계약 버전 이상의 범위를 선언한다. 권장 표기는 `>=최소기능버전 <다음major`다. 새 scaffold의 기본은 `>=0.2.0 <1.0.0`이며 일반 파일 결과를 쓰는 플러그인도 최소 `0.2.0`을 요구한다. 기존 기능만 쓰는 플러그인은 해당 기능의 최소 계약 버전을 유지할 수 있다(예: `>=0.1.0 <1.0.0`).
+
+Host는 현재 구현하는 실제 계약 버전 목록 중 하나라도 `requiresSdk` SemVer 범위를 만족하면 허용한다. `0.2.0` Host의 목록은 `0.1.0`, `0.2.0`이다. 따라서 이전 scaffold의 정확한 `0.1.0`, 기존 `^0.1.0` 선언도 수정 없이 계속 로드된다. 추가 릴리스에서는 구현을 유지하는 이전 계약을 목록에 남긴다. 아직 제공하지 않은 `0.3.0`이나 가상의 `0.1.1`을 범위 보간으로 지원한다고 간주하지 않는다. 일반 파일 결과 등 새 기능으로 전환하는 플러그인은 해당 작업에서 최소 요구를 올린다.
 
 개발 실행은 최초 활성화 때 공개 SDK entry를 메모리 JS 번들로 빌드해 Host 수명 동안 재사용한다. 개발·배포 모두 같은 entry를 코드 분할 없이 자기완결 JS 모듈 하나로 번들한다. 배포 빌드는 `plugin-sdk.mjs`로 CLI에 포함하고 Desktop의 `build/cli`에도 복사한다. Node 공식 `registerHooks`가 플러그인 코드 로드 전에 SDK root import를 이 런타임으로 연결한다. 저장소 밖·다른 드라이브도 file URL 또는 메모리 URL을 사용하므로 artifact 위치에 의존하지 않는다. artifact의 node_modules에 다른 SDK가 있어도 Host 제공본이 항상 우선한다. `@litzio/core` 등 다른 내부 패키지와 SDK subpath import는 거부하며 필요한 공개 API는 SDK root가 재노출한다. resolve 훅은 이름 검사 뒤 Node가 해석한 file URL을 OS 경로로 변환하고 절대 경로·realpath로 정규화한다. Windows에서는 대소문자를 통일하고 path.relative의 디렉터리 경계·다른 드라이브 판정을 사용한다. 상대 경로·file URL·symlink/junction 별칭으로 접근해도 개발 Host의 checkout 또는 배포 Host의 설치 번들 디렉터리 안이면 거부한다(Desktop은 resources 디렉터리). Host 제공 단일 SDK 런타임 파일 자체만 예외다. SDK는 Node 내장 모듈 외의 런타임 import나 공유 chunk가 없다. 부모 URL은 createRequire 등으로 호출자가 지정할 수 있으므로 내부 접근의 신뢰 근거로 사용하지 않는다. SDK URL을 부모로 지정한 createRequire.resolve/require도 같은 실제 경로 검사를 받는다. artifact 자체 실제 디렉터리 안의 모듈은 checkout 안에서 제작한 경우에도 허용한다. Node 내장 모듈과 Host 내부를 가리키지 않는 artifact 자체 node_modules도 허용한다. artifact 안의 symlink는 기존 등록 검사에서 계속 거부한다. 정적 validate는 import graph를 실행하지 않으므로 이 경계의 판정은 활성화와 실제 import 시점에 수행한다. 일반 제3자 의존성은 기존처럼 artifact에 번들할 수 있다. 플러그인은 ADR-0020의 신뢰 코드이며 이 차단은 실수로 내부 API에 의존하는 것을 막는 계약 강제이지 sandbox나 보안 경계가 아니다. fs로 파일을 직접 읽어 eval하는 의도적 우회는 범위 밖이다.
 
-scaffold는 SDK_VERSION과 PluginOperationError import 예시, context용 JSDoc, 외부 편집기의 starter 타입 힌트 `plugin-sdk.d.ts`와 `jsconfig.json`을 포함한다. 선언 파일은 예시용 공개 API 부분집합이며 런타임 사본이 아니다. SDK 자체는 설치·번들하지 않는다. 새 scaffold는 대상 Host의 정확한 SDK_VERSION을 requiresSdk에 기록한다.
+scaffold는 SDK_VERSION과 PluginOperationError import 예시, context용 JSDoc, 외부 편집기의 starter 타입 힌트 `plugin-sdk.d.ts`와 `jsconfig.json`을 포함한다. 선언 파일은 예시용 공개 API 부분집합이며 런타임 사본이 아니다. SDK 자체는 설치·번들하지 않는다. 새 scaffold의 requiresSdk 기본값은 위 SDK 버전 규칙을 따른다.
 
 `pnpm editor`의 Vite SSR도 같은 개발 SDK 공급 경로를 사용한다. checkout tooling의 동적 import는 Node 런타임에서 실행하며 Vite 분석 대상에서 명시적으로 제외한다. `vite-plugins.test.ts`는 실제 Vite 설정의 HTTP Host에서 저장소 밖 artifact의 SDK import·활성화·상태 반환과 분석 경고 부재를 검사한다. `pnpm browser:test vite-plugins`는 Vite에서 없는 경로·잘못된 artifact의 오류 표시와 정상 OneDrive 등록 후 비활성 목록 표시·활성화를 확인한다. 이 검사는 OneDrive artifact를 먼저 빌드하며 SDK 외부 import 검사는 별도의 임시 artifact로 수행한다.
 

@@ -103,6 +103,40 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   expect(starts).toBe(1);
   await page.unroute("**/api/plugins", monitor);
   await pane.getByLabel("Job", { exact: true }).selectOption("fixture.jobs/text");
+  await pane.getByLabel("Job", { exact: true }).selectOption("fixture.jobs/file");
+  await pane.getByLabel("Input file").selectOption({ label: "input.txt" });
+  await expect(pane.getByLabel("Result path in Root")).toHaveValue("input.bin");
+  await pane.getByRole("button", { name: "Start job", exact: true }).click();
+  await expect(pane.getByRole("button", { name: "Copy result path", exact: true })).toBeVisible();
+  await expect(pane.getByRole("button", { name: "Open result document" })).toHaveCount(0);
+  const fileResult = pluginFixture.cli(["plugins", "result", latestRequestId]);
+  expect(fileResult.job.result.kind).toBe("file");
+  await expect(pane.getByText(fileResult.job.result.path, { exact: true })).toBeVisible();
+  const cliFile = pluginFixture.cli(["plugins", "start", plugin.id, "--input", pluginFixture.fileJobInput]);
+  await expect.poll(() => pluginFixture.cli(["plugins", "status", cliFile.job.requestId]).job.state).toBe("completed");
+  expect(pluginFixture.cli(["plugins", "result", cliFile.job.requestId]).job.result.path.replaceAll("\\", "/")).toBe(pluginFixture.folder.replaceAll("\\", "/") + "/nested/input.bin");
+  if (screenshots) {
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.screenshot({ path: `tmp/plugin-jobs/file-${width}.png` });
+    }
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByTestId("theme").selectOption("dark");
+    await page.getByTestId("ui-language").selectOption("ko");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("settings-dialog")).not.toBeVisible();
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.screenshot({ path: `tmp/plugin-jobs/file-ko-dark-${width}.png` });
+    }
+    await page.getByRole("button", { name: "설정", exact: true }).click();
+    await page.getByTestId("theme").selectOption("light");
+    await page.getByTestId("ui-language").selectOption("en");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("settings-dialog")).not.toBeVisible();
+  }
+  await pane.getByLabel("Job", { exact: true }).selectOption("fixture.jobs/text");
+  await pane.getByLabel("Result path in Root").fill("failure-result.md");
   for (const [input, state] of [["fail.txt", "Failed"], ["uncertain.txt", "Outcome uncertain"]]) {
     await pane.getByLabel("Input file").selectOption({ label: input });
     await pane.getByRole("button", { name: "Start job", exact: true }).click();
