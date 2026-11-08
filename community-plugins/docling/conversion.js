@@ -7,7 +7,7 @@ import { createDoclingArchiveFromResult } from "./archive.js";
 export { profile as PDF_PROFILE };
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 
-/** Prepare a result Buffer only. No K1 file result or final write is bound before #1326. */
+/** Prepare a result Buffer only. No K1 file result or final write is bound before PR #1327. */
 export async function convertPdfToArchive({ file, serverUrl, apiKey, signal: callerSignal, timeoutSeconds = 1800, onPhase = () => {} }) {
   const started = Date.now(), startedAt = new Date(started).toISOString();
   if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) throw new Error("Invalid conversion deadline");

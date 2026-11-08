@@ -24,7 +24,7 @@
 
 ## 연결 확인 범위
 
-`GET <serverUrl>/health`와 `/ready`가 모두 JSON `{"status":"ok"}`이면 연결됨입니다. HTTP 오류·비정상 JSON·연결 실패·5초 시간 초과는 오류 행을 반환하며 원문 응답·예외는 노출하지 않습니다. redirect는 따르지 않습니다. 이 health/ready 확인은 요청한 모든 모델의 준비·변환 성공·인증 권한을 보증하지 않습니다. PDF 변환의 최종 저장 연결은 #1326을 기다립니다. 아래 작업 2는 보관된 `.docling`에서 문서를 만듭니다.
+`GET <serverUrl>/health`와 `/ready`가 모두 JSON `{"status":"ok"}`이면 연결됨입니다. HTTP 오류·비정상 JSON·연결 실패·5초 시간 초과는 오류 행을 반환하며 원문 응답·예외는 노출하지 않습니다. redirect는 따르지 않습니다. 이 health/ready 확인은 요청한 모든 모델의 준비·변환 성공·인증 권한을 보증하지 않습니다. PDF 변환의 최종 저장 연결은 #1327을 기다립니다. 아래 작업 2는 보관된 `.docling`에서 문서를 만듭니다.
 
 기존 `pnpm browser:test http-plugins`는 이 artifact를 validate/등록/설정/신뢰/활성화해 가짜 HTTP health의 정상 → 503 오류 → 복구를 CLI와 화면에서 대조합니다. 새 suite·workspace·subprocess를 추가하지 않고 기존 production Host/CLI/browser를 재사용합니다. 외부 endpoint만 시나리오 프로세스의 임시 HTTP 서버이며 finally에서 닫습니다. `--screenshots`는 별도 수동 검토용 1440px 및 한국어 dark 640px 캡처를 `tmp/docling-1321/`에 남깁니다. 실제 Docker 결과는 PR에 별도 기록합니다.
 
@@ -32,21 +32,17 @@ CI 경로 정책은 이 새 경로를 미분류(full)로 취급합니다. 기존
 
 수동 화면 근거: [1440px Light](../../docs/design/assets/docling-1321/connection-1440.png), [640px 한국어 Dark](../../docs/design/assets/docling-1321/connection-640.png). 기존 ViewWorkspace·Table·Button을 재사용하며 새 공통 UI 예외는 없습니다. 좁은 화면의 표는 공통 renderer의 가로 스크롤을 사용합니다. 로컬 경로와 계정 표시는 촬영 시 마스킹했습니다.
 
-## 버전 구분
+## 버전
 
-- **플러그인 0.0.1:** 기능 묶음입니다. manifest/package.json과 `versions.js`를 일치시킵니다. [CHANGELOG](CHANGELOG.md)와 미확정 [ROADMAP](ROADMAP.md)을 참고하세요.
-- **`.docling` 형식 2:** ZIP 구조·출처 기록의 버전이며 manifest의 `version`에 둡니다. 앞선 Draft의 단순 형식 1에서 출처·검증 기록이 바뀌어 2로 올렸습니다. 과거 파일 migration은 구현하지 않습니다.
-- **변환 정책 3:** 보관 `policyVersion:2`를 계승합니다. 이번 최소 SDK 변환은 그림·캡션 번호·표/목록/미주 표현과 손실 규칙이 달라 3으로 올립니다. 같은 `.docling`의 `.md` 의미가 바뀔 때만 올리며 플러그인/ZIP 버전과 독립입니다.
+플러그인 버전은 **0.0.1**입니다. [CHANGELOG](CHANGELOG.md)와 미확정 [ROADMAP](ROADMAP.md)을 참고하세요. `.docling` manifest에는 생성한 플러그인 버전(`converter.pluginVersion`)과 ZIP 형식 번호(`version: 1`)를 기록합니다. 출처·서버·프로필 기록은 원본 재현을 위해 유지하며 문서 변환 정책 버전은 두지 않습니다. 결과 `.md` 본문에는 버전이나 입력 hash 문단을 추가하지 않습니다.
 
-결과 `.md` 끝의 표준 문단에 `Docling conversion: pluginVersion=0.0.1; policyVersion=3; sourceSha256=<입력 .docling SHA-256>`를 넣습니다. 현재 `authorDocument`에는 사용자 정의 metadata 필드나 동반 sidecar 저장이 없으므로 SDK가 지원하는 plain paragraph로 남깁니다. 사람과 CLI 모두 결과에서 확인할 수 있으며 원본 `.docling`을 수정하지 않습니다. 기록 문단도 SDK의 블록/바이트 한도를 소비합니다. 숨겨진 frontmatter나 내부 Core import로 우회하지 않습니다.
-
-#1326 병합 전에는 기존 `requiresSdk`를 유지하고, 병합 시 SDK 0.2.0의 권장 표기를 따릅니다.
+#1327 병합 전에는 기존 `requiresSdk`를 유지하고, 병합 시 SDK 권장 표기를 따릅니다.
 
 ## 두 작업으로 분리 (#1322 범위 정정)
 
-현재 PR은 Draft이며 작업 1의 최종 저장 연결은 #1326을 기다립니다. 기존 PDF → Litzio 문서 단일 작업은 제거했습니다.
+현재 PR은 Draft이며 작업 1의 최종 저장 연결은 #1327을 기다립니다. 기존 PDF → Litzio 문서 단일 작업은 제거했습니다.
 
-1. **PDF 변환(연결 대기):** `a.pdf` → `a.docling`. 원본 산출물은 수정하지 않고 보관합니다. `convertPdfToArchive`가 고정 프로필로 서버를 확인·변환하고 `createDoclingArchiveFromResult`가 원본 HTTP 응답 바이트와 PDF 바이트를 받아 `.docling` 바이트를 만들며 파일 쓰기는 하지 않습니다. Host 일반 파일 K1 결과는 #1326 병합 뒤 연결합니다.
+1. **PDF 변환(연결 대기):** `a.pdf` → `a.docling`. 원본 산출물은 수정하지 않고 보관합니다. `convertPdfToArchive`가 고정 프로필로 서버를 확인·변환하고 `createDoclingArchiveFromResult`가 원본 HTTP 응답 바이트와 PDF 바이트를 받아 `.docling` 바이트를 만들며 파일 쓰기는 하지 않습니다. Host 일반 파일 K1 결과는 #1327 병합 뒤 연결합니다.
 2. **Litzio 문서 만들기(구현):** `.docling` 한 건의 `document.json`으로 새 Litzio 문서를 만듭니다. Docling API·health·version을 호출하지 않으며 서버가 없어도 같은 원본에서 다른 결과 이름으로 다시 실행할 수 있습니다. 원본 `.docling`은 변경하지 않습니다.
 
 공용 작업 화면(명령 센터 → Plugin jobs)에서 `Docling · Litzio 문서 만들기`, 열린 Host Root, `.docling` 한 건, Root 상대 결과 경로를 선택합니다. 기존 native-document K1의 새 파일 생성·충돌 거부·결과 열기·중단 계약을 그대로 사용합니다. 기본 결과 이름은 현재 공용 화면의 `result.md`입니다. 플러그인 조회 화면에서는 시작하지 않습니다.
@@ -60,7 +56,7 @@ CLI 입력 파일(artifact 밖): `{"requestId":"<새 UUID>","job":"create-docume
 
 작업마다 새 requestId를 쓰며 불확실 결과는 같은 ID로 조회합니다. start를 자동 재전송하지 않습니다. 여러 파일은 각각 별도 요청이며 큐·재시작 복원·자동 갱신·대조/검수·내부 이미지 대조뷰는 없습니다. 작업 2의 중단은 로컬 읽기/문서 생성을 중단하며 서버 작업과 무관합니다.
 
-### `.docling` 형식 2 봉투
+### `.docling` 형식 1 봉투
 
 플러그인 소유 ZIP32 형식이며 모든 항목은 무압축(STORE)입니다. `manifest.json`, `document.json`, `pages/<양의 페이지 번호>.png`만 포함합니다. `document.json`은 DoclingDocument 전체 필드를 그대로 JSON으로 담고, `pages`에 선언된 모든 페이지의 PNG를 별도 항목으로 보관합니다. inbody 응답의 image data URI도 원본 JSON 안에 유지하므로 이미지 바이트는 중복될 수 있습니다. 작업 2는 이를 바꾸거나 이미지를 다시 만들지 않습니다.
 
@@ -68,7 +64,7 @@ CLI 입력 파일(artifact 밖): `{"requestId":"<새 UUID>","job":"create-docume
 
 | 필드 | 기록 |
 | --- | --- |
-| format/version/status/createdAt | docling / 2 / success / 완료 UTC 시각 |
+| format/version/status/createdAt | docling / 1 / success / 완료 UTC 시각 |
 | converter | 이 원본 파일을 만든 플러그인 버전 |
 | source | 원본 파일 이름, SHA-256, 바이트 수 |
 | server | `/version`의 버전들, 실제 OpenAPI SHA-256, 프로필의 기준 hash와 일치 여부(차이만으로 거부하지 않음) |
@@ -81,7 +77,7 @@ CLI 입력 파일(artifact 밖): `{"requestId":"<새 UUID>","job":"create-docume
 
 페이지는 `pages/<n>.png`, 그 밖의 picture/table/text/nested 이미지는 `document.json#<JSON pointer>`의 embedded URI에 원본 그대로 남고 해당 경로를 manifest에 기록합니다. 이미지의 크기 변경·재인코딩은 하지 않습니다. MIME/magic/base64와 별도 페이지 바이트 일치를 확인합니다. 원격/file 이미지 URI는 가져오지 않고 거부합니다. JSON의 모든 ImageRef URI·좌표·크기·DPI를 그대로 유지합니다. 숫자는 Node JSON reviver의 source와 `JSON.rawJSON`으로 원래 토큰을 보존하므로 `origin.binary_hash` 같은 uint64가 반올림되지 않습니다. 저장 JSON은 공백 형태만 달라질 수 있습니다.
 
-`createDoclingArchive({manifest,documentJson,pages})`는 Buffer만 반환하며 `readDoclingArchive`는 같은 봉투를 읽습니다. Node 표준 Buffer/crypto/zlib만 쓰며 npm 의존성·SDK 내부 import·직접 결과 파일 쓰기·디스크 압축 해제는 없습니다. Node에 ZIP API가 없어 필요한 STORE ZIP32 헤더/목록만 플러그인에 둡니다. 일반 ZIP/DEFLATE/ZIP64/분할 ZIP/암호화/알 수 없는 항목은 지원하지 않습니다. 경로·중복 항목·CRC·중앙/로컬 헤더·범위·필수 페이지·manifest의 문서/이미지 hash를 확인합니다. 원본 PDF가 없는 작업 2에서 원본의 진위를 검증했다는 뜻은 아닙니다. Host 결과 크기·저장 정책은 #1326의 최종 계약을 따를 예정입니다.
+`createDoclingArchive({manifest,documentJson,pages})`는 Buffer만 반환하며 `readDoclingArchive`는 같은 봉투를 읽습니다. Node 표준 Buffer/crypto/zlib만 쓰며 npm 의존성·SDK 내부 import·직접 결과 파일 쓰기·디스크 압축 해제는 없습니다. Node에 ZIP API가 없어 필요한 STORE ZIP32 헤더/목록만 플러그인에 둡니다. 일반 ZIP/DEFLATE/ZIP64/분할 ZIP/암호화/알 수 없는 항목은 지원하지 않습니다. 경로·중복 항목·CRC·중앙/로컬 헤더·범위·필수 페이지·manifest의 문서/이미지 hash를 확인합니다. 원본 PDF가 없는 작업 2에서 원본의 진위를 검증했다는 뜻은 아닙니다. Host 결과 크기·저장 정책은 #1327의 최종 계약을 따를 예정입니다.
 
 ### 작업 1 고정 프로필과 검증
 
@@ -100,13 +96,24 @@ CLI 입력 파일(artifact 밖): `{"requestId":"<새 UUID>","job":"create-docume
 
 `convertPdfToArchive`는 `/version`과 OpenAPI info.version이 1.32.0인지, `/ready`가 정상인지 확인합니다. 비동기 제출은 정확히 한 번만 하며 poll의 ID/type을 대조하고 완전한 success·빈 errors·DoclingDocument 1.10.0만 받습니다. 전체 마감 시간은 기본 1800초이며 읽기·preflight·upload·poll·download·보관 준비에 적용합니다. 결과 바이트를 반환하기 전에 PDF를 다시 읽어 SHA-256을 대조합니다. 실패/중단/timeout은 결과를 반환하지 않으며 서버 작업을 자동 재제출·취소·재개하지 않습니다. 제출 후 helper 오류에는 task ID를 붙입니다(접수 응답을 못 받으면 ID 미확정/no-resubmit 안내).
 
-**실제 고정 프로필 시험:** v1.32.0 OpenAPI에 모든 필드가 있고 전체 요청은 HTTP 200/pending으로 접수됐습니다. `/ready`도 정상이었지만 최종 task는 failure였습니다. 컨테이너 로그는 **docling-project/CodeFormulaV2 모델이 artifacts cache에 없음**을 명시했습니다. RapidOCR/layout/DocumentFigureClassifier 초기화는 관찰됐으나 고정 프로필 전체의 성공은 확인하지 못했습니다. 값을 끄거나 다른 모델로 바꾸지 않았으며 모델 다운로드·설치는 하지 않았습니다. 서버 운영자가 승인 프로필의 모델을 준비한 뒤 동일 프로필로 실제 성공을 재확인해야 합니다. readiness는 요청 모델 준비의 증거가 아닙니다.
+**실제 고정 프로필 시험:** 상시 보관 컨테이너 `docling-serve`에 CodeFormulaV2를 한 번 설치한 뒤 고정 프로필 전체로 합성 PDF 변환과 `.docling` 생성을 확인했습니다. OCR·표·제목 계층·code/formula enrichment·picture classification을 켜고 pictures/pages와 scale 2를 그대로 사용했습니다. 결과는 완전한 success, errors 없음, DoclingDocument 1.10.0이며 페이지 1장·그림 1개였습니다. 페이지 PNG는 144dpi·1190×1684, 그림/페이지 원본 바이트와 manifest hash·ZIP CRC를 대조했습니다. GPU 실행이며 변환/보관 helper 약 5.2초였습니다. 원본 충실도나 복잡한 PDF의 품질 보증은 아닙니다. 최초 미설치 이미지에서는 CodeFormulaV2 부재로 실패했지만 프로필 값을 바꾸지 않고 모델 설치로 해결했습니다.
 
-**공개 오류 전달 제한:** helper의 Error에는 taskId가 있지만 현재 SDK K1 실패 결과에는 taskId 필드가 없고 Host가 failed/uncertain의 phase와 error를 고정 안내로 바꿉니다(`packages/plugin-sdk/src/index.ts:114`, `apps/editor/server/plugins/jobs.ts:36`). 따라서 최종 공용 K1 화면/CLI의 오류에도 task ID를 보존하려면 허용된 비밀 아닌 작업 참조 필드의 SDK/Host 보강이 필요합니다. 이 제한을 원문 오류·별도 화면·내부 import로 우회하지 않습니다. 현재 helper는 최종 K1 파일 작업에 바인딩하지 않았습니다.
+### 로컬 컨테이너 재사용
+
+이 PC에는 `ghcr.io/docling-project/docling-serve-cu128:v1.32.0`의 컨테이너 **`docling-serve` 하나**를 보관합니다. GPU를 사용하고 필요한 CodeFormulaV2 모델은 컨테이너 안에 설치했습니다. 별도 볼륨이나 새 이미지는 만들지 않았습니다. 모델이 포함된 컨테이너를 삭제하지 않고 시작/중지만 합니다.
+
+```sh
+docker start docling-serve
+# 준비 확인: http://127.0.0.1:5001/ready
+# 플러그인 serverUrl: http://127.0.0.1:5001
+docker stop docling-serve
+```
+
+`/ready` 정상 뒤 사용합니다. 초기 생성 때의 모델 설치 명령은 `docker exec docling-serve docling-tools models download-hf-repo docling-project/CodeFormulaV2`였으며, 재시작할 때마다 설치하지 않습니다. 다른 PC에서 생성하는 경우 5001 포트 사용 여부와 GPU를 먼저 확인하고 같은 이미지/프로필의 모델을 준비해야 합니다. 다운로드·설치 실패 시 프로필을 낮춰 우회하지 않습니다.
 
 ### 실제 v1.32.0 페이지 이미지 API 확인
 
-아래는 고정 프로필 확정 전 페이지 전송 형식을 확인한 탐색 기록이며 승인 프로필의 성공 증거가 아닙니다. 전용 컨테이너 `ghcr.io/docling-project/docling-serve-cu128:v1.32.0`의 `/version`과 `/openapi.json`, 작은 합성 1페이지 PDF의 실제 비동기 변환으로 확인했습니다. CPU 실행 결과이며 큰 PDF·GPU·변환 품질의 보증이 아닙니다.
+아래는 고정 프로필 확정 전 페이지 전송 형식을 확인한 탐색 기록이며 승인 프로필의 성공 증거가 아닙니다. 이전 임시 컨테이너의 `ghcr.io/docling-project/docling-serve-cu128:v1.32.0`에서 `/version`과 `/openapi.json`, 작은 합성 1페이지 PDF의 실제 비동기 변환으로 확인했습니다. CPU 실행 결과이며 큰 PDF·GPU·변환 품질의 보증이 아닙니다.
 
 - 제출: multipart `POST /v1/convert/file/async`, 파일 필드 `files`, `to_formats=json`.
 - `include_page_images`: 기본 false. **true여야 전체 페이지 이미지가 포함**됩니다. `include_images`는 그림 요소 옵션이며 별개입니다(실험에서는 false).
@@ -124,7 +131,7 @@ CLI 입력 파일(artifact 밖): `{"requestId":"<새 UUID>","job":"create-docume
 
 기존 `http-plugins`에서 가짜 서버에 **고정 프로필 전체**를 제출하고 수신한 multipart 각 값을 대조합니다. 완전한 success의 `.docling`을 작업 2 fixture로 쓰며 큰 정수·원본/결과 hash·프로필·페이지 원본 바이트 보존을 확인합니다. task failure의 ID와 단일 제출, 변환 중 PDF 변경 거부, 전체 deadline을 각각 대표 사례로 보호합니다. 전수 조합은 아니며 새 suite·workspace·subprocess는 없습니다. 추가 가짜 서버 사례는 기존 K1 fixture로 잡지 못하는 외부 서비스 계약/원본 보존/전체 마감 결함을 검증합니다.
 
-이후 작업 2는 중첩 참조 순서·literal text·표 셀 텍스트와 SDK → Host 저장 → CLI/공용 화면 결과 열기, 같은 원본 재사용, 손상 CRC 거부를 확인합니다. 이 구간의 비-health 서버 요청 수가 0인지 확인합니다. 짧은 로컬 작업을 인위적으로 늦추지 않으며 기존 K1 중단 fixture는 유지합니다. 실제 API의 축소 옵션 결과는 앞선 단계에서 Python 표준 zipfile로 항목과 CRC를 대조했으며, **현재 고정 프로필은 모델 부족으로 실제 성공 검증 불가**입니다. 최종 로컬 시나리오는 약 55초, 함께 실행되는 HTTP recovery 포함 약 1.3분이었습니다. 작업 1 저장 수락도 아직 아닙니다.
+이후 작업 2는 중첩 참조 순서·literal text·표 셀 텍스트와 SDK → Host 저장 → CLI/공용 화면 결과 열기, 같은 원본 재사용, 손상 CRC 거부를 확인합니다. 이 구간의 비-health 서버 요청 수가 0인지 확인합니다. 짧은 로컬 작업을 인위적으로 늦추지 않으며 기존 K1 중단 fixture는 유지합니다. 실제 API의 축소 옵션 결과는 앞선 단계에서 Python 표준 zipfile로 항목과 CRC를 대조했으며, 현재 고정 프로필은 모델 설치 후 별도 실제 서버 시험에서 성공했습니다. 최종 로컬 시나리오는 약 55초, 함께 실행되는 HTTP recovery 포함 약 1.3분이었습니다. 작업 1 저장 수락도 아직 아닙니다.
 
 ### 최소 문서 변환 규칙
 
@@ -157,6 +164,6 @@ CLI 입력 파일(artifact 밖): `{"requestId":"<새 UUID>","job":"create-docume
 | sidecar block path/kind/role, group의 여러 target·여러 source의 한 target | 블록 path/hash는 반환됨. kind/role·공유 관계는 플러그인에서 연결 가능(상한 안). 현재 sidecar 미구현 | packages/core/src/document-authoring.ts:71; packages/core/src/views-v2.ts:281 |
 | sidecar 재귀 list item index·endnote definition target | **동일 계약 불가**. authoring 결과는 block path이고 중첩 list/endnote 작성 입력도 없음 | packages/core/src/document-authoring.ts:15, :30, :72 |
 | sidecar 문서 hash/target 검사·stale map 거부 | hash/path 자료는 가능. 기존 bounded review mapping은 별도 계약이며 legacy map format/notes/charspan을 그대로 받는 API는 아님 | packages/core/src/views-v2.ts:264, :281 |
-| `.md`와 `.docling-map.json` 동시 공식 저장 | **현재 불가**. native K1은 document.source 하나만 저장. #1326도 일반 파일 하나의 범위이며 compound 결과/sidecar 저장 보장은 아님 | packages/plugin-sdk/src/index.ts:117; apps/editor/server/plugins/jobs.ts:25 |
+| `.md`와 `.docling-map.json` 동시 공식 저장 | **현재 불가**. native K1은 document.source 하나만 저장. #1327도 일반 파일 하나의 범위이며 compound 결과/sidecar 저장 보장은 아님 | packages/plugin-sdk/src/index.ts:117; apps/editor/server/plugins/jobs.ts:25 |
 
-필요한 최소 보강 후보는 대용량 authoring 범위, inline/중첩 목록/endnote 입력, Figure/Table 번호·표 캡션 속성, 공식 image asset/sidecar 동반 저장, 허용된 task 참조 오류 필드입니다. 이번 PR에서 새 SDK나 우회 write path는 만들지 않습니다.
+필요한 최소 보강 후보는 대용량 authoring 범위, inline/중첩 목록/endnote 입력, Figure/Table 번호·표 캡션 속성, 공식 image asset/sidecar 동반 저장입니다. 이번 PR에서 새 SDK나 우회 write path는 만들지 않습니다.

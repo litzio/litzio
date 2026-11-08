@@ -1,11 +1,9 @@
-import { createHash } from "node:crypto";
-import { PLUGIN_VERSION, CONVERSION_POLICY_VERSION } from "./versions.js";
 import { readFile } from "node:fs/promises";
 import { readDoclingArchive } from "./archive.js";
 import { authorDocument } from "@litzio/plugin-sdk";
 
 // Interpretation belongs to this plugin; canonical document semantics belong to the SDK.
-async function convertDocument(doc, sourceSha256) {
+async function convertDocument(doc) {
   if (doc?.schema_name !== "DoclingDocument" || !Array.isArray(doc.body?.children)) throw new Error();
   const blocks = [], visited = new Set();
   function visit(ref) {
@@ -27,7 +25,6 @@ async function convertDocument(doc, sourceSha256) {
     for (const child of item.children ?? []) visit(child);
   }
   for (const ref of doc.body.children) visit(ref);
-  blocks.push({ kind: "paragraph", text: `Docling conversion: pluginVersion=${PLUGIN_VERSION}; policyVersion=${CONVERSION_POLICY_VERSION}; sourceSha256=${sourceSha256}` });
   return authorDocument({ inputs: [{ key: "pdf", blocks }] });
 }
 
@@ -80,7 +77,7 @@ export function activate(context) {
     signal.throwIfAborted();
     const archive = readDoclingArchive(bytes);
     control.job.phase = "문서 생성 중";
-    const authored = await convertDocument(archive.document, createHash("sha256").update(bytes).digest("hex"));
+    const authored = await convertDocument(archive.document);
     signal.throwIfAborted();
     control.job = { state: "completed", phase: "완료", document: { source: authored.source } };
   }

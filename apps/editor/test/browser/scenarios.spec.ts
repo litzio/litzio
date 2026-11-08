@@ -174,7 +174,7 @@ for (const name of scenarios) {
   test(name, async ({ page }) => {
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`), "utf8");
-    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; pluginFixture: { directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; docling?: { directory: string; input: string; settings: string; setFailure(value: boolean): void; setDocumentInput(invalid: boolean): void; conversionRequests(): number; archiveSha256: string; jobInput: string; cli(args: string[]): Promise<any> }; corruptSecret(): void; realSnapshot?: () => any; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
+    const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; pluginFixture: { directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; docling?: { directory: string; input: string; settings: string; setFailure(value: boolean): void; setDocumentInput(invalid: boolean): void; conversionRequests(): number; jobInput: string; cli(args: string[]): Promise<any> }; corruptSecret(): void; realSnapshot?: () => any; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
     const bibliographyPath = path.join(REPOSITORY_ROOT, "tmp", name === "http-host" ? "http-host-a" : "bibliography", "refs.bib");
     const initialBibliography = ["bibliography", "http-host"].includes(name) ? readFileSync(bibliographyPath, "utf8") : "";
     const bibliographyFixture = {
@@ -228,7 +228,7 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
     }
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFYQAAAAASUVORK5CYII=", "base64");
     const syntheticDocument = {
-      schema_name: "DoclingDocument", version: "1.10.0", origin: { binary_hash: "UNSAFE_INTEGER" }, body: { children: [{ $ref: "#/groups/0" }] },
+      schema_name: "DoclingDocument", version: "1.10.0", origin: { binary_hash: "UNSAFE_INTEGER", mimetype: "application/pdf", filename: "source.pdf", uri: null }, body: { children: [{ $ref: "#/groups/0" }] },
       groups: [{ children: [{ $ref: "#/texts/1" }, { $ref: "#/texts/0" }, { $ref: "#/tables/0" }] }],
       texts: [{ label: "text", text: "PDF body *literal*." }, { label: "section_header", level: 2, text: "Converted PDF" }],
       tables: [{ data: { table_cells: [{ text: "Cell one" }, { text: "Cell two" }] } }],
@@ -270,7 +270,6 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
         writeFileSync(this.jobInput, JSON.stringify({ job: "create-document", root: pluginFolder, file: invalid ? "invalid.docling" : "sample.docling", output: "docling-repeated.md" }));
       },
       conversionRequests() { return conversionRequests; },
-      archiveSha256: "",
       jobInput: path.join(REPOSITORY_ROOT, "tmp/docling-job.json"),
       async cli(args: string[]) {
         if (args[0] === "plugins" && args[1] === "start") {
@@ -287,7 +286,6 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
       const source = path.join(pluginFolder, "source.pdf"), sourceBytes = Buffer.from("%PDF-1.4 synthetic conversion fixture");
       writeFileSync(source, sourceBytes);
       const archive = await convertPdfToArchive({ file: source, serverUrl });
-      docling.archiveSha256 = createHash("sha256").update(archive).digest("hex");
       const decoded = readDoclingArchive(archive);
       for (const [key, value] of Object.entries(PDF_PROFILE.request)) {
         expect(receivedFields[key]).toEqual(Array.isArray(value) ? value.map(String) : [typeof value === "object" ? JSON.stringify(value) : String(value)]);
@@ -298,7 +296,7 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
       expect(decoded.manifest.source.sha256).toBe(createHash("sha256").update(sourceBytes).digest("hex"));
       expect(decoded.manifest.result.sha256).toBe(createHash("sha256").update(rawResult).digest("hex"));
       expect(decoded.manifest.profile).toEqual(PDF_PROFILE);
-      expect(decoded.manifest.version).toBe(2);
+      expect(decoded.manifest.version).toBe(1);
       expect(decoded.manifest.converter.pluginVersion).toBe("0.0.1");
       expect(decoded.manifest.images[0].sha256).toBe(createHash("sha256").update(png).digest("hex"));
       conversionState = "failure";

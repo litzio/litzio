@@ -264,7 +264,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await expect(editor).toContainText("Converted PDF");
     await expect(editor).toContainText("PDF body *literal*.");
     await expect(editor).toContainText("Cell one | Cell two");
-    await expect(editor).toContainText(`pluginVersion=0.0.1; policyVersion=3; sourceSha256=${docling.archiveSha256}`);
+    await expect(editor).not.toContainText("Docling conversion:");
     await page.getByRole("tab", { name: /Plugin jobs/ }).click();
     await pane.getByLabel("Job", { exact: true }).selectOption("community.docling/create-document");
     await pane.getByLabel("Input file").selectOption("sample.docling");

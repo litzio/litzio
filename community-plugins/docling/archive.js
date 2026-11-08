@@ -22,7 +22,7 @@ function imagesOf(document) {
   const images = [];
   function visit(value, pointer) {
     if (!value || typeof value !== "object") return;
-    if (Object.hasOwn(value, "uri") && Object.hasOwn(value, "mimetype")) {
+    if (Object.hasOwn(value, "uri") && Object.hasOwn(value, "mimetype") && Object.hasOwn(value, "dpi") && Object.hasOwn(value, "size")) {
       const bytes = imageBytes(value), page = /^\/pages\/([1-9]\d*)\/image$/.exec(pointer);
       if (page && value.mimetype !== "image/png") throw new Error("Expected PNG page");
       images.push({ pointer, path: page ? `pages/${page[1]}.png` : `document.json#${pointer}`, sha256: sha256(bytes), bytes: bytes.length, mimetype: value.mimetype, data: bytes });
