@@ -216,9 +216,17 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     const invoke = () => docling.cli(["operation", "invoke", id + ".connection", "--input", docling.input]);
     const connected = await invoke();
     expect(connected.result[0].status).toBe("연결됨");
+    // Remove remembered folders: a host-scoped screen must work with none open.
+    await page.evaluate(() => { localStorage.removeItem(JSON.stringify(["local", "litzio.openFolders"])); });
     await page.reload(); await openSettings();
+    await expect(page.locator(".sidebar-folder-name")).toHaveCount(0);
     await page.getByRole("button", { name: "Open view · Docling", exact: true }).click();
     const refresh = page.getByRole("button", { name: "Refresh data", exact: true });
+    const workspace = page.getByTestId("view-workspace").filter({ visible: true });
+    await expect(workspace.getByRole("combobox")).toHaveCount(0);
+    await expect(workspace.getByRole("region", { name: "Default views", exact: true })).toHaveCount(0);
+    await expect(workspace.getByRole("button", { name: "Refresh favorites", exact: true })).not.toBeVisible();
+    await expect(workspace.getByRole("button", { name: "Add to favorites", exact: true })).toBeVisible();
     await refresh.click();
     await expect(page.getByRole("cell", { name: "연결됨", exact: true })).toBeVisible();
     await expect(page.getByRole("cell", { name: connected.result[0].detail, exact: true })).toBeVisible();
@@ -234,7 +242,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
           await expect(page.getByRole("cell", { name: "연결됨", exact: true })).toBeVisible();
         }
         await page.setViewportSize({ width, height: 900 });
-        await page.screenshot({ path: `tmp/docling-1321/connection-${width}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".view-workspace-favorites select"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
+        await page.screenshot({ path: `docs/design/assets/plugin-screen-1329/after-${width}${width === 640 ? "-ko-dark" : ""}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".view-workspace-favorites select"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
       }
       await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
       await page.reload(); await openSettings();
@@ -249,6 +257,11 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     docling.setFailure(false);
     await refresh.click();
     await expect(page.getByRole("cell", { name: "연결됨", exact: true })).toBeVisible();
+    // Connection reads need no folder; file jobs explicitly select an opened Root.
+    await openFolderPicker(page);
+    await page.getByTestId("folder-path").fill(pluginFixture.folder);
+    await page.getByTestId("folder-open").click();
+    await expect(page.getByTestId("folder-path")).not.toBeVisible();
     const pdfJob = await docling.cli(["plugins", "start", id, "--input", docling.fileJobInput]);
     expect(pdfJob.job.state).toBe("running");
     await expect.poll(async () => (await docling.cli(["plugins", "status", pdfJob.job.requestId])).job.state).toBe("completed");

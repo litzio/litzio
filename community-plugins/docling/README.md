@@ -20,7 +20,7 @@
 
 인증 키가 필요한 서버만 Plugins 설정 UI의 선택적 `api-key` secret에 입력합니다. 키를 일반 설정이나 JSON·명령 인자에 넣지 않습니다. 요청에는 `X-Api-Key`로 전달합니다. 설정·secret은 활성 상태에서도 저장·reload할 수 있습니다. 해당 플러그인의 K1 작업이 running/uncertain이면 변경을 거부하고 기존 값을 보존합니다. artifact 변경은 validate → 새 digest 신뢰 → reload → 실제 조회가 필요합니다.
 
-활성화 뒤 Plugins 설정의 `Open view · Docling`이나 기존 플러그인 화면 진입점으로 조회 화면을 엽니다. 공통 뷰의 열린 폴더를 선택하고 수동 새로고침합니다(현재 공통 뷰의 폴더 선택 요구를 따르며 파일을 읽거나 쓰지 않습니다). 자동 polling은 없습니다. CLI와 화면은 같은 `community.docling.connection` 읽기 작업의 한 행을 사용합니다.
+활성화 뒤 Plugins 설정의 `Open view · Docling`이나 기존 플러그인 화면 진입점으로 조회 화면을 엽니다. 연결 조회는 Host 범위이며 열린 폴더 없이 수동 새로고침합니다. 파일을 읽거나 쓰지 않습니다. PDF/문서 K1 작업에서는 별도로 열린 Host Root를 선택합니다. 자동 polling은 없습니다. CLI와 화면은 같은 `community.docling.connection` 읽기 작업의 한 행을 사용합니다.
 
 ## 연결 확인 범위
 

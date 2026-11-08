@@ -197,11 +197,13 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     assert.deepEqual(opened.view.sources.stats.args, { preset: "reported-open" });
     assert.ok(!("rows" in opened));
     parity(await request({ action: "list", plugin: jira }), await cliRequest(["list", "--plugin", jira]));
-    const run = await request({ action: "run", plugin: jira, name: "issues", root });
-    parity(run, await cliRequest(["run", "--name", "issues", "--plugin", jira, "--root", root]));
+    const run = await request({ action: "run", plugin: jira, name: "issues" });
+    parity(run, await cliRequest(["run", "--name", "issues", "--plugin", jira]));
+    assert.equal(run.receipt.scope, "host");
+    assert.ok(!("target" in run));
     assert.deepEqual(run.args, { preset: "reported-open" });
     assert.equal(run.rows[0].summary, "reported-open"); assert.equal(run.rows[0].assignee, "me");
-    parity(await request({ action: "run", view: jiraView, root, input: { preset: "reported-open" } }), await cliRequest(["run", jiraFile, "--input", inputFile, "--root", root]));
+    parity(await request({ action: "run", view: jiraView, input: { preset: "reported-open" } }), await cliRequest(["run", jiraFile, "--input", inputFile]));
     const favouriteFile = path.join(dir, "state", "plugins", jira, "views", "issues.view.json");
     const preserved = fs.readFileSync(favouriteFile, "utf8");
     const secondSave = await request({ action: "save", view: jiraView, name: "http", input: { preset: "reported-open" } });

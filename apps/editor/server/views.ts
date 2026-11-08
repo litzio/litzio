@@ -180,21 +180,24 @@ async function execute(value: unknown, scope: ViewExecutionScope) {
           ...evaluateQueryView(view, undefined, operations), provenance: source.provenance, generatedAt: source.generatedAt,
           ...(source.method === undefined ? {} : { method: source.method }), provenanceStatus: "unverified" as const, receipt: success };
       }
-      receipt.scope = "folder";
-      if (!input.root) throw new Error("Connected query requires Root");
       const operation = operations.find(op => op.operation === view.sources.stats.operation && op.version === view.sources.stats.version)!;
       validateViewInputs(view, operation, "execute");
-      const root = fs.realpathSync(accessPath(input.root, scope.access));
       const source = view.sources.stats;
       let data: unknown;
-      if (source.operation === "folder.statistics") data = folderStatistics(root, source.args.folder as string | undefined, scope.access);
+      let root: string | undefined;
+      if (source.operation === "folder.statistics") {
+        receipt.scope = "folder";
+        if (!input.root) throw new Error("Connected query requires Root");
+        root = fs.realpathSync(accessPath(input.root, scope.access));
+        data = folderStatistics(root, source.args.folder as string | undefined, scope.access);
+      }
       else {
         const reply = await scope.plugins!.invokeOperation(source.operation, source.args);
         if ("error" in reply) return { error: reply.error, errorKind: reply.errorKind, sourceReceipt: reply.receipt, receipt };
         data = reply.result;
       }
       const fields = Object.fromEntries(Object.entries(operations.find(op => op.operation === source.operation)!.rowSchema).filter(([, f]) => !f.secret).map(([name, f]) => [name, f.label]));
-      return { args: source.args, fields, ...evaluateQueryView(view, data, operations), target: { root }, receipt: { ...receipt, outcome: "success" as const } };
+      return { args: source.args, fields, ...evaluateQueryView(view, data, operations), ...(root ? { target: { root } } : {}), receipt: { ...receipt, outcome: "success" as const } };
     }
     // App data is deliberately separate from document Roots, and callers cannot pick a path.
     const savedView = input.action === "save" ? query(input.view, operations, input.input) : undefined;
