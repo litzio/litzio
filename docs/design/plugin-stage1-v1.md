@@ -274,6 +274,11 @@ Core `authorDocument(input)`을 공개 `@litzio/plugin-sdk`에서 제공한다. 
 
 검증은 기존 Core native suite에서 최소 요소·입력 키별 0/N 참조·canonical 재처리와 거부를 확인한다. 기존 K1 suite의 대표 외부 artifact subprocess(약 2초)는 SDK import만 사용해 생성→Host 공식 저장→재파싱·revision/path 대조와 원본 보존을 확인한다. Core 조합을 subprocess에서 반복하지 않는다. master의 #1318과 #1317 최종 결합은 기존 `reviews.test.ts`의 읽기 전용 K1 완료 경로에서 공개 SDK 생성→공식 저장→입력 key별 target으로 대조 발행→Host·실제 CLI snapshot 재조회와 revision/path 일치를 확인한다. 같은 SDK 생성 문서를 외부 변경한 뒤 원래 byte로 복원해도 stale을 유지하는 통합 경계를 함께 보호한다. 새 subprocess를 추가하지 않고 기존 완료·CLI 읽기를 보완하며 삭제·일시적 오류 분류는 Host 단위 검사가 소유한다. Docling 품질·대규모 paging·과거 형식 호환은 검증 범위가 아니다.
 
+
+## screens·views의 내용 우선 표시 (#1329)
+
+manifest 화면은 기존 ViewWorkspace로 기본 뷰 내용을 바로 표시하며 단일 Host·현재 단일 기본 뷰의 선택 장치를 숨긴다. 즐겨찾기 관리는 접어서 접근한다. host 범위 읽기 작업의 조회에는 열린 폴더가 필요하지 않다. 폴더 선택·HTTP/CLI 실행·receipt와 검증 범위는 [생성 뷰 계약](generated-views-v1.md#플러그인동적-뷰-화면-간소화-1329)을 따른다. SDK·manifest와 저장 형식은 유지한다.
+
 ## 링크 열 SDK 0.3.0 (#1332)
 
 현재 SDK_VERSION과 패키지 버전은 `0.3.0`이며 Host는 `0.1.0`, `0.2.0`, `0.3.0` 계약을 구현한다. 기존 exact/caret 0.1 및 0.2 플러그인은 유지한다. 공개 read rowSchema의 string 열은 `linkField:"url"`로 같은 행의 다른 공개 string 필드를 링크 대상으로 지정한다. 링크 선언이 있으면 requiresSdk가 0.3.0 이상인 실제 지원 계약을 허용해야 하며 validate·등록·활성화에서 동일하게 거부한다. 권장 범위는 `>=0.3.0 <1.0.0`이다. 일반 파일 기능의 최소 버전은 여전히 0.2.0이다. 표시·키보드·URL 허용 및 행 보존은 [Table 링크 계약](generated-views-v1.md#table-link-columns-1332)을 따른다.
