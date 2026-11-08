@@ -183,10 +183,17 @@ export function ViewWorkspace({
         if (!signal.aborted && version === selection.current) setOpening(false);
       });
   };
+  const defaults = catalog?.views?.filter(
+    v => v.plugin === owner && screen?.defaultViewIds.includes(v.id),
+  ) ?? [];
+  const showDefaults = defaults.length > 1 ||
+    defaults.length === 1 && !!selected && (opening || selected !== `default:${defaults[0].id}`);
+  const showHost = !!onHost && hostRegistry.list().length > 1;
+  const showGenerated = !!view && selected !== "generated";
   return (
     <div className="view-workspace" data-testid="view-workspace">
-      <div className="view-controls">
-        {onHost ? (
+      {showHost || showGenerated ? <div className="view-controls">
+        {showHost && onHost ? (
           <label>
             {i18n.t("Host")}
             <select
@@ -206,7 +213,7 @@ export function ViewWorkspace({
             </select>
           </label>
         ) : null}
-        {view ? (
+        {showGenerated && view ? (
           <Button
             size="sm"
             variant="ghost"
@@ -216,39 +223,37 @@ export function ViewWorkspace({
             {i18n.t("Current generated view")}
           </Button>
         ) : null}
-      </div>
+      </div> : null}
       {!active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}
       {problem ? <Notice tone="error">{problem}</Notice> : null}
-      {screen ? (
+      {showDefaults ? (
         <section aria-label={i18n.t("Default views")}>
           <h3>{i18n.t("Default views")}</h3>
-          {catalog?.views
-            ?.filter(
-              (v) => v.plugin === owner && screen.defaultViewIds.includes(v.id),
-            )
-            .map((v) => (
-              <Button
-                key={v.id}
-                size="sm"
-                variant="ghost"
-                disabled={!active}
-                aria-pressed={selected === `default:${v.id}`}
-                onClick={() =>
-                  select(
-                    `default:${v.id}`,
-                    pages[`default:${v.id}`] ?? v.definition,
-                  )
-                }
-              >
-                {v.title}
-              </Button>
-            ))}
+          {defaults.map((v) => (
+            <Button
+              key={v.id}
+              size="sm"
+              variant="ghost"
+              disabled={!active}
+              aria-pressed={selected === `default:${v.id}`}
+              onClick={() =>
+                select(
+                  `default:${v.id}`,
+                  pages[`default:${v.id}`] ?? v.definition,
+                )
+              }
+            >
+              {v.title}
+            </Button>
+          ))}
         </section>
       ) : null}
-      <section
+      <details
         className="view-workspace-favorites"
+        role="region"
         aria-label={i18n.t("Favorites")}
       >
+        <summary>{i18n.t("Favorites")}</summary>
         <Button
           size="sm"
           variant="ghost"
@@ -261,18 +266,6 @@ export function ViewWorkspace({
         >
           {i18n.t("Refresh favorites")}
         </Button>
-        <label>
-          {i18n.t("Opened folder")}
-          <select
-            className="form-select settings-select"
-            aria-label={i18n.t("Statistics folder")}
-            value={chosenRoot}
-            onChange={(e) => changeRoot(e.target.value)}
-          >
-            <option value="">{i18n.t("Choose a folder")}</option>
-            {root ? <option value={root}>{root}</option> : null}
-          </select>
-        </label>
         {favorites.map((name) => (
           <Button
             key={name}
@@ -284,7 +277,7 @@ export function ViewWorkspace({
             {name}
           </Button>
         ))}
-      </section>
+      </details>
       {opening ? <Notice>{i18n.t("Loading data…")}</Notice> : null}
       {Object.entries(pages).map(([key, definition]) => (
         <div

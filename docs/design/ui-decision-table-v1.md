@@ -259,3 +259,8 @@ Theme·Example state는 기존 ChoiceGroup을 유지하며, 반복 상태 안내
 기존 정렬·범위 필터/뷰 수명·차트 회귀는 유지한다. 새 subprocess나 전수 조합은 없으며,
 촬영은 임시 scenario body로 `pnpm browser:test ui-gallery --screenshots`를 실행하고 원래
 회귀 body를 복원하는 별도 수동 검토다. 외부 Host/AI 수락이나 OS별 전수 검증을 뜻하지 않는다.
+
+
+### 플러그인 화면 간소화 (#1329)
+
+작업 탭·문서 우측 보기의 기존 ViewWorkspace/QueryViews를 유지한다. Button secondary/ghost, Notice, native details/summary와 기존 간격·글자 토큰을 재사용한다. 즐겨찾기 관리의 접기는 AssistantDataDetails·ViewChart와 같은 native 패턴이다. 새로운 공통 구현이나 예외는 없다. 단일 선택 장치 숨김과 source별 폴더 표시의 범위는 [생성 뷰 계약](generated-views-v1.md#플러그인동적-뷰-화면-간소화-1329)을 따른다.
