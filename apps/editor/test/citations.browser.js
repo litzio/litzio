@@ -7,10 +7,10 @@ async (page, { openPath, reloadDocument, screenshots, assertSavedSource }) => {
   const saved = () => page.locator('[data-testid="status"][data-operation="saved"]').waitFor({ state: 'attached' });
   await ready();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const initial = await (await page.request.get(`${origin}/api/document`)).json();
+  const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const file = [...initial.path.split(sep).slice(0, -4), 'tmp', 'citations', 'citations.md'].join(sep);
-  const read = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json());
+  const read = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json());
   const before = (await read()).source;
   const resourceRequests = [];
   const request = request => { if (/\.bib(?:$|[?&])/i.test(decodeURIComponent(request.url()))) resourceRequests.push(request.url()); };

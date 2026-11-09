@@ -5,7 +5,7 @@ async (page, { expect, showNotifications, openDocument }) => {
   await page.waitForFunction(() => document.querySelector('[data-testid="status"]')?.getAttribute('data-operation') === 'ready');
   const origin = page.url().split('/').slice(0, 3).join('/');
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(separator).slice(0, -4).join(separator);
   const file = [root, 'tmp', 'continuous-editing', 'continuous-editing.md'].join(separator);
@@ -41,7 +41,7 @@ async (page, { expect, showNotifications, openDocument }) => {
     assert(await page.getByTestId('status').getAttribute('data-operation') === 'saved', `Save failed: ${await page.locator('body').innerText()}`);
     await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(el => el.editor.view.focus());
   };
-  const disk = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json());
+  const disk = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json());
   const model = data => JSON.stringify(data.document.blocks.map(({path, original, ...block}) => block), (key, value) => key === 'path' ? undefined : value);
 
   // Hangul IME can hide Ctrl+Y/Z as Process/229. Exercise the actual DOM handler,
@@ -584,7 +584,7 @@ async (page, { expect, showNotifications, openDocument }) => {
   await page.waitForFunction(() => { const e = document.querySelector('[data-document-tab][data-active=true] .document-editor').editor; return e.state.selection.from === e.state.doc.content.size; });
   await page.keyboard.type('After');
   await save();
-  const edge = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file.replace('continuous-editing.md', 'edge-equation.md'))}`)).json();
+  const edge = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file.replace('continuous-editing.md', 'edge-equation.md'))}`, { headers: { Connection: "close" } })).json();
   assert(edge.document.blocks.map(node => node.block).join('|') === 'paragraph|equation|paragraph', 'Typing beside an atom must create prose without converting it');
   assert(edge.document.blocks[0].text === 'Before' && edge.document.blocks[2].text === 'After', 'Both edge inputs must persist');
 
@@ -608,7 +608,7 @@ async (page, { expect, showNotifications, openDocument }) => {
   await end();
   await page.keyboard.press('Control+v');
   await save();
-  const moved = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file.replace('continuous-editing.md', 'edge-equation.md'))}`)).json();
+  const moved = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file.replace('continuous-editing.md', 'edge-equation.md'))}`, { headers: { Connection: "close" } })).json();
   assert(moved.document.blocks.at(-1).block === 'equation' && moved.document.blocks.at(-1).label === 'eq-move', 'Cut/paste must preserve the equation and its label at the new position');
 
   // Formatted headings, Figure captions and table cells keep every supported inline kind through the typed clipboard.

@@ -3,7 +3,7 @@ async (page, { openPath, reloadDocument, waitForEditorFocus, bibliographyFixture
   page.setDefaultTimeout(15000);
   const assert = (ok, message) => { if (!ok) throw Error(message); };
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const initial = await (await page.request.get(origin + '/api/document')).json();
+  const initial = await (await page.request.get(origin + '/api/document', { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const file = [...initial.path.split(sep).slice(0, -4), 'tmp', 'bibliography', 'connect.md'].join(sep);
   const unused = file.replace('connect.md', 'unused.md');
@@ -46,7 +46,7 @@ async (page, { openPath, reloadDocument, waitForEditorFocus, bibliographyFixture
       await page.keyboard.press('Escape');
     }
     assert(await references().count() === 1, `${entry} connection shows References before Save`);
-    assert(!(await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(unused)}`)).json()).source.includes('bibliography:'), `${entry} stages without writing`);
+    assert(!(await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(unused)}`, { headers: { Connection: "close" } })).json()).source.includes('bibliography:'), `${entry} stages without writing`);
     await save(); await reloadDocument(page);
     await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: 'attached' });
     assert(await references().count() === 1, `${entry} declaration survives Save and Reload without citations`);
@@ -96,7 +96,7 @@ async (page, { openPath, reloadDocument, waitForEditorFocus, bibliographyFixture
   const tab = page.locator('[data-document-tab][data-active=true]');
   const editor = tab.locator('.document-editor');
   const hash = bibliographyFixture.hash();
-  const source = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json()).source;
+  const source = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json()).source;
   const type = async text => {
     await editor.evaluate(el => { const e = el.editor; e.commands.setTextSelection(e.state.doc.content.size - 1); e.view.focus(); });
     await page.keyboard.type(text);
@@ -147,7 +147,7 @@ async (page, { openPath, reloadDocument, waitForEditorFocus, bibliographyFixture
   const disk = new Promise(resolve => { committed = resolve; });
   await page.route('**/api/document', async route => {
     if (route.request().method() !== 'POST') return route.continue();
-    const response = await route.fetch(); committed(); await held; await route.fulfill({ response });
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); committed(); await held; await route.fulfill({ response });
   });
   if (await settings.getAttribute('aria-expanded') !== 'true') await settings.click();
   await page.getByRole('button',{name:'Reference style',exact:true}).click();

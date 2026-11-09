@@ -3,7 +3,7 @@ async (page, { openDocument, reloadDocument }) => {
   await page.unrouteAll();
   await page.reload();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
-  const loaded = await (await page.request.get(page.url().split('/').slice(0,3).join('/') + '/api/document')).json();
+  const loaded = await (await page.request.get(page.url().split('/').slice(0,3).join('/') + '/api/document', { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const file = [...loaded.path.split(sep).slice(0,-4), 'tmp', 'atom-boundaries', 'boundaries.md'].join(sep);
   await openDocument(page, file);

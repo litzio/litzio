@@ -6,16 +6,16 @@ async (page, { openPath, expect }) => {
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   await ready();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(separator).slice(0, -4).join(separator);
   const file = [root, 'tmp', 'pending-figure', 'pending.md'].join(separator);
   const read = async () => {
-    const response = await page.request.get(`${origin}/document/pending.md?path=${encodeURIComponent(file)}`);
+    const response = await page.request.get(`${origin}/document/pending.md?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } });
     if (response.status() !== 200) throw Error(`Prepare ${file} first`);
     return (await response.text()).replaceAll('\r\n', '\n');
   };
-  const model = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json()).document;
+  const model = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json()).document;
   const diskFigures = async () => (await model()).blocks.filter(block => block.block === 'figure');
   const open = async () => {
     await page.reload();
@@ -112,7 +112,7 @@ async (page, { openPath, expect }) => {
     expect(await page.evaluate(() => {
       const event = new Event('beforeunload',{cancelable:true}); window.dispatchEvent(event); return event.defaultPrevented;
     })).toBe(true);
-    const asset = await page.request.get(`${origin}/document/${receipt.path.slice(2)}?path=${encodeURIComponent(file)}`);
+    const asset = await page.request.get(`${origin}/document/${receipt.path.slice(2)}?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } });
     expect(asset.status()).toBe(404);
     await page.getByRole('button',{name:'Dismiss error',exact:true}).click();
     // The same draft must not block an image inserted in another block, including its Undo.

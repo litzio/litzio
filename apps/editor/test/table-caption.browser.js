@@ -1,7 +1,7 @@
 // Rich caption editing must preserve every untouched inline element (#555).
 async (page, { openPath, expect, reloadDocument, screenshots }) => {
   const origin = page.url().split('/').slice(0,3).join('/');
-  const initial = await (await page.request.get(`${origin}/api/document`)).json();
+  const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const separator = initial.path.includes('\\') ? '\\' : '/';
   const root = initial.path.split(separator).slice(0, -4).join(separator);
   const path = [root, 'tmp', 'table-caption', 'caption.md'].join(separator);
@@ -23,7 +23,7 @@ async (page, { openPath, expect, reloadDocument, screenshots }) => {
   const save = async () => {
     await page.getByRole('button', {name:'Save',exact:true}).click();
     await page.getByText('Saved',{exact:true}).filter({visible:true}).waitFor();
-    return (await (await page.request.get(`${origin}/document/caption.md?path=${encodeURIComponent(path)}`)).text()).replaceAll('\r\n','\n');
+    return (await (await page.request.get(`${origin}/document/caption.md?path=${encodeURIComponent(path)}`, { headers: { Connection: "close" } })).text()).replaceAll('\r\n','\n');
   };
   if (screenshots) {
     // Same scratch document and interaction state before and after the visual change.
@@ -360,7 +360,7 @@ async (page, { openPath, expect, reloadDocument, screenshots }) => {
   await page.getByRole('button', {name:'Save',exact:true}).click();
   await page.getByText('Saved',{exact:true}).filter({visible:true}).waitFor();
   const fixturePath = [root, 'tmp', 'caption-placeholder', 'captions.md'].join(separator);
-  const fixtureSource = await (await page.request.get(`${origin}/document/captions.md?path=${encodeURIComponent(fixturePath)}`)).text();
+  const fixtureSource = await (await page.request.get(`${origin}/document/captions.md?path=${encodeURIComponent(fixturePath)}`, { headers: { Connection: "close" } })).text();
   expect(fixtureSource).not.toContain('Enter a');
   await openPath(page, path);
   await table.hover();
