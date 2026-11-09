@@ -11,7 +11,6 @@ import { Button } from "./components/ui/button.tsx";
 import { Input } from "./components/ui/input.tsx";
 import { SettingsSwitch } from "./components/ui/settings.tsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "./components/ui/dialog.tsx";
-export { OneDriveIcon } from "./OneDriveIcon.tsx";
 import { usePlugins, type Plugin } from "./plugin-state.ts";
 export { usePlugins } from "./plugin-state.ts";
 export function PluginSettings() {
