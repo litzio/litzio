@@ -9,7 +9,7 @@
   "name": "Jira",
   "description": "이슈 번호로 Jira 상세를 조회합니다.",
   "version": "0.0.1",
-  "requiresSdk": ">=0.1.0 <1.0.0",
+  "requiresSdk": ">=0.3.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
     "operations": [
@@ -80,7 +80,8 @@
         "rowSchema": {
           "key": {
             "type": "string",
-            "label": "키"
+            "label": "키",
+            "linkField": "issueUrl"
           },
           "summary": {
             "type": "string",

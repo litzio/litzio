@@ -294,6 +294,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
         expect(row.issueUrl).toBe(jira.baseUrl + "/browse/" + row.key);
         await expect(tr.getByRole("cell")).toHaveText([row.key, row.summary, row.status, row.assignee, row.priority, row.updated]);
       }
+      const issueLink = page.getByRole("link", { name: "MOCK-1", exact: true });
+      await expect(issueLink).toBeVisible();
+      await expect(issueLink).toHaveAttribute("href", jira.baseUrl + "/browse/MOCK-1");
       if (screenshots) {
         for (const width of [1440, 640]) {
           if (width === 640) {
@@ -356,6 +359,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
         expect(mock.result.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-404"]);
         expect(mock.result[2].status).toContain("404");
         expect(mock.result[0].summary).not.toBe("—");
+        expect(mock.result[0].issueUrl).toBe("http://127.0.0.1:8081/browse/MOCK-1");
       }
     }
   } finally {
