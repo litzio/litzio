@@ -226,7 +226,7 @@ jobs:
         run: |
           pnpm exec playwright install chromium
           fc-match :lang=ko
-      - run: pnpm browser:test http-host http-plugins plugin-jobs generated-views
+      - run: pnpm browser:test http-host http-plugins plugin-jobs plugin-views
       - name: Upload HTTP browser diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v6

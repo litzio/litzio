@@ -45,7 +45,8 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 | [Editing session and Save](design/editing-session-save-v1.md) | Implemented | 현재 계약. opening snapshot, Save acknowledgement, 저장 전·복구 Visual/소스 비교와 draft/work-loss 보호 및 Host별 위치 식별·로컬 복구(#1174 PR1). |
 | [Filesystem Host boundary](design/filesystem-host-boundary-v1.md) | Implemented | 파일·asset·folder 계약. Vite, Desktop, HTTP Host가 같은 handler를 재사용. |
 | [플러그인 1단계](design/plugin-stage1-v1.md) | Implemented | ADR-0020 명시 개시: V4 review Host·CLI/K1 완료 bundle과 최소 SDK·로컬 등록·신뢰·활성·공용 작업·CLI·하위 프로세스/reload·비서 활동 기록·OneDrive. Windows DPAPI secret 저장·설정 UI·상태/삭제 CLI·실행 전달. 비서 제작 키트 scaffold/validate·번들 스킬 포함. 뷰 runtime 없음. |
-| [Generated views v1](design/generated-views-v1.md) | Implemented | V1 Core/SDK v2 계약과 V2 query Host/CLI·plugin namespace·입력 대체·propose·가용성 재검사. D1 두 source·owner·inline snapshot·Chart/Panel·열 상한 제거·SDK screens; D2 두 source Host/CLI·snapshot 재열기·proposal 출처 목록 대조·전송 한도; V3 폼·Core 입력 진단·상태 renderer와 V5 공통 진입점. 비서 query/InputForm·완료 bundle review 생성의 공용 catalog와 V6 결과 카드. #1210 Core 명세·계산·신규 생성, #1218 내장/플러그인 읽기 작업별 행 schema·가공·비서 문맥, 내장 통계 Host/CLI·기본 표·즐겨찾기·새 탭과 비서 양 공급자 제안/검증/최대 2회 수정. |
+| [Plugin screens and queries](design/plugin-screens-v1.md) | Implemented | manifest 기본 화면·작업 패널 연결, 수동 Host 조회·입력·Table·링크, view run/validate와 review 경계. |
+| [Generated views v1](design/generated-views-v1.md) | Historical | #1341에서 종료한 비서 생성·저장·통계·Chart 계약과 당시 검증 기록. 현재 계약은 Plugin screens and queries. |
 | [HTTP Host](design/http-host-v1.md) | Implemented | 무인증 단계(#1145) daemon start/stop/status·실행 주체/상세 상태·stale 회수·Desktop pipe 수명·고정 origin·선택 Root·버전·OS 휴지통, CLI 배포와 HTTP·프록시 경계. |
 | [Desktop distribution and updates](design/desktop-distribution-v1.md) | Implemented | Windows Host, NSIS, Stable/Beta, signing 및 수동 workflow 실행 후 검증 성공 시 추가 승인 없는 게시 계약. 현재 공개 Litzio 0.0.2-beta.7·직전 Litzio 0.0.2-beta.6·이전 Litzio 0.0.2-beta.5·이전 IeumDoc 0.0.2-beta.4·이전 0.0.2-beta.3·이전 0.0.2-beta.2·0.0.2-beta.1과 기존 두 0.1.0 Beta 철회 근거·실제 GitHub 업데이트 미검증 범위 보존. |
 | [Desktop app icon](design/app-icon-v1.md) | Implemented | #905 승인된 E안 SVG 원본·Chromium 틈 검사·크기별 ICO, 브랜드 연결·출처·재생성과 Windows CI 검증 경계. |
@@ -88,8 +89,8 @@ Implementation record: [UI language #256 plan and verification](design/ui-langua
 
 | Document | Status | Authority / description |
 | --- | --- | --- |
-| [동적 뷰 재정의 v1](design/dynamic-views-v1.md) | Draft | 2026-11-06 소유자 확정 방향: 연결/비서 데이터·출처·snapshot 즐겨찾기, 새 탭/우측 보기/플러그인 화면, SDK 화면 기여와 D1~D4/V7 분할. ADR-0020의 해당 개정 절은 Proposed. 제품 구현 완료 아님. |
-| [카탈로그 v2](design/catalog-v2.md) | Draft | ADR-0020 개정안. 2단계 Jira 수락 부족 대응: 입력·12열 표·안전한 오류·공용 K2/K3/K4·제작 스킬과 병렬 구현 PR 분할. 소유자 결정 필요 항목 없음. V5 공용 번들 renderer는 독립 fixture 구현이며 Host·진입점 통합은 대기. 4단계는 비서 제작 수락 시험이며 문서 전체는 현재 구현 계약 아님. |
+| [동적 뷰 재정의 v1](design/dynamic-views-v1.md) | Historical | #1341에서 종료한 제안. 이후 재구축은 Discussion #767의 업무·탐색·판단 순환 기준으로 별도 정의. |
+| [카탈로그 v2](design/catalog-v2.md) | Draft | #1341 이후 남는 query/InputForm/Table·K2/K3/K4·V5와 후속 수락 경계. 생성·저장·Chart 요구는 종료. |
 
 ## UI pattern targets awaiting implementation
 

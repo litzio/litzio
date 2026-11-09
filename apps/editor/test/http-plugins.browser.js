@@ -244,7 +244,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await expect(workspace.getByRole("combobox")).toHaveCount(0);
     await expect(workspace.getByRole("region", { name: "Default views", exact: true })).toHaveCount(0);
     await expect(workspace.getByRole("button", { name: "Refresh favorites", exact: true })).not.toBeVisible();
-    await expect(workspace.getByRole("button", { name: "Add to favorites", exact: true })).toBeVisible();
+    await expect(workspace.getByRole("button", { name: "Add to favorites", exact: true })).toHaveCount(0);
     await refresh.click();
     await expect(page.getByRole("cell", { name: "연결됨", exact: true })).toBeVisible();
     await expect(page.getByRole("cell", { name: connected.result[0].detail, exact: true })).toBeVisible();

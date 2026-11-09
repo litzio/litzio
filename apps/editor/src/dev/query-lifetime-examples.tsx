@@ -1,10 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import {
   operationQueryViewSchema,
-  assistantQueryViewSchema,
 } from "@litzio/core/views-v2";
 import { Views } from "../views/Views.tsx";
-import { ViewWorkspace } from "../views/ViewWorkspace.tsx";
 import { createHostClient } from "../host-client.ts";
 import { Button } from "../components/ui/button.tsx";
 
@@ -58,27 +56,6 @@ const query = (text: string) =>
   });
 const first = query("alpha"),
   second = query("beta");
-const generated = assistantQueryViewSchema.parse({
-  kind: "litzio-view",
-  schemaVersion: 2,
-  catalog: "litzio-v2",
-  profile: "query",
-  owner: "fixture.lifecycle",
-  title: "예시: Temporary data",
-  refresh: "assistant",
-  sources: {
-    stats: {
-      kind: "assistant",
-      generatedAt: "2026-11-06T00:00:00.000Z",
-      rowSchema: operation.rowSchema,
-      rows: [{ label: "예시: Retained generation" }],
-      provenance: [
-        { kind: "reference", label: "예시: Reference", refId: "reference-one" },
-      ],
-    },
-  },
-  layout: first.layout,
-});
 const screen = {
   plugin: "fixture.lifecycle",
   id: "screen",
@@ -88,7 +65,7 @@ const screen = {
   primary: true,
 };
 /** Production components with an in-memory HostClient; no data request leaves the gallery. */
-export function ViewLifetimeExamples() {
+export function QueryLifetimeExamples() {
   const [view, setView] = useState(first),
     [offline, setOffline] = useState(false);
   const release = useRef<(() => void) | undefined>(undefined),
@@ -112,7 +89,6 @@ export function ViewLifetimeExamples() {
               },
             ],
           };
-        if (body.action === "list") extra = { favourites: [] };
         if (body.action === "run") {
           calls.current++;
           if (calls.current === 1)
@@ -155,20 +131,10 @@ export function ViewLifetimeExamples() {
         unavailable={offline}
         tab={{ id: "replacement", hostId: "local", root: "documents", view }}
         client={client}
-        roots={["documents"]}
-        onRoot={() => {}}
-        onOpen={() => {}}
+
+
       />
-      <ViewWorkspace
-        id="workspace"
-        hostId="local"
-        root="documents"
-        owner="fixture.lifecycle"
-        screen={screen}
-        view={generated}
-        client={client}
-        onGenerate={() => {}}
-      />
+
     </section>
   );
 }

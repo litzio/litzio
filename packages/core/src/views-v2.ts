@@ -1,10 +1,9 @@
-import { rowSchema, parseOperationRows } from "./operation-rows.ts";
 import { z } from "zod";
 import { Validator as InterpretedValidator } from "@cfworker/json-schema";
 import { Ajv } from "ajv";
 import { Ajv2020 } from "ajv/dist/2020.js";
-import { VIEW_LIMITS as V1_LIMITS, viewSchema, validateQueryBindings, evaluateQueryRows, builtinViewOperations, type ViewOperation, operationSourceSchema, queryLayoutSchema, validateChartRows } from "./views.ts";
-export const VIEW_LIMITS = { ...V1_LIMITS, inputs: 8, assistantBytes: 1048576, assistantRows: 10000, provenance: 64, assistantString: 4096 } as const;
+import { VIEW_LIMITS as V1_LIMITS, viewSchema, validateQueryBindings, evaluateQueryRows, type ViewOperation, operationSourceSchema, queryLayoutSchema } from "./views.ts";
+export const VIEW_LIMITS = { ...V1_LIMITS, inputs: 8 } as const;
 export type { ViewOperation } from "./views.ts";
 export type SourceState = "idle" | "needs-input" | "loading" | "success" | "empty" | "failure" | "uncertain" | "unavailable";
 const id = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
@@ -20,30 +19,13 @@ const form = z.strictObject({ component: z.literal("InputForm"), source: z.liter
   fields: z.array(z.strictObject({ component: z.enum(["Select", "TextInput", "DateInput", "NumberInput", "Checkbox"]), field: z.string().min(1).max(80) })).max(VIEW_LIMITS.inputs)
     .refine(v => new Set(v.map(f => f.field)).size === v.length, "Duplicate input field"),
   submit: z.strictObject({ component: z.literal("SubmitButton"), label }) });
-export const provenanceSchema = z.discriminatedUnion("kind", [
-  z.strictObject({ kind: z.literal("document"), label, hostId: opaque, rootId: opaque,
-    path: z.string().min(1).max(512).refine(p => !/[:\\\u0000-\u001f]/.test(p) && !p.startsWith("/") && p.split("/").every(v => v && v !== "." && v !== ".."), "Root-relative path required"), revision: opaque }),
-  z.strictObject({ kind: z.enum(["conversation", "reference"]), label, refId: opaque }),
-  z.strictObject({ kind: z.literal("tool"), label, refId: opaque, hostId: opaque, operation: id, requestId: opaque }),
-]);
-export const assistantSourceSchema = z.strictObject({ kind: z.literal("assistant"), generatedAt: z.iso.datetime({ precision: 3 }),
-  rowSchema: rowSchema.refine(fields => Object.values(fields).every(f => !f.secret), "Assistant fields cannot be secret"),
-  rows: z.array(z.record(z.string(), z.union([z.string().max(VIEW_LIMITS.assistantString), z.number().finite(), z.boolean(), z.null()]))).max(VIEW_LIMITS.assistantRows),
-  provenance: z.array(provenanceSchema).min(1).max(VIEW_LIMITS.provenance),
-  method: z.string().max(4096).refine(v => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(v), "Plain text required").optional(),
-});
 export const connectedSourceSchema = operationSourceSchema.extend({ kind: z.literal("operation") });
 const queryBase = viewSchema.omit({ refresh: true, sources: true }).extend({ schemaVersion: z.literal(2), catalog: z.literal("litzio-v2"), profile: z.literal("query"), owner: id, layout: queryLayoutSchema });
 export const operationQueryViewSchema = queryBase.extend({ refresh: z.literal("manual"), sources: z.strictObject({ stats: connectedSourceSchema }), form: form.optional() });
-export const assistantQueryViewSchema = queryBase.extend({ refresh: z.literal("assistant"), sources: z.strictObject({ stats: assistantSourceSchema }) });
-export const queryViewSchema = z.union([operationQueryViewSchema, assistantQueryViewSchema]);
+export const queryViewSchema = operationQueryViewSchema;
 export type OperationQueryView = z.infer<typeof operationQueryViewSchema>;
-export type AssistantQueryView = z.infer<typeof assistantQueryViewSchema>;
 export type ConnectedSource = z.infer<typeof connectedSourceSchema>;
 export type QueryLayout = z.infer<typeof queryLayoutSchema>;
-export type AssistantSource = z.infer<typeof assistantSourceSchema>;
-export type ViewProvenance = z.infer<typeof provenanceSchema>;
-export function isOperationQueryView(view: QueryView): view is OperationQueryView { return view.sources.stats.kind === "operation"; }
 export const reviewViewSchema = z.strictObject({ kind: z.literal("litzio-view"), schemaVersion: z.literal(2), catalog: z.literal("litzio-v2"),
   profile: z.literal("review"), title: label, refresh: z.literal("manual"), sources: z.strictObject({ review: reviewSourceSchema }),
   layout: z.strictObject({ component: z.literal("Panel"), direction: z.literal("vertical"), children: z.array(z.strictObject({
@@ -205,18 +187,11 @@ export function validateViewInputs(view: OperationQueryView, operation: ViewOper
   }
   return { state: missing.length ? "needs-input" : "ready", missing };
 }
-function size(text: string, limit: number = VIEW_LIMITS.assistantBytes) { if (new TextEncoder().encode(text).length > limit) throw new Error("View exceeds byte limit"); }
-export function validateCatalogView(value: unknown, operations: readonly ViewOperation[] = builtinViewOperations): CatalogView {
+function size(text: string, limit: number = VIEW_LIMITS.bytes) { if (new TextEncoder().encode(text).length > limit) throw new Error("View exceeds byte limit"); }
+export function validateCatalogView(value: unknown, operations: readonly ViewOperation[] = []): CatalogView {
   const text = JSON.stringify(value); if (text === undefined) throw new Error("View must be JSON"); size(text);
   const view = catalogViewSchema.parse(value);
-  if (view.profile === "query" && !isOperationQueryView(view)) {
-    const source = view.sources.stats;
-    const rows = parseOperationRows(source.rows, source.rowSchema, { rows: VIEW_LIMITS.assistantRows, string: VIEW_LIMITS.assistantString }, true);
-    const operation: ViewOperation = { operation: "assistant.rows", version: 1, rowSchema: source.rowSchema, inputSchema: { type: "object" }, validateArgs: () => true };
-    const connected = { ...view, sources: { stats: operationSourceSchema.parse({ kind: "operation", operation: operation.operation, version: 1, args: {} }) } };
-    validateQueryBindings(connected, [operation]);
-    validateChartRows(view.layout, rows);
-  } else if (view.profile === "query") {
+  if (view.profile === "query") {
     const s = view.sources.stats, op = operations.find(op => op.operation === s.operation && op.version === s.version);
     if (!op) throw new Error("Operation unavailable or missing row schema");
     validateViewInputs(view, op);
@@ -228,7 +203,7 @@ export function validateCatalogView(value: unknown, operations: readonly ViewOpe
   size(JSON.stringify(ordered(view), null, 2) + "\n", limit);
   return view;
 }
-export function catalogViewByteLimit(view: CatalogView): number { return view.profile === "query" && !isOperationQueryView(view) ? VIEW_LIMITS.assistantBytes : VIEW_LIMITS.bytes; }
+export function catalogViewByteLimit(_view: CatalogView): number { return VIEW_LIMITS.bytes; }
 export function parseCatalogView(text: string, operations?: readonly ViewOperation[]): CatalogView {
   size(text); const view = validateCatalogView(JSON.parse(text), operations); size(text, catalogViewByteLimit(view)); return view;
 }
@@ -241,10 +216,9 @@ export function serializeCatalogView(value: unknown, operations?: readonly ViewO
   const view = validateCatalogView(value, operations);
   const text = JSON.stringify(ordered(view), null, 2) + "\n"; size(text, catalogViewByteLimit(view)); return text;
 }
-export function evaluateQueryView(value: unknown, data: unknown, operations: readonly ViewOperation[] = builtinViewOperations) {
+export function evaluateQueryView(value: unknown, data: unknown, operations: readonly ViewOperation[] = []) {
   const view = validateCatalogView(value, operations);
   if (view.profile !== "query") throw new Error("Query profile required");
-  if (!isOperationQueryView(view)) return { rows: parseOperationRows(view.sources.stats.rows, view.sources.stats.rowSchema, { rows: VIEW_LIMITS.assistantRows, string: VIEW_LIMITS.assistantString }, true) };
   const s = view.sources.stats, op = operations.find(op => op.operation === s.operation && op.version === s.version)!;
   validateViewInputs(view, op, "execute");
   return evaluateQueryRows(view, data, operations);
@@ -256,7 +230,7 @@ function publicInputSchema(schema: Record<string, unknown>): Record<string, unkn
   return { ...schema, ...(schema.items ? { items: publicInputSchema(record(schema.items)) } : {}), ...(schema.properties ? { properties: Object.fromEntries(Object.entries(properties).filter(([k]) => !hidden.includes(k)).map(([k, p]) => [k, publicInputSchema(record(p))])) } : {}),
     ...(Array.isArray(schema.required) ? { required: schema.required.filter(k => !hidden.includes(k)) } : {}) };
 }
-export function createCatalogV2(operations: readonly ViewOperation[] = builtinViewOperations) {
+export function createCatalogV2(operations: readonly ViewOperation[] = []) {
   return { schema: z.toJSONSchema(catalogViewSchema), limits: VIEW_LIMITS, operations: operations.map(op => ({ operation: op.operation, version: op.version,
     inputSchema: publicInputSchema(op.inputSchema),
     rowSchema: Object.fromEntries(Object.entries(op.rowSchema).filter(([, p]) => !p.secret)) })) };
@@ -298,4 +272,4 @@ export type ReviewPage = z.infer<typeof reviewPageSchema>;
 export type ReviewMapping = z.infer<typeof reviewMappingSchema>;
 export type ReviewProposal = z.infer<typeof reviewProposalSchema>;
 
-export { chartSchema, queryLeafSchema, horizontalPanelSchema, queryLayoutSchema, queryLeaves, validateChartRows } from "./views.ts";
+export { queryLeafSchema, queryLayoutSchema, queryLeaves } from "./views.ts";

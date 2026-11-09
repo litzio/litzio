@@ -25,7 +25,7 @@ const jobContributionSchema = z.discriminatedUnion("resultKind", [
   z.strictObject({ ...jobFields, resultKind: z.literal("file"), resultExtension: extension }),
 ]);
 export const SCREEN_ICONS = ["LayoutDashboard", "Table", "ChartColumn", "FileText", "Folder"] as const;
-export const screenContributionSchema = z.strictObject({ id, title: queryViewSchema.options[0].shape.title, icon: z.enum(SCREEN_ICONS),
+export const screenContributionSchema = z.strictObject({ id, title: queryViewSchema.shape.title, icon: z.enum(SCREEN_ICONS),
   jobs: z.array(id).max(16).refine(ids => new Set(ids).size === ids.length, "Duplicate screen job").default([]),
   defaultViewIds: z.array(id).max(8).refine(ids => new Set(ids).size === ids.length, "Duplicate default view").default([]), primary: z.boolean().default(false) });
 export const manifestSchema = z.strictObject({
@@ -69,7 +69,6 @@ export function validateManifest(input: unknown): PluginManifest {
   }
   const linkSchemas = [
     ...m.contributes.operations.flatMap(op => op.rowSchema ? [op.rowSchema] : []),
-    ...m.contributes.views.flatMap(view => view.definition.sources.stats.kind === "assistant" ? [view.definition.sources.stats.rowSchema] : []),
   ];
   if (linkSchemas.some(fields => Object.values(fields).some(field => field.linkField)) &&
       !supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Link columns require SDK 0.3.0 or later in requiresSdk");

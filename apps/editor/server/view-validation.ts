@@ -8,7 +8,6 @@ export function query(value: unknown, operations: readonly ViewOperation[], inpu
   // Replace the entire args object before validation, including when saved args are incomplete.
   if (input !== undefined) {
     const envelope = value as QueryView;
-    if (envelope?.sources?.stats?.kind === "assistant") throw new Error("Assistant data does not accept input");
     value = { ...envelope, sources: { ...envelope?.sources, stats: { ...envelope?.sources?.stats, args: input } } };
   }
   const parsed = catalogViewSchema.parse(value);

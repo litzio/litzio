@@ -1,7 +1,7 @@
 import { artifactDigest } from "./artifact-digest.mjs";
 import { OFFICIAL_PLUGINS, type OfficialPlugin } from "./official-plugins.ts";
 import { publicOperationError, publicOperationResult, safePluginValue } from "./operation-result.ts";
-import { builtinViewOperations, type ViewOperation } from "@litzio/core/views";
+import { type ViewOperation } from "@litzio/core/views";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, realpathSync, statSync, mkdirSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
 import path from "node:path";
@@ -203,7 +203,6 @@ export class PluginHost {
       if (a.manifest.id !== id) throw new Error("Artifact ID changed");
       if (!this.official(a.manifest, a.digest) && r.trustedDigest !== a.digest) throw new Error("Explicit digest-bound trust is required");
       const names = a.manifest.contributes.operations.map(op => `${id}.${op.id}`);
-      if (builtinViewOperations.some(op => names.includes(op.operation))) throw new Error("Plugin operation ID collides with built-in operation");
       for (const [otherId, other] of Object.entries(this.installed)) if (otherId !== id && other.operationNames.some(name => names.includes(name))) throw new Error("Plugin operation ID collision");
       r.digest = a.digest; r.operationNames = names;
       await this.enable(id); r.enabled = true; r.enabledChoice = true;
@@ -223,7 +222,7 @@ export class PluginHost {
     } finally { if (enabled) this.disabling.delete(id); }
   }
   viewOperations(): ViewOperation[] {
-    return [...builtinViewOperations, ...[...this.loaded.values()].flatMap(live => live.manifest.contributes.operations
+    return [...[...this.loaded.values()].flatMap(live => live.manifest.contributes.operations
       .filter(op => op.effect === "read" && op.rowSchema)
       .map(op => ({ operation: `${live.manifest.id}.${op.id}`, version: op.version, rowSchema: op.rowSchema!, inputSchema: op.inputSchema, validateArgs: (args: unknown) => !!compileSchema(op.inputSchema)(args) })))];
   }
@@ -292,7 +291,6 @@ export class PluginHost {
         id = a.manifest.id;
         if (this.supply.some(p => p.id === id)) throw new Error("Official plugins update with the app only");
         const names = new Set(a.manifest.contributes.operations.map(operation => `${a.manifest.id}.${operation.id}`));
-        if (builtinViewOperations.some(op => names.has(op.operation))) throw new Error("Plugin operation ID collides with built-in operation");
         for (const [otherId, other] of Object.entries(this.installed)) {
           if (otherId !== a.manifest.id && (other.operationNames ?? []).some(name => names.has(name))) throw new Error("Plugin operation ID collision");
         }

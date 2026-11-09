@@ -9,7 +9,7 @@
 | 원본과 Read를 대조하고 변경 제안을 검토한다 | 별도 review 작업 탭 (V3/V4 연결 대기) | [ReviewRenderer](../../apps/editor/src/review/ReviewRenderer.tsx), Button·Notice·Lucide·DocumentEditor readOnly preview | [공용 대조·승인 패턴](ui-patterns-v1.md#공용-원본-대조와-변경-제안-catalog-v5-1241-a안) | K2/K3/K4 fixture | bbox·강조 overlay와 1024px 최소 대조 폭은 원본 좌표·읽기 대응에 필요하다. |
 | 플러그인 화면에서 여러 파일 작업을 시작한다 (#1340) | 기존 플러그인 화면, 조회 뷰 위 | PluginJobPanel + 기존 SettingsSelect/Button/체크박스, K1 상태·행동·파일 탐색, view-table-scroll | 파일별 독립 시작·플러그인 작업만 최신순·활성 화면의 진행 작업 polling | [화면 K1 패널](plugin-stage1-v1.md#플러그인-화면-작업-패널-1340) | 공통 상호작용 예외 없음. 작업만 있는 화면 허용; 비서 생성·즐겨찾기 의존 없음. |
 | 플러그인 파일 작업의 진행·결과를 확인한다 | 기존 작업 탭 | SettingsSelect/SettingsInput/Button/Notice + 공용 Progress + HostStatus 점·톤 | 진행 화면 한정 polling · uncertain에서만 다시 확인 · Host 목록으로 재진입 · 완료 결과만 열기 | [K1](plugin-stage1-v1.md#k1-파일-작업) | 범용 작업 UI 엔진은 만들지 않는다. Progress는 재사용할 기존 공용 막대가 없어 작은 ARIA·토큰 컴포넌트로 추가한다. |
-| 내장 통계와 생성·즐겨찾기 뷰를 연다 | 기존 작업 탭 | DocumentTabs + Views/ViewRenderer, Button/Input/Dialog/Notice, native table/meter와 제품 토큰 | 기본 표 유지 · 제안은 새 탭 · 새 이름 저장 · 목록 열기는 명세만 · 수동 새로고침 | [Generated views](generated-views-v1.md) | 읽기 전용 뷰는 문서 Save/복구 세션이 없다. SDK 기여 확장은 하지 않는다. |
+| 내장 통계와 생성·즐겨찾기 뷰를 연다 | 기존 작업 탭 | DocumentTabs + Views/ViewRenderer, Button/Input/Dialog/Notice, native table/meter와 제품 토큰 | 기본 표 유지 · 제안은 새 탭 · 새 이름 저장 · 목록 열기는 명세만 · 수동 새로고침 | [Plugin views](generated-views-v1.md) | 읽기 전용 뷰는 문서 Save/복구 세션이 없다. SDK 기여 확장은 하지 않는다. |
 | 문서 내용을 읽고 편집한다 | 문서 본문 | 기존 Tiptap editor / NodeView와 Core operation | 직접 입력은 즉시 적용·Undo · 디스크는 Save · 미저장 닫기는 Save/Don't save/Cancel ([저장 계약](editing-session-save-v1.md#switching-and-recovery), [P04](ui-patterns-v1.md#p04-적용취소완료)) | [DocumentEditor](../../apps/editor/src/DocumentEditor.tsx) | 별도 editor engine을 만들지 않는다. [미적용 초안](editing-session-save-v1.md#applied-content-and-drafts)은 직접 본문 입력과 다르다. |
 | 대상의 작은 속성을 고치며 본문 문맥을 유지한다 | 대상에 붙는 작은 편집면 | 기존 속성 폼과 Popover | Metadata는 Edit로 진입 · Done/유효한 바깥 pointer 적용·Esc 취소 · 오류는 초안 유지 ([P03](ui-patterns-v1.md#p03-편집-진입), [P04](ui-patterns-v1.md#p04-적용취소완료)) | [MetadataProperties](../../apps/editor/src/metadata-properties.tsx) | 바깥 적용은 클릭 위치 focus 유지. 링크·교차참조의 명시적 Apply/Cancel, [미주](footnotes-v1.md#editor), [인용 동결](../adr/0008-citations-and-bibliography.md)은 [P04](ui-patterns-v1.md#p04-적용취소완료)의 별도 경계다. |
 | 독립 작업을 열어 다른 문서와 오간다 | 작업 탭 | 기존 탭 / Plugin `TabKind` | Settings는 Sidebar·명령 센터, Plugin은 명령·sidebar/openTab으로 진입 · 오류는 탭/알림에 표시 · Plugin 탭에는 Save/복구 세션 없음 ([탭 수명](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/docs/design/plugin-ui-v1.md#contributions-lifetime-and-failures)) | [Docling UI 등록](https://github.com/litzio/litzio/blob/archive/plugins-docling-2026-11/plugins/docling/src/ui-plugin.tsx) | 문서 탭은 별도 [편집 세션](editing-session-save-v1.md#editor-ownership)을 갖는다. 집계·작업 목록을 문서 본문처럼 꾸미지 않는다. |
@@ -62,7 +62,7 @@
 
 ## 갤러리 열기와 검토
 
-Generated views 범주는 query(InputForm, Table, Chart, Panel)와 review(PageSurface, SourceDocumentCompare, ReviewList, ReviewDetail)의 실제 제품 renderer를 사용한다. 메모리 fixture와 adapter만 사용하며 Host 호출·저장은 없다. query/review와 개별 상태를 ChoiceGroup으로 선택한다. review의 refreshing은 Refresh data를 눌러 이전 자료 유지 상태를 확인하고, Changes에서 항목을 선택하면 Details와 메모리 적용·Undo를 확인한다. 외부 서비스나 실제 저장 성공을 증명하는 fixture는 아니다.
+Plugin views 범주는 query(InputForm, Table, Chart, Panel)와 review(PageSurface, SourceDocumentCompare, ReviewList, ReviewDetail)의 실제 제품 renderer를 사용한다. 메모리 fixture와 adapter만 사용하며 Host 호출·저장은 없다. query/review와 개별 상태를 ChoiceGroup으로 선택한다. review의 refreshing은 Refresh data를 눌러 이전 자료 유지 상태를 확인하고, Changes에서 항목을 선택하면 Details와 메모리 적용·Undo를 확인한다. 외부 서비스나 실제 저장 성공을 증명하는 fixture는 아니다.
 
 수동 검토(2026-11-06, Windows persistent Chrome, 1440×1100, English, Plum): query [Light](assets/generated-views-1241/query-1440-light.png) / [Dark](assets/generated-views-1241/query-1440-dark.png), [인증 오류](assets/generated-views-1241/error-1440-dark.png), 원본 대조 [Light](assets/generated-views-1241/review-1440-light.png) / [Dark](assets/generated-views-1241/review-1440-dark.png), 상세·동작 [Light](assets/generated-views-1241/details-1440-light.png) / [Dark](assets/generated-views-1241/details-1440-dark.png). 입력 간격·테마 대비·12열 overflow와 검토 전후 표시를 확인했다. 원본 이미지는 없는 fixture로 영역 표시를 확인했다. #1278 검토 후 안내를 영역 좌표계 밖으로 이동하고 [단독 PageSurface Light](assets/generated-views-1241/page-1440-light.png) / [Dark](assets/generated-views-1241/page-1440-dark.png)를 추가했다. query·오류·대조·상세 캡처도 갱신했다. Search 배치 차이는 갤러리 wrapper가 제품의 `.form-actions.view-query-actions`를 누락한 것이며 같은 마지막 행·오른쪽 정렬로 수정했다. 상태 선택 label은 읽기 쉬운 표시명으로 바꿨다. `pnpm browser:test ui-gallery --screenshots`의 임시 촬영 body를 실행한 뒤 자동 검사 body를 복원했다. 자동 검사에는 범주 진입·이전 자료 유지·필드 오류·재실행 금지 안내의 대표 연결만 추가하며 픽셀 판정은 없다.
 
@@ -194,10 +194,10 @@ Not now controls and plaintext copy retain their behavior. See the
 
 ## Catalog query renderer V3 (#1241 A안)
 
-공통 구현: `views/Views.tsx`의 조회 상태 조합과 `views/source-state.ts`의 고정 오류 adapter,
+공통 구현: `views/QueryViewPage.tsx`의 조회 상태 조합과 `views/source-state.ts`의 고정 오류 adapter,
 `views/QueryInputs.tsx`의 scalar binding. 별도 동적 UI 부품군 없이 Input/Button/Notice/
-FieldError/Dialog, SettingsSelect의 `form-select settings-select` 레시피와 Lucide Star를 쓴다.
-사용처는 기본 통계·생성 탭·즐겨찾기다. 폴더 선택 자체 CSS 제거, 첫 조회/loading·이전 결과
+FieldError, SettingsSelect의 `form-select settings-select` 레시피와 기존 Lucide 아이콘을 쓴다.
+사용처는 플러그인 기본 화면이다. 폴더 선택 자체 CSS 제거, 첫 조회/loading·이전 결과
 표시, 원문 오류/중복 오류 제거, source별 단일 빈 상태, 문자 별 아이콘 제거를 함께 적용한다.
 SettingsSelect wrapper는 설정 행 배치이므로 조회 form은 같은 control 레시피를 직접 조합한다.
 Plugin jobs는 기존 Notice/Button/공통 progress, Settings는 SettingsSelect/SettingsInput을
@@ -208,31 +208,18 @@ SettingsSelect 레시피의 Any/Yes/No, 날짜는 공통 Input의 ISO 텍스트/
 폼 행동은 기존 `.form-actions`, 가로 스크롤 발견성은 문서 표의 thin scrollbar recipe를 재사용한다.
 `view-label.ts`는 label이 없는 식별자의 표시 fallback만 맡으며 schema/바인딩을 확장하지 않는다.
 
-#1263 차단 결함 보완: 공통 Views는 CatalogView를 query/review로 분기해 각각 QueryViews와
+#1263 차단 결함 보완: 공통 Views는 CatalogView를 query/review로 분기해 각각 QueryViewPage와
 V5 ReviewRenderer를 mount한다. Core ViewInputError의 field diagnostics를 기존 FieldError에
 연결한다. JSON Schema 의미를 UI에 복제하지 않으며 Core의 CSP-safe 해석 compiler를 사용한다.
 
 ## 동적 뷰 D3 공통 구현
 
-새 작업 탭·문서 우측 보기·SDK 화면은 `Views`와 `ViewWorkspace`로 앱의 Host·owner를 고정한다. SDK 화면 진입은 Sidebar 기여, 명령 찾기, 플러그인 목록을 공유하며 설정은 기존 Settings에 남긴다. 우측 보기는 기존 DocumentPanel의 tablist 예외를 따른다. 생성 요청은 앱의 destination token을 사용하며 닫힘·새 요청·Host 연결 해제로 무효화한다. D4 생성 서비스와 V7 차트 확장의 통합 수락은 별도다.
-
-읽기 표는 제품 공통 `DataTable`을 사용한다. Button·Input·Popover·Notice·기존 table scroll/token을 재사용하고 새 스타일 DSL은 없다. 정렬/필터는 화면 상태이며 저장하지 않는다. 갤러리의 `예시: 좁은 표`, `예시: 넓은 표(가로 스크롤)`, `예시: 열별 정렬·필터`는 같은 Table의 사용 사례다. 예외는 Editor의 문서 표 편집으로, ProseMirror selection/semantic operation을 유지하며 읽기 표로 전환하지 않는다.
-
-검사: 기존 `ui-gallery`에 페이지 밖 61번째 행을 내림차순·범위 필터로 찾고 필터 해제 뒤 정렬이 남는 조작을 추가했다. 이는 Core 의미 검사가 아닌 실제 공통 Popover/표 연결을 보호한다. `view-generation.test.ts`의 대표 대상 교체·닫힘·Host 해제 검사는 provider 취소와 별개인 앱 전달 경계를 보호한다. 전수 조합·새 subprocess는 추가하지 않았다. fixture는 외부 서비스·실제 AI·원격 Host 수락 근거가 아니다.
-
-시각 점검은 checkout 전용 서버·기존 persistent Chrome profile로 수행했다. 1440px English Light [변경 전](assets/dynamic-views-d3/before-1440.png) / [변경 후](assets/dynamic-views-d3/after-1440.png), 640px Korean Dark [변경 전](assets/dynamic-views-d3/before-640.png) / [변경 후](assets/dynamic-views-d3/after-640.png). Before는 기준 renderer를 잠시 복원해 촬영했고 After는 같은 좁은 표 예시의 새 renderer다. 예시 제목·행의 예시 표기 변경과 공통 정렬/필터 controls, 여백·스크롤을 수동 점검했다. 계정·로컬 파일 경로가 없는 개발 갤러리만 촬영했다.
-
-D3 후속 검증은 기존 panel-lists의 4탭·양방향 wrap·Home/End·항상 존재하는 aria-controls를 보완한다. 기존 multi-host에는 연결된 Host의 catalog fixture와 offline Host 무요청·명시 Host 진입 재선택을 추가한다. generated-views는 문서 숨김/전환/비서 표시 중 표 상태와 늦은 favorite open의 수동 선택 우선권을, ui-gallery는 실제 Views의 명세 교체/이전 응답 폐기·offline 결과 보존 및 생성 뷰 재선택을 보호한다. 갤러리의 수명 예시는 메모리 HostClient만 사용하며 실제 Host/AI 수락을 뜻하지 않는다. DOM 해제 대신 hidden으로 바뀐 기존 layout/scroll/notification 단언은 같은 비노출 조건을 계속 확인한다. 별도 subprocess나 전수 조합은 추가하지 않는다.
-
-후속 보기 화면은 1440px English Light [캡처](assets/dynamic-views-d3/view-1440.png), 640px Korean Dark [캡처](assets/dynamic-views-d3/view-640.png)에서 4탭 정렬, 줄바꿈, 패널 내부 세로 스크롤과 표 내부 가로 스크롤을 확인했다. 계정/폴더 경로를 포함할 수 있는 사이드바와 Root select는 촬영 시 mask했다. 출처의 unavailable은 현재 신뢰된 Root identity 공급이 없는 실제 제한이며 숨기지 않는다.
-
-숨김 상태로 유지되는 문서 패널은 documentContentBounds에서 보이는 panel만 제외하도록 함께 대조했다. 기존 document-scroll·layout-rules·command-center의 비노출/포커스/가용 영역 단언을 유지하며 로컬 layout-rules는 문서화된 representative 범위로 실행하고 전수 회귀는 CI에 맡긴다.
-
+#1341에서 비서 생성·즐겨찾기·출처·Chart 예제를 제거했다. InputForm·세로 Panel·DataTable·review 예제는 `Plugin views`, 조회 교체/가용성 예제는 `Query lifetime`으로 유지한다. 현재 조합은 [플러그인 화면 계약](plugin-screens-v1.md)을 따른다. 새 공통 표면·interaction 예외는 없다.
 
 ## 갤러리 탐색과 네이티브 목록 (#1298)
 
-갤러리는 왼쪽 탐색에서 Controls / Surfaces / Menus / Notifications / Generated views /
-Tables / View lifetime 묶음을 선택한다. 기본 묶음은 Controls다. Button ghost/sm과
+갤러리는 왼쪽 탐색에서 Controls / Surfaces / Menus / Notifications / Plugin views /
+Tables / Query lifetime 묶음을 선택한다. 기본 묶음은 Controls다. Button ghost/sm과
 Settings의 `settings-navigation` 현재 항목(`aria-current="page"`) 패턴을 재사용한다.
 Theme·Example state는 기존 ChoiceGroup을 유지하며, 반복 상태 안내는 키보드로도 열 수
 있는 Example guidance disclosure에 둔다. 선택한 묶음의 예제 상태는 전환 시 초기화하고
@@ -265,7 +252,7 @@ Theme·Example state는 기존 ChoiceGroup을 유지하며, 반복 상태 안내
 
 ### 플러그인 화면 간소화 (#1329)
 
-작업 탭·문서 우측 보기의 기존 ViewWorkspace/QueryViews를 유지한다. Button secondary/ghost, Notice, native details/summary와 기존 간격·글자 토큰을 재사용한다. 즐겨찾기 관리의 접기는 AssistantDataDetails·ViewChart와 같은 native 패턴이다. 새로운 공통 구현이나 예외는 없다. 단일 선택 장치 숨김과 source별 폴더 표시의 범위는 [생성 뷰 계약](generated-views-v1.md#플러그인동적-뷰-화면-간소화-1329)을 따른다.
+플러그인 작업 탭의 ViewWorkspace/QueryViewPage와 Button·Notice·기존 간격·글자 토큰을 유지한다. 단일 Host·단일 기본 조회의 선택 장치는 숨기며 조회는 Host 범위다. #1341에서 문서 우측 Views·생성·즐겨찾기를 제거했다. 현재 기준은 [플러그인 화면 계약](plugin-screens-v1.md)이다. 새 표면·공통 interaction 예외는 없다.
 
 ## PDF reading choice (#1337)
 

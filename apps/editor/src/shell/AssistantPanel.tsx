@@ -1,9 +1,5 @@
 import { LOCAL_HOST_ID } from "../host-locator.ts";
-import { AssistantDataDetails } from "../views/AssistantDataDetails.tsx";
 import { hostLabel } from "../host-client.ts";
-import { generateView } from "../views/generate-view.ts";
-import { viewRequest, ViewValidationError, type ViewResult } from "../views/view-api.ts";
-import type { CatalogView as View } from "@litzio/core/views-v2";
 import { createAssistantRequest } from "../assistant-api.ts";
 import { useHostClient, HostContext } from "../host-context.tsx";
 import { displayRequestCurrent, displayValues, type DisplayRequest, type DisplayReply, type DisplayReceipt, type DisplaySnapshot, type DisplaySettings } from "../../shared/assistant-display.ts";
@@ -29,18 +25,8 @@ const pathName = (path: string) => path.replace(/[\\/]+$/, "").split(/[\\/]/).at
 const widthKey = `${brand.storagePrefix}.assistantWidth`;
 export function assistantWidth() { try { const value = Number(localStorage.getItem(widthKey)); return value >= 340 && value <= 560 ? value : undefined; } catch { return undefined; } }
 export function rememberAssistantWidth(value: number) { try { localStorage.setItem(widthKey, String(value)); } catch { /* Width remains usable for this page. */ } }
-import type { ViewDestinationToken } from "../views/view-destination.ts";
-import type { ViewRootBinding } from "../views/view-provenance.ts";
-import type { AssistantConversationInput } from "../../shared/assistant.ts";
 
 type Props = { onNewHost?(): void; settingsRevision: number; open: boolean; overlay: boolean; width: number | undefined; onWidth(value: number): void; onClose(): void; onSettings(): void; settingsDisabled?: boolean;
-  viewFavorites?: ReactNode;
-  generationRequest?: { token: ViewDestinationToken; view?: View; target?: AssistantConversationInput["viewGenerationTarget"] };
-  provenanceRoots?: readonly ViewRootBinding[];
-  onOpenViewDocument?(path: string, hostId: string): void;
-  onGenerationConsumed?(): void;
-  onGeneratedDestination?(token: ViewDestinationToken, view: View): boolean;
-  onGeneratedView?(view: View, root: string): void;
   onDisplay(request: DisplayRequest, pollStartedAt: number): Promise<DisplayReply>;
   onOpen(path: string): Promise<void>; onUndo(result: { path: string; revision: string; identity?: FileIdentity }): Promise<boolean>;
   referenceRequest?: { hostId: string; path: string };
@@ -48,11 +34,9 @@ type Props = { onNewHost?(): void; settingsRevision: number; open: boolean; over
   documentPath: string; folders: string[]; documentDirty: boolean };
 
 /** A concrete shell surface; it does not introduce a plugin contribution API. */
-export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewFavorites, generationRequest, onGenerationConsumed, onGeneratedDestination, onGeneratedView, onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
+export function AssistantPanel({ onNewHost, settingsRevision, open, overlay, width, onWidth, onClose, onSettings, settingsDisabled, documentPath, folders, documentDirty, onOpen, onUndo, referenceRequest, onReferenceConsumed, onDisplay }: Props) {
   useTranslation();
   const client = useHostClient();
-  const cardVersion = useRef(0);
-  useEffect(() => { if (!open) cardVersion.current++; }, [open]);
   const [hostId] = useState(useContext(HostContext));
   const conversationKey = `${brand.storagePrefix}.assistantConversation:${hostId}`;
   const request = createAssistantRequest(client);
@@ -82,27 +66,6 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
   const [setup, setSetup] = useState("");
   const [ready, setReady] = useState(false);
   const [pending, setPending] = useState(false);
-  const [generationStatus, setGenerationStatus] = useState("");
-  const [viewCards, setViewCards] = useState<{ conversation: string; turn: string; view: View; root: string; corrections: number }[]>([]);
-  const [viewTarget, setViewTarget] = useState<Props["generationRequest"]>();
-  useEffect(() => {
-    if (!generationRequest) return;
-    setViewTarget(generationRequest); setMessage(i18n.t("Request a view"));
-    onGenerationConsumed?.(); input.current?.focus();
-  }, [generationRequest]);
-  useEffect(() => {
-    const token = viewTarget?.token;
-    if (!token) return;
-    const clear = () => setViewTarget(current => current?.token === token ? undefined : current);
-    if (token.signal.aborted) clear();
-    else token.signal.addEventListener("abort", clear, {once:true});
-    return () => token.signal.removeEventListener("abort", clear);
-  }, [viewTarget]);
-  const [viewRoot, setViewRoot] = useState("");
-  const generation = useRef<AbortController | null>(null);
-  const cancelledViewConversation = useRef<string | undefined>(undefined);
-  useEffect(() => { if (!open && !viewTarget) generation.current?.abort(new Error(i18n.t("View generation closed."))); }, [open, viewTarget]);
-  useEffect(() => () => generation.current?.abort(new Error(i18n.t("View generation closed."))), []);
   const [choicesOpen, setChoicesOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null), input = useRef<HTMLTextAreaElement>(null), transcript = useRef<HTMLDivElement>(null);
   const referenceCaret = useRef<number | null>(null);
@@ -165,7 +128,7 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
     }
   }, [open, ready, enabled, setup]);
   useEffect(() => {
-    if (!open || !conversation?.id || conversation.id === cancelledViewConversation.current || pending || !ready || !enabled || setup) return;
+    if (!open || !conversation?.id || pending || !ready || !enabled || setup) return;
     let alive = true, polling = false, timer: ReturnType<typeof setTimeout> | undefined;
     const id = conversation.id;
     const schedule = () => {
@@ -214,44 +177,15 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
     setPending(true); setProblem("");
     try { await action(isCurrent); } catch (error) { if (isCurrent()) setProblem((error as Error).message); } finally { if (isCurrent()) setPending(false); }
   };
-  const send = () => viewTarget ? proposeView() : run(async isCurrent => {
+  const send = () => run(async isCurrent => {
     if (active && provider === "copilot") return;
-    cancelledViewConversation.current = undefined;
     const value = message.trim(); if (!value && !references.length) return;
     const document = documentPath ? { path: documentPath } : undefined;
     const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "send", displayClient, id: conversation?.id, message: value,
-      provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: provider !== "codex" ? [] : references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document, viewContext: { owner: "litzio.assistant", hostId, roots: provenanceRoots.filter(root => root.hostId === hostId && folders.includes(root.path)).map(({path,id}) => ({path,id})) } });
+      provider, permissionMode, model, reasoningEffort: effort, ...(provider === "copilot" && mode ? { mode } : {}), references: references.filter(file => file.kind !== "skill").map(file => file.path), skills: provider !== "codex" ? [] : references.filter(file => file.kind === "skill" && hasSkillToken(value, file.name)).map(({ name, path }) => ({ name, path })), folders, document });
     if (!isCurrent()) return;
     setConversation(next); rememberConversation(conversationKey, next.id); setMessage(""); setReferences([]); setMention(null); setHistory(null); input.current?.focus();
     requestAnimationFrame(() => { if (transcript.current) transcript.current.scrollTop = transcript.current.scrollHeight; });
-  });
-  const proposeView = () => run(async isCurrent => {
-    if (active || (!onGeneratedView && !onGeneratedDestination) || !model || !message.trim()) return;
-    const target = viewTarget;
-    if (target && target.token.destination.hostId !== hostId) throw new Error(i18n.t("View generation target belongs to another Host."));
-    const sourceDocument = target ? (target.token.destination.documentDirty ? undefined : target.token.destination.documentPath) : (documentPath && !documentDirty ? documentPath : undefined);
-    const root = target?.token.destination.root ?? (folders.includes(viewRoot) ? viewRoot : folders[0]);
-    const controller = new AbortController(); generation.current = controller; cancelledViewConversation.current = undefined;
-    setGenerationStatus(""); setHistory(null);
-    let corrections = 0;
-    try {
-      const view = await generateView({ request, signal: target ? AbortSignal.any([controller.signal, target.token.signal]) : controller.signal,
-        input: { viewGenerationTarget: target?.target, id: conversation?.id, provider, model, reasoningEffort: effort, mode: provider === "copilot" ? mode : undefined, permissionMode: "read-only", folders, references: references.filter(file => file.kind !== "skill").map(file => file.path), document: sourceDocument ? { path: sourceDocument } : undefined, viewContext: { owner: target?.token.destination.owner ?? "litzio.assistant", hostId, roots: provenanceRoots.filter(root => root.hostId === hostId && folders.includes(root.path)).map(({path,id}) => ({path,id})) }, viewDefinition: target?.view, message: message.trim() },
-        snapshot: next => { corrections = next.turns.at(-1)?.items.find(item => item.viewGeneration)?.viewGeneration?.correction ?? 0; if (isCurrent()) { current.current = next; setConversation(next); setPermissionMode("read-only"); rememberConversation(conversationKey, next.id); } },
-        status: value => { if (isCurrent()) setGenerationStatus(value); },
-        cancelled: () => { if (isCurrent()) {
-          cancelledViewConversation.current = current.current?.id;
-          setConversation(previous => previous ? { ...previous, turns: previous.turns.map(turn => turn.status === "inProgress" ? { ...turn, status: "interrupted" } : turn) } : previous);
-        } },
-        validate: async (value, signal, context) => {
-          const result = await request<ViewResult>(ASSISTANT.conversationsRoute, { action: "propose-view-generation", requestId: context.requestId, id: context.id, turnId: context.turnId, view: value }, signal);
-          if (result.receipt?.outcome !== "success" || !result.view) throw new ViewValidationError("The view definition is invalid. Check the catalog and bindings.");
-          if (target && (result.view.profile !== "query" || result.view.owner !== target.token.destination.owner)) throw new ViewValidationError("The generated view must keep the destination owner. Use assistant rows for an assistant destination.");
-          return result.view;
-        },
-      });
-      if (isCurrent() && !controller.signal.aborted && !target?.token.signal.aborted) { if (target) onGeneratedDestination?.(target.token, view); setViewTarget(undefined); setViewCards(previous => [...previous, { conversation: current.current!.id, turn: current.current!.turns.at(-1)!.id, view, root: root ?? "", corrections }]); setMessage(""); setPermissionMode("read-only"); }
-    } catch (error) { setGenerationStatus(""); throw error; } finally { generation.current = null; }
   });
   const addReference = (file: AssistantFileReference) => {
     setReferences(previous => {
@@ -346,7 +280,7 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
         let catalog = models;
         if (settings && provider !== settings.provider) catalog = await request<AiModels>(`${ASSISTANT.modelsRoute}?provider=${settings.provider}`);
         if (!isCurrent()) return;
-        setViewTarget(undefined); setConversation(undefined); setGenerationStatus(""); rememberConversation(conversationKey, ); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null);
+        setConversation(undefined); rememberConversation(conversationKey, ); setHistory(null); setProblem(""); setMessage(""); setReferences([]); setMention(null);
         setModels(catalog); if (settings) defaults(settings);
         setMode(catalog?.copilot?.modes.find(mode => /(?:^|#)agent$/.test(mode.id))?.id ?? ""); input.current?.focus();
       }); }}><Plus /></Button>
@@ -378,35 +312,12 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
         })}><strong>{entry.title}</strong><time dateTime={new Date(entry.updatedAt).toISOString()}>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" }).format(entry.updatedAt)}</time>
           {entry.folders.length ? <small title={entry.folders.join("\n")}>{entry.folders.map(pathName).join(" · ")}</small> : null}</Button>)}</div>
         : conversation?.turns.map(turn => <section key={turn.id} className="assistant-turn" data-status={turn.status}>
-          {turn.items.filter(item => item.kind === "user" && !item.viewGeneration?.correction).map(item => <p key={item.id} className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips references={item.references ?? []} /></p>)}
+          {turn.items.filter(item => item.kind === "user").map(item => <p key={item.id} className="assistant-user" role="group" aria-label={i18n.t("Your message")}><span>{item.text}</span><ReferenceChips references={item.references ?? []} /></p>)}
           {turn.items.some(isWorkDetail) ? <details key={`${turn.id}-${turn.status}`} open={turn.status === "inProgress"} className="assistant-steps"><summary>{i18n.t(turn.status === "inProgress" ? "Working…" : "Work details")}</summary>
             {turn.items.filter(isWorkDetail).map(item => <div key={item.id} data-kind={item.kind}><small>{i18n.t(item.kind === "tool" ? "Tool" : item.kind === "reasoning" ? "Reasoning summary" : "Steps")}{item.status ? ` · ${activityStatus(item.status)}` : ""}</small><p>{item.text}</p></div>)}</details> : null}
           <div role="group" aria-label={i18n.t("Assistant response")}>
-            {turn.items.filter(item => item.kind === "assistant").map(item => viewDefinition(turn, item.text)
-              ? <details key={item.id} className="assistant-steps"><summary>{i18n.t("View definition")}</summary><pre>{item.text}</pre><CopyButton text={item.text} label={i18n.t("Copy view definition")} /></details>
-              : <AssistantAnswer key={item.id} source={item.text} />)}
+            {turn.items.filter(item => item.kind === "assistant").map(item => <AssistantAnswer key={item.id} source={item.text} />)}
           </div>
-          {onGeneratedView && turn.status === "completed" ? [
-            ...viewCards.filter(card => card.conversation === conversation!.id && card.turn === turn.id),
-            ...turn.items.flatMap(item => {
-              if (item.kind !== "tool" || item.text !== "propose_view" || item.toolResult?.success !== true) return [];
-              for (const part of item.toolResult.contentItems) {
-                try {
-                  const result = JSON.parse(part.text ?? "");
-                  if (result.receipt?.operation === "view.propose" && result.receipt.outcome === "success" && result.view?.kind === "litzio-view") return [{ view: result.view as View, root: folders.includes(viewRoot) ? viewRoot : folders[0] }];
-                } catch { /* A partial tool result is not a card. */ }
-              }
-              return [];
-            }),
-          ].map((card, index) => <div key={index} className="assistant-result" data-testid="assistant-view-result">
-            <strong>{"corrections" in card && typeof card.corrections === "number" && card.corrections > 0 ? i18n.t("View validated · Corrections: {{count}}/2", { count: card.corrections }) : i18n.t("View validated")}</strong><span>{card.view.title}</span>
-            {card.view.profile === "query" && card.view.refresh === "assistant" ? <AssistantDataDetails source={card.view.sources.stats} provenanceRoots={provenanceRoots} onOpenDocument={onOpenViewDocument} /> : null}
-            <div><Tooltip><TooltipTrigger render={<Button size="sm" disabled={pending || (card.view.profile === "query" && card.view.refresh === "manual" && !card.root)} />} onClick={() => void run(async isCurrent => {
-              const version = cardVersion.current;
-              const result = await viewRequest(client, { action: "propose", view: card.view });
-              if (isCurrent() && version === cardVersion.current && current.current?.id === conversation!.id && result.view) onGeneratedView(result.view, card.root);
-            })}>{i18n.t("Open view")}</TooltipTrigger><TooltipContent>{i18n.t("Open without querying. Refresh data in the new tab.")}</TooltipContent></Tooltip></div>
-          </div>) : null}
           {turn.items.map(item => {
             const result = createdDocument(item);
             if (!result) return null;
@@ -446,7 +357,7 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
           })}
           {turn.status === "inProgress" ? <p role="status">{i18n.t("Working…")}</p> : turn.status === "interrupted" ? <p>{i18n.t("Stopped")}</p> : null}
           {turn.error ? <p role="alert">{turn.error}</p> : null}
-          {turn.items.some(item => item.kind === "assistant" && item.text.trim()) && !turn.items.some(item => item.viewGeneration) ? <div className="assistant-turn-actions">
+          {turn.items.some(item => item.kind === "assistant" && item.text.trim()) ? <div className="assistant-turn-actions">
             <CopyButton iconOnly text={turn.items.filter(item => item.kind === "assistant").map(item => item.text).join("\n\n")} label={i18n.t("Copy answer")} />
           </div> : null}
         </section>)}
@@ -459,7 +370,6 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
       {!history && !conversation ? <div className="assistant-welcome"><MessageSquare /><h3>{i18n.t("Ask about your document")}</h3><p>{i18n.t("Ask about the current document and opened folders. Changes to existing documents are suggested in text.")}</p></div> : null}
       {setup ? <div className="assistant-notice" role="status"><p>{i18n.t(setup as any)}</p><Button variant="outline" disabled={settingsDisabled} onClick={onSettings}>{i18n.t("Open Assistant settings")}</Button></div> : null}
       {problem ? <p role="alert" className="assistant-notice">{problem}</p> : null}
-      {generationStatus && (pending || !viewCards.some(card => card.conversation === conversation?.id)) ? <p className="assistant-notice" role="status" aria-label={i18n.t("View generation progress")}>{generationStatus}</p> : null}
     </div>
     <form className="assistant-composer" onSubmit={event => { event.preventDefault(); void send(); }}>
       {percent !== null && percent >= 80 ? <p className="assistant-warning">{i18n.t("Context is nearly full. Start a new conversation soon.")}</p> : null}
@@ -478,7 +388,7 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
         if (match && !mentionOpen) { setSkillCatalog(undefined); setSkillProblem(""); }
         setMention(match && provider === "codex" ? { start: end - match[1].length - 1, end, query: match[1] } : null); setCandidateIndex(0);
       }}
-        disabled={!!generation.current || !ready || !enabled || !!setup} onKeyDown={event => {
+        disabled={!ready || !enabled || !!setup} onKeyDown={event => {
           if (mention && !event.nativeEvent.isComposing) {
             if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setMention(null); return; }
             if (["ArrowDown", "ArrowUp"].includes(event.key)) { event.preventDefault(); setCandidateIndex(index => matches.length ? (index + (event.key === "ArrowDown" ? 1 : -1) + matches.length) % matches.length : 0); return; }
@@ -517,14 +427,13 @@ export function AssistantPanel({ provenanceRoots = [], onOpenViewDocument, viewF
 
         {provider === "copilot" && copilot?.modes.length ? <AssistantChoice label={i18n.t("Session mode")} value={copilot.modes.find(value => value.id === mode)?.name ?? mode} help={i18n.t("Model, reasoning effort and mode changes apply to the next message.")} disabled={active || pending} onOpenChange={setChoicesOpen} choiceOpen={choicesOpen} visible={open} selected={mode} options={copilot.modes.map(value => ({ value: value.id, label: value.name }))} onSelect={setMode} /> : null}
       </div>
-        {onGeneratedView ? <div className="assistant-view-controls">{viewFavorites}<select aria-label={i18n.t("View folder")} disabled={pending || active} value={folders.includes(viewRoot) ? viewRoot : folders[0] ?? ""} onChange={event => setViewRoot(event.target.value)} className="settings-select" ><option value="">{i18n.t("Choose a folder")}</option>{folders.map(folder => <option key={folder} value={folder}>{pathName(folder)}</option>)}</select></div> : null}
       <div className="assistant-footer">
 
         <Tooltip><TooltipTrigger render={<span className="assistant-usage" tabIndex={0} role="img" aria-label={i18n.t("Context usage")} />}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="9" pathLength="100" strokeDasharray={`${percent ?? 0} 100`} /></svg>
         </TooltipTrigger><TooltipContent>{usage ? `${usage.used.toLocaleString()} / ${usage.limit?.toLocaleString() ?? "?"} ${i18n.t("tokens")}${percent !== null ? ` · ${percent}%` : ""}` : i18n.t("Context usage is not available yet.")}</TooltipContent></Tooltip><small>{i18n.t("Shift+Enter for a new line")}</small>
-        {generation.current ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} onClick={() => { generation.current?.abort(new Error(i18n.t("View cancellation requested."))); }}><Square /></Button> : active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async isCurrent => { const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); })}><Square /></Button> : null}
-        <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || active && (provider === "copilot" || !!viewTarget) || !ready || (!message.trim() && !references.length) || !catalogModel || !enabled || !!setup}><ArrowUp /></Button>
+        {active ? <Button type="button" variant="outline" size="icon-sm" aria-label={i18n.t("Stop response")} disabled={pending} onClick={() => void run(async isCurrent => { const next = await request<AssistantConversation>(ASSISTANT.conversationsRoute, { action: "interrupt", id: conversation!.id }); if (isCurrent()) setConversation(next); })}><Square /></Button> : null}
+        <Button type="submit" size="icon-sm" aria-label={i18n.t(active ? "Steer conversation" : "Send message")} disabled={pending || active && provider === "copilot" || !ready || (!message.trim() && !references.length) || !catalogModel || !enabled || !!setup}><ArrowUp /></Button>
       </div>
     </form>
   </aside>;
@@ -601,12 +510,4 @@ function displayValueLabel(value: DisplaySettings[keyof DisplaySettings]) {
   if (value === "ko") return "한국어";
   if (value === "en") return "English";
   return i18n.t(displayLabels[value]);
-}
-
-/** Presentation only: ordinary prose remains readable alongside a proposal card. */
-function viewDefinition(turn: AssistantConversation["turns"][number], text: string): boolean {
-  if (turn.items.some(item => item.viewGeneration)) return true;
-  if (!turn.items.some(item => item.text === "propose_view" && item.toolResult?.success === true)) return false;
-  try { return JSON.parse(text.trim().replace(/^```(?:json)?\s*\n([\s\S]*?)\n```$/i, "$1"))?.kind === "litzio-view"; }
-  catch { return false; }
 }
