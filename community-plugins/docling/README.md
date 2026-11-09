@@ -137,9 +137,9 @@ docker stop docling-serve
 
 기존 http-plugins 가짜 서버는 고정 프로필 multipart 전체, 단일 제출, task failure ID, 변환 중 PDF 변경 거부, 전체 deadline·중단을 대표 사례로 보호합니다. 같은 서버에서 만든 봉투는 문서 작업의 offline 입력으로 재사용합니다. uint64 토큰·원본 PDF/JSON/그림 hash·CRC와 공식 K1 저장/결과 열기를 대조하며 새 서버 프로세스를 추가하지 않습니다. Root·같은 이름 충돌/덮어쓰기 거부는 기존 Host suite가 소유합니다.
 
-0.0.1 당시 가짜 서버 약 1.5분·실제 Docker 포함 약 2.2분은 과거 실행 기록입니다. 현재 0.0.3의 검증·수동 캡처는 아래 절을 따릅니다. CI는 가짜 서버만 사용하고 실제 서버는 별도 수락입니다.
+0.0.1 당시 가짜 서버 약 1.5분·실제 Docker 포함 약 2.2분은 과거 실행 기록입니다. 과거 0.0.3 근거와 현재 0.0.4의 검증·수동 캡처는 아래 절을 따릅니다. CI는 가짜 서버만 사용하고 실제 서버는 별도 수락입니다.
 
-### 문서 변환 규칙 (0.0.3 / #1368)
+### 문서 변환 규칙 (0.0.4 / #1382)
 
 한 경로 `불변 원본 → 수정 적용 단계(현재 빈 수정·private copy) → 블록 → SDK authorDocument`로 만듭니다. 원본 body.children과 group/element 참조를 따라 순서를 유지하며 label 또는 content_layer가 furniture인 머리글·바닥글은 제외합니다. 잘못된 참조·중복/순환·표 좌표/범위/겹침 오류는 전체 실패합니다. 플러그인이 Docling 의미를 해석하고, Core의 공개 SDK만 문서 생성·정규화·canonical 직렬화를 담당합니다.
 
@@ -150,27 +150,31 @@ docker stop docling-serve
 | table | 원본 num_rows×num_cols 직사각형, 첫 행 header, 빈 칸 유지. 병합 칸은 모든 위치에 같은 글자 반복. 다단 header의 뒤 행은 body로 유지하며 손실 기록. row-header/section 의미 변경도 기록 |
 | list_item | 원래 순서의 평면 bullet/번호 목록. 연속 번호·종류가 같은 인접 항목을 결합하고 100항목마다 다음 블록. 중첩 평탄화와 표현하지 못한 marker를 항목별 기록 |
 | code / formula | Code / Equation. 원본 code_language·수식 text 사용; 추출 오류를 추측해서 고치지 않음 |
-| picture + captions | 빈 URL pending Figure와 literal caption. 이미지 미포함을 그림마다 기록. 별도 번호 의미는 추출하지 않음 |
-| table captions | 표 뒤의 literal 문단. SDK에 표 caption 속성이 없어 대응으로 연결 |
+| picture + captions | embedded ImageRef를 공용 이미지 입력으로 전달해 Figure에 연결. 이미지가 없거나 전달할 수 없으면 pending Figure와 이미지 미포함 손실을 유지 |
+| table captions | 확실한 원본 번호는 Table 고정 번호로 이동. 남은 caption은 표 뒤의 literal 문단(현재 공용 입력에 table caption 속성이 없음). 번호·본문의 대응을 모두 연결 |
 | footnote / unknown / unreachable | 각주는 call site 추측 없이 문단; 알 수 있는 text는 문단으로 보존. 알 수 없는 내용·group·미도달 항목·inline 서식/링크 의미 손실을 self_ref별 기록 |
 
 0인 손실 종류는 생략하고 완료 phase에 `병합 칸 반복 5 · 다단 헤더 계층 소실 1 · 중첩 목록 평탄화 1 · 그림 이미지 미포함 2 · 미지원 1` 형태로 요약합니다. 기존 PluginJobPanel의 단계 칸을 그대로 쓰며 새 화면·공통 interaction 예외는 없습니다. 머리글/바닥글 제외는 report.items의 furniture 상태에 남습니다. 표 개수 같은 정상 변환 통계는 손실 요약에 넣지 않으며 표 셀 역할 소실·목록 표식 미보존도 각각 구분합니다. 손실 기록이 없으면 요약은 비어 있습니다. 전체 근거와 짧은 항목별 설명은 report.losses에 있습니다. 추출 품질과 원본에 없는 의미는 복구하지 않습니다.
 
+캡션 접두어 `Figure`, `Fig`/`Fig.`, `그림`, `Table`, `표` 뒤의 아라비아 숫자와 숫자 사이 `.`/`-`를 읽습니다. 영어 대소문자는 구분하지 않습니다. 예: `Figure 6:`, `Fig. 2`, `그림 3`, `Table 2-1.`, `표 4`. 숫자 문자열은 정규화하지 않고 고정 enumerator로 옮기며 접두어·구분자만 제거합니다. 로마 숫자·알파벳·숫자 접미사·모호한 경계·종류 불일치·독립 번호가 있는 복수 캡션·같은 종류의 같은 번호 중복은 원문을 그대로 두고 `enumerated:false`로 표시합니다. 이 경우 `캡션 번호 미보존` 손실을 기록합니다. 번호 없는 caption도 이 경로를 사용합니다. Figure와 Table은 서로 독립이며 자동 번호를 만들지 않습니다.
+
+원본 `.docling`을 수정하거나 이미지를 플러그인에서 직접 저장하지 않습니다. ImageRef의 PNG/JPEG/WebP 바이트를 공용 `{authoring,images}` 결과로 반환합니다. Host가 이미지 바이트를 검사하고 문서 옆 `assets/`에 게시합니다. 기존 결과 문서를 지우고 **같은 출력 경로**로 다시 만들면 같은 파일을 재사용합니다. 다른 출력 문서는 공용 Host의 문서별 asset 경로를 사용합니다. 크기·개수·미지원 이미지 거부도 공용 Host를 따르며 실패를 이미지 없는 성공으로 우회하지 않습니다.
+
 ### 원본 항목과 출력 대응
 
-`litzio operation invoke community.docling.conversion-report --input <report.json> --host <origin> --json`, 입력 `{"requestId":"<문서 생성 요청 UUID>"}`로 상세 결과를 읽습니다. 입력 파일은 artifact 밖에 둡니다. report는 `sourceHash`(보관 document.json의 정확한 SHA-256), `documentRevision`, `documentHash`, `items`, `losses`, `summary`를 반환합니다. 실패에는 고정된 `failure.reason`과 선택 self_ref가 있습니다. Host의 K1 오류는 보안 계약대로 고정 분류/안내이며 상세 한도 사유는 이 읽기 결과에서 확인합니다.
+`litzio operation invoke community.docling.conversion-report --input <report.json> --host <origin> --json`, 처음 입력은 `{"requestId":"<문서 생성 요청 UUID>","result":<plugins result 응답의 job.result>}`입니다. Host 완료 result의 path/revision/inputs를 그대로 전달합니다. 플러그인은 이 요청의 출력 경로·실제 파일 hash·SDK 입력별 target 위치와 revision을 확인하고 최종 targets로 보고서를 연결합니다. 연결 후에는 `{"requestId":"<동일 UUID>"}`만으로 같은 snapshot 보고서를 읽을 수 있습니다. 실패 보고서는 result 없이 읽습니다. 입력 파일은 artifact 밖에 둡니다. report는 `sourceHash`(보관 document.json의 정확한 SHA-256), `documentRevision`, `documentHash`, `items`, `losses`, `summary`를 반환합니다. 실패에는 고정된 `failure.reason`과 선택 self_ref가 있습니다. Host의 K1 오류는 보안 계약대로 고정 분류/안내이며 상세 한도 사유는 이 읽기 결과에서 확인합니다.
 
-SDK 입력 key는 self_ref이며 영속 식별은 sourceHash+self_ref입니다. items의 targets는 반환된 SDK key별 targets로 계산합니다. 여러 목록 항목이나 그림+캡션이 같은 target을 공유할 수 있습니다. table.cells는 원본 table_cells의 index, 출력 grid positions와 targets를 담습니다. container·furniture·미도달 항목의 targets는 비어 있습니다. target path는 출력 revision에만 유효하며 재변환 때 새로 계산합니다.
+SDK 입력 key는 self_ref이며 영속 식별은 sourceHash+self_ref입니다. items의 targets는 Host가 이미지 경로를 바인딩한 최종 SDK key별 targets로 계산합니다. 표 caption의 원본 번호와 본문은 table/뒤 문단 두 target에 연결될 수 있습니다. 여러 목록 항목이나 그림+캡션이 같은 target을 공유할 수 있습니다. table.cells는 원본 table_cells의 index, 출력 grid positions와 targets를 담습니다. container·furniture·미도달 항목의 targets는 비어 있습니다. target path는 출력 revision에만 유효하며 재변환 때 새로 계산합니다.
 
-대응 파일을 만들지 않습니다. 플러그인 활성화 수명의 요청별 메모리에 결과를 두고 기존 CLI 읽기 작업으로 돌려줍니다. 별도 파일·Host/SDK 저장 확장 없이 검수에서 같은 convertDocument 함수를 재사용해 다시 계산할 수 있는 가장 단순한 선택입니다. reload/restart 뒤 report는 사라지며 다시 변환해야 합니다. SDK 생성 보고는 Host 저장 receipt가 아니므로 실제 저장 성공·revision은 plugins result에서 별도로 확인합니다. `.docling`의 미래 검수 기록과 이 재계산 결과를 혼동하지 않습니다.
+대응 파일을 만들지 않습니다. 플러그인 활성화 수명의 요청별 메모리에 결과를 두고 기존 CLI 읽기 작업으로 돌려줍니다. 별도 대응 파일 없이 같은 convertDocument 경로와 Host 완료 inputs로 다시 연결합니다. reload/restart 뒤 report는 사라지며 다시 변환해야 합니다. Host 완료 receipt가 없으면 최종 대응 보고서를 발행하지 않습니다. 이미지를 임시 경로에 바인딩한 SDK 검증 snapshot은 실제 저장 결과로 반환하지 않습니다. 보고서의 target은 해당 출력 revision에 고정되며 후속 수동 편집을 현재 상태처럼 따라가지 않습니다. `.docling`의 미래 검수 기록과 이 재계산 결과를 혼동하지 않습니다.
 
 ### 한도와 검증 경계
 
-SDK 한도는 입력 200개(원본 항목 단위, 제외·container도 포함), 전체 500블록, 입력 JSON/출력 source 각각 UTF-8 256KiB, 문자열 16,384 UTF-16 units, 표 100행×32열입니다. 넘으면 잘라 통과시키지 않고 전체 실패하며 문서를 만들지 않습니다. 목록 100항목은 내용을 자르지 않고 다음 블록으로 이어집니다. 한도 확대·이미지 공식 저장은 후속 공용 기능입니다.
+SDK 한도는 입력 5,000개(원본 항목 단위, 제외·container도 포함), 전체 5,000블록, 입력 JSON/출력 source 각각 UTF-8 4MiB, 문자열 16,384 UTF-16 units, 표 100행×32열입니다. 넘으면 잘라 통과시키지 않고 전체 실패하며 문서를 만들지 않습니다. 목록 100항목은 내용을 자르지 않고 다음 블록으로 이어집니다. 이미지당 10MiB·최대 256개와 공용 K1/이미지 저장 제한도 따릅니다.
 
-자동 검사는 기존 plugins.test.ts에서 원본 불변·native 요소·공유 targets·병합 셀 index/위치·손실 분류와 잘못된 graph/grid·문자열/입력/byte/표 한도 거부를 보호합니다. ZIP 예약 검수 항목과 독립적인 원본 hash 검증도 확인합니다. 기존 http-plugins는 같은 가짜 서버와 작은 fixture로 공개 SDK 활성화→K1 공식 저장→revision/report 조회→브라우저 요소·손실 요약을 검증합니다. 의미 조합은 낮은 계층에 두며 새 subprocess·suite·타임아웃 확대는 없습니다. 전체 500블록 한도는 SDK가 소유하며 이 변환기에서는 200개 원본 입력 제한이 먼저 적용됩니다.
+자동 검사는 기존 plugins.test.ts에서 원본 불변·native 요소·공유 targets·병합 셀 index/위치·손실 분류와 잘못된 graph/grid·문자열/입력/byte/표 한도 거부를 보호합니다. ZIP 예약 검수 항목과 독립적인 원본 hash 검증도 확인합니다. 기존 http-plugins는 같은 가짜 서버와 작은 fixture로 공개 SDK 활성화→K1 공식 저장→revision/report 조회→브라우저 요소·손실 요약을 검증합니다. 의미 조합은 낮은 계층에 두며 새 subprocess·suite·타임아웃 확대는 없습니다. 번호 해석·중복 규칙과 최종 target 연결은 낮은 계층에서 검사하며 이미지 게시·실제 표시 경계만 기존 HTTP 시나리오에서 확인합니다.
 
-실제 docling-serve는 수동 수락으로 분리합니다. 입력은 [ReportLab/Pillow 생성 스크립트](fixtures/create-acceptance.py)로 저장소 루트에서 재생성합니다. 표·번호 목록·코드·수식·그림+캡션·머리글/바닥글이 있는 한 페이지 합성 PDF를 고정 프로필로 변환했습니다. 첫 3페이지 PDF는 서버 backend의 partial_success라 거부했으며 성공으로 포장하지 않았습니다. 한 페이지 결과에서 native 요소·furniture 제외·원본 PDF와 그림 ImageRef 보존을 확인합니다. 서버의 코드 분할·수식 인식 품질은 검수 전이며 PDF와의 의미 동등성을 보증하지 않습니다.
+아래 0.0.3 당시의 실제 docling-serve 검증은 과거 근거입니다. 입력은 [ReportLab/Pillow 생성 스크립트](fixtures/create-acceptance.py)로 저장소 루트에서 재생성합니다. 표·번호 목록·코드·수식·그림+캡션·머리글/바닥글이 있는 한 페이지 합성 PDF를 고정 프로필로 변환했습니다. 첫 3페이지 PDF는 서버 backend의 partial_success라 거부했으며 성공으로 포장하지 않았습니다. 한 페이지 결과에서 native 요소·furniture 제외·원본 PDF와 그림 ImageRef 보존을 확인합니다. 서버의 코드 분할·수식 인식 품질은 검수 전이며 PDF와의 의미 동등성을 보증하지 않습니다.
 
 수동 캡처는 서버 변환이 끝난 `.docling`을 `LITZIO_DOCLING_REAL_ARCHIVE`, 이전 변환기의 같은 문서 source를 `LITZIO_DOCLING_BEFORE`로 지정한 `pnpm browser:test http-plugins --screenshots`로 촬영합니다. 이 옵션은 Docling 등록·문서 생성·열기·대응·1440/한국어 dark 640px 검토만 수행하며 Jira fault 회귀는 별도 자동 실행이 소유합니다. 외부 모델 대기를 180초 가짜 서버 회귀 안에 넣지 않습니다. 재생성 가능한 PDF/ZIP/JSON은 커밋하지 않습니다.
 
@@ -183,8 +187,28 @@ SDK 한도는 입력 200개(원본 항목 단위, 제외·container도 포함), 
 | 수식·캡션 Figure | [After](../../docs/design/assets/docling-003/equation-figure-1440.png) | [After](../../docs/design/assets/docling-003/equation-figure-640.png) |
 | 손실 요약 | [패널](../../docs/design/assets/docling-003/losses-1440.png) | [왼쪽](../../docs/design/assets/docling-003/losses-640.png) · [오른쪽](../../docs/design/assets/docling-003/losses-640-end.png) |
 
-공통 표의 정렬·여백·한국어 줄바꿈·가로 스크롤과 본문 잘림/가림을 확인했습니다. 캡션의 원본 `Figure 1:` 문자열과 Litzio의 자동 번호가 함께 보이는 것은 원본 번호 의미를 추측해 제거하지 않는 현재 한계입니다. UI 표면이나 레이아웃은 변경하지 않습니다.
+공통 표의 정렬·여백·한국어 줄바꿈·가로 스크롤과 본문 잘림/가림을 확인했습니다. 0.0.3 당시에는 캡션의 원본 `Figure 1:`과 자동 번호가 함께 보였습니다. 0.0.4는 확실한 번호를 이동하고 불확실한 번호에 자동 번호를 붙이지 않습니다. UI 표면이나 레이아웃은 변경하지 않습니다.
 
 ## 공식 로고 조사 (2026-11-09)
 
 공식 출처는 [Docling SVG 원본](https://github.com/docling-project/docling/blob/main/docs/assets/logo.svg)과 [LF AI & Data 프로젝트 페이지](https://lfaidata.foundation/projects/docling/)입니다. 코드의 [MIT 라이선스](https://github.com/docling-project/docling/blob/main/LICENSE)는 상표 허가를 대신하지 않습니다. [Linux Foundation 상표 정책](https://www.linuxfoundation.org/legal/trademark-usage)은 프로젝트별 추가 조건과 로고 사용 제한을 별도로 정합니다. 이 커뮤니티 플러그인의 사이드바 로고 재배포에 적용할 명시적 허용 조건을 확인하지 못했으므로 공식 로고 파일과 로고를 가리키는 선언을 추가하지 않았습니다. 일반 문서 변환 아이콘 `icon.svg`는 앱이 사용하는 Lucide `file-output`(lucide-react 1.47.0, [원본](https://github.com/lucide-icons/lucide/blob/main/icons/file-output.svg))을 고정 색상으로 사용하며, ISC 라이선스·저작권 고지는 [ICON-LICENSE](ICON-LICENSE)에 보관합니다. 공식 공급·후원 관계를 나타내지 않습니다.
+
+
+### 0.0.4 수락 검증 (#1382)
+
+[작은 PDF 생성 스크립트](fixtures/create-figures-acceptance.py)를 ReportLab/Pillow로 실행하고 기존 `docling-serve` 컨테이너를 시작해 고정 프로필로 변환했습니다. 서버의 완전한 success이며 한 페이지·그림 ImageRef 2개·표 1개와 `Figure 6`, `Table 2-1`, `Figure IV` 캡션을 확인했습니다. 보관 파일은 약 55KiB입니다. 시험 후 컨테이너는 중지했으며 삭제·재생성하거나 다른 컨테이너를 조작하지 않았습니다.
+
+공개 SDK 활성화→K1 생성→최종 receipt로 대응 보고서 연결→Litzio 열기에서 두 이미지의 실제 로드, 고정 번호 6/2-1, 로마 숫자 캡션 원문과 번호 없음, `캡션 번호 미보존 1`을 확인했습니다. 이미지 미포함 손실은 없었습니다. 생성된 문서만 지운 뒤 같은 출력 경로로 다시 만들 때 asset 파일 목록이 같고 원본 .docling 바이트도 동일함을 확인했습니다. 다른 이름의 출력 문서 간 asset 공유까지 주장하지 않습니다. 작은 합성 PDF의 수락이며 복잡한 PDF의 추출 품질·원본 의미 동등성을 보증하지 않습니다.
+
+| 상태 | 1440px | 한국어 다크 640px |
+| --- | --- | --- |
+| 기존 변환기 | [Before](../../docs/design/assets/docling-004/before-1440.png) | [Before](../../docs/design/assets/docling-004/before-640.png) |
+| 이미지·고정 번호 | [After](../../docs/design/assets/docling-004/after-1440.png) | [After](../../docs/design/assets/docling-004/after-640.png) |
+| 그림·미해석 번호 | [그림](../../docs/design/assets/docling-004/figures-1440.png) | [그림](../../docs/design/assets/docling-004/figures-640.png) |
+| 손실 요약 | [요약](../../docs/design/assets/docling-004/losses-1440.png) | [오른쪽 끝](../../docs/design/assets/docling-004/losses-640-end.png) |
+
+Before는 같은 불변 .docling을 0.0.3 변환기 소스(`e0c30727`)와 공개 SDK로 생성한 문서입니다. 같은 현재 렌더러·입력·폭/테마에서 비교했습니다. 기존 caption/표/PluginJobPanel을 그대로 쓰며 새 UI 표면·상호작용 예외는 없습니다. 정렬·여백·캡션 중복·가림·한국어 줄바꿈과 640px 표 내부 가로 스크롤을 검토했습니다. 공용 입력에 table caption 속성이 없으므로 표 캡션 본문은 기존처럼 표 뒤 문단에 남고 표 번호만 Table에 연결됩니다. 이 제한을 숨기려고 본체를 변경하지 않았습니다.
+
+자동 검사는 기존 plugins.test.ts에서 번호 규칙·같은 종류 중복·원본 불변·공용 이미지 전달과 최종 target 연결을, 기존 http-plugins에서 가짜 서버와 실제 이미지 로드·캡션 표시·손실 요약을 보호합니다. 새 suite·서버 subprocess·timeout·retry는 추가하지 않았습니다. 같은 가짜 서버 PNG fixture는 공용 Host의 complete-container 검사에 맞는 CRC 바이트로 바로잡았습니다. 실제 서버 지연은 자동 검사에 넣지 않으며 수동 캡처 경로의 같은 파일 재생성만 별도 실행합니다.
+
+로컬 결과: plugins.test.ts 30개와 변경 후 Docling 대상 5개, typecheck·Editor/CLI build·docs/diff 검사를 통과했습니다. 가짜 서버 http-plugins는 HTTP 복구를 포함해 2개 약 2.2분, 실제 보관 파일 수동 경로는 같은 2개 약 1.2분에 통과했습니다. 두 경로는 같은 checkout의 persistent profile로 순차 실행했고 직접 시작한 격리 Host와 브라우저 세션을 종료했습니다.

@@ -262,7 +262,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       const started = await docling.cli(["plugins", "start", id, "--input", docling.jobInput]);
       await expect.poll(async () => (await docling.cli(["plugins", "status", started.job.requestId])).job.state).toBe("completed");
       const report = await docling.report(started.job.requestId);
-      expect(report.summary).toContain("그림 이미지 미포함 1");
+      await docling.repeatReal();
+      expect(report.summary).not.toContain("그림 이미지 미포함");
+      expect(report.summary).toContain("캡션 번호 미보존 1");
       for (const width of [1440, 640]) {
         await page.setViewportSize({ width, height: 1100 });
         await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
@@ -270,28 +272,31 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
         if (docling.beforeFile) {
           await page.locator('[role="treeitem"][data-path$="docling-before.md"]').click();
           await expect(page.getByTestId("current-file")).toHaveAttribute("title", /docling-before\.md$/);
-          await page.screenshot({ path: `tmp/docling-1368/before-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
+          await page.screenshot({ path: `tmp/docling-1382/before-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
         }
         await page.locator('[role="treeitem"][data-path$="docling-real.md"]').click();
         await expect(page.getByTestId("current-file")).toHaveAttribute("title", /docling-real\.md$/);
         const document = page.locator(".tiptap").filter({ visible: true });
         await expect(document.locator("table")).toContainText("Revenue");
-        await expect(document.locator("ol")).toContainText("Read the original document.");
-        await expect(document.locator("pre").filter({ hasText: "def square(x)" })).toContainText("def square(x)");
         await expect(document).toContainText("Two connected stages");
-        await expect(document).not.toContainText("CONVERSION ACCEPTANCE / RUNNING HEADER");
-        await page.screenshot({ path: `tmp/docling-1368/after-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
-        await document.locator('[data-block="equation"]').first().scrollIntoViewIfNeeded();
-        await page.screenshot({ path: `tmp/docling-1368/equation-figure-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
+        await expect(document).toContainText("Figure IV: Unreadable source number");
+        await expect(document.locator('figure img')).toHaveCount(2);
+        await expect.poll(() => document.locator('figure img').evaluateAll(images => images.every(image => image.complete && image.naturalWidth > 0))).toBe(true);
+        await expect(document.locator('figure').filter({hasText:'Two connected stages'}).locator('figcaption')).toHaveAttribute('data-caption-prefix', /Figure 6/);
+        await expect(document.locator('figure').filter({hasText:'Figure IV:'}).locator('figcaption')).not.toHaveAttribute('data-caption-prefix');
+        await expect(document.getByTestId('table-caption')).toHaveAttribute('data-caption-prefix', /Table 2-1/);
+        await page.screenshot({ path: `tmp/docling-1382/after-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
+        await document.locator('figure').last().scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `tmp/docling-1382/figures-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
         await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
         const panel = page.getByTestId("plugin-job-panel");
         const row = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "real.docling", exact: true }) }).first();
         await expect(row).toContainText(report.summary);
         const masks = [page.locator(".sidebar-host-account"), panel.getByLabel(width === 640 ? "열린 폴더" : "Opened folder", { exact: true })];
-        await page.screenshot({ path: `tmp/docling-1368/losses-${width}.png`, mask: masks, maskColor: "#a1a1aa" });
+        await page.screenshot({ path: `tmp/docling-1382/losses-${width}.png`, mask: masks, maskColor: "#a1a1aa" });
         if (width === 640) {
           await panel.locator(".view-table-scroll").evaluate(element => element.scrollTo({ left: element.scrollWidth }));
-          await page.screenshot({ path: "tmp/docling-1368/losses-640-end.png", mask: masks, maskColor: "#a1a1aa" });
+          await page.screenshot({ path: "tmp/docling-1382/losses-640-end.png", mask: masks, maskColor: "#a1a1aa" });
         }
       }
       return { realDocling: true, report };
@@ -411,6 +416,14 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await expect(editor.locator("ol").filter({ hasText: "First item" })).toContainText("First item");
     await expect(editor.locator("pre")).toContainText("print(1)");
     await expect(editor).toContainText("Original caption.");
+    const figure = editor.locator('figure').filter({ hasText: 'Original caption.' });
+    await expect.poll(() => figure.locator('img').evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
+    await expect(figure.locator('figcaption')).toHaveAttribute('data-caption-prefix', /Figure 1/);
+    await expect(figure).not.toContainText('Figure 1:');
+    const unnumbered = editor.locator('figure').filter({ hasText: 'Figure IV: Unreadable number' });
+    await expect(unnumbered.locator('figcaption')).not.toHaveAttribute('data-caption-prefix');
+    expect(conversionReport.summary).toContain('캡션 번호 미보존 1');
+    expect(conversionReport.losses.filter(loss => loss.kind === 'picture-image')).toHaveLength(1);
     await expect(editor).not.toContainText("RUNNING HEADER");
     await expect(editor).not.toContainText("Docling conversion:");
     await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();

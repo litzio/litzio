@@ -10,11 +10,28 @@ function refuse(reason, ref) {
   throw Object.assign(new Error(reason), { conversionReason: reason, ...(ref ? { sourceRef: ref } : {}) });
 }
 
+/** Source-only caption convention. Never infer roman, alphabetic or partial numbers. */
+export function readCaptionNumber(caption, kind) {
+  const failed = reason => ({ caption, reason });
+  const prefix = /^\s*(Figure|Fig\.?|Table|그림|표)\s+([\s\S]*)$/i.exec(caption);
+  if (!prefix) return failed("Caption number not recognized");
+  const actual = /^(?:Table|표)$/i.test(prefix[1]) ? "table" : "figure";
+  if (actual !== kind) return failed("Caption kind does not match source item");
+  // Extract the complete numeric run before checking its boundary: a suffix on 2.1a
+  // must not backtrack into a valid-looking number 2 and caption '1a'.
+  const number = /^[0-9]+(?:[.-][0-9]+)*/.exec(prefix[2])?.[0];
+  if (!number) return failed("Caption number is not an Arabic numeric string");
+  const rest = prefix[2].slice(number.length);
+  if (/^\s*(?:[-/]\s*[0-9]|\.\s*[0-9]|[:.]{2})/.test(rest)) return failed("Ambiguous caption number separator");
+  if (rest && !/^(?:\s|:|\.(?:\s|$))/.test(rest)) return failed("Ambiguous caption number boundary");
+  return { enumerator: number, caption: rest.replace(/^\s*[:.]?\s*/, "") };
+}
+
 /** Interpret Docling only here; the SDK owns document semantics and serialization. */
 export async function convertDocument(original, sourceHash) {
   const doc = applyCorrections(original);
   if (doc?.schema_name !== "DoclingDocument" || !Array.isArray(doc.body?.children)) refuse("Invalid DoclingDocument");
-  const records = new Map(), inputs = [], losses = [], visited = new Set(), captionOwners = new Map();
+  const records = new Map(), inputs = [], images = [], losses = [], visited = new Set(), captionOwners = new Map();
   const note = (ref, kind, detail, extra = {}) => losses.push({ self_ref: ref, kind, detail, ...extra });
   const isFurniture = item => item.content_layer === "furniture" || ["page_header", "page_footer"].includes(item.label);
   function resolve(ref) {
@@ -51,7 +68,28 @@ export async function convertDocument(original, sourceHash) {
       captionOwners.set(caption.$ref, owner.self_ref);
     }
   }
-  function table(ref, item) {
+  const captionNumbers = new Map(), usedNumbers = new Map();
+  for (const [collection, kind] of [[doc.pictures ?? [], "figure"], [doc.tables ?? [], "table"]]) for (const owner of collection) {
+    if (isFurniture(owner)) continue;
+    const captions = (owner.captions ?? []).map(c => resolve(c.$ref)).filter(c => !isFurniture(c));
+    const caption = captions.map(c => c.text).filter(Boolean).join(" ");
+    const value = readCaptionNumber(caption, kind);
+    if (captions.slice(1).some(c => /^\s*(?:Figure|Fig\.?|Table|그림|표)\s/i.test(c.text))) {
+      captionNumbers.set(owner.self_ref, { caption, reason: "Multiple numbered captions are ambiguous" }); continue;
+    }
+    captionNumbers.set(owner.self_ref, value);
+    if (value.enumerator !== undefined) {
+      const key = kind + ":" + value.enumerator;
+      usedNumbers.set(key, (usedNumbers.get(key) ?? 0) + 1);
+    }
+  }
+  function captionNumber(ref, kind, caption) {
+    const value = captionNumbers.get(ref) ?? { caption, reason: "Caption number not recognized" };
+    if (value.enumerator !== undefined && usedNumbers.get(kind + ":" + value.enumerator) === 1) return value;
+    note(ref, "caption-number", value.reason ?? "Duplicate source number for this kind");
+    return { caption, enumerated: false };
+  }
+  function table(ref, item, numbering, contributors) {
     const { num_rows: height, num_cols: width, table_cells: cells } = item.data ?? {};
     if (!Number.isInteger(height) || !Number.isInteger(width) || height < 1 || width < 1 || !Array.isArray(cells)) refuse("Invalid table dimensions", ref);
     if (height > limits.tableRows || width > limits.tableColumns) refuse(`Table limit exceeded (${limits.tableRows} rows, ${limits.tableColumns} columns)`, ref);
@@ -74,7 +112,7 @@ export async function convertDocument(original, sourceHash) {
     }
     if (headers.size > 1) note(ref, "multi-row-header", "Only the first row is a native header; later header rows retain their text as body cells");
     if (!headers.has(0)) note(ref, "table-role", "First source row used as native header");
-    emit(ref, { kind: "table", rows });
+    emit(ref, { kind: "table", rows, ...numbering }, contributors);
   }
   let pendingList;
   function visit(ref, listDepth = 0, excluded = false) {
@@ -129,11 +167,20 @@ export async function convertDocument(original, sourceHash) {
     } else {
       pendingList = undefined;
       if (ref.startsWith("#/tables/")) {
-        table(ref, item);
-        if (captionText) emit(ref, { kind: "paragraph", text: captionText }, [ref, ...captions]);
+        const number = captionNumber(ref, "table", captionText);
+        const numbering = number.enumerator === undefined ? { enumerated: false } : { enumerator: number.enumerator };
+        table(ref, item, numbering, [ref, ...captions]);
+        if (number.caption) emit(ref, { kind: "paragraph", text: number.caption }, [ref, ...captions]);
       } else if (ref.startsWith("#/pictures/")) {
-        emit(ref, { kind: "figure", imageUrl: "", imageAlt: "", caption: captionText }, [ref, ...captions]);
-        note(ref, "picture-image", "Figure image omitted; archived ImageRef retained");
+        const number = captionNumber(ref, "figure", captionText);
+        const image = item.image, match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(image?.uri ?? "");
+        let imageInput = { imageUrl: "" };
+        if (match && match[1] === image.mimetype && Buffer.from(match[2], "base64").toString("base64") === match[2]) {
+          images.push({ key: ref, mime: match[1], base64: match[2] });
+          imageInput = { imageAsset: ref };
+        } else note(ref, "picture-image", "Figure ImageRef unavailable; original archived data retained");
+        emit(ref, { kind: "figure", ...imageInput, imageAlt: "", caption: number.caption,
+          ...(number.enumerator === undefined ? { enumerated: false } : { enumerator: number.enumerator }) }, [ref, ...captions]);
       } else if (typeof item.text === "string" && item.text.trim()) {
         const text = item.text;
         if (item.label === "title") emit(ref, { kind: "heading", level: 1, text });
@@ -166,21 +213,36 @@ export async function convertDocument(original, sourceHash) {
   const input = { inputs };
   if (Buffer.byteLength(JSON.stringify(input)) > limits.bytes) refuse(`Authoring input byte limit exceeded (${limits.bytes})`);
   let authored;
-  try { authored = await authorDocument(input); }
+  // The SDK validates semantics and establishes input/block positions. Image paths here
+  // are layout-only bindings; only the Host can publish final paths and targets.
+  try { authored = await authorDocument(input, Object.fromEntries(images.map(image => [image.key, "./pending-image.png"]))); }
   catch (error) { refuse(`SDK authoring refused document (${error.code ?? "invalid-input"}); limits: ${limits.bytes} bytes, ${limits.string} characters/string`); }
-  const targetsByKey = new Map(authored.inputs.map(input => [input.key, input.targets]));
-  const items = [...records.values()].map(({ links, cells, ...item }) => {
-    const targets = [...new Map(links.map(link => {
-      const target = targetsByKey.get(link.key)[link.index];
-      return [JSON.stringify(target.path), target];
-    })).values()];
-    // Table captions have a separate paragraph target, never a cell target.
-    return { ...item, targets, ...(cells.length ? { cells: cells.map(cell => ({ ...cell, targets: targets.slice(0, 1) })) } : {}) };
-  });
-  const count = kind => losses.filter(loss => loss.kind === kind).length;
-  const summary = [["병합 칸 반복", count("merged-cell")], ["다단 헤더 계층 소실", count("multi-row-header")],
-    ["중첩 목록 평탄화", count("nested-list")], ["그림 이미지 미포함", count("picture-image")], ["미지원", count("unsupported")],
-    ["표 셀 역할 소실", count("table-role")], ["목록 표식 미보존", count("list-marker")]]
-    .filter(([, value]) => value > 0).map(([label, value]) => `${label} ${value}`).join(" · ");
-  return { source: authored.source, report: { sourceHash, documentRevision: authored.documentRevision, documentHash: authored.documentHash, items, losses, summary } };
+  function makeReport(final) {
+    const targetsByKey = new Map(final.inputs.map(input => [input.key, input.targets]));
+    const items = [...records.values()].map(({ links, cells, ...item }) => {
+      const targets = [...new Map(links.map(link => {
+        const target = targetsByKey.get(link.key)[link.index];
+        return [JSON.stringify(target.path), target];
+      })).values()];
+      // Caption number and text may contribute to the table block and a following paragraph.
+      return { ...item, targets, ...(cells.length ? { cells: cells.map(cell => ({ ...cell, targets: targets.slice(0, 1) })) } : {}) };
+    });
+    const count = kind => losses.filter(loss => loss.kind === kind).length;
+    const summary = [["병합 칸 반복", count("merged-cell")], ["다단 헤더 계층 소실", count("multi-row-header")],
+      ["중첩 목록 평탄화", count("nested-list")], ["그림 이미지 미포함", count("picture-image")], ["미지원", count("unsupported")],
+      ["표 셀 역할 소실", count("table-role")], ["목록 표식 미보존", count("list-marker")], ["캡션 번호 미보존", count("caption-number")]]
+      .filter(([, value]) => value > 0).map(([label, value]) => `${label} ${value}`).join(" · ");
+    return { sourceHash, documentRevision: final.documentRevision, documentHash: final.documentHash, items, losses, summary };
+  }
+  return { source: authored.source, document: { authoring: input, images }, report: makeReport(authored),
+    bindReport(result) {
+      if (!Array.isArray(result?.inputs) || result.inputs.length !== authored.inputs.length) refuse("Final Host inputs required");
+      for (const [index, value] of result.inputs.entries()) {
+        const expected = authored.inputs[index];
+        if (value.key !== expected.key || !Array.isArray(value.targets) || value.targets.length !== expected.targets.length || value.targets.some((target, i) =>
+          JSON.stringify(target.path) !== JSON.stringify(expected.targets[i].path) || target.documentRevision !== result.revision || target.documentHash !== result.revision)) refuse("Final Host targets do not match authoring inputs");
+      }
+      return makeReport({ inputs: result.inputs, documentRevision: result.revision, documentHash: result.revision });
+    },
+  };
 }
