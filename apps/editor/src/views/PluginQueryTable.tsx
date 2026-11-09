@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Menu } from "@base-ui/react/menu";
 import { Check, Info } from "lucide-react";
 import { DataTable, TableRowCount, type TableCoverage } from "../components/DataTable.tsx";
@@ -10,8 +10,8 @@ import { readPluginTableColumns, writePluginTableColumns } from "../preferences.
 import { i18n } from "../i18n.ts";
 import type { RowSchema, ViewRow } from "@litzio/core/views";
 
-export function PluginQueryTable({ scope, rows, fields, labels, title, label, defaultColumns, coverage }: {
-  coverage?: TableCoverage; defaultColumns: readonly string[]; scope: string; rows: ViewRow[]; fields: RowSchema; labels?: Record<string, string>; title: string;
+export function PluginQueryTable({ scope, rows, fields, labels, title, label, defaultColumns, coverage, heading, receipt }: {
+  heading?: ReactNode; receipt?: ReactNode; coverage?: TableCoverage; defaultColumns: readonly string[]; scope: string; rows: ViewRow[]; fields: RowSchema; labels?: Record<string, string>; title: string;
   label(column: string, value: ViewRow[string]): string;
 }) {
   const candidates = Object.keys(fields).filter(name => !fields[name].secret);
@@ -19,8 +19,7 @@ export function PluginQueryTable({ scope, rows, fields, labels, title, label, de
   const [saveError, setSaveError] = useState(false);
   const columnOrder = [...defaultColumns.filter(name => candidates.includes(name)), ...candidates.filter(name => !defaultColumns.includes(name))];
   const columns = columnOrder.filter(name => saved ? saved.includes(name) : fields[name].hidden === undefined ? defaultColumns.includes(name) : !fields[name].hidden);
-  return <>
-    <div className="view-controls"><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>{i18n.t("Columns")}</DropdownMenuTrigger>
+  const tools = <div className="view-controls view-result-tools">{receipt}<DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>{i18n.t("Columns")}</DropdownMenuTrigger>
       <DropdownMenuContent>{candidates.map(name => <Menu.CheckboxItem key={name} className={MENU_ITEM_CLASS}
         checked={columns.includes(name)} closeOnClick={false} onCheckedChange={checked => {
           const next = candidates.filter(c => c === name ? checked : columns.includes(c));
@@ -28,8 +27,9 @@ export function PluginQueryTable({ scope, rows, fields, labels, title, label, de
         }}><span className="inline-flex size-4 items-center justify-center"><Menu.CheckboxItemIndicator><Check /></Menu.CheckboxItemIndicator></span>{labels?.[name] ?? fields[name].label}</Menu.CheckboxItem>)}</DropdownMenuContent>
     </DropdownMenu>
       <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" aria-label={i18n.t("Sorting and filters apply to loaded rows only.")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Sorting and filters apply to loaded rows only.")}</TooltipContent></Tooltip>
-    </div>
+    </div>;
+  return <>
     {saveError ? <Notice tone="warning">{i18n.t("Column selection could not be saved.")}</Notice> : null}
-    {columns.length ? <DataTable coverage={coverage} rows={rows} columns={columns} fields={fields} labels={labels} title={title} label={label} /> : <><TableRowCount shown={rows.length} loaded={rows.length} coverage={coverage} /><Notice>{i18n.t("Choose columns to display.")}</Notice></>}
+    {columns.length ? <DataTable heading={heading} tools={tools} coverage={coverage} rows={rows} columns={columns} fields={fields} labels={labels} title={title} label={label} /> : <><div className="view-controls data-table-toolbar">{heading}<TableRowCount shown={rows.length} loaded={rows.length} coverage={coverage} />{tools}</div><Notice>{i18n.t("Choose columns to display.")}</Notice></>}
   </>;
 }

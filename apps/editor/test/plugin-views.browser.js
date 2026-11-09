@@ -105,6 +105,23 @@ async (page, { expect, screenshots, openFolderPicker, openPath }) => {
     expect(await workspace.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
+  if (screenshots) for(const width of [1440,640]) {
+    await page.evaluate(({dark})=>{localStorage.setItem('litzio.uiLanguage',dark?'ko':'en');localStorage.setItem('litzio.theme',dark?'dark':'light');},{dark:width===640});
+    await page.setViewportSize({width,height:1000}); await page.reload();
+    await page.locator('.sidebar').getByRole('button',{name:'Fixture issues',exact:true}).click();
+    await expect(page.getByTestId('view-workspace').filter({visible:true})).toBeVisible();
+    await generated().getByRole('button',{name:'Search',exact:true}).click();
+    await expect(generated().locator('tbody tr')).toHaveCount(1);
+    await page.screenshot({path:`tmp/query-results-1394/result-${width}.png`,mask:[page.locator('.sidebar-host-account')]});
+  }
+  if (screenshots) {
+    await page.evaluate(()=>{localStorage.setItem('litzio.uiLanguage','en');localStorage.setItem('litzio.theme','light');});
+    await page.setViewportSize({width:1440,height:1000}); await page.reload();
+    await page.locator('.sidebar').getByRole('button',{name:'Fixture issues',exact:true}).click();
+    await generated().getByLabel('Text', {exact:true}).fill('changed');
+    await generated().getByRole('button',{name:'Search',exact:true}).click();
+    await expect(generated().locator('tbody tr')).toHaveCount(1);
+  }
   hostInputRefusal = true;
   await generated().getByRole('button', { name: 'Search', exact: true }).click();
   await expect(generated().getByLabel('Text', { exact: true })).toHaveAttribute('aria-invalid', 'true');
@@ -134,13 +151,7 @@ async (page, { expect, screenshots, openFolderPicker, openPath }) => {
   }
   fault = undefined; empty = true;
   await generated().getByRole('button', { name: 'Search', exact: true }).click();
-  await expect(generated().getByText('No matching rows.', { exact: true })).toHaveCount(1);
+  await expect(generated().getByText('No matching rows. Change the conditions above and query again.', { exact: true })).toHaveCount(1);
 
-  if (screenshots) for(const width of [1440,640]) {
-    await page.evaluate(({dark})=>{localStorage.setItem('litzio.uiLanguage',dark?'ko':'en');localStorage.setItem('litzio.theme',dark?'dark':'light');},{dark:width===640});
-    await page.setViewportSize({width,height:1000}); await page.reload();
-    await page.locator('.sidebar').getByRole('button',{name:'Fixture issues',exact:true}).click();
-    await expect(page.getByTestId('view-workspace').filter({visible:true})).toBeVisible();
-    await page.screenshot({path:`tmp/1341-evidence/plugin-screen-${width}.png`,mask:[page.locator('.sidebar-host-account')]});
-  }
+
 }

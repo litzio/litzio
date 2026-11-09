@@ -29,10 +29,10 @@ export function QueryViewPage({ tab, client, unavailable:explicitUnavailable }: 
   const [busy, setBusy] = useState(false);
   const lifetime = useRef<AbortController | null>(null), generation = useRef(0);
   useEffect(() => hostRegistry.subscribe(() => {
-    if (hostRegistry.get(tab.hostId).state !== "connected") { generation.current++; setBusy(false); setState("unavailable"); setProblem(i18n.t("Unavailable")); }
+    if (hostRegistry.get(tab.hostId).state !== "connected") { generation.current++; setBusy(false); setState("unavailable"); setProblem(i18n.t("Host disconnected. Reconnect to run this query.")); }
   }), [tab.hostId]);
   useEffect(() => { const controller = new AbortController(); lifetime.current = controller; return () => { generation.current++; controller.abort(); }; }, []);
-  useEffect(() => { if(unavailable){generation.current++;setBusy(false);setState("unavailable");setProblem(i18n.t("Unavailable"));} },[unavailable]);
+  useEffect(() => { if(unavailable){generation.current++;setBusy(false);setState("unavailable");setProblem(i18n.t("Host disconnected. Reconnect to run this query."));} },[unavailable]);
   const request = async (input: unknown) => {
     const signal = lifetime.current!.signal;
     const value = await viewRequest(client, input, signal);
@@ -77,17 +77,19 @@ export function QueryViewPage({ tab, client, unavailable:explicitUnavailable }: 
       if (id === generation.current && !lifetime.current?.signal.aborted) { if (error instanceof ViewInputError) showInputErrors(error); else { const failure = sourceFailure(error); setProblem(failure.message); setState(failure.state); } }
     } finally { if (!lifetime.current?.signal.aborted) setBusy(false); }
   };
+  const receipt = result ? <Tooltip><TooltipTrigger render={<Button size="sm" variant="ghost" className="text-muted-foreground" aria-label={i18n.t("View receipt")} />}>{i18n.t("Queried: {{time}}", { time: queriedAt })}</TooltipTrigger><TooltipContent className="flex-col items-start break-all"><div>{result.receipt.operation} v{result.receipt.version} · {result.receipt.scope}</div><div>{result.receipt.timestamp}</div><div>{result.receipt.requestId}</div></TooltipContent></Tooltip> : null;
   return <div className="views-page" data-testid="plugin-query-view">
     {!tab.screen ? <header><h1>{tab.label ?? view.title}</h1><p>{hostLabel(tab.hostId)}</p></header> : null}
     {!view.form ? <div className="view-controls"><Button variant="secondary" size="sm" disabled={unavailable || busy || !operation} onClick={() => void query()}>{i18n.t("Refresh data")}</Button></div> : null}
     {view.form ? <form className="view-query-form" noValidate onSubmit={event => { event.preventDefault(); void query(); }}>
       {schema ? <QueryInputs actions={<Button type="submit" disabled={unavailable || busy || !schema}>{view.form.submit.label}</Button>} client={unavailable ? undefined : client} suggestions={operation?.inputSuggestions} hints={operation?.inputHints} view={view} schema={schema} errors={inputErrors.fields} change={(field, value, remove) => { setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; }); setInputErrors(emptyInputErrors()); }} /> : null}
     </form> : null}
+    <section className="view-query-results" aria-label={i18n.t("Results")}>
     <FieldError id={`view-input-error-${tab.id}`}>{inputErrors.common}</FieldError>
-    {state === "loading" ? <Notice>{i18n.t("Loading data…")}</Notice> : state === "idle" ? <Notice>{i18n.t("Data has not been queried. Refresh manually.")}</Notice> : state === "empty" ? <Notice>{i18n.t("No matching rows.")}</Notice> : null}
+    {state === "loading" ? <Notice>{i18n.t("Loading data…")}</Notice> : state === "idle" ? <Notice>{i18n.t("Check the conditions above, then run the query.")}</Notice> : state === "empty" ? <Notice>{i18n.t("No matching rows. Change the conditions above and query again.")}</Notice> : null}
     {result && (state === "loading" || state === "needs-input" || !!problem || JSON.stringify(args) !== queriedArgs) ? <Notice tone="warning">{i18n.t("Previous query result")} · {queriedAt}{JSON.stringify(args) !== queriedArgs ? ` · ${i18n.t("Search conditions changed")}` : ""}</Notice> : null}
     {problem ? <Notice tone={state === "uncertain" ? "warning" : "error"}>{problem}</Notice> : null}
-    <div aria-busy={state === "loading"}><ViewRenderer key={result?.receipt.requestId ?? "idle"} view={view} coverage={result?.coverage} columnScope={operation && !view.sources.stats.groupBy ? JSON.stringify([tab.hostId, operation.plugin, tab.screen?.id ?? base.sources.stats.operation]) : undefined} columnFields={operation?.rowSchema} rows={result?.rows} fields={result?.fields} fieldTypes={operation ? {...operation.rowSchema,...(view.sources.stats.groupBy?{group:operation.rowSchema[view.sources.stats.groupBy.field]}:{})} : undefined} /></div>
-    {result ? <p className="view-receipt"><Tooltip><TooltipTrigger render={<Button size="sm" variant="ghost" className="text-muted-foreground" aria-label={i18n.t("View receipt")} />}>{i18n.t("Queried: {{time}}", { time: queriedAt })}</TooltipTrigger><TooltipContent className="flex-col items-start break-all"><div>{result.receipt.operation} v{result.receipt.version} · {result.receipt.scope}</div><div>{result.receipt.timestamp}</div><div>{result.receipt.requestId}</div></TooltipContent></Tooltip></p> : null}
+    <div aria-busy={state === "loading"}><ViewRenderer receipt={receipt} key={result?.receipt.requestId ?? "idle"} view={view} coverage={result?.coverage} columnScope={operation && !view.sources.stats.groupBy ? JSON.stringify([tab.hostId, operation.plugin, tab.screen?.id ?? base.sources.stats.operation]) : undefined} columnFields={operation?.rowSchema} rows={result?.rows} fields={result?.fields} fieldTypes={operation ? {...operation.rowSchema,...(view.sources.stats.groupBy?{group:operation.rowSchema[view.sources.stats.groupBy.field]}:{})} : undefined} /></div>
+    </section>
   </div>;
 }

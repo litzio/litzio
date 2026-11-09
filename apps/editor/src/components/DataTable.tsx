@@ -1,7 +1,7 @@
 import { externalLinkUrl, openExternalLink } from "../link-opening.ts";
 import { ArrowDown, ArrowUp, Filter } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useEffect, useState, useId } from "react";
+import { useEffect, useState, useId, type ReactNode } from "react";
 import { Popover as Primitive } from "@base-ui/react/popover";
 import { Popover, PopoverContent } from "./ui/popover.tsx";
 import { Button } from "./ui/button.tsx";
@@ -34,6 +34,8 @@ export function DataTable({
   label = (_c, v) => (v === null ? "—" : String(v)),
   loadedOnly = false,
   coverage,
+  heading,
+  tools,
 }: {
   rows: ViewRow[];
   columns: readonly string[];
@@ -43,6 +45,8 @@ export function DataTable({
   label?(column: string, value: ViewRow[string]): string;
   loadedOnly?: boolean;
   coverage?: TableCoverage;
+  heading?: ReactNode;
+  tools?: ReactNode;
 }) {
   useTranslation();
   const [sort, setSort] = useState<{ column: string; descending: boolean }>();
@@ -69,9 +73,17 @@ export function DataTable({
   const shown = tableRows(rows, filters, sort, types, i18n.language),
     pages = Math.max(1, Math.ceil(shown.length / 50)),
     current = Math.min(page, pages - 1);
+  const columnWidth = (column: string) => {
+    const field = types[column];
+    if (field.date) return 144;
+    if (field.type !== "string") return 112;
+    const length = Math.max((labels[column] ?? column).length, ...rows.map(row => String(row[column] ?? "").length));
+    return Math.min(480, Math.max(144, length * 8 + 48));
+  };
   return (
     <div className="data-table">
-      <div className="view-controls">
+      <div className="view-controls data-table-toolbar">
+        {heading}
         <TableRowCount shown={shown.length} loaded={rows.length} coverage={coverage} />
         {Object.keys(filters).length ? (
           <Button
@@ -85,6 +97,7 @@ export function DataTable({
             {i18n.t("Clear all filters")}
           </Button>
         ) : null}
+        {tools}
       </div>
       {loadedOnly ? (
         <p>{i18n.t("Sorting and filters apply to loaded rows only.")}</p>
@@ -95,7 +108,8 @@ export function DataTable({
         role="region"
         aria-label={title}
       >
-        <table>
+        <table style={{ minWidth: columns.reduce((sum, c) => sum + columnWidth(c), 0) }}>
+          <colgroup>{columns.map(c => <col key={c} style={{ width: columnWidth(c) }} />)}</colgroup>
           <thead>
             <tr>
               {columns.map((c) => (
@@ -217,6 +231,7 @@ function ColumnFilter({
     [draft, setDraft] = useState<TableFilter>(fresh),
     [search, setSearch] = useState(""),
     [error, setError] = useState("");
+  const [emptyEdited, setEmptyEdited] = useState(false);
   const values = [
     ...new Set(rows.map((r) => r[column]).filter((v) => !empty(v))),
   ];
@@ -228,7 +243,9 @@ function ColumnFilter({
       onOpenChange={(v) => {
         setOpen(v);
         if (v) {
-          setDraft(value ?? { ...fresh(), values });
+          setDraft(value ?? { ...fresh(), mode: field.type === "string" && !field.date ? "values" : "contains", values, empty: field.type === "string" && !field.date });
+          // Saved filters retain their explicit selection when reopened.
+          setEmptyEdited(!!value);
           setSearch("");
           setError("");
         }
@@ -263,7 +280,9 @@ function ColumnFilter({
               setError(i18n.t("Check the range."));
               return;
             }
-            apply(draft);
+            const allValues = values.every(v => draft.values.includes(v));
+            const unrestricted = draft.mode === "values" ? allValues && draft.empty : draft.mode === "contains" && (field.type === "number" || field.date ? !draft.min && !draft.max : !draft.text);
+            apply(unrestricted ? undefined : draft);
             setOpen(false);
           }}
         >
@@ -273,7 +292,7 @@ function ColumnFilter({
             <select
               className="form-select"
               value={draft.mode}
-              onChange={(e) => change({ mode: e.target.value })}
+              onChange={(e) => change({ mode: e.target.value, ...(!emptyEdited ? { empty: e.target.value === "values" } : {}) })}
             >
               <option value="contains">
                 {i18n.t(
@@ -360,7 +379,7 @@ function ColumnFilter({
             <input
               type="checkbox"
               checked={draft.empty}
-              onChange={(e) => change({ empty: e.target.checked })}
+              onChange={(e) => { setEmptyEdited(true); change({ empty: e.target.checked }); }}
             />
             {i18n.t("Include empty values")}
           </label>
