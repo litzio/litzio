@@ -3,7 +3,7 @@ import { DataTable } from "../components/DataTable.tsx";
 import { useMemo, useState } from "react";
 import { parse, getEditableDocument } from "@litzio/core";
 import { operationQueryViewSchema as queryViewSchema, reviewViewSchema } from "@litzio/core/views-v2";
-import { ViewRenderer } from "../views/Views.tsx";
+import { ViewRenderer } from "../views/ViewRenderer.tsx";
 import { QueryInputs, type InputSchema } from "../views/QueryInputs.tsx";
 import { sourceFailure, ViewOperationError, inputIssueMessage } from "../views/source-state.ts";
 import { ReviewRenderer, type ReviewAdapter, type ReviewSnapshot } from "../review/ReviewRenderer.tsx";
