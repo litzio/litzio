@@ -8,7 +8,7 @@ export { profile as PDF_PROFILE };
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 
 /** Prepare a result Buffer only. No K1 file result or final write is bound before PR #1327. */
-export async function convertPdfToArchive({ file, serverUrl, apiKey, signal: callerSignal, timeoutSeconds = 1800, onPhase = () => {} }) {
+export async function convertPdfToArchive({ file, serverUrl, signal: callerSignal, timeoutSeconds = 1800, onPhase = () => {} }) {
   const started = Date.now(), startedAt = new Date(started).toISOString();
   if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) throw new Error("Invalid conversion deadline");
   const deadline = AbortSignal.timeout(Math.ceil(timeoutSeconds * 1000));
@@ -19,7 +19,7 @@ export async function convertPdfToArchive({ file, serverUrl, apiKey, signal: cal
     if (!["http:", "https:"].includes(base.protocol) || base.username || base.password || base.search || base.hash) throw new Error();
     const server = base.href.replace(/\/$/, "");
     async function request(path, options) {
-      const response = await fetch(server + path, { ...options, headers: apiKey ? { "X-Api-Key": apiKey } : {}, signal, redirect: "error" });
+      const response = await fetch(server + path, { ...options, signal, redirect: "error" });
       if (!response.ok) {
         await response.body?.cancel();
         throw Object.assign(new Error(), { kind: response.status === 401 ? "auth" : response.status === 403 ? "forbidden" : response.status === 404 ? "not_found" : response.status >= 500 ? "unavailable" : "failed" });
