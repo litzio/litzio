@@ -6,6 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { load } from 'js-yaml';
 import { executionPolicy, selectJobs, successfulQueueRun } from './ci-execution-policy.mjs';
+import { HTTP_SCENARIOS } from '../apps/editor/test/browser/scenarios.ts';
 const sha = 'a'.repeat(40);
 const base = 'b'.repeat(40);
 const event = { merge_group: { base_sha: base, head_sha: sha } };
@@ -115,10 +116,10 @@ test('HTTP selection always retains Windows unit coverage in Desktop', () => {
     assert.ok(jobs.http.steps.some(step => step.run === run && !step.if));
   }
   assert.ok(jobs.http.steps.some(step => step.run === 'pnpm browser:test ${{ matrix.scenarios }}' && !step.if));
-  const scenarios = ['http-host', 'http-plugins', 'plugin-jobs', 'plugin-views'];
   for (const os of ['ubuntu-latest', 'windows-latest']) {
     const groups = jobs.http.strategy.matrix.include.filter(entry => entry.os === os);
-    assert.deepEqual(groups.flatMap(entry => entry.scenarios.split(' ')).sort(), [...scenarios].sort());
+    assert.deepEqual(groups.flatMap(entry => entry.scenarios.split(' ')).sort(), [...HTTP_SCENARIOS].sort(),
+      `${os}: every official HTTP scenario must be assigned exactly once`);
     assert.equal(new Set(groups.map(entry => entry.group)).size, groups.length);
   }
   assert.ok(!jobs.http.steps.some(step => /tsx --test|@litzio\/editor .*test/.test(step.run ?? '')),
