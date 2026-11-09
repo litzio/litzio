@@ -1,4 +1,13 @@
 async (page, { expect, pluginFixture, screenshots }) => {
+  // Match the HTTP fixture: machine OneDrive accounts are unrelated to connection settings.
+  await page.route("**/api/plugins", async route => {
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
+    const value = await response.json();
+    for (const plugin of value.plugins ?? []) if (plugin.id === "litzio.onedrive" && plugin.running) {
+      plugin.status = { available: true, folders: [], decorations: [], accounts: [] };
+    }
+    await route.fulfill({ response, json: value });
+  });
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Plugins", exact: true }).click();
   const official = page.getByRole("region", { name: "OneDrive", exact: true });
@@ -50,12 +59,52 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await expect(page.getByText("Simulates service availability", { exact: true })).not.toBeVisible();
   const serviceUrl = dialog.getByRole("textbox", { name: "docling-serve URL", exact: true });
   await serviceUrl.fill("https://docling.example.test/service");
-  await serviceUrl.press("Tab");
   const check = dialog.getByRole("button", { name: "Check connection", exact: true });
+  let invokes = 0;
+  page.on("request", request => { if (request.url().endsWith("/api/plugins") && request.method() === "POST" && request.postDataJSON()?.action === "invoke") invokes++; });
+  await page.route("**/api/plugins", async route => {
+    const data = route.request().postDataJSON();
+    if (data?.action === "settings") return route.fulfill({ status: 400, json: { error: "Fixture save rejected" } });
+    await route.continue();
+  });
+  await serviceUrl.press("Tab");
+  await expect(serviceUrl).toHaveAttribute("aria-invalid", "true");
+  await expect(serviceUrl).toHaveValue("https://docling.example.test/service");
+  await expect(dialog.locator('[id="' + await serviceUrl.getAttribute("aria-describedby") + '"]')).toContainText("Fixture save rejected");
+  await check.click();
+  expect(invokes).toBe(0);
+  await page.unroute("**/api/plugins");
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  await page.route("**/api/plugins", async route => {
+    if (route.request().postDataJSON()?.action === "settings") await gate;
+    await route.continue();
+  });
+  await serviceUrl.focus();
+  await check.click();
+  await expect(dialog.getByRole("status").filter({ hasText: /^Saving…$/ })).toBeVisible();
+  expect(invokes).toBe(0);
+  release();
+  await expect(dialog.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
+  await expect(dialog.getByRole("status").filter({ hasText: /^Fixture connected$/ })).toBeVisible();
+  await page.unroute("**/api/plugins");
+  await serviceUrl.fill("");
+  await serviceUrl.press("Tab");
+  await expect(serviceUrl).toHaveAttribute("aria-invalid", "true");
+  await expect(serviceUrl).toHaveValue("");
+  await expect(dialog.locator('[id="' + await serviceUrl.getAttribute("aria-describedby") + '"]')).toContainText("fewer than 1");
+  await serviceUrl.fill("https://docling.example.test/service");
+  await serviceUrl.press("Tab");
+  await expect(dialog.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
   await dialog.getByText("Simulate failure", { exact: true }).hover();
   await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText("Simulates service availability");
+  const externalSave = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close", Origin: await page.evaluate(() => location.origin) }, data: { action: "settings", id: "fixture.vite", settings: { serverUrl: "https://docling.example.test/updated" } } });
+  expect(externalSave.ok()).toBe(true);
   await check.click();
-  await expect(dialog.getByRole("status").filter({ hasText: /^Fixture connected$/ })).toBeVisible();
+  await expect(serviceUrl).toHaveValue("https://docling.example.test/updated");
+  await serviceUrl.fill("https://docling.example.test/service");
+  await serviceUrl.press("Tab");
+  await expect(dialog.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
   await dialog.getByRole("switch", { name: "Simulate failure", exact: true }).click();
   await expect(check).toBeEnabled();
   await check.click();
@@ -70,7 +119,7 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await toggle.click();
   await expect(external.getByRole("switch")).toBeChecked();
   const listing = await (await page.request.get(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close" } })).json();
-  expect(listing.plugins.find(p => p.id === "fixture.vite").status.message).toBe("0.3.0");
+  expect(listing.plugins.find(p => p.id === "fixture.vite").status.message).toBe("0.4.0");
   if (screenshots) {
     for (const width of [1440, 640]) {
       await page.setViewportSize({ width, height: 900 });
@@ -95,6 +144,6 @@ async (page, { expect, pluginFixture, screenshots }) => {
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
   }
   await toggle.click();
-  const removed = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close" }, data: { action: "unregister", id: "fixture.vite" } });
+  const removed = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close", Origin: await page.evaluate(() => location.origin) }, data: { action: "unregister", id: "fixture.vite" } });
   expect(removed.ok()).toBe(true);
 }

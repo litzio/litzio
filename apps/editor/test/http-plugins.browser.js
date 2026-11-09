@@ -137,9 +137,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
   expect(registered.running).toBe(false);
   await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
   if (registered.secrets.supported) {
-    await page.getByLabel("pat: Not configured", { exact: true }).fill("browser-isolated-secret");
+    await page.getByLabel("Access token: Not configured", { exact: true }).fill("browser-isolated-secret");
     await saveSecret();
-    await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Access token: Configured", { exact: true })).toHaveValue("");
     const status = pluginFixture.cli(["plugins", "secret-status", "fixture.drive"]);
     expect(status.secrets.declarations[0].configured).toBe(true);
     expect(JSON.stringify(status)).not.toContain("browser-isolated-secret");
@@ -157,16 +157,16 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     pluginFixture.corruptSecret();
     await page.reload(); await openSettings();
     await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
-    await expect(page.getByLabel("pat: Unavailable or damaged", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Access token: Unavailable or damaged", { exact: true })).toHaveValue("");
     await expect(page.getByText("Unable to read this secret. Delete or replace it.", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Delete secret", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: "Delete secret", exact: true }).click();
-    await expect(page.getByLabel("pat: Not configured", { exact: true })).toHaveValue("");
-    await page.getByLabel("pat: Not configured", { exact: true }).fill("browser-repaired-secret");
+    await expect(page.getByLabel("Access token: Not configured", { exact: true })).toHaveValue("");
+    await page.getByLabel("Access token: Not configured", { exact: true }).fill("browser-repaired-secret");
     await saveSecret();
-    await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Access token: Configured", { exact: true })).toHaveValue("");
     await page.getByRole("button", { name: "Delete secret", exact: true }).click();
-    await expect(page.getByLabel("pat: Not configured", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Access token: Not configured", { exact: true })).toHaveValue("");
   } else {
     await expect(page.getByText("Plugin secrets require a Windows Host", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Save secret", exact: true })).toBeDisabled();
@@ -230,9 +230,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
   await page.getByLabel("Connection label", { exact: true }).press("Tab");
   await expect.poll(() => pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive")?.status?.message).toBe("UI connection");
   if (registered.secrets.supported) {
-    await page.getByLabel("pat: Not configured", { exact: true }).fill("enabled-isolated-secret");
+    await page.getByLabel("Access token: Not configured", { exact: true }).fill("enabled-isolated-secret");
     await saveSecret();
-    await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Access token: Configured", { exact: true })).toHaveValue("");
     let live = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
     expect(live.status.accounts[0].label).toBe("Secret applied");
     expect(JSON.stringify(live)).not.toContain("enabled-isolated-secret");
@@ -372,17 +372,17 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect.poll(() => icon.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
     const panel = page.getByTestId("plugin-job-panel");
     await expect(panel).toBeVisible();
-    await expect(panel.getByRole("button", { name: "Start job", exact: true })).toBeDisabled();
+    await expect(panel.locator(".plugin-job-start").getByRole("button")).toBeDisabled();
     // Connection reads need no folder; file jobs explicitly select an opened Root.
     await openFolderPicker(page);
     await page.getByTestId("folder-path").fill(pluginFixture.folder);
     await page.getByTestId("folder-open").click();
     await expect(page.getByTestId("folder-path")).not.toBeVisible();
     await panel.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
-    await panel.getByLabel("Job", { exact: true }).selectOption("convert-pdf");
+    await panel.getByRole("group", { name: "Task", exact: true }).getByRole("button", { name: /PDF 변환/ }).click();
     await panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true }).check();
     await panel.getByRole("checkbox", { name: "dashboard-b.pdf", exact: true }).check();
-    await panel.getByRole("button", { name: "Start job", exact: true }).click();
+    await panel.locator(".plugin-job-start").getByRole("button").click();
     for (const name of ["dashboard-a", "dashboard-b"]) {
       const row = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: name + ".pdf", exact: true }) }).first();
       await expect(row.getByRole("status")).toHaveText("Completed");
@@ -403,7 +403,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect(filePane.getByRole("status", { name: "Job status" })).toHaveText("Completed");
     await expect(filePane.getByText(pdfResult.path, { exact: true })).toBeVisible();
     await filePane.getByLabel("Input file").selectOption("source.pdf");
-    await expect(filePane.getByLabel("Result path in Root")).toHaveValue("source.docling");
+    await expect(filePane.getByLabel("Result file")).toHaveValue("source.docling");
     if (screenshots) {
       for (const width of [1440, 640]) {
         await page.setViewportSize({ width, height: 900 });
@@ -498,9 +498,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await expect(panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true })).toBeVisible();
     await panel.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
     await expect(panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true })).toBeVisible();
-    await panel.getByLabel("Job", { exact: true }).selectOption("create-document");
+    await panel.getByRole("group", { name: "Task", exact: true }).getByRole("button", { name: /문서 만들기/ }).click();
     await panel.getByRole("checkbox", { name: "sample.docling", exact: true }).check();
-    await panel.getByRole("button", { name: "Start job", exact: true }).click();
+    await panel.locator(".plugin-job-start").getByRole("button").click();
     const nativeRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "sample.docling", exact: true }) }).first();
     await expect(nativeRow.getByRole("status")).toHaveText("Completed");
     await expect(nativeRow).toContainText("병합 칸 반복 1");
@@ -545,9 +545,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
       await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
       await page.reload(); await openSettings();
       await page.getByRole("button", { name: "Jira settings", exact: true }).click();
-      await page.getByLabel("pat: Not configured", { exact: true }).fill("mock-jira-token");
+      await page.getByLabel("개인 액세스 토큰: Not configured", { exact: true }).fill("mock-jira-token");
       await saveSecret();
-      await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
+      await expect(page.getByLabel("개인 액세스 토큰: Configured", { exact: true })).toHaveValue("");
       await jira.cli(["plugins", "enable", "community.jira", "--trust", "--registration", registered.registrationId]);
       await page.reload(); await openSettings();
       await page.getByRole("button", { name: "Jira settings", exact: true }).click();

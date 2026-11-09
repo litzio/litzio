@@ -18,6 +18,8 @@
 6. `litzio plugins enable community.docling --host <origin> --json`
 7. `litzio operation invoke community.docling.connection --input <input.json> --host <origin> --json`
 
+Plugins 설정 화면에서는 **Docling 서버 주소**를 입력합니다. 저장 키는 `serverUrl`입니다.
+
 설정 파일은 `{"serverUrl":"http://127.0.0.1:5001"}`, 입력 파일은 `{}`입니다. 이 파일들은 artifact 밖에 둡니다. 기본 주소는 `http://127.0.0.1:5001`이며 서버 base path도 지원합니다. HTTP(S)만 허용하며 URL 안 자격 증명·query·fragment는 거부합니다. 주소는 대상 Host에서 접근합니다.
 
 API 키가 걸린 docling-serve는 지원하지 않음. 설정에는 서버 URL만 있습니다. 활성 상태에서도 설정을 저장·reload할 수 있지만 K1 작업이 running/uncertain이면 변경을 거부하고 기존 값을 보존합니다. 같은 등록의 artifact 변경은 validate → reload → 실제 호출로 확인하며, 등록을 교체하면 새 registrationId로 다시 신뢰합니다.

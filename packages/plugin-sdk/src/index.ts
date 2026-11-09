@@ -9,11 +9,11 @@ import { compileSchema } from "./schema.ts";
 import { z } from "zod";
 import { documentAuthoringSchema, DOCUMENT_AUTHORING_LIMITS } from "@litzio/core";
 import semver from "semver";
-export const SDK_VERSION = "0.3.0";
+export const SDK_VERSION = "0.4.0";
 // Actual SDK contracts still implemented by this Host, not hypothetical versions
 // between releases. Features before the next public release share one minor.
 // The current Host retains earlier contracts.
-const supportedSdkVersions = ["0.1.0", "0.2.0", SDK_VERSION];
+const supportedSdkVersions = ["0.1.0", "0.2.0", "0.3.0", SDK_VERSION];
 export const healthCheckResultSchema = z.strictObject({ ok: z.boolean(), message: z.string().min(1).max(300) });
 export const inputHintResultSchema = z.strictObject({ text: z.string().min(1).max(512) });
 export const inputSuggestionResultsSchema = z.array(z.strictObject({ value: z.string().min(1).max(512).regex(/^[^\r\n]+$/), label: z.string().min(1).max(512) })).max(32).refine(items => new Set(items.map(item => item.value)).size === items.length, "Duplicate suggestion value");
@@ -44,7 +44,7 @@ export const manifestSchema = z.strictObject({
     reviews: z.array(reviewContributionSchema).default([]),
     secretUses: z.array(z.strictObject({ operation: id, secret: id })).default([]) }),
   settingsSchema: schema.default({ type: "object", additionalProperties: false }),
-  secrets: z.array(z.strictObject({ id, scope: z.literal("connection"), required: z.boolean() })).default([]),
+  secrets: z.array(z.strictObject({ id, title: z.string().min(1), description: z.string().optional(), scope: z.literal("connection"), required: z.boolean() })).default([]),
 });
 export type PluginManifest = z.infer<typeof manifestSchema>;
 export type OperationDefinition = z.infer<typeof operation>;
@@ -62,6 +62,7 @@ export function validateManifest(input: unknown): PluginManifest {
     if (new Set(ids).size !== ids.length) throw new Error("Duplicate contribution ID");
   }
   if (m.contributes.operations.some(op => op.scope === "folder")) throw new Error("Folder-scoped plugin operations are unsupported in stage 1");
+  if (m.secrets.length && !supportedSdkVersions.some(version => semver.gte(version, "0.4.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Secret titles require SDK 0.4.0 or later in requiresSdk");
   if (new Set(m.secrets.map(s => s.id)).size !== m.secrets.length) throw new Error("Duplicate secret ID");
   if (m.contributes.dataViews.length || m.contributes.generatedUi.length || m.contributes.secretUses.length) throw new Error("Unsupported contribution: dataViews, generatedUi and secretUses");
   for (const job of m.contributes.jobs) {

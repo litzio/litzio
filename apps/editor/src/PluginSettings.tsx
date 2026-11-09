@@ -1,9 +1,9 @@
 import { PluginIcon } from "./PluginIcon.tsx";
 import { FolderDialog } from "./shell/FolderDialog.tsx";
 import { i18n } from "./i18n.ts";
-import { Notice } from "./ui/primitives.tsx";
+import { FieldError, Notice } from "./ui/primitives.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { PLUGIN_REGISTRATION_CHANGED, healthCheckResultSchema, type HealthCheckResult } from "@litzio/plugin-sdk";
 import { Info, Settings } from "lucide-react";
 import { useHostClient } from "./host-context.tsx";
@@ -60,19 +60,7 @@ export function PluginSettings() {
           <DialogDescription>{current?.description}</DialogDescription>
         </DialogHeader>
         {problem ? <Notice tone="error">{problem}</Notice> : null}
-        {Object.entries(current?.settingsSchema?.properties ?? {}).map(([key, field]) => field.type === "boolean" ?
-          <SettingsSwitch key={key} label={<SettingLabel title={field.title ?? key} description={field.description} />} disabled={busy} checked={current?.settings?.[key] === true}
-            onChange={value => void run("settings", { id: current?.id, settings: { ...current?.settings, [key]: value } })} /> :
-          ["string", "number", "integer"].includes(field.type ?? "") ?
-            <label key={key}><SettingLabel title={field.title ?? key} description={field.description} />
-              <Input key={String(current?.settings?.[key] ?? "")} disabled={busy} type={field.type === "string" ? "text" : "number"} defaultValue={String(current?.settings?.[key] ?? "")} onBlur={event => {
-                if (String(current?.settings?.[key] ?? "") === event.target.value) return;
-                const value = field.type === "string" ? event.target.value : Number(event.target.value);
-                if (current?.settings?.[key] !== value) void run("settings", { id: current?.id, settings: { ...current?.settings, [key]: value } });
-              }} />
-            </label> : <p key={key}>Use plugins settings for {key}.</p>)}
-        <PluginSecrets key={`secrets:${current?.id}`} plugin={current} busy={busy} run={run} />
-        <PluginHealthCheck key={`health:${current?.id}`} plugin={current} busy={busy} />
+        {current ? <ConnectionSettings key={current.id} plugin={current} change={change} busy={busy} run={run} /> : null}
         <details><summary>{i18n.t("Details")}</summary><p className="settings-description">{i18n.t("Publisher")}: {current?.publisher?.name ?? current?.id}</p><p className="settings-description">{i18n.t(current?.trusted ? "Trusted plugin" : "Trust required")}</p><p className="settings-status" style={{ overflowWrap: "anywhere" }}>{current?.digest}</p></details>
       </DialogContent>
     </Dialog>
@@ -85,6 +73,69 @@ export function defaultFolderCandidate(plugins: Plugin[], existing: { folders: n
   if (existing.folders || existing.recent || existing.documentPath) return undefined;
   const candidates = plugins.flatMap(p => p.running ? p.status?.folders.filter(f => f.defaultCandidate) ?? [] : []);
   return candidates.length === 1 ? candidates[0] : undefined;
+}
+
+/** Dialog-owned drafts; Host remains the owner of saved settings. */
+function ConnectionSettings({ plugin, change, busy, run }: { plugin: Plugin; change: (action: string, args: Record<string, unknown>) => Promise<void>; busy: boolean; run: (action: string, args: Record<string, unknown>) => Promise<void> }) {
+  const prefix = useId();
+  const [draft, setDraft] = useState(plugin.settings ?? {});
+  const [states, setStates] = useState<Record<string, { status?: "Saving…" | "Saved"; error?: string }>>({});
+  const edits = useRef<Record<string, number>>({});
+  const saved = useRef(plugin.settings ?? {});
+  const dirty = useRef(new Set<string>());
+  const pendingSaves = useRef(0);
+  useEffect(() => {
+    const settings = plugin.settings ?? {};
+    if (!pendingSaves.current) saved.current = settings;
+    setDraft(d => {
+      const next = { ...d };
+      for (const key of new Set([...Object.keys(d), ...Object.keys(settings)])) {
+        if (!dirty.current.has(key)) next[key] = settings[key];
+      }
+      return next;
+    });
+  }, [plugin.settings]);
+  const errors = useRef<Record<string, string>>({});
+  const queue = useRef(Promise.resolve());
+  const save = (key: string, value: unknown) => {
+    const edit = edits.current[key];
+    ++pendingSaves.current;
+    setStates(s => ({ ...s, [key]: { status: "Saving…" } }));
+    queue.current = queue.current.then(async () => {
+      const settings = { ...saved.current, [key]: value };
+      try {
+        await change("settings", { id: plugin.id, settings });
+        saved.current = settings;
+        delete errors.current[key];
+        if (edits.current[key] === edit) dirty.current.delete(key);
+        if (edits.current[key] === edit) setStates(s => ({ ...s, [key]: { status: "Saved" } }));
+      } catch (e) {
+        const error = e instanceof Error ? e.message : String(e);
+        errors.current[key] = error;
+        if (edits.current[key] === edit) setStates(s => ({ ...s, [key]: { error } }));
+      } finally { --pendingSaves.current; }
+    });
+  };
+  const ready = async () => { let pending; do { pending = queue.current; await pending; } while (pending !== queue.current); return Object.keys(errors.current).length ? false : JSON.stringify(saved.current); };
+  return <>
+    {Object.entries(plugin.settingsSchema?.properties ?? {}).map(([key, field]) => {
+      const id = `${prefix}-${key}`, state = states[key];
+      const common = { id, "aria-invalid": !!state?.error, "aria-describedby": state?.error ? `${id}-error` : state?.status ? `${id}-status` : undefined };
+      return <div key={key}>
+        {field.type === "boolean" ? <SettingsSwitch label={<SettingLabel title={field.title ?? key} description={field.description} />} disabled={busy} checked={draft[key] === true}
+          invalid={!!state?.error} describedBy={common["aria-describedby"]} onChange={value => { dirty.current.add(key); edits.current[key] = (edits.current[key] ?? 0) + 1; setDraft(d => ({ ...d, [key]: value })); save(key, value); }} /> :
+          ["string", "number", "integer"].includes(field.type ?? "") ? <><label htmlFor={id}><SettingLabel title={field.title ?? key} description={field.description} /></label>
+            <Input {...common} disabled={busy} type={field.type === "string" ? "text" : "number"} value={String(draft[key] ?? "")} onChange={event => { const value = event.target.value; dirty.current.add(key); edits.current[key] = (edits.current[key] ?? 0) + 1; setDraft(d => ({ ...d, [key]: value })); setStates(s => ({ ...s, [key]: {} })); }} onBlur={event => {
+              const value = field.type === "string" ? event.target.value : Number(event.target.value);
+              if (saved.current[key] !== value || errors.current[key]) save(key, value);
+              else dirty.current.delete(key);
+            }} /></> : null}
+        {state?.error ? <FieldError id={`${id}-error`}>{i18n.t("Save failed")}: {state.error}</FieldError> : state?.status ? <p id={`${id}-status`} className="settings-status" role="status">{i18n.t(state.status)}</p> : null}
+      </div>;
+    })}
+    <PluginSecrets plugin={plugin} busy={busy} run={run} />
+    <PluginHealthCheck plugin={plugin} busy={busy} ready={ready} />
+  </>;
 }
 
 function PluginSecrets({ plugin, busy, run }: { plugin?: Plugin; busy: boolean; run: (action: string, args: Record<string, unknown>) => Promise<void> }) {
@@ -103,7 +154,7 @@ function PluginSecrets({ plugin, busy, run }: { plugin?: Plugin; busy: boolean; 
         if (!response.ok) { const result = await response.json(); throw new Error(result.error ?? i18n.t("Unable to store plugin secret")); }
       } catch (error) { setProblem(error instanceof Error ? error.message : i18n.t("Unable to store plugin secret")); } finally { window.dispatchEvent(new Event("plugins-changed")); setSaving(false); }
     }}>
-      <label>{secret.id}: {i18n.t(secret.error ? "Unavailable or damaged" : secret.configured ? "Configured" : "Not configured")}<Input type="password" autoComplete="new-password" disabled={!supported || busy || saving} value={values[secret.id] ?? ""} onChange={e => setValues(v => ({ ...v, [secret.id]: e.target.value }))} /></label>
+      <label><SettingLabel title={secret.title} description={secret.description} />: {i18n.t(secret.error ? "Unavailable or damaged" : secret.configured ? "Configured" : "Not configured")}<Input type="password" autoComplete="new-password" disabled={!supported || busy || saving} value={values[secret.id] ?? ""} onChange={e => setValues(v => ({ ...v, [secret.id]: e.target.value }))} /></label>
       {secret.error ? <Notice tone="error">{i18n.t("Unable to read this secret. Delete or replace it.")}</Notice> : null}
       <div className="settings-actions"><Button type="submit" size="sm" variant="secondary" disabled={!supported || busy || saving || !values[secret.id]}>{i18n.t("Save secret")}</Button>
       <Button type="button" size="sm" variant="ghost" disabled={!supported || busy || saving || !secret.configured && !secret.error} onClick={() => void run("secret-delete", { id: plugin.id, name: secret.id })}>{i18n.t("Delete secret")}</Button></div>
@@ -114,12 +165,19 @@ function PluginSecrets({ plugin, busy, run }: { plugin?: Plugin; busy: boolean; 
 function SettingLabel({ title, description }: { title: string; description?: string }) {
   return description ? <Tooltip><TooltipTrigger render={<span tabIndex={0} />}>{title}</TooltipTrigger><TooltipContent>{description}</TooltipContent></Tooltip> : <>{title}</>;
 }
-function PluginHealthCheck({ plugin, busy }: { plugin?: Plugin; busy: boolean }) {
+function PluginHealthCheck({ plugin, busy, ready }: { plugin?: Plugin; busy: boolean; ready: () => Promise<string | false> }) {
   const client = useHostClient();
   const [checking, setChecking] = useState(false), [result, setResult] = useState<HealthCheckResult>();
   const request = useRef<AbortController | undefined>(undefined);
+  const waiting = useRef(false);
+  const generation = useRef(0);
+  const checkedSettings = useRef<string | undefined>(undefined);
   const settingsKey = JSON.stringify(plugin?.settings);
-  useEffect(() => { setResult(undefined); setChecking(false); return () => { request.current?.abort(); request.current = undefined; }; }, [client, settingsKey, plugin?.digest, plugin?.healthCheck]);
+  useEffect(() => { setResult(undefined); setChecking(false); return () => { ++generation.current; request.current?.abort(); request.current = undefined; }; }, [client, plugin?.digest, plugin?.healthCheck]);
+  useEffect(() => {
+    if (checkedSettings.current === settingsKey) return;
+    request.current?.abort(); request.current = undefined; setResult(undefined); setChecking(false);
+  }, [settingsKey]);
   useEffect(() => {
     if (!plugin?.enabled || !plugin.running) { request.current?.abort(); request.current = undefined; setChecking(false); }
   }, [plugin?.enabled, plugin?.running]);
@@ -128,6 +186,13 @@ function PluginHealthCheck({ plugin, busy }: { plugin?: Plugin; busy: boolean })
   const reason = i18n.t(!plugin.enabled ? "Plugin disabled" : "Plugin unavailable");
   return <section className="settings-section settings-section--stacked" aria-label={i18n.t("Check connection")}>
     <div className="settings-actions"><Tooltip><TooltipTrigger render={<span tabIndex={disabled ? 0 : undefined} />}><Button size="sm" variant="secondary" disabled={disabled || busy || checking} onClick={async () => {
+      if (waiting.current) return;
+      waiting.current = true;
+      const epoch = generation.current;
+      const savedSettings = await ready();
+      if (savedSettings === false || epoch !== generation.current) { waiting.current = false; return; }
+      checkedSettings.current = savedSettings;
+      waiting.current = false;
       const controller = new AbortController(); request.current = controller;
       const timer = setTimeout(() => controller.abort(), 15000);
       setChecking(true); setResult(undefined);
