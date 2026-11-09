@@ -2,7 +2,7 @@
 // --screenshots is a separate manual capture pass, usable before and after #574.
 async (page, { openPath, reloadDocument, expect, screenshots }) => {
   const origin = page.url().split('/').slice(0,3).join('/');
-  const initial = await (await page.request.get(`${origin}/api/document`)).json();
+  const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const separator = initial.path.includes('\\') ? '\\' : '/';
   const root = initial.path.split(separator).slice(0,-4).join(separator);
   const file = [root,'tmp','empty-elements','empty.md'].join(separator);
@@ -44,7 +44,7 @@ async (page, { openPath, reloadDocument, expect, screenshots }) => {
     expect(await editor.locator('li > p[data-empty-prompt]').evaluateAll(nodes => nodes.map(n=>n.getAttribute('data-empty-prompt')))).toEqual([item,item]);
   };
   await prompts('Enter an equation','Enter admonition text','Enter a quote','Enter a list item');
-  const read = async () => (await (await page.request.get(`${origin}/document/empty.md?path=${encodeURIComponent(file)}`)).text()).replaceAll('\r\n','\n');
+  const read = async () => (await (await page.request.get(`${origin}/document/empty.md?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).text()).replaceAll('\r\n','\n');
   const save = async () => {
     await page.getByTestId('save').click();
     await page.locator('[data-testid="status"]:is([data-operation="saved"],[data-operation="save-failed"])').waitFor({state:'attached'});

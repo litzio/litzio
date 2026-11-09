@@ -1,7 +1,7 @@
 // pnpm browser:test list-format [--screenshots]. Interface checks, then optional manual captures.
 async (page, { openPath, expect, screenshots }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(separator).slice(0, -4).join(separator);
   const file = [root, 'tmp', 'list-format', 'list-format.md'].join(separator);
@@ -81,7 +81,7 @@ async (page, { openPath, expect, screenshots }) => {
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor({ state: 'attached' });
   expect(await page.getByTestId('status').getAttribute('data-operation')).toBe('saved');
-  const saved = await (await page.request.get(`${origin}/document/list-format.md?path=${encodeURIComponent(file)}`)).text();
+  const saved = await (await page.request.get(`${origin}/document/list-format.md?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).text();
   expect(saved).toContain('{style=lower-alpha}\n3)');
   const expected = await json();
   await page.reload();

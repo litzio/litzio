@@ -1,6 +1,6 @@
 /* Product values: one source, consumed by CSS and mapped into Tailwind in index.css. */
 :root {
-  /* Docling source categories; status also has distinct border styles. */
+  /* Source categories; status also has distinct border styles. */
   color-scheme: light;
 
   --duration-theme-transition: 160ms; /* Brief whole-screen theme crossfade. */

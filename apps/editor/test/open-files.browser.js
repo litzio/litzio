@@ -12,7 +12,7 @@ async (page, { showNotifications, openDocument, openPath, expect, screenshots = 
   await page.route(`${reconnectOrigin}/api/folder-version?*`, route => route.fulfill({
     headers: { 'access-control-allow-origin': origin }, json: { version: 'reconnected-fixture', revisions: [] },
   }));
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const separator = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(separator).slice(0, -4).join(separator);
   // A prepared empty directory makes the absent diagram a real 404 on every OS.

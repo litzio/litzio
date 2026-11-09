@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.3 — 미발행
+
+- 원본 PDF·DoclingDocument JSON·manifest를 `.docling`에 보존하고 페이지 PNG 요청/저장을 제거합니다. 그림 ImageRef와 원본 hash 검증은 유지하며 기존 봉투 호환은 지원하지 않습니다.
+- 선택 opaque review.json 슬롯만 예약합니다. 원본 hash는 검수 기록과 독립이며 검수 기록·승인·편집 기능은 구현하지 않습니다.
+- 빈 수정 단계부터 SDK authorDocument까지 한 경로로 제목·문단·직사각형 표·평면 목록·코드·수식·이미지 없는 캡션 Figure를 만듭니다. furniture는 제외합니다.
+- sourceHash+self_ref와 SDK targets, 병합 셀 원본 index, 다대일 대응·항목별 손실을 요청별 conversion-report 읽기 결과로 제공합니다. 별도 대응 파일은 없으며 reload 후 재계산합니다.
+- 완료 단계에 병합 칸 반복·다단 헤더 계층 소실·중첩 목록 평탄화·그림 이미지 미포함 등 실제 손실만 요약하며 표 개수와 0건은 표시하지 않습니다. SDK 한도나 잘못된 참조/표는 전체 실패하고 보고서에 이유를 남깁니다. Core·Host·Editor·CLI 제품 코드는 변경하지 않습니다.
+
 ## 0.0.2 — 미발행
 
 - 사이드바 Docling 화면에 PDF 변환·Litzio 문서 만들기를 선언합니다. 공통 작업 패널에서 다중 선택과 작업 목록·상태·단계·중단·결과 행동을 제공합니다. 진행 중 작업 관찰은 활성 화면 수명을 따릅니다.

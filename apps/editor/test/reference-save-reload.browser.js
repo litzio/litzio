@@ -9,12 +9,12 @@ async (page, { openPath, openDocument, reloadDocument, expect }) => {
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
 
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(separator).slice(0, -4).join(separator);
   const filePath = [root, 'tmp', 'reference-save-reload', 'technical-document.md'].join(separator);
   const markdown = async () => {
-    const response = await page.request.get(`${origin}/document/technical-document.md?path=${encodeURIComponent(filePath)}`);
+    const response = await page.request.get(`${origin}/document/technical-document.md?path=${encodeURIComponent(filePath)}`, { headers: { Connection: "close" } });
     if (response.status() !== 200) throw new Error(`Prepare ${filePath} first`);
     return (await response.text()).replaceAll('\r\n', '\n');
   };
@@ -92,7 +92,7 @@ async (page, { openPath, openDocument, reloadDocument, expect }) => {
   await page.keyboard.type(' FixedSaveMarker');
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.getByText('Saved', {exact:true}).filter({visible:true}).waitFor();
-  const fixedResponse = await page.request.get(`${origin}/document/fixed.md?path=${encodeURIComponent(fixedPath)}`);
+  const fixedResponse = await page.request.get(`${origin}/document/fixed.md?path=${encodeURIComponent(fixedPath)}`, { headers: { Connection: "close" } });
   if (!fixedResponse.ok()) throw new Error(`Fixed document read failed: ${fixedResponse.status()}`);
   const fixedSaved = await fixedResponse.text();
   for (const number of ['17', 'A.3', '4-2', 'B.2']) {
@@ -239,7 +239,7 @@ async (page, { openPath, openDocument, reloadDocument, expect }) => {
   await page.getByTestId('ui-language').selectOption('ko');
   await page.keyboard.press('Escape');
   await page.getByTestId('settings-dialog').waitFor({state:'detached'});
-  const readEmpty = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(emptyPath)}`)).json()).source;
+  const readEmpty = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(emptyPath)}`, { headers: { Connection: "close" } })).json()).source;
   const emptyBefore = await readEmpty();
   await page.getByTestId('save').click();
   await page.locator('[data-testid="status"][data-operation="save-failed"]').waitFor();

@@ -1,12 +1,12 @@
 async (page, { openPath, activeDocument, removeTabFixture, screenshots, expect }) => {
   const check = (value, message) => { if (!value) throw new Error(message); };
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const initial = await (await page.request.get(`${origin}/api/document`)).json();
+  const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const root = initial.path.split(sep).slice(0, -4).join(sep);
   const file = [root, 'tmp', 'document-tabs', 'technical-1.md'].join(sep);
   await openPath(page, file);
-  const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json();
+  const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json();
   removeTabFixture(disk.source + '\nExternal disk content.\n');
   await page.getByTestId('external-change').waitFor({ timeout: 8000 });
   const capture = async name => {
@@ -34,7 +34,7 @@ async (page, { openPath, activeDocument, removeTabFixture, screenshots, expect }
   let release, reached;
   const held = new Promise(resolve => { reached = resolve; });
   const barrier = new Promise(resolve => { release = resolve; });
-  const delay = async route => { const response = await route.fetch(); reached(); await barrier; await route.fulfill({ response }); };
+  const delay = async route => { const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); reached(); await barrier; await route.fulfill({ response }); };
   await page.route('**/api/folder-version?*', delay);
   await held;
   await activeDocument(page).locator('.document-editor').evaluate(node => node.editor.commands.insertContentAt(1, 'My own Save. '));
@@ -60,7 +60,7 @@ async (page, { openPath, activeDocument, removeTabFixture, screenshots, expect }
   await comparison.getByRole('region', { name: 'Source differences', exact: true }).waitFor();
   await expect(comparison).toContainText('My local change.');
   await expect(comparison).toContainText('Second disk change.');
-  check((await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json()).source.includes('Second disk change.'), 'Comparison wrote the file');
+  check((await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json()).source.includes('Second disk change.'), 'Comparison wrote the file');
   await page.keyboard.press('Escape');
   await comparison.waitFor({ state: 'detached' });
   await page.getByTestId('external-change').getByRole('button', { name: 'Reload from disk', exact: true }).click();

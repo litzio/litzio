@@ -23,10 +23,10 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await page.route("**/api/plugins", async route => {
     if (route.request().method() === "GET") ++listRequests;
     const delayed = holdEnabled && route.request().method() === "GET";
-    const response = await route.fetch();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     const value = await response.json();
     for (const plugin of value.plugins) if (plugin.id === "litzio.onedrive" && plugin.running) {
-      plugin.status = { available: true, folders: detectedFolders.map((path, i) => ({ id: String(i), path, label: "Drive fixture", defaultCandidate: true })), decorations: detectedFolders.map((path, i) => ({ id: String(i), path, icon: "onedrive" })), accounts: [] };
+      plugin.status = { available: true, folders: detectedFolders.map((path, i) => ({ id: String(i), path, label: "Drive fixture", defaultCandidate: true })), decorations: detectedFolders.map((path, i) => ({ id: String(i), path, icon: "plugin" })), accounts: [] };
     }
     if (delayed && value.plugins.some(plugin => plugin.id === "litzio.onedrive" && plugin.enabled)) {
       delayedResponses.push(value);
@@ -42,20 +42,37 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   const beforeEnableLists = listRequests;
   await official.click(); await expect(official).toBeChecked();
   expect(listRequests).toBe(beforeEnableLists);
+  if (screenshots) {
+    await expect(page.locator(".plugin-heading .plugin-icon")).toBeVisible();
+    await expect.poll(() => page.locator(".plugin-heading .plugin-icon").evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
+    await expect(page.getByRole("heading", { name: "OneDrive", exact: true })).toBeVisible();
+    await page.screenshot({ path: "tmp/folder-1366/settings-1440.png", mask: [page.locator(".sidebar-host-account")] });
+  }
   await page.keyboard.press("Escape");
   if (screenshots) {
     await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(2);
+    await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluateAll(images => images.every(image => image.naturalWidth > 0))).toBe(true);
     await page.waitForLoadState("networkidle");
     await page.screenshot({ path: "tmp/onedrive-1287/enabled-1440.png", mask: [page.locator(".sidebar-host-account")] });
     await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
     await page.setViewportSize({ width: 640, height: 900 });
     await page.reload(); await page.waitForLoadState("networkidle");
+    await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(2);
+    await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluateAll(images => images.every(image => image.naturalWidth > 0))).toBe(true);
     await page.screenshot({ path: "tmp/onedrive-1287/enabled-640-ko-dark.png", mask: [page.locator(".sidebar-host-account")] });
+    await page.getByRole("button", { name: "설정", exact: true }).click();
+    await page.getByRole("button", { name: "플러그인", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "OneDrive", exact: true })).toBeVisible();
+    await expect.poll(() => page.locator(".plugin-heading .plugin-icon").evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
+    await page.screenshot({ path: "tmp/folder-1366/settings-640-ko-dark.png", mask: [page.locator(".sidebar-host-account")] });
+    await page.keyboard.press("Escape");
     await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
     await page.reload();
   }
   await expect(page.locator(".sidebar-folder-name")).toHaveCount(2);
-  await expect(page.getByLabel("OneDrive", { exact: true })).toHaveCount(2);
+  await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(2);
+  await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluateAll(images => images.every(image => image.naturalWidth > 0))).toBe(true);
   await openSettings();
   await page.reload(); await openSettings(); await expect(official).toBeChecked();
   // Hold a completed Host GET in transport, then finish a later user disable first.
@@ -74,7 +91,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(official).not.toBeChecked();
   await page.keyboard.press("Escape");
   await expect(page.locator(".sidebar-folder-name")).toHaveCount(0);
-  const listing = await page.request.get(`${await page.evaluate(() => location.origin)}/api/folder?root=${encodeURIComponent(pluginFixture.folder)}`);
+  const listing = await page.request.get(`${await page.evaluate(() => location.origin)}/api/folder?root=${encodeURIComponent(pluginFixture.folder)}`, { headers: { Connection: "close" } });
   expect(listing.ok()).toBe(true);
   await openSettings();
   await page.reload(); await openSettings(); await expect(official).not.toBeChecked();
@@ -187,11 +204,15 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   // Escape exits Settings after the nested dialog has finished closing.
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("settings-dialog")).not.toBeVisible();
+  // Any running folder source opens automatically, before a manual folder action.
+  await expect(page.locator(".sidebar-folder-name")).toHaveCount(2);
+  await expect(page.locator(`[data-testid="folder"][data-root=${JSON.stringify(pluginFixture.otherFolder)}]`)).toBeVisible();
   await openFolderPicker(page);
   await page.getByTestId("folder-path").fill(pluginFixture.folder);
   await page.getByTestId("folder-open").click();
   await expect(page.getByTestId("folder-path")).not.toBeVisible();
-  await expect(page.getByLabel("OneDrive", { exact: true })).toBeVisible();
+  await expect(page.locator(".sidebar-folder-name .plugin-icon")).toBeVisible();
+  await expect.poll(() => page.locator(".sidebar-folder-name .plugin-icon").evaluate(image => image.naturalWidth)).toBeGreaterThan(0);
   for (const width of [1440, 640]) {
     await page.setViewportSize({ width, height: 900 });
     if (screenshots) await page.screenshot({ path: `tmp/plugin-stage1/decoration-${width}.png` });
@@ -201,8 +222,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(page.getByRole("region", { name: "Drive fixture", exact: true }).getByRole("status").filter({ hasText: /^Plugin disabled$/ })).toBeVisible();
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive").running).toBe(false);
   await page.keyboard.press("Escape");
-  await expect(page.getByLabel("OneDrive", { exact: true })).toHaveCount(0);
-  await expect(page.locator(".sidebar-folder-name")).toContainText("fixture");
+  await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(0);
+  await expect(page.locator(".sidebar-folder-name")).toHaveText("fixture");
   pluginFixture.cli(["plugins", "unregister", "fixture.drive"]);
   expect(pluginFixture.cli(["plugins", "list"]).plugins.some(p => p.id === "fixture.drive")).toBe(false);
   // Actual detachable community artifact, same Host and CLI, one fake service.
@@ -230,6 +251,51 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await docling.cli(["plugins", "settings", id, "--file", docling.settings]);
     await docling.cli(["plugins", "trust", id, "--digest", registered.digest]);
     await docling.cli(["plugins", "enable", id]);
+    // Manual real-service evidence uses an already converted archive. Never put
+    // external model latency inside the 180s automatic fake-service regression.
+    if (screenshots && docling.realFile) {
+      await openFolderPicker(page);
+      await page.getByTestId("folder-path").fill(pluginFixture.folder);
+      await page.getByTestId("folder-open").click();
+      await expect(page.getByTestId("folder-path")).not.toBeVisible();
+      docling.setRealInput();
+      const started = await docling.cli(["plugins", "start", id, "--input", docling.jobInput]);
+      await expect.poll(async () => (await docling.cli(["plugins", "status", started.job.requestId])).job.state).toBe("completed");
+      const report = await docling.report(started.job.requestId);
+      expect(report.summary).toContain("그림 이미지 미포함 1");
+      for (const width of [1440, 640]) {
+        await page.setViewportSize({ width, height: 1100 });
+        await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
+        await page.reload();
+        if (docling.beforeFile) {
+          await page.locator('[role="treeitem"][data-path$="docling-before.md"]').click();
+          await expect(page.getByTestId("current-file")).toHaveAttribute("title", /docling-before\.md$/);
+          await page.screenshot({ path: `tmp/docling-1368/before-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
+        }
+        await page.locator('[role="treeitem"][data-path$="docling-real.md"]').click();
+        await expect(page.getByTestId("current-file")).toHaveAttribute("title", /docling-real\.md$/);
+        const document = page.locator(".tiptap").filter({ visible: true });
+        await expect(document.locator("table")).toContainText("Revenue");
+        await expect(document.locator("ol")).toContainText("Read the original document.");
+        await expect(document.locator("pre").filter({ hasText: "def square(x)" })).toContainText("def square(x)");
+        await expect(document).toContainText("Two connected stages");
+        await expect(document).not.toContainText("CONVERSION ACCEPTANCE / RUNNING HEADER");
+        await page.screenshot({ path: `tmp/docling-1368/after-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
+        await document.locator('[data-block="equation"]').first().scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `tmp/docling-1368/equation-figure-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
+        await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
+        const panel = page.getByTestId("plugin-job-panel");
+        const row = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "real.docling", exact: true }) }).first();
+        await expect(row).toContainText(report.summary);
+        const masks = [page.locator(".sidebar-host-account"), panel.getByLabel(width === 640 ? "열린 폴더" : "Opened folder", { exact: true })];
+        await page.screenshot({ path: `tmp/docling-1368/losses-${width}.png`, mask: masks, maskColor: "#a1a1aa" });
+        if (width === 640) {
+          await panel.locator(".view-table-scroll").evaluate(element => element.scrollTo({ left: element.scrollWidth }));
+          await page.screenshot({ path: "tmp/docling-1368/losses-640-end.png", mask: masks, maskColor: "#a1a1aa" });
+        }
+      }
+      return { realDocling: true, report };
+    }
     const invoke = () => docling.cli(["operation", "invoke", id + ".connection", "--input", docling.input]);
     const connected = await invoke();
     expect(connected.result.ok).toBe(true);
@@ -330,6 +396,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     expect(started.job.state).toBe("running");
     await expect.poll(async () => (await docling.cli(["plugins", "status", started.job.requestId])).job.state).toBe("completed");
     expect((await docling.cli(["plugins", "result", started.job.requestId])).job.result.path).toContain("docling-cli.md");
+    const conversionReport = await docling.report(started.job.requestId);
+    expect(conversionReport.documentRevision).toBe((await docling.cli(["plugins", "result", started.job.requestId])).job.result.revision);
+    expect(conversionReport.items.find(item => item.self_ref === "#/pictures/0").targets).toEqual(conversionReport.items.find(item => item.self_ref === "#/texts/7").targets);
     await page.keyboard.press("Control+Slash");
     await page.getByRole("combobox").fill("> Plugin jobs");
     await page.getByRole("option", { name: "Plugin jobs", exact: true }).click();
@@ -339,7 +408,11 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     const editor = page.locator(".tiptap").filter({ visible: true });
     await expect(editor).toContainText("Converted PDF");
     await expect(editor).toContainText("PDF body *literal*.");
-    await expect(editor).toContainText("Cell one | Cell two");
+    await expect(editor.locator("table")).toContainText("Cell one");
+    await expect(editor.locator("ol").filter({ hasText: "First item" })).toContainText("First item");
+    await expect(editor.locator("pre")).toContainText("print(1)");
+    await expect(editor).toContainText("Original caption.");
+    await expect(editor).not.toContainText("RUNNING HEADER");
     await expect(editor).not.toContainText("Docling conversion:");
     await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
     // Re-selecting the current Root must preserve its loaded files.
@@ -351,6 +424,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await panel.getByRole("button", { name: "Start job", exact: true }).click();
     const nativeRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "sample.docling", exact: true }) }).first();
     await expect(nativeRow.getByRole("status")).toHaveText("Completed");
+    await expect(nativeRow).toContainText("병합 칸 반복 1");
     await nativeRow.getByRole("button", { name: "Open result: sample.docling", exact: true }).click();
     await expect(editor).toContainText("PDF body *literal*.");
     docling.setDocumentInput(true);
@@ -486,7 +560,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       expect(detail.result.description).toHaveLength(16000);
       expect(detail.result.comments[0]).toMatchObject({ id: "12", bodyTruncated: true });
       expect(detail.result.comments[0].body).toHaveLength(4000);
-      expect(Number.isFinite(Date.parse(detail.result.fetchedAt))).toBe(true);
+      expect(detail.result.fetchedAt).toMatch(/^\d{2}-\d{2}-\d{2} \d{2}:\d{2}$/);
       jira.setFault(403);
       const detailDenied = await jira.cli(["operation", "invoke", "community.jira.detail", "--input", jira.input]);
       expect(detailDenied.errorKind).toBe("forbidden");

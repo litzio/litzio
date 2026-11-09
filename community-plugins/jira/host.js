@@ -10,7 +10,16 @@ function httpUrl(value) {
   } catch { throw new PluginOperationError("failed"); }
 }
 const text = value => typeof value === "string" && value.trim() ? value : "—";
-const row = (key, issueUrl, f = {}) => ({ key, issueUrl, summary: text(f.summary), status: text(f.status?.name), assignee: text(f.assignee?.displayName), reporter: text(f.reporter?.displayName), created: text(f.created), priority: text(f.priority?.name), updated: text(f.updated), issueType: text(f.issuetype?.name), resolution: text(f.resolution?.name), dueDate: text(f.duedate), components: text(f.components?.map(v => v.name).join(", ")), labels: text(f.labels?.join(", ")) });
+const SEARCH_FIELDS = "summary,status,assignee,reporter,created,updated,priority,issuetype,resolution,duedate,components,labels";
+function localTimestamp(value) {
+  if (typeof value !== "string" || !value.trim()) return "—";
+  const d = new Date(value);
+  if (!Number.isFinite(d.getTime())) return "—";
+  const pad = v => String(v).padStart(2, "0");
+  return `${pad(d.getFullYear() % 100)}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+const shortDate = value => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value.slice(2) : "—";
+const row = (key, issueUrl, f = {}) => ({ key, issueUrl, summary: text(f.summary), status: text(f.status?.name), assignee: text(f.assignee?.displayName), reporter: text(f.reporter?.displayName), created: localTimestamp(f.created), priority: text(f.priority?.name), updated: localTimestamp(f.updated), issueType: text(f.issuetype?.name), resolution: text(f.resolution?.name), dueDate: shortDate(f.duedate), components: text(f.components?.map(v => v.name).join(", ")), labels: text(f.labels?.join(", ")) });
 const literal = value => JSON.stringify(value);
 function date(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) throw new PluginOperationError("failed");
@@ -62,7 +71,7 @@ export function activate(context) {
       const jql = input.jql;
       let startAt = 0;
       while (rows.length < 500) {
-        const query = new URLSearchParams({ jql, startAt: String(startAt), maxResults: String(Math.min(100, 500 - rows.length)) });
+        const query = new URLSearchParams({ jql, startAt: String(startAt), maxResults: String(500 - rows.length), fields: SEARCH_FIELDS });
         const response = await fetch(api + "/search?" + query, { headers: { Authorization: `Bearer ${pat}`, Accept: "application/json" }, signal: controller.signal, redirect: "error" });
         if (!response.ok) {
           await response.body?.cancel();
@@ -144,9 +153,9 @@ export function activate(context) {
           if (!Array.isArray(page?.comments) || !Number.isSafeInteger(page.total) || page.total < 0 || page.startAt !== 0 || page.comments.length > 10 || page.comments.length > page.total || (!page.comments.length && page.total > 0)) throw new PluginOperationError("failed");
           const comments = page.comments.map(c => {
             if (typeof c?.id !== "string" || typeof c.body !== "string" || typeof c.created !== "string" || typeof c.updated !== "string") throw new PluginOperationError("failed");
-            return { id: c.id, author: text(c.author?.displayName), created: c.created, updated: c.updated, body: c.body.slice(0, 4000), bodyTruncated: c.body.length > 4000 };
+            return { id: c.id, author: text(c.author?.displayName), created: localTimestamp(c.created), updated: localTimestamp(c.updated), body: c.body.slice(0, 4000), bodyTruncated: c.body.length > 4000 };
           });
-          return { key: input.key, issueUrl: base + "/browse/" + encodeURIComponent(input.key), fetchedAt: new Date().toISOString(), summary: text(issue.fields.summary), description: description.slice(0, 16000), descriptionTruncated: description.length > 16000, commentsTotal: page.total, commentsStartAt: 0, commentsReturned: comments.length, comments };
+          return { key: input.key, issueUrl: base + "/browse/" + encodeURIComponent(input.key), fetchedAt: localTimestamp(new Date().toISOString()), summary: text(issue.fields.summary), description: description.slice(0, 16000), descriptionTruncated: description.length > 16000, commentsTotal: page.total, commentsStartAt: 0, commentsReturned: comments.length, comments };
         } catch (error) {
           if (controller.signal.aborted) throw new PluginOperationError("timeout");
           if (error instanceof PluginOperationError) throw error;

@@ -5,11 +5,11 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, wa
   const assert = (ok, message) => { if (!ok) throw Error(message); };
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: 'attached' });
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const initial = await (await page.request.get(origin + '/api/document')).json();
+  const initial = await (await page.request.get(origin + '/api/document', { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const root = [...initial.path.split(sep).slice(0, -4), 'tmp', 'bibliography'].join(sep);
   const file = [root, 'chapters', 'authoring.md'].join(sep);
-  const readSource = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json()).source;
+  const readSource = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json()).source;
   const bibHash = bibliographyFixture.hash();
   // Reopen from the common folder so the tab may read ../refs.bib (the chapter folder alone may not).
   await openPath(page, file);
@@ -413,7 +413,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, wa
   const response = await saveResponse;
   assert(response.ok(), `Nested Save failed: ${await response.text()}`);
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor({ state: 'attached' });
-  const nestedSaved = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(nestedFile)}`)).json()).source;
+  const nestedSaved = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(nestedFile)}`, { headers: { Connection: "close" } })).json()).source;
   assert(nestedSaved.includes('{cite:p}`article`') && !nestedSaved.includes('Only citation'), 'Save writes the explicit citation and removes the replaced list text');
   const inlineContent = () => editor.evaluate(element => {
     const blocks = [];

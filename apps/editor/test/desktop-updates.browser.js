@@ -176,7 +176,7 @@ async (page, { screenshots = false, fullLayout = true, openPath, brand }) => {
   await page.getByTestId('settings-dialog').waitFor({state:'detached'});
   const originalViewport = page.viewportSize();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const sep = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(sep).slice(0, -4);
   const longName = '긴파일이름' + 'unbrokendocumentname'.repeat(7) + '.md';

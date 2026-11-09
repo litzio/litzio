@@ -26,7 +26,7 @@ async (page, { expect, screenshots, openFolderPicker, openPath }) => {
   });
   await page.reload();
   await page.setViewportSize({width:1440,height:1000});
-  const initial = await (await page.request.get(page.url().split('/').slice(0,3).join('/') + '/api/document')).json();
+  const initial = await (await page.request.get(page.url().split('/').slice(0,3).join('/') + '/api/document', { headers: { Connection: 'close' } })).json();
   const root = initial.allowedRoots[0];
   await openFolderPicker(page); await page.getByTestId('folder-path').fill(root); await page.getByTestId('folder-open').click();
   await page.getByRole('dialog', {name:'Open folder',exact:true}).waitFor({state:'detached'});

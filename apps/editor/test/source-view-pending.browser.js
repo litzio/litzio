@@ -11,7 +11,7 @@ async (page, { openFolderPicker, openPath }) => {
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
 
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(separator).slice(0, -4).join(separator);
   const dir = [root, 'tmp', 'source-view'].join(separator);
@@ -19,7 +19,7 @@ async (page, { openFolderPicker, openPath }) => {
   const documentB = [dir, 'writable.md'].join(separator);
   const created = [dir, 'created-during-preview.md'].join(separator);
   const exists = async (file, name) =>
-    (await page.request.get(`${origin}/document/${name}?path=${encodeURIComponent(file)}`)).status() === 200;
+    (await page.request.get(`${origin}/document/${name}?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).status() === 200;
   if (!await exists(documentA, 'technical-document.md') || !await exists(documentB, 'writable.md')) {
     throw new Error(`Prepare ${dir} first`);
   }

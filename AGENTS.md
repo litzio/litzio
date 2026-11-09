@@ -17,6 +17,7 @@
 
 - 사람이 읽을 수 있는 plain-text document를 SSOT로 유지한다.
 - 문서의 핵심 처리 로직은 특정 UI에 종속되지 않아야 한다.
+- 특정 플러그인만을 위한 Core·Host 기능은 만들지 않는다. 단, 여러 플러그인이 함께 쓸 수 있고 가치 있는 기능은 Core·Host에 넣을 수 있다. 판단은 PR 리뷰에서 사람과 오케스트레이터가 하며 자동 검사로 강제하지 않는다.
 - Editor, CLI, AI 등 서로 다른 인터페이스가 문서 의미를 각각 별도로 구현하지 않도록 한다.
 - 영속적인 문서 의미 변경은 Editor에만 구현하지 않으며, 먼저 또는 동시에 Core의 editor-neutral semantic operation으로 표현한다.
 - [ADR-0015](docs/adr/0015-shared-host-operations.md)에 따라 새 사용자 기능은 Host 공용 작업(입력·결과·범위·receipt)으로 정의하고 CLI 명령을 반드시 함께 제공하며, 비서에 필요하면 같은 정의로 비서 도구를 만든다.

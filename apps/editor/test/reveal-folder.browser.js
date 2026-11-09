@@ -1,7 +1,7 @@
 // Browser Host hides the OS action; a Desktop capability enables root and child menus.
 async (page, { openFolderPicker, screenshots = false, expect }) => {
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
-  const source = await (await page.request.get(page.url().split('/').slice(0, 3).join('/') + '/api/document')).json();
+  const source = await (await page.request.get(page.url().split('/').slice(0, 3).join('/') + '/api/document', { headers: { Connection: "close" } })).json();
   const sep = source.path.includes('\\') ? '\\' : '/';
   const root = source.path.split(sep).slice(0, -4).concat('tmp', 'folder-navigation').join(sep);
   const open = async () => {
