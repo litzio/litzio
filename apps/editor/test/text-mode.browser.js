@@ -22,23 +22,65 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   const unloadBlocked = () => page.evaluate(() => {
     const event = new Event('beforeunload',{cancelable:true}); window.dispatchEvent(event); return event.defaultPrevented;
   });
-  const configure = async (language,theme) => {
+  const configure = async (language,theme,pageStyle = 'paper') => {
     await page.getByRole('button',{name:/^(Settings|설정)$/,exact:true}).click();
     await page.getByTestId('theme').selectOption(theme);
+    await page.getByTestId('page-background').selectOption(pageStyle);
     await page.getByTestId('ui-language').selectOption(language);
     await page.locator('[data-tab-id="settings"] .document-tab-close').click();
     await page.getByTestId('settings-dialog').waitFor({state:'detached'});
     await page.evaluate(async () => { await document.fonts.ready; });
   };
   const nativeBefore = await read(file('native.md'));
+  if (screenshots) {
+    const comparison = '# 같은 문서 · Reading\n\n본문은 같은 글꼴과 여백으로 읽힙니다. **강조**와 `inline code`, $x+1$을 확인합니다.\n\n## 목록과 인용\n\n- 첫 번째 항목\n- 두 번째 항목\n\n> 인용한 문장입니다.\n\n| Header | Value |\n| --- | --- |\n| Cell | 42 |\n\n```js\nconst reading = true;\n```\n';
+    const original = (await read(file('foreign.md'))).source;
+    textFixture.replaceNative('---\nlitzio: 1\n---\n\n' + comparison);
+    for (const [language,theme,width] of [['en','light',1440],['ko','dark',640]]) {
+      await configure('en','light');
+      await page.setViewportSize({width,height:900});
+      await openPath(page,file('native.md'));
+      await page.getByTestId('view-read').click();
+      await configure(language,theme);
+      await page.getByTestId('sidebar').locator(`[role="treeitem"][data-path=${JSON.stringify(file('native.md'))}]`).click();
+      await expect(activeDocument(page).locator('[data-read-only="true"] .document-editor')).toBeVisible();
+      await page.screenshot({mask:[page.locator(".sidebar-footer")],path:`tmp/text-mode-captures/compare-native-${width}.png`});
+      await configure('en','light');
+      await openPath(page,file('foreign.md'));
+      await page.getByTestId('view-visual').click();
+      await input().fill(comparison);
+      await configure(language,theme);
+      await page.getByTestId('sidebar').locator(`[role="treeitem"][data-path=${JSON.stringify(file('foreign.md'))}]`).click();
+      await page.getByTestId('view-read').click();
+      await page.screenshot({mask:[page.locator(".sidebar-footer")],path:`tmp/text-mode-captures/compare-markdown-${width}.png`});
+      await page.getByTestId('view-visual').click();
+      await input().fill('긴 문장과 공백 없는 식별자도 화면 안에서 편집합니다. '.repeat(25) + 'identifier'.repeat(80));
+      await input().press('Control+Home');
+      await activeDocument(page).evaluate(node => node.scrollTo(0,0));
+      await expect.poll(() => activeDocument(page).evaluate(node => node.scrollTop)).toBe(0);
+      await page.screenshot({mask:[page.locator(".sidebar-footer")],path:`tmp/text-mode-captures/compare-edit-${width}.png`});
+      await input().fill(original);
+      await page.getByTestId('view-read').click();
+    }
+    textFixture.replaceNative(nativeBefore.source);
+    await configure('en','light');
+  }
   await openPath(page,file('foreign.md'));
   await expect(page.getByTestId('view-read')).toHaveAttribute('aria-pressed', 'true');
   const preview = () => activeDocument(page).getByTestId('plain-markdown');
+  await expect(input()).toBeHidden();
+  await expect(preview()).toHaveClass(/document-editor/);
+  await expect(preview().locator('..')).toHaveClass('document');
+  await expect(preview().locator('../..')).toHaveClass(/document-column/);
   await expect(preview().getByRole('heading', {name:'일반 Markdown'})).toBeVisible();
   await expect(preview().locator('table')).toContainText('Cell');
   await expect(preview().locator('img')).toBeVisible();
   await expect(preview().locator('img')).toHaveJSProperty('complete',true);
   expect(await preview().locator('img').evaluate(node => node.naturalWidth > 0)).toBe(true);
+  await configure('en','light','flat');
+  expect(await preview().locator('..').evaluate(node => getComputedStyle(node).borderRadius)).toBe('0px');
+  await configure('en','light');
+  expect(await preview().locator('..').evaluate(node => getComputedStyle(node).borderRadius)).not.toBe('0px');
   if (screenshots) {
     for (const [language,theme] of [['en','light'],['ko','dark']]) {
       await configure(language,theme);
@@ -52,7 +94,12 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
     }
     await configure('en','light');
   }
+  const readGeometry = await preview().locator('..').boundingBox();
   await page.getByTestId('view-visual').click();
+  const textGeometry = await input().locator('..').boundingBox();
+  expect(textGeometry.x).toBe(readGeometry.x);
+  expect(textGeometry.y).toBe(readGeometry.y);
+  expect(textGeometry.width).toBe(readGeometry.width);
   await page.keyboard.press('Control+Slash');
   const commandCenter = page.getByRole('dialog', {name:'Command center',exact:true});
   await commandCenter.getByRole('combobox').fill('> View:');
@@ -85,8 +132,18 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   }
   await page.getByTestId('view-visual').click();
   await expect(input()).toHaveValue('```mermaid\ngraph LR\n  A --> B\n```\n\n    indented\n');
-  const content = '\t  한글 😀 **literal** <div>\n\n마지막 줄  \n';
+  const content = '\t  한글 😀 **literal** <div>\n' + '긴 문장 soft wrap '.repeat(40) + 'identifier'.repeat(100) + '\n\n마지막 줄  \n';
   await input().fill(content);
+  await expect(input().locator('..')).toHaveClass('document');
+  expect(await input().evaluate(node => ({border:getComputedStyle(node).borderWidth,background:getComputedStyle(node).backgroundColor,outline:getComputedStyle(node).outlineStyle}))).toEqual({border:'0px',background:'rgba(0, 0, 0, 0)',outline:'none'});
+  for (const width of [1440,640]) {
+    await page.setViewportSize({width,height:900});
+    expect(await input().evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
+  }
+  await input().press('End');
+  await input().pressSequentially('X');
+  await input().press('Control+z');
+  await expect(input()).toHaveValue(content);
   await page.getByTestId('view-read').click();
   await expect(preview()).toContainText('literal');
   expect(await unloadBlocked()).toBe(true);
@@ -122,6 +179,8 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   await expect(activeDocument(page).locator('.document-editor')).toBeVisible();
 
   await openPath(page,file('notes.txt'));
+  await input().fill('txt-long-line'.repeat(100));
+  expect(await input().evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
   await input().fill('닫기 전에 유지할 글자');
   await page.getByRole('button',{name:'Close notes.txt',exact:true}).click();
   await page.getByRole('dialog',{name:'Save changes?',exact:true}).getByRole('button',{name:'Cancel',exact:true}).click();

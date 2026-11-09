@@ -146,7 +146,45 @@ HTTP(S) links use the existing external opening path; relative document links do
 not navigate. Footnote links navigate only inside the reading surface. Mermaid
 stays a code block. Rejected MyST directives may appear as ordinary text or code
 blocks: this is a generic Markdown display, not a native-document conversion.
-Existing reading typography, table and code tokens apply in light/dark themes.
+The reading screen reuses native Read's `document-column`, `document` paper and
+`document-editor` typography, including the global Page style (Paper/Flat), document
+width, margins and light/dark tokens. Markdown headings, paragraphs, lists,
+quotes, tables, code and equations use the existing native classes. No Core
+admission, rewrite or serialization is involved. Native authoring controls,
+numbered captions and the empty frontmatter title slot are not synthesized.
+Markdown images retain a display-only max-width rule and KaTeX overflow containment.
+Outline remains unavailable: the existing shell panel consumes native editor
+positions and session callbacks, so reuse would require changes beyond the text tab.
+
+Text editing shares the same `document-column` and `document` paper, body width
+and padding as Read, so switching views keeps the page position and text origin.
+The textarea has no border, corner radius, separate background or box focus ring;
+its caret follows the native document convention. It grows with the buffer and the
+document viewport owns scrolling. Line numbers are not included.
+Both `.md` and `.txt` textareas use soft wrapping, including long unbroken tokens,
+without horizontal scrolling or inserting stored newlines. The mounted textarea
+retains cursor, Undo, dirty state and Save/recovery behavior. Its monospace font,
+size and line height follow the existing native Source convention; there is no wrap
+toggle.
+
+#1343 comparison evidence (same body, localhost fixtures; account footer masked):
+
+| View | 1440px English Light | 640px Korean Dark |
+| --- | --- | --- |
+| Native Read reference (unchanged) | [Reference](assets/plain-markdown-1343/after-compare-native-1440.png) | [Reference](assets/plain-markdown-1343/after-compare-native-640.png) |
+| Markdown Read before / after | [Before](assets/plain-markdown-1343/before-compare-markdown-1440.png) / [After](assets/plain-markdown-1343/after-compare-markdown-1440.png) | [Before](assets/plain-markdown-1343/before-compare-markdown-640.png) / [After](assets/plain-markdown-1343/after-compare-markdown-640.png) |
+| Long-line Text before / after | [Before](assets/plain-markdown-1343/before-compare-edit-1440.png) / [After](assets/plain-markdown-1343/after-compare-edit-1440.png) | [Before](assets/plain-markdown-1343/before-compare-edit-640.png) / [After](assets/plain-markdown-1343/after-compare-edit-640.png) |
+
+The common implementation follows the UI decision table's existing document
+surface and Button/CopyButton controls. Native engine-owned title, table handles,
+numbered captions and code language editing are intentionally absent from the
+display-only Markdown surface; these account for spacing differences around those
+controls. No new shared interaction or token system is introduced. The text-mode
+browser scenario checks paper/flat preference, native surface classes, long-line
+scrollWidth/clientWidth for both file types, Undo and exact Save/Reload source.
+Capture-only comparison traversal runs only with `--screenshots`.
+
+Earlier #939 evidence:
 `pnpm browser:test text-mode --screenshots` reproduces the display evidence:
 [1440px Light](assets/plain-markdown-939/1440-light.png),
 [640px Light](assets/plain-markdown-939/640-light.png), and
