@@ -2,12 +2,12 @@ import type { DocumentToolScope } from "./assistant-document-tools.ts";
 import { accessPath } from "./file-access.ts";
 import { pluginManagementSchema, jobRequestSchema, PLUGIN_JOBS } from "@litzio/plugin-sdk";
 import type { PluginHost } from "./plugins/plugin-host.ts";
-export const pluginTools = [{ type: "function", name: "manage_plugins", description: "Manage plugins on this Host. Management runs without per-call approval and is recorded in conversation activity. Never supply secrets. Use list to inspect artifacts and digests.", inputSchema: { type: "object", properties: { action: { type: "string", enum: ["list", "scaffold", "validate", "register", "trust", "enable", "disable", "reload", "unregister", "settings"] }, id: { type: "string" }, directory: { type: "string" }, digest: { type: "string" }, settings: { type: "object", additionalProperties: true } }, required: ["action"], additionalProperties: false } }];
+export const pluginTools = [{ type: "function", name: "manage_plugins", description: "Manage plugins on this Host. Management runs without per-call approval and is recorded in conversation activity. Never supply secrets. Use list to inspect artifacts and digests.", inputSchema: { type: "object", properties: { action: { type: "string", enum: ["list", "scaffold", "validate", "register", "trust", "enable", "disable", "reload", "unregister", "settings"] }, id: { type: "string" }, directory: { type: "string" }, digest: { type: "string" }, trust: { type: "boolean" }, settings: { type: "object", additionalProperties: true } }, required: ["action"], additionalProperties: false } }];
 export async function executePluginTool(host: PluginHost, input: unknown, activity: (entry: { action: string; id?: string; outcome: "success" | "failure" }) => void, scope?: DocumentToolScope) {
   input = pluginManagementSchema.parse(input);
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Invalid plugin management input");
   const { action, ...args } = input as Record<string, any>;
-  if (!["list", "scaffold", "validate", "register", "trust", "enable", "disable", "reload", "unregister", "settings"].includes(action) || Object.keys(args).some(key => !["id", "directory", "digest", "settings"].includes(key))) throw new Error("Invalid plugin management action");
+  if (!["list", "scaffold", "validate", "register", "trust", "enable", "disable", "reload", "unregister", "settings"].includes(action) || Object.keys(args).some(key => !["id", "directory", "digest", "trust", "settings"].includes(key))) throw new Error("Invalid plugin management action");
   try {
     if (action === "scaffold") {
       if (!scope?.folders || !["opened-folders", "full-access"].includes(scope.permissionMode)) throw new Error("Plugin creation is read-only for this turn.");

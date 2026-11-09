@@ -38,7 +38,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   const official = page.getByRole("switch", { name: "Enable OneDrive", exact: true });
   await expect(official).not.toBeChecked();
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "litzio.onedrive").official).toBe(true);
-  if (screenshots) { await page.setViewportSize({ width: 1440, height: 900 }); await page.screenshot({ path: "docs/design/assets/bundled-plugins-1279/bundled-1440.png", mask: [page.locator(".sidebar-host-account")] }); }
+  if (screenshots) { await page.setViewportSize({ width: 1440, height: 900 }); await page.screenshot({ path: "tmp/plugin-stage1/bundled-1440.png", mask: [page.locator(".sidebar-host-account")] }); }
   const beforeEnableLists = listRequests;
   await official.click(); await expect(official).toBeChecked();
   expect(listRequests).toBe(beforeEnableLists);
@@ -122,7 +122,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await page.getByTestId("folder-path").fill(pluginFixture.directory);
   await page.getByTestId("folder-open").click();
   await expect(page.getByTestId("folder-path")).not.toBeVisible();
-  await expect(page.getByText("Trust required", { exact: false })).toBeVisible();
+  await expect(page.getByRole("switch", { name: "Enable Drive fixture", exact: true })).toBeEnabled();
   const registered = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
   expect(registered.running).toBe(false);
   await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
@@ -162,10 +162,40 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await expect(page.getByRole("button", { name: "Save secret", exact: true })).toBeDisabled();
   }
   await page.keyboard.press("Escape");
-  pluginFixture.cli(["plugins", "trust", "fixture.drive", "--digest", registered.digest]);
-  await page.reload(); await openSettings();
-  await page.getByRole("switch", { name: "Enable Drive fixture", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: /^Plugin running$/ })).toBeVisible();
+  const toggle = page.getByRole("switch", { name: "Enable Drive fixture", exact: true });
+  await toggle.click();
+  const confirmation = page.getByRole("dialog", { name: "Trust and enable Drive fixture?", exact: true });
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(toggle).not.toBeChecked();
+  const cancelled = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
+  expect(cancelled.trusted).toBe(false); expect(cancelled.enabled).toBe(false);
+  await toggle.click();
+  await expect(confirmation).toBeVisible();
+  if (screenshots) for (const width of [1440, 640]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.keyboard.press("Escape");
+    await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
+    await page.reload();
+    await page.getByRole("button", { name: width === 640 ? "설정" : "Settings", exact: true }).click();
+    await page.getByRole("button", { name: width === 640 ? "플러그인" : "Plugins", exact: true }).click();
+    await page.screenshot({ path: `tmp/plugin-list-1379/list-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+    await page.getByRole("button", { name: width === 640 ? "Drive fixture 설정" : "Drive fixture settings", exact: true }).click();
+    await page.getByText(width === 640 ? "상세 정보" : "Details", { exact: true }).click();
+    await page.screenshot({ path: `tmp/plugin-list-1379/detail-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+    await page.keyboard.press("Escape");
+    await page.getByRole("switch", { name: width === 640 ? "Drive fixture 활성화" : "Enable Drive fixture", exact: true }).click();
+    await page.screenshot({ path: `tmp/plugin-list-1379/confirmation-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+  }
+  if (screenshots) {
+    await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.reload(); await openSettings(); await toggle.click();
+  }
+  await confirmation.getByRole("button", { name: "Trust and enable", exact: true }).click();
+  await expect(confirmation).not.toBeVisible();
+  await expect(toggle).toBeChecked();
+  await expect(page.getByRole("status").filter({ hasText: /^Plugin running$/ })).toHaveCount(0);
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive").running).toBe(true);
   const reloaded = pluginFixture.cli(["plugins", "reload", "fixture.drive"]);
   expect(reloaded.receipt.operation).toBe("plugins.reload");
@@ -219,7 +249,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   }
   await openSettings();
   await page.getByRole("switch", { name: "Enable Drive fixture", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Drive fixture", exact: true }).getByRole("status").filter({ hasText: /^Plugin disabled$/ })).toBeVisible();
+  await expect(page.getByRole("switch", { name: "Enable Drive fixture", exact: true })).not.toBeChecked();
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive").running).toBe(false);
   await page.keyboard.press("Escape");
   await expect(page.locator(".sidebar-folder-name .plugin-icon")).toHaveCount(0);
@@ -249,7 +279,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     const registered = (await docling.cli(["plugins", "list"])).plugins.find(p => p.id === id);
     expect(registered.official).toBe(false); expect(registered.running).toBe(false);
     await docling.cli(["plugins", "settings", id, "--file", docling.settings]);
-    await docling.cli(["plugins", "trust", id, "--digest", registered.digest]);
+    await docling.cli(["plugins", "trust", id]);
     await docling.cli(["plugins", "enable", id]);
     // Manual real-service evidence uses an already converted archive. Never put
     // external model latency inside the 180s automatic fake-service regression.
@@ -468,8 +498,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await page.getByLabel("pat: Not configured", { exact: true }).fill("mock-jira-token");
       await saveSecret();
       await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
-      await jira.cli(["plugins", "trust", "community.jira", "--digest", registered.digest]);
-      await jira.cli(["plugins", "enable", "community.jira"]);
+      await jira.cli(["plugins", "enable", "community.jira", "--trust"]);
       await page.reload(); await openSettings();
       await page.getByRole("button", { name: "Jira settings", exact: true }).click();
       const health = page.getByRole("button", { name: "Check connection", exact: true });

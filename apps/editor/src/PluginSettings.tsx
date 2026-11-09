@@ -35,26 +35,23 @@ export function PluginSettings() {
             <PluginIcon client={client} plugin={plugin.id} digest={plugin.iconDigest} />
             <h3 className="settings-heading">{plugin.name ?? plugin.id}</h3>
             <div className="plugin-badges">
-              <span className="plugin-badge">{plugin.publisher?.name ?? plugin.id}</span>
               <span className="plugin-badge">{i18n.t(plugin.official ? "Official plugin" : "Community plugin")}</span>
-              <span className="plugin-badge">{i18n.t(plugin.trusted ? "Trusted artifact" : "Trust required")}</span>
             </div>
           </div>
           <p className="settings-description">{plugin.description}</p>
         </div>
         <div className="plugin-controls">
           <Tooltip><TooltipTrigger render={<Button size="icon-sm" variant="ghost" aria-label={i18n.t("{{name}} settings", { name: plugin.name ?? plugin.id })} onClick={() => setSelected(plugin.id)} />}><Settings aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Settings")}</TooltipContent></Tooltip>
-          <input className="settings-switch" type="checkbox" role="switch" aria-label={i18n.t("Enable {{name}}", { name: plugin.name ?? plugin.id })} checked={plugin.enabled} disabled={busy || !plugin.trusted && !plugin.enabled} onChange={event => void run(event.target.checked ? "enable" : "disable", { id: plugin.id })} />
+          <input className="settings-switch" type="checkbox" role="switch" aria-label={i18n.t("Enable {{name}}", { name: plugin.name ?? plugin.id })} checked={plugin.enabled} disabled={busy} onChange={event => { if (event.target.checked && !plugin.trusted) setTrust(plugin); else void run(event.target.checked ? "enable" : "disable", { id: plugin.id }); }} />
         </div>
       </div>
       <div className="plugin-states">
-        <PluginState tone={plugin.error ? "danger" : plugin.running ? "connected" : "muted"} label={i18n.t(plugin.error ? "Plugin error" : plugin.running ? "Plugin running" : plugin.enabled ? "Plugin unavailable" : "Plugin disabled")} detail={plugin.error} />
-        {plugin.status ? <PluginState tone={plugin.status.available ? "connected" : "warning"} label={i18n.t(!plugin.status.available ? "Detection unsupported" : plugin.status.folders.length ? "Folder detected" : "No folder detected")} detail={plugin.status.message} /> : null}
+        {plugin.error || plugin.enabled && !plugin.running ? <PluginState tone={plugin.error ? "danger" : "muted"} label={i18n.t(plugin.error ? "Plugin error" : "Plugin unavailable")} detail={plugin.error} /> : null}
+        {plugin.folderSources?.length && plugin.status ? <PluginState tone={plugin.status.available ? "connected" : "warning"} label={i18n.t(!plugin.status.available ? "Detection unsupported" : plugin.status.folders.length ? "Folder detected" : "No folder detected")} detail={plugin.status.message} /> : null}
       </div>
-      {!plugin.bundled && !plugin.trusted && plugin.digest ? <Button size="sm" variant="secondary" disabled={busy} onClick={() => setTrust(plugin)}>{i18n.t("Trust this artifact")}</Button> : null}
       {plugin.status?.accounts.map(account => <p key={account.id} className="settings-description plugin-account">{i18n.t("Account: {{label}} ({{source}})", { label: account.label, source: account.source })}</p>)}
     </section>)}
-    <Dialog open={!!trust} onOpenChange={open => { if (!open) setTrust(undefined); }}><DialogContent><DialogHeader><DialogTitle>Trust {trust?.name ?? trust?.id}?</DialogTitle><DialogDescription>This code runs with the Host OS account permissions. Trust only an artifact you have reviewed.</DialogDescription></DialogHeader><p style={{ overflowWrap: "anywhere" }}>{trust?.digest}</p><Button disabled={busy} onClick={() => { if (trust) void run("trust", { id: trust.id, digest: trust.digest }).then(() => setTrust(undefined)); }}>Trust this artifact</Button><Button variant="secondary" onClick={() => setTrust(undefined)}>Cancel</Button></DialogContent></Dialog>
+    <Dialog open={!!trust} onOpenChange={open => { if (!open && !busy) setTrust(undefined); }}><DialogContent className="plugin-settings-dialog"><DialogHeader><DialogTitle>{i18n.t("Trust and enable {{name}}?", { name: trust?.name ?? trust?.id ?? "" })}</DialogTitle><DialogDescription>{i18n.t("This plugin runs with the Host OS permissions. Updates will not ask for trust again.")}</DialogDescription></DialogHeader><div className="settings-actions"><Button disabled={busy} onClick={async () => { if (!trust) return; setBusy(true); setProblem(""); try { await change("enable", { id: trust.id, trust: true }); setTrust(undefined); } catch (e) { setProblem(String(e)); } finally { setBusy(false); } }}>{i18n.t("Trust and enable")}</Button><Button disabled={busy} variant="secondary" onClick={() => setTrust(undefined)}>{i18n.t("Cancel")}</Button></div>{problem ? <Notice tone="error">{problem}</Notice> : null}</DialogContent></Dialog>
     <Dialog open={!!current} onOpenChange={open => { if (!open) setSelected(undefined); }}>
       <DialogContent className="plugin-settings-dialog">
         <DialogHeader>
@@ -76,7 +73,7 @@ export function PluginSettings() {
             </label> : <p key={key}>Use plugins settings for {key}.</p>)}
         <PluginSecrets key={`secrets:${current?.id}`} plugin={current} busy={busy} run={run} />
         <PluginHealthCheck key={`health:${current?.id}`} plugin={current} busy={busy} />
-        <details><summary>{i18n.t("Details")}</summary><p className="settings-status" style={{ overflowWrap: "anywhere" }}>{current?.digest}</p></details>
+        <details><summary>{i18n.t("Details")}</summary><p className="settings-description">{i18n.t("Publisher")}: {current?.publisher?.name ?? current?.id}</p><p className="settings-description">{i18n.t(current?.trusted ? "Trusted plugin" : "Trust required")}</p><p className="settings-status" style={{ overflowWrap: "anywhere" }}>{current?.digest}</p></details>
       </DialogContent>
     </Dialog>
   </section>;
