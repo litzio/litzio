@@ -8,6 +8,8 @@ Jira Data Center 9.12.28 대상 읽기 전용 커뮤니티 플러그인입니다
 
 대상 Host의 Plugins 설정에서 Jira 주소(예: `https://jira.example.com/jira`)과 필수 개인 액세스 토큰을 저장합니다. API URL을 비우면 Jira 주소/rest/api/2를 사용합니다. context path를 유지합니다. URL은 절대 HTTP(S)이며 자격 증명·query·fragment를 거부합니다. API URL은 다른 origin도 허용하므로 PAT를 보낼 대상인지 확인하세요. PAT는 비밀번호 입력으로만 저장하며 일반 설정·대화·명령 인자·입력 JSON에 넣지 않습니다. Windows Host secret 저장소와 Bearer 인증을 사용합니다.
 
+일반 설정은 `{}`에서 시작해 항목별로 저장할 수 있으며, Jira 주소 입력 전에도 필수 PAT가 저장되어 있으면 활성화할 수 있습니다. 주소가 없으면 연결 확인은 “Jira 주소를 입력하세요.”를 반환하고, 조회는 `not_found`의 고정 안내 “Target not found. Check the target address or identifier.”를 반환합니다. 예외 원문은 공개하지 않습니다. API 주소의 기본값은 코드에서 처리합니다.
+
 설정·입력 JSON은 artifact 밖에 둡니다. 아래 placeholder를 실제 대상으로 바꿉니다.
 
 앱 포함 복사본은 추가 절차 없이 목록에 꺼짐·미신뢰로 표시됩니다. 설정과 필요한 secret을 저장하고 처음 켤 때 신뢰 확인을 합니다. 이후 앱 업데이트에도 신뢰와 사용자 설정을 유지하며, 포함 복사본은 제거 대신 끕니다. 아래 validate/register는 개발용 외부 폴더 등록 절차입니다. 같은 ID의 폴더 등록이 포함 복사본보다 우선하고, 그 등록을 제거하면 다음 Host 시작에 포함 복사본이 다시 나타납니다.

@@ -54,7 +54,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   browser:
-    name: Release Editor browser regressions (${{ matrix.shard }}/4)
+    name: Release Editor browser regressions (${{ matrix.shard }}/8)
     needs: preflight
     runs-on: ubuntu-latest
     container:
@@ -67,9 +67,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     env:
-      LITZIO_BROWSER_SHARD: ${{ matrix.shard }}/4
+      LITZIO_BROWSER_SHARD: ${{ matrix.shard }}/8
     steps:
       - uses: actions/checkout@v7
         with:

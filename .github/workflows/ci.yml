@@ -117,7 +117,7 @@ jobs:
         run: pnpm --filter @litzio/editor build
 
   browser:
-    name: Editor browser regressions (${{ matrix.shard }}/4)
+    name: Editor browser regressions (${{ matrix.shard }}/8)
     needs: changes
     if: needs.changes.outputs.browser == 'true'
     runs-on: ubuntu-latest
@@ -131,9 +131,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     env:
-      LITZIO_BROWSER_SHARD: ${{ matrix.shard }}/4
+      LITZIO_BROWSER_SHARD: ${{ matrix.shard }}/8
 
     steps:
       - name: Check out repository
@@ -184,7 +184,7 @@ jobs:
           retention-days: 7
 
   http:
-    name: HTTP Host package and browser (${{ matrix.os }})
+    name: HTTP Host package and browser (${{ matrix.os }}, ${{ matrix.group }})
     needs: changes
     if: needs.changes.outputs.http == 'true'
     runs-on: ${{ matrix.os }}
@@ -193,9 +193,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
         include:
+          - os: windows-latest
+            group: host
+            scenarios: http-host http-plugins
+          - os: windows-latest
+            group: plugins
+            scenarios: plugin-jobs plugin-views
           - os: ubuntu-latest
+            group: all
+            scenarios: http-host http-plugins plugin-jobs plugin-views
             container:
               image: mcr.microsoft.com/playwright:v1.64.0-noble
               options: --ipc=host --init
@@ -226,22 +233,26 @@ jobs:
         run: |
           pnpm exec playwright install chromium
           fc-match :lang=ko
-      - run: pnpm browser:test http-host http-plugins plugin-jobs plugin-views
+      - run: pnpm browser:test ${{ matrix.scenarios }}
       - name: Upload HTTP browser diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: http-host-diagnostics-${{ runner.os }}
+          name: http-host-diagnostics-${{ runner.os }}-${{ matrix.group }}
           path: tmp/browser-results/
           if-no-files-found: ignore
           retention-days: 7
 
   desktop-unit:
-    name: Windows Desktop unit
+    name: Windows Desktop unit (${{ matrix.group }})
     needs: changes
     if: needs.changes.outputs.desktop == 'true'
     runs-on: windows-latest
     timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [foundation, editor]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -253,8 +264,8 @@ jobs:
           cache: true
           run_install: false
       - run: pnpm install --frozen-lockfile
-      - name: Run all unit tests (same as release build)
-        run: pnpm test
+      - name: Run unit partition (together the release suite)
+        run: pnpm test:unit:${{ matrix.group }}
 
   desktop-published:
     name: Windows Desktop published beta.6

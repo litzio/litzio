@@ -948,6 +948,28 @@ test("health check publication enforces the SDK result even with a permissive pl
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
+test("Jira activates with empty ordinary settings and guides connection setup", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-jira-empty-"));
+  const host = new PluginHost(path.join(root, "state.json"), { officialPlugins: [], designatedPlugins: [], secrets: {
+    supported: true, async read() { return "synthetic-pat"; }, async status() { return true; }, async set() {}, async delete() {},
+  } });
+  try {
+    const directory = path.resolve("../../community-plugins/jira");
+    await host.invoke("register", { directory });
+    const id = "community.jira";
+    await host.invoke("trust", { id, registrationId: (await host.list()).find(p => p.id === id)!.registrationId });
+    await host.invoke("enable", { id });
+    const connection = await host.invokeOperation(`${id}.connection`, {});
+    assert.deepEqual(connection.result, { ok: false, message: "Jira 주소를 입력하세요." });
+    for (const [operation, input] of [["issues", {}], ["jql", { jql: "project = MOCK" }], ["detail", { key: "MOCK-1" }], ["current-account", {}], ["users", { query: "mo" }], ["projects", { query: "mo" }]] as const) {
+      const result = await host.invokeOperation(`${id}.${operation}`, input);
+      assert.ok("errorKind" in result);
+      assert.equal(result.errorKind, "not_found");
+      assert.equal(result.error, "Target not found. Check the target address or identifier.");
+    }
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
 test("Jira artifact filters reject malformed dates/JQL controls and detail preserves bounded text and comment range", async t => {
   const source = readFileSync(new URL("../../../community-plugins/jira/host.js", import.meta.url), "utf8");
   const { activate } = await import("data:text/javascript;base64," + Buffer.from(source.replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64"));
