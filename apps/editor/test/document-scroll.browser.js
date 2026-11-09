@@ -2,7 +2,7 @@
 async (page, { openPath, expect, screenshots }) => {
   await page.setViewportSize({width:1440, height:900});
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(sep).slice(0, -4).join(sep);
   await openPath(page, [root, 'tmp', 'outline', 'outline.md'].join(sep));

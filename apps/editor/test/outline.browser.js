@@ -12,7 +12,7 @@ async (page, { openDocument, reloadDocument, expect }) => {
   await page.waitForFunction(() => document.querySelector('[data-testid="status"]')?.getAttribute('data-operation') === 'ready');
 
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(separator).slice(0, -4).join(separator);
   const file = [root, 'tmp', 'outline', 'outline.md'].join(separator);
@@ -258,7 +258,7 @@ async (page, { openDocument, reloadDocument, expect }) => {
   const sectionDeleted = await outlineIs(sectionMoved.filter(text => !['Section 4', 'Detail 4'].includes(text)));
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor();
-  const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json();
+  const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json();
   const sectionSaved = await page.getByTestId('status').getAttribute('data-operation') === 'saved' &&
     JSON.stringify(disk.document.blocks.filter(block => block.block === 'heading').map(block => block.text)) === JSON.stringify(sectionMoved.filter(text => !['Section 4', 'Detail 4'].includes(text)));
 
@@ -345,7 +345,7 @@ async (page, { openDocument, reloadDocument, expect }) => {
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await acknowledgement;
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor();
-  const numbered = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json();
+  const numbered = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json();
   result.headingNumberingSaved = numbered.source.includes('headings: true') && !numbered.source.includes('## 1');
   await reloadDocument(page);
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
@@ -359,7 +359,7 @@ async (page, { openDocument, reloadDocument, expect }) => {
   const offAck = page.waitForResponse(response => response.request().method() === 'POST' && /\/api\/document(?:\?|$)/.test(response.url()));
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await offAck;
-  result.headingNumberingOffSaved = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json()).source.includes('headings: false');
+  result.headingNumberingOffSaved = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json()).source.includes('headings: false');
 
   const failed = Object.entries(result).filter(([, value]) => value !== true);
   if (failed.length > 0) throw new Error(`Outline failed: ${JSON.stringify({result, texts: await texts()})}`);

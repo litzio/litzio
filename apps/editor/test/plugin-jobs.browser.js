@@ -13,7 +13,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   const sidebarIcon = page.getByRole('button', {name:'Job fixture',exact:true}).locator('img');
   await expect(sidebarIcon).toBeVisible();
   // A real registered/trusted fixture icon, fetched from the owning HTTP Host.
-  const iconResponse = await page.request.get(page.url().split("/").slice(0,3).join("/") + `/api/plugins/icon?id=${plugin.id}&digest=${plugin.digest}`);
+  const iconResponse = await page.request.get(page.url().split("/").slice(0,3).join("/") + `/api/plugins/icon?id=${plugin.id}&digest=${plugin.digest}`, { headers: { Connection: "close" } });
   expect(iconResponse.headers()["content-type"]).toBe("image/svg+xml");
   expect(iconResponse.headers()["x-content-type-options"]).toBe("nosniff");
   await page.getByRole("button", { name: "Job fixture", exact: true }).click();
@@ -117,7 +117,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     if (body.action === "job-start") starts++;
     if (body.action === "job-status") {
       observations++;
-      if (loseResponse) { loseResponse = false; await route.fetch(); await route.fulfill({ status: 200, contentType: "application/json", body: "{" }); return; }
+      if (loseResponse) { loseResponse = false; await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); await route.fulfill({ status: 200, contentType: "application/json", body: "{" }); return; }
     }
     await route.continue();
   };

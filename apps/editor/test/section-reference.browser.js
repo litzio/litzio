@@ -5,11 +5,11 @@ async (page, { openPath }) => {
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   await ready();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const sep = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(sep).slice(0, -4).join(sep);
   const file = [root, 'tmp', 'section-reference', 'sections.md'].join(sep);
-  const read = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json()).source;
+  const read = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json()).source;
   const assert = (condition, message) => { if (!condition) throw new Error(message); };
   await openPath(page, file);
   await page.getByRole('dialog').waitFor({state:'detached'});

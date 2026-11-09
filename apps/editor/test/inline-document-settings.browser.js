@@ -7,7 +7,7 @@ async (page, { openPath, screenshots, withBlockHover }) => {
   const body = () => active().locator('.display-settings');
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   await ready();
-  const defaultPath = (await (await page.request.get(page.url().split('/').slice(0,3).join('/')+'/api/document')).json()).path;
+  const defaultPath = (await (await page.request.get(page.url().split('/').slice(0,3).join('/')+'/api/document', { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\')?'\\':'/';
   // A minimum-height paper and unchanged editor size must not hide position-only layout changes.
   // Keep the short fixture below the paper minimum even with settings expanded

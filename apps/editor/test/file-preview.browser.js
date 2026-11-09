@@ -5,7 +5,7 @@ async (page, { openDocument, screenshots, expect }) => {
   const longDialogLayouts = [];
   const check = (ok, message) => { if (!ok) throw Error(message); };
   const origin = page.url().split('/').slice(0,3).join('/');
-  const initial = await (await page.request.get(origin + '/api/document')).json();
+  const initial = await (await page.request.get(origin + '/api/document', { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const root = [...initial.path.split(sep).slice(0, -4), 'tmp', 'file-preview'].join(sep);
   await openDocument(page, root + sep + 'document.md');

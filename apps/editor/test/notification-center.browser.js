@@ -5,7 +5,7 @@ async (page, { openPath, expect, screenshots }) => {
   await page.reload();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const initial = await (await page.request.get(`${origin}/api/document`)).json();
+  const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const root = initial.path.split(sep).slice(0, -4).join(sep);
   const file = [root, 'tmp', 'reference-save-reload', 'fixed.md'].join(sep);

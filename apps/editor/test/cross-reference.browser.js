@@ -13,12 +13,12 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
 
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(separator).slice(0, -4).join(separator);
   const filePath = [root, 'tmp', 'cross-reference', 'refs.md'].join(separator);
   const markdown = async () => {
-    const response = await page.request.get(`${origin}/document/refs.md?path=${encodeURIComponent(filePath)}`);
+    const response = await page.request.get(`${origin}/document/refs.md?path=${encodeURIComponent(filePath)}`, { headers: { Connection: "close" } });
     if (response.status() !== 200) throw new Error(`Prepare ${filePath} first`);
     return (await response.text()).replaceAll('\r\n', '\n');
   };
@@ -459,7 +459,7 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
   // targets, while the caption itself stays exactly as written (#165).
   const captionPath = [root, 'tmp', 'cross-reference', 'caption.md'].join(separator);
   const captionFile = async () =>
-    (await (await page.request.get(`${origin}/document/caption.md?path=${encodeURIComponent(captionPath)}`)).text()).replaceAll('\r\n', '\n');
+    (await (await page.request.get(`${origin}/document/caption.md?path=${encodeURIComponent(captionPath)}`, { headers: { Connection: "close" } })).text()).replaceAll('\r\n', '\n');
   const captionFresh = await captionFile();
   const openCaption = async () => {
     await page.reload();
@@ -543,7 +543,7 @@ async (page, { showNotifications, openPath, screenshots, expect, recoveryRecords
   expect(captionBody(await sourceText())).toBe(originalCaptionBody);
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor();
-  const koreanDisk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(deletionPath)}`)).json();
+  const koreanDisk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(deletionPath)}`, { headers: { Connection: "close" } })).json();
   for (const value of ['그림 %s', '표 %s', '식 (%s)']) expect(koreanDisk.source).toContain(`template: ${value}`);
   expect(captionBody(koreanDisk.source)).toBe(originalCaptionBody);
   await page.reload();

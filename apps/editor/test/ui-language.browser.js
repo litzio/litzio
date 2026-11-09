@@ -6,7 +6,7 @@ async (page, { openPath, screenshots }) => {
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({ state: 'attached' });
   await ready();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const initial = await (await page.request.get(`${origin}/api/document`)).json();
+  const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const file = [...initial.path.split(sep).slice(0, -4), 'tmp', 'reference-save-reload', 'technical-document.md'].join(sep);
   await openPath(page, file);
@@ -243,7 +243,7 @@ async (page, { openPath, screenshots }) => {
     // The same real Host write works in Korean; a disk Reload retains that content.
     await page.getByTestId('save').click();
     await page.locator('[data-operation="saved"]').waitFor();
-    const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json();
+    const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json();
     check(disk.source.includes('LANGUAGE-PRESERVED') && disk.source.includes('x_{language}'), 'Save lost edits');
     await page.getByRole('button', { name: '파일 작업', exact: true }).click();
     await page.getByRole('menuitem', { name: '다시 불러오기', exact: true }).click();

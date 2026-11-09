@@ -2,12 +2,12 @@
 async (page, { openPath, openDocument, waitForActivePath, activeDocument, expect, screenshots = false }) => {
   const check = (value, message) => { if (!value) throw new Error(message); };
   const origin = page.url().split('/').slice(0,3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(sep).slice(0, -4).join(sep);
   const file = name => [root, 'tmp', 'document-tabs', name].join(sep);
   const a = file('technical-1.md'), b = file('technical-2.md');
-  const read = async path => (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(path)}`)).json();
+  const read = async path => (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(path)}`, { headers: { Connection: "close" } })).json();
   const groups = () => page.locator('[data-editor-group]');
   const surface = id => page.locator(`[data-document-tab="${id}"]`);
   const rowOf = async id => page.locator('[data-editor-group]').filter({ has: page.locator(`#tab-${id}`) });

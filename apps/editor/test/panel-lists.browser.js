@@ -1,7 +1,7 @@
 // Document navigation integration: Core-backed captions, shared current/reveal lifecycle and tabs.
 async (page, { openDocument, expect, screenshots }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const initial = await (await page.request.get(`${origin}/api/document`)).json();
+  const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const root = initial.path.split(sep).slice(0, -4);
   const file = [...root, 'tmp', 'outline', 'panel-lists.md'].join(sep);
