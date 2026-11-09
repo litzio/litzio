@@ -314,4 +314,8 @@ litzio plugins start example.plugin --job convert --root <root> --file a.pdf --f
 
 검증은 기존 job-plugin fixture의 SDK/Host 검사 및 `plugin-jobs` 브라우저 시나리오에 집중한다. 실제 Docling manifest 변경·변환 품질은 범위 밖이다. 수동 캡처는 `pnpm browser:test plugin-jobs --screenshots`의 `tmp/plugin-jobs/panel-1440.png`, `panel-640.png`다.
 
-2026-11-09 수동 검토: [1440px](assets/plugin-job-panel-1340/panel-1440.png), [한국어 다크 640px](assets/plugin-job-panel-1340/panel-640.png), [640px 표 오른쪽 끝](assets/plugin-job-panel-1340/panel-640-end.png). 기존 #1330 화면의 간소화된 구조를 유지하며 패널·표 정렬, 여백, 한국어·다크, 640px 내부 가로 스크롤을 확인했다. 계정·폴더 경로는 촬영 시 마스킹했다. 기존 plugin-jobs에 다중 시작·부분 충돌·CLI·행 중단·결과 열기를 보완했으며 최종 로컬 실행은 약 1.5분(HTTP 복구 포함 2개)이다. SDK/K1 19개·조회 뷰 Host/CLI 5개, 관련 typecheck/build·문서·경계 검사를 통과했다. fixture 성공은 실제 Docling 수락이 아니다.
+2026-11-09 수동 검토: [1440px](assets/plugin-job-panel-1340/panel-1440.png), [한국어 다크 640px](assets/plugin-job-panel-1340/panel-640.png), [640px 표 오른쪽 끝](assets/plugin-job-panel-1340/panel-640-end.png). 기존 #1330 화면의 간소화된 구조를 유지하며 패널·표 정렬, 여백, 한국어·다크, 640px 내부 가로 스크롤을 확인했다. 계정·폴더 경로는 촬영 시 마스킹했다. 기존 plugin-jobs에 다중 시작·부분 충돌·CLI·행 중단·결과 열기를 보완했으며 재검토 로컬 실행은 약 1.3분(HTTP 복구 포함 2개)이다. K1 15개(응답 역전 회귀 포함), 관련 typecheck/build·문서 검사를 통과했다. 브라우저에서는 실패/완료 행 높이 일치, 중첩 세로 스크롤 없음과 Tab focus Tooltip의 실제 표시도 확인했다. fixture 성공은 실제 Docling 수락이 아니다.
+
+#1342 재검토 보완: 앱의 행별 `JobObservations` 세대가 사용자 상태 재확인·중단보다 오래된 polling 성공/오류를 모두 무시한다. 사용자 작업 응답 대기 중에는 같은 행의 polling을 보류하고 이후 다시 관찰한다. Host 작업은 직렬화하지 않으며 기존 공용 Plugin jobs에도 같은 보호를 적용한다. 제어 Promise 단위 회귀에서 관찰 보류 → 중단 접수 반영 → 오래된 성공/오류 도착 → 중단 상태 유지와 새 관찰 재개를 검증한다. 고정 대기나 브라우저 fault 시나리오는 추가하지 않는다.
+
+작업 섹션 제목은 ‘작업’이며 실패·불확실 안내는 행의 Info 아이콘 Tooltip으로 표시한다. 키보드 focus로 같은 안내를 연다. 결과 열기는 ghost/sm ‘열기’와 파일 이름을 포함한 접근성 이름을 쓴다. 파일 선택과 표는 내용 높이대로 펼쳐 페이지가 세로 스크롤을 소유하고 표에는 내부 가로 스크롤만 둔다. 기존 즐겨찾기 영역은 이번 변경에서 유지한다.

@@ -1,3 +1,4 @@
+import { JobObservations } from "../src/job-observations.ts";
 import { randomUuid } from "../src/uuid.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -419,4 +420,28 @@ test("public SDK authoring crosses the external plugin boundary and K1 official 
     }
 
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("K1 observations retain a stop acknowledgement after an older poll succeeds or fails", async () => {
+  for (const lost of [false, true]) {
+    const observations = new JobObservations();
+    let snapshot = { state: "running", stopRequested: false };
+    const pending = Promise.withResolvers<typeof snapshot>();
+    const older = observations.observe("job-a", "poll", () => pending.promise,
+      value => { snapshot = value; }, () => { snapshot = { ...snapshot, state: "uncertain" }; });
+    const stop = Promise.withResolvers<typeof snapshot>();
+    const action = observations.observe("job-a", "action", () => stop.promise,
+      value => { snapshot = value; }, error => { throw error; });
+    let polled = false;
+    await observations.observe("job-a", "poll", async () => { polled = true; return snapshot; }, value => { snapshot = value; }, error => { throw error; });
+    assert.equal(polled, false, "a poll cannot supersede an in-flight stop");
+    stop.resolve({ state: "running", stopRequested: true }); await action;
+    assert.equal(snapshot.stopRequested, true);
+    if (lost) pending.reject(new Error("older observation lost"));
+    else pending.resolve({ state: "running", stopRequested: false });
+    await older;
+    assert.deepEqual(snapshot, { state: "running", stopRequested: true });
+    await observations.observe("job-a", "poll", async () => ({ state: "stopped", stopRequested: true }), value => { snapshot = value; }, error => { throw error; });
+    assert.equal(snapshot.state, "stopped", "fresh observations resume after the acknowledgement");
+  }
 });

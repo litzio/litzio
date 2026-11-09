@@ -173,7 +173,13 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await panel.getByRole("checkbox", { name: "input.txt", exact: true }).check();
   await panel.getByRole("button", { name: "Start job", exact: true }).click();
   const nativeRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "input.txt", exact: true }) }).first();
-  await expect(nativeRow.getByRole("button", { name: "Open result document", exact: true })).toBeVisible();
+  await expect(nativeRow.getByRole("button", { name: "Open result: input.txt", exact: true })).toBeVisible();
+  for (const selector of [".plugin-job-files", ".view-table-scroll"]) {
+    expect(await panel.locator(selector).evaluate(el => el.scrollHeight <= el.clientHeight)).toBe(true);
+  }
+  const failureRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "batch-a.txt", exact: true }) }).first();
+  expect((await failureRow.boundingBox()).height).toBe((await nativeRow.boundingBox()).height);
+
   if (screenshots) {
     for (const width of [1440, 640]) {
       if (width === 640) {
@@ -183,12 +189,22 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
         await page.keyboard.press("Escape");
       }
       await page.setViewportSize({ width, height: 900 });
+      await panel.scrollIntoViewIfNeeded();
+      await panel.getByRole("heading", { name: width === 640 ? "작업" : "Jobs", exact: true }).first().scrollIntoViewIfNeeded();
       await expect(panel.getByRole("row").nth(1).getByRole("cell").first()).toHaveText("input.txt");
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
       if (width === 640) {
         expect(await panel.locator(".view-table-scroll").evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
-        await expect(panel.getByText("이 파일을 시작할 수 없습니다. 입력 파일, 결과 경로와 플러그인 상태를 확인하세요.", { exact: true })).toHaveCount(1);
+        const info = panel.getByRole("button", { name: "작업 상세: batch-a.txt", exact: true }).first();
+        await nativeRow.getByRole("button", { name: "결과 열기: input.txt", exact: true }).focus();
+        await page.keyboard.press("Tab");
+        await expect(info).toBeFocused();
+        await expect(page.locator("[data-slot=tooltip-content]")).toBeVisible();
+        await expect(page.locator("[data-slot=tooltip-content]")).toContainText("이 파일을 시작할 수 없습니다.");
+        await page.keyboard.press("Escape");
+        await nativeRow.getByRole("cell").first().click();
       }
+      await panel.getByRole("heading", { name: width === 640 ? "작업" : "Jobs", exact: true }).first().scrollIntoViewIfNeeded();
       await page.screenshot({ path: `tmp/plugin-jobs/panel-${width}.png`, maskColor: "#a1a1aa", mask: [page.locator(".sidebar-host-account"), panel.getByLabel(width === 640 ? "열린 폴더" : "Opened folder", { exact: true })] });
     }
     // Screenshot-only scroll inspection; this is separate from the user-flow assertions.
@@ -199,7 +215,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     await page.getByTestId("ui-language").selectOption("en");
     await page.keyboard.press("Escape");
   }
-  await nativeRow.getByRole("button", { name: "Open result document", exact: true }).click();
+  await nativeRow.getByRole("button", { name: "Open result: input.txt", exact: true }).click();
   await expect(page.locator(".tiptap").filter({ visible: true })).toContainText("Job result.");
   pluginFixture.cli(["plugins", "disable", plugin.id]);
   pluginFixture.cli(["plugins", "unregister", plugin.id]);
