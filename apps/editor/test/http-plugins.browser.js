@@ -434,7 +434,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
             await expect(page.getByRole("status").filter({ hasText: "Jira 연결과 PAT 인증을 확인했습니다." })).toBeVisible();
           }
           await page.setViewportSize({ width, height: 900 });
-          await page.screenshot({ path: `tmp/jira-1345/connection-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+          await page.screenshot({ path: `tmp/jira-1350/connection-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
         }
         await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
         await page.reload(); await openSettings();
@@ -449,12 +449,24 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await page.keyboard.press("Escape");
       const invoke = () => jira.cli(["operation", "invoke", "community.jira.issues", "--input", jira.input]);
       const connected = await invoke();
-      expect(connected.result.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-404"]);
+      expect(connected.result.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2"]);
       expect(connected.result[0].assignee).toBe("—");
-      expect(connected.result[2].status).toContain("404");
       await page.reload(); await openSettings();
       await page.keyboard.press("Escape");
       await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
+      await page.getByRole("textbox", { name: "JQL", exact: false }).fill("project = MOCK ORDER BY updated DESC");
+      await page.getByRole("button", { name: "조회", exact: true }).click();
+      await expect(page.getByRole("cell", { name: "MOCK-6", exact: true })).toBeVisible();
+      jira.setFault(400);
+      jira.setQuery({ jql: "project =" });
+      const syntax = await jira.cli(["operation", "invoke", "community.jira.jql", "--input", jira.input]);
+      expect(syntax.errorKind).toBe("failed");
+      expect(JSON.stringify(syntax)).not.toMatch(/RAW-JIRA-SENTINEL|mock-jira-token/);
+      await page.getByRole("textbox", { name: "JQL", exact: false }).fill("project =");
+      await page.getByRole("button", { name: "조회", exact: true }).click();
+      await expect(page.getByText("View operation failed.", { exact: false })).toBeVisible();
+      jira.setFault(0);
+      await page.getByRole("button", { name: "간편 검색", exact: true }).click();
       const assignedStart = Date.now();
       const queryButton = page.getByRole("button", { name: "조회", exact: true });
       const queryRows = async value => {
@@ -478,6 +490,28 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await queryButton.click();
       await expect(page.getByRole("cell", { name: "MOCK-6", exact: true })).toBeVisible();
       expect((await queryRows({ status: "해결됨" })).map(row => row.key)).toEqual(["MOCK-2"]);
+      const filters = { project: "MOCK", reporter: account, dateField: "생성일", dateFrom: "2026-11-01", dateTo: "2026-11-09" };
+      await queryRows(filters);
+      expect(jira.searches()[0].jql).toBe('assignee = currentUser() AND resolution = Unresolved AND project = "MOCK" AND reporter = "someone\\\"\\\\else" AND created >= "2026-11-01" AND created < "2026-11-10" ORDER BY updated DESC');
+      for (const [field, value] of Object.entries(filters).filter(([field]) => field !== "dateField")) await page.getByRole("textbox", { name: ({ project: "프로젝트 키", reporter: "보고자", dateFrom: "시작일", dateTo: "종료일" })[field], exact: false }).fill(value);
+      await page.getByRole("combobox", { name: "기간 기준", exact: false }).selectOption("생성일");
+      await queryButton.click();
+      await expect(page.getByRole("cell", { name: "MOCK-6", exact: true })).toBeVisible();
+      await queryRows({ dateFrom: "2026-02-30" }).then(() => { throw new Error("Invalid date accepted"); }, () => {});
+      for (const label of ["프로젝트 키", "보고자", "시작일", "종료일"]) await page.getByRole("textbox", { name: label, exact: false }).fill("");
+      jira.setQuery({ key: "MOCK-1" });
+      const detail = await jira.cli(["operation", "invoke", "community.jira.detail", "--input", jira.input]);
+      expect(detail.receipt.outcome).toBe("success");
+      expect(detail.result).toMatchObject({ key: "MOCK-1", issueUrl: jira.baseUrl + "/browse/MOCK-1", commentsTotal: 12, commentsStartAt: 0, commentsReturned: 10, descriptionTruncated: true });
+      expect(detail.result.description).toHaveLength(16000);
+      expect(detail.result.comments[0]).toMatchObject({ id: "12", bodyTruncated: true });
+      expect(detail.result.comments[0].body).toHaveLength(4000);
+      expect(Number.isFinite(Date.parse(detail.result.fetchedAt))).toBe(true);
+      jira.setFault(403);
+      const detailDenied = await jira.cli(["operation", "invoke", "community.jira.detail", "--input", jira.input]);
+      expect(detailDenied.errorKind).toBe("forbidden");
+      expect(JSON.stringify(detailDenied)).not.toMatch(/RAW-JIRA-SENTINEL|mock-jira-token/);
+      jira.setFault(0);
       jira.setLarge(true);
       const capped = await queryRows({});
       expect(capped).toHaveLength(500);
@@ -488,7 +522,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       if (screenshots) {
         await page.setViewportSize({ width: 1440, height: 900 });
         await page.getByRole("table").scrollIntoViewIfNeeded();
-        await page.screenshot({ path: "tmp/jira-1345/assigned-500-1440.png", mask: [page.locator(".sidebar-host-account"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
+        await page.screenshot({ path: "tmp/jira-1350/assigned-500-1440.png", mask: [page.locator(".sidebar-host-account"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
       }
       assignedQueryMs = Date.now() - assignedStart;
       jira.setLarge(false);
@@ -499,7 +533,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       for (const row of connected.result) {
         const tr = page.getByRole("row").filter({ has: page.getByRole("cell", { name: row.key, exact: true }) });
         expect(row.issueUrl).toBe(jira.baseUrl + "/browse/" + row.key);
-        await expect(tr.getByRole("cell")).toHaveText([row.key, row.summary, row.status, row.assignee, row.priority, row.updated]);
+        await expect(tr.getByRole("cell")).toHaveText([row.key, row.summary, row.status, row.assignee, row.reporter, row.created, row.updated]);
       }
       const issueLink = page.getByRole("link", { name: "MOCK-1", exact: true });
       await expect(issueLink).toBeVisible();
@@ -513,18 +547,20 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
             await page.getByRole("button", { name: "플러그인", exact: true }).click();
             await page.keyboard.press("Escape");
             await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
+            await page.getByRole("button", { name: "간편 검색", exact: true }).click();
             await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
             await search.click();
             await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
           }
           await page.setViewportSize({ width, height: 900 });
           await page.getByRole("table").scrollIntoViewIfNeeded();
-        await page.screenshot({ path: `tmp/jira-1345/issues-${width}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
+        await page.screenshot({ path: `tmp/jira-1350/issues-${width}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
         }
         await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
         await page.reload(); await openSettings();
         await page.keyboard.press("Escape");
       await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
+        await page.getByRole("button", { name: "간편 검색", exact: true }).click();
         await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
         await search.click();
         await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
@@ -551,8 +587,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
       jira.setInput("MOCK-2, MOCK-1, MOCK-2");
       const overridden = (await invoke()).result;
-      expect(overridden.map(row => row.key)).toEqual(["MOCK-2", "MOCK-1"]);
-      expect(overridden.map(row => row.issueUrl)).toEqual(["https://jira.example.com/context/browse/MOCK-2", "https://jira.example.com/context/browse/MOCK-1"]);
+      expect(overridden.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2"]);
+      expect(overridden.map(row => row.issueUrl)).toEqual(["https://jira.example.com/context/browse/MOCK-1", "https://jira.example.com/context/browse/MOCK-2"]);
       for (const baseUrl of ["https://user:password@example.com", "https://example.com?query=1", "https://example.com#fragment"]) {
         jira.setSettings({ baseUrl });
         await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
@@ -570,10 +606,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
         expect(healthResult.result).toEqual({ ok: true, message: "Jira 연결과 PAT 인증을 확인했습니다." });
         const mockAll = await queryRows({ status: "전체" });
         expect(mockAll.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-6", "MOCK-8"]);
-        jira.setInput("MOCK-1, MOCK-2, MOCK-404");
-        const mock = await invoke();
-        expect(mock.result.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-404"]);
-        expect(mock.result[2].status).toContain("404");
+        // Mock supports connection and current-user search, not key-in JQL or comments.
+        const mock = { result: mockAll };
+        expect(mock.result.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-6", "MOCK-8"]);
         expect(mock.result[0].summary).not.toBe("—");
         expect(mock.result[0].issueUrl).toBe("http://127.0.0.1:8081/browse/MOCK-1");
       }
