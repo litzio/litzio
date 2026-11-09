@@ -790,17 +790,33 @@ test("Jira artifact filters reject malformed dates/JQL controls and detail prese
   t.mock.method(globalThis, "fetch", async (url: string) => {
     const query = new URL(url).searchParams;
     assert.equal(query.get("jql"), "project = MOCK ORDER BY updated DESC");
+    assert.equal(query.get("fields"), "summary,status,assignee,reporter,created,updated,priority,issuetype,resolution,duedate,components,labels");
+    assert.equal(query.get("maxResults"), String(500 - Number(query.get("startAt"))));
     const startAt = Number(query.get("startAt")); offsets.push(startAt);
-    return new Response(JSON.stringify({ startAt, total: 3, issues: Array.from({length: startAt === 0 ? 2 : 1}, (_, i) => ({key: `MOCK-${startAt+i+1}`, fields:{summary:"Fixture"}})) }));
+    return new Response(JSON.stringify({ startAt, maxResults: 2, total: 4, issues: Array.from({length: startAt === 0 ? 2 : 1}, (_, i) => ({key: `MOCK-${startAt+i+1}`, fields:{summary:"Fixture", created:"2025-12-31T23:30:00.000+0000", updated:"2026-01-01T01:30:00.000+0000", duedate:"2026-01-02"}})) }));
   });
-  assert.deepEqual((await plugin.operations.jql({jql:"project = MOCK ORDER BY updated DESC"})).map((r: any) => r.key), ["MOCK-1", "MOCK-2", "MOCK-3"]);
-  assert.deepEqual(offsets, [0, 2]);
+  const rows = await plugin.operations.jql({jql:"project = MOCK ORDER BY updated DESC"});
+  assert.deepEqual(rows.map((r: any) => r.key), ["MOCK-1", "MOCK-2", "MOCK-3", "MOCK-4"]);
+  const localTime = (value: string) => {
+    const d = new Date(value), pad = (v: number) => String(v).padStart(2, "0");
+    return `${pad(d.getFullYear() % 100)}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  assert.equal(rows[0].created, localTime("2025-12-31T23:30:00Z"));
+  assert.equal(rows[0].updated, localTime("2026-01-01T01:30:00Z"));
+  assert.ok(rows[0].created < rows[0].updated);
+  assert.equal(rows[0].dueDate, "26-01-02");
+  assert.equal(rows[0].assignee, "—");
+  assert.deepEqual(offsets, [0, 2, 3]);
   t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({errorMessages:["RAW-JIRA-SENTINEL"]}), {status:400}));
   await assert.rejects(plugin.operations.jql({jql:"project ="}), (e: any) => e.kind === "failed" && !e.message.includes("SENTINEL"));
   body = { key: "MOCK-1", fields: { description: null } };
   t.mock.method(globalThis, "fetch", async (url: string) => new Response(JSON.stringify(url.includes("/comment?") ? { startAt: 0, total: 0, comments: [] } : body)));
   const detail = await plugin.operations.detail({ key: "MOCK-1" });
   assert.equal(detail.description, ""); assert.equal(detail.commentsTotal, 0); assert.equal(detail.commentsReturned, 0);
+  t.mock.method(globalThis, "fetch", async (url: string) => new Response(JSON.stringify(url.includes("/comment?") ? { startAt: 0, total: 1, comments: [{ id: "1", body: "Comment", created: "2026-01-01T01:30:00.000+0000", updated: "2026-01-01T02:30:00.000+0000" }] } : body)));
+  const withComment = await plugin.operations.detail({ key: "MOCK-1" });
+  assert.equal(withComment.comments[0].created, localTime("2026-01-01T01:30:00Z"));
+  assert.equal(withComment.comments[0].updated, localTime("2026-01-01T02:30:00Z"));
   body.fields.description = {};
   await assert.rejects(plugin.operations.detail({ key: "MOCK-1" }));
 });

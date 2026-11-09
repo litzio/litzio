@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.4
+
+- 검색에 행 데이터용 fields만 요청하고 페이지당 최대 500건을 순차 조회. 서버의 작은 페이지도 실제 반환 건수로 이어서 조회. 8초·500행·Host RPC 예산 유지.
+- Created·Updated·댓글·조회 시각은 Host PC 현지 `YY-MM-DD HH:mm`, dueDate는 `YY-MM-DD`로 축약.
+- 큰 불필요 필드가 있는 가짜 HTTP 서버의 300건 비교는 PR에 기록. 실제 회사 Jira 200~300건 성공은 소유자 확인 필요.
+- 표 열 선택·입력 자동완성 적용은 다음 버전으로 유지.
+
 ## 0.0.3
 
 - 일반 Lucide Ticket SVG를 manifest icon으로 선언해 사이드바·탭·설정 목록에서 재사용. ISC 라이선스 고지 포함.

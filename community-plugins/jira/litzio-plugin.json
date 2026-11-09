@@ -8,7 +8,7 @@
   },
   "name": "Jira",
   "description": "내 계정 또는 지정 계정의 할당 이슈를 조회합니다.",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "requiresSdk": ">=0.3.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
