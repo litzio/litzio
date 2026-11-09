@@ -9,6 +9,7 @@ import os from "node:os";
 import path from "node:path";
 import { createHostServices } from "../server/host-services.ts";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
+import { PluginJobs } from "../server/plugins/jobs.ts";
 import { JOB_FILE_MAX_BYTES, PLUGIN_ERROR_MESSAGES } from "@litzio/plugin-sdk";
 import { RootAccess } from "../server/file-access.ts";
 
@@ -53,7 +54,8 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
     writeFileSync(path.join(root, "batch-a.bin"), "preserved");
     const batchIds = [randomUUID(), randomUUID()];
     const batch = await host.jobs.execute({ requestIds: batchIds, action: "job-start-many", plugin: "fixture.jobs", job: "file", root, files: ["batch-a.txt", "batch-b.txt"] });
-    assert.ok("files" in batch); assert.ok(batch.files[0]!.error); assert.equal(batch.files[1]!.requestId, batchIds[1]);
+    assert.ok("files" in batch); assert.equal(batch.files[0]!.job?.output, "batch-a-2.bin"); assert.equal(batch.files[1]!.requestId, batchIds[1]);
+    await wait(batch.files[0]!.requestId!, "completed");
     await wait(batch.files[1]!.requestId!, "completed");
     assert.equal(readFileSync(path.join(root, "batch-a.bin"), "utf8"), "preserved");
     await assert.rejects(host.jobs.execute({ action: "job-start-many", plugin: "fixture.jobs", job: "file", root, files: Array.from({ length: 51 }, (_, i) => `${i}.txt`) }));
@@ -157,6 +159,53 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
       assert.equal(existsSync(path.join(root, interrupted.output)), false);
     } finally { await restarted.close(); }
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("K1 admission classifies safe start failures and reserves numbered sibling outputs", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-start-reasons-"));
+  fs.mkdirSync(path.join(root, "nested"));
+  for (const file of ["report.txt", "report.text", "wrong.pdf"]) writeFileSync(path.join(root, "nested", file), "input");
+  writeFileSync(path.join(root, "nested/report.md"), "preserved");
+  const binding = { id: "text", title: "Text", accept: [".txt", ".text"], start: "start", status: "status", stop: "stop", resultKind: "native-document" as const };
+  let enabled = true, fail = false, complete = false;
+  const jobs = new PluginJobs(new RootAccess([root]), () => {
+    if (!enabled) throw Object.assign(new Error("private registration detail"), { kind: "unavailable" });
+    return binding;
+  }, async name => fail ? { error: "private plugin exception", errorKind: "failed" } : { result: complete && name.endsWith(".status") ? { state: "completed", phase: "Done", document: { source: "---\nlitzio: 1\n---\n\n# Result\n" } } : { state: "running", phase: "Waiting" } }, () => "write");
+  const batch = async (files: string[]) => {
+    const result = await jobs.execute({ action: "job-start-many", plugin: "fixture.jobs", job: "text", root, files });
+    assert.ok("files" in result); return result;
+  };
+  try {
+    const first = await batch(["nested/report.txt", "nested/report.text"]);
+    assert.deepEqual(first.files.map(item => item.job?.output), ["nested/report-2.md", "nested/report-3.md"]);
+    const concurrent = await batch(["nested/report.txt"]);
+    assert.equal(concurrent.files[0]!.job?.output, "nested/report-4.md");
+    const explicit = { action: "job-start", plugin: "fixture.jobs", job: "text", root, file: "nested/report.txt", requestId: randomUUID(), output: "nested/report.md" };
+    await assert.rejects(jobs.execute(explicit), (error: unknown) => {
+      const refused = error as Error & { reason: { kind: string; path: string } };
+      assert.equal(refused.reason.kind, "result_exists"); assert.equal(refused.reason.path, "nested/report.md"); return true;
+    });
+    assert.equal(readFileSync(path.join(root, "nested/report.md"), "utf8"), "preserved");
+    assert.equal((await batch(["nested/wrong.pdf"])).files[0]!.startFailure?.kind, "unsupported_input");
+    assert.equal((await batch(["nested/missing.txt"])).files[0]!.startFailure?.kind, "other");
+    enabled = false;
+    assert.equal((await batch(["nested/report.txt"])).files[0]!.startFailure?.kind, "unavailable");
+    enabled = true; fail = true;
+    const failed = (await batch(["nested/report.txt"])).files[0]!.job!;
+    assert.equal(failed.startFailure?.kind, "start_failed");
+    assert.equal(failed.state, "uncertain");
+    assert.equal(failed.errorKind, "failed");
+    assert.ok(!JSON.stringify(jobs.list()).includes("private"));
+    // A writer outside this daemon can race the reservation. Exclusive publication
+    // must preserve that file; it must not silently overwrite or resend start.
+    const reserved = first.files[0]!.job!;
+    writeFileSync(path.join(root, reserved.output!), "external writer");
+    fail = false; complete = true;
+    const raced = await jobs.execute({ action: "job-status", requestId: reserved.requestId });
+    assert.ok("job" in raced); assert.equal(raced.job.state, "uncertain");
+    assert.equal(readFileSync(path.join(root, reserved.output!), "utf8"), "external writer");
+  } finally { await jobs.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
 
@@ -372,10 +421,11 @@ test("public SDK authoring crosses the external plugin boundary and K1 official 
     assert.equal(readFileSync(path.join(root, "input.txt"), "utf8"), "Original input");
     const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=";
     const imageDocument = { authoring: { inputs: [{ key: "picture", blocks: [{ kind: "figure", imageAsset: "image", imageAlt: "Picture", caption: "Imported picture", enumerator: "A.3" }] }] }, images: [{ key: "image", mime: "image/png", base64: png }] };
-    const createImages = async (document = imageDocument, output = "images.md") => {
+    const createImages = async (document = imageDocument, output = "images.md", beforeStatus?: () => void) => {
       writeFileSync(path.join(root, "input.txt"), JSON.stringify(document));
       const requestId = randomUUID();
       await host.invoke("job-start", { requestId, plugin: manifest.id, job: "text", root, file: "input.txt", output });
+      beforeStatus?.();
       const reply = await host.jobs.execute({ action: "job-status", requestId });
       assert.ok("job" in reply); return reply.job;
     };
@@ -392,9 +442,18 @@ test("public SDK authoring crosses the external plugin boundary and K1 official 
     fs.unlinkSync(path.join(root, "images.md"));
     assert.equal((await createImages()).state, "completed");
     assert.deepEqual(fs.readdirSync(assets), imageFiles);
-    // An existing document still refuses replacement, without removing reused images.
-    assert.equal((await createImages()).state, "uncertain");
+    // An existing explicit output is refused before admission, preserving both files.
+    await assert.rejects(createImages(), { reason: { kind: "result_exists", path: "images.md" } });
     assert.equal(readFileSync(path.join(root, "images.md"), "utf8"), imageSource);
+    assert.deepEqual(fs.readdirSync(assets), imageFiles);
+    // A file created after admission still fails exclusive publication as uncertain,
+    // without overwriting the document or removing already published/reused images.
+    fs.unlinkSync(path.join(root, "images.md"));
+    const raced = await createImages(imageDocument, "images.md", () => writeFileSync(path.join(root, "images.md"), imageSource));
+    assert.equal(raced.state, "uncertain");
+    assert.equal(readFileSync(path.join(root, "images.md"), "utf8"), imageSource);
+    assert.deepEqual(fs.readdirSync(assets), imageFiles);
+    assert.deepEqual(readFileSync(path.join(assets, imageFiles[0])), Buffer.from(png, "base64"));
     const badSemantic = structuredClone(imageDocument);
     badSemantic.authoring.inputs[0].blocks[0].enumerator = "bad\nnumber";
     assert.equal((await createImages(badSemantic, "failed.md")).state, "uncertain");
@@ -436,7 +495,8 @@ test("public SDK authoring crosses the external plugin boundary and K1 official 
     assert.equal(existsSync(path.dirname(complete.staging.path)), false);
     const collision = await startFile("success");
     const refused = await host.jobs.execute({ action: "job-status", requestId: collision.requestId });
-    assert.ok("job" in refused); assert.equal(refused.job.state, "uncertain");
+    assert.ok("job" in refused); assert.equal(refused.job.state, "completed");
+    assert.equal(refused.job.output, "input-2.bin");
     assert.deepEqual(readFileSync(path.join(root, "input.bin")), Buffer.from([0,255,128,1]));
     assert.equal(existsSync(path.dirname(collision.staging.path)), false);
     for (const output of ["bad.md", "../outside.bin"]) await assert.rejects(startFile("success", output));
