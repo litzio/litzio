@@ -17,7 +17,8 @@ export function PluginQueryTable({ scope, rows, fields, labels, title, label, de
   const candidates = Object.keys(fields).filter(name => !fields[name].secret);
   const [saved, setSaved] = useState(() => readPluginTableColumns(scope));
   const [saveError, setSaveError] = useState(false);
-  const columns = candidates.filter(name => saved ? saved.includes(name) : fields[name].hidden === undefined ? defaultColumns.includes(name) : !fields[name].hidden);
+  const columnOrder = [...defaultColumns.filter(name => candidates.includes(name)), ...candidates.filter(name => !defaultColumns.includes(name))];
+  const columns = columnOrder.filter(name => saved ? saved.includes(name) : fields[name].hidden === undefined ? defaultColumns.includes(name) : !fields[name].hidden);
   return <>
     <div className="view-controls"><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>{i18n.t("Columns")}</DropdownMenuTrigger>
       <DropdownMenuContent>{candidates.map(name => <Menu.CheckboxItem key={name} className={MENU_ITEM_CLASS}

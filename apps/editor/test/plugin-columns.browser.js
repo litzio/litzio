@@ -1,6 +1,6 @@
 async (page, { expect, screenshots }) => {
   const fields = { key: { type: 'string', label: 'Key' }, title: { type: 'string', label: 'Title' }, status: { type: 'string', label: 'Status' }, reporter: { type: 'string', label: 'Reporter' }, priority: { type: 'string', label: 'Priority', hidden: true } };
-  const view = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', owner: 'fixture.columns', title: 'Issue table', refresh: 'manual', sources: { stats: { kind: 'operation', operation: 'fixture.columns.read', version: 1, args: {} } }, layout: { component: 'Panel', direction: 'vertical', children: [{ component: 'Table', title: 'Issues', source: 'stats', data: '/rows', columns: ['key', 'title', 'status', 'priority'] }] } };
+  const view = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', owner: 'fixture.columns', title: 'Issue table', refresh: 'manual', sources: { stats: { kind: 'operation', operation: 'fixture.columns.read', version: 1, args: {} } }, layout: { component: 'Panel', direction: 'vertical', children: [{ component: 'Table', title: 'Issues', source: 'stats', data: '/rows', columns: ['status', 'key', 'title', 'priority'] }] } };
   let total = 1234, truncated = true, empty = false;
   await page.route('**/api/views', route => {
     const { action } = route.request().postDataJSON();
@@ -18,6 +18,7 @@ async (page, { expect, screenshots }) => {
   await expect(query.getByRole('columnheader').filter({ has: page.getByRole('button', { name: 'Reporter', exact: true }) })).toHaveCount(0);
   await expect(query.getByRole('status').filter({ hasText: /^\d+ \/ \d+/ })).toHaveText('1 / 1 · Total: 1,234');
   await expect(query.getByText(/1,234/)).toHaveCount(1);
+  await expect(query.getByRole('columnheader')).toHaveText(['Status', 'Key', 'Title']);
   await query.getByRole('button', { name: 'Columns', exact: true }).click();
   await expect(page.getByRole('menuitemcheckbox')).toHaveText(['Key', 'Title', 'Status', 'Reporter', 'Priority']);
   await page.getByRole('menuitemcheckbox', { name: 'Priority', exact: true }).click();
