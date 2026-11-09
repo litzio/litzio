@@ -1333,7 +1333,8 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar, .settings-topbar
 /* Text surfaces only: retain the editor's existing emergency fallback for long tokens.
  * Code, math and embedded UI keep their existing line-breaking behavior. */
 .document-editor :is(.paragraph, .heading, .quote-body, .admonition-body, .admonition-label,
-  .caption, [data-table-cell], .footnote-definition-body) {
+  .caption, [data-table-cell], .footnote-definition-body),
+.plain-markdown :is(li, th, td) {
   word-break: var(--word-break-document);
 }
 
@@ -3414,11 +3415,10 @@ ol.list[data-list-delimiter=")"][data-list-style="upper-roman"] > li::marker { c
 @media (width <= 64rem) { .notification-center { --notification-sidebar-width: var(--sidebar-effective-width); } }
 body:has(.app-shell--collapsed) .notification-center { --notification-sidebar-width: var(--layout-sidebar-rail-width); }
 
-/* Plain-text sessions use the same group viewport without a paper/editor projection. */
-.text-document { display: flex; flex-direction: column; height: 100%; min-height: 0; padding: var(--space-4); gap: var(--space-3); }
-.text-mode-notice { margin: 0; color: var(--id-color-text-muted); font-size: var(--font-size-sm); }
-.text-document-input { flex: 1; width: 100%; min-height: 0; resize: none; padding: var(--space-3); border: var(--border-width) solid var(--id-color-border-control); border-radius: var(--radius-sm); background: var(--id-color-surface); color: var(--id-color-text); font-family: var(--font-family-mono); font-size: var(--font-size-sm); line-height: var(--line-height-label); white-space: pre; overflow: auto; }
-.text-document-input:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* Read and text editing share the native page; wrapping never changes stored text. */
+.text-document { height: auto; }
+.text-mode-notice { margin: 0 0 var(--space-3); color: var(--id-color-text-muted); font-size: var(--font-size-sm); }
+.text-document-input { field-sizing: content; width: 100%; min-height: calc(100dvh - var(--app-header-height, var(--layout-header-row)) - var(--layout-document-block-padding) - var(--layout-document-end-space)); resize: none; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--id-color-text); font-family: var(--font-family-mono); font-size: var(--font-size-sm); line-height: var(--line-height-label); white-space: pre-wrap; word-break: var(--word-break-document); overflow-wrap: anywhere; overflow: hidden; outline: none; caret-color: var(--id-color-interaction); }
 
 /* Document-local presentation, shared by Edit and Read. */
 [data-table-wrap="false"] .table :is(th, td) {
@@ -3432,10 +3432,7 @@ html[data-theme="dark"] [data-brand-light] { display: none; }
 html[data-theme="dark"] [data-brand-dark] { display: block; }
 
 /* Ordinary Markdown shares reading typography, table and code tokens. */
-.text-document[data-view="read"] { height: auto; min-height: 100%; }
-.plain-markdown { width: 100%; max-width: var(--layout-content-width); margin-inline: auto; padding: var(--space-4); }
 .plain-markdown img { max-width: 100%; height: auto; }
-.plain-markdown .table { display: block; overflow-x: auto; }
 .plain-markdown .katex-display { overflow-x: auto; overflow-y: hidden; }
 
 .code-block-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); }

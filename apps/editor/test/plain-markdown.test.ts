@@ -18,8 +18,8 @@ $\\href{javascript:alert(1)}{bad}$
 });
 
 test("reading extensions and Host-relative images preserve display only", () => {
-  const html = renderPlainMarkdown("# Title\n\n| A |\n| --- |\n| B |\n\n- [x] Done\n\n$x+1$[^n]\n\n[^n]: Note\n\n![alt](../image.svg)\n\n```mermaid\ngraph LR\n```", "/root/readme.md");
-  for (const expected of ['<h1', '<table', 'disabled=""', 'class="katex"', 'footnote', '/document/..%2Fimage.svg?path=%2Froot%2Freadme.md', 'language-mermaid']) assert.ok(html.includes(expected), expected);
+  const html = renderPlainMarkdown("# Title\n\n> Quote\n\n$$\nx+1\n$$\n\n| A |\n| --- |\n| B |\n\n- [x] Done\n\n$x+1$[^n]\n\n[^n]: Note\n\n![alt](../image.svg)\n\n```mermaid\ngraph LR\n```", "/root/readme.md");
+  for (const expected of ['<h1', '<table', 'disabled=""', 'class="katex"', 'footnote', '/document/..%2Fimage.svg?path=%2Froot%2Freadme.md', 'language-mermaid', 'class="quote"', 'class="table-scroll"', 'class="equation-math"', 'class="code-block-controls"']) assert.ok(html.includes(expected), expected);
 });
 
 import { renderAssistantMarkdown } from "../src/plain-markdown.ts";
