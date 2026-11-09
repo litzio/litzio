@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Menu } from "@base-ui/react/menu";
 import { Check, Info } from "lucide-react";
-import { DataTable } from "../components/DataTable.tsx";
+import { DataTable, TableRowCount, type TableCoverage } from "../components/DataTable.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, MENU_ITEM_CLASS } from "../components/ui/dropdown-menu.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "../components/ui/tooltip.tsx";
@@ -10,8 +10,8 @@ import { readPluginTableColumns, writePluginTableColumns } from "../preferences.
 import { i18n } from "../i18n.ts";
 import type { RowSchema, ViewRow } from "@litzio/core/views";
 
-export function PluginQueryTable({ scope, rows, fields, labels, title, label, defaultColumns }: {
-  defaultColumns: readonly string[]; scope: string; rows: ViewRow[]; fields: RowSchema; labels?: Record<string, string>; title: string;
+export function PluginQueryTable({ scope, rows, fields, labels, title, label, defaultColumns, coverage }: {
+  coverage?: TableCoverage; defaultColumns: readonly string[]; scope: string; rows: ViewRow[]; fields: RowSchema; labels?: Record<string, string>; title: string;
   label(column: string, value: ViewRow[string]): string;
 }) {
   const candidates = Object.keys(fields).filter(name => !fields[name].secret);
@@ -29,6 +29,6 @@ export function PluginQueryTable({ scope, rows, fields, labels, title, label, de
       <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" aria-label={i18n.t("Sorting and filters apply to loaded rows only.")} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>{i18n.t("Sorting and filters apply to loaded rows only.")}</TooltipContent></Tooltip>
     </div>
     {saveError ? <Notice tone="warning">{i18n.t("Column selection could not be saved.")}</Notice> : null}
-    {columns.length ? <DataTable rows={rows} columns={columns} fields={fields} labels={labels} title={title} label={label} /> : <Notice>{i18n.t("Choose columns to display.")}</Notice>}
+    {columns.length ? <DataTable coverage={coverage} rows={rows} columns={columns} fields={fields} labels={labels} title={title} label={label} /> : <><TableRowCount shown={rows.length} loaded={rows.length} coverage={coverage} /><Notice>{i18n.t("Choose columns to display.")}</Notice></>}
   </>;
 }

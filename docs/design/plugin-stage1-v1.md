@@ -341,10 +341,12 @@ rowSchema 작업은 기존 행 배열 또는 `{rows, truncated, total?}`를 반�
 
 `operation invoke` CLI는 같은 envelope를 result에 보존한다. 조회 Host/`view run --json`은 표의 가공된 rows와 별도로 `coverage:{truncated,total?,returned}`를 제공한다. returned는 원본 반환 행 수로 필터·집계·limit 전 수다. 기존 2,000행 상한은 유지하며 이를 넘는 결과를 Host가 조용히 잘라 주지 않는다.
 
-Editor의 플러그인 비집계 조회 표는 공개 rowSchema 순서로 열 후보를 제공하고 기본 hidden 및 Table.columns 선언을 따른다. 열 선택은 브라우저 UI preference로 Host·플러그인·화면·표별 저장하며 화면 없는 조회는 operation을 사용한다. 문서·Host·플러그인 설정에 쓰지 않는다. 재조회와 재열기에서 선택을 유지하고 없어진 필드는 무시한다. 모든 열을 숨기면 열 선택 행동을 유지한다. 저장 실패는 화면 경고로 알린다. 집계 표는 파생 group/value 의미를 유지한다.
+Editor의 플러그인 비집계 조회 표는 표시·숨김 여부와 관계없이 manifest의 공개 rowSchema 선언 순서로 열 후보를 제공하고 기본 hidden 및 Table.columns 선언을 따른다. 열 선택은 브라우저 UI preference로 Host·플러그인·화면·표별 저장하며 화면 없는 조회는 operation을 사용한다. 문서·Host·플러그인 설정에 쓰지 않는다. 재조회와 재열기에서 선택을 유지하고 없어진 필드는 무시한다. 모든 열을 숨기면 열 선택 행동을 유지한다. 저장 실패는 화면 경고로 알린다. 집계 표는 파생 group/value 의미를 유지한다.
 
-조회 시각은 기존 receipt에 표시하고 잘린 결과는 `N건 표시 · 전체 M건` 또는 `일부만 표시`로 알린다. 상세 설명은 hover/키보드 focus Tooltip에 둔다. 기존 Button ghost/sm·DropdownMenu·Base UI Menu.CheckboxItem·MENU_ITEM_CLASS·Tooltip·DataTable을 재사용하며 새 공통 상호작용 예외는 없다. Jira 적용은 별도 작업이며 이번 검증은 fixture다.
+조회 시각은 기존 receipt에 표시하고 잘린 결과는 기존 표 위 건수 줄에 `표시 행 / 조회 행 · 전체 M건` 또는 `표시 행 / 조회 행 · 일부만 표시`로 합쳐 알린다. 잘리지 않으면 기존 건수 표시를 유지한다. 상세 설명은 hover/키보드 focus Tooltip에 둔다. 기존 Button ghost/sm·DropdownMenu·Base UI Menu.CheckboxItem·MENU_ITEM_CLASS·Tooltip·DataTable을 재사용하며 새 공통 상호작용 예외는 없다. Jira 적용은 별도 작업이며 이번 검증은 fixture다.
 
 검증은 기존 SDK manifest 검사(기능 버전), plugins 반환 경계 검사(범위 정합·secret 제거), views의 기존 실제 child·HTTP·CLI parity 검사(coverage 전달)를 보완한다. 새 subprocess는 없다. `plugin-columns` 브라우저 시나리오는 로컬 fixture catalog/result로 기본·추가 열, 재열기 지속, 전체 수 미제공을 검사하며 UI 배선 결함을 담당한다. 실행 소비자는 기존 browser stable suite다. 실제 Jira 연결·대규모 데이터 수락 증거는 아니다.
 
 수동 시각 검토: 1440px [이전](assets/plugin-table-1351/before-1440.png) / [이후](assets/plugin-table-1351/after-1440.png), 한국어 다크 640px [이전](assets/plugin-table-1351/before-640.png) / [이후](assets/plugin-table-1351/after-640.png), 열 선택 메뉴 [1440px](assets/plugin-table-1351/menu-1440.png) / [640px](assets/plugin-table-1351/menu-640.png). 동일 fixture이며 계정 표시는 단색으로 가렸다. 기존 표 내부 가로 스크롤, 행 정렬·여백·한국어 줄바꿈·메뉴 가용 영역을 확인했다. 기존 메뉴와 Button·Tooltip 공통 구현을 사용하며 예외는 없다. 해당 시나리오는 로컬 약 24초(캡처 포함)다.
+
+#1351 캡처 재검토: fixture rowSchema가 Reporter를 첫 번째로 선언해 메뉴 맨 위에 나타났다. fixture를 Key·Title·Status·Reporter·Priority 순서로 바로잡고, 체크 변경 전후에도 선언 순서가 유지되는지 기존 browser 시나리오에서 검사한다. 제품 renderer에 표시·숨김별 정렬을 추가하지 않는다. 잘림 정보는 DataTable의 기존 건수 상태 줄 한 곳에 합치며 전체 수 제공/미제공·잘리지 않은 결과와 중복 없는 표시를 검사한다. 기존 Tooltip·표 부품을 재사용하며 새 상호작용 예외는 없다. 동일 시나리오의 1440px·한국어 다크 640px 캡처를 갱신했다.
