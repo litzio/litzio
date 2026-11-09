@@ -3,6 +3,7 @@ import { PluginOperationError } from "@litzio/plugin-sdk";
 // A single operation deadline stays within the Host's 10-second RPC budget.
 const DEADLINE_MS = 8000;
 function httpUrl(value) {
+  if (!value.trim()) throw new PluginOperationError("not_found");
   try {
     const url = new URL(value);
     if (!["http:", "https:"].includes(url.protocol) || url.username || url.password || url.href.includes("?") || url.href.includes("#")) throw new Error();
@@ -144,6 +145,7 @@ export function activate(context) {
       },
       async connection() {
         const result = (ok, message) => ({ ok, message });
+        if (!String(context.settings.baseUrl ?? "").trim()) return result(false, "Jira 주소를 입력하세요.");
         let api;
         try {
           const base = httpUrl(String(context.settings.baseUrl ?? ""));
