@@ -1,6 +1,12 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Cannot list Host folder": "Cannot list Host folder",
+  "Cannot start this file. Check the input, result path and plugin availability.": "Cannot start this file. Check the input, result path and plugin availability.",
+  "Status": "Status",
+  "File": "File",
+  "Elapsed": "Elapsed",
+  "Phase": "Phase",
   "Provider log access was denied.": "Provider log access was denied.",
   "Provider log is absent or has been removed.": "Provider log is absent or has been removed.",
   "Open provider log in Notepad": "Open provider log in Notepad",
@@ -1239,6 +1245,12 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Cannot list Host folder": "Host 폴더를 표시할 수 없습니다.",
+  "Cannot start this file. Check the input, result path and plugin availability.": "이 파일을 시작할 수 없습니다. 입력 파일, 결과 경로와 플러그인 상태를 확인하세요.",
+  "Status": "상태",
+  "File": "파일",
+  "Elapsed": "경과",
+  "Phase": "단계",
   "Provider log access was denied.": "공급자 로그 접근이 거부되었습니다.",
   "Provider log is absent or has been removed.": "공급자 로그가 없거나 이미 삭제되었습니다.",
   "Open provider log in Notepad": "공급자 로그를 메모장에서 열기",

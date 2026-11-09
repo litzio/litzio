@@ -136,11 +136,11 @@ Host는 `packages/file-commit`의 `createFileFromPath`로 staging을 크기가 �
 
 ### SDK 버전과 호환 판정
 
-플러그인이 의존할 수 있는 공개 SDK API·manifest 기능을 추가하면 `SDK_VERSION`의 minor를 올리고 `packages/plugin-sdk/package.json`도 맞춘다. #1326은 `0.2.0`, #1332 링크 열 추가는 `0.3.0`이다. 기존 기능의 변경·삭제 등 하위 호환이 깨지면 major를 올린다(다음 경계는 `1.0.0`). 그 Host에서 더 이상 구현하지 않는 계약 버전은 지원 목록에서 제거하며 지원하지 않는 계약을 자동 변환하거나 같은 기능이라고 추정하지 않는다.
+플러그인이 의존할 수 있는 공개 SDK API·manifest 기능을 추가하면 릴리스 사이 한 번 `SDK_VERSION`의 minor를 올리고 `packages/plugin-sdk/package.json`도 맞춘다. 같은 미릴리스 버전의 추가 기능마다 다시 올리지 않는다. #1326은 `0.2.0`, #1332 링크 열 추가는 `0.3.0`이다. 기존 기능의 변경·삭제 등 하위 호환이 깨지면 major를 올린다(다음 경계는 `1.0.0`). 그 Host에서 더 이상 구현하지 않는 계약 버전은 지원 목록에서 제거하며 지원하지 않는 계약을 자동 변환하거나 같은 기능이라고 추정하지 않는다.
 
 `requiresSdk`는 필요한 기능이 처음 제공된 계약 버전 이상의 범위를 선언한다. 권장 표기는 `>=최소기능버전 <다음major`다. 새 scaffold의 기본은 `>=0.3.0 <1.0.0`이며 일반 파일 결과를 쓰는 플러그인도 최소 `0.2.0`을 요구한다. Host는 file 기여가 있으면 해당 기능을 제공하는 지원 계약(`0.2.0` 이상)도 requiresSdk가 허용하는지 검사한다. 현재 `0.1.0` 또는 `^0.1.0`만 허용하는 file manifest는 SDK 요구 오류로 validate·등록·활성화에서 거부한다. 기존 native-document 등 이전 기능만 쓰는 exact·caret `0.1.0` 선언은 계속 허용한다. 기존 기능만 쓰는 플러그인은 해당 기능의 최소 계약 버전을 유지할 수 있다(예: `>=0.1.0 <1.0.0`).
 
-공통 호환 검사는 Host가 현재 구현하는 실제 계약 버전 목록 중 하나가 `requiresSdk` SemVer 범위를 만족하는지 확인한다. 선언한 기능별 최소 계약 검사도 함께 통과해야 한다. `0.2.0` Host의 목록은 `0.1.0`, `0.2.0`이다. 따라서 이전 scaffold의 정확한 `0.1.0`, 기존 `^0.1.0` 선언도 수정 없이 계속 로드된다. 추가 릴리스에서는 구현을 유지하는 이전 계약을 목록에 남긴다. 아직 제공하지 않은 `0.3.0`이나 가상의 `0.1.1`을 범위 보간으로 지원한다고 간주하지 않는다. 일반 파일 결과 등 새 기능으로 전환하는 플러그인은 해당 작업에서 최소 요구를 올린다.
+공통 호환 검사는 Host가 현재 구현하는 실제 계약 버전 목록 중 하나가 `requiresSdk` SemVer 범위를 만족하는지 확인한다. 선언한 기능별 최소 계약 검사도 함께 통과해야 한다. 현재 `0.3.0` Host의 목록은 `0.1.0`, `0.2.0`, `0.3.0`이다. 따라서 이전 scaffold의 정확한 `0.1.0`, 기존 `^0.1.0` 선언도 수정 없이 계속 로드된다. 추가 릴리스에서는 구현을 유지하는 이전 계약을 목록에 남긴다. 가상의 `0.1.1`을 범위 보간으로 지원한다고 간주하지 않는다. 일반 파일 결과 등 새 기능으로 전환하는 플러그인은 해당 작업에서 최소 요구를 올린다.
 
 개발 실행은 최초 활성화 때 공개 SDK entry를 메모리 JS 번들로 빌드해 Host 수명 동안 재사용한다. 개발·배포 모두 같은 entry를 코드 분할 없이 자기완결 JS 모듈 하나로 번들한다. 배포 빌드는 `plugin-sdk.mjs`로 CLI에 포함하고 Desktop의 `build/cli`에도 복사한다. Node 공식 `registerHooks`가 플러그인 코드 로드 전에 SDK root import를 이 런타임으로 연결한다. 저장소 밖·다른 드라이브도 file URL 또는 메모리 URL을 사용하므로 artifact 위치에 의존하지 않는다. artifact의 node_modules에 다른 SDK가 있어도 Host 제공본이 항상 우선한다. `@litzio/core` 등 다른 내부 패키지와 SDK subpath import는 거부하며 필요한 공개 API는 SDK root가 재노출한다. resolve 훅은 이름 검사 뒤 Node가 해석한 file URL을 OS 경로로 변환하고 절대 경로·realpath로 정규화한다. Windows에서는 대소문자를 통일하고 path.relative의 디렉터리 경계·다른 드라이브 판정을 사용한다. 상대 경로·file URL·symlink/junction 별칭으로 접근해도 개발 Host의 checkout 또는 배포 Host의 설치 번들 디렉터리 안이면 거부한다(Desktop은 resources 디렉터리). Host 제공 단일 SDK 런타임 파일 자체만 예외다. SDK는 Node 내장 모듈 외의 런타임 import나 공유 chunk가 없다. 부모 URL은 createRequire 등으로 호출자가 지정할 수 있으므로 내부 접근의 신뢰 근거로 사용하지 않는다. SDK URL을 부모로 지정한 createRequire.resolve/require도 같은 실제 경로 검사를 받는다. artifact 자체 실제 디렉터리 안의 모듈은 checkout 안에서 제작한 경우에도 허용한다. Node 내장 모듈과 Host 내부를 가리키지 않는 artifact 자체 node_modules도 허용한다. artifact 안의 symlink는 기존 등록 검사에서 계속 거부한다. 정적 validate는 import graph를 실행하지 않으므로 이 경계의 판정은 활성화와 실제 import 시점에 수행한다. 일반 제3자 의존성은 기존처럼 artifact에 번들할 수 있다. 플러그인은 ADR-0020의 신뢰 코드이며 이 차단은 실수로 내부 API에 의존하는 것을 막는 계약 강제이지 sandbox나 보안 경계가 아니다. fs로 파일을 직접 읽어 eval하는 의도적 우회는 범위 밖이다.
 
@@ -282,3 +282,27 @@ manifest 화면은 기존 ViewWorkspace로 기본 뷰 내용을 바로 표시하
 ## 링크 열 SDK 0.3.0 (#1332)
 
 현재 SDK_VERSION과 패키지 버전은 `0.3.0`이며 Host는 `0.1.0`, `0.2.0`, `0.3.0` 계약을 구현한다. 기존 exact/caret 0.1 및 0.2 플러그인은 유지한다. 공개 read rowSchema의 string 열은 `linkField:"url"`로 같은 행의 다른 공개 string 필드를 링크 대상으로 지정한다. 링크 선언이 있으면 requiresSdk가 0.3.0 이상인 실제 지원 계약을 허용해야 하며 validate·등록·활성화에서 동일하게 거부한다. 권장 범위는 `>=0.3.0 <1.0.0`이다. 일반 파일 기능의 최소 버전은 여전히 0.2.0이다. 표시·키보드·URL 허용 및 행 보존은 [Table 링크 계약](generated-views-v1.md#table-link-columns-1332)을 따른다.
+
+## 플러그인 화면 작업 패널 (#1340)
+
+SDK의 미릴리스 `0.3.0`에 `screens[].jobs`를 함께 제공한다. SDK 기능 추가는 릴리스 사이 한 번 버전을 올리고 같은 미릴리스 버전에 합친다. 이 기능은 `requiresSdk`가 0.3.0 이상 구현 계약을 허용해야 한다.
+
+```json
+{"id":"dashboard","title":"Dashboard","icon":"LayoutDashboard","jobs":["convert","document"],"defaultViewIds":["status"],"primary":true}
+```
+
+jobs는 같은 플러그인의 K1 ID만 참조하며 중복·미선언 ID를 거부한다. 작업만 있는 화면도 허용한다. 실행 자체가 독립된 화면 목적이므로 불필요한 조회 뷰를 강제하지 않는다. jobs/defaultViewIds 중 하나는 비어 있지 않아야 한다. 앱의 공통 작업 패널을 기존 조회 뷰 위에 세로로 배치한다. 비서 생성·즐겨찾기 없이 플러그인, Host, 열린 폴더만으로 동작한다.
+
+Host `plugins.job-start-many` v1 입력은 `{action:"job-start-many",plugin,job,root,files}`다. files는 중복 없는 Root 상대 경로 1–50개다. 선택적 requestIds는 파일과 같은 순서·수의 고유 UUID이며 전송 전 생성하면 응답 유실 때도 같은 ID를 조회할 수 있다. 결과는 `{files:[{file,requestId,job}|{file,error}],receipt}`다. 파일마다 기존 K1 요청을 독립 실행하며 접수 실패가 다른 파일을 막지 않는다. 접수한 snapshot 중 uncertain이 있으면 receipt uncertain, 그 외 하나라도 거부하면 failure, 모두 접수하면 success다. 파일별 running/uncertain은 각 snapshot으로 확인하며 start를 자동 재전송하지 않는다. 큐·스케줄러·재시작 복원은 없다. 이미 존재하거나 running/uncertain 작업이 사용 중인 결과 경로는 해당 파일만 거부한다. 기본 결과는 `defaultJobOutput`: file은 입력 확장자를 결과 확장자로 교체하고 상대 부모를 보존, native-document는 기존 `result.md`다. 후자는 같은 Root에서 여러 입력의 기본 결과 경로가 충돌할 수 있다. 기존 단일 시작·명시적 output 계약은 유지한다.
+
+CLI는 같은 Host 작업을 호출한다.
+
+```sh
+litzio plugins start example.plugin --job convert --root <root> --file a.pdf --file b.pdf --host <origin> --json
+```
+
+앱 패널은 여러 작업의 공통 선택 control, 열린 폴더 선택, accept 필터 체크 목록과 기존 하위 폴더 탐색을 쓴다. 실행할 때 파일 선택을 비우며 실패/불확실을 자동 재시도하지 않는다. 플러그인 전체의 daemon 수명 기록을 최신순으로 파일·작업·상태·단계·경과·행동 표에 표시한다. running 동안 활성 화면에서 1초마다 기존 상태 작업으로 관찰하며 응답 유실은 uncertain이다. 중단/상태 재확인과 native 결과 열기는 기존 공통 Plugin jobs 부품을 재사용한다. opaque file은 기존 K1 계약대로 경로·복사를 제공한다. 의미를 모르는 파일에 문서 열기를 제공하지 않는다.
+
+검증은 기존 job-plugin fixture의 SDK/Host 검사 및 `plugin-jobs` 브라우저 시나리오에 집중한다. 실제 Docling manifest 변경·변환 품질은 범위 밖이다. 수동 캡처는 `pnpm browser:test plugin-jobs --screenshots`의 `tmp/plugin-jobs/panel-1440.png`, `panel-640.png`다.
+
+2026-11-09 수동 검토: [1440px](assets/plugin-job-panel-1340/panel-1440.png), [한국어 다크 640px](assets/plugin-job-panel-1340/panel-640.png). 기존 #1330 화면의 간소화된 구조를 유지하며 패널·표 정렬, 여백, 한국어·다크, 640px 내부 가로 스크롤을 확인했다. 계정·폴더 경로는 촬영 시 마스킹했다. 기존 plugin-jobs에 다중 시작·부분 충돌·CLI·행 중단·결과 열기를 보완했으며 최종 로컬 실행은 약 1.4분(HTTP 복구 포함 2개)이다. SDK/K1 19개·조회 뷰 Host/CLI 5개, 관련 typecheck/build·문서·경계 검사를 통과했다. fixture 성공은 실제 Docling 수락이 아니다.

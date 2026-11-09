@@ -54,7 +54,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
   const locked = busy || !!job && ["running", "uncertain"].includes(job.state);
   useEffect(() => {
     const controller = new AbortController();
-    if (root && active && !locked) void client.request(`/api/folder?${new URLSearchParams({ root, path: folder ? `${root.replace(/[\\/]$/, "")}/${folder}` : root })}`, { signal: controller.signal }).then(async response => { if (!response.ok) throw new Error("Cannot list Host folder"); return response.json(); }).then(value => { if (!controller.signal.aborted) setEntries(value.entries); }).catch(error => { if (!controller.signal.aborted) setProblem(String(error)); });
+    if (root && active && !locked) void listJobFolder(client, root, folder, controller.signal).then(value => { if (!controller.signal.aborted) setEntries(value); }).catch(error => { if (!controller.signal.aborted) setProblem(String(error)); });
     return () => controller.abort();
   }, [client, root, folder, active, locked]);
   useEffect(() => {
@@ -75,7 +75,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
         const relativePath = folder ? `${folder}/${entry.name}` : entry.name;
         if (entry.kind === "folder") { setFolder(relativePath); setFile(undefined); setEntries([]); }
         else setFile({ root, relativePath });
-      }} options={[{ value: "", label: "—" }, ...entries.filter(entry => entry.kind === "folder" || choice?.binding.accept.some(extension => entry.name.toLowerCase().endsWith(extension))).map(entry => ({ value: entry.name, label: `${entry.kind === "folder" ? "▸ " : ""}${entry.name}` }))]} />
+      }} options={[{ value: "", label: "—" }, ...jobEntries(entries, choice?.binding).map(entry => ({ value: entry.name, label: `${entry.kind === "folder" ? "▸ " : ""}${entry.name}` }))]} />
       {folder ? <Button size="sm" variant="secondary" disabled={locked} onClick={() => { setFolder(""); setFile(undefined); setEntries([]); }}>{i18n.t("Return to opened folder")}</Button> : null}
       <SettingsInput label={i18n.t("Result path in Root")} value={output} disabled={locked} onChange={setOutput} />
     </div>
@@ -92,23 +92,39 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
     })}>{i18n.t("Start job")}</Button></div>
     {job ? <section className="view-panel plugin-job-status" aria-live="polite">
       <div className="view-controls plugin-job-summary">
-        <span className="host-status" role="status" aria-label={i18n.t("Job status")} data-tone={job.state === "failed" ? "danger" : job.state === "uncertain" ? "warning" : job.state === "stopped" ? "muted" : "connected"}>
-          <span className="agent-dot" aria-hidden="true" />
-          {i18n.t(job.state === "running" && job.stopRequested ? "Cancellation requested" : stateLabels[job.state])}
-        </span>
+        <JobState job={job} />
         {job.state === "running" && job.phase ? <p>{job.phase}</p> : null}
         <p>{i18n.t("Elapsed: {{seconds}} s", { seconds: Math.floor(job.elapsedMs / 1000) })}</p>
       </div>
       {job.progress ? <div className="plugin-job-progress"><Progress aria-label={i18n.t("Job progress")} max={job.progress.total} value={job.progress.done} /><span>{job.progress.done}/{job.progress.total}</span></div> : null}
       {job.state === "uncertain" ? <Notice tone="warning">{i18n.t("The job outcome is uncertain. Check the status before starting again.")}</Notice> : null}
       {job.error ? <Notice tone="error">{job.errorKind ? `[${job.errorKind}] ${job.error}` : job.error}</Notice> : null}
-      <div className="view-controls">
-        {job.state === "uncertain" ? <Button variant="secondary" disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-status", requestId }); setJob(value.job); })}>{i18n.t("Recheck status")}</Button> : null}
-        {job.state === "running" && !job.stopRequested ? <Button variant="secondary" disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-stop", requestId }); setJob(value.job); })}>{i18n.t("Request cancellation")}</Button> : null}
-        {job.state === "completed" && job.result?.kind !== "file" ? <Button disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-result", requestId }); await onOpen(value.job.result.path); })}>{i18n.t("Open result document")}</Button> : null}
-      </div>
-      {job.state === "completed" && job.result?.kind === "file" ? <div className="view-controls plugin-job-file-result"><p>{job.result.path}</p><CopyButton text={job.result.path} label={i18n.t("Copy result path")} /></div> : null}
+      <JobActions job={job} busy={busy} request={request} update={setJob} run={run} onOpen={onOpen} />
     </section> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
   </div>;
+}
+
+export function JobState({ job }: { job: JobSnapshot }) {
+  return <span className="host-status" role="status" aria-label={i18n.t("Job status")} data-tone={job.state === "failed" ? "danger" : job.state === "uncertain" ? "warning" : job.state === "stopped" ? "muted" : "connected"}>
+          <span className="agent-dot" aria-hidden="true" />
+          {i18n.t(job.state === "running" && job.stopRequested ? "Cancellation requested" : stateLabels[job.state])}
+        </span>;
+}
+export function JobActions({ job, busy, request, update, run, onOpen, compact = false }: { compact?: boolean; job: JobSnapshot; busy: boolean; request(body: unknown): Promise<any>; update(job: JobSnapshot): void; run(action: () => Promise<void>): Promise<void>; onOpen(path: string): Promise<unknown> }) {
+  const requestId = job.requestId;
+  return <>      <div className="view-controls">
+        {job.state === "uncertain" ? <Button variant="secondary" disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-status", requestId }); update(value.job); })}>{i18n.t("Recheck status")}</Button> : null}
+        {job.state === "running" && !job.stopRequested ? <Button variant="secondary" disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-stop", requestId }); update(value.job); })}>{i18n.t("Request cancellation")}</Button> : null}
+        {job.state === "completed" && job.result?.kind !== "file" ? <Button disabled={busy} onClick={() => void run(async () => { const value = await request({ action: "job-result", requestId }); await onOpen(value.job.result.path); })}>{i18n.t("Open result document")}</Button> : null}
+      </div>
+      {job.state === "completed" && job.result?.kind === "file" ? <div className="view-controls plugin-job-file-result">{compact ? null : <p>{job.result.path}</p>}<CopyButton text={job.result.path} label={i18n.t("Copy result path")} /></div> : null}</>;
+}
+export function jobEntries(entries: { name: string; path: string; kind: string }[], choice?: JobContribution) {
+  return entries.filter(entry => entry.kind === "folder" || choice?.accept.some(extension => entry.name.toLowerCase().endsWith(extension)));
+}
+export async function listJobFolder(client: HostClient, root: string, folder: string, signal: AbortSignal) {
+  const response = await client.request(`/api/folder?${new URLSearchParams({ root, path: folder ? `${root.replace(/[\\/]$/, "")}/${folder}` : root })}`, { signal });
+  if (!response.ok) throw new Error("Cannot list Host folder");
+  return (await response.json()).entries as { name: string; path: string; kind: string }[];
 }

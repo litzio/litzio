@@ -1,3 +1,4 @@
+import { PluginJobPanel } from "../PluginJobPanel.tsx";
 import type { ViewRootBinding } from "./view-provenance.ts";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { CatalogView } from "@litzio/core/views-v2";
@@ -9,6 +10,8 @@ import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";
 
 export function ViewWorkspace({
+  roots = [],
+  jobsActive = true,
   id,
   hostId,
   root,
@@ -23,6 +26,8 @@ export function ViewWorkspace({
   provenanceRoots,
   client = getHostClient(hostId),
 }: {
+  roots?: string[];
+  jobsActive?: boolean;
   provenanceRoots?: readonly ViewRootBinding[];
   client?: import("../host-client.ts").HostClient;
   id: string;
@@ -226,6 +231,7 @@ export function ViewWorkspace({
       </div> : null}
       {!active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}
       {problem ? <Notice tone="error">{problem}</Notice> : null}
+      {screen && catalog?.screens?.find(s => s.plugin === owner && s.id === screen.id)?.jobs?.length ? <PluginJobPanel key={`${hostId}:${owner}:${screen.id}`} client={client} plugin={owner} jobIds={catalog.screens.find(s => s.plugin === owner && s.id === screen.id)!.jobs!} roots={roots} active={!!active && jobsActive} onOpen={async path => { onOpenDocument?.(path, hostId); }} /> : null}
       {showDefaults ? (
         <section aria-label={i18n.t("Default views")}>
           <h3>{i18n.t("Default views")}</h3>

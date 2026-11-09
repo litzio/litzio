@@ -185,7 +185,7 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     snapshot.owner = jira;
     const snapshotFile = path.join(dir, "snapshot.view.json");
     fs.writeFileSync(snapshotFile, JSON.stringify(snapshot));
-    assert.deepEqual((await request({ action: "catalog" })).screens, [{ plugin: jira, ...manifest.contributes.screens[0] }]);
+    assert.deepEqual((await request({ action: "catalog" })).screens, [{ plugin: jira, jobs: [], ...manifest.contributes.screens[0] }]);
     parity(await request({ action: "propose", view: snapshot, plugin: jira }), await cliRequest(["propose", snapshotFile, "--plugin", jira]));
     assert.equal((await request({ action: "save", view: snapshot, plugin: jira, name: "snapshot" })).receipt.outcome, "success");
     assert.equal((await cliRequest(["save", snapshotFile, "--plugin", jira, "--name", "snapshot-cli"])).receipt.outcome, "success");

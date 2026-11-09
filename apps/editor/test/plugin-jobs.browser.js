@@ -143,6 +143,57 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     await expect(pane.getByRole("status", { name: "Job status" })).toHaveText(state);
     await expect(pane.getByRole("button", { name: "Open result document" })).toHaveCount(0);
   }
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Plugins", exact: true }).click();
+  await page.getByRole("button", { name: "Open view · Job fixture", exact: true }).click();
+  const panel = page.getByTestId("plugin-job-panel").filter({ visible: true });
+  await panel.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
+  await panel.getByRole("checkbox", { name: "batch-a.txt", exact: true }).check();
+  await panel.getByRole("checkbox", { name: "batch-b.txt", exact: true }).check();
+  await panel.getByRole("button", { name: "Start job", exact: true }).click();
+  for (const file of ["batch-a.txt", "batch-b.txt"]) {
+    const row = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: file, exact: true }) });
+    await expect(row.getByRole("status")).toHaveText("Completed");
+  }
+  // One collision is refused while the second independent request still completes.
+  const batch = pluginFixture.cli(["plugins", "start", plugin.id, "--job", "file", "--root", pluginFixture.folder, "--file", "cli-a.txt", "--file", "cli-b.txt"]);
+  expect(batch.files).toHaveLength(2);
+  for (const file of batch.files) await expect.poll(() => pluginFixture.cli(["plugins", "status", file.requestId]).job.state).toBe("completed");
+  await panel.getByRole("checkbox", { name: "batch-a.txt", exact: true }).check();
+  await panel.getByRole("checkbox", { name: "slow.txt", exact: true }).check();
+  await panel.getByRole("button", { name: "Start job", exact: true }).click();
+  await expect(panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "batch-a.txt", exact: true }) }).first().getByRole("status")).toHaveText("Failed");
+  await expect(panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "slow.txt", exact: true }) }).first().getByRole("status")).toHaveText("Completed", { timeout: 15000 });
+  await panel.getByLabel("Job", { exact: true }).selectOption("text");
+  await panel.getByRole("checkbox", { name: "slow.txt", exact: true }).check();
+  await panel.getByRole("button", { name: "Start job", exact: true }).click();
+  const stoppedRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "slow.txt", exact: true }) }).first();
+  await stoppedRow.getByRole("button", { name: "Request cancellation", exact: true }).click();
+  await expect(stoppedRow.getByRole("status")).toHaveText("Cancelled");
+  await panel.getByRole("checkbox", { name: "input.txt", exact: true }).check();
+  await panel.getByRole("button", { name: "Start job", exact: true }).click();
+  const nativeRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "input.txt", exact: true }) }).first();
+  await expect(nativeRow.getByRole("button", { name: "Open result document", exact: true })).toBeVisible();
+  if (screenshots) {
+    for (const width of [1440, 640]) {
+      if (width === 640) {
+        await page.getByRole("button", { name: "Settings", exact: true }).click();
+        await page.getByTestId("theme").selectOption("dark");
+        await page.getByTestId("ui-language").selectOption("ko");
+        await page.keyboard.press("Escape");
+      }
+      await page.setViewportSize({ width, height: 900 });
+      expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+      if (width === 640) expect(await panel.locator(".view-table-scroll").evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
+      await page.screenshot({ path: `tmp/plugin-jobs/panel-${width}.png`, maskColor: "#a1a1aa", mask: [page.locator(".sidebar-host-account"), panel.getByLabel(width === 640 ? "열린 폴더" : "Opened folder", { exact: true })] });
+    }
+    await page.getByRole("button", { name: "설정", exact: true }).click();
+    await page.getByTestId("theme").selectOption("light");
+    await page.getByTestId("ui-language").selectOption("en");
+    await page.keyboard.press("Escape");
+  }
+  await nativeRow.getByRole("button", { name: "Open result document", exact: true }).click();
+  await expect(page.locator(".tiptap").filter({ visible: true })).toContainText("Job result.");
   pluginFixture.cli(["plugins", "disable", plugin.id]);
   pluginFixture.cli(["plugins", "unregister", plugin.id]);
 }

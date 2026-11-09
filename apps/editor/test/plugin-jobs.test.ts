@@ -48,6 +48,14 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
       }
       throw new Error(`Job did not reach ${state}: ${JSON.stringify(await host.jobs.execute({ action: "job-status", requestId }))}`);
     };
+    writeFileSync(path.join(root, "batch-a.txt"), "# A"); writeFileSync(path.join(root, "batch-b.txt"), "# B");
+    writeFileSync(path.join(root, "batch-a.bin"), "preserved");
+    const batchIds = [randomUUID(), randomUUID()];
+    const batch = await host.jobs.execute({ requestIds: batchIds, action: "job-start-many", plugin: "fixture.jobs", job: "file", root, files: ["batch-a.txt", "batch-b.txt"] });
+    assert.ok("files" in batch); assert.ok(batch.files[0]!.error); assert.equal(batch.files[1]!.requestId, batchIds[1]);
+    await wait(batch.files[1]!.requestId!, "completed");
+    assert.equal(readFileSync(path.join(root, "batch-a.bin"), "utf8"), "preserved");
+    await assert.rejects(host.jobs.execute({ action: "job-start-many", plugin: "fixture.jobs", job: "file", root, files: Array.from({ length: 51 }, (_, i) => `${i}.txt`) }));
     const input = await start("# Imported\n\nOriginal text.\n");
     const sameId = { ...input, requestId: randomUUID(), output: "concurrent.md" };
     const simultaneous = await Promise.allSettled([host.invoke("job-start", sameId), host.invoke("job-start", sameId)]);
