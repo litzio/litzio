@@ -3417,7 +3417,7 @@ body:has(.app-shell--collapsed) .notification-center { --notification-sidebar-wi
 /* Read and text editing share the native page; wrapping never changes stored text. */
 .text-document { height: auto; }
 .text-mode-notice { margin: 0 0 var(--space-3); color: var(--id-color-text-muted); font-size: var(--font-size-sm); }
-.text-document-input { field-sizing: content; width: 100%; min-height: calc(100dvh - var(--app-header-height, var(--layout-header-row)) - var(--layout-document-block-padding) - var(--layout-document-end-space)); resize: none; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--id-color-text); font-family: var(--font-family-mono); font-size: var(--font-size-sm); line-height: var(--line-height-label); white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; outline: none; caret-color: var(--id-color-interaction); }
+.text-document-input { field-sizing: content; width: 100%; min-height: calc(100dvh - var(--app-header-height, var(--layout-header-row)) - var(--layout-document-block-padding) - var(--layout-document-end-space)); resize: none; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--id-color-text); font-family: var(--font-family-mono); font-size: var(--font-size-sm); line-height: var(--line-height-label); white-space: pre-wrap; word-break: var(--word-break-document); overflow-wrap: anywhere; overflow: hidden; outline: none; caret-color: var(--id-color-interaction); }
 
 /* Document-local presentation, shared by Edit and Read. */
 [data-table-wrap="false"] .table :is(th, td) {

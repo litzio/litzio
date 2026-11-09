@@ -162,7 +162,9 @@ The textarea has no border, corner radius, separate background or box focus ring
 its caret follows the native document convention. It grows with the buffer and the
 document viewport owns scrolling. Line numbers are not included.
 Both `.md` and `.txt` textareas use soft wrapping, including long unbroken tokens,
-without horizontal scrolling or inserting stored newlines. The mounted textarea
+without horizontal scrolling or inserting stored newlines. Text editing shares
+the document word-break token (Korean words stay together), with overflow-wrap
+as an emergency fallback for unbroken identifiers. The mounted textarea
 retains cursor, Undo, dirty state and Save/recovery behavior. Its monospace font,
 size and line height follow the existing native Source convention; there is no wrap
 toggle.

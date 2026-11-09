@@ -138,6 +138,7 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   expect(await input().evaluate(node => ({border:getComputedStyle(node).borderWidth,background:getComputedStyle(node).backgroundColor,outline:getComputedStyle(node).outlineStyle}))).toEqual({border:'0px',background:'rgba(0, 0, 0, 0)',outline:'none'});
   for (const width of [1440,640]) {
     await page.setViewportSize({width,height:900});
+    expect(await input().evaluate(node => getComputedStyle(node).wordBreak)).toBe('keep-all');
     expect(await input().evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true);
   }
   await input().press('End');
