@@ -50,12 +50,37 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await expect(page.getByText("Simulates service availability", { exact: true })).not.toBeVisible();
   const serviceUrl = dialog.getByRole("textbox", { name: "docling-serve URL", exact: true });
   await serviceUrl.fill("https://docling.example.test/service");
-  await serviceUrl.press("Tab");
   const check = dialog.getByRole("button", { name: "Check connection", exact: true });
+  let invokes = 0;
+  page.on("request", request => { if (request.url().endsWith("/api/plugins") && request.method() === "POST" && request.postDataJSON()?.action === "invoke") invokes++; });
+  await page.route("**/api/plugins", async route => {
+    const data = route.request().postDataJSON();
+    if (data?.action === "settings") return route.fulfill({ status: 400, json: { error: "Fixture save rejected" } });
+    await route.continue();
+  });
+  await serviceUrl.press("Tab");
+  await expect(serviceUrl).toHaveAttribute("aria-invalid", "true");
+  await expect(serviceUrl).toHaveValue("https://docling.example.test/service");
+  await expect(dialog.locator('[id="' + await serviceUrl.getAttribute("aria-describedby") + '"]')).toContainText("Fixture save rejected");
+  await check.click();
+  expect(invokes).toBe(0);
+  await page.unroute("**/api/plugins");
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  await page.route("**/api/plugins", async route => {
+    if (route.request().postDataJSON()?.action === "settings") await gate;
+    await route.continue();
+  });
+  await serviceUrl.focus();
+  await check.click();
+  await expect(dialog.getByRole("status").filter({ hasText: /^Saving…$/ })).toBeVisible();
+  expect(invokes).toBe(0);
+  release();
+  await expect(dialog.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
+  await expect(dialog.getByRole("status").filter({ hasText: /^Fixture connected$/ })).toBeVisible();
+  await page.unroute("**/api/plugins");
   await dialog.getByText("Simulate failure", { exact: true }).hover();
   await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText("Simulates service availability");
-  await check.click();
-  await expect(dialog.getByRole("status").filter({ hasText: /^Fixture connected$/ })).toBeVisible();
   await dialog.getByRole("switch", { name: "Simulate failure", exact: true }).click();
   await expect(check).toBeEnabled();
   await check.click();
@@ -70,7 +95,7 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await toggle.click();
   await expect(external.getByRole("switch")).toBeChecked();
   const listing = await (await page.request.get(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close" } })).json();
-  expect(listing.plugins.find(p => p.id === "fixture.vite").status.message).toBe("0.3.0");
+  expect(listing.plugins.find(p => p.id === "fixture.vite").status.message).toBe("0.4.0");
   if (screenshots) {
     for (const width of [1440, 640]) {
       await page.setViewportSize({ width, height: 900 });

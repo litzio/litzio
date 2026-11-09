@@ -714,7 +714,7 @@ Multi-page PDF reading uses the existing task tab and DocumentTabs, while transi
 
 수동 검토: 1440px 영어 라이트 [변경 전](assets/plugin-settings-1334/before-1440.png) / [변경 후](assets/plugin-settings-1334/after-1440.png), 640px 한국어 다크 [변경 전](assets/plugin-settings-1334/before-640.png) / [변경 후](assets/plugin-settings-1334/after-640.png). 설정 창 [1440px](assets/plugin-settings-1334/detail-1440.png) / [640px 한국어 다크](assets/plugin-settings-1334/detail-640.png). 톱니·스위치 세로 중심과 행 오른쪽 정렬, 배지 줄바꿈, 상태 줄, 다크 대비를 확인했다. 캡처는 localhost fixture이며 외부 서비스 연결 성공의 증거가 아니다. 계정 표시는 캡처에서 가렸다.
 
-설정 창 폭 후속 확인: 기존 `--layout-settings-content-width` 토큰(42.5rem)과 viewport 양쪽 16px 여백을 사용한다. 별도 크기 체계는 추가하지 않는다. URL·secret 입력과 긴 한국어 연결 안내를 포함한 detail 캡처를 갱신했고 1440px/640px에서 가로 overflow 없이 표시된다. 같은 저장값의 재조회는 입력을 유지하고 저장값 변경 시 uncontrolled 입력의 기본값도 다시 구성한다.
+설정 창 폭 후속 확인: 기존 `--layout-settings-content-width` 토큰(42.5rem)과 viewport 양쪽 16px 여백을 사용한다. 별도 크기 체계는 추가하지 않는다. URL·secret 입력과 긴 한국어 연결 안내를 포함한 detail 캡처를 갱신했고 1440px/640px에서 가로 overflow 없이 표시된다. 일반 설정의 Dialog 초안·저장 상태·실패 보존은 #1396의 연결 설정 계약을 따른다.
 
 #1325 병합 후 실제 Docling 0.0.1의 설정 창도 [1440px](assets/plugin-settings-1334/docling-detail-1440.png) / [640px 한국어 다크](assets/plugin-settings-1334/docling-detail-640.png)로 확인했다. URL은 로컬 mock 서비스이며 secret 입력은 비어 있다. `pnpm browser:test http-plugins --screenshots`로 한국어 screenshots 경로까지 사이드바 진입과 연결·변환 단언을 유지해 통과했다. 연결 확인 선언은 Docling에 추가하지 않았으며 긴 결과 표시는 기존 health-check fixture에서 확인했다.
 
@@ -737,3 +737,11 @@ PluginIcon shares the same decorative 16px img in existing sidebar entries, Docu
 1440px 영어 라이트와 640px 한국어 다크 수동 근거: 목록 [1440px](assets/plugin-list-1379/list-1440.png) / [640px](assets/plugin-list-1379/list-640.png), 첫 켜기 확인 [1440px](assets/plugin-list-1379/confirmation-1440.png) / [640px](assets/plugin-list-1379/confirmation-640.png), 상세 정보 [1440px](assets/plugin-list-1379/detail-1440.png) / [640px](assets/plugin-list-1379/detail-640.png). localhost fixture이며 외부 서비스 연결·소유자 시각 승인을 뜻하지 않는다. 배지·컨트롤의 정렬, 여백, 창 경계와 digest 줄바꿈을 확인했다.
 
 같은 미신뢰 등록 상태의 목록 변경 전 [1440px](assets/plugin-list-1379/before-list-1440.png) / [640px 한국어 다크](assets/plugin-list-1379/before-list-640.png)는 변경 전 PluginSettings 컴포넌트를 같은 production HTTP fixture에 빌드하여 촬영했다. Host는 이번 등록 신뢰 구현이며, 이 비교는 UI 표시 차이에 한정한다.
+
+## 플러그인 연결 설정 (#1396)
+
+기존 설정 Dialog, Input·SettingsSwitch와 QueryInputs의 FieldError·aria-invalid·aria-describedby 패턴을 재사용한다.
+칸별 저장 중·저장됨·실패를 가까이에 표시하고 실패 시 초안을 보존한다. secret title은 라벨,
+description은 Tooltip이다. 연결 확인은 순차 저장 완료 뒤 저장값으로 실행하고 실패 시 막는다.
+상시 설명 대신 기존 hover·keyboard focus Tooltip을 유지한다. 새 표면·공통 상호작용 예외는 없다.
+실행 계약은 [플러그인 1단계](plugin-stage1-v1.md#연결-설정-피드백-1396-sdk-040)를 따른다.

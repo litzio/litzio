@@ -156,13 +156,13 @@ Host는 `packages/file-commit`의 `createFileFromPath`로 staging을 크기가 �
 
 ### SDK 버전과 호환 판정
 
-SDK `0.3.0`은 Litzio `v0.0.2-beta.9`와 함께 공개한다([준비 기록](../releases/v0.0.2-beta.9.md)). 현재 공개 beta.8에 포함된 SDK는 `0.1.0`이다. SDK는 별도 npm 패키지 게시 없이 해당 Host가 제공한다.
+SDK `0.3.0`은 Litzio `v0.0.2-beta.9`와 함께 공개했다([준비 기록](../releases/v0.0.2-beta.9.md)). 다음 미릴리스 SDK는 `0.4.0`이다. SDK는 별도 npm 패키지 게시 없이 해당 Host가 제공한다.
 
-공개 SDK 기능의 버전은 공개 릴리스 사이에 한 번만 올린다. 릴리스 뒤 첫 SDK 기능 PR이 다음 minor를 열고, 다음 공개 릴리스 전까지 들어오는 기능은 모두 그 번호를 함께 쓴다. `SDK_VERSION`과 `packages/plugin-sdk/package.json`을 일치시키며 기능별 최소 SDK 요구 검사는 각 기능에 유지한다. 버그 수정은 patch다. 호환되지 않는 변경의 표시 방법은 실제로 그런 변경이 필요할 때 정한다. 현재 Host는 이전 계약을 계속 지원한다.
+공개 SDK 기능의 버전은 공개 릴리스 사이에 한 번만 올린다. 릴리스 뒤 첫 SDK 기능 PR이 다음 minor를 열고, 다음 공개 릴리스 전까지 들어오는 기능은 모두 그 번호를 함께 쓴다. `SDK_VERSION`과 `packages/plugin-sdk/package.json`을 일치시키며 기능별 최소 SDK 요구 검사는 각 기능에 유지한다. 버그 수정은 patch다. 호환되지 않는 변경의 표시 방법은 실제로 그런 변경이 필요할 때 정한다. 현재 Host는 이전 계약을 계속 지원하되 #1396의 title 없는 secret manifest 호환은 제공하지 않는다.
 
-`requiresSdk`는 필요한 기능이 처음 제공된 계약 버전 이상의 범위를 선언한다. 현재 권장 표기는 `>=최소기능버전 <1.0.0`이다. 새 scaffold의 기본은 `>=0.3.0 <1.0.0`이며 일반 파일 결과를 쓰는 플러그인도 최소 `0.2.0`을 요구한다. Host는 file 기여가 있으면 해당 기능을 제공하는 지원 계약(`0.2.0` 이상)도 requiresSdk가 허용하는지 검사한다. 현재 `0.1.0` 또는 `^0.1.0`만 허용하는 file manifest는 SDK 요구 오류로 validate·등록·활성화에서 거부한다. 기존 native-document 등 이전 기능만 쓰는 exact·caret `0.1.0` 선언은 계속 허용한다. 기존 기능만 쓰는 플러그인은 해당 기능의 최소 계약 버전을 유지할 수 있다(예: `>=0.1.0 <1.0.0`).
+`requiresSdk`는 필요한 기능이 처음 제공된 계약 버전 이상의 범위를 선언한다. 현재 권장 표기는 `>=최소기능버전 <1.0.0`이다. 새 scaffold의 기본은 `>=0.4.0 <1.0.0`이며 일반 파일 결과를 쓰는 플러그인도 최소 `0.2.0`을 요구한다. Host는 file 기여가 있으면 해당 기능을 제공하는 지원 계약(`0.2.0` 이상)도 requiresSdk가 허용하는지 검사한다. 현재 `0.1.0` 또는 `^0.1.0`만 허용하는 file manifest는 SDK 요구 오류로 validate·등록·활성화에서 거부한다. 기존 native-document 등 이전 기능만 쓰는 exact·caret `0.1.0` 선언은 계속 허용한다. 기존 기능만 쓰는 플러그인은 해당 기능의 최소 계약 버전을 유지할 수 있다(예: `>=0.1.0 <1.0.0`).
 
-공통 호환 검사는 Host가 현재 구현하는 실제 계약 버전 목록 중 하나가 `requiresSdk` SemVer 범위를 만족하는지 확인한다. 선언한 기능별 최소 계약 검사도 함께 통과해야 한다. `0.3.0` Host의 목록은 `0.1.0`, `0.2.0`, `0.3.0`이다. 따라서 이전 scaffold의 정확한 `0.1.0`, 기존 `^0.1.0` 선언도 수정 없이 계속 로드된다. 추가 릴리스에서는 구현을 유지하는 이전 계약을 목록에 남긴다. 아직 제공하지 않은 `0.4.0`이나 가상의 `0.1.1`을 범위 보간으로 지원한다고 간주하지 않는다. 일반 파일 결과 등 새 기능으로 전환하는 플러그인은 해당 작업에서 최소 요구를 올린다.
+공통 호환 검사는 Host가 현재 구현하는 실제 계약 버전 목록 중 하나가 `requiresSdk` SemVer 범위를 만족하는지 확인한다. 선언한 기능별 최소 계약 검사도 함께 통과해야 한다. `0.3.0` Host의 목록은 `0.1.0`, `0.2.0`, `0.3.0`이다. 따라서 이전 scaffold의 정확한 `0.1.0`, 기존 `^0.1.0` 선언도 수정 없이 계속 로드된다. 추가 릴리스에서는 구현을 유지하는 이전 계약을 목록에 남긴다. 아직 제공하지 않은 `0.5.0`이나 가상의 `0.1.1`을 범위 보간으로 지원한다고 간주하지 않는다. 일반 파일 결과 등 새 기능으로 전환하는 플러그인은 해당 작업에서 최소 요구를 올린다.
 
 개발 실행은 최초 활성화 때 공개 SDK entry를 메모리 JS 번들로 빌드해 Host 수명 동안 재사용한다. 개발·배포 모두 같은 entry를 코드 분할 없이 자기완결 JS 모듈 하나로 번들한다. 배포 빌드는 `plugin-sdk.mjs`로 CLI에 포함하고 Desktop의 `build/cli`에도 복사한다. Node 공식 `registerHooks`가 플러그인 코드 로드 전에 SDK root import를 이 런타임으로 연결한다. 저장소 밖·다른 드라이브도 file URL 또는 메모리 URL을 사용하므로 artifact 위치에 의존하지 않는다. artifact의 node_modules에 다른 SDK가 있어도 Host 제공본이 항상 우선한다. `@litzio/core` 등 다른 내부 패키지와 SDK subpath import는 거부하며 필요한 공개 API는 SDK root가 재노출한다. resolve 훅은 이름 검사 뒤 Node가 해석한 file URL을 OS 경로로 변환하고 절대 경로·realpath로 정규화한다. Windows에서는 대소문자를 통일하고 path.relative의 디렉터리 경계·다른 드라이브 판정을 사용한다. 상대 경로·file URL·symlink/junction 별칭으로 접근해도 개발 Host의 checkout 또는 배포 Host의 설치 번들 디렉터리 안이면 거부한다(Desktop은 resources 디렉터리). Host 제공 단일 SDK 런타임 파일 자체만 예외다. SDK는 Node 내장 모듈 외의 런타임 import나 공유 chunk가 없다. 부모 URL은 createRequire 등으로 호출자가 지정할 수 있으므로 내부 접근의 신뢰 근거로 사용하지 않는다. SDK URL을 부모로 지정한 createRequire.resolve/require도 같은 실제 경로 검사를 받는다. artifact 자체 실제 디렉터리 안의 모듈은 checkout 안에서 제작한 경우에도 허용한다. Node 내장 모듈과 Host 내부를 가리키지 않는 artifact 자체 node_modules도 허용한다. artifact 안의 symlink는 기존 등록 검사에서 계속 거부한다. 정적 validate는 import graph를 실행하지 않으므로 이 경계의 판정은 활성화와 실제 import 시점에 수행한다. 일반 제3자 의존성은 기존처럼 artifact에 번들할 수 있다. 플러그인은 ADR-0020의 신뢰 코드이며 이 차단은 실수로 내부 API에 의존하는 것을 막는 계약 강제이지 sandbox나 보안 경계가 아니다. fs로 파일을 직접 읽어 eval하는 의도적 우회는 범위 밖이다.
 
@@ -340,7 +340,7 @@ manifest 화면은 기존 ViewWorkspace로 기본 뷰 내용을 바로 표시하
 
 ## 링크 열 SDK 0.3.0 (#1332)
 
-현재 SDK_VERSION과 패키지 버전은 `0.3.0`이며 Host는 `0.1.0`, `0.2.0`, `0.3.0` 계약을 구현한다. 기존 exact/caret 0.1 및 0.2 플러그인은 유지한다. 공개 read rowSchema의 string 열은 `linkField:"url"`로 같은 행의 다른 공개 string 필드를 링크 대상으로 지정한다. 링크 선언이 있으면 requiresSdk가 0.3.0 이상인 실제 지원 계약을 허용해야 하며 validate·등록·활성화에서 동일하게 거부한다. 권장 범위는 `>=0.3.0 <1.0.0`이다. 일반 파일 기능의 최소 버전은 여전히 0.2.0이다. 표시·키보드·URL 허용 및 행 보존은 [Table 링크 계약](plugin-screens-v1.md#공통-table과-링크)을 따른다.
+현재 SDK_VERSION과 패키지 버전은 `0.4.0`이며 Host는 `0.1.0`, `0.2.0`, `0.3.0`, `0.4.0` 계약을 구현한다. 기존 exact/caret 0.1 및 0.2 플러그인은 유지한다. 공개 read rowSchema의 string 열은 `linkField:"url"`로 같은 행의 다른 공개 string 필드를 링크 대상으로 지정한다. 링크 선언이 있으면 requiresSdk가 0.3.0 이상인 실제 지원 계약을 허용해야 하며 validate·등록·활성화에서 동일하게 거부한다. 권장 범위는 `>=0.3.0 <1.0.0`이다. 일반 파일 기능의 최소 버전은 여전히 0.2.0이다. 표시·키보드·URL 허용 및 행 보존은 [Table 링크 계약](plugin-screens-v1.md#공통-table과-링크)을 따른다.
 
 ## 플러그인 화면 작업 패널 (#1340)
 
@@ -473,3 +473,28 @@ Editor의 플러그인 비집계 조회 표는 표시·숨김 여부와 관계�
 최신 master의 Jira 0.0.3과 결합한 Windows CI에서 표가 Table.columns 대신 rowSchema 순서로 배치되는 회귀를 확인했다. 메뉴 순서는 유지하면서 기본 표 열 순서를 보존하도록 수정했다. 두 선언 순서가 다른 대표 fixture에서 수정 전 실패·수정 후 통과를 확인했고, 기존 Windows `http-plugins`(실제 Jira artifact와 로컬 mock)와 HTTP 복구 검사도 2개 통과했다(약 2.2분). 단언·timeout·재시도 기준은 변경하지 않았다. Jira 소스는 master 병합 외에 수정하지 않았다.
 
 #1357 병합 뒤의 현재 화면에서는 Favorites·생성·통계·차트를 제공하지 않는다. 열 선택 저장은 브라우저 UI preference만 사용하며 저장 뷰 파일과 무관하다. Host/CLI coverage 전달 검사는 제거된 저장 뷰 API를 복원하지 않고 현재 query-only 경로의 기존 fixture를 보완한다. 입력 자동완성·등록 단위 신뢰 계약도 유지한다. 갱신된 1440px·한국어 다크 640px after/menu 캡처는 Favorites가 없는 현재 화면이다.
+
+## 연결 설정 피드백 (#1396, SDK 0.4.0)
+
+secret 선언은 `{id,title,description?,scope:"connection",required}`다. `title`은 필수 사용자 표시 이름,
+`description`은 일반 설정과 같은 Tooltip 안내다. secret ID는 화면에 표시하지 않는다.
+이 선언은 SDK 0.4.0 이상을 requiresSdk 범위에 포함해야 한다. 과거 title 없는 manifest 호환은 제공하지 않는다.
+
+일반 설정은 포커스 이탈 자동 저장, boolean은 변경 즉시 저장하며 칸 가까이에 저장 중·저장됨·실패를 표시한다.
+Dialog가 초안·칸별 상태를 소유하고 Host가 저장값을 소유한다. 기존 SDK schema validator와 Host 저장 작업을
+사용하며 FieldError·aria-invalid·aria-describedby로 오류를 연결한다. 실패 시 입력을 보존한다.
+같은 Dialog의 저장은 순차 처리해 앞선 저장값을 포함한다. 연결 확인은 진행 중 저장을 기다리며
+저장 실패가 남아 있으면 실행하지 않는다. 저장된 설정을 쓴다는 안내는 hover·keyboard focus Tooltip으로 제공한다.
+secret 명시 저장은 유지한다. UI·CLI plugins settings·비서 manage_plugins는 기존 공용 Host 상태를 공유한다.
+
+기존 Dialog·Input·SettingsSwitch·FieldError·Tooltip·상태 글자 스타일을 재사용한다. 새 표면·공통 상호작용 예외는 없다.
+
+시각 검토: [1440 이전](assets/plugin-connection-1396/before-1440.png) /
+[이후](assets/plugin-connection-1396/after-1440.png),
+[640 한국어 다크 이전](assets/plugin-connection-1396/before-640.png) /
+[이후](assets/plugin-connection-1396/after-640.png).
+같은 SDK 0.4.0 Host fixture에 이전 UI만 적용한 비교이며 외부 서비스·실제 secret 성공 근거가 아니다.
+QueryInputs의 필드 오류 연결과 기존 SettingsSwitch 행 정렬을 대조하고 여백·잘림·한국어 줄바꿈을 확인했다.
+기존 vite-plugins 브라우저 검사에 저장 거부/입력 보존·확인 차단과 보류 저장 완료 후 확인을 추가했다.
+이 결함은 blur/click 및 React 갱신 순서가 있어 브라우저가 주 검증 계층이다. 기존 CI 경로를 쓰며 새 subprocess는 없다.
+SDK 필수 title·기능 버전 검사는 manifest 단위 검사가 담당한다.

@@ -8,8 +8,8 @@
   },
   "name": "Jira",
   "description": "내 계정 또는 지정 계정의 할당 이슈를 조회합니다.",
-  "version": "0.0.5",
-  "requiresSdk": ">=0.3.0 <1.0.0",
+  "version": "0.0.6",
+  "requiresSdk": ">=0.4.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
     "operations": [
@@ -846,14 +846,14 @@
     "properties": {
       "baseUrl": {
         "type": "string",
-        "title": "BASE_URL",
+        "title": "Jira 주소",
         "description": "Jira HTTP(S) 기본 주소 (context path 포함 가능)",
         "minLength": 1
       },
       "apiUrl": {
         "type": "string",
-        "title": "API URL",
-        "description": "선택: REST API 기본 주소. 비우면 BASE_URL/rest/api/2",
+        "title": "API 주소",
+        "description": "선택: REST API 기본 주소. 비우면 Jira 주소 뒤에 /rest/api/2를 붙입니다.",
         "default": ""
       }
     },
@@ -865,6 +865,7 @@
   "secrets": [
     {
       "id": "pat",
+      "title": "개인 액세스 토큰",
       "scope": "connection",
       "required": true
     }

@@ -1,12 +1,12 @@
-# Jira community plugin 0.0.5
+# Jira community plugin 0.0.6
 
 Jira Data Center 9.12.28 대상 읽기 전용 커뮤니티 플러그인입니다. JQL 검색이 기본이며 간편 검색은 같은 검색 경로 위에서 JQL을 조립합니다. 보고서 작성에 활용할 목록·설명·최근 댓글을 조회합니다. Jira 쓰기와 저장 필터 불러오기는 제공하지 않습니다.
 
-이 폴더는 독립 배포 전 plain ESM artifact이며 공식 공급 목록·pnpm workspace에 포함하지 않습니다. #1391 지정 커뮤니티로 CLI·Desktop에 포함됩니다. 공개 `@litzio/plugin-sdk`만 사용하고 별도 빌드는 필요 없습니다. 최소 SDK는 `>=0.3.0 <1.0.0`입니다.
+이 폴더는 독립 배포 전 plain ESM artifact이며 공식 공급 목록·pnpm workspace에 포함하지 않습니다. #1391 지정 커뮤니티로 CLI·Desktop에 포함됩니다. 공개 `@litzio/plugin-sdk`만 사용하고 별도 빌드는 필요 없습니다. 최소 SDK는 `>=0.4.0 <1.0.0`입니다.
 
 ## 설정과 실행
 
-대상 Host의 Plugins 설정에서 BASE_URL(예: `https://jira.example.com/jira`)과 필수 `pat` secret을 저장합니다. API URL을 비우면 BASE_URL/rest/api/2를 사용합니다. context path를 유지합니다. URL은 절대 HTTP(S)이며 자격 증명·query·fragment를 거부합니다. API URL은 다른 origin도 허용하므로 PAT를 보낼 대상인지 확인하세요. PAT는 비밀번호 입력으로만 저장하며 일반 설정·대화·명령 인자·입력 JSON에 넣지 않습니다. Windows Host secret 저장소와 Bearer 인증을 사용합니다.
+대상 Host의 Plugins 설정에서 Jira 주소(예: `https://jira.example.com/jira`)과 필수 개인 액세스 토큰을 저장합니다. API URL을 비우면 Jira 주소/rest/api/2를 사용합니다. context path를 유지합니다. URL은 절대 HTTP(S)이며 자격 증명·query·fragment를 거부합니다. API URL은 다른 origin도 허용하므로 PAT를 보낼 대상인지 확인하세요. PAT는 비밀번호 입력으로만 저장하며 일반 설정·대화·명령 인자·입력 JSON에 넣지 않습니다. Windows Host secret 저장소와 Bearer 인증을 사용합니다.
 
 설정·입력 JSON은 artifact 밖에 둡니다. 아래 placeholder를 실제 대상으로 바꿉니다.
 
@@ -45,7 +45,7 @@ GET /search에 startAt=0/maxResults=500부터 요청하며 남은 500행 상한�
 
 ### 결과와 오류
 
-기본 열은 Key(링크)·제목·Status·Assignee·Reporter·Created·Updated 순서입니다. Priority·issueType·resolution·dueDate·components·labels도 outputSchema·rowSchema와 행 데이터에 보존하되 기본 columns에서 제외합니다. 공통 열 선택 메뉴에서 추가·제거하며 선택은 브라우저 UI preference에 저장합니다. 없는 값과 해석할 수 없는 시각은 `—`입니다. Created·Updated는 Host PC 현지 시간의 `YY-MM-DD HH:mm`, 날짜만 있는 dueDate는 `YY-MM-DD`로 반환합니다. 댓글 시각과 fetchedAt도 같은 현지 시각 형식입니다. 고정 폭 문자열은 같은 세기 안에서 현지 시각 순서로 정렬됩니다. 초·원문 시간대는 보존하지 않으며 DST로 현지 시각이 반복되는 구간이나 세기 경계의 절대 시각 순서는 보장하지 않습니다. 키의 issueUrl은 BASE_URL/browse/KEY로 만들고 공개 linkField로 Jira 원본을 엽니다. 별도 상세 패널은 없습니다.
+기본 열은 Key(링크)·제목·Status·Assignee·Reporter·Created·Updated 순서입니다. Priority·issueType·resolution·dueDate·components·labels도 outputSchema·rowSchema와 행 데이터에 보존하되 기본 columns에서 제외합니다. 공통 열 선택 메뉴에서 추가·제거하며 선택은 브라우저 UI preference에 저장합니다. 없는 값과 해석할 수 없는 시각은 `—`입니다. Created·Updated는 Host PC 현지 시간의 `YY-MM-DD HH:mm`, 날짜만 있는 dueDate는 `YY-MM-DD`로 반환합니다. 댓글 시각과 fetchedAt도 같은 현지 시각 형식입니다. 고정 폭 문자열은 같은 세기 안에서 현지 시각 순서로 정렬됩니다. 초·원문 시간대는 보존하지 않으며 DST로 현지 시각이 반복되는 구간이나 세기 경계의 절대 시각 순서는 보장하지 않습니다. 키의 issueUrl은 Jira 주소/browse/KEY로 만들고 공개 linkField로 Jira 원본을 엽니다. 별도 상세 패널은 없습니다.
 
 401→auth, 403→forbidden, 404→not_found, 5xx→unavailable, 8초 초과→timeout, 400·redirect·연결 실패·비정상 응답→failed입니다. 모두 기존 Host 고정 안내를 사용하며 PAT·예외·Jira 원문(errorMessages 포함)을 노출하지 않습니다. JQL 오류의 자세한 이유는 표시하지 않음. 결과 대신 오류가 나오면 JQL 문법과 필드 이름을 확인하고, 자세한 이유는 Jira 웹의 이슈 검색에서 같은 JQL로 확인하세요. 같은 안내를 JQL 입력 툴팁에도 둡니다. 일부 페이지 성공 후 실패도 전체 실패이며 이전 표는 이전 조회 안내와 함께 보존합니다. redirect는 거부하고 disable/reload는 소유한 요청을 취소합니다.
 
