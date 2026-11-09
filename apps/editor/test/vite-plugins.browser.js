@@ -75,13 +75,13 @@ async (page, { expect, pluginFixture, screenshots }) => {
   expect(invokes).toBe(0);
   await page.unroute("**/api/plugins");
   await page.route("**/api/plugins", async route => {
-    if (route.request().postDataJSON()?.action === "settings") return route.fulfill({ status: 400, json: { error: "opaque validator message", settingsIssues: [{ keyword: "required", path: "/failure" }] } });
+    if (route.request().postDataJSON()?.action === "settings") return route.fulfill({ status: 400, json: { error: "opaque validator message", settingsIssues: [{ keyword: "type", path: "/failure" }] } });
     await route.continue();
   });
   await serviceUrl.focus();
   await serviceUrl.press("Tab");
   await expect(dialog.getByRole("switch", { name: "Simulate failure", exact: true })).toHaveAttribute("aria-invalid", "true");
-  await expect(dialog.getByText("Save failed: Enter a value.", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Save failed: Enter a value of the expected type.", { exact: true })).toBeVisible();
   await page.unroute("**/api/plugins");
   let release;
   const gate = new Promise(resolve => { release = resolve; });
