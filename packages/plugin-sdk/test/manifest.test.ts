@@ -34,6 +34,19 @@ test("manifest rejects unsupported extensions, invalid identities, versions and 
   assert.throws(() => validateManifest(withJob({ ...job, resultKind: "native-document" })));
 });
 
+test("settings allow incremental saves but reject top-level required fields", () => {
+  const settingsSchema = { type: "object", properties: { address: { type: "string", minLength: 1 }, nested: { type: "object", properties: { value: { type: "string" } }, required: ["value"] } }, additionalProperties: false };
+  assert.throws(() => validateManifest({ ...manifest(), settingsSchema: { ...settingsSchema, required: ["address"] } }), /settingsSchema.required.*empty.*one field at a time.*connection checks and operations/);
+  for (const schema of [settingsSchema, { ...settingsSchema, required: [] }]) {
+    const validate = compileSchema(validateManifest({ ...manifest(), settingsSchema: schema }).settingsSchema);
+    assert.ok(validate({}));
+    assert.ok(validate({ address: "https://example.test" }));
+    assert.equal(validate({ address: "" }), false);
+    assert.equal(validate({ address: 1 }), false);
+    assert.equal(validate({ nested: {} }), false);
+  }
+});
+
 test("declared secrets accept unique identifiers only", () => {
  const secret = { id: "token", title: "Access token", scope: "connection", required: true };
  assert.equal(validateManifest({ ...manifest(), requiresSdk: "^0.4.0", secrets: [secret] }).secrets.length, 1);
