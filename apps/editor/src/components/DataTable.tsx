@@ -1,3 +1,4 @@
+import { externalLinkUrl, openExternalLink } from "../link-opening.ts";
 import { ArrowDown, ArrowUp, Filter } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState, useId } from "react";
@@ -157,9 +158,12 @@ export function DataTable({
           <tbody>
             {shown.slice(current * 50, current * 50 + 50).map((r, n) => (
               <tr key={n}>
-                {columns.map((c) => (
-                  <td key={c}>{label(c, r[c])}</td>
-                ))}
+                {columns.map((c) => {
+                  const target = fields[c]?.linkField;
+                  const value = target ? r[target] : undefined;
+                  const href = typeof value === "string" && typeof r[c] === "string" && r[c] !== "" ? externalLinkUrl(value) : undefined;
+                  return <td key={c}>{href ? <a className="view-cell-link" href={href} target="_blank" rel="noopener" onClick={event => { event.preventDefault(); openExternalLink(href); }}>{label(c, r[c])}</a> : label(c, r[c])}</td>;
+                })}
               </tr>
             ))}
           </tbody>

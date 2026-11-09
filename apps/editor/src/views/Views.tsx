@@ -60,6 +60,8 @@ function QueryViews({ tab, client, roots, onOpen, onRoot, onGenerate, unavailabl
   useSyncExternalStore(hostRegistry.subscribe,hostRegistry.snapshot,hostRegistry.snapshot);
   const unavailable=explicitUnavailable || hostRegistry.get(tab.hostId).state !== "connected";
   const root = tab.root, base = tab.view ?? queryViewSchema.parse(statisticsView);
+  // Stage 1 plugin operations are host-scoped; only the built-in statistics source uses a folder.
+  const needsRoot = base.sources.stats.operation === "folder.statistics";
   const [args, setArgs] = useState(base.sources.stats.args);
   const view: View = { ...base, sources: { stats: { ...base.sources.stats, args } } };
   const formElement = useRef<HTMLFormElement>(null);
@@ -133,7 +135,7 @@ function QueryViews({ tab, client, roots, onOpen, onRoot, onGenerate, unavailabl
     const id = ++generation.current;
     setBusy(true); setProblem(""); setState("loading");
     try {
-      const value = await request({ action: "run", root, view });
+      const value = await request({ action: "run", ...(needsRoot ? { root } : {}), view });
       if (id !== generation.current) return;
       setResult(value); setQueriedArgs(JSON.stringify(args)); setState(value.rows?.length ? "success" : "empty");
     } catch (error) {
@@ -141,15 +143,15 @@ function QueryViews({ tab, client, roots, onOpen, onRoot, onGenerate, unavailabl
     } finally { if (!lifetime.current?.signal.aborted) setBusy(false); }
   };
   return <div className="views-page" data-testid={tab.basic ? "statistics-view" : "generated-view"}>
-    <header><h2>{tab.basic ? i18n.t("Document statistics") : tab.label ?? view.title}</h2><p>{hostLabel(tab.hostId)} · {root || i18n.t("Choose a folder")}</p></header>
+    <header><h2>{tab.basic ? i18n.t("Document statistics") : tab.label ?? view.title}</h2><p>{hostLabel(tab.hostId)}{needsRoot ? ` · ${root || i18n.t("Choose a folder")}` : ""}</p></header>
     <div className="view-controls">
-      <label>{i18n.t("Opened folder")}<select className="form-select settings-select" aria-label={i18n.t("Statistics folder")} value={root} disabled={busy} onChange={event => onRoot(event.target.value)}><option value="">{i18n.t("Choose a folder")}</option>{roots.map(folder => <option key={folder} value={folder}>{folder}</option>)}</select></label>
-      {!view.form ? <Button variant="secondary" size="sm" disabled={unavailable || busy || !root || !operation} onClick={() => void query()}>{i18n.t("Refresh data")}</Button> : null}
+      {needsRoot ? <label>{i18n.t("Opened folder")}<select className="form-select settings-select" aria-label={i18n.t("Statistics folder")} value={root} disabled={busy} onChange={event => onRoot(event.target.value)}><option value="">{i18n.t("Choose a folder")}</option>{roots.map(folder => <option key={folder} value={folder}>{folder}</option>)}</select></label> : null}
+      {!view.form ? <Button variant="secondary" size="sm" disabled={unavailable || busy || (needsRoot && !root) || !operation} onClick={() => void query()}>{i18n.t("Refresh data")}</Button> : null}
       {!tab.basic ? <Button variant="secondary" size="sm" disabled={busy || !owner} onClick={() => { setName(view.title); setSaving(true); setSaveProblem(""); }}><Star aria-hidden="true" />{i18n.t("Add to favorites", { defaultValue: "Add to favorites" })}</Button> : <p>{i18n.t("Ask the assistant to generate a view. The basic table stays here.")}</p>}
     </div>
     {view.form ? <form ref={formElement} className="view-query-form" noValidate onSubmit={event => { event.preventDefault(); void query(); }}>
       {schema ? <QueryInputs view={view} schema={schema} errors={inputErrors.fields} change={(field, value, remove) => { setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; }); setInputErrors(emptyInputErrors()); }} /> : null}
-      <div className="form-actions view-query-actions"><Button type="submit" disabled={unavailable || busy || !root || !schema}>{view.form.submit.label}</Button></div>
+      <div className="form-actions view-query-actions"><Button type="submit" disabled={unavailable || busy || (needsRoot && !root) || !schema}>{view.form.submit.label}</Button></div>
     </form> : null}
     <FieldError id={`view-input-error-${tab.id}`}>{inputErrors.common}</FieldError>
     {state === "loading" ? <Notice>{i18n.t("Loading data…")}</Notice> : state === "idle" ? <Notice>{i18n.t("Data has not been queried. Refresh manually.")}</Notice> : state === "empty" ? <Notice>{i18n.t("No matching rows.")}</Notice> : null}

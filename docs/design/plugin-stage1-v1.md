@@ -136,9 +136,9 @@ Host는 `packages/file-commit`의 `createFileFromPath`로 staging을 크기가 �
 
 ### SDK 버전과 호환 판정
 
-플러그인이 의존할 수 있는 공개 SDK API·manifest 기능을 추가하면 `SDK_VERSION`의 minor를 올리고 `packages/plugin-sdk/package.json`도 맞춘다. #1326은 `0.2.0`이다. 기존 기능의 변경·삭제 등 하위 호환이 깨지면 major를 올린다(다음 경계는 `1.0.0`). 그 Host에서 더 이상 구현하지 않는 계약 버전은 지원 목록에서 제거하며 지원하지 않는 계약을 자동 변환하거나 같은 기능이라고 추정하지 않는다.
+플러그인이 의존할 수 있는 공개 SDK API·manifest 기능을 추가하면 `SDK_VERSION`의 minor를 올리고 `packages/plugin-sdk/package.json`도 맞춘다. #1326은 `0.2.0`, #1332 링크 열 추가는 `0.3.0`이다. 기존 기능의 변경·삭제 등 하위 호환이 깨지면 major를 올린다(다음 경계는 `1.0.0`). 그 Host에서 더 이상 구현하지 않는 계약 버전은 지원 목록에서 제거하며 지원하지 않는 계약을 자동 변환하거나 같은 기능이라고 추정하지 않는다.
 
-`requiresSdk`는 필요한 기능이 처음 제공된 계약 버전 이상의 범위를 선언한다. 권장 표기는 `>=최소기능버전 <다음major`다. 새 scaffold의 기본은 `>=0.2.0 <1.0.0`이며 일반 파일 결과를 쓰는 플러그인도 최소 `0.2.0`을 요구한다. Host는 file 기여가 있으면 해당 기능을 제공하는 지원 계약(`0.2.0` 이상)도 requiresSdk가 허용하는지 검사한다. 현재 `0.1.0` 또는 `^0.1.0`만 허용하는 file manifest는 SDK 요구 오류로 validate·등록·활성화에서 거부한다. 기존 native-document 등 이전 기능만 쓰는 exact·caret `0.1.0` 선언은 계속 허용한다. 기존 기능만 쓰는 플러그인은 해당 기능의 최소 계약 버전을 유지할 수 있다(예: `>=0.1.0 <1.0.0`).
+`requiresSdk`는 필요한 기능이 처음 제공된 계약 버전 이상의 범위를 선언한다. 권장 표기는 `>=최소기능버전 <다음major`다. 새 scaffold의 기본은 `>=0.3.0 <1.0.0`이며 일반 파일 결과를 쓰는 플러그인도 최소 `0.2.0`을 요구한다. Host는 file 기여가 있으면 해당 기능을 제공하는 지원 계약(`0.2.0` 이상)도 requiresSdk가 허용하는지 검사한다. 현재 `0.1.0` 또는 `^0.1.0`만 허용하는 file manifest는 SDK 요구 오류로 validate·등록·활성화에서 거부한다. 기존 native-document 등 이전 기능만 쓰는 exact·caret `0.1.0` 선언은 계속 허용한다. 기존 기능만 쓰는 플러그인은 해당 기능의 최소 계약 버전을 유지할 수 있다(예: `>=0.1.0 <1.0.0`).
 
 공통 호환 검사는 Host가 현재 구현하는 실제 계약 버전 목록 중 하나가 `requiresSdk` SemVer 범위를 만족하는지 확인한다. 선언한 기능별 최소 계약 검사도 함께 통과해야 한다. `0.2.0` Host의 목록은 `0.1.0`, `0.2.0`이다. 따라서 이전 scaffold의 정확한 `0.1.0`, 기존 `^0.1.0` 선언도 수정 없이 계속 로드된다. 추가 릴리스에서는 구현을 유지하는 이전 계약을 목록에 남긴다. 아직 제공하지 않은 `0.3.0`이나 가상의 `0.1.1`을 범위 보간으로 지원한다고 간주하지 않는다. 일반 파일 결과 등 새 기능으로 전환하는 플러그인은 해당 작업에서 최소 요구를 올린다.
 
@@ -273,3 +273,12 @@ Core `authorDocument(input)`을 공개 `@litzio/plugin-sdk`에서 제공한다. 
 저장은 기존 K1 status 완료의 `document:{source: authored.source}`를 사용한다. 공용 `plugins job-start/job-status/job-result` HTTP/CLI·requestId·Root·충돌·receipt 경로를 유지하며 새 저장 endpoint나 직접 파일 쓰기를 만들지 않는다. start는 계속 running 접수만 반환한다. 문서 저장 이후 review 발행은 별개 단계이고 기존 uncertain·같은 requestId 확인·start 무재전송 계약을 유지한다.
 
 검증은 기존 Core native suite에서 최소 요소·입력 키별 0/N 참조·canonical 재처리와 거부를 확인한다. 기존 K1 suite의 대표 외부 artifact subprocess(약 2초)는 SDK import만 사용해 생성→Host 공식 저장→재파싱·revision/path 대조와 원본 보존을 확인한다. Core 조합을 subprocess에서 반복하지 않는다. master의 #1318과 #1317 최종 결합은 기존 `reviews.test.ts`의 읽기 전용 K1 완료 경로에서 공개 SDK 생성→공식 저장→입력 key별 target으로 대조 발행→Host·실제 CLI snapshot 재조회와 revision/path 일치를 확인한다. 같은 SDK 생성 문서를 외부 변경한 뒤 원래 byte로 복원해도 stale을 유지하는 통합 경계를 함께 보호한다. 새 subprocess를 추가하지 않고 기존 완료·CLI 읽기를 보완하며 삭제·일시적 오류 분류는 Host 단위 검사가 소유한다. Docling 품질·대규모 paging·과거 형식 호환은 검증 범위가 아니다.
+
+
+## screens·views의 내용 우선 표시 (#1329)
+
+manifest 화면은 기존 ViewWorkspace로 기본 뷰 내용을 바로 표시하며 단일 Host·현재 단일 기본 뷰의 선택 장치를 숨긴다. 즐겨찾기 관리는 접어서 접근한다. host 범위 읽기 작업의 조회에는 열린 폴더가 필요하지 않다. 폴더 선택·HTTP/CLI 실행·receipt와 검증 범위는 [생성 뷰 계약](generated-views-v1.md#플러그인동적-뷰-화면-간소화-1329)을 따른다. SDK·manifest와 저장 형식은 유지한다.
+
+## 링크 열 SDK 0.3.0 (#1332)
+
+현재 SDK_VERSION과 패키지 버전은 `0.3.0`이며 Host는 `0.1.0`, `0.2.0`, `0.3.0` 계약을 구현한다. 기존 exact/caret 0.1 및 0.2 플러그인은 유지한다. 공개 read rowSchema의 string 열은 `linkField:"url"`로 같은 행의 다른 공개 string 필드를 링크 대상으로 지정한다. 링크 선언이 있으면 requiresSdk가 0.3.0 이상인 실제 지원 계약을 허용해야 하며 validate·등록·활성화에서 동일하게 거부한다. 권장 범위는 `>=0.3.0 <1.0.0`이다. 일반 파일 기능의 최소 버전은 여전히 0.2.0이다. 표시·키보드·URL 허용 및 행 보존은 [Table 링크 계약](generated-views-v1.md#table-link-columns-1332)을 따른다.

@@ -49,7 +49,7 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
     await manage({ action: "trust", id: "fixture.vite", digest: registered.plugins.find((p: any) => p.id === "fixture.vite").digest });
     const enabled = await manage({ action: "enable", id: "fixture.vite" });
     assert.equal(enabled.plugins.find((p: any) => p.id === "fixture.vite").running, true);
-    assert.equal(enabled.plugins.find((p: any) => p.id === "fixture.vite").status.message, "0.2.0");
+    assert.equal(enabled.plugins.find((p: any) => p.id === "fixture.vite").status.message, "0.3.0");
     await manage({ action: "disable", id: "fixture.vite" });
     assert.deepEqual(warnings.filter(message => message.includes("dynamic import cannot be analyzed")), []);
   } finally {

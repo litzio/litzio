@@ -39,7 +39,7 @@ async (page, { expect, pluginFixture }) => {
   await toggle.click();
   await expect(external.getByRole("status").filter({ hasText: /^Plugin running$/ })).toBeVisible();
   const listing = await (await page.request.get(await page.evaluate(() => location.origin + "/api/plugins"))).json();
-  expect(listing.plugins.find(p => p.id === "fixture.vite").status.message).toBe("0.2.0");
+  expect(listing.plugins.find(p => p.id === "fixture.vite").status.message).toBe("0.3.0");
   await toggle.click();
   const removed = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { data: { action: "unregister", id: "fixture.vite" } });
   expect(removed.ok()).toBe(true);
