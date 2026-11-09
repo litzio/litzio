@@ -231,6 +231,7 @@ function ColumnFilter({
     [draft, setDraft] = useState<TableFilter>(fresh),
     [search, setSearch] = useState(""),
     [error, setError] = useState("");
+  const [emptyEdited, setEmptyEdited] = useState(false);
   const values = [
     ...new Set(rows.map((r) => r[column]).filter((v) => !empty(v))),
   ];
@@ -242,7 +243,9 @@ function ColumnFilter({
       onOpenChange={(v) => {
         setOpen(v);
         if (v) {
-          setDraft(value ?? { ...fresh(), mode: field.type === "string" && !field.date ? "values" : "contains", values, empty: true });
+          setDraft(value ?? { ...fresh(), mode: field.type === "string" && !field.date ? "values" : "contains", values, empty: field.type === "string" && !field.date });
+          // Saved filters retain their explicit selection when reopened.
+          setEmptyEdited(!!value);
           setSearch("");
           setError("");
         }
@@ -278,7 +281,7 @@ function ColumnFilter({
               return;
             }
             const allValues = values.every(v => draft.values.includes(v));
-            const unrestricted = draft.empty && (draft.mode === "values" ? allValues : draft.mode === "contains" && (field.type === "number" || field.date ? !draft.min && !draft.max : !draft.text));
+            const unrestricted = draft.mode === "values" ? allValues && draft.empty : draft.mode === "contains" && (field.type === "number" || field.date ? !draft.min && !draft.max : !draft.text);
             apply(unrestricted ? undefined : draft);
             setOpen(false);
           }}
@@ -289,7 +292,7 @@ function ColumnFilter({
             <select
               className="form-select"
               value={draft.mode}
-              onChange={(e) => change({ mode: e.target.value })}
+              onChange={(e) => change({ mode: e.target.value, ...(!emptyEdited ? { empty: e.target.value === "values" } : {}) })}
             >
               <option value="contains">
                 {i18n.t(
@@ -376,7 +379,7 @@ function ColumnFilter({
             <input
               type="checkbox"
               checked={draft.empty}
-              onChange={(e) => change({ empty: e.target.checked })}
+              onChange={(e) => { setEmptyEdited(true); change({ empty: e.target.checked }); }}
             />
             {i18n.t("Include empty values")}
           </label>
