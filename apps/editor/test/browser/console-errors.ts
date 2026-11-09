@@ -12,6 +12,7 @@ type ExpectedConsoleErrorRule = {
 };
 
 const EXPECTED_CONSOLE_ERRORS: Record<string, ExpectedConsoleErrorRule[]> = {
+  "http-plugins": [{ status: 400, pathname: "/api/views", minimum: process.platform === "win32" ? 5 : 0, description: "Jira auth, permission, server, redirect and deadline faults show fixed advice" }],
   "vite-plugins": [{ status: 400, pathname: "/api/plugins", minimum: 2, description: "Invalid external artifact keeps the folder picker open for correction" }],
   "plugin-jobs": [{ status: 403, pathname: "/api/plugins", minimum: 1, description: "Root escape is refused before start; the form preserves the reason and permits correction" }],
   "generated-views": [{ status: 400, pathname: "/api/views", minimum: 1, description: "duplicate favourite creation is refused" }],
