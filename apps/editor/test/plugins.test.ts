@@ -1189,6 +1189,10 @@ test("designated community supply requires trust, persists across updates and yi
     assert.equal((await item()).running, false);
     assert.equal(existsSync(marker), false, "rejected enable cannot import the conflicting entry");
     assert.equal((await host.invokeOperation("fixture.designated.read", {})).result, "rival");
+    await host.invoke("unregister", { id: rival.id });
+    await host.invoke("enable", { id: "fixture.designated" });
+    assert.equal((await host.invokeOperation("fixture.designated.read", {})).result, "designated");
+    await assert.rejects(host.invoke("register", { directory: rivalDirectory }), /Plugin operation ID collision/);
   } finally { await host.close(); }
 });
 

@@ -187,13 +187,15 @@ export class PluginHost {
     const r = this.record(id), a = this.artifact(r.directory);
     if (a.manifest.id !== id) throw new Error("Artifact ID changed");
     if (r.bundled && !this.verifiedBundle(a.manifest, a.digest)) throw new Error("Bundled plugin artifact verification failed");
-    this.assertOperationNamesAvailable(id, a.manifest.contributes.operations.map(op => `${id}.${op.id}`));
+    const names = a.manifest.contributes.operations.map(op => `${id}.${op.id}`);
+    this.assertOperationNamesAvailable(id, names);
     if (a.digest !== r.digest) {
       if (!r.trusted) throw new Error("Plugin trust is required");
       await this.reload(id);
       return;
     }
     if (!this.official(a.manifest, a.digest) && !r.trusted) throw new Error("Explicit plugin trust is required");
+    r.operationNames = names;
     if (this.loaded.has(id)) return;
     if (!compileSchema(a.manifest.settingsSchema)(r.settings)) throw new Error("Stored settings do not satisfy this artifact schema");
     const secrets = await this.runtimeSecrets(id, a.manifest);
