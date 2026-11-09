@@ -745,7 +745,7 @@ export function updateTableCaption(document: MystDocument, path: NodePath, capti
   const next = cloneDocument(document);
   const label = typeof current.label === "string" ? current.label : "";
   next.children[path[0]] = tableBlockNode(tableOf(next.children[path[0]])!, content, label,
-    typeof current.identifier === "string" ? current.identifier : undefined, current.enumerator as string | undefined);
+    typeof current.identifier === "string" ? current.identifier : undefined, current.enumerator as string | undefined, current.enumerated as boolean | undefined);
   assertStableTable(next, path[0], TABLE_CAPTION_FAILURE);
   return next;
 }
@@ -984,7 +984,7 @@ export function updateLabel(document: MystDocument, path: NodePath, label: strin
   if (kind === "Table") {
     const paragraph = tableCaptionParagraph(current);
     if (paragraph && projectInlineContent(paragraph) === undefined) throw new DocumentDiagnosticError("unsupported-content", "table caption is not editable in this version");
-    next.children[path[0]] = tableBlockNode(tableOf(next.children[path[0]])!, tableCaptionContent(current), label, identifier, current.enumerator as string | undefined);
+    next.children[path[0]] = tableBlockNode(tableOf(next.children[path[0]])!, tableCaptionContent(current), label, identifier, current.enumerator as string | undefined, current.enumerated as boolean | undefined);
   }
   const node = getNode(next, path);
   // `$$ ... $$ (label)` math records an anchor derived from the old identifier.
@@ -1013,6 +1013,20 @@ export function updateNumberingMode(document: MystDocument, mode: "automatic" | 
     else node.enumerator = change.enumerator;
   }
   serializeFor(next, "Numbering conversion cannot be preserved through canonical round-trip");
+  return next;
+}
+
+/** Enable/disable numbering on an individual Figure or Table using MyST's standard option. */
+export function updateEnumeration(document: MystDocument, path: NodePath, enumerated: boolean): MystDocument {
+  if (!Array.isArray(path) || path.length !== 1 || typeof enumerated !== "boolean") throw new DocumentDiagnosticError("invalid-operation", "Expected a top-level Figure/Table and boolean enumerated");
+  const current = getNode(document, path);
+  if (!isFigure(current) && !tableOf(current)) throw new DocumentDiagnosticError("invalid-operation", "updateEnumeration requires a Figure or Table");
+  const next = cloneDocument(document);
+  if (current.type === "table") next.children[path[0]] = tableBlockNode(next.children[path[0]], [], "");
+  const node = getNode(next, path);
+  if (enumerated) delete node.enumerated;
+  else { node.enumerated = false; delete node.enumerator; }
+  serializeFor(next, "Numbering visibility cannot be preserved through canonical round-trip");
   return next;
 }
 

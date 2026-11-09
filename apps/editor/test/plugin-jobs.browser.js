@@ -96,8 +96,32 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect.poll(() => image.evaluate(element => element.complete && element.naturalWidth > 0)).toBe(true);
   await expect(image).toHaveAttribute("src", /assets/);
   await expect(page.locator(".tiptap").filter({ visible: true })).toContainText("A.3");
-  // Selecting the retained job tab and starting another explicit request tests Stop.
-  await page.getByRole("tab", { name: /Plugin jobs/ }).click();
+  await expect(page.getByRole("tab", { name: /Plugin jobs/ })).toBeVisible();
+  const logo = page.locator('.tiptap').filter({ visible: true }).locator('figure').filter({ has: page.getByRole('img', { name: 'Logo', exact: true }) });
+  await expect(logo.locator('figcaption')).toHaveText('Unnumbered logo');
+  await expect(logo.locator('figcaption')).not.toHaveAttribute('data-caption-prefix');
+  await expect(page.locator('.tiptap').filter({ visible: true }).getByTestId('table-caption')).not.toHaveAttribute('data-caption-prefix');
+  await page.reload();
+  await expect(page.locator('.tiptap').filter({ visible: true })).toContainText('Unnumbered logo');
+  await expect(logo.locator('figcaption')).not.toHaveAttribute('data-caption-prefix');
+  if (screenshots) {
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.evaluate(width => { localStorage.setItem('litzio.uiLanguage', width === 640 ? 'ko' : 'en'); localStorage.setItem('litzio.theme', width === 640 ? 'dark' : 'light'); }, width);
+      await page.reload();
+      await expect(logo).toBeVisible();
+      await page.screenshot({path: `tmp/plugin-jobs/unnumbered-${width}.png`, mask:[page.locator('.sidebar-host-account')]});
+    }
+    await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); });
+    await page.reload();
+  }
+  // Reload closes the transient job tab; reopen it through its normal command.
+  await page.keyboard.press("Control+Slash");
+  await page.getByRole("combobox").fill("> Plugin jobs");
+  await page.getByRole("option", { name: "Plugin jobs", exact: true }).click();
+  await pane.getByLabel("Job", { exact: true }).selectOption("fixture.jobs/text");
+  await pane.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
+  await pane.getByLabel("Input file").selectOption({ label: "input.txt" });
   await pane.getByLabel("Result path in Root").fill("stopped-result.md");
   await pane.getByRole("button", { name: "Start job", exact: true }).click();
   await pane.getByRole("button", { name: "Request cancellation" }).click();

@@ -26,6 +26,8 @@ Verification covers Core canonical round-trip and fail-closed cases, CLI writes 
 
 ## Persistent meaning
 
+The standard outer `:enumerated: false` disables numbering for image, pending and Mermaid Figures (#1383); caption, label and content remain editable and survive Save/Reload. See the [shared number contract](heading-numbering-v1.md#fixed-numbers-720).
+
 The optional outer `{figure}` `:enumerator:` stores a fixed number for image, pending and
 Mermaid Figures. Core read models, captions and references use the exact authored string;
 moving, relabeling or editing content preserves it. `updateEnumerator` and the thin CLI
@@ -93,7 +95,7 @@ PFC Current Control Architecture
 The controller structure is shown in [](#fig-pfc-control).
 ```
 
-Label-only pending Figures omit the body. Caption-only Figures omit `:name:`. An empty Figure is written as `:::{figure}` followed by `:::`. No fake asset, sidecar or persistent draft flag is written. Pending Figures, empty ones included, receive normal Figure numbers as MyST numbers them; labeled ones may be reference targets.
+Label-only pending Figures omit the body. Caption-only Figures omit `:name:`. An empty Figure is written as `:::{figure}` followed by `:::`. No fake asset, sidecar or persistent draft flag is written. Pending Figures, empty ones included, receive normal Figure numbers unless `:enumerated: false` disables numbering; labeled ones may be reference targets.
 
 Public `serialize` and `canonicalWriteError` validate the final state; an empty Figure is writable. Earlier versions refused a Figure with no image, caption or label; [#171](https://github.com/litzio/litzio/issues/171) reversed this so that reserving a place does not require invented caption or label text. The limited pending writer handles a container with no content and at most a caption; existing whole-document semantic fingerprint, reparse and serializer diagnostic guards still apply. Legends, subfigures and unsupported contents keep their existing fail-closed boundary.
 

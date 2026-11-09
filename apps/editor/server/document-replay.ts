@@ -44,6 +44,7 @@ import {
   updateFigure,
   updateLabel,
   updateEnumerator,
+  updateEnumeration,
   updateList,
   updateCodeBlock,
   updateTableCell,
@@ -502,6 +503,9 @@ export function saveEdits(
     if ((item.block === "equation" || item.block === "figure" || item.block === "table") && item.label) {
       const label = item.label;
       document = editAt(target, () => updateLabel(document, [index], label));
+    }
+    if ((item.block === "figure" || item.block === "table") && item.enumerated !== undefined) {
+      document = editAt(target, () => updateEnumeration(document, [index], item.enumerated!));
     }
     if ((item.block === "equation" || item.block === "figure" || item.block === "table") && item.enumerator !== undefined) {
       const enumerator = item.enumerator;

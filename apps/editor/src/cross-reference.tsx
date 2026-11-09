@@ -41,7 +41,7 @@ export function blockNumbers(doc: ProseMirrorNode): readonly Readonly<NumberedTa
   const existing = numbersOf.get(doc);
   if (existing) return existing;
   const blocks: NumberedTargets[] = [];
-  doc.forEach((node) => blocks.push(blockTargets({ block: node.type.name, enumerator: node.attrs.enumerator ?? undefined })));
+  doc.forEach((node) => blocks.push(blockTargets({ block: node.type.name, enumerated: node.attrs.enumerated, enumerator: node.attrs.enumerator ?? undefined })));
   const numbers = targetNumbers(blocks);
   numbersOf.set(doc, numbers);
   return numbers;
