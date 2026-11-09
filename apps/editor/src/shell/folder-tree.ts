@@ -215,8 +215,8 @@ export function useFolderTrees(request: (root: string, path?: string, background
   };
   const requests = useRef(0);
   const { plugins } = usePlugins(hostId === LOCAL_HOST_ID);
-  const oneDrivePaths = JSON.stringify(hostId === LOCAL_HOST_ID ? plugins.flatMap(plugin =>
-    plugin.id === "litzio.onedrive" && plugin.enabled && plugin.running ? plugin.status?.folders.map(folder => folder.path) ?? [] : []) : []);
+  const pluginFolderPaths = JSON.stringify(hostId === LOCAL_HOST_ID ? plugins.flatMap(plugin =>
+    plugin.enabled && plugin.running ? plugin.status?.folders.map(folder => folder.path) ?? [] : []) : []);
   // Only automatically opened roots belong to the plugin; never persist them as ordinary roots.
   const pluginRoots = useRef(new Map<string, { root: string; manual: FolderTreeState[] }>());
 
@@ -256,7 +256,7 @@ export function useFolderTrees(request: (root: string, path?: string, background
   useEffect(() => {
     if (!restored) return;
     let cancelled = false;
-    const paths = JSON.parse(oneDrivePaths) as string[];
+    const paths = JSON.parse(pluginFolderPaths) as string[];
     for (const [path, automatic] of pluginRoots.current) if (!paths.includes(path)) {
       pluginRoots.current.delete(path);
       dispatch({ type: "closeRoot", root: automatic.root });
@@ -277,7 +277,7 @@ export function useFolderTrees(request: (root: string, path?: string, background
       }
     })();
     return () => { cancelled = true; };
-  }, [oneDrivePaths, restored]);
+  }, [pluginFolderPaths, restored]);
 
   // Every explicit Open/Close remembers the current list, even after another browser tab wrote it.
   // Tree-only changes do not write. During restoration, user changes wait for all remembered paths.
