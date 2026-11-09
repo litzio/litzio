@@ -323,3 +323,12 @@ test("row links validate public string bindings and preserve URL data", () => {
   assert.deepEqual(evaluateView(view, rows, [op]).rows, rows);
   assert.deepEqual(parseView(serializeView(view, [op]), [op]), validateView(view, [op]));
 });
+
+test("v2 query form preserves optional advanced presentation on round-trip", () => {
+ const view = formView(); view.form.fields[0].advanced = true;
+ const parsed = parseCatalogView(serializeCatalogView(view, [inputOperation]), [inputOperation]);
+ assert.ok("form" in parsed);
+ assert.equal(parsed.form?.fields[0]?.advanced, true);
+ const invalid = formView(); invalid.form.fields[0].advanced = "yes";
+ assert.throws(() => validateCatalogView(invalid, [inputOperation]));
+});

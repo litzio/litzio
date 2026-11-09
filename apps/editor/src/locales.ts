@@ -1,6 +1,7 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Additional conditions": "Additional conditions",
   "Open result: {{file}}": "Open result: {{file}}",
   "Job details: {{file}}": "Job details: {{file}}",
   "Jobs": "Jobs",
@@ -1262,6 +1263,7 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Additional conditions": "추가 조건",
   "Open result: {{file}}": "결과 열기: {{file}}",
   "Job details: {{file}}": "작업 상세: {{file}}",
   "Jobs": "작업",

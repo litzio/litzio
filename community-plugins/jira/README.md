@@ -1,4 +1,4 @@
-# Jira community plugin 0.0.4
+# Jira community plugin 0.0.5
 
 Jira Data Center 9.12.28 대상 읽기 전용 커뮤니티 플러그인입니다. JQL 검색이 기본이며 간편 검색은 같은 검색 경로 위에서 JQL을 조립합니다. 보고서 작성에 활용할 목록·설명·최근 댓글을 조회합니다. Jira 쓰기와 저장 필터 불러오기는 제공하지 않습니다.
 
@@ -68,3 +68,9 @@ GET /search에 startAt=0/maxResults=500부터 요청하며 남은 500행 상한�
 아이콘: [Lucide Ticket](https://lucide.dev/icons/ticket), lucide-react 1.47.0, ISC License ([고지](LICENSE-icon.txt)); 앱의 기존 아이콘 세트에서 가져와 선 색만 조정한 일반 티켓 SVG이며 Jira/Atlassian 로고를 사용하지 않습니다.
 
 아이콘 수동 검토: [설정 목록 1440px](../../docs/design/assets/jira-1350/settings-1440.png), [한국어 Dark 640px](../../docs/design/assets/jira-1350/settings-640-ko-dark.png). 위 조회 캡처의 사이드바·탭과 함께 세 진입점의 티켓 SVG를 확인했습니다. 설정 목록 촬영용 임시 body는 캡처 후 제거했으며 자동 검사에 촬영 순회를 추가하지 않습니다.
+
+## 0.0.5 검색 입력
+
+계정 → 프로젝트 → 해결 여부가 기본 표시됩니다. 보고자·기간 기준·시작일·종료일·이슈 번호는 추가 조건으로 접고 지정값을 요약합니다. 접어도 조건을 유지하며 조회는 수동입니다. 계정을 비우면 `/rest/api/2/myself`의 displayName이 안내로 보이지만 args에는 들어가지 않고 기존 currentUser() 동작을 유지합니다.
+
+계정·보고자는 `/rest/api/2/user/picker?query=…&maxResults=32`에서 name을 값, displayName과 name을 후보 이름으로 제공합니다. 프로젝트는 `/rest/api/2/project` 목록을 키·이름으로 검색하고 key를 입력합니다. 두 글자부터 공통 자동완성을 사용하며 후보는 최대 32개입니다. 실패 시 직접 입력할 수 있습니다. 같은 읽기는 CLI의 `community.jira.users`/`projects` (`{"query":"mo"}`), `community.jira.current-account` (`{}`)로 호출할 수 있습니다. PAT는 기존 연결 secret이며 8초 deadline·redirect 거부·dispose 취소를 유지합니다. 회사 Jira·인증서·권한은 별도 소유자 확인입니다.

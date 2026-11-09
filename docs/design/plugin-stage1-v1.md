@@ -378,3 +378,7 @@ IME를 모사하며 나머지는 일반 입력·클릭을 사용한다. 전수 �
 확인했다. 기존 Input/SettingsSelect 폼과 동일한 control 크기를 사용한다. 캡처는 수동
 검토용이며 자동 검사의 판정 근거가 아니다. 전체 제품 화면·원격 Host·실제 Jira 수락을
 뜻하지 않는다. browser 대표 시나리오는 로컬 48초에 완료했다.
+
+### 공통 조회 입력 안내 (#1370)
+
+미릴리스 SDK 0.3.0의 `inputHints`는 조회 operation의 공개 자유 문자열 입력을 같은 플러그인의 독립 host read 작업에 연결한다. 빈 객체 입력, `{text}` 출력(1–512자), 현재 version·trust·secret 정리·공용 CLI invoke를 사용한다. 입력값을 채우거나 조회를 실행하지 않는다. 상세는 [생성 뷰 계약](generated-views-v1.md#collapsible-query-inputs-and-dynamic-guidance-1370)을 따른다.

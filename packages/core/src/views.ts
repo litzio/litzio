@@ -4,7 +4,7 @@ export { rowSchema, parseOperationRows, type RowSchema } from "./operation-rows.
 
 export const VIEW_LIMITS = { bytes: 32768, panels: 8, rows: OPERATION_ROW_LIMIT } as const;
 const label = z.string().min(1).max(160).refine(v => !/[<>\u0000-\u001f]|(?:https?:|javascript:|data:)/i.test(v), "Plain label required");
-export type ViewOperation = { inputSuggestions?: Record<string, { operation: string; version: number }>; operation: string; version: number; rowSchema: RowSchema; inputSchema: Record<string, unknown>; validateArgs(args: unknown): boolean };
+export type ViewOperation = { inputHints?: Record<string, { operation: string; version: number }>; inputSuggestions?: Record<string, { operation: string; version: number }>; operation: string; version: number; rowSchema: RowSchema; inputSchema: Record<string, unknown>; validateArgs(args: unknown): boolean };
 const field = z.string().min(1).max(80);
 const scalar = z.union([z.string().max(512), z.number().finite(), z.boolean(), z.null()]);
 const filter = z.discriminatedUnion("op", [

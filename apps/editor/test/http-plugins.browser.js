@@ -446,6 +446,30 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await expect(page.getByText("View operation failed.", { exact: false })).toBeVisible();
       jira.setFault(0);
       await page.getByRole("button", { name: "간편 검색", exact: true }).click();
+      const accountInput = page.locator('[data-view-field="account"]');
+      const projectInput = page.locator('[data-view-field="project"]');
+      const more = page.getByRole("button", { name: /Additional conditions/ });
+      await expect(accountInput).toHaveAttribute("placeholder", "Fixture PAT user");
+      await expect(accountInput).toHaveValue("");
+      await expect(page.locator('[data-view-field="reporter"]')).toHaveCount(0);
+      // Candidates insert Jira identifiers, never display names. Guidance alone never queries.
+      const beforeCandidates = jira.searches().length;
+      await accountInput.fill("mo");
+      await page.getByRole("option", { name: "Fixture PAT user (mock-user)", exact: true }).click();
+      await expect(accountInput).toHaveValue("mock-user");
+      await accountInput.fill("");
+      await projectInput.fill("Fi");
+      await page.getByRole("option", { name: "Fixture project (MOCK)", exact: true }).click();
+      await expect(projectInput).toHaveValue("MOCK");
+      await projectInput.fill("");
+      expect(jira.searches().length).toBe(beforeCandidates);
+      await more.click();
+      const reporterInput = page.locator('[data-view-field="reporter"]');
+      await reporterInput.fill("mo");
+      await page.getByRole("option", { name: "Fixture PAT user (mock-user)", exact: true }).click();
+      await expect(reporterInput).toHaveValue("mock-user");
+      await reporterInput.fill("");
+      await more.click();
       const assignedStart = Date.now();
       const queryButton = page.getByRole("button", { name: "조회", exact: true });
       const queryRows = async value => {
@@ -464,7 +488,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       expect(all.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-6", "MOCK-8"]);
       expect(jira.searches().map(v => v.startAt)).toEqual([0, 2]);
       expect(jira.searches()[0].jql).toBe('assignee = "someone\\"\\\\else" ORDER BY updated DESC');
-      await page.getByRole("textbox", { name: "계정", exact: false }).fill(account);
+      await page.locator('[data-view-field="account"]').fill(account);
       await page.getByRole("combobox", { name: "해결 여부", exact: false }).selectOption("전체");
       await queryButton.click();
       await expect(page.getByRole("cell", { name: "MOCK-6", exact: true })).toBeVisible();
@@ -472,12 +496,18 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       const filters = { project: "MOCK", reporter: account, dateField: "생성일", dateFrom: "2026-11-01", dateTo: "2026-11-09" };
       await queryRows(filters);
       expect(jira.searches()[0].jql).toBe('assignee = currentUser() AND resolution = Unresolved AND project = "MOCK" AND reporter = "someone\\\"\\\\else" AND created >= "2026-11-01" AND created < "2026-11-10" ORDER BY updated DESC');
-      for (const [field, value] of Object.entries(filters).filter(([field]) => field !== "dateField")) await page.getByRole("textbox", { name: ({ project: "프로젝트 키", reporter: "보고자", dateFrom: "시작일", dateTo: "종료일" })[field], exact: false }).fill(value);
+      await more.click();
+      for (const [field, value] of Object.entries(filters).filter(([field]) => field !== "dateField")) await page.locator(`[data-view-field="${field}"]`).fill(value);
       await page.getByRole("combobox", { name: "기간 기준", exact: false }).selectOption("생성일");
+      await more.click();
+      await expect(page.locator(".view-query-summary")).toContainText("2026-11-01");
+      await expect(page.locator(".view-query-summary")).toContainText(account);
       await queryButton.click();
       await expect(page.getByRole("cell", { name: "MOCK-6", exact: true })).toBeVisible();
+      await more.click();
+      await expect(page.locator('[data-view-field="reporter"]')).toHaveValue(account);
       await queryRows({ dateFrom: "2026-02-30" }).then(() => { throw new Error("Invalid date accepted"); }, () => {});
-      for (const label of ["프로젝트 키", "보고자", "시작일", "종료일"]) await page.getByRole("textbox", { name: label, exact: false }).fill("");
+      for (const label of ["프로젝트 키", "보고자", "시작일", "종료일"]) await page.getByLabel(label, { exact: true }).fill("");
       jira.setQuery({ key: "MOCK-1" });
       const detail = await jira.cli(["operation", "invoke", "community.jira.detail", "--input", jira.input]);
       expect(detail.receipt.outcome).toBe("success");
@@ -519,27 +549,40 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await expect(issueLink).toHaveAttribute("href", jira.baseUrl + "/browse/MOCK-1");
       if (screenshots) {
         for (const width of [1440, 640]) {
-          if (width === 640) {
-            await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
-            await page.reload();
-            await page.getByRole("button", { name: "설정", exact: true }).click();
-            await page.getByRole("button", { name: "플러그인", exact: true }).click();
-            await page.keyboard.press("Escape");
-            await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
-            await page.getByRole("button", { name: "간편 검색", exact: true }).click();
-            await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
-            await search.click();
-            await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
-          }
+          await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
           await page.setViewportSize({ width, height: 900 });
-          await page.getByRole("table").scrollIntoViewIfNeeded();
-        await page.screenshot({ path: `tmp/jira-1350/issues-${width}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
+          await page.reload();
+          await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
+          await page.getByRole("button", { name: "간편 검색", exact: true }).click();
+          const disclosure = page.getByRole("button", { name: width === 640 ? /추가 조건/ : /Additional conditions/ });
+          await expect(page.locator('[data-view-field="account"]')).toHaveAttribute("placeholder", "Fixture PAT user");
+          const capture = async state => {
+            await page.mouse.move(0, 0);
+            await page.screenshot({ path: `docs/design/assets/search-form-1370/${state}-${width}${width===640?"-ko-dark":""}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
+          };
+          await capture("default");
+          await disclosure.click();
+          await page.locator('[data-view-field="project"]').fill("MOCK");
+          await page.locator('[data-view-field="reporter"]').fill("mock-user");
+          await page.locator('[data-view-field="dateFrom"]').fill("2026-11-01");
+          await page.locator('[data-view-field="dateTo"]').fill("2026-11-09");
+          await disclosure.click();
+          await search.click();
+          await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
+          await capture("collapsed");
+          await disclosure.click();
+          await page.keyboard.press("Escape");
+          await capture("expanded");
+          if (width === 640) {
+            await page.locator('[data-view-field="keys"]').scrollIntoViewIfNeeded();
+            await capture("expanded-bottom");
+          }
         }
         await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
-        await page.reload(); await openSettings();
-        await page.keyboard.press("Escape");
-      await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
+        await page.reload();
+        await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
         await page.getByRole("button", { name: "간편 검색", exact: true }).click();
+        await page.getByRole("button", { name: /Additional conditions/ }).click();
         await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
         await search.click();
         await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();

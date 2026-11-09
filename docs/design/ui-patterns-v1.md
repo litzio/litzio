@@ -735,3 +735,11 @@ Multi-page PDF reading uses the existing task tab and DocumentTabs, while transi
 ## Plugin icon images (#1346)
 
 PluginIcon shares the same decorative 16px img in existing sidebar entries, DocumentTabs and plugin-heading rows. Existing flex alignment, spacing tokens and screen icon fallbacks remain; no new surface or common interaction. Image aspect ratio is contained. The [plugin contract](plugin-stage1-v1.md#plugin-image-icon-1346) owns format, bounds, trust and Host delivery. Fixture captures cover 1440px and Korean dark 640px; external-service icon artwork is separate.
+
+### 공통 조회 폼의 추가 조건 (#1370)
+
+소유자 승인 A: InputForm의 `advanced: true` 선택 입력만 ‘추가 조건’ Button으로 접는다. 필수 입력은 항상 표시하고 기존 Input/Select/SuggestedInput·FieldError를 재사용한다. 접힌 지정값은 label: value로 빠짐없이 요약하고 긴 값은 줄바꿈한다. 접기는 값을 지우지 않으며 숨은 입력은 Tab 순서에서 제외한다. 오류는 자동 펼침 후 첫 오류 focus, 조회는 기존 명시적 실행과 이전 결과 안내를 유지한다. 빈 자유 입력의 동적 안내는 inputHints read 작업 결과를 placeholder·접근성 설명으로만 표시한다. 현재 값·args·즐겨찾기에 넣지 않는다. 입력 안내 실패는 수동 입력을 막지 않는다. 자동완성 후보는 입력 focus 밖에서 닫고 늦게 도착한 응답도 다시 열지 않는다. 자세한 선언·수명은 [생성 뷰 계약](generated-views-v1.md#collapsible-query-inputs-and-dynamic-guidance-1370). 별도 PluginJobPanel은 이 입력 폼이 아니므로 자동 적용하지 않는다.
+
+검증(2026-11-09): `ui-gallery`의 기존 QueryInputs fixture에서 필수 advanced 입력 상시 노출, 숨은 입력 제거, 오류 펼침/첫 오류 focus, 지정값 0·false·null·유효한 빈 문자열과 편집값 보존을 확인했다. `http-plugins`의 가짜 Jira는 실제 Host/CLI/번들 renderer를 통해 PAT 표시 이름 안내(빈 args 유지), 계정·보고자·프로젝트 후보 선택과 수동 조회·접힌 조건 보존을 검증했다. localhost·합성 PAT/자료이며 회사 Jira 성공이나 소유자 시각 승인을 뜻하지 않는다.
+
+수동 캡처: 1440px Light [기본](assets/search-form-1370/default-1440.png) / [접힌 요약](assets/search-form-1370/collapsed-1440.png) / [펼침](assets/search-form-1370/expanded-1440.png), 한국어 Dark 640px [기본](assets/search-form-1370/default-640-ko-dark.png) / [접힌 요약](assets/search-form-1370/collapsed-640-ko-dark.png) / [펼침](assets/search-form-1370/expanded-640-ko-dark.png) / [하단 입력·실행](assets/search-form-1370/expanded-bottom-640-ko-dark.png). 기존 공통 컨트롤·토큰·Lucide를 사용하고 새 예외는 접기·요약 행동뿐이다. 내장 통계/갤러리의 미선언 폼은 펼친 배치를 유지하며 PluginJobPanel은 별도 구현임을 대조했다.

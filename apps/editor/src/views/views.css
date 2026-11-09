@@ -83,3 +83,10 @@
 .plugin-job-state { display: flex; align-items: center; gap: var(--space-2); white-space: nowrap; }
 
 .plugin-job-panel tbody tr { height: calc(var(--space-6) * 2); }
+
+.view-query-inputs { display: contents; }
+.view-query-summary, .view-query-advanced { grid-column: 1 / -1; }
+.view-query-advanced { display: grid; grid-template-columns: subgrid; gap: var(--space-3); }
+.view-query-summary { margin: 0; font-size: var(--font-size-sm); overflow-wrap: anywhere; white-space: pre-wrap; }
+@container (min-width: 800px) { .view-query-form:has(.view-query-more) { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.view-query-more { margin-inline-end: auto; }
