@@ -18,25 +18,25 @@
 
 설정 파일은 `{"serverUrl":"http://127.0.0.1:5001"}`, 입력 파일은 `{}`입니다. 이 파일들은 artifact 밖에 둡니다. 기본 주소는 `http://127.0.0.1:5001`이며 서버 base path도 지원합니다. HTTP(S)만 허용하며 URL 안 자격 증명·query·fragment는 거부합니다. 주소는 대상 Host에서 접근합니다.
 
-인증 키가 필요한 서버만 Plugins 설정 UI의 선택적 `api-key` secret에 입력합니다. 키를 일반 설정이나 JSON·명령 인자에 넣지 않습니다. 요청에는 `X-Api-Key`로 전달합니다. 설정·secret은 활성 상태에서도 저장·reload할 수 있습니다. 해당 플러그인의 K1 작업이 running/uncertain이면 변경을 거부하고 기존 값을 보존합니다. artifact 변경은 validate → 새 digest 신뢰 → reload → 실제 조회가 필요합니다.
+API 키가 걸린 docling-serve는 지원하지 않음. 설정에는 서버 URL만 있습니다. 활성 상태에서도 설정을 저장·reload할 수 있지만 K1 작업이 running/uncertain이면 변경을 거부하고 기존 값을 보존합니다. artifact 변경은 validate → 새 digest 신뢰 → reload → 실제 호출이 필요합니다.
 
-활성화 뒤 Plugins 설정의 `Open view · Docling`이나 기존 플러그인 화면 진입점으로 조회 화면을 엽니다. 연결 조회는 Host 범위이며 열린 폴더 없이 수동 새로고침합니다. 파일을 읽거나 쓰지 않습니다. PDF/문서 K1 작업에서는 별도로 열린 Host Root를 선택합니다. 자동 polling은 없습니다. CLI와 화면은 같은 `community.docling.connection` 읽기 작업의 한 행을 사용합니다.
+사이드바 **Docling** 한 화면에서 공통 작업 패널을 사용합니다. 연결은 설정 → 플러그인 → Docling 톱니 → **연결 확인**으로 검사합니다. 별도 연결 표는 같은 health/ready 결과를 중복 표시하므로 제거했습니다. 작업은 열린 Host Root를 선택해야 하며, 연결 확인은 폴더 없이도 가능합니다.
 
 ## 연결 확인 범위
 
-`GET <serverUrl>/health`와 `/ready`가 모두 JSON `{"status":"ok"}`이면 연결됨입니다. HTTP 오류·비정상 JSON·연결 실패·5초 시간 초과는 오류 행을 반환하며 원문 응답·예외는 노출하지 않습니다. redirect는 따르지 않습니다. 이 health/ready 확인은 요청한 모든 모델의 준비·변환 성공·인증 권한을 보증하지 않습니다. PDF 변환은 아래 공용 K1 작업을 사용합니다. 작업 2는 보관된 `.docling`에서 서버 호출 없이 문서를 만듭니다.
+`GET <serverUrl>/health`와 `/ready`가 모두 JSON `{"status":"ok"}`이면 연결됨입니다. HTTP 오류·비정상 JSON·연결 실패·5초 시간 초과는 `{ ok: false, message }`를 반환하며 원문 응답·예외는 노출하지 않습니다. redirect는 따르지 않습니다. 이 health/ready 확인은 요청한 모든 모델의 준비·변환 성공·인증 권한을 보증하지 않습니다. PDF 변환은 아래 공용 K1 작업을 사용합니다. 작업 2는 보관된 `.docling`에서 서버 호출 없이 문서를 만듭니다.
 
-기존 `pnpm browser:test http-plugins`는 이 artifact를 validate/등록/설정/신뢰/활성화해 가짜 HTTP health의 정상 → 503 오류 → 복구를 CLI와 화면에서 대조합니다. 새 suite·workspace·subprocess를 추가하지 않고 기존 production Host/CLI/browser를 재사용합니다. 외부 endpoint만 시나리오 프로세스의 임시 HTTP 서버이며 finally에서 닫습니다. `--screenshots`는 별도 수동 검토용 1440px 및 한국어 dark 640px 캡처를 `tmp/docling-1321/`에 남깁니다. 실제 Docker 결과는 PR에 별도 기록합니다.
+기존 `pnpm browser:test http-plugins`는 이 artifact를 validate/등록/설정/신뢰/활성화해 가짜 HTTP health의 정상 → 503 오류 → 복구를 CLI와 설정 연결 확인에서 대조합니다. 새 suite·workspace·subprocess를 추가하지 않고 기존 production Host/CLI/browser를 재사용합니다. 외부 endpoint만 시나리오 프로세스의 임시 HTTP 서버이며 finally에서 닫습니다. `--screenshots`는 별도 수동 검토용 1440px 및 한국어 dark 640px 캡처를 `tmp/docling-002/`에 남깁니다. 실제 Docker 수락은 자동 브라우저와 분리해 화면 또는 CLI로 실행하며 결과를 PR에 별도 기록합니다.
 
 CI 경로 정책은 이 새 경로를 미분류(full)로 취급합니다. 기존 quality의 검사와 HTTP browser job의 `http-plugins`가 실행하며, 이를 건너뛰는 경로 allowlist를 추가하지 않습니다.
 
-수동 화면 근거: [1440px Light](../../docs/design/assets/docling-1321/connection-1440.png), [640px 한국어 Dark](../../docs/design/assets/docling-1321/connection-640.png). 기존 ViewWorkspace·Table·Button을 재사용하며 새 공통 UI 예외는 없습니다. 좁은 화면의 표는 공통 renderer의 가로 스크롤을 사용합니다. 로컬 경로와 계정 표시는 촬영 시 마스킹했습니다.
+화면은 기존 PluginJobPanel·SettingsSelect·Button·체크박스·K1 상태와 결과 행동을 재사용합니다. 새 공통 UI 예외는 없습니다. 640px 작업 표는 공통 renderer의 내부 가로 스크롤을 사용합니다. `--screenshots`의 대시보드 캡처는 `tmp/docling-002/dashboard-1440.png`, `dashboard-640.png`입니다. 검토한 [1440px](../../docs/design/assets/docling-002/dashboard-1440.png)·[한국어 다크 640px](../../docs/design/assets/docling-002/dashboard-640.png)를 보관합니다.
 
 ## 버전
 
-플러그인 버전은 **0.0.1**입니다. [CHANGELOG](CHANGELOG.md)와 미확정 [ROADMAP](ROADMAP.md)을 참고하세요. `.docling` manifest에는 생성한 플러그인 버전(`converter.pluginVersion`)과 ZIP 형식 번호(`version: 1`)를 기록합니다. 출처·서버·프로필 기록은 원본 재현을 위해 유지하며 문서 변환 정책 버전은 두지 않습니다. 결과 `.md` 본문에는 버전이나 입력 hash 문단을 추가하지 않습니다.
+플러그인 버전은 **0.0.2**입니다. [CHANGELOG](CHANGELOG.md)와 미확정 [ROADMAP](ROADMAP.md)을 참고하세요. `.docling` manifest에는 생성한 플러그인 버전(`converter.pluginVersion`)과 ZIP 형식 번호(`version: 1`)를 기록합니다. 출처·서버·프로필 기록은 원본 재현을 위해 유지하며 문서 변환 정책 버전은 두지 않습니다. 결과 `.md` 본문에는 버전이나 입력 hash 문단을 추가하지 않습니다.
 
-일반 파일 결과의 최소 공개 계약에 따라 `requiresSdk: ">=0.2.0 <1.0.0"`을 선언합니다.
+작업 패널과 healthCheck의 최소 공개 계약에 따라 `requiresSdk: ">=0.3.0 <1.0.0"`을 선언합니다.
 
 ## 두 작업으로 분리 (#1322 범위 정정)
 
@@ -45,7 +45,7 @@ PDF 원본 보관과 Litzio 문서 만들기는 별도 K1 작업입니다. 한 �
 1. **PDF 변환:** `a.pdf` → `a.docling`. 원본 산출물은 수정하지 않고 보관합니다. `convertPdfToArchive`가 고정 프로필로 서버를 확인·변환하고 `createDoclingArchiveFromResult`가 원본 HTTP 응답 바이트와 PDF 바이트를 받아 `.docling` 바이트를 만들며 파일 쓰기는 하지 않습니다. 플러그인은 Host가 제공한 `resultFile.path`에 ZIP 바이트를 쓰고 닫은 뒤 `file:{path}`만 반환합니다. Host가 Root에 새 파일로 원자적으로 저장하며 기본 이름은 `a.pdf` → `a.docling`입니다. ZIP 바이트를 IPC로 보내거나 output에 직접 쓰지 않습니다.
 2. **Litzio 문서 만들기(구현):** `.docling` 한 건의 `document.json`으로 새 Litzio 문서를 만듭니다. Docling API·health·version을 호출하지 않으며 서버가 없어도 같은 원본에서 다른 결과 이름으로 다시 실행할 수 있습니다. 원본 `.docling`은 변경하지 않습니다.
 
-공용 작업 화면(명령 센터 → Plugin jobs)에서 `Docling · PDF 변환` 또는 `Docling · Litzio 문서 만들기`, 열린 Host Root, 입력 파일과 Root 상대 결과 경로를 선택합니다. PDF 결과는 파일 경로/복사, 문서 결과는 기존 결과 열기를 제공합니다. 문서 작업의 기본 이름은 기존 `result.md`이며 `a.md`처럼 직접 지정할 수 있습니다. 플러그인 조회 화면에서는 시작하지 않습니다.
+사이드바 Docling에서 작업·열린 폴더를 선택하고 PDF 또는 `.docling` 파일을 체크해 **작업 시작**을 누릅니다. 여러 파일은 파일별 독립 K1 요청으로 함께 접수하며, PDF 서버 요청은 플러그인 활성화 프로세스 안에서 접수 순서대로 한 건씩 처리합니다. 기다리는 작업은 “서버 대기 중”이며 대기 중에도 중단할 수 있습니다. Host 큐나 재시작 복원은 추가하지 않습니다. 변환 helper의 1800초 마감은 해당 차례의 변환 시작부터 적용됩니다. PDF 기본 결과는 `a.docling`, 문서 기본 결과는 `result.md`이며 동명 결과는 덮어쓰지 않습니다. 작업 목록에 상태·단계·경과와 중단·상태 재확인·결과 행동이 표시됩니다. PDF 결과는 경로/복사, 문서 결과는 결과 열기를 제공합니다. 공용 Plugin jobs 화면과 CLI도 유지합니다.
 
 CLI 입력 파일은 artifact 밖에 둡니다.
 
@@ -58,7 +58,7 @@ CLI 입력 파일은 artifact 밖에 둡니다.
 - `litzio plugins stop <requestId> --host <origin> --json`
 - `litzio plugins result <requestId> --host <origin> --json`
 
-작업마다 새 requestId를 쓰며 불확실 결과는 같은 ID로 조회합니다. start를 자동 재전송하지 않습니다. 여러 파일은 각각 별도 요청이며 큐·재시작 복원·자동 갱신·대조/검수·내부 이미지 대조뷰는 없습니다. PDF 중단은 요청/폴링과 staging writer를 닫은 뒤 stopped를 보고하며 이미 제출된 서버 작업은 계속될 수 있습니다. 문서 작업의 중단은 로컬 읽기/생성을 중단하며 서버와 무관합니다.
+작업마다 새 requestId를 쓰며 불확실 결과는 같은 ID로 조회합니다. start를 자동 재전송하지 않습니다. 활성 화면은 진행 중 작업을 1초마다 관찰합니다. 여러 파일은 각각 별도 요청이며 Host 큐·재시작 복원·대조/검수·내부 이미지 대조뷰는 없습니다. PDF 중단은 요청/폴링과 staging writer를 닫은 뒤 stopped를 보고하며 이미 제출된 서버 작업은 계속될 수 있습니다. 문서 작업의 중단은 로컬 읽기/생성을 중단하며 서버와 무관합니다.
 
 ### `.docling` 형식 1 봉투
 
@@ -171,3 +171,7 @@ docker stop docling-serve
 | `.md`와 `.docling-map.json` 동시 공식 저장 | **현재 불가**. native K1은 document.source 하나만 저장. #1327도 일반 파일 하나의 범위이며 compound 결과/sidecar 저장 보장은 아님 | packages/plugin-sdk/src/index.ts:135; apps/editor/server/plugins/jobs.ts:46 |
 
 필요한 최소 보강 후보는 대용량 authoring 범위, inline/중첩 목록/endnote 입력, Figure/Table 번호·표 캡션 속성, 공식 image asset/sidecar 동반 저장입니다. 이번 PR에서 새 SDK나 우회 write path는 만들지 않습니다.
+
+## 공식 로고 조사 (2026-11-09)
+
+공식 출처는 [Docling SVG 원본](https://github.com/docling-project/docling/blob/main/docs/assets/logo.svg)과 [LF AI & Data 프로젝트 페이지](https://lfaidata.foundation/projects/docling/)입니다. 코드의 [MIT 라이선스](https://github.com/docling-project/docling/blob/main/LICENSE)는 상표 허가를 대신하지 않습니다. [Linux Foundation 상표 정책](https://www.linuxfoundation.org/legal/trademark-usage)은 프로젝트별 추가 조건과 로고 사용 제한을 별도로 정합니다. 이 커뮤니티 플러그인의 사이드바 로고 재배포에 적용할 명시적 허용 조건을 확인하지 못했으므로 공식 로고 파일과 로고를 가리키는 선언을 추가하지 않았습니다. 일반 문서 변환 아이콘 `icon.svg`는 앱이 사용하는 Lucide `file-output`(lucide-react 1.47.0, [원본](https://github.com/lucide-icons/lucide/blob/main/icons/file-output.svg))을 고정 색상으로 사용하며, ISC 라이선스·저작권 고지는 [ICON-LICENSE](ICON-LICENSE)에 보관합니다. 공식 공급·후원 관계를 나타내지 않습니다.
