@@ -54,3 +54,5 @@ Core·SDK는 schema와 입력·행·링크 의미, Host/CLI 검사는 같은 arg
 ## 화면 확인 (#1341)
 
 [1440px 제거 표면](assets/plugin-screens-1341/removed-surfaces-1440.png)에서 왼쪽 문서 통계와 오른쪽 Views 탭이 없고 기존 문서 탐색만 남음을 확인했다. [1440px 플러그인 진입](assets/plugin-screens-1341/plugin-screen-1440.png)과 [640px 한국어 다크](assets/plugin-screens-1341/plugin-screen-640-ko-dark.png)는 기본 입력 폼·수동 조회 진입을 유지한다. 정렬·간격·한 열 전환과 페이지 가로 넘침을 확인했다. manifest 제공 영문 label은 그대로 표시된다. 합성 카탈로그·문서와 기존 persistent Chrome을 사용한 로컬 화면이며 실제 Jira/Docling 서비스나 AI 응답의 수락 증거는 아니다. Host 계정은 촬영 시 mask했다.
+
+실제 커뮤니티 artifact와 합성 서비스의 [Docling 1440px](assets/plugin-screens-1341/docling-1440.png) / [한국어 다크 640px](assets/plugin-screens-1341/docling-640-ko-dark.png), [Jira 표·링크 1440px](assets/plugin-screens-1341/jira-1440.png) / [한국어 다크 640px](assets/plugin-screens-1341/jira-640-ko-dark.png)도 확인했다. 열린 폴더 없는 수동 연결 조회와 Jira 입력·표·링크가 유지된다. Host 계정/경로는 mask했고 화면의 계정·이슈 값은 합성 fixture다. 실제 외부 서비스 연결·문서 변환 품질의 근거로 사용하지 않는다.

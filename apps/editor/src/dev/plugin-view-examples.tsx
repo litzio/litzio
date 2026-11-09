@@ -58,7 +58,7 @@ export function PluginViewExamples({ state }: { state: string }) {
   const view = { ...query, sources: { stats: { ...query.sources.stats, args } } };
   const loading = mode.startsWith("loading");
   const failure = ["auth", "forbidden", "not_found", "unavailable", "timeout", "new-view"].includes(mode) ? sourceFailure(new ViewOperationError(mode, false, mode === "new-view" ? "unavailable" : undefined)) : undefined;
-  return <section className="ui-gallery-section" aria-label="Plugin views examples"><h2>Generated views</h2>
+  return <section className="ui-gallery-section" aria-label="Plugin views examples"><h2>Plugin views</h2>
     <p>Production catalog v2 renderers. Fixtures and actions stay in memory; no Host calls or persistence. For refreshing review, press Refresh data.</p>
     <ChoiceGroup aria-label="View profile" value={profile} onValueChange={setProfile} options={["query", "review"].map(value => ({ value, label: value }))} />
     <div className="ui-gallery-row"><ChoiceGroup aria-label="Generated view state" value={profile === "query" ? mode : reviewState} onValueChange={profile === "query" ? setQueryState : setReviewState} options={(profile === "query" ? queryStates : reviewStates).map(value => ({ value, label: stateLabels[value] }))} /></div>

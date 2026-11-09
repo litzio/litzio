@@ -49,8 +49,10 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
     assert.equal(readFileSync(file, "utf8"), before);
     assert.equal((await fetch(`${url}/api/worker-plugins`)).status, 404);
     assert.equal((await fetch(`${url}/api/ai-tasks`)).status, 404);
-    const { VIEW_TRANSPORT_LIMITS } = await import("../shared/view-limits.ts");
-    const oversized = await fetch(`${url}/api/assistant/conversations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "send", message: "x".repeat(VIEW_TRANSPORT_LIMITS.requestBytes) }) });
+    const { ASSISTANT_TRANSPORT_LIMITS } = await import("../shared/assistant-limits.ts");
+    const ordinary = await fetch(`${url}/api/assistant/conversations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "unknown", message: "x".repeat(128 * 1024) }) });
+    assert.equal(ordinary.status, 400); assert.match(await ordinary.text(), /Unknown conversation action/);
+    const oversized = await fetch(`${url}/api/assistant/conversations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "send", message: "x".repeat(ASSISTANT_TRANSPORT_LIMITS.requestBytes) }) });
     assert.equal(oversized.status, 413, "the Host enforces the envelope even when the app transport is bypassed");
   } finally {
     stdout.mock.restore(); stderr.mock.restore();
