@@ -368,7 +368,7 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
     for (const id of ["example.first", "example.second"]) {
       const directory = path.join(root, id); mkdirSync(directory);
       writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
-      writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id, tier: "community", publisher: { id: "example", name: "Example" }, name: id, version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: {}, outputSchema: {} }] }, secrets: [{ id: "pat", scope: "connection", required: true }] }));
+      writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id, tier: "community", publisher: { id: "example", name: "Example" }, name: id, version: "0.1.0", requiresSdk: ">=0.4.0 <1.0.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: {}, outputSchema: {} }] }, secrets: [{ id: "pat", title: "Access token", scope: "connection", required: true }] }));
       writeFileSync(path.join(directory, "host.js"), `export function activate(c){ if(Object.keys(c.secrets).join()!=='pat')throw Error('scope');return {operations:{read:(input)=>{if(input.fail)throw Error(c.secrets.pat);return {echo:c.secrets.pat}}},status:()=>({available:true,message:c.secrets.pat,folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
       await host.invoke("register", { directory });
       await assert.rejects(host.setSecret(id, "undeclared", value), /Undeclared/);
@@ -390,7 +390,7 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
     broken.add("example.first/pat");
     const damaged = (await host.list()).find(p => p.id === "example.first")!;
     assert.equal(damaged.name, "example.first"); assert.equal(damaged.digest?.length, 64);
-    assert.deepEqual(damaged.secrets?.declarations, [{ id: "pat", scope: "connection", required: true, configured: false, error: "Secret unavailable or damaged" }]);
+    assert.deepEqual(damaged.secrets?.declarations, [{ id: "pat", title: "Access token", scope: "connection", required: true, configured: false, error: "Secret unavailable or damaged" }]);
     assert.equal((await host.list()).find(p => p.id === "example.second")!.secrets?.declarations[0]?.configured, true);
     assert.equal(JSON.stringify(await host.invoke("secret-status", { id: "example.first" })).includes("raw-store-error-private"), false);
     await host.invoke("secret-delete", { id: "example.first", name: "pat" });
@@ -433,7 +433,7 @@ test("operation invoke publishes declared public rows and refuses row-type misma
   const knownSecret = "row-boundary-known-private";
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-operation-rows-"));
   const directory = path.join(root, "artifact"); mkdirSync(directory);
-  const manifest = { secrets: [{ id: "pat", scope: "connection", required: true }], schemaVersion: 1, id: "fixture.rows", tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Rows", version: "0.1.0", requiresSdk: ">=0.3.0 <1.0.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", properties: { mode: { type: "string" } }, additionalProperties: false }, outputSchema: { type: "array", items: { type: "object" } }, rowSchema: { points: { type: "number", label: "Points" }, caption: { type: "string", label: "Caption", linkField: "url" }, url: { type: "string", label: "URL" }, token: { type: "string", label: "Token", secret: true } } }] } };
+  const manifest = { secrets: [{ id: "pat", title: "Access token", scope: "connection", required: true }], schemaVersion: 1, id: "fixture.rows", tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Rows", version: "0.1.0", requiresSdk: ">=0.3.0 <1.0.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", properties: { mode: { type: "string" } }, additionalProperties: false }, outputSchema: { type: "array", items: { type: "object" } }, rowSchema: { points: { type: "number", label: "Points" }, caption: { type: "string", label: "Caption", linkField: "url" }, url: { type: "string", label: "URL" }, token: { type: "string", label: "Token", secret: true } } }] } };
   writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify(manifest));
   writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
   writeFileSync(path.join(directory, "host.js"), `export function activate(){return {operations:{read:({mode})=>{if(mode?.startsWith("error:")) throw Object.assign(new Error("raw-response credential-private"), {kind:mode.slice(6),response:"credential-private"}); return [{points:mode==="wrong-number"?"3":-3,caption:"row-boundary-known-private",url:"https://example.test/issue/1",token:mode==="wrong-secret"?4:"private",extra:"undeclared"}]} },status:()=>({available:true,message:"Rows",folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
@@ -579,7 +579,8 @@ test("secret IPC admission is per plugin at activation, and reload reads fresh v
       if(c.secrets.pat === 'throw-private-token') throw Error(c.secrets.pat);
       return {operations:{read:(input)=>{if(input.fail)throw Error(c.secrets.pat);return {version:c.secrets.pat==='first-private-token'?1:c.secrets.pat==='second-private-token'?2:0}}},status:()=>({available:true,message:c.secrets.pat,folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
     const file = path.join(directory,'litzio-plugin.json'), manifest = JSON.parse(readFileSync(file,'utf8'));
-    manifest.secrets = [{id:'pat',scope:'connection',required:true}];
+    manifest.requiresSdk = '>=0.4.0 <1.0.0';
+    manifest.secrets = [{id:'pat',title:'Access token',scope:'connection',required:true}];
     manifest.contributes.operations = [{id:'read',version:1,effect:'read',scope:'host',inputSchema:{},outputSchema:{}}];
     writeFileSync(file,JSON.stringify(manifest));
     await host.invoke('register',{directory});
@@ -612,7 +613,7 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
   try {
     await executePluginTool(host, { action: "scaffold", directory, id }, e => activity.push(e), scope);
     const entry = path.join(directory, "host.js"), source = readFileSync(entry, "utf8");
-    assert.equal(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")).requiresSdk, ">=0.3.0 <1.0.0");
+    assert.equal(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")).requiresSdk, ">=0.4.0 <1.0.0");
     assert.match(source, /import .* from "@litzio\/plugin-sdk"/);
     assert.match(readFileSync(path.join(directory, "plugin-sdk.d.ts"), "utf8"), /PluginContext/);
     // Even an artifact-local SDK must never replace the Host's public runtime.
@@ -679,7 +680,7 @@ test("Host SDK runtime is one self-contained JavaScript module with only Node bu
     }
   }
   const runtime = await import(`data:text/javascript;base64,${Buffer.from(result.outputFiles![0]!.contents).toString("base64")}`);
-  assert.equal(runtime.SDK_VERSION, "0.3.0");
+  assert.equal(runtime.SDK_VERSION, "0.4.0");
   assert.equal(JSON.parse(readFileSync(new URL("../../../packages/plugin-sdk/package.json", import.meta.url), "utf8")).version, runtime.SDK_VERSION);
   assert.equal(typeof runtime.PluginOperationError, "function");
 });
@@ -809,7 +810,8 @@ test("short secrets preserve keys and leave the plugin scope on replacement, del
       const directory = lifecycleFixture(root, id, `export function activate(){return {operations:{read:input=>{if(input.fail)throw Error('raw-log-private');return {id:input.value,defaultCandidate:true}}},status:()=>({available:true,message:'id',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
       dirs.push(directory);
       const file = path.join(directory, "litzio-plugin.json"), m = JSON.parse(readFileSync(file, "utf8"));
-      m.secrets = [{ id: "pat", scope: "connection", required: false }, { id: "other", scope: "connection", required: false }];
+      m.requiresSdk = ">=0.4.0 <1.0.0";
+      m.secrets = [{ id: "pat", title: "Access token", scope: "connection", required: false }, { id: "other", title: "Access token", scope: "connection", required: false }];
       m.contributes.operations = [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: {}, outputSchema: { type: "object", required: ["id", "defaultCandidate"], additionalProperties: false, properties: { id: { type: "string" }, defaultCandidate: { type: "boolean" } } } }];
       writeFileSync(file, JSON.stringify(m));
       await host.invoke("register", { directory });
@@ -990,7 +992,7 @@ test("registered icons enforce image bounds, artifact links and digest trust", a
   try {
     const directory = lifecycleFixture(root, "fixture.icon");
     const manifestFile = path.join(directory, "litzio-plugin.json"), icon = path.join(directory, "icon.svg");
-    const manifest = { ...JSON.parse(readFileSync(manifestFile, "utf8")), requiresSdk: "^0.3.0", icon: "icon.svg" };
+    const manifest = { ...JSON.parse(readFileSync(manifestFile, "utf8")), requiresSdk: ">=0.4.0 <1.0.0", icon: "icon.svg" };
     writeFileSync(manifestFile, JSON.stringify(manifest));
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="blue"/></svg>';
     for (const invalid of [svg.replace('width="16"', 'width="257"'), svg.replace('height="16"', 'height="0"'), '<html/>', svg + ' '.repeat(65536), '<svg']) {

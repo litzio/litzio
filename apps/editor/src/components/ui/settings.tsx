@@ -17,10 +17,10 @@ function FieldRow({ label, description, children, id, testId }: SettingsRowProps
   </div>;
 }
 
-export function SettingsSwitch({ checked, onChange, disabled, ...row }: SettingsSwitchProps) {
+export function SettingsSwitch({ checked, onChange, disabled, invalid, describedBy, ...row }: SettingsSwitchProps) {
   const id = useId();
   return <FieldRow {...row} id={id}><input id={id} className="settings-switch" type="checkbox" role="switch" checked={checked} disabled={disabled}
-    aria-describedby={row.description ? `${id}-description` : undefined} onChange={event => onChange(event.target.checked)} /></FieldRow>;
+    aria-invalid={invalid} aria-describedby={[row.description ? `${id}-description` : "", describedBy].filter(Boolean).join(" ") || undefined} onChange={event => onChange(event.target.checked)} /></FieldRow>;
 }
 
 export function SettingsSelect({ value, options, onChange, disabled, testId, ...row }: SettingsSelectProps) {

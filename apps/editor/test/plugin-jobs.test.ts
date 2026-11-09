@@ -27,7 +27,7 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-job-"));
   const directory = path.join(root, "artifact"); cpSync(new URL("./fixtures/job-plugin", import.meta.url), directory, { recursive: true });
   const manifestPath = path.join(directory, "litzio-plugin.json");
-  writeFileSync(manifestPath, JSON.stringify({ ...JSON.parse(readFileSync(manifestPath, "utf8")), secrets: [{ id: "pat", scope: "connection", required: false }] }));
+  writeFileSync(manifestPath, JSON.stringify({ ...JSON.parse(readFileSync(manifestPath, "utf8")), requiresSdk: ">=0.4.0 <1.0.0", secrets: [{ id: "pat", title: "Access token", scope: "connection", required: false }] }));
   let secret = "original";
   const secrets = { supported: true, async read() { return secret; }, async status() { return !!secret; }, async set(_p: string, _n: string, value: string) { secret = value; }, async delete() { secret = ""; } };
   const host = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]), secrets });
@@ -354,7 +354,8 @@ test("K1 snapshots preserve keys and redact only the publishing plugin's secret 
       const manifestFile = path.join(directory, "litzio-plugin.json");
       const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
       manifest.id = id;
-      manifest.secrets = [{ id: "pat", scope: "connection", required: true }];
+      manifest.requiresSdk = ">=0.4.0 <1.0.0";
+      manifest.secrets = [{ id: "pat", title: "Access token", scope: "connection", required: true }];
       for (const operation of manifest.contributes.operations) operation.outputSchema = {
         type: "object", required: ["state", "phase"], additionalProperties: false,
         properties: { state: { type: "string" }, phase: { type: "string" } },

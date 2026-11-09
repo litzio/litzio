@@ -8,7 +8,7 @@
   },
   "name": "Docling",
   "description": "docling-serve 연결 확인, PDF 원본 보관과 Litzio 문서 만들기",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "requiresSdk": ">=0.3.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
@@ -639,7 +639,7 @@
     "properties": {
       "serverUrl": {
         "type": "string",
-        "title": "docling-serve URL",
+        "title": "Docling 서버 주소",
         "description": "HTTP(S) 서버 기본 주소. API 키가 없는 서버만 지원합니다.",
         "default": "http://127.0.0.1:5001",
         "minLength": 1

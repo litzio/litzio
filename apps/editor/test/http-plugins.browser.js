@@ -137,9 +137,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
   expect(registered.running).toBe(false);
   await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
   if (registered.secrets.supported) {
-    await page.getByLabel("pat: Not configured", { exact: true }).fill("browser-isolated-secret");
+    await page.getByLabel("Access token: Not configured", { exact: true }).fill("browser-isolated-secret");
     await saveSecret();
-    await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Access token: Configured", { exact: true })).toHaveValue("");
     const status = pluginFixture.cli(["plugins", "secret-status", "fixture.drive"]);
     expect(status.secrets.declarations[0].configured).toBe(true);
     expect(JSON.stringify(status)).not.toContain("browser-isolated-secret");
@@ -157,16 +157,16 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     pluginFixture.corruptSecret();
     await page.reload(); await openSettings();
     await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
-    await expect(page.getByLabel("pat: Unavailable or damaged", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Access token: Unavailable or damaged", { exact: true })).toHaveValue("");
     await expect(page.getByText("Unable to read this secret. Delete or replace it.", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Delete secret", exact: true })).toBeEnabled();
     await page.getByRole("button", { name: "Delete secret", exact: true }).click();
-    await expect(page.getByLabel("pat: Not configured", { exact: true })).toHaveValue("");
-    await page.getByLabel("pat: Not configured", { exact: true }).fill("browser-repaired-secret");
+    await expect(page.getByLabel("Access token: Not configured", { exact: true })).toHaveValue("");
+    await page.getByLabel("Access token: Not configured", { exact: true }).fill("browser-repaired-secret");
     await saveSecret();
-    await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Access token: Configured", { exact: true })).toHaveValue("");
     await page.getByRole("button", { name: "Delete secret", exact: true }).click();
-    await expect(page.getByLabel("pat: Not configured", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Access token: Not configured", { exact: true })).toHaveValue("");
   } else {
     await expect(page.getByText("Plugin secrets require a Windows Host", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Save secret", exact: true })).toBeDisabled();
@@ -230,9 +230,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
   await page.getByLabel("Connection label", { exact: true }).press("Tab");
   await expect.poll(() => pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive")?.status?.message).toBe("UI connection");
   if (registered.secrets.supported) {
-    await page.getByLabel("pat: Not configured", { exact: true }).fill("enabled-isolated-secret");
+    await page.getByLabel("Access token: Not configured", { exact: true }).fill("enabled-isolated-secret");
     await saveSecret();
-    await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
+    await expect(page.getByLabel("Access token: Configured", { exact: true })).toHaveValue("");
     let live = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
     expect(live.status.accounts[0].label).toBe("Secret applied");
     expect(JSON.stringify(live)).not.toContain("enabled-isolated-secret");
@@ -545,9 +545,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
       await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
       await page.reload(); await openSettings();
       await page.getByRole("button", { name: "Jira settings", exact: true }).click();
-      await page.getByLabel("pat: Not configured", { exact: true }).fill("mock-jira-token");
+      await page.getByLabel("개인 액세스 토큰: Not configured", { exact: true }).fill("mock-jira-token");
       await saveSecret();
-      await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
+      await expect(page.getByLabel("개인 액세스 토큰: Configured", { exact: true })).toHaveValue("");
       await jira.cli(["plugins", "enable", "community.jira", "--trust", "--registration", registered.registrationId]);
       await page.reload(); await openSettings();
       await page.getByRole("button", { name: "Jira settings", exact: true }).click();
