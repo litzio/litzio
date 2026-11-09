@@ -4,10 +4,66 @@ import { mkdtempSync, readFileSync, writeFileSync, rmSync, readdirSync, mkdirSyn
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { textRevision } from "@litzio/file-commit";
+import { commitFile, textRevision } from "@litzio/file-commit";
 import { GeneratedDocuments } from "../server/plugins/generated-documents.ts";
 import { RootAccess } from "../server/file-access.ts";
 import { loadDocumentFile } from "../server/document-reader.ts";
+import { generatedDocumentIdentity, isManagedGeneratedDocument } from "../server/generated-document.ts";
+
+test("filesystem-distinct Unicode document names keep separate connections and admission locks across atomic Save", async () => {
+  const root = mkdtempSync(path.join(tmpdir(), "litzio-generated-unicode-"));
+  const previous = process.env.LITZIO_GENERATED_DOCUMENTS_SETTINGS_FILE;
+  process.env.LITZIO_GENERATED_DOCUMENTS_SETTINGS_FILE = path.join(root, "state", "generated");
+  const ordinary = path.join(root, "k.md"), managed = path.join(root, "\u212a.md");
+  const sourceA = path.join(root, "a.bin"), sourceB = path.join(root, "b.bin");
+  writeFileSync(ordinary, "ordinary document"); writeFileSync(managed, "separate document");
+  writeFileSync(sourceA, "source A"); writeFileSync(sourceB, "source B");
+  let hold = false, release = () => {};
+  const host = new GeneratedDocuments(new RootAccess([root]), () => ({ operation: "fixture.provider", version: 1, assertCurrent() {} }), async (_operation, raw) => {
+    const input = raw as { mode: string; file: string };
+    if (hold && input.mode === "read" && input.file === sourceB) await new Promise<void>(resolve => { release = resolve; });
+    return { result: input.mode === "build" ? { authoring: { inputs: [{ key: "body", blocks: [{ kind: "paragraph", text: "generated from source" }] }] }, images: [] } : { record: {}, items: [] } };
+  });
+  const open = (document: string, source: string) => host.execute({ action: "generated-open", root, document, source,
+    plugin: "fixture", job: "import", baseline: { sourceRevision: textRevision(readFileSync(path.join(root, source), "utf8")), documentRevision: textRevision(readFileSync(path.join(root, document), "utf8")), linkRevision: null }, requestId: randomUUID() });
+  const read = (document: string) => host.execute({ action: "generated-read", root, document });
+  try {
+    const connected = await open("\u212a.md", "b.bin");
+    assert.equal(connected.state, "generated");
+    assert.notEqual(generatedDocumentIdentity(ordinary), generatedDocumentIdentity(managed));
+    assert.equal(isManagedGeneratedDocument(ordinary), false);
+    await assert.rejects(read("k.md"), { code: "ENOENT" });
+    await assert.rejects(host.execute({ action: "generated-regenerate", root, document: "k.md", requestId: randomUUID(),
+      baseline: { sourceRevision: connected.baseline.sourceRevision, documentRevision: textRevision("ordinary document"), linkRevision: connected.baseline.linkRevision } }), { code: "ENOENT" });
+    assert.equal(readFileSync(ordinary, "utf8"), "ordinary document");
+    assert.equal((await open("k.md", "a.bin")).state, "generated");
+    const identity = generatedDocumentIdentity(managed), before = readFileSync(managed, "utf8");
+    commitFile(managed, before + "\nDirect edit.\n", textRevision(before));
+    assert.equal(generatedDocumentIdentity(managed), identity);
+    assert.equal(isManagedGeneratedDocument(managed), true);
+    assert.equal((await read("\u212a.md")).state, "externally-modified");
+    if (process.platform === "win32") {
+      assert.equal(generatedDocumentIdentity(path.join(root, "\u212a.MD")), identity);
+      assert.equal(isManagedGeneratedDocument(path.join(root, "\u212a.MD")), true);
+    }
+    hold = true;
+    const pending = read("\u212a.md");
+    try {
+      assert.equal((await read("k.md")).state, "generated");
+      if (process.platform === "win32") await assert.rejects(read("\u212a.MD"), /operation in progress/);
+    } finally { hold = false; release(); await pending; }
+    const newRequest = (document: string, source: string) => ({ action: "generated-open", root, document, source, plugin: "fixture", job: "import", requestId: randomUUID(),
+      baseline: { sourceRevision: textRevision(readFileSync(path.join(root, source), "utf8")), documentRevision: null, linkRevision: null } });
+    hold = true;
+    const creating = host.execute(newRequest("fresh.md", "b.bin"));
+    try { await assert.rejects(host.execute(newRequest("FRESH.MD", "a.bin")), /operation in progress/); }
+    finally { hold = false; release(); assert.equal((await creating).state, "generated"); }
+    if (process.platform === "win32") assert.equal(generatedDocumentIdentity(path.join(root, "fresh.md")), generatedDocumentIdentity(path.join(root, "FRESH.MD")));
+  } finally {
+    if (previous === undefined) delete process.env.LITZIO_GENERATED_DOCUMENTS_SETTINGS_FILE; else process.env.LITZIO_GENERATED_DOCUMENTS_SETTINGS_FILE = previous;
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("generated document official writes keep source state first, reject conflicts and resume from files", async () => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-generated-test-"));

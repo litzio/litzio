@@ -33,6 +33,17 @@ function realPath(value: string): string {
   return process.platform === "win32" ? fs.realpathSync.native(value) : fs.realpathSync(value);
 }
 
+/** Filesystem-provided spelling, including Windows aliases without Unicode case folding.
+ * A new leaf retains its requested spelling beneath its real existing parent.
+ */
+export function canonicalFilePath(value: string, create = false): string {
+  try { return realPath(value); }
+  catch (error) {
+    if (!create || (error as NodeJS.ErrnoException).code !== "ENOENT" || fs.lstatSync(value, { throwIfNoEntry: false })) throw error;
+    return path.join(realPath(path.dirname(value)), path.basename(value));
+  }
+}
+
 /** The real path of the nearest existing ancestor. */
 function realParent(target: string): string {
   for (let folder = path.dirname(target); ; folder = path.dirname(folder)) {

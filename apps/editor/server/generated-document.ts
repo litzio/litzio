@@ -1,14 +1,13 @@
-import { readFileSync, statSync, realpathSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { generatedDocumentLinkSchema } from "@litzio/plugin-sdk";
-import { accessPath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
+import { accessPath, canonicalFilePath, LOCAL_FILE_ACCESS, type FileAccess } from "./file-access.ts";
 import { hostPaths } from "./host-paths.ts";
 
 /** Logical document identity is its canonical Host path; atomic Saves retain that identity. */
 export function generatedDocumentIdentity(file: string) {
-  const canonical = path.join(realpathSync(path.dirname(file)), path.basename(file));
-  return process.platform === "win32" ? canonical.toLowerCase() : canonical;
+  return canonicalFilePath(file, true);
 }
 export function generatedDocumentLinkPath(file: string) {
   return path.join(hostPaths().settingsFile("generated-documents") + ".d", createHash("sha256").update(generatedDocumentIdentity(file)).digest("hex") + ".json");

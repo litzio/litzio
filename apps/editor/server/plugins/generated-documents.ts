@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, readFileSync, realpathSync, statSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, statSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { commitFile, createFile, commitFileFromPath, textRevision } from "@litzio/file-commit";
 import { generatedDocumentLinkSchema, generatedDocumentRequestSchema, generatedDocumentStateSchema, authoredDocumentRequestSchema, JOB_FILE_MAX_BYTES, type GeneratedDocumentLink } from "@litzio/plugin-sdk";
 import { generatedDocumentLinkPath } from "../generated-document.ts";
 import { createAuthoredDocumentFile, regenerateAuthoredDocumentFile } from "../document-authoring.ts";
-import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
+import { RootAccess, accessPath, canonicalFilePath, type FileAccess } from "../file-access.ts";
 
 const hash = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
 const revision = (file: string) => existsSync(file) ? hash(file) : null;
@@ -54,12 +54,13 @@ export class GeneratedDocuments {
     if (writing && this.requests.has(requestId)) throw new Error("Duplicate requestId; query status");
     const link: GeneratedDocumentLink = opening ? { plugin: input.plugin, job: input.job, source: path.relative(path.dirname(p.file), p.relative(input.source)).split(path.sep).join("/"), generatedFrom: null, generatedRevision: null } : this.readLink(p.linkFile);
     const source = p.resolve(path.resolve(path.dirname(p.file), link.source));
-    if (source === p.file || source === p.linkFile) throw new Error("Source must be separate from generated results");
-    const keys = [source, p.file].map(file => {
-      const canonical = path.join(realpathSync(path.dirname(file)), path.basename(file));
-      return process.platform === "win32" ? canonical.toLowerCase() : canonical;
-    });
-    if (keys.some(key => this.busy.has(key))) throw new Error("Generated document operation in progress");
+    const keys = [source, p.file].map(file => canonicalFilePath(file, true));
+    if (keys[0] === keys[1] || existsSync(p.linkFile) && keys[0] === canonicalFilePath(p.linkFile)) throw new Error("Source must be separate from generated results");
+    // A missing Windows leaf has no filesystem spelling yet. Serialize new leaves
+    // within their actual parent, while existing independent documents stay parallel.
+    const creating = [source, p.file].map(file => `creating:${canonicalFilePath(path.dirname(file))}`);
+    if ([...keys, ...creating].some(key => this.busy.has(key))) throw new Error("Generated document operation in progress");
+    if (!existsSync(p.file)) keys.push(creating[1]!);
     keys.forEach(key => this.busy.add(key));
     const receipt = (outcome: "success" | "failure" | "uncertain") => ({ requestId, operation: `review.${input.action.slice(10)}`, version: 1, scope: input.root, outcome });
     if (writing) this.requests.set(requestId, { state: "pending", receipt: receipt("uncertain") });
