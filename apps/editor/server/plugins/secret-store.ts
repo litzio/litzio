@@ -33,8 +33,24 @@ function crypt(mode: string, data: Buffer, entropy: string): Promise<Buffer> {
     child.stdin.end(JSON.stringify({ mode, data: data.toString('base64'), entropy }));
   });
 }
+// DPAPI blob envelope only; checking configuration must never launch PowerShell.
+function validBlob(blob: Buffer): boolean {
+  try {
+    if (blob.readUInt32LE(0) !== 1 || blob.subarray(4, 20).toString("hex") !== "d08c9ddf0115d1118c7a00c04fc297eb" || blob.readUInt32LE(20) !== 1) return false;
+    let offset = 44;
+    const field = () => { const length = blob.readUInt32LE(offset); offset += 4 + length; if (offset > blob.length) throw new Error(); };
+    field(); // description
+    offset += 8; // encryption algorithm and key length
+    field(); field(); // salt and HMAC key
+    offset += 8; // hash algorithm and length
+    field(); field(); field(); // HMAC, ciphertext and signature
+    return offset === blob.length;
+  } catch { return false; }
+}
 export class WindowsPluginSecretStore implements PluginSecretStore {
   readonly supported: boolean;
+  private damaged = new Map<string, string>();
+  private fingerprint(blob: Buffer) { return createHash("sha256").update(blob).digest("hex"); }
   constructor(private directory: string, platform = process.platform) { this.supported = platform === 'win32'; }
   private check() { if (!this.supported) throw new Error('Plugin secrets are unsupported on this Host (Windows required)'); }
   private key(plugin: string, name?: string) {
@@ -45,9 +61,19 @@ export class WindowsPluginSecretStore implements PluginSecretStore {
   async read(plugin: string, name: string) {
     this.check(); let blob: Buffer;
     try { blob = await readFile(this.key(plugin, name)); } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') return undefined; throw new Error('Windows secret store unavailable'); }
-    return (await crypt('unprotect', blob, this.entropy(plugin, name))).toString('utf8');
+    const key = this.key(plugin, name);
+    try {
+      const value = (await crypt('unprotect', blob, this.entropy(plugin, name))).toString('utf8');
+      this.damaged.delete(key); return value;
+    } catch { this.damaged.set(key, this.fingerprint(blob)); throw new Error('Windows secret store unavailable'); }
   }
-  async status(plugin: string, name: string) { return (await this.read(plugin, name)) !== undefined; }
+  async status(plugin: string, name: string) {
+    this.check(); const key = this.key(plugin, name);
+    let blob: Buffer;
+    try { blob = await readFile(key); } catch (e) { if ((e as NodeJS.ErrnoException).code === 'ENOENT') { this.damaged.delete(key); return false; } throw new Error('Windows secret store unavailable'); }
+    if (!validBlob(blob) || this.damaged.get(key) === this.fingerprint(blob)) throw new Error('Windows secret store unavailable');
+    this.damaged.delete(key); return true;
+  }
   async set(plugin: string, name: string, value: string) {
     this.check(); const blob = await crypt('protect', Buffer.from(value), this.entropy(plugin, name));
     const file = this.key(plugin, name), temporary = `${file}.${randomUUID()}.tmp`;

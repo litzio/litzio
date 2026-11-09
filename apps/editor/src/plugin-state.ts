@@ -16,7 +16,11 @@ export function usePlugins(active = true) {
       setPlugins(value.plugins); setError("");
     } catch (e) { if (request === latestRequest.current) setError(String(e)); }
   };
-  useEffect(() => { if (!active) return; void refresh(); const listener = () => void refresh(); window.addEventListener("plugins-changed", listener); return () => { ++latestRequest.current; window.removeEventListener("plugins-changed", listener); }; }, [client, active]);
+  useEffect(() => { if (!active) return; void refresh(); const listener = (event: Event) => {
+    const result = (event as CustomEvent<{ client: typeof client; plugins: Plugin[] }>).detail;
+    if (result?.client === client) { ++latestRequest.current; setPlugins(result.plugins); setError(""); }
+    else void refresh();
+  }; window.addEventListener("plugins-changed", listener); return () => { ++latestRequest.current; window.removeEventListener("plugins-changed", listener); }; }, [client, active]);
   return { plugins, error, async change(action: string, args: Record<string, unknown>) {
     ++latestRequest.current;
     const response = await client.request("/api/plugins", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, ...args }) });
@@ -25,6 +29,6 @@ export function usePlugins(active = true) {
       if (["settings", "secret-delete"].includes(action)) window.dispatchEvent(new Event("plugins-changed"));
       throw new Error(value.error ?? "Plugin operation failed");
     }
-    window.dispatchEvent(new Event("plugins-changed")); await refresh();
+    window.dispatchEvent(new CustomEvent("plugins-changed", { detail: { client, plugins: value.plugins } }));
   } };
 }

@@ -1,5 +1,6 @@
 async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   const secretSaves = [];
+  let listRequests = 0;
   const saveSecret = async () => {
     const start = Date.now();
     const saved = page.waitForResponse(response => response.url().endsWith("/api/plugins/secrets") && response.request().method() === "POST");
@@ -20,8 +21,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   const delayedResponses = [];
   // Isolate detection from the machine's real OneDrive account; folder listing still uses the Host.
   await page.route("**/api/plugins", async route => {
-    if (route.request().method() !== "GET") return route.continue();
-    const delayed = holdEnabled;
+    if (route.request().method() === "GET") ++listRequests;
+    const delayed = holdEnabled && route.request().method() === "GET";
     const response = await route.fetch();
     const value = await response.json();
     for (const plugin of value.plugins) if (plugin.id === "litzio.onedrive" && plugin.running) {
@@ -38,7 +39,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(official).not.toBeChecked();
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "litzio.onedrive").official).toBe(true);
   if (screenshots) { await page.setViewportSize({ width: 1440, height: 900 }); await page.screenshot({ path: "docs/design/assets/bundled-plugins-1279/bundled-1440.png", mask: [page.locator(".sidebar-host-account")] }); }
+  const beforeEnableLists = listRequests;
   await official.click(); await expect(official).toBeChecked();
+  expect(listRequests).toBe(beforeEnableLists);
   await page.keyboard.press("Escape");
   if (screenshots) {
     await page.setViewportSize({ width: 1440, height: 900 });
