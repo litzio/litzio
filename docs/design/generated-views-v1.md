@@ -442,3 +442,11 @@ V7 시각 검토: 같은 메모리 예시·Dark/Korean·100% zoom에서 [1440px 
 기존 `views.test.ts`의 HTTP/실제 CLI 경로는 named/direct host 조회의 Root 없는 실행과 receipt/target을 보호한다. 기존 `http-plugins`는 실제 Docling artifact와 합성 health 서버에서 열린 폴더 없이 조회·실패·재조회를 검사한다. `generated-views`는 접힌 즐겨찾기의 사용자 접근과 기본 뷰 복귀·입력 보존을 확인한다. 새 subprocess나 전수 조합은 추가하지 않는다. 실제 Docling 서버·변환 품질·원격 Host 수락 검증은 포함하지 않는다.
 
 시각 검토는 같은 Docling 화면의 [1440 이전](assets/plugin-screen-1329/before-1440.png) / [이후](assets/plugin-screen-1329/after-1440.png), [한국어 다크 640 이전](assets/plugin-screen-1329/before-640-ko-dark.png) / [이후](assets/plugin-screen-1329/after-640-ko-dark.png)를 사용한다. 이전은 master 구현, 이후는 폴더 없이 실행한 결과다. 경로·계정 표시는 마스킹하며 결과 표의 정렬·필터 동작은 변경하지 않는다.
+
+## Table link columns (#1332)
+
+Public string row fields may declare `linkField` naming another declared public string field in the same row, e.g. `key: {type:"string",label:"Key",linkField:"url"}` with `url: {type:"string",label:"URL",nullable:true}`. Missing, secret, non-string and self targets are rejected by Core. Table displays the original cell text as a native anchor only when its target passes `externalLinkUrl` (http/https); null, empty, malformed URLs and other schemes remain text. Empty/null display values also remain text. Click and Enter use `openExternalLink`, including Desktop's existing external-browser handling. Underline/accent and focus-visible outline use existing theme tokens in shared DataTable; no surface exception is needed.
+
+URL data remains in rows, including CLI results. Sorting/filtering compare original scalar values; operation definitions/favourites and assistant canonical snapshots retain their existing persistence rules. Grouped rows have no target URL and therefore remain text. No HTML, arbitrary actions, internal links or cell formatting are introduced. Plugin link declarations require a supported SDK contract at least 0.3.0 in `requiresSdk`.
+
+Visual fixture review: [1440px](../reviews/assets/view-link-1332-1440.png), [Korean dark 640px](../reviews/assets/view-link-1332-ko-dark-640.png). Shared DataTable gallery fixture; these captures do not establish live Jira or packaged Desktop acceptance.

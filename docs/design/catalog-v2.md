@@ -219,3 +219,5 @@ V4 Host·CLI와 K1 완료 자료 연결의 구현 계약은 [플러그인 1단�
 ### 예시: Table 갤러리
 
 부품 목록과 별도 영역에서 같은 Table의 사용 사례를 보여 준다. D3는 `apps/editor/src/dev/ui-gallery.tsx`의 Five columns/Twelve columns를 `Table — 예시: 좁은 표`, `Table — 예시: 넓은 표(가로 스크롤)`로 바꾸고 `Table — 예시: 열별 정렬·필터`를 추가한다. 예시의 열 개수·자료·fixture 이름은 부품이나 variant 이름이 아니다.
+
+Table 링크 열은 [구현된 Table 링크 계약](generated-views-v1.md#table-link-columns-1332)을 따른다. 공개 string 열의 `linkField`로 같은 행의 URL 필드를 지정하며 명세의 columns와 정렬·필터 형식은 유지한다.
