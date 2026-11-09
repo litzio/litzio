@@ -49,6 +49,6 @@ or an external caller-supplied server. The normal fixture still isolates separat
 tests. Packaged Desktop has its own fixed Electron test profiles and resets recovery only on a
 test's first launch, preserving the record on subsequent launches within that test.
 
-worker fixture는 `finally`에서 자신이 연 persistent context를 닫는다. Playwright의 `webServer`는 기본 URL에 서버가 없으면 직접 시작하고 종료한다. 로컬에 이미 실행 중인 `pnpm editor` 서버와 명시적으로 지정한 `LITZIO_BROWSER_URL` 서버는 caller 소유이므로 runner가 종료하지 않는다. CI는 기존 서버를 재사용하지 않는다. 직접 시작한 서버와 추가 CLI session은 이름과 PID를 확인해 정리한다. profile 재사용과 실행 중인 프로세스 방치는 다른 문제다.
+worker fixture는 `finally`에서 자신이 연 persistent context를 닫는다. Playwright의 `webServer`는 로컬·CI 모두 매번 OS가 할당한 빈 포트로 자기 Vite 또는 production HTTP Host를 시작하고 종료한다. 실제 bind와 소유 서버의 기동 확인 후 `Browser server:` 한 줄에 URL·포트·소유 PID를 출력하고 worker에 전달한다. Windows의 [포트 0 bind](https://learn.microsoft.com/en-us/windows/win32/api/winsock/nf-winsock-bind)는 OS의 dynamic client port 할당을 사용하므로 예약·사용 중인 포트를 피한다. 특정 ephemeral 번호 자체가 항상 안전하다고 가정하지 않으며 매 실행 실제 bind가 성공한 번호만 사용한다. HTTP CLI는 포트 0을 받지 않으므로 잠시 bind한 포트를 해제해 전달하며, 그 사이 포트가 점유되면 기동 실패로 종료한다. 다른 서버로 붙이지 않는다. 명시적으로 지정한 `LITZIO_BROWSER_URL`만 caller 소유 서버에 붙이며 runner가 종료하지 않는다. 일반 개발 서버와 제품 daemon의 기본 포트는 유지한다. 직접 시작한 서버와 추가 CLI session은 이름과 PID를 확인해 정리한다. profile 재사용과 실행 중인 프로세스 방치는 다른 문제다.
 
 자신이 시작한 프로세스만 종료하며, 같은 이름이나 port의 다른 프로세스를 광범위하게 종료하지 않는다. 정리에 실패하면 남아 있는 process/session/port와 이유를 작업 결과에 기록한다. 전체 규칙은 [AGENTS.md](../../AGENTS.md#process-cleanup)를 따른다.
