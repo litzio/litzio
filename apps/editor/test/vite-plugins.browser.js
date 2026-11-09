@@ -9,7 +9,9 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await expect(page.getByRole("dialog").getByRole("heading", { name: "OneDrive", exact: true })).toBeVisible();
   await expect(page.getByRole("dialog").getByRole("button", { name: "Check connection", exact: true })).toHaveCount(0);
   await page.keyboard.press("Escape");
+  const officialEnabled = page.waitForResponse(response => response.url().endsWith("/api/plugins") && response.request().method() === "POST" && response.request().postDataJSON()?.action === "enable");
   await officialToggle.click();
+  expect((await officialEnabled).ok()).toBe(true);
   await expect(official.getByRole("status").filter({ hasText: /^Plugin running$/ })).toBeVisible();
   await officialToggle.click();
   await expect(official.getByRole("status").filter({ hasText: /^Plugin disabled$/ })).toBeVisible();
@@ -82,6 +84,9 @@ async (page, { expect, pluginFixture, screenshots }) => {
       await page.getByRole("button", { name: width === 640 ? "Vite fixture 설정" : "Vite fixture settings", exact: true }).click();
       await page.getByRole("button", { name: width === 640 ? "연결 확인" : "Check connection", exact: true }).click();
       await expect(page.getByRole("dialog").getByText("연결하지 못했습니다. 저장된 서버 주소와 자격 증명을 확인한 뒤 다시 시도하세요.", { exact: true })).toBeVisible();
+      expect(await page.getByRole("dialog").evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+      await expect(page.getByRole("dialog").getByRole("textbox", { name: "docling-serve URL", exact: true })).toHaveValue("https://docling.example.test/service");
+      await expect(page.getByRole("dialog").locator('input[type="password"]')).toBeVisible();
       await page.screenshot({ path: `tmp/plugin-settings-1334/detail-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
       await page.keyboard.press("Escape");
     }

@@ -220,6 +220,23 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await page.evaluate(() => { localStorage.removeItem(JSON.stringify(["local", "litzio.openFolders"])); });
     await page.reload(); await openSettings();
     await expect(page.locator(".sidebar-folder-name")).toHaveCount(0);
+    if (screenshots) {
+      for (const width of [1440, 640]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
+        await page.reload();
+        await page.getByRole("button", { name: width === 640 ? "설정" : "Settings", exact: true }).click();
+        await page.getByRole("button", { name: width === 640 ? "플러그인" : "Plugins", exact: true }).click();
+        await page.getByRole("button", { name: width === 640 ? "Docling 설정" : "Docling settings", exact: true }).click();
+        const detail = page.getByRole("dialog");
+        await expect(detail.getByRole("textbox", { name: "docling-serve URL", exact: true })).not.toBeEmpty();
+        await expect(detail.locator('input[type="password"]')).toBeVisible();
+        expect(await detail.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+        await page.screenshot({ path: `tmp/plugin-settings-1334/docling-detail-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+      }
+      await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
+      await page.reload(); await openSettings();
+    }
     await page.keyboard.press("Escape");
     await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
     const refresh = page.getByRole("button", { name: "Refresh data", exact: true });
@@ -238,7 +255,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
           await page.reload();
           await page.getByRole("button", { name: "설정", exact: true }).click();
           await page.getByRole("button", { name: "플러그인", exact: true }).click();
-          await page.getByRole("button", { name: "뷰 열기 · Docling", exact: true }).click();
+          await page.keyboard.press("Escape");
+          await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
           await page.getByRole("button", { name: "데이터 새로고침", exact: true }).click();
           await expect(page.getByRole("cell", { name: "연결됨", exact: true })).toBeVisible();
         }
@@ -259,6 +277,123 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     docling.setFailure(false);
     await refresh.click();
     await expect(page.getByRole("cell", { name: "연결됨", exact: true })).toBeVisible();
+    // Connection reads need no folder; file jobs explicitly select an opened Root.
+    await openFolderPicker(page);
+    await page.getByTestId("folder-path").fill(pluginFixture.folder);
+    await page.getByTestId("folder-open").click();
+    await expect(page.getByTestId("folder-path")).not.toBeVisible();
+    const pdfJob = await docling.cli(["plugins", "start", id, "--input", docling.fileJobInput]);
+    expect(pdfJob.job.state).toBe("running");
+    await expect.poll(async () => (await docling.cli(["plugins", "status", pdfJob.job.requestId])).job.state).toBe("completed");
+    const pdfResult = (await docling.cli(["plugins", "result", pdfJob.job.requestId])).job.result;
+    expect(pdfResult.kind).toBe("file");
+    expect(pdfResult.path.replaceAll("\\", "/")).toBe(pluginFixture.folder.replaceAll("\\", "/") + "/source.docling");
+    await docling.verifyFile(pdfResult.path);
+    await page.keyboard.press("Control+Slash");
+    await page.getByRole("combobox").fill("> Plugin jobs");
+    await page.getByRole("option", { name: "Plugin jobs", exact: true }).click();
+    const filePane = page.getByTestId("plugin-jobs");
+    await expect(filePane.getByRole("status", { name: "Job status" })).toHaveText("Completed");
+    await expect(filePane.getByText(pdfResult.path, { exact: true })).toBeVisible();
+    await filePane.getByLabel("Input file").selectOption("source.pdf");
+    await expect(filePane.getByLabel("Result path in Root")).toHaveValue("source.docling");
+    if (screenshots) {
+      for (const width of [1440, 640]) {
+        await page.setViewportSize({ width, height: 900 });
+        if (width === 640) {
+          await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
+          await page.reload();
+          await page.keyboard.press("Control+Slash");
+          await page.getByRole("combobox").fill("> 플러그인 작업");
+          await page.getByRole("option", { name: "플러그인 작업", exact: true }).click();
+        }
+        await expect(filePane.getByRole("status", { name: width === 640 ? "작업 상태" : "Job status" })).toHaveText(width === 640 ? "완료" : "Completed");
+        await filePane.getByLabel(width === 640 ? "입력 파일" : "Input file").selectOption("source.pdf");
+        await page.screenshot({ path: `tmp/docling-1322/file-${width}.png`, mask: [page.locator(".sidebar-host-account"), filePane.getByLabel(width === 640 ? "열린 폴더" : "Opened folder", { exact: true }), page.locator(".views-page > header p"), page.locator(".plugin-job-file-result p")], maskColor: "#a1a1aa" });
+      }
+      await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); }); await page.reload();
+    } else await page.getByRole("button", { name: "Close Plugin jobs", exact: true }).click();
+    docling.setPdfOutcome("failure");
+    const failedPdf = await docling.cli(["plugins", "start", id, "--input", docling.fileJobInput]);
+    await expect.poll(async () => (await docling.cli(["plugins", "status", failedPdf.job.requestId])).job.state).toBe("failed");
+    docling.setPdfOutcome("pending");
+    const waitingPdf = await docling.cli(["plugins", "start", id, "--input", docling.fileJobInput]);
+    await expect.poll(async () => (await docling.cli(["plugins", "status", waitingPdf.job.requestId])).job.phase).toBe("PDF 변환 중");
+    const stoppedPdf = (await docling.cli(["plugins", "stop", waitingPdf.job.requestId])).job;
+    expect(stoppedPdf.state).toBe("stopped");
+    expect(stoppedPdf.stopRequested).toBe(true);
+    expect(stoppedPdf.result).toBeUndefined();
+    const beforeNativeRequests = docling.conversionRequests();
+    const started = await docling.cli(["plugins", "start", id, "--input", docling.jobInput]);
+    expect(started.job.state).toBe("running");
+    await expect.poll(async () => (await docling.cli(["plugins", "status", started.job.requestId])).job.state).toBe("completed");
+    expect((await docling.cli(["plugins", "result", started.job.requestId])).job.result.path).toContain("docling-cli.md");
+    await page.keyboard.press("Control+Slash");
+    await page.getByRole("combobox").fill("> Plugin jobs");
+    await page.getByRole("option", { name: "Plugin jobs", exact: true }).click();
+    const pane = page.getByTestId("plugin-jobs");
+    await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("Completed");
+    await pane.getByRole("button", { name: "Open result document" }).click();
+    const editor = page.locator(".tiptap").filter({ visible: true });
+    await expect(editor).toContainText("Converted PDF");
+    await expect(editor).toContainText("PDF body *literal*.");
+    await expect(editor).toContainText("Cell one | Cell two");
+    await expect(editor).not.toContainText("Docling conversion:");
+    await page.getByRole("tab", { name: /Plugin jobs/ }).click();
+    await pane.getByLabel("Job", { exact: true }).selectOption("community.docling/create-document");
+    await pane.getByLabel("Input file").selectOption("sample.docling");
+    await pane.getByLabel("Result path in Root").fill("docling-browser.md");
+    await pane.getByRole("button", { name: "Start job", exact: true }).click();
+    await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("Completed");
+    if (screenshots) for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 900 });
+      if (width === 640) {
+        await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
+        await page.reload();
+        await page.keyboard.press("Control+Slash");
+        await page.getByRole("combobox").fill("> 플러그인 작업");
+        await page.getByRole("option", { name: "플러그인 작업", exact: true }).click();
+      }
+      await expect(pane.getByRole("status", { name: width === 640 ? "작업 상태" : "Job status" })).toHaveText(width === 640 ? "완료" : "Completed");
+      await page.screenshot({ path: `tmp/docling-1322/completed-${width}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".plugin-settings-row select"), pane.getByLabel(width === 640 ? "열린 폴더" : "Opened folder", { exact: true }), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
+    }
+    if (screenshots) { await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); }); await page.reload(); }
+    docling.setDocumentInput(true);
+    const failure = await docling.cli(["plugins", "start", id, "--input", docling.jobInput]);
+    await expect.poll(async () => (await docling.cli(["plugins", "status", failure.job.requestId])).job.state).toBe("failed");
+    expect((await docling.cli(["plugins", "status", failure.job.requestId])).job.result).toBeUndefined();
+    expect(docling.conversionRequests()).toBe(beforeNativeRequests);
+    // Explicit local acceptance only; CI uses the fake server above.
+    if (docling.real) {
+      await docling.cli(["plugins", "settings", id, "--file", docling.real.settings]);
+      const realPdf = await docling.cli(["plugins", "start", id, "--input", docling.real.pdfInput]);
+      await expect.poll(async () => (await docling.cli(["plugins", "status", realPdf.job.requestId])).job.state, { timeout: 60000 }).toBe("completed");
+      const realFile = (await docling.cli(["plugins", "result", realPdf.job.requestId])).job.result;
+      expect(realFile.kind).toBe("file");
+      expect(realFile.path.replaceAll("\\", "/")).toBe(pluginFixture.folder.replaceAll("\\", "/") + "/real-docling/a.docling");
+      await docling.verifyFile(realFile.path, "real-docling/a.pdf");
+      const realNative = await docling.cli(["plugins", "start", id, "--input", docling.real.nativeInput]);
+      await expect.poll(async () => (await docling.cli(["plugins", "status", realNative.job.requestId])).job.state).toBe("completed");
+      const closeJobs = page.getByRole("button", { name: "Close Plugin jobs", exact: true });
+      if (await closeJobs.isVisible()) await closeJobs.click();
+      await page.keyboard.press("Control+Slash");
+      await page.getByRole("combobox").fill("> Plugin jobs");
+      await page.getByRole("option", { name: "Plugin jobs", exact: true }).click();
+      await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("Completed");
+      await pane.getByRole("button", { name: "Open result document" }).click();
+      await expect(editor).toContainText("Docling fixed-profile verification");
+      await expect(editor).not.toContainText("Docling conversion:");
+      if (screenshots) for (const width of [1440, 640]) {
+        await page.setViewportSize({ width, height: 900 });
+        if (width === 640) {
+          await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
+          await page.reload();
+          await expect(editor).toContainText("Docling fixed-profile verification");
+        }
+        await page.mouse.move(0, 0);
+        await page.screenshot({ path: `tmp/docling-1322/real-document-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
+      }
+    }
   } finally {
     if (doclingRegistered) {
       await docling.cli(["plugins", "disable", id]);
