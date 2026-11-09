@@ -6,6 +6,7 @@ import { rowSchema, type ViewOperation } from "@litzio/core/views";
 export { rowSchema, type RowSchema } from "@litzio/core/views";
 import { compileSchema } from "./schema.ts";
 import { z } from "zod";
+import { documentAuthoringSchema, DOCUMENT_AUTHORING_LIMITS } from "@litzio/core";
 import semver from "semver";
 export const SDK_VERSION = "0.3.0";
 // Actual SDK contracts still implemented by this Host, not hypothetical versions
@@ -163,10 +164,20 @@ export const completedReviewSchema = z.strictObject({ review: z.string().min(1).
     if (new Set(ids).size !== ids.length) ctx.addIssue({ code: "custom", message: "Duplicate region across review pages" });
   });
 export type CompletedReview = z.infer<typeof completedReviewSchema>;
+/** Text stays bounded separately from base64 images. Completed payload only; not a job lifetime limit. */
+export const JOB_DOCUMENT_MAX_BYTES = 32 * 1024 * 1024;
+export const documentImageSchema = z.strictObject({ key: z.string().min(1).max(512), mime: z.enum(["image/png", "image/jpeg", "image/gif", "image/webp"]),
+  base64: z.string().min(1).max(4 * Math.ceil(10 * 1024 * 1024 / 3)) });
+export const authoredDocumentRequestSchema = z.strictObject({ authoring: documentAuthoringSchema, images: z.array(documentImageSchema).max(256).default([]) }).superRefine((value, ctx) => {
+  if (new Set(value.images.map(image => image.key)).size !== value.images.length) ctx.addIssue({ code: "custom", message: "Duplicate image key" });
+  if (new TextEncoder().encode(JSON.stringify(value)).length > JOB_DOCUMENT_MAX_BYTES) ctx.addIssue({ code: "custom", message: "Document payload exceeds 32 MiB" });
+});
+export type AuthoredDocumentRequest = z.infer<typeof authoredDocumentRequestSchema>;
+export const jobDocumentSchema = z.union([z.strictObject({ source: z.string().refine(value => new TextEncoder().encode(value).length <= DOCUMENT_AUTHORING_LIMITS.bytes, "Document source exceeds 4 MiB") }), authoredDocumentRequestSchema]);
 export const jobUpdateSchema = z.strictObject({
   state: z.enum(["running", "completed", "failed", "stopped", "uncertain"]), phase: z.string(),
   progress: z.strictObject({ done: z.number().nonnegative(), total: z.number().positive() }).refine(p => p.done <= p.total).optional(),
-  errorKind: z.unknown().transform(pluginErrorKind).optional(), document: z.strictObject({ source: z.string() }).optional(), review: completedReviewSchema.optional(),
+  errorKind: z.unknown().transform(pluginErrorKind).optional(), document: jobDocumentSchema.optional(), review: completedReviewSchema.optional(),
   file: z.strictObject({ path: z.string().min(1) }).optional(),
 });
 export type JobContribution = PluginManifest["contributes"]["jobs"][number];

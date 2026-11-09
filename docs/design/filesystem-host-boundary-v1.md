@@ -300,6 +300,10 @@ Editor Host Save와 CLI의 파일 수정 명령은 기존 Markdown 파일을 같
 - Process 간 lock, fsync/전원 차단 시 영속성, 자동 merge는 없다. Explorer 변경 알림은 아래 #927 계약을 따른다. 강제 종료된 process는 temporary sibling을 남길 수 있다.
 - Rename은 새 파일로 교체하므로 owner/group, hard link, Windows의 명시적 ACL과 extended attribute를 유지하지 않는다. 다른 process가 파일을 공유 삭제 없이 열어 두면 Windows에서 rename이 실패할 수 있으며, 이때도 원본은 유지된다.
 
+### Structured document creation with images (#1371)
+
+`createAuthoredDocumentFile` is the shared K1 and CLI `create --input` operation. Core constructs canonical document semantics; Host validates supplied image bytes and publishes them beside the new document in `assets/`. It reuses the editor asset publisher, MIME/container limits, exclusive collision handling and signed ownership rollback, adding content reuse and support for a not-yet-created document. Editor paste/drop naming and existing asset API admission are unchanged. Only images created by a failed request are rolled back; reused bytes remain. Existing documents are never replaced. The exact request, bounded payloads, naming, retry and capacity evidence are in [the plugin contract](plugin-stage1-v1.md#공용-문서-이미지긴-문서-확장-1371).
+
 ### CLI revision precondition (#214)
 
 - NodePath 옵션 `--path`는 쉼표로 구분한 음이 아닌 정수이며 숫자 주변 공백은 허용한다. 빈 segment(예: `1,,0`, `1, ,0`, `,1,0`, `1,0,`)와 빈 경로는 `--path must be comma-separated non-negative integers` 오류와 exit 1로 거부한다. `apply-batch`의 `path`도 같은 파서를 사용하며, 단건·배치 실패 시 원본 파일 바이트를 보존한다(#345).

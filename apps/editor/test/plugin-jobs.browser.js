@@ -91,6 +91,11 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   }
   await pane.getByRole("button", { name: "Open result document" }).click();
   await expect(page.locator(".tiptap").filter({ visible: true })).toContainText("Job result.");
+  const image = page.locator(".tiptap").filter({ visible: true }).getByRole("img", { name: "Imported image", exact: true });
+  await expect(image).toBeVisible();
+  await expect.poll(() => image.evaluate(element => element.complete && element.naturalWidth > 0)).toBe(true);
+  await expect(image).toHaveAttribute("src", /assets/);
+  await expect(page.locator(".tiptap").filter({ visible: true })).toContainText("A.3");
   // Selecting the retained job tab and starting another explicit request tests Stop.
   await page.getByRole("tab", { name: /Plugin jobs/ }).click();
   await pane.getByLabel("Result path in Root").fill("stopped-result.md");

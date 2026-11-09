@@ -7,6 +7,7 @@ import { createFileFromPath } from "@litzio/file-commit";
 import { JOB_START_CONTRACT_MESSAGE, JOB_FILE_MAX_BYTES, defaultJobOutput, jobRequestSchema, jobUpdateSchema, type BatchJobResult, type JobInput, type PluginErrorKind, type JobContribution, type JobSnapshot } from "@litzio/plugin-sdk";
 import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
 import { createDocumentSourceFile } from "../document-create.ts";
+import { createAuthoredDocumentFile } from "../document-authoring.ts";
 
 type Record = { effects: Map<string, "read" | "write">; uncertainWrite?: boolean; detached?: boolean; staging?: string; observations?: Promise<void>; startedAt: number; finishedAt?: number; snapshot: JobSnapshot; binding: JobContribution; input: JobInput; access: RootAccess; pending: Promise<void>; stopping?: Promise<void> };
 /** Daemon-lifetime observations only; no queue, scheduler or replay ledger. */
@@ -43,7 +44,11 @@ export class PluginJobs {
         if (update.file) throw new Error("Unexpected file result");
         if (!update.document) throw new Error("Completed job has no document");
         accessPath(record.input.output, this.access, true);
-        const created = createDocumentSourceFile(record.input.output, update.document.source, record.access);
+        const created = "source" in update.document ? createDocumentSourceFile(record.input.output, update.document.source, record.access)
+          : await createAuthoredDocumentFile(record.input.output, update.document, record.access, () => {
+            if (record.detached) throw new Error("Document result observation lost");
+            accessPath(record.input.output, this.access, true);
+          });
         current.result = { path: created.path, revision: created.revision };
         // Publication failure must not lose the successful document receipt or recreate it on status.
         record.finishedAt = Date.now();
