@@ -190,14 +190,14 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     const row = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: file, exact: true }) });
     await expect(row.getByRole("status")).toHaveText("Completed");
   }
-  // One collision is refused while the second independent request still completes.
+  // Existing results are preserved and automatically numbered.
   const batch = pluginFixture.cli(["plugins", "start", plugin.id, "--job", "file", "--root", pluginFixture.folder, "--file", "cli-a.txt", "--file", "cli-b.txt"]);
   expect(batch.files).toHaveLength(2);
   for (const file of batch.files) await expect.poll(() => pluginFixture.cli(["plugins", "status", file.requestId]).job.state).toBe("completed");
   await panel.getByRole("checkbox", { name: "batch-a.txt", exact: true }).check();
   await panel.getByRole("checkbox", { name: "slow.txt", exact: true }).check();
   await panel.getByRole("button", { name: "Start job", exact: true }).click();
-  await expect(panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "batch-a.txt", exact: true }) }).first().getByRole("status")).toHaveText("Failed");
+  await expect(panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "batch-a.txt", exact: true }) }).first().getByRole("cell", { name: "batch-a-2.bin", exact: true })).toBeVisible();
   await expect(panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "slow.txt", exact: true }) }).first().getByRole("status")).toHaveText("Completed", { timeout: 15000 });
   await panel.getByLabel("Job", { exact: true }).selectOption("text");
   await panel.getByRole("checkbox", { name: "slow.txt", exact: true }).check();
@@ -205,6 +205,13 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   const stoppedRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "slow.txt", exact: true }) }).first();
   await stoppedRow.getByRole("button", { name: "Request cancellation", exact: true }).click();
   await expect(stoppedRow.getByRole("status")).toHaveText("Cancelled");
+  await panel.getByRole("checkbox", { name: "start-fail.txt", exact: true }).check();
+  await panel.getByRole("button", { name: "Start job", exact: true }).click();
+  const failureRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "start-fail.txt", exact: true }) }).first();
+  await expect(failureRow.getByRole("status")).toHaveText("Outcome uncertain");
+  await failureRow.getByRole("button", { name: "Job details: start-fail.txt", exact: true }).hover();
+  await expect(page.locator("[data-slot=tooltip-content]")).toContainText("The plugin could not acknowledge the start request.");
+  await page.keyboard.press("Escape");
   await panel.getByRole("checkbox", { name: "input.txt", exact: true }).check();
   await panel.getByRole("button", { name: "Start job", exact: true }).click();
   const nativeRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "input.txt", exact: true }) }).first();
@@ -212,7 +219,6 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   for (const selector of [".plugin-job-files", ".view-table-scroll"]) {
     expect(await panel.locator(selector).evaluate(el => el.scrollHeight <= el.clientHeight)).toBe(true);
   }
-  const failureRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "batch-a.txt", exact: true }) }).first();
   expect((await failureRow.boundingBox()).height).toBe((await nativeRow.boundingBox()).height);
 
   if (screenshots) {
@@ -230,12 +236,13 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
       if (width === 640) {
         expect(await panel.locator(".view-table-scroll").evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
-        const info = panel.getByRole("button", { name: "작업 상세: batch-a.txt", exact: true }).first();
+        const info = panel.getByRole("button", { name: "작업 상세: start-fail.txt", exact: true }).first();
         await nativeRow.getByRole("button", { name: "결과 열기: input.txt", exact: true }).focus();
         await page.keyboard.press("Tab");
         await expect(info).toBeFocused();
         await expect(page.locator("[data-slot=tooltip-content]")).toBeVisible();
-        await expect(page.locator("[data-slot=tooltip-content]")).toContainText("이 파일을 시작할 수 없습니다.");
+        await expect(page.locator("[data-slot=tooltip-content]")).toContainText("플러그인이 작업 시작을 확인하지 못했습니다.");
+        await page.screenshot({ path: "tmp/plugin-jobs/failure-details-640.png", maskColor: "#a1a1aa", mask: [page.locator(".sidebar-host-account"), panel.getByLabel("열린 폴더", { exact: true })] });
         await page.keyboard.press("Escape");
         await nativeRow.getByRole("cell").first().click();
       }

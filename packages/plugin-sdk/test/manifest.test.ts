@@ -24,7 +24,7 @@ test("manifest rejects unsupported extensions, invalid identities, versions and 
   assert.throws(() => validateManifest(withScreen("^0.3.0", { ...screen, jobs: [] })), /Screen needs views or jobs/);
   const binding = validateManifest(withJob(job)).contributes.jobs[0];
   assert.equal(defaultJobOutput(binding, "nested/a.txt"), "nested/a.bin");
-  assert.equal(defaultJobOutput({ ...binding, resultKind: "native-document" }, "a.txt"), "result.md");
+  assert.equal(defaultJobOutput({ ...binding, resultKind: "native-document" }, "docs/\uBCF4\uACE0\uC11C.docling"), "docs/\uBCF4\uACE0\uC11C.md");
   for (const resultExtension of [undefined, "bin", ".BIN", "../bin", ".tar.gz"]) assert.throws(() => validateManifest(withJob({ ...job, resultExtension })));
   assert.throws(() => validateManifest(withJob({ ...job, resultKind: "native-document" })));
 });

@@ -1,6 +1,11 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "The result path already exists or is in use.": "The result path already exists or is in use.",
+  "This input file is not supported.": "This input file is not supported.",
+  "The plugin is disabled or not running.": "The plugin is disabled or not running.",
+  "The plugin could not acknowledge the start request.": "The plugin could not acknowledge the start request.",
+  "Cannot start this file. Check the input and result path.": "Cannot start this file. Check the input and result path.",
   "Open result: {{file}}": "Open result: {{file}}",
   "Job details: {{file}}": "Job details: {{file}}",
   "Jobs": "Jobs",
@@ -1262,6 +1267,11 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "The result path already exists or is in use.": "결과 경로가 이미 있거나 사용 중입니다.",
+  "This input file is not supported.": "지원하지 않는 입력 파일입니다.",
+  "The plugin is disabled or not running.": "플러그인이 꺼져 있거나 실행 중이 아닙니다.",
+  "The plugin could not acknowledge the start request.": "플러그인이 작업 시작을 확인하지 못했습니다.",
+  "Cannot start this file. Check the input and result path.": "파일을 시작할 수 없습니다. 입력 파일과 결과 경로를 확인하세요.",
   "Open result: {{file}}": "결과 열기: {{file}}",
   "Job details: {{file}}": "작업 상세: {{file}}",
   "Jobs": "작업",

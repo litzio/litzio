@@ -1,6 +1,6 @@
 import { JobObservations } from "./job-observations.ts";
 import { useEffect, useRef, useState } from "react";
-import { JOB_BATCH_MAX_FILES, type JobContribution, type JobSnapshot, type BatchJobResult } from "@litzio/plugin-sdk";
+import { JOB_START_FAILURE_MESSAGES, JOB_BATCH_MAX_FILES, type JobContribution, type JobSnapshot, type BatchJobResult } from "@litzio/plugin-sdk";
 import type { HostClient } from "./host-client.ts";
 import { JobActions, JobState, jobEntries, listJobFolder } from "./PluginJobs.tsx";
 import { Info } from "lucide-react";
@@ -88,7 +88,7 @@ export function PluginJobPanel({ client, plugin, jobIds, roots, active, onOpen }
       setFiles([]);
       try {
         const value = await request({ action: "job-start-many", plugin, job: selected, root, files: selectedFiles, requestIds });
-        const additions = (value.files as BatchJobResult[]).map(item => item.job ?? { requestId: randomUuid(), plugin, job: selected, root, file: item.file, startedAt: Date.now(), state: "failed" as const, phase: "", elapsedMs: 0, stopRequested: false, error: "Cannot start this file. Check the input, result path and plugin availability." });
+        const additions = (value.files as BatchJobResult[]).map(item => item.job ?? { requestId: item.requestId ?? randomUuid(), plugin, job: selected, root, file: item.file, startedAt: Date.now(), state: "failed" as const, phase: "", elapsedMs: 0, stopRequested: false, errorKind: item.errorKind, startFailure: item.startFailure, error: item.error });
         setJobs(previous => [...additions.reverse(), ...previous]);
       } catch {
         if (signal.aborted) return;
@@ -97,13 +97,13 @@ export function PluginJobPanel({ client, plugin, jobIds, roots, active, onOpen }
       }
     })}>{i18n.t("Start job")}</Button></div>
     <div className="view-table-scroll" role="region" tabIndex={0} aria-label={i18n.t("Plugin jobs")}><table>
-      <thead><tr>{(["File", "Job", "Status", "Phase", "Elapsed", "Actions"] as const).map(label => <th key={label}>{i18n.t(label)}</th>)}</tr></thead>
+      <thead><tr>{(["File", "Result path in Root", "Job", "Status", "Phase", "Elapsed", "Actions"] as const).map(label => <th key={label}>{i18n.t(label)}</th>)}</tr></thead>
       <tbody>{[...jobs].sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0)).map(job => <tr key={job.requestId}>
-        <td>{job.file ?? "—"}</td><td>{bindings.find(binding => binding.id === job.job)?.title ?? job.job}</td>
-        <td><div className="plugin-job-state"><JobState job={job} />{job.error || job.state === "uncertain" ? <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" aria-label={i18n.t("Job details: {{file}}", { file: job.file ?? job.requestId })} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent>
-          {job.state === "uncertain" ? i18n.t("The job outcome is uncertain. Check the status before starting again.") : null}
-          {job.error ? job.errorKind ? `[${job.errorKind}] ${job.error}` : job.error === "Cannot start this file. Check the input, result path and plugin availability." ? i18n.t("Cannot start this file. Check the input, result path and plugin availability.") : job.error : null}
-        </TooltipContent></Tooltip> : null}</div></td>
+        <td>{job.file ?? "—"}</td><td>{job.output ?? "—"}</td><td>{bindings.find(binding => binding.id === job.job)?.title ?? job.job}</td>
+        <td><div className="plugin-job-state"><JobState job={job} />{job.error || job.state === "uncertain" ? <Tooltip><TooltipTrigger render={<Button variant="ghost" size="icon-sm" aria-label={i18n.t("Job details: {{file}}", { file: job.file ?? job.requestId })} />}><Info aria-hidden="true" /></TooltipTrigger><TooltipContent><div className="space-y-1">
+          {job.state === "uncertain" ? <p>{i18n.t("The job outcome is uncertain. Check the status before starting again.")}</p> : null}
+          {job.startFailure ? <p>{i18n.t(JOB_START_FAILURE_MESSAGES[job.startFailure.kind])}{job.startFailure.path ? ` ${job.startFailure.path}` : ""}</p> : job.error ? <p>{job.errorKind ? `[${job.errorKind}] ${job.error}` : job.error}</p> : null}
+        </div></TooltipContent></Tooltip> : null}</div></td>
         <td>{job.phase}</td><td>{Math.floor(job.elapsedMs / 1000)} s</td><td><JobActions compact job={job} busy={busy || !active} request={request} observe={observe} run={run} onOpen={onOpen} /></td>
       </tr>)}</tbody>
     </table></div>

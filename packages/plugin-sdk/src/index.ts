@@ -149,9 +149,9 @@ export const JOB_START_CONTRACT_MESSAGE = "K1 start must accept work and return 
 /** File bytes stay on disk, never in RPC JSON. Host enforces this limit at publication. */
 export const JOB_FILE_MAX_BYTES = 2 * 1024 ** 3;
 export type JobInput = { requestId: string; root: string; file: string; output: string; resultFile?: { path: string; maxBytes: number } };
-/** Root-relative default; native-document keeps its existing result.md default. */
+/** Root-relative sibling default; Host reserves an available name on admission. */
 export function defaultJobOutput(job: JobContribution, file: string): string {
-  return job.resultKind === "file" ? file.replace(/\.[^./\\]+$/, "") + job.resultExtension : "result.md";
+  return file.replace(/\.[^./\\]+$/, "") + (job.resultKind === "file" ? job.resultExtension : ".md");
 }
 
 /** K1 handlers receive Host-validated paths; results are published only by Host. */
@@ -170,9 +170,17 @@ export const jobUpdateSchema = z.strictObject({
   file: z.strictObject({ path: z.string().min(1) }).optional(),
 });
 export type JobContribution = PluginManifest["contributes"]["jobs"][number];
-export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; file?: string; startedAt?: number; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { kind?: "native-document" | "file"; path: string; revision: string; bundle?: ReviewBundle; review?: { plugin: string; review: string; root: string; bundleRef: string; generation: string } } };
+export type JobSnapshot = { requestId: string; plugin: string; job: string; root: string; file?: string; output?: string; startFailure?: JobStartFailure; startedAt?: number; elapsedMs: number; state: "running" | "completed" | "failed" | "stopped" | "uncertain"; phase: string; stopRequested: boolean; progress?: { done: number; total: number }; errorKind?: PluginErrorKind; error?: string; result?: { kind?: "native-document" | "file"; path: string; revision: string; bundle?: ReviewBundle; review?: { plugin: string; review: string; root: string; bundleRef: string; generation: string } } };
 export const JOB_BATCH_MAX_FILES = 50;
-export type BatchJobResult = { file: string; requestId?: string; job?: JobSnapshot; error?: string };
+export const JOB_START_FAILURE_MESSAGES = {
+  result_exists: "The result path already exists or is in use.",
+  unsupported_input: "This input file is not supported.",
+  unavailable: "The plugin is disabled or not running.",
+  start_failed: "The plugin could not acknowledge the start request.",
+  other: "Cannot start this file. Check the input and result path.",
+} as const;
+export type JobStartFailure = { kind: keyof typeof JOB_START_FAILURE_MESSAGES; path?: string };
+export type BatchJobResult = { file: string; requestId?: string; job?: JobSnapshot; errorKind?: PluginErrorKind; error?: string; startFailure?: JobStartFailure };
 export const jobRequestSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("job-start-many"), plugin: id, job: id, root: z.string().min(1), requestIds: z.array(z.string().uuid()).max(JOB_BATCH_MAX_FILES).optional(), files: z.array(z.string().min(1)).min(1).max(JOB_BATCH_MAX_FILES).refine(files => new Set(files).size === files.length, "Duplicate input file") }),
   z.strictObject({ action: z.literal("job-list"), plugin: id.optional() }),

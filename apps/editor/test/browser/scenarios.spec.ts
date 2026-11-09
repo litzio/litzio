@@ -234,6 +234,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       writeFileSync(fileJobInput, JSON.stringify({ job: "file", requestId: randomUUID(), root: pluginFolder, file: "nested/input.txt" }));
       writeFileSync(path.join(pluginFolder, "slow.txt"), "SLOW\n# Resume observation\n");
       writeFileSync(path.join(pluginFolder, "fail.txt"), "FAIL");
+      writeFileSync(path.join(pluginFolder, "start-fail.txt"), "THROW");
       writeFileSync(path.join(pluginFolder, "uncertain.txt"), "UNCERTAIN");
     }
     const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFYQAAAAASUVORK5CYII=", "base64");
