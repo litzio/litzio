@@ -1,6 +1,13 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Columns": "Columns",
+  "Column selection could not be saved.": "Column selection could not be saved.",
+  "Choose columns to display.": "Choose columns to display.",
+  "Partial results": "Partial results",
+  "Shown: {{count}} · Total: {{total}}": "Shown: {{count}} · Total: {{total}}",
+  "The source returned only part of the matching data. Sorting and filters use returned rows.": "The source returned only part of the matching data. Sorting and filters use returned rows.",
+
   "Open result: {{file}}": "Open result: {{file}}",
   "Job details: {{file}}": "Job details: {{file}}",
   "Jobs": "Jobs",
@@ -1262,6 +1269,13 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Columns": "열 선택",
+  "Column selection could not be saved.": "열 선택을 저장하지 못했습니다.",
+  "Choose columns to display.": "표시할 열을 선택하세요.",
+  "Partial results": "일부만 표시",
+  "Shown: {{count}} · Total: {{total}}": "{{count}}건 표시 · 전체 {{total}}건",
+  "The source returned only part of the matching data. Sorting and filters use returned rows.": "원본에서 조회 결과의 일부만 반환했습니다. 정렬과 필터는 반환된 행에 적용됩니다.",
+
   "Open result: {{file}}": "결과 열기: {{file}}",
   "Job details: {{file}}": "작업 상세: {{file}}",
   "Jobs": "작업",

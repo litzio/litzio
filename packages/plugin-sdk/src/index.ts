@@ -3,7 +3,7 @@ import { queryViewSchema, reviewContributionSchema, validateCatalogView, compile
 export * from "@litzio/core/views-v2";
 export { authorDocument, documentAuthoringSchema, DOCUMENT_AUTHORING_LIMITS, DocumentAuthoringError, type DocumentAuthoringInput, type AuthoredDocument } from "@litzio/core";
 import { rowSchema, type ViewOperation } from "@litzio/core/views";
-export { rowSchema, type RowSchema } from "@litzio/core/views";
+export { rowSchema, operationRowResultSchema, type OperationRowResult, type RowSchema } from "@litzio/core/views";
 import { compileSchema } from "./schema.ts";
 import { z } from "zod";
 import semver from "semver";
@@ -77,6 +77,8 @@ export function validateManifest(input: unknown): PluginManifest {
   ];
   if (linkSchemas.some(fields => Object.values(fields).some(field => field.linkField)) &&
       !supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Link columns require SDK 0.3.0 or later in requiresSdk");
+  if (linkSchemas.some(fields => Object.values(fields).some(field => field.hidden !== undefined)) &&
+      !supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Column visibility requires SDK 0.3.0 or later in requiresSdk");
   compileSchema(m.settingsSchema);
   for (const operation of m.contributes.operations) { if (operation.rowSchema && operation.effect !== "read") throw new Error("Only read operations can declare row schema"); compileViewInputSchema(operation.inputSchema); compileSchema(operation.outputSchema); }
   const viewOperations: ViewOperation[] = m.contributes.operations.filter(op => op.effect === "read" && op.rowSchema).map(op => ({

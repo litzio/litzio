@@ -454,3 +454,7 @@ Visual fixture review: [1440px](../reviews/assets/view-link-1332-1440.png), [Kor
 ## 플러그인 화면의 K1 패널 (#1340)
 
 `screens[].jobs`는 동일 플러그인의 K1 작업을 화면에 배치한다. defaultViewIds와 독립이며 작업만 있는 화면을 허용한다. SDK 0.3.0 요구·Host 다중 시작·파일별 결과·CLI는 [플러그인 1단계](plugin-stage1-v1.md#플러그인-화면-작업-패널-1340)를 따른다. 공통 작업 패널은 조회 뷰 위에 세로 배치되며 기존 조회 실행 방식은 유지한다. 패널은 비서 뷰 생성·즐겨찾기·저장 뷰 파일을 소비하지 않는다.
+
+## Plugin query table presentation (#1351)
+
+Plugin operation tables without grouping allow browser-owned column selection from the public rowSchema. Defaults, persistence and optional source truncation coverage follow the [plugin table contract](plugin-stage1-v1.md#플러그인-조회-표-열과-결과-범위-1351). This is presentation state, separate from saved view/document semantics. Grouped tables keep their derived fields. Query receipts still supply the query timestamp; coverage uses the original returned row count before local query transforms.

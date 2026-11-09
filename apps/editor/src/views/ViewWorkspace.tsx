@@ -292,7 +292,7 @@ export function ViewWorkspace({
           inert={selected !== key || opening}
         >
           <Views
-            tab={{ id, hostId, root: chosenRoot, view: definition }}
+            tab={{ id, hostId, screen, root: chosenRoot, view: definition }}
             client={client}
             roots={root ? [root] : []}
             onOpen={(view) => select("opened", view)}

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { rowSchema, parseOperationRows, OPERATION_ROW_LIMIT, type RowSchema } from "./operation-rows.ts";
-export { rowSchema, parseOperationRows, type RowSchema } from "./operation-rows.ts";
+export { rowSchema, parseOperationRows, parseOperationRowResult, operationRowResultSchema, type OperationRowResult, type RowSchema } from "./operation-rows.ts";
 
 export const VIEW_LIMITS = { bytes: 32768, panels: 8, rows: OPERATION_ROW_LIMIT } as const;
 const label = z.string().min(1).max(160).refine(v => !/[<>\u0000-\u001f]|(?:https?:|javascript:|data:)/i.test(v), "Plain label required");

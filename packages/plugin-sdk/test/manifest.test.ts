@@ -105,3 +105,9 @@ test("plugin image paths require the feature SDK and remain artifact-relative", 
   assert.throws(() => validateManifest({ ...manifest(), icon: "icon.png" }), /SDK 0.3.0/);
   for (const icon of ["../icon.png", "/icon.png", "C:/icon.png", "https://example.test/icon.png", "a/../icon.svg", "icon.gif", "icon.svg?x", "a\\icon.png"]) assert.throws(() => validateManifest({ ...manifest(), requiresSdk: "^0.3.0", icon }));
 });
+
+test("default-hidden row columns use the unreleased SDK 0.3 contract", () => {
+  const operation = { id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "array" }, rowSchema: { title: { type: "string", label: "Title" }, extra: { type: "number", label: "Extra", hidden: true } } };
+  assert.throws(() => validateManifest({ ...manifest(), requiresSdk: "^0.2.0", contributes: { operations: [operation] } }), /Column visibility/);
+  assert.equal(validateManifest({ ...manifest(), requiresSdk: "^0.3.0", contributes: { operations: [operation] } }).contributes.operations[0].rowSchema?.extra.hidden, true);
+});

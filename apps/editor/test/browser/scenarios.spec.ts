@@ -140,6 +140,7 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
         localStorage.removeItem("litzio.accentColor");
         localStorage.removeItem("litzio.theme");
         localStorage.removeItem("litzio.pageBackground");
+        for (const key of Object.keys(localStorage)) if (key.startsWith("litzio.pluginTableColumns:")) localStorage.removeItem(key);
         localStorage.removeItem("litzio.tableWrapDefault");
         localStorage.removeItem(JSON.stringify(["local", "litzio.tableWrapDocuments"]));
       });

@@ -130,23 +130,25 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     await manage({ action: "scaffold", directory: artifact, id: jira });
     const manifestFile = path.join(artifact, "litzio-plugin.json");
     const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
+    manifest.requiresSdk = ">=0.3.0 <1.0.0";
     const presets = ["assigned-open", "reported-open", "assigned-all", "reported-all", "recent", "all"];
-    const rowSchema = Object.fromEntries(["key", "summary", "status", "assignee", "updated"].map(key => [key, { type: "string", label: key }]));
+    const rowSchema: Record<string, { type: string; label: string; hidden?: boolean }> = Object.fromEntries(["key", "summary", "status", "assignee", "updated"].map(key => [key, { type: "string", label: key }]));
+    rowSchema.updated.hidden = true;
     const jiraView = { ...structuredClone(view), owner: jira, title: "My issues", sources: { stats: { kind: "operation", operation: `${jira}.search`, version: 1, args: { preset: presets[0], text: "old" } } },
       form: { component: "InputForm", source: "stats", fields: [{ component: "Select", field: "preset" }, { component: "TextInput", field: "text" }], submit: { component: "SubmitButton", label: "Search" } },
       layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Issues", source: "stats", data: "/rows", columns: Object.keys(rowSchema) }] } };
     manifest.contributes.operations = [{ id: "search", version: 1, effect: "read", scope: "host", rowSchema,
       inputSchema: { type: "object", properties: { preset: { type: "string", enum: presets }, text: { type: "string", minLength: 2, pattern: "^[A-Za-z]+$" }, credential: { type: "string", writeOnly: true } }, required: ["preset"], additionalProperties: false },
-      outputSchema: { type: "array", items: { type: "object" } } }];
+      outputSchema: { type: "object", properties: { rows: { type: "array", items: { type: "object" } }, truncated: { type: "boolean" }, total: { type: "integer" } }, required: ["rows", "truncated"] } }];
     // SDK-valid runtime schema, intentionally unsupported for persisted view input.
-    manifest.contributes.operations.push({ ...manifest.contributes.operations[0], id: "advanced", inputSchema: {
+    manifest.contributes.operations.push({ ...manifest.contributes.operations[0], id: "advanced", outputSchema: { type: "array", items: { type: "object" } }, inputSchema: {
       type: "object", properties: { term: { anyOf: [{ type: "string" }, { type: "number" }] } }, additionalProperties: false,
     } });
     manifest.contributes.views = [{ id: "issues", title: "My issues", definition: jiraView }];
     manifest.contributes.screens = [{ id: "dashboard", title: "예시: Issues", icon: "Table", defaultViewIds: ["issues"], primary: true }];
     fs.writeFileSync(manifestFile, JSON.stringify(manifest));
     fs.writeFileSync(path.join(artifact, "host.js"), `export function activate() { return {
-      operations: { advanced: () => [], search: ({preset, text}) => { if(text === "fail") throw Object.assign(new Error("PRIVATE SERVICE BODY"), {kind:"auth"}); return [{key:"MOCK-1",summary:preset,status:"Open",assignee:text ?? "me",updated:"2026-11-06"}]; } },
+      operations: { advanced: () => [], search: ({preset, text}) => { if(text === "fail") throw Object.assign(new Error("PRIVATE SERVICE BODY"), {kind:"auth"}); return {rows:[{key:"MOCK-1",summary:preset,status:"Open",assignee:text ?? "me",updated:"2026-11-06"}],truncated:true,total:1234}; } },
       status: () => ({available:true,message:"Ready",folders:[],decorations:[],accounts:[]}), dispose() {} }; }`);
     await manage({ action: "register", directory: artifact });
     const records = await (await fetch(`${host.url}/api/plugins`)).json();
@@ -198,6 +200,7 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     assert.ok(!("rows" in opened));
     parity(await request({ action: "list", plugin: jira }), await cliRequest(["list", "--plugin", jira]));
     const run = await request({ action: "run", plugin: jira, name: "issues" });
+    assert.deepEqual(run.coverage, { truncated: true, total: 1234, returned: 1 });
     parity(run, await cliRequest(["run", "--name", "issues", "--plugin", jira]));
     assert.equal(run.receipt.scope, "host");
     assert.ok(!("target" in run));

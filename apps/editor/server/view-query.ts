@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import type { randomUUID } from "node:crypto";
 import type { PluginHost } from "./plugins/plugin-host.ts";
-import type { ViewOperation } from "@litzio/core/views";
+import { parseOperationRowResult, type ViewOperation } from "@litzio/core/views";
 import { evaluateQueryView, validateViewInputs, type OperationQueryView } from "@litzio/core/views-v2";
 import { accessPath, type FileAccess } from "./file-access.ts";
 import { folderStatistics } from "./view-statistics.ts";
@@ -25,6 +25,9 @@ export async function runViewQuery(view: OperationQueryView, input: { root?: str
     if ("error" in reply) return { error: reply.error, errorKind: reply.errorKind, sourceReceipt: reply.receipt, receipt };
     data = reply.result;
   }
+  const parsed = parseOperationRowResult(data, operation.rowSchema);
+  const coverage = Array.isArray(parsed) ? undefined : { truncated: parsed.truncated, ...(parsed.total !== undefined ? { total: parsed.total } : {}), returned: parsed.rows.length };
+  data = Array.isArray(parsed) ? parsed : parsed.rows;
   const fields = Object.fromEntries(Object.entries(operations.find(op => op.operation === source.operation)!.rowSchema).filter(([, f]) => !f.secret).map(([name, f]) => [name, f.label]));
-  return { args: source.args, fields, ...evaluateQueryView(view, data, operations), ...(root ? { target: { root } } : {}), receipt: { ...receipt, outcome: "success" as const } };
+  return { args: source.args, fields, ...(coverage ? { coverage } : {}), ...evaluateQueryView(view, data, operations), ...(root ? { target: { root } } : {}), receipt: { ...receipt, outcome: "success" as const } };
 }

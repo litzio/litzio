@@ -332,3 +332,19 @@ The entire artifact, including the icon, is digest-bound. GET `/api/plugins/icon
 Sidebar plugin entries, plugin screen tabs and Settings plugin rows share the bundled PluginIcon component (decorative 16px img, contained aspect ratio). It fetches using the owning Host client and revokes its blob URL on replacement/unmount. Local and remote Hosts use the same path; the application CSP is unchanged (existing blob: img-src). SVG scripts cannot execute in img context. Missing/unavailable icons retain screens[].icon / existing defaults; plugin settings rows without images retain their existing name layout. DocumentTabs, existing sidebar entry and plugin-heading flex layout/tokens are reused; no new common interaction or exception. External plugin artwork and Docling/Jira adoption are outside this change; tests use original synthetic fixture art.
 
 Visual evidence: [screen 1440](assets/plugin-icon-1346/screen-1440.png), [settings 1440](assets/plugin-icon-1346/settings-1440.png), [screen Korean dark 640](assets/plugin-icon-1346/screen-640-ko-dark.png), [settings Korean dark 640](assets/plugin-icon-1346/settings-640-ko-dark.png). Host identity is masked; no real external service is involved.
+
+## 플러그인 조회 표 열과 결과 범위 (#1351)
+
+미릴리스 SDK `0.3.0`의 read `rowSchema` 필드에 선택적 `hidden:boolean`을 제공한다. `true`는 기본 숨김 후보이며 생략/false는 기본 표시다. 이 선언은 `requiresSdk`가 실제 지원하는 0.3.0 계약을 허용해야 한다. secret 필드는 계속 공개하지 않는다. 기본 숨김은 접근 권한이 아니며 공개 행 데이터는 CLI에도 포함된다.
+
+rowSchema 작업은 기존 행 배열 또는 `{rows, truncated, total?}`를 반환한다. 플러그인의 `outputSchema`도 실제 반환 형태를 선언해야 한다. SDK의 `OperationRowResult` 타입과 `operationRowResultSchema`를 제공하며 Host 공용 반환 경계에서 행 제한·공개 필드·잘림 정보를 검증한다. truncated는 필수 boolean, total은 선택적 0 이상의 safe integer다. total을 알면 반환 행 수 이상이어야 하며 truncated=true면 더 크고 false면 같아야 한다. 배열은 범위 정보 미제공이며 전체 결과라고 보증하지 않는다. 별도 paging·재조회 API는 추가하지 않는다.
+
+`operation invoke` CLI는 같은 envelope를 result에 보존한다. 조회 Host/`view run --json`은 표의 가공된 rows와 별도로 `coverage:{truncated,total?,returned}`를 제공한다. returned는 원본 반환 행 수로 필터·집계·limit 전 수다. 기존 2,000행 상한은 유지하며 이를 넘는 결과를 Host가 조용히 잘라 주지 않는다.
+
+Editor의 플러그인 비집계 조회 표는 공개 rowSchema 순서로 열 후보를 제공하고 기본 hidden을 따른다. 열 선택은 브라우저 UI preference로 Host·플러그인·화면·표별 저장하며 화면 없는 조회는 operation을 사용한다. 문서·Host·플러그인 설정에 쓰지 않는다. 재조회와 재열기에서 선택을 유지하고 없어진 필드는 무시한다. 모든 열을 숨기면 열 선택 행동을 유지한다. 저장 실패는 화면 경고로 알린다. 집계 표는 파생 group/value 의미를 유지한다.
+
+조회 시각은 기존 receipt에 표시하고 잘린 결과는 `N건 표시 · 전체 M건` 또는 `일부만 표시`로 알린다. 상세 설명은 hover/키보드 focus Tooltip에 둔다. 기존 Button ghost/sm·DropdownMenu·Base UI Menu.CheckboxItem·MENU_ITEM_CLASS·Tooltip·DataTable을 재사용하며 새 공통 상호작용 예외는 없다. Jira 적용은 별도 작업이며 이번 검증은 fixture다.
+
+검증은 기존 SDK manifest 검사(기능 버전), plugins 반환 경계 검사(범위 정합·secret 제거), views의 기존 실제 child·HTTP·CLI parity 검사(coverage 전달)를 보완한다. 새 subprocess는 없다. `plugin-columns` 브라우저 시나리오는 로컬 fixture catalog/result로 기본·추가 열, 재열기 지속, 전체 수 미제공을 검사하며 UI 배선 결함을 담당한다. 실행 소비자는 기존 browser stable suite다. 실제 Jira 연결·대규모 데이터 수락 증거는 아니다.
+
+수동 시각 검토: 1440px [이전](assets/plugin-table-1351/before-1440.png) / [이후](assets/plugin-table-1351/after-1440.png), 한국어 다크 640px [이전](assets/plugin-table-1351/before-640.png) / [이후](assets/plugin-table-1351/after-640.png), 열 선택 메뉴 [1440px](assets/plugin-table-1351/menu-1440.png) / [640px](assets/plugin-table-1351/menu-640.png). 동일 fixture이며 계정 표시는 단색으로 가렸다. 기존 표 내부 가로 스크롤, 행 정렬·여백·한국어 줄바꿈·메뉴 가용 영역을 확인했다. 기존 메뉴와 Button·Tooltip 공통 구현을 사용하며 예외는 없다. 해당 시나리오는 로컬 약 24초(캡처 포함)다.
