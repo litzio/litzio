@@ -120,7 +120,7 @@ test("preflight and commit refuse invalid Unicode and detect raw-byte changes hi
     const valid = "\uFEFF한글 😀 �\n";
     writeFileSync(file, valid);
     assert.deepEqual(preflightFileCommit(file, valid + "Again\n", textRevision(valid)), {
-      target: fs.realpathSync(file), mode: statSync(file).mode,
+      target: fs.realpathSync.native(file), mode: statSync(file).mode,
     });
     assert.equal(decodeUtf8(readFileSync(file)), valid);
     commitFile(file, valid + "Again\n", textRevision(valid));
@@ -159,7 +159,7 @@ test("a symlinked document stays a link and its target is replaced", (context) =
       if ((error as NodeJS.ErrnoException).code === "EPERM") return context.skip("file symlinks need extra permission here");
       throw error;
     }
-    assert.equal(preflightFileCommit(link, "Changed.\n", textRevision(ORIGINAL)).target, fs.realpathSync(file));
+    assert.equal(preflightFileCommit(link, "Changed.\n", textRevision(ORIGINAL)).target, fs.realpathSync.native(file));
     assert.equal(readFileSync(file, "utf8"), ORIGINAL);
     commitFile(link, "Changed.\n", textRevision(ORIGINAL));
     assert.equal(lstatSync(link).isSymbolicLink(), true);
