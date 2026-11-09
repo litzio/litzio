@@ -485,7 +485,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       expect(detail.result.description).toHaveLength(16000);
       expect(detail.result.comments[0]).toMatchObject({ id: "12", bodyTruncated: true });
       expect(detail.result.comments[0].body).toHaveLength(4000);
-      expect(Number.isFinite(Date.parse(detail.result.fetchedAt))).toBe(true);
+      expect(detail.result.fetchedAt).toMatch(/^\d{2}-\d{2}-\d{2} \d{2}:\d{2}$/);
       jira.setFault(403);
       const detailDenied = await jira.cli(["operation", "invoke", "community.jira.detail", "--input", jira.input]);
       expect(detailDenied.errorKind).toBe("forbidden");
