@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { convertPdfToArchive } from "./conversion.js";
-import { readDoclingArchive } from "./archive.js";
+import { readDoclingArchive, createDoclingArchive } from "./archive.js";
 import { convertDocument } from "./document.js";
+import { readReview, applyCorrections, reviewItems } from "./review.js";
 
 /** @param {import("@litzio/plugin-sdk").PluginContext} context */
 export function activate(context) {
@@ -95,7 +96,7 @@ export function activate(context) {
     signal.throwIfAborted();
     const archive = readDoclingArchive(bytes);
     control.job.phase = "문서 생성 중";
-    const authored = await convertDocument(archive.document, archive.manifest.document.sha256);
+    const authored = await convertDocument(archive.document, archive.manifest.document.sha256, readReview(archive.reviewBytes).patches);
     signal.throwIfAborted();
     control.report = authored.report;
     control.authored = authored;
@@ -105,6 +106,24 @@ export function activate(context) {
   return {
     operations: {
       connection: async () => checkConnection(),
+      async "generated-document"(input) {
+        const archive = readDoclingArchive(await readFile(input.file));
+        const record = readReview(archive.reviewBytes);
+        if (input.mode === "patch") {
+          record.patches.push(...input.patches);
+          record.checkedPages = []; record.lastPage = null;
+          readReview(Buffer.from(JSON.stringify(record)));
+        }
+        const effective = applyCorrections(archive.document, record.patches);
+        if (input.mode === "build") return (await convertDocument(archive.document, archive.manifest.document.sha256, record.patches)).document;
+        const state = { record, items: reviewItems(effective) };
+        if (input.mode === "patch") {
+          const bytes = createDoclingArchive({ manifest: archive.manifest, documentJson: archive.documentJson, sourceBytes: archive.sourcePdf, reviewBytes: Buffer.from(JSON.stringify(record)) });
+          if (bytes.length > input.resultFile.maxBytes) throw new Error("Archive exceeds Host limit");
+          await writeFile(input.resultFile.path, bytes, { flag: "r+" });
+        }
+        return state;
+      },
       async "conversion-report"(input) {
         const control = jobs.get(input.requestId);
         if (!control?.report) throw new Error();

@@ -1,4 +1,5 @@
 import { reviewBundleSchema, reviewPageSchema, reviewMappingSchema, type ReviewBundle } from "@litzio/core/views-v2";
+export * from "./generated-document.ts";
 import { queryViewSchema, reviewContributionSchema, validateCatalogView, compileViewInputSchema } from "@litzio/core/views-v2";
 export * from "@litzio/core/views-v2";
 export { authorDocument, documentAuthoringSchema, DOCUMENT_AUTHORING_LIMITS, DocumentAuthoringError, type DocumentAuthoringInput, type AuthoredDocument } from "@litzio/core";
@@ -23,7 +24,7 @@ const operation = z.strictObject({ id, version: z.number().int().positive(), eff
 const extension = z.string().regex(/^\.[a-z0-9]+$/);
 const jobFields = { id, title: z.string().min(1), accept: z.array(extension).min(1), start: id, status: id, stop: id };
 const jobContributionSchema = z.discriminatedUnion("resultKind", [
-  z.strictObject({ ...jobFields, resultKind: z.literal("native-document") }),
+  z.strictObject({ ...jobFields, resultKind: z.literal("native-document"), generatedDocument: id.optional() }),
   z.strictObject({ ...jobFields, resultKind: z.literal("file"), resultExtension: extension }),
 ]);
 export const SCREEN_ICONS = ["LayoutDashboard", "Table", "ChartColumn", "FileText", "Folder"] as const;
@@ -63,6 +64,11 @@ export function validateManifest(input: unknown): PluginManifest {
   if (new Set(m.secrets.map(s => s.id)).size !== m.secrets.length) throw new Error("Duplicate secret ID");
   if (m.contributes.dataViews.length || m.contributes.generatedUi.length || m.contributes.secretUses.length) throw new Error("Unsupported contribution: dataViews, generatedUi and secretUses");
   for (const job of m.contributes.jobs) {
+    if (job.resultKind === "native-document" && job.generatedDocument) {
+      if (!supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Generated documents require SDK 0.3.0 or later");
+      const provider = m.contributes.operations.find(op => op.id === job.generatedDocument);
+      if (!provider || provider.effect !== "read" || provider.scope !== "host") throw new Error("Generated documents require a host read provider");
+    }
     if (job.resultKind === "file" && !supportedSdkVersions.some(version => semver.gte(version, "0.2.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("File job results require SDK 0.2.0 or later in requiresSdk");
     for (const binding of [job.start, job.status, job.stop]) if (!m.contributes.operations.some(op => op.id === binding)) throw new Error("Undeclared job operation");
     if (new Set([job.start, job.status, job.stop]).size !== 3) throw new Error("Job bindings must be distinct");

@@ -5,6 +5,7 @@ import { brand } from "../../../brand.ts";
 import { readBibliographySources } from "../../../apps/editor/server/bibliography.ts";
 import { versionText } from "./version.ts";
 import fs, { readFileSync, writeFileSync } from "node:fs";
+import { isManagedGeneratedDocument, GENERATED_DOCUMENT_WARNING } from "../../../apps/editor/server/generated-document.ts";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -999,6 +1000,7 @@ type Preview = EditResult & { dryRun: true; revision: string; markdown: string;
 /** The only edit write boundary. Preview never enters file-commit's mutation path. */
 function finishEdit(file: string, markdown: string, revision: string, result: EditResult,
   dryRun: boolean, format: OutputFormat, references: ReturnType<typeof unresolvedReferences>, bibliographyRoot?: string): number {
+  if (isManagedGeneratedDocument(file)) process.stderr.write(`warning: ${GENERATED_DOCUMENT_WARNING}\n`);
   if (dryRun) {
     const resultRevision = textRevision(markdown);
     const document = parse(markdown);

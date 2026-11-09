@@ -58,13 +58,13 @@ CLI 입력 파일은 artifact 밖에 둡니다.
 - `litzio plugins stop <requestId> --host <origin> --json`
 - `litzio plugins result <requestId> --host <origin> --json`
 
-작업마다 새 requestId를 쓰며 불확실 결과는 같은 ID로 조회합니다. start를 자동 재전송하지 않습니다. 활성 화면은 진행 중 작업을 1초마다 관찰합니다. 여러 파일은 각각 별도 요청이며 Host 큐·재시작 복원·대조/검수·내부 이미지 대조뷰는 없습니다. PDF 중단은 요청/폴링과 staging writer를 닫은 뒤 stopped를 보고하며 이미 제출된 서버 작업은 계속될 수 있습니다. 문서 작업의 중단은 로컬 읽기/생성을 중단하며 서버와 무관합니다.
+작업마다 새 requestId를 쓰며 불확실 결과는 같은 ID로 조회합니다. start를 자동 재전송하지 않습니다. 활성 화면은 진행 중 작업을 1초마다 관찰합니다. 여러 파일은 각각 별도 요청이며 Host 큐·재시작 복원·대조 화면·검수 폼·내부 이미지 대조뷰는 없습니다. 항목 수정 CLI는 아래 0.0.5 계약을 따릅니다. PDF 중단은 요청/폴링과 staging writer를 닫은 뒤 stopped를 보고하며 이미 제출된 서버 작업은 계속될 수 있습니다. 문서 작업의 중단은 로컬 읽기/생성을 중단하며 서버와 무관합니다.
 
 ### `.docling` 형식 1 봉투
 
 플러그인 소유 ZIP32 형식이며 모든 항목은 무압축(STORE)입니다. `manifest.json`, `document.json`, `source.pdf`를 포함합니다. `source.pdf`는 제출한 원본 바이트이며 manifest.source의 SHA-256·크기로 확인합니다. `document.json`은 DoclingDocument 전체 필드·그림 ImageRef와 embedded data URI를 보존하며 manifest.document의 SHA-256·크기로 확인합니다. 페이지 PNG는 요청하지도 보관하지도 않습니다(`include_page_images:false`). 기존 `.docling` 파일 호환은 지원하지 않습니다.
 
-추후 수정·확인 페이지·승인 기록을 한 파일로 전달하기 위한 선택 `review.json` 슬롯은 opaque bytes로 읽고 보존할 수 있습니다. 지금 변환은 이를 만들거나 해석·수정하지 않으며 기록 schema·검수 기능은 미구현입니다. 검수 기록과 무관하게 원본 PDF/JSON hash를 검증하며 전체 ZIP hash를 원본 항목 identity로 쓰지 않습니다. 이후 검수 저장은 공식 경로로 ZIP 전체를 다시 쓰고 `.md`·`assets/`는 밖에 둡니다. 이번 변환은 원본 봉투를 다시 쓰지 않습니다.
+0.0.5는 선택 `review.json`에 수정 목록과 후속 진행·승인 자리를 둡니다. 슬롯이 없으면 빈 기록으로 읽고 첫 수정에서 저장합니다. 상세 schema·작업은 아래 검수 계약을 따릅니다. 검수 기록과 무관하게 원본 PDF/JSON hash를 검증하며 전체 ZIP hash를 원본 항목 identity로 쓰지 않습니다. 검수 저장은 공식 경로로 ZIP 전체를 다시 쓰고 `.md`·`assets/`는 밖에 둡니다.
 
 `manifest.json`은 다음 출처 정보를 담습니다. 원본 절대 경로와 secret은 넣지 않습니다.
 
@@ -137,11 +137,11 @@ docker stop docling-serve
 
 기존 http-plugins 가짜 서버는 고정 프로필 multipart 전체, 단일 제출, task failure ID, 변환 중 PDF 변경 거부, 전체 deadline·중단을 대표 사례로 보호합니다. 같은 서버에서 만든 봉투는 문서 작업의 offline 입력으로 재사용합니다. uint64 토큰·원본 PDF/JSON/그림 hash·CRC와 공식 K1 저장/결과 열기를 대조하며 새 서버 프로세스를 추가하지 않습니다. Root·같은 이름 충돌/덮어쓰기 거부는 기존 Host suite가 소유합니다.
 
-0.0.1 당시 가짜 서버 약 1.5분·실제 Docker 포함 약 2.2분은 과거 실행 기록입니다. 과거 0.0.3 근거와 현재 0.0.4의 검증·수동 캡처는 아래 절을 따릅니다. CI는 가짜 서버만 사용하고 실제 서버는 별도 수락입니다.
+0.0.1 당시 가짜 서버 약 1.5분·실제 Docker 포함 약 2.2분은 과거 실행 기록입니다. 과거 0.0.3·0.0.4 변환기의 검증·수동 캡처는 아래 절을 따릅니다. CI는 가짜 서버만 사용하고 실제 서버는 별도 수락입니다.
 
 ### 문서 변환 규칙 (0.0.4 / #1382)
 
-한 경로 `불변 원본 → 수정 적용 단계(현재 빈 수정·private copy) → 블록 → SDK authorDocument`로 만듭니다. 원본 body.children과 group/element 참조를 따라 순서를 유지하며 label 또는 content_layer가 furniture인 머리글·바닥글은 제외합니다. 잘못된 참조·중복/순환·표 좌표/범위/겹침 오류는 전체 실패합니다. 플러그인이 Docling 의미를 해석하고, Core의 공개 SDK만 문서 생성·정규화·canonical 직렬화를 담당합니다.
+한 경로 `불변 원본 → 수정 적용 단계(review.json의 수정 재생·private copy) → 블록 → SDK authorDocument`로 만듭니다. 원본 body.children과 group/element 참조를 따라 순서를 유지하며 label 또는 content_layer가 furniture인 머리글·바닥글은 제외합니다. 잘못된 참조·중복/순환·표 좌표/범위/겹침 오류는 전체 실패합니다. 플러그인이 Docling 의미를 해석하고, Core의 공개 SDK만 문서 생성·정규화·canonical 직렬화를 담당합니다.
 
 | 원본 | 출력과 손실 |
 | --- | --- |
@@ -158,7 +158,7 @@ docker stop docling-serve
 
 캡션 접두어 `Figure`, `Fig`/`Fig.`, `그림`, `Table`, `표` 뒤의 아라비아 숫자와 숫자 사이 `.`/`-`를 읽습니다. 영어 대소문자는 구분하지 않습니다. 예: `Figure 6:`, `Fig. 2`, `그림 3`, `Table 2-1.`, `표 4`. 숫자 문자열은 정규화하지 않고 고정 enumerator로 옮기며 접두어·구분자만 제거합니다. 로마 숫자·알파벳·숫자 접미사·모호한 경계·종류 불일치·독립 번호가 있는 복수 캡션·같은 종류의 같은 번호 중복은 원문을 그대로 두고 `enumerated:false`로 표시합니다. 이 경우 `캡션 번호 미보존` 손실을 기록합니다. 번호 없는 caption도 이 경로를 사용합니다. Figure와 Table은 서로 독립이며 자동 번호를 만들지 않습니다.
 
-원본 `.docling`을 수정하거나 이미지를 플러그인에서 직접 저장하지 않습니다. ImageRef의 PNG/JPEG/WebP 바이트를 공용 `{authoring,images}` 결과로 반환합니다. Host가 이미지 바이트를 검사하고 문서 옆 `assets/`에 게시합니다. 기존 결과 문서를 지우고 **같은 출력 경로**로 다시 만들면 같은 파일을 재사용합니다. 다른 출력 문서는 공용 Host의 문서별 asset 경로를 사용합니다. 크기·개수·미지원 이미지 거부도 공용 Host를 따르며 실패를 이미지 없는 성공으로 우회하지 않습니다.
+문서 생성은 원본 `.docling`을 수정하지 않으며, 이미지를 플러그인에서 직접 저장하지 않습니다. 검수 수정 저장은 별도 공용 Host 작업입니다. ImageRef의 PNG/JPEG/WebP 바이트를 공용 `{authoring,images}` 결과로 반환합니다. Host가 이미지 바이트를 검사하고 문서 옆 `assets/`에 게시합니다. 검수 재생성처럼 **같은 출력 경로**로 다시 만들면 같은 파일을 재사용합니다. 다른 출력 문서는 공용 Host의 문서별 asset 경로를 사용합니다. 크기·개수·미지원 이미지 거부도 공용 Host를 따르며 실패를 이미지 없는 성공으로 우회하지 않습니다.
 
 ### 원본 항목과 출력 대응
 
@@ -166,7 +166,7 @@ docker stop docling-serve
 
 SDK 입력 key는 self_ref이며 영속 식별은 sourceHash+self_ref입니다. items의 targets는 Host가 이미지 경로를 바인딩한 최종 SDK key별 targets로 계산합니다. 표 caption의 원본 번호와 본문은 table/뒤 문단 두 target에 연결될 수 있습니다. 여러 목록 항목이나 그림+캡션이 같은 target을 공유할 수 있습니다. table.cells는 원본 table_cells의 index, 출력 grid positions와 targets를 담습니다. container·furniture·미도달 항목의 targets는 비어 있습니다. target path는 출력 revision에만 유효하며 재변환 때 새로 계산합니다.
 
-대응 파일을 만들지 않습니다. 플러그인 활성화 수명의 요청별 메모리에 결과를 두고 기존 CLI 읽기 작업으로 돌려줍니다. 별도 대응 파일 없이 같은 convertDocument 경로와 Host 완료 inputs로 다시 연결합니다. reload/restart 뒤 report는 사라지며 다시 변환해야 합니다. Host 완료 receipt가 없으면 최종 대응 보고서를 발행하지 않습니다. 이미지를 임시 경로에 바인딩한 SDK 검증 snapshot은 실제 저장 결과로 반환하지 않습니다. 보고서의 target은 해당 출력 revision에 고정되며 후속 수동 편집을 현재 상태처럼 따라가지 않습니다. `.docling`의 미래 검수 기록과 이 재계산 결과를 혼동하지 않습니다.
+대응 파일을 만들지 않습니다. 플러그인 활성화 수명의 요청별 메모리에 결과를 두고 기존 CLI 읽기 작업으로 돌려줍니다. 별도 대응 파일 없이 같은 convertDocument 경로와 Host 완료 inputs로 다시 연결합니다. reload/restart 뒤 report는 사라지며 다시 변환해야 합니다. Host 완료 receipt가 없으면 최종 대응 보고서를 발행하지 않습니다. 이미지를 임시 경로에 바인딩한 SDK 검증 snapshot은 실제 저장 결과로 반환하지 않습니다. 보고서의 target은 해당 출력 revision에 고정되며 후속 수동 편집을 현재 상태처럼 따라가지 않습니다. `.docling`의 검수 기록과 이 재계산 결과를 혼동하지 않습니다.
 
 ### 한도와 검증 경계
 
@@ -212,3 +212,19 @@ Before는 같은 불변 .docling을 0.0.3 변환기 소스(`e0c30727`)와 공개
 자동 검사는 기존 plugins.test.ts에서 번호 규칙·같은 종류 중복·원본 불변·공용 이미지 전달과 최종 target 연결을, 기존 http-plugins에서 가짜 서버와 실제 이미지 로드·캡션 표시·손실 요약을 보호합니다. 새 suite·서버 subprocess·timeout·retry는 추가하지 않았습니다. 같은 가짜 서버 PNG fixture는 공용 Host의 complete-container 검사에 맞는 CRC 바이트로 바로잡았습니다. 실제 서버 지연은 자동 검사에 넣지 않으며 수동 캡처 경로의 같은 파일 재생성만 별도 실행합니다.
 
 로컬 결과: plugins.test.ts 30개와 변경 후 Docling 대상 5개, typecheck·Editor/CLI build·docs/diff 검사를 통과했습니다. 가짜 서버 http-plugins는 HTTP 복구를 포함해 2개 약 2.2분, 실제 보관 파일 수동 경로는 같은 2개 약 1.2분에 통과했습니다. 두 경로는 같은 checkout의 persistent profile로 순차 실행했고 직접 시작한 격리 Host와 브라우저 세션을 종료했습니다.
+## 검수 기록과 재생성 0.0.5 (#1364)
+
+원본 PDF·DoclingDocument 바이트는 `.docling`의 source.pdf·document.json에 유지하고 manifest hash로 검사합니다. `review.json`은 `{patches,checkedPages,lastPage,approval}`이며 초기값은 `[]`, `[]`, `null`, `null`입니다. 진행·승인 작업은 아직 없습니다. 수정 시 확인한 페이지와 마지막 위치를 비웁니다. 별도 검수 기록 파일이나 Markdown 메타데이터를 만들지 않습니다. `.md`와 assets/는 다시 만들 수 있는 결과물입니다.
+
+patches는 self_ref 기준 순서 있는 목록이며 마지막 지정이 이깁니다.
+
+- `{type:"text",self_ref,text}`: 텍스트 항목 전체 글자. orig·좌표는 변경하지 않습니다.
+- `{type:"kind",self_ref,kind:"paragraph"}` 또는 `{type:"kind",self_ref,kind:"heading",level:1..6}`. 머리글/바닥글도 본문 역할로 교정할 수 있으며 캡션의 역할을 바꾸면 소유 항목 뒤의 문단/제목으로 출력합니다.
+- `{type:"exclude",self_ref,excluded:boolean}`: 항목과 children 자손을 제외하거나 제외 취소합니다. 뒤의 자손 지정은 앞의 그룹 지정을 덮어쓸 수 있습니다.
+- `{type:"cell",self_ref,cell,text}`: 원본 table_cells의 0부터 시작하는 칸 번호. 병합·행/열 구조는 바꾸지 않습니다.
+
+기존 변환 경로(불변 원본→복사본에 수정 적용→블록→SDK authorDocument)를 사용합니다. 수정은 최대 2,000개, 글자는 기존 SDK string 한도를 따릅니다. 잘못된 대상·종류·수준·칸은 저장 전에 거부합니다. 변환 지원 한계로 재생성이 실패해도 저장된 수정은 유지합니다. 저장 순서는 `.docling`의 revision 확인·임시 파일·교체 다음 문서 재생성이며, 두 파일 동시 저장은 약속하지 않습니다. 응답의 correctionsSaved/documentRegenerated와 regeneration-required 상태를 확인하세요. 수정 요청은 자동 재전송하지 않고 같은 requestId의 status를 조회합니다. Host 재시작 후 receipt가 없으면 read로 파일을 다시 확인합니다.
+
+CLI는 같은 Host 작업을 사용합니다. `litzio review read|open|patch|regenerate|status --input request.json --host <origin> --json`입니다. read 입력은 `{root,document:"source.md"}`입니다. patch는 read가 반환한 baseline과 UUID requestId 및 patches를 추가합니다. regenerate는 baseline과 requestId만 추가합니다. `.docling`만 인계받았다면 open에 plugin:"community.docling", job:"create-document", source:"copied.docling", document:"copied.md", root와 baseline을 지정합니다. 처음 baseline은 sourceRevision:복사한 파일의 SHA-256, documentRevision:null, linkRevision:null입니다. 기존 연결이 있으면 read 결과를 사용합니다. 새 문서 생성은 입력 옆 같은 이름을 사용하고 충돌 시 -N으로 새 이름을 고릅니다. 검수 regenerate는 연결된 기존 경로를 revision 확인해 교체하며 -N 문서를 만들지 않습니다.
+
+관리 연결과 마지막 생성 revision은 Host 앱 데이터의 generated-documents.json.d/에 정규화한 문서 경로 identity 기준으로 저장합니다. 검수 기록은 이곳에 복제하지 않습니다. 다른 PC에서는 명시적 open 또는 새 문서 생성이 새 연결을 만듭니다. 문서 이동·이름 변경 후에는 경고가 사라질 수 있으며 자동 추적·연결 이행은 지원하지 않습니다. 직접 편집한 문서는 Editor와 같은 Host 앱 데이터 설정을 쓰는 CLI가 경고하지만 Save는 허용합니다. 최신 baseline을 명시해 다시 만들면 직접 수정한 내용을 대체합니다. 오래된 baseline이나 실행 도중 변경된 파일은 덮어쓰지 않습니다.

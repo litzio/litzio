@@ -2,7 +2,8 @@ import { syncBuiltinESMExports } from "node:module";
 import assert from "node:assert/strict";
 import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createServer } from "node:http";
-import { copyFileSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { generatedDocumentLinkPath } from "../../../apps/editor/server/generated-document.ts";
 import fs from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -40,6 +41,19 @@ process.env.LITZIO_ASSISTANT_CWD = path.join(fixtures, "assistant");
 
 after(() => rmSync(fixtures, { recursive: true, force: true }));
 const fixture = path.join(fixtures, "document.md");
+
+test("direct CLI edits warn for Host-managed generated documents and still save normally", () => {
+  const file = path.join(fixtures, "managed.md"); writeFileSync(file, nativeSource("# Imported\n"));
+  const link = generatedDocumentLinkPath(file); mkdirSync(path.dirname(link), { recursive: true });
+  writeFileSync(link, JSON.stringify({ plugin: "example.import", job: "import", source: "source.bin", generatedFrom: null, generatedRevision: null }));
+  const result = run(["insert-block", file, "--at", "2", "--text", "Direct edit"]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /Direct edits will be overwritten/);
+  assert.match(readFileSync(file, "utf8"), /Direct edit/);
+  const preview = run(["insert-block", file, "--at", "2", "--text", "Preview", "--dry-run", "--format", "json"]);
+  assert.equal(preview.status, 0, preview.stderr);
+  assert.doesNotThrow(() => JSON.parse(preview.stdout));
+});
 const technicalFixture = path.join(fixtures, "technical-document.md");
 for (const [name, target] of [["document.md", fixture], ["technical-document.md", technicalFixture]]) {
   writeFileSync(target, nativeSource(readFileSync(fileURLToPath(new URL(`../../core/test/fixtures/${name}`, import.meta.url)), "utf8")));
