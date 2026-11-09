@@ -11,8 +11,8 @@
 1. `litzio plugins validate <artifact> --host <origin> --json`
 2. `litzio plugins register <artifact> --host <origin> --json`
 3. `litzio plugins settings community.docling --file <settings.json> --host <origin> --json`
-4. `litzio plugins list --host <origin> --json`에서 현재 digest를 확인합니다.
-5. `litzio plugins trust community.docling --digest <digest> --host <origin> --json`
+4. `litzio plugins list --host <origin> --json`에서 현재 registrationId와 digest를 확인합니다.
+5. `litzio plugins trust community.docling --registration <registrationId> --digest <digest> --host <origin> --json`
 6. `litzio plugins enable community.docling --host <origin> --json`
 7. `litzio operation invoke community.docling.connection --input <input.json> --host <origin> --json`
 
