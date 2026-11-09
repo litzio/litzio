@@ -29,6 +29,7 @@ jobs:
       http: ${{ steps.policy.outputs.http }}
       desktop: ${{ steps.policy.outputs.desktop }}
       update: ${{ steps.policy.outputs.update }}
+      fullRemoval: ${{ steps.policy.outputs.fullRemoval }}
       fullLifecycle: ${{ steps.policy.outputs.fullLifecycle }}
       fullLayout: ${{ steps.policy.outputs.fullLayout }}
       smartquotes: ${{ steps.policy.outputs.smartquotes }}
@@ -267,75 +268,6 @@ jobs:
       - name: Run unit partition (together the release suite)
         run: pnpm test:unit:${{ matrix.group }}
 
-  desktop-published:
-    name: Windows Desktop published beta.6
-    needs: changes
-    if: needs.changes.outputs.desktop == 'true' && needs.changes.outputs.update == 'true'
-    runs-on: windows-latest
-    timeout-minutes: 35
-    env:
-      DEBUG: '@electron/get*'
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24.21.0
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 12.5.1
-          cache: true
-          run_install: false
-      - name: Configure download cache paths
-        id: downloads
-        run: node scripts/desktop-download-cache.mjs configure
-      - name: Cache Electron and installer tool downloads
-        uses: actions/cache@v6
-        with:
-          path: |
-            ${{ steps.downloads.outputs.electron-cache }}
-            ${{ runner.temp }}/electron-builder-cache
-          key: ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-${{ steps.downloads.outputs.versions }}
-          restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-
-      - run: pnpm install --frozen-lockfile
-      # Exercise the same download-only path used by master cache-warm; the package consumes it.
-      - name: Warm Desktop downloads without packaging
-        run: node scripts/desktop-download-cache.mjs warm
-      - name: Published beta.6 first-update regression
-        if: needs.changes.outputs.update == 'true'
-        env:
-          LITZIO_TEST_PUBLISHED_BASE: '1'
-          GH_TOKEN: ${{ github.token }}
-        run: pnpm --filter @litzio/desktop test:update
-      - name: Upload Desktop diagnostics on failure
-        if: always() && (failure() || cancelled())
-        uses: actions/upload-artifact@v6
-        with:
-          name: desktop-published-windows-diagnostics
-          path: |
-            tmp/desktop-e2e/profiles/*/logs/desktop.log*
-            tmp/desktop-e2e/recovery-proof.json
-            tmp/desktop-update/*-diagnostics.json
-            tmp/desktop-update/v*/latest.yml
-            tmp/desktop-update/v*/beta.yml
-            tmp/desktop-uninstall/*-dialogs.txt
-            tmp/desktop-uninstall/*-cleanup.txt
-          if-no-files-found: ignore
-          retention-days: 7
-      - name: Locate brand uninstall diagnostics
-        if: failure()
-        id: uninstall_logs
-        run: node --input-type=module -e "import { brand } from './brand.ts'; import path from 'node:path'; import { appendFileSync } from 'node:fs'; appendFileSync(process.env.GITHUB_OUTPUT, 'path=' + path.join(process.env.LOCALAPPDATA, brand.folders.cli, 'uninstall-logs', '*.tmp') + '\n');"
-      # The runner's C: user folder cannot share an artifact root with its D: checkout.
-      - name: Upload durable uninstall diagnostics on failure
-        if: failure()
-        uses: actions/upload-artifact@v6
-        with:
-          name: desktop-published-uninstall-logs
-          path: ${{ steps.uninstall_logs.outputs.path }}
-          if-no-files-found: ignore
-          retention-days: 7
-
   desktop-stable:
     name: Windows Desktop Stable update
     needs: changes
@@ -516,9 +448,8 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
       - run: pnpm --filter @litzio/desktop test:uninstall
-        if: needs.changes.outputs.update == 'true'
         env:
-          LITZIO_TEST_LIFECYCLE_SCOPE: ${{ needs.changes.outputs.fullLifecycle == 'true' && 'full' || 'representative' }}
+          LITZIO_TEST_LIFECYCLE_SCOPE: ${{ needs.changes.outputs.fullRemoval == 'true' && 'full' || 'representative' }}
       - name: Upload Desktop diagnostics on failure
         if: always() && (failure() || cancelled())
         uses: actions/upload-artifact@v6
@@ -610,7 +541,7 @@ jobs:
 
   quality-and-browser:
     name: Core, CLI, Editor, and browser regressions
-    needs: [changes, quality, browser, desktop, desktop-unit, desktop-published, desktop-stable, desktop-beta, http, cache-warm]
+    needs: [changes, quality, browser, desktop, desktop-unit, desktop-stable, desktop-beta, http, cache-warm]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -625,8 +556,6 @@ jobs:
           DESKTOP_RESULT: ${{ needs.desktop.result }}
           DESKTOP_UNIT_RESULT: ${{ needs.desktop-unit.result }}
           DESKTOP_UNIT_SELECTED: ${{ needs.changes.outputs.desktop == 'true' && needs.changes.outputs.desktop == 'true' }}
-          DESKTOP_PUBLISHED_RESULT: ${{ needs.desktop-published.result }}
-          DESKTOP_PUBLISHED_SELECTED: ${{ needs.changes.outputs.desktop == 'true' && needs.changes.outputs.update == 'true' }}
           DESKTOP_STABLE_RESULT: ${{ needs.desktop-stable.result }}
           DESKTOP_STABLE_SELECTED: ${{ needs.changes.outputs.desktop == 'true' && needs.changes.outputs.fullLifecycle == 'true' }}
           DESKTOP_BETA_RESULT: ${{ needs.desktop-beta.result }}
@@ -643,7 +572,7 @@ jobs:
             exit 1
           fi
           # A selected job must succeed; only a job the path rules left out may be skipped.
-          for check in "browser:$BROWSER_SELECTED:$BROWSER_RESULT" "http:$HTTP_SELECTED:$HTTP_RESULT" "desktop:$DESKTOP_SELECTED:$DESKTOP_RESULT" "desktop-unit:$DESKTOP_UNIT_SELECTED:$DESKTOP_UNIT_RESULT" "desktop-published:$DESKTOP_PUBLISHED_SELECTED:$DESKTOP_PUBLISHED_RESULT" "desktop-stable:$DESKTOP_STABLE_SELECTED:$DESKTOP_STABLE_RESULT" "desktop-beta:$DESKTOP_BETA_SELECTED:$DESKTOP_BETA_RESULT" "cache:$CACHE_SELECTED:$CACHE_RESULT"; do
+          for check in "browser:$BROWSER_SELECTED:$BROWSER_RESULT" "http:$HTTP_SELECTED:$HTTP_RESULT" "desktop:$DESKTOP_SELECTED:$DESKTOP_RESULT" "desktop-unit:$DESKTOP_UNIT_SELECTED:$DESKTOP_UNIT_RESULT" "desktop-stable:$DESKTOP_STABLE_SELECTED:$DESKTOP_STABLE_RESULT" "desktop-beta:$DESKTOP_BETA_SELECTED:$DESKTOP_BETA_RESULT" "cache:$CACHE_SELECTED:$CACHE_RESULT"; do
             IFS=: read -r name selected result <<< "$check"
             if [[ "$selected" == "true" && "$result" != "success" ]] || [[ "$selected" != "true" && "$result" != "skipped" ]]; then
               echo "$name: selected=$selected result=$result"

@@ -2,7 +2,7 @@ import { appendFileSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { eventDiff, isDocumentationOnly } from './ci-quality-mode.mjs';
 
-const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, update: true, fullLifecycle: true, fullLayout: true, smartquotes: true });
+const allJobs = () => ({ quality: true, browser: true, http: true, desktop: true, update: true, fullLifecycle: true, fullRemoval: true, fullLayout: true, smartquotes: true });
 // Consumers: root issue/docs commands and the always-run CI policy checks.
 // Product builds/tests do not load these files. Keep other scripts conservative.
 const policyFiles = new Set([
@@ -90,6 +90,8 @@ export function selectJobs(eventName, paths) {
     browser, http,
     desktop: http || paths.some(path => inPackage(path, 'apps/desktop')),
     update,
+    // Removal runs with every Desktop package; build inputs must not depend on update selection.
+    fullRemoval: paths.some(path => !policyOnly(path) && lifecycleFullPaths(path)),
     fullLifecycle: update && paths.some(path => !policyOnly(path) && lifecycleFullPaths(path)),
     fullLayout: paths.some(path => !policyOnly(path) && layoutFullPaths(path)),
     // Package manifests cover MyST/markdown-it version declarations; the lockfile
