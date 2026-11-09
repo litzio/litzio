@@ -4,7 +4,7 @@ import { FilePreviewDialog } from "./FilePreviewDialog.tsx";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
 import { useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
-import { Pencil, Trash2, ChevronRight, Ellipsis, File, Image as ImageIcon, FileText, FileX, FolderOpen, FolderPlus, PanelRightOpen, Plus, RotateCw, X } from "lucide-react";
+import { Copy, Link, Pencil, Trash2, ChevronRight, Ellipsis, File, Image as ImageIcon, FileText, FileX, FolderOpen, FolderPlus, PanelRightOpen, Plus, RotateCw, X } from "lucide-react";
 import { fileDeletion } from "../host-capabilities.ts";
 import { Button } from "@/components/ui/button.tsx";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu.tsx";
@@ -13,6 +13,7 @@ import { treeKey, visibleTreeItems, type FolderTreeState, type TreeItem } from "
 import { OneDriveIcon } from "../PluginSettings.tsx";
 
 type FolderTreeProps = {
+  onCopyPath?(path: string): void;
   onAddToChat?(path: string, returnFocus: HTMLElement): void;
   onFileAction: FileActionHandler;
   fileActionsDisabled: boolean;
@@ -36,25 +37,36 @@ type FolderTreeProps = {
 };
 
 /** Shared folder actions; child rows select only operations supported for their path. */
-export function folderActions(props: Pick<FolderTreeProps, "onNew" | "onNewFolder" | "onOpenFolder" | "onRevealFolder" | "onRefresh" | "onClose">,
+export function folderActions(props: Pick<FolderTreeProps, "onCopyPath" | "onNew" | "onNewFolder" | "onOpenFolder" | "onRevealFolder" | "onRefresh" | "onClose">,
   root: string, button: () => HTMLElement | null): ContextMenuAction[] {
   return [
     { id: "new", visible: !!props.onNew, label: i18n.t("New document…"), icon: <Plus aria-hidden="true" />, run: () => { const target = button(); if (target) props.onNew?.(target); } },
     { id: "new-folder", visible: !!props.onNewFolder, label: i18n.t("New folder…"), icon: <FolderPlus aria-hidden="true" />, run: () => { const target = button(); if (target) props.onNewFolder?.(target); } },
     { id: "open", label: i18n.t("Open folder…"), icon: <FolderOpen aria-hidden="true" />, run: () => props.onOpenFolder(button()) },
     { id: "reveal", label: i18n.t("Open in File Explorer"), icon: <FolderOpen aria-hidden="true" />, visible: !!props.onRevealFolder, run: () => props.onRevealFolder?.(root) },
+    ...pathActions(root, root, props.onCopyPath),
     { id: "refresh", label: i18n.t("Refresh"), icon: <RotateCw aria-hidden="true" />, run: props.onRefresh },
     { id: "close", label: i18n.t("Close folder"), icon: <X aria-hidden="true" />, run: props.onClose },
   ];
 }
 
+/** Paths belong to the target Host, not the browser machine. */
+function pathActions(path: string, root: string, copy?: (path: string) => void): ContextMenuAction[] {
+  if (!copy) return [];
+  const relative = path.slice(root.replace(/[\\/]+$/, "").length).replace(/^[\\/]+/, "").replaceAll("\\", "/") || ".";
+  return [
+    { id: "copy-path", label: i18n.t("Copy path"), icon: <Copy aria-hidden="true" />, run: () => copy(path) },
+    { id: "copy-relative-path", label: i18n.t("Copy relative path"), icon: <Link aria-hidden="true" />, run: () => copy(relative) },
+  ];
+}
+
 /** One opened folder as a tree: folders expand in place, documents open. */
-export function FolderTree({ decoration,  onAddToChat, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
+export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction, fileActionsDisabled, isFileDirty, tree, focusFolder, onFolderFocused, documentPath, onToggleFolder, onToggleSection, onOpenDocument, onOpenRight, openRightDisabled, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }: FolderTreeProps) {
   useTranslation();
   const treeId = useId();
   const section = useRef<HTMLElement>(null);
   const moreActions = useRef<HTMLButtonElement>(null);
-  const actions = folderActions({ onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }, tree.root, () => moreActions.current);
+  const actions = folderActions({ onCopyPath, onNew, onNewFolder, onOpenFolder, onRevealFolder, onRefresh, onClose }, tree.root, () => moreActions.current);
   const [fileAction, setFileAction] = useState<{ action: FileAction; item: TreeItem }>();
   const actionReturn = useRef<HTMLElement | null>(null);
   const pendingFocus = useRef<string | null>(null);
@@ -182,7 +194,7 @@ export function FolderTree({ decoration,  onAddToChat, onFileAction, fileActions
             onNewFolder: onNewFolder ? target => onNewFolder(target, entry.path) : undefined,
             onOpenFolder, onRevealFolder, onRefresh, onClose,
           }, entry.path, () => rows.current.get(entry.path) ?? null)
-            .filter(action => action.id === "new" || action.id === "new-folder" || action.id === "reveal")} />;
+            .filter(action => action.id === "new" || action.id === "new-folder" || action.id === "reveal").concat(pathActions(entry.path, tree.root, onCopyPath))} />;
           const choose = (action: FileAction) => {
             actionReturn.current = rows.current.get(entry.path) ?? null;
             setFileAction({ action, item });
@@ -190,6 +202,7 @@ export function FolderTree({ decoration,  onAddToChat, onFileAction, fileActions
           const actions: ContextMenuAction[] = [
             ...(onAddToChat ? [{ id: "add-to-chat", label: i18n.t("Add to chat"), icon: <FileText aria-hidden="true" />, run: () => onAddToChat(entry.path, rows.current.get(entry.path)!) }] : []),
             ...(entry.kind === "document" && onOpenRight ? [{ id: "open-right", label: i18n.t("Open to the right"), icon: <PanelRightOpen aria-hidden="true" />, disabled: openRightDisabled, run: () => onOpenRight(entry.path) }] : []),
+            ...pathActions(entry.path, tree.root, onCopyPath),
             { id: "rename", label: i18n.t("Rename…"), icon: <Pencil aria-hidden="true" />, run: () => choose("rename") },
             { id: "delete", label: i18n.t("Delete file…"), icon: <Trash2 aria-hidden="true" />, danger: true, run: () => choose("delete") },
           ];
