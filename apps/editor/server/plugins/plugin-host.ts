@@ -17,6 +17,7 @@ import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store
 
 import { PluginJobs } from "./jobs.ts";
 import { PluginReviews } from "./reviews.ts";
+import { GeneratedDocuments } from "./generated-documents.ts";
 
 type Installed = { registrationId: string; directory: string; digest: string; trusted?: boolean; enabled: boolean; enabledChoice?: boolean; bundled?: boolean; settings: Record<string, unknown>; operationNames: string[] };
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>> };
@@ -31,6 +32,7 @@ export class PluginHost {
   private disabling = new Set<string>();
   readonly jobs: PluginJobs;
   readonly reviews: PluginReviews;
+  readonly generatedDocuments: GeneratedDocuments;
   private secrets: PluginSecretStore;
   private redactionSecrets = new Map<string, Map<string, string>>();
   private secretValues(id: string) { return [...(this.redactionSecrets.get(id)?.values() ?? [])]; }
@@ -44,6 +46,18 @@ export class PluginHost {
     this.supply = options.officialPlugins ?? OFFICIAL_PLUGINS;
     this.access = options.access ?? LOCAL_FILE_ACCESS;
     this.secrets = options.secrets ?? new WindowsPluginSecretStore(`${file}.secrets`);
+    this.generatedDocuments = new GeneratedDocuments(this.access, (plugin, job) => {
+      const live = this.loaded.get(plugin), binding = live?.manifest.contributes.jobs.find(item => item.id === job);
+      const operation = binding?.resultKind === "native-document" && binding.generatedDocument;
+      const op = operation && live?.manifest.contributes.operations.find(item => item.id === operation);
+      if (!live || !op || op.effect !== "read") throw new Error("Generated document provider unavailable");
+      const assertCurrent = () => {
+        if (this.closed || this.disabling.has(plugin) || this.loaded.get(plugin) !== live) throw new Error("Generated document provider changed");
+        const record = this.record(plugin), artifact = this.artifact(record.directory);
+        if (artifact.digest !== record.digest || !this.official(artifact.manifest, artifact.digest) && !record.trusted) throw new Error("Generated document provider trust changed");
+      };
+      assertCurrent(); return { operation: `${plugin}.${op.id}`, version: op.version, assertCurrent };
+    }, (operation, input, version) => this.invokeOperation(operation, input, undefined, true, version));
     this.reviews = new PluginReviews(this.access, (plugin, review) => {
       if (this.closed || this.disabling.has(plugin)) throw new Error("Plugin is stopping");
       const binding = this.loaded.get(plugin)?.manifest.contributes.reviews.find(r => r.id === review);
@@ -57,7 +71,8 @@ export class PluginHost {
       const operation = [...this.loaded.values()].flatMap(live => live.manifest.contributes.operations.map(op => ({ name: `${live.manifest.id}.${op.id}`, effect: op.effect }))).find(op => op.name === name);
       if (!operation) throw new Error("Job operation unavailable");
       return operation.effect;
-    }, (plugin, root, file, source, data) => this.reviews.publish(plugin, root, file, source, data));
+    }, (plugin, root, file, source, data) => this.reviews.publish(plugin, root, file, source, data),
+    (plugin, job, root, source, file, revision, sourceRevision) => this.generatedDocuments.register(plugin, job, root, source, file, revision, sourceRevision));
     this.installed = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
   }
   private save() {
@@ -265,6 +280,7 @@ export class PluginHost {
     if (version === undefined && live.manifest.contributes.reviews.some(r => [r.read, r.propose, r.approve, r.reject, r.undo].some(b => b?.operation === name))) throw new Error("Use the common review dispatcher");
     if (!jobCall && this.disabling.has(live.manifest.id)) throw new Error("Plugin is stopping");
     if (!jobCall && live.manifest.contributes.jobs.some(job => [job.start, job.status, job.stop].includes(op.id))) throw new Error("Use job start/status/stop with a requestId");
+    if (!jobCall && live.manifest.contributes.jobs.some(job => job.resultKind === "native-document" && job.generatedDocument === op.id)) throw new Error("Use the common generated document dispatcher");
     const record = this.record(live.manifest.id), current = this.artifact(record.directory);
     if (current.digest !== record.digest || !this.official(current.manifest, current.digest) && !record.trusted) throw new Error("Artifact changed; reload the plugin");
     if (op.scope === "folder") throw new Error("Folder-scoped plugin operations are unsupported in stage 1");

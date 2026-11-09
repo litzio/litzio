@@ -12,6 +12,11 @@ test("manifest rejects unsupported extensions, invalid identities, versions and 
   const job = { id: "export", title: "Export", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "file", resultExtension: ".bin" };
   const withJob = (value: unknown, requiresSdk = ">=0.2.0 <1.0.0") => ({ ...manifest(), requiresSdk, contributes: { jobs: [value], operations: ["start", "status", "stop"].map(id => ({ id, version: 1, effect: id === "status" ? "read" : "write", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } })) } });
   const nativeJob = { id: "import", title: "Import", accept: [".txt"], start: "start", status: "status", stop: "stop", resultKind: "native-document" };
+  const generated = withJob({ ...nativeJob, generatedDocument: "prepare" }, "^0.3.0");
+  generated.contributes.operations.push({ id: "prepare", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } });
+  assert.ok(validateManifest(generated));
+  assert.throws(() => validateManifest({ ...generated, requiresSdk: "^0.1.0" }), /Generated documents require SDK/);
+  assert.throws(() => validateManifest({ ...generated, contributes: { ...generated.contributes, operations: generated.contributes.operations.slice(0, -1) } }), /host read provider/);
   for (const requiresSdk of ["0.1.0", "^0.1.0"]) {
     assert.throws(() => validateManifest(withJob(job, requiresSdk)), /File job results require SDK 0\.2\.0 or later in requiresSdk/);
     assert.ok(validateManifest(withJob(nativeJob, requiresSdk)));

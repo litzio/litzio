@@ -3,7 +3,7 @@ import fs, { chmodSync, lstatSync, mkdtempSync, readdirSync, readFileSync, rmSyn
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { commitFile, createFile, createFileFromPath, decodeUtf8, preflightFileCommit, textRevision } from "../src/index.ts";
+import { commitFile, commitFileFromPath, createFile, createFileFromPath, decodeUtf8, preflightFileCommit, textRevision } from "../src/index.ts";
 import { createHash } from "node:crypto";
 
 // A partial temporary write and a change found just before the rename are exercised through
@@ -50,6 +50,13 @@ test("opaque file creation bounds bytes, owns its snapshot and cleans failed pub
     assert.deepEqual(readFileSync(target), bytes);
     await assert.rejects(createFileFromPath(target, source, 100), { code: "EEXIST" });
     assert.deepEqual(readFileSync(target), bytes);
+    await assert.rejects(commitFileFromPath(target, source, "0".repeat(64), 100), /changed/);
+    assert.deepEqual(readFileSync(target), bytes);
+    await assert.rejects(commitFileFromPath(target, source, revision, 100, () => { writeFileSync(target, "competitor"); }), /changed/);
+    assert.equal(readFileSync(target, "utf8"), "competitor");
+    const replaced = await commitFileFromPath(target, source, textRevision("competitor"), 100);
+    assert.equal(replaced, textRevision("later plugin write"));
+    assert.equal(readFileSync(target, "utf8"), "later plugin write");
     rmSync(target);
     await assert.rejects(createFileFromPath(target, source, 100, () => { throw new Error("owner lost"); }), /owner lost/);
     assert.deepEqual(readdirSync(dir), ["staged"]);
@@ -113,7 +120,7 @@ test("preflight and commit refuse invalid Unicode and detect raw-byte changes hi
     const valid = "\uFEFF한글 😀 �\n";
     writeFileSync(file, valid);
     assert.deepEqual(preflightFileCommit(file, valid + "Again\n", textRevision(valid)), {
-      target: fs.realpathSync(file), mode: statSync(file).mode,
+      target: fs.realpathSync.native(file), mode: statSync(file).mode,
     });
     assert.equal(decodeUtf8(readFileSync(file)), valid);
     commitFile(file, valid + "Again\n", textRevision(valid));
@@ -152,7 +159,7 @@ test("a symlinked document stays a link and its target is replaced", (context) =
       if ((error as NodeJS.ErrnoException).code === "EPERM") return context.skip("file symlinks need extra permission here");
       throw error;
     }
-    assert.equal(preflightFileCommit(link, "Changed.\n", textRevision(ORIGINAL)).target, fs.realpathSync(file));
+    assert.equal(preflightFileCommit(link, "Changed.\n", textRevision(ORIGINAL)).target, fs.realpathSync.native(file));
     assert.equal(readFileSync(file, "utf8"), ORIGINAL);
     commitFile(link, "Changed.\n", textRevision(ORIGINAL));
     assert.equal(lstatSync(link).isSymbolicLink(), true);
