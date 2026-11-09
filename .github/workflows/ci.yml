@@ -287,6 +287,9 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ runner.arch }}-desktop-downloads-v2-
       - run: pnpm install --frozen-lockfile
+      # Exercise the same download-only path used by master cache-warm; the package consumes it.
+      - name: Warm Desktop downloads without packaging
+        run: node scripts/desktop-download-cache.mjs warm
       - name: Published beta.6 first-update regression
         if: needs.changes.outputs.update == 'true'
         env:
