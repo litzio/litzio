@@ -8,7 +8,7 @@
   },
   "name": "Jira",
   "description": "내 계정 또는 지정 계정의 할당 이슈를 조회합니다.",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "requiresSdk": ">=0.3.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
@@ -84,73 +84,91 @@
           "additionalProperties": false
         },
         "outputSchema": {
-          "type": "array",
-          "minItems": 0,
-          "maxItems": 500,
-          "items": {
-            "type": "object",
-            "properties": {
-              "key": {
-                "type": "string"
-              },
-              "summary": {
-                "type": "string"
-              },
-              "status": {
-                "type": "string"
-              },
-              "assignee": {
-                "type": "string"
-              },
-              "priority": {
-                "type": "string"
-              },
-              "updated": {
-                "type": "string"
-              },
-              "issueUrl": {
-                "type": "string"
-              },
-              "reporter": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "issueType": {
-                "type": "string"
-              },
-              "resolution": {
-                "type": "string"
-              },
-              "dueDate": {
-                "type": "string"
-              },
-              "components": {
-                "type": "string"
-              },
-              "labels": {
-                "type": "string"
+          "type": "object",
+          "properties": {
+            "rows": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 500,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "summary": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "assignee": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": "string"
+                  },
+                  "updated": {
+                    "type": "string"
+                  },
+                  "issueUrl": {
+                    "type": "string"
+                  },
+                  "reporter": {
+                    "type": "string"
+                  },
+                  "created": {
+                    "type": "string"
+                  },
+                  "issueType": {
+                    "type": "string"
+                  },
+                  "resolution": {
+                    "type": "string"
+                  },
+                  "dueDate": {
+                    "type": "string"
+                  },
+                  "components": {
+                    "type": "string"
+                  },
+                  "labels": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "summary",
+                  "status",
+                  "assignee",
+                  "priority",
+                  "updated",
+                  "issueUrl",
+                  "reporter",
+                  "created",
+                  "issueType",
+                  "resolution",
+                  "dueDate",
+                  "components",
+                  "labels"
+                ],
+                "additionalProperties": false
               }
             },
-            "required": [
-              "key",
-              "summary",
-              "status",
-              "assignee",
-              "priority",
-              "updated",
-              "issueUrl",
-              "reporter",
-              "created",
-              "issueType",
-              "resolution",
-              "dueDate",
-              "components",
-              "labels"
-            ],
-            "additionalProperties": false
-          }
+            "truncated": {
+              "type": "boolean"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "rows",
+            "truncated",
+            "total"
+          ],
+          "additionalProperties": false
         },
         "rowSchema": {
           "key": {
@@ -170,18 +188,6 @@
             "type": "string",
             "label": "담당자"
           },
-          "priority": {
-            "type": "string",
-            "label": "우선순위"
-          },
-          "updated": {
-            "type": "string",
-            "label": "수정일"
-          },
-          "issueUrl": {
-            "type": "string",
-            "label": "이슈 페이지 URL"
-          },
           "reporter": {
             "type": "string",
             "label": "보고자"
@@ -190,26 +196,53 @@
             "type": "string",
             "label": "생성일"
           },
+          "updated": {
+            "type": "string",
+            "label": "수정일"
+          },
+          "priority": {
+            "type": "string",
+            "label": "우선순위",
+            "hidden": true
+          },
           "issueType": {
             "type": "string",
-            "label": "유형"
+            "label": "유형",
+            "hidden": true
           },
           "resolution": {
             "type": "string",
-            "label": "해결"
+            "label": "해결",
+            "hidden": true
           },
           "dueDate": {
             "type": "string",
-            "label": "기한"
+            "label": "기한",
+            "hidden": true
           },
           "components": {
             "type": "string",
-            "label": "컴포넌트"
+            "label": "컴포넌트",
+            "hidden": true
           },
           "labels": {
             "type": "string",
-            "label": "레이블"
+            "label": "레이블",
+            "hidden": true
+          },
+          "issueUrl": {
+            "type": "string",
+            "label": "이슈 페이지 URL",
+            "hidden": true
           }
+        },
+        "inputSuggestions": {
+          "account": "users",
+          "reporter": "users",
+          "project": "projects"
+        },
+        "inputHints": {
+          "account": "current-account"
         }
       },
       {
@@ -374,73 +407,91 @@
           "additionalProperties": false
         },
         "outputSchema": {
-          "type": "array",
-          "minItems": 0,
-          "maxItems": 500,
-          "items": {
-            "type": "object",
-            "properties": {
-              "key": {
-                "type": "string"
-              },
-              "summary": {
-                "type": "string"
-              },
-              "status": {
-                "type": "string"
-              },
-              "assignee": {
-                "type": "string"
-              },
-              "priority": {
-                "type": "string"
-              },
-              "updated": {
-                "type": "string"
-              },
-              "issueUrl": {
-                "type": "string"
-              },
-              "reporter": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "issueType": {
-                "type": "string"
-              },
-              "resolution": {
-                "type": "string"
-              },
-              "dueDate": {
-                "type": "string"
-              },
-              "components": {
-                "type": "string"
-              },
-              "labels": {
-                "type": "string"
+          "type": "object",
+          "properties": {
+            "rows": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 500,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "summary": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "assignee": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": "string"
+                  },
+                  "updated": {
+                    "type": "string"
+                  },
+                  "issueUrl": {
+                    "type": "string"
+                  },
+                  "reporter": {
+                    "type": "string"
+                  },
+                  "created": {
+                    "type": "string"
+                  },
+                  "issueType": {
+                    "type": "string"
+                  },
+                  "resolution": {
+                    "type": "string"
+                  },
+                  "dueDate": {
+                    "type": "string"
+                  },
+                  "components": {
+                    "type": "string"
+                  },
+                  "labels": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "summary",
+                  "status",
+                  "assignee",
+                  "priority",
+                  "updated",
+                  "issueUrl",
+                  "reporter",
+                  "created",
+                  "issueType",
+                  "resolution",
+                  "dueDate",
+                  "components",
+                  "labels"
+                ],
+                "additionalProperties": false
               }
             },
-            "required": [
-              "key",
-              "summary",
-              "status",
-              "assignee",
-              "priority",
-              "updated",
-              "issueUrl",
-              "reporter",
-              "created",
-              "issueType",
-              "resolution",
-              "dueDate",
-              "components",
-              "labels"
-            ],
-            "additionalProperties": false
-          }
+            "truncated": {
+              "type": "boolean"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "rows",
+            "truncated",
+            "total"
+          ],
+          "additionalProperties": false
         },
         "rowSchema": {
           "key": {
@@ -460,18 +511,6 @@
             "type": "string",
             "label": "담당자"
           },
-          "priority": {
-            "type": "string",
-            "label": "우선순위"
-          },
-          "updated": {
-            "type": "string",
-            "label": "수정일"
-          },
-          "issueUrl": {
-            "type": "string",
-            "label": "이슈 페이지 URL"
-          },
           "reporter": {
             "type": "string",
             "label": "보고자"
@@ -480,26 +519,159 @@
             "type": "string",
             "label": "생성일"
           },
+          "updated": {
+            "type": "string",
+            "label": "수정일"
+          },
+          "priority": {
+            "type": "string",
+            "label": "우선순위",
+            "hidden": true
+          },
           "issueType": {
             "type": "string",
-            "label": "유형"
+            "label": "유형",
+            "hidden": true
           },
           "resolution": {
             "type": "string",
-            "label": "해결"
+            "label": "해결",
+            "hidden": true
           },
           "dueDate": {
             "type": "string",
-            "label": "기한"
+            "label": "기한",
+            "hidden": true
           },
           "components": {
             "type": "string",
-            "label": "컴포넌트"
+            "label": "컴포넌트",
+            "hidden": true
           },
           "labels": {
             "type": "string",
-            "label": "레이블"
+            "label": "레이블",
+            "hidden": true
+          },
+          "issueUrl": {
+            "type": "string",
+            "label": "이슈 페이지 URL",
+            "hidden": true
           }
+        }
+      },
+      {
+        "id": "users",
+        "version": 1,
+        "effect": "read",
+        "scope": "host",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            },
+            "required": [
+              "value",
+              "label"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      {
+        "id": "projects",
+        "version": 1,
+        "effect": "read",
+        "scope": "host",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            },
+            "required": [
+              "value",
+              "label"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      {
+        "id": "current-account",
+        "version": 1,
+        "effect": "read",
+        "scope": "host",
+        "inputSchema": {
+          "type": "object",
+          "properties": {},
+          "required": [],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "additionalProperties": false
         }
       }
     ],
@@ -614,32 +786,37 @@
                 "field": "account"
               },
               {
+                "component": "TextInput",
+                "field": "project"
+              },
+              {
                 "component": "Select",
                 "field": "status"
               },
               {
                 "component": "TextInput",
-                "field": "project"
-              },
-              {
-                "component": "TextInput",
-                "field": "reporter"
+                "field": "reporter",
+                "advanced": true
               },
               {
                 "component": "Select",
-                "field": "dateField"
+                "field": "dateField",
+                "advanced": true
               },
               {
                 "component": "TextInput",
-                "field": "dateFrom"
+                "field": "dateFrom",
+                "advanced": true
               },
               {
                 "component": "TextInput",
-                "field": "dateTo"
+                "field": "dateTo",
+                "advanced": true
               },
               {
                 "component": "TextInput",
-                "field": "keys"
+                "field": "keys",
+                "advanced": true
               }
             ],
             "submit": {

@@ -122,6 +122,16 @@ test("input suggestions bind public text fields to same-plugin reads on SDK 0.3"
  assert.throws(()=>validateManifest({...input,contributes:{operations:[{...source,inputSchema:{type:"object",properties:{person:{type:"string",secret:true}}}},people]}}),/public free-text/);
 });
 
+test("input hints require public text and standalone empty-input reads", () => {
+ const source = {id:"search",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{person:{type:"string"}}},outputSchema:{type:"array"},rowSchema:{name:{type:"string",label:"Name"}},inputHints:{person:"hint"}};
+ const hint = {id:"hint",version:1,effect:"read",scope:"host",inputSchema:{type:"object",additionalProperties:false},outputSchema:{type:"object"}};
+ const input = {...manifest(),requiresSdk:"^0.3.0",contributes:{operations:[source,hint]}};
+ assert.deepEqual(validateManifest(input).contributes.operations[0]?.inputHints,{person:"hint"});
+ assert.throws(()=>validateManifest({...input,requiresSdk:"^0.2.0"}),/SDK 0.3/);
+ for (const property of [{type:"string",secret:true},{type:"string",writeOnly:true},{type:"string",enum:["x"]},{type:"number"}]) assert.throws(()=>validateManifest({...input,contributes:{operations:[{...source,inputSchema:{type:"object",properties:{person:property}}},hint]}}),/public free-text/);
+ for (const target of [{...hint,effect:"write"},{...hint,rowSchema:{name:{type:"string",label:"Name"}}},{...hint,inputSchema:{type:"object",required:["query"],properties:{query:{type:"string"}}}}]) assert.throws(()=>validateManifest({...input,contributes:{operations:[source,target]}}),/standalone host read/);
+});
+
 test("default-hidden row columns use the unreleased SDK 0.3 contract", () => {
   const operation = { id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "array" }, rowSchema: { title: { type: "string", label: "Title" }, extra: { type: "number", label: "Extra", hidden: true } } };
   assert.throws(() => validateManifest({ ...manifest(), requiresSdk: "^0.2.0", contributes: { operations: [operation] } }), /Column visibility/);

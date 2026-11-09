@@ -68,3 +68,13 @@ Core·SDK는 schema와 입력·행·링크 의미, Host/CLI 검사는 같은 arg
 ## 열 선택과 결과 범위 (#1351)
 
 플러그인 조회 표의 기본·추가 열, 브라우저 UI 선택 저장과 잘림 정보의 단일 건수 줄 표시는 [플러그인 표 계약](plugin-stage1-v1.md#플러그인-조회-표-열과-결과-범위-1351)을 따른다. 즐겨찾기·생성·통계·차트는 복원하지 않는다.
+
+## Collapsible query inputs and dynamic guidance (#1370)
+
+SDK 0.3.0 (unreleased) permits optional `advanced: true` on InputForm fields. Only optional fields collapse; required fields always remain visible. Order within each region follows fields. The tab owns expansion; collapsing preserves args and removes hidden controls from keyboard navigation. The closed form shows every specified secondary value, including defaults, false, zero, null and valid empty strings. Hidden errors expand the region and focus the first invalid control. Submission remains manual, with the existing previous-result warning. Opted-in forms use three columns at content widths >=800px, two above 640px, otherwise one; the final submit row stays right aligned.
+
+Read operations with rowSchema may declare `inputHints: { field: "hint-operation" }` alongside inputSuggestions. The target is a same-plugin standalone host read accepting `{}`, with no rowSchema or job/review binding. The public free-text field cannot be secret/writeOnly, enum/const or formatted. Host catalog exposes full operation/version bindings. The `input-hint` dispatcher accepts only declared, enabled, current-version targets and invokes them with `{}`; ordinary CLI operation invoke returns the same receipt/result. Result is exactly `{text: string}` (1–512 characters), after ordinary output validation and secret redaction. Empty TextInput displays this text as placeholder and accessible description; it never writes args. Hint response state belongs to the field/Host/binding, is discarded across binding changes/unmount, and failure leaves ordinary manual input available. No automatic query or saved placeholder data.
+
+Jira 0.0.5는 기본 Key·제목·Status·Assignee·Reporter·Created·Updated 7열과 Priority·유형·Resolution·마감일·Components·Labels 추가 후보를 선언한다. 같은 검색 경로에서 최대 500행을 반환하고 Jira total로 잘림 여부와 전체 건수를 전달한다. 기존 PluginQueryTable·DataTable 건수 줄·DropdownMenu를 재사용하며 새 상호작용 예외는 없다.
+
+#1370 수동 시각 검토: 1440px [기본](assets/search-form-1370/default-1440.png) / [접힌 요약](assets/search-form-1370/collapsed-1440.png) / [열 메뉴](assets/search-form-1370/columns-1440.png), 한국어 다크 640px [기본](assets/search-form-1370/default-640-ko-dark.png) / [접힌 요약](assets/search-form-1370/collapsed-640-ko-dark.png) / [열 메뉴](assets/search-form-1370/columns-640-ko-dark.png). 입력 정렬·여백, 요약 줄바꿈, 메뉴 가용 높이와 표 내부 가로 스크롤을 확인했다. 이전 단계의 캡처와 달리 즐겨찾기가 없는 현재 화면이다. 합성 Jira·PAT와 전용 포트의 격리 Host이며 실제 회사 Jira나 소유자 시각 승인을 뜻하지 않는다.

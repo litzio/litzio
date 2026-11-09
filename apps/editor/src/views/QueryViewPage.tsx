@@ -19,12 +19,10 @@ export function QueryViewPage({ tab, client, unavailable:explicitUnavailable }: 
   const base = tab.view;
   const [args, setArgs] = useState(base.sources.stats.args);
   const view: View = { ...base, sources: { stats: { ...base.sources.stats, args } } };
-  const formElement = useRef<HTMLFormElement>(null);
   const [catalogOperation, setOperation] = useState<ViewOperation & { plugin: string }>();
   const operation = catalogOperation;
   const schema = operation?.inputSchema as InputSchema | undefined;
   const [inputErrors, setInputErrors] = useState<{ fields: Record<string, string>; common?: string }>(emptyInputErrors);
-  useEffect(() => { if (Object.keys(inputErrors.fields).length) formElement.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus(); }, [inputErrors]);
   const [state, setState] = useState<SourceState>("idle");
   const [result, setResult] = useState<ViewResult>(), [problem, setProblem] = useState("");
   const [queriedArgs, setQueriedArgs] = useState<string>();
@@ -84,9 +82,8 @@ export function QueryViewPage({ tab, client, unavailable:explicitUnavailable }: 
     <div className="view-controls">
       {!view.form ? <Button variant="secondary" size="sm" disabled={unavailable || busy || !operation} onClick={() => void query()}>{i18n.t("Refresh data")}</Button> : null}
     </div>
-    {view.form ? <form ref={formElement} className="view-query-form" noValidate onSubmit={event => { event.preventDefault(); void query(); }}>
-      {schema ? <QueryInputs client={unavailable ? undefined : client} suggestions={operation?.inputSuggestions} view={view} schema={schema} errors={inputErrors.fields} change={(field, value, remove) => { setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; }); setInputErrors(emptyInputErrors()); }} /> : null}
-      <div className="form-actions view-query-actions"><Button type="submit" disabled={unavailable || busy || !schema}>{view.form.submit.label}</Button></div>
+    {view.form ? <form className="view-query-form" noValidate onSubmit={event => { event.preventDefault(); void query(); }}>
+      {schema ? <QueryInputs actions={<Button type="submit" disabled={unavailable || busy || !schema}>{view.form.submit.label}</Button>} client={unavailable ? undefined : client} suggestions={operation?.inputSuggestions} hints={operation?.inputHints} view={view} schema={schema} errors={inputErrors.fields} change={(field, value, remove) => { setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; }); setInputErrors(emptyInputErrors()); }} /> : null}
     </form> : null}
     <FieldError id={`view-input-error-${tab.id}`}>{inputErrors.common}</FieldError>
     {state === "loading" ? <Notice>{i18n.t("Loading data…")}</Notice> : state === "idle" ? <Notice>{i18n.t("Data has not been queried. Refresh manually.")}</Notice> : state === "empty" ? <Notice>{i18n.t("No matching rows.")}</Notice> : null}

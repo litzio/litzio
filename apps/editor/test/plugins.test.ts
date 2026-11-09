@@ -957,7 +957,9 @@ test("Jira artifact filters reject malformed dates/JQL controls and detail prese
     const startAt = Number(query.get("startAt")); offsets.push(startAt);
     return new Response(JSON.stringify({ startAt, maxResults: 2, total: 4, issues: Array.from({length: startAt === 0 ? 2 : 1}, (_, i) => ({key: `MOCK-${startAt+i+1}`, fields:{summary:"Fixture", created:"2025-12-31T23:30:00.000+0000", updated:"2026-01-01T01:30:00.000+0000", duedate:"2026-01-02"}})) }));
   });
-  const rows = await plugin.operations.jql({jql:"project = MOCK ORDER BY updated DESC"});
+  const result = await plugin.operations.jql({jql:"project = MOCK ORDER BY updated DESC"});
+  assert.equal(result.truncated, false); assert.equal(result.total, 4);
+  const rows = result.rows;
   assert.deepEqual(rows.map((r: any) => r.key), ["MOCK-1", "MOCK-2", "MOCK-3", "MOCK-4"]);
   const localTime = (value: string) => {
     const d = new Date(value), pad = (v: number) => String(v).padStart(2, "0");
@@ -1023,15 +1025,21 @@ test("suggestion admission and generic CLI invocation share validated results", 
  const root=mkdtempSync(path.join(os.tmpdir(),"litzio-suggestions-"));
  const host=new PluginHost(path.join(root,"state.json"),{officialPlugins:[]});
  const directory=path.join(root,"artifact");mkdirSync(directory);
- const operations=[{id:"search",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{person:{type:"string"}}},outputSchema:{type:"array"},rowSchema:{name:{type:"string",label:"Name"}},inputSuggestions:{person:"people"}},{id:"people",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{query:{type:"string"}},required:["query"],additionalProperties:false},outputSchema:{type:"array"}}];
+ const operations=[{id:"search",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{person:{type:"string"}}},outputSchema:{type:"array"},rowSchema:{name:{type:"string",label:"Name"}},inputSuggestions:{person:"people"},inputHints:{person:"hint"}},{id:"people",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{query:{type:"string"}},required:["query"],additionalProperties:false},outputSchema:{type:"array"}}];
+ operations.push({id:"hint",version:1,effect:"read",scope:"host",inputSchema:{type:"object"},outputSchema:{type:"object"}} as any);
  writeFileSync(path.join(directory,"litzio-plugin.json"),JSON.stringify({schemaVersion:1,id:"fixture.people",tier:"community",publisher:{id:"fixture",name:"Fixture"},name:"Fixture",version:"0.1.0",requiresSdk:"^0.3.0",entry:"host.js",contributes:{operations}}));
  writeFileSync(path.join(directory,"package.json"),JSON.stringify({type:"module",version:"0.1.0"}));
- writeFileSync(path.join(directory,"host.js"),`export function activate(){return {operations:{search:()=>[],people:({query})=>query==='bad'?[{value:'missing label'}]:[{value:'id',label:'Example person'}]},status:()=>({available:true,message:'',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+ writeFileSync(path.join(directory,"host.js"),`export function activate(){return {operations:{hint:({bad})=>({text:bad?"x".repeat(513):"Current user"}),search:()=>[],people:({query})=>query==='bad'?[{value:'missing label'}]:[{value:'id',label:'Example person'}]},status:()=>({available:true,message:'',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
  try {
   await host.invoke("register",{directory});
   await host.invoke("trust",{id:"fixture.people",registrationId:(await host.list())[0]!.registrationId});
   await host.invoke("enable",{id:"fixture.people"});
   assert.deepEqual(host.viewOperations().find(op=>op.operation==='fixture.people.search')?.inputSuggestions,{person:{operation:'fixture.people.people',version:1}});
+  assert.deepEqual(host.viewOperations().find(op=>op.operation==='fixture.people.search')?.inputHints,{person:{operation:'fixture.people.hint',version:1}});
+  for (const action of ["invoke","input-hint"]) assert.deepEqual((await host.invoke(action,{operation:"fixture.people.hint",version:1,input:{}}) as any).result,{text:"Current user"});
+  assert.equal((await host.invoke("invoke",{operation:"fixture.people.hint",input:{bad:true}}) as any).receipt.outcome,"failure");
+  await assert.rejects(host.invoke("input-hint",{operation:"fixture.people.hint",version:2}),/unavailable/);
+  await assert.rejects(host.invoke("input-hint",{operation:"fixture.people.search",version:1}),/unavailable/);
   const input={operation:"fixture.people.people",version:1,input:{query:"ex"}};
   for(const action of ["invoke","suggest"]) assert.deepEqual((await host.invoke(action,input) as any).result,[{value:"id",label:"Example person"}]);
   await assert.rejects(host.invoke("suggest",{...input,version:2}),/unavailable/);

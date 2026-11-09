@@ -16,7 +16,7 @@ export type ReviewContribution = z.infer<typeof reviewContributionSchema>;
 export const REVIEW_ACTIONS = ["read", "propose", "approve", "reject", "undo"] as const;
 export const reviewSourceSchema = z.strictObject({ plugin: id, review: id, bundleRef: opaque });
 const form = z.strictObject({ component: z.literal("InputForm"), source: z.literal("stats"),
-  fields: z.array(z.strictObject({ component: z.enum(["Select", "TextInput", "DateInput", "NumberInput", "Checkbox"]), field: z.string().min(1).max(80) })).max(VIEW_LIMITS.inputs)
+  fields: z.array(z.strictObject({ component: z.enum(["Select", "TextInput", "DateInput", "NumberInput", "Checkbox"]), field: z.string().min(1).max(80), advanced: z.boolean().optional() })).max(VIEW_LIMITS.inputs)
     .refine(v => new Set(v.map(f => f.field)).size === v.length, "Duplicate input field"),
   submit: z.strictObject({ component: z.literal("SubmitButton"), label }) });
 export const connectedSourceSchema = operationSourceSchema.extend({ kind: z.literal("operation") });
@@ -232,7 +232,7 @@ function publicInputSchema(schema: Record<string, unknown>): Record<string, unkn
 }
 export function createCatalogV2(operations: readonly ViewOperation[] = []) {
   return { schema: z.toJSONSchema(catalogViewSchema), limits: VIEW_LIMITS, operations: operations.map(op => ({ operation: op.operation, version: op.version,
-    inputSchema: publicInputSchema(op.inputSchema), ...(op.inputSuggestions ? { inputSuggestions: op.inputSuggestions } : {}),
+    inputSchema: publicInputSchema(op.inputSchema), ...(op.inputSuggestions ? { inputSuggestions: op.inputSuggestions } : {}), ...(op.inputHints ? { inputHints: op.inputHints } : {}),
     rowSchema: Object.fromEntries(Object.entries(op.rowSchema).filter(([, p]) => !p.secret)) })) };
 }
 // Snapshot-local Core read-model path; never a DOM node or ProseMirror position.

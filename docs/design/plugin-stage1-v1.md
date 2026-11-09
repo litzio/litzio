@@ -360,7 +360,7 @@ litzio plugins start example.plugin --job convert --root <root> --file a.pdf --f
 
 ### Jira 커뮤니티 0.0.4 읽기 사례 (#1350, #1362)
 
-저장소의 community-plugins/jira는 독립 배포 전 임시 커뮤니티 artifact다. JQL 검색 v1과 같은 경로 위의 간편 검색 issues v4(프로젝트·보고자·기간 기준·시작/종료일) 두 기본 뷰와 기본 7열은 기존 InputForm/Table 계약을 사용한다. 추가 후보 필드는 공개 행 스키마·데이터로 유지하고 표시 columns에서 제외한다. detail v1은 host read·assistant 작업으로 설명과 최근 생성 댓글 최대 10개, 키·URL·조회 시각·댓글 전체 수/반환 범위·본문 잘림을 반환한다. CLI operation invoke와 비서는 같은 operation을 사용하며 별도 상세 화면·Jira 쓰기·SDK 확장은 없다. 검색은 필요한 fields만 페이지당 최대 500건씩 순차 요청하고 서버의 실제 반환 건수로 진행한다. 전체 8초·최대 500행·Host 10초 RPC 예산은 유지한다. Created·Updated·댓글·조회 시각은 Host PC 현지 `YY-MM-DD HH:mm`, dueDate는 `YY-MM-DD`다. 상한·오류·정렬 한계·검증 경계의 상세 계약은 [Jira README](../../community-plugins/jira/README.md#004-검색과-상세-계약)를 따른다.
+저장소의 community-plugins/jira는 독립 배포 전 임시 커뮤니티 artifact다. JQL 검색 v1과 같은 경로 위의 간편 검색 issues v4(프로젝트·보고자·기간 기준·시작/종료일) 두 기본 뷰와 기본 7열은 기존 InputForm/Table 계약을 사용한다. 추가 후보 필드는 공개 행 스키마·데이터로 유지하고 표시 columns에서 제외한다. detail v1은 host read·assistant 작업으로 설명과 최근 생성 댓글 최대 10개, 키·URL·조회 시각·댓글 전체 수/반환 범위·본문 잘림을 반환한다. CLI operation invoke와 비서는 같은 operation을 사용하며 별도 상세 화면·Jira 쓰기·SDK 확장은 없다. 검색은 필요한 fields만 페이지당 최대 500건씩 순차 요청하고 서버의 실제 반환 건수로 진행한다. 전체 8초·최대 500행·Host 10초 RPC 예산은 유지한다. Created·Updated·댓글·조회 시각은 Host PC 현지 `YY-MM-DD HH:mm`, dueDate는 `YY-MM-DD`다. 상한·오류·정렬 한계·검증 경계의 상세 계약은 [Jira README](../../community-plugins/jira/README.md#005-검색과-상세-계약)를 따른다.
 
 ## Plugin image icon (#1346)
 
@@ -413,6 +413,10 @@ IME를 모사하며 나머지는 일반 입력·클릭을 사용한다. 전수 �
 확인했다. 기존 Input/SettingsSelect 폼과 동일한 control 크기를 사용한다. 캡처는 수동
 검토용이며 자동 검사의 판정 근거가 아니다. 전체 제품 화면·원격 Host·실제 Jira 수락을
 뜻하지 않는다. browser 대표 시나리오는 로컬 48초에 완료했다.
+
+### 공통 조회 입력 안내 (#1370)
+
+미릴리스 SDK 0.3.0의 `inputHints`는 조회 operation의 공개 자유 문자열 입력을 같은 플러그인의 독립 host read 작업에 연결한다. 빈 객체 입력, `{text}` 출력(1–512자), 현재 version·trust·secret 정리·공용 CLI invoke를 사용한다. 입력값을 채우거나 조회를 실행하지 않는다. 상세는 [플러그인 화면 계약](plugin-screens-v1.md#collapsible-query-inputs-and-dynamic-guidance-1370)을 따른다.
 
 ## Generated document correction and regeneration (#1364)
 

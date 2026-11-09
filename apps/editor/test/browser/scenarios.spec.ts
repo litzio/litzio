@@ -258,7 +258,12 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       if (request.url === "/jira/rest/api/2/myself") {
         const status = request.headers.authorization !== "Bearer mock-jira-token" ? 401 : jiraFault || 200;
         response.writeHead(status, { "Content-Type": "application/json" });
-        response.end(JSON.stringify(status === 200 ? { name: "mock-user" } : { errorMessages: ["RAW-JIRA-SENTINEL mock-jira-token"] })); return;
+        response.end(JSON.stringify(status === 200 ? { name: "mock-user", displayName: "Fixture PAT user" } : { errorMessages: ["RAW-JIRA-SENTINEL mock-jira-token"] })); return;
+      }
+      if (request.url?.startsWith("/jira/rest/api/2/user/picker?") || request.url === "/jira/rest/api/2/project") {
+        const status = request.headers.authorization !== "Bearer mock-jira-token" ? 401 : jiraFault || 200;
+        response.writeHead(status, { "Content-Type": "application/json" });
+        response.end(JSON.stringify(status !== 200 ? {} : request.url.includes("/user/picker?") ? { users: [{ name: "mock-user", displayName: "Fixture PAT user" }] } : [{ key: "MOCK", name: "Fixture project" }])); return;
       }
       if (request.url === "/redirect-target") {
         jiraRedirects++;

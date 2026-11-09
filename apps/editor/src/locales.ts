@@ -1,6 +1,7 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Additional conditions": "Additional conditions",
   "Columns": "Columns",
   "Column selection could not be saved.": "Column selection could not be saved.",
   "Choose columns to display.": "Choose columns to display.",
@@ -1234,6 +1235,7 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Additional conditions": "추가 조건",
   "Columns": "열 선택",
   "Column selection could not be saved.": "열 선택을 저장하지 못했습니다.",
   "Choose columns to display.": "표시할 열을 선택하세요.",

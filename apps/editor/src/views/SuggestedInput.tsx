@@ -9,6 +9,7 @@ export function SuggestedInput({ client, operation, version, value, onValueChang
   client: HostClient; operation: string; version: number; value: string; onValueChange(value: string): void;
 }) {
   const [composing, setComposing] = useState(false);
+  const [focused, setFocused] = useState(false), [open, setOpen] = useState(false);
   const [response, setResponse] = useState<{ query: string; client: HostClient; operation: string; version: number; items: Suggestion[] }>();
   useEffect(() => {
     setResponse(undefined);
@@ -26,9 +27,9 @@ export function SuggestedInput({ client, operation, version, value, onValueChang
     return () => { alive = false; clearTimeout(timer); controller.abort(); };
   }, [client, operation, version, value, composing]);
   const items = !composing && response?.query === value && response.client === client && response.operation === operation && response.version === version ? response.items : [];
-  return <Autocomplete.Root items={items} mode="none" value={value} onValueChange={onValueChange} itemToStringValue={item => item.value}>
-    <Autocomplete.Input render={<Input {...props} />} onCompositionStart={() => setComposing(true)} onCompositionEnd={() => setComposing(false)} />
-    {items.length ? <Autocomplete.Portal className="ui-portal"><Autocomplete.Positioner sideOffset={4} align="start" className="isolate z-50">
+  return <Autocomplete.Root items={items} mode="none" open={focused && open} onOpenChange={setOpen} value={value} onValueChange={onValueChange} itemToStringValue={item => item.value}>
+    <Autocomplete.Input render={<Input {...props} />} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onCompositionStart={() => setComposing(true)} onCompositionEnd={() => setComposing(false)} />
+    {focused && items.length ? <Autocomplete.Portal className="ui-portal"><Autocomplete.Positioner sideOffset={4} align="start" className="isolate z-50">
       <Autocomplete.Popup className="w-[var(--anchor-width)] max-w-[calc(100vw-1rem)] max-h-[var(--available-height)] overflow-y-auto rounded-lg border border-border bg-popover p-1 text-sm text-popover-foreground shadow-[var(--shadow-overlay)]">
         <Autocomplete.List>{(item: Suggestion) => <Autocomplete.Item key={item.value} value={item} className="cursor-default rounded-sm px-3 py-2 break-words data-highlighted:bg-accent data-highlighted:text-accent-foreground">{item.label}</Autocomplete.Item>}</Autocomplete.List>
       </Autocomplete.Popup>
