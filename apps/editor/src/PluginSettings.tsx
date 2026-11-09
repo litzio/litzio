@@ -107,8 +107,10 @@ function ConnectionSettings({ plugin, change, busy, run }: { plugin: Plugin; cha
       try {
         await change("settings", { id: plugin.id, settings });
         saved.current = settings;
-        errors.current = {};
-        setStates(s => Object.fromEntries(Object.entries(s).map(([field, state]) => [field, state.error ? {} : state])));
+        for (const field of Object.keys(errors.current)) {
+          if (field === key || !dirty.current.has(field)) delete errors.current[field];
+        }
+        setStates(s => Object.fromEntries(Object.entries(s).map(([field, state]) => [field, state.error && !errors.current[field] ? {} : state])));
         if (edits.current[key] === edit) dirty.current.delete(key);
         if (edits.current[key] === edit) setStates(s => ({ ...s, [key]: { status: "Saved" } }));
       } catch (e) {
