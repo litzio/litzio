@@ -82,14 +82,17 @@ async function publicBeta(versions = [OLD, NEW], startVersion = OLD): Promise<st
   for (const version of versions) {
     const result = await fetchPublicRelease(`https://api.github.com/repos/${owner}/${name}/releases/tags/v${version}`, process.env.GH_TOKEN ? { headers: { Authorization: `Bearer ${process.env.GH_TOKEN}` } } : {});
     assert.equal(result.status, 200, `Public v${version} is required; real GitHub update validation remains Pending`);
-    const release = await result.json() as { tag_name: string; draft: boolean; prerelease: boolean; assets: { name: string; size: number; digest: string; browser_download_url: string }[] };
+    const release = await result.json() as { tag_name: string; draft: boolean; prerelease: boolean; assets: { id: number; name: string; size: number; digest: string; browser_download_url: string }[] };
     assert.equal(release.tag_name, `v${version}`); assert.equal(release.draft, false); assert.equal(release.prerelease, true);
     const installer = `${brand.executableName}-Setup-${version}.exe`;
     assert.deepEqual(release.assets.map((asset) => asset.name).sort(), [installer, `${installer}.blockmap`, `${brand.updates.channels.beta}.yml`].sort());
     const download = async (assetName: string) => {
       const asset = release.assets.find((asset) => asset.name === assetName)!;
       assert.equal(asset.browser_download_url, `https://github.com/${owner}/${name}/releases/download/v${version}/${assetName}`);
-      const response = await fetchPublicRelease(asset.browser_download_url); assert.equal(response.status, 200);
+      const response = await fetchPublicRelease(process.env.GH_TOKEN
+        ? `https://api.github.com/repos/${owner}/${name}/releases/assets/${asset.id}` : asset.browser_download_url,
+      process.env.GH_TOKEN ? { headers: { Authorization: `Bearer ${process.env.GH_TOKEN}`, Accept: "application/octet-stream" } } : undefined);
+      assert.equal(response.status, 200);
       const bytes = Buffer.from(await response.arrayBuffer());
       assert.equal(bytes.length, asset.size);
       assert.equal(`sha256:${createHash("sha256").update(bytes).digest("hex")}`, asset.digest);
