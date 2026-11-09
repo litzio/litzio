@@ -726,7 +726,7 @@ Multi-page PDF reading uses the existing task tab and DocumentTabs, while transi
 
 현재 목록은 위 Hosts host-summary와 같은 정렬·상태 점/톤을 사용한다. 과거 #1007/#1090의 톱니·스위치 배치를 재사용하되, 비활성 플러그인도 정보와 설정에 진입한다. 설정 화면에는 플러그인 화면 이동 버튼을 두지 않는다. 화면 진입은 사이드바이며 “동작 · 이름” 합성 라벨은 금지한다.
 
-설정 창 순서는 이름·버전·설명 → settingsSchema.properties 선언 순서의 일반 설정 → secret → 연결 확인 → 접힌 상세(digest)다. 설정 title은 라벨, description은 Tooltip 안내다. 화면에는 상태·대상·행동을 상시 표시한다. 연결 확인은 저장된 설정으로 실행하며 실행 중 표시, 연결됨/오류와 고정 안내를 제공한다. 꺼짐·미실행이면 버튼을 비활성화하고 Tooltip으로 이유를 보인다. 기존 Button·Tooltip·Dialog·Notice·settings 행·HostStatus 스타일을 재사용하며 새 공통 상호작용 예외는 없다.
+설정 창 순서는 이름·버전·설명 → settingsSchema.properties 선언 순서의 일반 설정 → secret → 연결 확인 → 접힌 상세(만든 곳·신뢰 여부·digest)다. 설정 title은 라벨, description은 Tooltip 안내다. 화면에는 상태·대상·행동을 상시 표시한다. 연결 확인은 저장된 설정으로 실행하며 실행 중 표시, 연결됨/오류와 고정 안내를 제공한다. 꺼짐·미실행이면 버튼을 비활성화하고 Tooltip으로 이유를 보인다. 기존 Button·Tooltip·Dialog·Notice·settings 행·HostStatus 스타일을 재사용하며 새 공통 상호작용 예외는 없다.
 
 수동 검토: 1440px 영어 라이트 [변경 전](assets/plugin-settings-1334/before-1440.png) / [변경 후](assets/plugin-settings-1334/after-1440.png), 640px 한국어 다크 [변경 전](assets/plugin-settings-1334/before-640.png) / [변경 후](assets/plugin-settings-1334/after-640.png). 설정 창 [1440px](assets/plugin-settings-1334/detail-1440.png) / [640px 한국어 다크](assets/plugin-settings-1334/detail-640.png). 톱니·스위치 세로 중심과 행 오른쪽 정렬, 배지 줄바꿈, 상태 줄, 다크 대비를 확인했다. 캡처는 localhost fixture이며 외부 서비스 연결 성공의 증거가 아니다. 계정 표시는 캡처에서 가렸다.
 
@@ -737,3 +737,12 @@ Multi-page PDF reading uses the existing task tab and DocumentTabs, while transi
 ## Plugin icon images (#1346)
 
 PluginIcon shares the same decorative 16px img in existing sidebar entries, DocumentTabs and plugin-heading rows. Existing flex alignment, spacing tokens and screen icon fallbacks remain; no new surface or common interaction. Image aspect ratio is contained. The [plugin contract](plugin-stage1-v1.md#plugin-image-icon-1346) owns format, bounds, trust and Host delivery. Fixture captures cover 1440px and Korean dark 640px; external-service icon artwork is separate.
+
+
+## 플러그인 목록과 첫 켜기 확인 (#1379)
+
+목록에는 공식/커뮤니티 배지 하나만 두고 만든 곳과 신뢰 여부·현재 digest는 설정 창 상세 정보로 옮긴다. 오류·사용할 수 없음만 플러그인 상태 줄에 표시하고 정상 실행·꺼짐은 기존 스위치로 표현한다. 폴더 감지는 `folderSources` 선언이 있을 때만 표시하며 계정 줄은 유지한다. 처음 켜기는 기존 Dialog·Button·Notice로 확인하고, 취소 시 변경하지 않는다. 확인 요청은 창을 열 때 본 registrationId에 한정한다. 그동안 등록이 교체됐으면 Host의 구분된 거부 사유를 지역화해 알리고 창을 닫는다. 갱신된 목록에서 사용자가 다시 켜야 하며 이전 승인을 새 등록으로 옮기지 않는다. 신뢰 수명은 [플러그인 계약](plugin-stage1-v1.md)을 따른다. 새 공통 상호작용 예외는 없다. Hosts의 요약 행과 설정 창의 접힌 상세 패턴을 재사용한다.
+
+1440px 영어 라이트와 640px 한국어 다크 수동 근거: 목록 [1440px](assets/plugin-list-1379/list-1440.png) / [640px](assets/plugin-list-1379/list-640.png), 첫 켜기 확인 [1440px](assets/plugin-list-1379/confirmation-1440.png) / [640px](assets/plugin-list-1379/confirmation-640.png), 상세 정보 [1440px](assets/plugin-list-1379/detail-1440.png) / [640px](assets/plugin-list-1379/detail-640.png). localhost fixture이며 외부 서비스 연결·소유자 시각 승인을 뜻하지 않는다. 배지·컨트롤의 정렬, 여백, 창 경계와 digest 줄바꿈을 확인했다.
+
+같은 미신뢰 등록 상태의 목록 변경 전 [1440px](assets/plugin-list-1379/before-list-1440.png) / [640px 한국어 다크](assets/plugin-list-1379/before-list-640.png)는 변경 전 PluginSettings 컴포넌트를 같은 production HTTP fixture에 빌드하여 촬영했다. Host는 이번 등록 신뢰 구현이며, 이 비교는 UI 표시 차이에 한정한다.

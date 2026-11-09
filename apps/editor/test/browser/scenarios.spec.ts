@@ -227,6 +227,8 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       writeFileSync(path.join(pluginFolder, "input.txt"), "AUTHORING:" + JSON.stringify({ authoring: { inputs: [{ key: "source", blocks: [
         { kind: "heading", level: 1, text: "Imported" }, { kind: "paragraph", text: "Job result." },
         { kind: "figure", imageAsset: "picture", imageAlt: "Imported image", caption: "Stored image", enumerator: "A.3" },
+        { kind: "figure", imageAsset: "picture", imageAlt: "Logo", caption: "Unnumbered logo", enumerated: false },
+        { kind: "table", rows: [["Name"], ["Logo"]], enumerated: false },
       ] }] }, images: [{ key: "picture", mime: "image/png", base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=" }] }));
       for (const name of ["browser-result.md", "stopped-result.md", "closed-result.md", "reopened-running.md", "input.bin", "nested/input.bin"]) rmSync(path.join(pluginFolder, name), { force: true });
       for (const name of ["batch-a", "batch-b", "cli-a", "cli-b"]) {

@@ -33,7 +33,7 @@ test("K1 lifecycle, exclusive request identity, Root admission, publication and 
   const host = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]), secrets });
   try {
     await host.invoke("register", { directory });
-    await host.invoke("trust", { id: "fixture.jobs", digest: (await host.list()).find(p => p.id === "fixture.jobs")!.digest });
+    await host.invoke("trust", { id: "fixture.jobs", registrationId: (await host.list()).find(p => p.id === "fixture.jobs")!.registrationId });
     await host.invoke("enable", { id: "fixture.jobs" });
     const start = async (text: string) => {
       const requestId = randomUUID(); const file = `${requestId}.txt`, output = `${requestId}.md`;
@@ -221,7 +221,7 @@ test("K1 start/status/stop cannot publish subprocess results rejected by output 
   try {
     writeFileSync(path.join(root, 'input.txt'), 'Original');
     await host.invoke('register',{directory});
-    await host.invoke('trust',{id:'fixture.jobs',digest:(await host.list()).find(p => p.id === "fixture.jobs")!.digest});
+    await host.invoke('trust',{id:'fixture.jobs',registrationId:(await host.list()).find(p => p.id === "fixture.jobs")!.registrationId});
     await host.invoke('enable',{id:'fixture.jobs'});
     const requestId = randomUUID();
     await host.invoke('job-start',{plugin:'fixture.jobs',job:'text',requestId,root,file:'input.txt',output:'result.md'});
@@ -287,7 +287,7 @@ test("K1 accepted work survives the RPC budget; completion, failure, stop and pr
     try {
       writeFileSync(path.join(root, "input.txt"), "Original");
       await host.invoke("register", { directory });
-      await host.invoke("trust", { id: "fixture.jobs", digest: (await host.list()).find(p => p.id === "fixture.jobs")!.digest });
+      await host.invoke("trust", { id: "fixture.jobs", registrationId: (await host.list()).find(p => p.id === "fixture.jobs")!.registrationId });
       await host.invoke("enable", { id: "fixture.jobs" });
       const requestId = randomUUID();
       const input = { plugin: "fixture.jobs", job: "text", requestId, root, file: "input.txt", output: "result.md" };
@@ -368,7 +368,7 @@ test("K1 snapshots preserve keys and redact only the publishing plugin's secret 
         }, status: () => ({available:true,message:"Ready",folders:[],decorations:[],accounts:[]}), dispose() {} };
       }`);
       await host.invoke("register", { directory });
-      await host.invoke("trust", { id, digest: (await host.list()).find(plugin => plugin.id === id)!.digest });
+      await host.invoke("trust", { id, registrationId: (await host.list()).find(plugin => plugin.id === id)!.registrationId });
       await host.invoke("enable", { id });
     }
     for (const [plugin, expected] of [["fixture.a", "[secret] foreign-private"], ["fixture.b", "phase [secret]"]]) {
@@ -404,7 +404,7 @@ test("public SDK authoring crosses the external plugin boundary and K1 official 
   const host = new PluginHost(path.join(root, "state.json"), { access: new RootAccess([root]) });
   try {
     await host.invoke("register", { directory });
-    await host.invoke("trust", { id: manifest.id, digest: (await host.list()).find(p => p.id === manifest.id)!.digest });
+    await host.invoke("trust", { id: manifest.id, registrationId: (await host.list()).find(p => p.id === manifest.id)!.registrationId });
     await host.invoke("enable", { id: manifest.id });
     writeFileSync(path.join(root, "input.txt"), "Original input");
     const requestId = randomUUID();
@@ -435,6 +435,7 @@ test("public SDK authoring crosses the external plugin boundary and K1 official 
     const imageSource = readFileSync(path.join(root, "images.md"), "utf8");
     assert.match(imageSource, /\.\/assets\/images-[a-f0-9]{64}-[a-f0-9]{64}\.png/);
     assert.match(imageSource, /:enumerator: A\.3/);
+    assert.deepEqual(imageJob.result?.inputs, [{ key: "picture", targets: [{ path: getEditableDocument(parse(imageSource)).blocks[0].path, documentRevision: imageJob.result!.revision, documentHash: imageJob.result!.revision }] }]);
     const imageFiles = fs.readdirSync(assets);
     assert.equal(imageFiles.length, 1);
     assert.deepEqual(readFileSync(path.join(assets, imageFiles[0])), Buffer.from(png, "base64"));

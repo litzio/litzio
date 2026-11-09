@@ -47,16 +47,16 @@ export class PluginJobs {
         if (update.file) throw new Error("Unexpected file result");
         if (!update.document) throw new Error("Completed job has no document");
         accessPath(record.input.output, this.access, true);
-        const created = "source" in update.document ? createDocumentSourceFile(record.input.output, update.document.source, record.access)
+        const created: { path: string; revision: string; inputs?: Awaited<ReturnType<typeof createAuthoredDocumentFile>>["inputs"] } = "source" in update.document ? createDocumentSourceFile(record.input.output, update.document.source, record.access)
           : await createAuthoredDocumentFile(record.input.output, update.document, record.access, () => {
             if (record.detached) throw new Error("Document result observation lost");
             accessPath(record.input.output, this.access, true);
           });
-        current.result = { path: created.path, revision: created.revision };
+        current.result = { path: created.path, revision: created.revision, ...(created.inputs ? { inputs: created.inputs } : {}) };
         // Publication failure must not lose the successful document receipt or recreate it on status.
         record.finishedAt = Date.now();
         const bundle = update.review ? this.publishReview?.(current.plugin, current.root, created.path, record.input.file, update.review) : undefined;
-        current.result = { path: created.path, revision: created.revision, ...(bundle ? { bundle, review: { plugin: current.plugin, review: update.review!.review, root: current.root, bundleRef: bundle.bundleRef, generation: bundle.generation } } : {}) };
+        current.result = { path: created.path, revision: created.revision, ...(created.inputs ? { inputs: created.inputs } : {}), ...(bundle ? { bundle, review: { plugin: current.plugin, review: update.review!.review, root: current.root, bundleRef: bundle.bundleRef, generation: bundle.generation } } : {}) };
       }
     }
     if (update.state !== "running") this.cleanup(record);

@@ -509,3 +509,19 @@ test("numbered section references use Core H1-H6 counters after body section cha
   json.attrs.headingNumbering = null;
   assert.equal(referenceDisplay(referenceTargets(schema.nodeFromJSON(json)), "ref", "detail").text, "§ Detail");
 });
+
+
+test("unnumbered Figure and Table survive engine caption edits, new locators and Save", () => {
+  const source = nativeSource(":::{figure} ./logo.png\n:enumerated: false\n\nLogo\n:::\n\n:::{table} Values\n:enumerated: false\n\n| A |\n| --- |\n| B |\n:::\n");
+  const schema = getSchema(editorExtensions());
+  const snapshot = loadEditableDocument(source);
+  const next = schema.nodeFromJSON(toTiptapDocument(snapshot)).toJSON() as TiptapJSON;
+  next.content![0].content = [{ type: "text", text: "Edited logo" }];
+  next.content![1].content!.at(-1)!.content = [{ type: "text", text: "Edited values" }];
+  const saved = saveEdits(source, collectSupportedEdits(snapshot, next)).markdown;
+  assert.deepEqual(loadEditableDocument(saved).blocks.map(b => "enumerated" in b ? b.enumerated : undefined), [false, false]);
+  for (const block of next.content!) block.attrs!.sourcePath = freshBlockPath();
+  next.attrs = { deletedPaths: snapshot.blocks.map(b => b.path.join(",")) };
+  const copied = saveEdits(source, collectSupportedEdits(snapshot, next)).markdown;
+  assert.deepEqual(loadEditableDocument(copied).blocks.map(b => "enumerated" in b ? b.enumerated : undefined), [false, false]);
+});

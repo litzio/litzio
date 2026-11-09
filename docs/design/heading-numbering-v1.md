@@ -59,8 +59,10 @@ Figures (image, Mermaid and pending), tables and display equations support autom
 numbering. Fixed numbers are authored non-empty single-line strings such as `17`, `A.3` or
 `4-2`, stored only in the MyST directive's `:enumerator:` option. Mermaid uses the outer
 `{figure}` option; the inner directive remains option-free. Code blocks and heading numbering
-are outside this feature. `:enumerated: false` is unsupported. No document-mode frontmatter
+are outside this feature. Figures and tables also admit the standard MyST `:enumerated: false` option (#1383). It suppresses the number and excludes the block from automatic counters and missing/duplicate-number diagnostics. Equations do not support this option. A disabled block with an authored enumerator is refused as contradictory. No document-mode frontmatter
 or private number format is introduced.
+
+`EditableBlock.enumerator` exposes the authored string; `enumerated` exposes explicit numbering visibility. `updateEnumeration(document, path, enabled)` changes Figure/Table visibility through Core, clearing a fixed number when disabling. Caption/label edits and engine copies retain visibility. The Editor renders caption text and Outline entries without a number; existing property forms show Number: None for these blocks. No new toggle or surface is added. CLI creation uses the shared authoring input described below.
 
 `EditableBlock.enumerator` exposes the authored string. `blockTargets` / `targetNumbers`
 return that string unchanged; automatic targets still return numeric counters. A fixed
@@ -378,3 +380,28 @@ browser scenario keep typed normal spaces and assert the actual U+00A0 display t
 Post-review local validation: `pnpm test` (Core 259, file-commit 4 passed/2 platform skips,
 CLI 68, Editor 284, Desktop 40), typecheck, Editor build, docs check and diff check;
 cross-reference, pending-figure, layout-rules and quiet-document browser regressions.
+
+
+## Unnumbered Figure/Table verification (#1383)
+
+The pinned `myst-parser 1.7.4` / `myst-directives 1.7.4` parse the standard
+`:enumerated: false` option into the Container AST boolean documented by
+[MyST](https://mystmd.org/spec/myst-schema). No private syntax or dependency patch is added.
+Core protects numbering exclusion, image/pending/Mermaid/table canonical round-trip,
+caption/label preservation and contradictory input refusal. Existing Editor tests
+cover caption editing and fresh-locator copies through Core Save; existing CLI creation
+and K1 tests cover unnumbered input and final image-bound targets respectively.
+The existing plugin-jobs browser flow verifies the missing caption prefix after reload.
+These checks add no server process, suite, timeout or retry. Extra wide/narrow captures
+are manual-only and reuse the existing caption and property implementations (P01/P06),
+with no new common interaction or layout exception.
+
+
+Manual comparison uses identical content with default automatic numbering (Before)
+and with `enumerated:false` (After), in the same current renderer; Before is a
+behavior baseline, not an archived-build capture. [1440 Before](assets/unnumbered-1383/before-1440.png) /
+[After](assets/unnumbered-1383/after-1440.png), [Korean dark 640 Before](assets/unnumbered-1383/before-640.png) /
+[After](assets/unnumbered-1383/after-640.png). Captions, grid spacing, scroll bounds and
+Korean wrapping were inspected. The persistent-profile browser run passed both
+HTTP recovery and plugin-jobs in about 1.5 minutes; baseline-only capture was
+manual and is not additional automated regression coverage.
