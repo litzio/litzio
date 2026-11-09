@@ -423,6 +423,19 @@ test('removal combinations default to full and all remain mandatory in release v
       assert.deepEqual(removalScenarios(selectJobs(event, [file]).fullRemoval ? 'full' : 'representative'), full);
     }
   }
+  // Direct build tooling and copied sample payload are installation inputs even without update selection.
+  for (const event of ['pull_request', 'merge_group']) {
+    for (const input of ['packages/cli/scripts/plugin-sdk.ts',
+      'apps/editor/server/plugins/designated-plugins.ts',
+      'apps/editor/server/plugins/artifact-digest.mjs', 'apps/editor/samples/en/converter-control.md']) {
+      for (const paths of [[input], [input, 'apps/desktop/src/host-protocol.ts']]) {
+        const jobs = selectJobs(event, paths);
+        assert.equal(jobs.fullRemoval, true, `${event}: ${paths.join(' + ')}`);
+        assert.equal(jobs.update, paths.length > 1, 'retain existing Beta selection');
+        assert.equal(jobs.fullLifecycle, false, 'do not broaden Stable selection');
+      }
+    }
+  }
   const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
   const build = release.jobs.build;
   const removal = build.steps.find(step => step.run === 'pnpm --filter @litzio/desktop test:uninstall');
