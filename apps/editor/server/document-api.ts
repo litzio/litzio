@@ -403,6 +403,14 @@ export async function handleDocumentRequest(
   if (url !== "/api/document") {
     if (url.startsWith("/api/")) {
     try {
+      if (url === "/api/plugins/icon" && req.method === "GET" && services?.plugins) {
+        const icon = services.plugins.host.icon(query.get("id") ?? "", query.get("digest") ?? "");
+        res.setHeader("Content-Type", icon.mime);
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Content-Disposition", "attachment");
+        res.setHeader("Cache-Control", "no-store");
+        res.end(icon.bytes); return;
+      }
       const service = (url.startsWith("/api/plugins") || url === "/api/reviews") ? services?.plugins : url.startsWith("/api/assistant/") ? services?.assistant : undefined;
       const route = service?.route(url);
       if (route) {

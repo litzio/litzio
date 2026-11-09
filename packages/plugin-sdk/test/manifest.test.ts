@@ -99,3 +99,9 @@ test("link columns require a supported SDK feature contract", () => {
   for (const requiresSdk of ["0.1.0", "^0.1.0", "0.2.0", "^0.2.0", ">=0.1.0 <0.3.0"]) assert.throws(() => validateManifest({ ...manifest(), requiresSdk, contributes: { operations: [operation] } }), /Link columns require SDK 0.3.0/);
   for (const requiresSdk of ["0.3.0", "^0.3.0", ">=0.3.0 <1.0.0"]) assert.ok(validateManifest({ ...manifest(), requiresSdk, contributes: { operations: [operation] } }));
 });
+
+test("plugin image paths require the feature SDK and remain artifact-relative", () => {
+  for (const icon of ["icon.png", "assets/icon.svg"]) assert.equal(validateManifest({ ...manifest(), requiresSdk: "^0.3.0", icon }).icon, icon);
+  assert.throws(() => validateManifest({ ...manifest(), icon: "icon.png" }), /SDK 0.3.0/);
+  for (const icon of ["../icon.png", "/icon.png", "C:/icon.png", "https://example.test/icon.png", "a/../icon.svg", "icon.gif", "icon.svg?x", "a\\icon.png"]) assert.throws(() => validateManifest({ ...manifest(), requiresSdk: "^0.3.0", icon }));
+});

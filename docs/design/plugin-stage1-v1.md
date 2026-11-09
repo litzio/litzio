@@ -1,6 +1,7 @@
 # 플러그인 1단계
 
 - Status: Implemented
+- Verification #1346: 2026-11-09 — SDK/Host icon validation and digest-trust tests, Editor typecheck, production CLI/Editor build, HTTP browser fixture with SVG script non-execution; 1440px and Korean dark 640px visual inspection. External plugin artwork/service adoption is unverified.
 - Verification #1334: 2026-11-09 — SDK 선언·기능 버전 거부, Host 고정 결과 검증, Vite 설정 성공/오류·비활성·정보 진입, production HTTP 사이드바·secret·복구 fixture, typecheck와 CLI build 확인. 외부 서비스 연결은 미검증.
 - Verification #1326: 2026-11-09 — K1 file 결과·공개 SDK·Host/CLI/browser fixture와 native/review 회귀, typecheck/build 확인. 실제 Docling 산출물 크기·변환 품질은 미검증.
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Concurrent/repeated Host close calls share one shutdown promise, including its failure. A send waiting for plugin startup rechecks assistant shutdown before provider admission. Request paths, lazy plugin start, receipts and stored formats are unchanged.
@@ -321,3 +322,13 @@ litzio plugins start example.plugin --job convert --root <root> --file a.pdf --f
 #1342 재검토 보완: 앱의 행별 `JobObservations` 세대가 사용자 상태 재확인·중단보다 오래된 polling 성공/오류를 모두 무시한다. 사용자 작업 응답 대기 중에는 같은 행의 polling을 보류하고 이후 다시 관찰한다. Host 작업은 직렬화하지 않으며 기존 공용 Plugin jobs에도 같은 보호를 적용한다. 제어 Promise 단위 회귀에서 관찰 보류 → 중단 접수 반영 → 오래된 성공/오류 도착 → 중단 상태 유지와 새 관찰 재개를 검증한다. 고정 대기나 브라우저 fault 시나리오는 추가하지 않는다.
 
 작업 섹션 제목은 ‘작업’이며 실패·불확실 안내는 행의 Info 아이콘 Tooltip으로 표시한다. 키보드 focus로 같은 안내를 연다. 결과 열기는 ghost/sm ‘열기’와 파일 이름을 포함한 접근성 이름을 쓴다. 파일 선택과 표는 내용 높이대로 펼쳐 페이지가 세로 스크롤을 소유하고 표에는 내부 가로 스크롤만 둔다. 기존 즐겨찾기 영역은 이번 변경에서 유지한다.
+
+## Plugin image icon (#1346)
+
+Optional manifest `icon` (SDK 0.3.0) names one artifact-relative PNG or SVG file, using slash-separated filename segments. URLs, absolute/traversal paths, links and other formats are refused at validation/registration. The icon is limited to 64 KiB and positive dimensions at most 256 x 256 pixels; SVG requires explicit numeric pixel width/height and the SVG namespace (no DTD). These bounds allow small high-density icons for the existing 16px controls without accepting document-sized assets. Existing PNG container validation and an XML parser validate the format; SVG is never inserted as markup.
+
+The entire artifact, including the icon, is digest-bound. GET `/api/plugins/icon?id=<plugin>&digest=<digest>` serves only the declared file of a registered artifact whose current digest is trusted (including official supply verification). It returns fixed image/png or image/svg+xml, nosniff and no-store; Content-Disposition attachment prevents standalone SVG document navigation. No arbitrary file path is accepted. Changes require trust of the new digest; no icon bytes are served on stale trust.
+
+Sidebar plugin entries, plugin screen tabs and Settings plugin rows share the bundled PluginIcon component (decorative 16px img, contained aspect ratio). It fetches using the owning Host client and revokes its blob URL on replacement/unmount. Local and remote Hosts use the same path; the application CSP is unchanged (existing blob: img-src). SVG scripts cannot execute in img context. Missing/unavailable icons retain screens[].icon / existing defaults; plugin settings rows without images retain their existing name layout. DocumentTabs, existing sidebar entry and plugin-heading flex layout/tokens are reused; no new common interaction or exception. External plugin artwork and Docling/Jira adoption are outside this change; tests use original synthetic fixture art.
+
+Visual evidence: [screen 1440](assets/plugin-icon-1346/screen-1440.png), [settings 1440](assets/plugin-icon-1346/settings-1440.png), [screen Korean dark 640](assets/plugin-icon-1346/screen-640-ko-dark.png), [settings Korean dark 640](assets/plugin-icon-1346/settings-640-ko-dark.png). Host identity is masked; no real external service is involved.
