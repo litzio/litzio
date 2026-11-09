@@ -1,5 +1,6 @@
 .views-page { padding: var(--space-6); overflow: auto; height: 100%; color: var(--id-color-text); display: flex; flex-direction: column; gap: var(--space-4); }
 .views-page h2 { font-size: var(--font-size-md); font-weight: 600; }
+.view-workspace > h1, .views-page > header h1 { margin: 0; font-size: var(--font-size-start-title); line-height: var(--line-height-start-title); font-weight: var(--font-weight-semibold); color: var(--id-color-text); }
 .views-page h3 { font-size: var(--font-size-sm); font-weight: 600; }
 .views-page p, .view-receipt { font-size: var(--font-size-sm); color: var(--id-color-text-muted); overflow-wrap: anywhere; }
 .view-controls { display: flex; align-items: end; flex-wrap: wrap; gap: var(--space-3); }
@@ -42,10 +43,10 @@
 .data-table-filter label { display:flex; gap:var(--space-2); align-items:center; flex-wrap:wrap; }
 .data-table-values { max-height:12rem; overflow:auto; display:grid; gap:var(--space-2); }
 
-.view-workspace { height:100%; min-width:0; max-width:100%; overflow:auto; display:flex; flex-direction:column; gap:var(--space-3); padding:var(--space-3); }
+.view-workspace { height:100%; min-width:0; max-width:100%; overflow:auto; display:flex; flex-direction:column; gap:var(--space-4); padding:var(--space-6); }
 
 .view-workspace > * { flex-shrink:0; min-width:0; max-width:100%; }
-.view-workspace .views-page { height:auto; overflow:visible; }
+.view-workspace .views-page { height:auto; overflow:visible; padding:0; }
 .view-workspace select { min-width:0; width:100%; max-width:100%; }
 
 

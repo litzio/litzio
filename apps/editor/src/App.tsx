@@ -227,7 +227,8 @@ function EditorApp() {
   const galleryGroup = navigation.groups.find(group => group.tabs.includes("templates"));
   const galleryOpen = galleryGroup?.active === "templates";
   const galleryFocused = activeId === "templates";
-  const activePdf = viewTabs.find(tab => tab.id === activeId && tab.pdf);
+  const activeViewTab = viewTabs.find(tab => tab.id === activeId);
+  const activePdf = activeViewTab?.pdf ? activeViewTab : undefined;
   const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.jobs ? i18n.t("Plugin jobs") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
@@ -377,6 +378,8 @@ function EditorApp() {
   const emptyEditorRef = useRef<DocumentEditorHandle>(null);
   const emptyImageRef = useRef<HTMLElement | null>(null);
   const session = activeId ? sessions.current.get(activeId) : undefined;
+  // Hiding task tabs must not change the user's document navigation preference.
+  const documentPanelOpen = panelOpen && !settingsFocused && !galleryFocused && !activeViewTab && session?.kind !== "text";
   const nativeSession = session?.kind === "native" ? session : undefined;
   // A fresh editor action replaces an older shell notice such as Copy path.
   useLayoutEffect(() => { if (nativeSession?.noticeAction) setNotice(""); }, [nativeSession?.noticeAction]);
@@ -1191,7 +1194,7 @@ function EditorApp() {
   ];
 
   return (<>
-    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !settingsFocused && !galleryFocused && !activePdf && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
+    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${documentPanelOpen ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
       <Sidebar onCopyPath={path => void copyPath(path)}
         documentHostId={activePdf?.hostId ?? session?.hostId ?? LOCAL_HOST_ID}
         onHostOpen={(hostId, path) => openFile(path, "", navigation.focused, hostId).then(message => { if (message) setError(message); })}
@@ -1411,7 +1414,7 @@ function EditorApp() {
       </div>
 
         <DocumentPanel
-          visible={panelOpen && !assistantOpen && !settingsFocused && !galleryFocused && !activePdf && session?.kind !== "text"}
+          visible={documentPanelOpen && !assistantOpen}
           onWidth={setDocumentPanelSize}
           overlay={panelOverlay}
           outline={document ? outlineStore : undefined}
@@ -1564,7 +1567,7 @@ function EditorApp() {
     </div>
     <ShellNotificationCenter sidebarWidth={sidebarSize} documentPanelWidth={documentPanelSize} panelWidth={assistantOpen
       ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
-      : panelOpen && !settingsFocused && !galleryFocused && !activePdf && session?.kind !== "text" ? "var(--document-panel-effective-width)" : "0px"} />
+      : documentPanelOpen ? "var(--document-panel-effective-width)" : "0px"} />
   </>);
 }
 
