@@ -8,6 +8,7 @@ const empty = () => ({ accounts: [], complete: true });
 test("single, multiple, absent and stale folders preserve evidence without inferring account state", () => {
   const one = detect(context({ OneDrive: "C:\\files", OneDriveConsumer: "c:\\FILES\\" }), empty);
   assert.equal(one.folders.length, 1); assert.equal(one.folders[0]?.defaultCandidate, true);
+  assert.deepEqual(one.decorations, [{ id: "folder-0", path: "C:\\files", icon: "plugin" }]);
   const multiple = detect(context({ OneDrive: "C:\\files" }), () => ({ complete: true, accounts: [{ UserFolder: "D:\\work", UserEmail: "verified@example.test" }] }));
   assert.equal(multiple.folders.length, 2); assert.ok(multiple.folders.every(f => !f.defaultCandidate)); assert.equal(multiple.accounts[1]?.label, "verified@example.test");
   assert.equal(detect(context(), empty).folders.length, 0);

@@ -24,7 +24,7 @@ export function detect(context: PluginContext, registry: () => RegistryResult = 
   const details = `${registration.complete ? "Registration checked" : "Registration unavailable"}; ${missing} incomplete or missing paths.`;
   return { available: true, message: details + " " + (candidates.length ? "Detected folders; login and sync status are unverified." : "No OneDrive folder detected."),
     folders: candidates.map((v, index) => ({ id: `folder-${index}`, path: v.path, label: v.label, defaultCandidate: candidates.length === 1 })),
-    decorations: candidates.map((v, index) => ({ id: `folder-${index}`, path: v.path, icon: "onedrive" })),
+    decorations: candidates.map((v, index) => ({ id: `folder-${index}`, path: v.path, icon: "plugin" })),
     accounts: candidates.map((v, index) => ({ id: `folder-${index}`, label: v.label, source: `${v.source}: ${v.path}` })) };
 }
 export function activate(context: PluginContext): PluginInstance {

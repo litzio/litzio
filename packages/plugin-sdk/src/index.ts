@@ -113,7 +113,8 @@ export function validateManifest(input: unknown): PluginManifest {
   return m;
 }
 export type FolderSource = { id: string; path: string; label: string; defaultCandidate: boolean };
-export type FolderDecoration = { id: string; path: string; icon: "onedrive" };
+/** Decorate the exact folder with the owning plugin manifest icon. */
+export type FolderDecoration = { id: string; path: string; icon: "plugin" };
 export type AccountStatus = { id: string; label: string; source: string };
 export type PluginStatus = { available: boolean; message: string; folders: FolderSource[]; decorations: FolderDecoration[]; accounts: AccountStatus[] };
 export type PluginContext = { secrets?: Readonly<Record<string, string>>; settings: Readonly<Record<string, unknown>>; platform: string; env: Readonly<Record<string, string | undefined>>; isDirectory(path: string): boolean };
@@ -123,7 +124,7 @@ export type OperationReceipt = { requestId: string; operation: string; version: 
 export { compileSchema } from "./schema.ts";
 export const statusSchema = z.strictObject({ available: z.boolean(), message: z.string(),
   folders: z.array(z.strictObject({ id, path: z.string().min(1), label: z.string().min(1), defaultCandidate: z.boolean() })),
-  decorations: z.array(z.strictObject({ id, path: z.string().min(1), icon: z.literal("onedrive") })),
+  decorations: z.array(z.strictObject({ id, path: z.string().min(1), icon: z.literal("plugin") })),
   accounts: z.array(z.strictObject({ id, label: z.string().min(1), source: z.string().min(1) })) });
 export const pluginManagementSchema = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("secret-status"), id }),
