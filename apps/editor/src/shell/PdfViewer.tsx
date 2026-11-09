@@ -100,7 +100,7 @@ function PdfPage({ pdf, number, width, zoom, active, scroll, onCurrent, onError 
         // Bound each canvas independently of a PDF's declared dimensions and monitor DPR.
         const ratio = Math.min(devicePixelRatio || 1, 2, 4096 / Math.max(viewport.width, viewport.height));
         drawing.width = Math.ceil(viewport.width * ratio); drawing.height = Math.ceil(viewport.height * ratio);
-        render = page.render({ canvas: drawing, viewport, transform: [ratio, 0, 0, ratio, 0, 0], annotationMode: AnnotationMode.DISABLE, background: "rgb(255,255,255)" });
+        render = page.render({ canvas: drawing, viewport, transform: [ratio, 0, 0, ratio, 0, 0], annotationMode: AnnotationMode.DISABLE, background: getComputedStyle(container.current!).backgroundColor });
         await render.promise;
         if (cancelled) return;
         layer = new TextLayer({ textContentSource: page.streamTextContent(), container: textContainer, viewport });
