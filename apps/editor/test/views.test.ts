@@ -119,7 +119,7 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     await manage({ action: "scaffold", directory, id });
     await manage({ action: "register", directory });
     const { plugins } = await (await fetch(`${host.url}/api/plugins`)).json();
-    await manage({ action: "trust", id, digest: plugins.find((p: any) => p.id === id).digest });
+    await manage({ action: "trust", id, registrationId: plugins.find((p: any) => p.id === id).registrationId });
     await manage({ action: "enable", id });
     assert.deepEqual((await manage({ action: "invoke", operation: `${id}.greet`, input: { name: "World" } })).result, { greeting: "Hello, World!" });
     const unavailable = await fetch(`${host.url}/api/assistant/settings`);
@@ -150,7 +150,7 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
       status: () => ({available:true,message:"Ready",folders:[],decorations:[],accounts:[]}), dispose() {} }; }`);
     await manage({ action: "register", directory: artifact });
     const records = await (await fetch(`${host.url}/api/plugins`)).json();
-    await manage({ action: "trust", id: jira, digest: records.plugins.find((p: any) => p.id === jira).digest });
+    await manage({ action: "trust", id: jira, registrationId: records.plugins.find((p: any) => p.id === jira).registrationId });
     await manage({ action: "enable", id: jira });
     const request = async (input: unknown) => (await fetch(`${host.url}/api/views`, { method: "POST", headers: { Origin: host.url, "Content-Type": "application/json" }, body: JSON.stringify(input) })).json();
     const cliRequest = async (args: string[], expected = 0) => {
@@ -251,7 +251,7 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     fs.writeFileSync(manifestFile, JSON.stringify(manifest));
     await manage({ action: "register", directory: artifact });
     const removed = await (await fetch(`${host.url}/api/plugins`)).json();
-    await manage({ action: "trust", id: jira, digest: removed.plugins.find((p: any) => p.id === jira).digest });
+    await manage({ action: "trust", id: jira, registrationId: removed.plugins.find((p: any) => p.id === jira).registrationId });
     await manage({ action: "enable", id: jira });
     const missingColumn = await request({ action: "open", plugin: jira, name: "issues" });
     assert.equal(missingColumn.code, "unavailable"); assert.match(missingColumn.error, /Create a new view/);
@@ -293,7 +293,7 @@ test("HTTP and CLI share v2 inputs, saved namespaces, manual queries, availabili
     fs.writeFileSync(manifestFile, JSON.stringify(manifest));
     await manage({ action: "register", directory: artifact });
     const changed = await (await fetch(`${host.url}/api/plugins`)).json();
-    await manage({ action: "trust", id: jira, digest: changed.plugins.find((p: any) => p.id === jira).digest });
+    await manage({ action: "trust", id: jira, registrationId: changed.plugins.find((p: any) => p.id === jira).registrationId });
     await manage({ action: "enable", id: jira });
     parity(await request({ action: "open", plugin: jira, name: "issues" }), await cliRequest(["open", "issues", "--plugin", jira], 1));
     assert.equal(fs.readFileSync(favouriteFile, "utf8"), preserved);

@@ -46,7 +46,7 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
     assert.equal(officialEnabled.plugins.find((p: any) => p.id === official.id).running, true);
     await manage({ action: "disable", id: official.id });
     const registered = await manage({ action: "register", directory });
-    await manage({ action: "trust", id: "fixture.vite", digest: registered.plugins.find((p: any) => p.id === "fixture.vite").digest });
+    await manage({ action: "trust", id: "fixture.vite", registrationId: registered.plugins.find((p: any) => p.id === "fixture.vite").registrationId });
     const enabled = await manage({ action: "enable", id: "fixture.vite" });
     assert.equal(enabled.plugins.find((p: any) => p.id === "fixture.vite").running, true);
     assert.equal(enabled.plugins.find((p: any) => p.id === "fixture.vite").status.message, "0.3.0");

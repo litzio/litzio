@@ -192,7 +192,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.reload(); await openSettings(); await toggle.click();
   }
+  const approved = page.waitForRequest(request => request.url().endsWith("/api/plugins") && request.method() === "POST" && request.postDataJSON()?.action === "enable" && request.postDataJSON()?.trust === true);
   await confirmation.getByRole("button", { name: "Trust and enable", exact: true }).click();
+  expect((await approved).postDataJSON().registrationId).toBe(registered.registrationId);
   await expect(confirmation).not.toBeVisible();
   await expect(toggle).toBeChecked();
   await expect(page.getByRole("status").filter({ hasText: /^Plugin running$/ })).toHaveCount(0);
@@ -279,7 +281,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     const registered = (await docling.cli(["plugins", "list"])).plugins.find(p => p.id === id);
     expect(registered.official).toBe(false); expect(registered.running).toBe(false);
     await docling.cli(["plugins", "settings", id, "--file", docling.settings]);
-    await docling.cli(["plugins", "trust", id]);
+    await docling.cli(["plugins", "trust", id, "--registration", registered.registrationId]);
     await docling.cli(["plugins", "enable", id]);
     // Manual real-service evidence uses an already converted archive. Never put
     // external model latency inside the 180s automatic fake-service regression.
@@ -498,7 +500,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await page.getByLabel("pat: Not configured", { exact: true }).fill("mock-jira-token");
       await saveSecret();
       await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
-      await jira.cli(["plugins", "enable", "community.jira", "--trust"]);
+      await jira.cli(["plugins", "enable", "community.jira", "--trust", "--registration", registered.registrationId]);
       await page.reload(); await openSettings();
       await page.getByRole("button", { name: "Jira settings", exact: true }).click();
       const health = page.getByRole("button", { name: "Check connection", exact: true });

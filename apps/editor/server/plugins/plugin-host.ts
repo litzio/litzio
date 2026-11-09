@@ -1,4 +1,4 @@
-import { inputSuggestionResultsSchema } from "@litzio/plugin-sdk";
+import { PLUGIN_REGISTRATION_CHANGED, inputSuggestionResultsSchema } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
 import { artifactDigest } from "./artifact-digest.mjs";
 import { OFFICIAL_PLUGINS, type OfficialPlugin } from "./official-plugins.ts";
@@ -18,7 +18,7 @@ import { WindowsPluginSecretStore, type PluginSecretStore } from "./secret-store
 import { PluginJobs } from "./jobs.ts";
 import { PluginReviews } from "./reviews.ts";
 
-type Installed = { directory: string; digest: string; trusted?: boolean; enabled: boolean; enabledChoice?: boolean; bundled?: boolean; settings: Record<string, unknown>; operationNames: string[] };
+type Installed = { registrationId: string; directory: string; digest: string; trusted?: boolean; enabled: boolean; enabledChoice?: boolean; bundled?: boolean; settings: Record<string, unknown>; operationNames: string[] };
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>> };
 export class PluginHost {
   private installed: Record<string, Installed>;
@@ -92,7 +92,7 @@ export class PluginHost {
   async start() {
     for (const item of this.supply) {
       const previous = this.installed[item.id];
-      const record: Installed = { directory: item.directory, digest: item.digest, enabled: previous?.enabledChoice ?? item.defaultEnabled, enabledChoice: previous?.enabledChoice, bundled: true, settings: previous?.settings ?? {}, operationNames: [] };
+      const record: Installed = { registrationId: previous?.registrationId ?? randomUUID(), directory: item.directory, digest: item.digest, enabled: previous?.enabledChoice ?? item.defaultEnabled, enabledChoice: previous?.enabledChoice, bundled: true, settings: previous?.settings ?? {}, operationNames: [] };
       this.installed[item.id] = record;
       try {
         const artifact = this.artifact(item.directory);
@@ -134,9 +134,9 @@ export class PluginHost {
         if (m.id !== id) throw new Error("Artifact ID changed");
         const observed = live ? await this.status(live) : null;
         const current = live && this.loaded.get(id) === live;
-        return { id, publisher: m.publisher, name: m.name, description: m.description, version: m.version, installed: true, bundled: !!r.bundled, official: this.official(m, digest), trusted: this.official(m, digest) || !!r.trusted, enabled: r.enabled, running: !!current,
+        return { id, registrationId: r.registrationId, publisher: m.publisher, name: m.name, description: m.description, version: m.version, installed: true, bundled: !!r.bundled, official: this.official(m, digest), trusted: this.official(m, digest) || !!r.trusted, enabled: r.enabled, running: !!current,
           iconDigest: m.icon && (this.official(m, digest) || !!r.trusted) ? digest : undefined, folderSources: m.contributes.folderSources, healthCheck: m.contributes.healthCheck, jobs: m.contributes.jobs, secrets: await this.secretStatus(id, m), settings: r.settings, settingsSchema: m.settingsSchema, status: current ? observed : null, error: this.errors.get(id), digest };
-      } catch (e) { return { id, installed: true, bundled: !!r.bundled, enabled: r.enabled, running: false, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : "Plugin status unavailable", status: null }; }
+      } catch (e) { return { id, registrationId: r.registrationId, installed: true, bundled: !!r.bundled, enabled: r.enabled, running: false, error: (e as NodeJS.ErrnoException).code === "ENOENT" ? "Plugin artifact missing" : "Plugin status unavailable", status: null }; }
     }));
   }
   private async enable(id: string): Promise<void> {
@@ -281,7 +281,7 @@ export class PluginHost {
       return { ...publicOperationError(error, op.effect), receipt: { requestId, operation: name, version: op.version, scope: folder ?? "host", outcome: op.effect === "write" ? "uncertain" : "failure" } };
     } finally { live.pending.delete(run); }
   }
-  invoke(action: string, args: { id?: string; directory?: string; digest?: string; trust?: boolean; settings?: Record<string, unknown>; operation?: string; version?: number; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; files?: string[]; requestIds?: string[]; output?: string; requestId?: string } = {}, creationScope: FileAccess = LOCAL_FILE_ACCESS): Promise<unknown> {
+  invoke(action: string, args: { id?: string; directory?: string; digest?: string; registrationId?: string; trust?: boolean; settings?: Record<string, unknown>; operation?: string; version?: number; input?: unknown; name?: string; plugin?: string; job?: string; root?: string; file?: string; files?: string[]; requestIds?: string[]; output?: string; requestId?: string } = {}, creationScope: FileAccess = LOCAL_FILE_ACCESS): Promise<unknown> {
     if (this.closed) return Promise.reject(new Error("Plugin Host is closing"));
     if (action.startsWith("job-")) return this.jobs.execute({ action, ...args });
     if (action === "suggest") {
@@ -324,10 +324,13 @@ export class PluginHost {
         }
         const previous = Object.hasOwn(this.installed, a.manifest.id) ? this.installed[a.manifest.id] : undefined;
         if (previous?.enabled) throw new Error("Disable the plugin before replacing its registration");
-        this.installed[a.manifest.id] = { directory, digest: a.digest, enabled: false, settings: previous?.settings ?? {}, operationNames: [...names] };
+        this.installed[a.manifest.id] = { registrationId: randomUUID(), directory, digest: a.digest, enabled: false, settings: previous?.settings ?? {}, operationNames: [...names] };
       } else {
         const r = this.record(id);
         if (r.bundled && ["unregister", "trust"].includes(action)) throw new Error("Official plugins can only be disabled");
+        if (!r.bundled && (action === "trust" || action === "enable" && (args.trust || args.registrationId !== undefined))) {
+          if (!args.registrationId || args.registrationId !== r.registrationId) throw new Error(PLUGIN_REGISTRATION_CHANGED);
+        }
         if (action === "unregister") {
           r.enabled = false; this.save(); await this.disable(id);
           if (this.secrets.supported) await this.secrets.delete(id);

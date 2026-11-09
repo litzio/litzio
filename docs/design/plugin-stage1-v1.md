@@ -26,7 +26,7 @@
 
 대상 daemon의 Host 설정 루트에 별도 plugins.json을 기록한다. `LITZIO_DATA_DIR` 또는 `LITZIO_PLUGINS_SETTINGS_FILE`로 격리할 수 있다. 임의 디렉터리 자동 탐색, SQLite, migration과 자동 파일 감시 reload는 없다. 로컬 artifact 안의 파일을 digest로 묶고 패키지 밖 참조를 거부한다. 공식 공급 목록은 id·publisher와 제품이 검토한 artifact digest를 대조한다. 자칭 official 또는 변경 artifact는 공식 신뢰를 얻지 않는다.
 
-공식 번들 플러그인은 목록에 자동 표시되고 기본 상태는 공급 항목의 `defaultEnabled`(현재 `false`)를 따르며, 사용자의 명시적 선택이 우선한다. 외부 플러그인은 명시적으로 등록하고 처음 켤 때 등록된 플러그인을 신뢰한다. 신뢰는 ID와 그 등록에 저장하며 artifact digest에 묶지 않는다. UI는 스위치를 처음 켤 때 공통 Dialog로 확인하고 확인 시 같은 enable 작업에서 신뢰 기록과 켜기를 함께 처리한다. 취소하면 요청을 보내지 않아 신뢰·활성 상태가 바뀌지 않는다. CLI는 `trust <id>` 후 `enable <id>` 또는 `enable <id> --trust`를 쓴다. 선택적인 `trust --digest`는 현재 파일 지문 대조용이며 신뢰의 수명은 바꾸지 않는다. 사용자와 비서는 같은 Host 작업을 쓴다. 업데이트 뒤 다시 확인하지 않는다. 이는 컨셉 검증 단계의 제한이다. 제거 후 재추가 또는 등록 교체는 다시 신뢰해야 한다. 외부 artifact가 달라지면 검증 후 reload한다. 자동 교체하지 않는다. 비활성화는 신규 호출을 먼저 차단하고 상태 기여를 숨긴 뒤 이미 접수한 호출을 drain하고 dispose한다. 설정과 열린 폴더·탭은 보존한다. 단, 아래 플러그인 자동 표시 폴더는 탐색기 목록에서 제거하며 원본 파일과 열린 탭은 보존한다. OS 권한 격리는 보장하지 않는다.
+공식 번들 플러그인은 목록에 자동 표시되고 기본 상태는 공급 항목의 `defaultEnabled`(현재 `false`)를 따르며, 사용자의 명시적 선택이 우선한다. 외부 플러그인은 명시적으로 등록하고 처음 켤 때 등록된 플러그인을 신뢰한다. 신뢰는 ID와 그 등록에 저장하며 artifact digest에 묶지 않는다. UI는 스위치를 처음 켤 때 공통 Dialog로 확인하고 확인 시 같은 enable 작업에서 신뢰 기록과 켜기를 함께 처리한다. 취소하면 요청을 보내지 않아 신뢰·활성 상태가 바뀌지 않는다. Host는 등록마다 새 `registrationId`를 발급하고 목록으로 반환한다. 이 값은 artifact 업데이트·reload·Host 재시작 동안 유지되며 제거 후 재추가·등록 교체 때 바뀐다. 신뢰 작업과 신뢰를 함께 기록하는 enable은 사용자가 확인한 `registrationId`를 반드시 보내야 한다. Host는 관리 직렬화 안에서 현재 값과 대조하고, 없거나 다르면 `Plugin registration changed. Review the plugin and confirm again.` 사유로 상태 변경 전에 거부한다. UI는 창을 열 때의 값을 보내며 거부 시 창을 닫고 목록을 다시 확인하도록 안내한다. 새 등록으로 승인을 자동 전환하지 않는다. CLI는 list에서 확인한 값으로 `trust <id> --registration <registrationId>` 후 `enable <id>` 또는 `enable <id> --trust --registration <registrationId>`를 쓴다. CLI는 누락된 값을 자동 조회하여 승인하지 않는다. 선택적인 `trust --digest`는 현재 파일 지문 대조용이며 신뢰의 수명은 바꾸지 않는다. 사용자와 비서는 같은 Host 작업을 쓴다. 업데이트 뒤 다시 확인하지 않는다. 이는 컨셉 검증 단계의 제한이다. 제거 후 재추가 또는 등록 교체는 다시 신뢰해야 한다. 외부 artifact가 달라지면 검증 후 reload한다. 자동 교체하지 않는다. 비활성화는 신규 호출을 먼저 차단하고 상태 기여를 숨긴 뒤 이미 접수한 호출을 drain하고 dispose한다. 설정과 열린 폴더·탭은 보존한다. 단, 아래 플러그인 자동 표시 폴더는 탐색기 목록에서 제거하며 원본 파일과 열린 탭은 보존한다. OS 권한 격리는 보장하지 않는다.
 
 플러그인마다 daemon의 Node 하위 프로세스 하나를 사용한다. Node IPC 채널의 요청 ID로 activate·invoke·status·dispose와 응답을 연결하며 stdout/stderr와 플러그인 예외 원문은 전달하지 않는다. 별도 bootstrap 파일 없이 번들 안의 고정 코드로 시작하므로 설치된 CLI도 같은 경로를 쓴다. 각 RPC 응답은 10초 후 실패하며 프로세스를 종료한다. 접수된 K1 백그라운드 작업 수명에는 이 제한이 적용되지 않는다. 읽기 실패는 failure, 쓰기 실패는 기존 uncertain receipt를 유지하고 자동 재전송하지 않는다.
 
@@ -42,7 +42,7 @@ plugins validate <artifact-directory> --host <origin> --json
 plugins list --host <origin> --json
 plugins unregister <id> --host <origin> --json
 plugins register <artifact-directory> --host <origin> --json
-plugins trust <id> [--digest <digest>] --host <origin> --json
+plugins trust <id> --registration <registrationId> [--digest <digest>] --host <origin> --json
 plugins enable|disable|reload <id> --host <origin> --json
 plugins settings <id> [--file <json>] --host <origin> --json
 operation invoke <pluginId.operationId> --input <json> --host <origin> --json

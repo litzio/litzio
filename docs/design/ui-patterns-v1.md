@@ -739,7 +739,7 @@ PluginIcon shares the same decorative 16px img in existing sidebar entries, Docu
 
 ## 플러그인 목록과 첫 켜기 확인 (#1379)
 
-목록에는 공식/커뮤니티 배지 하나만 두고 만든 곳과 신뢰 여부·현재 digest는 설정 창 상세 정보로 옮긴다. 오류·사용할 수 없음만 플러그인 상태 줄에 표시하고 정상 실행·꺼짐은 기존 스위치로 표현한다. 폴더 감지는 `folderSources` 선언이 있을 때만 표시하며 계정 줄은 유지한다. 처음 켜기는 기존 Dialog·Button·Notice로 확인하고, 취소 시 변경하지 않는다. 신뢰 수명은 [플러그인 계약](plugin-stage1-v1.md)을 따른다. 새 공통 상호작용 예외는 없다. Hosts의 요약 행과 설정 창의 접힌 상세 패턴을 재사용한다.
+목록에는 공식/커뮤니티 배지 하나만 두고 만든 곳과 신뢰 여부·현재 digest는 설정 창 상세 정보로 옮긴다. 오류·사용할 수 없음만 플러그인 상태 줄에 표시하고 정상 실행·꺼짐은 기존 스위치로 표현한다. 폴더 감지는 `folderSources` 선언이 있을 때만 표시하며 계정 줄은 유지한다. 처음 켜기는 기존 Dialog·Button·Notice로 확인하고, 취소 시 변경하지 않는다. 확인 요청은 창을 열 때 본 registrationId에 한정한다. 그동안 등록이 교체됐으면 Host의 구분된 거부 사유를 지역화해 알리고 창을 닫는다. 갱신된 목록에서 사용자가 다시 켜야 하며 이전 승인을 새 등록으로 옮기지 않는다. 신뢰 수명은 [플러그인 계약](plugin-stage1-v1.md)을 따른다. 새 공통 상호작용 예외는 없다. Hosts의 요약 행과 설정 창의 접힌 상세 패턴을 재사용한다.
 
 1440px 영어 라이트와 640px 한국어 다크 수동 근거: 목록 [1440px](assets/plugin-list-1379/list-1440.png) / [640px](assets/plugin-list-1379/list-640.png), 첫 켜기 확인 [1440px](assets/plugin-list-1379/confirmation-1440.png) / [640px](assets/plugin-list-1379/confirmation-640.png), 상세 정보 [1440px](assets/plugin-list-1379/detail-1440.png) / [640px](assets/plugin-list-1379/detail-640.png). localhost fixture이며 외부 서비스 연결·소유자 시각 승인을 뜻하지 않는다. 배지·컨트롤의 정렬, 여백, 창 경계와 digest 줄바꿈을 확인했다.
 
