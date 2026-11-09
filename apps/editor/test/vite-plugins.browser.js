@@ -1,11 +1,17 @@
-async (page, { expect, pluginFixture }) => {
+async (page, { expect, pluginFixture, screenshots }) => {
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Plugins", exact: true }).click();
   const official = page.getByRole("region", { name: "OneDrive", exact: true });
   const officialToggle = official.getByRole("switch", { name: "Enable OneDrive", exact: true });
   await expect(official.getByText("Official plugin", { exact: true })).toBeVisible();
   await expect(officialToggle).not.toBeChecked();
+  await official.getByRole("button", { name: "OneDrive settings", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("heading", { name: "OneDrive", exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog").getByRole("button", { name: "Check connection", exact: true })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  const officialEnabled = page.waitForResponse(response => response.url().endsWith("/api/plugins") && response.request().method() === "POST" && response.request().postDataJSON()?.action === "enable");
   await officialToggle.click();
+  expect((await officialEnabled).ok()).toBe(true);
   await expect(official.getByRole("status").filter({ hasText: /^Plugin running$/ })).toBeVisible();
   await officialToggle.click();
   await expect(official.getByRole("status").filter({ hasText: /^Plugin disabled$/ })).toBeVisible();
@@ -38,8 +44,57 @@ async (page, { expect, pluginFixture }) => {
   await expect(toggle).toBeEnabled();
   await toggle.click();
   await expect(external.getByRole("status").filter({ hasText: /^Plugin running$/ })).toBeVisible();
+  await expect(external.getByRole("button", { name: "Vite fixture", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Open view ·/ })).toHaveCount(0);
+  await external.getByRole("button", { name: "Vite fixture settings", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(page.getByText("Simulates service availability", { exact: true })).not.toBeVisible();
+  const serviceUrl = dialog.getByRole("textbox", { name: "docling-serve URL", exact: true });
+  await serviceUrl.fill("https://docling.example.test/service");
+  await serviceUrl.press("Tab");
+  const check = dialog.getByRole("button", { name: "Check connection", exact: true });
+  await dialog.getByText("Simulate failure", { exact: true }).hover();
+  await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText("Simulates service availability");
+  await check.click();
+  await expect(dialog.getByRole("status").filter({ hasText: /^Fixture connected$/ })).toBeVisible();
+  await dialog.getByRole("switch", { name: "Simulate failure", exact: true }).click();
+  await expect(check).toBeEnabled();
+  await check.click();
+  await expect(dialog.getByRole("status").filter({ hasText: /^연결하지 못했습니다\./ })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await toggle.click();
+  await external.getByRole("button", { name: "Vite fixture settings", exact: true }).click();
+  await expect(check).toBeDisabled();
+  await check.locator("..").hover();
+  await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText("Plugin disabled");
+  await page.keyboard.press("Escape");
+  await toggle.click();
+  await expect(external.getByRole("status").filter({ hasText: /^Plugin running$/ })).toBeVisible();
   const listing = await (await page.request.get(await page.evaluate(() => location.origin + "/api/plugins"))).json();
   expect(listing.plugins.find(p => p.id === "fixture.vite").status.message).toBe("0.3.0");
+  if (screenshots) {
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
+      await page.reload();
+      await page.getByRole("button", { name: width === 640 ? "설정" : "Settings", exact: true }).click();
+      await page.getByRole("button", { name: width === 640 ? "플러그인" : "Plugins", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Vite fixture", exact: true })).toBeVisible();
+      await page.screenshot({ path: `tmp/plugin-settings-1334/after-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+      await page.getByRole("button", { name: width === 640 ? "Vite fixture 설정" : "Vite fixture settings", exact: true }).click();
+      await page.getByRole("button", { name: width === 640 ? "연결 확인" : "Check connection", exact: true }).click();
+      await expect(page.getByRole("dialog").getByText("연결하지 못했습니다. 저장된 서버 주소와 자격 증명을 확인한 뒤 다시 시도하세요.", { exact: true })).toBeVisible();
+      expect(await page.getByRole("dialog").evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+      await expect(page.getByRole("dialog").getByRole("textbox", { name: "docling-serve URL", exact: true })).toHaveValue("https://docling.example.test/service");
+      await expect(page.getByRole("dialog").locator('input[type="password"]')).toBeVisible();
+      await page.screenshot({ path: `tmp/plugin-settings-1334/detail-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+      await page.keyboard.press("Escape");
+    }
+    await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
+    await page.reload();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole("button", { name: "Plugins", exact: true }).click();
+  }
   await toggle.click();
   const removed = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { data: { action: "unregister", id: "fixture.vite" } });
   expect(removed.ok()).toBe(true);

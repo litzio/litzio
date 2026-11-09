@@ -1,6 +1,7 @@
 # 플러그인 1단계
 
 - Status: Implemented
+- Verification #1334: 2026-11-09 — SDK 선언·기능 버전 거부, Host 고정 결과 검증, Vite 설정 성공/오류·비활성·정보 진입, production HTTP 사이드바·secret·복구 fixture, typecheck와 CLI build 확인. 외부 서비스 연결은 미검증.
 - Verification #1326: 2026-11-09 — K1 file 결과·공개 SDK·Host/CLI/browser fixture와 native/review 회귀, typecheck/build 확인. 실제 Docling 산출물 크기·변환 품질은 미검증.
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Concurrent/repeated Host close calls share one shutdown promise, including its failure. A send waiting for plugin startup rechecks assistant shutdown before provider admission. Request paths, lazy plugin start, receipts and stored formats are unchanged.
 - Last verified: 2026-11-06 — V4 승인 내용 고정·snapshot baseline·K1 status 완료 fixture와 대상 회귀 검사, 전체 typecheck 확인. V5 브라우저 통합은 미검증.
@@ -136,11 +137,11 @@ Host는 `packages/file-commit`의 `createFileFromPath`로 staging을 크기가 �
 
 ### SDK 버전과 호환 판정
 
-플러그인이 의존할 수 있는 공개 SDK API·manifest 기능을 추가하면 `SDK_VERSION`의 minor를 올리고 `packages/plugin-sdk/package.json`도 맞춘다. #1326은 `0.2.0`, #1332 링크 열 추가는 `0.3.0`이다. 기존 기능의 변경·삭제 등 하위 호환이 깨지면 major를 올린다(다음 경계는 `1.0.0`). 그 Host에서 더 이상 구현하지 않는 계약 버전은 지원 목록에서 제거하며 지원하지 않는 계약을 자동 변환하거나 같은 기능이라고 추정하지 않는다.
+공개 SDK 기능의 버전은 공개 릴리스 사이에 한 번만 올린다. 릴리스 뒤 첫 SDK 기능 PR이 다음 minor를 열고, 다음 공개 릴리스 전까지 들어오는 기능은 모두 그 번호를 함께 쓴다. `SDK_VERSION`과 `packages/plugin-sdk/package.json`을 일치시키며 기능별 최소 SDK 요구 검사는 각 기능에 유지한다. 버그 수정은 patch다. 호환되지 않는 변경의 표시 방법은 실제로 그런 변경이 필요할 때 정한다. 현재 Host는 이전 계약을 계속 지원한다.
 
-`requiresSdk`는 필요한 기능이 처음 제공된 계약 버전 이상의 범위를 선언한다. 권장 표기는 `>=최소기능버전 <다음major`다. 새 scaffold의 기본은 `>=0.3.0 <1.0.0`이며 일반 파일 결과를 쓰는 플러그인도 최소 `0.2.0`을 요구한다. Host는 file 기여가 있으면 해당 기능을 제공하는 지원 계약(`0.2.0` 이상)도 requiresSdk가 허용하는지 검사한다. 현재 `0.1.0` 또는 `^0.1.0`만 허용하는 file manifest는 SDK 요구 오류로 validate·등록·활성화에서 거부한다. 기존 native-document 등 이전 기능만 쓰는 exact·caret `0.1.0` 선언은 계속 허용한다. 기존 기능만 쓰는 플러그인은 해당 기능의 최소 계약 버전을 유지할 수 있다(예: `>=0.1.0 <1.0.0`).
+`requiresSdk`는 필요한 기능이 처음 제공된 계약 버전 이상의 범위를 선언한다. 현재 권장 표기는 `>=최소기능버전 <1.0.0`이다. 새 scaffold의 기본은 `>=0.3.0 <1.0.0`이며 일반 파일 결과를 쓰는 플러그인도 최소 `0.2.0`을 요구한다. Host는 file 기여가 있으면 해당 기능을 제공하는 지원 계약(`0.2.0` 이상)도 requiresSdk가 허용하는지 검사한다. 현재 `0.1.0` 또는 `^0.1.0`만 허용하는 file manifest는 SDK 요구 오류로 validate·등록·활성화에서 거부한다. 기존 native-document 등 이전 기능만 쓰는 exact·caret `0.1.0` 선언은 계속 허용한다. 기존 기능만 쓰는 플러그인은 해당 기능의 최소 계약 버전을 유지할 수 있다(예: `>=0.1.0 <1.0.0`).
 
-공통 호환 검사는 Host가 현재 구현하는 실제 계약 버전 목록 중 하나가 `requiresSdk` SemVer 범위를 만족하는지 확인한다. 선언한 기능별 최소 계약 검사도 함께 통과해야 한다. `0.2.0` Host의 목록은 `0.1.0`, `0.2.0`이다. 따라서 이전 scaffold의 정확한 `0.1.0`, 기존 `^0.1.0` 선언도 수정 없이 계속 로드된다. 추가 릴리스에서는 구현을 유지하는 이전 계약을 목록에 남긴다. 아직 제공하지 않은 `0.3.0`이나 가상의 `0.1.1`을 범위 보간으로 지원한다고 간주하지 않는다. 일반 파일 결과 등 새 기능으로 전환하는 플러그인은 해당 작업에서 최소 요구를 올린다.
+공통 호환 검사는 Host가 현재 구현하는 실제 계약 버전 목록 중 하나가 `requiresSdk` SemVer 범위를 만족하는지 확인한다. 선언한 기능별 최소 계약 검사도 함께 통과해야 한다. `0.3.0` Host의 목록은 `0.1.0`, `0.2.0`, `0.3.0`이다. 따라서 이전 scaffold의 정확한 `0.1.0`, 기존 `^0.1.0` 선언도 수정 없이 계속 로드된다. 추가 릴리스에서는 구현을 유지하는 이전 계약을 목록에 남긴다. 아직 제공하지 않은 `0.4.0`이나 가상의 `0.1.1`을 범위 보간으로 지원한다고 간주하지 않는다. 일반 파일 결과 등 새 기능으로 전환하는 플러그인은 해당 작업에서 최소 요구를 올린다.
 
 개발 실행은 최초 활성화 때 공개 SDK entry를 메모리 JS 번들로 빌드해 Host 수명 동안 재사용한다. 개발·배포 모두 같은 entry를 코드 분할 없이 자기완결 JS 모듈 하나로 번들한다. 배포 빌드는 `plugin-sdk.mjs`로 CLI에 포함하고 Desktop의 `build/cli`에도 복사한다. Node 공식 `registerHooks`가 플러그인 코드 로드 전에 SDK root import를 이 런타임으로 연결한다. 저장소 밖·다른 드라이브도 file URL 또는 메모리 URL을 사용하므로 artifact 위치에 의존하지 않는다. artifact의 node_modules에 다른 SDK가 있어도 Host 제공본이 항상 우선한다. `@litzio/core` 등 다른 내부 패키지와 SDK subpath import는 거부하며 필요한 공개 API는 SDK root가 재노출한다. resolve 훅은 이름 검사 뒤 Node가 해석한 file URL을 OS 경로로 변환하고 절대 경로·realpath로 정규화한다. Windows에서는 대소문자를 통일하고 path.relative의 디렉터리 경계·다른 드라이브 판정을 사용한다. 상대 경로·file URL·symlink/junction 별칭으로 접근해도 개발 Host의 checkout 또는 배포 Host의 설치 번들 디렉터리 안이면 거부한다(Desktop은 resources 디렉터리). Host 제공 단일 SDK 런타임 파일 자체만 예외다. SDK는 Node 내장 모듈 외의 런타임 import나 공유 chunk가 없다. 부모 URL은 createRequire 등으로 호출자가 지정할 수 있으므로 내부 접근의 신뢰 근거로 사용하지 않는다. SDK URL을 부모로 지정한 createRequire.resolve/require도 같은 실제 경로 검사를 받는다. artifact 자체 실제 디렉터리 안의 모듈은 checkout 안에서 제작한 경우에도 허용한다. Node 내장 모듈과 Host 내부를 가리키지 않는 artifact 자체 node_modules도 허용한다. artifact 안의 symlink는 기존 등록 검사에서 계속 거부한다. 정적 validate는 import graph를 실행하지 않으므로 이 경계의 판정은 활성화와 실제 import 시점에 수행한다. 일반 제3자 의존성은 기존처럼 artifact에 번들할 수 있다. 플러그인은 ADR-0020의 신뢰 코드이며 이 차단은 실수로 내부 API에 의존하는 것을 막는 계약 강제이지 sandbox나 보안 경계가 아니다. fs로 파일을 직접 읽어 eval하는 의도적 우회는 범위 밖이다.
 
@@ -278,6 +279,14 @@ Core `authorDocument(input)`을 공개 `@litzio/plugin-sdk`에서 제공한다. 
 ## screens·views의 내용 우선 표시 (#1329)
 
 manifest 화면은 기존 ViewWorkspace로 기본 뷰 내용을 바로 표시하며 단일 Host·현재 단일 기본 뷰의 선택 장치를 숨긴다. 즐겨찾기 관리는 접어서 접근한다. host 범위 읽기 작업의 조회에는 열린 폴더가 필요하지 않다. 폴더 선택·HTTP/CLI 실행·receipt와 검증 범위는 [생성 뷰 계약](generated-views-v1.md#플러그인동적-뷰-화면-간소화-1329)을 따른다. SDK·manifest와 저장 형식은 유지한다.
+
+## 플러그인 설정과 연결 확인 (#1334)
+
+표시 이름은 manifest `name` 하나다. `screens[].title`은 사이드바·탭에만 사용한다. 설정 `title`은 라벨, `description`은 Tooltip 도움말이다. 목록은 제목·게시자/계층/신뢰 배지·설명과 오른쪽 톱니·스위치, 아래 상태·계정으로 고정한다. 설정 창은 이름·버전·설명 → 일반 설정(manifest properties 순서) → secret → 연결 확인 → 상세(digest) 순서다. 화면 이동 버튼이나 “동작 · 이름” 합성 라벨은 설정 화면에 두지 않는다.
+
+외부 서비스 플러그인은 `contributes.healthCheck`에 같은 manifest의 operation ID를 선언한다. SDK 0.3.0 이상을 요구해야 한다. 예: `requiresSdk: ">=0.3.0 <1.0.0", contributes: { healthCheck: "connection", operations: [...] }`. 해당 작업은 `{}` 입력을 받는 독립적인 host 범위 read이며 job/review 바인딩으로 겸용하지 않는다. outputSchema에는 SDK `HEALTH_CHECK_OUTPUT_SCHEMA`를 사용하고 `HealthCheckResult` (`{ ok: boolean, message: string }`, 추가 필드 없음, 안내 1~300자)를 반환한다. message는 작성자가 만든 고정된 안전 안내이며 원문 응답·secret을 담지 않는다. Host는 secret 정리와 operation outputSchema 검증 후 SDK 고정 형식도 검사한다.
+
+설정 UI와 CLI `operation invoke <pluginId>.connection --input <empty-object.json> --host <origin> --json`은 같은 공용 operation·receipt·저장된 설정·secret을 사용한다. 따라서 별도 CLI 명령은 추가하지 않는다. `{ok:false}`도 정상 완료한 진단 결과이며 receipt success와 서비스 연결 성공은 구별한다. UI는 실행 중 중복 실행을 막고 결과를 연결됨/오류와 안내로 표시한다. 비활성/미실행이면 사유 Tooltip과 비활성 버튼을 보인다. 기존 하위 프로세스 RPC 10초 제한과 안전 오류를 사용하며 UI 요청은 15초로 제한한다. 확인 뒤 목록 상태를 다시 읽어 시간 초과·종료된 프로세스의 버튼 가용성도 갱신한다. 같은 설정의 목록 재조회는 확인 결과를 보존하고 설정 변경·창 닫기·Host 교체 시 이전 표시를 버린다. Docling/Jira 선언은 각 플러그인 후속 작업이며 이번 검증은 fixture다.
 
 ## 링크 열 SDK 0.3.0 (#1332)
 
