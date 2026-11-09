@@ -212,7 +212,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
       await page.getByRole('menuitem', {name:'Close folder', exact:true}).waitFor();
       await page.getByRole('menu').and(page.locator(':focus-within')).waitFor();
       if (screenshots && state === 'one') await page.screenshot({path:'tmp/picker-capture/folder-refresh-menu.png'});
-      assert(JSON.stringify(await page.getByRole('menuitem').allInnerTexts()) === JSON.stringify(['New folder…', 'Open folder…', 'Refresh', 'Close folder']), 'Folder menu must order creation before folder management');
+      assert(JSON.stringify(await page.getByRole('menuitem').allInnerTexts()) === JSON.stringify(['New folder…', 'Open folder…', 'Copy path', 'Copy relative path', 'Refresh', 'Close folder']), 'Folder menu must order creation before folder management');
       await page.keyboard.press('Escape');
       await page.getByRole('menu').waitFor({state:'detached'});
       assert(await more.evaluate(node => node === document.activeElement), 'Folder menu Escape must restore focus');

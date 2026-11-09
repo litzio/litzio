@@ -497,6 +497,20 @@ a separate capture-only tour. The existing 4-shard CI suite is the full
 regression gate. Local packaged Desktop, install/update/uninstall and Edge/profile probes are
 excluded from this task's validation scope.
 
+## Explorer path copying (#1336)
+
+File, folder and opened-folder header context menus offer Copy path and Copy relative
+path before file mutations. The full path belongs to the target Host; relative paths
+start at the opened folder, use `/`, and use `.` for that folder itself. The header
+More menu shares these actions; the separately maintained child-folder More menu is
+unchanged. Clipboard success and failure use the existing App path-copy notifications.
+This Editor clipboard interaction has no CLI counterpart.
+
+Self-reviewed Korean/Dark evidence: [1440px](assets/copy-path-1336/copy-path-1440-ko-dark.png)
+and [640px](assets/copy-path-1336/copy-path-640-ko-dark.png). Captured with the file-actions
+browser fixture at DPR 1; Host addresses are masked. This is visual review evidence,
+not owner visual approval or a real remote-Host acceptance test.
+
 ## Folder context menus (#1011 / #1012)
 
 Right-clicking an opened root header offers New document, New folder, Open folder,
