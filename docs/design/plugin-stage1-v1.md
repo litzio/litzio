@@ -481,7 +481,7 @@ secret 선언은 `{id,title,description?,scope:"connection",required}`다. `titl
 이 선언은 SDK 0.4.0 이상을 requiresSdk 범위에 포함해야 한다. 과거 title 없는 manifest 호환은 제공하지 않는다.
 
 일반 설정은 포커스 이탈 자동 저장, boolean은 변경 즉시 저장하며 칸 가까이에 저장 중·저장됨·실패를 표시한다.
-Dialog가 초안·칸별 상태를 소유하고 Host가 저장값을 소유한다. 기존 SDK schema validator와 Host 저장 작업을
+Dialog가 초안·칸별 상태를 소유하고 Host가 저장값을 소유한다. 기존 Host의 SDK schema validator 결과와 저장 작업을
 사용하며 FieldError·aria-invalid·aria-describedby로 오류를 연결한다. 실패 시 입력을 보존한다. 저장값을 재조회하면 편집하지 않은 칸은 갱신하되 편집 중·저장 실패 초안은 유지한다.
 같은 Dialog의 저장은 순차 처리해 앞선 저장값을 포함한다. 연결 확인은 진행 중 저장을 기다리며
 저장 실패가 남아 있으면 실행하지 않는다. 저장된 설정을 쓴다는 안내는 hover·keyboard focus Tooltip으로 제공한다.
@@ -498,3 +498,5 @@ QueryInputs의 필드 오류 연결과 기존 SettingsSwitch 행 정렬을 대�
 기존 vite-plugins 브라우저 검사에 저장 거부/입력 보존·확인 차단과 보류 저장 완료 후 확인을 추가했다.
 이 결함은 blur/click 및 React 갱신 순서가 있어 브라우저가 주 검증 계층이다. 기존 CI 경로를 쓰며 새 subprocess는 없다.
 SDK 필수 title·기능 버전 검사는 manifest 단위 검사가 담당한다.
+
+production CSP는 유지하며 설정 검증은 Host에서 수행한다. 브라우저에서 코드 생성 validator를 실행하지 않는다.

@@ -1,4 +1,13 @@
 async (page, { expect, pluginFixture, screenshots }) => {
+  // Match the HTTP fixture: machine OneDrive accounts are unrelated to connection settings.
+  await page.route("**/api/plugins", async route => {
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
+    const value = await response.json();
+    for (const plugin of value.plugins ?? []) if (plugin.id === "litzio.onedrive" && plugin.running) {
+      plugin.status = { available: true, folders: [], decorations: [], accounts: [] };
+    }
+    await route.fulfill({ response, json: value });
+  });
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Plugins", exact: true }).click();
   const official = page.getByRole("region", { name: "OneDrive", exact: true });
@@ -79,9 +88,17 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await expect(dialog.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
   await expect(dialog.getByRole("status").filter({ hasText: /^Fixture connected$/ })).toBeVisible();
   await page.unroute("**/api/plugins");
+  await serviceUrl.fill("");
+  await serviceUrl.press("Tab");
+  await expect(serviceUrl).toHaveAttribute("aria-invalid", "true");
+  await expect(serviceUrl).toHaveValue("");
+  await expect(dialog.locator('[id="' + await serviceUrl.getAttribute("aria-describedby") + '"]')).toContainText("fewer than 1");
+  await serviceUrl.fill("https://docling.example.test/service");
+  await serviceUrl.press("Tab");
+  await expect(dialog.getByRole("status").filter({ hasText: /^Saved$/ })).toBeVisible();
   await dialog.getByText("Simulate failure", { exact: true }).hover();
   await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText("Simulates service availability");
-  const externalSave = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close" }, data: { action: "settings", id: "fixture.vite", settings: { serverUrl: "https://docling.example.test/updated" } } });
+  const externalSave = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close", Origin: await page.evaluate(() => location.origin) }, data: { action: "settings", id: "fixture.vite", settings: { serverUrl: "https://docling.example.test/updated" } } });
   expect(externalSave.ok()).toBe(true);
   await check.click();
   await expect(serviceUrl).toHaveValue("https://docling.example.test/updated");
@@ -127,6 +144,6 @@ async (page, { expect, pluginFixture, screenshots }) => {
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
   }
   await toggle.click();
-  const removed = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close" }, data: { action: "unregister", id: "fixture.vite" } });
+  const removed = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close", Origin: await page.evaluate(() => location.origin) }, data: { action: "unregister", id: "fixture.vite" } });
   expect(removed.ok()).toBe(true);
 }

@@ -417,7 +417,16 @@ export class PluginHost {
         else if (action === "settings") {
           if (args.settings === undefined) return { id, secrets: await this.secretStatus(id, this.artifact(r.directory).manifest), settings: r.settings, settingsSchema: this.artifact(r.directory).manifest.settingsSchema };
           const m = this.artifact(r.directory).manifest;
-          if (!args.settings || !compileSchema(m.settingsSchema)(args.settings)) throw new Error("Invalid settings; secrets are unsupported");
+          const validate = compileSchema(m.settingsSchema);
+          if (!validate(args.settings)) {
+            const properties = m.settingsSchema.properties as Record<string, { title?: string }> | undefined;
+            const detail = validate.errors?.map(error => {
+              let message = error.message ?? "Invalid value";
+              for (const [key, field] of Object.entries(properties ?? {})) message = message.replaceAll(`'${key}'`, `'${field.title ?? key}'`);
+              return message;
+            }).join("; ");
+            throw new Error(`Invalid settings: ${detail ?? "Invalid value"}`);
+          }
           await this.changeConfiguration(id, () => { r.settings = structuredClone(args.settings!); });
         } else throw new Error("Unknown plugin management action");
       }

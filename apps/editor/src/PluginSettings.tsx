@@ -3,8 +3,8 @@ import { FolderDialog } from "./shell/FolderDialog.tsx";
 import { i18n } from "./i18n.ts";
 import { FieldError, Notice } from "./ui/primitives.tsx";
 import { Tooltip, TooltipTrigger, TooltipContent } from "./components/ui/tooltip.tsx";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { compileSchema, PLUGIN_REGISTRATION_CHANGED, healthCheckResultSchema, type HealthCheckResult } from "@litzio/plugin-sdk";
+import { useEffect, useId, useRef, useState } from "react";
+import { PLUGIN_REGISTRATION_CHANGED, healthCheckResultSchema, type HealthCheckResult } from "@litzio/plugin-sdk";
 import { Info, Settings } from "lucide-react";
 import { useHostClient } from "./host-context.tsx";
 import { Button } from "./components/ui/button.tsx";
@@ -97,7 +97,6 @@ function ConnectionSettings({ plugin, change, busy, run }: { plugin: Plugin; cha
   }, [plugin.settings]);
   const errors = useRef<Record<string, string>>({});
   const queue = useRef(Promise.resolve());
-  const validate = useMemo(() => compileSchema(plugin.settingsSchema ?? { type: "object" }), [plugin.settingsSchema]);
   const save = (key: string, value: unknown) => {
     const edit = edits.current[key];
     ++pendingSaves.current;
@@ -105,7 +104,6 @@ function ConnectionSettings({ plugin, change, busy, run }: { plugin: Plugin; cha
     queue.current = queue.current.then(async () => {
       const settings = { ...saved.current, [key]: value };
       try {
-        if (!validate(settings)) throw new Error(validate.errors?.map(e => e.message).join("; ") ?? "Invalid settings");
         await change("settings", { id: plugin.id, settings });
         saved.current = settings;
         delete errors.current[key];
