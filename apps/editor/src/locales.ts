@@ -1,6 +1,12 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Columns": "Columns",
+  "Column selection could not be saved.": "Column selection could not be saved.",
+  "Choose columns to display.": "Choose columns to display.",
+  "Partial results": "Partial results",
+  "Total: {{total}}": "Total: {{total}}",
+  "The source returned only part of the matching data. Sorting and filters use returned rows.": "The source returned only part of the matching data. Sorting and filters use returned rows.",
   "The result path already exists or is in use.": "The result path already exists or is in use.",
   "This input file is not supported.": "This input file is not supported.",
   "The plugin is disabled or not running.": "The plugin is disabled or not running.",
@@ -1228,6 +1234,12 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Columns": "열 선택",
+  "Column selection could not be saved.": "열 선택을 저장하지 못했습니다.",
+  "Choose columns to display.": "표시할 열을 선택하세요.",
+  "Partial results": "일부만 표시",
+  "Total: {{total}}": "전체 {{total}}건",
+  "The source returned only part of the matching data. Sorting and filters use returned rows.": "원본에서 조회 결과의 일부만 반환했습니다. 정렬과 필터는 반환된 행에 적용됩니다.",
   "The result path already exists or is in use.": "결과 경로가 이미 있거나 사용 중입니다.",
   "This input file is not supported.": "지원하지 않는 입력 파일입니다.",
   "The plugin is disabled or not running.": "플러그인이 꺼져 있거나 실행 중이 아닙니다.",

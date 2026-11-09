@@ -2,7 +2,7 @@ import type { ViewRow } from "@litzio/core/views";
 import { ViewInputError, type ViewInputIssue, type CatalogView as View, type ViewOperation } from "@litzio/core/views-v2";
 import { ViewOperationError } from "./source-state.ts";
 import type { HostClient } from "../host-client.ts";
-export type ViewResult = { catalog?: { operations: PublicViewOperation[] }; screens?: ViewScreen[]; views?: {plugin:string;id:string;title:string;definition:View}[]; fields?: Record<string, string>; view?: View; rows?: ViewRow[]; receipt: { requestId: string; operation: string; version: number; scope: string; outcome: string; timestamp: string } };
+export type ViewResult = { coverage?: { truncated: boolean; total?: number; returned: number }; catalog?: { operations: PublicViewOperation[] }; screens?: ViewScreen[]; views?: {plugin:string;id:string;title:string;definition:View}[]; fields?: Record<string, string>; view?: View; rows?: ViewRow[]; receipt: { requestId: string; operation: string; version: number; scope: string; outcome: string; timestamp: string } };
 export async function viewRequest(client: HostClient, input: unknown, signal?: AbortSignal): Promise<ViewResult> {
   signal?.throwIfAborted();
   const response = await client.request("/api/views", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input), signal });

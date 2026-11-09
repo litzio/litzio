@@ -64,3 +64,7 @@ Core·SDK는 schema와 입력·행·링크 의미, Host/CLI 검사는 같은 arg
 [1440px 제거 표면](assets/plugin-screens-1341/removed-surfaces-1440.png)에서 왼쪽 문서 통계와 오른쪽 Views 탭이 없고 기존 문서 탐색만 남음을 확인했다. [1440px 플러그인 진입](assets/plugin-screens-1341/plugin-screen-1440.png)과 [640px 한국어 다크](assets/plugin-screens-1341/plugin-screen-640-ko-dark.png)는 기본 입력 폼·수동 조회 진입을 유지한다. 정렬·간격·한 열 전환과 페이지 가로 넘침을 확인했다. manifest 제공 영문 label은 그대로 표시된다. 합성 카탈로그·문서와 기존 persistent Chrome을 사용한 로컬 화면이며 실제 Jira/Docling 서비스나 AI 응답의 수락 증거는 아니다. Host 계정은 촬영 시 mask했다.
 
 실제 커뮤니티 artifact와 합성 서비스의 [Docling 0.0.2 작업 패널 1440px](assets/plugin-screens-1341/docling-1440.png) / [한국어 다크 640px](assets/plugin-screens-1341/docling-640-ko-dark.png), [Jira 0.0.3 표·링크 1440px](assets/plugin-screens-1341/jira-1440.png) / [한국어 다크 640px](assets/plugin-screens-1341/jira-640-ko-dark.png)도 확인했다. Docling은 설정 healthCheck로 폴더 없이 연결을 확인하며, 화면에는 작업 패널·파일별 결과·아이콘을 제공한다. 같은 Root를 다시 선택해도 파일 목록을 유지한다. Jira 입력·표·링크도 유지된다. Host 계정/경로는 mask했고 화면의 계정·이슈 값은 합성 fixture다. 실제 외부 서비스 연결·문서 변환 품질의 근거로 사용하지 않는다.
+
+## 열 선택과 결과 범위 (#1351)
+
+플러그인 조회 표의 기본·추가 열, 브라우저 UI 선택 저장과 잘림 정보의 단일 건수 줄 표시는 [플러그인 표 계약](plugin-stage1-v1.md#플러그인-조회-표-열과-결과-범위-1351)을 따른다. 즐겨찾기·생성·통계·차트는 복원하지 않는다.

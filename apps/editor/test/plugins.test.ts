@@ -1,3 +1,5 @@
+import { publicOperationResult } from "../server/plugins/operation-result.ts";
+import { rowSchema } from "@litzio/plugin-sdk";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, mkdirSync, symlinkSync, writeFileSync, readFileSync, rmSync } from "node:fs";
@@ -1090,4 +1092,15 @@ test("registration trust survives updates and restart, but not removal", async (
     await host.invoke("enable", { id, registrationId: fresh.registrationId, trust: true });
     assert.equal((await host.list())[0]!.running, true);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("row result envelopes validate coverage and preserve only declared public fields", () => {
+  const op = { outputSchema: {}, rowSchema: rowSchema.parse({ name: { type: "string", label: "Name" }, extra: { type: "number", label: "Extra", hidden: true }, token: { type: "string", label: "Token", secret: true } }) };
+  const rows = [{ name: "Row", extra: 4, token: "private", undeclared: "no" }];
+  const clean = [{ name: "Row", extra: 4 }];
+  assert.deepEqual(publicOperationResult(op, rows, []), clean);
+  for (const meta of [{ truncated: true }, { truncated: true, total: 20 }, { truncated: false, total: 1 }]) {
+    assert.deepEqual(publicOperationResult(op, { rows, ...meta }, []), { rows: clean, ...meta });
+  }
+  for (const meta of [{}, { truncated: "yes" }, { truncated: true, total: 0 }, { truncated: true, total: 1 }, { truncated: false, total: 2 }, { truncated: true, total: -1 }, { truncated: true, total: 1.5 }]) assert.throws(() => publicOperationResult(op, { rows, ...meta }, []));
 });

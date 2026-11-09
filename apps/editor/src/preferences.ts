@@ -221,3 +221,19 @@ export function writeTableWrapPreferences(defaultValue: boolean, documents: Reco
     return true;
   } catch { return false; }
 }
+
+// Browser-owned plugin screen presentation; never written to documents or the Host.
+export const PLUGIN_TABLE_COLUMNS_KEY = `${brand.storagePrefix}.pluginTableColumns`;
+export function readPluginTableColumns(scope: string): string[] | undefined {
+  try {
+    const value: unknown = JSON.parse(globalThis.localStorage?.getItem(`${PLUGIN_TABLE_COLUMNS_KEY}:${scope}`) ?? "null");
+    return Array.isArray(value) && value.every(v => typeof v === "string") ? value : undefined;
+  } catch { return undefined; }
+}
+export function writePluginTableColumns(scope: string, columns: string[]): boolean {
+  try {
+    if (!globalThis.localStorage) return false;
+    globalThis.localStorage.setItem(`${PLUGIN_TABLE_COLUMNS_KEY}:${scope}`, JSON.stringify(columns));
+    return true;
+  } catch { return false; }
+}
