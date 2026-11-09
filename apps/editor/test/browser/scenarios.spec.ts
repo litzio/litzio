@@ -224,7 +224,10 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       writeFileSync(path.join(otherPluginFolder, "input.txt"), "# Root B");
       rmSync(path.join(otherPluginFolder, "recent-result.md"), { force: true });
       writeFileSync(otherJobInput, JSON.stringify({ job: "text", requestId: randomUUID(), root: otherPluginFolder, file: "input.txt", output: "recent-result.md" }));
-      writeFileSync(path.join(pluginFolder, "input.txt"), "# Imported\n\nJob result.\n");
+      writeFileSync(path.join(pluginFolder, "input.txt"), "AUTHORING:" + JSON.stringify({ authoring: { inputs: [{ key: "source", blocks: [
+        { kind: "heading", level: 1, text: "Imported" }, { kind: "paragraph", text: "Job result." },
+        { kind: "figure", imageAsset: "picture", imageAlt: "Imported image", caption: "Stored image", enumerator: "A.3" },
+      ] }] }, images: [{ key: "picture", mime: "image/png", base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=" }] }));
       for (const name of ["browser-result.md", "stopped-result.md", "closed-result.md", "reopened-running.md", "input.bin", "nested/input.bin"]) rmSync(path.join(pluginFolder, name), { force: true });
       for (const name of ["batch-a", "batch-b", "cli-a", "cli-b"]) {
         writeFileSync(path.join(pluginFolder, `${name}.txt`), "# Batch result");

@@ -192,8 +192,9 @@ const COMMANDS: CommandSpec[] = [
     details: [`${brand.cliCommand} templates read <name|id> [--json] [--language <ko|en>]`,
       `${brand.cliCommand} templates save <name> --from <file> [--description <text>]`,
       "Save never overwrites. Names of app defaults in both languages are reserved."] },
-  { name: "plugins", group: "Serve", summary: "Manage plugins on an explicit target Host", usage: `${brand.cliCommand} plugins start <pluginId> --input <json-file>|status|stop|result <requestId>|list|scaffold <directory> --id <id>|validate <directory>|register <directory>|unregister <id>|trust <id> --digest <digest>|enable|disable|reload <id>|secret-status <id>|secret-delete <id> <name>|settings <id> --file <json> --host <origin> --json`, details: ["Registration never executes code. Community artifacts require explicit digest-bound trust before enable. All plugins start disabled."] },
+  { name: "plugins", group: "Serve", summary: "Manage plugins on an explicit target Host", usage: `${brand.cliCommand} plugins start <pluginId> --input <json-file>|status|stop|result <requestId>|list|scaffold <directory> --id <id>|validate <directory>|register <directory>|unregister <id>|trust <id> --registration <registrationId> [--digest <digest>]|enable <id> [--trust --registration <registrationId>]|disable|reload <id>|secret-status <id>|secret-delete <id> <name>|settings <id> --file <json> --host <origin> --json`, details: ["Registration never executes code. Community plugins require explicit registration trust before enable; enable --trust --registration <registrationId> records trust and enables only that inspected registration. Read registrationId from plugins list; a replaced registration requires fresh confirmation. Updates retain trust until registration is removed or replaced. All plugins start disabled."] },
   { name: "view", group: "Serve", summary: "Validate or run a plugin query on an explicit Host", usage: `${brand.cliCommand} view validate|run <file> --host <origin> [--input <args.json>] --json`, details: ["Definitions bind registered plugin reads. --input replaces all source args. Opening a plugin screen does not query; run is explicit."] },
+
   { name: "jobs", group: "Serve", summary: "List running and recent plugin jobs on a Host", usage: `${brand.cliCommand} jobs list [pluginId] --host <origin> --json`, details: ["Daemon-lifetime observations only. Never restarts a job."] },
   { name: "operation", group: "Serve", summary: "Invoke a declared plugin operation", usage: `${brand.cliCommand} operation invoke <pluginId.operationId> --input <json-file> --host <origin> --json`, details: ["Uses only the named Host. Does not retry or fall back to local execution."] },
   { name: "assistant", group: "Serve", summary: "Read or configure official Assistant settings",
@@ -234,8 +235,8 @@ const COMMANDS: CommandSpec[] = [
     name: "create",
     group: "Create and inspect",
     summary: `Create a ${brand.name.en} native document, optionally from a template`,
-    usage: `${brand.cliCommand} create <file> [--template <name|id>] [--language <ko|en>] [--format <text|json>]`,
-    details: ["Create a new .md file in an existing directory. Existing files are never overwritten. Success prints the created path; --format json prints the creation receipt."],
+    usage: `${brand.cliCommand} create <file> [--template <name|id> | --input <json-file>] [--language <ko|en>] [--format <text|json>]`,
+    details: ["Create a new .md file in an existing directory. --input accepts {authoring, images:[{key,mime,base64}]} through the shared Host authoring operation. Existing files are never overwritten. Success prints the created path; --format json prints the creation receipt."],
   },
 
   {
@@ -969,6 +970,7 @@ function main(argv: string[]): number {
 
   switch (command) {
     case "create": {
+      if (flags.includes("--input")) throw new Error("Structured creation requires runCliAsync or the CLI executable");
       if (path.extname(file).toLowerCase() !== ".md") throw new Error("document path must point to a .md file");
       const template = optionalFlag(flags, "--template");
       const language = templateLanguage(optionalFlag(flags, "--language"));
@@ -1493,7 +1495,7 @@ const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   "insert-hard-break": ["--path", "--offset"],
   "split-paragraph": ["--path", "--offset"],
   "merge-paragraph": ["--path"],
-  create: ["--template", "--language", "--format"],
+  create: ["--template", "--language", "--input", "--format"],
   check: ["--format"],
   inspect: ["--format"],
   format: [],
@@ -1933,6 +1935,21 @@ export function runCli(args: string[]): number {
 
 /** Asynchronous command surface; synchronous commands keep the existing runCli API. */
 export async function runCliAsync(args: string[]): Promise<number> {
+  if (args[0] === "create" && args.includes("--input") && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
+    try {
+      const { file, flags, format } = parseCommandArgs("create", args.slice(1));
+      if (flags.includes("--template") || flags.includes("--language")) throw new Error("--input cannot be combined with --template or --language");
+      const input = flag(flags, "--input");
+      const { JOB_DOCUMENT_MAX_BYTES } = await import("@litzio/plugin-sdk");
+      if (fs.statSync(input).size > JOB_DOCUMENT_MAX_BYTES) throw new Error("Document payload exceeds 32 MiB");
+      const source = readFileSync(input);
+      if (source.byteLength > JOB_DOCUMENT_MAX_BYTES) throw new Error("Document payload exceeds 32 MiB");
+      const { createAuthoredDocumentFile } = await import("../../../apps/editor/server/document-authoring.ts");
+      const receipt = await createAuthoredDocumentFile(file, JSON.parse(decodeUtf8(source)));
+      process.stdout.write((format === "json" ? JSON.stringify(receipt) : receipt.path) + "\n");
+      return 0;
+    } catch (error) { return reportError(args, error); }
+  }
   if (args[0] === "app-reset" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./app-reset.ts")).appResetCli(args.slice(1));
   if (args[0] === "view" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./views.ts")).viewCli(args.slice(1));
   if (["plugins", "operation", "jobs", "review"].includes(args[0]) && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./plugins.ts")).pluginCli(args);

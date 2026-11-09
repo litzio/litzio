@@ -3,7 +3,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   page.on("request", request => { if (request.url().endsWith("/api/plugins") && request.method() === "POST") { const body = request.postDataJSON(); if (body.action === "job-start") latestRequestId = body.requestId; } });
   pluginFixture.cli(["plugins", "register", pluginFixture.directory]);
   const plugin = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.jobs");
-  pluginFixture.cli(["plugins", "trust", plugin.id, "--digest", plugin.digest]);
+  pluginFixture.cli(["plugins", "trust", plugin.id, "--registration", plugin.registrationId, "--digest", plugin.digest]);
   pluginFixture.cli(["plugins", "enable", plugin.id]);
   const scriptDialogs = [];
   page.on("dialog", dialog => { scriptDialogs.push(dialog.message()); void dialog.dismiss(); });
@@ -91,6 +91,11 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   }
   await pane.getByRole("button", { name: "Open result document" }).click();
   await expect(page.locator(".tiptap").filter({ visible: true })).toContainText("Job result.");
+  const image = page.locator(".tiptap").filter({ visible: true }).getByRole("img", { name: "Imported image", exact: true });
+  await expect(image).toBeVisible();
+  await expect.poll(() => image.evaluate(element => element.complete && element.naturalWidth > 0)).toBe(true);
+  await expect(image).toHaveAttribute("src", /assets/);
+  await expect(page.locator(".tiptap").filter({ visible: true })).toContainText("A.3");
   // Selecting the retained job tab and starting another explicit request tests Stop.
   await page.getByRole("tab", { name: /Plugin jobs/ }).click();
   await pane.getByLabel("Result path in Root").fill("stopped-result.md");

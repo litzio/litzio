@@ -6,7 +6,7 @@ import path from "node:path";
 import { artifactDigest } from "../server/plugins/artifact-digest.mjs";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { executePluginTool } from "../server/assistant-plugin-tools.ts";
-import { getEditableDocument, parse } from "@litzio/core";
+import { DOCUMENT_AUTHORING_LIMITS as limits, getEditableDocument, parse } from "@litzio/core";
 
 // Interpretation/loss/limit tests stay in-process. Existing http-plugins owns
 // SDK runtime admission, official K1 storage and the browser result boundary.
@@ -74,11 +74,11 @@ test("Docling converter refuses whole input on limits and invalid graph/grid ins
   await rejects(d => { d.body.children[0].$ref = "#/texts/999"; }, /Invalid source reference/);
   await rejects(d => { d.texts[4].text = "x".repeat(16385); }, /16384/);
   await rejects(d => {
-    for (let i = 0; i < 200; i++) d.texts.push({ self_ref: `#/texts/${d.texts.length}`, label: "text", text: "Orphan" });
-  }, /input limit.*200/);
+    for (let i = 0; i < limits.inputs; i++) d.texts.push({ self_ref: `#/texts/${d.texts.length}`, label: "text", text: "Orphan" });
+  }, new RegExp(`input limit.*${limits.inputs}`));
   await rejects(d => {
-    for (let i = 0; i < 20; i++) { const ref = `#/texts/${d.texts.length}`; d.texts.push({ self_ref: ref, label: "text", text: "x".repeat(16000) }); d.body.children.push({ $ref: ref }); }
-  }, /byte limit.*262144/);
+    for (let i = 0; i < Math.ceil(limits.bytes / 16000); i++) { const ref = `#/texts/${d.texts.length}`; d.texts.push({ self_ref: ref, label: "text", text: "x".repeat(16000) }); d.body.children.push({ $ref: ref }); }
+  }, new RegExp(`byte limit.*${limits.bytes}`));
 });
 test("Docling envelope keeps original PDF/JSON hashes independent of the reserved opaque review entry", async () => {
   const archive = await import(new URL("../../../community-plugins/docling/archive.js", import.meta.url).href);
@@ -117,7 +117,7 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     const registered = (await host.list())[0]!;
     assert.equal(registered.running, false); assert.equal(registered.official, false);
     await assert.rejects(host.invoke("enable", { id: manifest.id }), /trust/);
-    await host.invoke("trust", { id: manifest.id, digest: registered.digest });
+    await host.invoke("trust", { id: manifest.id, registrationId: registered.registrationId });
     await host.invoke("enable", { id: manifest.id });
     const admitted = host.invokeOperation("litzio.onedrive.read", {});
     const disabling = host.invoke("disable", { id: manifest.id });
@@ -133,13 +133,8 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     await executePluginTool(host, { action: "settings", id: manifest.id, settings: { label: "live" } }, () => {});
     assert.equal((await host.invokeOperation("litzio.onedrive.read", {})).result, "live");
     writeFileSync(path.join(directory, "extra.js"), "// updated artifact");
-    await assert.rejects(host.invoke("settings", { id: manifest.id, settings: { label: "recovered" } }), /Explicit digest-bound trust/);
-    const failedReload = (await host.list())[0]!;
-    assert.equal(failedReload.enabled, false); assert.equal(failedReload.running, false); assert.equal(failedReload.trusted, false);
-    assert.deepEqual(failedReload.settings, { label: "recovered" });
-    await assert.rejects(host.invoke("enable", { id: manifest.id }), /changed/);
-    await host.invoke("trust", { id: manifest.id, digest: failedReload.digest });
-    await host.invoke("enable", { id: manifest.id });
+    await host.invoke("settings", { id: manifest.id, settings: { label: "recovered" } });
+    assert.equal((await host.list())[0]!.trusted, true);
     assert.equal((await host.list())[0]?.running, true);
     assert.equal((await host.invokeOperation("litzio.onedrive.read", {})).result, "recovered");
     await host.invoke("disable", { id: manifest.id });
@@ -147,9 +142,9 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     const entry = path.join(directory, "host.js"), metadata = statSync(entry);
     writeFileSync(entry, readFileSync(entry, "utf8").replace('"done"', '"edit"'));
     utimesSync(entry, metadata.atime, metadata.mtime);
-    assert.equal((await host.list())[0]!.trusted, false);
+    assert.equal((await host.list())[0]!.trusted, true);
     writeFileSync(path.join(directory, "extra.js"), "changed");
-    await assert.rejects(host.invoke("enable", { id: manifest.id }), /changed/);
+    await host.invoke("enable", { id: manifest.id });
     assert.equal(new PluginHost(path.join(root, "state.json")) instanceof PluginHost, true);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
@@ -204,7 +199,7 @@ test("disable drains admitted status observations and their late results cannot 
     const marker = path.join(root, "started"), release = path.join(root, "release"), disposed = path.join(root, "disposed");
     const directory = lifecycleFixture(root, "fixture.slow", `import {existsSync,writeFileSync} from 'node:fs'; let calls=0; export function activate(){return {operations:{},async status(){if(calls++>0){writeFileSync(${JSON.stringify(marker)},'');while(!existsSync(${JSON.stringify(release)}))await new Promise(r=>setTimeout(r,10))}return {available:true,message:'Fixture',folders:[],decorations:[],accounts:[]}},dispose(){writeFileSync(${JSON.stringify(disposed)},'')}}}`);
     await host.invoke("register", { directory });
-    await host.invoke("trust", { id: "fixture.slow", digest: (await host.list())[0]!.digest });
+    await host.invoke("trust", { id: "fixture.slow", registrationId: (await host.list())[0]!.registrationId });
     await host.invoke("enable", { id: "fixture.slow" });
     const observation = host.list();
     while (!existsSync(marker)) await new Promise(r => setTimeout(r, 10));
@@ -306,7 +301,7 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
       await assert.rejects(host.setSecret(id, "undeclared", value), /Undeclared/);
       await host.setSecret(id, "pat", id === "example.first" ? value : "second-private-PAT");
       const plugin = (await host.list()).find(p => p.id === id)!;
-      await host.invoke("trust", { id, digest: plugin.digest }); await host.invoke("enable", { id });
+      await host.invoke("trust", { id, registrationId: plugin.registrationId }); await host.invoke("enable", { id });
       assert.equal(JSON.stringify(await host.invokeOperation(`${id}.read`, {})).includes(id === "example.first" ? value : "second-private-PAT"), false);
     }
     assert.equal(JSON.stringify(await host.invokeOperation("example.first.read", { fail: true })).includes(value), false);
@@ -339,7 +334,7 @@ test("secret admission, runtime plugin scope, non-disclosure and unregister clea
     try {
       await unsupportedHost.invoke("register", { directory: path.join(root, "example.first") });
       const p = (await unsupportedHost.list())[0]!;
-      await unsupportedHost.invoke("trust", { id: p.id, digest: p.digest });
+      await unsupportedHost.invoke("trust", { id: p.id, registrationId: p.registrationId });
       await assert.rejects(unsupportedHost.setSecret(p.id, "pat", value), /unsupported/);
       await assert.rejects(unsupportedHost.invoke("enable", { id: p.id }), /unsupported/);
       assert.equal((await unsupportedHost.list())[0]!.secrets?.supported, false);
@@ -372,7 +367,7 @@ test("operation invoke publishes declared public rows and refuses row-type misma
   const host = new PluginHost(path.join(root, "plugins.json"), { secrets: { supported: true, async read() { return knownSecret; }, async set() {}, async status() { return true; }, async delete() {} } });
   try {
     await host.invoke("register", { directory }); const record = (await host.list())[0]!;
-    await host.invoke("trust", { id: record.id, digest: record.digest }); await host.invoke("enable", { id: record.id });
+    await host.invoke("trust", { id: record.id, registrationId: record.registrationId }); await host.invoke("enable", { id: record.id });
     const invoke = (mode?: string) => host.invoke("invoke", { operation: "fixture.rows.read", input: mode ? { mode } : {} }) as Promise<any>;
     const valid = await invoke(); assert.equal(valid.receipt.outcome, "success"); assert.deepEqual(valid.result, [{ points: -3, caption: "[secret]", url: "https://example.test/issue/1" }]);
     await host.invoke("reload", { id: record.id });
@@ -423,15 +418,15 @@ test("subprocess isolation, fresh artifact reload, trust failure recovery and cr
   try {
     const directory = lifecycleFixture(root, "fixture.reload", code("first"));
     await host.invoke("register", { directory });
-    const trust = async () => host.invoke("trust", { id: "fixture.reload", digest: (await host.list())[0]!.digest });
+    const trust = async () => host.invoke("trust", { id: "fixture.reload", registrationId: (await host.list())[0]!.registrationId });
     await trust(); await host.invoke("enable", { id: "fixture.reload" });
     const first = (await host.list())[0]!.status!.message;
     assert.notEqual(first.split(':')[1], String(process.pid));
     writeFileSync(path.join(directory, "host.js"), code("second"));
-    await assert.rejects(host.invoke("reload", { id: "fixture.reload" }), /trust/);
+    await host.invoke("reload", { id: "fixture.reload" });
     assert.equal(readFileSync(marker, "utf8"), "disposed");
-    assert.equal((await host.list())[0]!.running, false);
-    await trust(); await host.invoke("reload", { id: "fixture.reload" });
+    assert.equal((await host.list())[0]!.running, true);
+    await host.invoke("reload", { id: "fixture.reload" });
     const second = (await host.list())[0]!.status!.message;
     assert.match(second, /^second:/); assert.notEqual(first.split(':')[1], second.split(':')[1]);
     writeFileSync(path.join(directory, "host.js"), "throw new Error('private error')");
@@ -466,7 +461,7 @@ test("a stalled write times out as uncertain; failed disposal can recover on the
     manifest.contributes.operations = [{id:'write',version:1,effect:'write',scope:'host',inputSchema:{type:'object'},outputSchema:{type:'object'}}];
     writeFileSync(file, JSON.stringify(manifest));
     await host.invoke("register", {directory});
-    await host.invoke("trust", {id:'fixture.timeout',digest:(await host.list())[0]!.digest});
+    await host.invoke("trust", {id:'fixture.timeout',registrationId:(await host.list())[0]!.registrationId});
     await host.invoke("enable", {id:'fixture.timeout'});
     await assert.rejects(host.invoke("reload", {id:'fixture.timeout'}), /disposal failed/);
     assert.equal((await host.list())[0]!.running, false);
@@ -488,7 +483,7 @@ test("Host shutdown closes every child even when one dispose fails", async () =>
     for (const [id, dispose] of [['fixture.bad', "throw new Error('private')"], ['fixture.good', `writeFileSync(${JSON.stringify(marker)},'done')`]]) {
       const directory = lifecycleFixture(root, id!, `import {writeFileSync} from 'node:fs'; export function activate(){return {operations:{},status:()=>({available:true,message:'ready',folders:[],decorations:[],accounts:[]}),dispose(){${dispose}}}}`);
       await host.invoke('register', {directory});
-      await host.invoke('trust', {id, digest:(await host.list()).find(p=>p.id===id)!.digest});
+      await host.invoke('trust', {id, registrationId:(await host.list()).find(p=>p.id===id)!.registrationId});
       await host.invoke('enable', {id});
     }
     await assert.rejects(host.close(), /cleanup failed/);
@@ -516,7 +511,7 @@ test("secret IPC admission is per plugin at activation, and reload reads fresh v
     writeFileSync(file,JSON.stringify(manifest));
     await host.invoke('register',{directory});
     await assert.rejects(host.invoke('enable',{id:'fixture.secret'}),/trust/);
-    await host.invoke('trust',{id:'fixture.secret',digest:(await host.list())[0]!.digest});
+    await host.invoke('trust',{id:'fixture.secret',registrationId:(await host.list())[0]!.registrationId});
     assert.deepEqual(reads, []);
     await host.invoke('enable',{id:'fixture.secret'});
     assert.deepEqual((await host.invokeOperation('fixture.secret.read',{})).result,{version:1});
@@ -577,7 +572,7 @@ test("authoring: scaffold, nonexecuting validation, attach, invoke and fresh rel
     writeFileSync(manifestFile, manifest.replace(/"requiresSdk": "[^"]+"/, '"requiresSdk": "0.1.0"')); writeFileSync(entry, source);
     await executePluginTool(host, { action: "register", directory }, e => activity.push(e));
     assert.deepEqual(activity.at(-1), { action: "register", id, outcome: "success" });
-    const trust = async () => host.invoke("trust", { id, digest: (await host.list())[0]!.digest });
+    const trust = async () => host.invoke("trust", { id, registrationId: (await host.list())[0]!.registrationId });
     await trust(); await host.invoke("enable", { id });
     assert.deepEqual((await host.invokeOperation(`${id}.greet`, { name: "World" })).result, { greeting: "Hello, World!" });
     writeFileSync(entry, source.replace('Hello, ', 'Welcome, '));
@@ -635,7 +630,7 @@ export function activate(){return {operations:{},status:()=>({available:true,mes
     writeFileSync(path.join(dependency, "package.json"), JSON.stringify({ type: "module", exports: "./index.js" }));
     writeFileSync(path.join(dependency, "index.js"), "export const value = 'dependency';");
     await host.invoke("register", { directory });
-    const trust = async () => host.invoke("trust", { id, digest: (await host.list())[0]!.digest });
+    const trust = async () => host.invoke("trust", { id, registrationId: (await host.list())[0]!.registrationId });
     await trust(); await host.invoke("enable", { id });
     assert.match((await host.list())[0]!.status!.message, /okay\/local\/dependency$/);
     // Keep the link outside the artifact: artifact admission independently rejects links.
@@ -745,7 +740,7 @@ test("short secrets preserve keys and leave the plugin scope on replacement, del
       m.contributes.operations = [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: {}, outputSchema: { type: "object", required: ["id", "defaultCandidate"], additionalProperties: false, properties: { id: { type: "string" }, defaultCandidate: { type: "boolean" } } } }];
       writeFileSync(file, JSON.stringify(m));
       await host.invoke("register", { directory });
-      await host.invoke("trust", { id, digest: (await host.list()).find(p => p.id === id)!.digest });
+      await host.invoke("trust", { id, registrationId: (await host.list()).find(p => p.id === id)!.registrationId });
     }
     await host.setSecret("fixture.a", "pat", "id"); await host.setSecret("fixture.a", "other", "raw-log-private");
     await host.invoke("enable", { id: "fixture.a" }); await host.invoke("enable", { id: "fixture.b" });
@@ -763,7 +758,7 @@ test("short secrets preserve keys and leave the plugin scope on replacement, del
     await host.invoke("disable", { id: "fixture.a" }); await host.invoke("secret-delete", { id: "fixture.a", name: "pat" }); await host.invoke("enable", { id: "fixture.a" });
     await check("fixture.a", "replacement", "replacement");
     await host.invoke("unregister", { id: "fixture.a" });
-    await host.invoke("register", { directory: dirs[0] }); await host.invoke("trust", { id: "fixture.a", digest: (await host.list()).find(p => p.id === "fixture.a")!.digest }); await host.invoke("enable", { id: "fixture.a" });
+    await host.invoke("register", { directory: dirs[0] }); await host.invoke("trust", { id: "fixture.a", registrationId: (await host.list()).find(p => p.id === "fixture.a")!.registrationId }); await host.invoke("enable", { id: "fixture.a" });
     await check("fixture.a", "raw-log-private", "raw-log-private");
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
@@ -798,8 +793,9 @@ test("bundled defaults follow supply until an explicit choice; update verificati
     host = new PluginHost(state, { officialPlugins: supply }); await host.start();
     const status = (await host.list())[0]!;
     assert.equal(status.official, false); assert.equal(status.running, false); assert.match(status.error!, /verification/);
-    await assert.rejects(host.invoke("trust", { id: manifest.id, digest: status.digest }), /disabled/);
+    await assert.rejects(host.invoke("trust", { id: manifest.id, registrationId: status.registrationId }), /disabled/);
     await assert.rejects(host.invoke("enable", { id: manifest.id }), /verification/);
+    await assert.rejects(host.invoke("enable", { id: manifest.id, trust: true }), /disabled/);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -812,7 +808,7 @@ test("plugin service shutdown waits for startup and confirms the started child e
   const seed = new PluginHost(file, { officialPlugins: [] });
   try {
     await seed.invoke("register", { directory });
-    await seed.invoke("trust", { id: "fixture.start", digest: (await seed.list())[0]!.digest });
+    await seed.invoke("trust", { id: "fixture.start", registrationId: (await seed.list())[0]!.registrationId });
     await seed.invoke("enable", { id: "fixture.start" });
   } finally { await seed.close(); }
   const service = createPluginService(null, file);
@@ -851,7 +847,7 @@ test("health check publication enforces the SDK result even with a permissive pl
     manifest.contributes = { healthCheck: "connection", operations: [{ id: "connection", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } }] };
     writeFileSync(file, JSON.stringify(manifest));
     await host.invoke("register", { directory });
-    await host.invoke("trust", { id: manifest.id, digest: (await host.list())[0]!.digest });
+    await host.invoke("trust", { id: manifest.id, registrationId: (await host.list())[0]!.registrationId });
     await host.invoke("enable", { id: manifest.id });
     const valid = await host.invokeOperation("fixture.health.connection", {});
     assert.deepEqual(valid.result, { ok: false, message: "Service unavailable" });
@@ -929,12 +925,14 @@ test("registered icons enforce image bounds, artifact links and digest trust", a
     await host.invoke("register", { directory });
     const digest = (await host.list())[0]!.digest!;
     assert.throws(() => host.icon(manifest.id, digest), /unavailable/);
-    await host.invoke("trust", { id: manifest.id, digest });
+    await host.invoke("trust", { id: manifest.id, registrationId: (await host.list())[0]!.registrationId, digest });
     assert.equal(host.icon(manifest.id, digest).mime, "image/svg+xml");
     assert.equal(host.icon(manifest.id, digest).bytes.toString(), svg);
     writeFileSync(icon, svg.replace('blue', 'red'));
     assert.throws(() => host.icon(manifest.id, digest), /unavailable/);
-    assert.equal((await host.list())[0]!.iconDigest, undefined);
+    const updatedDigest = (await host.list())[0]!.digest!;
+    assert.equal((await host.list())[0]!.iconDigest, updatedDigest);
+    assert.equal(host.icon(manifest.id, updatedDigest).mime, "image/svg+xml");
     rmSync(icon); const linked = path.join(directory, "linked");
     symlinkSync(directory, linked, "junction");
     await assert.rejects(host.invoke("register", { directory }), /linked/);
@@ -958,7 +956,7 @@ test("suggestion admission and generic CLI invocation share validated results", 
  writeFileSync(path.join(directory,"host.js"),`export function activate(){return {operations:{search:()=>[],people:({query})=>query==='bad'?[{value:'missing label'}]:[{value:'id',label:'Example person'}]},status:()=>({available:true,message:'',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
  try {
   await host.invoke("register",{directory});
-  await host.invoke("trust",{id:"fixture.people",digest:(await host.list())[0]!.digest});
+  await host.invoke("trust",{id:"fixture.people",registrationId:(await host.list())[0]!.registrationId});
   await host.invoke("enable",{id:"fixture.people"});
   assert.deepEqual(host.viewOperations().find(op=>op.operation==='fixture.people.search')?.inputSuggestions,{person:{operation:'fixture.people.people',version:1}});
   const input={operation:"fixture.people.people",version:1,input:{query:"ex"}};
@@ -967,4 +965,58 @@ test("suggestion admission and generic CLI invocation share validated results", 
   assert.equal((await host.invoke("invoke",{...input,input:{query:"bad"}}) as any).receipt.outcome,"failure");
   await assert.rejects(host.invoke("suggest",{operation:"fixture.people.search",input:{}}),/unavailable/);
  } finally { await host.close();rmSync(root,{recursive:true,force:true}); }
+});
+
+
+test("registration trust survives updates and restart, but not removal", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-registration-trust-"));
+  const file = path.join(root, "state.json");
+  let host = new PluginHost(file, { officialPlugins: [] });
+  try {
+    const directory = lifecycleFixture(root, "fixture.trust"), id = "fixture.trust";
+    await host.invoke("register", { directory });
+    const originalRegistration = (await host.list())[0]!.registrationId;
+    assert.equal((await host.list())[0]!.trusted, false);
+    await assert.rejects(host.invoke("enable", { id }), /trust/);
+    assert.equal((await host.list())[0]!.trusted, false);
+    await host.invoke("enable", { id, registrationId: (await host.list())[0]!.registrationId, trust: true });
+    assert.equal((await host.list())[0]!.trusted, true);
+    assert.equal((await host.list())[0]!.running, true);
+    writeFileSync(path.join(directory, "update.txt"), "updated");
+    assert.equal((await host.list())[0]!.trusted, true);
+    await host.invoke("reload", { id });
+    await host.close(); host = new PluginHost(file, { officialPlugins: [] });
+    await host.start();
+    assert.equal((await host.list())[0]!.running, true);
+    assert.equal((await host.list())[0]!.registrationId, originalRegistration);
+    await host.invoke("unregister", { id });
+    await host.invoke("register", { directory });
+    const approval = (await host.list())[0]!;
+    assert.equal(approval.trusted, false);
+    await host.invoke("unregister", { id });
+    await host.invoke("register", { directory });
+    assert.equal((await host.list())[0]!.trusted, false);
+    await assert.rejects(host.invoke("enable", { id }), /trust/);
+    const replacement = (await host.list())[0]!;
+    assert.notEqual(replacement.registrationId, approval.registrationId);
+    assert.equal(replacement.digest, approval.digest, "identical bytes still belong to a new registration");
+    const unchanged = readFileSync(file, "utf8");
+    for (const action of ["trust", "enable"]) {
+      await assert.rejects(host.invoke(action, { id, registrationId: approval.registrationId, ...(action === "enable" ? { trust: true } : {}) }), /registration changed/i);
+      assert.equal(readFileSync(file, "utf8"), unchanged);
+    }
+    await assert.rejects(host.invoke("enable", { id, trust: true }), /registration changed/i);
+    assert.equal((await host.list())[0]!.trusted, false);
+    assert.equal((await host.list())[0]!.running, false);
+    await host.invoke("trust", { id, registrationId: (await host.list())[0]!.registrationId });
+    const beforeReplacement = (await host.list())[0]!;
+    const other = path.join(root, "other"); mkdirSync(other);
+    const replacementDirectory = lifecycleFixture(other, id);
+    await host.invoke("register", { directory: replacementDirectory });
+    await assert.rejects(host.invoke("enable", { id, registrationId: beforeReplacement.registrationId, trust: true }), /registration changed/i);
+    assert.equal((await host.list())[0]!.trusted, false);
+    const fresh = (await host.list())[0]!;
+    await host.invoke("enable", { id, registrationId: fresh.registrationId, trust: true });
+    assert.equal((await host.list())[0]!.running, true);
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
