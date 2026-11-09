@@ -72,3 +72,11 @@
 @container (min-width: 800px) { .view-query-form:has(.view-query-more) { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .view-query-more { margin-inline-end: auto; }
 .view-panel-container { min-width: 0; width: 100%; }
+
+/* Query conditions and results share the workspace axis, with distinct existing surfaces. */
+.view-query-form { padding: var(--space-4); background: var(--id-color-surface-subtle); border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); }
+.view-query-results { min-width: 0; padding: var(--space-4); background: var(--id-color-surface); border: 1px solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); display: flex; flex-direction: column; gap: var(--space-3); }
+.data-table-toolbar, .view-result-tools { align-items: center; }
+.view-result-tools { margin-inline-start: auto; }
+.data-table table { table-layout: fixed; }
+.view-panel .data-table th, .view-panel .data-table td { min-width: 0; max-width: none; }

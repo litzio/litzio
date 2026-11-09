@@ -79,13 +79,25 @@ async (page, { expect, screenshots }) => {
   }
   await table.getByRole('button',{name:'Filter name',exact:true}).click();
   const condition = page.locator('.data-table-filter select').first();
+  await expect(condition).toHaveValue('values');
+  await page.locator('.data-table-filter').getByRole('button',{name:'Apply',exact:true}).click();
+  await expect(table.getByRole('status')).toHaveText('61 / 61');
+  await expect(table.getByRole('button',{name:'Filter name',exact:true})).toHaveAttribute('aria-pressed','false');
+  await table.getByRole('button',{name:'Filter name',exact:true}).click();
+  await page.locator('.data-table-filter').getByLabel('Item 1',{exact:true}).uncheck();
+  await page.locator('.data-table-filter').getByRole('button',{name:'Apply',exact:true}).click();
+  await expect(table.getByRole('status')).toHaveText('60 / 61');
+  await table.getByRole('button',{name:'Filter name',exact:true}).click();
+  await expect(condition).toHaveValue('values');
+  await expect(page.locator('.data-table-filter').getByLabel('Item 1',{exact:true})).not.toBeChecked();
+
   // Native popup pixels are reviewed separately. Protect the shared paired roles.
   const option = condition.locator('option').last();
   await expect(option).toHaveCSS('background-color', await page.locator('[data-slot="popover-content"]').evaluate(el=>getComputedStyle(el).backgroundColor));
   await expect(option).toHaveCSS('color', await page.locator('.ui-gallery').evaluate(el=>getComputedStyle(el).color));
   await condition.selectOption('empty');
   await page.locator('.data-table-filter').getByRole('button',{name:'Apply',exact:true}).click();
-  await expect(table.locator('tbody tr')).toHaveCount(0);
+  await expect(table.locator('tbody tr')).toHaveCount(2);
   await table.getByRole('button',{name:'Clear all filters',exact:true}).click();
   await table.getByRole('button',{name:'score',exact:true}).click();
   await table.getByRole('button',{name:'score',exact:true}).click();

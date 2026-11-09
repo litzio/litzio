@@ -93,3 +93,15 @@ Read operations with rowSchema may declare `inputHints: { field: "hint-operation
 Jira 0.0.5는 기본 Key·제목·Status·Assignee·Reporter·Created·Updated 7열과 Priority·유형·Resolution·마감일·Components·Labels 추가 후보를 선언한다. 같은 검색 경로에서 최대 500행을 반환하고 Jira total로 잘림 여부와 전체 건수를 전달한다. 기존 PluginQueryTable·DataTable 건수 줄·DropdownMenu를 재사용하며 새 상호작용 예외는 없다.
 
 #1370 수동 시각 검토: 1440px [기본](assets/search-form-1370/default-1440.png) / [접힌 요약](assets/search-form-1370/collapsed-1440.png) / [열 메뉴](assets/search-form-1370/columns-1440.png), 한국어 다크 640px [기본](assets/search-form-1370/default-640-ko-dark.png) / [접힌 요약](assets/search-form-1370/collapsed-640-ko-dark.png) / [열 메뉴](assets/search-form-1370/columns-640-ko-dark.png). 입력 정렬·여백, 요약 줄바꿈, 메뉴 가용 높이와 표 내부 가로 스크롤을 확인했다. 이전 단계의 캡처와 달리 즐겨찾기가 없는 현재 화면이다. 합성 Jira·PAT와 전용 포트의 격리 Host이며 실제 회사 Jira나 소유자 시각 승인을 뜻하지 않는다.
+
+
+## 조회 입력과 결과 (#1394)
+
+조건과 조회 행동은 위쪽의 surface-subtle 입력 영역에 모으고, 전체 폭 결과는 surface 영역으로 구분한다. QueryInputs의 접힌 지정값 요약·오류 펼침·첫 오류 focus와 탭별 입력/결과 보존을 유지한다. 640px에서는 입력이 한 열로 내려가며 조회 버튼은 같은 입력 영역에 남는다.
+
+결과 머리행은 짧은 결과 제목·건수·조회 시각(receipt tooltip)·열 선택을 모은다. manifest 표 제목은 hover와 keyboard focus 안내 및 접근 가능한 표 이름으로 유지한다. 불러온 행 한정 안내와 잘림 정보도 유지한다. 조회 전에는 위 조건 확인과 조회를 연결하고, 결과 없음은 조건 변경을 안내한다. 실패·결과 불확실은 기존 분류별 고정 행동 안내를 결과 안에 한 번만 표시한다.
+
+공통 DataTable은 필드 타입과 현재 원행의 값/라벨 길이로 열 폭을 배분한다. 날짜·숫자·boolean은 짧게, 긴 문자열은 더 넓게 배분하고 최소 폭 합계가 가용 폭보다 크면 내부 가로 스크롤을 쓴다. 플러그인 필드명이나 문자열 값을 enum으로 해석하지 않는다. Button·Tooltip·Notice·DataTable과 기존 surface 토큰을 재사용하며 새 공통 상호작용 예외는 없다.
+
+
+동일 합성 조회의 수동 캡처 비교: [1440px 전](assets/query-results-1394/before-1440.png) / [후](assets/query-results-1394/after-1440.png), [한국어 다크 640px 전](assets/query-results-1394/before-640.png) / [후](assets/query-results-1394/after-640.png). 머리행 수직 중심·입력 여백·면 구분·표 내부 스크롤과 한국어 줄바꿈을 확인했다. 기존 공통 표 갤러리의 정렬·필터 패턴과 일치하며 합성 카탈로그·행/localhost 확인은 실제 외부 Jira 성공이나 소유자의 시각 승인을 뜻하지 않는다.
