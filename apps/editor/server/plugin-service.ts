@@ -13,7 +13,7 @@ export function createPluginService(access: FileAccess = LOCAL_FILE_ACCESS, sett
   };
   const invoke = async (operation: string, args: any = {}): Promise<any> => {
     await start();
-    if (operation === "review") return host.reviews.execute(args);
+    if (operation === "review") return String(args.action).startsWith("generated-") ? host.documentReviews.execute(args) : host.reviews.execute(args);
     if (operation === "pluginSecretSet") {
       try { return await host.setSecret(args.id, args.name, args.value); }
       catch (error) {

@@ -14,7 +14,8 @@ export class PluginJobs {
   private records = new Map<string, Record>();
   constructor(private access: FileAccess, private declaration: (plugin: string, job: string) => JobContribution,
     private invoke: (name: string, input: unknown) => Promise<{ result?: unknown; error?: string; errorKind?: PluginErrorKind }>,
-    private effect: (name: string) => "read" | "write", private publishReview?: (plugin: string, root: string, file: string, source: string, data: unknown) => NonNullable<JobSnapshot["result"]>["bundle"]) {}
+    private effect: (name: string) => "read" | "write", private publishReview?: (plugin: string, root: string, file: string, source: string, data: unknown) => NonNullable<JobSnapshot["result"]>["bundle"],
+    private createReviewedDocument?: (plugin: string, binding: JobContribution, root: string, source: string, file: string) => Promise<{path: string; revision: string}>) {}
   private async call(record: Record, operation: string) {
     const value = await this.invoke(`${record.snapshot.plugin}.${operation}`, record.input);
     if (value.error) throw Object.assign(new Error(value.error), { kind: value.errorKind });
@@ -43,7 +44,9 @@ export class PluginJobs {
         if (update.file) throw new Error("Unexpected file result");
         if (!update.document) throw new Error("Completed job has no document");
         accessPath(record.input.output, this.access, true);
-        const created = createDocumentSourceFile(record.input.output, update.document.source, record.access);
+        const created = record.binding.resultKind === "native-document" && record.binding.documentReview
+          ? await this.createReviewedDocument!(current.plugin, record.binding, current.root, record.input.file, record.input.output)
+          : createDocumentSourceFile(record.input.output, update.document.source, record.access);
         current.result = { path: created.path, revision: created.revision };
         // Publication failure must not lose the successful document receipt or recreate it on status.
         record.finishedAt = Date.now();

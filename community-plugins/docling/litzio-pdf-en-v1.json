@@ -8,7 +8,7 @@
     "adr": "docs/adr/0003-official-rest-conversion-contract.md",
     "sha256": "44f386dfd50639c7601b477bbc9ac2929e8cdebbe804c2232e7dba3ccc700526",
     "openapi_sha256": "24274f3c2e6a3981c447e64356c3efc196394961ae02523d69fd88f67c1733db",
-    "note": "Request values copied verbatim. Full PDF uses the official API default page_range instead of parsing page count locally."
+    "note": "Request values retain the original profile except include_page_images=false for immutable PDF review. Full PDF uses the official API default page_range instead of parsing page count locally."
   },
   "request": {
     "target_type": "inbody",
@@ -43,7 +43,7 @@
       "bookmark_match_threshold": 0.8
     },
     "include_images": true,
-    "include_page_images": true,
+    "include_page_images": false,
     "images_scale": 2.0,
     "do_code_enrichment": true,
     "do_formula_enrichment": true,

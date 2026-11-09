@@ -8,7 +8,7 @@
   },
   "name": "Docling",
   "description": "docling-serve 연결 확인, PDF 원본 보관과 Litzio 문서 만들기",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "requiresSdk": ">=0.3.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
@@ -427,6 +427,54 @@
           ],
           "additionalProperties": false
         }
+      },
+      {
+        "id": "review-document",
+        "version": 1,
+        "effect": "read",
+        "scope": "host",
+        "assistant": false,
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "file": {
+              "type": "string"
+            },
+            "patches": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "mode": {
+              "enum": [
+                "validate",
+                "build"
+              ]
+            }
+          },
+          "required": [
+            "file",
+            "patches",
+            "mode"
+          ],
+          "additionalProperties": false
+        },
+        "outputSchema": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string"
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
       }
     ],
     "screens": [
@@ -463,7 +511,8 @@
         "start": "start",
         "status": "job-status",
         "stop": "job-stop",
-        "resultKind": "native-document"
+        "resultKind": "native-document",
+        "documentReview": "review-document"
       }
     ],
     "healthCheck": "connection"

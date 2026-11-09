@@ -1,6 +1,8 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Generated document under review": "Generated document under review",
+  "This is a generated document under review. Direct edits will be overwritten when it is regenerated.": "This is a generated document under review. Direct edits will be overwritten when it is regenerated.",
   "Open result: {{file}}": "Open result: {{file}}",
   "Job details: {{file}}": "Job details: {{file}}",
   "Jobs": "Jobs",

@@ -1,3 +1,5 @@
+import { activeDocumentReview } from "../../../apps/editor/server/document-review-state.ts";
+import { GENERATED_DOCUMENT_WARNING } from "../../../apps/editor/shared/document-review.ts";
 import { executeCompareOperation } from "../../../apps/editor/server/document-compare.ts";
 import { createDocumentSourceFile } from "../../../apps/editor/server/document-create.ts";
 import { executeTemplateOperation, templateLanguage } from "../../../apps/editor/server/document-templates.ts";
@@ -192,6 +194,7 @@ const COMMANDS: CommandSpec[] = [
     details: [`${brand.cliCommand} templates read <name|id> [--json] [--language <ko|en>]`,
       `${brand.cliCommand} templates save <name> --from <file> [--description <text>]`,
       "Save never overwrites. Names of app defaults in both languages are reserved."] },
+  { name: "review", group: "Serve", summary: "Read, patch and regenerate a reviewed document on a Host", usage: `${brand.cliCommand} review open|read|patch|regenerate|status --input <json-file> --host <origin> --json`, details: ["Review files are saved before document regeneration. Read a fresh baseline before writing; query status using the same requestId after a lost response."] },
   { name: "plugins", group: "Serve", summary: "Manage plugins on an explicit target Host", usage: `${brand.cliCommand} plugins start <pluginId> --input <json-file>|status|stop|result <requestId>|list|scaffold <directory> --id <id>|validate <directory>|register <directory>|unregister <id>|trust <id> --digest <digest>|enable|disable|reload <id>|secret-status <id>|secret-delete <id> <name>|settings <id> --file <json> --host <origin> --json`, details: ["Registration never executes code. Community artifacts require explicit digest-bound trust before enable. All plugins start disabled."] },
   { name: "view", group: "Serve", summary: "Validate, save or run a view on an explicit Host", usage: `${brand.cliCommand} view validate|propose|save|run <file> --host <origin> [--input <args.json>] [--name <favourite>] [--plugin <id>] [--root <folder>] --json`, details: [`${brand.cliCommand} view list|open <name> [--plugin <id>] --host <origin> --json`, "catalog lists current query operations and contributed views. Opening a favourite returns its definition only. --input replaces all source args; run always requires an explicit root."] },
   { name: "jobs", group: "Serve", summary: "List running and recent plugin jobs on a Host", usage: `${brand.cliCommand} jobs list [pluginId] --host <origin> --json`, details: ["Daemon-lifetime observations only. Never restarts a job."] },
@@ -1007,6 +1010,7 @@ function finishEdit(file: string, markdown: string, revision: string, result: Ed
     return status;
   }
   const citations = resourceReport(parse(markdown), file, bibliographyRoot);
+  if (activeDocumentReview(file)) process.stderr.write(`warning: ${GENERATED_DOCUMENT_WARNING}\n`);
   commitFile(file, markdown, revision);
   for (const diagnostic of citations.readiness.diagnostics) {
     if (diagnostic.severity === "warning") process.stderr.write(`warning: ${diagnostic.code}${diagnostic.source ? ` ${quote(diagnostic.source)}` : ""}${diagnostic.key ? ` key=${quote(diagnostic.key)}` : ""}${diagnostic.field ? ` field=${quote(diagnostic.field)}` : ""}\n`);

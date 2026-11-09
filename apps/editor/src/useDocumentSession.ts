@@ -54,6 +54,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   const [document, setDocument] = useState<EditableDocument>(initial.document);
   const sourceRevision = useRef(initial.revision);
   const [externalRevision, setExternalRevision] = useState<string | null>();
+  const [generatedReview, setGeneratedReview] = useState(initial.generatedReview);
   const [bibliography, setBibliography] = useState(initial.bibliography);
   const [bibliographyRoot] = useState(initial.bibliographyRoot);
   const [initialBase] = useState<SaveRequest["base"]>(() => ({
@@ -158,6 +159,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
     imageChoiceRef.current = null;
     setImageChoice(null);
     setDocument(next.document);
+    setGeneratedReview(next.generatedReview);
     setBibliography(next.bibliography);
     setInitialEditorSnapshot(undefined);
     setSaveLocations([]);
@@ -341,7 +343,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   function getSnapshot(): DocumentSessionSnapshot {
     if (!isCurrent() || !editorRef.current) throw new Error("Editor is not ready");
     return structuredClone({
-      file: { kind: "native", bibliographyRoot, ...(bibliography ? { bibliography: { declarations: bibliography.declarations } } : {}), path: openedPathRef.current, document, source: sessionBase.current.source, revision: sourceRevision.current, endnotesInPlace: sessionBase.current.savedEdits !== undefined || !endnotesMove },
+      file: { kind: "native", generatedReview, bibliographyRoot, ...(bibliography ? { bibliography: { declarations: bibliography.declarations } } : {}), path: openedPathRef.current, document, source: sessionBase.current.source, revision: sourceRevision.current, endnotesInPlace: sessionBase.current.savedEdits !== undefined || !endnotesMove },
       editor: editorRef.current.getSnapshot(),
       ...(sessionBase.current.savedEdits ? { savedEdits: sessionBase.current.savedEdits } : {}),
     });
@@ -350,7 +352,7 @@ export function useDocumentSession(initial: DocumentFileResponse, restored?: Pic
   captureRef.current = () => isCurrent() && editorRef.current?.hasDocumentChanges() ? getSnapshot() : null;
 
   return {
-    client, hostId, kind: "native" as const,
+    client, hostId, kind: "native" as const, generatedReview,
     recoveryError, discardRecovery: () => recorder?.discard(),
     suspendRecovery: () => recorder?.cancel(),
     resumeRecovery: () => { if (editorRef.current?.hasDocumentChanges()) recorder?.edit(); },

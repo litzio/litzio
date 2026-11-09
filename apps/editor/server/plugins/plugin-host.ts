@@ -1,3 +1,4 @@
+import { DocumentReviews } from "./document-reviews.ts";
 import { inputSuggestionResultsSchema } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
 import { artifactDigest } from "./artifact-digest.mjs";
@@ -31,6 +32,7 @@ export class PluginHost {
   private disabling = new Set<string>();
   readonly jobs: PluginJobs;
   readonly reviews: PluginReviews;
+  readonly documentReviews: DocumentReviews;
   private secrets: PluginSecretStore;
   private redactionSecrets = new Map<string, Map<string, string>>();
   private secretValues(id: string) { return [...(this.redactionSecrets.get(id)?.values() ?? [])]; }
@@ -53,11 +55,21 @@ export class PluginHost {
       if ([binding.read, binding.propose, binding.approve, binding.reject, binding.undo].some(b => b && !live.manifest.contributes.operations.some(op => `${plugin}.${op.id}` === b.operation && op.version === b.version))) throw new Error("Review operation unavailable");
       return binding;
     }, (name, input, version) => this.invokeOperation(name, input, undefined, true, version));
+    this.documentReviews = new DocumentReviews(this.access, (plugin, job) => {
+      if (this.closed || this.disabling.has(plugin)) throw new Error("Plugin is stopping");
+      const live = this.loaded.get(plugin), installed = this.record(plugin), artifact = this.artifact(installed.directory);
+      if (!live || artifact.digest !== installed.digest || !this.official(artifact.manifest, artifact.digest) && installed.trustedDigest !== artifact.digest) throw new Error("Review artifact trust changed");
+      const binding = live.manifest.contributes.jobs.find(item => item.id === job);
+      const operation = binding?.resultKind === "native-document" && binding.documentReview ? live.manifest.contributes.operations.find(op => op.id === binding.documentReview && op.effect === "read") : undefined;
+      if (!operation) throw new Error("Document review unavailable");
+      return { operation: `${plugin}.${operation.id}`, version: operation.version };
+    }, (name, input, version) => this.invokeOperation(name, input, undefined, true, version));
     this.jobs = new PluginJobs(options.access ?? LOCAL_FILE_ACCESS, (plugin, job) => { if (this.closed || this.disabling.has(plugin)) throw new Error("Plugin is stopping"); const binding = this.loaded.get(plugin)?.manifest.contributes.jobs.find(item => item.id === job); if (!binding) throw new Error("Job unavailable"); return binding; }, (name, input) => this.invokeOperation(name, input, undefined, true), name => {
       const operation = [...this.loaded.values()].flatMap(live => live.manifest.contributes.operations.map(op => ({ name: `${live.manifest.id}.${op.id}`, effect: op.effect }))).find(op => op.name === name);
       if (!operation) throw new Error("Job operation unavailable");
       return operation.effect;
-    }, (plugin, root, file, source, data) => this.reviews.publish(plugin, root, file, source, data));
+    }, (plugin, root, file, source, data) => this.reviews.publish(plugin, root, file, source, data),
+    (plugin, binding, root, source, file) => this.documentReviews.create(plugin, binding, root, source, file));
     this.installed = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
   }
   private save() {
