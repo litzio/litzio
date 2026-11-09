@@ -9,8 +9,8 @@ import { z } from "zod";
 import semver from "semver";
 export const SDK_VERSION = "0.3.0";
 // Actual SDK contracts still implemented by this Host, not hypothetical versions
-// between releases. Additive releases retain earlier contracts; breaking releases
-// remove contracts they no longer implement.
+// between releases. Features before the next public release share one minor.
+// The current Host retains earlier contracts.
 const supportedSdkVersions = ["0.1.0", "0.2.0", SDK_VERSION];
 export const healthCheckResultSchema = z.strictObject({ ok: z.boolean(), message: z.string().min(1).max(300) });
 export type HealthCheckResult = z.infer<typeof healthCheckResultSchema>;
