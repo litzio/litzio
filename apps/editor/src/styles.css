@@ -1333,7 +1333,8 @@ body:has(.ui-portal [role="menu"]) :is(.app-titlebar, .top-bar, .settings-topbar
 /* Text surfaces only: retain the editor's existing emergency fallback for long tokens.
  * Code, math and embedded UI keep their existing line-breaking behavior. */
 .document-editor :is(.paragraph, .heading, .quote-body, .admonition-body, .admonition-label,
-  .caption, [data-table-cell], .footnote-definition-body) {
+  .caption, [data-table-cell], .footnote-definition-body),
+.plain-markdown :is(li, th, td) {
   word-break: var(--word-break-document);
 }
 

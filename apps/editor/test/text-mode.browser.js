@@ -74,6 +74,9 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   await expect(preview().locator('../..')).toHaveClass(/document-column/);
   await expect(preview().getByRole('heading', {name:'일반 Markdown'})).toBeVisible();
   await expect(preview().locator('table')).toContainText('Cell');
+  for (const selector of ['.paragraph', 'li', 'td']) {
+    expect(await preview().locator(selector).first().evaluate(node => getComputedStyle(node).wordBreak)).toBe('keep-all');
+  }
   await expect(preview().locator('img')).toBeVisible();
   await expect(preview().locator('img')).toHaveJSProperty('complete',true);
   expect(await preview().locator('img').evaluate(node => node.naturalWidth > 0)).toBe(true);
