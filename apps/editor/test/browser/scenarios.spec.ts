@@ -241,7 +241,8 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
     };
     const rawResult = JSON.stringify({ status: "success", errors: [], document: { json_content: syntheticDocument } }).replace('"UNSAFE_INTEGER"', "18446744073709551615");
     let doclingFailure = false, conversionRequests = 0, submissions = 0, conversionState = "success", taskId = "", receivedFields: Record<string, FormDataEntryValue[]> = {};
-    let jiraFault = 0, jiraRedirects = 0;
+    let jiraFault = 0, jiraRedirects = 0, jiraLarge = false;
+    const jiraSearches: { jql: string; startAt: number }[] = [];
     const doclingServer = name === "http-plugins" ? createServer(async (request, response) => {
       if (request.url === "/jira/rest/api/2/myself") {
         const status = request.headers.authorization !== "Bearer mock-jira-token" ? 401 : jiraFault || 200;
@@ -252,6 +253,20 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
         jiraRedirects++;
         response.writeHead(200, { "Content-Type": "application/json" });
         response.end(JSON.stringify({ fields: { summary: "Unexpected redirect" } })); return;
+      }
+      if (request.url?.startsWith("/jira/rest/api/2/search?")) {
+        const url = new URL(request.url, "http://fixture");
+        const jql = url.searchParams.get("jql")!;
+        const startAt = Number(url.searchParams.get("startAt"));
+        jiraSearches.push({ jql, startAt });
+        const status = request.headers.authorization !== "Bearer mock-jira-token" ? 401 : jiraFault || 200;
+        if (jiraFault === 408) { const timer = setTimeout(() => response.end("{}"), 8500); response.once("close", () => clearTimeout(timer)); return; }
+        response.writeHead(status, { "Content-Type": "application/json", ...(jiraFault === 302 ? { Location: "/redirect-target" } : {}) });
+        if (status !== 200) { response.end(JSON.stringify({ errorMessages: ["RAW-JIRA-SENTINEL mock-jira-token"] })); return; }
+        const keys = jiraLarge ? Array.from({ length: 501 }, (_, i) => `MOCK-${i + 1}`) : jql.includes("IS NOT EMPTY") ? ["MOCK-2"] : jql.includes("Unresolved") ? ["MOCK-1", "MOCK-8"] : ["MOCK-1", "MOCK-2", "MOCK-6", "MOCK-8"];
+        // Server may return fewer rows than requested; advance using the actual count.
+        const issues = keys.slice(startAt, startAt + (jiraLarge ? 100 : 2)).map(key => ({ key, fields: { summary: "검토할 이슈 " + key, status: { name: "Open" }, assignee: null, priority: { name: "High" }, updated: "2026-11-09" } }));
+        response.end(JSON.stringify({ startAt, total: keys.length, issues })); return;
       }
       if (request.url?.startsWith("/jira/rest/api/2/issue/")) {
         const key = request.url.split("/").at(-1);
@@ -384,6 +399,9 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
         catch (error: any) { if (error.stdout) return JSON.parse(error.stdout); throw error; }
       },
       setInput(keys: string) { writeFileSync(this.input, JSON.stringify({ keys })); },
+      setQuery(value: Record<string, string>) { jiraSearches.length = 0; writeFileSync(this.input, JSON.stringify(value)); },
+      searches() { return jiraSearches; },
+      setLarge(value: boolean) { jiraLarge = value; },
       setSettings(value: Record<string, string>) { writeFileSync(this.settings, JSON.stringify(value)); },
       baseUrl: `http://127.0.0.1:${(doclingAddress as import("node:net").AddressInfo).port}/jira`,
       mock: process.env.LITZIO_JIRA_MOCK === "1",

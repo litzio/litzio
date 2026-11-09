@@ -7,15 +7,15 @@
     "name": "Community"
   },
   "name": "Jira",
-  "description": "이슈 번호로 Jira 상세를 조회합니다.",
-  "version": "0.0.1",
+  "description": "내 계정 또는 지정 계정의 할당 이슈를 조회합니다.",
+  "version": "0.0.2",
   "requiresSdk": ">=0.3.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
     "operations": [
       {
         "id": "issues",
-        "version": 1,
+        "version": 2,
         "effect": "read",
         "scope": "host",
         "assistant": true,
@@ -25,21 +25,34 @@
             "keys": {
               "type": "string",
               "title": "이슈 번호",
-              "description": "쉼표로 구분한 키 (최대 20개)",
+              "description": "선택: 입력하면 계정·상태 대신 번호로 조회 (최대 20개)",
               "minLength": 1,
               "maxLength": 512,
               "pattern": "^\\s*[A-Z][A-Z0-9_]*-[1-9][0-9]*(?:\\s*,\\s*[A-Z][A-Z0-9_]*-[1-9][0-9]*){0,19}\\s*$"
+            },
+            "account": {
+              "type": "string",
+              "title": "계정",
+              "description": "선택: 비우면 PAT의 현재 사용자. 번호 입력 시 무시합니다.",
+              "maxLength": 254,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "status": {
+              "type": "string",
+              "title": "해결 여부",
+              "enum": [
+                "미해결",
+                "해결됨",
+                "전체"
+              ]
             }
           },
-          "required": [
-            "keys"
-          ],
           "additionalProperties": false
         },
         "outputSchema": {
           "type": "array",
-          "minItems": 1,
-          "maxItems": 20,
+          "minItems": 0,
+          "maxItems": 500,
           "items": {
             "type": "object",
             "properties": {
@@ -156,8 +169,10 @@
             "stats": {
               "kind": "operation",
               "operation": "community.jira.issues",
-              "version": 1,
-              "args": {}
+              "version": 2,
+              "args": {
+                "status": "미해결"
+              }
             }
           },
           "layout": {
@@ -166,7 +181,7 @@
             "children": [
               {
                 "component": "Table",
-                "title": "이슈",
+                "title": "할당 이슈 · 번호 입력 시 번호 조회",
                 "source": "stats",
                 "data": "/rows",
                 "columns": [
@@ -184,6 +199,14 @@
             "component": "InputForm",
             "source": "stats",
             "fields": [
+              {
+                "component": "TextInput",
+                "field": "account"
+              },
+              {
+                "component": "Select",
+                "field": "status"
+              },
               {
                 "component": "TextInput",
                 "field": "keys"
