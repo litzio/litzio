@@ -120,7 +120,11 @@ function PluginHealthCheck({ plugin, busy }: { plugin?: Plugin; busy: boolean })
   const client = useHostClient();
   const [checking, setChecking] = useState(false), [result, setResult] = useState<HealthCheckResult>();
   const request = useRef<AbortController | undefined>(undefined);
-  useEffect(() => { setResult(undefined); setChecking(false); return () => { request.current?.abort(); request.current = undefined; }; }, [client, plugin?.settings, plugin?.running, plugin?.digest, plugin?.healthCheck]);
+  const settingsKey = JSON.stringify(plugin?.settings);
+  useEffect(() => { setResult(undefined); setChecking(false); return () => { request.current?.abort(); request.current = undefined; }; }, [client, settingsKey, plugin?.digest, plugin?.healthCheck]);
+  useEffect(() => {
+    if (!plugin?.enabled || !plugin.running) { request.current?.abort(); request.current = undefined; setChecking(false); }
+  }, [plugin?.enabled, plugin?.running]);
   if (!plugin?.healthCheck) return null;
   const disabled = !plugin.enabled || !plugin.running;
   const reason = i18n.t(!plugin.enabled ? "Plugin disabled" : "Plugin unavailable");
@@ -135,7 +139,10 @@ function PluginHealthCheck({ plugin, busy }: { plugin?: Plugin; busy: boolean })
         if (!response.ok || value.receipt?.outcome !== "success") throw new Error();
         if (!controller.signal.aborted) setResult(healthCheckResultSchema.parse(value.result));
       } catch { if (request.current === controller) setResult({ ok: false, message: i18n.t("Connection check failed. Check settings and try again.") }); }
-      finally { clearTimeout(timer); if (request.current === controller) setChecking(false); }
+      finally {
+        clearTimeout(timer);
+        if (request.current === controller) { setChecking(false); window.dispatchEvent(new Event("plugins-changed")); }
+      }
     }}>{i18n.t(checking ? "Checking…" : "Check connection")}</Button></TooltipTrigger><TooltipContent>{disabled ? reason : i18n.t("Uses saved settings")}</TooltipContent></Tooltip></div>
     {result ? <><PluginState tone={result.ok ? "connected" : "danger"} label={i18n.t(result.ok ? "Connected" : "Error")} /><p className="settings-description" role="status">{result.message}</p></> : null}
   </section>;

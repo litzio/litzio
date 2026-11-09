@@ -286,7 +286,7 @@ manifest 화면은 기존 ViewWorkspace로 기본 뷰 내용을 바로 표시하
 
 외부 서비스 플러그인은 `contributes.healthCheck`에 같은 manifest의 operation ID를 선언한다. SDK 0.3.0 이상을 요구해야 한다. 예: `requiresSdk: ">=0.3.0 <1.0.0", contributes: { healthCheck: "connection", operations: [...] }`. 해당 작업은 `{}` 입력을 받는 독립적인 host 범위 read이며 job/review 바인딩으로 겸용하지 않는다. outputSchema에는 SDK `HEALTH_CHECK_OUTPUT_SCHEMA`를 사용하고 `HealthCheckResult` (`{ ok: boolean, message: string }`, 추가 필드 없음, 안내 1~300자)를 반환한다. message는 작성자가 만든 고정된 안전 안내이며 원문 응답·secret을 담지 않는다. Host는 secret 정리와 operation outputSchema 검증 후 SDK 고정 형식도 검사한다.
 
-설정 UI와 CLI `operation invoke <pluginId>.connection --input <empty-object.json> --host <origin> --json`은 같은 공용 operation·receipt·저장된 설정·secret을 사용한다. 따라서 별도 CLI 명령은 추가하지 않는다. `{ok:false}`도 정상 완료한 진단 결과이며 receipt success와 서비스 연결 성공은 구별한다. UI는 실행 중 중복 실행을 막고 결과를 연결됨/오류와 안내로 표시한다. 비활성/미실행이면 사유 Tooltip과 비활성 버튼을 보인다. 기존 하위 프로세스 RPC 10초 제한과 안전 오류를 사용하며 UI 요청은 15초로 제한한다. 설정 변경·창 닫기·Host 교체 시 이전 표시를 버린다. Docling/Jira 선언은 각 플러그인 후속 작업이며 이번 검증은 fixture다.
+설정 UI와 CLI `operation invoke <pluginId>.connection --input <empty-object.json> --host <origin> --json`은 같은 공용 operation·receipt·저장된 설정·secret을 사용한다. 따라서 별도 CLI 명령은 추가하지 않는다. `{ok:false}`도 정상 완료한 진단 결과이며 receipt success와 서비스 연결 성공은 구별한다. UI는 실행 중 중복 실행을 막고 결과를 연결됨/오류와 안내로 표시한다. 비활성/미실행이면 사유 Tooltip과 비활성 버튼을 보인다. 기존 하위 프로세스 RPC 10초 제한과 안전 오류를 사용하며 UI 요청은 15초로 제한한다. 확인 뒤 목록 상태를 다시 읽어 시간 초과·종료된 프로세스의 버튼 가용성도 갱신한다. 같은 설정의 목록 재조회는 확인 결과를 보존하고 설정 변경·창 닫기·Host 교체 시 이전 표시를 버린다. Docling/Jira 선언은 각 플러그인 후속 작업이며 이번 검증은 fixture다.
 
 ## 링크 열 SDK 0.3.0 (#1332)
 
