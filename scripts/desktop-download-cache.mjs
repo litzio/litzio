@@ -20,7 +20,7 @@ if (process.argv[2] === 'configure') {
   const { downloadElectronArtifactZip } = builder('app-builder-lib/out/util/electronGet.js');
   const { getMakeNsisPath, getNsisPluginsPath, getRceditBundle } = builder('app-builder-lib/out/toolsets/windows.js');
   await downloadElectronArtifactZip({ artifactName: 'electron', version: devDependencies.electron, platformName: 'win32', arch: 'x64',
-    electronDownload: { mirrorOptions: {}, checksums: require('electron/checksums.json') } });
+    electronDownload: { force: false, checksums: require('electron/checksums.json') } });
   // packageConfiguration uses default toolsets; let the installed builder select their versions.
   await getMakeNsisPath();
   await getNsisPluginsPath();

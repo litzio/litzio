@@ -47,7 +47,8 @@ export function packageConfiguration(appVersion: string, release: boolean): Conf
     // RunAsNode is intentionally kept at Electron's enabled default (ADR-0004 #604).
     npmRebuild: false,
     // Same official checksums used by Electron's installer; retain validation without a fresh GET.
-    electronDownload: { mirrorOptions: {}, checksums: createRequire(import.meta.url)("electron/checksums.json") },
+    // Explicit default force=false also selects the builder adapter that retains checksum options.
+    electronDownload: { force: false, checksums: createRequire(import.meta.url)("electron/checksums.json") },
     electronLanguages: ["en-US", "ko"],
     forceCodeSigning: release,
     // GitHub provider: the metadata file is named by this channel only.
