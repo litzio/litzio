@@ -18,7 +18,7 @@
 
 `packages/plugin-sdk`는 React·Editor·Core AST 의존 없이 manifest, JSON Schema 검증과 공용 작업·폴더·계정 타입을 공급한다. `litzio-plugin.json`이 실행 선언이며 패키지 버전은 package.json과 일치해야 한다. ID, tier, publisher, SemVer SDK 범위, 패키지 안 entry, contributes와 settingsSchema를 import 전에 검증한다. JSON Schema는 Ajv, manifest는 Zod, 버전은 SemVer를 재사용한다. 외부 `$ref`와 알 수 없는 필드·중복 기여를 거부한다.
 
-확장 자리 `contributes.dataViews`, `generatedUi`, `secretUses`는 비어 있지 않으면 미지원으로 등록을 거부한다. 카탈로그 V1에서 `contributes.views:[{id,title,definition}]`는 inline query v2 명세만 받고, `contributes.reviews:[{id,title,read,propose?,approve?,reject?,undo?}]`는 `{operation,version}` binding을 받는다. 같은 플러그인의 완전 이름 `<plugin-id>.<operation-id>`와 등록 version만 허용하며 view는 rowSchema 읽기, review read는 read, 나머지는 write여야 한다. unknown action·cross-plugin·effect/version 불일치는 entry 전에 거부한다. [Core/SDK v2 계약](generated-views-v1.md#catalog-v2-contract-layer-v1)을 SDK가 재노출한다. 실제 Host dispatch·기본 UI·CLI와 승인 경계 연결은 V2/V4 범위다. `secrets`는 중복 없는 id·connection scope·required 선언을 지원한다. secret 값 조회 API와 생성 UI·저장 뷰 runtime은 없다.
+확장 자리 `contributes.dataViews`, `generatedUi`, `secretUses`는 비어 있지 않으면 미지원으로 등록을 거부한다. 카탈로그 V1에서 `contributes.views:[{id,title,definition}]`는 inline query v2 명세만 받고, `contributes.reviews:[{id,title,read,propose?,approve?,reject?,undo?}]`는 `{operation,version}` binding을 받는다. 같은 플러그인의 완전 이름 `<plugin-id>.<operation-id>`와 등록 version만 허용하며 view는 rowSchema 읽기, review read는 read, 나머지는 write여야 한다. unknown action·cross-plugin·effect/version 불일치는 entry 전에 거부한다. [Core/SDK 조회 계약](plugin-screens-v1.md#core-명세와-조회)을 SDK가 재노출한다. 실제 Host dispatch·기본 UI·CLI와 승인 경계 연결은 V2/V4 범위다. `secrets`는 중복 없는 id·connection scope·required 선언을 지원한다. secret 값 조회 API와 생성 UI·저장 뷰 runtime은 없다.
 
 공용 작업은 id/version/effect/scope와 입력·결과 schema를 선언하고 같은 id의 handler를 연결한다. 1단계 기능 작업은 host scope만 지원하며 folder scope 선언은 미지원으로 거부한다. `activate(context)`는 operations/status/dispose를 반환한다. 미선언·누락 작업 handler는 활성화 실패다. 폴더 소스와 장식·계정은 선언한 기여의 상태 결과다. SDK 0.3.0의 `FolderDecoration.icon: "plugin"`은 해당 플러그인의 manifest `icon`을 사용하며 이미지가 없으면 장식을 생략한다. 폴더 열기는 기존 파일 Host가 검증한다. 문서 의미·공식 쓰기 경계는 변경하지 않는다.
 
@@ -99,9 +99,9 @@ Windows PowerShell의 기본 .NET ProtectedData를 통해 DPAPI CurrentUser를 �
 
 ## Read operation row schema (#1218)
 
-읽기 작업의 선택적 `rowSchema`는 [Generated views v1](generated-views-v1.md#operation-row-schema-1218)을 따른다. 이는 일반 읽기 작업의 출력 선언이며 `generatedUi/views` 기여나 SDK folder scope를 개방하지 않는다. Core가 타입·날짜·표시 라벨·secret 제한과 가공을 소유한다.
+읽기 작업의 선택적 `rowSchema`는 [조회 계약](plugin-screens-v1.md#core-명세와-조회)을 따른다. 이는 일반 읽기 작업의 출력 선언이며 `generatedUi/views` 기여나 SDK folder scope를 개방하지 않는다. Core가 타입·날짜·표시 라벨·secret 제한과 가공을 소유한다.
 
-하위 프로세스 invoke 결과도 공용 `PluginHost.invokeOperation → publicOperationResult`에서 알려진 값 정리(`safePluginValue`)·outputSchema 검증·Core `parseOperationRows`의 타입 검증과 secret 필드 제거를 거친 뒤에만 공개한다. CLI·비서·view·즐겨찾기는 이 경로를 재사용하며 reload도 이 경계를 바꾸지 않는다. status 결과는 `safePluginValue → statusSchema`를 거친다.
+하위 프로세스 invoke 결과도 공용 `PluginHost.invokeOperation → publicOperationResult`에서 알려진 값 정리(`safePluginValue`)·outputSchema 검증·Core `parseOperationRows`의 타입 검증과 secret 필드 제거를 거친 뒤에만 공개한다. CLI·비서·플러그인 조회는 이 경로를 재사용하며 reload도 이 경계를 바꾸지 않는다. status 결과는 `safePluginValue → statusSchema`를 거친다.
 
 ## K1 파일 작업
 
@@ -220,7 +220,7 @@ K1 review HTTP fixture는 start에서 running 접수만 반환하고 자료를 �
 
 ### V4·V6 공용 생성과 V3/V5 transport
 
-일반 대화 view_catalog와 Generate view는 shared/view-generation.ts의 단일 schema/instruction을 사용한다. query/InputForm과 함께 명시적으로 제공된 같은 Host 완료 bundle의 review 명세를 허용한다. Host view.validate/propose는 실제 bundle·Root 접근·기여 가용성을 확인하며 저장·자료 반환·plugin 조회·문서 변경을 실행하지 않는다. review 제안의 pending 제출과 뷰 명세 propose를 구별하며 비서 승인/Undo 도구를 추가하지 않는다. 제작 스킬도 같은 범위와 참조 발명 금지를 안내한다.
+#1341에서 비서 명세 생성·제안·저장 경로는 제거했다. review는 완료 작업 결과와 기존 전용 HTTP/CLI 진입점을 유지한다. 공통 view.validate는 같은 Host의 실제 완료 bundle 참조를 확인하며 조회·문서 변경을 실행하지 않는다. [현재 화면 계약](plugin-screens-v1.md)을 따른다.
 
 V3/V5와 CLI는 단일 POST /api/reviews dispatcher를 사용한다. source의 bundleRef는 Host가 보관한 generation에 고정되며 generation을 명시한 요청은 일치해야 한다. read에서 pageNo를 주고 kind를 생략하면 snapshot/receipt를 반환한다. snapshot은 bundle/page/선택 mapping/proposals, document-reader의 Core document/revision/hash/path, baseline/pageCount와 선택 PNG imageUrl을 조립한다. 이미지 byte/pixel 제한과 JSON 자료 제한을 각각 적용하며 imageUrl은 일시적 읽기 결과로만 사용한다. 다른 자료 읽기는 기존 kind 선택을 쓴다. 변경·status는 같은 requestId·baseline 계약을 유지한다. source·문서가 외부에서 바뀌면 snapshot은 실제 revision으로 불일치를 드러내어 V5가 action을 막으며 Host도 commit 직전에 다시 거부한다. 이전 map을 새 문서에 재연결하지 않는다. HTTP/CLI·비서 stdio fixture 통과를 실제 브라우저·외부 서비스·Docling 수락으로 간주하지 않는다.
 
@@ -316,7 +316,7 @@ Core가 개별 문단으로 보존할 수 있는 2,934개 텍스트의 용량 pr
 
 ## screens·views의 내용 우선 표시 (#1329)
 
-manifest 화면은 기존 ViewWorkspace로 기본 뷰 내용을 바로 표시하며 단일 Host·현재 단일 기본 뷰의 선택 장치를 숨긴다. 즐겨찾기 관리는 접어서 접근한다. host 범위 읽기 작업의 조회에는 열린 폴더가 필요하지 않다. 폴더 선택·HTTP/CLI 실행·receipt와 검증 범위는 [생성 뷰 계약](generated-views-v1.md#플러그인동적-뷰-화면-간소화-1329)을 따른다. SDK·manifest와 저장 형식은 유지한다.
+manifest 화면은 기존 ViewWorkspace로 기본 뷰 내용을 바로 표시하며 단일 Host·현재 단일 기본 뷰의 선택 장치를 숨긴다. host 범위 읽기 작업의 조회에는 열린 폴더가 필요하지 않다. 폴더 선택·HTTP/CLI 실행·receipt와 검증 범위는 [플러그인 화면 계약](plugin-screens-v1.md)을 따른다. SDK·manifest의 기본 query 정의는 유지하고 저장 뷰 파일 열기/쓰기는 제거했다.
 
 ## 플러그인 설정과 연결 확인 (#1334)
 
@@ -328,7 +328,7 @@ manifest 화면은 기존 ViewWorkspace로 기본 뷰 내용을 바로 표시하
 
 ## 링크 열 SDK 0.3.0 (#1332)
 
-현재 SDK_VERSION과 패키지 버전은 `0.3.0`이며 Host는 `0.1.0`, `0.2.0`, `0.3.0` 계약을 구현한다. 기존 exact/caret 0.1 및 0.2 플러그인은 유지한다. 공개 read rowSchema의 string 열은 `linkField:"url"`로 같은 행의 다른 공개 string 필드를 링크 대상으로 지정한다. 링크 선언이 있으면 requiresSdk가 0.3.0 이상인 실제 지원 계약을 허용해야 하며 validate·등록·활성화에서 동일하게 거부한다. 권장 범위는 `>=0.3.0 <1.0.0`이다. 일반 파일 기능의 최소 버전은 여전히 0.2.0이다. 표시·키보드·URL 허용 및 행 보존은 [Table 링크 계약](generated-views-v1.md#table-link-columns-1332)을 따른다.
+현재 SDK_VERSION과 패키지 버전은 `0.3.0`이며 Host는 `0.1.0`, `0.2.0`, `0.3.0` 계약을 구현한다. 기존 exact/caret 0.1 및 0.2 플러그인은 유지한다. 공개 read rowSchema의 string 열은 `linkField:"url"`로 같은 행의 다른 공개 string 필드를 링크 대상으로 지정한다. 링크 선언이 있으면 requiresSdk가 0.3.0 이상인 실제 지원 계약을 허용해야 하며 validate·등록·활성화에서 동일하게 거부한다. 권장 범위는 `>=0.3.0 <1.0.0`이다. 일반 파일 기능의 최소 버전은 여전히 0.2.0이다. 표시·키보드·URL 허용 및 행 보존은 [Table 링크 계약](plugin-screens-v1.md#공통-table과-링크)을 따른다.
 
 ## 플러그인 화면 작업 패널 (#1340)
 
@@ -356,7 +356,7 @@ litzio plugins start example.plugin --job convert --root <root> --file a.pdf --f
 
 #1342 재검토 보완: 앱의 행별 `JobObservations` 세대가 사용자 상태 재확인·중단보다 오래된 polling 성공/오류를 모두 무시한다. 사용자 작업 응답 대기 중에는 같은 행의 polling을 보류하고 이후 다시 관찰한다. Host 작업은 직렬화하지 않으며 기존 공용 Plugin jobs에도 같은 보호를 적용한다. 제어 Promise 단위 회귀에서 관찰 보류 → 중단 접수 반영 → 오래된 성공/오류 도착 → 중단 상태 유지와 새 관찰 재개를 검증한다. 고정 대기나 브라우저 fault 시나리오는 추가하지 않는다.
 
-작업 섹션 제목은 ‘작업’이며 실패·불확실 안내는 행의 Info 아이콘 Tooltip으로 표시한다. 키보드 focus로 같은 안내를 연다. 결과 열기는 ghost/sm ‘열기’와 파일 이름을 포함한 접근성 이름을 쓴다. 파일 선택과 표는 내용 높이대로 펼쳐 페이지가 세로 스크롤을 소유하고 표에는 내부 가로 스크롤만 둔다. 기존 즐겨찾기 영역은 이번 변경에서 유지한다.
+작업 섹션 제목은 ‘작업’이며 실패·불확실 안내는 행의 Info 아이콘 Tooltip으로 표시한다. 키보드 focus로 같은 안내를 연다. 결과 열기는 ghost/sm ‘열기’와 파일 이름을 포함한 접근성 이름을 쓴다. 파일 선택과 표는 내용 높이대로 펼쳐 페이지가 세로 스크롤을 소유하고 표에는 내부 가로 스크롤만 둔다. 즐겨찾기 영역은 #1341에서 제거했다.
 
 ### Jira 커뮤니티 0.0.4 읽기 사례 (#1350, #1362)
 

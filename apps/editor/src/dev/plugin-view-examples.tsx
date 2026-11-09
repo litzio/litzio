@@ -1,4 +1,3 @@
-import { ChartExamples } from "./chart-examples.tsx";
 import { DataTable } from "../components/DataTable.tsx";
 import { useMemo, useState } from "react";
 import { parse, getEditableDocument } from "@litzio/core";
@@ -12,10 +11,10 @@ import { Button } from "../components/ui/button.tsx";
 import { Notice, FieldError } from "../ui/primitives.tsx";
 
 const columns = ["key", "summary", "status", "assignee", "updated", "priority", "project", "type", "reporter", "created", "labels", "count"];
-const query = queryViewSchema.parse({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.statistics", title: "예시: Issue search", refresh: "manual",
+const query = queryViewSchema.parse({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "fixture.issues", title: "예시: Issue search", refresh: "manual",
   sources: { stats: { kind: "operation", operation: "fixture.issues", version: 1, args: {} } },
   form: { component: "InputForm", source: "stats", fields: [{ component: "Select", field: "preset" }, { component: "TextInput", field: "text" }, { component: "DateInput", field: "date" }, { component: "Checkbox", field: "enabled" }], submit: { component: "SubmitButton", label: "Search" } },
-  layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Table — 예시: 좁은 표", source: "stats", data: "/rows", columns: columns.slice(0, 5) }, { component: "Table", title: "Table — 예시: 넓은 표(가로 스크롤)", source: "stats", data: "/rows", columns }, { component: "Chart", type: "bar", title: "예시: Issue count", source: "stats", data: "/rows", x: "key", y: "count" }] } });
+  layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Table — 예시: 좁은 표", source: "stats", data: "/rows", columns: columns.slice(0, 5) }, { component: "Table", title: "Table — 예시: 넓은 표(가로 스크롤)", source: "stats", data: "/rows", columns }] } });
 const schema: InputSchema = { properties: { preset: { type: "string", title: "Preset", enum: ["Assigned", "Reported", "All"] }, text: { type: "string", title: "Search text" }, date: { type: "string", format: "date", title: "Updated after" }, enabled: { type: "boolean", title: "Enabled" } } };
 const rows = [1, 2, 3].map(n => Object.fromEntries(columns.map(c => [c, c === "count" ? n * 3 : c === "key" ? `ISSUE-${n}` : c === "summary" ? `예시: Issue ${n}: a readable summary` : c === "status" ? "Open" : c === "updated" ? "2026-11-06" : `예시: ${c}`])));
 const review = reviewViewSchema.parse({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "예시: Review changes", refresh: "manual", sources: { review: { plugin: "fixture.review", review: "sample", bundleRef: "bundle" } }, layout: { component: "Panel", direction: "vertical", children: ["PageSurface", "SourceDocumentCompare", "ReviewList", "ReviewDetail"].map(component => ({ component, title: `예시: ${component}`, source: "review" })) } });
@@ -51,7 +50,7 @@ function reviewAdapter(mode: string): ReviewAdapter {
   };
 }
 
-export function GeneratedViewExamples({ state }: { state: string }) {
+export function PluginViewExamples({ state }: { state: string }) {
   const [profile, setProfile] = useState("query"), [queryState, setQueryState] = useState("success"), [reviewState, setReviewState] = useState("pending");
   const [args, setArgs] = useState<Record<string, unknown>>({});
   const mode = state === "error" ? "auth" : state === "disabled" ? "new-view" : queryState;
@@ -59,7 +58,7 @@ export function GeneratedViewExamples({ state }: { state: string }) {
   const view = { ...query, sources: { stats: { ...query.sources.stats, args } } };
   const loading = mode.startsWith("loading");
   const failure = ["auth", "forbidden", "not_found", "unavailable", "timeout", "new-view"].includes(mode) ? sourceFailure(new ViewOperationError(mode, false, mode === "new-view" ? "unavailable" : undefined)) : undefined;
-  return <section className="ui-gallery-section" aria-label="Generated views examples"><h2>Generated views</h2>
+  return <section className="ui-gallery-section" aria-label="Plugin views examples"><h2>Plugin views</h2>
     <p>Production catalog v2 renderers. Fixtures and actions stay in memory; no Host calls or persistence. For refreshing review, press Refresh data.</p>
     <ChoiceGroup aria-label="View profile" value={profile} onValueChange={setProfile} options={["query", "review"].map(value => ({ value, label: value }))} />
     <div className="ui-gallery-row"><ChoiceGroup aria-label="Generated view state" value={profile === "query" ? mode : reviewState} onValueChange={profile === "query" ? setQueryState : setReviewState} options={(profile === "query" ? queryStates : reviewStates).map(value => ({ value, label: stateLabels[value] }))} /></div>
@@ -71,7 +70,6 @@ export function GeneratedViewExamples({ state }: { state: string }) {
       {failure ? <Notice tone="error">{failure.message}</Notice> : null}
       <div aria-busy={loading}><ViewRenderer view={view} rows={["idle", "loading", "empty", "new-view"].includes(mode) ? undefined : rows} /></div>
     </div> : <ReviewRenderer key={reviewState} view={review} adapter={adapter} />}
-    <ChartExamples />
   </section>;
 }
 

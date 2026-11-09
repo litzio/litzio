@@ -423,9 +423,9 @@ test("operation invoke publishes declared public rows and refuses row-type misma
       assert.ok(!JSON.stringify(failure).includes("raw-response"));
     }
     const { executeViewOperation } = await import("../server/views.ts");
-    const { statisticsView, viewRequest } = await import("../src/views/view-api.ts");
-    const view = { ...statisticsView, schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "fixture.rows", sources: { stats: { kind: "operation", operation: "fixture.rows.read", version: 1, args: { mode: "error:auth" } } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Rows", source: "stats", data: "/rows", columns: ["points"] }] } };
-    const failedView = await executeViewOperation({ action: "run", root, view }, { access: new RootAccess([root]), plugins: host });
+    const { viewRequest } = await import("../src/views/view-api.ts");
+    const view = { kind: "litzio-view", title: "Rows", refresh: "manual", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "fixture.rows", sources: { stats: { kind: "operation", operation: "fixture.rows.read", version: 1, args: { mode: "error:auth" } } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Rows", source: "stats", data: "/rows", columns: ["points"] }] } };
+    const failedView = await executeViewOperation({ action: "run", view }, { access: new RootAccess([root]), plugins: host });
     assert.equal(failedView.errorKind, "auth", failedView.error); assert.equal(failedView.error, PLUGIN_ERROR_MESSAGES.auth);
     const client = { request: async () => new Response(JSON.stringify(failedView)) } as unknown as import("../src/host-client.ts").HostClient;
     await assert.rejects(viewRequest(client, {}), error => error instanceof Error && "kind" in error && error.kind === "auth" && !error.message.includes("private"));

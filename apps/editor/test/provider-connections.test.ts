@@ -1,4 +1,3 @@
-import { viewGenerationContext } from "../shared/view-generation.ts";
 import { compileViewInputSchema, queryViewSchema } from "@litzio/core/views-v2";
 import { assistantCliEnvironment } from "../server/assistant-cli.ts";
 import { brand } from "../../../brand.ts";
@@ -16,95 +15,6 @@ import { AssistantConversations } from "../server/assistant-conversations.ts";
 import { RootAccess, fileErrorMessage } from "../server/file-access.ts";
 
 export const fakeServer = fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url));
-
-test("view proposals pass the finite catalog through both stdio adapters with checked material snapshots and no tool access or transcript schema", async t => {
-  const root = mkdtempSync(path.join(tmpdir(), "view-adapters-"));
-  const codexLog = path.join(root, "codex.jsonl"), copilotLog = path.join(root, "copilot.jsonl");
-  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath, args: [fakeServer, codexLog] }, { bin: process.execPath, args: [fileURLToPath(new URL("./fixtures/copilot-acp.mjs", import.meta.url)), copilotLog] });
-  const conversations = new AssistantConversations(connection, new RootAccess([root]));
-  t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
-  const settings = { provider: "codex" as const, model: "gpt-6.1-sol", reasoningEffort: "medium", permissionMode: "full-access" as const };
-  writeFileSync(path.join(root, "a.md"), "Revenue A: 100");
-  writeFileSync(path.join(root, "b.md"), "Revenue B: 200");
-  const attached = [path.join(root, "a.md"), path.join(root, "b.md")];
-  const codex = await conversations.send({ ...settings, viewGeneration: true, references: attached, folders: [root], message: "Show a document chart" }, settings);
-  const request = await connection.client.request("fixture/tool", { threadId: codex.id, tool: "change_display_settings", arguments: {} });
-  assert.ok(request.error || request.result?.success === false, "view proposal cannot execute app tools");
-  await conversations.interrupt(codex.id);
-  const copilot = await conversations.send({ provider: "copilot", model: "copilot-model", reasoningEffort: "low", viewGeneration: true, references: attached, folders: [root], message: "Show a document chart" }, settings);
-  await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({ sessionId: copilot.id, modelId: "copilot-model" }));
-  assert.deepEqual(connection.copilot.permission!({ sessionId: copilot.id, toolCall: { toolCallId: "read", kind: "read", locations: [{ path: path.join(root, "doc.md") }] }, options: [{ optionId: "yes", name: "Yes", kind: "allow_once" }] }), { outcome: { outcome: "cancelled" } });
-  await conversations.interrupt(copilot.id);
-  const codexRpc = readFileSync(codexLog, "utf8").trim().split("\n").map(line => JSON.parse(line));
-  const turn = codexRpc.find(call => call.method === "turn/start");
-  const context = JSON.parse(turn.params.input[1].text.split("(JSON):\n")[1]);
-  assert.ok(context.viewGeneration.catalog.schema); assert.deepEqual(context.folders, [root]);
-  assert.deepEqual(context.viewGeneration.materials.map((item: any) => item.text), ["Revenue A: 100", "Revenue B: 200"]);
-  assert.ok(context.viewGeneration.materials.every((item: any) => item.provenance.kind === "reference"));
-  assert.equal(turn.params.sandboxPolicy.type, "readOnly");
-  assert.equal(codex.turns[0]!.items.find(item => item.kind === "user")?.text, "Show a document chart");
-  const acpRpc = readFileSync(copilotLog, "utf8").trim().split("\n").map(line => JSON.parse(line));
-  const prompt = acpRpc.find(call => call.method === "session/prompt").params.prompt[0].text;
-  assert.ok(prompt.includes('"viewGeneration"') && prompt.includes('"catalog"'));
-  assert.equal(copilot.turns[0]!.items[0]!.text, "Show a document chart");
-  assert.equal(copilot.permissionMode, "read-only");
-  assert.deepEqual(copilot.turns[0]!.items[0]!.viewGeneration, { correction: 0 });
-  const resumed = await new AssistantConversations(connection, new RootAccess([root])).resume(codex.id, settings);
-  assert.deepEqual(resumed.turns[0]!.items.find(item => item.kind === "user")!.viewGeneration, { correction: 0 });
-  for (const conversation of [codex, copilot]) {
-    const provider = conversation.provider ?? "codex";
-    const corrected = await conversations.send({ id: conversation.id, provider, model: conversation.model!, reasoningEffort: conversation.reasoningEffort!, viewGeneration: true, viewGenerationCorrection: 1, folders: [], message: "INTERNAL CORRECTION: return complete JSON" }, settings);
-    assert.equal(JSON.stringify(corrected).includes("INTERNAL CORRECTION"), false);
-    await conversations.interrupt(conversation.id);
-    const history = await new AssistantConversations(connection, new RootAccess([root])).resume(conversation.id, settings);
-    assert.equal(JSON.stringify(history).includes("INTERNAL CORRECTION"), false);
-    assert.equal(JSON.stringify(history).includes('"catalog"'), false);
-  }
-
-  // Current document is context identity only; explicit attachments supply material bytes.
-  for (const provider of ["codex", "copilot"] as const) {
-    const input = { provider, model: provider === "codex" ? settings.model : "copilot-model", reasoningEffort: provider === "codex" ? "medium" : "low", folders: [root], document: {path: attached[0]!}, message: "Use ordinary chat", viewContext: {owner:"litzio.assistant",hostId:"local",roots:[]} };
-    for (const references of [[], [attached[1]!]]) {
-      const ordinary = await conversations.send({...input,references},settings);
-      await conversations.interrupt(ordinary.id);
-      if (provider === "copilot") await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({sessionId:ordinary.id,modelId:input.model}));
-      const log = readFileSync(provider === "codex" ? codexLog : copilotLog,"utf8").trim().split("\n").map(line=>JSON.parse(line));
-      const call = log.filter(call=>call.method === (provider === "codex" ? "turn/start" : "session/prompt")).at(-1);
-      const text = provider === "codex" ? call.params.input[1].text : call.params.prompt[0].text;
-      const context = JSON.parse(text.split("(JSON):\n")[1]);
-      assert.deepEqual(context.document,{path:attached[0]});
-      assert.deepEqual(context.viewAuthoring.materials.map((item:any)=>item.text),references.length ? ["Revenue B: 200"] : []);
-      assert.equal(text.includes("Revenue A: 100"),false,"unattached current document bytes are not sent");
-    }
-  }
-
-  // Reuse the two existing adapter children: ordinary image transport is independent of view text snapshots.
-  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
-  const image = path.join(root,"ordinary.png"); writeFileSync(image,png);
-  for (const provider of ["codex","copilot"] as const) await t.test(`${provider} ordinary PNG keeps its original attachment transport`,async()=>{
-    const input = {provider,permissionMode:"read-only" as const,model:provider==="codex"?settings.model:"copilot-model",reasoningEffort:provider==="codex"?"medium":"low",folders:[root],references:[image],message:"Describe the attached image",viewContext:{owner:"litzio.assistant",hostId:"host-a",roots:[]}};
-    const ordinary = await conversations.send(input,settings);
-    await conversations.interrupt(ordinary.id);
-    if(provider==="copilot") await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({sessionId:ordinary.id,modelId:input.model}));
-    if(provider==="codex") {
-      const start=readFileSync(codexLog,"utf8").trim().split("\n").map(line=>JSON.parse(line)).filter(call=>call.method==="turn/start").at(-1).params;
-      assert.deepEqual(start.input[2],{type:"localImage",path:image});
-      assert.match(JSON.parse(start.input[1].text.split("(JSON):\n")[1]).viewAuthoring.unavailable,/UTF-8 text/);
-    } else {
-      const prompt=readFileSync(copilotLog,"utf8").trim().split("\n").map(line=>JSON.parse(line)).filter(call=>call.method==="session/prompt").at(-1).params.prompt[0].text;
-      assert.ok(prompt.includes(JSON.stringify({path:image,name:"ordinary.png",kind:"image"})));
-      assert.ok(!prompt.includes(png.toString("base64")));
-      assert.match(prompt,/UTF-8 text/);
-    }
-    assert.deepEqual(readFileSync(image),png);
-    await assert.rejects(conversations.send({...input,id:ordinary.id,viewGeneration:true},settings),/View text snapshots.*UTF-8 text/);
-    const supported=await conversations.send({...input,id:ordinary.id,references:[attached[0]!],viewGeneration:true},settings);
-    assert.equal(supported.turns.at(-1)!.status,"inProgress","removing an unsupported attachment restores text view capture");
-    await conversations.interrupt(supported.id);
-    if(provider==="copilot") await connection.copilot.call(async () => (await connection.copilot.connect()).unstable_setSessionModel({sessionId:supported.id,modelId:input.model}));
-  });
-
-});
 
 test("Copilot session creation errors retain a readable message across the Host error boundary", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "copilot-error-"));
@@ -473,29 +383,6 @@ test("dynamic document tools enforce turn scope and preserve results across proc
   t.after(async () => { await connection.close(); rmSync(root, { recursive: true, force: true }); });
   const conversation = await conversations.send(input, settings, "window-a");
   const call = async (tool: string, args: unknown, extra = {}) => (await connection.client.request("fixture/tool", { threadId: conversation.id, tool, arguments: args, ...extra }));
-  const catalogReply = (await call("view_catalog", {})).result;
-  assert.equal(catalogReply.success, true);
-  const authoringCatalog = JSON.parse(catalogReply.contentItems[0].text);
-  assert.ok(authoringCatalog.catalog.operations.length);
-  assert.equal(authoringCatalog.receipt.operation, "view.catalog");
-  assert.deepEqual(authoringCatalog.catalog, viewGenerationContext().catalog);
-  assert.equal("views" in authoringCatalog, false, "authoring must not expose Host contributed definitions");
-  const acceptsGeneratedView = compileViewInputSchema(authoringCatalog.catalog.schema);
-  assert.equal(acceptsGeneratedView({ kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
-    sources: { review: { plugin: "example.demo", review: "compare", bundleRef: "bundle-1" } },
-    layout: { component: "Panel", direction: "vertical", children: [{ component: "PageSurface", title: "Page", source: "review" }] } }), true);
-  assert.match(JSON.stringify(authoringCatalog.catalog.schema), /ReviewList|ReviewDetail|PageSurface|SourceDocumentCompare/);
-  const view = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.statistics", title: "Statistics", refresh: "manual", sources: { stats: { kind: "operation", operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "Documents", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } };
-  const generatedView = queryViewSchema.parse(view);
-  assert.equal(acceptsGeneratedView(generatedView), true);
-  assert.equal(acceptsGeneratedView({ ...generatedView, form: { component: "InputForm", source: "stats", fields: [], submit: { component: "SubmitButton", label: "Search" } } }), true);
-  assert.equal((await call("propose_view", { view: {} })).result.success, false);
-  assert.equal((await call("propose_view", { view: {} })).result.success, false);
-  const proposalReply = (await call("propose_view", { view })).result;
-  assert.equal(proposalReply.success, true);
-  assert.equal(JSON.parse(proposalReply.contentItems[0].text).receipt.operation, "view.propose");
-  assert.equal(JSON.parse(proposalReply.contentItems[0].text).view.title, view.title);
-  assert.match(JSON.stringify(await call("propose_view", { view })), /correction limit/);
   const handler = connection.client.toolCall!;
   let arrived: (() => void) | undefined;
   connection.client.toolCall = params => { const reply = handler(params); arrived?.(); return reply; };
@@ -599,40 +486,8 @@ test("dynamic document tools enforce turn scope and preserve results across proc
     const persistedTemplate = resumed.turns[0]!.items.find(item => item.text === "create_document" && item.toolResult?.success && item.toolResult.contentItems?.some(content => content.type === "inputText" && typeof content.text === "string" && JSON.parse(content.text).path === templateFile));
     assert.deepEqual(persistedTemplate?.toolResult, fromTemplate);
     const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["view_catalog", "propose_view", "create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template"]);
+    assert.deepEqual(rpc.find(entry => entry.method === "thread/start").params.dynamicTools.map((tool: any) => tool.name), ["create_document", "read_document", "list_documents", "read_display_settings", "change_display_settings", "list_templates", "read_template", "save_template"]);
     assert.equal("dynamicTools" in rpc.find(entry => entry.method === "thread/resume").params, false);
-    // View capture cannot change the outcome of reads already executed in ordinary chat.
-    const viewContext={owner:"litzio.assistant",hostId:"host-a",roots:[]};
-    const small=path.join(folder,"small.md"),large=path.join(folder,"large.md");
-    const largeSource="---\nlitzio: 1\n---\n\n"+"x".repeat(1048576);
-    writeFileSync(small,"---\nlitzio: 1\n---\n\nSmall.\n");writeFileSync(large,largeSource);
-    const oversized=await history.send({...input,references:[large],viewContext},settings);
-    const readLarge=await next.client.request("fixture/tool",{threadId:oversized.id,tool:"read_document",arguments:{path:large}});
-    assert.equal(readLarge.result.success,true);
-    assert.equal(JSON.parse(readLarge.result.contentItems[0].text).source,largeSource);
-    await next.client.request("fixture/finish",{threadId:oversized.id});
-    await assert.rejects(history.send({...input,id:oversized.id,viewContext,viewGeneration:true},settings),/View material exceeds context limit/);
-    const repeated=await history.send({...input,viewContext},settings);
-    const tool=(name:string,args:unknown)=>next.client.request("fixture/tool",{threadId:repeated.id,tool:name,arguments:args});
-    let last:any;const began=Date.now();
-    for(let n=1;n<=64;n++) { last=(await tool("read_document",{path:small})).result;assert.equal(last.success,true,`ordinary read ${n}`); }
-    const provenance=JSON.parse(last.contentItems.at(-1).text).viewProvenance;
-    const snapshot={kind:"litzio-view",schemaVersion:2,catalog:"litzio-v2",profile:"query",owner:"litzio.assistant",title:"Example",refresh:"assistant",sources:{stats:{kind:"assistant",generatedAt:"2026-11-06T00:00:00.000Z",rowSchema:{total:{type:"number",label:"Total"}},rows:[{total:1}],provenance:[provenance]}},layout:{component:"Panel",direction:"vertical",children:[{component:"Table",title:"Example",source:"stats",data:"/rows",columns:["total"]}]}};
-    assert.equal((await tool("propose_view",{view:snapshot})).result.success,true,"64 read snapshots remain available");
-    assert.equal((await tool("read_document",{path:small})).result.success,true,"65th ordinary read still succeeds");
-    const rejected=(await tool("propose_view",{view:snapshot})).result;
-    assert.equal(rejected.success,false);assert.match(JSON.stringify(rejected),/View material exceeds context limit/);
-    t.diagnostic(`65 public reads at the provenance boundary took ${Date.now()-began}ms; reuse the existing fixture child.`);
-    await next.client.request("fixture/finish",{threadId:repeated.id});
-    const restored=new AssistantConversations(next,new RootAccess([root]));
-    await restored.resume(repeated.id,settings);
-    const continued=await restored.send({...input,id:repeated.id,viewContext},settings);
-    assert.equal(continued.turns.at(-1)!.status,"inProgress","ordinary history collection cannot block a subsequent message");
-    const continuedRpc=readFileSync(log,"utf8").trim().split("\n").map(line=>JSON.parse(line)).filter(call=>call.method==="turn/start").at(-1);
-    const unavailable=JSON.parse(continuedRpc.params.input[1].text.split("(JSON):\n")[1]).viewAuthoring;
-    assert.match(unavailable.unavailable,/context limit/);assert.deepEqual(unavailable.materials,[],"no partial history snapshot is offered as complete");
-    await next.client.request("fixture/finish",{threadId:repeated.id});
-    await assert.rejects(restored.send({...input,id:repeated.id,viewContext,viewGeneration:true},settings),/View material exceeds context limit/);
 
   } finally { await next.close(); }
 });

@@ -222,11 +222,11 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const definition = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "review", title: "Review", refresh: "manual",
       sources: { review: { plugin: base.plugin, review: base.review, bundleRef: base.bundleRef } },
       layout: { component: "Panel", direction: "vertical", children: [{ component: "ReviewDetail", title: "Change", source: "review" }] } };
-    for (const action of ["validate", "propose"]) {
+    for (const action of ["validate"]) {
       const proposedView = await send("/api/views", { action, view: definition });
       assert.equal(proposedView.receipt.outcome, "success"); assert.equal(proposedView.view.profile, "review");
     }
-    assert.equal((await read()).data.length, 0, "View proposals do not submit document changes");
+    assert.equal((await read()).data.length, 0, "View validation does not submit document changes");
     const client = createHostClient(origin);
     let loseResponse = false, statusOverride: string | undefined;
     const requests: any[] = [];
@@ -243,7 +243,7 @@ test("K1 completed review bundle through product HTTP and CLI approval/rejection
     const initial = (await snapshotRead()).snapshot;
     assert.equal(initial.page, undefined); assert.equal(initial.pageCount, 0);
     assert.equal(initial.documentPath, path.join(root, "doc.md")); assert.equal(initial.documentRevision, revision);
-    const invalidView = await fetch(origin + "/api/views", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ action: "propose", view: { ...definition, sources: { review: { ...definition.sources.review, bundleRef: "other-host" } } } }) });
+    const invalidView = await fetch(origin + "/api/views", { method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ action: "validate", view: { ...definition, sources: { review: { ...definition.sources.review, bundleRef: "other-host" } } } }) });
     assert.equal(invalidView.status, 400); await invalidView.arrayBuffer();
 
     const cli = async (action: string, proposalId?: string, expectedCode = 0, observedRequestId?: string, reference = base, kind?: "snapshot") => {

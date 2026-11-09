@@ -66,25 +66,21 @@
 
 “코어 플러그인”은 `@litzio/core` 문서 엔진과 혼동되므로 쓰지 않는다. 두 계층은 같은 manifest·SDK·권한을 사용하며 공식 전용 내부 API는 없다. 커뮤니티 기본 실행 차단은 명시적 신뢰를 위한 절차이며 sandbox나 실행 후 격리 보장이 아니다. 비서는 플러그인과 무관한 제품 기능이다. Docling은 공식 유지 대상이 아니며 재개 시 커뮤니티 계층으로 다룰 수 있다.
 
-## 플러그인 구조와 공통 UI (ADR-0020, 미구현)
+## 플러그인 화면과 공통 UI (ADR-0020)
 
-아래는 [ADR-0020](../adr/0020-plugin-architecture.md)의 승인 용어다. 형식·작업 이름은 초안이며 현재 제품 제공이나 구현 재개를 뜻하지 않는다.
+현재 용어와 동작은 [ADR-0020](../adr/0020-plugin-architecture.md) 및 [플러그인 화면 계약](../design/plugin-screens-v1.md)을 따른다.
 
-| 개념 | 한국어 UI | 영어 UI | 코드·API 초안 | 문서 용어 |
+| 개념 | 한국어 UI | 영어 UI | 코드·API | 문서 용어 |
 | --- | --- | --- | --- | --- |
-| 앱이 연결할 수 있는 선언된 확장 위치 | 기여 지점 | Contribution point | `contributions` | 기여 지점: 공용 작업·폴더·계정/설정·뷰 등; 임의 코드 주입점 아님 |
-| 앱 소유 컴포넌트의 허용 목록 | UI 카탈로그 | UI catalog | `catalog` | 앱 번들 UI 카탈로그; 최초 Table·BarChart·세로 패널 |
-| 조회·바인딩·표현의 공통 정의 | UI 명세 | UI specification | `schemaVersion`, `sources`, `panels` | UI 명세; 일시적 생성 UI와 저장된 뷰가 같은 형식 사용 |
-| 비서가 대화 중 만든 일시적 UI | 생성 UI | Generated UI | 공통 UI 명세 | 생성 UI; 동적 UI라고도 설명하며 원격 JS/CSS 생성·실행을 뜻하지 않음 |
-| 이름 있는 동적 UI 상태(명세 + 질의)를 고정한 것 | 즐겨찾기 뷰 | Favorite view | `.view.json`, `view.validate/save/run` | ★ 즐겨찾기에 추가·즐겨찾기 목록; 생성 UI와 같은 앱 렌더러, LLM 없이 재열기, 수동 재조회 |
-| 즐겨찾기 뷰의 저장 개념·파일 형식 설명 | 저장된 뷰 | Saved view | `.view.json` | 즐겨찾기 뷰와 같은 개념. 사용자 표시 이름은 즐겨찾기 뷰이며 별도 형식이 아님 |
-| 뷰를 계속 열어 쓰는 사용 형태 | 대시보드 | Dashboard | 공통 UI 명세·렌더러 | 대시보드; 별도 UI 형식·자동 실시간 갱신을 뜻하지 않음 |
-| 실행 데이터까지 고정한 정적 산출물 | 스냅샷 | Snapshot | `.snapshot.json` | 뷰 데이터 스냅샷; 표현·데이터·조회 시각·조건·receipt 포함, 질의 재실행 권한 없음 |
+| 앱이 연결할 수 있는 선언된 확장 위치 | 기여 지점 | Contribution point | `contributes` | 공용 작업·화면·설정 등; 임의 코드 주입점 아님 |
+| 플러그인 기본 화면 진입 | 플러그인 화면 | Plugin screen | `contributes.screens` | 기본 조회와 선택적 작업 패널; Host별 사이드바·탭 |
+| 조회·입력·표현의 공통 정의 | 조회 명세 | Query view | `contributes.views`, `schemaVersion`, `sources`, `layout` | 등록된 read operation·입력 폼·세로 Panel·Table |
+| 앱 소유 컴포넌트의 허용 목록 | UI 카탈로그 | UI catalog | `catalog` | 공통 Table·입력 폼·review 렌더러; Chart·가로 Panel 없음 |
 | 플러그인의 연결별 설정 단위 | 연결 | Connection | `connectionId` | 플러그인 연결; Host 등록·AI 공급자 연결과 맥락을 구별 |
 
-고정 UI는 동적 UI를 멈춰 놓은 것이다. 저장은 같은 UI 명세를 파일로 고정하며 데이터 고정은 별도 스냅샷으로 구분한다. 여기서 뷰 데이터 스냅샷은 ADR-0013의 작업 입력 자료 스냅샷이나 문서 read model snapshot과 다른 산출물이다. 2026-11-05 ADR-0020 개정은 비서 플러그인 관리의 건별 승인을 제거하고 활동 기록으로 대체한다. 구현 전 현재 동작의 매 호출 확인과 구분한다. secret 값은 사용자가 앱 설정 UI로 직접 입력한다.
+#1341에서 생성 UI·즐겨찾기 뷰·저장된 뷰·뷰 데이터 스냅샷을 제거했다. 이전 용어와 형식은 [Historical 생성 뷰 계약](../design/generated-views-v1.md)에 보존한다. 일반 문서 read model과 review·작업 결과의 snapshot은 이 제거 대상과 다른 개념이다.
 
-ADR-0020의 별도 소유자 개시로 [플러그인 1단계](../design/plugin-stage1-v1.md)를 구현한다. 현재 manifest 기여 필드는 `contributes`, 계층은 `tier`이며 생성 UI·저장 뷰·secret runtime은 계속 후속 범위다. 현재 구현은 전체 접근에서도 `manage_plugins`의 매 호출 확인을 요구한다. 승인 제거·활동 기록은 후속 구현 대상이다.
+현재 SDK·secret·비서 관리와 제작 작업은 [플러그인 1단계](../design/plugin-stage1-v1.md)를 따른다. manifest 기여 필드는 `contributes`, 계층은 `tier`다. secret 값은 사용자가 앱 설정 UI로 직접 입력한다.
 
 ### 비서 플러그인 제작 로드맵 용어
 

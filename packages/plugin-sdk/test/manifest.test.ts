@@ -64,7 +64,7 @@ test("v2 view and review contributions validate local bindings before entry exec
   const snapshot = structuredClone(screened) as any;
   snapshot.contributes.views[0].definition.refresh = "assistant";
   snapshot.contributes.views[0].definition.sources.stats = { kind: "assistant", generatedAt: "2026-11-06T00:00:00.000Z", rowSchema: { title: { type: "string", label: "Title" } }, rows: [{ title: "Saved result" }], provenance: [{ kind: "reference", label: "Source", refId: "ref-1" }] };
-  assert.equal(validateManifest(snapshot).contributes.screens.length, 1);
+  assert.throws(() => validateManifest(snapshot));
 
   for (const change of [
     (v: any) => v.contributes.screens.push(screen),

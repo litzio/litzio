@@ -2,7 +2,7 @@
 
 - Status: Implemented
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Concurrent/repeated Host close calls share one shutdown promise, including its failure. A send waiting for plugin startup rechecks assistant shutdown before provider admission. Request paths, lazy plugin start, receipts and stored formats are unchanged.
-- Generated views (#1210): Generate view uses the selected provider/model/effort and existing conversation, sends a finite catalog context with bounded snapshots of checked saved attachments and completed public tool results, validates completed output through Core/Host and opens a new task tab. Validation errors are visible and returned to the same conversation at most twice; transport/provider failure has no fallback. Generation is read-only and app tools are blocked. Stop and the 180-second deadline abort pending fetches and release controls; a prepared Host handle retains cancellation until the exact provider turn is known. App-owned generation progress/errors support English and Korean. See [Generated views v1](generated-views-v1.md) for manual refresh, favorites, bounds and actual Codex/fake Copilot verification.
+- Dynamic UI removal (#1341, 2026-11-09): assistant view tools, generation/correction, material snapshots, result cards, favorites and saved views are removed. Ordinary conversations, references, document tools and requestUserInput remain. Retained plugin screens/query/Table and review boundaries are defined in [Plugin screens v1](plugin-screens-v1.md); [Generated views v1](generated-views-v1.md) is Historical.
 - Last verified: 2026-11-05 — master 303e9a1의 Host 등록·탭·비서·템플릿 진입 코드를 정적 대조. 문서 검사 수행; 실제 원격 연결·제품 실행은 재검증하지 않음.
 - Terminology: [제품 용어집](../contributing/terminology.md); PR B completed the assistant code/API naming transition.
 - Official AI transition: 2026-11-04 (#1150 ③). `assistant-host.ts` composes connections/conversations directly; the official AI itself requires no registration, manifest or plugin worker. Owner-initiated ADR-0020 plugin management is a separate Host feature (see Plugin stage 1 below). Settings use the built-in Settings → Assistant category with the shared Button, SettingsSelect and Dialog components. No UI pattern exception. Protocol version 4 refuses older daemons.
@@ -28,19 +28,16 @@ are defined in [Copilot conversations](#copilot-conversations-1053).
 
 > 2026-11-05 결정 개정: [ADR-0020 비서 제작 로드맵](../adr/0020-plugin-architecture.md#비서-플러그인-제작-로드맵2026-11-05-개정)은 하위 프로세스 reload·제작 키트·관리 건별 승인 제거와 활동 기록을 결정했다. 아래 매 호출 확인 등은 현재 구현의 기록이며 새 결정의 완료 증거가 아니다. 해당 구현 PR에서 함께 갱신한다.
 
-## 명시적 생성 버튼 제거 (2026-11-06)
+## 비서 뷰 기능 제거 (#1341, 2026-11-09)
 
-소유자 결정으로 composer의 Generate view와 전용 요청을 준비하는 Ask assistant 버튼을
-통계·생성 탭·문서 우측 보기·플러그인 화면에서 제거했다. 아래 Generate view 관련 기록은
-유지된 내부 Host/CLI 생성 기능과 과거 검증 기록이며 현재 UI 진입점을 뜻하지 않는다.
-일반 Send 대화의 view_catalog/propose_view, 검증 결과 카드·새 탭·즐겨찾기는 유지한다.
-Copilot 일반 대화에는 동적 뷰 도구가 없으며 기존 CLI 대안의 한계도 그대로다.
+#1306에서 전용 Generate view·Ask assistant 진입을 제거한 뒤, #1341에서 일반 Send의
+view_catalog/propose_view와 내부 Host/CLI 생성·교정·자료/출처·결과 카드·즐겨찾기를 제거했다.
+아래 생성 관련 실행·캡처 기록은 Historical이며 현재 제공 기능이나 검증 경로를 뜻하지 않는다.
+남는 플러그인 화면·조회·표와 review 경계는 [플러그인 화면 계약](plugin-screens-v1.md)을 따른다.
 
-일반 대화는 첨부하지 않은 현재 문서의 경로만 전달한다. 현재 문서 본문을 자동 snapshot으로
-수집하지 않는다. 명시적으로 첨부한 저장 UTF-8 자료와 이전의 성공한 공개 도구 결과는 선택적
-뷰 context로 전달될 수 있다. 이 context의 1 MiB/64개 출처 상한은 일반 문서 읽기의 상한이
-아니며, 초과해도 원래 첨부/도구 결과는 보존하고 뷰 context만 unavailable로 표시한다.
-전용 내부 생성 경로의 저장 현재 문서 자동 첨부와 구분한다. 사용자 데이터 migration은 없다.
+일반 대화는 첨부하지 않은 현재 문서의 경로만 전달한다. 현재 문서 본문이나 이전 도구 결과를
+뷰 생성용 snapshot으로 자동 수집하지 않는다. 명시적 파일 참조와 문서 읽기 도구는 유지한다.
+사용자 데이터 migration은 없다.
 
 ## 공급자 원본 로그 외부 열기 (#1304)
 
@@ -972,7 +969,7 @@ Chrome scenarios cover ordinary `@` text without folder queries, explicit local/
 attachment, Host mismatch rejection and remote send rejection preserving text/chips.
 Existing provider tests own limit/deduplication/RootAccess/hidden/deleted/symlink checks.
 These are HTTP fixtures and fake providers, not real OneDrive or remote OS acceptance.
-Integration with #1301/#1306 (2026-11-06) preserves the ordinary Send view-tool
+Historical integration with #1301/#1306 (2026-11-06) preserved the ordinary Send view-tool
 route and removal of dedicated generation buttons, Copilot model/effort rejection
 recovery without automatic retry, and this Host-bound reference draft. Existing
 `assistant`, `multi-host` and production-HTTP `generated-views` scenarios cover the
@@ -1010,7 +1007,7 @@ surface. This does not establish deletion from earlier commits or external cache
 These captures precede integration of #1306: the dedicated Generate view button
 visible in them is removed in the integrated UI; the approved Explorer/Host attachment
 layout remains unchanged. Current ordinary-Send view behavior follows the
-[#1306 contract](#명시적-생성-버튼-제거-2026-11-06).
+[current removal contract](#비서-뷰-기능-제거-1341-2026-11-09).
 
 Removable chips above the input show only file names; shared Tooltip exposes the
 full path on hover/focus. No file-type-specific presentation or read indicator is
@@ -1413,9 +1410,11 @@ Codex의 Host 플러그인 관리 도구는 `scaffold`와 `validate`를 포함�
 
 ## Model input and visible history (#1270)
 
-Both providers carry the exact user message in the structured Litzio context. File/document paths, selected skill references, plugin authoring instructions and Generate view catalog/correction context are model input only. Live and resumed conversation API user items restore only the original message and reference chips, including when provider history flattens text inputs. Internal instruction bodies are never conversation bubbles. Generate view correction continues to use the existing short correction status. Provider-owned transcripts retain model inputs; Litzio does not copy them into its conversation index. No migration or historical-format compatibility is provided.
+Both providers carry the exact user message in the structured Litzio context. File/document paths, selected skill references and plugin authoring instructions are model input only. Live and resumed conversation API user items restore only the original message and reference chips, including when provider history flattens text inputs. Internal instruction bodies are never conversation bubbles. Provider-owned transcripts retain model inputs; Litzio does not copy them into its conversation index. No migration or historical-format compatibility is provided.
 
 ### Dynamic view material snapshots (D4)
+
+Historical: this view-generation material/provenance path was removed in #1341. The following describes the earlier implementation.
 
 The app supplies its registered Host identity and opaque Root IDs from existing folder listings. The Host recomputes each ID from filesystem identity and checks the existing opened-folder boundary before reading attached saved files. These bytes and completed public tool results are bounded read-only context, separate from the human transcript. Unsaved editor content is not sent. Corrections retain the initial snapshot and selected model. Cards, document views and plugin screens share provenance and complete-row inspection; source opening rechecks Root identity before using the existing document-open path and its unsaved-work protection. Display identities are not authentication or factual verification.
 
