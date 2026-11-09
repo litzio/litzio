@@ -78,10 +78,8 @@ export function QueryViewPage({ tab, client, unavailable:explicitUnavailable }: 
     } finally { if (!lifetime.current?.signal.aborted) setBusy(false); }
   };
   return <div className="views-page" data-testid="plugin-query-view">
-    <header><h2>{tab.label ?? view.title}</h2><p>{hostLabel(tab.hostId)}</p></header>
-    <div className="view-controls">
-      {!view.form ? <Button variant="secondary" size="sm" disabled={unavailable || busy || !operation} onClick={() => void query()}>{i18n.t("Refresh data")}</Button> : null}
-    </div>
+    {!tab.screen ? <header><h1>{tab.label ?? view.title}</h1><p>{hostLabel(tab.hostId)}</p></header> : null}
+    {!view.form ? <div className="view-controls"><Button variant="secondary" size="sm" disabled={unavailable || busy || !operation} onClick={() => void query()}>{i18n.t("Refresh data")}</Button></div> : null}
     {view.form ? <form className="view-query-form" noValidate onSubmit={event => { event.preventDefault(); void query(); }}>
       {schema ? <QueryInputs actions={<Button type="submit" disabled={unavailable || busy || !schema}>{view.form.submit.label}</Button>} client={unavailable ? undefined : client} suggestions={operation?.inputSuggestions} hints={operation?.inputHints} view={view} schema={schema} errors={inputErrors.fields} change={(field, value, remove) => { setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; }); setInputErrors(emptyInputErrors()); }} /> : null}
     </form> : null}

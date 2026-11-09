@@ -260,7 +260,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
       }
       await page.setViewportSize({ width, height: 900 });
       await panel.scrollIntoViewIfNeeded();
-      await panel.getByRole("heading", { name: width === 640 ? "작업" : "Jobs", exact: true }).first().scrollIntoViewIfNeeded();
+      await page.getByTestId("view-workspace").filter({ visible: true }).getByRole("heading", { name: "Job fixture", exact: true }).scrollIntoViewIfNeeded();
       await expect(panel.getByRole("row").nth(1).getByRole("cell").first()).toHaveText("input.txt");
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
       if (width === 640) {
@@ -275,7 +275,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
         await page.keyboard.press("Escape");
         await nativeRow.getByRole("cell").first().click();
       }
-      await panel.getByRole("heading", { name: width === 640 ? "작업" : "Jobs", exact: true }).first().scrollIntoViewIfNeeded();
+      await page.getByTestId("view-workspace").filter({ visible: true }).getByRole("heading", { name: "Job fixture", exact: true }).scrollIntoViewIfNeeded();
       await page.screenshot({ path: `tmp/plugin-jobs/panel-${width}.png`, maskColor: "#a1a1aa", mask: [page.locator(".sidebar-host-account"), panel.getByLabel(width === 640 ? "열린 폴더" : "Opened folder", { exact: true })] });
     }
     // Screenshot-only scroll inspection; this is separate from the user-flow assertions.

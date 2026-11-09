@@ -34,12 +34,21 @@ async (page, { expect, screenshots, openFolderPicker, openPath }) => {
   await openPath(page, [root, 'fixture', 'a.md'].join(sep));
   const outline = page.getByRole('button',{name:'Outline',exact:true});
   if(await outline.getAttribute('aria-pressed') !== 'true') await outline.click();
+  const documentPanel = page.getByTestId('document-panel');
+  await expect(documentPanel).toBeVisible();
+  await documentPanel.getByRole('separator', { name: 'Document panel width' }).press('ArrowLeft');
+  const panelWidth = await documentPanel.evaluate(el => el.getBoundingClientRect().width);
   await expect(page.getByRole('tab',{name:'Views',exact:true})).toHaveCount(0);
   await expect(page.getByRole('button',{name:'Document statistics',exact:true})).toHaveCount(0);
   if(screenshots) await page.screenshot({path:'tmp/1341-evidence/removed-surfaces-1440.png',mask:[page.locator('.sidebar-host-account')]});
   await page.locator('.sidebar').getByRole('button',{name:'Fixture issues',exact:true}).click();
   const generated = () => page.locator('[data-testid="plugin-query-view"]:visible');
   await expect(generated()).toBeVisible();
+  await expect(documentPanel).toBeHidden();
+  const workspace = page.getByTestId('view-workspace').filter({ visible: true });
+  await expect(workspace.getByRole('heading', { level: 1 })).toHaveText('Fixture issues');
+  await expect(workspace.getByRole('heading', { name: 'Issue search', exact: true })).toHaveCount(0);
+  await expect(workspace.getByRole('region', { name: 'Default views', exact: true })).toHaveCount(0);
   expect(queries).toBe(0);
   await expect(generated().getByRole('button',{name:'Add to favorites',exact:true})).toHaveCount(0);
   await expect(generated().getByRole('combobox', { name: 'Preset *', exact: true })).toHaveValue('0');
@@ -80,9 +89,21 @@ async (page, { expect, screenshots, openFolderPicker, openPath }) => {
   release(); hold = undefined;
   await expect(generated().locator('th')).toHaveCount(5);
   await expect(generated().getByText(/Search conditions changed/)).toBeVisible();
+  await page.getByRole('tab', { name: 'a.md', exact: true }).click();
+  await expect(documentPanel).toBeVisible();
+  expect(await documentPanel.evaluate(el => el.getBoundingClientRect().width)).toBe(panelWidth);
+  await outline.click();
+  await page.getByRole('tab', { name: 'Fixture issues', exact: true }).click();
+  await expect(generated().getByLabel('Text', { exact: true })).toHaveValue('changed');
+  await expect(generated().getByRole('cell', { name: 'ISSUE-42', exact: true })).toBeVisible();
+  await page.getByRole('tab', { name: 'a.md', exact: true }).click();
+  await expect(documentPanel).toBeHidden();
+  await page.getByRole('tab', { name: 'Fixture issues', exact: true }).click();
   for (const width of [640, 960, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     expect(await generated().evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    expect(await workspace.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   }
   hostInputRefusal = true;
   await generated().getByRole('button', { name: 'Search', exact: true }).click();

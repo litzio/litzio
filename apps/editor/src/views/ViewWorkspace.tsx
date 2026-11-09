@@ -43,11 +43,12 @@ export function ViewWorkspace({ roots = [], jobsActive = true, id, hostId, root,
   const active = connected && !!contribution;
   const defaults = catalog?.views?.filter(v => v.plugin === owner && screen.defaultViewIds.includes(v.id)) ?? [];
   return <div className="view-workspace" data-testid="view-workspace">
+    <h1>{screen.title}</h1>
     {hostRegistry.list().length > 1 && onHost ? <div className="view-controls"><label>{i18n.t("Host")}<select className="form-select settings-select" value={hostId} onChange={event => onHost(event.target.value)}>{hostRegistry.list().map(h => <option value={h.hostId} key={h.hostId}>{hostLabel(h.hostId)}</option>)}</select></label></div> : null}
     {!active ? <Notice>{i18n.t("Unavailable")}</Notice> : null}
     {problem ? <Notice tone="error">{problem}</Notice> : null}
     {contribution?.jobs?.length ? <PluginJobPanel key={`${hostId}:${owner}:${screen.id}`} client={client} plugin={owner} jobIds={contribution.jobs} roots={roots} active={active && jobsActive} onOpen={async path => { onOpenDocument?.(path, hostId); }} /> : null}
-    {defaults.length > 1 ? <section aria-label={i18n.t("Default views")}><h3>{i18n.t("Default views")}</h3>{defaults.map(v => <Button key={v.id} size="sm" variant="ghost" disabled={!active} aria-pressed={selected === v.id} onClick={() => {
+    {defaults.length > 1 ? <section className="view-controls" aria-label={i18n.t("Default views")}>{defaults.map(v => <Button key={v.id} size="sm" variant="ghost" disabled={!active} aria-pressed={selected === v.id} onClick={() => {
       setPages(previous => previous[v.id] ? previous : { ...previous, [v.id]: v.definition }); setSelected(v.id);
     }}>{v.title}</Button>)}</section> : null}
     {Object.entries(pages).map(([key, definition]) => <div key={key} hidden={selected !== key} inert={selected !== key}><Views tab={{ id, hostId, root, screen, view: definition }} client={client} onOpenDocument={onOpenDocument} unavailable={!active} /></div>)}

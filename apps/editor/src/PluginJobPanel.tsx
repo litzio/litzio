@@ -74,7 +74,6 @@ export function PluginJobPanel({ client, plugin, jobIds, roots, active, onOpen }
     finally { if (!signal.aborted) setBusy(false); }
   };
   return <section className="view-panel plugin-job-panel" data-testid="plugin-job-panel" aria-label={i18n.t("Plugin jobs")}>
-    <h3>{i18n.t("Jobs")}</h3>
     {jobIds.length > 1 ? <SettingsSelect label={i18n.t("Job")} value={selected} disabled={!active || busy} onChange={value => { setSelected(value); setFiles([]); }} options={bindings.filter(job => jobIds.includes(job.id)).map(job => ({ value: job.id, label: job.title }))} /> : null}
     <SettingsSelect label={i18n.t("Opened folder")} value={enabled ? root : ""} disabled={!active || busy} onChange={value => { if (value !== root) { setRoot(value); resetFolder(""); } }} options={[{ value: "", label: "—" }, ...roots.map(value => ({ value, label: value }))]} />
     {folder ? <div className="view-controls"><span>{folder}</span><Button variant="secondary" size="sm" disabled={busy} onClick={() => resetFolder("")}>{i18n.t("Return to opened folder")}</Button></div> : null}

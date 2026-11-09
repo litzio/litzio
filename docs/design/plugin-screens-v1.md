@@ -13,6 +13,21 @@ manifest `contributes.screens`는 id/title/icon, `defaultViewIds`, 선택적 `jo
 
 `ViewWorkspace`는 화면 선택과 작업 패널, `Views`는 query/review 분기, `QueryViewPage`는 입력·조회 상태, `ViewRenderer`·`ViewPanels`는 세로 배치와 공통 `DataTable`을 소유한다. review renderer는 `ReviewViewPage`·`ReviewRenderer`와 `/api/reviews`를 사용하며 [review Host·CLI 계약](plugin-stage1-v1.md#v4-공용-review-hostcli)을 따른다. `screens[].jobs`는 [공통 작업 패널](plugin-stage1-v1.md#플러그인-화면-작업-패널-1340)을 따른다.
 
+### 공통 화면 틀 (#1393)
+
+플러그인 작업 탭에서는 문서 전용 오른쪽 탐색 패널과 그 예약 폭을 숨긴다. 탭 종류로 판단하며 플러그인별 예외를 두지 않는다. 문서 탭으로 돌아오면 기존 패널 열림 선택과 폭을 복원한다. 패널 preference나 마운트된 작업·조회 상태를 초기화하지 않는다.
+
+`ViewWorkspace`가 페이지 여백(`--space-6`)과 세로 스크롤을 소유한다. 내부 조회 페이지에는 여백을 더하지 않아 작업 패널·조회 입력·결과의 왼쪽 시작선을 맞춘다. 표는 기존 내부 가로 스크롤로 전체 열을 보존하고 640px에서 페이지 자체를 가로로 넘치게 하지 않는다.
+
+화면 제목은 manifest screen.title 하나이며 기존 24px `--font-size-start-title`·semibold·text 토큰을 사용한다. 여러 기본 조회의 선택 버튼은 유지하되 ‘기본 뷰’라는 내부 구성 제목과 선택된 조회의 별도 페이지 제목은 표시하지 않는다. 단일 Host 이름은 조회마다 반복하지 않고, 복수 Host 선택 control은 유지한다. 작업 패널의 ‘작업’ 제목도 반복하지 않는다. 결과 표의 내용 구분 제목과 접근 가능한 표 이름은 유지한다. 기존 Button·SettingsSelect·Notice·DataTable을 재사용하며 새 표면·공통 상호작용 예외는 없다.
+
+2026-11-10 수동 화면 확인: 같은 Jira·Docling manifest와 합성 응답, persistent Chrome·전용 HTTP Host로 제목 위계·시작선·정렬·줄바꿈·잘림을 비교했다. 1440px Jira 기본 7열은 화면 폭 안에 들어오고, 한국어 다크 640px에서는 표 내부 가로 스크롤을 유지한다. 계정·선택 control은 촬영 시 mask했다. 실제 외부 서비스·변환 품질이나 소유자의 시각 승인을 뜻하지 않는다.
+
+| 화면 | 1440px 변경 전 / 후 | 640px 한국어 다크 변경 전 / 후 |
+| --- | --- | --- |
+| Jira | [전](assets/plugin-shell-1393/before-jira-1440.png) / [후](assets/plugin-shell-1393/jira-1440.png) | [전](assets/plugin-shell-1393/before-jira-640.png) / [후](assets/plugin-shell-1393/jira-640.png) |
+| Docling | [전](assets/plugin-shell-1393/before-docling-1440.png) / [후](assets/plugin-shell-1393/docling-1440.png) | [전](assets/plugin-shell-1393/before-docling-640.png) / [후](assets/plugin-shell-1393/docling-640.png) |
+
 ## Core 명세와 조회
 
 `@litzio/core/views-v2`의 `queryViewSchema`·`operationQueryViewSchema`는 schemaVersion 2, catalog `litzio-v2`, profile `query`, owner, refresh `manual`을 사용한다. 유일한 query source는 `sources.stats`의 `kind:operation`, 등록 operation/version/args다. 입력 폼은 선택 사항이며 layout은 세로 Panel의 Table 목록이다. Chart·가로 Panel·assistant source·inline rows·출처는 받지 않는다. unknown component/prop/action, HTML·JS/CSS·표현식·URL fetch는 허용하지 않는다.

@@ -694,6 +694,8 @@ D3가 공통 부품·갤러리·이 패턴의 구현 근거를 함께 갱신한�
 
 플러그인 작업 탭의 ViewWorkspace/QueryViewPage와 Button·Notice를 사용한다. Host 선택은 복수 Host일 때, 기본 조회 선택은 복수 후보일 때 표시한다. #1341에서 우측 Views·즐겨찾기·출처·Chart를 제거했다. 현재 동작은 [플러그인 화면 계약](plugin-screens-v1.md)을 따른다. 별도 공통 상호작용 예외는 없다.
 
+#1393은 같은 작업 탭에서 문서 전용 탐색 패널을 숨기고 화면 제목·페이지 여백을 ViewWorkspace 한 곳에 둔다. 작업 전용·조회 전용·작업과 조회를 함께 제공하는 화면에 같은 틀을 적용한다. Settings·TemplateGallery의 기존 24px 화면 제목 토큰을 재사용하고, 표 내용 제목·선택 버튼·내부 가로 스크롤은 유지한다. 문서 패널 preference와 탭별 입력·결과·진행 작업의 수명은 바꾸지 않는다. 새 공통 상호작용 예외는 없다.
+
 ## 플러그인 화면 작업 패널 (#1340)
 
 #1376은 같은 표에 Host가 정한 Root 상대 결과 경로를 표시한다. 동명 결과는 기존 이미지의 `-N` 관례로 자동 선택하며, 시작 거부·접수 실패의 정해진 종류와 상세는 기존 Info Tooltip에 둔다. 공통 Table의 내부 가로 스크롤·Button·Tooltip·JobState를 유지하고 별도 입력·공통 상호작용 예외는 추가하지 않는다. [1440px 변경 전](assets/job-start-1376/before-1440.png) / [변경 후](assets/job-start-1376/after-1440.png), [640px 한국어 다크 변경 전](assets/job-start-1376/before-640.png) / [변경 후](assets/job-start-1376/after-640.png), [실패 상세](assets/job-start-1376/failure-details-640.png)는 localhost fixture의 수동 검토 근거다.
