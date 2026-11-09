@@ -298,7 +298,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await expect.poll(async () => (await docling.cli(["plugins", "status", failedPdf.job.requestId])).job.state).toBe("failed");
     docling.setPdfOutcome("pending");
     const waitingPdf = await docling.cli(["plugins", "start", id, "--input", docling.fileJobInput]);
-    await expect.poll(async () => (await docling.cli(["plugins", "status", waitingPdf.job.requestId])).job.phase).toBe("서버 대기 중");
+    await expect.poll(async () => (await docling.cli(["plugins", "status", waitingPdf.job.requestId])).job.phase).toBe("PDF 변환 중");
     const stoppedPdf = (await docling.cli(["plugins", "stop", waitingPdf.job.requestId])).job;
     expect(stoppedPdf.state).toBe("stopped");
     expect(stoppedPdf.stopRequested).toBe(true);
