@@ -1,3 +1,4 @@
+import { PluginIcon } from "./PluginIcon.tsx";
 import { FolderDialog } from "./shell/FolderDialog.tsx";
 import { i18n } from "./i18n.ts";
 import { Notice } from "./ui/primitives.tsx";
@@ -32,6 +33,7 @@ export function PluginSettings() {
       <div className="plugin-summary-row">
         <div className="host-summary">
           <div className="plugin-heading">
+            <PluginIcon client={client} plugin={plugin.id} digest={plugin.iconDigest} />
             <h3 className="settings-heading">{plugin.name ?? plugin.id}</h3>
             <div className="plugin-badges">
               <span className="plugin-badge">{plugin.publisher?.name ?? plugin.id}</span>

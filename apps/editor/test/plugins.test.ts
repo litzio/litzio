@@ -714,3 +714,37 @@ test("health check publication enforces the SDK result even with a permissive pl
     assert.ok(!JSON.stringify(invalid).includes("private service response"));
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
+
+test("registered icons enforce image bounds, artifact links and digest trust", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-icons-")), host = new PluginHost(path.join(root, "state.json"));
+  try {
+    const directory = lifecycleFixture(root, "fixture.icon");
+    const manifestFile = path.join(directory, "litzio-plugin.json"), icon = path.join(directory, "icon.svg");
+    const manifest = { ...JSON.parse(readFileSync(manifestFile, "utf8")), requiresSdk: "^0.3.0", icon: "icon.svg" };
+    writeFileSync(manifestFile, JSON.stringify(manifest));
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="blue"/></svg>';
+    for (const invalid of [svg.replace('width="16"', 'width="257"'), svg.replace('height="16"', 'height="0"'), '<html/>', svg + ' '.repeat(65536), '<svg']) {
+      writeFileSync(icon, invalid); await assert.rejects(host.invoke("register", { directory }));
+    }
+    writeFileSync(icon, svg);
+    await host.invoke("register", { directory });
+    const digest = (await host.list())[0]!.digest!;
+    assert.throws(() => host.icon(manifest.id, digest), /unavailable/);
+    await host.invoke("trust", { id: manifest.id, digest });
+    assert.equal(host.icon(manifest.id, digest).mime, "image/svg+xml");
+    assert.equal(host.icon(manifest.id, digest).bytes.toString(), svg);
+    writeFileSync(icon, svg.replace('blue', 'red'));
+    assert.throws(() => host.icon(manifest.id, digest), /unavailable/);
+    assert.equal((await host.list())[0]!.iconDigest, undefined);
+    rmSync(icon); const linked = path.join(directory, "linked");
+    symlinkSync(directory, linked, "junction");
+    await assert.rejects(host.invoke("register", { directory }), /linked/);
+    rmSync(linked);
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFYQAAAAASUVORK5CYII=", "base64");
+    writeFileSync(manifestFile, JSON.stringify({ ...manifest, icon: "icon.png" }));
+    writeFileSync(path.join(directory, "icon.png"), png); await host.invoke("register", { directory });
+    png.writeUInt32BE(257, 16); writeFileSync(path.join(directory, "icon.png"), png);
+    await assert.rejects(host.invoke("register", { directory }), /dimensions/);
+    writeFileSync(path.join(directory, "icon.png"), "not png"); await assert.rejects(host.invoke("register", { directory }), /PNG/);
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});

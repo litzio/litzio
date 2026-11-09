@@ -31,7 +31,7 @@ export const screenContributionSchema = z.strictObject({ id, title: queryViewSch
 export const manifestSchema = z.strictObject({
   schemaVersion: z.literal(1), id, tier: z.enum(["official", "community"]),
   publisher: z.strictObject({ id, name: z.string().min(1) }), name: z.string().min(1), description: z.string().default(""),
-  version: z.string().refine(v => !!semver.valid(v), "Invalid SemVer"), requiresSdk: z.string().refine(v => !!semver.validRange(v), "Invalid SDK range"), entry: z.string().min(1),
+  version: z.string().refine(v => !!semver.valid(v), "Invalid SemVer"), requiresSdk: z.string().refine(v => !!semver.validRange(v), "Invalid SDK range"), entry: z.string().min(1), icon: z.string().min(1).max(240).optional(),
   contributes: z.strictObject({ healthCheck: id.optional(), operations: z.array(operation).default([]), jobs: z.array(jobContributionSchema).default([]), folderSources: z.array(id).default([]), folderDecorations: z.array(id).default([]), accounts: z.array(id).default([]),
     dataViews: z.array(z.strictObject({ id, operation: id, version: z.number().int().positive() })).default([]),
     generatedUi: z.array(z.strictObject({ id, catalog: z.string(), schemaVersion: z.number().int().positive() })).default([]),
@@ -48,6 +48,10 @@ export function validateManifest(input: unknown): PluginManifest {
   const m = manifestSchema.parse(input);
   if (!supportedSdkVersions.some(version => semver.satisfies(version, m.requiresSdk))) throw new Error("Unsupported SDK range");
   if (/^(?:[a-z]+:|[/\\])/i.test(m.entry) || m.entry.split(/[/\\]/).includes("..")) throw new Error("Entry must stay inside package");
+  if (m.icon !== undefined) {
+    if (!supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Plugin icons require SDK 0.3.0 or later in requiresSdk");
+    if (m.icon.startsWith("/") || /[\\:\x00?#]/.test(m.icon) || !/\.(png|svg)$/.test(m.icon) || m.icon.split("/").some(part => !part || part === "." || part === "..")) throw new Error("Icon must be a package-relative PNG or SVG path");
+  }
   for (const list of Object.values(m.contributes)) {
     if (!Array.isArray(list)) continue;
     const ids = list.map(item => typeof item === "string" ? item : "id" in item ? item.id : JSON.stringify(item));
