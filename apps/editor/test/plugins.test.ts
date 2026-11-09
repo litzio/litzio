@@ -50,6 +50,11 @@ test("local artifact trust, activation, admission, drain, settings persistence a
     assert.equal((await host.list())[0]?.running, true);
     assert.equal((await host.invokeOperation("litzio.onedrive.read", {})).result, "recovered");
     await host.invoke("disable", { id: manifest.id });
+    const { statSync, utimesSync } = await import("node:fs");
+    const entry = path.join(directory, "host.js"), metadata = statSync(entry);
+    writeFileSync(entry, readFileSync(entry, "utf8").replace('"done"', '"edit"'));
+    utimesSync(entry, metadata.atime, metadata.mtime);
+    assert.equal((await host.list())[0]!.trusted, false);
     writeFileSync(path.join(directory, "extra.js"), "changed");
     await assert.rejects(host.invoke("enable", { id: manifest.id }), /changed/);
     assert.equal(new PluginHost(path.join(root, "state.json")) instanceof PluginHost, true);
@@ -131,16 +136,62 @@ test("Windows DPAPI uses an isolated Host/account namespace, persists ciphertext
     await assert.rejects(unsupported.set("p", "token", "value"), /unsupported/);
     await assert.rejects(unsupported.read("p", "token"), /unsupported/);
     await assert.rejects(unsupported.delete("p"), /unsupported/);
+    const { createHash } = await import("node:crypto");
+    const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+    const file = path.join(root, hash("p"), hash("token"));
+    // File-only status validation is testable on every OS without DPAPI.
+    const envelopeStore = new WindowsPluginSecretStore(root, "win32");
+    mkdirSync(path.dirname(file), { recursive: true });
+    // Exact independent-review reproduction: a header with empty mandatory fields.
+    const emptyEnvelope = Buffer.alloc(84);
+    emptyEnvelope.writeUInt32LE(1, 0);
+    Buffer.from("d08c9ddf0115d1118c7a00c04fc297eb", "hex").copy(emptyEnvelope, 4);
+    emptyEnvelope.writeUInt32LE(1, 20);
+    writeFileSync(file, emptyEnvelope);
+    await assert.rejects(envelopeStore.status("p", "token"), /unavailable/);
+    await envelopeStore.delete("p", "token");
     if (process.platform !== "win32") return;
     const store = new WindowsPluginSecretStore(root), value = 'isolated-token-"-한글';
     await store.set("p", "token", value);
+    const originalRead = store.read.bind(store);
+    store.read = async () => { throw new Error("status must not decrypt"); };
     assert.equal(await store.status("p", "token"), true);
+    store.read = originalRead;
     assert.equal(await store.read("p", "token"), value);
     assert.equal(await store.read("q", "token"), undefined);
     assert.equal(await new WindowsPluginSecretStore(path.join(root, "other-host")).read("p", "token"), undefined);
     assert.equal(await new WindowsPluginSecretStore(root).read("p", "token"), value);
     const { readdirSync } = await import("node:fs");
     for (const name of readdirSync(root, { recursive: true, withFileTypes: true })) if (name.isFile()) assert.equal(readFileSync(path.join(name.parentPath, name.name)).includes(Buffer.from(value)), false);
+    const ciphertext = readFileSync(file);
+    // Mutate the real Protect output, retaining the rest of its envelope.
+    const cipherOffset = 48 + ciphertext.readUInt32LE(44);
+    const saltOffset = cipherOffset + 8;
+    const hmacKeyOffset = saltOffset + 4 + ciphertext.readUInt32LE(saltOffset);
+    const hashOffset = hmacKeyOffset + 4 + ciphertext.readUInt32LE(hmacKeyOffset);
+    const hmacOffset = hashOffset + 8;
+    const dataOffset = hmacOffset + 4 + ciphertext.readUInt32LE(hmacOffset);
+    const signatureOffset = dataOffset + 4 + ciphertext.readUInt32LE(dataOffset);
+    for (const [offset, value] of [[cipherOffset, 0], [cipherOffset + 4, 0], [hashOffset, 0], [hashOffset + 4, 0], [saltOffset, 0], [hmacOffset, 0], [dataOffset, 0], [signatureOffset, 0], [dataOffset, 0xffffffff]]) {
+      const invalid = Buffer.from(ciphertext); invalid.writeUInt32LE(value!, offset!);
+      writeFileSync(file, invalid);
+      await assert.rejects(store.status("p", "token"), /unavailable/);
+    }
+    for (const invalid of [ciphertext.subarray(0, -1), Buffer.concat([ciphertext, Buffer.from([0])])]) {
+      writeFileSync(file, invalid);
+      await assert.rejects(store.status("p", "token"), /unavailable/);
+    }
+    writeFileSync(file, ciphertext);
+    assert.equal(await store.status("p", "token"), true);
+    const damaged = Buffer.from(ciphertext); damaged[damaged.length - 1]! ^= 1;
+    writeFileSync(file, damaged);
+    assert.equal(await store.status("p", "token"), true);
+    await assert.rejects(store.read("p", "token"), /unavailable/);
+    await assert.rejects(store.status("p", "token"), /unavailable/);
+    writeFileSync(file, ciphertext);
+    assert.equal(await store.status("p", "token"), true);
+    writeFileSync(file, "malformed");
+    await assert.rejects(store.status("p", "token"), /unavailable/);
     await store.delete("p", "token"); assert.equal(await store.status("p", "token"), false);
     await store.set("p", "token", "new-value"); await store.delete("p"); assert.equal(await store.status("p", "token"), false);
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -298,8 +349,13 @@ test("subprocess isolation, fresh artifact reload, trust failure recovery and cr
     assert.match((await host.list())[0]!.status!.message, /^recovered:/);
     writeFileSync(path.join(directory, "host.js"), code("crash", true));
     await trust(); await host.invoke("reload", { id: "fixture.reload" });
-    await new Promise(r => setTimeout(r, 200));
-    const failed = (await host.list())[0]!;
+    // Process exit notification can follow a rejected status RPC on a busy Host.
+    const deadline = Date.now() + 5000;
+    let failed = (await host.list())[0]!;
+    while (!/process failed/.test(failed.error ?? "") && Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 25));
+      failed = (await host.list())[0]!;
+    }
     assert.equal(failed.running, false); assert.match(failed.error!, /process failed/);
     await new Promise(r => setTimeout(r, 100)); assert.equal((await host.list())[0]!.running, false);
     writeFileSync(path.join(directory, "host.js"), code("final"));
@@ -712,5 +768,39 @@ test("health check publication enforces the SDK result even with a permissive pl
     assert.equal(invalid.receipt.outcome, "failure");
     assert.equal(invalid.result, undefined);
     assert.ok(!JSON.stringify(invalid).includes("private service response"));
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+test("registered icons enforce image bounds, artifact links and digest trust", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-icons-")), host = new PluginHost(path.join(root, "state.json"));
+  try {
+    const directory = lifecycleFixture(root, "fixture.icon");
+    const manifestFile = path.join(directory, "litzio-plugin.json"), icon = path.join(directory, "icon.svg");
+    const manifest = { ...JSON.parse(readFileSync(manifestFile, "utf8")), requiresSdk: "^0.3.0", icon: "icon.svg" };
+    writeFileSync(manifestFile, JSON.stringify(manifest));
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"><rect width="16" height="16" fill="blue"/></svg>';
+    for (const invalid of [svg.replace('width="16"', 'width="257"'), svg.replace('height="16"', 'height="0"'), '<html/>', svg + ' '.repeat(65536), '<svg']) {
+      writeFileSync(icon, invalid); await assert.rejects(host.invoke("register", { directory }));
+    }
+    writeFileSync(icon, svg);
+    await host.invoke("register", { directory });
+    const digest = (await host.list())[0]!.digest!;
+    assert.throws(() => host.icon(manifest.id, digest), /unavailable/);
+    await host.invoke("trust", { id: manifest.id, digest });
+    assert.equal(host.icon(manifest.id, digest).mime, "image/svg+xml");
+    assert.equal(host.icon(manifest.id, digest).bytes.toString(), svg);
+    writeFileSync(icon, svg.replace('blue', 'red'));
+    assert.throws(() => host.icon(manifest.id, digest), /unavailable/);
+    assert.equal((await host.list())[0]!.iconDigest, undefined);
+    rmSync(icon); const linked = path.join(directory, "linked");
+    symlinkSync(directory, linked, "junction");
+    await assert.rejects(host.invoke("register", { directory }), /linked/);
+    rmSync(linked);
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aFYQAAAAASUVORK5CYII=", "base64");
+    writeFileSync(manifestFile, JSON.stringify({ ...manifest, icon: "icon.png" }));
+    writeFileSync(path.join(directory, "icon.png"), png); await host.invoke("register", { directory });
+    png.writeUInt32BE(257, 16); writeFileSync(path.join(directory, "icon.png"), png);
+    await assert.rejects(host.invoke("register", { directory }), /dimensions/);
+    writeFileSync(path.join(directory, "icon.png"), "not png"); await assert.rejects(host.invoke("register", { directory }), /PNG/);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });

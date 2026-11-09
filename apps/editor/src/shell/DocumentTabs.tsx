@@ -10,7 +10,7 @@ import { ContextMenu } from "@/components/ui/context-menu.tsx";
 
 export function DocumentTabs({ tabs, allTabs = tabs, active, disabled, onActivate, onClose, actions, onOpenRight, onMove, openRightDisabled, moveDisabled }: {
   actions?: ReactNode;
-  tabs: { id: string; path: string; hostId?: string; dirty: boolean; title?: string }[];
+  tabs: { id: string; path: string; hostId?: string; dirty: boolean; icon?: ReactNode; title?: string }[];
   allTabs?: { id: string; path: string; hostId?: string; title?: string }[];
   active: string | null;
   disabled: boolean;
@@ -89,6 +89,7 @@ export function DocumentTabs({ tabs, allTabs = tabs, active, disabled, onActivat
                   onClose(tab.id);
                 }
               }}>
+              {tab.icon}
               {/* The filename gives way first, so the folder that tells equal names apart stays visible. */}
               <span className="document-tab-name">
                 <span className="document-tab-file">{labels[labelIndex]!.name}</span>

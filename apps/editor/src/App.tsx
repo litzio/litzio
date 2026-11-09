@@ -1,4 +1,5 @@
 import type { AssistantConversationInput } from "../shared/assistant.ts";
+import { PluginIcon } from "./PluginIcon.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
 import { viewScreenIcon } from "./views/view-screen-icon.ts";
 import { ViewWorkspace } from "./views/ViewWorkspace.tsx";
@@ -229,7 +230,7 @@ function EditorApp() {
   const galleryOpen = galleryGroup?.active === "templates";
   const galleryFocused = activeId === "templates";
   const activePdf = viewTabs.find(tab => tab.id === activeId && tab.pdf);
-  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? tab.root, hostId: tab.hostId, title: tab.jobs ? i18n.t("Plugin jobs") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
+  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.jobs ? i18n.t("Plugin jobs") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
@@ -1202,7 +1203,7 @@ function EditorApp() {
         onHostFileAction={(hostId, ...args) => fileAction(...args, undefined, undefined, hostId)}
         onAddToChat={assistantAvailable ? addToChat : undefined}
         theme={theme} onThemeChange={changeTheme}
-        contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }, ...screens.filter((screen,index,all) => screen.primary && all.findIndex(s => s.primary && s.plugin === screen.plugin) === index).map(screen => {const Icon=viewScreenIcon(screen.icon);return {id:`screen-${screen.plugin}`,label:screen.title,icon:<Icon aria-hidden="true" />,run:()=>openScreen(screen)};})]}
+        contributions={[{ id: "templates", label: "Template gallery", run: openTemplateGallery }, ...screens.filter((screen,index,all) => screen.primary && all.findIndex(s => s.primary && s.plugin === screen.plugin) === index).map(screen => {const Icon=viewScreenIcon(screen.icon);return {id:`screen-${screen.plugin}`,label:screen.title,icon:<PluginIcon client={getHostClient(screen.hostId)} plugin={screen.plugin} digest={screen.iconDigest} fallback={<Icon aria-hidden="true" />} />,run:()=>openScreen(screen)};})]}
         onFileAction={fileAction} fileActionsDisabled={busy || Boolean(continuation)}
         isFileDirty={path => { const tab = tabs.find(tab => sameLocator(tab, { hostId: LOCAL_HOST_ID, path })); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
         onWidth={setSidebarSize}

@@ -713,3 +713,7 @@ Multi-page PDF reading uses the existing task tab and DocumentTabs, while transi
 설정 창 폭 후속 확인: 기존 `--layout-settings-content-width` 토큰(42.5rem)과 viewport 양쪽 16px 여백을 사용한다. 별도 크기 체계는 추가하지 않는다. URL·secret 입력과 긴 한국어 연결 안내를 포함한 detail 캡처를 갱신했고 1440px/640px에서 가로 overflow 없이 표시된다. 같은 저장값의 재조회는 입력을 유지하고 저장값 변경 시 uncontrolled 입력의 기본값도 다시 구성한다.
 
 #1325 병합 후 실제 Docling 0.0.1의 설정 창도 [1440px](assets/plugin-settings-1334/docling-detail-1440.png) / [640px 한국어 다크](assets/plugin-settings-1334/docling-detail-640.png)로 확인했다. URL은 로컬 mock 서비스이며 secret 입력은 비어 있다. `pnpm browser:test http-plugins --screenshots`로 한국어 screenshots 경로까지 사이드바 진입과 연결·변환 단언을 유지해 통과했다. 연결 확인 선언은 Docling에 추가하지 않았으며 긴 결과 표시는 기존 health-check fixture에서 확인했다.
+
+## Plugin icon images (#1346)
+
+PluginIcon shares the same decorative 16px img in existing sidebar entries, DocumentTabs and plugin-heading rows. Existing flex alignment, spacing tokens and screen icon fallbacks remain; no new surface or common interaction. Image aspect ratio is contained. The [plugin contract](plugin-stage1-v1.md#plugin-image-icon-1346) owns format, bounds, trust and Host delivery. Fixture captures cover 1440px and Korean dark 640px; external-service icon artwork is separate.
