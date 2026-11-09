@@ -13,12 +13,12 @@ async (page, { openPath, withBlockHover }) => {
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
 
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(separator).slice(0, -4).join(separator);
   const file = [root, 'tmp', 'block-move', 'technical-document.md'].join(separator);
   const read = async () => {
-    const response = await page.request.get(`${origin}/document/technical-document.md?path=${encodeURIComponent(file)}`);
+    const response = await page.request.get(`${origin}/document/technical-document.md?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } });
     if (response.status() !== 200) throw new Error(`Prepare ${file} first`);
     return (await response.body()).toString('utf8');
   };

@@ -17,12 +17,12 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
 
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(separator).slice(0, -4).join(separator);
   const file = [root, 'tmp', 'table-authoring', 'tables.md'].join(separator);
   const read = async () => {
-    const response = await page.request.get(`${origin}/document/tables.md?path=${encodeURIComponent(file)}`);
+    const response = await page.request.get(`${origin}/document/tables.md?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } });
     if (response.status() !== 200) throw new Error(`Prepare ${file} first`);
     return (await response.text()).replaceAll('\r\n', '\n');
   };
@@ -94,7 +94,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
   await toggleFromCenter();
   await expect(paper()).toHaveAttribute('data-table-wrap','false');
   await page.getByTestId('view-visual').click();
-  const sourceBefore = await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file.replace('tables.md','wrapping.md'))}`).then(r=>r.json());
+  const sourceBefore = await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file.replace('tables.md','wrapping.md'))}`, { headers: { Connection: "close" } }).then(r=>r.json());
   await tables.first().locator('td').first().click({button:'right'});
   let menu = page.getByRole('menu',{name:'Block actions'});
   await expect(menu.getByRole('menuitemcheckbox',{name:wrapLabel})).toHaveAttribute('aria-checked','false');
@@ -122,7 +122,7 @@ async (page, { showNotifications, openPath, reloadDocument, expect, screenshots 
     return {overflow:scroll.scrollWidth-scroll.clientWidth,space:getComputedStyle(block.querySelector('td')).whiteSpace};
   });
   expect(singleLine.space).toBe('nowrap'); expect(singleLine.overflow).toBeGreaterThan(1);
-  expect((await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file.replace('tables.md','wrapping.md'))}`).then(r=>r.json())).source).toBe(sourceBefore.source);
+  expect((await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file.replace('tables.md','wrapping.md'))}`, { headers: { Connection: "close" } }).then(r=>r.json())).source).toBe(sourceBefore.source);
   for (const [width,language,theme] of [[1440,'en','light'],[640,'ko','dark']]) {
     await page.evaluate(({language,theme})=>{localStorage.setItem('litzio.uiLanguage',language);localStorage.setItem('litzio.theme',theme);},{language,theme});
     await page.setViewportSize({width,height:900}); await page.reload();

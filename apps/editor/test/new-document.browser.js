@@ -3,7 +3,7 @@
 async page => {
   await page.unrouteAll();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(sep).slice(0, -4).join(sep);
   let folder = [root, 'tmp', 'new-document'].join(sep);
@@ -14,7 +14,7 @@ async page => {
   const file = [folder, 'new-document.md'].join(sep);
   const check = (value, message) => { if (!value) throw Error(message); };
   const ready = () => page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
-  const read = async () => (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json();
+  const read = async () => (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json();
   const editor = page.locator('[data-document-tab][data-active=true] .document-editor');
   // The document's text: the Add a title place above an untitled document is not content (#255).
   const text = () => editor.evaluate(node => node.editor.state.doc.textContent);
@@ -152,7 +152,7 @@ async page => {
   await page.keyboard.press('Escape');
   await page.getByRole('dialog').waitFor({state:'detached'});
   check(await create.evaluate(element => element === document.activeElement), 'Cancelled New stole editor focus');
-  const listing = await (await page.request.get(`${origin}/api/folder?root=${encodeURIComponent(folder)}`)).json();
+  const listing = await (await page.request.get(`${origin}/api/folder?root=${encodeURIComponent(folder)}`, { headers: { Connection: "close" } })).json();
   check(listing.entries.every(entry => entry.kind === 'document' && entry.path === file) && listing.entries.length === 1,
     'Failed or cancelled New created a file');
 
@@ -219,7 +219,7 @@ async page => {
   await page.keyboard.press('Control+s');
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor({state:'attached'});
   const secondFile = [folder, 'second-document.md'].join(sep);
-  const titleSaved = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(secondFile)}`)).json();
+  const titleSaved = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(secondFile)}`, { headers: { Connection: "close" } })).json();
   check(titleSaved.source === '---\nlitzio: 1\ntitle: Field notes\n---\n\nFirst paragraph\n',
     'Title Enter did not save the title and the paragraph entered at its caret');
   check((await read()).source === diskBeforeNew, 'New silently saved the first document');

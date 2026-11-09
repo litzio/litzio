@@ -69,7 +69,7 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await page.keyboard.press("Escape");
   await toggle.click();
   await expect(external.getByRole("switch")).toBeChecked();
-  const listing = await (await page.request.get(await page.evaluate(() => location.origin + "/api/plugins"))).json();
+  const listing = await (await page.request.get(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close" } })).json();
   expect(listing.plugins.find(p => p.id === "fixture.vite").status.message).toBe("0.3.0");
   if (screenshots) {
     for (const width of [1440, 640]) {
@@ -95,6 +95,6 @@ async (page, { expect, pluginFixture, screenshots }) => {
     await page.getByRole("button", { name: "Plugins", exact: true }).click();
   }
   await toggle.click();
-  const removed = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { data: { action: "unregister", id: "fixture.vite" } });
+  const removed = await page.request.post(await page.evaluate(() => location.origin + "/api/plugins"), { headers: { Connection: "close" }, data: { action: "unregister", id: "fixture.vite" } });
   expect(removed.ok()).toBe(true);
 }

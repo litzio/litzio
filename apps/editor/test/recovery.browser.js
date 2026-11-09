@@ -2,7 +2,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false, ex
   page.setDefaultTimeout(15000);
   const check = (ok, why) => { if (!ok) throw new Error(why); };
   const origin = page.url().split('/').slice(0,3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(sep).slice(0,-4).join(sep);
   const file = [root, 'tmp', 'document-tabs', 'technical-1.md'].join(sep);
@@ -164,7 +164,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false, ex
   const visual = prompt.getByTestId('visual-comparison');
   await visual.locator('.document-editor').nth(1).waitFor({ state: 'attached' });
   check(await visual.getByRole('region', { name: 'Recovery preview', exact: true }).count() === 1, 'Recovery must identify the recovered dry-run side');
-  const diskBeforeVisual = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json();
+  const diskBeforeVisual = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json();
   const liveEditors = page.locator('[data-document-tab] .document-editor');
   const liveBeforeVisual = await liveEditors.evaluateAll(nodes => nodes.map(node => JSON.stringify(node.editor.getJSON())));
   const readonlyDocuments = await visual.locator('.document-editor').evaluateAll(nodes => nodes.map(node => JSON.stringify(node.editor.getJSON())));
@@ -201,7 +201,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false, ex
   await expect.poll(() => visualInstances.evaluate(editors => editors.every(editor => editor.isDestroyed))).toBe(true); await visualInstances.dispose();
   check(JSON.stringify(await records()) === firstBeforeCompare, 'Visual comparison changed the recovery record');
   check(JSON.stringify(await liveEditors.evaluateAll(nodes => nodes.map(node => JSON.stringify(node.editor.getJSON())))) === JSON.stringify(liveBeforeVisual), 'Visual comparison changed or registered a live session');
-  const diskAfterVisual = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json();
+  const diskAfterVisual = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json();
   check(diskAfterVisual.source === diskBeforeVisual.source && diskAfterVisual.revision === diskBeforeVisual.revision, 'Visual comparison wrote disk');
   await compareButton.click(); await sourceView();
   await diffRegion().waitFor();
@@ -231,7 +231,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false, ex
   let releaseWorker;
   const workerGate=new Promise(resolve=>{releaseWorker=resolve;});
   const workerURL='**/src/recovery-diff.worker.ts*';
-  const delayedWorker=async route=>{const response=await route.fetch();await workerGate;await route.fulfill({response});};
+  const delayedWorker=async route=>{const response=await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });await workerGate;await route.fulfill({response});};
   await page.route(workerURL,delayedWorker);
   await compareButton.click(); await sourceView(); await page.getByText('Calculating differences…',{exact:true}).waitFor();
   let actionStart=Date.now();
@@ -325,7 +325,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false, ex
   check(await engine(page).evaluate(n => !n.editor.can().undo()), 'Restored Undo history should be empty');
   await page.getByTestId('save').click();
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor(); await count(0);
-  const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json();
+  const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json();
   check(disk.source.includes('Recovered applied text.'), 'Restored Save did not reach disk');
   check(disk.source === previewMarkdown, 'Restored Save bytes differ from preview');
   await reloadDocument(page); await ready(page);
@@ -338,7 +338,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false, ex
   const saveStarted = new Promise(resolve => { saveArrived = resolve; });
   const delayedSave = async route => {
     if (route.request().method() !== 'POST') return route.fallback();
-    const response = await route.fetch();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     savedRevision = (await response.json()).revision;
     saveArrived(); await saveGate; await route.fulfill({response});
   };
@@ -361,7 +361,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false, ex
   await page.getByTestId('recovery-prompt').waitFor({state:'detached'});
   await page.getByTestId('save').click();
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor(); await count(0);
-  check((await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json()).source.includes('During delayed Save.'), 'Restored newer edits did not replay against the acknowledged Save');
+  check((await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json()).source.includes('During delayed Save.'), 'Restored newer edits did not replay against the acknowledged Save');
 
   // Save in one window must not clean another window, and restored work keeps its old revision.
   const other = await page.context().newPage();
@@ -566,7 +566,7 @@ async (page, { openPath, reloadDocument, activeDocument, screenshots = false, ex
   await edit(page,'Storage unavailable but Save works. ');
   await page.getByTestId('save').click();
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor();
-  check((await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json()).source.includes('Storage unavailable but Save works.'), 'Unavailable recovery blocked original Save');
+  check((await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json()).source.includes('Storage unavailable but Save works.'), 'Unavailable recovery blocked original Save');
   return { largeComparisonMetrics, malformedPlaintext:true, crossWindowClear:true, insecureContextAPIs:true, modalSaveProtected:true, saveRaceReplay:true, draftsExcluded:true, unavailableVisible:true, persistence:true, matchingPrompt:true, restoreSaveReload:true, multiwindow:true, conflict:true,
     failedReloadRetained:true, unsaveableAndPendingFigure:true, tabDiscard:true, clearPending:true, pendingConcurrentWrites:true,
     recoveryLayouts, quotaFailureVisible:true, incompatiblePlaintext:true, screenshots };

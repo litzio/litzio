@@ -1,7 +1,7 @@
 // A reading overlay must not mutate the editor or request remote destinations.
 async (page, {openPath, activeDocument, expect, screenshots}) => {
   const origin = page.url().split('/').slice(0,3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const file = [...loaded.path.split(sep).slice(0,-4),'tmp','image-link-preview','links.md'].join(sep);
   await openPath(page, file);

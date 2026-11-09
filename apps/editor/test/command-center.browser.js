@@ -4,7 +4,7 @@ async (page, { openPath, waitForActivePath, activeDocument, screenshots = false 
   page.setDefaultTimeout(10000);
   const check = (ok, message) => { if (!ok) throw Error(message); };
   const origin = page.url().split('/').slice(0,3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(sep).slice(0, -4).join(sep);
   const file = name => [root, 'tmp', 'document-tabs', name].join(sep);
@@ -285,7 +285,7 @@ async (page, { openPath, waitForActivePath, activeDocument, screenshots = false 
   // Relisting a parent can disconnect a preserved child cache. Collapsed, reachable caches
   // remain searchable, but a removed child must not leak results from its old listing.
   const removeAlpha = async route => {
-    const response = await route.fetch();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     const listing = await response.json();
     if (listing.path === folderPath) listing.entries = listing.entries.filter(entry => entry.name !== 'alpha');
     await route.fulfill({response,json:listing});
@@ -570,7 +570,7 @@ async (page, { openPath, waitForActivePath, activeDocument, screenshots = false 
   }
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor();
   await page.unroute('**/api/document', holdSave);
-  const saved = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file('technical-1.md'))}`)).json()).source;
+  const saved = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file('technical-1.md'))}`, { headers: { Connection: "close" } })).json()).source;
   check(saved.includes('command center edit'), 'Center did not save the active document');
   // Reload starts after the center closes; the preceding ready state is not completion.
   const reloadResponse = page.waitForResponse(response => response.request().method()==='GET' &&
@@ -717,7 +717,7 @@ async (page, { openPath, waitForActivePath, activeDocument, screenshots = false 
     return {name,path:file(name),kind:'document',native:true};
   });
   const bulkListing = async route => {
-    const response = await route.fetch();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     const listing = await response.json();
     if (listing.path === folderPath) listing.entries = bulk;
     await route.fulfill({response,json:listing});
