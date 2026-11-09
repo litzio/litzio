@@ -714,6 +714,8 @@ D3가 공통 부품·갤러리·이 패턴의 구현 근거를 함께 갱신한�
 
 ## 플러그인 화면 작업 패널 (#1340)
 
+#1376은 같은 표에 Host가 정한 Root 상대 결과 경로를 표시한다. 동명 결과는 기존 이미지의 `-N` 관례로 자동 선택하며, 시작 거부·접수 실패의 정해진 종류와 상세는 기존 Info Tooltip에 둔다. 공통 Table의 내부 가로 스크롤·Button·Tooltip·JobState를 유지하고 별도 입력·공통 상호작용 예외는 추가하지 않는다. [1440px 변경 전](assets/job-start-1376/before-1440.png) / [변경 후](assets/job-start-1376/after-1440.png), [640px 한국어 다크 변경 전](assets/job-start-1376/before-640.png) / [변경 후](assets/job-start-1376/after-640.png), [실패 상세](assets/job-start-1376/failure-details-640.png)는 localhost fixture의 수동 검토 근거다.
+
 기존 SettingsSelect·Button, 체크박스, view-panel·view-table-scroll과 K1의 JobState·JobActions·파일 탐색 함수를 재사용한다. 패널을 위, 기존 조회 뷰를 아래에 세로 배치한다. 표는 열을 보존하며 내부 가로 스크롤을 제공한다. 파일과 작업, 상태, 단계, 경과, 현재 가능한 행동만 상시 표시한다. 작업 표의 오류·불확실 안내는 공통 Info 아이콘 Tooltip에 두고 키보드 focus로 연다. 결과 열기는 ghost/sm ‘열기’로 표시하고 aria-label에 파일 이름을 포함한다. opaque 경로 복사는 기존 K1과 동일하다. 파일 목록·표의 상시 세로 스크롤은 두지 않으며 페이지가 세로 스크롤을 소유하고 표만 내부 가로 스크롤한다. 별도 공통 상호작용 예외는 없다. 작업만 있는 화면의 근거와 선언·수명은 [현재 계약](plugin-stage1-v1.md#플러그인-화면-작업-패널-1340)을 따른다.
 
 ## PDF reading (#1337)

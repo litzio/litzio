@@ -4,12 +4,15 @@ import path from "node:path";
 import { existsSync, statSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createFileFromPath } from "@litzio/file-commit";
-import { JOB_START_CONTRACT_MESSAGE, JOB_FILE_MAX_BYTES, defaultJobOutput, jobRequestSchema, jobUpdateSchema, type BatchJobResult, type JobInput, type PluginErrorKind, type JobContribution, type JobSnapshot } from "@litzio/plugin-sdk";
+import { JOB_START_FAILURE_MESSAGES, JOB_START_CONTRACT_MESSAGE, JOB_FILE_MAX_BYTES, defaultJobOutput, jobRequestSchema, jobUpdateSchema, type JobStartFailure, type BatchJobResult, type JobInput, type PluginErrorKind, type JobContribution, type JobSnapshot } from "@litzio/plugin-sdk";
 import { RootAccess, accessPath, type FileAccess } from "../file-access.ts";
 import { createDocumentSourceFile } from "../document-create.ts";
 import { createAuthoredDocumentFile } from "../document-authoring.ts";
 
 type Record = { effects: Map<string, "read" | "write">; uncertainWrite?: boolean; detached?: boolean; staging?: string; observations?: Promise<void>; startedAt: number; finishedAt?: number; snapshot: JobSnapshot; binding: JobContribution; input: JobInput; access: RootAccess; pending: Promise<void>; stopping?: Promise<void> };
+class StartRefused extends Error {
+  constructor(readonly reason: JobStartFailure) { super(JOB_START_FAILURE_MESSAGES[reason.kind] + (reason.path ? ` ${reason.path}` : "")); }
+}
 /** Daemon-lifetime observations only; no queue, scheduler or replay ledger. */
 export class PluginJobs {
   private records = new Map<string, Record>();
@@ -86,21 +89,25 @@ export class PluginJobs {
       const failure = this.failure(cause, record.uncertainWrite ? "write" : effect);
       if (record.detached && failure.errorKind !== "timeout") return;
       if (operation === record.binding.start && (failure.errorKind === "timeout" || (cause as { startContract?: boolean })?.startContract)) failure.error += " " + JOB_START_CONTRACT_MESSAGE;
-      Object.assign(record.snapshot, { state: "uncertain", phase: "Observation lost", ...failure });
+      Object.assign(record.snapshot, { state: "uncertain", phase: "Observation lost", ...failure,
+        ...(operation === record.binding.start ? { startFailure: { kind: "start_failed" } } : {}) });
     }
   }
   private async startMany(input: { plugin: string; job: string; root: string; files: string[]; requestIds?: string[] }): Promise<{ files: BatchJobResult[]; receipt: { requestId: string; operation: string; version: number; scope: string; outcome: string } }> {
     if (input.requestIds && (input.requestIds.length !== input.files.length || new Set(input.requestIds).size !== input.requestIds.length)) throw new Error("Expected one unique requestId per file");
-    const files = await Promise.all(input.files.map(async (file, index) => {
+    const files = await Promise.all(input.files.map(async (file, index): Promise<BatchJobResult> => {
       const requestId = input.requestIds?.[index] ?? randomUUID();
       try {
-        const value = await this.execute({ action: "job-start", plugin: input.plugin, job: input.job, root: input.root, file, requestId }, true);
+        const value = await this.execute({ action: "job-start", plugin: input.plugin, job: input.job, root: input.root, file, requestId });
         return { file, requestId, job: "job" in value ? value.job : undefined };
-      } catch { return { file, error: "Cannot start this file. Check the input, result path and plugin availability." }; }
+      } catch (cause) {
+        const startFailure: JobStartFailure = cause instanceof StartRefused ? cause.reason : { kind: publicOperationError(cause, "read").errorKind === "unavailable" ? "unavailable" : "other" };
+        return { file, requestId, startFailure, ...publicOperationError(cause, "read"), error: JOB_START_FAILURE_MESSAGES[startFailure.kind] };
+      }
     }));
     return { files, receipt: { requestId: randomUUID(), operation: "plugins.job-start-many", version: 1, scope: input.root, outcome: files.some(file => file.job?.state === "uncertain") ? "uncertain" : files.some(file => file.error) ? "failure" : "success" } };
   }
-  async execute(raw: unknown, batch = false) {
+  async execute(raw: unknown) {
     const input = jobRequestSchema.parse(raw);
     if (input.action === "job-start-many") return this.startMany(input);
     if (input.action === "job-list") return this.list(input.plugin);
@@ -113,9 +120,19 @@ export class PluginJobs {
         if (path.isAbsolute(value) || /^[a-z]:|^\\\\/i.test(value)) throw new Error("Expected a Root-relative path");
         return boundary.resolve(path.join(root, value), create);
       };
-      const file = accessPath(relative(input.file), this.access), output = accessPath(relative(input.output ?? defaultJobOutput(binding, input.file), true), this.access, true);
-      if (!statSync(file).isFile() || !binding.accept.includes(path.extname(file).toLowerCase())) throw new Error("Unsupported input file");
-      if (batch && (existsSync(output) || [...this.records.values()].some(record => record.input.output === output && ["running", "uncertain"].includes(record.snapshot.state)))) throw new Error("Result path already exists or is in use");
+      const file = accessPath(relative(input.file), this.access);
+      if (!statSync(file).isFile() || !binding.accept.includes(path.extname(file).toLowerCase())) throw new StartRefused({ kind: "unsupported_input" });
+      const desired = input.output ?? defaultJobOutput(binding, input.file);
+      let output = accessPath(relative(desired, true), this.access, true);
+      const occupied = (candidate: string) => existsSync(candidate) || [...this.records.values()].some(record =>
+        (process.platform === "win32" ? record.input.output.toLowerCase() === candidate.toLowerCase() : record.input.output === candidate) && ["running", "uncertain"].includes(record.snapshot.state));
+      // Same -N convention as createImageAsset. No await before records.set: allocation
+      // and reservation are atomic within this daemon, including parallel batches.
+      for (let sequence = 2; occupied(output); sequence++) {
+        if (input.output) throw new StartRefused({ kind: "result_exists", path: desired });
+        const extension = path.extname(desired);
+        output = accessPath(relative(`${desired.slice(0, -extension.length)}-${sequence}${extension}`, true), this.access, true);
+      }
       if (file === output) throw new Error("Output must preserve input");
       if (binding.resultKind === "file" && path.extname(output).toLowerCase() !== binding.resultExtension) throw new Error("Output extension must match resultExtension");
       const record: Record = { effects: new Map([binding.start, binding.status, binding.stop].map(operation => [operation, this.effect(`${input.plugin}.${operation}`)])), startedAt: Date.now(), snapshot: { requestId: input.requestId, plugin: input.plugin, job: input.job, root, file: input.file, elapsedMs: 0, state: "running", phase: "Starting", stopRequested: false }, binding, access: boundary, input: { requestId: input.requestId, root, file, output }, pending: Promise.resolve() };
@@ -127,6 +144,7 @@ export class PluginJobs {
           record.input.resultFile = { path: staged, maxBytes: JOB_FILE_MAX_BYTES };
         } catch (error) { this.cleanup(record); throw error; }
       }
+      record.snapshot.output = path.relative(root, output).split(path.sep).join("/");
       this.records.set(input.requestId, record);
       record.pending = this.observe(record, binding.start);
       await record.pending;

@@ -77,6 +77,7 @@
 .plugin-job-files { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--space-4) * 12)), 1fr)); gap: var(--space-2); }
 .plugin-job-files label { display: flex; align-items: center; gap: var(--space-2); font-size: var(--font-size-sm); overflow-wrap: anywhere; }
 .plugin-job-panel td .view-controls { align-items: center; }
+.plugin-job-panel .plugin-job-phase { min-width: calc(var(--space-4) * 10); }
 
 .plugin-job-files > button { grid-column: 1 / -1; justify-content: flex-start; }
 .plugin-job-panel .view-table-scroll { overflow-x: auto; }
