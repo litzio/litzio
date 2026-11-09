@@ -4,7 +4,7 @@ async page => {
   await page.unroute('**/api/document');
   await page.reload();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
-  const loaded = await (await page.request.get(page.url().split('/').slice(0, 3).join('/') + '/api/document')).json();
+  const loaded = await (await page.request.get(page.url().split('/').slice(0, 3).join('/') + '/api/document', { headers: { Connection: "close" } })).json();
   let release;
   const gate = new Promise(resolve => { release = resolve; });
   const requests = [];

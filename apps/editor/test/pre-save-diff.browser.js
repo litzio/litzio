@@ -1,7 +1,7 @@
 async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, expect }) => {
   const check = (ok, why) => { if (!ok) throw new Error(why); };
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(sep).slice(0, -4).join(sep);
   const file = [root, 'tmp', 'document-tabs', 'technical-1.md'].join(sep);
@@ -10,7 +10,7 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   await page.getByTestId('save').click();
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor();
   const editor = () => activeDocument(page).locator('.document-editor');
-  const read = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json());
+  const read = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json());
   const records = () => page.evaluate(async () => (await import('/src/recovery-storage.ts')).recoveryStorage.list());
   const dialog = () => page.getByTestId('save-comparison');
   const menu = () => page.getByRole('button', { name: 'File actions', exact: true });
@@ -57,7 +57,7 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   await menu().click(); await capture('menu'); await page.keyboard.press('Escape');
   let preview;
   const url = '**/api/document-source?recovery=1';
-  const observe = async route => { const response = await route.fetch(); preview = await response.json(); await route.fulfill({ response }); };
+  const observe = async route => { const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); preview = await response.json(); await route.fulfill({ response }); };
   await page.route(url, observe);
   await compare();
   await dialog().getByRole('button', { name: 'Source', exact: true }).click();
@@ -167,7 +167,7 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   await close();
   // A renderer path mismatch must not silently hide a changed block.
   await page.route('**/api/document-compare', async route => {
-    const response = await route.fetch(); const body = await response.json();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); const body = await response.json();
     body.changes[0].before = [99999];
     await route.fulfill({ response, json: body });
   }, { times: 1 });
@@ -178,7 +178,7 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   await dialog().waitFor({ state: 'detached' });
   // An opaque equation can parse natively but fail the Read NodeView preview.
   await page.route('**/api/document-source?recovery=1', async route => {
-    const response = await route.fetch(); const body = await response.json();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); const body = await response.json();
     body.markdown += '\n\n```{math}\n\\unknowncommand{}\n```\n';
     await route.fulfill({ response, json: body });
   }, { times: 1 });
@@ -198,7 +198,7 @@ async (page, { openPath, activeDocument, screenshots = false, removeTabFixture, 
   await page.unroute('**/api/document-compare', hold);
   const external = await read();
   const target = external.document.blocks.find(block => block.block === 'paragraph');
-  const written = await page.request.post(`${origin}/api/document`, { data: { path: file, revision: external.revision,
+  const written = await page.request.post(`${origin}/api/document`, { headers: { Connection: "close" }, data: { path: file, revision: external.revision,
     base: { source: external.source }, paragraphs: [{ path: target.path, content: [{ kind: 'text', text: 'External version.' }] }] } });
   check(written.ok(), 'External write failed');
   await compare();

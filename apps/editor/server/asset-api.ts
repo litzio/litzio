@@ -20,10 +20,11 @@ class AssetError extends Error {
   constructor(message: string, readonly status = 400) { super(message); }
 }
 
-function documentScope(locator: string, writable: boolean, access: FileAccess): { document: string; root: string } {
+function documentScope(locator: string, writable: boolean, access: FileAccess, creating = false): { document: string; root: string } {
   if (typeof locator !== "string" || !locator.trim() || locator.includes("\0")) throw new AssetError("A valid document locator is required.");
-  const document = resolveDocumentPath(locator, access);
+  const document = resolveDocumentPath(locator, access, creating);
   const root = fs.realpathSync(path.dirname(document));
+  if (creating) return { document, root };
   const actual = fs.realpathSync(document);
   const relative = path.relative(root, actual);
   if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative) || !fs.statSync(actual).isFile()) {
@@ -97,10 +98,23 @@ function readReceipt(token: string, key: Buffer): Receipt {
 
 /** The signing key belongs to the Host process lifetime, never to an Editor session. */
 export function createImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess = LOCAL_FILE_ACCESS, originalName = "", source = "paste"): AssetResponse {
+  return publishImageAsset(locator, mime, bytes, key, access, originalName, source) as AssetResponse;
+}
+
+/** Host document creation: same validated publisher, content-addressed names and reuse. */
+export function createDocumentImageAsset(locator: string, mime: string, bytes: Buffer, access: FileAccess): { path: string } {
+  const hash = createHash("sha256").update(bytes).digest("hex");
+  const documentHash = createHash("sha256").update(path.basename(locator)).digest("hex");
+  const stem = Array.from(path.basename(locator, path.extname(locator))).slice(0, 8).join("");
+  const name = `${stem}-${documentHash}-${hash}.image`;
+  return publishImageAsset(locator, mime, bytes, Buffer.alloc(0), access, name, "drop", true);
+}
+
+function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess, originalName: string, source: string, creating = false): ImageChoiceResponse {
   validateImage(mime, bytes); // Rejected input must not create even a directory/temp file.
   assertUnicode(originalName);
   if (source !== "paste" && source !== "drop") throw new AssetError("Invalid image input source.");
-  const scope = documentScope(locator, true, access);
+  const scope = documentScope(locator, true, access, creating);
   const cleanStem = (name: string) => {
     let stem = name.replace(/%(?=2e|2f|5c|00)/gi, "-").replace(/[<>:"/\\|?*\u0000-\u001f\u007f]/g, "-").replace(/\.{2,}/g, "-").trim().replace(/[. ]+$/, "").replace(/^\.+/, "");
     if (stem && !validFileStem(stem)) stem = `_${stem}`;
@@ -144,7 +158,17 @@ export function createImageAsset(locator: string, mime: string, bytes: Buffer, k
     for (; Number.isSafeInteger(sequence); sequence++) {
       const destination = path.join(directory, `${stem}${numbered || sequence > 1 ? `-${sequence}` : ""}.${ASSET_TYPES[mime]}`);
       try { fs.linkSync(accessPath(temporary, access), accessPath(destination, access, true)); published = destination; break; }
-      catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+        if (creating) {
+          // Refuse links/non-files; a different regular file keeps the existing
+          // collision suffix policy. Reused bytes never acquire a rollback token.
+          const existing = inspectAsset(destination, undefined, access);
+          if (existing.owner.size === BigInt(bytes.length) && existing.hash === createHash("sha256").update(bytes).digest("hex")) {
+            return { path: `./assets/${path.basename(destination)}` };
+          }
+        }
+      }
     }
     if (!published) throw new AssetError("Could not allocate a unique asset filename.");
     assertOwnedFile(published, owner, access);
@@ -152,9 +176,11 @@ export function createImageAsset(locator: string, mime: string, bytes: Buffer, k
     const relative = `./assets/${path.basename(published)}`;
     const verified = inspectAsset(published, owner, access);
     if (verified.owner.size !== BigInt(bytes.length) || verified.hash !== createHash("sha256").update(bytes).digest("hex")) throw new AssetError("Asset content changed during publication.");
-    return { path: relative, rollbackToken: signReceipt({ document: scope.document, path: relative, identity: verified.identity }, key) };
+    return creating ? { path: relative } : { path: relative, rollbackToken: signReceipt({ document: scope.document, path: relative, identity: verified.identity }, key) };
   } catch (error) {
-    if (published && owner) {
+    // A completed authoring asset is immediately shareable across processes.
+    // Its creator cannot delete it even when a later publication check fails.
+    if (!creating && published && owner) {
       const verified = inspectAsset(published, owner, access);
       if (verified.hash !== createHash("sha256").update(bytes).digest("hex")) throw new AssetError(`Asset content changed; cleanup refused for assets/${path.basename(published)}.`);
       unlinkOwnedFile(published, verified.owner, scope.root, directoryId, access, true);

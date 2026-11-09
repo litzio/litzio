@@ -24,7 +24,7 @@ test("manifest rejects unsupported extensions, invalid identities, versions and 
   assert.throws(() => validateManifest(withScreen("^0.3.0", { ...screen, jobs: [] })), /Screen needs views or jobs/);
   const binding = validateManifest(withJob(job)).contributes.jobs[0];
   assert.equal(defaultJobOutput(binding, "nested/a.txt"), "nested/a.bin");
-  assert.equal(defaultJobOutput({ ...binding, resultKind: "native-document" }, "a.txt"), "result.md");
+  assert.equal(defaultJobOutput({ ...binding, resultKind: "native-document" }, "docs/\uBCF4\uACE0\uC11C.docling"), "docs/\uBCF4\uACE0\uC11C.md");
   for (const resultExtension of [undefined, "bin", ".BIN", "../bin", ".tar.gz"]) assert.throws(() => validateManifest(withJob({ ...job, resultExtension })));
   assert.throws(() => validateManifest(withJob({ ...job, resultKind: "native-document" })));
 });
@@ -64,7 +64,7 @@ test("v2 view and review contributions validate local bindings before entry exec
   const snapshot = structuredClone(screened) as any;
   snapshot.contributes.views[0].definition.refresh = "assistant";
   snapshot.contributes.views[0].definition.sources.stats = { kind: "assistant", generatedAt: "2026-11-06T00:00:00.000Z", rowSchema: { title: { type: "string", label: "Title" } }, rows: [{ title: "Saved result" }], provenance: [{ kind: "reference", label: "Source", refId: "ref-1" }] };
-  assert.equal(validateManifest(snapshot).contributes.screens.length, 1);
+  assert.throws(() => validateManifest(snapshot));
 
   for (const change of [
     (v: any) => v.contributes.screens.push(screen),
@@ -125,4 +125,10 @@ test("input hints require public text and standalone empty-input reads", () => {
  assert.throws(()=>validateManifest({...input,requiresSdk:"^0.2.0"}),/SDK 0.3/);
  for (const property of [{type:"string",secret:true},{type:"string",writeOnly:true},{type:"string",enum:["x"]},{type:"number"}]) assert.throws(()=>validateManifest({...input,contributes:{operations:[{...source,inputSchema:{type:"object",properties:{person:property}}},hint]}}),/public free-text/);
  for (const target of [{...hint,effect:"write"},{...hint,rowSchema:{name:{type:"string",label:"Name"}}},{...hint,inputSchema:{type:"object",required:["query"],properties:{query:{type:"string"}}}}]) assert.throws(()=>validateManifest({...input,contributes:{operations:[source,target]}}),/standalone host read/);
+});
+
+test("default-hidden row columns use the unreleased SDK 0.3 contract", () => {
+  const operation = { id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "array" }, rowSchema: { title: { type: "string", label: "Title" }, extra: { type: "number", label: "Extra", hidden: true } } };
+  assert.throws(() => validateManifest({ ...manifest(), requiresSdk: "^0.2.0", contributes: { operations: [operation] } }), /Column visibility/);
+  assert.equal(validateManifest({ ...manifest(), requiresSdk: "^0.3.0", contributes: { operations: [operation] } }).contributes.operations[0].rowSchema?.extra.hidden, true);
 });

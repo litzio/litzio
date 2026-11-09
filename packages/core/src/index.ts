@@ -127,6 +127,7 @@ export const convertBlock = fence(operations.convertBlock);
 export const updateHeadingInlineContent = fence(operations.updateHeadingInlineContent);
 export const updateEquationLatex = fence(operations.updateEquationLatex);
 export const updateNumberingMode = fence(operations.updateNumberingMode);
+export const updateEnumeration = fence(operations.updateEnumeration);
 export const updateEnumerator = fence(operations.updateEnumerator);
 export const updateFigure = fence(operations.updateFigure);
 export const updateMediaReferences = fence(operations.updateMediaReferences);

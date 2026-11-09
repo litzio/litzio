@@ -69,7 +69,7 @@ export function activate(context) {
     try {
       const rows = [];
       const jql = input.jql;
-      let startAt = 0;
+      let startAt = 0, total = 0;
       while (rows.length < 500) {
         const query = new URLSearchParams({ jql, startAt: String(startAt), maxResults: String(500 - rows.length), fields: SEARCH_FIELDS });
         const response = await fetch(api + "/search?" + query, { headers: { Authorization: `Bearer ${pat}`, Accept: "application/json" }, signal: controller.signal, redirect: "error" });
@@ -79,6 +79,7 @@ export function activate(context) {
         }
         const body = await response.json();
         if (!Array.isArray(body?.issues) || !Number.isSafeInteger(body.total) || body.total < 0 || body.startAt !== startAt || (!body.issues.length && startAt < body.total)) throw new PluginOperationError("failed");
+        total = body.total;
         for (const issue of body.issues.slice(0, 500 - rows.length)) {
           if (typeof issue?.key !== "string" || !/^[A-Z][A-Z0-9_]*-[1-9][0-9]*$/.test(issue.key) || !issue.fields || typeof issue.fields !== "object" || Array.isArray(issue.fields)) throw new PluginOperationError("failed");
           const f = issue.fields;
@@ -87,7 +88,7 @@ export function activate(context) {
         startAt += body.issues.length;
         if (startAt >= body.total) break;
       }
-      return rows;
+      return { rows, truncated: rows.length < total, total };
     } catch (error) {
       if (controller.signal.aborted) throw new PluginOperationError("timeout");
       if (error instanceof PluginOperationError) throw error;

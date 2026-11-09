@@ -4,7 +4,7 @@ import { Input } from "../components/ui/input.tsx";
 import type { HostClient } from "../host-client.ts";
 
 type Suggestion = { value: string; label: string };
-/** Candidate state belongs to this field and Host, never the saved view. */
+/** Candidate state belongs to this field and Host, never the query definition. */
 export function SuggestedInput({ client, operation, version, value, onValueChange, ...props }: Omit<ComponentProps<typeof Input>, "onChange" | "value"> & {
   client: HostClient; operation: string; version: number; value: string; onValueChange(value: string): void;
 }) {

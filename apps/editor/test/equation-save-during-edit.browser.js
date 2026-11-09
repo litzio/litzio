@@ -5,7 +5,7 @@ async (page, { openPath }) => {
   await page.reload();
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const originalLatex = loaded.document.blocks.find(block => block.block === 'equation').latex;
   let current = clone(loaded);
   let requests = [];
@@ -204,7 +204,7 @@ async (page, { openPath }) => {
       await page.getByTestId('save').click();
       if ((await response).status() !== 200) throw new Error(`${file}: real Save failed`);
       await page.getByText('Saved', {exact:true}).filter({visible:true}).waitFor();
-      const disk = await page.request.get(`${origin}/document/${file}?path=${encodeURIComponent(path)}`);
+      const disk = await page.request.get(`${origin}/document/${file}?path=${encodeURIComponent(path)}`, { headers: { Connection: "close" } });
       if (disk.status() !== 200 || (await disk.text()).replaceAll('\r\n', '\n') !== preview) {
         throw new Error(`${file}: Save differs from Source`);
       }
@@ -238,7 +238,7 @@ async (page, { openPath }) => {
     for (const [fieldName, file] of [['equation-latex', 'math.md'], ['equation-label', 'middle.md']]) {
       const path = [root, 'tmp', 'equation-editing', file].join(sep);
       await openPath(page, path);
-      const disk = async () => (await (await page.request.get(`${origin}/document/${file}?path=${encodeURIComponent(path)}`)).text()).replaceAll('\r\n', '\n');
+      const disk = async () => (await (await page.request.get(`${origin}/document/${file}?path=${encodeURIComponent(path)}`, { headers: { Connection: "close" } })).text()).replaceAll('\r\n', '\n');
       const original = await disk();
       const equation = editor.locator('[data-block="equation"]').first();
       await equation.hover();

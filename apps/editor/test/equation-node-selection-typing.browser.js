@@ -7,7 +7,7 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
   await page.reload();
   await ready();
   const origin = page.url().split('/').slice(0,3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const file = [...loaded.path.split(sep).slice(0, -4), 'tmp', 'equation-node-selection-typing', 'power.md'].join(sep);
   await openPath(page, file);
@@ -57,7 +57,7 @@ async (page, { showNotifications, openPath, reloadDocument }) => {
     await page.getByTestId('save').click();
     check((await response).status() === 200, 'Real disk Save failed');
     await page.getByText('Saved', {exact:true}).filter({visible:true}).waitFor();
-    const disk = await page.request.get(`${origin}/document/power.md?path=${encodeURIComponent(file)}`);
+    const disk = await page.request.get(`${origin}/document/power.md?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } });
     check(disk.status() === 200 && (await disk.text()).replaceAll('\r\n','\n') === preview, 'Disk differs from Source');
     check(same(await snapshot(), expected), 'Save changed editor content');
     await editor.evaluate(el => el.editor.commands.undo());

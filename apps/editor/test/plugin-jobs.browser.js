@@ -3,7 +3,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   page.on("request", request => { if (request.url().endsWith("/api/plugins") && request.method() === "POST") { const body = request.postDataJSON(); if (body.action === "job-start") latestRequestId = body.requestId; } });
   pluginFixture.cli(["plugins", "register", pluginFixture.directory]);
   const plugin = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.jobs");
-  pluginFixture.cli(["plugins", "trust", plugin.id, "--digest", plugin.digest]);
+  pluginFixture.cli(["plugins", "trust", plugin.id, "--registration", plugin.registrationId, "--digest", plugin.digest]);
   pluginFixture.cli(["plugins", "enable", plugin.id]);
   const scriptDialogs = [];
   page.on("dialog", dialog => { scriptDialogs.push(dialog.message()); void dialog.dismiss(); });
@@ -13,16 +13,16 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   const sidebarIcon = page.getByRole('button', {name:'Job fixture',exact:true}).locator('img');
   await expect(sidebarIcon).toBeVisible();
   // A real registered/trusted fixture icon, fetched from the owning HTTP Host.
-  const iconResponse = await page.request.get(page.url().split("/").slice(0,3).join("/") + `/api/plugins/icon?id=${plugin.id}&digest=${plugin.digest}`);
+  const iconResponse = await page.request.get(page.url().split("/").slice(0,3).join("/") + `/api/plugins/icon?id=${plugin.id}&digest=${plugin.digest}`, { headers: { Connection: "close" } });
   expect(iconResponse.headers()["content-type"]).toBe("image/svg+xml");
   expect(iconResponse.headers()["x-content-type-options"]).toBe("nosniff");
   await page.getByRole("button", { name: "Job fixture", exact: true }).click();
   await expect(page.locator('.document-tabs img.plugin-icon')).toHaveCount(1);
-  await expect.poll(() => page.locator('img.plugin-icon').evaluateAll(images => images.every(image => image.complete && image.naturalWidth === 32))).toBe(true);
+  await expect.poll(() => page.locator('.sidebar img.plugin-icon, .document-tabs img.plugin-icon').evaluateAll(images => images.every(image => image.complete && image.naturalWidth === 32))).toBe(true);
   if (screenshots) await page.screenshot({path:"tmp/1346/screen-1440.png", mask:[page.locator(".sidebar-host-account")]});
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Plugins", exact: true }).click();
-  await expect(page.locator('.plugin-heading img.plugin-icon')).toHaveCount(1);
+  await expect(page.getByRole('region', { name: 'Job fixture', exact: true }).locator('.plugin-heading img.plugin-icon')).toHaveCount(1);
   if (screenshots) {
     await page.screenshot({path:"tmp/1346/settings-1440.png", mask:[page.locator(".sidebar-host-account")]});
     await page.getByRole("button", {name:"Appearance & language",exact:true}).click();
@@ -30,7 +30,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     await page.getByTestId("ui-language").selectOption("ko");
     await page.getByRole("button", {name:"플러그인",exact:true}).click();
     await page.setViewportSize({width:640,height:900});
-    await expect(page.locator('.plugin-heading img.plugin-icon')).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Job fixture', exact: true }).locator('.plugin-heading img.plugin-icon')).toBeVisible();
     await page.screenshot({path:"tmp/1346/settings-640-ko-dark.png", mask:[page.locator(".sidebar-host-account")]});
     await page.getByRole("tab", {name:"Job fixture",exact:true}).click();
     await expect(page.locator('.document-tabs img.plugin-icon')).toBeVisible();
@@ -91,8 +91,37 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   }
   await pane.getByRole("button", { name: "Open result document" }).click();
   await expect(page.locator(".tiptap").filter({ visible: true })).toContainText("Job result.");
-  // Selecting the retained job tab and starting another explicit request tests Stop.
-  await page.getByRole("tab", { name: /Plugin jobs/ }).click();
+  const image = page.locator(".tiptap").filter({ visible: true }).getByRole("img", { name: "Imported image", exact: true });
+  await expect(image).toBeVisible();
+  await expect.poll(() => image.evaluate(element => element.complete && element.naturalWidth > 0)).toBe(true);
+  await expect(image).toHaveAttribute("src", /assets/);
+  await expect(page.locator(".tiptap").filter({ visible: true })).toContainText("A.3");
+  await expect(page.getByRole("tab", { name: /Plugin jobs/ })).toBeVisible();
+  const logo = page.locator('.tiptap').filter({ visible: true }).locator('figure').filter({ has: page.getByRole('img', { name: 'Logo', exact: true }) });
+  await expect(logo.locator('figcaption')).toHaveText('Unnumbered logo');
+  await expect(logo.locator('figcaption')).not.toHaveAttribute('data-caption-prefix');
+  await expect(page.locator('.tiptap').filter({ visible: true }).getByTestId('table-caption')).not.toHaveAttribute('data-caption-prefix');
+  await page.reload();
+  await expect(page.locator('.tiptap').filter({ visible: true })).toContainText('Unnumbered logo');
+  await expect(logo.locator('figcaption')).not.toHaveAttribute('data-caption-prefix');
+  if (screenshots) {
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.evaluate(width => { localStorage.setItem('litzio.uiLanguage', width === 640 ? 'ko' : 'en'); localStorage.setItem('litzio.theme', width === 640 ? 'dark' : 'light'); }, width);
+      await page.reload();
+      await expect(logo).toBeVisible();
+      await page.screenshot({path: `tmp/plugin-jobs/unnumbered-${width}.png`, mask:[page.locator('.sidebar-host-account')]});
+    }
+    await page.evaluate(() => { localStorage.setItem('litzio.uiLanguage', 'en'); localStorage.setItem('litzio.theme', 'light'); });
+    await page.reload();
+  }
+  // Reload closes the transient job tab; reopen it through its normal command.
+  await page.keyboard.press("Control+Slash");
+  await page.getByRole("combobox").fill("> Plugin jobs");
+  await page.getByRole("option", { name: "Plugin jobs", exact: true }).click();
+  await pane.getByLabel("Job", { exact: true }).selectOption("fixture.jobs/text");
+  await pane.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
+  await pane.getByLabel("Input file").selectOption({ label: "input.txt" });
   await pane.getByLabel("Result path in Root").fill("stopped-result.md");
   await pane.getByRole("button", { name: "Start job", exact: true }).click();
   await pane.getByRole("button", { name: "Request cancellation" }).click();
@@ -117,7 +146,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     if (body.action === "job-start") starts++;
     if (body.action === "job-status") {
       observations++;
-      if (loseResponse) { loseResponse = false; await route.fetch(); await route.fulfill({ status: 200, contentType: "application/json", body: "{" }); return; }
+      if (loseResponse) { loseResponse = false; await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); await route.fulfill({ status: 200, contentType: "application/json", body: "{" }); return; }
     }
     await route.continue();
   };
@@ -190,14 +219,14 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     const row = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: file, exact: true }) });
     await expect(row.getByRole("status")).toHaveText("Completed");
   }
-  // One collision is refused while the second independent request still completes.
+  // Existing results are preserved and automatically numbered.
   const batch = pluginFixture.cli(["plugins", "start", plugin.id, "--job", "file", "--root", pluginFixture.folder, "--file", "cli-a.txt", "--file", "cli-b.txt"]);
   expect(batch.files).toHaveLength(2);
   for (const file of batch.files) await expect.poll(() => pluginFixture.cli(["plugins", "status", file.requestId]).job.state).toBe("completed");
   await panel.getByRole("checkbox", { name: "batch-a.txt", exact: true }).check();
   await panel.getByRole("checkbox", { name: "slow.txt", exact: true }).check();
   await panel.getByRole("button", { name: "Start job", exact: true }).click();
-  await expect(panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "batch-a.txt", exact: true }) }).first().getByRole("status")).toHaveText("Failed");
+  await expect(panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "batch-a.txt", exact: true }) }).first().getByRole("cell", { name: "batch-a-2.bin", exact: true })).toBeVisible();
   await expect(panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "slow.txt", exact: true }) }).first().getByRole("status")).toHaveText("Completed", { timeout: 15000 });
   await panel.getByLabel("Job", { exact: true }).selectOption("text");
   await panel.getByRole("checkbox", { name: "slow.txt", exact: true }).check();
@@ -205,6 +234,13 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   const stoppedRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "slow.txt", exact: true }) }).first();
   await stoppedRow.getByRole("button", { name: "Request cancellation", exact: true }).click();
   await expect(stoppedRow.getByRole("status")).toHaveText("Cancelled");
+  await panel.getByRole("checkbox", { name: "start-fail.txt", exact: true }).check();
+  await panel.getByRole("button", { name: "Start job", exact: true }).click();
+  const failureRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "start-fail.txt", exact: true }) }).first();
+  await expect(failureRow.getByRole("status")).toHaveText("Outcome uncertain");
+  await failureRow.getByRole("button", { name: "Job details: start-fail.txt", exact: true }).hover();
+  await expect(page.locator("[data-slot=tooltip-content]")).toContainText("The plugin could not acknowledge the start request.");
+  await page.keyboard.press("Escape");
   await panel.getByRole("checkbox", { name: "input.txt", exact: true }).check();
   await panel.getByRole("button", { name: "Start job", exact: true }).click();
   const nativeRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "input.txt", exact: true }) }).first();
@@ -212,7 +248,6 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   for (const selector of [".plugin-job-files", ".view-table-scroll"]) {
     expect(await panel.locator(selector).evaluate(el => el.scrollHeight <= el.clientHeight)).toBe(true);
   }
-  const failureRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "batch-a.txt", exact: true }) }).first();
   expect((await failureRow.boundingBox()).height).toBe((await nativeRow.boundingBox()).height);
 
   if (screenshots) {
@@ -230,12 +265,13 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
       expect(await panel.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
       if (width === 640) {
         expect(await panel.locator(".view-table-scroll").evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
-        const info = panel.getByRole("button", { name: "작업 상세: batch-a.txt", exact: true }).first();
+        const info = panel.getByRole("button", { name: "작업 상세: start-fail.txt", exact: true }).first();
         await nativeRow.getByRole("button", { name: "결과 열기: input.txt", exact: true }).focus();
         await page.keyboard.press("Tab");
         await expect(info).toBeFocused();
         await expect(page.locator("[data-slot=tooltip-content]")).toBeVisible();
-        await expect(page.locator("[data-slot=tooltip-content]")).toContainText("이 파일을 시작할 수 없습니다.");
+        await expect(page.locator("[data-slot=tooltip-content]")).toContainText("플러그인이 작업 시작을 확인하지 못했습니다.");
+        await page.screenshot({ path: "tmp/plugin-jobs/failure-details-640.png", maskColor: "#a1a1aa", mask: [page.locator(".sidebar-host-account"), panel.getByLabel("열린 폴더", { exact: true })] });
         await page.keyboard.press("Escape");
         await nativeRow.getByRole("cell").first().click();
       }

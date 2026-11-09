@@ -286,3 +286,26 @@ test("document numbering conversion freezes a simultaneous display snapshot and 
   const empty = c.insertEquation(c.createDocument(), 1, "");
   assert.equal(c.canonicalWriteIssue(c.updateNumberingMode(empty, "fixed"))?.code, "fixed-number-unrepresentable");
 });
+
+
+test("unnumbered Figures and Tables retain captions and labels without advancing counters", async () => {
+  const c = await import("../src/index.ts");
+  let doc = c.parse("---\nlitzio: 1\n---\n\n:::{figure} logo.png\n:name: logo\n:enumerated: false\n\nLogo\n:::\n\n:::{table} Values\n:name: values\n:enumerated: false\n\n| A |\n| --- |\n| B |\n:::\n\n:::{figure}\n:enumerator: 6\n:::\n\n:::{figure}\n:::\n");
+  const end = c.getEditableDocument(doc).blocks.at(-1)!.path[0] + 1;
+  doc = c.insertFigure(doc, end, { imageUrl: "", imageAlt: "", caption: "Diagram", mermaidSource: "graph LR; A-->B" });
+  doc = c.updateEnumeration(doc, [end], false);
+  const read = () => c.getEditableDocument(doc).blocks;
+  assert.deepEqual(targetNumbers(read().map(blockTargets)), [{}, {}, { figure: "6" }, { figure: 1 }, {}]);
+  assert.deepEqual(c.numberingReport(read()).diagnostics.map(d => d.code), ["numbering-missing"]);
+  doc = c.updateTableCaption(doc, [2], "Edited caption");
+  doc = c.updateLabel(doc, [2], "renamed");
+  assert.equal((read()[1] as any).enumerated, false);
+  const saved = c.serialize(doc);
+  assert.equal(c.serialize(c.parse(saved)), saved);
+  assert.equal((read()[0] as any).label, "logo");
+  const enabled = c.updateEnumeration(doc, [1], true);
+  assert.equal(c.numberingReport(c.getEditableDocument(enabled).blocks).targets[0].number, 1);
+  assert.throws(() => c.parse(saved.replace(":enumerated: false", ":enumerated: false\n:enumerator: 3")));
+  assert.throws(() => c.updateEnumeration(doc, [3, 0], false));
+  assert.equal((read()[0] as any).enumerated, false);
+});

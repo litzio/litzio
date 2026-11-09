@@ -1,7 +1,7 @@
 // Heading depth is decorative chrome in Edit and opt-in comparison Read.
 async (page, { openPath, expect, screenshots }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const initial = await (await page.request.get(`${origin}/api/document`)).json();
+  const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const root = initial.path.split(sep).slice(0, -4).join(sep);
   const file = name => [root, 'tmp', 'read-view', name].join(sep);
@@ -104,7 +104,7 @@ async (page, { openPath, expect, screenshots }) => {
   const saving = page.waitForResponse(response => response.url().includes('/api/document') && response.request().method() === 'POST');
   await page.keyboard.press('Control+s');
   expect((await saving).ok()).toBe(true);
-  const depthSaved = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file('heading-levels.md'))}`)).json();
+  const depthSaved = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file('heading-levels.md'))}`, { headers: { Connection: "close" } })).json();
   expect(depthSaved.source).toContain('###### Depth 1'); expect(depthSaved.source).not.toMatch(/H[1-6]/);
   await page.reload();
   await expect(depthCues.first()).toHaveText('H6');

@@ -1,6 +1,6 @@
 // Draft context must neither move the document nor cover its first lines.
 async (page, { openPath, expect, screenshots }) => {
-  const initial = await (await page.request.get(page.url().split('/').slice(0, 3).join('/') + '/api/document')).json();
+  const initial = await (await page.request.get(page.url().split('/').slice(0, 3).join('/') + '/api/document', { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const file = [...initial.path.split(sep).slice(0, -4), 'tmp', 'short-fields', 'fields.md'].join(sep);
   await page.evaluate(async () => (await import('/src/i18n.ts')).i18n.changeLanguage('en'));

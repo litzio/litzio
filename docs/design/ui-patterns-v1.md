@@ -559,15 +559,15 @@ ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의
 
 ## Query renderer V3
 
-#1241 A안에 따라 제품 화면은 코드로 유지하고, 생성/기여/즐겨찾기 조회 화면은
+#1241 A안에 따라 제품 화면은 코드로 유지하고, 플러그인 조회 화면은
 제품 공통 Input·Button·Dialog·Notice·FieldError·SettingsSelect 레시피·Lucide를 조합한다.
 입력 오류는 P07의 필드 인접 FieldError와 aria-invalid/describedby로 연결하고 실행을 막는다.
-작업 오류는 해당 화면 Notice, 저장 오류는 열린 이름 Dialog의 FieldError 하나에만 표시한다.
+작업 오류는 해당 화면 Notice에 표시한다.
 오류 본문·stack·서비스 응답은 표시하지 않으며 #1233 고정 분류 안내만 사용한다.
 unknown 분류는 일반 실패로, uncertain은 결과 확인 안내로 표시하고 자동 재전송하지 않는다.
 
 첫 조회 중에는 미조회 문구 대신 loading Notice와 aria-busy를 표시한다.
-같은 source의 표·차트는 미조회/조회 중/빈 결과/실패 상태 Notice를 공유한다.
+같은 source의 표는 미조회/조회 중/빈 결과/실패 상태 Notice를 공유한다.
 이전 rows를 남기는 재조회·실패·조건 변경 상태에는 이전 결과와 조회 시각을 함께 표시한다.
 입력은 조회 중에도 고칠 수 있고 요청에는 제출 시점 args를 고정한다.
 닫힌 탭·Root 변경 전 요청의 늦은 결과를 폐기한다.
@@ -610,7 +610,7 @@ camelCase·구분자를 읽기 쉬운 기본 표기로만 바꾸고 바인딩 �
 실행 버튼은 입력 grid 전체 너비를 차지하는 마지막 행의 기존 `.form-actions` 오른쪽 축에
 둔다. 조회 표는 문서 표와 같은 thin scrollbar·border-strong thumb 규칙으로 내부 가로
 스크롤을 드러낸다. 모든 열을 유지하며, 폭별 시작/끝 캡처로 12열과 마지막 열 도달을 확인한다.
-검증 근거는 `pnpm browser:test generated-views --screenshots`의
+검증 근거는 `pnpm browser:test plugin-views --screenshots`의
 소유자 로컬의 table12 시작·끝, 다시 열기·오류 캡처
 (1440/960/640)이며 최종 이미지는 수동 검토한다.
 
@@ -629,22 +629,13 @@ CatalogView의 query/review 분기는 상태를 가진 각 renderer를 mount하�
 review는 V5의 선택·stale·승인/Undo·갱신 패턴을 재사용하고 query의 초안 args를 생성하지 않는다.
 source/Host가 바뀌거나 탭이 닫히면 해당 adapter 요청을 중단한다. 실제 Host integration은 V2/V4 gate로 남긴다.
 
-V2 입력 진단의 field는 JSON Pointer다. 없는 field는 폼 오류이며, 공개된 입력 이름과 대응하지 않는 경로를 임의 필드로 만들지 않는다. V2 unavailable code는 새 뷰 필요 상태로 안내하고 #1233 서비스 unavailable과 구별한다.
+V2 입력 진단의 field는 JSON Pointer다. 없는 field는 폼 오류이며, 공개된 입력 이름과 대응하지 않는 경로를 임의 필드로 만들지 않는다. V2 unavailable code는 플러그인 설정 확인으로 안내하고 #1233 서비스 unavailable과 구별한다.
 
-V2/V5 병합 후 생성 context는 query InputForm을 허용하며 review 생성은 V4 통합 전까지 제외한다. #1266의 선택적 mapping은 공통 진입점에서 필수로 재해석하지 않고 ReviewRenderer의 제안/대응 탐색 경계를 따른다.
+#1341에서 생성 context는 제거했다. query/review는 플러그인 기본 화면과 완료 bundle 진입으로 유지한다. 선택적 mapping은 공통 진입점에서 필수로 재해석하지 않는다.
 
 ## 비서의 검증된 뷰 결과 (V6)
 
-#1241 A안: 기존 assistant-result 카드와 공통 Button을 쓴다. 제목, 검증 상태와
-‘뷰 열기’를 표시하며 수동 조회 안내는 버튼 tooltip에 둔다. 클릭으로 새 탭만 만들며 자동 조회·즐겨찾기 저장은 하지 않는다.
-Generate view는 성공 JSON 대신 이 카드를 보여 주며 일반 제작 도구 propose_view도 같은 카드로 연결한다.
-진행·교정·중단 표시는 기존 대화 영역을 쓴다. 새 공통 부품이나 UI 예외는 추가하지 않는다.
-
-생성 명세는 실패한 시도를 포함해 기본 접힘의 ‘뷰 명세’에서만 펼치거나 복사한다.
-교정 요청의 내부 지시문은 사용자 말풍선에 표시하지 않는다. 진행 상태는 최신 한 줄로 교체하며
-성공 후에는 교정 횟수만 짧게 남긴다. 검증 실패는 고정 안내를 쓰고 원문 오류·Error 접두는 노출하지 않는다.
-
-이미지가 없거나 로드에 실패한 PageSurface는 영역 좌표계 바깥, 도구줄 아래 별도 줄에 안내를 표시한다. 독립 페이지와 SourceDocumentCompare에 동일하게 적용한다. `review-v5`에서 두 사용처의 안내와 영역이 겹치지 않는지 확인한다(#1278).
+#1341에서 제거한 과거 경험이다. [Historical 기록](generated-views-v1.md)과 [현재 플러그인 화면 계약](plugin-screens-v1.md)을 따른다.
 
 ## 공식 플러그인 공급 (#1279)
 
@@ -652,16 +643,7 @@ Plugins 설정의 외부 추가는 문서 폴더 열기와 같은 Host 측 `Fold
 
 ## 동적 뷰 재정의의 표시 패턴 (제안)
 
-이 절만 Draft다. 2026-11-06 소유자 방향을 구체화하며 현재 구현 기준을 대체하지 않는다. 자료·한도·소유권은 [동적 뷰 설계](dynamic-views-v1.md), 표현·신뢰 경계는 [ADR-0020 개정안](../adr/0020-plugin-architecture.md#동적-뷰-재정의-개정안-2026-11-06)이 소유한다. 아래 동작은 구현 PR D3/D4가 공통 코드로 제공하고 구현 근거를 갱신한다.
-
-- 새 탭·우측 보기·플러그인 화면은 같은 ViewRenderer, Button·Notice·Dialog·제품 공통 표/차트를 쓴다. 카드의 기본 열기는 새 탭이며 `보기에서 열기`와 원래 plugin 화면 열기는 가용 대상만 제공한다. 모델 출력에 임의 UI action을 허용하지 않는다. 우측에서 시작한 요청은 검증 성공 시 해당 보기만 갱신하고 결과 카드를 대화에 남긴다.
-- 비서 데이터 상단에는 `비서가 정리한 데이터 · 출처: 문서명들`, 생성 시각과 `비서가 작성한 내용으로, 정확성을 보장하지 않습니다.`를 표시한다. 문서가 아닌 출처는 참조 label을 쓴다. 출처가 많으면 요약 뒤 펼치기를 제공하며 각 문서 열기는 기존 Host·Root 검사와 미저장 보호를 따른다. 열 수 없는 출처도 숨기지 않는다.
-- `데이터 보기`는 전체 원행·열을 페이지 단위로 펼친다. 계산 설명이 있으면 plain text로 함께 표시한다. 연결 데이터는 `새로고침`, 비서 데이터는 `비서에게 다시 요청`을 제공한다. 후자는 즉시 실행하지 않고 현재 명세·출처를 첨부한 요청 입력으로 이동한다. 저장한 데이터는 다시 요청해도 자동 덮어쓰지 않는다.
-- 생성 중에는 기존 검증 결과를 유지하고 진행·중단 상태를 표시한다. 오류 안내는 공통 조회 패턴을 재사용하며 기존 결과를 새 성공처럼 표시하지 않는다. 무효화된 요청의 늦은 결과는 화면을 바꾸거나 다시 열지 않는다. 성공 카드가 없는 실패를 빈 데이터 성공으로 표시하지 않는다.
-- 플러그인 화면은 기본 뷰·현재 생성 뷰·해당 plugin 즐겨찾기를 선택한다. 기본 뷰 복귀는 언제나 가능하며 초기 진입·즐겨찾기 open은 연결 작업을 실행하지 않는다. 비서 데이터는 저장된 행을 즉시 표시한다. 새 이름 저장은 기존 Dialog를 쓴다.
-- 우측 보기 폭에 맞춰 공통 차트를 축소하고 가로 배치는 세로로 접는다. 표는 공통 가로 스크롤을 쓰며 열을 몰래 삭제하지 않는다. review 대조는 별도 작업 탭으로 안내한다. 문서 편집 selection/history는 뷰가 소유하지 않는다.
-
-공통 구현 선택은 #1241 A안이다. 새 표면은 소유자가 요청한 우측 보기·플러그인 화면이고 새 공통 부품은 기존 표/막대만으로 표현할 수 없는 선/산점도다. 임의 CSS·별도 UI runtime·새 편집 엔진은 추가하지 않는다. 구현 시 UI 결정표의 사용처를 갱신하고 같은 조회 패턴의 문서 통계·플러그인·생성 뷰를 함께 확인한다.
+#1341에서 제거한 과거 경험이다. [Historical 기록](generated-views-v1.md)과 [현재 플러그인 화면 계약](plugin-screens-v1.md)을 따른다.
 
 ## 데이터 표 정렬·필터 (제안)
 
@@ -710,9 +692,11 @@ D3가 공통 부품·갤러리·이 패턴의 구현 근거를 함께 갱신한�
 
 ## 플러그인·동적 뷰의 내용 우선 표시 (#1329)
 
-기존 작업 탭·우측 보기의 ViewWorkspace/QueryViews와 Button·Notice·native details/summary를 재사용한다. Host 선택은 복수 Host일 때, 기본 뷰 선택은 복수 후보 또는 다른 뷰에서 돌아올 때 표시한다. 즐겨찾기 목록 관리는 접어 두며 내용 안의 수동 조회·즐겨찾기 추가는 유지한다. 폴더 source만 폴더 선택을 한 번 표시한다. 일반 생성 뷰에도 같은 기준을 적용하며 별도 표면·공통 상호작용 예외는 없다. 출처·원자료를 접는 AssistantDataDetails/ViewChart의 기존 패턴과 일치한다. 실행·캡처 근거와 Host/CLI 범위는 [생성 뷰 계약](generated-views-v1.md#플러그인동적-뷰-화면-간소화-1329)을 따른다.
+플러그인 작업 탭의 ViewWorkspace/QueryViewPage와 Button·Notice를 사용한다. Host 선택은 복수 Host일 때, 기본 조회 선택은 복수 후보일 때 표시한다. #1341에서 우측 Views·즐겨찾기·출처·Chart를 제거했다. 현재 동작은 [플러그인 화면 계약](plugin-screens-v1.md)을 따른다. 별도 공통 상호작용 예외는 없다.
 
 ## 플러그인 화면 작업 패널 (#1340)
+
+#1376은 같은 표에 Host가 정한 Root 상대 결과 경로를 표시한다. 동명 결과는 기존 이미지의 `-N` 관례로 자동 선택하며, 시작 거부·접수 실패의 정해진 종류와 상세는 기존 Info Tooltip에 둔다. 공통 Table의 내부 가로 스크롤·Button·Tooltip·JobState를 유지하고 별도 입력·공통 상호작용 예외는 추가하지 않는다. [1440px 변경 전](assets/job-start-1376/before-1440.png) / [변경 후](assets/job-start-1376/after-1440.png), [640px 한국어 다크 변경 전](assets/job-start-1376/before-640.png) / [변경 후](assets/job-start-1376/after-640.png), [실패 상세](assets/job-start-1376/failure-details-640.png)는 localhost fixture의 수동 검토 근거다.
 
 기존 SettingsSelect·Button, 체크박스, view-panel·view-table-scroll과 K1의 JobState·JobActions·파일 탐색 함수를 재사용한다. 패널을 위, 기존 조회 뷰를 아래에 세로 배치한다. 표는 열을 보존하며 내부 가로 스크롤을 제공한다. 파일과 작업, 상태, 단계, 경과, 현재 가능한 행동만 상시 표시한다. 작업 표의 오류·불확실 안내는 공통 Info 아이콘 Tooltip에 두고 키보드 focus로 연다. 결과 열기는 ghost/sm ‘열기’로 표시하고 aria-label에 파일 이름을 포함한다. opaque 경로 복사는 기존 K1과 동일하다. 파일 목록·표의 상시 세로 스크롤은 두지 않으며 페이지가 세로 스크롤을 소유하고 표만 내부 가로 스크롤한다. 별도 공통 상호작용 예외는 없다. 작업만 있는 화면의 근거와 선언·수명은 [현재 계약](plugin-stage1-v1.md#플러그인-화면-작업-패널-1340)을 따른다.
 
@@ -724,7 +708,7 @@ Multi-page PDF reading uses the existing task tab and DocumentTabs, while transi
 
 현재 목록은 위 Hosts host-summary와 같은 정렬·상태 점/톤을 사용한다. 과거 #1007/#1090의 톱니·스위치 배치를 재사용하되, 비활성 플러그인도 정보와 설정에 진입한다. 설정 화면에는 플러그인 화면 이동 버튼을 두지 않는다. 화면 진입은 사이드바이며 “동작 · 이름” 합성 라벨은 금지한다.
 
-설정 창 순서는 이름·버전·설명 → settingsSchema.properties 선언 순서의 일반 설정 → secret → 연결 확인 → 접힌 상세(digest)다. 설정 title은 라벨, description은 Tooltip 안내다. 화면에는 상태·대상·행동을 상시 표시한다. 연결 확인은 저장된 설정으로 실행하며 실행 중 표시, 연결됨/오류와 고정 안내를 제공한다. 꺼짐·미실행이면 버튼을 비활성화하고 Tooltip으로 이유를 보인다. 기존 Button·Tooltip·Dialog·Notice·settings 행·HostStatus 스타일을 재사용하며 새 공통 상호작용 예외는 없다.
+설정 창 순서는 이름·버전·설명 → settingsSchema.properties 선언 순서의 일반 설정 → secret → 연결 확인 → 접힌 상세(만든 곳·신뢰 여부·digest)다. 설정 title은 라벨, description은 Tooltip 안내다. 화면에는 상태·대상·행동을 상시 표시한다. 연결 확인은 저장된 설정으로 실행하며 실행 중 표시, 연결됨/오류와 고정 안내를 제공한다. 꺼짐·미실행이면 버튼을 비활성화하고 Tooltip으로 이유를 보인다. 기존 Button·Tooltip·Dialog·Notice·settings 행·HostStatus 스타일을 재사용하며 새 공통 상호작용 예외는 없다.
 
 수동 검토: 1440px 영어 라이트 [변경 전](assets/plugin-settings-1334/before-1440.png) / [변경 후](assets/plugin-settings-1334/after-1440.png), 640px 한국어 다크 [변경 전](assets/plugin-settings-1334/before-640.png) / [변경 후](assets/plugin-settings-1334/after-640.png). 설정 창 [1440px](assets/plugin-settings-1334/detail-1440.png) / [640px 한국어 다크](assets/plugin-settings-1334/detail-640.png). 톱니·스위치 세로 중심과 행 오른쪽 정렬, 배지 줄바꿈, 상태 줄, 다크 대비를 확인했다. 캡처는 localhost fixture이며 외부 서비스 연결 성공의 증거가 아니다. 계정 표시는 캡처에서 가렸다.
 
@@ -738,8 +722,16 @@ PluginIcon shares the same decorative 16px img in existing sidebar entries, Docu
 
 ### 공통 조회 폼의 추가 조건 (#1370)
 
-소유자 승인 A: InputForm의 `advanced: true` 선택 입력만 ‘추가 조건’ Button으로 접는다. 필수 입력은 항상 표시하고 기존 Input/Select/SuggestedInput·FieldError를 재사용한다. 접힌 지정값은 label: value로 빠짐없이 요약하고 긴 값은 줄바꿈한다. 접기는 값을 지우지 않으며 숨은 입력은 Tab 순서에서 제외한다. 오류는 자동 펼침 후 첫 오류 focus, 조회는 기존 명시적 실행과 이전 결과 안내를 유지한다. 빈 자유 입력의 동적 안내는 inputHints read 작업 결과를 placeholder·접근성 설명으로만 표시한다. 현재 값·args·즐겨찾기에 넣지 않는다. 입력 안내 실패는 수동 입력을 막지 않는다. 자동완성 후보는 입력 focus 밖에서 닫고 늦게 도착한 응답도 다시 열지 않는다. 자세한 선언·수명은 [생성 뷰 계약](generated-views-v1.md#collapsible-query-inputs-and-dynamic-guidance-1370). 별도 PluginJobPanel은 이 입력 폼이 아니므로 자동 적용하지 않는다.
+소유자 승인 A: InputForm의 `advanced: true` 선택 입력만 ‘추가 조건’ Button으로 접는다. 필수 입력은 항상 표시하고 기존 Input/Select/SuggestedInput·FieldError를 재사용한다. 접힌 지정값은 label: value로 빠짐없이 요약하고 긴 값은 줄바꿈한다. 접기는 값을 지우지 않으며 숨은 입력은 Tab 순서에서 제외한다. 오류는 자동 펼침 후 첫 오류 focus, 조회는 기존 명시적 실행과 이전 결과 안내를 유지한다. 빈 자유 입력의 동적 안내는 inputHints read 작업 결과를 placeholder·접근성 설명으로만 표시한다. 현재 값·args에 넣지 않는다. 입력 안내 실패는 수동 입력을 막지 않는다. 자동완성 후보는 입력 focus 밖에서 닫고 늦게 도착한 응답도 다시 열지 않는다. 자세한 선언·수명은 [플러그인 화면 계약](plugin-screens-v1.md#collapsible-query-inputs-and-dynamic-guidance-1370). 별도 PluginJobPanel은 이 입력 폼이 아니므로 자동 적용하지 않는다.
 
 검증(2026-11-09): `ui-gallery`의 기존 QueryInputs fixture에서 필수 advanced 입력 상시 노출, 숨은 입력 제거, 오류 펼침/첫 오류 focus, 지정값 0·false·null·유효한 빈 문자열과 편집값 보존을 확인했다. `http-plugins`의 가짜 Jira는 실제 Host/CLI/번들 renderer를 통해 PAT 표시 이름 안내(빈 args 유지), 계정·보고자·프로젝트 후보 선택과 수동 조회·접힌 조건 보존을 검증했다. localhost·합성 PAT/자료이며 회사 Jira 성공이나 소유자 시각 승인을 뜻하지 않는다.
 
-수동 캡처: 1440px Light [기본](assets/search-form-1370/default-1440.png) / [접힌 요약](assets/search-form-1370/collapsed-1440.png) / [펼침](assets/search-form-1370/expanded-1440.png), 한국어 Dark 640px [기본](assets/search-form-1370/default-640-ko-dark.png) / [접힌 요약](assets/search-form-1370/collapsed-640-ko-dark.png) / [펼침](assets/search-form-1370/expanded-640-ko-dark.png) / [하단 입력·실행](assets/search-form-1370/expanded-bottom-640-ko-dark.png). 기존 공통 컨트롤·토큰·Lucide를 사용하고 새 예외는 접기·요약 행동뿐이다. 내장 통계/갤러리의 미선언 폼은 펼친 배치를 유지하며 PluginJobPanel은 별도 구현임을 대조했다.
+수동 캡처: 1440px Light [기본](assets/search-form-1370/default-1440.png) / [접힌 요약](assets/search-form-1370/collapsed-1440.png) / [펼침](assets/search-form-1370/expanded-1440.png), 한국어 Dark 640px [기본](assets/search-form-1370/default-640-ko-dark.png) / [접힌 요약](assets/search-form-1370/collapsed-640-ko-dark.png) / [펼침](assets/search-form-1370/expanded-640-ko-dark.png) / [하단 입력·실행](assets/search-form-1370/expanded-bottom-640-ko-dark.png). 기존 공통 컨트롤·토큰·Lucide를 사용하고 새 예외는 접기·요약 행동뿐이다. 갤러리의 미선언 폼은 펼친 배치를 유지하며 PluginJobPanel은 별도 구현임을 대조했다.
+
+## 플러그인 목록과 첫 켜기 확인 (#1379)
+
+목록에는 공식/커뮤니티 배지 하나만 두고 만든 곳과 신뢰 여부·현재 digest는 설정 창 상세 정보로 옮긴다. 오류·사용할 수 없음만 플러그인 상태 줄에 표시하고 정상 실행·꺼짐은 기존 스위치로 표현한다. 폴더 감지는 `folderSources` 선언이 있을 때만 표시하며 계정 줄은 유지한다. 처음 켜기는 기존 Dialog·Button·Notice로 확인하고, 취소 시 변경하지 않는다. 확인 요청은 창을 열 때 본 registrationId에 한정한다. 그동안 등록이 교체됐으면 Host의 구분된 거부 사유를 지역화해 알리고 창을 닫는다. 갱신된 목록에서 사용자가 다시 켜야 하며 이전 승인을 새 등록으로 옮기지 않는다. 신뢰 수명은 [플러그인 계약](plugin-stage1-v1.md)을 따른다. 새 공통 상호작용 예외는 없다. Hosts의 요약 행과 설정 창의 접힌 상세 패턴을 재사용한다.
+
+1440px 영어 라이트와 640px 한국어 다크 수동 근거: 목록 [1440px](assets/plugin-list-1379/list-1440.png) / [640px](assets/plugin-list-1379/list-640.png), 첫 켜기 확인 [1440px](assets/plugin-list-1379/confirmation-1440.png) / [640px](assets/plugin-list-1379/confirmation-640.png), 상세 정보 [1440px](assets/plugin-list-1379/detail-1440.png) / [640px](assets/plugin-list-1379/detail-640.png). localhost fixture이며 외부 서비스 연결·소유자 시각 승인을 뜻하지 않는다. 배지·컨트롤의 정렬, 여백, 창 경계와 digest 줄바꿈을 확인했다.
+
+같은 미신뢰 등록 상태의 목록 변경 전 [1440px](assets/plugin-list-1379/before-list-1440.png) / [640px 한국어 다크](assets/plugin-list-1379/before-list-640.png)는 변경 전 PluginSettings 컴포넌트를 같은 production HTTP fixture에 빌드하여 촬영했다. Host는 이번 등록 신뢰 구현이며, 이 비교는 UI 표시 차이에 한정한다.

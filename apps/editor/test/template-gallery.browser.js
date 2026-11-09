@@ -9,8 +9,8 @@ async (page, { expect, waitForEditorFocus }) => {
     await page.route(`${reconnectOrigin}/api/folder-version?*`, route => route.fulfill({
       headers: { 'access-control-allow-origin': origin }, json: { version: 'reconnected-fixture', revisions: [] },
     }));
-    const loaded = await (await page.request.get(origin + '/api/document')).json();
-    const originalCatalog = await (await page.request.get(origin + '/api/templates?language=ko')).json();
+    const loaded = await (await page.request.get(origin + '/api/document', { headers: { Connection: "close" } })).json();
+    const originalCatalog = await (await page.request.get(origin + '/api/templates?language=ko', { headers: { Connection: "close" } })).json();
     const sep = loaded.path.includes('\\') ? '\\' : '/';
     const root = loaded.path.split(sep).slice(0, -4).join(sep);
     const folder = [root, 'tmp', 'new-document'].join(sep);
@@ -55,7 +55,7 @@ async (page, { expect, waitForEditorFocus }) => {
     const editor = page.locator('[data-document-tab][data-active="true"] .document-editor');
     await expect(editor).toBeVisible();
     await waitForEditorFocus(page);
-    const created = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(folder + sep + 'from-template.md')}`)).json();
+    const created = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(folder + sep + 'from-template.md')}`, { headers: { Connection: "close" } })).json();
     expect(created.source).not.toContain('template:');
     expect(created.source).toContain('작업 목적');
     expect(created.source).toContain('그림 %s');

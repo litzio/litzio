@@ -49,8 +49,10 @@ test("official settings HTTP and CLI share validation and the stored snapshot wi
     assert.equal(readFileSync(file, "utf8"), before);
     assert.equal((await fetch(`${url}/api/worker-plugins`)).status, 404);
     assert.equal((await fetch(`${url}/api/ai-tasks`)).status, 404);
-    const { VIEW_TRANSPORT_LIMITS } = await import("../shared/view-limits.ts");
-    const oversized = await fetch(`${url}/api/assistant/conversations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "send", message: "x".repeat(VIEW_TRANSPORT_LIMITS.requestBytes) }) });
+    const { ASSISTANT_TRANSPORT_LIMITS } = await import("../shared/assistant-limits.ts");
+    const ordinary = await fetch(`${url}/api/assistant/conversations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "unknown", message: "x".repeat(128 * 1024) }) });
+    assert.equal(ordinary.status, 400); assert.match(await ordinary.text(), /Unknown conversation action/);
+    const oversized = await fetch(`${url}/api/assistant/conversations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "send", message: "x".repeat(ASSISTANT_TRANSPORT_LIMITS.requestBytes) }) });
     assert.equal(oversized.status, 413, "the Host enforces the envelope even when the app transport is bypassed");
   } finally {
     stdout.mock.restore(); stderr.mock.restore();
@@ -85,32 +87,9 @@ test("unavailable provider rejects new work with a reason; settings do not close
   await assert.rejects(host.invoke("assistantConversations", {}), /closing/);
 });
 
-test("a cancelled view request interrupts its eventual provider turn when admission was delayed", async t => {
-  const root = mkdtempSync(path.join(tmpdir(), "litzio-view-cancel-"));
-  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath,
-    args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url))] });
-  const host = createAssistantHost(null, path.join(root, "ai.json"), { agent: connection });
-  t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
-  let release!: () => void, entered!: () => void;
-  const waiting = new Promise<void>(resolve => { entered = resolve; });
-  const gate = new Promise<void>(resolve => { release = resolve; });
-  const diagnostics = connection.diagnostics.bind(connection);
-  t.mock.method(connection, "diagnostics", async (provider?: "codex" | "copilot") => { entered(); await gate; return diagnostics(provider); });
-  const { requestId } = await host.invoke("assistantConversation", { action: "prepare-view-generation" });
-  const sending = host.invoke("assistantConversation", { action: "send", viewGeneration: true, viewGenerationRequest: requestId,
-    message: "Show document totals", folders: [], model: "gpt-6.1-sol", reasoningEffort: "medium" });
-  await waiting;
-  assert.deepEqual(await host.invoke("assistantConversation", { action: "cancel-view-generation", requestId }), { acknowledged: true });
-  release(); await assert.rejects(sending, /cancelled/);
-  const [info] = await host.invoke("assistantConversations", {});
-  const conversation = await host.invoke("assistantConversations", { id: info.id });
-  assert.equal(conversation.turns.at(-1).status, "interrupted");
-});
-
-
 test("plugin and view services work without an assistant and survive assistant shutdown failure", async t => {
   const { createHostServices } = await import("../server/host-services.ts");
-  const { STATISTICS_PLUGIN_ID } = await import("../server/views.ts");
+
   const root = mkdtempSync(path.join(tmpdir(), "litzio-services-"));
   const previous = process.env.LITZIO_DATA_DIR;
   process.env.LITZIO_DATA_DIR = root;
@@ -123,11 +102,11 @@ test("plugin and view services work without an assistant and survive assistant s
   t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await services.plugins.close(); rmSync(root, { recursive: true, force: true }); });
   assert.equal((await fetch(`${url}/api/plugins`)).status, 200);
   assert.equal((await fetch(`${url}/api/assistant/settings`)).status, 404);
-  const response = await fetch(`${url}/api/views`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "list", plugin: STATISTICS_PLUGIN_ID }) });
+  const response = await fetch(`${url}/api/views`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "catalog" }) });
   assert.equal(response.status, 200);
   await services.assistant.close();
   assert.deepEqual((await services.plugins.invoke("pluginsList")).plugins.map((p: any) => p.id), (await (await fetch(`${url}/api/plugins`)).json()).plugins.map((p: any) => p.id));
-  assert.equal((await services.views.execute({ action: "list", plugin: STATISTICS_PLUGIN_ID })).receipt.outcome, "success");
+  assert.equal((await services.views.execute({ action: "catalog" })).receipt.outcome, "success");
   // A service failure still lets Host shutdown close the independent runtime.
   const assistantClose = t.mock.method(services.assistant, "close", async () => { throw new Error("fixture close failed"); });
   const closing = services.close();
@@ -183,81 +162,6 @@ test("provider log lookup binds Litzio index, provider RPC ID and original metad
   writeFileSync(log, JSON.stringify({ type: "session.start", data: { sessionId: id } }) + "\n");
   assert.equal(validateProviderLog(log, "copilot", id), log);
 });
-
-test("generation proposals use the admitted Host request, owner and material identities rather than public client scope", async t => {
-  const { writeFileSync } = await import("node:fs");
-  const { executeViewOperation } = await import("../server/views.ts");
-  const root = mkdtempSync(path.join(tmpdir(), "view-proposal-host-"));
-  const log = path.join(root, "provider.jsonl"), file = path.join(root, "a.md");
-  writeFileSync(file, "Revenue: 100");
-  const connection = new ProviderConnections(path.join(root, "assistant"), { bin: process.execPath,
-    args: [fileURLToPath(new URL("./fixtures/codex-app-server.mjs", import.meta.url)), log] });
-  const { builtinViewOperations } = await import("@litzio/core/views");
-  const operation = { operation: "example.data.read", version: 1, inputSchema: { type: "object", properties: {}, additionalProperties: false }, rowSchema: { total: { type: "number" as const, label: "Total" } }, validateArgs: () => true };
-  const plugins = { start: async () => {}, host: {
-    viewOperations: () => [...builtinViewOperations, operation], viewOperationOwner: (name: string) => name === operation.operation ? "example.data" : undefined,
-    viewScreens: () => [{ plugin: "example.data", id: "dashboard" }], hasViewOwner: (owner: string) => owner === "example.data",
-  } } as unknown as import("../server/plugin-service.ts").PluginService;
-  const host = createAssistantHost(null, path.join(root, "settings.json"), { agent: connection, plugins });
-  t.after(async () => { await host.close(); rmSync(root, { recursive: true, force: true }); });
-  const prepared = await host.invoke("assistantConversation", { action: "prepare-view-generation" });
-  const conversation = await host.invoke("assistantConversation", { action: "send", viewGeneration: true, viewGenerationRequest: prepared.requestId,
-    message: "Total", folders: [root], references: [file], model: "gpt-6.1-sol", reasoningEffort: "medium", viewContext: { owner: "litzio.assistant", hostId: "host-a", roots: [] } });
-  const rpc = readFileSync(log, "utf8").trim().split("\n").map(line => JSON.parse(line));
-  const context = JSON.parse(rpc.find(call => call.method === "turn/start").params.input[1].text.split("(JSON):\n")[1]);
-  const provenance = context.viewGeneration.materials.map((material: any) => material.provenance);
-  assert.equal(provenance[0].kind, "reference", "absence of app Root identity never fabricates a document binding");
-  const view = { kind: "litzio-view", schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.assistant", title: "예시: Total", refresh: "assistant",
-    sources: { stats: { kind: "assistant", generatedAt: "2026-11-06T00:00:00.000Z", rowSchema: { total: { type: "number", label: "Total" } }, rows: [{ total: 100 }], provenance } },
-    layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "예시: Total", source: "stats", data: "/rows", columns: ["total"] }] } };
-  const proposal = { action: "propose-view-generation", requestId: prepared.requestId, id: conversation.id, turnId: conversation.turns.at(-1).id, view };
-  await assert.rejects(host.invoke("assistantConversation", proposal), /completed view generation/);
-  const { VIEW_GENERATION_OUTPUT_BYTES } = await import("../shared/view-generation.ts");
-  const otherOutput = conversation.turns.at(-1).items.filter((item: any) => item.kind !== "user" && item.kind !== "assistant").map((item: any) => item.text).join("");
-  const encodedView = JSON.stringify(view);
-  const finalText = encodedView + " ".repeat(VIEW_GENERATION_OUTPUT_BYTES - Buffer.byteLength(otherOutput + encodedView, "utf8"));
-  await connection.client.request("fixture/finish", { threadId: conversation.id, finalText });
-  assert.equal(conversation.turns.at(-1).status, "completed", "user input is not charged to the provider output budget");
-  const result = await host.invoke("assistantConversation", proposal);
-  assert.equal(result.receipt.outcome, "success"); assert.equal(result.provenanceStatus, "verified");
-  const publicResult = await executeViewOperation({ action: "propose", view }, { access: null });
-  assert.ok("provenanceStatus" in publicResult); assert.equal(publicResult.provenanceStatus, "unverified");
-  const forged = { ...view, sources: { stats: { ...view.sources.stats, provenance: [{ kind: "reference", label: "Forged", refId: "not-supplied" }] } } };
-  assert.equal((await host.invoke("assistantConversation", { ...proposal, view: forged })).receipt.outcome, "failure");
-  assert.equal((await host.invoke("assistantConversation", { ...proposal, view: { ...view, owner: "litzio.statistics" } })).receipt.outcome, "failure");
-  await assert.rejects(host.invoke("assistantConversation", { ...proposal, turnId: "other-turn" }), /mismatched/);
-  await assert.rejects(host.invoke("assistantConversation", { ...proposal, proposal: { owner: "litzio.statistics", provenance } }), /Invalid view generation proposal/);
-  await host.invoke("assistantConversation", { action: "cancel-view-generation", requestId: prepared.requestId });
-  await assert.rejects(host.invoke("assistantConversation", proposal), /expired or mismatched/);
-  const wrongOwner = await host.invoke("assistantConversation", { action: "prepare-view-generation" });
-  await assert.rejects(host.invoke("assistantConversation", { action: "send", id: conversation.id, viewGeneration: true, viewGenerationRequest: wrongOwner.requestId,
-    message: "New request", folders: [root], model: "gpt-6.1-sol", reasoningEffort: "medium", viewContext: { owner: "litzio.statistics", hostId: "host-a", roots: [] } }), /admitted destination/);
-  await assert.rejects(host.invoke("assistantConversation", { action: "prepare-view-generation", target: { kind: "screen", plugin: "missing.plugin", id: "dashboard" } }), /unavailable/);
-  const statistics = await host.invoke("assistantConversation", { action: "prepare-view-generation", target: { kind: "statistics" } });
-  const next = await host.invoke("assistantConversation", { action: "send", id: conversation.id, viewGeneration: true, viewGenerationRequest: statistics.requestId,
-    message: "Statistics", folders: [root], model: "gpt-6.1-sol", reasoningEffort: "medium", viewContext: { owner: "litzio.statistics", hostId: "host-a", roots: [] } });
-  await connection.client.request("fixture/finish", { threadId: conversation.id });
-  const crossOwner = { ...view, owner: "example.data", refresh: "manual", sources: { stats: { kind: "operation", operation: operation.operation, version: 1, args: {} } } };
-  const cross = await host.invoke("assistantConversation", { action: "propose-view-generation", requestId: statistics.requestId, id: conversation.id, turnId: next.turns.at(-1).id, view: crossOwner });
-  assert.equal(cross.receipt.outcome, "failure", "a catalog operation cannot change an explicitly admitted destination namespace");
-  await assert.rejects(host.invoke("assistantConversation", { action:"prepare-view-generation", target:{kind:"operation",operation:operation.operation,version:99} }), /unavailable/);
-  const operationTarget = await host.invoke("assistantConversation", {action:"prepare-view-generation",target:{kind:"operation",operation:operation.operation,version:1}});
-  const targeted = await host.invoke("assistantConversation", {action:"send",id:conversation.id,viewGeneration:true,viewGenerationRequest:operationTarget.requestId,
-    message:"Refine this connected view",folders:[root],model:"gpt-6.1-sol",reasoningEffort:"medium",viewContext:{owner:"example.data",hostId:"host-a",roots:[]}});
-  await connection.client.request("fixture/finish",{threadId:conversation.id});
-  const targetedResult = await host.invoke("assistantConversation",{action:"propose-view-generation",requestId:operationTarget.requestId,id:conversation.id,turnId:targeted.turns.at(-1).id,view:crossOwner});
-  assert.equal(targetedResult.receipt.outcome,"success","a connected tab admits the registered operation owner without inventing a screen");
-  const large = await host.invoke("assistantConversation", { action: "prepare-view-generation" });
-  const over = await host.invoke("assistantConversation", { action: "send", id: conversation.id, viewGeneration: true, viewGenerationRequest: large.requestId,
-    message: "Over limit", folders: [], model: "gpt-6.1-sol", reasoningEffort: "medium" });
-  const overTurn = over.turns.at(-1);
-  const otherBytes = Buffer.byteLength(overTurn.items.filter((item: any) => item.kind !== "user" && item.kind !== "assistant").map((item: any) => item.text).join(""), "utf8");
-  await connection.client.request("fixture/finish", { threadId: conversation.id, finalText: "x".repeat(VIEW_GENERATION_OUTPUT_BYTES - otherBytes + 1) });
-  assert.equal(overTurn.status, "failed"); assert.match(overTurn.error, /output exceeds byte limit/);
-
-
-});
-
 
 test("assistant shutdown rejects a send still waiting for plugin startup before provider admission", async t => {
   const root = mkdtempSync(path.join(tmpdir(), "litzio-admission-close-"));

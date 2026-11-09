@@ -2,12 +2,11 @@ import { PanelResize } from "./PanelResize.tsx";
 import { usePanelWidthBounds } from "./panel-width.ts";
 import { useTranslation } from "react-i18next";
 import { i18n } from "../i18n.ts";
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent } from "react";
 import { createOutlineStore, type NavigationList, type OutlineItem, type OutlineStore } from "../outline.ts";
 import { Button } from "@/components/ui/button.tsx";
 
 type DocumentPanelProps = {
-  viewContent?: ReactNode;
   visible?: boolean;
   onWidth(value: number): void;
   /** Below the docking width the panel covers the document instead of narrowing it. */
@@ -20,18 +19,18 @@ type DocumentPanelProps = {
 };
 
 const emptyOutline = createOutlineStore();
-const kinds = ["outline", "tables", "figures", "views"] as const;
+const kinds = ["outline", "tables", "figures"] as const;
 type ListKind = typeof kinds[number];
 
 /** Navigation inside the open document. Choice is local to this mounted panel. */
-export function DocumentPanel({ visible=true, viewContent, onWidth, overlay, outline: store = emptyOutline, onSelectItem, onClose }: DocumentPanelProps) {
+export function DocumentPanel({ visible=true, onWidth, overlay, outline: store = emptyOutline, onSelectItem, onClose }: DocumentPanelProps) {
   useTranslation();
   const bounds = usePanelWidthBounds("document-panel");
   const outline = useSyncExternalStore(store.subscribe, store.get, store.get);
   const [kind, setKind] = useState<ListKind>("outline");
   const tabs = useRef<HTMLDivElement>(null);
   const labels = { outline: i18n.t("Outline"), tables: i18n.t("Tables"),
-    views: i18n.t("Views"), figures: i18n.t("Figures") };
+    figures: i18n.t("Figures") };
   const switchTab = (event: KeyboardEvent<HTMLDivElement>) => {
     const index = kinds.indexOf(kind);
     const next = event.key === "ArrowRight" ? (index + 1) % kinds.length : event.key === "ArrowLeft" ? (index + kinds.length - 1) % kinds.length
@@ -63,8 +62,7 @@ export function DocumentPanel({ visible=true, viewContent, onWidth, overlay, out
             tabIndex={kind === value ? 0 : -1} onClick={() => setKind(value)} data-segment-label={labels[value]}><span className="view-toggle-label">{labels[value]}</span></Button>)}
         </div>
       </div>
-      <section hidden={kind !== "views"} role="tabpanel" id="document-panel-list-views" aria-labelledby="document-panel-tab-views" className="document-outline">{viewContent}</section>
-      {kinds.filter(value => value !== "views").map(value => <Outline key={value} kind={value} active={kind === value}
+      {kinds.map(value => <Outline key={value} kind={value} active={kind === value}
         outline={value === "outline" ? outline : outline[value]} onSelect={onSelectItem} />)}
     </aside>
   );
@@ -83,7 +81,7 @@ function revealInList(list: HTMLElement, child: HTMLElement) {
 
 const useClientLayoutEffect = typeof document === "undefined" ? useEffect : useLayoutEffect;
 
-function Outline({ kind, active, outline, onSelect }: { kind: Exclude<ListKind,"views">; active: boolean; outline: NavigationList; onSelect(item: OutlineItem): void }) {
+function Outline({ kind, active, outline, onSelect }: { kind: ListKind; active: boolean; outline: NavigationList; onSelect(item: OutlineItem): void }) {
   useTranslation();
   const list = useRef<HTMLOListElement>(null);
   const revealTracked = () => {

@@ -1,8 +1,22 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { evaluateView, parseView, serializeView, validateView, VIEW_LIMITS, rowSchema, createViewCatalog, type ViewOperation } from "../src/views.ts";
+import { evaluateView as rawevaluateView, parseView as rawparseView, serializeView as rawserializeView, validateView as rawvalidateView, VIEW_LIMITS, rowSchema, createViewCatalog as rawcreateViewCatalog, type ViewOperation } from "../src/views.ts";
 
-const base = () => ({ kind: "litzio-view", schemaVersion: 1, catalog: "litzio-v1", title: "문서 통계", refresh: "manual", sources: { stats: { kind: "operation", operation: "folder.statistics", version: 1, args: {} } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "통계", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } });
+const fixtureOperation: ViewOperation = { operation: "fixture.metrics", version: 1,
+ inputSchema: {type:"object",additionalProperties:false}, validateArgs: value => JSON.stringify(value) === "{}",
+ rowSchema: rowSchema.parse({folder:{type:"string",label:"Folder"},documents:{type:"number",label:"Documents"},headings:{type:"number",label:"Headings"},modified:{type:"string",date:true,nullable:true,label:"Modified"}}) };
+const evaluateView: typeof rawevaluateView = (value, data, operations = [fixtureOperation]) => rawevaluateView(value, data, operations);
+const parseView: typeof rawparseView = (value, operations = [fixtureOperation]) => rawparseView(value, operations);
+const serializeView: typeof rawserializeView = (value, operations = [fixtureOperation]) => rawserializeView(value, operations);
+const validateView: typeof rawvalidateView = (value, operations = [fixtureOperation]) => rawvalidateView(value, operations);
+const createViewCatalog: typeof rawcreateViewCatalog = (operations = [fixtureOperation]) => rawcreateViewCatalog(operations);
+const validateCatalogView: typeof rawvalidateCatalogView = (value, operations = [fixtureOperation]) => rawvalidateCatalogView(value, operations);
+const serializeCatalogView: typeof rawserializeCatalogView = (value, operations = [fixtureOperation]) => rawserializeCatalogView(value, operations);
+const parseCatalogView: typeof rawparseCatalogView = (value, operations = [fixtureOperation]) => rawparseCatalogView(value, operations);
+const evaluateQueryView: typeof rawevaluateQueryView = (value, data, operations = [fixtureOperation]) => rawevaluateQueryView(value, data, operations);
+const createCatalogV2: typeof rawcreateCatalogV2 = (operations = [fixtureOperation]) => rawcreateCatalogV2(operations);
+
+const base = () => ({ kind: "litzio-view", schemaVersion: 1, catalog: "litzio-v1", title: "예시: 집계", refresh: "manual", sources: { stats: { kind: "operation", operation: "fixture.metrics", version: 1, args: {} } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Table", title: "예시: 표", source: "stats", data: "/rows", columns: ["folder", "documents"] }] } });
 const rows = [
   { folder: "b", documents: 3, headings: 9, modified: "2026-11-08T23:00:00.000Z" },
   { folder: "a", documents: 1, headings: 5, modified: "2026-11-02T00:00:00.000Z" },
@@ -93,8 +107,8 @@ test("operation declarations control all bindings and transforms without reveali
   spec.layout.children = [{ component: "Chart", type: "bar", title: "Chart", source: "stats", data: "/rows", x: "status", y: "status" }];
   assert.throws(() => validateView(spec, ops));
 });
-import { createCatalogV2, operationQueryViewSchema as queryViewSchema, validateCatalogView, serializeCatalogView, parseCatalogView, validateViewInputs, evaluateQueryView, compileViewInputSchema, compilePortableViewInputSchema, ViewInputError, reviewPageSchema, reviewProposalSchema } from "../src/views-v2.ts";
-const v2 = (): any => ({ ...base(), schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.statistics" });
+import { createCatalogV2 as rawcreateCatalogV2, operationQueryViewSchema as queryViewSchema, validateCatalogView as rawvalidateCatalogView, serializeCatalogView as rawserializeCatalogView, parseCatalogView as rawparseCatalogView, validateViewInputs, evaluateQueryView as rawevaluateQueryView, compileViewInputSchema, compilePortableViewInputSchema, ViewInputError, reviewPageSchema, reviewProposalSchema } from "../src/views-v2.ts";
+const v2 = (): any => ({ ...base(), schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "fixture.metrics" });
 const inputOperation: ViewOperation = { ...pluginOperation, inputSchema: { type: "object", properties: {
   text: { type: "string", maxLength: 8 }, date: { type: "string", format: "date" }, count: { type: "integer", minimum: 1, maximum: 5 },
   preset: { type: "string", enum: ["open", "all"] }, enabled: { type: ["boolean", "null"] }, token: { type: "string", writeOnly: true },
@@ -238,81 +252,6 @@ const assistantView = (): any => ({ ...v2(), owner: "litzio.assistant", refresh:
   rowSchema: { x: { type: "number", label: "X", nullable: true }, y: { type: "number", label: "Y", nullable: true } },
   rows: [{ x: 1, y: 2 }, { x: 2, y: null }], provenance: [{ kind: "reference", label: "Assumption", refId: "ref-1" }], method: "Calculated from supplied material",
 } }, layout: { component: "Panel", direction: "vertical", children: [{ component: "Chart", type: "line", title: "Trend", source: "stats", data: "/rows", x: "x", y: "y" }] } });
-test("assistant snapshot canonical roundtrip preserves inline rows, provenance and order without operations", () => {
-  const view = assistantView(), text = serializeCatalogView(view, []);
-  const connected = serializeCatalogView(v2());
-  assert.throws(() => parseCatalogView(connected + " ".repeat(32769 - Buffer.byteLength(connected))), /byte limit/);
-  assert.equal(serializeCatalogView(parseCatalogView(text, []), []), text);
-  assert.deepEqual(evaluateQueryView(view, undefined, []).rows, view.sources.stats.rows);
-  for (const change of [
-    (v: any) => delete v.owner, (v: any) => v.refresh = "manual", (v: any) => v.sources.stats.args = {},
-    (v: any) => v.form = {}, (v: any) => v.sources.stats.rowSchema.x.secret = true,
-    (v: any) => v.sources.stats.rows[0].unknown = 1, (v: any) => delete v.sources.stats.rows[0].y,
-    (v: any) => v.sources.stats.rows[0].y = Infinity, (v: any) => v.sources.stats.rows[0].y = "2",
-    (v: any) => v.sources.stats.provenance = [], (v: any) => v.layout.children[0].x = "missing",
-    (v: any) => v.sources.stats.provenance[0].url = "https://example.test",
-    (v: any) => v.profile = "review",
-  ]) { const bad = assistantView(); change(bad); assert.throws(() => validateCatalogView(bad, [])); }
-  for (const path of ["../escape.md", "/root.md", "https://example.test/a", "a/../b.md", "a\\b.md"]) {
-    const bad = assistantView(); bad.sources.stats.provenance = [{ kind: "document", label: "Document", hostId: "host-a", rootId: "root-a", path, revision: "r1" }]; assert.throws(() => validateCatalogView(bad, []));
-  }
-});
-test("assistant row, string, provenance and raw/canonical byte limits are enforced", () => {
-  const view = assistantView(); view.layout.children[0].type = "scatter";
-  view.sources.stats.rows = Array.from({ length: 10000 }, () => ({ x: 1, y: 2 }));
-  assert.equal(evaluateQueryView(view, undefined, []).rows.length, 10000);
-  view.sources.stats.rows.push({ x: 1, y: 2 }); assert.throws(() => validateCatalogView(view));
-  const small = assistantView(); small.sources.stats.provenance = Array(64).fill(small.sources.stats.provenance[0]); validateCatalogView(small);
-  small.sources.stats.provenance.push(small.sources.stats.provenance[0]); assert.throws(() => validateCatalogView(small));
-  const text = serializeCatalogView(assistantView());
-  parseCatalogView(text + " ".repeat(1048576 - Buffer.byteLength(text)));
-  assert.throws(() => parseCatalogView(text + " ".repeat(1048577 - Buffer.byteLength(text))), /byte limit/);
-  const strings = assistantView(); strings.layout.children = [{ component: "Table", title: "Text", source: "stats", data: "/rows", columns: ["text"] }];
-  strings.sources.stats.rowSchema = { text: { type: "string", label: "Text" } }; strings.sources.stats.rows = [{ text: "a".repeat(4096) }]; validateCatalogView(strings);
-  strings.sources.stats.rows[0].text += "a"; assert.throws(() => validateCatalogView(strings));
-  strings.sources.stats.rows = Array(254).fill({ text: "a".repeat(4096) }); assert.ok(Buffer.byteLength(JSON.stringify(strings)) < 1048576);
-  assert.throws(() => serializeCatalogView(strings), /byte limit/);
-});
-test("Chart types and Panel structure have strict, shared Core semantics", () => {
-  for (const xs of [[2, 1], [1, 1], [null, 2]]) { const v = assistantView(); v.sources.stats.rows.forEach((r: any, i: number) => r.x = xs[i]); assert.throws(() => validateCatalogView(v)); }
-  const v = assistantView(); v.layout.children[0].type = "scatter"; v.sources.stats.rows = [{ x: null, y: 2 }, { x: 1, y: 2 }, { x: 1, y: 2 }]; validateCatalogView(v);
-  for (const type of ["bar", "line", "scatter"]) { const bad = assistantView(); Object.assign(bad.layout.children[0], { type, options: { invented: true } }); assert.throws(() => validateCatalogView(bad)); }
-  const date = assistantView(); date.sources.stats.rowSchema.x = { type: "string", label: "Date", date: true }; date.sources.stats.rows = [{ x: "2026-11-06T00:00:00.000Z", y: null }]; validateCatalogView(date);
-  date.layout.children[0].type = "scatter"; assert.throws(() => validateCatalogView(date));
-  const panel = assistantView(); const leaf = panel.layout.children[0]; panel.layout = { component: "Panel", direction: "horizontal", children: [leaf, leaf] }; validateCatalogView(panel);
-  panel.layout.children.push(leaf); assert.throws(() => validateCatalogView(panel));
-  panel.layout.children = [{ ...panel.layout, children: [leaf, leaf] }, leaf]; assert.throws(() => validateCatalogView(panel));
-});
-
-
-test("monthly date aggregation binds to line x and validates final bucket order", () => {
-  const view: any = { ...grouped({ field: "modified", interval: "month" }, { op: "count" }), schemaVersion: 2, catalog: "litzio-v2", profile: "query", owner: "litzio.statistics" };
-  view.layout.children = [{ component: "Chart", type: "line", title: "Monthly documents", source: "stats", data: "/rows", x: "group", y: "value" }];
-  const data = [rows[0], { ...rows[1], modified: "2026-10-02T00:00:00.000Z" }, { ...rows[2], modified: "2026-11-02T00:00:00.000Z" }];
-  const canonical = serializeCatalogView(view);
-  assert.equal(serializeCatalogView(parseCatalogView(canonical)), canonical);
-  const expected = { rows: [{ group: "2026-10", value: 1 }, { group: "2026-11", value: 2 }] };
-  assert.deepEqual(evaluateQueryView(view, data), expected);
-  assert.deepEqual(evaluateQueryView(view, [...data].reverse()), expected);
-  // Repeated dates collapse to unique buckets; descending final output still fails line order.
-  view.sources.stats.sort = { field: "group", direction: "desc" };
-  assert.throws(() => evaluateQueryView(view, data), /ascending/);
-  delete view.sources.stats.sort;
-  assert.throws(() => evaluateQueryView(view, rows), /non-null/);
-});
-
-test("assistant calculation method preserves comparison expressions as plain text", () => {
-  const view = assistantView();
-  const method = "매출 > 0인 행만 합산하고 비용 < 100인 행과 비교한다.\n<b>도 텍스트다.</b>";
-  view.sources.stats.method = method;
-  const parsed = parseCatalogView(serializeCatalogView(view));
-  assert.equal(parsed.profile === "query" && parsed.sources.stats.kind === "assistant" && parsed.sources.stats.method, method);
-  view.sources.stats.method = "a".repeat(4097);
-  assert.throws(() => validateCatalogView(view));
-  view.sources.stats.method = "설명\u0000";
-  assert.throws(() => validateCatalogView(view));
-});
-
 test("row links validate public string bindings and preserve URL data", () => {
   const fields = { key: { type: "string", label: "Key", linkField: "url" }, url: { type: "string", label: "URL", nullable: true } };
   const parsed = rowSchema.parse(fields);

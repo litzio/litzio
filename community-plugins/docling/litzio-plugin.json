@@ -8,7 +8,7 @@
   },
   "name": "Docling",
   "description": "docling-serve 연결 확인, PDF 원본 보관과 Litzio 문서 만들기",
-  "version": "0.0.2",
+  "version": "0.0.4",
   "requiresSdk": ">=0.3.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
@@ -110,12 +110,19 @@
             "document": {
               "type": "object",
               "properties": {
-                "source": {
-                  "type": "string"
+                "authoring": {
+                  "type": "object"
+                },
+                "images": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
                 }
               },
               "required": [
-                "source"
+                "authoring",
+                "images"
               ],
               "additionalProperties": false
             },
@@ -206,12 +213,19 @@
             "document": {
               "type": "object",
               "properties": {
-                "source": {
-                  "type": "string"
+                "authoring": {
+                  "type": "object"
+                },
+                "images": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
                 }
               },
               "required": [
-                "source"
+                "authoring",
+                "images"
               ],
               "additionalProperties": false
             },
@@ -302,12 +316,19 @@
             "document": {
               "type": "object",
               "properties": {
-                "source": {
-                  "type": "string"
+                "authoring": {
+                  "type": "object"
+                },
+                "images": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
                 }
               },
               "required": [
-                "source"
+                "authoring",
+                "images"
               ],
               "additionalProperties": false
             },
@@ -399,12 +420,19 @@
             "document": {
               "type": "object",
               "properties": {
-                "source": {
-                  "type": "string"
+                "authoring": {
+                  "type": "object"
+                },
+                "images": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
                 }
               },
               "required": [
-                "source"
+                "authoring",
+                "images"
               ],
               "additionalProperties": false
             },
@@ -427,6 +455,91 @@
           ],
           "additionalProperties": false
         }
+      },
+      {
+        "inputSchema": {
+          "required": [
+            "requestId"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "requestId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "result": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "revision": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "inputs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "key": {
+                        "type": "string"
+                      },
+                      "targets": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "path": {
+                              "type": "array",
+                              "items": {
+                                "type": "integer",
+                                "minimum": 0
+                              }
+                            },
+                            "documentRevision": {
+                              "type": "string"
+                            },
+                            "documentHash": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "path",
+                            "documentRevision",
+                            "documentHash"
+                          ],
+                          "additionalProperties": false
+                        }
+                      }
+                    },
+                    "required": [
+                      "key",
+                      "targets"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "path",
+                "revision",
+                "inputs"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "type": "object"
+        },
+        "assistant": false,
+        "id": "conversion-report",
+        "scope": "host",
+        "version": 1,
+        "outputSchema": {
+          "type": "object"
+        },
+        "effect": "read"
       }
     ],
     "screens": [

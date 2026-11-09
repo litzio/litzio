@@ -16,7 +16,7 @@ import { useNotifications } from "./components/ui/notification-center.tsx";
  * current display positions, including newly inserted blocks, not opening-snapshot locators. */
 export function editorNumberingReport(doc: Node, automaticIndex?: number) {
   const blocks: Parameters<typeof numberingReport>[0][number][] = [];
-  doc.forEach((node, _pos, index) => blocks.push({ block: node.type.name, path: [index],
+  doc.forEach((node, _pos, index) => blocks.push({ block: node.type.name, path: [index], enumerated: node.attrs.enumerated,
     ...(index !== automaticIndex && typeof node.attrs.enumerator === "string" ? { enumerator: node.attrs.enumerator } : {}) }));
   return numberingReport(blocks);
 }
@@ -24,7 +24,7 @@ export function editorNumberingReport(doc: Node, automaticIndex?: number) {
 export function changeEditorNumbering(editor: Editor, mode: "automatic" | "fixed", onlyIndex?: number) {
   if (!editor.isEditable) return;
   const blocks: Parameters<typeof numberingReport>[0][number][] = [];
-  editor.state.doc.forEach((node, _pos, index) => blocks.push({ block: node.type.name, path: [index],
+  editor.state.doc.forEach((node, _pos, index) => blocks.push({ block: node.type.name, path: [index], enumerated: node.attrs.enumerated,
     ...(typeof node.attrs.enumerator === "string" ? { enumerator: node.attrs.enumerator } : {}) }));
   const changes = planNumberingChange(blocks, mode).filter(item => onlyIndex === undefined || item.path[0] === onlyIndex);
   if (!changes.length) return;
@@ -69,9 +69,11 @@ export function NumberField({ editor, getPos, draft, onChange, testId, disabled 
     if (!current || typeof pos !== "number") return undefined;
     const index = current.state.doc.resolve(pos).index(0);
     return {
+      unnumbered: current.state.doc.nodeAt(pos)?.attrs.enumerated === false,
       automatic: editorNumberingReport(current.state.doc, index).targets.find(item => item.path[0] === index)?.number,
     };
   } });
+  if (report?.unnumbered) return <div className="form-field figure-number-field"><span>{i18n.t("Number")}</span><p className="form-hint">{i18n.t("None")}</p></div>;
   return <div className="form-field figure-number-field">
       <span id={`${id}-label`}>{i18n.t("Number")}</span>
       <ChoiceGroup aria-labelledby={`${id}-label`} disabled={disabled}

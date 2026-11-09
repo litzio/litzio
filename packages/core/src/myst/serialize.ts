@@ -190,13 +190,14 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][]): string {
     }
     // The pinned upstream writer omits enumerator on image Figures and math. Reuse its
     // complete directive output and add only the standard option on the write clone.
-    if (node.enumerator !== undefined && (node.type === "math" || figureKind === "image")) {
-      const enumerator = node.enumerator;
+    if ((node.enumerator !== undefined || node.enumerated !== undefined) && (node.type === "math" || figureKind === "image")) {
+      const enumerator = node.enumerator, enumerated = node.enumerated;
       delete node.enumerator;
+      delete node.enumerated;
       const source = render(node);
       const newline = source.indexOf("\n");
       node.type = "html";
-      node.value = `${source.slice(0, newline)}\n:enumerator: ${enumerator}${source.slice(newline)}`;
+      node.value = `${source.slice(0, newline)}${enumerator !== undefined ? `\n:enumerator: ${enumerator}` : ""}${enumerated !== undefined ? `\n:enumerated: ${enumerated}` : ""}${source.slice(newline)}`;
       delete node.children;
     }
     if (node.type === "math" && node.value === "") {
@@ -227,7 +228,7 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][]): string {
         action: "Remove line breaks from the table caption." });
       const fence = ":".repeat(Math.max(3, ...[...body.matchAll(/^(:{3,})/gm)].map(match => match[1].length + 1)));
       node.type = "html";
-      node.value = `${fence}{table}${title ? ` ${title}` : ""}\n${node.label ? `:name: ${node.label}\n` : ""}${node.enumerator !== undefined ? `:enumerator: ${node.enumerator}\n` : ""}\n${body}\n${fence}`;
+      node.value = `${fence}{table}${title ? ` ${title}` : ""}\n${node.label ? `:name: ${node.label}\n` : ""}${node.enumerator !== undefined ? `:enumerator: ${node.enumerator}\n` : ""}${node.enumerated !== undefined ? `:enumerated: ${node.enumerated}\n` : ""}\n${body}\n${fence}`;
       delete node.children;
     }
     // Write the supported Mermaid shape ourselves; upstream's Figure writer assumes an image.
@@ -240,7 +241,7 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][]): string {
       const body = `${codeFence}{mermaid}\n${source}\n${codeFence}${caption ? `\n\n${caption}` : ""}`;
       const fence = ":".repeat(Math.max(3, ...[...body.matchAll(/^ *(:{3,})/gm)].map(match => match[1].length + 1)));
       node.type = "html";
-      node.value = `${fence}{figure}\n${node.label ? `:name: ${node.label}\n` : ""}${node.enumerator !== undefined ? `:enumerator: ${node.enumerator}\n` : ""}\n${body}\n${fence}`;
+      node.value = `${fence}{figure}\n${node.label ? `:name: ${node.label}\n` : ""}${node.enumerator !== undefined ? `:enumerator: ${node.enumerator}\n` : ""}${node.enumerated !== undefined ? `:enumerated: ${node.enumerated}\n` : ""}\n${body}\n${fence}`;
       delete node.children;
     }
     // myst-to-md writes a Figure only from its image. A pending Figure (no content, at most its
@@ -252,7 +253,7 @@ function prepareWriter(tree: MystDocument, blockPaths: number[][]): string {
       const caption = (node.children ?? []).flatMap(child => child.children ?? []).map(render).join("\n\n");
       const fence = ":".repeat(Math.max(3, ...[...caption.matchAll(/^(:{3,})/gm)].map(match => match[1].length + 1)));
       node.type = "html";
-      node.value = `${fence}{figure}\n${node.label ? `:name: ${node.label}\n` : ""}${node.enumerator !== undefined ? `:enumerator: ${node.enumerator}\n` : ""}${caption ? `\n${caption}\n` : ""}${fence}`;
+      node.value = `${fence}{figure}\n${node.label ? `:name: ${node.label}\n` : ""}${node.enumerator !== undefined ? `:enumerator: ${node.enumerator}\n` : ""}${node.enumerated !== undefined ? `:enumerated: ${node.enumerated}\n` : ""}${caption ? `\n${caption}\n` : ""}${fence}`;
       delete node.children;
     }
   }

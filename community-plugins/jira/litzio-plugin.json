@@ -84,73 +84,91 @@
           "additionalProperties": false
         },
         "outputSchema": {
-          "type": "array",
-          "minItems": 0,
-          "maxItems": 500,
-          "items": {
-            "type": "object",
-            "properties": {
-              "key": {
-                "type": "string"
-              },
-              "summary": {
-                "type": "string"
-              },
-              "status": {
-                "type": "string"
-              },
-              "assignee": {
-                "type": "string"
-              },
-              "priority": {
-                "type": "string"
-              },
-              "updated": {
-                "type": "string"
-              },
-              "issueUrl": {
-                "type": "string"
-              },
-              "reporter": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "issueType": {
-                "type": "string"
-              },
-              "resolution": {
-                "type": "string"
-              },
-              "dueDate": {
-                "type": "string"
-              },
-              "components": {
-                "type": "string"
-              },
-              "labels": {
-                "type": "string"
+          "type": "object",
+          "properties": {
+            "rows": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 500,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "summary": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "assignee": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": "string"
+                  },
+                  "updated": {
+                    "type": "string"
+                  },
+                  "issueUrl": {
+                    "type": "string"
+                  },
+                  "reporter": {
+                    "type": "string"
+                  },
+                  "created": {
+                    "type": "string"
+                  },
+                  "issueType": {
+                    "type": "string"
+                  },
+                  "resolution": {
+                    "type": "string"
+                  },
+                  "dueDate": {
+                    "type": "string"
+                  },
+                  "components": {
+                    "type": "string"
+                  },
+                  "labels": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "summary",
+                  "status",
+                  "assignee",
+                  "priority",
+                  "updated",
+                  "issueUrl",
+                  "reporter",
+                  "created",
+                  "issueType",
+                  "resolution",
+                  "dueDate",
+                  "components",
+                  "labels"
+                ],
+                "additionalProperties": false
               }
             },
-            "required": [
-              "key",
-              "summary",
-              "status",
-              "assignee",
-              "priority",
-              "updated",
-              "issueUrl",
-              "reporter",
-              "created",
-              "issueType",
-              "resolution",
-              "dueDate",
-              "components",
-              "labels"
-            ],
-            "additionalProperties": false
-          }
+            "truncated": {
+              "type": "boolean"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "rows",
+            "truncated",
+            "total"
+          ],
+          "additionalProperties": false
         },
         "rowSchema": {
           "key": {
@@ -170,18 +188,6 @@
             "type": "string",
             "label": "담당자"
           },
-          "priority": {
-            "type": "string",
-            "label": "우선순위"
-          },
-          "updated": {
-            "type": "string",
-            "label": "수정일"
-          },
-          "issueUrl": {
-            "type": "string",
-            "label": "이슈 페이지 URL"
-          },
           "reporter": {
             "type": "string",
             "label": "보고자"
@@ -190,25 +196,44 @@
             "type": "string",
             "label": "생성일"
           },
+          "updated": {
+            "type": "string",
+            "label": "수정일"
+          },
+          "priority": {
+            "type": "string",
+            "label": "우선순위",
+            "hidden": true
+          },
           "issueType": {
             "type": "string",
-            "label": "유형"
+            "label": "유형",
+            "hidden": true
           },
           "resolution": {
             "type": "string",
-            "label": "해결"
+            "label": "해결",
+            "hidden": true
           },
           "dueDate": {
             "type": "string",
-            "label": "기한"
+            "label": "기한",
+            "hidden": true
           },
           "components": {
             "type": "string",
-            "label": "컴포넌트"
+            "label": "컴포넌트",
+            "hidden": true
           },
           "labels": {
             "type": "string",
-            "label": "레이블"
+            "label": "레이블",
+            "hidden": true
+          },
+          "issueUrl": {
+            "type": "string",
+            "label": "이슈 페이지 URL",
+            "hidden": true
           }
         },
         "inputSuggestions": {
@@ -382,73 +407,91 @@
           "additionalProperties": false
         },
         "outputSchema": {
-          "type": "array",
-          "minItems": 0,
-          "maxItems": 500,
-          "items": {
-            "type": "object",
-            "properties": {
-              "key": {
-                "type": "string"
-              },
-              "summary": {
-                "type": "string"
-              },
-              "status": {
-                "type": "string"
-              },
-              "assignee": {
-                "type": "string"
-              },
-              "priority": {
-                "type": "string"
-              },
-              "updated": {
-                "type": "string"
-              },
-              "issueUrl": {
-                "type": "string"
-              },
-              "reporter": {
-                "type": "string"
-              },
-              "created": {
-                "type": "string"
-              },
-              "issueType": {
-                "type": "string"
-              },
-              "resolution": {
-                "type": "string"
-              },
-              "dueDate": {
-                "type": "string"
-              },
-              "components": {
-                "type": "string"
-              },
-              "labels": {
-                "type": "string"
+          "type": "object",
+          "properties": {
+            "rows": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 500,
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "summary": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "assignee": {
+                    "type": "string"
+                  },
+                  "priority": {
+                    "type": "string"
+                  },
+                  "updated": {
+                    "type": "string"
+                  },
+                  "issueUrl": {
+                    "type": "string"
+                  },
+                  "reporter": {
+                    "type": "string"
+                  },
+                  "created": {
+                    "type": "string"
+                  },
+                  "issueType": {
+                    "type": "string"
+                  },
+                  "resolution": {
+                    "type": "string"
+                  },
+                  "dueDate": {
+                    "type": "string"
+                  },
+                  "components": {
+                    "type": "string"
+                  },
+                  "labels": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "key",
+                  "summary",
+                  "status",
+                  "assignee",
+                  "priority",
+                  "updated",
+                  "issueUrl",
+                  "reporter",
+                  "created",
+                  "issueType",
+                  "resolution",
+                  "dueDate",
+                  "components",
+                  "labels"
+                ],
+                "additionalProperties": false
               }
             },
-            "required": [
-              "key",
-              "summary",
-              "status",
-              "assignee",
-              "priority",
-              "updated",
-              "issueUrl",
-              "reporter",
-              "created",
-              "issueType",
-              "resolution",
-              "dueDate",
-              "components",
-              "labels"
-            ],
-            "additionalProperties": false
-          }
+            "truncated": {
+              "type": "boolean"
+            },
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "rows",
+            "truncated",
+            "total"
+          ],
+          "additionalProperties": false
         },
         "rowSchema": {
           "key": {
@@ -468,18 +511,6 @@
             "type": "string",
             "label": "담당자"
           },
-          "priority": {
-            "type": "string",
-            "label": "우선순위"
-          },
-          "updated": {
-            "type": "string",
-            "label": "수정일"
-          },
-          "issueUrl": {
-            "type": "string",
-            "label": "이슈 페이지 URL"
-          },
           "reporter": {
             "type": "string",
             "label": "보고자"
@@ -488,25 +519,44 @@
             "type": "string",
             "label": "생성일"
           },
+          "updated": {
+            "type": "string",
+            "label": "수정일"
+          },
+          "priority": {
+            "type": "string",
+            "label": "우선순위",
+            "hidden": true
+          },
           "issueType": {
             "type": "string",
-            "label": "유형"
+            "label": "유형",
+            "hidden": true
           },
           "resolution": {
             "type": "string",
-            "label": "해결"
+            "label": "해결",
+            "hidden": true
           },
           "dueDate": {
             "type": "string",
-            "label": "기한"
+            "label": "기한",
+            "hidden": true
           },
           "components": {
             "type": "string",
-            "label": "컴포넌트"
+            "label": "컴포넌트",
+            "hidden": true
           },
           "labels": {
             "type": "string",
-            "label": "레이블"
+            "label": "레이블",
+            "hidden": true
+          },
+          "issueUrl": {
+            "type": "string",
+            "label": "이슈 페이지 URL",
+            "hidden": true
           }
         }
       },

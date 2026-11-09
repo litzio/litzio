@@ -49,10 +49,7 @@ export function PluginJobs({ client, hostId, roots, active, onOpen }: { client: 
   const choices = plugins.filter(plugin => plugin.running).flatMap(plugin => (plugin.jobs ?? []).map(binding => ({ plugin, binding, key: `${plugin.id}/${binding.id}` })));
   const choice = choices.find(item => item.key === selected);
   useEffect(() => {
-    if (choice?.binding.resultKind === "native-document") setOutput("result.md");
-  }, [choice?.binding.resultKind]);
-  useEffect(() => {
-    if (choice?.binding.resultKind === "file" && file) setOutput(defaultJobOutput(choice.binding, file.relativePath));
+    if (choice && file) setOutput(defaultJobOutput(choice.binding, file.relativePath));
   }, [selected, file]);
   const locked = busy || !!job && ["running", "uncertain"].includes(job.state);
   useEffect(() => {

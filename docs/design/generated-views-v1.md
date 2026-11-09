@@ -1,10 +1,13 @@
 # Generated views v1
 
+> #1341(2026-11-09)에서 비서 생성·즐겨찾기·snapshot·통계·차트 기능을 제거했다. 아래는 당시 구현/제안과 검증 기록이며 현재 요구사항이 아니다. 남는 플러그인 화면·조회·표는 [현재 계약](plugin-screens-v1.md), review는 [플러그인 1단계](plugin-stage1-v1.md)를 따른다. 상태·후속 링크를 확인했으며 과거 실험을 다시 실행했다는 뜻이 아니다.
+
 > 후속 설계: [동적 뷰 재정의 v1](dynamic-views-v1.md)은 Draft다. 두 데이터 종류·우측 보기·플러그인 화면·V7 선행 구현을 제안하며, 아래 현재 구현/기존 로드맵의 완료 주장과 구분한다. 수락 시 변경되는 범위는 새 설계와 ADR-0020 개정안을 따른다.
 
-- Status: Implemented
+- Status: Historical
 - Host assembly (#1246): `host-services.ts` composes independent plugin and view services and lazily initializes the assistant. Plugin management/secret routes belong to `plugin-service.ts`; views receive that same plugin runtime explicitly through `view-service.ts`. Assistant shutdown closes only its provider/conversation resources; Host shutdown closes plugins independently, including when assistant initialization or shutdown fails. Views retain no separate runtime resources. Request paths, lazy plugin start, receipts and stored formats are unchanged.
-- Last verified: 2026-11-06 — V3 query forms/states, keyword-specific field errors, public owner persistence and #1266 review entry fixtures; generated-views/HTTP recovery browser 2/2, targeted Host/CLI/plugin checks and visual-tokens. V2 Host/CLI evidence is retained below; external-service UI/CLI acceptance remains separate. Previous 2026-11-05 — #1218 fixture plugin schema Core/Host/CLI and generated-views browser scenario; actual Codex gpt-6-luna low via existing conversation adapter generated status/points grouping, validated and evaluated to open=5. Initial local HTTP recovery companion failed waiting for browser close after owned PID termination; final-build rerun passed 2/2. After separating fixture module paths to prevent import-cache reuse, combined http-plugins/generated-views passed 3/3. No timeout relaxation. Previous #1210 evidence: Core/file-commit and Host/HTTP/CLI tests; provider stdio boundary tests, production browser generation/favourite/reopen/manual refresh/CLI equality and 1440px/640px captures; actual Codex gpt-6-luna low proposal/correction/exhaustion. Copilot generation uses fake ACP/browser evidence, not a paid live Copilot response.
+- Last verified: 2026-11-09 — Historical 상태·후속 계약 링크 대조. 과거 시험 재실행 아님.
+- Previous verification: 2026-11-06 — V3 query forms/states, keyword-specific field errors, public owner persistence and #1266 review entry fixtures; generated-views/HTTP recovery browser 2/2, targeted Host/CLI/plugin checks and visual-tokens. V2 Host/CLI evidence is retained below; external-service UI/CLI acceptance remains separate. Previous 2026-11-05 — #1218 fixture plugin schema Core/Host/CLI and generated-views browser scenario; actual Codex gpt-6-luna low via existing conversation adapter generated status/points grouping, validated and evaluated to open=5. Initial local HTTP recovery companion failed waiting for browser close after owned PID termination; final-build rerun passed 2/2. After separating fixture module paths to prevent import-cache reuse, combined http-plugins/generated-views passed 3/3. No timeout relaxation. Previous #1210 evidence: Core/file-commit and Host/HTTP/CLI tests; provider stdio boundary tests, production browser generation/favourite/reopen/manual refresh/CLI equality and 1440px/640px captures; actual Codex gpt-6-luna low proposal/correction/exhaustion. Copilot generation uses fake ACP/browser evidence, not a paid live Copilot response.
 - Authority: [ADR-0020](../adr/0020-plugin-architecture.md), [#1210](https://github.com/litzio/litzio/issues/1210).
 - Scope: V2 query Host/CLI supersedes v1 Host behavior as described below. Existing renderer/assistant call sites now use v2 query envelopes; V3 supplies forms/states and query/InputForm generation; V6 tools/cards and V4 completed-bundle review generation use the same authoring catalog. Historical Core v1, file-commit exclusive creation, built-in statistics, Host/CLI operations, shared bundled rendering and both assistant adapters. Includes #1218 operation row-schema declarations for active plugin reads; no external API, settings migration or data migration. The final V1 section documents the separately implemented catalog v2 Core/SDK layer, now consumed by the V2 query Host/CLI.
 
@@ -454,18 +457,3 @@ Visual fixture review: [1440px](../reviews/assets/view-link-1332-1440.png), [Kor
 ## 플러그인 화면의 K1 패널 (#1340)
 
 `screens[].jobs`는 동일 플러그인의 K1 작업을 화면에 배치한다. defaultViewIds와 독립이며 작업만 있는 화면을 허용한다. SDK 0.3.0 요구·Host 다중 시작·파일별 결과·CLI는 [플러그인 1단계](plugin-stage1-v1.md#플러그인-화면-작업-패널-1340)를 따른다. 공통 작업 패널은 조회 뷰 위에 세로 배치되며 기존 조회 실행 방식은 유지한다. 패널은 비서 뷰 생성·즐겨찾기·저장 뷰 파일을 소비하지 않는다.
-
-
-## Plugin input suggestions (#1352)
-
-TextInput optionally consumes its source operation's catalog `inputSuggestions` metadata.
-Bindings are owned and validated by the plugin manifest, not persisted in form definitions.
-The shared Host operation/CLI contract and request lifetime are defined in
-[plugin input suggestions](plugin-stage1-v1.md#입력-후보-1352-sdk-030).
-Other scalar controls and the manual query action retain their behavior.
-
-### Collapsible query inputs and dynamic guidance (#1370)
-
-SDK 0.3.0 (unreleased) permits optional `advanced: true` on InputForm fields. Only optional fields collapse; required fields always remain visible. Order within each region follows fields. The tab owns expansion; collapsing preserves args and removes hidden controls from keyboard navigation. The closed form shows every specified secondary value, including defaults, false, zero, null and valid empty strings. Hidden errors expand the region and focus the first invalid control. Submission remains manual, with the existing previous-result warning. Opted-in forms use three columns at content widths >=800px, two above 640px, otherwise one; the final submit row stays right aligned.
-
-Read operations with rowSchema may declare `inputHints: { field: "hint-operation" }` alongside inputSuggestions. The target is a same-plugin standalone host read accepting `{}`, with no rowSchema or job/review binding. The public free-text field cannot be secret/writeOnly, enum/const or formatted. Host catalog exposes full operation/version bindings. The `input-hint` dispatcher accepts only declared, enabled, current-version targets and invokes them with `{}`; ordinary CLI operation invoke returns the same receipt/result. Result is exactly `{text: string}` (1–512 characters), after ordinary output validation and secret redaction. Empty TextInput displays this text as placeholder and accessible description; it never writes args. Hint response state belongs to the field/Host/binding, is discarded across binding changes/unmount, and failure leaves ordinary manual input available. No automatic query or saved placeholder data.

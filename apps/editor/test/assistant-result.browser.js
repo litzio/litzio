@@ -8,13 +8,13 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   await page.route('**/api/assistant/models*', route => route.fulfill({ json: { provider: 'codex', models: [{ id: 'sol', model: settings.model, displayName: 'GPT Sol', defaultReasoningEffort: 'medium', supportedReasoningEfforts: [{ reasoningEffort: 'medium' }] }] } }));
   await page.route('**/api/assistant/diagnostics*', route => route.fulfill({ json: { provider: 'codex', connected: true, account: { type: 'chatgpt' } } }));
   // #1128: use an actual template creation receipt through the same result-card/Undo path.
-  expect((await page.request.delete(origin + '/api/file', { data: { root, path: paths[0] } })).ok()).toBe(true);
-  const templated = await page.request.put(origin + '/api/document', { data: { path: paths[0], template: 'builtin:ai-report', language: 'en' } });
+  expect((await page.request.delete(origin + '/api/file', { headers: { Connection: "close" }, data: { root, path: paths[0] } })).ok()).toBe(true);
+  const templated = await page.request.put(origin + '/api/document', { headers: { Connection: "close" }, data: { path: paths[0], template: 'builtin:ai-report', language: 'en' } });
   expect(templated.ok()).toBe(true);
   const templateReceipt = await templated.json();
   expect(templateReceipt.source).not.toContain('template:');
-  const files = await Promise.all(paths.map(async path => (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(path))).json()));
-  const identities = await Promise.all(paths.map(async path => (await page.request.delete(origin + '/api/file', { data: { root, path, checkOnly: true } })).json()));
+  const files = await Promise.all(paths.map(async path => (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(path), { headers: { Connection: "close" } })).json()));
+  const identities = await Promise.all(paths.map(async path => (await page.request.delete(origin + '/api/file', { headers: { Connection: "close" }, data: { root, path, checkOnly: true } })).json()));
   const conversation = { id: 'created-thread', title: 'Create a document', folders: [root], createdAt: Date.now(), updatedAt: Date.now(), ...settings,
     turns: [{ id: 'created-turn', status: 'completed', items: [{ id: 'answer', kind: 'assistant', text: 'Created documents. A suggestion mentioning /untrusted.md is only text.' },
       ...files.map((file, i) => ({ id: 'created-' + i, kind: 'tool', text: 'create_document', status: 'completed', toolResult: { success: true, contentItems: [{ type: 'inputText', text: JSON.stringify({ path: file.path, identity: i === 0 ? templateReceipt.identity : identities[i].identity, revision: i === 0 ? templateReceipt.revision : i === 2 ? '0'.repeat(64) : file.revision }) }] } }))] }] };
@@ -48,7 +48,7 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   await card('a.md').getByRole('button', { name: 'Undo creation' }).click();
   await expect(card('a.md')).toContainText('Created file deleted');
   expect(await page.getByRole('dialog', { name: 'Undo document creation?' }).count()).toBe(0);
-  expect((await page.request.get(origin + '/api/document?path=' + encodeURIComponent(paths[0]))).ok()).toBe(false);
+  expect((await page.request.get(origin + '/api/document?path=' + encodeURIComponent(paths[0]), { headers: { Connection: "close" } })).ok()).toBe(false);
   await card('b.md').getByRole('button', { name: 'Open', exact: true }).click();
   const editor = activeDocument(page); await expect(editor).toContainText('Beta.');
   await editor.locator('.tiptap p').first().click(); await page.keyboard.press('End'); await page.keyboard.type(' unsaved change');
@@ -72,7 +72,7 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   await page.keyboard.press('Escape'); await expect(confirm).toBeHidden();
   await expect(card('b.md').getByRole('button', { name: 'Undo creation' })).toBeFocused();
   expect((await recoveryRecords(page)).filter(record => record.path === paths[1])).toEqual(retained);
-  expect((await page.request.get(origin + '/api/document?path=' + encodeURIComponent(paths[1]))).ok()).toBe(true);
+  expect((await page.request.get(origin + '/api/document?path=' + encodeURIComponent(paths[1]), { headers: { Connection: "close" } })).ok()).toBe(true);
   await card('b.md').getByRole('button', { name: 'Undo creation' }).click(); await expect(confirm).toBeVisible();
   await page.evaluate(async path => {
     const { recoveryStorage } = await import('/src/recovery-storage.ts');
@@ -82,7 +82,7 @@ async (page, { expect, openFolderPicker, assistantFixture, fileActionsRoot, scre
   }, paths[1]);
   await confirm.getByRole('button', { name: 'Delete and discard changes' }).click();
   await expect(panel.getByRole('alert')).toContainText('changed during the operation');
-  expect((await page.request.get(origin + '/api/document?path=' + encodeURIComponent(paths[1]))).ok()).toBe(true);
+  expect((await page.request.get(origin + '/api/document?path=' + encodeURIComponent(paths[1]), { headers: { Connection: "close" } })).ok()).toBe(true);
   expect((await recoveryRecords(page)).find(record => record.path === paths[1]).recoveryText).toContain('newer work');
   await card('b.md').getByRole('button', { name: 'Undo creation' }).click(); await expect(confirm).toBeVisible();
   await confirm.getByRole('button', { name: 'Delete and discard changes' }).click();
