@@ -104,7 +104,7 @@ export function PluginJobPanel({ client, plugin, jobIds, roots, active, onOpen }
           {job.state === "uncertain" ? <p>{i18n.t("The job outcome is uncertain. Check the status before starting again.")}</p> : null}
           {job.startFailure ? <p>{i18n.t(JOB_START_FAILURE_MESSAGES[job.startFailure.kind])}{job.startFailure.path ? ` ${job.startFailure.path}` : ""}</p> : job.error ? <p>{job.errorKind ? `[${job.errorKind}] ${job.error}` : job.error}</p> : null}
         </div></TooltipContent></Tooltip> : null}</div></td>
-        <td>{job.phase}</td><td>{Math.floor(job.elapsedMs / 1000)} s</td><td><JobActions compact job={job} busy={busy || !active} request={request} observe={observe} run={run} onOpen={onOpen} /></td>
+        <td className="plugin-job-phase">{job.phase}</td><td>{Math.floor(job.elapsedMs / 1000)} s</td><td><JobActions compact job={job} busy={busy || !active} request={request} observe={observe} run={run} onOpen={onOpen} /></td>
       </tr>)}</tbody>
     </table></div>
     {problem ? <Notice tone="error">{problem}</Notice> : null}
