@@ -1,6 +1,7 @@
 # 플러그인 1단계
 
 - Status: Implemented
+- Verification #1408: 2026-11-10 — 공용 PDF 대조·진행 저장 Host/CLI, SDK/Docling 단위 검사와 대표 HTTP 브라우저·기존 review 회귀 확인. 실제 docling-serve의 작은 합성 PDF를 변환해 1440px·한국어 Dark 640px 대조/확인 저장을 확인했으며 복잡한 PDF 품질·의미 동등성은 미검증.
 - Verification #1366: 2026-11-09 — SDK/OneDrive/Host·folder-tree tests, typecheck, CLI/Editor production build and HTTP folder/icon regressions; 1440px and Korean dark 640px before/after review. Real account synchronization is unverified.
 - Verification #1346: 2026-11-09 — SDK/Host icon validation and digest-trust tests, Editor typecheck, production CLI/Editor build, HTTP browser fixture with SVG script non-execution; 1440px and Korean dark 640px visual inspection. External plugin artwork/service adoption is unverified.
 - Verification #1334: 2026-11-09 — SDK 선언·기능 버전 거부, Host 고정 결과 검증, Vite 설정 성공/오류·비활성·정보 진입, production HTTP 사이드바·secret·복구 fixture, typecheck와 CLI build 확인. 외부 서비스 연결은 미검증.
@@ -196,7 +197,7 @@ K1 호출은 등록 시 manifest의 start/status/stop read·write 효과를 기�
 
 K1 완료의 선택 `jobUpdate.review`는 SDK `completedReviewSchema`를 따른다. review, bundle(generation/documentRevision/documentHash/sourceRevision와 선택 mappingRevision), pages, 선택 mapping, images(ref/Root 상대 path/SHA-256 revision)를 전달한다. sourceRevision은 K1 입력 파일 SHA-256, documentRevision/hash는 Core canonical 출력 revision이다. Host는 문서 생성 후 모든 자료를 검증하고 `result.bundle`에 Host 발급 bundleRef/documentRef를 공개한다. Root·generation·revision·이미지 검증 실패 시 bundle은 공개하지 않으며 이미 생성된 결과 문서를 보존하고 uncertain으로 남긴다. 완료 전 자료는 공개하지 않는다.
 
-`POST /api/reviews`는 PluginHost 소유 dispatcher다. 입력은 action(read/propose/approve/reject/undo/status), plugin/review/root/bundleRef/generation이다. read는 kind(bundle/document/page/mapping/proposals/image)와 pageNo를 선택하고 data/baseline/state/receipt를 반환한다. 문서는 bundle의 canonical source snapshot이며 stale 자료를 현재 파일처럼 반환하지 않는다. image는 검증한 PNG의 mime/base64 data/width/height다. 현재 PNG만 지원하며 다른 형식은 거부한다. Core REVIEW_LIMITS의 JSON·목록·영역·이미지 byte/pixel 상한을 적용하고 초과나 미지원 continuation은 자르지 않고 거부한다. 자료 참조에 임의 파일 경로·URL을 받지 않는다.
+`POST /api/reviews`는 PluginHost 소유 dispatcher다. 입력은 action(read/propose/approve/reject/undo/status), plugin/review/root/bundleRef/generation이다. read는 kind(bundle/document/page/mapping/proposals/image)와 pageNo를 선택하고 data/baseline/state/receipt를 반환한다. 문서는 bundle의 canonical source snapshot이며 stale 자료를 현재 파일처럼 반환하지 않는다. image는 검증한 PNG의 mime/base64 data/width/height다. image kind는 PNG만 지원하며 다른 이미지 형식은 거부한다. PDF 원본은 아래 SDK 0.4.0의 별도 pdf 자료를 사용한다. Core REVIEW_LIMITS의 JSON·목록·영역·이미지 byte/pixel 상한을 적용하고 초과나 미지원 continuation은 자르지 않고 거부한다. 자료 참조에 임의 파일 경로·URL을 받지 않는다.
 
 변경에는 requestId(UUID), baseline과 선택 proposalId/input을 더한다. baseline은 문서·제안 revision과 원본/map revision이다. Host는 plugin 실행 전과 commit 직전에 문서·원본·이미지를 재검사하고 bundle별 동시 변경을 거부한다. binding ID/version·가용성·artifact 신뢰를 매번 확인하며 일반 operation invoke로 review binding을 호출할 수 없다. propose 결과는 Core ReviewProposal의 pending만 허용하고 target snapshot·baseline을 검사하며 기여의 action 제한을 유지한다. reject는 문서를 바꾸지 않는다.
 
@@ -224,7 +225,7 @@ K1 review HTTP fixture는 start에서 running 접수만 반환하고 자료를 �
 
 #1341에서 비서 명세 생성·제안·저장 경로는 제거했다. review는 완료 작업 결과와 기존 전용 HTTP/CLI 진입점을 유지한다. 공통 view.validate는 같은 Host의 실제 완료 bundle 참조를 확인하며 조회·문서 변경을 실행하지 않는다. [현재 화면 계약](plugin-screens-v1.md)을 따른다.
 
-V3/V5와 CLI는 단일 POST /api/reviews dispatcher를 사용한다. source의 bundleRef는 Host가 보관한 generation에 고정되며 generation을 명시한 요청은 일치해야 한다. read에서 pageNo를 주고 kind를 생략하면 snapshot/receipt를 반환한다. snapshot은 bundle/page/선택 mapping/proposals, document-reader의 Core document/revision/hash/path, baseline/pageCount와 선택 PNG imageUrl을 조립한다. 이미지 byte/pixel 제한과 JSON 자료 제한을 각각 적용하며 imageUrl은 일시적 읽기 결과로만 사용한다. 다른 자료 읽기는 기존 kind 선택을 쓴다. 변경·status는 같은 requestId·baseline 계약을 유지한다. source·문서가 외부에서 바뀌면 snapshot은 실제 revision으로 불일치를 드러내어 V5가 action을 막으며 Host도 commit 직전에 다시 거부한다. 이전 map을 새 문서에 재연결하지 않는다. HTTP/CLI·비서 stdio fixture 통과를 실제 브라우저·외부 서비스·Docling 수락으로 간주하지 않는다.
+V3/V5와 CLI는 단일 POST /api/reviews dispatcher를 사용한다. source의 bundleRef는 Host가 보관한 generation에 고정되며 generation을 명시한 요청은 일치해야 한다. read에서 pageNo를 주고 kind를 생략하면 snapshot/receipt를 반환한다. snapshot은 bundle/page/선택 mapping/proposals, document-reader의 Core document/revision/hash/path, baseline/pageCount와 선택 PNG imageUrl 또는 PDF 자료를 조립한다. 이미지 byte/pixel 제한과 JSON 자료 제한을 각각 적용하며 imageUrl은 일시적 읽기 결과로만 사용한다. 다른 자료 읽기는 기존 kind 선택을 쓴다. 변경·status는 같은 requestId·baseline 계약을 유지한다. source·문서가 외부에서 바뀌면 snapshot은 실제 revision으로 불일치를 드러내어 V5가 action을 막으며 Host도 commit 직전에 다시 거부한다. 이전 map을 새 문서에 재연결하지 않는다. HTTP/CLI·비서 stdio fixture 통과를 실제 브라우저·외부 서비스·Docling 수락으로 간주하지 않는다.
 
 ### 화면의 변경 결과 관찰과 페이지 없는 K4
 
@@ -505,3 +506,30 @@ QueryInputs의 필드 오류 연결과 기존 SettingsSwitch 행 정렬을 대�
 SDK 필수 title·기능 버전 검사는 manifest 단위 검사가 담당한다.
 
 production CSP는 유지하며 설정 검증은 Host에서 수행한다. 브라우저에서 코드 생성 validator를 실행하지 않는다.
+
+## PDF 원본 대조와 확인 기록 (#1408, SDK 0.4.0)
+
+미공개 SDK 0.4.0에 함께 포함한다. native-document job은 `generatedDocument`와 같은 플러그인의 review ID인 `comparison`을 선언할 수 있다. 둘과 review read binding 및 최소 SDK를 entry 전에 검사한다. 완료 result의 `comparison:{root,document}`만으로 앱이 공통 ‘원본 대조’ 결과 행동을 제공한다. 플러그인 이름 분기나 플러그인 UI 코드는 없다.
+
+`review compare --input <file> --host <origin> --json`과 `POST /api/reviews`의 `generated-compare`는 `{root,document,pageNo?}`를 받는다. Host 연결의 마지막 생성 revision·source revision과 현재 저장 파일이 일치할 때만 연다. Host가 보관한 최종 authoring inputs/targets를 provider의 `mode:compare`에 result(path/revision/inputs), generation, sourceRevision과 Host 소유 PDF staging 파일로 전달한다. provider는 같은 변환 경로로 원본 항목 대응을 다시 계산하고 `completedReviewSchema` 자료를 반환한다. 그 선택 `pdf:{path,revision}`은 SHA-256과 25MiB 제한을 적용한 PDF다. generated-compare에서는 지정 staging 파일만 받고 일반 완료 review는 Root 상대 파일만 받는다. PDF와 페이지 이미지를 같은 페이지에 쓰지 않으며 PDF 좌표는 pt다. Host는 PDF 바이트를 snapshot `pdfUrl`로 일시 제공하고 기존 review 발행·Core block path 검증·snapshot을 재사용한다. 페이지 PNG 생성·저장은 없다. PDF 원본은 pdf.js로 그린다.
+
+snapshot에 regionPages(영역 ID→페이지), generatedBaseline과 progress(checkedPages/lastPage)를 함께 반환한다. 최초 진입은 lastPage를 사용한다. 문서 블록 선택은 대응 영역이 있는 페이지로 이동한다. 없는 대응은 없는 것으로 표시한다. 오른쪽은 기존 DocumentEditor readOnly preview의 저장된 문서이며 열린 편집 탭의 draft를 참조하지 않는다. 선택 전·페이지 이동·저장·다시 읽기에서 현재 baseline을 검사하고 불일치나 저장 실패 뒤 탐색/확인 행동을 막는다. 다시 읽은 새 generation만 탐색한다. K4 제안/승인 부품은 이 대조 layout에 넣지 않는다.
+
+`review progress --input <file> --host <origin> --json`은 같은 dispatcher의 `generated-progress`다. 입력은 root/document, read/compare가 반환한 generatedBaseline을 baseline으로, UUID requestId와 `progress:{checkedPages:number[],lastPage:number|null}`다. provider의 `mode:progress`는 기록만 변경한 전체 source를 Host staging 파일에 쓴다. Host는 source/document/link baseline을 재검사하고 공식 전체 파일 교체 후 연결의 generatedFrom만 갱신한다. 문서와 final targets를 재생성하지 않는다. 결과는 progressSaved/baseline/receipt이고 실패는 명시적으로 반환한다. 응답 유실은 같은 generated-status를 읽고 자동 재전송하지 않는다. source 교체 후 연결 저장 실패는 progressSaved와 regeneration-required를 돌려준다. 문서 재생성은 기존 regenerate 작업이다.
+
+최종 inputs는 Host 연결 자료에 보관되며 최대 4MiB다. 검수 기록은 source 파일에만 있다. source 하나를 옮겨 기존 generated-open/새 K1 생성을 수행하면 새 연결/출력 revision과 대응을 얻고 확인 위치를 이어간다. 이전 `.docling` 파일의 호환은 지원 범위가 아니다. 이전 review의 PNG 계약과 K4 변경 경계는 유지한다.
+
+### #1408 검증·화면 근거
+
+기존 SDK manifest 검사에 comparison의 최소 버전·기여 누락 거부를 보완했다. 기존 generated-documents 검사는 문서/수정 목록을 건드리지 않는 진행 저장, 이전 baseline·저장 중 외부 변경 거부와 같은 requestId status를 확인한다. 기존 reviews 검사는 PDF hash·Root 상대 자료·stale 시 PDF 비공개와 K4 bundle 보존을 확인한다. Docling 낮은 계층은 좌표 원점 변환·없는 targets·진행 범위·중복 거부와 원본 PDF/JSON/manifest의 byte 보존을 보호한다. 새 subprocess·suite·전수 조합은 추가하지 않았다.
+
+기존 http-plugins의 대표 경로에서 공개 SDK→K1→완료 행동→실제 PDF canvas→양방향 선택과 다른 페이지 reveal→확인 저장→CLI compare→탭 재진입의 연결을 검사했다(HTTP 복구 포함 2개, 약 2.4분). focus/selection이 한 클릭에서 연속 발생해도 같은 baseline 검증을 공유하고 최신 선택을 유지한다. 합성 PDF/Docling JSON fixture의 연결 검증이며 변환 정확도 증거가 아니다. 기존 review-v5, layout-rules·quiet-document도 통과했다. Host/review/플러그인 대상 43개, SDK 10개, CLI remote-host 6개와 typecheck·CLI/Editor production build·docs/diff 검사를 통과했다.
+
+수동 검토는 `fixtures/create-acceptance.py`의 한 페이지 PDF를 실제 docling-serve 1.32.0 고정 프로필로 변환한 약 38KB 보관 파일을 사용했다. 원본 대조·확인 저장과 최소 640px 페이지 가로 넘침 부재를 확인했다. 컨테이너는 중지했으며 다른 컨테이너를 조작하지 않았다. 코드/수식 인식 품질·원본과의 의미 동등성은 보증하지 않는다. 서버 지연은 자동 회귀에 넣지 않았다.
+
+`LITZIO_DOCLING_REAL_ARCHIVE`와 `LITZIO_DOCLING_COMPARE_CAPTURE=1`을 지정해 `pnpm browser:test http-plugins --screenshots`로 재현한다. Before는 같은 현재 Host·입력·완료 상태에서 origin/master `8cf7ef27`의 PluginJobs 결과 행동만 복원한 production UI다(`LITZIO_DOCLING_COMPARE_BEFORE=1`). 이전에는 대조 진입 자체가 없으므로 완료 작업 행을, After는 새 대조에 진입해 확인한 상태를 촬영했다. 1440×1000 Light/English와 640×1000 Dark/Korean, 동일 checkout의 persistent Chrome·100% zoom이며 계정/절대 경로는 가렸다. 기존 Button/Notice/Read/PDF와 내부 스크롤을 사용하며, 640px의 문서 최소 폭 440px는 기존 두 Editor 그룹과 같은 기준이다. 한 글자 줄바꿈·행 정렬·여백·다크 대비와 패널 내부 스크롤을 검토했다. 소유자 시각 승인을 대신하지 않는다.
+
+| 화면 | 변경 전 | 변경 후 |
+| --- | --- | --- |
+| 1440px | [Before](assets/docling-1408/before-1440.png) | [After](assets/docling-1408/after-1440.png) |
+| 한국어 Dark 640px | [Before](assets/docling-1408/before-640.png) | [After](assets/docling-1408/after-640.png) |

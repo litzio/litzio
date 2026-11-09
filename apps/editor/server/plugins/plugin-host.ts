@@ -59,8 +59,8 @@ export class PluginHost {
         const record = this.record(plugin), artifact = this.artifact(record.directory);
         if (artifact.digest !== record.digest || !this.official(artifact.manifest, artifact.digest) && !record.trusted) throw new Error("Generated document provider trust changed");
       };
-      assertCurrent(); return { operation: `${plugin}.${op.id}`, version: op.version, assertCurrent };
-    }, (operation, input, version) => this.invokeOperation(operation, input, undefined, true, version));
+      assertCurrent(); return { operation: `${plugin}.${op.id}`, version: op.version, comparison: binding?.resultKind === "native-document" ? binding.comparison : undefined, assertCurrent };
+    }, (operation, input, version) => this.invokeOperation(operation, input, undefined, true, version), (...args) => this.reviews.publish(...args), input => this.reviews.execute(input));
     this.reviews = new PluginReviews(this.access, (plugin, review) => {
       if (this.closed || this.disabling.has(plugin)) throw new Error("Plugin is stopping");
       const binding = this.loaded.get(plugin)?.manifest.contributes.reviews.find(r => r.id === review);
@@ -75,7 +75,7 @@ export class PluginHost {
       if (!operation) throw new Error("Job operation unavailable");
       return operation.effect;
     }, (plugin, root, file, source, data) => this.reviews.publish(plugin, root, file, source, data),
-    (plugin, job, root, source, file, revision, sourceRevision) => this.generatedDocuments.register(plugin, job, root, source, file, revision, sourceRevision));
+    (plugin, job, root, source, file, revision, sourceRevision, inputs) => this.generatedDocuments.register(plugin, job, root, source, file, revision, sourceRevision, inputs));
     this.installed = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
   }
   private save() {

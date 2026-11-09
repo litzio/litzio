@@ -747,3 +747,7 @@ PluginIcon shares the same decorative 16px img in existing sidebar entries, Docu
 description은 Tooltip이다. 연결 확인은 순차 저장 완료 뒤 저장값으로 실행하고 실패 시 막는다.
 상시 설명 대신 기존 hover·keyboard focus Tooltip을 유지한다. 새 표면·공통 상호작용 예외는 없다.
 실행 계약은 [플러그인 1단계](plugin-stage1-v1.md#연결-설정-피드백-1396-sdk-040)를 따른다.
+
+## 생성 문서의 PDF 대조 (#1408)
+
+기존 review 작업 탭·SourceDocumentCompare·DocumentEditor readOnly preview와 pdf.js를 재사용한다. 완료 작업의 공통 JobActions에서 선언된 comparison 참조를 열며, 상단에는 대상·문서 열기·다시 읽기·페이지 확인 상태만 둔다. PDF 영역의 종류/상태는 hover·keyboard focus로 표시하며 기존 PNG 대조의 상시 label은 유지한다. 새 공통 부품이나 플러그인별 화면은 없다. 기존 K4의 1024px 안내와 달리 이번 PDF 대조는 640px 이상에서 패널 내부 스크롤로 두 열을 유지한다. Read는 기존 두 Editor 그룹의 최소 440px 폭·좁은 문서 여백을 재사용해 글자 단위 줄바꿈을 피한다. 저장 실패나 외부 변경 후 탐색·확인을 잠근다. 수정/승인/완료 동작은 표시하지 않는다. Host·CLI·저장 경계는 [공용 계약](plugin-stage1-v1.md#pdf-원본-대조와-확인-기록-1408-sdk-040)을 따른다.

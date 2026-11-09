@@ -8,8 +8,8 @@
   },
   "name": "Docling",
   "description": "docling-serve 연결 확인, PDF 원본 보관과 Litzio 문서 만들기",
-  "version": "0.0.6",
-  "requiresSdk": ">=0.3.0 <1.0.0",
+  "version": "0.0.7",
+  "requiresSdk": ">=0.4.0 <1.0.0",
   "entry": "host.js",
   "contributes": {
     "operations": [
@@ -520,6 +520,9 @@
                     ],
                     "additionalProperties": false
                   }
+                },
+                "comparison": {
+                  "type": "object"
                 }
               },
               "required": [
@@ -557,7 +560,9 @@
               "enum": [
                 "read",
                 "patch",
-                "build"
+                "build",
+                "compare",
+                "progress"
               ]
             },
             "patches": {
@@ -581,6 +586,18 @@
                 "maxBytes"
               ],
               "additionalProperties": false
+            },
+            "result": {
+              "type": "object"
+            },
+            "progress": {
+              "type": "object"
+            },
+            "sourceRevision": {
+              "type": "string"
+            },
+            "generation": {
+              "type": "string"
             }
           },
           "required": [
@@ -629,10 +646,21 @@
         "status": "job-status",
         "stop": "job-stop",
         "resultKind": "native-document",
-        "generatedDocument": "generated-document"
+        "generatedDocument": "generated-document",
+        "comparison": "compare"
       }
     ],
-    "healthCheck": "connection"
+    "healthCheck": "connection",
+    "reviews": [
+      {
+        "id": "compare",
+        "title": "원본 대조",
+        "read": {
+          "operation": "community.docling.generated-document",
+          "version": 1
+        }
+      }
+    ]
   },
   "settingsSchema": {
     "type": "object",

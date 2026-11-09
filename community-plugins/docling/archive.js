@@ -54,13 +54,13 @@ function validateEntries(entries) {
   if (images.some(image => image.path.startsWith("pages/"))) throw new Error("Page images must not be generated");
   if (JSON.stringify(manifest.images) !== JSON.stringify(images.map(({ data, ...record }) => record))) throw new Error("Image record mismatch");
   for (const name of entries.keys()) if (!validName(name)) throw new Error("Unsupported .docling entry");
-  return { manifest, documentJson, document, sourcePdf, ...(entries.has("review.json") ? { reviewBytes: entries.get("review.json") } : {}) };
+  return { manifest, manifestBytes: entries.get("manifest.json"), documentJson, document, sourcePdf, ...(entries.has("review.json") ? { reviewBytes: entries.get("review.json") } : {}) };
 
 }
 
 /** Return bytes only; the generic K1 Host result will own storage. */
-export function createDoclingArchive({ manifest, documentJson, sourceBytes, reviewBytes }) {
-  const entries = new Map([["manifest.json", Buffer.from(JSON.stringify(manifest, null, 2))], ["document.json", Buffer.from(documentJson)], ["source.pdf", Buffer.from(sourceBytes)]]);
+export function createDoclingArchive({ manifest, documentJson, sourceBytes, reviewBytes, manifestBytes }) {
+  const entries = new Map([["manifest.json", manifestBytes ?? Buffer.from(JSON.stringify(manifest, null, 2))], ["document.json", Buffer.from(documentJson)], ["source.pdf", Buffer.from(sourceBytes)]]);
   if (reviewBytes !== undefined) entries.set("review.json", Buffer.from(reviewBytes));
   validateEntries(entries);
   if (entries.size >= 65535) throw new Error("ZIP64 is unsupported");

@@ -1,6 +1,20 @@
 import { brand } from "../../../brand.ts";
 /** Bundled UI resources. English source phrases are translation keys, never operation IDs. */
 export const en = {
+  "Fit to width": "Fit to width",
+  "No image available. Showing regions only.": "No image available. Showing regions only.",
+  "Data is out of date. Open newly verified comparison data to continue.": "Data is out of date. Open newly verified comparison data to continue.",
+  "Refreshing data…": "Refreshing data…",
+  "Data unavailable.": "Data unavailable.",
+  "No matching content.": "No matching content.",
+  "Open document": "Open document",
+  "Next page": "Next page",
+  "Previous page": "Previous page",
+  "Page checked": "Page checked",
+  "Mark page checked": "Mark page checked",
+  "Saved document": "Saved document",
+  "Compare source": "Compare source",
+  "Source comparison": "Source comparison",
   "Additional conditions": "Additional conditions",
   "Columns": "Columns",
   "Column selection could not be saved.": "Column selection could not be saved.",
@@ -1240,6 +1254,20 @@ export const en = {
   "Home": "Home"
 } as const;
 export const ko: Record<keyof typeof en, string> = {
+  "Fit to width": "너비에 맞춤",
+  "No image available. Showing regions only.": "원본을 표시할 수 없습니다. 영역만 표시합니다.",
+  "Data is out of date. Open newly verified comparison data to continue.": "자료가 변경되었습니다. 대조를 닫고 다시 여세요.",
+  "Refreshing data…": "자료 다시 읽는 중…",
+  "Data unavailable.": "자료를 읽거나 확인 기록을 저장하지 못했습니다. 다시 읽어 확인하세요.",
+  "No matching content.": "대응하는 내용이 없습니다.",
+  "Open document": "문서 열기",
+  "Next page": "다음 페이지",
+  "Previous page": "이전 페이지",
+  "Page checked": "확인한 페이지",
+  "Mark page checked": "페이지 확인함",
+  "Saved document": "저장된 문서",
+  "Compare source": "원본 대조",
+  "Source comparison": "원본 대조",
   "Additional conditions": "추가 조건",
   "Columns": "열 선택",
   "Column selection could not be saved.": "열 선택을 저장하지 못했습니다.",

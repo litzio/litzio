@@ -56,3 +56,30 @@ export function reviewItems(doc) {
     ...(kind === "tables" ? { cells: (item.data?.table_cells ?? []).map((cell, index) => ({ cell: index, text: cell.text })) } : {}),
   })));
 }
+
+/** Correspondence uses only immutable PDF provenance and the final Host targets. */
+export function comparison(archive, record, report, input) {
+  const pages = Object.entries(archive.document.pages ?? {}).map(([key, page]) => ({ generation: input.generation, sourceRevision: input.sourceRevision, pageNo: Number(key), width: page.size.width, height: page.size.height, unit: "pt", origin: "TOPLEFT", regions: [] })).sort((a,b) => a.pageNo-b.pageNo);
+  if (!pages.length || pages.some((p,i) => p.pageNo !== i+1)) throw new Error("Expected consecutive PDF pages");
+  const entries = [], effective = new Map(reviewItems(applyCorrections(archive.document, record.patches)).map(i => [i.self_ref,i]));
+  for (const item of report.items) {
+    const original = archive.document[item.self_ref.split("/")[1]]?.[Number(item.self_ref.split("/")[2])], sourceIds = [];
+    for (const [index,prov] of (original?.prov ?? []).entries()) {
+      const page = pages.find(p => p.pageNo === prov.page_no);
+      if (!page) throw new Error("Unknown provenance page");
+      const b = prov.bbox, id = `region-${item.self_ref.slice(2).replaceAll("/","-")}-${index}`;
+      if (!["TOPLEFT","BOTTOMLEFT"].includes(b.coord_origin)) throw new Error("Unknown coordinate origin");
+      const top = b.coord_origin === "TOPLEFT" ? b.t : page.height-b.t, bottom = b.coord_origin === "TOPLEFT" ? b.b : page.height-b.b;
+      const bbox = [Math.min(b.l,b.r),Math.min(top,bottom),Math.max(b.l,b.r),Math.max(top,bottom)];
+      const status = effective.get(item.self_ref)?.excluded ? "excluded" : item.status === "furniture" ? "decoration" : item.targets.length ? "supported" : "unsupported";
+      page.regions.push({id,bbox,category: original.label ?? "item",status}); sourceIds.push(id);
+    }
+    if (sourceIds.length) entries.push({sourceIds,targets:item.targets});
+  }
+  return {review:"compare",bundle:{generation:input.generation,documentRevision:input.result.revision,documentHash:input.result.revision,sourceRevision:input.sourceRevision,mappingRevision:input.generation},pages,images:[],mapping:{generation:input.generation,documentRevision:input.result.revision,documentHash:input.result.revision,sourceRevision:input.sourceRevision,mappingRevision:input.generation,entries}};
+}
+export function setProgress(document, record, progress) {
+  const pages = new Set(Object.keys(document.pages ?? {}).map(Number));
+  if (!progress || Object.keys(progress).sort().join() !== "checkedPages,lastPage" || !Array.isArray(progress.checkedPages) || new Set(progress.checkedPages).size !== progress.checkedPages.length || progress.checkedPages.some(p => !Number.isInteger(p) || !pages.has(p)) || progress.lastPage !== null && (!Number.isInteger(progress.lastPage) || !pages.has(progress.lastPage))) throw new Error("Invalid review progress");
+  record.checkedPages = [...progress.checkedPages].sort((a,b)=>a-b); record.lastPage=progress.lastPage;
+}

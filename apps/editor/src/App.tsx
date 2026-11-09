@@ -1,3 +1,4 @@
+import { GeneratedComparison, type ComparisonTarget } from "./review/GeneratedComparison.tsx";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { useViewScreens } from "./views/view-screens.ts";
 import { viewScreenIcon } from "./views/view-screen-icon.ts";
@@ -229,7 +230,7 @@ function EditorApp() {
   const galleryFocused = activeId === "templates";
   const activeViewTab = viewTabs.find(tab => tab.id === activeId);
   const activePdf = activeViewTab?.pdf ? activeViewTab : undefined;
-  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.jobs ? i18n.t("Plugin jobs") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
+  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? tab.comparison?.document ?? tab.root, hostId: tab.hostId, icon: tab.screen ? <PluginIcon client={getHostClient(tab.hostId)} plugin={tab.screen.plugin} digest={screens.find(screen => screen.hostId === tab.hostId && screen.plugin === tab.screen!.plugin)?.iconDigest} fallback={(() => { const Icon = viewScreenIcon(tab.screen.icon); return <Icon aria-hidden="true" />; })()} /> : undefined, title: tab.jobs ? i18n.t("Plugin jobs") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
@@ -779,6 +780,11 @@ function EditorApp() {
     if (assistantOverlay) setAssistantOpen(false);
     focusAfterClose.current = true;
     placeTab("templates", galleryGroup?.id ?? navigation.focused);
+  }
+  function openComparison(hostId: string, comparison: ComparisonTarget) {
+    const id = `comparison-${hostId}-${comparison.root}-${comparison.document}`;
+    setViewTabs(previous => previous.some(t => t.id === id) ? previous : [...previous,{id,hostId,root:comparison.root,comparison,label:i18n.t("Source comparison")}]);
+    placeTab(id);
   }
   function openPluginJobs(): void {
     const hostId = viewTabs.find(tab => tab.id === activeId)?.hostId ?? session?.hostId ?? LOCAL_HOST_ID;
@@ -1365,7 +1371,7 @@ function EditorApp() {
               hidden={group?.active !== tab.id} inert={group?.active !== tab.id} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
               data-group-index={groupIndex} style={{ "--editor-group-index": groupIndex } as React.CSSProperties}
               onFocusCapture={() => focusDocument(tab.id)} onPointerDownCapture={() => focusDocument(tab.id)}>
-              {tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} jobsActive={group?.active === tab.id} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onHost={hostId => setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item))} onOpenDocument={openViewDocument} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} />  : <Views tab={tab} client={getHostClient(tab.hostId)} onOpenDocument={openViewDocument} />}
+              {tab.comparison ? <GeneratedComparison client={getHostClient(tab.hostId)} target={tab.comparison} onOpen={path => openViewDocument(path,tab.hostId)} /> : tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} jobsActive={group?.active === tab.id} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} onHost={hostId => setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item))} onCompare={target => openComparison(tab.hostId,target)} onOpenDocument={openViewDocument} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onCompare={target => openComparison(tab.hostId,target)} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} />  : <Views tab={tab} client={getHostClient(tab.hostId)} onOpenDocument={openViewDocument} />}
 
             </div>;
           })}

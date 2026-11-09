@@ -88,6 +88,11 @@ test("generated document official writes keep source state first, reject conflic
       record.edits.push(...input.patches); writeFileSync(input.resultFile.path, JSON.stringify(record));
       if (raceSource) writeFileSync(source, "competitor source");
     }
+    if (input.mode === "progress") {
+      if (raceDocument) writeFileSync(document,"competitor document");
+      record.progress = input.progress; writeFileSync(input.resultFile.path, JSON.stringify(record));
+      if (raceSource) writeFileSync(source, "competitor source");
+    }
     if (input.mode === "build") {
       if (failBuild) return { error: "injected failure" };
       if (raceDocument) writeFileSync(document, "competitor document");
@@ -108,7 +113,21 @@ test("generated document official writes keep source state first, reject conflic
     assert.equal((await read()).state, "generated");
     const old = (await read()).baseline;
     const first = await patch("corrected"); assert.equal(first.correctionsSaved, true); assert.equal(first.documentRegenerated, true);
+    const originalDocument = readFileSync(document), beforeProgress = await read(), progressId = randomUUID();
+    const progress = await host.execute({action:"generated-progress",root,document:"result.md",baseline:beforeProgress.baseline,progress:{checkedPages:[1],lastPage:1},requestId:progressId});
+    assert.equal(progress.progressSaved,true); assert.deepEqual(readFileSync(document),originalDocument);
+    assert.equal((await read()).state,"generated");
+    assert.deepEqual(JSON.parse(readFileSync(source,"utf8")).edits,beforeProgress.record.edits);
+    assert.equal((await host.execute({action:"generated-status",requestId:progressId})).progressSaved,true);
+    const staleProgress = await host.execute({action:"generated-progress",root,document:"result.md",baseline:beforeProgress.baseline,progress:{checkedPages:[],lastPage:null},requestId:randomUUID()});
+    assert.equal(staleProgress.receipt.outcome,"failure");
     const bytes = readFileSync(source);
+    raceDocument = true;
+    const racingProgress = await host.execute({action:"generated-progress",root,document:"result.md",baseline:(await read()).baseline,progress:{checkedPages:[],lastPage:null},requestId:randomUUID()});
+    assert.equal(racingProgress.receipt.outcome,"failure"); assert.deepEqual(readFileSync(source),bytes);
+    assert.equal(readFileSync(document,"utf8"),"competitor document");
+    raceDocument = false; writeFileSync(document,originalDocument);
+
     assert.equal((await patch("stale", old)).state, "failed"); assert.deepEqual(readFileSync(source), bytes);
     failBuild = true;
     const failed = await patch("saved before failure");

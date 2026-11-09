@@ -28,3 +28,7 @@ Core 의미, SDK 등록, Host/CLI, 브라우저 fixture는 각 계약에 기록�
 ## 과거 설계와 근거
 
 종전 설계의 조사·수락 실패·PR 분할·실행 예제는 [제거 직전 보관본](https://github.com/litzio/litzio/blob/archive/dynamic-ui-2026-11/docs/design/catalog-v2.md)에 있다. 비서 생성·저장 뷰 계약은 [Historical 기록](generated-views-v1.md), 동적 뷰 재정의는 [Historical 제안](dynamic-views-v1.md)이다. 새 동적 UI는 [소유자의 업무·탐색·판단 순환 기준](https://github.com/litzio/litzio/discussions/767#discussioncomment-19481395)으로 별도 정의한다.
+
+## #1408의 한정 구현
+
+생성 문서 PDF 대조·페이지 확인 기록은 [구현 계약](plugin-stage1-v1.md#pdf-원본-대조와-확인-기록-1408-sdk-040)을 따른다. K2/K3 renderer와 V4 snapshot을 재사용하고 PDF 참조를 추가했다. Docling의 화면 내 수정·완료 승인은 구현하지 않았으며 이 Draft 전체나 후속 수락 시험의 완료를 뜻하지 않는다.

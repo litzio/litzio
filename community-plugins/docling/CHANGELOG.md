@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.7 — 미발행
+
+- 완료 문서의 공용 PDF 대조 진입, 불변 provenance와 최종 targets의 양방향 대응을 제공합니다.
+- review.json의 확인 페이지·마지막 위치를 공식 전체 파일 교체와 revision 검사로 저장합니다. 원본 PDF/JSON/manifest와 수정 목록을 보존하며 문서를 재생성하지 않습니다.
+- 공용 SDK 0.4.0의 comparison/PDF/progress와 같은 Host·CLI를 사용합니다. 화면 내 수정·완료 승인은 포함하지 않습니다.
+- README의 현재 버전과 변환 manifest의 pluginVersion을 0.0.7로 맞춥니다.
+
 ## 0.0.6
 
 - 연결 설정 표시 이름을 Docling 서버 주소로 바꿉니다. 저장 키와 최소 SDK 0.3.0은 유지합니다.

@@ -4,7 +4,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { convertPdfToArchive } from "./conversion.js";
 import { readDoclingArchive, createDoclingArchive } from "./archive.js";
 import { convertDocument } from "./document.js";
-import { readReview, applyCorrections, reviewItems } from "./review.js";
+import { readReview, applyCorrections, reviewItems, comparison, setProgress } from "./review.js";
 
 /** @param {import("@litzio/plugin-sdk").PluginContext} context */
 export function activate(context) {
@@ -114,11 +114,18 @@ export function activate(context) {
           record.checkedPages = []; record.lastPage = null;
           readReview(Buffer.from(JSON.stringify(record)));
         }
+        if (input.mode === "progress") setProgress(archive.document, record, input.progress);
+        if (input.mode === "compare") {
+          const authored = await convertDocument(archive.document, archive.manifest.document.sha256, record.patches);
+          if (archive.sourcePdf.length > input.resultFile.maxBytes) throw new Error("PDF exceeds Host limit");
+          await writeFile(input.resultFile.path, archive.sourcePdf, {flag:"r+"});
+          return {...comparison(archive,record,authored.bindReport(input.result),input),pdf:{path:input.resultFile.path,revision:archive.manifest.source.sha256}};
+        }
         const effective = applyCorrections(archive.document, record.patches);
         if (input.mode === "build") return (await convertDocument(archive.document, archive.manifest.document.sha256, record.patches)).document;
         const state = { record, items: reviewItems(effective) };
-        if (input.mode === "patch") {
-          const bytes = createDoclingArchive({ manifest: archive.manifest, documentJson: archive.documentJson, sourceBytes: archive.sourcePdf, reviewBytes: Buffer.from(JSON.stringify(record)) });
+        if (["patch","progress"].includes(input.mode)) {
+          const bytes = createDoclingArchive({ manifest: archive.manifest, manifestBytes: archive.manifestBytes, documentJson: archive.documentJson, sourceBytes: archive.sourcePdf, reviewBytes: Buffer.from(JSON.stringify(record)) });
           if (bytes.length > input.resultFile.maxBytes) throw new Error("Archive exceeds Host limit");
           await writeFile(input.resultFile.path, bytes, { flag: "r+" });
         }
