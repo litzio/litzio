@@ -105,7 +105,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(page.getByText("Trust required", { exact: false })).toBeVisible();
   const registered = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
   expect(registered.running).toBe(false);
-  await page.getByRole("button", { name: "Drive fixture", exact: true }).click();
+  await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
   if (registered.secrets.supported) {
     await page.getByLabel("pat: Not configured", { exact: true }).fill("browser-isolated-secret");
     await saveSecret();
@@ -126,7 +126,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     }
     pluginFixture.corruptSecret();
     await page.reload(); await openSettings();
-    await page.getByRole("button", { name: "Drive fixture", exact: true }).click();
+    await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
     await expect(page.getByLabel("pat: Unavailable or damaged", { exact: true })).toHaveValue("");
     await expect(page.getByText("Unable to read this secret. Delete or replace it.", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Delete secret", exact: true })).toBeEnabled();
@@ -162,7 +162,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   }
   const cliSettings = pluginFixture.cli(["plugins", "settings", "fixture.drive", "--file", pluginFixture.otherJobInput]);
   expect(cliSettings.plugins.find(p => p.id === "fixture.drive").status.message).toBe("CLI connection");
-  await page.getByRole("button", { name: "Drive fixture", exact: true }).click();
+  await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
   await expect(page.getByLabel("Connection label", { exact: true })).toBeEnabled();
   await page.getByLabel("Connection label", { exact: true }).fill("UI connection");
   await page.getByLabel("Connection label", { exact: true }).press("Tab");
@@ -220,7 +220,25 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await page.evaluate(() => { localStorage.removeItem(JSON.stringify(["local", "litzio.openFolders"])); });
     await page.reload(); await openSettings();
     await expect(page.locator(".sidebar-folder-name")).toHaveCount(0);
-    await page.getByRole("button", { name: "Open view · Docling", exact: true }).click();
+    if (screenshots) {
+      for (const width of [1440, 640]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
+        await page.reload();
+        await page.getByRole("button", { name: width === 640 ? "설정" : "Settings", exact: true }).click();
+        await page.getByRole("button", { name: width === 640 ? "플러그인" : "Plugins", exact: true }).click();
+        await page.getByRole("button", { name: width === 640 ? "Docling 설정" : "Docling settings", exact: true }).click();
+        const detail = page.getByRole("dialog");
+        await expect(detail.getByRole("textbox", { name: "docling-serve URL", exact: true })).not.toBeEmpty();
+        await expect(detail.locator('input[type="password"]')).toBeVisible();
+        expect(await detail.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+        await page.screenshot({ path: `tmp/plugin-settings-1334/docling-detail-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+      }
+      await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
+      await page.reload(); await openSettings();
+    }
+    await page.keyboard.press("Escape");
+    await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
     const refresh = page.getByRole("button", { name: "Refresh data", exact: true });
     const workspace = page.getByTestId("view-workspace").filter({ visible: true });
     await expect(workspace.getByRole("combobox")).toHaveCount(0);
@@ -237,7 +255,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
           await page.reload();
           await page.getByRole("button", { name: "설정", exact: true }).click();
           await page.getByRole("button", { name: "플러그인", exact: true }).click();
-          await page.getByRole("button", { name: "뷰 열기 · Docling", exact: true }).click();
+          await page.keyboard.press("Escape");
+          await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
           await page.getByRole("button", { name: "데이터 새로고침", exact: true }).click();
           await expect(page.getByRole("cell", { name: "연결됨", exact: true })).toBeVisible();
         }
@@ -246,7 +265,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       }
       await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
       await page.reload(); await openSettings();
-      await page.getByRole("button", { name: "Open view · Docling", exact: true }).click();
+      await page.keyboard.press("Escape");
+      await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
     }
     docling.setFailure(true);
     const failed = await invoke();
