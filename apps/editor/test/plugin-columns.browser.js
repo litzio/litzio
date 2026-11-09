@@ -1,12 +1,12 @@
 async (page, { expect, screenshots }) => {
-  const fields = { key: { type: 'string', label: 'Key' }, title: { type: 'string', label: 'Title' }, status: { type: 'string', label: 'Status' }, priority: { type: 'string', label: 'Priority', hidden: true } };
+  const fields = { reporter: { type: 'string', label: 'Reporter' }, key: { type: 'string', label: 'Key' }, title: { type: 'string', label: 'Title' }, status: { type: 'string', label: 'Status' }, priority: { type: 'string', label: 'Priority', hidden: true } };
   const view = { kind: 'litzio-view', schemaVersion: 2, catalog: 'litzio-v2', profile: 'query', owner: 'fixture.columns', title: 'Issue table', refresh: 'manual', sources: { stats: { kind: 'operation', operation: 'fixture.columns.read', version: 1, args: {} } }, layout: { component: 'Panel', direction: 'vertical', children: [{ component: 'Table', title: 'Issues', source: 'stats', data: '/rows', columns: ['key', 'title', 'status', 'priority'] }] } };
   let total = 1234;
   await page.route('**/api/views', route => {
     const { action } = route.request().postDataJSON();
     const receipt = { operation: `view.${action}`, version: 1, requestId: 'fixture', outcome: 'success', scope: 'host', timestamp: '2026-11-09T00:00:00Z' };
     const screen = { plugin: 'fixture.columns', id: 'issues', title: 'Issue table', icon: 'Table', defaultViewIds: ['issues'], primary: true };
-    const result = action === 'catalog' ? { catalog: { operations: [{ operation: 'fixture.columns.read', version: 1, plugin: 'fixture.columns', rowSchema: fields, inputSchema: { type: 'object', additionalProperties: false } }] }, screens: [screen], views: [{ plugin: 'fixture.columns', id: 'issues', title: 'Issue table', definition: view }] } : action === 'run' ? { rows: [{ key: 'DEMO-1', title: '조회 결과의 표시 열 선택', status: '진행 중', priority: '높음' }], fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, v.label])), coverage: { truncated: true, returned: 1, ...(total === undefined ? {} : { total }) } } : { favourites: [] };
+    const result = action === 'catalog' ? { catalog: { operations: [{ operation: 'fixture.columns.read', version: 1, plugin: 'fixture.columns', rowSchema: fields, inputSchema: { type: 'object', additionalProperties: false } }] }, screens: [screen], views: [{ plugin: 'fixture.columns', id: 'issues', title: 'Issue table', definition: view }] } : action === 'run' ? { rows: [{ reporter: 'Fixture reporter', key: 'DEMO-1', title: '조회 결과의 표시 열 선택', status: '진행 중', priority: '높음' }], fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, v.label])), coverage: { truncated: true, returned: 1, ...(total === undefined ? {} : { total }) } } : { favourites: [] };
     return route.fulfill({ json: { ...result, receipt } });
   });
   await page.reload();
@@ -15,6 +15,7 @@ async (page, { expect, screenshots }) => {
   await query.getByRole('button', { name: 'Refresh data', exact: true }).click();
   await expect(query.getByRole('cell', { name: 'DEMO-1', exact: true })).toBeVisible();
   await expect(query.getByRole('columnheader').filter({ has: page.getByRole('button', { name: 'Priority', exact: true }) })).toHaveCount(0);
+  await expect(query.getByRole('columnheader').filter({ has: page.getByRole('button', { name: 'Reporter', exact: true }) })).toHaveCount(0);
   await expect(query.getByRole('button', { name: 'Shown: 1 · Total: 1,234', exact: true })).toBeVisible();
   await query.getByRole('button', { name: 'Columns', exact: true }).click();
   await page.getByRole('menuitemcheckbox', { name: 'Priority', exact: true }).click();

@@ -335,13 +335,13 @@ Visual evidence: [screen 1440](assets/plugin-icon-1346/screen-1440.png), [settin
 
 ## 플러그인 조회 표 열과 결과 범위 (#1351)
 
-미릴리스 SDK `0.3.0`의 read `rowSchema` 필드에 선택적 `hidden:boolean`을 제공한다. `true`는 기본 숨김 후보이며 생략/false는 기본 표시다. 이 선언은 `requiresSdk`가 실제 지원하는 0.3.0 계약을 허용해야 한다. secret 필드는 계속 공개하지 않는다. 기본 숨김은 접근 권한이 아니며 공개 행 데이터는 CLI에도 포함된다.
+미릴리스 SDK `0.3.0`의 read `rowSchema` 필드에 선택적 `hidden:boolean`을 제공한다. `true`는 기본 숨김 후보, `false`는 기본 표시다. 생략하면 manifest의 해당 Table.columns 기본 표시를 유지한다. 이 선언은 `requiresSdk`가 실제 지원하는 0.3.0 계약을 허용해야 한다. secret 필드는 계속 공개하지 않는다. 기본 숨김은 접근 권한이 아니며 공개 행 데이터는 CLI에도 포함된다.
 
 rowSchema 작업은 기존 행 배열 또는 `{rows, truncated, total?}`를 반환한다. 플러그인의 `outputSchema`도 실제 반환 형태를 선언해야 한다. SDK의 `OperationRowResult` 타입과 `operationRowResultSchema`를 제공하며 Host 공용 반환 경계에서 행 제한·공개 필드·잘림 정보를 검증한다. truncated는 필수 boolean, total은 선택적 0 이상의 safe integer다. total을 알면 반환 행 수 이상이어야 하며 truncated=true면 더 크고 false면 같아야 한다. 배열은 범위 정보 미제공이며 전체 결과라고 보증하지 않는다. 별도 paging·재조회 API는 추가하지 않는다.
 
 `operation invoke` CLI는 같은 envelope를 result에 보존한다. 조회 Host/`view run --json`은 표의 가공된 rows와 별도로 `coverage:{truncated,total?,returned}`를 제공한다. returned는 원본 반환 행 수로 필터·집계·limit 전 수다. 기존 2,000행 상한은 유지하며 이를 넘는 결과를 Host가 조용히 잘라 주지 않는다.
 
-Editor의 플러그인 비집계 조회 표는 공개 rowSchema 순서로 열 후보를 제공하고 기본 hidden을 따른다. 열 선택은 브라우저 UI preference로 Host·플러그인·화면·표별 저장하며 화면 없는 조회는 operation을 사용한다. 문서·Host·플러그인 설정에 쓰지 않는다. 재조회와 재열기에서 선택을 유지하고 없어진 필드는 무시한다. 모든 열을 숨기면 열 선택 행동을 유지한다. 저장 실패는 화면 경고로 알린다. 집계 표는 파생 group/value 의미를 유지한다.
+Editor의 플러그인 비집계 조회 표는 공개 rowSchema 순서로 열 후보를 제공하고 기본 hidden 및 Table.columns 선언을 따른다. 열 선택은 브라우저 UI preference로 Host·플러그인·화면·표별 저장하며 화면 없는 조회는 operation을 사용한다. 문서·Host·플러그인 설정에 쓰지 않는다. 재조회와 재열기에서 선택을 유지하고 없어진 필드는 무시한다. 모든 열을 숨기면 열 선택 행동을 유지한다. 저장 실패는 화면 경고로 알린다. 집계 표는 파생 group/value 의미를 유지한다.
 
 조회 시각은 기존 receipt에 표시하고 잘린 결과는 `N건 표시 · 전체 M건` 또는 `일부만 표시`로 알린다. 상세 설명은 hover/키보드 focus Tooltip에 둔다. 기존 Button ghost/sm·DropdownMenu·Base UI Menu.CheckboxItem·MENU_ITEM_CLASS·Tooltip·DataTable을 재사용하며 새 공통 상호작용 예외는 없다. Jira 적용은 별도 작업이며 이번 검증은 fixture다.
 

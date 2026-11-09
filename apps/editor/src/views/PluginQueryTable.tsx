@@ -10,14 +10,14 @@ import { readPluginTableColumns, writePluginTableColumns } from "../preferences.
 import { i18n } from "../i18n.ts";
 import type { RowSchema, ViewRow } from "@litzio/core/views";
 
-export function PluginQueryTable({ scope, rows, fields, labels, title, label }: {
-  scope: string; rows: ViewRow[]; fields: RowSchema; labels?: Record<string, string>; title: string;
+export function PluginQueryTable({ scope, rows, fields, labels, title, label, defaultColumns }: {
+  defaultColumns: readonly string[]; scope: string; rows: ViewRow[]; fields: RowSchema; labels?: Record<string, string>; title: string;
   label(column: string, value: ViewRow[string]): string;
 }) {
   const candidates = Object.keys(fields).filter(name => !fields[name].secret);
   const [saved, setSaved] = useState(() => readPluginTableColumns(scope));
   const [saveError, setSaveError] = useState(false);
-  const columns = candidates.filter(name => saved ? saved.includes(name) : !fields[name].hidden);
+  const columns = candidates.filter(name => saved ? saved.includes(name) : fields[name].hidden === undefined ? defaultColumns.includes(name) : !fields[name].hidden);
   return <>
     <div className="view-controls"><DropdownMenu><DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>{i18n.t("Columns")}</DropdownMenuTrigger>
       <DropdownMenuContent>{candidates.map(name => <Menu.CheckboxItem key={name} className={MENU_ITEM_CLASS}
