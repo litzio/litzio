@@ -50,6 +50,10 @@ operation invoke <pluginId.operationId> --input <json> --host <origin> --json
 
 settings는 --file 없이 현재 일반 설정을 조회한다. 일반 설정과 secret 저장·삭제는 활성 상태에서도 받으며, 저장 후 기존 reload 경로로 새 값을 적용한다. 해당 플러그인의 K1 작업이 running 또는 uncertain이면 변경 전에 이유를 반환하고 기존 값을 보존한다(비활성 상태도 동일). 검사부터 저장·reload까지 신규 작업 접수를 차단하며 기존 drain·uncertain/no-replay 수명은 바꾸지 않는다. reload 실패 시 저장된 새 값은 유지하고 기존 reload 오류·비활성 상태로 남는다. 디스크 artifact 변경 뒤에는 기존 켜기 또는 reload의 ID·작업 이름 충돌·등록 신뢰 검증을 거쳐 새 설정으로 실행한다. 등록 신뢰는 유지하며 공식 번들 artifact 검증은 그대로 유지한다. 설정 UI는 기존 Settings 콘텐츠·Button·Input·SettingsSwitch·Dialog를 재사용한다. 목록은 Hosts 설정의 host-summary 행, 공통 settings-switch·Notice·Tooltip·Dialog와 HostStatus의 점/톤 스타일을 재사용한다. 이름·공식/커뮤니티 배지 하나·설명을 왼쪽에 묶고 활성 토글은 같은 행 오른쪽 끝에 둔다. 플러그인 상태는 오류·사용할 수 없음 등 문제만 표시하고 정상 실행·꺼짐은 스위치로 표현한다. 폴더 감지 상태는 folderSources를 선언한 플러그인만 표시하며 계정은 `계정: 라벨 (출처)`로 표시한다. 상단은 한 줄 경고와 상세 Tooltip이다. 목록은 공급 책임·활성과 오류를 구별하고 설정 창 상세 정보는 만든 곳·신뢰 여부·현재 artifact digest를 표시한다. 비서는 별도 `manage_plugins` 도구로 같은 Host 함수를 호출한다. Codex dynamic tools에 연결하며 관리별 승인 질문 없이 실행한다. 작업·대상 ID·성공/실패를 기존 대화 도구 활동 항목과 도구 결과에 남긴다. 도구 결과는 Codex 대화 이력에서도 확인할 수 있다. 활동 기록에는 설정값·secret·artifact 예외 원문을 넣지 않는다. display 도구의 범위는 확대하지 않는다. 기존 Copilot adapter에는 새 도구 공급을 추가하지 않는다.
 
+일반 설정 검증 실패는 Host가 validator keyword와 JSON Pointer 필드 경로를 settingsIssues로 전달한다. required는 누락된 필드 경로를 포함한다. CLI의 기존 영어 상세 오류와 비서의 일반 실패 결과는 유지한다. 앱은 영어 원문을 해석하지 않고 locale의 쉬운 오류 문구로 해당 필드에 표시한다. 알려지지 않은 오류는 고정된 일반 문구로 표시한다. 기존 FieldError·Input을 재사용하며 공통 UI 예외는 없다.
+
+시각 확인: [640px 한국어 오류](assets/plugin-settings-1407/error-640-ko.png). 합성 설정 fixture이며 외부 서비스 연결 성공의 증거는 아니다.
+
 #1320 화면 확인: 기존 설정 Dialog·Input·SettingsSwitch·Button·Notice를 재사용하며 공통 패턴 예외는 없다. 활성 상태 입력을 같은 fixture로 수정 전·후 확인했다. [1440px 이전](assets/plugin-settings-1320/before-1440.png) / [이후](assets/plugin-settings-1320/after-1440.png), [한국어 Dark 640px 이전](assets/plugin-settings-1320/before-640.png) / [이후](assets/plugin-settings-1320/after-640.png). 행 정렬·여백·잘림·한국어 줄바꿈을 수동 확인했다. Host 검사에서 running·uncertain 변경 거부와 원본 보존, 기존 secret 비노출을 검증하며 HTTP 브라우저 검사는 활성 일반 설정 UI/CLI와 secret UI 저장·CLI 삭제 후 새 실행값을 확인한다. 실제 외부 서비스 연결 성공의 증거는 아니다.
 
 ## OneDrive

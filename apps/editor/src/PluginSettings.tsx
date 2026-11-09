@@ -1,3 +1,4 @@
+import { PluginSettingsError } from "../shared/plugin-settings-error.ts";
 import { PluginIcon } from "./PluginIcon.tsx";
 import { FolderDialog } from "./shell/FolderDialog.tsx";
 import { i18n } from "./i18n.ts";
@@ -106,13 +107,25 @@ function ConnectionSettings({ plugin, change, busy, run }: { plugin: Plugin; cha
       try {
         await change("settings", { id: plugin.id, settings });
         saved.current = settings;
-        delete errors.current[key];
+        errors.current = {};
+        setStates(s => Object.fromEntries(Object.entries(s).map(([field, state]) => [field, state.error ? {} : state])));
         if (edits.current[key] === edit) dirty.current.delete(key);
         if (edits.current[key] === edit) setStates(s => ({ ...s, [key]: { status: "Saved" } }));
       } catch (e) {
-        const error = e instanceof Error ? e.message : String(e);
-        errors.current[key] = error;
-        if (edits.current[key] === edit) setStates(s => ({ ...s, [key]: { error } }));
+        const issues = e instanceof PluginSettingsError ? e.settingsIssues : [];
+        const messages: Record<string, string> = {};
+        for (const issue of issues) {
+          const field = issue.path.split("/")[1]?.replaceAll("~1", "/").replaceAll("~0", "~");
+          const target = field && Object.hasOwn(plugin.settingsSchema?.properties ?? {}, field) ? field : key;
+          messages[target] ??= i18n.t(settingsErrorMessage(issue.keyword));
+        }
+        if (!Object.keys(messages).length) messages[key] = i18n.t(settingsErrorMessage("unknown"));
+        Object.assign(errors.current, messages);
+        if (edits.current[key] === edit) setStates(s => {
+          const next = { ...s, [key]: {} };
+          for (const [field, error] of Object.entries(messages)) next[field] = { error };
+          return next;
+        });
       } finally { --pendingSaves.current; }
     });
   };
@@ -209,4 +222,18 @@ function PluginHealthCheck({ plugin, busy, ready }: { plugin?: Plugin; busy: boo
     }}>{i18n.t(checking ? "Checking…" : "Check connection")}</Button></TooltipTrigger><TooltipContent>{disabled ? reason : i18n.t("Uses saved settings")}</TooltipContent></Tooltip></div>
     {result ? <><PluginState tone={result.ok ? "connected" : "danger"} label={i18n.t(result.ok ? "Connected" : "Error")} /><p className="settings-description" role="status">{result.message}</p></> : null}
   </section>;
+}
+
+function settingsErrorMessage(keyword: string) {
+  switch (keyword) {
+    case "required": return "Enter a value.";
+    case "minLength": return "This value is too short. Enter a longer value.";
+    case "maxLength": return "This value is too long. Enter a shorter value.";
+    case "format": case "pattern": return "Check the format of this value.";
+    case "minimum": case "exclusiveMinimum": return "This number is too small. Enter a larger number.";
+    case "maximum": case "exclusiveMaximum": return "This number is too large. Enter a smaller number.";
+    case "type": return "Enter a value of the expected type.";
+    case "enum": case "const": return "Choose an allowed value.";
+    default: return "Could not save settings. Check the values and try again.";
+  }
 }

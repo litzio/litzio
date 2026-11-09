@@ -175,13 +175,26 @@ test("Docling envelope keeps original PDF/JSON hashes independent of the reserve
 test("local artifact trust, activation, admission, drain, settings persistence and assistant activity", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugins-"));
   const directory = path.join(root, "artifact"); mkdirSync(directory);
-  const manifest = { schemaVersion: 1, id: "litzio.onedrive", tier: "official", publisher: { id: "litzio", name: "Litzio" }, name: "Fixture", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "string" } }] }, settingsSchema: { type: "object", properties: { label: { type: "string" } }, additionalProperties: false } };
+  const manifest = { schemaVersion: 1, id: "litzio.onedrive", tier: "official", publisher: { id: "litzio", name: "Litzio" }, name: "Fixture", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "string" } }] }, settingsSchema: { type: "object", properties: { label: { type: "string", minLength: 1 } }, required: ["label"], additionalProperties: false } };
   writeFileSync(path.join(directory, "litzio-plugin.json"), JSON.stringify(manifest));
   writeFileSync(path.join(directory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
   writeFileSync(path.join(directory, "host.js"), `export function activate(c){return {operations:{read:async()=>{await new Promise(r=>setTimeout(r,50));return c.settings.label ?? "done"}},status:()=>({available:true,message:"Fixture",folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
   const host = new PluginHost(path.join(root, "state.json"), { officialPlugins: [] });
   try {
     await host.invoke("register", { directory });
+    await assert.rejects(host.invoke("settings", { id: manifest.id, settings: { label: 42 } }), (error: any) => {
+      assert.match(error.message, /Invalid settings/);
+      assert.deepEqual(error.settingsIssues, [{ keyword: "type", path: "/label" }]);
+      return true;
+    });
+    for (const [settings, keyword] of [[{}, "required"], [{ label: "" }, "minLength"]] as const) {
+      await assert.rejects(host.invoke("settings", { id: manifest.id, settings }), (error: any) => {
+        assert.deepEqual(error.settingsIssues, [{ keyword, path: "/label" }]); return true;
+      });
+    }
+    const rejected = await executePluginTool(host, { action: "settings", id: manifest.id, settings: { label: 42 } }, () => {});
+    assert.equal(rejected.error, "Plugin management failed; inspect plugin status.");
+    await host.invoke("settings", { id: manifest.id, settings: { label: "done" } });
     const collision = path.join(root, "collision"); mkdirSync(collision);
     writeFileSync(path.join(collision, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
     writeFileSync(path.join(collision, "host.js"), "throw new Error('Must not import conflicting plugin')");

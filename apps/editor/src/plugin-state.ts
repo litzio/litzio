@@ -1,3 +1,4 @@
+import { PluginSettingsError } from "../shared/plugin-settings-error.ts";
 import { useEffect, useRef, useState } from "react";
 import { useHostClient } from "./host-context.tsx";
 import type { PluginStatus } from "@litzio/plugin-sdk";
@@ -27,6 +28,7 @@ export function usePlugins(active = true) {
     const value = await response.json();
     if (!response.ok) {
       if (["enable", "settings", "secret-delete"].includes(action)) window.dispatchEvent(new Event("plugins-changed"));
+      if (Array.isArray(value.settingsIssues)) throw new PluginSettingsError(value.error, value.settingsIssues);
       throw new Error(value.error ?? "Plugin operation failed");
     }
     window.dispatchEvent(new CustomEvent("plugins-changed", { detail: { client, plugins: value.plugins } }));
