@@ -276,12 +276,7 @@ jobs:
           run_install: false
       - name: Configure download cache paths
         id: downloads
-        shell: pwsh
-        run: |
-          "electron-cache=$env:LOCALAPPDATA/electron/Cache" >> $env:GITHUB_OUTPUT
-          $deps = (Get-Content apps/desktop/package.json -Raw | ConvertFrom-Json).devDependencies
-          "versions=electron-$($deps.electron)-builder-$($deps.'electron-builder')" >> $env:GITHUB_OUTPUT
-          "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/electron-builder-cache" >> $env:GITHUB_ENV
+        run: node scripts/desktop-download-cache.mjs configure
       - name: Cache Electron and installer tool downloads
         uses: actions/cache@v6
         with:
@@ -347,12 +342,7 @@ jobs:
           run_install: false
       - name: Configure download cache paths
         id: downloads
-        shell: pwsh
-        run: |
-          "electron-cache=$env:LOCALAPPDATA/electron/Cache" >> $env:GITHUB_OUTPUT
-          $deps = (Get-Content apps/desktop/package.json -Raw | ConvertFrom-Json).devDependencies
-          "versions=electron-$($deps.electron)-builder-$($deps.'electron-builder')" >> $env:GITHUB_OUTPUT
-          "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/electron-builder-cache" >> $env:GITHUB_ENV
+        run: node scripts/desktop-download-cache.mjs configure
       - name: Cache Electron and installer tool downloads
         uses: actions/cache@v6
         with:
@@ -415,12 +405,7 @@ jobs:
           run_install: false
       - name: Configure download cache paths
         id: downloads
-        shell: pwsh
-        run: |
-          "electron-cache=$env:LOCALAPPDATA/electron/Cache" >> $env:GITHUB_OUTPUT
-          $deps = (Get-Content apps/desktop/package.json -Raw | ConvertFrom-Json).devDependencies
-          "versions=electron-$($deps.electron)-builder-$($deps.'electron-builder')" >> $env:GITHUB_OUTPUT
-          "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/electron-builder-cache" >> $env:GITHUB_ENV
+        run: node scripts/desktop-download-cache.mjs configure
       - name: Cache Electron and installer tool downloads
         uses: actions/cache@v6
         with:
@@ -485,12 +470,7 @@ jobs:
           run_install: false
       - name: Configure download cache paths
         id: downloads
-        shell: pwsh
-        run: |
-          "electron-cache=$env:LOCALAPPDATA/electron/Cache" >> $env:GITHUB_OUTPUT
-          $deps = (Get-Content apps/desktop/package.json -Raw | ConvertFrom-Json).devDependencies
-          "versions=electron-$($deps.electron)-builder-$($deps.'electron-builder')" >> $env:GITHUB_OUTPUT
-          "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/electron-builder-cache" >> $env:GITHUB_ENV
+        run: node scripts/desktop-download-cache.mjs configure
       - name: Cache Electron and installer tool downloads
         uses: actions/cache@v6
         with:
@@ -586,12 +566,7 @@ jobs:
       - name: Configure download cache paths
         if: runner.os == 'Windows'
         id: downloads
-        shell: pwsh
-        run: |
-          "electron-cache=$env:LOCALAPPDATA/electron/Cache" >> $env:GITHUB_OUTPUT
-          $deps = (Get-Content apps/desktop/package.json -Raw | ConvertFrom-Json).devDependencies
-          "versions=electron-$($deps.electron)-builder-$($deps.'electron-builder')" >> $env:GITHUB_OUTPUT
-          "ELECTRON_BUILDER_CACHE=$env:RUNNER_TEMP/electron-builder-cache" >> $env:GITHUB_ENV
+        run: node scripts/desktop-download-cache.mjs configure
       - name: Cache Electron and installer tool downloads
         if: runner.os == 'Windows'
         uses: actions/cache@v6
@@ -605,7 +580,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Warm Desktop downloads without packaging
         if: runner.os == 'Windows'
-        run: node apps/desktop/scripts/warm-download-cache.mjs
+        run: node scripts/desktop-download-cache.mjs warm
       - name: Cache Playwright browsers
         if: runner.os == 'Linux'
         uses: actions/cache@v6
