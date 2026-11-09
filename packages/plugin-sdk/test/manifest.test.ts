@@ -105,3 +105,14 @@ test("plugin image paths require the feature SDK and remain artifact-relative", 
   assert.throws(() => validateManifest({ ...manifest(), icon: "icon.png" }), /SDK 0.3.0/);
   for (const icon of ["../icon.png", "/icon.png", "C:/icon.png", "https://example.test/icon.png", "a/../icon.svg", "icon.gif", "icon.svg?x", "a\\icon.png"]) assert.throws(() => validateManifest({ ...manifest(), requiresSdk: "^0.3.0", icon }));
 });
+
+test("input suggestions bind public text fields to same-plugin reads on SDK 0.3", () => {
+ const source = {id:"search",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{person:{type:"string"}}},outputSchema:{type:"array"},rowSchema:{name:{type:"string",label:"Name"}},inputSuggestions:{person:"people"}};
+ const people = {id:"people",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{query:{type:"string"}},required:["query"],additionalProperties:false},outputSchema:{type:"array"}};
+ const input = { ...manifest(), requiresSdk:"^0.3.0", contributes:{operations:[source,people]} };
+ assert.deepEqual(validateManifest(input).contributes.operations[0]?.inputSuggestions,{person:"people"});
+ assert.throws(()=>validateManifest({...input,requiresSdk:"^0.2.0"}),/SDK 0.3/);
+ assert.throws(()=>validateManifest({...input,contributes:{operations:[source,{...people,effect:"write"}]}}),/standalone host read/);
+ assert.throws(()=>validateManifest({...input,contributes:{operations:[{...source,inputSuggestions:{missing:"people"}},people]}}),/public free-text/);
+ assert.throws(()=>validateManifest({...input,contributes:{operations:[{...source,inputSchema:{type:"object",properties:{person:{type:"string",secret:true}}}},people]}}),/public free-text/);
+});

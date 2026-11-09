@@ -96,7 +96,7 @@ export function QueryViewPage({ tab, client, roots, onOpen, onRoot, unavailable:
       {favorites.actions}
     </div>
     {view.form ? <form ref={formElement} className="view-query-form" noValidate onSubmit={event => { event.preventDefault(); void query(); }}>
-      {schema ? <QueryInputs view={view} schema={schema} errors={inputErrors.fields} change={(field, value, remove) => { setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; }); setInputErrors(emptyInputErrors()); }} /> : null}
+      {schema ? <QueryInputs client={unavailable ? undefined : client} suggestions={operation?.inputSuggestions} view={view} schema={schema} errors={inputErrors.fields} change={(field, value, remove) => { setArgs(previous => { const next = { ...previous }; if (remove) delete next[field]; else next[field] = value; return next; }); setInputErrors(emptyInputErrors()); }} /> : null}
       <div className="form-actions view-query-actions"><Button type="submit" disabled={unavailable || busy || (needsRoot && !root) || !schema}>{view.form.submit.label}</Button></div>
     </form> : null}
     <FieldError id={`view-input-error-${tab.id}`}>{inputErrors.common}</FieldError>

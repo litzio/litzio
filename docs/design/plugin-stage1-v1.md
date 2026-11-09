@@ -336,3 +336,45 @@ The entire artifact, including the icon, is digest-bound. GET `/api/plugins/icon
 Sidebar plugin entries, plugin screen tabs and Settings plugin rows share the bundled PluginIcon component (decorative 16px img, contained aspect ratio). It fetches using the owning Host client and revokes its blob URL on replacement/unmount. Local and remote Hosts use the same path; the application CSP is unchanged (existing blob: img-src). SVG scripts cannot execute in img context. Missing/unavailable icons retain screens[].icon / existing defaults; plugin settings rows without images retain their existing name layout. DocumentTabs, existing sidebar entry and plugin-heading flex layout/tokens are reused; no new common interaction or exception. External plugin artwork and Docling/Jira adoption are outside this change; tests use original synthetic fixture art.
 
 Visual evidence: [screen 1440](assets/plugin-icon-1346/screen-1440.png), [settings 1440](assets/plugin-icon-1346/settings-1440.png), [screen Korean dark 640](assets/plugin-icon-1346/screen-640-ko-dark.png), [settings Korean dark 640](assets/plugin-icon-1346/settings-640-ko-dark.png). Host identity is masked; no real external service is involved.
+
+
+## 입력 후보 (#1352, SDK 0.3.0)
+
+조회 operation은 `inputSuggestions: { person: "people" }`로 각 입력 필드의 후보 작업 ID를
+선언할 수 있다. 필드는 해당 operation inputSchema의 공개 자유 문자열이며 query form의
+TextInput에서 사용한다. 후보 작업은 같은 manifest에 등록한 독립 host read operation이다.
+job/review 작업은 사용할 수 없다. SDK 버전은 미릴리스 0.3.0을 유지한다.
+
+후보 작업 입력은 `{query: string}`, 결과는 `[{value: string, label: string}]`이다.
+최대 32개이며 value는 중복 없는 1~512자의 한 줄 문자열, label은 1~512자다.
+Host는 기존 input/output schema 검사와 secret 정리를 수행한 뒤 고정 결과 형식을 검사한다.
+SDK `inputSuggestionResultsSchema`를 공개한다. 결과 오류는 operation failure로 반환한다.
+CLI `operation invoke <pluginId>.people --input <query.json> --host <origin> --json`도 같은 작업과
+receipt를 사용한다. 앱의 `/api/plugins` `action:"suggest"`는 현재 선언된 후보 read와 version이 일치할 때만 허용한다.
+따라서 catalog를 읽은 뒤 reload로 선언이 바뀌어도 임의 write를 실행하지 않는다.
+
+Host catalog는 조회 작업에 필드별 완전 이름·version `inputSuggestions`를 제공한다.
+앱은 2글자 이상 입력 후 250ms 멈췄을 때 해당 Host에 요청한다. 조합 중 요청하지 않으며
+한글 조합 종료 값을 사용한다. 입력 변경·Host 교체·필드 해제는 이전 요청을 취소하고 늦은
+응답을 버린다. 실패·빈 결과는 후보만 비우며 자유 입력과 본 조회를 막지 않는다.
+키보드/포인터 선택과 popup 동작은 앱 번들의 Base UI Autocomplete가 소유한다.
+선택 시 label을 보여 주는 목록에서 value를 입력한다. 후보 상태는 필드 수명에만 존재하고
+view 정의·문서·설정에 저장하지 않는다. Jira 필드 적용과 실제 Jira 연결 검증은 후속 범위다.
+
+검사: SDK manifest 검사는 공개 필드·같은 플러그인 read·SDK 범위를 보호한다. 기존 plugins
+Host 검사에 후보 전용 admission, generic invoke 결과와 고정 결과 거부를 보완한다.
+단일 fixture 플러그인을 실제 기존 하위 프로세스 경로로 실행하는 이유는 schema 검사 뒤
+secret 정리와 공개 결과 검증의 연결을 확인하기 위해서다. 기존 ui-gallery browser 시나리오는
+QueryInputs fixture로 선택·자유 입력·실패·지연 응답·한글 조합을 확인한다. 조합 이벤트만
+IME를 모사하며 나머지는 일반 입력·클릭을 사용한다. 전수 조합이나 실제 AI 호출은 없다.
+
+
+시각 검토는 같은 fixture에서 후보 바인딩을 끈 기존 Input과 후보를 켠 상태를 비교했다.
+1440px Light [이전](assets/input-suggestions-1352/before-1440.png) /
+[이후](assets/input-suggestions-1352/after-1440.png), 640px Korean Dark
+[이전](assets/input-suggestions-1352/before-640.png) /
+[이후](assets/input-suggestions-1352/after-640.png).
+입력·지우기 버튼의 세로 정렬, 내부 여백, popup 폭·잘림과 한국어 표시·다크 대비를 직접
+확인했다. 기존 Input/SettingsSelect 폼과 동일한 control 크기를 사용한다. 캡처는 수동
+검토용이며 자동 검사의 판정 근거가 아니다. 전체 제품 화면·원격 Host·실제 Jira 수락을
+뜻하지 않는다. browser 대표 시나리오는 로컬 48초에 완료했다.
