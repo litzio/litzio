@@ -102,11 +102,12 @@ export function createImageAsset(locator: string, mime: string, bytes: Buffer, k
 }
 
 /** Host document creation: same validated publisher, content-addressed names and reuse. */
-export function createDocumentImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess): ImageChoiceResponse {
+export function createDocumentImageAsset(locator: string, mime: string, bytes: Buffer, access: FileAccess): { path: string } {
   const hash = createHash("sha256").update(bytes).digest("hex");
-  const stem = Array.from(path.basename(locator, path.extname(locator))).slice(0, 24).join("");
-  const name = `${stem}-${hash}.image`;
-  return publishImageAsset(locator, mime, bytes, key, access, name, "drop", true);
+  const documentHash = createHash("sha256").update(path.basename(locator)).digest("hex");
+  const stem = Array.from(path.basename(locator, path.extname(locator))).slice(0, 8).join("");
+  const name = `${stem}-${documentHash}-${hash}.image`;
+  return publishImageAsset(locator, mime, bytes, Buffer.alloc(0), access, name, "drop", true);
 }
 
 function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Buffer, access: FileAccess, originalName: string, source: string, creating = false): ImageChoiceResponse {
@@ -175,9 +176,11 @@ function publishImageAsset(locator: string, mime: string, bytes: Buffer, key: Bu
     const relative = `./assets/${path.basename(published)}`;
     const verified = inspectAsset(published, owner, access);
     if (verified.owner.size !== BigInt(bytes.length) || verified.hash !== createHash("sha256").update(bytes).digest("hex")) throw new AssetError("Asset content changed during publication.");
-    return { path: relative, rollbackToken: signReceipt({ document: scope.document, path: relative, identity: verified.identity }, key) };
+    return creating ? { path: relative } : { path: relative, rollbackToken: signReceipt({ document: scope.document, path: relative, identity: verified.identity }, key) };
   } catch (error) {
-    if (published && owner) {
+    // A completed authoring asset is immediately shareable across processes.
+    // Its creator cannot delete it even when a later publication check fails.
+    if (!creating && published && owner) {
       const verified = inspectAsset(published, owner, access);
       if (verified.hash !== createHash("sha256").update(bytes).digest("hex")) throw new AssetError(`Asset content changed; cleanup refused for assets/${path.basename(published)}.`);
       unlinkOwnedFile(published, verified.owner, scope.root, directoryId, access, true);
@@ -233,21 +236,13 @@ function servable(relative: string, document: string, access: FileAccess): boole
 
 /** No arbitrary delete API: only a signed receipt for this exact, unchanged created file. */
 export function rollbackImageAsset(request: AssetRollbackRequest, key: Buffer, access: FileAccess = LOCAL_FILE_ACCESS): void {
-  rollbackPublishedImage(request, key, access);
-}
-
-export function rollbackDocumentImageAsset(request: AssetRollbackRequest, key: Buffer, access: FileAccess): void {
-  rollbackPublishedImage(request, key, access, true);
-}
-
-function rollbackPublishedImage(request: AssetRollbackRequest, key: Buffer, access: FileAccess, creating = false): void {
   if (typeof request?.path !== "string" || !ASSET_PATH.test(request.path) || !validFileStem(ASSET_PATH.exec(request.path)![1])) throw new AssetError("Invalid relative asset path.");
   assertUnicode(request.path);
   const receipt = readReceipt(request.rollbackToken, key);
-  const scope = documentScope(request.documentPath, false, access, creating);
+  const scope = documentScope(request.documentPath, false, access);
   if (receipt.document !== scope.document || receipt.path !== request.path) throw new AssetError("Asset rollback receipt does not match this request.");
   assetDirectory(scope.root, false, access);
-  const file = creating ? accessPath(path.join(scope.root, request.path), access) : resolveMediaPath(request.path.split("/").map(encodeURIComponent).join("/"), scope.document, access);
+  const file = resolveMediaPath(request.path.split("/").map(encodeURIComponent).join("/"), scope.document, access);
   try {
     if (inspectAsset(file, undefined, access).identity !== receipt.identity) throw new AssetError("Asset file changed; rollback refused.");
   } catch (error) {

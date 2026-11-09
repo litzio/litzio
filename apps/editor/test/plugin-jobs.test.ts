@@ -383,7 +383,7 @@ test("public SDK authoring crosses the external plugin boundary and K1 official 
     const imageJob = await createImages();
     assert.equal(imageJob.state, "completed", JSON.stringify(imageJob));
     const imageSource = readFileSync(path.join(root, "images.md"), "utf8");
-    assert.match(imageSource, /\.\/assets\/images-[a-f0-9]{64}\.png/);
+    assert.match(imageSource, /\.\/assets\/images-[a-f0-9]{64}-[a-f0-9]{64}\.png/);
     assert.match(imageSource, /:enumerator: A\.3/);
     const imageFiles = fs.readdirSync(assets);
     assert.equal(imageFiles.length, 1);
@@ -398,11 +398,13 @@ test("public SDK authoring crosses the external plugin boundary and K1 official 
     badSemantic.authoring.inputs[0].blocks[0].enumerator = "bad\nnumber";
     assert.equal((await createImages(badSemantic, "failed.md")).state, "uncertain");
     assert.equal(existsSync(path.join(root, "failed.md")), false);
-    assert.deepEqual(fs.readdirSync(assets), imageFiles); // Newly published images rolled back.
+    const retained = fs.readdirSync(assets);
+    assert.equal(retained.length, imageFiles.length + 1); // Failed authoring retains shareable images.
+    for (const file of retained) assert.deepEqual(readFileSync(path.join(assets, file)), Buffer.from(png, "base64"));
     const invalidImage = structuredClone(imageDocument); invalidImage.images[0].base64 = Buffer.from("not a PNG").toString("base64");
     assert.equal((await createImages(invalidImage, "invalid.md")).state, "uncertain");
     assert.equal(existsSync(path.join(root, "invalid.md")), false);
-    assert.deepEqual(fs.readdirSync(assets), imageFiles);
+    assert.deepEqual(fs.readdirSync(assets), retained); // Invalid bytes publish nothing.
     const { createAuthoredDocumentFile } = await import("../server/document-authoring.ts");
     const concurrent = path.join(root, "concurrent.md");
     const outcomes = await Promise.allSettled([

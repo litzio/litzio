@@ -299,8 +299,8 @@ Core `authorDocument(input)`을 공개 `@litzio/plugin-sdk`에서 제공한다. 
 
 - `images`는 key가 유일한 최대 256개다. Figure의 imageAsset 참조와 정확히 일치해야 한다. MIME은 PNG/JPEG/GIF/WebP이며 정규 base64, 디코딩 후 이미지당 10 MiB와 기존 complete-container 검증을 사용한다. SVG는 이 저장 경로로 받지 않는다.
 - 전체 완료 document JSON은 `JOB_DOCUMENT_MAX_BYTES` 32 MiB다. child가 IPC 전 검사하고 Host가 다시 검사한다. 문서 authoring JSON과 canonical source는 별도로 각각 4 MiB다. K1 HTTP 요청은 기존 작은 요청이며 응답에는 문서 바이트가 아닌 작업 snapshot/저장 receipt만 싣는다. 기존 10초 RPC는 접수·관찰 한 번의 예산이고 문서 작성은 계속 start에서 접수한 background 작업에서 해야 한다.
-- Host는 문서 폴더의 실제 `assets/`에 기존 이미지 검증·exclusive hard-link 게시·소유권 서명 receipt·rollback을 재사용한다. 이름은 정리된 문서 stem(최대 24 Unicode code points)과 이미지 SHA-256·MIME 확장자다. 다른 내용과 충돌하면 기존 suffix 규칙을 쓰고, 같은 bytes가 있으면 그 경로를 재사용한다. 문서에는 `./assets/...`를 쓴다. 같은 문서 이름으로 다시 만들 때 이미지가 늘지 않는다. 기존 문서는 덮어쓰지 않으므로 다시 만들려면 결과 문서를 삭제한 뒤 명시적으로 새 요청을 한다.
-- 실패하면 이번 요청의 새 이미지 receipt만 역순으로 되돌리고 재사용한 이미지는 유지한다. cleanup 실패는 성공으로 처리하지 않는다. 같은 디렉터리의 생성·rollback은 Host process 수명의 임시 직렬화로 보호하고 완료 후 기록을 제거한다. daemon crash의 다중 파일 원자성·작업 복원은 추가하지 않는다.
+- Host는 문서 폴더의 실제 `assets/`에 기존 이미지 검증·exclusive hard-link 게시·충돌 처리·미게시 임시 파일 정리를 재사용한다. 이름은 정리된 문서 stem(최대 8 Unicode code points), 전체 문서 파일명 SHA-256, 이미지 SHA-256·MIME 확장자다. 같은 이름 앞부분을 가진 서로 다른 문서는 파일명이 겹치지 않으며, 같은 문서·동일 bytes의 재생성은 같은 경로를 재사용한다. 다른 내용과 충돌하면 기존 suffix 규칙을 쓰고, 같은 bytes가 있으면 그 경로를 재사용한다. 문서에는 `./assets/...`를 쓴다. 같은 문서 이름으로 다시 만들 때 이미지가 늘지 않는다. 기존 문서는 덮어쓰지 않으므로 다시 만들려면 결과 문서를 삭제한 뒤 명시적으로 새 요청을 한다.
+- 완전히 게시한 작성 이미지는 다른 CLI/Host process가 즉시 재사용할 수 있는 폴더 파일이며 실패 요청의 독점 소유가 아니다. 문서 생성·게시 검증에 실패해도 게시 이미지를 삭제하지 않고 rollback receipt도 발급하지 않는다. 따라서 실패 뒤 미참조 이미지가 assets/에 남을 수 있다. 미게시 임시 파일만 소유권 검사 후 정리하며 자동 고아 이미지 삭제·process 간 lock·작업 복원은 추가하지 않는다. 편집기 붙여넣기/드롭의 기존 서명 receipt와 rollback 삭제는 그대로다.
 
 CLI는 기존 `plugins start/status/result --host <origin> --json`으로 같은 K1 경로를 사용한다. 플러그인 없는 작성은 `litzio create report.md --input request.json --format json`으로 같은 Host 생성 함수를 호출한다. request.json은 `{authoring,images}`이며 바이트가 담긴 입력 파일은 artifact 밖에 둔다. template/language와 input은 함께 지정할 수 없다. 결과 receipt의 inputs는 최종 경로·revision에 맞는 Core targets다. 문서 의미와 Markdown 조립은 CLI에 없다.
 
@@ -310,7 +310,7 @@ CLI는 기존 `plugins start/status/result --host <origin> --json`으로 같은 
 
 Core가 개별 문단으로 보존할 수 있는 2,934개 텍스트의 용량 probe는 입력 JSON 502,654 bytes·canonical source 342,568 bytes로 성공했다. 개별 사전 검증·작성·재파싱 전체 약 21초였으며 다른 로컬 검사와 동시 실행한 값이다. 이는 실제 자료의 용량 근거이며 전체 변환·성능 보증이 아니다. 나머지 3개 텍스트는 기존 literal round-trip 제약으로 거부됐고 원본 변환기는 표 56의 겹친 셀을 거부했다. 원본/변환기나 거부 기준을 고치지 않았으며 원문·대용량 재생성 자료는 커밋하지 않는다.
 
-기존 Core native suite는 번호·이미지 바인딩·정확한 입력/블록·문자열·표·byte 경계를 소유한다. 기존 K1 외부 artifact subprocess를 보완해 실제 SDK→이미지 저장/재사용→문서 실패 rollback·잘못된 이미지 거부를 확인한다. CLI executable 대표 사례는 JSON 입력·같은 공용 경로의 실제 파일·충돌 보존을 검증한다. 기존 plugin-jobs 브라우저는 결과 Figure의 실제 image load와 고정 번호를 확인하고 production http-host는 Save/Reload·충돌을 확인한다. UI 구현은 바뀌지 않으며 새 subprocess fixture·suite·timeout·retry는 추가하지 않는다. 실제 가져오기 서비스·원본 충실도는 별도 수락이다.
+기존 Core native suite는 번호·이미지 바인딩·정확한 입력/블록·문자열·표·byte 경계를 소유한다. 기존 K1 외부 artifact subprocess를 보완해 실제 SDK→이미지 저장/재사용→문서 실패 시 게시 이미지 보존·잘못된 이미지 거부를 확인한다. 별도 module instance 두 개가 독립 CLI/Host의 process-local 상태를 모델링하는 낮은 계층 검사는 같은 24자 접두어의 다른 문서와 같은 문서 경로 양쪽에서 실패/성공 조합을 고정한다. 수정 전 성공 문서의 이미지 ENOENT를 재현했고, 수정 후 보존을 확인한다. 실제 subprocess·긴 문서 지연 없이 공유 filesystem의 재사용·삭제 경계를 보호한다. CLI executable 대표 사례는 JSON 입력·같은 공용 경로의 실제 파일·충돌 보존을 검증한다. 기존 plugin-jobs 브라우저는 결과 Figure의 실제 image load와 고정 번호를 확인하고 production http-host는 Save/Reload·충돌을 확인한다. UI 구현은 바뀌지 않으며 새 subprocess fixture·suite·timeout·retry는 추가하지 않는다. 실제 가져오기 서비스·원본 충실도는 별도 수락이다.
 
 ## screens·views의 내용 우선 표시 (#1329)
 

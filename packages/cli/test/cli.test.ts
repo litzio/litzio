@@ -2010,7 +2010,7 @@ test("CLI create --input uses shared authoring and image publication without ove
     const receipt = JSON.parse(created.stdout);
     const saved = readFileSync(file, "utf8");
     assert.equal(saved, receipt.source);
-    assert.match(saved, /\.\/assets\/report-[a-f0-9]{64}\.png/);
+    assert.match(saved, /\.\/assets\/report-[a-f0-9]{64}-[a-f0-9]{64}\.png/);
     for (const enumerator of ["A.3", "17", "4-2"]) assert.ok(saved.includes(`:enumerator: ${enumerator}`));
     assert.equal(receipt.inputs[0].targets.length, 3);
     const again = runProcess(["create", file, "--input", input]);
