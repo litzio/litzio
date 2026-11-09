@@ -226,5 +226,49 @@
   "@cfworker/json-schema@4.1.6": {
     "file": "cfworker-1a0aa37471850c28a4673e12e871e010ea6c26e0.txt",
     "source": "https://github.com/cfworker/cfworker/blob/1a0aa37471850c28a4673e12e871e010ea6c26e0/LICENSE.md"
+  },
+  "@napi-rs/canvas-android-arm64@0.1.100": {
+    "file": "napi-rs-canvas-0.1.100.txt",
+    "source": "https://github.com/Brooooooklyn/canvas/blob/v0.1.100/LICENSE"
+  },
+  "@napi-rs/canvas-darwin-arm64@0.1.100": {
+    "file": "napi-rs-canvas-0.1.100.txt",
+    "source": "https://github.com/Brooooooklyn/canvas/blob/v0.1.100/LICENSE"
+  },
+  "@napi-rs/canvas-darwin-x64@0.1.100": {
+    "file": "napi-rs-canvas-0.1.100.txt",
+    "source": "https://github.com/Brooooooklyn/canvas/blob/v0.1.100/LICENSE"
+  },
+  "@napi-rs/canvas-linux-arm-gnueabihf@0.1.100": {
+    "file": "napi-rs-canvas-0.1.100.txt",
+    "source": "https://github.com/Brooooooklyn/canvas/blob/v0.1.100/LICENSE"
+  },
+  "@napi-rs/canvas-linux-arm64-gnu@0.1.100": {
+    "file": "napi-rs-canvas-0.1.100.txt",
+    "source": "https://github.com/Brooooooklyn/canvas/blob/v0.1.100/LICENSE"
+  },
+  "@napi-rs/canvas-linux-arm64-musl@0.1.100": {
+    "file": "napi-rs-canvas-0.1.100.txt",
+    "source": "https://github.com/Brooooooklyn/canvas/blob/v0.1.100/LICENSE"
+  },
+  "@napi-rs/canvas-linux-riscv64-gnu@0.1.100": {
+    "file": "napi-rs-canvas-0.1.100.txt",
+    "source": "https://github.com/Brooooooklyn/canvas/blob/v0.1.100/LICENSE"
+  },
+  "@napi-rs/canvas-linux-x64-gnu@0.1.100": {
+    "file": "napi-rs-canvas-0.1.100.txt",
+    "source": "https://github.com/Brooooooklyn/canvas/blob/v0.1.100/LICENSE"
+  },
+  "@napi-rs/canvas-linux-x64-musl@0.1.100": {
+    "file": "napi-rs-canvas-0.1.100.txt",
+    "source": "https://github.com/Brooooooklyn/canvas/blob/v0.1.100/LICENSE"
+  },
+  "@napi-rs/canvas-win32-arm64-msvc@0.1.100": {
+    "file": "napi-rs-canvas-0.1.100.txt",
+    "source": "https://github.com/Brooooooklyn/canvas/blob/v0.1.100/LICENSE"
+  },
+  "@napi-rs/canvas-win32-x64-msvc@0.1.100": {
+    "file": "napi-rs-canvas-0.1.100.txt",
+    "source": "https://github.com/Brooooooklyn/canvas/blob/v0.1.100/LICENSE"
   }
 }

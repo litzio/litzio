@@ -3211,3 +3211,11 @@ Document GET and its bibliography read share a 15-second timeout and AbortSignal
 Mounted native/text sessions cancel their reads on disposal; startup restoration cancels on effect cleanup.
 Save remains session-owned, never automatically retries, preserves uncertain acknowledgements,
 and keeps input entered after submission unsaved. The opening HostClient remains fixed for the session.
+
+## Read-only PDF tabs (#1337)
+
+Explorer activation of a `.pdf` opens a read-only task tab identified by Host and path. Reopening activates the existing tab. It uses DocumentTabs close, grouping and Host work accounting, without document admission, drafts, Save or startup tab restoration. The tab owns its fetch, pdf.js document and worker lifetime; closing aborts the fetch and destroys the document/worker.
+
+The first viewer supports vertical scrolling, zoom buttons, Ctrl+wheel, fit width, current/total pages, page-number navigation (Enter or field exit), and text selection/copy. Only pages within 800px of the viewport render canvas/text; inactive tabs release their rendered surfaces. Each canvas dimension is bounded to 4096 pixels with DPR at most 2. Paper stays white in dark mode; the surrounding surface follows theme. Unavailable/damaged/over-25-MiB files and password PDFs show fixed localized notices.
+
+Upstream viewer CSS is scoped to the PDF viewer to avoid changing the app shell. The app bundles pdfjs-dist 5.6.205 and a same-origin worker, CMaps and standard fonts. Eval and WASM are disabled. Only canvas and TextLayer APIs are used: no scripting manager, annotation/form layer, link service, printing, search, thumbnails or editing. CSP and Electron webPreferences are unchanged. This Editor-only reading interaction adds no CLI command; byte delivery extends the existing Host preview API.

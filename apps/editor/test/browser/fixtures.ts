@@ -20,6 +20,19 @@ const FIXTURE_DIR = fileURLToPath(new URL("./fixtures/", import.meta.url));
 /** Committed sources the scratch files are made from. Tests never write these. */
 export const SOURCE_DIRS = [DOCUMENT_DIR, FIXTURE_DIR, path.join(REPOSITORY_ROOT, "apps/editor/samples")];
 
+function syntheticPdf(): Buffer {
+  const stream = "BT /F1 24 Tf 50 700 Td (Selectable PDF text) Tj ET";
+  const objects = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+    ...[3, 4].map(() => "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 6 0 R >>"),
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>", `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`];
+  let output = "%PDF-1.7\n";
+  const offsets = [0];
+  objects.forEach((object, index) => { offsets.push(output.length); output += `${index + 1} 0 obj\n${object}\nendobj\n`; });
+  const xref = output.length;
+  output += `xref\n0 7\n0000000000 65535 f \n${offsets.slice(1).map(offset => String(offset).padStart(10, "0") + " 00000 n \n").join("")}trailer\n<< /Size 7 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(output);
+}
+
 type ScratchFile = { name: string; create: () => string | Buffer };
 
 const document = (name: string): ScratchFile => ({ name, create: () => readFileSync(path.join(DOCUMENT_DIR, name)) });
@@ -98,6 +111,8 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
     "# Table captions\n\nBefore.\n\n:::{figure}\n:name: fig-a\n:::\n\n" +
     ":::{table} **Results** with {numref}`fig-a`, {cite:p}`alpha` and $x^2$\n:name: tbl-a\n\n| Header |\n| --- |\n| Cell |\n:::\n\nAfter.\n") }], scenarios: ["table-caption"] },
   "file-preview": { files: [
+    { name: "reading.pdf", create: syntheticPdf },
+    { name: "broken.pdf", create: () => "%PDF-1.7\ninvalid" },
     { name: "긴파일이름" + "unbrokenfilename".repeat(8) + ".zip", create: () => "preview info" },
     { name: "document.md", create: () => nativeSource("# Preview\n\nAlpha.\n\n(section-a)=\n\n## Section\n\nBody.\n") },
     document("diagram.svg"),
@@ -125,6 +140,7 @@ export const SCRATCH_DIRS: Record<string, { files: ScratchFile[]; scenarios: str
   ], scenarios: ["document-tabs", "editor-groups", "pre-save-diff", "external-change", "recovery", "multi-host", "command-center", "inline-document-settings"] },
   // Preserve the parent directories: the running HTTP Host pins their filesystem identities.
   "http-host-a/fixture": { files: [
+    { name: "reading.pdf", create: syntheticPdf },
     { name: "bibliography.md", create: () => fixture("bibliography.md").create() },
     { name: "a.md", create: () => nativeSource("# HTTP A\n\nAlpha.\n") },
     document("diagram.svg"),

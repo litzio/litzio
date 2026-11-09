@@ -167,6 +167,19 @@ test("folder image preview is read-only, root bounded and isolated for GET, HEAD
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("content-type"), "image/png");
   assert.deepEqual(Buffer.from(await response.arrayBuffer()), png);
+  const pdf = path.join(a, "reading.pdf");
+  fs.writeFileSync(pdf, "%PDF-1.7\nfixture");
+  const pdfResponse = await send(route(a, pdf));
+  assert.equal(pdfResponse.status, 200);
+  assert.equal(pdfResponse.headers.get("content-type"), "application/pdf");
+  assert.equal(await pdfResponse.text(), "%PDF-1.7\nfixture");
+  const outsidePdf = path.join(outside, "reading.pdf");
+  fs.writeFileSync(outsidePdf, "%PDF-1.7\nfixture");
+  assert.equal((await send(route(a, outsidePdf))).status, 403);
+  fs.truncateSync(pdf, 25 * 1024 * 1024 + 1);
+  assert.equal((await send(route(a, pdf))).status, 413);
+  fs.writeFileSync(pdf, "invalid");
+  assert.equal((await send(route(a, pdf))).status, 400);
   const svg = path.join(a, "active.svg");
   fs.writeFileSync(svg, '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(1)</script></svg>');
   for (const method of ["GET", "HEAD"]) {

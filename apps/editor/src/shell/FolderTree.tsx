@@ -98,7 +98,7 @@ export function FolderTree({ onCopyPath, decoration,  onAddToChat, onFileAction,
 
   const activate = (item: TreeItem) => {
     if (item.entry.kind === "folder") onToggleFolder(item.entry.path);
-    else if (item.entry.kind === "document") onOpenDocument(item.entry.path);
+    else if (item.entry.kind === "document" || /\.pdf$/i.test(item.entry.path)) onOpenDocument(item.entry.path);
     else {
       previewReturn.current = rows.current.get(item.entry.path) ?? null;
       setPreview(item);

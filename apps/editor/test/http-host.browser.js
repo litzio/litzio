@@ -211,5 +211,8 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   check((await refs.innerText()).includes('Updated Study'), 'HTTP Reload sees external bibliography changes');
   bibliographyFixture.change('restore');
   if (screenshots) await page.screenshot({path:'tmp/http-host-capture/saved-document.png'});
+  await sidebar.getByRole('treeitem',{name:'reading.pdf',exact:true}).dblclick();
+  await page.locator('.pdf-viewer .textLayer').first().getByText('Selectable PDF text',{exact:true}).waitFor();
+  check(await page.locator('.pdf-viewer canvas').first().evaluate(el => el.width > 0), 'Production CSP permits the bundled PDF worker and rendered pages');
   return {twoRoots:true, sourceSaveReload:true, newFileAndFolder:true, imageSaveReload:true, draftProtection:true, realConflict:true, mediaSandbox:true};
 }

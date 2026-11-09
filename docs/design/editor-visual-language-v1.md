@@ -273,3 +273,7 @@ labels, control padding and reachable controls. Footer centers align without
 clipping or crowding. These captures are manual evidence, not pixel assertions.
 The `color-mode` browser regression exercises the real transition API once and
 checks automated/reduced-motion bypasses; it passed in about 23 seconds locally.
+
+## PDF source paper (#1337)
+
+`--id-color-pdf-paper` is fixed white in every theme because PDF pages preserve source colors. It is independent of the theme-aware document editor paper. The surrounding viewer uses existing theme surfaces; page-number input geometry uses existing spacing tokens. This is the source-art exception approved in the [PDF shell contract](editor-ux-shell-v1.md#read-only-pdf-tabs-1337).

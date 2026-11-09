@@ -1,5 +1,5 @@
 // Actual folder/media Host requests; document state remains owned by the same editor instance.
-async (page, { openDocument, screenshots }) => {
+async (page, { openDocument, screenshots, expect }) => {
   page.setDefaultTimeout(10000);
   const longDialogFailures = [];
   const longDialogLayouts = [];
@@ -116,6 +116,49 @@ async (page, { openDocument, screenshots }) => {
   await page.getByTestId('ui-language').selectOption('en');
   await page.keyboard.press('Escape'); await dialog().waitFor({state:'detached'});
   check(JSON.stringify(await snapshot()) === JSON.stringify(before) && await draft.inputValue() === 'section-draft', 'Late/error or translated preview lost editor state');
+  await row('reading.pdf').dblclick();
+  await row('reading.pdf').dblclick();
+  await expect(page.getByRole('tab',{name:'reading.pdf',exact:true})).toHaveCount(1);
+  await page.getByRole('tab',{name:'reading.pdf',exact:true}).press('ArrowLeft');
+  await page.getByRole('tab',{name:/^document\.md/,selected:true}).press('ArrowRight');
+  const pdf = page.locator('.pdf-viewer');
+  await expect(pdf.locator('.textLayer').first()).toContainText('Selectable PDF text');
+  await expect(pdf.getByRole('spinbutton',{name:'Page',exact:true})).toHaveValue('1');
+  const sheet = pdf.locator('.pdf-page').first();
+  const beforeZoom = await sheet.evaluate(el => el.getBoundingClientRect().width);
+  await pdf.getByRole('button',{name:'Zoom in',exact:true}).click();
+  await expect.poll(() => sheet.evaluate(el => el.getBoundingClientRect().width)).toBeGreaterThan(beforeZoom);
+  const text = pdf.locator('.textLayer span').first();
+  await expect(text).toHaveText("Selectable PDF text");
+  await text.dblclick({position:{x:12,y:10}});
+  await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toContain('Selectable');
+  await pdf.getByRole('spinbutton',{name:'Page',exact:true}).fill('2');
+  await pdf.getByRole('spinbutton',{name:'Page',exact:true}).press('Enter');
+  await expect(pdf.getByRole('spinbutton',{name:'Page',exact:true})).toHaveValue('2');
+  await pdf.getByRole('button',{name:'Fit width',exact:true}).click();
+  await pdf.getByRole('spinbutton',{name:'Page',exact:true}).fill('1');
+  await pdf.getByRole('spinbutton',{name:'Page',exact:true}).press('Enter');
+  if (screenshots) {
+    for (const [width,language,theme] of [[1440,'en','light'],[640,'ko','dark']]) {
+      await page.setViewportSize({width,height:900});
+      await page.getByTestId('sidebar').locator('[data-open-settings]').click();
+      await page.getByTestId('theme').selectOption(theme);
+      await page.getByTestId('ui-language').selectOption(language);
+      await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+      await page.getByRole('tab',{name:'reading.pdf',exact:true}).click();
+      if (width === 640) await page.getByRole('button',{name:'탐색기 접기',exact:true}).click();
+      await expect(pdf.locator('.textLayer').first()).toContainText('Selectable PDF text');
+      await expect.poll(() => sheet.evaluate(el => el.getBoundingClientRect().width)).toBeLessThan(width);
+      await page.screenshot({path:`tmp/file-preview-capture/pdf-${width}.png`});
+    }
+    await page.getByRole('button',{name:'탐색기 펼치기',exact:true}).click();
+    await page.getByTestId('sidebar').locator('[data-open-settings]').click();
+    await page.getByTestId('theme').selectOption('light');
+    await page.getByTestId('ui-language').selectOption('en');
+    await page.locator('[data-tab-id="settings"] .document-tab-close').click();
+  }
+  await row('broken.pdf').dblclick();
+  await expect(page.locator('.pdf-viewer:visible').getByRole('alert')).toContainText('The PDF could not be opened.');
   return {longDialogLayouts, readOnly:true, dirtyDraftSelectionUndo:true, focus:true, svgIsolation:true, errorLateResponse:true, i18n:true, widths:[1440,640]};
   async function measureLongDialog(name, dialog) {
     await dialog.waitFor();
