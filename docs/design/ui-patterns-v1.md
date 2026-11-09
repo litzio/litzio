@@ -716,6 +716,10 @@ D3가 공통 부품·갤러리·이 패턴의 구현 근거를 함께 갱신한�
 
 기존 SettingsSelect·Button, 체크박스, view-panel·view-table-scroll과 K1의 JobState·JobActions·파일 탐색 함수를 재사용한다. 패널을 위, 기존 조회 뷰를 아래에 세로 배치한다. 표는 열을 보존하며 내부 가로 스크롤을 제공한다. 파일과 작업, 상태, 단계, 경과, 현재 가능한 행동만 상시 표시한다. 작업 표의 오류·불확실 안내는 공통 Info 아이콘 Tooltip에 두고 키보드 focus로 연다. 결과 열기는 ghost/sm ‘열기’로 표시하고 aria-label에 파일 이름을 포함한다. opaque 경로 복사는 기존 K1과 동일하다. 파일 목록·표의 상시 세로 스크롤은 두지 않으며 페이지가 세로 스크롤을 소유하고 표만 내부 가로 스크롤한다. 별도 공통 상호작용 예외는 없다. 작업만 있는 화면의 근거와 선언·수명은 [현재 계약](plugin-stage1-v1.md#플러그인-화면-작업-패널-1340)을 따른다.
 
+## PDF reading (#1337)
+
+Multi-page PDF reading uses the existing task tab and DocumentTabs, while transient images retain FilePreviewDialog. The viewer reuses Button ghost/sm and icon-sm, Tooltip, Input and Notice, with Lucide zoom icons and existing theme surfaces. No new common interaction is introduced; PDF page surfaces are white to preserve source colors. The toolbar shows reading controls and page state only. 1440px light and 640px Korean dark are the manual visual checks in `pnpm browser:test file-preview --screenshots`.
+
 ## 플러그인 설정 고정 규칙 (#1334)
 
 현재 목록은 위 Hosts host-summary와 같은 정렬·상태 점/톤을 사용한다. 과거 #1007/#1090의 톱니·스위치 배치를 재사용하되, 비활성 플러그인도 정보와 설정에 진입한다. 설정 화면에는 플러그인 화면 이동 버튼을 두지 않는다. 화면 진입은 사이드바이며 “동작 · 이름” 합성 라벨은 금지한다.

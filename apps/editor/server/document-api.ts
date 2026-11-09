@@ -673,7 +673,7 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
 
 /** Folder preview is independent of document admission and document-relative media permissions. */
 export function readFilePreview(requestedRoot: string | undefined, requestedPath: string | undefined, access: FileAccess = LOCAL_FILE_ACCESS): { bytes: Buffer; mime: string } {
-  if (!requestedRoot?.trim() || !requestedPath?.trim()) throw new Error("folder and image paths are required");
+  if (!requestedRoot?.trim() || !requestedPath?.trim()) throw new Error("folder and preview paths are required");
   const root = path.resolve(accessPath(requestedRoot, access));
   const file = path.resolve(accessPath(requestedPath, access));
   const verify = () => {
@@ -687,24 +687,29 @@ export function readFilePreview(requestedRoot: string | undefined, requestedPath
   };
   verify();
   const before = fs.lstatSync(file, { bigint: true });
-  if (!before.isFile()) throw new FileAccessError("Only regular image files can be previewed.");
-  const mime = MEDIA_TYPES[path.extname(file).toLowerCase()];
-  if (!mime) throw new Error("Unsupported image format.");
-  if (before.size > MAX_ASSET_BYTES) throw new ImageValidationError("Image exceeds the 10 MiB limit.", 413);
+  if (!before.isFile()) throw new FileAccessError("Only regular image or PDF files can be previewed.");
+  const pdf = path.extname(file).toLowerCase() === ".pdf";
+  const limit = pdf ? 25 * 1024 * 1024 : MAX_ASSET_BYTES;
+  const tooLarge = () => new ImageValidationError(pdf ? "PDF exceeds the 25 MiB limit." : "Image exceeds the 10 MiB limit.", 413);
+  const mime = pdf ? "application/pdf" : MEDIA_TYPES[path.extname(file).toLowerCase()];
+  if (!mime) throw new Error("Unsupported preview format.");
+  if (before.size > limit) throw tooLarge();
   const descriptor = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
   try {
     const opened = fs.fstatSync(descriptor, { bigint: true });
     if (!opened.isFile() || opened.dev !== before.dev || opened.ino !== before.ino) throw new FileAccessError();
     // Bounded even if the file grows after stat; never read an unbounded stream into memory.
-    const buffer = Buffer.alloc(MAX_ASSET_BYTES + 1);
+    const buffer = Buffer.alloc(limit + 1);
     let length = 0, count: number;
     while (length < buffer.length && (count = fs.readSync(descriptor, buffer, length, buffer.length - length, null)) > 0) length += count;
-    if (length > MAX_ASSET_BYTES) throw new ImageValidationError("Image exceeds the 10 MiB limit.", 413);
+    if (length > limit) throw tooLarge();
     verify();
     const current = fs.lstatSync(file, { bigint: true });
     if (current.dev !== opened.dev || current.ino !== opened.ino || current.size !== opened.size || current.mtimeMs !== opened.mtimeMs) throw new FileAccessError();
     const bytes = buffer.subarray(0, length);
-    if (mime === "image/svg+xml") {
+    if (pdf) {
+      if (!bytes.subarray(0, 5).equals(Buffer.from("%PDF-"))) throw new Error("Invalid PDF.");
+    } else if (mime === "image/svg+xml") {
       // Sniff the SVG root after an optional exported prolog. Never parse a DTD or resolve entities;
       // the browser's image decoder handles XML. This is not sanitization; CSP/img isolate active SVG.
       if (!/^\s*(?:<\?xml[^>]*>\s*)?(?:<!--[^]*?-->\s*)*(?:<!DOCTYPE\s+svg\b[^<>\[\]]*>\s*)?(?:<!--[^]*?-->\s*)*<svg(?:\s|\/?>)/i.test(decodeUtf8(bytes))) throw new Error("Invalid SVG image.");

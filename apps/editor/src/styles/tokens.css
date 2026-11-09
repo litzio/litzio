@@ -12,6 +12,8 @@
    * page by equating canvas/paper and setting paper border width/radius to 0 and elevation
    * to 0 0 0 transparent (a valid shadow-list entry alongside the inset edge). */
   --id-color-paper: #ffffff;
+  /* Source PDF paper retains its original white independently of the UI theme (#1337). */
+  --id-color-pdf-paper: #ffffff;
   --id-color-canvas: #eceef2;
   --id-color-paper-border: var(--id-color-border-subtle);
   --size-paper-border: var(--border-width);

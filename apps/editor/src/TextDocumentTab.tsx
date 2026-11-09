@@ -136,7 +136,7 @@ export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restore
   const client = useHostClient();
   const session = useTextSession(file, restored, recoveryId, replaceFile);
   const html = useMemo(() => session.markdown && session.view === "read" ? renderPlainMarkdown(session.currentText, session.openedPath, client) : "", [session.currentText, session.openedPath, session.markdown, session.view]);
-  const reading = useRef<HTMLElement>(null);
+  const reading = useRef<HTMLDivElement>(null);
   const [blocks, setBlocks] = useState<HTMLElement[]>([]);
   useLayoutEffect(() => { setBlocks(Array.from(reading.current?.querySelectorAll<HTMLElement>(".code-block") ?? [])); }, [html]);
   useLayoutEffect(() => { report(id, session); });
@@ -149,19 +149,21 @@ export const TextDocumentTab = memo(function TextDocumentTab({ id, file, restore
     <DocumentScroll className="text-document-scroll" role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`} hidden={!active} inert={!active}
       data-document-tab={id} data-active={focused ? "true" : "false"} data-visible={active ? "true" : "false"} data-group-index={groupIndex}
       style={{ "--editor-group-index": groupIndex } as CSSProperties} onFocusCapture={() => onFocus(id)} onPointerDownCapture={() => onFocus(id)}>
-      <div className="text-document" data-view={session.view}>
+      <div className="text-document document-column" data-view={session.view}>
         <p className="text-mode-notice" data-testid="text-mode-notice">{i18n.t(session.view === "read" ? "Markdown · Not a {{product}} document" : "Text mode · Not a {{product}} document")}</p>
-        {session.markdown && session.view === "read" ? <article ref={reading} className="document-editor plain-markdown" data-testid="plain-markdown" onClick={event => {
-          const anchor = event.target instanceof Element ? event.target.closest("a") : null;
-          if (!anchor) return;
-          event.preventDefault();
-          const href = anchor.getAttribute("href") ?? "";
-          if (/^#fn(?:ref)?\d+$/.test(href)) event.currentTarget.querySelector(`[id="${href.slice(1)}"]`)?.scrollIntoView({ block: "nearest" });
-          else openExternalLink(href);
-        }} dangerouslySetInnerHTML={{ __html: html }} /> : null}
-        {blocks.map((block, index) => createPortal(<CopyButton text={block.querySelector("code")?.textContent ?? ""} label={i18n.t("Copy code")} />, block, String(index)))}
-        <textarea hidden={session.view === "read"} ref={session.input} className="text-document-input" data-testid="text-editor" aria-label={i18n.t("Text editor")}
-          defaultValue={session.initialText} onChange={event => session.change(event.currentTarget.value)} spellCheck={false} wrap="off" />
+        <article className="document" data-read-only={session.view === "read"}>
+          {session.markdown && session.view === "read" ? <div ref={reading} className="document-editor plain-markdown" data-testid="plain-markdown" onClick={event => {
+            const anchor = event.target instanceof Element ? event.target.closest("a") : null;
+            if (!anchor) return;
+            event.preventDefault();
+            const href = anchor.getAttribute("href") ?? "";
+            if (/^#fn(?:ref)?\d+$/.test(href)) event.currentTarget.querySelector(`[id="${href.slice(1)}"]`)?.scrollIntoView({ block: "nearest" });
+            else openExternalLink(href);
+          }} dangerouslySetInnerHTML={{ __html: html }} /> : null}
+          {blocks.map((block, index) => createPortal(<CopyButton text={block.querySelector("code")?.textContent ?? ""} label={i18n.t("Copy code")} />, block.querySelector(".code-block-controls") ?? block, String(index)))}
+          <textarea hidden={session.view === "read"} ref={session.input} className="text-document-input" data-testid="text-editor" aria-label={i18n.t("Text editor")}
+            defaultValue={session.initialText} onChange={event => session.change(event.currentTarget.value)} spellCheck={false} wrap="soft" />
+        </article>
       </div>
     </DocumentScroll>
   </NotificationScope>;

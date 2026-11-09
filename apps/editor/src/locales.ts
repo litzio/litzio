@@ -10,6 +10,16 @@ export const en = {
   "File": "File",
   "Elapsed": "Elapsed",
   "Phase": "Phase",
+
+  "PDF controls": "PDF controls",
+  "Zoom out": "Zoom out",
+  "Zoom in": "Zoom in",
+  "Fit width": "Fit width",
+  "Page": "Page",
+  "PDF pages": "PDF pages",
+  "The PDF could not be opened. It may be unavailable, damaged, or larger than 25 MiB.": "The PDF could not be opened. It may be unavailable, damaged, or larger than 25 MiB.",
+  "Password-protected PDFs cannot be opened.": "Password-protected PDFs cannot be opened.",
+
   "Provider log access was denied.": "Provider log access was denied.",
   "Provider log is absent or has been removed.": "Provider log is absent or has been removed.",
   "Open provider log in Notepad": "Open provider log in Notepad",
@@ -1261,6 +1271,16 @@ export const ko: Record<keyof typeof en, string> = {
   "File": "파일",
   "Elapsed": "경과",
   "Phase": "단계",
+
+  "PDF controls": "PDF 도구",
+  "Zoom out": "축소",
+  "Zoom in": "확대",
+  "Fit width": "폭 맞춤",
+  "Page": "페이지",
+  "PDF pages": "PDF 페이지",
+  "The PDF could not be opened. It may be unavailable, damaged, or larger than 25 MiB.": "PDF를 열 수 없습니다. 파일에 접근할 수 없거나 손상되었거나 25 MiB를 초과할 수 있습니다.",
+  "Password-protected PDFs cannot be opened.": "암호로 보호된 PDF는 열 수 없습니다.",
+
   "Provider log access was denied.": "공급자 로그 접근이 거부되었습니다.",
   "Provider log is absent or has been removed.": "공급자 로그가 없거나 이미 삭제되었습니다.",
   "Open provider log in Notepad": "공급자 로그를 메모장에서 열기",

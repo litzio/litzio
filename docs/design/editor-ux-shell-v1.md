@@ -146,7 +146,48 @@ HTTP(S) links use the existing external opening path; relative document links do
 not navigate. Footnote links navigate only inside the reading surface. Mermaid
 stays a code block. Rejected MyST directives may appear as ordinary text or code
 blocks: this is a generic Markdown display, not a native-document conversion.
-Existing reading typography, table and code tokens apply in light/dark themes.
+The reading screen reuses native Read's `document-column`, `document` paper and
+`document-editor` typography, including the global Page style (Paper/Flat), document
+width, margins and light/dark tokens. Markdown headings, paragraphs, lists,
+quotes, tables, code and equations use the existing native classes. No Core
+admission, rewrite or serialization is involved. Native authoring controls,
+numbered captions and the empty frontmatter title slot are not synthesized.
+Markdown images retain a display-only max-width rule and KaTeX overflow containment.
+Outline remains unavailable: the existing shell panel consumes native editor
+positions and session callbacks, so reuse would require changes beyond the text tab.
+
+Text editing shares the same `document-column` and `document` paper, body width
+and padding as Read, so switching views keeps the page position and text origin.
+The textarea has no border, corner radius, separate background or box focus ring;
+its caret follows the native document convention. It grows with the buffer and the
+document viewport owns scrolling. Line numbers are not included.
+Both `.md` and `.txt` textareas use soft wrapping, including long unbroken tokens,
+without horizontal scrolling or inserting stored newlines. Text editing shares
+the document word-break token (Korean words stay together), also used by plain
+Markdown tight-list items and table cells, with overflow-wrap
+as an emergency fallback for unbroken identifiers. The mounted textarea
+retains cursor, Undo, dirty state and Save/recovery behavior. Its monospace font,
+size and line height follow the existing native Source convention; there is no wrap
+toggle.
+
+#1343 comparison evidence (same body, localhost fixtures; account footer masked):
+
+| View | 1440px English Light | 640px Korean Dark |
+| --- | --- | --- |
+| Native Read reference (unchanged) | [Reference](assets/plain-markdown-1343/after-compare-native-1440.png) | [Reference](assets/plain-markdown-1343/after-compare-native-640.png) |
+| Markdown Read before / after | [Before](assets/plain-markdown-1343/before-compare-markdown-1440.png) / [After](assets/plain-markdown-1343/after-compare-markdown-1440.png) | [Before](assets/plain-markdown-1343/before-compare-markdown-640.png) / [After](assets/plain-markdown-1343/after-compare-markdown-640.png) |
+| Long-line Text before / after | [Before](assets/plain-markdown-1343/before-compare-edit-1440.png) / [After](assets/plain-markdown-1343/after-compare-edit-1440.png) | [Before](assets/plain-markdown-1343/before-compare-edit-640.png) / [After](assets/plain-markdown-1343/after-compare-edit-640.png) |
+
+The common implementation follows the UI decision table's existing document
+surface and Button/CopyButton controls. Native engine-owned title, table handles,
+numbered captions and code language editing are intentionally absent from the
+display-only Markdown surface; these account for spacing differences around those
+controls. No new shared interaction or token system is introduced. The text-mode
+browser scenario checks paper/flat preference, native surface classes, long-line
+scrollWidth/clientWidth for both file types, Undo and exact Save/Reload source.
+Capture-only comparison traversal runs only with `--screenshots`.
+
+Earlier #939 evidence:
 `pnpm browser:test text-mode --screenshots` reproduces the display evidence:
 [1440px Light](assets/plain-markdown-939/1440-light.png),
 [640px Light](assets/plain-markdown-939/640-light.png), and
@@ -3211,3 +3252,11 @@ Document GET and its bibliography read share a 15-second timeout and AbortSignal
 Mounted native/text sessions cancel their reads on disposal; startup restoration cancels on effect cleanup.
 Save remains session-owned, never automatically retries, preserves uncertain acknowledgements,
 and keeps input entered after submission unsaved. The opening HostClient remains fixed for the session.
+
+## Read-only PDF tabs (#1337)
+
+Explorer activation of a `.pdf` opens a read-only task tab identified by Host and path. Reopening activates the existing tab. It uses DocumentTabs close, grouping and Host work accounting, without document admission, drafts, Save or startup tab restoration. The tab owns its fetch, pdf.js document and worker lifetime; closing aborts the fetch and destroys the document/worker.
+
+The first viewer supports vertical scrolling, zoom buttons, Ctrl+wheel, fit width, current/total pages, page-number navigation (Enter or field exit), and text selection/copy. Only pages within 800px of the viewport render canvas/text; inactive tabs release their rendered surfaces. Each canvas dimension is bounded to 4096 pixels with DPR at most 2. Paper stays white in dark mode; the surrounding surface follows theme. Unavailable/damaged/over-25-MiB files and password PDFs show fixed localized notices.
+
+Upstream viewer CSS is scoped to the PDF viewer to avoid changing the app shell. The app bundles pdfjs-dist 5.6.205 and a same-origin worker, CMaps and standard fonts. Eval and WASM are disabled. Only canvas and TextLayer APIs are used: no scripting manager, annotation/form layer, link service, printing, search, thumbnails or editing. CSP and Electron webPreferences are unchanged. This Editor-only reading interaction adds no CLI command; byte delivery extends the existing Host preview API.

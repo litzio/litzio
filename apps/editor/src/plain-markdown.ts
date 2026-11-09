@@ -23,6 +23,20 @@ export function renderPlainMarkdown(source: string, path: string, client = getHo
     else if (!/^https?:\/\//i.test(src)) return md.utils.escapeHtml(token.content);
     return image(tokens, index, options, env, renderer);
   };
+  // Match native Read markup without admitting or rewriting the source document.
+  for (const [type, className] of Object.entries({ blockquote_open: "quote" })) {
+    const render = md.renderer.rules[type] ?? ((tokens, index, options, _env, renderer) => renderer.renderToken(tokens, index, options));
+    md.renderer.rules[type] = (tokens, index, ...args) => {
+      tokens[index].attrJoin("class", className);
+      return render(tokens, index, ...args);
+    };
+  }
+  md.renderer.rules.hr = () => '<div class="divider"><hr></div>\n';
+  const tableOpen = md.renderer.rules.table_open!;
+  md.renderer.rules.table_open = (...args) => `<div class="table-block"><div class="table-scroll">${tableOpen(...args)}`;
+  md.renderer.rules.table_close = () => '</table></div></div>\n';
+  const math = md.renderer.rules.math_block!;
+  md.renderer.rules.math_block = (...args) => `<div class="equation"><div class="equation-math">${math(...args)}</div></div>`;
   return md.render(source);
 }
 
@@ -69,8 +83,8 @@ function markdownRenderer(assistant = false) {
     };
   }
   const fence = md.renderer.rules.fence!;
-  md.renderer.rules.fence = (...args) => `<div class="code-block">${fence(...args)}</div>`;
+  md.renderer.rules.fence = (...args) => `<div class="code-block">${assistant ? "" : '<div class="code-block-controls"></div>'}${fence(...args)}</div>`;
   const code = md.renderer.rules.code_block!;
-  md.renderer.rules.code_block = (...args) => `<div class="code-block">${code(...args)}</div>`;
+  md.renderer.rules.code_block = (...args) => `<div class="code-block">${assistant ? "" : '<div class="code-block-controls"></div>'}${code(...args)}</div>`;
   return md;
 }
