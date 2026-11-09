@@ -208,6 +208,18 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   // Actual detachable community artifact, same Host and CLI, one fake service.
   const docling = pluginFixture.docling;
   const id = "community.docling";
+  let requestPhase = "docling";
+  const requestCounts = {}, requestSeconds = {};
+  const countRequest = request => {
+    const pathname = request.url().replace(/^https?:\/\/[^/]+/, "").split("?")[0];
+    if (!["/api/views", "/api/plugins"].includes(pathname)) return;
+    const action = request.postDataJSON()?.action ?? request.method();
+    const key = `${requestPhase} ${pathname} ${action}`;
+    requestCounts[key] = (requestCounts[key] ?? 0) + 1;
+    const second = `${requestPhase} ${pathname} ${Math.floor(Date.now() / 1000)}`;
+    requestSeconds[second] = (requestSeconds[second] ?? 0) + 1;
+  };
+  page.on("request", countRequest);
   let doclingRegistered = false;
   try {
     expect((await docling.cli(["plugins", "validate", docling.directory])).valid).toBe(true);
@@ -241,6 +253,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
     await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
+    const icon = page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).locator("img.plugin-icon");
+    await expect(icon).toBeVisible();
+    await expect.poll(() => icon.evaluate(image => image.complete && image.naturalWidth > 0)).toBe(true);
     const panel = page.getByTestId("plugin-job-panel");
     await expect(panel).toBeVisible();
     await expect(panel.getByRole("button", { name: "Start job", exact: true })).toBeDisabled();
@@ -326,7 +341,10 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await expect(editor).toContainText("Cell one | Cell two");
     await expect(editor).not.toContainText("Docling conversion:");
     await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
+    // Re-selecting the current Root must preserve its loaded files.
+    await expect(panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true })).toBeVisible();
     await panel.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
+    await expect(panel.getByRole("checkbox", { name: "dashboard-a.pdf", exact: true })).toBeVisible();
     await panel.getByLabel("Job", { exact: true }).selectOption("create-document");
     await panel.getByRole("checkbox", { name: "sample.docling", exact: true }).check();
     await panel.getByRole("button", { name: "Start job", exact: true }).click();
@@ -360,6 +378,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await docling.cli(["plugins", "unregister", id]);
     }
   }
+  requestPhase = "after-docling";
   let assignedQueryMs;
   const jira = pluginFixture.jira;
   expect((await jira.cli(["plugins", "validate", jira.directory])).valid).toBe(true);
@@ -561,5 +580,6 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     }
   }
 
-  return { secretSaves, assignedQueryMs };
+  page.off("request", countRequest);
+  return { secretSaves, assignedQueryMs, requestCounts, maxRequestsPerSecond: Math.max(0, ...Object.values(requestSeconds)) };
 }

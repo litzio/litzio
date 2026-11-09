@@ -313,7 +313,7 @@ CLI는 같은 Host 작업을 호출한다.
 litzio plugins start example.plugin --job convert --root <root> --file a.pdf --file b.pdf --host <origin> --json
 ```
 
-앱 패널은 여러 작업의 공통 선택 control, 열린 폴더 선택, accept 필터 체크 목록과 기존 하위 폴더 탐색을 쓴다. 실행할 때 파일 선택을 비우며 실패/불확실을 자동 재시도하지 않는다. Host snapshot의 startedAt(접수 시각)으로 정렬해 외부 CLI 작업을 나중에 발견해도 플러그인 전체의 daemon 수명 기록을 최신순으로 파일·작업·상태·단계·경과·행동 표에 표시한다. running 동안 활성 화면에서 1초마다 기존 상태 작업으로 관찰하며 응답 유실은 uncertain이다. 중단/상태 재확인과 native 결과 열기는 기존 공통 Plugin jobs 부품을 재사용한다. opaque file은 기존 K1 계약대로 경로·복사를 제공한다. 의미를 모르는 파일에 문서 열기를 제공하지 않는다.
+앱 패널은 여러 작업의 공통 선택 control, 열린 폴더 선택(현재 폴더 재선택은 읽어 둔 파일 목록을 유지), accept 필터 체크 목록과 기존 하위 폴더 탐색을 쓴다. 실행할 때 파일 선택을 비우며 실패/불확실을 자동 재시도하지 않는다. Host snapshot의 startedAt(접수 시각)으로 정렬해 외부 CLI 작업을 나중에 발견해도 플러그인 전체의 daemon 수명 기록을 최신순으로 파일·작업·상태·단계·경과·행동 표에 표시한다. running 동안 활성 화면에서 1초마다 기존 상태 작업으로 관찰하며 응답 유실은 uncertain이다. 중단/상태 재확인과 native 결과 열기는 기존 공통 Plugin jobs 부품을 재사용한다. opaque file은 기존 K1 계약대로 경로·복사를 제공한다. 의미를 모르는 파일에 문서 열기를 제공하지 않는다.
 
 검증은 기존 job-plugin fixture의 SDK/Host 검사 및 `plugin-jobs` 브라우저 시나리오에 집중한다. 공통 패널 자체의 fixture는 실제 Docling 변환 품질을 검증하지 않는다. [Docling 0.0.2](../../community-plugins/docling/README.md)는 같은 패널에 PDF 변환·문서 만들기를 선언하고 설정 healthCheck를 사용한다. 중복 연결 표는 제거하며 API 키 서버는 지원하지 않는다. Docling은 서버 동시 처리 실패를 피하도록 플러그인 프로세스 안에서 PDF 서버 요청을 한 건씩 처리하며 대기 중 중단을 지원한다. Host 큐는 추가하지 않는다. 자동 http-plugins는 가짜 서버만 사용하며 실제 컨테이너 두 PDF 수락은 화면 또는 CLI로 별도 확인한다. Docling 적용의 [1440px](assets/docling-002/dashboard-1440.png)·[한국어 다크 640px](assets/docling-002/dashboard-640.png)는 경로·계정 표기를 마스킹한 수동 시각 근거다. 수동 캡처는 `pnpm browser:test plugin-jobs --screenshots`의 `tmp/plugin-jobs/panel-1440.png`, `panel-640.png`다.
 

@@ -7,6 +7,7 @@
 - 설정 연결 확인을 `healthCheck`와 고정 `{ ok, message }`로 제공합니다. 중복 연결 상태 표는 제거했습니다.
 - API 키 설정·secret 선언·X-Api-Key 전송을 제거했습니다. API 키가 걸린 docling-serve는 지원하지 않음.
 - `requiresSdk: ">=0.3.0 <1.0.0"`. 변환 정책·봉투 형식 1은 유지합니다.
+- 일반 아이콘은 앱과 같은 Lucide의 file-output SVG(ISC)를 사용합니다. 출처·고지는 README와 ICON-LICENSE에 기록합니다.
 - 공식 로고는 상표 사용 허용 조건 미확인으로 포함하지 않습니다. README에 출처와 판단을 기록합니다.
 
 
