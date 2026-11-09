@@ -51,8 +51,7 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
       ...(screenshots ? { ignoreDefaultArgs: ["--hide-scrollbars"] } : {}),
       locale: "en-US",
       viewport: { width: 1280, height: 720 },
-      // Node-side page.request/route.fetch must not reuse an expiring idle socket (#658).
-      extraHTTPHeaders: { Connection: "close" },
+      // Chromium reuses connections; only Node request calls close them (#658, #1361).
     });
     try {
       // This worker-owned persistent context also creates startup and secondary-tab pages.

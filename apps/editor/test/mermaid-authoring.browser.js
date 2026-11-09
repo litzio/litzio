@@ -1,13 +1,13 @@
 // Real scratch-file persistence, explicit drafts, native input dragging and real delayed renders.
 async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActivePath, reloadDocument }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const initial = await (await page.request.get(origin + '/api/document')).json();
+  const initial = await (await page.request.get(origin + '/api/document', { headers: { Connection: "close" } })).json();
   const separator = initial.path.includes('\\') ? '\\' : '/';
   const root = initial.path.split(separator).slice(0, -4).join(separator);
   const file = [root, 'tmp', 'mermaid-authoring', 'diagram.md'].join(separator);
   // Hold a real render result after its SVG exists, allowing a later render to finish first.
   await page.route('**/src/mermaid-render.ts*', async route => {
-    const response = await route.fetch();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     await route.fulfill({response, body: await response.text() + `\n
       const actualMermaidRender = renderMermaid;
       renderMermaid = async (...args) => {
@@ -35,7 +35,7 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
     const e=el.editor, h=e.state.plugins.find(p=>p.key.startsWith('history$')).getState(e.state);
     return {doc:e.getJSON(),undo:h.done.eventCount,redo:h.undone.eventCount};
   });
-  const disk = async () => (await (await page.request.get(`${origin}/document/diagram.md?path=${encodeURIComponent(file)}`)).text()).replaceAll('\r\n','\n');
+  const disk = async () => (await (await page.request.get(`${origin}/document/diagram.md?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).text()).replaceAll('\r\n','\n');
   const save = async (status = 'saved') => {
     const response=page.waitForResponse(r=>r.request().method()==='POST' && /\/api\/document(?:\?|$)/.test(r.url()));
     await page.getByTestId('save').click(); expect((await response).status()).toBe(200);
@@ -448,7 +448,7 @@ async (page, { openPath, screenshots, expect, waitForEditorFocus, waitForActiveP
     let release, received;
     const gate=new Promise(resolve=>release=resolve), responseReady=new Promise(resolve=>received=resolve);
     await page.route('**/api/figure-validation',async route=>{
-      const response=await route.fetch();received();await gate;await route.fulfill({response});
+      const response=await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });received();await gate;await route.fulfill({response});
     },{times:1});
     await field().fill(rejectedSource);await field().press('ControlOrMeta+Enter');
     await responseReady;await expect(field()).toBeDisabled();

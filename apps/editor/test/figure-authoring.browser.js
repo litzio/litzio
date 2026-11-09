@@ -17,18 +17,18 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
 
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(separator).slice(0, -4).join(separator);
   const filePath = [root, 'tmp', 'figure-authoring', 'technical-document.md'].join(separator);
   const media = name => `${origin}/document/${name}?path=${encodeURIComponent(filePath)}`;
   for (const name of ['diagram.svg', 'diagram-v2.svg']) {
-    if ((await page.request.get(media(name))).status() !== 200) {
+    if ((await page.request.get(media(name), { headers: { Connection: "close" } })).status() !== 200) {
       throw new Error(`Prepare ${filePath} with diagram.svg and diagram-v2.svg first`);
     }
   }
   const semantic = async () => {
-    const response = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(filePath)}`)).json();
+    const response = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(filePath)}`, { headers: { Connection: "close" } })).json();
     return response.document.blocks.filter(block => block.block === 'figure').map(block => ({
       label: block.label, imageUrl: block.imageUrl, imageAlt: block.imageAlt, caption: block.caption.text,
     }));
@@ -378,7 +378,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     await picker.waitFor({state:'hidden'});
     // A case-sensitive Host can list both names, even when this test runs on Windows.
     const caseSensitiveListing = async route => {
-      const response = await route.fetch();
+      const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
       const listing = await response.json();
       const original = listing.entries.find(entry => entry.name === 'diagram.svg');
       if (!original) return route.fulfill({response});
@@ -414,7 +414,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     const previewGate = new Promise(resolve => { releasePreview = resolve; });
     let delayedFinished = false;
     const imageListing = async route => {
-      const response = await route.fetch();
+      const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
       const listing = await response.json();
       const path = name => filePath.replace('technical-document.md', name);
       // Equivalent root spelling gives these requests fresh URLs: decoded images from the
@@ -429,7 +429,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
       const path = decodeURIComponent(route.request().url().match(/[?&]path=([^&]*)/)[1].replace(/\+/g, ' '));
       previewRequests.push(path);
       if (path.endsWith('broken.svg')) return route.fulfill({contentType:'image/svg+xml', body:'not an image'});
-      const response = await route.fetch();
+      const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
       if (path.endsWith('diagram.svg')) {
         previewWaiting = true;
         await previewGate;
@@ -833,7 +833,7 @@ async (page, { openFolderPicker, openDocument, waitForEditorFocus, expect, scree
     await page.getByRole('menu', {name:'Insert block'}).getByRole('menuitem', {name:'Figure', exact:true}).click();
     result.onlyBlockFigureOpensNoForm = await figures.count() === 1 && await editor.count() === 0;
     await save();
-    const onlyBlocks = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(emptyPath)}`)).json()).document.blocks;
+    const onlyBlocks = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(emptyPath)}`, { headers: { Connection: "close" } })).json()).document.blocks;
     result.onlyBlockFigureSaved = onlyBlocks.length === 1 && onlyBlocks[0].block === 'figure' && onlyBlocks[0].contentKind === 'none';
 
     result.consoleProblems = problems;

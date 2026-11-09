@@ -2,7 +2,7 @@
 async (page, { openPath, reloadDocument, assertSavedSource, expect }) => {
   await page.unrouteAll();
   const origin = page.url().split('/').slice(0,3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const file = [...loaded.path.split(sep).slice(0,-4), 'tmp', 'code-highlighting', 'code.md'].join(sep);
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
@@ -25,7 +25,7 @@ async (page, { openPath, reloadDocument, assertSavedSource, expect }) => {
   let requested=0;
   let commonNames;
   await page.route('**/src/code-languages.ts*', async route => { requested++; await gate; await route.continue(); });
-  await page.route('**/api/asset?*', async route => { const response=await route.fetch(); assetStarted(); await assetGate; await route.fulfill({response}); });
+  await page.route('**/api/asset?*', async route => { const response=await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); assetStarted(); await assetGate; await route.fulfill({response}); });
   try {
     await page.reload(); await ready();
     check(requested === 0, 'Code-free document requested grammars');
@@ -202,11 +202,11 @@ async (page, { openPath, reloadDocument, assertSavedSource, expect }) => {
     await page.keyboard.press('ControlOrMeta+Shift+z');
     check(await code.locator('pre').textContent() === beforeComposition+'한글', 'Code body composition Redo failed');
   } finally { await cdp.detach(); }
-  const originalSource = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json()).source;
+  const originalSource = (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json()).source;
   await page.getByRole('button',{name:'Save',exact:true}).click();
   await page.locator('[data-testid="status"]:is([data-operation="saved"], [data-operation="save-failed"])').waitFor();
   check(await page.getByTestId('status').getAttribute('data-operation') === 'saved', 'Code language Save failed');
-  const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json();
+  const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json();
   check(disk.source.includes('```python-repl\nconst value = 1;한글\n```'), 'Save did not preserve the selected language and code');
   await assertSavedSource(disk.source, originalSource.replace('```js\nconst value = 1;', '```python-repl\nconst value = 1;한글'), 'Language Save changed other document content');
   await reloadDocument(page); await ready();

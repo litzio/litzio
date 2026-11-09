@@ -4,13 +4,13 @@ async (page, { openPath, reloadDocument, expect, screenshots, waitForEditorFocus
   await page.unrouteAll();
   await page.setViewportSize({width:1440,height:900});
   const origin = page.url().split('/').slice(0,3).join('/');
-  const initial = await (await page.request.get(`${origin}/api/document`)).json();
+  const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const scratch = name => [...initial.path.split(sep).slice(0,-4), 'tmp', 'document-title', name].join(sep);
   const active = page.locator('[data-document-tab][data-active=true]');
   const editor = active.locator('.document-editor');
   const title = active.getByRole('textbox', {name:'Title',exact:true});
-  const read = async name => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(scratch(name))}`)).json());
+  const read = async name => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(scratch(name))}`, { headers: { Connection: "close" } })).json());
   const save = async () => {
     await page.keyboard.press('Control+s');
     const status = page.getByTestId('status');

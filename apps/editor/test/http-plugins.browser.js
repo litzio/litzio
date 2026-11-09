@@ -23,7 +23,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await page.route("**/api/plugins", async route => {
     if (route.request().method() === "GET") ++listRequests;
     const delayed = holdEnabled && route.request().method() === "GET";
-    const response = await route.fetch();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     const value = await response.json();
     for (const plugin of value.plugins) if (plugin.id === "litzio.onedrive" && plugin.running) {
       plugin.status = { available: true, folders: detectedFolders.map((path, i) => ({ id: String(i), path, label: "Drive fixture", defaultCandidate: true })), decorations: detectedFolders.map((path, i) => ({ id: String(i), path, icon: "onedrive" })), accounts: [] };
@@ -74,7 +74,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(official).not.toBeChecked();
   await page.keyboard.press("Escape");
   await expect(page.locator(".sidebar-folder-name")).toHaveCount(0);
-  const listing = await page.request.get(`${await page.evaluate(() => location.origin)}/api/folder?root=${encodeURIComponent(pluginFixture.folder)}`);
+  const listing = await page.request.get(`${await page.evaluate(() => location.origin)}/api/folder?root=${encodeURIComponent(pluginFixture.folder)}`, { headers: { Connection: "close" } });
   expect(listing.ok()).toBe(true);
   await openSettings();
   await page.reload(); await openSettings(); await expect(official).not.toBeChecked();

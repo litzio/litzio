@@ -115,7 +115,7 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   await page.keyboard.press('Control+Shift+z'); await expect(paragraph).toContainText('Changed.');
   await page.getByTestId('save').click();
   await page.locator('[data-testid="status"][data-operation="saved"]').waitFor({state:'attached'});
-  const saved = await (await page.request.get(origin+'/api/document?path='+encodeURIComponent(file('renamed.md')))).json();
+  const saved = await (await page.request.get(origin+'/api/document?path='+encodeURIComponent(file('renamed.md')), { headers: { Connection: "close" } })).json();
   expect(saved.source).toContain('Changed.');
   // An inactive tab's dirty Figure caption blocks all writes, even though the image
   // path itself has not changed. The same dialog shows actionable save-first guidance.
@@ -135,7 +135,7 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   }
   await expect(dialog.getByRole('alert')).toContainText('Save these documents before renaming');
   await cancel(); await page.setViewportSize({width:1440,height:900});
-  expect((await (await page.request.get(origin+'/api/document?path='+encodeURIComponent(file('ref.md')))).json()).source).not.toContain('Applied edit.');
+  expect((await (await page.request.get(origin+'/api/document?path='+encodeURIComponent(file('ref.md')), { headers: { Connection: "close" } })).json()).source).not.toContain('Applied edit.');
   await row('ref.md').click(); await expect(caption()).toContainText('Applied edit.');
   await page.getByTestId('save').click(); await page.locator('[data-testid="status"][data-operation="saved"]').waitFor({state:'attached'});
   const editFigure = activeDocument(page).getByRole('button',{name:'Edit figure',exact:true});
@@ -173,7 +173,7 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
     expect(await page.getByRole('tab',{name:/Unsaved changes/}).count()).toBe(0);
     await expect(page.getByTestId('notice')).toContainText('foreign.md');
     for (const name of ['ref.md','second-ref.md']) {
-      const disk = await (await page.request.get(origin+'/api/document?path='+encodeURIComponent(file(name)))).json();
+      const disk = await (await page.request.get(origin+'/api/document?path='+encodeURIComponent(file(name)), { headers: { Connection: "close" } })).json();
       expect(disk.source).toContain('./updated.svg');
       expect(disk.source).not.toContain('Other window.');
     }
@@ -186,7 +186,7 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   await row('ref.md').click(); await expect(caption()).toContainText('Applied edit.');
   await caption().click(); await page.keyboard.press('End'); await page.keyboard.type(' After rename.');
   await page.getByTestId('save').click(); await page.locator('[data-testid="status"][data-operation="saved"]').waitFor({state:'attached'});
-  const rewritten = await (await page.request.get(origin+'/api/document?path='+encodeURIComponent(file('ref.md')))).json();
+  const rewritten = await (await page.request.get(origin+'/api/document?path='+encodeURIComponent(file('ref.md')), { headers: { Connection: "close" } })).json();
   expect(rewritten.source).toContain('./updated.svg'); expect(rewritten.source).toContain('After rename.');
   await row('renamed.md').click(); await expect(page.getByTestId('current-file')).toHaveText('renamed.md');
   await context('unused.svg','Rename…');

@@ -2,14 +2,14 @@
 async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect, removeTabFixture, screenshots = false }) => {
   const check = (value, message) => { if (!value) throw new Error(message); };
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(sep).slice(0, -4).join(sep);
   const file = name => [root, 'tmp', 'document-tabs', name].join(sep);
   const a = file('technical-1.md'), b = file('technical-2.md');
   const editor = () => activeDocument(page).locator('.document-editor');
   const ready = () => page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
-  const read = async path => (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(path)}`)).json();
+  const read = async path => (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(path)}`, { headers: { Connection: "close" } })).json();
   const activate = async name => {
     await page.getByRole('tab', {name:new RegExp(`^${name.replaceAll('.', '\\.')}(, Unsaved changes)?$`)}).click();
     await page.waitForFunction(name => document.querySelector('[data-testid="current-file"]')?.textContent === name, name);
@@ -215,7 +215,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     const path = decodeURIComponent(route.request().url().split('?path=')[1] ?? '');
     if (path === denied) return route.fulfill({status:403,json:{error:'Path denied by Host'}});
     if (path !== b) return route.fallback();
-    const response = await route.fetch(); arrived(); await gate; await route.fulfill({response});
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); arrived(); await gate; await route.fulfill({response});
   };
   await page.route('**/api/document?**',hold);
   try {
@@ -477,7 +477,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     return response;
   };
   const deliverListing = async route => {
-    const response = await route.fetch();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     listingArrived();
     await listingGate;
     await route.fulfill({response});
@@ -488,7 +488,7 @@ async (page, { openPath, reloadDocument, activeDocument, recoveryRecords, expect
     await page.getByRole('menuitem',{name:'Refresh',exact:true}).click();
     await listingStarted;
     removeTabFixture();
-    check((await page.request.get(`${origin}/api/document?path=${encodeURIComponent(a)}`)).status() === 400, 'The scratch file was not removed on disk');
+    check((await page.request.get(`${origin}/api/document?path=${encodeURIComponent(a)}`, { headers: { Connection: "close" } })).status() === 400, 'The scratch file was not removed on disk');
     switchRequests = 0;
     page.on('request', countRequest);
     // The retained row opens the existing session even though the Host file is gone.
