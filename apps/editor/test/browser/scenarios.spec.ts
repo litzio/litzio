@@ -172,6 +172,9 @@ const test = base.extend<{}, { session: BrowserContext; inputEvents: string }>({
 
 for (const name of scenarios) {
   test(name, async ({ page }) => {
+    // One existing scenario now includes Docling conversion plus Jira's two real
+    // 8s deadline probes and settings health checks. Keep per-action/product limits.
+    if (name === "http-plugins") test.setTimeout(180_000);
     if (name === "desktop-updates") await verifyBuiltAppearance(page);
     const source = readFileSync(path.join(REPOSITORY_ROOT, "apps/editor/test", `${name}.browser.js`), "utf8");
     const scenario = runInNewContext(`(${source})`) as (page: Page, options: { fullLayout: boolean; brand: typeof brand; assistantFixture: { document: string }; assertSavedSource: ReturnType<typeof savedSourceAssertion>; screenshots: boolean; pluginFixture: { directory: string; folder: string; otherFolder: string; otherJobInput: string; cli(args: string[]): any; jira?: typeof jira; docling?: { directory: string; input: string; settings: string; setFailure(value: boolean): void; setDocumentInput(invalid: boolean): void; setPdfOutcome(mode: string): void; conversionRequests(): number; jobInput: string; fileJobInput: string; real?: { settings: string; pdfInput: string; nativeInput: string }; verifyFile(path: string, sourceName?: string): Promise<void>; cli(args: string[]): Promise<any> }; corruptSecret(): void; realSnapshot?: () => any; reviewDocument?: EditableDocument }; showNotifications: typeof showNotifications; fileActionsRoot: string; expect: typeof expect; recoveryRecords: typeof recoveryRecords; openFolderPicker: typeof openFolderPicker; openDocument: typeof openDocument; openPath: typeof openPath; waitForActivePath: typeof waitForActivePath; reloadDocument: typeof reloadDocument; waitForEditorFocus: typeof waitForEditorFocus; activeDocument: typeof activeDocument; withBlockHover: typeof withBlockHover; removeTabFixture: (source?: string) => void; folderFixture: { change(mode: string): void }; textFixture: { replaceNative(source: string): void }; bibliographyFixture: unknown }) => Promise<unknown>;
@@ -240,6 +243,11 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
     let doclingFailure = false, conversionRequests = 0, submissions = 0, conversionState = "success", taskId = "", receivedFields: Record<string, FormDataEntryValue[]> = {};
     let jiraFault = 0, jiraRedirects = 0;
     const doclingServer = name === "http-plugins" ? createServer(async (request, response) => {
+      if (request.url === "/jira/rest/api/2/myself") {
+        const status = request.headers.authorization !== "Bearer mock-jira-token" ? 401 : jiraFault || 200;
+        response.writeHead(status, { "Content-Type": "application/json" });
+        response.end(JSON.stringify(status === 200 ? { name: "mock-user" } : { errorMessages: ["RAW-JIRA-SENTINEL mock-jira-token"] })); return;
+      }
       if (request.url === "/redirect-target") {
         jiraRedirects++;
         response.writeHead(200, { "Content-Type": "application/json" });
@@ -368,6 +376,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
       directory: path.join(REPOSITORY_ROOT, "tmp/http-host-a/jira-artifact"),
       input: path.join(REPOSITORY_ROOT, "tmp/jira-input.json"),
       settings: path.join(REPOSITORY_ROOT, "tmp/jira-settings.json"),
+      healthInput: path.join(REPOSITORY_ROOT, "tmp/jira-health-input.json"),
       setFault(value: number) { jiraFault = value; },
       redirects() { return jiraRedirects; },
       async cli(args: string[]) {
@@ -381,6 +390,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
     } : undefined;
     if (jira) {
       cpSync(path.join(REPOSITORY_ROOT, "community-plugins/jira"), jira.directory, { recursive: true });
+      writeFileSync(jira.healthInput, "{}");
       jira.setInput("MOCK-1, MOCK-2, MOCK-404");
       jira.setSettings({ baseUrl: jira.baseUrl });
     }

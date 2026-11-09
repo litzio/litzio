@@ -410,19 +410,50 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     if (registered.secrets.supported) {
       await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
       await page.reload(); await openSettings();
-      await page.getByRole("button", { name: "Jira", exact: true }).click();
+      await page.getByRole("button", { name: "Jira settings", exact: true }).click();
       await page.getByLabel("pat: Not configured", { exact: true }).fill("mock-jira-token");
       await saveSecret();
       await expect(page.getByLabel("pat: Configured", { exact: true })).toHaveValue("");
       await jira.cli(["plugins", "trust", "community.jira", "--digest", registered.digest]);
       await jira.cli(["plugins", "enable", "community.jira"]);
+      await page.reload(); await openSettings();
+      await page.getByRole("button", { name: "Jira settings", exact: true }).click();
+      const health = page.getByRole("button", { name: "Check connection", exact: true });
+      await health.click();
+      await expect(page.getByRole("status").filter({ hasText: "Jira 연결과 PAT 인증을 확인했습니다." })).toBeVisible();
+      if (screenshots) {
+        for (const width of [1440, 640]) {
+          if (width === 640) {
+            await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "ko"); localStorage.setItem("litzio.theme", "dark"); });
+            await page.reload();
+            await page.getByRole("button", { name: "설정", exact: true }).click();
+            await page.getByRole("button", { name: "플러그인", exact: true }).click();
+            await page.getByRole("button", { name: "Jira 설정", exact: true }).click();
+            await page.getByRole("button", { name: "연결 확인", exact: true }).click();
+            await expect(page.getByRole("status").filter({ hasText: "Jira 연결과 PAT 인증을 확인했습니다." })).toBeVisible();
+          }
+          await page.setViewportSize({ width, height: 900 });
+          await page.screenshot({ path: `tmp/jira-1328/connection-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+        }
+        await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
+        await page.reload(); await openSettings();
+        await page.getByRole("button", { name: "Jira settings", exact: true }).click();
+      }
+      jira.setFault(401);
+      await health.click();
+      await expect(page.getByRole("status").filter({ hasText: "인증에 실패했습니다. PAT를 확인하세요. (401)" })).toBeVisible();
+      expect(await page.getByRole("dialog", { name: "Jira", exact: true }).innerText()).not.toMatch(/RAW-JIRA-SENTINEL|mock-jira-token/);
+      jira.setFault(0);
+      await page.keyboard.press("Escape");
+      await page.keyboard.press("Escape");
       const invoke = () => jira.cli(["operation", "invoke", "community.jira.issues", "--input", jira.input]);
       const connected = await invoke();
       expect(connected.result.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-404"]);
       expect(connected.result[0].assignee).toBe("—");
       expect(connected.result[2].status).toContain("404");
       await page.reload(); await openSettings();
-      await page.getByRole("button", { name: "Open view · Jira", exact: true }).click();
+      await page.keyboard.press("Escape");
+      await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
       await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
       const search = page.getByRole("button", { name: "조회", exact: true });
       await search.click();
@@ -441,7 +472,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
             await page.reload();
             await page.getByRole("button", { name: "설정", exact: true }).click();
             await page.getByRole("button", { name: "플러그인", exact: true }).click();
-            await page.getByRole("button", { name: "뷰 열기 · Jira", exact: true }).click();
+            await page.keyboard.press("Escape");
+            await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
             await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
             await search.click();
             await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
@@ -452,7 +484,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
         }
         await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
         await page.reload(); await openSettings();
-        await page.getByRole("button", { name: "Open view · Jira", exact: true }).click();
+        await page.keyboard.press("Escape");
+      await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
         await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
         await search.click();
         await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
@@ -492,6 +525,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       if (jira.mock) {
         jira.setSettings({ baseUrl: "http://127.0.0.1:8081" });
         await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
+        const healthResult = await jira.cli(["operation", "invoke", "community.jira.connection", "--input", jira.healthInput]);
+        expect(healthResult.result).toEqual({ ok: true, message: "Jira 연결과 PAT 인증을 확인했습니다." });
         const mock = await invoke();
         expect(mock.result.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-404"]);
         expect(mock.result[2].status).toContain("404");

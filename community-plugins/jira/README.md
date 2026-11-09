@@ -19,7 +19,11 @@ Jira Data Center 9.12.28의 이슈 번호 조회용 커뮤니티 플러그인입
 
 설정 파일 예: `{"baseUrl":"https://jira.example.com/jira","apiUrl":""}`. 입력 파일 예: `{"keys":"ABC-123, ABC-130"}`. artifact를 고치면 validate → 현재 digest 신뢰 → reload → 실제 조회를 반복합니다. 설정·secret 변경에는 기존 Host의 자동 재적용을 사용합니다.
 
-Plugins의 `Open view · Jira`로 화면을 엽니다. 열린 폴더 없이 조회할 수 있으며 파일은 읽거나 쓰지 않습니다. 이슈 번호를 입력하고 조회합니다. 화면을 여는 것만으로 요청하지 않으며 polling은 없습니다. CLI와 화면은 같은 공용 읽기 작업을 사용합니다.
+사이드바의 `Jira`로 조회 화면을 엽니다. 설정은 Plugins 목록 오른쪽의 Jira 설정 톱니로 엽니다. 열린 폴더 없이 조회할 수 있으며 파일은 읽거나 쓰지 않습니다. 이슈 번호를 입력하고 조회합니다. 화면을 여는 것만으로 요청하지 않으며 polling은 없습니다. CLI와 화면은 같은 공용 읽기 작업을 사용합니다.
+
+## 설정 창에서 연결 확인
+
+저장한 BASE_URL/API URL과 PAT로 `GET <API URL>/myself`를 요청합니다. [Jira 9.12 REST API 문서](https://docs.atlassian.com/software/jira/docs/api/REST/9.12.2/#api/2/myself-getUser)의 익명 접근을 허용하지 않는 현재 사용자 조회이며 목업도 같은 경로를 지원합니다. 사용자 정보는 반환·표시하지 않고 응답의 사용자 이름 필드를 확인한 뒤 고정 안내만 반환합니다. 401은 PAT 확인, 403은 권한 문의, 연결 실패는 주소·네트워크 확인, 5초 초과는 연결 시간 초과로 구분합니다. redirect·서버 응답·형식 오류도 고정 안내이며 원문·PAT를 포함하지 않습니다. 설정 창 연결 확인 버튼과 CLI `community.jira.connection` 공용 읽기 작업은 동일한 `{ok,message}`를 사용합니다(입력 `{}`). 이 확인은 이슈별 열람 권한을 보증하지 않습니다.
 
 ## 이슈 페이지 링크
 
@@ -42,3 +46,5 @@ Plugins의 `Open view · Jira`로 화면을 엽니다. 열린 폴더 없이 조�
 `--screenshots`는 수동 검토용 1440px light와 한국어 dark 640px 캡처를 `tmp/jira-1328/`에 남깁니다. ViewWorkspace·InputForm·TextInput·SubmitButton·Table을 재사용하며 공통 UI 예외는 없습니다. 새 표면·CSS·공통 화면 변경은 없습니다.
 
 수동 화면 근거: [1440px Light](../../docs/design/assets/jira-1328/issues-1440.png), [640px 한국어 Dark](../../docs/design/assets/jira-1328/issues-640.png). 표를 볼 수 있도록 화면 안에서 스크롤한 위치이며 Host·폴더의 로컬 식별자는 마스킹했습니다.
+
+연결 확인 화면 근거: [1440px Light](../../docs/design/assets/jira-1328/connection-1440.png), [640px 한국어 Dark](../../docs/design/assets/jira-1328/connection-640.png). 공통 설정 Dialog와 연결 확인 상태를 그대로 사용합니다.

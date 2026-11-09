@@ -17,6 +17,29 @@ export function activate(context) {
   const requests = new Set();
   return {
     operations: {
+      async connection() {
+        const result = (ok, message) => ({ ok, message });
+        let api;
+        try {
+          const base = httpUrl(String(context.settings.baseUrl ?? ""));
+          api = context.settings.apiUrl ? httpUrl(String(context.settings.apiUrl)) : base + "/rest/api/2";
+        } catch { return result(false, "BASE_URL과 API URL의 HTTP(S) 주소를 확인하세요."); }
+        const pat = context.secrets?.pat;
+        if (!pat) return result(false, "인증에 실패했습니다. PAT를 확인하세요. (401)");
+        const controller = new AbortController();
+        requests.add(controller);
+        const timer = setTimeout(() => controller.abort(), 5000);
+        try {
+          const response = await fetch(api + "/myself", { headers: { Authorization: `Bearer ${pat}`, Accept: "application/json" }, signal: controller.signal, redirect: "error" });
+          if (!response.ok) {
+            await response.body?.cancel();
+            return result(false, response.status === 401 ? "인증에 실패했습니다. PAT를 확인하세요. (401)" : response.status === 403 ? "접근 권한이 없습니다. 관리자에게 문의하세요. (403)" : "Jira 서버 응답을 확인하세요.");
+          }
+          const user = await response.json();
+          return typeof user?.name === "string" && user.name ? result(true, "Jira 연결과 PAT 인증을 확인했습니다.") : result(false, "Jira 사용자 응답 형식을 확인하세요.");
+        } catch { return result(false, controller.signal.aborted ? "연결 확인 시간이 초과됐습니다. 서버 연결을 확인하세요." : "Jira에 연결할 수 없습니다. 주소와 네트워크를 확인하세요."); }
+        finally { clearTimeout(timer); requests.delete(controller); }
+      },
       async issues(input) {
         if (typeof input?.keys !== "string" || input.keys.length > 512 || !/^\s*[A-Z][A-Z0-9_]*-[1-9][0-9]*(?:\s*,\s*[A-Z][A-Z0-9_]*-[1-9][0-9]*){0,19}\s*$/.test(input.keys)) throw new PluginOperationError("failed");
         const base = httpUrl(String(context.settings.baseUrl ?? ""));
