@@ -9,9 +9,12 @@ import { z } from "zod";
 import semver from "semver";
 export const SDK_VERSION = "0.3.0";
 // Actual SDK contracts still implemented by this Host, not hypothetical versions
-// between releases. Additive releases retain earlier contracts; breaking releases
-// remove contracts they no longer implement.
+// between releases. Features before the next public release share one minor.
+// The current Host retains earlier contracts.
 const supportedSdkVersions = ["0.1.0", "0.2.0", SDK_VERSION];
+export const healthCheckResultSchema = z.strictObject({ ok: z.boolean(), message: z.string().min(1).max(300) });
+export type HealthCheckResult = z.infer<typeof healthCheckResultSchema>;
+export const HEALTH_CHECK_OUTPUT_SCHEMA = { type: "object", properties: { ok: { type: "boolean" }, message: { type: "string", minLength: 1, maxLength: 300 } }, required: ["ok", "message"], additionalProperties: false } as const;
 const id = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
 const schema = z.record(z.string(), z.unknown());
 const operation = z.strictObject({ id, version: z.number().int().positive(), effect: z.enum(["read", "write"]), assistant: z.boolean().default(false), scope: z.enum(["host", "folder"]), inputSchema: schema, outputSchema: schema, rowSchema: rowSchema.optional() });
@@ -29,7 +32,7 @@ export const manifestSchema = z.strictObject({
   schemaVersion: z.literal(1), id, tier: z.enum(["official", "community"]),
   publisher: z.strictObject({ id, name: z.string().min(1) }), name: z.string().min(1), description: z.string().default(""),
   version: z.string().refine(v => !!semver.valid(v), "Invalid SemVer"), requiresSdk: z.string().refine(v => !!semver.validRange(v), "Invalid SDK range"), entry: z.string().min(1),
-  contributes: z.strictObject({ operations: z.array(operation).default([]), jobs: z.array(jobContributionSchema).default([]), folderSources: z.array(id).default([]), folderDecorations: z.array(id).default([]), accounts: z.array(id).default([]),
+  contributes: z.strictObject({ healthCheck: id.optional(), operations: z.array(operation).default([]), jobs: z.array(jobContributionSchema).default([]), folderSources: z.array(id).default([]), folderDecorations: z.array(id).default([]), accounts: z.array(id).default([]),
     dataViews: z.array(z.strictObject({ id, operation: id, version: z.number().int().positive() })).default([]),
     generatedUi: z.array(z.strictObject({ id, catalog: z.string(), schemaVersion: z.number().int().positive() })).default([]),
     views: z.array(z.strictObject({ id, title: z.string().min(1), definition: queryViewSchema })).default([]),
@@ -46,6 +49,7 @@ export function validateManifest(input: unknown): PluginManifest {
   if (!supportedSdkVersions.some(version => semver.satisfies(version, m.requiresSdk))) throw new Error("Unsupported SDK range");
   if (/^(?:[a-z]+:|[/\\])/i.test(m.entry) || m.entry.split(/[/\\]/).includes("..")) throw new Error("Entry must stay inside package");
   for (const list of Object.values(m.contributes)) {
+    if (!Array.isArray(list)) continue;
     const ids = list.map(item => typeof item === "string" ? item : "id" in item ? item.id : JSON.stringify(item));
     if (new Set(ids).size !== ids.length) throw new Error("Duplicate contribution ID");
   }
@@ -57,6 +61,11 @@ export function validateManifest(input: unknown): PluginManifest {
     for (const binding of [job.start, job.status, job.stop]) if (!m.contributes.operations.some(op => op.id === binding)) throw new Error("Undeclared job operation");
     if (new Set([job.start, job.status, job.stop]).size !== 3) throw new Error("Job bindings must be distinct");
     if (m.contributes.operations.find(op => op.id === job.start)?.effect !== "write") throw new Error("Job start must be a write operation");
+  }
+  if (m.contributes.healthCheck) {
+    if (!supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Health checks require SDK 0.3.0 or later in requiresSdk");
+    const check = m.contributes.operations.find(op => op.id === m.contributes.healthCheck);
+    if (!check || check.effect !== "read" || check.scope !== "host" || !compileSchema(check.inputSchema)({}) || check.rowSchema || m.contributes.jobs.some(job => [job.start, job.status, job.stop].includes(check.id)) || m.contributes.reviews.some(review => review.read.operation === `${m.id}.${check.id}`)) throw new Error("Health check must bind a standalone host read operation accepting empty input");
   }
   const linkSchemas = [
     ...m.contributes.operations.flatMap(op => op.rowSchema ? [op.rowSchema] : []),

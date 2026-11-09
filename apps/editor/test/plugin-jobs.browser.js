@@ -5,6 +5,8 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   const plugin = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.jobs");
   pluginFixture.cli(["plugins", "trust", plugin.id, "--digest", plugin.digest]);
   pluginFixture.cli(["plugins", "enable", plugin.id]);
+  // CLI setup happens outside the app; reload to discover the contributed sidebar screen.
+  await page.reload();
   const other = pluginFixture.cli(["plugins", "start", plugin.id, "--input", pluginFixture.otherJobInput]);
   await expect.poll(() => pluginFixture.cli(["plugins", "status", other.job.requestId]).job.state).toBe("completed");
   await openFolderPicker(page);
@@ -143,9 +145,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     await expect(pane.getByRole("status", { name: "Job status" })).toHaveText(state);
     await expect(pane.getByRole("button", { name: "Open result document" })).toHaveCount(0);
   }
-  await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Plugins", exact: true }).click();
-  await page.getByRole("button", { name: "Open view · Job fixture", exact: true }).click();
+  await page.locator(".sidebar").getByRole("button", { name: "Job fixture", exact: true }).click();
   const panel = page.getByTestId("plugin-job-panel").filter({ visible: true });
   await panel.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
   await panel.getByRole("checkbox", { name: "batch-a.txt", exact: true }).check();

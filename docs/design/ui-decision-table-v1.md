@@ -4,6 +4,7 @@
 
 | 상황 | 표면 | 사용할 구현 | 동작 | 대표 사용처 | 예외 |
 | --- | --- | --- | --- | --- | --- |
+| 플러그인 설정에 진입한다 (#1334) | Plugins 목록 행 오른쪽 끝 | ghost icon Button + Tooltip(설정/Settings), 그 뒤 settings-switch | 이름을 포함한 aria-label; 설정이 없어도 정보 열기; 화면 이동은 사이드바 | PluginSettings | 없음 |
 | 문서 스크롤 위치를 표시·조작한다 (#1183/#1182) | 기존 문서 viewport의 trailing inset | DocumentScroll + 설치된 Base UI 1.8.0 ScrollArea, 기존 border-strong/text-muted 토큰 | 네이티브 scrollTop·키보드·선택·ProseMirror 유지, overflow일 때 항상 표시 | Native/Source/일반 Markdown 읽기/시작 화면 | 문서 영역 한정. 다른 스크롤 표면은 유지하며 Monaco 엔진·휠 모델을 이식하지 않는다. [geometry·승인된 시각과 합성 식별 표시 캡처](editor-layout-rules-v1.md#alignment-and-ownership). |
 | 원본과 Read를 대조하고 변경 제안을 검토한다 | 별도 review 작업 탭 (V3/V4 연결 대기) | [ReviewRenderer](../../apps/editor/src/review/ReviewRenderer.tsx), Button·Notice·Lucide·DocumentEditor readOnly preview | [공용 대조·승인 패턴](ui-patterns-v1.md#공용-원본-대조와-변경-제안-catalog-v5-1241-a안) | K2/K3/K4 fixture | bbox·강조 overlay와 1024px 최소 대조 폭은 원본 좌표·읽기 대응에 필요하다. |
 | 플러그인 화면에서 여러 파일 작업을 시작한다 (#1340) | 기존 플러그인 화면, 조회 뷰 위 | PluginJobPanel + 기존 SettingsSelect/Button/체크박스, K1 상태·행동·파일 탐색, view-table-scroll | 파일별 독립 시작·플러그인 작업만 최신순·활성 화면의 진행 작업 polling | [화면 K1 패널](plugin-stage1-v1.md#플러그인-화면-작업-패널-1340) | 공통 상호작용 예외 없음. 작업만 있는 화면 허용; 비서 생성·즐겨찾기 의존 없음. |
