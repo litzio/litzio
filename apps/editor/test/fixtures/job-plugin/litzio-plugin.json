@@ -10,6 +10,7 @@
   "version": "0.1.0",
   "requiresSdk": "^0.3.0",
   "entry": "host.js",
+  "icon": "icon.svg",
   "contributes": {
     "jobs": [
       {

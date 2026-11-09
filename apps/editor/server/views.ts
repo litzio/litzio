@@ -3,20 +3,21 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { getEditableDocument, hasNativeMarker, parse } from "@litzio/core";
-import { validateQueryBindings, builtinViewOperations, type ViewOperation, type StatisticsRow } from "@litzio/core/views";
-import { ViewInputError, evaluateQueryView, serializeCatalogView, validateCatalogView, validateViewInputs, createCatalogV2, catalogViewSchema, VIEW_LIMITS, catalogViewByteLimit, isOperationQueryView, type QueryView, type ViewProvenance } from "@litzio/core/views-v2";
+import { builtinViewOperations } from "@litzio/core/views";
+import { ViewInputError, evaluateQueryView, serializeCatalogView, validateCatalogView, validateViewInputs, createCatalogV2, catalogViewSchema, isOperationQueryView, type QueryView, type ViewProvenance } from "@litzio/core/views-v2";
 import { isDeepStrictEqual } from "node:util";
 import { VIEW_TRANSPORT_LIMITS } from "../shared/view-limits.ts";
 import { publicOperationError } from "./plugins/operation-result.ts";
-import { createFile, decodeUtf8, textRevision } from "@litzio/file-commit";
-import { accessPath, inside, RootAccess, type FileAccess } from "./file-access.ts";
-import { hostPaths } from "./host-paths.ts";
+import { createFile, textRevision } from "@litzio/file-commit";
+import { accessPath, RootAccess, type FileAccess } from "./file-access.ts";
 import { validFileStem } from "../shared/file-operations.ts";
 
-// An app-owned built-in source; this is not a plugin SDK folder-scope extension.
-export const STATISTICS_PLUGIN_ID = "litzio.statistics";
-export const STATISTICS_LIMITS = { files: 1000, fileBytes: 1048576, entries: 5000, depth: 16, favourites: 200 };
+import { STATISTICS_PLUGIN_ID, STATISTICS_LIMITS } from "./view-statistics.ts";
+export { STATISTICS_PLUGIN_ID, STATISTICS_LIMITS, folderStatistics } from "./view-statistics.ts";
+import { query, ViewRefusal } from "./view-validation.ts";
+import { favouritesDirectory, openFavourite } from "./view-favorites.ts";
+import { runViewQuery } from "./view-query.ts";
+
 const name = z.string().min(1).max(100).refine(v => validFileStem(v) && v === v.trim() && v === v.normalize("NFC"), "Invalid favourite name");
 const owner = z.string().regex(/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/);
 const args = z.record(z.string(), z.unknown()).optional();
@@ -30,83 +31,6 @@ export const viewRequestSchema = z.union([
   z.strictObject({ action: z.literal("run"), root: z.string().min(1).optional(), view: z.unknown(), input: args }),
   z.strictObject({ action: z.literal("run"), root: z.string().min(1).optional(), plugin: owner, name, input: args }),
 ]);
-
-class ViewRefusal extends Error {
-  constructor(readonly code: "unavailable" | "owner-mismatch") { super(code); }
-}
-function query(value: unknown, operations: readonly ViewOperation[], input?: Record<string, unknown>): QueryView {
-  // Replace the entire args object before validation, including when saved args are incomplete.
-  if (input !== undefined) {
-    const envelope = value as QueryView;
-    if (envelope?.sources?.stats?.kind === "assistant") throw new Error("Assistant data does not accept input");
-    value = { ...envelope, sources: { ...envelope?.sources, stats: { ...envelope?.sources?.stats, args: input } } };
-  }
-  const parsed = catalogViewSchema.parse(value);
-  if (parsed.profile === "query" && parsed.refresh === "manual") {
-    const operation = operations.find(op => op.operation === parsed.sources.stats.operation && op.version === parsed.sources.stats.version);
-    if (!operation) throw new ViewRefusal("unavailable");
-    // Core owns binding semantics. A removed/private or incompatible output field
-    // makes the source unavailable to this definition, including saved favorites.
-    try { validateQueryBindings(parsed, [{ ...operation, validateArgs: () => true }]); }
-    catch { throw new ViewRefusal("unavailable"); }
-  }
-  const view = validateCatalogView(parsed, operations);
-  if (view.profile !== "query") throw new Error("Query profile required");
-  return view;
-}
-
-function favouritesDirectory(plugin: string, directory?: string): string {
-  return path.join(directory ?? path.join(path.dirname(hostPaths().settingsFile("plugins")), "plugins"), plugin, "views");
-}
-function openFavourite(directory: string, name: string, operations: readonly ViewOperation[], input?: Record<string, unknown>) {
-  const boundary = new RootAccess([directory]);
-  const file = accessPath(path.join(directory, `${name}.view.json`), boundary);
-  if (!inside(fs.realpathSync(directory), fs.realpathSync(file)) || fs.lstatSync(file).isSymbolicLink()) throw new Error("Favourite must be a local regular file");
-  if (fs.statSync(file).size > VIEW_LIMITS.assistantBytes) throw new Error("View exceeds byte limit");
-  const text = decodeUtf8(fs.readFileSync(file));
-  if (Buffer.byteLength(text) > VIEW_LIMITS.assistantBytes) throw new Error("View exceeds byte limit");
-  const view = query(JSON.parse(text), operations, input);
-  if (Buffer.byteLength(text) > catalogViewByteLimit(view)) throw new Error("View exceeds byte limit");
-  return view;
-}
-
-export function folderStatistics(root: string, folder: string | undefined, access: FileAccess): StatisticsRow[] {
-  root = fs.realpathSync(accessPath(root, access));
-  const boundary = new RootAccess([root]);
-  const selected = accessPath(path.resolve(root, folder ?? "."), boundary);
-  let files = 0, entries = 0;
-  const rows: StatisticsRow[] = [];
-  function walk(directory: string, depth: number): void {
-    if (depth > STATISTICS_LIMITS.depth) throw new Error("Statistics depth limit exceeded");
-    const row: StatisticsRow = { folder: path.relative(root, directory).split(path.sep).join("/") || ".", documents: 0, headings: 0, modified: null };
-    const children: string[] = [];
-    // Every directory gets a row, including empty folders; only native .md documents count.
-    for (const entry of fs.readdirSync(accessPath(directory, boundary), { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
-      if (++entries > STATISTICS_LIMITS.entries) throw new Error("Statistics entry limit exceeded");
-      if (entry.name.startsWith(".") || entry.isSymbolicLink()) continue;
-      const file = accessPath(path.join(directory, entry.name), boundary);
-      if (entry.isDirectory()) { children.push(file); continue; }
-      if (!entry.isFile() || path.extname(file).toLowerCase() !== ".md") continue;
-      if (++files > STATISTICS_LIMITS.files) throw new Error("Statistics file count limit exceeded");
-      const info = fs.statSync(file);
-      if (info.size > STATISTICS_LIMITS.fileBytes) throw new Error("Statistics document size limit exceeded");
-      const bytes = fs.readFileSync(accessPath(file, boundary));
-      if (bytes.length > STATISTICS_LIMITS.fileBytes) throw new Error("Statistics document size limit exceeded");
-      const source = decodeUtf8(bytes);
-      if (!hasNativeMarker(source)) continue;
-      const document = getEditableDocument(parse(source));
-      row.documents++;
-      row.headings += document.blocks.filter(block => block.block === "heading").length;
-      const modified = info.mtime.toISOString();
-      if (row.modified === null || modified > row.modified) row.modified = modified;
-    }
-    rows.push(row);
-    if (rows.length > VIEW_LIMITS.rows) throw new Error("Statistics row limit exceeded");
-    for (const child of children) walk(child, depth + 1);
-  }
-  walk(selected, 0);
-  return rows;
-}
 
 /** One target Host, no fallback, no automatic query on opening a definition. */
 export type ViewProposalScope = { owner: string; provenance: readonly ViewProvenance[] };
@@ -180,24 +104,9 @@ async function execute(value: unknown, scope: ViewExecutionScope) {
           ...evaluateQueryView(view, undefined, operations), provenance: source.provenance, generatedAt: source.generatedAt,
           ...(source.method === undefined ? {} : { method: source.method }), provenanceStatus: "unverified" as const, receipt: success };
       }
-      const operation = operations.find(op => op.operation === view.sources.stats.operation && op.version === view.sources.stats.version)!;
-      validateViewInputs(view, operation, "execute");
-      const source = view.sources.stats;
-      let data: unknown;
-      let root: string | undefined;
-      if (source.operation === "folder.statistics") {
-        receipt.scope = "folder";
-        if (!input.root) throw new Error("Connected query requires Root");
-        root = fs.realpathSync(accessPath(input.root, scope.access));
-        data = folderStatistics(root, source.args.folder as string | undefined, scope.access);
-      }
-      else {
-        const reply = await scope.plugins!.invokeOperation(source.operation, source.args);
-        if ("error" in reply) return { error: reply.error, errorKind: reply.errorKind, sourceReceipt: reply.receipt, receipt };
-        data = reply.result;
-      }
-      const fields = Object.fromEntries(Object.entries(operations.find(op => op.operation === source.operation)!.rowSchema).filter(([, f]) => !f.secret).map(([name, f]) => [name, f.label]));
-      return { args: source.args, fields, ...evaluateQueryView(view, data, operations), ...(root ? { target: { root } } : {}), receipt: { ...receipt, outcome: "success" as const } };
+      const result = await runViewQuery(view, input, scope, operations, receipt);
+      if ("error" in result) return { error: result.error, errorKind: result.errorKind, sourceReceipt: result.sourceReceipt, receipt: result.receipt };
+      return { ...result };
     }
     // App data is deliberately separate from document Roots, and callers cannot pick a path.
     const savedView = input.action === "save" ? query(input.view, operations, input.input) : undefined;
