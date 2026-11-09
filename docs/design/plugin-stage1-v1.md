@@ -278,22 +278,41 @@ Core `authorDocument(input)`을 공개 `@litzio/plugin-sdk`에서 제공한다. 
 | paragraph | text | literal 본문 |
 | heading | level(1–6), text | 제목 |
 | list | ordered, start?, items(string[]) | 중첩 없는 bullet/번호 목록, 최대 100항목 |
-| table | rows(string[][]) | 첫 행 header, 직사각형 표 |
-| figure | imageUrl, imageAlt, caption | 기존 Core Figure, 빈 URL은 pending |
+| table | rows(string[][]), enumerator? | 첫 행 header, 직사각형 표 |
+| figure | imageUrl 또는 imageAsset, imageAlt, caption, enumerator? | 기존 Core Figure, 빈 URL은 pending |
 | code | language, code | 코드 블록 |
-| equation | latex | display 수식 |
+| equation | latex, enumerator? | display 수식 |
 | divider | 없음 | 구분선 |
 
-모든 텍스트는 기존 Core literal text 연산을 통과한다. Markdown 문자열을 의미로 파싱하지 않는다. 기존 연산의 공백·개행 정규화와 native write 거부 규칙을 그대로 따른다. rich inline, 중첩 목록, 임의 HTML/AST/원본 Markdown, 외부 형식 변환과 이미지 복사·생성은 이 최소 API의 입력이 아니다. title도 기존 Core 단일 행 title 제약을 따른다. 지원하지 않는 의미를 자동으로 평탄화하거나 일부만 성공으로 반환하지 않는다.
+모든 텍스트는 기존 Core literal text 연산을 통과한다. Markdown 문자열을 의미로 파싱하지 않는다. 기존 연산의 공백·개행 정규화와 native write 거부 규칙을 그대로 따른다. rich inline, 중첩 목록, 임의 HTML/AST/원본 Markdown, 외부 형식 변환은 이 API의 입력이 아니다. imageAsset은 함께 넘긴 이미지의 key이며 `authorDocument(input, imageAssets)`의 두 번째 인자 `{[key]: relativePath}`로 해석한다. imageUrl과 imageAsset은 정확히 하나만 지정한다. 경로가 없는 asset은 거부한다. Core는 바이트 검사·파일 IO를 하지 않는다. Figure·Table·Equation의 선택적 enumerator는 기존 updateEnumerator와 직렬화·번호 계산을 사용한다. 번호를 캡션에서 추측하거나 제거하지 않는다. title도 기존 Core 단일 행 title 제약을 따른다. 지원하지 않는 의미를 자동으로 평탄화하거나 일부만 성공으로 반환하지 않는다.
 
-`DOCUMENT_AUTHORING_LIMITS`는 입력 JSON과 출력 canonical source 각각 UTF-8 262144 bytes, 입력 200개, 전체 블록 500개, 문자열 16384 UTF-16 code units, 표 100행×32열이다. unknown 필드·중복 key·잘못된 요소/Unicode·schema 상한 위반은 `DocumentAuthoringError.code="invalid-input"`, byte 상한 초과는 `limit`, Core의 의미·round-trip 거부는 `unsupported-content`로 Promise가 reject된다. 오류에는 입력 원문을 포함하지 않으며 부분 결과를 반환하지 않는다. `documentAuthoringSchema`는 구조 검증용이고 byte·Core 검증은 함수 실행에서 추가한다.
+`DOCUMENT_AUTHORING_LIMITS`는 입력 JSON과 출력 canonical source 각각 UTF-8 4 MiB (4,194,304 bytes), 입력 5,000개, 전체 블록 5,000개, 문자열 16384 UTF-16 code units, 표 100행×32열이다. unknown 필드·중복 key·잘못된 요소/Unicode·schema 상한 위반은 `DocumentAuthoringError.code="invalid-input"`, byte 상한 초과는 `limit`, Core의 의미·round-trip 거부는 `unsupported-content`로 Promise가 reject된다. 오류에는 입력 원문을 포함하지 않으며 부분 결과를 반환하지 않는다. `documentAuthoringSchema`는 구조 검증용이고 byte·Core 검증은 함수 실행에서 추가한다.
 
 반환 source는 canonical serialize→parse→serialize가 안정적인 native 문서다. 각 target은 `{path,documentRevision,documentHash}`이며 최종 재파싱 snapshot의 Core read-model 최상위 블록을 가리킨다. revision과 hash는 동일한 canonical source UTF-8 SHA-256(hex)으로 Host `textRevision`과 같다. 해시는 순수 JS 라이브러리로 계산하며 Node 전용 API나 secure context의 `crypto.subtle`에 의존하지 않는다. key는 원본 입력의 식별자이고 path는 persistent identity가 아니다. 저장 뒤 같은 source/revision에서만 참조가 유효하며 편집 후 새 revision에 자동 재연결하지 않는다. 참조 없는 입력도 `{key,targets:[]}`로 반환한다. 원본 영역·mapping 자료는 플러그인이 이 target을 사용해 별도로 구성하고 #1317의 전역 유일 영역 ID·bundle 범위 검증을 따른다.
 
-저장은 기존 K1 status 완료의 `document:{source: authored.source}`를 사용한다. 공용 `plugins job-start/job-status/job-result` HTTP/CLI·requestId·Root·충돌·receipt 경로를 유지하며 새 저장 endpoint나 직접 파일 쓰기를 만들지 않는다. start는 계속 running 접수만 반환한다. 문서 저장 이후 review 발행은 별개 단계이고 기존 uncertain·같은 requestId 확인·start 무재전송 계약을 유지한다.
+기존 K1 status 완료의 `document:{source: authored.source}`는 유지한다. 이미지가 있는 결과는 `document:{authoring: DocumentAuthoringInput, images:[{key,mime,base64}]}`로 반환한다. Host가 이미지 경로를 바인딩한 뒤 같은 Core 함수를 호출하고 공식 새 파일 생성으로 저장한다. 이 분기의 최종 문서 revision은 K1 저장 receipt를 따른다. 플러그인의 원본→블록 해석은 바뀌지 않으며 Core/Host가 특정 외부 형식을 알지 않는다. 공용 `plugins job-start/job-status/job-result` HTTP/CLI·requestId·Root·충돌·receipt 경로를 유지하며 새 저장 endpoint나 직접 파일 쓰기를 만들지 않는다. start는 계속 running 접수만 반환한다. 문서 저장 이후 review 발행은 별개 단계이고 기존 uncertain·같은 requestId 확인·start 무재전송 계약을 유지한다.
 
 검증은 기존 Core native suite에서 최소 요소·입력 키별 0/N 참조·canonical 재처리와 거부를 확인한다. 기존 K1 suite의 대표 외부 artifact subprocess(약 2초)는 SDK import만 사용해 생성→Host 공식 저장→재파싱·revision/path 대조와 원본 보존을 확인한다. Core 조합을 subprocess에서 반복하지 않는다. master의 #1318과 #1317 최종 결합은 기존 `reviews.test.ts`의 읽기 전용 K1 완료 경로에서 공개 SDK 생성→공식 저장→입력 key별 target으로 대조 발행→Host·실제 CLI snapshot 재조회와 revision/path 일치를 확인한다. 같은 SDK 생성 문서를 외부 변경한 뒤 원래 byte로 복원해도 stale을 유지하는 통합 경계를 함께 보호한다. 새 subprocess를 추가하지 않고 기존 완료·CLI 읽기를 보완하며 삭제·일시적 오류 분류는 Host 단위 검사가 소유한다. Docling 품질·대규모 paging·과거 형식 호환은 검증 범위가 아니다.
 
+
+## 공용 문서 이미지·긴 문서 확장 (#1371)
+
+미릴리스 SDK `0.3.0`에 포함한다(마지막 공개 제품 v0.0.2-beta.8의 SDK는 0.1.0). Word/HTML 가져오기, CLI 및 비서의 구조화 문서 작성이 같은 의미·저장 작업을 사용할 수 있다. 기존 K1 start/running·status/completed·Root·원본 보존·새 파일 충돌 거부 계약은 유지한다. 원문 source 완료도 UTF-8 4 MiB로 제한한다.
+
+- `images`는 key가 유일한 최대 256개다. Figure의 imageAsset 참조와 정확히 일치해야 한다. MIME은 PNG/JPEG/GIF/WebP이며 정규 base64, 디코딩 후 이미지당 10 MiB와 기존 complete-container 검증을 사용한다. SVG는 이 저장 경로로 받지 않는다.
+- 전체 완료 document JSON은 `JOB_DOCUMENT_MAX_BYTES` 32 MiB다. child가 IPC 전 검사하고 Host가 다시 검사한다. 문서 authoring JSON과 canonical source는 별도로 각각 4 MiB다. K1 HTTP 요청은 기존 작은 요청이며 응답에는 문서 바이트가 아닌 작업 snapshot/저장 receipt만 싣는다. 기존 10초 RPC는 접수·관찰 한 번의 예산이고 문서 작성은 계속 start에서 접수한 background 작업에서 해야 한다.
+- Host는 문서 폴더의 실제 `assets/`에 기존 이미지 검증·exclusive hard-link 게시·충돌 처리·미게시 임시 파일 정리를 재사용한다. 이름은 정리된 문서 stem(최대 8 Unicode code points), 전체 문서 파일명 SHA-256, 이미지 SHA-256·MIME 확장자다. 같은 이름 앞부분을 가진 서로 다른 문서는 파일명이 겹치지 않으며, 같은 문서·동일 bytes의 재생성은 같은 경로를 재사용한다. 다른 내용과 충돌하면 기존 suffix 규칙을 쓰고, 같은 bytes가 있으면 그 경로를 재사용한다. 문서에는 `./assets/...`를 쓴다. 같은 문서 이름으로 다시 만들 때 이미지가 늘지 않는다. K1 기본 결과는 앞 절의 입력 옆 이름·충돌 시 `-N` 규칙을 따른다. 명시적 output이 이미 있으면 접수 전에 `result_exists`로 거부하며 기존 문서와 이미지를 보존한다. 같은 명시적 경로로 재생성하려면 결과 문서를 삭제한 뒤 새 요청을 한다. 접수 후 외부 writer가 결과 파일을 만든 경합은 exclusive 게시가 거부하고 uncertain으로 남기며, 기존 문서와 이미 게시·재사용한 이미지는 보존한다.
+- 완전히 게시한 작성 이미지는 다른 CLI/Host process가 즉시 재사용할 수 있는 폴더 파일이며 실패 요청의 독점 소유가 아니다. 문서 생성·게시 검증에 실패해도 게시 이미지를 삭제하지 않고 rollback receipt도 발급하지 않는다. 따라서 실패 뒤 미참조 이미지가 assets/에 남을 수 있다. 미게시 임시 파일만 소유권 검사 후 정리하며 자동 고아 이미지 삭제·process 간 lock·작업 복원은 추가하지 않는다. 편집기 붙여넣기/드롭의 기존 서명 receipt와 rollback 삭제는 그대로다.
+
+CLI는 기존 `plugins start/status/result --host <origin> --json`으로 같은 K1 경로를 사용한다. 플러그인 없는 작성은 `litzio create report.md --input request.json --format json`으로 같은 Host 생성 함수를 호출한다. request.json은 `{authoring,images}`이며 바이트가 담긴 입력 파일은 artifact 밖에 둔다. template/language와 input은 함께 지정할 수 없다. 결과 receipt의 inputs는 최종 경로·revision에 맞는 Core targets다. 문서 의미와 Markdown 조립은 CLI에 없다.
+
+### 상한 근거와 검증 범위
+
+2026-11-09 로컬 IEEE 1547-2018의 138쪽 추출 자료를 읽기 전용으로 측정했다. texts 2,937·tables 71·pictures 29·groups 73, 총 3,110항목이며 텍스트 UTF-8 336,522 bytes다. 최대 텍스트 4,236 UTF-16 units, 표 44행·9열이므로 문자열 16,384와 표 100행·32열은 올리지 않았다. 입력/블록 5,000과 JSON/source 4 MiB는 이 자료의 항목 수와 JSON overhead를 수용하는 유한 상한이다. 10,000개 단순 문단 경계 시험은 약 24초라 채택하지 않았다.
+
+Core가 개별 문단으로 보존할 수 있는 2,934개 텍스트의 용량 probe는 입력 JSON 502,654 bytes·canonical source 342,568 bytes로 성공했다. 개별 사전 검증·작성·재파싱 전체 약 21초였으며 다른 로컬 검사와 동시 실행한 값이다. 이는 실제 자료의 용량 근거이며 전체 변환·성능 보증이 아니다. 나머지 3개 텍스트는 기존 literal round-trip 제약으로 거부됐고 원본 변환기는 표 56의 겹친 셀을 거부했다. 원본/변환기나 거부 기준을 고치지 않았으며 원문·대용량 재생성 자료는 커밋하지 않는다.
+
+기존 Core native suite는 번호·이미지 바인딩·정확한 입력/블록·문자열·표·byte 경계를 소유한다. 기존 K1 외부 artifact subprocess를 보완해 실제 SDK→이미지 저장/재사용→문서 실패 시 게시 이미지 보존·잘못된 이미지 거부를 확인한다. 별도 module instance 두 개가 독립 CLI/Host의 process-local 상태를 모델링하는 낮은 계층 검사는 같은 24자 접두어의 다른 문서와 같은 문서 경로 양쪽에서 실패/성공 조합을 고정한다. 수정 전 성공 문서의 이미지 ENOENT를 재현했고, 수정 후 보존을 확인한다. 실제 subprocess·긴 문서 지연 없이 공유 filesystem의 재사용·삭제 경계를 보호한다. CLI executable 대표 사례는 JSON 입력·같은 공용 경로의 실제 파일·충돌 보존을 검증한다. 기존 plugin-jobs 브라우저는 결과 Figure의 실제 image load와 고정 번호를 확인하고 production http-host는 Save/Reload·충돌을 확인한다. UI 구현은 바뀌지 않으며 새 subprocess fixture·suite·timeout·retry는 추가하지 않는다. 실제 가져오기 서비스·원본 충실도는 별도 수락이다.
 
 ## screens·views의 내용 우선 표시 (#1329)
 
@@ -321,7 +340,7 @@ SDK의 미릴리스 `0.3.0`에 `screens[].jobs`를 함께 제공한다. SDK 기�
 
 jobs는 같은 플러그인의 K1 ID만 참조하며 중복·미선언 ID를 거부한다. 작업만 있는 화면도 허용한다. 실행 자체가 독립된 화면 목적이므로 불필요한 조회 뷰를 강제하지 않는다. jobs/defaultViewIds 중 하나는 비어 있지 않아야 한다. 앱의 공통 작업 패널을 기존 조회 뷰 위에 세로로 배치한다. 비서 생성·즐겨찾기 없이 플러그인, Host, 열린 폴더만으로 동작한다.
 
-Host `plugins.job-start-many` v1 입력은 `{action:"job-start-many",plugin,job,root,files}`다. files는 중복 없는 Root 상대 경로 1–50개다. 선택적 requestIds는 파일과 같은 순서·수의 고유 UUID이며 전송 전 생성하면 응답 유실 때도 같은 ID를 조회할 수 있다. 결과는 `{files:[{file,requestId,job}|{file,error}],receipt}`다. 파일마다 기존 K1 요청을 독립 실행하며 접수 실패가 다른 파일을 막지 않는다. 접수한 snapshot 중 uncertain이 있으면 receipt uncertain, 그 외 하나라도 거부하면 failure, 모두 접수하면 success다. 파일별 running/uncertain은 각 snapshot으로 확인하며 start를 자동 재전송하지 않는다. 큐·스케줄러·재시작 복원은 없다. 이미 존재하거나 running/uncertain 작업이 사용 중인 결과 경로는 해당 파일만 거부한다. 기본 결과는 `defaultJobOutput`: file은 입력 확장자를 결과 확장자로 교체하고 상대 부모를 보존, native-document는 기존 `result.md`다. 후자는 같은 Root에서 여러 입력의 기본 결과 경로가 충돌할 수 있다. 기존 단일 시작·명시적 output 계약은 유지한다.
+Host `plugins.job-start-many` v1 입력은 `{action:"job-start-many",plugin,job,root,files}`다. files는 중복 없는 Root 상대 경로 1–50개다. 선택적 requestIds는 파일과 같은 순서·수의 고유 UUID이며 전송 전 생성하면 응답 유실 때도 같은 ID를 조회할 수 있다. 결과는 `{files:[{file,requestId,job}|{file,requestId,errorKind,error,startFailure}],receipt}`다. 파일마다 기존 K1 요청을 독립 실행하며 접수 실패가 다른 파일을 막지 않는다. 접수한 snapshot 중 uncertain이 있으면 receipt uncertain, 그 외 하나라도 거부하면 failure, 모두 접수하면 success다. 파일별 running/uncertain은 각 snapshot으로 확인하며 start를 자동 재전송하지 않는다. 큐·스케줄러·재시작 복원은 없다. 기본 결과는 `defaultJobOutput`으로 입력 확장자를 결과 확장자(file의 선언 확장자 또는 native-document의 `.md`)로 교체하고 상대 부모를 보존한다. 이미 존재하거나 running/uncertain 작업이 예약한 이름이면 앞 K1 절의 `-N` 규칙으로 새 이름을 예약한다. 실제 이름은 snapshot의 `output`으로 반환한다. 기존 단일 시작·명시적 output의 접수 전 충돌 거부 계약은 유지한다.
 
 CLI는 같은 Host 작업을 호출한다.
 

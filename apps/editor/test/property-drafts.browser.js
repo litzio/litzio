@@ -5,7 +5,7 @@ async (page, { openPath, expect }) => {
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   await ready();
   const origin = page.url().split('/').slice(0,3).join('/');
-  const initial = await (await page.request.get(`${origin}/api/document`)).json();
+  const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const file = [...initial.path.split(sep).slice(0,-4), 'tmp', 'property-drafts', 'drafts.md'].join(sep);
   await openPath(page, file);
@@ -219,7 +219,7 @@ async (page, { openPath, expect }) => {
       expect((await saved).ok()).toBe(true);
       expect((await attrs()).label).toBe(`${kind}-done`);
       expect(await page.getByTestId(field).inputValue()).toBe(`${kind}-keyboard-draft`);
-      const disk = await (await page.request.get(`${origin}/document/focus.md?path=${encodeURIComponent(focusFile)}`)).text();
+      const disk = await (await page.request.get(`${origin}/document/focus.md?path=${encodeURIComponent(focusFile)}`, { headers: { Connection: "close" } })).text();
       expect(disk).toContain(`${kind}-done`);
       if (type === 'equation') {
         expect(disk).toContain(':enumerator: E.8');

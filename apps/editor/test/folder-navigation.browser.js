@@ -8,7 +8,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   const ready = () => page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   await ready();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const sep = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(sep).slice(0, -4).join(sep);
   const folder = [root, 'tmp', 'folder-navigation'].join(sep);
@@ -299,7 +299,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   const handler = async route => {
     const requested = requestedFolder(route.request().url()).replace(/[\\/]+$/, '');
     if (requested !== delayedPath) return route.continue();
-    const response = await route.fetch();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     markStarted();
     await held;
     await route.fulfill({response});
@@ -493,7 +493,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   await open.click();
   await page.getByRole('dialog').waitFor({state:'detached'});
   await section.waitFor();
-  const hostItems = (await (await page.request.get(`${origin}/api/folder?root=${encodeURIComponent(folder)}`)).json()).entries.map(entry => entry.name);
+  const hostItems = (await (await page.request.get(`${origin}/api/folder?root=${encodeURIComponent(folder)}`, { headers: { Connection: "close" } })).json()).entries.map(entry => entry.name);
   assert(JSON.stringify(await items()) === JSON.stringify(hostItems), 'The sidebar keeps the Host listing order: ' + JSON.stringify(await items()));
   result.listsFolder = await current() === 'technical-document.md';
 
@@ -562,7 +562,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   const editorBeforeRefresh = await page.locator('[data-document-tab][data-active=true] .document-editor').evaluate(n => ({doc:n.editor.getJSON(), selection:n.editor.state.selection.toJSON()}));
   const preferencesBeforeRefresh = await page.evaluate(() => [localStorage.getItem(JSON.stringify(["local", "litzio.openFolders"])), localStorage.getItem(JSON.stringify(["local", "litzio.collapsedFolderSections"]))]);
   const refreshRoute = async route => {
-    const response = await route.fetch();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     const listing = await response.json();
     if (listing.path === folder || listing.path === guidesPath) {
       listing.entries = listing.entries.filter(entry => entry.name !== 'index.md');
@@ -682,7 +682,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   const heldPath = [folder, '자료'].join(sep);
   const holdListing = async route => {
     if (queryPath(route.request().url()) !== heldPath) return route.continue();
-    const response = await route.fetch();
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
     markListing();
     await heldListing;
     await route.fulfill({response});
@@ -808,7 +808,7 @@ async (page, { openFolderPicker, waitForActivePath, folderFixture, expect, scree
   result.childContextCreation = true;
 
   const existingPath = [folder, 'index.md'].join(sep);
-  const read = async path => (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(path)}`)).json();
+  const read = async path => (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(path)}`, { headers: { Connection: "close" } })).json();
   const beforeExisting = await read(existingPath);
   await item('New document…').click();
   await filename.fill('index.md');

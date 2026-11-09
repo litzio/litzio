@@ -8,11 +8,11 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
     await page.locator('[data-testid="status"][data-operation="saved"]').waitFor({ state: 'attached' });
   };
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const initial = await (await page.request.get(origin + '/api/document')).json();
+  const initial = await (await page.request.get(origin + '/api/document', { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const root = [...initial.path.split(sep).slice(0, -4), 'tmp', 'bibliography'].join(sep);
   const file = [root, 'chapters', 'paper.md'].join(sep);
-  const readDocument = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json()).source;
+  const readDocument = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json()).source;
   const originalSource = await readDocument(), originalBib = bibliographyFixture.read(), originalHash = bibliographyFixture.hash();
   const active = page.locator('[data-document-tab][data-active=true]');
   const editor = active.locator('.document-editor');
@@ -141,7 +141,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   const gate = new Promise(resolve => { release = resolve; });
   const requested = new Promise((resolve, reject) => { seen = resolve; failed = reject; });
   const delay = async route => {
-    try { const response = await route.fetch(); seen(); await gate; await route.fulfill({ response }); } catch (error) { failed(error); }
+    try { const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); seen(); await gate; await route.fulfill({ response }); } catch (error) { failed(error); }
   };
   await page.route('**/api/bibliography?**', delay);
   const reloading = reloadDocument(page);

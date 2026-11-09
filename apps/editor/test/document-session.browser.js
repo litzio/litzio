@@ -3,12 +3,12 @@
 async page => {
   page.setDefaultTimeout(15000);
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const separator = loaded.path.includes('\\') ? '\\' : '/';
   const root = loaded.path.split(separator).slice(0, -4).join(separator);
   const pathA = [root, 'tmp', 'source-view', 'technical-document.md'].join(separator);
   const pathB = [root, 'tmp', 'source-view', 'writable.md'].join(separator);
-  const fileB = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(pathB)}`)).json();
+  const fileB = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(pathB)}`, { headers: { Connection: "close" } })).json();
   await page.evaluate(async () => {
     const {mountDocumentSessionHarness} = await import('/test/helpers/document-session-harness.ts');
     window.sessionHarness = await mountDocumentSessionHarness();
@@ -200,7 +200,7 @@ async page => {
     await page.route('**/api/document', async route => {
       if (route.request().method() !== 'POST') return route.continue();
       request = route.request().postDataJSON();
-      const response = await route.fetch();
+      const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
       responseRevision = (await response.json()).revision;
       saveStarted();
       await saveGate;
@@ -231,7 +231,7 @@ async page => {
     if (!await page.evaluate(() => window.sessionHarness.current.save())) throw new Error('Newer restored edits failed Save');
     await page.evaluate(() => window.sessionHarness.current.showSource());
     const markdown = (await snapshot()).source;
-    const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(pathB)}`)).json();
+    const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(pathB)}`, { headers: { Connection: "close" } })).json();
     if (disk.source !== markdown || !markdown.includes('After prior save. ') || markdown.includes('# Writable')) {
       throw new Error('Restored Save did not persist exactly the Source preview');
     }

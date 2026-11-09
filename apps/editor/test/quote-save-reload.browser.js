@@ -8,12 +8,12 @@ async (page, { openDocument }) => {
   await page.locator('[data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
 
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const separator = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(separator).slice(0, -4).join(separator);
   const filePath = [root, 'tmp', 'quote-save-reload', 'quotes.md'].join(separator);
   const markdown = async () => {
-    const response = await page.request.get(`${origin}/document/quotes.md?path=${encodeURIComponent(filePath)}`);
+    const response = await page.request.get(`${origin}/document/quotes.md?path=${encodeURIComponent(filePath)}`, { headers: { Connection: "close" } });
     if (response.status() !== 200) throw new Error(`Prepare ${filePath} first`);
     return (await response.text()).replaceAll('\r\n', '\n');
   };

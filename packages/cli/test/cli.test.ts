@@ -1997,6 +1997,35 @@ function runProcess(args: string[], nodeArgs: string[] = [], env?: NodeJS.Proces
   });
 }
 
+test("CLI create --input uses shared authoring and image publication without overwriting existing files", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "litzio-cli-authoring-"));
+  try {
+    const file = path.join(dir, "report.md"), input = path.join(dir, "input.json");
+    writeFileSync(input, JSON.stringify({ authoring: { inputs: [{ key: "source", blocks: [
+      { kind: "figure", imageAsset: "picture", imageAlt: "Picture", caption: "Caption", enumerator: "A.3" },
+      { kind: "table", rows: [["Heading"], ["Value"]], enumerator: "17" }, { kind: "equation", latex: "x^2", enumerator: "4-2" },
+    ] }] }, images: [{ key: "picture", mime: "image/png", base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=" }] }));
+    const created = runProcess(["create", file, "--input", input, "--format", "json"]);
+    assert.equal(created.status, 0, created.stderr);
+    const receipt = JSON.parse(created.stdout);
+    const saved = readFileSync(file, "utf8");
+    assert.equal(saved, receipt.source);
+    assert.match(saved, /\.\/assets\/report-[a-f0-9]{64}-[a-f0-9]{64}\.png/);
+    for (const enumerator of ["A.3", "17", "4-2"]) assert.ok(saved.includes(`:enumerator: ${enumerator}`));
+    assert.equal(receipt.inputs[0].targets.length, 3);
+    const again = runProcess(["create", file, "--input", input]);
+    assert.equal(again.status, 1); assert.match(again.stderr, /already exists/);
+    assert.equal(readFileSync(file, "utf8"), saved);
+    assert.equal(readdirSync(path.join(dir, "assets")).length, 1);
+    const untouched = path.join(dir, "untouched.md");
+    const synchronous = run(["create", untouched, "--input", input]);
+    assert.equal(synchronous.status, 1); assert.equal(fs.existsSync(untouched), false);
+    writeFileSync(input, Buffer.from([0x7b, 0xff, 0x7d]));
+    const invalidUtf8 = runProcess(["create", untouched, "--input", input]);
+    assert.equal(invalidUtf8.status, 1); assert.equal(fs.existsSync(untouched), false);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("CLI format keeps semantic references distinct from fragment links", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "litzio-references-"));
   const file = path.join(dir, "technical-document.md");

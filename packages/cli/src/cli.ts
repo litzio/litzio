@@ -234,8 +234,8 @@ const COMMANDS: CommandSpec[] = [
     name: "create",
     group: "Create and inspect",
     summary: `Create a ${brand.name.en} native document, optionally from a template`,
-    usage: `${brand.cliCommand} create <file> [--template <name|id>] [--language <ko|en>] [--format <text|json>]`,
-    details: ["Create a new .md file in an existing directory. Existing files are never overwritten. Success prints the created path; --format json prints the creation receipt."],
+    usage: `${brand.cliCommand} create <file> [--template <name|id> | --input <json-file>] [--language <ko|en>] [--format <text|json>]`,
+    details: ["Create a new .md file in an existing directory. --input accepts {authoring, images:[{key,mime,base64}]} through the shared Host authoring operation. Existing files are never overwritten. Success prints the created path; --format json prints the creation receipt."],
   },
 
   {
@@ -969,6 +969,7 @@ function main(argv: string[]): number {
 
   switch (command) {
     case "create": {
+      if (flags.includes("--input")) throw new Error("Structured creation requires runCliAsync or the CLI executable");
       if (path.extname(file).toLowerCase() !== ".md") throw new Error("document path must point to a .md file");
       const template = optionalFlag(flags, "--template");
       const language = templateLanguage(optionalFlag(flags, "--language"));
@@ -1493,7 +1494,7 @@ const COMMAND_OPTIONS: Record<string, readonly string[]> = {
   "insert-hard-break": ["--path", "--offset"],
   "split-paragraph": ["--path", "--offset"],
   "merge-paragraph": ["--path"],
-  create: ["--template", "--language", "--format"],
+  create: ["--template", "--language", "--input", "--format"],
   check: ["--format"],
   inspect: ["--format"],
   format: [],
@@ -1933,6 +1934,21 @@ export function runCli(args: string[]): number {
 
 /** Asynchronous command surface; synchronous commands keep the existing runCli API. */
 export async function runCliAsync(args: string[]): Promise<number> {
+  if (args[0] === "create" && args.includes("--input") && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) {
+    try {
+      const { file, flags, format } = parseCommandArgs("create", args.slice(1));
+      if (flags.includes("--template") || flags.includes("--language")) throw new Error("--input cannot be combined with --template or --language");
+      const input = flag(flags, "--input");
+      const { JOB_DOCUMENT_MAX_BYTES } = await import("@litzio/plugin-sdk");
+      if (fs.statSync(input).size > JOB_DOCUMENT_MAX_BYTES) throw new Error("Document payload exceeds 32 MiB");
+      const source = readFileSync(input);
+      if (source.byteLength > JOB_DOCUMENT_MAX_BYTES) throw new Error("Document payload exceeds 32 MiB");
+      const { createAuthoredDocumentFile } = await import("../../../apps/editor/server/document-authoring.ts");
+      const receipt = await createAuthoredDocumentFile(file, JSON.parse(decodeUtf8(source)));
+      process.stdout.write((format === "json" ? JSON.stringify(receipt) : receipt.path) + "\n");
+      return 0;
+    } catch (error) { return reportError(args, error); }
+  }
   if (args[0] === "app-reset" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./app-reset.ts")).appResetCli(args.slice(1));
   if (args[0] === "view" && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./views.ts")).viewCli(args.slice(1));
   if (["plugins", "operation", "jobs", "review"].includes(args[0]) && !args.includes("--version") && !isCommandHelpRequest(args.slice(1))) return (await import("./plugins.ts")).pluginCli(args);

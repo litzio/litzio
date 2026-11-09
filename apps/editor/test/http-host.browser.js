@@ -4,7 +4,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   const check = (ok, message) => { if (!ok) throw new Error(message); };
   const ready = () => page.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const start = await (await page.request.get(origin + '/api/document')).json();
+  const start = await (await page.request.get(origin + '/api/document', { headers: { Connection: "close" } })).json();
   check(start.start && start.allowedRoots?.length === 2 && !start.sample, 'Production HTTP must start without a sample and with two roots');
   const [a, b] = start.allowedRoots;
   const sep = a.includes('\\') ? '\\' : '/';
@@ -86,7 +86,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   await sidebar.getByRole('treeitem', {name:'diagram.svg', exact:true}).click();
   const preview = page.locator('[data-slot="dialog-content"]');
   await preview.getByRole('img', {name:'diagram.svg',exact:true}).waitFor();
-  const folderImage = await page.request.get(`${origin}/api/file-preview?root=${encodeURIComponent(a)}&path=${encodeURIComponent(a + sep + 'fixture' + sep + 'diagram.svg')}`);
+  const folderImage = await page.request.get(`${origin}/api/file-preview?root=${encodeURIComponent(a)}&path=${encodeURIComponent(a + sep + 'fixture' + sep + 'diagram.svg')}`, { headers: { Connection: "close" } });
   check(folderImage.status() === 200 && folderImage.headers()['content-type'] === 'image/svg+xml' && folderImage.headers()['content-security-policy'].startsWith('sandbox;'), 'Production preview uses shared safe image handler');
   await page.keyboard.press('Escape'); await preview.waitFor({state:'detached'});
   await sidebar.getByRole('treeitem', {name:'a.md', exact:true}).click({button:'right'});
@@ -153,7 +153,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   await page.getByRole('menuitem', {name:'Reload', exact:true}).click(); await ready();
   await page.waitForFunction(() => { const image = document.querySelector('[data-document-tab][data-active=true] [data-testid="figure-image"]'); return image?.complete && image.naturalWidth === 8; });
   const fresh = await page.getByTestId('current-file').getAttribute('title');
-  const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(fresh)}`)).json();
+  const disk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(fresh)}`, { headers: { Connection: "close" } })).json();
   check(disk.source.includes('Created over HTTP.') && disk.source.includes('./assets/pasted.png'), 'Root B new file and portable image are on disk');
   const figure = page.locator('[data-document-tab][data-active=true] [data-block="figure"]');
   await figure.hover(); await figure.getByRole('button', {name:'Edit figure', exact:true}).click();
@@ -164,7 +164,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   await page.getByTestId('figure-editor').waitFor({state:'detached'});
   await save();
   await reloadDocument(page); await ready();
-  const renamedDisk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(fresh)}`)).json();
+  const renamedDisk = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(fresh)}`, { headers: { Connection: "close" } })).json();
   check(renamedDisk.source.includes('./assets/http-image.png') && renamedDisk.source.includes('HTTP renamed image'), 'Production HTTP Figure rename, properties, Save and Reload');
   await figure.getByTestId('figure-image').dblclick();
   await page.getByTestId('figure-alt').fill('Unapplied HTTP draft');
@@ -175,8 +175,8 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   await page.getByTestId('figure-alt').press('Escape');
   await openPath(page, fileA);
   // Another client commits using the same real API; the Editor's stale baseline must get 409.
-  const loaded = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(fileA)}`)).json();
-  const external = await page.request.post(origin + '/api/document', { headers:{Origin:origin}, data:{
+  const loaded = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(fileA)}`, { headers: { Connection: "close" } })).json();
+  const external = await page.request.post(origin + '/api/document', { headers:{ Connection: "close", Origin:origin}, data:{
     path:fileA, revision:loaded.revision, base:{source:loaded.source}, paragraphs:[{path:[2], content:[{kind:'text', text:'Changed elsewhere.'}]}],
   } });
   check(external.status() === 200, 'Concurrent writer commits');
@@ -184,7 +184,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   await page.getByRole('button', {name:'Save', exact:true}).click();
   await page.locator('[data-testid="status"][data-operation="save-conflict"]').waitFor({state:'attached'});
   check((await editor.innerText()).includes('Kept local.'), '409 keeps local input');
-  check((await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(fileA)}`)).json()).source.includes('Changed elsewhere.'), '409 preserves the other writer');
+  check((await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(fileA)}`, { headers: { Connection: "close" } })).json()).source.includes('Changed elsewhere.'), '409 preserves the other writer');
   await page.getByRole('button', {name:'File actions', exact:true}).click();
   await page.getByRole('menuitem', {name:'Reload', exact:true}).click();
   await page.getByRole('button', {name:'Discard and reload', exact:true}).click(); await ready();
@@ -198,7 +198,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath, reloadDocument, bi
   const bibFile = join(a, 'fixture', 'bibliography.md');
   await openPath(page, bibFile);
   const refs = page.locator('[data-document-tab][data-active=true]').getByTestId('bibliography');
-  const readBibDocument = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(bibFile)}`)).json()).source;
+  const readBibDocument = async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(bibFile)}`, { headers: { Connection: "close" } })).json()).source;
   const bibSource = await readBibDocument(), bibHash = bibliographyFixture.hash();
   const expected = bibliographyFixture.report(bibSource, bibliographyFixture.read()).references.map(r => r.text);
   const actual = await refs.locator('li[data-key]').evaluateAll(rows => rows.map(row => `${row.querySelector('.bibliography-number').textContent} ${row.querySelector('div > span').textContent}`));

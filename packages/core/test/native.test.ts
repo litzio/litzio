@@ -675,3 +675,46 @@ test("structured authoring computes Host-compatible revisions without secure-con
     }
   } finally { Object.defineProperty(globalThis, "crypto", descriptor); }
 });
+
+test("structured authoring binds supplied images and preserves fixed numbers on canonical reparse", async () => {
+  const input = { inputs: [{ key: "numbered", blocks: [
+    { kind: "figure", imageAsset: "picture", imageAlt: "Alt", caption: "Caption", enumerator: "A.3" },
+    { kind: "table", rows: [["Header"], ["Body"]], enumerator: "17" },
+    { kind: "equation", latex: "x^2", enumerator: "4-2" },
+    { kind: "figure", imageUrl: "", imageAlt: "", caption: "Auto" },
+  ] }] };
+  const authored = await authorDocument(input, { picture: "./assets/report-picture.png" });
+  assert.equal(serialize(parse(authored.source)), authored.source);
+  const blocks = getEditableDocument(parse(authored.source)).blocks;
+  assert.deepEqual(blocks.map(block => "enumerator" in block ? block.enumerator : undefined), ["A.3", "17", "4-2", undefined]);
+  assert.equal((blocks[0] as any).imageUrl, "./assets/report-picture.png");
+  const { targetNumbers, blockTargets } = await import("@litzio/core/numbering");
+  assert.equal(targetNumbers(blocks.map(blockTargets)).at(-1)?.figure, 1);
+  await assert.rejects(authorDocument(input), (error: any) => error.code === "unsupported-content");
+  for (const figure of [{ ...input.inputs[0].blocks[0], imageUrl: "x" }, { kind: "figure", imageAlt: "", caption: "" }]) {
+    await assert.rejects(authorDocument({ inputs: [{ key: "x", blocks: [figure] }] }), (error: any) => error.code === "invalid-input");
+  }
+  await assert.rejects(authorDocument({ inputs: [{ key: "x", blocks: [{ kind: "equation", latex: "x", enumerator: "1\n2" }] }] }), (error: any) => error.code === "unsupported-content");
+});
+
+test("structured authoring retains explicit long-document and table/string boundaries", async () => {
+  const limits = DOCUMENT_AUTHORING_LIMITS;
+  const atLimit = { inputs: Array.from({ length: limits.inputs }, (_, i) => ({ key: String(i), blocks: [{ kind: "paragraph", text: "Block " + i }] })) };
+  assert.equal((await authorDocument(atLimit)).inputs.length, limits.inputs);
+  atLimit.inputs[0].blocks.push({ kind: "paragraph", text: "overflow" });
+  await assert.rejects(authorDocument(atLimit), (error: any) => error.code === "invalid-input");
+  for (const block of [
+    { kind: "paragraph", text: "x".repeat(limits.string) },
+    { kind: "table", rows: Array.from({ length: limits.tableRows }, () => Array(limits.tableColumns).fill("")) },
+  ]) {
+    assert.ok((await authorDocument({ inputs: [{ key: "boundary", blocks: [block] }] })).source);
+    if (block.kind === "paragraph") block.text += "x";
+    else block.rows!.push(Array(limits.tableColumns).fill(""));
+    await assert.rejects(authorDocument({ inputs: [{ key: "boundary", blocks: [block] }] }), (error: any) => error.code === "invalid-input");
+  }
+  // Byte accounting happens before schema validation; pad a JSON value exactly to the cap.
+  const boundary: any = { inputs: [], padding: "x".repeat(limits.bytes - Buffer.byteLength(JSON.stringify({ inputs: [], padding: "" }))) };
+  await assert.rejects(authorDocument(boundary), (error: any) => error.code === "invalid-input");
+  boundary.padding += "x";
+  await assert.rejects(authorDocument(boundary), (error: any) => error.code === "limit");
+});

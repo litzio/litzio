@@ -2,7 +2,7 @@
 async (page, { openFolderPicker, openPath, waitForActivePath }) => {
   const ready = (target = page) => target.locator('[data-testid="document-start"], [data-testid="status"][data-operation="ready"]').waitFor({state:'attached'});
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const sep = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(sep).slice(0, -4).join(sep);
   const a = [root, 'tmp', 'folder-navigation'].join(sep);
@@ -54,7 +54,7 @@ async (page, { openFolderPicker, openPath, waitForActivePath }) => {
     const handler = async route => {
       const query = Object.fromEntries(route.request().url().split('?')[1].split('&').map(part => part.split('=').map(value => decodeURIComponent(value.replaceAll('+', ' ')))));
       if (query.root !== path || query.path !== undefined || !holdNewRequests) return route.fallback();
-      const response = await route.fetch();
+      const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } });
       started();
       await gate;
       await route.fulfill({response});

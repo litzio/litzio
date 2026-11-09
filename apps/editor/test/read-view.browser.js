@@ -1,7 +1,7 @@
 // Read uses the mounted editor: block navigation remains available, writing does not.
 async (page, { openPath, expect, screenshots, recoveryRecords }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const initial = await (await page.request.get(`${origin}/api/document`)).json();
+  const initial = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const root = initial.path.split(sep).slice(0, -4).join(sep);
   const file = name => [root, 'tmp', 'read-view', name].join(sep);
@@ -28,7 +28,7 @@ async (page, { openPath, expect, screenshots, recoveryRecords }) => {
     await center.getByRole('option', {name, exact: true}).click();
     await expect(center).toHaveCount(0);
   };
-  const disk = async () => (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file('reading.md'))}`)).json();
+  const disk = async () => (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file('reading.md'))}`, { headers: { Connection: "close" } })).json();
   const opening = await disk();
   await expect(edit).toHaveText('Edit');
   await expect(edit).toHaveAttribute('aria-pressed', 'true');

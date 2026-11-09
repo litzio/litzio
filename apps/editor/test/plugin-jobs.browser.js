@@ -13,7 +13,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   const sidebarIcon = page.getByRole('button', {name:'Job fixture',exact:true}).locator('img');
   await expect(sidebarIcon).toBeVisible();
   // A real registered/trusted fixture icon, fetched from the owning HTTP Host.
-  const iconResponse = await page.request.get(page.url().split("/").slice(0,3).join("/") + `/api/plugins/icon?id=${plugin.id}&digest=${plugin.digest}`);
+  const iconResponse = await page.request.get(page.url().split("/").slice(0,3).join("/") + `/api/plugins/icon?id=${plugin.id}&digest=${plugin.digest}`, { headers: { Connection: "close" } });
   expect(iconResponse.headers()["content-type"]).toBe("image/svg+xml");
   expect(iconResponse.headers()["x-content-type-options"]).toBe("nosniff");
   await page.getByRole("button", { name: "Job fixture", exact: true }).click();
@@ -91,6 +91,11 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   }
   await pane.getByRole("button", { name: "Open result document" }).click();
   await expect(page.locator(".tiptap").filter({ visible: true })).toContainText("Job result.");
+  const image = page.locator(".tiptap").filter({ visible: true }).getByRole("img", { name: "Imported image", exact: true });
+  await expect(image).toBeVisible();
+  await expect.poll(() => image.evaluate(element => element.complete && element.naturalWidth > 0)).toBe(true);
+  await expect(image).toHaveAttribute("src", /assets/);
+  await expect(page.locator(".tiptap").filter({ visible: true })).toContainText("A.3");
   // Selecting the retained job tab and starting another explicit request tests Stop.
   await page.getByRole("tab", { name: /Plugin jobs/ }).click();
   await pane.getByLabel("Result path in Root").fill("stopped-result.md");
@@ -117,7 +122,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     if (body.action === "job-start") starts++;
     if (body.action === "job-status") {
       observations++;
-      if (loseResponse) { loseResponse = false; await route.fetch(); await route.fulfill({ status: 200, contentType: "application/json", body: "{" }); return; }
+      if (loseResponse) { loseResponse = false; await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); await route.fulfill({ status: 200, contentType: "application/json", body: "{" }); return; }
     }
     await route.continue();
   };

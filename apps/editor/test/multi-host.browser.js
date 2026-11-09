@@ -1,12 +1,12 @@
 async (page, { expect, screenshots, recoveryRecords, showNotifications }) => {
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const initial = await (await page.request.get(origin + '/api/document')).json();
+  const initial = await (await page.request.get(origin + '/api/document', { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const root = initial.path.split(sep).slice(0, -4).concat('tmp', 'multi-host').join(sep);
   const path = root + sep + 'same.txt';
-  const empty = await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(root + sep + 'empty.md'))).json();
+  const empty = await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(root + sep + 'empty.md'), { headers: { Connection: "close" } })).json();
   const nativePath = initial.path.split(sep).slice(0, -4).concat('tmp', 'document-tabs', 'technical-1.md').join(sep);
-  const native = await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(nativePath))).json();
+  const native = await (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(nativePath), { headers: { Connection: "close" } })).json();
   let showNative = false;
   const hanging = root + sep + "hanging.txt";
   let hangReads = 0;
@@ -33,11 +33,11 @@ async (page, { expect, screenshots, recoveryRecords, showNotifications }) => {
     const host = url.includes('/fixture/remote/') ? 'remote' : 'local';
     if (url.includes('/api/document-compare')) {
       comparisonHosts.push(host);
-      return route.fulfill({ response: await route.fetch({ url: origin + '/api/document-compare' }) });
+      return route.fulfill({ response: await route.fetch({ headers: { ...route.request().headers(), Connection: "close" }, url: origin + '/api/document-compare' }) });
     }
     if (url.includes('/api/document-source') && route.request().postDataJSON()?.path === nativePath) {
       previewHosts.push(host);
-      return route.fulfill({ response: await route.fetch({ url: origin + '/api/document-source?recovery=1' }) });
+      return route.fulfill({ response: await route.fetch({ headers: { ...route.request().headers(), Connection: "close" }, url: origin + '/api/document-source?recovery=1' }) });
     }
     if (route.request().method() === 'PUT') {
       const { path: target } = route.request().postDataJSON();
