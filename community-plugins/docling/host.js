@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { resolve } from "node:path";
 import { readFile, writeFile } from "node:fs/promises";
 import { convertPdfToArchive } from "./conversion.js";
 import { readDoclingArchive } from "./archive.js";
@@ -96,15 +98,25 @@ export function activate(context) {
     const authored = await convertDocument(archive.document, archive.manifest.document.sha256);
     signal.throwIfAborted();
     control.report = authored.report;
-    control.job = { state: "completed", phase: authored.report.summary, document: { source: authored.source } };
+    control.authored = authored;
+    control.output = input.output;
+    control.job = { state: "completed", phase: authored.report.summary, document: authored.document };
   }
   return {
     operations: {
       connection: async () => checkConnection(),
-      "conversion-report"(input) {
+      async "conversion-report"(input) {
         const control = jobs.get(input.requestId);
         if (!control?.report) throw new Error();
-        return structuredClone(control.report);
+        if (control.report.failure) return structuredClone(control.report);
+        if (input.result) {
+          if (resolve(input.result.path) !== resolve(control.output)) throw new Error("Host result path does not match this job");
+          const bytes = await readFile(control.output);
+          if (createHash("sha256").update(bytes).digest("hex") !== input.result.revision) throw new Error("Host result revision is stale");
+          control.finalReport = control.authored.bindReport(input.result);
+        }
+        if (!control.finalReport) throw new Error("Supply the completed Host job result to bind final targets");
+        return structuredClone(control.finalReport);
       },
       start(input) { return accept(input, false); },
       "convert-pdf"(input) { return accept(input, true); },

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.4 — 미발행
+
+- 보관된 그림 ImageRef를 공용 이미지 입력에 전달합니다. Host가 공식 assets/ 경로에 저장하며 같은 출력 경로로 재생성하면 기존 이미지를 재사용합니다. 원본 .docling/PDF/JSON은 수정하지 않습니다.
+- Figure/Fig./그림과 Table/표의 확실한 아라비아 숫자 캡션 접두어를 고정 번호로 옮기며 `2-1` 같은 문자열을 그대로 보존합니다. 접두어·구분자는 캡션에서 제거합니다.
+- 로마 숫자·알파벳·모호한 형식·종류 불일치·같은 종류의 중복 번호는 캡션을 그대로 두고 번호 없음으로 표시하며 손실 요약에 기록합니다. 자동 그림/표 번호는 쓰지 않습니다.
+- 대응 보고서는 Host 완료 result(path/revision/inputs)로 최종 targets를 연결하고 실제 파일 hash를 확인합니다. 출력 형식은 기존 sourceHash/items/losses/summary 구조를 유지하며 별도 형식 버전은 만들지 않습니다.
+- #1378의 공용 이미지 입력과 #1383의 번호 없음/최종 targets를 사용합니다. 플러그인 전용 Core·Host·Editor 제품 코드를 추가하지 않습니다.
+
 ## 0.0.3 — 미발행
 
 - 원본 PDF·DoclingDocument JSON·manifest를 `.docling`에 보존하고 페이지 PNG 요청/저장을 제거합니다. 그림 ImageRef와 원본 hash 검증은 유지하며 기존 봉투 호환은 지원하지 않습니다.

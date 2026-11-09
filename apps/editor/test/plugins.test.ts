@@ -34,7 +34,7 @@ test("Docling converter preserves source identity, native blocks, shared targets
   assert.deepEqual(item("#/pictures/0").targets, item("#/texts/7").targets);
   assert.deepEqual(item("#/tables/0").cells[0].positions, [{ row: 0, column: 0 }, { row: 0, column: 1 }]);
   assert.deepEqual(item("#/tables/0").cells[0].targets, [item("#/tables/0").targets[0]]);
-  assert.deepEqual(item("#/texts/9").targets, [item("#/tables/0").targets[1]]);
+  assert.deepEqual(item("#/texts/9").targets, item("#/tables/0").targets);
   for (const entry of report.items) for (const target of entry.targets) {
     assert.equal(target.documentRevision, report.documentRevision);
     assert.equal(target.documentHash, report.documentHash);
@@ -58,6 +58,46 @@ test("Docling converter preserves source identity, native blocks, shared targets
   const combined = await convertDocument(doc, "a".repeat(64));
   assert.deepEqual(combined.report.items.find((i: any) => i.self_ref === "#/texts/2").targets, combined.report.items.find((i: any) => i.self_ref === "#/texts/3").targets);
   assert.equal((await convertDocument(doc, "a".repeat(64))).source, combined.source);
+});
+
+test("Docling caption numbers are conservative, kind-specific and duplicate-safe", async () => {
+  const { readCaptionNumber, convertDocument } = await doclingConverter();
+  for (const [text, kind, number, caption] of [
+    ["Figure 6: Source caption", "figure", "6", "Source caption"], ["Fig. 2 Example", "figure", "2", "Example"],
+    ["그림 3", "figure", "3", ""], ["Table 2-1. Values", "table", "2-1", "Values"], ["표 4: 값", "table", "4", "값"],
+  ]) assert.deepEqual(readCaptionNumber(text, kind), { enumerator: number, caption });
+  for (const text of ["Figure IV: Roman", "Figure A: Letter", "Table 2: Wrong kind", "Figure 2.1a: Suffix", "Figure 2/3: Ambiguous", "Figure 2 - 1: Ambiguous", "Figure 2 . 1: Ambiguous", "No source number"] ) {
+    const value = readCaptionNumber(text, "figure");
+    assert.equal(value.caption, text); assert.equal(value.enumerator, undefined); assert.ok(value.reason);
+  }
+  const doc = doclingFixture();
+  const ref = `#/texts/${doc.texts.length}`;
+  doc.texts.push({ self_ref: ref, label: "caption", text: "Figure 1: Duplicate" });
+  doc.pictures.push({ self_ref: "#/pictures/1", label: "picture", captions: [{ $ref: ref }], children: [{ $ref: ref }] });
+  doc.body.children.push({ $ref: "#/pictures/1" });
+  const converted = await convertDocument(doc, "a".repeat(64));
+  const figures = getEditableDocument(parse(converted.source)).blocks.filter((b: any) => b.block === "figure");
+  assert.ok(figures.every((b: any) => b.enumerator === undefined && b.enumerated === false));
+  assert.equal(converted.report.losses.filter((l: any) => l.kind === "caption-number").length, 2);
+  assert.match(converted.source, /Figure 1: Original caption/);
+});
+
+test("Docling images use shared authoring and reports bind only to final Host targets", async () => {
+  const { convertDocument } = await doclingConverter();
+  const doc = doclingFixture(), png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=";
+  doc.pictures[0].image = { uri: "data:image/png;base64," + png, mimetype: "image/png", dpi: 72, size: { width: 1, height: 1 } };
+  const before = JSON.stringify(doc), value = await convertDocument(doc, "a".repeat(64));
+  assert.equal(JSON.stringify(doc), before);
+  assert.deepEqual(value.document.images, [{ key: "#/pictures/0", mime: "image/png", base64: png }]);
+  assert.ok(!value.report.losses.some((l: any) => l.kind === "picture-image"));
+  const { authorDocument } = await import("@litzio/core");
+  const final = await authorDocument(value.document.authoring, { "#/pictures/0": "./assets/final.png" });
+  const report = value.bindReport({ inputs: final.inputs, revision: final.documentRevision });
+  assert.equal(report.documentRevision, final.documentRevision);
+  assert.ok(report.items.flatMap((i: any) => i.targets).every((t: any) => t.documentRevision === final.documentRevision));
+  assert.throws(() => value.bindReport({ inputs: [], revision: final.documentRevision }), /Final Host/);
+  const wrong = structuredClone(final.inputs); wrong[0].key = "wrong";
+  assert.throws(() => value.bindReport({ inputs: wrong, revision: final.documentRevision }), /Final Host/);
 });
 
 test("Docling converter refuses whole input on limits and invalid graph/grid instead of truncating", async () => {
