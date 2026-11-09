@@ -71,6 +71,11 @@ test("the packed CLI installs offline outside the checkout and serves both roots
     await verifyExternalPlugin(url, a, path.dirname(entry));
     const plugins = (await (await fetch(url + "/api/plugins")).json()).plugins;
     assert.ok(plugins.some((p: any) => p.id === "fixture.isolated"));
+    for (const id of ["community.docling", "community.jira"]) {
+      const plugin = plugins.find((p: any) => p.id === id);
+      assert.ok(plugin); assert.equal(plugin.bundled, true); assert.equal(plugin.official, false);
+      assert.equal(plugin.trusted, false); assert.equal(plugin.enabled, false); assert.equal(plugin.error, undefined);
+    }
     const onedrive = plugins.find((p: any) => p.id === "litzio.onedrive");
     assert.equal(onedrive.official, true); assert.equal(onedrive.enabled, false);
     const enabled = await fetch(url + "/api/plugins", { method: "POST", headers: { Origin: url, "Content-Type": "application/json" }, body: JSON.stringify({ action: "enable", id: onedrive.id }) });

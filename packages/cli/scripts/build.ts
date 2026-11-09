@@ -1,3 +1,4 @@
+import { DESIGNATED_COMMUNITY_PLUGINS, assertDesignatedPluginPayload } from "../../../apps/editor/server/plugins/designated-plugins.ts";
 // Build a relocatable Node CLI plus the production Editor. No source checkout or node_modules at runtime.
 import { execFileSync, execSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -22,6 +23,12 @@ mkdirSync(destination, { recursive: true });
 execSync("pnpm --filter @litzio/onedrive build", { cwd: repo, stdio: "inherit" });
 cpSync(path.join(repo, "plugins/onedrive/artifact"), path.join(destination, "official-plugins/onedrive/artifact"), { recursive: true });
 cpSync(path.join(repo, "plugins/onedrive/digest.json"), path.join(destination, "official-plugins/onedrive/digest.json"));
+for (const item of DESIGNATED_COMMUNITY_PLUGINS) {
+  const target = path.join(destination, "community-plugins", item.folder);
+  mkdirSync(target, { recursive: true });
+  for (const file of item.files) cpSync(path.join(repo, "community-plugins", item.folder, file), path.join(target, file));
+}
+assertDesignatedPluginPayload(destination);
 execSync("pnpm --filter @litzio/editor build", { cwd: repo, stdio: "inherit" });
 cpSync(path.join(repo, "apps/editor/dist"), path.join(destination, "editor"), { recursive: true });
 const result = await build({
@@ -38,7 +45,7 @@ const executable = path.join(destination, "cli.mjs");
 writeFileSync(executable, `#!/usr/bin/env node\n${readFileSync(executable, "utf8")}`, { mode: 0o755 });
 writeFileSync(path.join(destination, "package.json"), JSON.stringify({ name: "@litzio/cli", version: manifest.version,
   description: `${brand.name.en} document CLI and HTTP Editor Host`, license: "MIT", type: "module", private: true,
-  bin: { [brand.cliCommand]: "cli.mjs" }, files: ["*.mjs", "*.txt", "*.md", "editor/", "official-plugins/", "LICENSE"], engines: { node: ">=24.21.0 <25" } }, null, 2) + "\n");
+  bin: { [brand.cliCommand]: "cli.mjs" }, files: ["*.mjs", "*.txt", "*.md", "editor/", "official-plugins/", "community-plugins/", "LICENSE"], engines: { node: ">=24.21.0 <25" } }, null, 2) + "\n");
 cpSync(path.join(repo, "LICENSE"), path.join(destination, "LICENSE"));
 // Editor notices are generated inside its static boundary by Vite.
 const packages = collectPackages([...Object.keys(result.metafile.inputs), ...Object.keys(sdkResult.metafile.inputs)].map(input => path.resolve(repo, input)));
