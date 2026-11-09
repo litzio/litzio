@@ -97,3 +97,14 @@ Jira 0.0.5는 기본 Key·제목·Status·Assignee·Reporter·Created·Updated 7
 ## 완료 문서의 PDF 대조 (#1408)
 
 native-document job의 선택 comparison 선언과 완료 result 참조에서 공통 결과 행동을 연다. 별도 작업 탭에서 기존 ReviewRenderer·SourceDocumentCompare·DocumentEditor 읽기를 사용하고, PDF는 기존 pdf.js 표시를 재사용한다. 저장된 문서만 읽으며 PDF 영역과 문서 블록을 양방향 선택한다. 해당 대조는 640px 이상에서 두 패널의 내부 스크롤을 사용하고 페이지 전체 가로 넘침을 만들지 않는다. 기존 다른 review의 1024px 안내는 유지한다. 확인함·페이지 상태·문서 열기·다시 읽기만 제공하며 항목 편집·검수 완료 승인·PDF 검색/주석은 없다. 저장 실패는 안내하고 행동을 막는다. 선언·공용 HTTP/CLI·revision 계약은 [PDF 대조 계약](plugin-stage1-v1.md#pdf-원본-대조와-확인-기록-1408-sdk-040)을 따른다.
+
+## 조회 입력과 결과 (#1394)
+
+조건과 조회 행동은 위쪽의 surface-subtle 입력 영역에 모으고, 전체 폭 결과는 surface 영역으로 구분한다. QueryInputs의 접힌 지정값 요약·오류 펼침·첫 오류 focus와 탭별 입력/결과 보존을 유지한다. 640px에서는 입력이 한 열로 내려가며 조회 버튼은 같은 입력 영역에 남는다.
+
+결과 머리행은 짧은 결과 제목·건수·조회 시각(receipt tooltip)·열 선택을 모은다. manifest 표 제목은 hover와 keyboard focus 안내 및 접근 가능한 표 이름으로 유지한다. 불러온 행 한정 안내와 잘림 정보도 유지한다. 조회 전에는 위 조건 확인과 조회를 연결하고, 결과 없음은 조건 변경을 안내한다. 실패·결과 불확실은 기존 분류별 고정 행동 안내를 결과 안에 한 번만 표시한다.
+
+공통 DataTable은 필드 타입과 현재 원행의 값/라벨 길이로 열 폭을 배분한다. 날짜·숫자·boolean은 짧게, 긴 문자열은 더 넓게 배분하고 최소 폭 합계가 가용 폭보다 크면 내부 가로 스크롤을 쓴다. 플러그인 필드명이나 문자열 값을 enum으로 해석하지 않는다. Button·Tooltip·Notice·DataTable과 기존 surface 토큰을 재사용하며 새 공통 상호작용 예외는 없다.
+
+
+동일 합성 조회의 수동 캡처 비교: [1440px 전](assets/query-results-1394/before-1440.png) / [후](assets/query-results-1394/after-1440.png), [한국어 다크 640px 전](assets/query-results-1394/before-640.png) / [후](assets/query-results-1394/after-640.png). 머리행 수직 중심·입력 여백·면 구분·표 내부 스크롤과 한국어 줄바꿈을 확인했다. 기존 공통 표 갤러리의 정렬·필터 패턴과 일치하며 합성 카탈로그·행/localhost 확인은 실제 외부 Jira 성공이나 소유자의 시각 승인을 뜻하지 않는다.

@@ -91,6 +91,7 @@ export function validateManifest(input: unknown): PluginManifest {
       !supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Link columns require SDK 0.3.0 or later in requiresSdk");
   if (linkSchemas.some(fields => Object.values(fields).some(field => field.hidden !== undefined)) &&
       !supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Column visibility requires SDK 0.3.0 or later in requiresSdk");
+  if (Array.isArray(m.settingsSchema.required) && m.settingsSchema.required.length) throw new Error("settingsSchema.required must be empty: settings start at {} and are saved one field at a time. Check missing connection values in connection checks and operations instead; handle defaults in code.");
   compileSchema(m.settingsSchema);
   for (const operation of m.contributes.operations) { if (operation.rowSchema && operation.effect !== "read") throw new Error("Only read operations can declare row schema"); compileViewInputSchema(operation.inputSchema); compileSchema(operation.outputSchema); }
   for (const source of m.contributes.operations) for (const [field, target] of Object.entries(source.inputSuggestions ?? {})) {

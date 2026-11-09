@@ -857,9 +857,6 @@
         "default": ""
       }
     },
-    "required": [
-      "baseUrl"
-    ],
     "additionalProperties": false
   },
   "secrets": [

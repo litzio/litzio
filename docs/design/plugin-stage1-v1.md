@@ -333,6 +333,10 @@ manifest 화면은 기존 ViewWorkspace로 기본 뷰 내용을 바로 표시하
 
 ## 플러그인 설정과 연결 확인 (#1334)
 
+일반 설정은 빈 값 `{}`에서 시작해 항목별로 저장하며, Host는 저장과 활성화 때마다 전체 `settingsSchema`를 검사한다. `settingsSchema.required`는 사용하지 않으며 SDK 검증기는 비어 있지 않은 최상위 `required`를 거부한다. 항목별 `type`, `minLength` 등의 형식 제약은 허용한다. `default`는 저장되지 않으므로 코드에서 기본값을 처리한다. 연결에 필요한 값이 없으면 연결 확인과 작업에서 고정 안내를 반환하고 예외 원문은 공개하지 않는다.
+
+`validate` 통과는 설정 흐름을 증명하지 않는다. 빈 설정에서 항목을 하나씩 저장하고 설정 창을 다시 열어 값 유지를 확인한다. 비밀값 저장·활성화·연결 확인은 각각 확인하며 수행하지 못한 단계는 미확인으로 보고한다.
+
 표시 이름은 manifest `name` 하나다. `screens[].title`은 사이드바·탭에만 사용한다. 설정 `title`은 라벨, `description`은 Tooltip 도움말이다. 목록은 제목·공식/커뮤니티 배지 하나·설명과 오른쪽 톱니·스위치, 아래 상태·계정으로 고정한다. 설정 창은 이름·버전·설명 → 일반 설정(manifest properties 순서) → secret → 연결 확인 → 상세(만든 곳·신뢰 여부·digest) 순서다. 화면 이동 버튼이나 “동작 · 이름” 합성 라벨은 설정 화면에 두지 않는다.
 
 외부 서비스 플러그인은 `contributes.healthCheck`에 같은 manifest의 operation ID를 선언한다. SDK 0.3.0 이상을 요구해야 한다. 예: `requiresSdk: ">=0.3.0 <1.0.0", contributes: { healthCheck: "connection", operations: [...] }`. 해당 작업은 `{}` 입력을 받는 독립적인 host 범위 read이며 job/review 바인딩으로 겸용하지 않는다. outputSchema에는 SDK `HEALTH_CHECK_OUTPUT_SCHEMA`를 사용하고 `HealthCheckResult` (`{ ok: boolean, message: string }`, 추가 필드 없음, 안내 1~300자)를 반환한다. message는 작성자가 만든 고정된 안전 안내이며 원문 응답·secret을 담지 않는다. Host는 secret 정리와 operation outputSchema 검증 후 SDK 고정 형식도 검사한다.
