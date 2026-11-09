@@ -9,7 +9,7 @@
     }
   },
   "include": [
-    "host.js",
+    "*.js",
     "plugin-sdk.d.ts"
   ]
 }

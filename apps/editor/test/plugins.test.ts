@@ -6,6 +6,99 @@ import path from "node:path";
 import { artifactDigest } from "../server/plugins/artifact-digest.mjs";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { executePluginTool } from "../server/assistant-plugin-tools.ts";
+import { getEditableDocument, parse } from "@litzio/core";
+
+// Interpretation/loss/limit tests stay in-process. Existing http-plugins owns
+// SDK runtime admission, official K1 storage and the browser result boundary.
+async function doclingConverter() {
+  const source = readFileSync(new URL("../../../community-plugins/docling/document.js", import.meta.url), "utf8");
+  return import("data:text/javascript;base64," + Buffer.from(source.replace('"@litzio/plugin-sdk"', JSON.stringify(import.meta.resolve("@litzio/plugin-sdk")))).toString("base64"));
+}
+const doclingFixture = () => JSON.parse(readFileSync(new URL("../../../community-plugins/docling/fixtures/document.json", import.meta.url), "utf8"));
+
+test("Docling converter preserves source identity, native blocks, shared targets and item losses without mutating original", async () => {
+  const { convertDocument } = await doclingConverter();
+  const doc = doclingFixture(), before = JSON.stringify(doc);
+  const { source, report } = await convertDocument(doc, "a".repeat(64));
+  assert.equal(JSON.stringify(doc), before);
+  const blocks = getEditableDocument(parse(source)).blocks;
+  assert.ok(source.includes("{table}"));
+  assert.ok(source.includes("{figure}"));
+  assert.ok(source.includes("print(1)"));
+  assert.ok(source.includes("E = mc^2"));
+  assert.ok(!source.includes("RUNNING HEADER"));
+  const item = (ref: string) => report.items.find((item: any) => item.self_ref === ref);
+  assert.equal(report.sourceHash, "a".repeat(64));
+  assert.equal(item("#/texts/0").status, "furniture");
+  assert.equal(item("#/texts/0").targets.length, 0);
+  assert.deepEqual(item("#/pictures/0").targets, item("#/texts/7").targets);
+  assert.deepEqual(item("#/tables/0").cells[0].positions, [{ row: 0, column: 0 }, { row: 0, column: 1 }]);
+  assert.deepEqual(item("#/tables/0").cells[0].targets, [item("#/tables/0").targets[0]]);
+  assert.deepEqual(item("#/texts/9").targets, [item("#/tables/0").targets[1]]);
+  for (const entry of report.items) for (const target of entry.targets) {
+    assert.equal(target.documentRevision, report.documentRevision);
+    assert.equal(target.documentHash, report.documentHash);
+    assert.ok(blocks.some(block => JSON.stringify(block.path) === JSON.stringify(target.path)));
+  }
+  for (const kind of ["merged-cell", "multi-row-header", "nested-list", "picture-image", "unsupported"]) assert.ok(report.losses.some((loss: any) => loss.kind === kind));
+  assert.match(report.summary, /병합 칸 반복 1/);
+  assert.match(report.summary, /다단 헤더 계층 소실 1/);
+  assert.doesNotMatch(report.summary, /(?:^| · )표 \d|(?:^| · )[^·]+ 0(?: · |$)/);
+  const plain = { schema_name: "DoclingDocument", body: { children: [{ $ref: "#/texts/0" }] }, texts: [{ self_ref: "#/texts/0", label: "text", text: "Plain paragraph" }] };
+  assert.equal((await convertDocument(plain, "a".repeat(64))).report.summary, "");
+  const roles = doclingFixture();
+  roles.tables[0].data.table_cells[0].row_header = true;
+  roles.texts[2].marker = "a)";
+  const roleSummary = (await convertDocument(roles, "a".repeat(64))).report.summary;
+  assert.match(roleSummary, /표 셀 역할 소실 1/);
+  assert.match(roleSummary, /목록 표식 미보존 1/);
+  // Adjacent list items intentionally share the first item's native list target.
+  doc.groups[1].children = [{ $ref: "#/texts/2" }, { $ref: "#/texts/3" }]; doc.groups.splice(2);
+  doc.texts[3].marker = "4.";
+  const combined = await convertDocument(doc, "a".repeat(64));
+  assert.deepEqual(combined.report.items.find((i: any) => i.self_ref === "#/texts/2").targets, combined.report.items.find((i: any) => i.self_ref === "#/texts/3").targets);
+  assert.equal((await convertDocument(doc, "a".repeat(64))).source, combined.source);
+});
+
+test("Docling converter refuses whole input on limits and invalid graph/grid instead of truncating", async () => {
+  const { convertDocument } = await doclingConverter();
+  const rejects = async (change: (doc: any) => void, reason: RegExp) => {
+    const doc = doclingFixture(); change(doc);
+    await assert.rejects(convertDocument(doc, "a".repeat(64)), (error: any) => reason.test(error.conversionReason));
+  };
+  await rejects(d => { d.tables[0].data.num_rows = 101; }, /100 rows/);
+  await rejects(d => { d.tables[0].data.num_cols = 33; }, /32 columns/);
+  await rejects(d => { d.tables[0].data.table_cells.push(d.tables[0].data.table_cells[0]); }, /Overlapping/);
+  await rejects(d => { d.tables[0].data.table_cells[0].col_span = 1; }, /span/);
+  await rejects(d => { d.body.children.push(d.body.children[0]); }, /Duplicate or cyclic/);
+  await rejects(d => { d.body.children[0].$ref = "#/texts/999"; }, /Invalid source reference/);
+  await rejects(d => { d.texts[4].text = "x".repeat(16385); }, /16384/);
+  await rejects(d => {
+    for (let i = 0; i < 200; i++) d.texts.push({ self_ref: `#/texts/${d.texts.length}`, label: "text", text: "Orphan" });
+  }, /input limit.*200/);
+  await rejects(d => {
+    for (let i = 0; i < 20; i++) { const ref = `#/texts/${d.texts.length}`; d.texts.push({ self_ref: ref, label: "text", text: "x".repeat(16000) }); d.body.children.push({ $ref: ref }); }
+  }, /byte limit.*262144/);
+});
+test("Docling envelope keeps original PDF/JSON hashes independent of the reserved opaque review entry", async () => {
+  const archive = await import(new URL("../../../community-plugins/docling/archive.js", import.meta.url).href);
+  const { PDF_PROFILE } = await import(new URL("../../../community-plugins/docling/conversion.js", import.meta.url).href);
+  const sourceBytes = Buffer.from("%PDF-1.4 synthetic fixture");
+  const bytes = archive.createDoclingArchiveFromResult({ sourceName: "fixture.pdf", sourceBytes, serverVersions: { "docling-serve": "1.32.0" }, openapiBytes: Buffer.from("{}"), profile: PDF_PROFILE,
+    task: { id: "fixture", startedAt: "2026-11-09T00:00:00Z", completedAt: "2026-11-09T00:01:00Z" }, resultBody: Buffer.from(JSON.stringify({ status: "success", errors: [], document: { json_content: doclingFixture() } })) });
+  const original = archive.readDoclingArchive(bytes);
+  assert.ok(original.sourcePdf.equals(sourceBytes));
+  assert.ok(!bytes.includes(Buffer.from("pages/1.png")));
+  const reviewBytes = Buffer.from('{"opaque":"future review shape"}');
+  const withReservedEntry = archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson, sourceBytes, reviewBytes });
+  const reread = archive.readDoclingArchive(withReservedEntry);
+  assert.deepEqual(reread.manifest, original.manifest);
+  assert.equal(reread.documentJson, original.documentJson);
+  assert.ok(reread.reviewBytes.equals(reviewBytes));
+  assert.throws(() => archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson, sourceBytes: Buffer.from("%PDF-tampered"), reviewBytes }), /Original PDF mismatch/);
+  assert.throws(() => archive.createDoclingArchive({ manifest: original.manifest, documentJson: original.documentJson + " ", sourceBytes, reviewBytes }), /Invalid DoclingDocument/);
+});
+
 test("local artifact trust, activation, admission, drain, settings persistence and assistant activity", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-plugins-"));
   const directory = path.join(root, "artifact"); mkdirSync(directory);
