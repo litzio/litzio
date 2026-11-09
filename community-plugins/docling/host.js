@@ -1,33 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { convertPdfToArchive } from "./conversion.js";
 import { readDoclingArchive } from "./archive.js";
-import { authorDocument } from "@litzio/plugin-sdk";
-
-// Interpretation belongs to this plugin; canonical document semantics belong to the SDK.
-async function convertDocument(doc) {
-  if (doc?.schema_name !== "DoclingDocument" || !Array.isArray(doc.body?.children)) throw new Error();
-  const blocks = [], visited = new Set();
-  function visit(ref) {
-    const match = /^#\/(texts|groups|tables|pictures)\/(\d+)$/.exec(ref?.$ref ?? "");
-    if (!match || visited.has(ref.$ref)) throw new Error();
-    visited.add(ref.$ref);
-    const item = doc[match[1]]?.[Number(match[2])];
-    if (!item) throw new Error();
-    if (typeof item.text === "string" && item.text) {
-      blocks.push(item.label === "section_header" && Number.isInteger(item.level) && item.level >= 1 && item.level <= 6
-        ? { kind: "heading", level: item.level, text: item.text }
-        : { kind: "paragraph", text: item.text });
-    }
-    // Tables are deliberately reduced to cell text, preserving the supplied cell order.
-    if (match[1] === "tables") {
-      const text = (item.data?.table_cells ?? []).map(cell => cell.text ?? "").join(" | ");
-      if (text) blocks.push({ kind: "paragraph", text });
-    }
-    for (const child of item.children ?? []) visit(child);
-  }
-  for (const ref of doc.body.children) visit(ref);
-  return authorDocument({ inputs: [{ key: "pdf", blocks }] });
-}
+import { convertDocument } from "./document.js";
 
 /** @param {import("@litzio/plugin-sdk").PluginContext} context */
 export function activate(context) {
@@ -85,7 +59,10 @@ export function activate(context) {
       work = runPdf(control, input, previous).finally(() => release());
     } else work = run(control, input);
     control.done = work.catch(error => {
-      if (!control.controller.signal.aborted) control.job = { state: "failed", phase: "실패", errorKind: error.name === "TimeoutError" ? "timeout" : error.kind ?? "failed" };
+      if (!control.controller.signal.aborted) {
+        control.report = { failure: { reason: error.conversionReason ?? "Archive or conversion failed", ...(error.sourceRef ? { self_ref: error.sourceRef } : {}) } };
+        control.job = { state: "failed", phase: "실패", errorKind: error.name === "TimeoutError" ? "timeout" : error.kind ?? "failed" };
+      }
     });
     return structuredClone(control.job);
   }
@@ -116,13 +93,19 @@ export function activate(context) {
     signal.throwIfAborted();
     const archive = readDoclingArchive(bytes);
     control.job.phase = "문서 생성 중";
-    const authored = await convertDocument(archive.document);
+    const authored = await convertDocument(archive.document, archive.manifest.document.sha256);
     signal.throwIfAborted();
-    control.job = { state: "completed", phase: "완료", document: { source: authored.source } };
+    control.report = authored.report;
+    control.job = { state: "completed", phase: authored.report.summary, document: { source: authored.source } };
   }
   return {
     operations: {
       connection: async () => checkConnection(),
+      "conversion-report"(input) {
+        const control = jobs.get(input.requestId);
+        if (!control?.report) throw new Error();
+        return structuredClone(control.report);
+      },
       start(input) { return accept(input, false); },
       "convert-pdf"(input) { return accept(input, true); },
       "job-status"(input) { return structuredClone(jobs.get(input.requestId).job); },

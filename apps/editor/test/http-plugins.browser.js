@@ -230,6 +230,51 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await docling.cli(["plugins", "settings", id, "--file", docling.settings]);
     await docling.cli(["plugins", "trust", id, "--digest", registered.digest]);
     await docling.cli(["plugins", "enable", id]);
+    // Manual real-service evidence uses an already converted archive. Never put
+    // external model latency inside the 180s automatic fake-service regression.
+    if (screenshots && docling.realFile) {
+      await openFolderPicker(page);
+      await page.getByTestId("folder-path").fill(pluginFixture.folder);
+      await page.getByTestId("folder-open").click();
+      await expect(page.getByTestId("folder-path")).not.toBeVisible();
+      docling.setRealInput();
+      const started = await docling.cli(["plugins", "start", id, "--input", docling.jobInput]);
+      await expect.poll(async () => (await docling.cli(["plugins", "status", started.job.requestId])).job.state).toBe("completed");
+      const report = await docling.report(started.job.requestId);
+      expect(report.summary).toContain("그림 이미지 미포함 1");
+      for (const width of [1440, 640]) {
+        await page.setViewportSize({ width, height: 1100 });
+        await page.evaluate(width => { localStorage.setItem("litzio.uiLanguage", width === 640 ? "ko" : "en"); localStorage.setItem("litzio.theme", width === 640 ? "dark" : "light"); }, width);
+        await page.reload();
+        if (docling.beforeFile) {
+          await page.locator('[role="treeitem"][data-path$="docling-before.md"]').click();
+          await expect(page.getByTestId("current-file")).toHaveAttribute("title", /docling-before\.md$/);
+          await page.screenshot({ path: `tmp/docling-1368/before-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
+        }
+        await page.locator('[role="treeitem"][data-path$="docling-real.md"]').click();
+        await expect(page.getByTestId("current-file")).toHaveAttribute("title", /docling-real\.md$/);
+        const document = page.locator(".tiptap").filter({ visible: true });
+        await expect(document.locator("table")).toContainText("Revenue");
+        await expect(document.locator("ol")).toContainText("Read the original document.");
+        await expect(document.locator("pre").filter({ hasText: "def square(x)" })).toContainText("def square(x)");
+        await expect(document).toContainText("Two connected stages");
+        await expect(document).not.toContainText("CONVERSION ACCEPTANCE / RUNNING HEADER");
+        await page.screenshot({ path: `tmp/docling-1368/after-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
+        await document.locator('[data-block="equation"]').first().scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `tmp/docling-1368/equation-figure-${width}.png`, mask: [page.locator(".sidebar-host-account")], maskColor: "#a1a1aa" });
+        await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
+        const panel = page.getByTestId("plugin-job-panel");
+        const row = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "real.docling", exact: true }) }).first();
+        await expect(row).toContainText(report.summary);
+        const masks = [page.locator(".sidebar-host-account"), panel.getByLabel(width === 640 ? "열린 폴더" : "Opened folder", { exact: true })];
+        await page.screenshot({ path: `tmp/docling-1368/losses-${width}.png`, mask: masks, maskColor: "#a1a1aa" });
+        if (width === 640) {
+          await panel.locator(".view-table-scroll").evaluate(element => element.scrollTo({ left: element.scrollWidth }));
+          await page.screenshot({ path: "tmp/docling-1368/losses-640-end.png", mask: masks, maskColor: "#a1a1aa" });
+        }
+      }
+      return { realDocling: true, report };
+    }
     const invoke = () => docling.cli(["operation", "invoke", id + ".connection", "--input", docling.input]);
     const connected = await invoke();
     expect(connected.result.ok).toBe(true);
@@ -329,6 +374,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     expect(started.job.state).toBe("running");
     await expect.poll(async () => (await docling.cli(["plugins", "status", started.job.requestId])).job.state).toBe("completed");
     expect((await docling.cli(["plugins", "result", started.job.requestId])).job.result.path).toContain("docling-cli.md");
+    const conversionReport = await docling.report(started.job.requestId);
+    expect(conversionReport.documentRevision).toBe((await docling.cli(["plugins", "result", started.job.requestId])).job.result.revision);
+    expect(conversionReport.items.find(item => item.self_ref === "#/pictures/0").targets).toEqual(conversionReport.items.find(item => item.self_ref === "#/texts/7").targets);
     await page.keyboard.press("Control+Slash");
     await page.getByRole("combobox").fill("> Plugin jobs");
     await page.getByRole("option", { name: "Plugin jobs", exact: true }).click();
@@ -338,7 +386,11 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     const editor = page.locator(".tiptap").filter({ visible: true });
     await expect(editor).toContainText("Converted PDF");
     await expect(editor).toContainText("PDF body *literal*.");
-    await expect(editor).toContainText("Cell one | Cell two");
+    await expect(editor.locator("table")).toContainText("Cell one");
+    await expect(editor.locator("ol").filter({ hasText: "First item" })).toContainText("First item");
+    await expect(editor.locator("pre")).toContainText("print(1)");
+    await expect(editor).toContainText("Original caption.");
+    await expect(editor).not.toContainText("RUNNING HEADER");
     await expect(editor).not.toContainText("Docling conversion:");
     await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
     // Re-selecting the current Root must preserve its loaded files.
@@ -350,6 +402,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await panel.getByRole("button", { name: "Start job", exact: true }).click();
     const nativeRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "sample.docling", exact: true }) }).first();
     await expect(nativeRow.getByRole("status")).toHaveText("Completed");
+    await expect(nativeRow).toContainText("병합 칸 1");
     await nativeRow.getByRole("button", { name: "Open result: sample.docling", exact: true }).click();
     await expect(editor).toContainText("PDF body *literal*.");
     docling.setDocumentInput(true);
