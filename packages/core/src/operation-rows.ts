@@ -4,6 +4,7 @@ export const OPERATION_ROW_LIMIT = 2000;
 const label = z.string().min(1).max(160).refine(v => !/[<>\u0000-\u001f]|(?:https?:|javascript:|data:)/i.test(v), "Plain label required");
 export const rowSchema = z.record(z.string().max(80).regex(/^[a-zA-Z][a-zA-Z0-9_]*$/).refine(name => name !== "group" && name !== "value", "Reserved output field"), z.strictObject({
   type: z.enum(["string", "number", "boolean"]), label,
+  hidden: z.boolean().optional(),
   linkField: z.string().min(1).max(80).optional(),
   date: z.boolean().default(false), nullable: z.boolean().default(false), secret: z.boolean().default(false),
 })).refine(fields => Object.keys(fields).length > 0 && Object.values(fields).every(f => !f.date || f.type === "string"), "Invalid row schema").refine(fields => Object.entries(fields).every(([name, f]) => !f.linkField ||
@@ -23,4 +24,15 @@ export function parseOperationRows(data: unknown, declaration: RowSchema, limits
   }));
   const rows = z.array(strict ? z.strictObject(columns) : z.object(columns)).max(limits.rows).parse(data);
   return rows.map(row => Object.fromEntries(Object.entries(row).filter(([name]) => !fields[name]!.secret))) as Record<string, string | number | boolean | null>[];
+}
+
+/** Optional SDK 0.3 read result envelope; array results remain supported. */
+export const operationRowResultSchema = z.strictObject({
+  rows: z.array(z.unknown()), truncated: z.boolean(), total: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+}).refine(result => result.total === undefined || result.total >= result.rows.length && (result.truncated ? result.total > result.rows.length : result.total === result.rows.length), "Inconsistent row total");
+export type OperationRowResult = { rows: Record<string, string | number | boolean | null>[]; truncated: boolean; total?: number };
+export function parseOperationRowResult(data: unknown, declaration: RowSchema) {
+  if (Array.isArray(data)) return parseOperationRows(data, declaration);
+  const result = operationRowResultSchema.parse(data);
+  return { ...result, rows: parseOperationRows(result.rows, declaration) };
 }

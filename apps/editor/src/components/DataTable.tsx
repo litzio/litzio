@@ -5,6 +5,7 @@ import { useEffect, useState, useId } from "react";
 import { Popover as Primitive } from "@base-ui/react/popover";
 import { Popover, PopoverContent } from "./ui/popover.tsx";
 import { Button } from "./ui/button.tsx";
+import { Tooltip, TooltipTrigger, TooltipContent } from "./ui/tooltip.tsx";
 import { Input } from "./ui/input.tsx";
 import { Notice } from "../ui/primitives.tsx";
 import { i18n } from "../i18n.ts";
@@ -32,6 +33,7 @@ export function DataTable({
   title,
   label = (_c, v) => (v === null ? "—" : String(v)),
   loadedOnly = false,
+  coverage,
 }: {
   rows: ViewRow[];
   columns: readonly string[];
@@ -40,6 +42,7 @@ export function DataTable({
   title: string;
   label?(column: string, value: ViewRow[string]): string;
   loadedOnly?: boolean;
+  coverage?: TableCoverage;
 }) {
   useTranslation();
   const [sort, setSort] = useState<{ column: string; descending: boolean }>();
@@ -69,9 +72,7 @@ export function DataTable({
   return (
     <div className="data-table">
       <div className="view-controls">
-        <span role="status">
-          {shown.length} / {rows.length}
-        </span>
+        <TableRowCount shown={shown.length} loaded={rows.length} coverage={coverage} />
         {Object.keys(filters).length ? (
           <Button
             size="sm"
@@ -398,4 +399,14 @@ function ColumnFilter({
       </PopoverContent>
     </Popover>
   );
+}
+
+export type TableCoverage = { truncated: boolean; total?: number };
+/** Keep local filtering counts and source coverage on one accessible status line. */
+export function TableRowCount({ shown, loaded, coverage }: { shown: number; loaded: number; coverage?: TableCoverage }) {
+  return <span role="status">{shown} / {loaded}{coverage?.truncated ? <> · <Tooltip>
+    <TooltipTrigger render={<span tabIndex={0} className="rounded-sm focus-visible:outline-2 focus-visible:outline-ring" />}>
+      {coverage.total === undefined ? i18n.t("Partial results") : i18n.t("Total: {{total}}", { total: coverage.total.toLocaleString(i18n.language) })}
+    </TooltipTrigger><TooltipContent>{i18n.t("The source returned only part of the matching data. Sorting and filters use returned rows.")}</TooltipContent>
+  </Tooltip></> : null}</span>;
 }

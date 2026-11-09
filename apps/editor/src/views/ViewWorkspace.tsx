@@ -50,6 +50,6 @@ export function ViewWorkspace({ roots = [], jobsActive = true, id, hostId, root,
     {defaults.length > 1 ? <section aria-label={i18n.t("Default views")}><h3>{i18n.t("Default views")}</h3>{defaults.map(v => <Button key={v.id} size="sm" variant="ghost" disabled={!active} aria-pressed={selected === v.id} onClick={() => {
       setPages(previous => previous[v.id] ? previous : { ...previous, [v.id]: v.definition }); setSelected(v.id);
     }}>{v.title}</Button>)}</section> : null}
-    {Object.entries(pages).map(([key, definition]) => <div key={key} hidden={selected !== key} inert={selected !== key}><Views tab={{ id, hostId, root, view: definition }} client={client} onOpenDocument={onOpenDocument} unavailable={!active} /></div>)}
+    {Object.entries(pages).map(([key, definition]) => <div key={key} hidden={selected !== key} inert={selected !== key}><Views tab={{ id, hostId, root, screen, view: definition }} client={client} onOpenDocument={onOpenDocument} unavailable={!active} /></div>)}
   </div>;
 }

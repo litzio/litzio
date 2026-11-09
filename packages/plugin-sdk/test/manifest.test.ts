@@ -116,3 +116,9 @@ test("input suggestions bind public text fields to same-plugin reads on SDK 0.3"
  assert.throws(()=>validateManifest({...input,contributes:{operations:[{...source,inputSuggestions:{missing:"people"}},people]}}),/public free-text/);
  assert.throws(()=>validateManifest({...input,contributes:{operations:[{...source,inputSchema:{type:"object",properties:{person:{type:"string",secret:true}}}},people]}}),/public free-text/);
 });
+
+test("default-hidden row columns use the unreleased SDK 0.3 contract", () => {
+  const operation = { id: "read", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "array" }, rowSchema: { title: { type: "string", label: "Title" }, extra: { type: "number", label: "Extra", hidden: true } } };
+  assert.throws(() => validateManifest({ ...manifest(), requiresSdk: "^0.2.0", contributes: { operations: [operation] } }), /Column visibility/);
+  assert.equal(validateManifest({ ...manifest(), requiresSdk: "^0.3.0", contributes: { operations: [operation] } }).contributes.operations[0].rowSchema?.extra.hidden, true);
+});
