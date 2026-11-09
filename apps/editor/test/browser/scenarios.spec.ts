@@ -268,10 +268,17 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
         if (jiraFault === 408) { const timer = setTimeout(() => response.end("{}"), 8500); response.once("close", () => clearTimeout(timer)); return; }
         response.writeHead(status, { "Content-Type": "application/json", ...(jiraFault === 302 ? { Location: "/redirect-target" } : {}) });
         if (status !== 200) { response.end(JSON.stringify({ errorMessages: ["RAW-JIRA-SENTINEL mock-jira-token"] })); return; }
-        const keys = jiraLarge ? Array.from({ length: 501 }, (_, i) => `MOCK-${i + 1}`) : jql.includes("IS NOT EMPTY") ? ["MOCK-2"] : jql.includes("Unresolved") ? ["MOCK-1", "MOCK-8"] : ["MOCK-1", "MOCK-2", "MOCK-6", "MOCK-8"];
+        const keys = jql.startsWith("key in (") ? ["MOCK-1", "MOCK-2"] : jiraLarge ? Array.from({ length: 501 }, (_, i) => `MOCK-${i + 1}`) : jql.includes("IS NOT EMPTY") ? ["MOCK-2"] : jql.includes("Unresolved") ? ["MOCK-1", "MOCK-8"] : ["MOCK-1", "MOCK-2", "MOCK-6", "MOCK-8"];
         // Server may return fewer rows than requested; advance using the actual count.
-        const issues = keys.slice(startAt, startAt + (jiraLarge ? 100 : 2)).map(key => ({ key, fields: { summary: "검토할 이슈 " + key, status: { name: "Open" }, assignee: null, priority: { name: "High" }, updated: "2026-11-09" } }));
+        const issues = keys.slice(startAt, startAt + (jiraLarge ? 100 : 2)).map(key => ({ key, fields: { summary: "검토할 이슈 " + key, status: { name: "Open" }, assignee: null, reporter: { displayName: "Fixture reporter" }, created: "2026-11-01", priority: { name: "High" }, updated: "2026-11-09" } }));
         response.end(JSON.stringify({ startAt, total: keys.length, issues })); return;
+      }
+      if (request.url?.includes("/comment?")) {
+        const url = new URL(request.url, "http://fixture");
+        expect(url.searchParams.get("orderBy")).toBe("-created");
+        expect(url.searchParams.get("maxResults")).toBe("10");
+        response.writeHead(jiraFault || 200, { "Content-Type": "application/json" });
+        response.end(JSON.stringify(jiraFault ? { errorMessages: ["RAW-JIRA-SENTINEL mock-jira-token"] } : { startAt: 0, total: 12, comments: Array.from({ length: 10 }, (_, i) => ({ id: String(12 - i), author: { displayName: "Fixture reporter" }, created: "2026-11-09", updated: "2026-11-09", body: i === 0 ? "Release approved. " + "x".repeat(4100) : "Review completed." })) })); return;
       }
       if (request.url?.startsWith("/jira/rest/api/2/issue/")) {
         const key = request.url.split("/").at(-1);
@@ -282,7 +289,7 @@ export function activate(context){return {operations:{connection:()=>({ok:contex
         }
         response.writeHead(status, { "Content-Type": "application/json", ...(jiraFault === 302 ? { Location: "/redirect-target" } : {}) });
         if (jiraFault === 302) { response.end(); return; }
-        response.end(JSON.stringify(status === 200 ? { fields: { summary: "검토할 이슈 " + key, status: { name: "Open" }, assignee: null, priority: { name: "High" }, updated: "2026-11-09" } } : { errorMessages: ["RAW-JIRA-SENTINEL mock-jira-token"] }));
+        response.end(JSON.stringify(status === 200 ? { key, fields: { description: "Weekly report: search completed. <script>text only</script>" + "d".repeat(16000), reporter: { displayName: "Fixture reporter" }, created: "2026-11-01", summary: "검토할 이슈 " + key, status: { name: "Open" }, assignee: null, priority: { name: "High" }, updated: "2026-11-09" } } : { errorMessages: ["RAW-JIRA-SENTINEL mock-jira-token"] }));
         return;
       }
       if (request.url !== "/health") conversionRequests++;

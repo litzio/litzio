@@ -323,6 +323,10 @@ litzio plugins start example.plugin --job convert --root <root> --file a.pdf --f
 
 작업 섹션 제목은 ‘작업’이며 실패·불확실 안내는 행의 Info 아이콘 Tooltip으로 표시한다. 키보드 focus로 같은 안내를 연다. 결과 열기는 ghost/sm ‘열기’와 파일 이름을 포함한 접근성 이름을 쓴다. 파일 선택과 표는 내용 높이대로 펼쳐 페이지가 세로 스크롤을 소유하고 표에는 내부 가로 스크롤만 둔다. 기존 즐겨찾기 영역은 이번 변경에서 유지한다.
 
+### Jira 커뮤니티 0.0.3 읽기 사례 (#1350)
+
+저장소의 community-plugins/jira는 독립 배포 전 임시 커뮤니티 artifact다. JQL 검색 v1과 같은 경로 위의 간편 검색 issues v4(프로젝트·보고자·기간 기준·시작/종료일) 두 기본 뷰와 기본 7열은 기존 InputForm/Table 계약을 사용한다. 추가 후보 필드는 공개 행 스키마·데이터로 유지하고 표시 columns에서 제외한다. detail v1은 host read·assistant 작업으로 설명과 최근 생성 댓글 최대 10개, 키·URL·조회 시각·댓글 전체 수/반환 범위·본문 잘림을 반환한다. CLI operation invoke와 비서는 같은 operation을 사용하며 별도 상세 화면·Jira 쓰기·SDK 확장은 없다. 상한·오류·검증 경계의 상세 계약은 [Jira README](../../community-plugins/jira/README.md#003-검색과-상세-계약)를 따른다.
+
 ## Plugin image icon (#1346)
 
 Optional manifest `icon` (SDK 0.3.0) names one artifact-relative PNG or SVG file, using slash-separated filename segments. URLs, absolute/traversal paths, links and other formats are refused at validation/registration. The icon is limited to 64 KiB and positive dimensions at most 256 x 256 pixels; SVG requires explicit numeric pixel width/height and the SVG namespace (no DTD). These bounds allow small high-density icons for the existing 16px controls without accepting document-sized assets. Existing PNG container validation and an XML parser validate the format; SVG is never inserted as markup.
