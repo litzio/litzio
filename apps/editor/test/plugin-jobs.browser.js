@@ -18,6 +18,14 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   expect(iconResponse.headers()["x-content-type-options"]).toBe("nosniff");
   await page.getByRole("button", { name: "Job fixture", exact: true }).click();
   await expect(page.locator('.document-tabs img.plugin-icon')).toHaveCount(1);
+  const initialPanel = page.getByTestId("plugin-job-panel").filter({ visible: true });
+  await expect(initialPanel.getByRole("group", { name: "Task", exact: true })).toBeVisible();
+  await expect(initialPanel.getByRole("button", { name: /File export.*.txt.*.bin/s })).toBeVisible();
+  await expect(initialPanel.locator("table")).toHaveCount(0);
+  await expect(initialPanel.locator(".plugin-job-hint")).toHaveText("Open a folder to select input files.");
+  await initialPanel.locator(".plugin-job-hint").focus();
+  await expect(initialPanel.locator(".plugin-job-hint")).toBeFocused();
+
   await expect.poll(() => page.locator('.sidebar img.plugin-icon, .document-tabs img.plugin-icon').evaluateAll(images => images.every(image => image.complete && image.naturalWidth === 32))).toBe(true);
   if (screenshots) await page.screenshot({path:"tmp/1346/screen-1440.png", mask:[page.locator(".sidebar-host-account")]});
   await page.getByRole("button", { name: "Settings", exact: true }).click();
@@ -56,7 +64,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await page.getByRole("combobox").fill("> Plugin jobs");
   await page.getByRole("option", { name: "Plugin jobs", exact: true }).click();
   const pane = page.getByTestId("plugin-jobs");
-  await pane.getByLabel("Job", { exact: true }).selectOption("fixture.jobs/text");
+  await pane.getByLabel("Task", { exact: true }).selectOption("fixture.jobs/text");
   await pane.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
   await pane.getByLabel("Input file").selectOption({ label: "▸ nested" });
   await pane.getByLabel("Input file").selectOption({ label: "input.txt" });
@@ -68,13 +76,13 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect(pane.getByRole("button", { name: "Start job", exact: true })).toBeDisabled();
   await pane.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
   await pane.getByLabel("Input file").selectOption({ label: "input.txt" });
-  await pane.getByLabel("Result path in Root").fill("../outside.md");
+  await pane.getByLabel("Result file").fill("../outside.md");
   await pane.getByRole("button", { name: "Start job", exact: true }).click();
   await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("Failed");
   await expect(pane.getByRole("alert")).toContainText(/outside|allowed|Root/i);
-  await expect(pane.getByLabel("Result path in Root")).toBeEnabled();
+  await expect(pane.getByLabel("Result file")).toBeEnabled();
   await expect(pane.getByRole("button", { name: "Start job", exact: true })).toBeEnabled();
-  await pane.getByLabel("Result path in Root").fill("browser-result.md");
+  await pane.getByLabel("Result file").fill("browser-result.md");
   await pane.getByRole("button", { name: "Start job", exact: true }).click();
   await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("In progress");
   const requestId = latestRequestId;
@@ -119,10 +127,10 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await page.keyboard.press("Control+Slash");
   await page.getByRole("combobox").fill("> Plugin jobs");
   await page.getByRole("option", { name: "Plugin jobs", exact: true }).click();
-  await pane.getByLabel("Job", { exact: true }).selectOption("fixture.jobs/text");
+  await pane.getByLabel("Task", { exact: true }).selectOption("fixture.jobs/text");
   await pane.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
   await pane.getByLabel("Input file").selectOption({ label: "input.txt" });
-  await pane.getByLabel("Result path in Root").fill("stopped-result.md");
+  await pane.getByLabel("Result file").fill("stopped-result.md");
   await pane.getByRole("button", { name: "Start job", exact: true }).click();
   await pane.getByRole("button", { name: "Request cancellation" }).click();
   await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("Cancellation requested");
@@ -130,7 +138,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect(pane.getByRole("button", { name: "Request cancellation" })).toHaveCount(0);
   await expect(pane.getByRole("button", { name: "Open result document" })).toHaveCount(0);
   await pane.getByLabel("Input file").selectOption({ label: "slow.txt" });
-  await pane.getByLabel("Result path in Root").fill("reopened-running.md");
+  await pane.getByLabel("Result file").fill("reopened-running.md");
   await pane.getByRole("button", { name: "Start job", exact: true }).click();
   await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("In progress");
   await page.getByRole("button", { name: /Close Plugin jobs/ }).click();
@@ -151,7 +159,7 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     await route.continue();
   };
   await page.route("**/api/plugins", monitor);
-  await pane.getByLabel("Result path in Root").fill("closed-result.md");
+  await pane.getByLabel("Result file").fill("closed-result.md");
   await pane.getByRole("button", { name: "Start job", exact: true }).click();
   await expect(pane.getByRole("status", { name: "Job status" })).toHaveText("Outcome uncertain");
   const lostId = latestRequestId;
@@ -168,10 +176,10 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await expect(pane.getByRole("button", { name: "Open result document" })).toBeVisible();
   expect(starts).toBe(1);
   await page.unroute("**/api/plugins", monitor);
-  await pane.getByLabel("Job", { exact: true }).selectOption("fixture.jobs/text");
-  await pane.getByLabel("Job", { exact: true }).selectOption("fixture.jobs/file");
+  await pane.getByLabel("Task", { exact: true }).selectOption("fixture.jobs/text");
+  await pane.getByLabel("Task", { exact: true }).selectOption("fixture.jobs/file");
   await pane.getByLabel("Input file").selectOption({ label: "input.txt" });
-  await expect(pane.getByLabel("Result path in Root")).toHaveValue("input.bin");
+  await expect(pane.getByLabel("Result file")).toHaveValue("input.bin");
   await pane.getByRole("button", { name: "Start job", exact: true }).click();
   await expect(pane.getByRole("button", { name: "Copy result path", exact: true })).toBeVisible();
   await expect(pane.getByRole("button", { name: "Open result document" })).toHaveCount(0);
@@ -201,8 +209,8 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("settings-dialog")).not.toBeVisible();
   }
-  await pane.getByLabel("Job", { exact: true }).selectOption("fixture.jobs/text");
-  await pane.getByLabel("Result path in Root").fill("failure-result.md");
+  await pane.getByLabel("Task", { exact: true }).selectOption("fixture.jobs/text");
+  await pane.getByLabel("Result file").fill("failure-result.md");
   for (const [input, state] of [["fail.txt", "Failed"], ["uncertain.txt", "Outcome uncertain"]]) {
     await pane.getByLabel("Input file").selectOption({ label: input });
     await pane.getByRole("button", { name: "Start job", exact: true }).click();
@@ -214,7 +222,9 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   await panel.getByLabel("Opened folder", { exact: true }).selectOption(pluginFixture.folder);
   await panel.getByRole("checkbox", { name: "batch-a.txt", exact: true }).check();
   await panel.getByRole("checkbox", { name: "batch-b.txt", exact: true }).check();
-  await panel.getByRole("button", { name: "Start job", exact: true }).click();
+  await expect(panel.locator(".plugin-job-start")).toContainText("2 files selected");
+  await expect(panel.locator(".plugin-job-start").getByRole("button")).toHaveText("File export");
+  await panel.locator(".plugin-job-start").getByRole("button").click();
   for (const file of ["batch-a.txt", "batch-b.txt"]) {
     const row = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: file, exact: true }) });
     await expect(row.getByRole("status")).toHaveText("Completed");
@@ -225,24 +235,24 @@ async (page, { expect, pluginFixture, openFolderPicker, screenshots }) => {
   for (const file of batch.files) await expect.poll(() => pluginFixture.cli(["plugins", "status", file.requestId]).job.state).toBe("completed");
   await panel.getByRole("checkbox", { name: "batch-a.txt", exact: true }).check();
   await panel.getByRole("checkbox", { name: "slow.txt", exact: true }).check();
-  await panel.getByRole("button", { name: "Start job", exact: true }).click();
+  await panel.locator(".plugin-job-start").getByRole("button").click();
   await expect(panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "batch-a.txt", exact: true }) }).first().getByRole("cell", { name: "batch-a-2.bin", exact: true })).toBeVisible();
   await expect(panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "slow.txt", exact: true }) }).first().getByRole("status")).toHaveText("Completed", { timeout: 15000 });
-  await panel.getByLabel("Job", { exact: true }).selectOption("text");
+  await panel.getByRole("button", { name: /Text import/ }).click();
   await panel.getByRole("checkbox", { name: "slow.txt", exact: true }).check();
-  await panel.getByRole("button", { name: "Start job", exact: true }).click();
+  await panel.locator(".plugin-job-start").getByRole("button").click();
   const stoppedRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "slow.txt", exact: true }) }).first();
   await stoppedRow.getByRole("button", { name: "Request cancellation", exact: true }).click();
   await expect(stoppedRow.getByRole("status")).toHaveText("Cancelled");
   await panel.getByRole("checkbox", { name: "start-fail.txt", exact: true }).check();
-  await panel.getByRole("button", { name: "Start job", exact: true }).click();
+  await panel.locator(".plugin-job-start").getByRole("button").click();
   const failureRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "start-fail.txt", exact: true }) }).first();
   await expect(failureRow.getByRole("status")).toHaveText("Outcome uncertain");
   await failureRow.getByRole("button", { name: "Job details: start-fail.txt", exact: true }).hover();
   await expect(page.locator("[data-slot=tooltip-content]")).toContainText("The plugin could not acknowledge the start request.");
   await page.keyboard.press("Escape");
   await panel.getByRole("checkbox", { name: "input.txt", exact: true }).check();
-  await panel.getByRole("button", { name: "Start job", exact: true }).click();
+  await panel.locator(".plugin-job-start").getByRole("button").click();
   const nativeRow = panel.getByRole("row").filter({ has: page.getByRole("cell", { name: "input.txt", exact: true }) }).first();
   await expect(nativeRow.getByRole("button", { name: "Open result: input.txt", exact: true })).toBeVisible();
   for (const selector of [".plugin-job-files", ".view-table-scroll"]) {
