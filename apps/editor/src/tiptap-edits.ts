@@ -497,11 +497,14 @@ function insertEdit(node: TiptapJSON): InsertEdit {
 }
 
 /** Carry authored data across fresh locators; Core alone validates number semantics. */
-function insertEnumerator(node: TiptapJSON): { enumerator?: string } {
+function insertEnumerator(node: TiptapJSON): { enumerator?: string; enumerated?: boolean } {
+  const enumerated = node.attrs?.enumerated;
+  if (enumerated != null && (typeof enumerated !== "boolean" || node.type !== "figure" && node.type !== "table")) throw new Error("invalid numbering visibility");
+  const visibility = enumerated == null ? {} : { enumerated };
   const value = node.attrs?.enumerator;
-  if (value == null) return {};
+  if (value == null) return visibility;
   if (typeof value !== "string") throw new Error("inserted enumerator must be a string");
-  return { enumerator: value };
+  return { enumerator: value, ...visibility };
 }
 
 export function figureContent(node: TiptapJSON): FigureContent {

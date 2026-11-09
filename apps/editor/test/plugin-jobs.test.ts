@@ -385,6 +385,7 @@ test("public SDK authoring crosses the external plugin boundary and K1 official 
     const imageSource = readFileSync(path.join(root, "images.md"), "utf8");
     assert.match(imageSource, /\.\/assets\/images-[a-f0-9]{64}-[a-f0-9]{64}\.png/);
     assert.match(imageSource, /:enumerator: A\.3/);
+    assert.deepEqual(imageJob.result?.inputs, [{ key: "picture", targets: [{ path: getEditableDocument(parse(imageSource)).blocks[0].path, documentRevision: imageJob.result!.revision, documentHash: imageJob.result!.revision }] }]);
     const imageFiles = fs.readdirSync(assets);
     assert.equal(imageFiles.length, 1);
     assert.deepEqual(readFileSync(path.join(assets, imageFiles[0])), Buffer.from(png, "base64"));

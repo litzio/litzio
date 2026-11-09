@@ -240,8 +240,7 @@ test("native admission rejects unsupported structure instead of projecting parti
     "> One.\n>\n> Two.\n", ":::{note}\n# Nested\n:::\n", "Text {kbd}`Ctrl`.\n",
     "## See {ref}`Custom <target>`\n", "[a](./same)[b](./same)\n", "| A |\n|---|\n| ![x](./x.png) |\n",
     "Text[^a].\n\n[^a]: One.\n\n    Two.\n", ":::{figure} ./x.png\n:width: 100px\n:::\n",
-    "```{math}\n:enumerated: false\nx\n```\n", ":::{figure} ./x.png\n:enumerated: false\n:::\n",
-    ":::{table}\n:enumerated: false\n\n| A |\n|---|\n:::\n",
+    "```{math}\n:enumerated: false\nx\n```\n",
     "```{code-block} python\n:enumerator: 17\n\nprint(1)\n```\n",
     ":::{figure}\n\n```{mermaid}\n:enumerator: 17\n\ngraph LR; A-->B\n```\n:::\n"]) {
     assert.throws(() => parse(native(body)), NativeDocumentError, body);
@@ -681,12 +680,16 @@ test("structured authoring binds supplied images and preserves fixed numbers on 
     { kind: "figure", imageAsset: "picture", imageAlt: "Alt", caption: "Caption", enumerator: "A.3" },
     { kind: "table", rows: [["Header"], ["Body"]], enumerator: "17" },
     { kind: "equation", latex: "x^2", enumerator: "4-2" },
+    { kind: "figure", imageUrl: "", imageAlt: "", caption: "Logo", enumerated: false },
+    { kind: "table", rows: [["H"]], enumerated: false },
     { kind: "figure", imageUrl: "", imageAlt: "", caption: "Auto" },
   ] }] };
   const authored = await authorDocument(input, { picture: "./assets/report-picture.png" });
   assert.equal(serialize(parse(authored.source)), authored.source);
   const blocks = getEditableDocument(parse(authored.source)).blocks;
-  assert.deepEqual(blocks.map(block => "enumerator" in block ? block.enumerator : undefined), ["A.3", "17", "4-2", undefined]);
+  assert.deepEqual(blocks.map(block => "enumerator" in block ? block.enumerator : undefined), ["A.3", "17", "4-2", undefined, undefined, undefined]);
+  assert.equal((blocks[3] as any).enumerated, false);
+  assert.equal((blocks[4] as any).enumerated, false);
   assert.equal((blocks[0] as any).imageUrl, "./assets/report-picture.png");
   const { targetNumbers, blockTargets } = await import("@litzio/core/numbering");
   assert.equal(targetNumbers(blocks.map(blockTargets)).at(-1)?.figure, 1);

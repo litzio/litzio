@@ -93,6 +93,7 @@ export type EditableBlock =
   | {
       block: "figure";
       enumerator?: string;
+      enumerated?: boolean;
       path: NodePath;
       label: string;
       /** What the Figure shows: "none", "image" or "mermaid" for supported Figures. */
@@ -109,6 +110,7 @@ export type EditableBlock =
   | {
       block: "table";
       enumerator?: string;
+      enumerated?: boolean;
       path: NodePath;
       rows: EditableTableRow[];
       label?: string;
@@ -240,6 +242,7 @@ function figureBlock(node: MystNode, path: NodePath): EditableBlock {
   return {
     block: "figure",
     ...(node.enumerator !== undefined ? { enumerator: node.enumerator as string } : {}),
+    ...(node.enumerated !== undefined ? { enumerated: node.enumerated as boolean } : {}),
     path,
     label: nodeLabel(node),
     contentKind: figureContentKind(node),
@@ -274,6 +277,7 @@ function tableBlock(node: MystNode, path: NodePath): EditableBlock {
   return {
     block: "table",
     ...(node.enumerator !== undefined ? { enumerator: node.enumerator as string } : {}),
+    ...(node.enumerated !== undefined ? { enumerated: node.enumerated as boolean } : {}),
     path,
     rows,
     ...(nodeLabel(node) ? { label: nodeLabel(node) } : {}),

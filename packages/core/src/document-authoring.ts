@@ -13,8 +13,8 @@ const block = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("paragraph"), text }),
   z.strictObject({ kind: z.literal("heading"), level: z.number().int().min(1).max(6), text }),
   z.strictObject({ kind: z.literal("list"), ordered: z.boolean(), start: z.number().int().positive().optional(), items: z.array(text).min(1).max(100) }),
-  z.strictObject({ kind: z.literal("table"), rows: z.array(z.array(text).min(1).max(DOCUMENT_AUTHORING_LIMITS.tableColumns)).min(1).max(DOCUMENT_AUTHORING_LIMITS.tableRows), enumerator: text.optional() }),
-  z.strictObject({ kind: z.literal("figure"), imageUrl: text.optional(), imageAsset: text.min(1).max(512).optional(), imageAlt: text, caption: text, enumerator: text.optional() }).refine(value => (value.imageUrl !== undefined) !== (value.imageAsset !== undefined), "Expected imageUrl or imageAsset"),
+  z.strictObject({ kind: z.literal("table"), rows: z.array(z.array(text).min(1).max(DOCUMENT_AUTHORING_LIMITS.tableColumns)).min(1).max(DOCUMENT_AUTHORING_LIMITS.tableRows), enumerator: text.optional(), enumerated: z.boolean().optional() }),
+  z.strictObject({ kind: z.literal("figure"), imageUrl: text.optional(), imageAsset: text.min(1).max(512).optional(), imageAlt: text, caption: text, enumerator: text.optional(), enumerated: z.boolean().optional() }).refine(value => (value.imageUrl !== undefined) !== (value.imageAsset !== undefined), "Expected imageUrl or imageAsset"),
   z.strictObject({ kind: z.literal("code"), language: text, code: text }),
   z.strictObject({ kind: z.literal("equation"), latex: text, enumerator: text.optional() }),
   z.strictObject({ kind: z.literal("divider") }),
@@ -66,6 +66,7 @@ export async function authorDocument(raw: unknown, imageAssets: Readonly<Record<
         case "equation": part = operations.insertEquation(part, index, block.latex); break;
         case "divider": part = operations.insertDivider(part, index); break;
       }
+      if ("enumerated" in block && block.enumerated !== undefined) part = operations.updateEnumeration(part, [index], block.enumerated);
       if ("enumerator" in block && block.enumerator !== undefined) part = operations.updateEnumerator(part, [index], block.enumerator);
       document.children.push(...part.children.slice(index));
     }

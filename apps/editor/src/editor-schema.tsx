@@ -372,7 +372,7 @@ const Figure = Node.create<{ documentPath?: string | (() => string) }>({
     return blockAttrs({
       label: hiddenAttr(""),
       imageUrl: hiddenAttr(""),
-      enumerator: { default: null, rendered: false },
+      enumerator: { default: null, rendered: false }, enumerated: { default: null, rendered: false },
       imageIdentity: hiddenAttr(""),
       imageAlt: hiddenAttr(""),
       mermaidSource: { default: null, rendered: false },
@@ -438,7 +438,7 @@ const Table = Node.create({
   selectable: true,
   draggable: false,
   addAttributes() {
-    return blockAttrs({ label: hiddenAttr(""), enumerator: { default: null, rendered: false } });
+    return blockAttrs({ label: hiddenAttr(""), enumerator: { default: null, rendered: false }, enumerated: { default: null, rendered: false } });
   },
   parseHTML() {
     return [{ tag: "div[data-table-block]", contentElement: "table" }];

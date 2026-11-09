@@ -276,19 +276,19 @@ Core `authorDocument(input)`을 공개 `@litzio/plugin-sdk`에서 제공한다. 
 | paragraph | text | literal 본문 |
 | heading | level(1–6), text | 제목 |
 | list | ordered, start?, items(string[]) | 중첩 없는 bullet/번호 목록, 최대 100항목 |
-| table | rows(string[][]), enumerator? | 첫 행 header, 직사각형 표 |
-| figure | imageUrl 또는 imageAsset, imageAlt, caption, enumerator? | 기존 Core Figure, 빈 URL은 pending |
+| table | rows(string[][]), enumerator?, enumerated? | 첫 행 header, 직사각형 표 |
+| figure | imageUrl 또는 imageAsset, imageAlt, caption, enumerator?, enumerated? | 기존 Core Figure, 빈 URL은 pending |
 | code | language, code | 코드 블록 |
 | equation | latex, enumerator? | display 수식 |
 | divider | 없음 | 구분선 |
 
-모든 텍스트는 기존 Core literal text 연산을 통과한다. Markdown 문자열을 의미로 파싱하지 않는다. 기존 연산의 공백·개행 정규화와 native write 거부 규칙을 그대로 따른다. rich inline, 중첩 목록, 임의 HTML/AST/원본 Markdown, 외부 형식 변환은 이 API의 입력이 아니다. imageAsset은 함께 넘긴 이미지의 key이며 `authorDocument(input, imageAssets)`의 두 번째 인자 `{[key]: relativePath}`로 해석한다. imageUrl과 imageAsset은 정확히 하나만 지정한다. 경로가 없는 asset은 거부한다. Core는 바이트 검사·파일 IO를 하지 않는다. Figure·Table·Equation의 선택적 enumerator는 기존 updateEnumerator와 직렬화·번호 계산을 사용한다. 번호를 캡션에서 추측하거나 제거하지 않는다. title도 기존 Core 단일 행 title 제약을 따른다. 지원하지 않는 의미를 자동으로 평탄화하거나 일부만 성공으로 반환하지 않는다.
+모든 텍스트는 기존 Core literal text 연산을 통과한다. Markdown 문자열을 의미로 파싱하지 않는다. 기존 연산의 공백·개행 정규화와 native write 거부 규칙을 그대로 따른다. rich inline, 중첩 목록, 임의 HTML/AST/원본 Markdown, 외부 형식 변환은 이 API의 입력이 아니다. imageAsset은 함께 넘긴 이미지의 key이며 `authorDocument(input, imageAssets)`의 두 번째 인자 `{[key]: relativePath}`로 해석한다. imageUrl과 imageAsset은 정확히 하나만 지정한다. 경로가 없는 asset은 거부한다. Core는 바이트 검사·파일 IO를 하지 않는다. Figure·Table·Equation의 선택적 enumerator는 기존 updateEnumerator와 직렬화·번호 계산을 사용한다. Figure·Table의 선택 `enumerated:false`는 표준 MyST 번호 없음으로 직렬화하며 자동 카운터에서 제외한다(#1383). false와 비어 있지 않은 enumerator를 함께 지정하면 거부한다. 번호를 캡션에서 추측하거나 제거하지 않는다. title도 기존 Core 단일 행 title 제약을 따른다. 지원하지 않는 의미를 자동으로 평탄화하거나 일부만 성공으로 반환하지 않는다.
 
 `DOCUMENT_AUTHORING_LIMITS`는 입력 JSON과 출력 canonical source 각각 UTF-8 4 MiB (4,194,304 bytes), 입력 5,000개, 전체 블록 5,000개, 문자열 16384 UTF-16 code units, 표 100행×32열이다. unknown 필드·중복 key·잘못된 요소/Unicode·schema 상한 위반은 `DocumentAuthoringError.code="invalid-input"`, byte 상한 초과는 `limit`, Core의 의미·round-trip 거부는 `unsupported-content`로 Promise가 reject된다. 오류에는 입력 원문을 포함하지 않으며 부분 결과를 반환하지 않는다. `documentAuthoringSchema`는 구조 검증용이고 byte·Core 검증은 함수 실행에서 추가한다.
 
 반환 source는 canonical serialize→parse→serialize가 안정적인 native 문서다. 각 target은 `{path,documentRevision,documentHash}`이며 최종 재파싱 snapshot의 Core read-model 최상위 블록을 가리킨다. revision과 hash는 동일한 canonical source UTF-8 SHA-256(hex)으로 Host `textRevision`과 같다. 해시는 순수 JS 라이브러리로 계산하며 Node 전용 API나 secure context의 `crypto.subtle`에 의존하지 않는다. key는 원본 입력의 식별자이고 path는 persistent identity가 아니다. 저장 뒤 같은 source/revision에서만 참조가 유효하며 편집 후 새 revision에 자동 재연결하지 않는다. 참조 없는 입력도 `{key,targets:[]}`로 반환한다. 원본 영역·mapping 자료는 플러그인이 이 target을 사용해 별도로 구성하고 #1317의 전역 유일 영역 ID·bundle 범위 검증을 따른다.
 
-기존 K1 status 완료의 `document:{source: authored.source}`는 유지한다. 이미지가 있는 결과는 `document:{authoring: DocumentAuthoringInput, images:[{key,mime,base64}]}`로 반환한다. Host가 이미지 경로를 바인딩한 뒤 같은 Core 함수를 호출하고 공식 새 파일 생성으로 저장한다. 이 분기의 최종 문서 revision은 K1 저장 receipt를 따른다. 플러그인의 원본→블록 해석은 바뀌지 않으며 Core/Host가 특정 외부 형식을 알지 않는다. 공용 `plugins job-start/job-status/job-result` HTTP/CLI·requestId·Root·충돌·receipt 경로를 유지하며 새 저장 endpoint나 직접 파일 쓰기를 만들지 않는다. start는 계속 running 접수만 반환한다. 문서 저장 이후 review 발행은 별개 단계이고 기존 uncertain·같은 requestId 확인·start 무재전송 계약을 유지한다.
+기존 K1 status 완료의 `document:{source: authored.source}`는 유지한다. 이미지가 있는 결과는 `document:{authoring: DocumentAuthoringInput, images:[{key,mime,base64}]}`로 반환한다. Host가 이미지 경로를 바인딩한 뒤 같은 Core 함수를 호출하고 공식 새 파일 생성으로 저장한다. 이 분기의 최종 문서 revision은 K1 저장 receipt를 따른다. K1 result.inputs는 이미지 경로를 바인딩한 최종 문서의 key별 targets(각 path/revision/hash)를 호출자에게 반환한다(#1383). 원본 source 결과에는 inputs를 추측해 추가하지 않는다. 플러그인의 원본→블록 해석은 바뀌지 않으며 Core/Host가 특정 외부 형식을 알지 않는다. 공용 `plugins job-start/job-status/job-result` HTTP/CLI·requestId·Root·충돌·receipt 경로를 유지하며 새 저장 endpoint나 직접 파일 쓰기를 만들지 않는다. start는 계속 running 접수만 반환한다. 문서 저장 이후 review 발행은 별개 단계이고 기존 uncertain·같은 requestId 확인·start 무재전송 계약을 유지한다.
 
 검증은 기존 Core native suite에서 최소 요소·입력 키별 0/N 참조·canonical 재처리와 거부를 확인한다. 기존 K1 suite의 대표 외부 artifact subprocess(약 2초)는 SDK import만 사용해 생성→Host 공식 저장→재파싱·revision/path 대조와 원본 보존을 확인한다. Core 조합을 subprocess에서 반복하지 않는다. master의 #1318과 #1317 최종 결합은 기존 `reviews.test.ts`의 읽기 전용 K1 완료 경로에서 공개 SDK 생성→공식 저장→입력 key별 target으로 대조 발행→Host·실제 CLI snapshot 재조회와 revision/path 일치를 확인한다. 같은 SDK 생성 문서를 외부 변경한 뒤 원래 byte로 복원해도 stale을 유지하는 통합 경계를 함께 보호한다. 새 subprocess를 추가하지 않고 기존 완료·CLI 읽기를 보완하며 삭제·일시적 오류 분류는 Host 단위 검사가 소유한다. Docling 품질·대규모 paging·과거 형식 호환은 검증 범위가 아니다.
 

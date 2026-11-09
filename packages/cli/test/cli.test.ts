@@ -2003,7 +2003,7 @@ test("CLI create --input uses shared authoring and image publication without ove
     const file = path.join(dir, "report.md"), input = path.join(dir, "input.json");
     writeFileSync(input, JSON.stringify({ authoring: { inputs: [{ key: "source", blocks: [
       { kind: "figure", imageAsset: "picture", imageAlt: "Picture", caption: "Caption", enumerator: "A.3" },
-      { kind: "table", rows: [["Heading"], ["Value"]], enumerator: "17" }, { kind: "equation", latex: "x^2", enumerator: "4-2" },
+      { kind: "table", rows: [["Heading"], ["Value"]], enumerated: false }, { kind: "equation", latex: "x^2", enumerator: "4-2" },
     ] }] }, images: [{ key: "picture", mime: "image/png", base64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aX1sAAAAASUVORK5CYII=" }] }));
     const created = runProcess(["create", file, "--input", input, "--format", "json"]);
     assert.equal(created.status, 0, created.stderr);
@@ -2011,7 +2011,8 @@ test("CLI create --input uses shared authoring and image publication without ove
     const saved = readFileSync(file, "utf8");
     assert.equal(saved, receipt.source);
     assert.match(saved, /\.\/assets\/report-[a-f0-9]{64}-[a-f0-9]{64}\.png/);
-    for (const enumerator of ["A.3", "17", "4-2"]) assert.ok(saved.includes(`:enumerator: ${enumerator}`));
+    for (const enumerator of ["A.3", "4-2"]) assert.ok(saved.includes(`:enumerator: ${enumerator}`));
+    assert.match(saved, /:enumerated: false/);
     assert.equal(receipt.inputs[0].targets.length, 3);
     const again = runProcess(["create", file, "--input", input]);
     assert.equal(again.status, 1); assert.match(again.stderr, /already exists/);

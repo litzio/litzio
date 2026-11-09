@@ -450,3 +450,8 @@ at `BadPasswordAttempts=6`; its temporary Host was shut down. The subsequent own
 rule waits at two-minute intervals for a value below 3 (maximum 20 minutes) when the
 counter is at least 5. No local Edge or packaged Desktop run is used. HTTP CI validates
 the corrected fixture on both operating systems.
+
+
+## Unnumbered tables (#1383)
+
+Standard MyST `:enumerated: false` on the table directive suppresses its displayed number without changing caption, label or grid. Core caption/label operations, Editor copies and Save/Reload retain the option. Unnumbered tables do not advance automatic counters. Shared authoring and CLI `create --input` accept `enumerated:false` on table blocks. See the [shared number contract](heading-numbering-v1.md#fixed-numbers-720).
