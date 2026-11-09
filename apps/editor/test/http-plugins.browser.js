@@ -183,8 +183,10 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     expect(live.status.accounts[0].label).toBe("Fixture account");
   }
   await page.keyboard.press("Escape");
-  // Escape exits Settings without modifying the document or opened folders.
+  await expect(page.locator(".plugin-settings-dialog")).not.toBeVisible();
+  // Escape exits Settings after the nested dialog has finished closing.
   await page.keyboard.press("Escape");
+  await expect(page.getByTestId("settings-dialog")).not.toBeVisible();
   await openFolderPicker(page);
   await page.getByTestId("folder-path").fill(pluginFixture.folder);
   await page.getByTestId("folder-open").click();
