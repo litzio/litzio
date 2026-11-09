@@ -506,7 +506,7 @@ is added. Existing local New/FolderDialog surfaces were compared; the remote fol
 now also offers New folder. The multi-host browser scenario and manual 1440/640px +/menu
 captures are recorded in [Editor UX Shell](editor-ux-shell-v1.md#multiple-host-shell-1174-pr4).
 
-ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의 host-summary 행과 공용 Notice·Tooltip·Button·Dialog·settings-switch 및 HostStatus 점/톤 스타일을 재사용한다. 이름·공급자/계층/신뢰 배지·설명을 왼쪽에 묶고 토글을 같은 행 오른쪽 끝에 둔다. 상태와 계정은 별도 줄이며 1단계 UI는 로컬 Host만 지원한다.
+ADR-0020 1단계의 [플러그인 설정](plugin-stage1-v1.md)은 #1179 Hosts의 host-summary 행과 공용 Notice·Tooltip·Button·Dialog·settings-switch 및 HostStatus 점/톤 스타일을 재사용한다. manifest name 하나를 버튼이 아닌 제목으로 두고 공급자/계층/신뢰 배지·설명을 왼쪽에 묶는다. 같은 행 오른쪽 끝에는 항상 ghost 톱니 아이콘 Button(Tooltip: 설정/Settings, aria-label에 이름 포함)과 스위치를 이 순서로 둔다. 설정 항목이 없어도 톱니로 정보에 진입한다. 상태와 계정은 별도 줄이며 1단계 UI는 로컬 Host만 지원한다.
 ## 공용 원본 대조와 변경 제안 (catalog V5, #1241 A안)
 
 현재 [번들 renderer](../../apps/editor/src/review/ReviewRenderer.tsx)는 독립 fixture로 검증한다.
@@ -711,3 +711,11 @@ D3가 공통 부품·갤러리·이 패턴의 구현 근거를 함께 갱신한�
 ## 플러그인·동적 뷰의 내용 우선 표시 (#1329)
 
 기존 작업 탭·우측 보기의 ViewWorkspace/QueryViews와 Button·Notice·native details/summary를 재사용한다. Host 선택은 복수 Host일 때, 기본 뷰 선택은 복수 후보 또는 다른 뷰에서 돌아올 때 표시한다. 즐겨찾기 목록 관리는 접어 두며 내용 안의 수동 조회·즐겨찾기 추가는 유지한다. 폴더 source만 폴더 선택을 한 번 표시한다. 일반 생성 뷰에도 같은 기준을 적용하며 별도 표면·공통 상호작용 예외는 없다. 출처·원자료를 접는 AssistantDataDetails/ViewChart의 기존 패턴과 일치한다. 실행·캡처 근거와 Host/CLI 범위는 [생성 뷰 계약](generated-views-v1.md#플러그인동적-뷰-화면-간소화-1329)을 따른다.
+
+## 플러그인 설정 고정 규칙 (#1334)
+
+현재 목록은 위 Hosts host-summary와 같은 정렬·상태 점/톤을 사용한다. 과거 #1007/#1090의 톱니·스위치 배치를 재사용하되, 비활성 플러그인도 정보와 설정에 진입한다. 설정 화면에는 플러그인 화면 이동 버튼을 두지 않는다. 화면 진입은 사이드바이며 “동작 · 이름” 합성 라벨은 금지한다.
+
+설정 창 순서는 이름·버전·설명 → settingsSchema.properties 선언 순서의 일반 설정 → secret → 연결 확인 → 접힌 상세(digest)다. 설정 title은 라벨, description은 Tooltip 안내다. 화면에는 상태·대상·행동을 상시 표시한다. 연결 확인은 저장된 설정으로 실행하며 실행 중 표시, 연결됨/오류와 고정 안내를 제공한다. 꺼짐·미실행이면 버튼을 비활성화하고 Tooltip으로 이유를 보인다. 기존 Button·Tooltip·Dialog·Notice·settings 행·HostStatus 스타일을 재사용하며 새 공통 상호작용 예외는 없다.
+
+수동 검토: 1440px 영어 라이트 [변경 전](assets/plugin-settings-1334/before-1440.png) / [변경 후](assets/plugin-settings-1334/after-1440.png), 640px 한국어 다크 [변경 전](assets/plugin-settings-1334/before-640.png) / [변경 후](assets/plugin-settings-1334/after-640.png). 설정 창 [1440px](assets/plugin-settings-1334/detail-1440.png) / [640px 한국어 다크](assets/plugin-settings-1334/detail-640.png). 톱니·스위치 세로 중심과 행 오른쪽 정렬, 배지 줄바꿈, 상태 줄, 다크 대비를 확인했다. 캡처는 localhost fixture이며 외부 서비스 연결 성공의 증거가 아니다. 계정 표시는 캡처에서 가렸다.

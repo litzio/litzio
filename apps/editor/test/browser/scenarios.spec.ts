@@ -192,9 +192,9 @@ for (const name of scenarios) {
     if (name === "vite-plugins") {
       mkdirSync(pluginDirectory, { recursive: true });
       writeFileSync(path.join(pluginDirectory, "package.json"), JSON.stringify({ type: "module", version: "0.1.0" }));
-      writeFileSync(path.join(pluginDirectory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.vite", tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Vite fixture", version: "0.1.0", requiresSdk: "^0.1.0", entry: "host.js", contributes: { operations: [] } }));
+      writeFileSync(path.join(pluginDirectory, "litzio-plugin.json"), JSON.stringify({ schemaVersion: 1, id: "fixture.vite", tier: "community", publisher: { id: "fixture", name: "Fixture" }, name: "Vite fixture", description: "Connection settings fixture", version: "0.1.0", requiresSdk: ">=0.3.0 <1.0.0", entry: "host.js", settingsSchema: { type: "object", properties: { failure: { type: "boolean", title: "Simulate failure", description: "Simulates service availability" } }, additionalProperties: false }, contributes: { healthCheck: "connection", operations: [{ id: "connection", version: 1, effect: "read", scope: "host", inputSchema: { type: "object", additionalProperties: false }, outputSchema: { type: "object" } }] } }));
       writeFileSync(path.join(pluginDirectory, "host.js"), `import { SDK_VERSION } from '@litzio/plugin-sdk';
-export function activate(){return {operations:{},status:()=>({available:true,message:SDK_VERSION,folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+export function activate(context){return {operations:{connection:()=>({ok:context.settings.failure !== true,message:context.settings.failure !== true ? "Fixture connected" : "Fixture unavailable"})},status:()=>({available:true,message:SDK_VERSION,folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
     }
     if (name === "http-plugins") {
       writeFileSync(otherJobInput, JSON.stringify({ label: "CLI connection" }));

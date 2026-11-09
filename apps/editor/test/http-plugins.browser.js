@@ -105,7 +105,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   await expect(page.getByText("Trust required", { exact: false })).toBeVisible();
   const registered = pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "fixture.drive");
   expect(registered.running).toBe(false);
-  await page.getByRole("button", { name: "Drive fixture", exact: true }).click();
+  await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
   if (registered.secrets.supported) {
     await page.getByLabel("pat: Not configured", { exact: true }).fill("browser-isolated-secret");
     await saveSecret();
@@ -126,7 +126,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     }
     pluginFixture.corruptSecret();
     await page.reload(); await openSettings();
-    await page.getByRole("button", { name: "Drive fixture", exact: true }).click();
+    await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
     await expect(page.getByLabel("pat: Unavailable or damaged", { exact: true })).toHaveValue("");
     await expect(page.getByText("Unable to read this secret. Delete or replace it.", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Delete secret", exact: true })).toBeEnabled();
@@ -162,7 +162,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
   }
   const cliSettings = pluginFixture.cli(["plugins", "settings", "fixture.drive", "--file", pluginFixture.otherJobInput]);
   expect(cliSettings.plugins.find(p => p.id === "fixture.drive").status.message).toBe("CLI connection");
-  await page.getByRole("button", { name: "Drive fixture", exact: true }).click();
+  await page.getByRole("button", { name: "Drive fixture settings", exact: true }).click();
   await expect(page.getByLabel("Connection label", { exact: true })).toBeEnabled();
   await page.getByLabel("Connection label", { exact: true }).fill("UI connection");
   await page.getByLabel("Connection label", { exact: true }).press("Tab");
@@ -220,7 +220,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     await page.evaluate(() => { localStorage.removeItem(JSON.stringify(["local", "litzio.openFolders"])); });
     await page.reload(); await openSettings();
     await expect(page.locator(".sidebar-folder-name")).toHaveCount(0);
-    await page.getByRole("button", { name: "Open view · Docling", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
     const refresh = page.getByRole("button", { name: "Refresh data", exact: true });
     const workspace = page.getByTestId("view-workspace").filter({ visible: true });
     await expect(workspace.getByRole("combobox")).toHaveCount(0);
@@ -246,7 +247,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       }
       await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
       await page.reload(); await openSettings();
-      await page.getByRole("button", { name: "Open view · Docling", exact: true }).click();
+      await page.keyboard.press("Escape");
+      await page.locator(".sidebar").getByRole("button", { name: "Docling", exact: true }).click();
     }
     docling.setFailure(true);
     const failed = await invoke();

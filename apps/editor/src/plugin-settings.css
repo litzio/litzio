@@ -1,9 +1,8 @@
-.plugin-summary-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); min-width: 0; }
+.plugin-summary-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); min-width: 0; }
 .plugin-summary-row > .host-summary { flex: 1; }
-.plugin-summary-row > .settings-switch { flex-shrink: 0; margin-top: var(--space-1); }
+.plugin-controls { display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0; }
 .plugin-heading, .plugin-badges, .plugin-states { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2); }
 .plugin-badge { border: var(--border-width) solid var(--id-color-border-subtle); border-radius: var(--id-radius-md); padding: var(--space-1) var(--space-2); color: var(--id-color-text-muted); font-size: var(--font-size-xs); }
 .plugin-account { margin: 0; overflow-wrap: anywhere; }
-.plugin-name { height: auto; padding: 0; justify-content: flex-start; white-space: normal; text-align: left; font-weight: var(--font-weight-semibold); }
 
 .plugin-secret-form { display: grid; gap: var(--space-2); }
