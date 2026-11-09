@@ -10,13 +10,91 @@ function httpUrl(value) {
   } catch { throw new PluginOperationError("failed"); }
 }
 const text = value => typeof value === "string" && value.trim() ? value : "—";
-const missing = (key, issueUrl) => ({ key, issueUrl, summary: "—", status: "없음 (404)", assignee: "—", priority: "—", updated: "—" });
+const row = (key, issueUrl, f = {}) => ({ key, issueUrl, summary: text(f.summary), status: text(f.status?.name), assignee: text(f.assignee?.displayName), reporter: text(f.reporter?.displayName), created: text(f.created), priority: text(f.priority?.name), updated: text(f.updated), issueType: text(f.issuetype?.name), resolution: text(f.resolution?.name), dueDate: text(f.duedate), components: text(f.components?.map(v => v.name).join(", ")), labels: text(f.labels?.join(", ")) });
+const literal = value => JSON.stringify(value);
+function date(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) throw new PluginOperationError("failed");
+  return value;
+}
+function searchJql(input) {
+  for (const key of ["account", "reporter", "project", "dateFrom", "dateTo"]) {
+    if (input[key] !== undefined && (typeof input[key] !== "string" || input[key].length > 254 || /[\u0000-\u001f\u007f]/.test(input[key]))) throw new PluginOperationError("failed");
+  }
+  const clauses = ["assignee = " + (input.account?.trim() ? literal(input.account.trim()) : "currentUser()")];
+  const status = input.status ?? "미해결";
+  if (!["전체", "해결됨", "미해결"].includes(status)) throw new PluginOperationError("failed");
+  if (status !== "전체") clauses.push(status === "해결됨" ? "resolution IS NOT EMPTY" : "resolution = Unresolved");
+  if (input.project) {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(input.project)) throw new PluginOperationError("failed");
+    clauses.push("project = " + literal(input.project));
+  }
+  if (input.reporter?.trim()) clauses.push("reporter = " + literal(input.reporter.trim()));
+  if (input.dateField !== undefined && !["수정일", "생성일"].includes(input.dateField)) throw new PluginOperationError("failed");
+  {
+    const field = input.dateField === "생성일" ? "created" : "updated";
+    const from = input.dateFrom, to = input.dateTo;
+    if (from) clauses.push(field + " >= " + literal(date(from)));
+    if (to) {
+      const next = new Date(date(to)); next.setUTCDate(next.getUTCDate() + 1);
+      if (next.getUTCFullYear() > 9999) throw new PluginOperationError("failed");
+      clauses.push(field + " < " + literal(next.toISOString().slice(0, 10)));
+    }
+    if (from && to && from > to) throw new PluginOperationError("failed");
+  }
+  return clauses.join(" AND ") + " ORDER BY updated DESC";
+}
 
 /** @param {import("@litzio/plugin-sdk").PluginContext} context */
 export function activate(context) {
   const requests = new Set();
+  async function search(input = {}) {
+    if (typeof input.jql !== "string" || !input.jql.trim() || input.jql.length > 4000) throw new PluginOperationError("failed");
+
+    const base = httpUrl(String(context.settings.baseUrl ?? ""));
+    const api = context.settings.apiUrl ? httpUrl(String(context.settings.apiUrl)) : base + "/rest/api/2";
+    const pat = context.secrets?.pat;
+    if (!pat) throw new PluginOperationError("auth");
+    const controller = new AbortController();
+    requests.add(controller);
+    const timer = setTimeout(() => controller.abort(), DEADLINE_MS);
+    try {
+      const rows = [];
+      const jql = input.jql;
+      let startAt = 0;
+      while (rows.length < 500) {
+        const query = new URLSearchParams({ jql, startAt: String(startAt), maxResults: String(Math.min(100, 500 - rows.length)) });
+        const response = await fetch(api + "/search?" + query, { headers: { Authorization: `Bearer ${pat}`, Accept: "application/json" }, signal: controller.signal, redirect: "error" });
+        if (!response.ok) {
+          await response.body?.cancel();
+          throw new PluginOperationError(response.status === 401 ? "auth" : response.status === 403 ? "forbidden" : response.status === 404 ? "not_found" : response.status >= 500 ? "unavailable" : "failed");
+        }
+        const body = await response.json();
+        if (!Array.isArray(body?.issues) || !Number.isSafeInteger(body.total) || body.total < 0 || body.startAt !== startAt || (!body.issues.length && startAt < body.total)) throw new PluginOperationError("failed");
+        for (const issue of body.issues.slice(0, 500 - rows.length)) {
+          if (typeof issue?.key !== "string" || !/^[A-Z][A-Z0-9_]*-[1-9][0-9]*$/.test(issue.key) || !issue.fields || typeof issue.fields !== "object" || Array.isArray(issue.fields)) throw new PluginOperationError("failed");
+          const f = issue.fields;
+          rows.push(row(issue.key, base + "/browse/" + encodeURIComponent(issue.key), f));
+        }
+        startAt += body.issues.length;
+        if (startAt >= body.total) break;
+      }
+      return rows;
+    } catch (error) {
+      if (controller.signal.aborted) throw new PluginOperationError("timeout");
+      if (error instanceof PluginOperationError) throw error;
+      throw new PluginOperationError("failed");
+    } finally { clearTimeout(timer); requests.delete(controller); }
+  }
   return {
     operations: {
+      async jql(input) { return search(input); },
+      async issues(input = {}) {
+        if (input.keys !== undefined) {
+          if (typeof input.keys !== "string" || input.keys.length > 512 || !/^\s*[A-Z][A-Z0-9_]*-[1-9][0-9]*(?:\s*,\s*[A-Z][A-Z0-9_]*-[1-9][0-9]*){0,19}\s*$/.test(input.keys)) throw new PluginOperationError("failed");
+          return search({ jql: "key in (" + [...new Set(input.keys.split(",").map(v => v.trim()))].map(literal).join(", ") + ") ORDER BY updated DESC" });
+        }
+        return search({ jql: searchJql(input) });
+      },
       async connection() {
         const result = (ok, message) => ({ ok, message });
         let api;
@@ -40,68 +118,44 @@ export function activate(context) {
         } catch { return result(false, controller.signal.aborted ? "연결 확인 시간이 초과됐습니다. 서버 연결을 확인하세요." : "Jira에 연결할 수 없습니다. 주소와 네트워크를 확인하세요."); }
         finally { clearTimeout(timer); requests.delete(controller); }
       },
-      async issues(input) {
-        if (input?.keys !== undefined && (typeof input.keys !== "string" || input.keys.length > 512 || !/^\s*[A-Z][A-Z0-9_]*-[1-9][0-9]*(?:\s*,\s*[A-Z][A-Z0-9_]*-[1-9][0-9]*){0,19}\s*$/.test(input.keys))) throw new PluginOperationError("failed");
+      async detail(input) {
+        if (typeof input?.key !== "string" || input.key.length > 128 || !/^[A-Z][A-Z0-9_]*-[1-9][0-9]*$/.test(input.key)) throw new PluginOperationError("failed");
         const base = httpUrl(String(context.settings.baseUrl ?? ""));
         const api = context.settings.apiUrl ? httpUrl(String(context.settings.apiUrl)) : base + "/rest/api/2";
         const pat = context.secrets?.pat;
         if (!pat) throw new PluginOperationError("auth");
-        const controller = new AbortController();
-        requests.add(controller);
+        const controller = new AbortController(); requests.add(controller);
         const timer = setTimeout(() => controller.abort(), DEADLINE_MS);
+        const get = async suffix => {
+          const response = await fetch(api + "/issue/" + encodeURIComponent(input.key) + suffix, { headers: { Authorization: `Bearer ${pat}`, Accept: "application/json" }, signal: controller.signal, redirect: "error" });
+          if (!response.ok) {
+            await response.body?.cancel();
+            throw new PluginOperationError(response.status === 401 ? "auth" : response.status === 403 ? "forbidden" : response.status === 404 ? "not_found" : response.status >= 500 ? "unavailable" : "failed");
+          }
+          return response.json();
+        };
         try {
-          const rows = [];
-          if (input.keys === undefined) {
-            // Escape the complete JQL string literal, backslashes before quotes.
-            const account = input.account?.trim();
-            const assignee = account ? '"' + account.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"' : "currentUser()";
-            const status = input.status ?? "미해결";
-            const jql = "assignee = " + assignee + (status === "전체" ? "" : status === "해결됨" ? " AND resolution IS NOT EMPTY" : " AND resolution = Unresolved") + " ORDER BY updated DESC";
-            let startAt = 0;
-            while (rows.length < 500) {
-              const query = new URLSearchParams({ jql, startAt: String(startAt), maxResults: String(Math.min(100, 500 - rows.length)) });
-              const response = await fetch(api + "/search?" + query, { headers: { Authorization: `Bearer ${pat}`, Accept: "application/json" }, signal: controller.signal, redirect: "error" });
-              if (!response.ok) {
-                await response.body?.cancel();
-                throw new PluginOperationError(response.status === 401 ? "auth" : response.status === 403 ? "forbidden" : response.status === 404 ? "not_found" : response.status >= 500 ? "unavailable" : "failed");
-              }
-              const body = await response.json();
-              if (!Array.isArray(body?.issues) || !Number.isSafeInteger(body.total) || body.total < 0 || body.startAt !== startAt || (!body.issues.length && startAt < body.total)) throw new PluginOperationError("failed");
-              for (const issue of body.issues.slice(0, 500 - rows.length)) {
-                if (typeof issue?.key !== "string" || !/^[A-Z][A-Z0-9_]*-[1-9][0-9]*$/.test(issue.key) || !issue.fields || typeof issue.fields !== "object" || Array.isArray(issue.fields)) throw new PluginOperationError("failed");
-                const f = issue.fields;
-                rows.push({ key: issue.key, issueUrl: base + "/browse/" + encodeURIComponent(issue.key), summary: text(f.summary), status: text(f.status?.name), assignee: text(f.assignee?.displayName), priority: text(f.priority?.name), updated: text(f.updated) });
-              }
-              startAt += body.issues.length;
-              if (startAt >= body.total) break;
-            }
-            return rows;
-          }
-          for (const key of [...new Set(input.keys.split(",").map(value => value.trim()))]) {
-            const issueUrl = base + "/browse/" + encodeURIComponent(key);
-            const response = await fetch(api + "/issue/" + encodeURIComponent(key), {
-              headers: { Authorization: `Bearer ${pat}`, Accept: "application/json" },
-              signal: controller.signal, redirect: "error",
-            });
-            if (!response.ok) {
-              await response.body?.cancel();
-              if (response.status === 404) { rows.push(missing(key, issueUrl)); continue; }
-              throw new PluginOperationError(response.status === 401 ? "auth" : response.status === 403 ? "forbidden" : response.status >= 500 ? "unavailable" : "failed");
-            }
-            const body = await response.json();
-            if (!body || typeof body.fields !== "object" || body.fields === null || Array.isArray(body.fields)) throw new PluginOperationError("failed");
-            const f = body.fields;
-            rows.push({ key, issueUrl, summary: text(f.summary), status: text(f.status?.name), assignee: text(f.assignee?.displayName), priority: text(f.priority?.name), updated: text(f.updated) });
-          }
-          return rows;
+          const issue = await get("");
+          if (issue?.key !== input.key || !issue.fields || typeof issue.fields !== "object" || Array.isArray(issue.fields)) throw new PluginOperationError("failed");
+          const description = issue.fields.description ?? "";
+          if (typeof description !== "string") throw new PluginOperationError("failed");
+          // Newest ten by creation, in one bounded request even for large threads.
+          const page = await get("/comment?" + new URLSearchParams({ orderBy: "-created", startAt: "0", maxResults: "10" }));
+          if (!Array.isArray(page?.comments) || !Number.isSafeInteger(page.total) || page.total < 0 || page.startAt !== 0 || page.comments.length > 10 || page.comments.length > page.total || (!page.comments.length && page.total > 0)) throw new PluginOperationError("failed");
+          const comments = page.comments.map(c => {
+            if (typeof c?.id !== "string" || typeof c.body !== "string" || typeof c.created !== "string" || typeof c.updated !== "string") throw new PluginOperationError("failed");
+            return { id: c.id, author: text(c.author?.displayName), created: c.created, updated: c.updated, body: c.body.slice(0, 4000), bodyTruncated: c.body.length > 4000 };
+          });
+          return { key: input.key, issueUrl: base + "/browse/" + encodeURIComponent(input.key), fetchedAt: new Date().toISOString(), summary: text(issue.fields.summary), description: description.slice(0, 16000), descriptionTruncated: description.length > 16000, commentsTotal: page.total, commentsStartAt: 0, commentsReturned: comments.length, comments };
         } catch (error) {
           if (controller.signal.aborted) throw new PluginOperationError("timeout");
           if (error instanceof PluginOperationError) throw error;
           throw new PluginOperationError("failed");
         } finally { clearTimeout(timer); requests.delete(controller); }
       },
+
     },
-    status: () => ({ available: true, message: "계정·해결 여부로 수동 조회하세요. 번호 입력 시 번호로 조회합니다.", folders: [], decorations: [], accounts: [] }),
+    status: () => ({ available: true, message: "JQL 또는 간편 검색으로 수동 조회하세요.", folders: [], decorations: [], accounts: [] }),
     dispose() { for (const controller of requests) controller.abort(); },
   };
 }

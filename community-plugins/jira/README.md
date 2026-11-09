@@ -1,56 +1,68 @@
-# Jira community plugin 0.0.2
+# Jira community plugin 0.0.3
 
-Jira Data Center 9.12.28의 할당 이슈·이슈 번호 조회용 커뮤니티 플러그인입니다. 공식 공급 목록·Desktop 번들·pnpm workspace에 포함하지 않습니다. 이 폴더는 독립 저장소로 분리할 수 있는 plain ESM artifact이며 Host 제공 공개 `@litzio/plugin-sdk`만 사용합니다. 별도 설치·빌드는 필요 없습니다. 현재 사용하는 기능의 최소 계약을 따라 `requiresSdk`는 `>=0.3.0 <1.0.0`입니다.
+Jira Data Center 9.12.28 대상 읽기 전용 커뮤니티 플러그인입니다. JQL 검색이 기본이며 간편 검색은 같은 검색 경로 위에서 JQL을 조립합니다. 보고서 작성에 활용할 목록·설명·최근 댓글을 조회합니다. Jira 쓰기와 저장 필터 불러오기는 제공하지 않습니다.
+
+이 폴더는 독립 배포 전 plain ESM artifact이며 공식 공급 목록·Desktop 번들·pnpm workspace에 포함하지 않습니다. 공개 `@litzio/plugin-sdk`만 사용하고 별도 빌드는 필요 없습니다. 최소 SDK는 `>=0.3.0 <1.0.0`입니다.
 
 ## 설정과 실행
 
-대상 Host의 Plugins 설정에서 BASE_URL(예: `https://jira.example.com/jira`)을 입력합니다. API URL은 REST API 기본 주소이며, 비우면 BASE_URL 뒤에 `/rest/api/2`를 붙입니다. context path를 유지합니다. 두 주소는 절대 HTTP(S) URL이어야 하며 자격 증명·query·fragment를 거부합니다. API URL은 BASE_URL과 다른 origin도 명시할 수 있으므로 PAT를 보낼 대상인지 확인하세요. PAT는 필수 `pat` secret으로 비밀번호 입력에만 넣으며 `Authorization: Bearer`로 전송합니다. 일반 설정·대화·명령 인자·입력 JSON에 넣지 않습니다. secret은 Windows Host의 저장소를 사용합니다.
+대상 Host의 Plugins 설정에서 BASE_URL(예: `https://jira.example.com/jira`)과 필수 `pat` secret을 저장합니다. API URL을 비우면 BASE_URL/rest/api/2를 사용합니다. context path를 유지합니다. URL은 절대 HTTP(S)이며 자격 증명·query·fragment를 거부합니다. API URL은 다른 origin도 허용하므로 PAT를 보낼 대상인지 확인하세요. PAT는 비밀번호 입력으로만 저장하며 일반 설정·대화·명령 인자·입력 JSON에 넣지 않습니다. Windows Host secret 저장소와 Bearer 인증을 사용합니다.
 
-아래 placeholder는 실제 대상으로 바꾸고, 설정·입력 파일은 artifact 밖에 둡니다.
+설정·입력 JSON은 artifact 밖에 둡니다. 아래 placeholder를 실제 대상으로 바꿉니다.
 
 1. `litzio plugins validate <artifact> --host <origin> --json`
 2. `litzio plugins register <artifact> --host <origin> --json`
 3. `litzio plugins settings community.jira --file <settings.json> --host <origin> --json`
 4. Plugins 설정에서 `pat` secret을 저장합니다.
-5. `litzio plugins list --host <origin> --json`에서 현재 digest를 확인합니다.
+5. `litzio plugins list --host <origin> --json`으로 현재 digest를 확인합니다.
 6. `litzio plugins trust community.jira --digest <digest> --host <origin> --json`
 7. `litzio plugins enable community.jira --host <origin> --json`
-8. `litzio operation invoke community.jira.issues --input <input.json> --host <origin> --json`
+8. `litzio operation invoke community.jira.jql --input <input.json> --host <origin> --json`
 
-설정 파일 예: `{"baseUrl":"https://jira.example.com/jira","apiUrl":""}`. 입력 파일 예: `{}`(내 미해결), `{"account":"example.user","status":"전체"}`(다른 계정 전체), `{"keys":"ABC-123, ABC-130"}`(번호 조회). artifact를 고치면 validate → 현재 digest 신뢰 → reload → 실제 조회를 반복합니다. 설정·secret 변경에는 기존 Host의 자동 재적용을 사용합니다.
+설정 예: `{"baseUrl":"https://jira.example.com/jira","apiUrl":""}`. artifact 수정 시 validate → 현재 digest 신뢰 → reload → 실제 조회를 반복합니다. 설정·secret 변경에는 Host 자동 재적용을 사용합니다.
 
-사이드바의 `Jira`로 조회 화면을 엽니다. 설정은 Plugins 목록 오른쪽의 Jira 설정 톱니로 엽니다. 열린 폴더 없이 조회할 수 있으며 파일은 읽거나 쓰지 않습니다. 계정은 비우면 PAT의 현재 사용자이며, 해결 여부는 미해결이 기본입니다. 해결됨·전체도 선택할 수 있습니다. [조회]를 눌러 실행합니다. 이슈 번호를 보조 입력에 넣으면 계정·해결 여부 대신 번호로 조회합니다. 화면을 여는 것만으로 요청하지 않으며 polling은 없습니다. CLI와 화면은 같은 공용 읽기 작업을 사용합니다.
+설정의 연결 확인과 CLI `community.jira.connection`은 입력 `{}`로 GET /myself를 호출합니다. 5초 제한 안에서 사용자 이름 형식을 확인하고 고정 `{ok,message}`만 반환합니다. 사용자 정보·원문·PAT는 표시하지 않습니다. 이 성공은 개별 이슈 권한을 보증하지 않습니다.
 
-## 설정 창에서 연결 확인
+## 0.0.3 검색과 상세 계약
 
-저장한 BASE_URL/API URL과 PAT로 `GET <API URL>/myself`를 요청합니다. [Jira 9.12 REST API 문서](https://docs.atlassian.com/software/jira/docs/api/REST/9.12.2/#api/2/myself-getUser)의 익명 접근을 허용하지 않는 현재 사용자 조회이며 목업도 같은 경로를 지원합니다. 사용자 정보는 반환·표시하지 않고 응답의 사용자 이름 필드를 확인한 뒤 고정 안내만 반환합니다. 401은 PAT 확인, 403은 권한 문의, 연결 실패는 주소·네트워크 확인, 5초 초과는 연결 시간 초과로 구분합니다. redirect·서버 응답·형식 오류도 고정 안내이며 원문·PAT를 포함하지 않습니다. 설정 창 연결 확인 버튼과 CLI `community.jira.connection` 공용 읽기 작업은 동일한 `{ok,message}`를 사용합니다(입력 `{}`). 이 확인은 이슈별 열람 권한을 보증하지 않습니다.
+사이드바 Jira 화면은 **JQL**과 **간편 검색** 두 기본 뷰를 제공합니다. ViewWorkspace·InputForm·TextInput·Select·SubmitButton·Table을 재사용하며 새 CSS·공통 UI 예외는 없습니다. 열린 폴더 없이 수동 조회하고 화면 열기만으로 요청하거나 polling하지 않습니다. CLI·화면·비서는 같은 host read 작업을 사용합니다.
 
-## 이슈 페이지 링크
+### JQL 검색
 
-각 반환 행의 `issueUrl`은 BASE_URL 뒤에 `/browse/<KEY>`를 붙인 이슈 페이지 URL입니다. API URL을 별도로 지정해도 사용자용 URL은 BASE_URL로 만듭니다. 키 열은 공개 SDK의 `linkField:"issueUrl"`로 연결하며, 이슈 키를 누르면 Jira 이슈 페이지로 이동합니다. HTTP(S) URL만 공통 표의 기존 외부 링크 경로로 열립니다. 공통 표·Core 행 형식 변경이나 별도 링크 구현은 없습니다.
+`community.jira.jql` v1 입력 예: `{"jql":"assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC"}`. JQL은 비어 있지 않은 최대 4000자 문자열입니다. 임의 JQL을 Jira에 그대로 전달하며 자체 parser를 구현하지 않습니다.
 
-## 조회와 오류
+GET /search에 startAt=0/maxResults=100부터 요청하며 실제 반환 건수로 offset을 늘립니다. 한 번의 검색 전체에 8초 deadline과 최대 500행 상한을 적용합니다. 500행보다 많은 전체 결과는 잘림을 별도 표시하지 않습니다. 전체 내보내기 기능이 아니며 공통 표 잘림 안내는 후속 후보입니다. 간편 검색도 이 함수의 페이지 처리·행 변환·상한·오류를 그대로 사용합니다.
 
-할당 조회는 `GET <API URL>/search`와 JQL `assignee = currentUser()` 또는 `assignee = "<계정>"`을 사용합니다. 계정의 backslash와 큰따옴표를 escape하며 제어 문자는 거부합니다. 미해결은 `AND resolution = Unresolved`, 해결됨은 `AND resolution IS NOT EMPTY`, 전체는 resolution 조건 없이 `ORDER BY updated DESC`를 붙입니다. 상태명이 아니라 resolution으로 해결 여부를 판정합니다. 선택 입력을 비워도 같은 기본값을 사용합니다.
+### 간편 검색
 
-페이지는 `startAt=0`, `maxResults=100`으로 시작하고 실제 반환 건수만큼 offset을 증가시킵니다. 전체 조회는 8초 안에 완료해야 합니다. 최대 500건까지 표시하며, 넘는 경우 따로 알리지 않음. 500건은 수동 업무 목록과 10초 Host RPC 안의 요청·렌더링을 제한하기 위한 상한이며 전체 내보내기 기능은 아닙니다. 화면은 공통 표의 행 수만 표시합니다. CLI도 동일한 최대 500행 배열을 받습니다.
+`community.jira.issues` v4는 계정(`account`, 비우면 currentUser), 해결 여부(`status`, 기본 미해결), 번호(`keys`), 프로젝트 키(`project`), 보고자 계정(`reporter`), 기간 기준(`dateField`, 수정일 기본/생성일), 시작일(`dateFrom`), 종료일(`dateTo`)의 8개 입력을 받습니다.
 
-하나의 InputForm에서 계정·Select·보조 번호 입력을 받는 방식이 현재 단일 source 카탈로그에서 가장 단순합니다. 별도 뷰나 조회 모드 입력은 추가하지 않습니다. 공통 계약의 한계로 자동 첫 조회·행 Tooltip·입력 옆 버튼 배치·결과 잘림 안내는 제공하지 않습니다. 수동 조회, 짧은 행 상태, 기존 마지막 행 버튼 배치를 사용하며 SDK와 제품 공통 부품은 수정하지 않습니다.
+입력 예: `{"project":"MOCK","reporter":"example.user","dateField":"생성일","dateFrom":"2026-11-01","dateTo":"2026-11-09"}`. 조건을 AND로 조합하고 계정·보고자 전체 문자열의 backslash·큰따옴표를 escape하며 제어 문자는 거부합니다. 프로젝트는 대문자 키만 허용합니다. 날짜는 유효한 YYYY-MM-DD이고 역전 기간은 거부합니다. 시작일 이상·종료일 다음 날 미만으로 해당 날짜 전체를 포함합니다(Jira 시간대). 두 날짜가 비어 있으면 기간 조건을 붙이지 않습니다. 생성일과 수정일 기간을 동시에 거는 조건은 지원하지 않음. 기간 기준과 관계없이 최근 수정순입니다.
 
-쉼표로 구분한 대문자 프로젝트 키와 양의 번호를 받습니다. 입력은 최대 20개·512자이며 중복은 첫 등장 순서로 한 번만 조회합니다. 숫자 ID·JQL 직접 입력·쓰기·동적 UI는 지원하지 않습니다. 각 키에 `GET <API URL>/issue/<key>`를 쿼리 없이 요청합니다. 조회 순서대로 키·제목·상태·담당자·우선순위·수정일 한 표를 반환하며 없는 값은 `—`입니다. 수정일은 서버 문자열을 보존합니다. 열 필터·정렬·가로 스크롤은 공통 Table을 사용하며 CLI의 입력이나 원행을 바꾸지 않습니다.
+번호는 쉼표로 구분한 대문자 키 최대 20개·512자이며 중복을 제거합니다. 번호 입력 시 다른 조건을 무시하고 `key in (...) ORDER BY updated DESC`를 조립합니다. 예: `{"keys":"ABC-123, ABC-130"}`. 0.0.2의 키별 GET/404 자리 행은 검색 결과로 바뀌었습니다. 없는 번호·권한상 보이지 않는 번호는 반환되지 않으며 입력 순서를 보장하지 않습니다. 404 여부가 필요하면 상세 작업을 사용합니다.
 
-404는 해당 키의 상태 칸에 `없음 (404)`를 표시하고 다른 키의 조회를 계속합니다. 모든 키가 404여도 같은 행을 각각 표시합니다. Jira가 권한을 숨기기 위해 404를 반환하는 경우도 구분할 수 없습니다. 다른 열은 `—`입니다.
+### 결과와 오류
 
-401은 auth, 403은 forbidden, 5xx는 unavailable, 전체 조회 8초 초과는 timeout, redirect·연결 실패·잘못된 URL·비정상 JSON 등은 failed로 분류합니다. 이 경우 전체 조회가 실패하고 공통 Host의 고정 안내를 화면과 CLI에 제공합니다. 일부 성공 행을 새 성공 결과로 노출하지 않습니다. 공통 화면이 보존하는 이전 표는 이전 조회 결과라는 안내와 함께 남습니다. redirect를 따르지 않으며 응답 원문·PAT·예외 메시지를 오류에 담지 않습니다. disable/reload 시 소유한 요청을 중단합니다.
+기본 열은 Key(링크)·제목·Status·Assignee·Reporter·Created·Updated 순서입니다. Priority·issueType·resolution·dueDate·components·labels도 outputSchema·rowSchema와 행 데이터에 보존하되 기본 columns에서 제외합니다. 열 추가·제거는 #1351 후속입니다. 없는 값은 `—`이며 날짜 원문을 보존합니다. 키의 issueUrl은 BASE_URL/browse/KEY로 만들고 공개 linkField로 Jira 원본을 엽니다. 별도 상세 패널은 없습니다.
+
+401→auth, 403→forbidden, 404→not_found, 5xx→unavailable, 8초 초과→timeout, 400·redirect·연결 실패·비정상 응답→failed입니다. 모두 기존 Host 고정 안내를 사용하며 PAT·예외·Jira 원문(errorMessages 포함)을 노출하지 않습니다. JQL 오류의 자세한 이유는 표시하지 않음. 결과 대신 오류가 나오면 JQL 문법과 필드 이름을 확인하고, 자세한 이유는 Jira 웹의 이슈 검색에서 같은 JQL로 확인하세요. 같은 안내를 JQL 입력 툴팁에도 둡니다. 일부 페이지 성공 후 실패도 전체 실패이며 이전 표는 이전 조회 안내와 함께 보존합니다. redirect는 거부하고 disable/reload는 소유한 요청을 취소합니다.
+
+### 이슈 상세
+
+`community.jira.detail` v1 입력은 `{"key":"MOCK-1"}`입니다. CLI `operation invoke community.jira.detail`과 비서가 같은 작업을 사용합니다. 이슈 GET 뒤 GET /issue/KEY/comment?orderBy=-created&startAt=0&maxResults=10을 호출합니다. [Jira REST 댓글 계약](https://docs.atlassian.com/software/jira/docs/api/REST/9.12.2/#api/2/issue-getComments)에 따라 생성 시각 내림차순으로 최대 10개를 읽습니다. 10개는 보고서 문맥과 8초 deadline·출력 크기를 제한하기 위한 상한입니다. 수정된 옛 댓글을 최신 생성 댓글로 취급하지 않습니다. 서버가 더 작은 페이지를 반환하면 받은 범위만 돌려줍니다.
+
+키·URL·조회 완료 UTC 시각(fetchedAt)·commentsTotal(권한상 보이는 전체 수)·commentsStartAt(내림차순 offset 0)·commentsReturned를 반환합니다. 설명은 최대 16000, 댓글 본문은 각각 최대 4000 UTF-16 code units이고 descriptionTruncated/bodyTruncated로 잘림을 표시합니다. null 설명은 빈 문자열이며 그 외 비문자열은 실패합니다. HTML·wiki 원문은 텍스트로만 다루고 실행하지 않습니다. 댓글 조회 실패 시 부분 성공은 없으며 상세 404도 고정 not_found입니다. 동시 댓글 증감의 트랜잭션 스냅샷은 보장하지 않습니다.
 
 ## 검증 범위
 
-기존 `pnpm browser:test http-plugins`의 production Host/CLI/browser와 가짜 HTTP 서버를 재사용합니다. 실제 artifact 검증·등록과, Windows secret 지원 Host에서 PAT 저장·활성화·정상/일부 404 행의 UI/CLI 대조·키 링크와 BASE_URL 기반 href·401/403/500/redirect/timeout 고정 안내·오류 후 복구를 확인합니다. 다른 플랫폼은 artifact 검증만 하며 Windows secret 경계를 우회하지 않습니다. 외부 브라우저를 실제로 여는 검사는 하지 않습니다. 기존 공통 Table 검사와 다른 결함인 Jira URL/context·Bearer·상태 분류를 이 통합 경로에서 확인합니다. 새 suite나 제품 subprocess를 추가하지 않습니다. 8초 timeout은 실제 deadline을 확인하기 위한 대표 사례입니다.
+`pnpm browser:test http-plugins`의 기존 production Host·CLI·browser·가짜 HTTP 서버를 보완합니다. JQL 정상·400 고정 안내, 페이지·500행 상한, 간편 검색 JQL 조립, 기본 열과 링크, 상세 본문·최근 댓글 범위·잘림, 기존 안전 오류를 검사합니다. 낮은 계층의 기존 plugins.test.ts에서 날짜·escape·빈 댓글·비문자열 설명을 확인합니다. 즐겨찾기 UI에는 의존하지 않습니다.
 
-`$env:LITZIO_JIRA_MOCK="1"; pnpm browser:test http-plugins`는 별도로 준비한 로컬 Jira 목업의 8081 포트에도 같은 공용 작업으로 현재 사용자 전체 검색(서버 페이지 상한 2, 4행)과 MOCK-1/2/404를 조회합니다. 목업 v2는 임의 계정 JQL을 지원하지 않으므로 다른 계정과 escape·501건 상한은 가짜 서버로 확인합니다. 실제 Jira 기준 요청과 목업의 지원 요청 사이에 별도 변환은 없습니다. 가짜 서버 검사와 Docker 목업 검사는 실제 회사 Jira 인증·사내 인증서·프록시·권한의 성공을 보증하지 않습니다. 회사 서버 확인은 소유자가 수행합니다.
+`LITZIO_JIRA_MOCK=1`은 별도 준비한 로컬 Docker Jira 8081의 연결 확인과 지원하는 현재 사용자 전체 검색만 확인합니다. 목업은 임의 JQL·key-in·댓글을 지원하지 않으며 저장소를 수정하지 않습니다. 실제 Jira 인증·사내 인증서·프록시·권한·댓글 정렬·날짜 시간대는 소유자 확인이 필요합니다. 비서 실제 요약과 시각 검토 실행 결과는 PR에 별도로 기록합니다.
 
-`--screenshots`는 수동 검토용 1440px light와 한국어 dark 640px 캡처를 `tmp/jira-1345/`에 남깁니다. ViewWorkspace·InputForm·TextInput·SubmitButton·Table을 재사용하며 공통 UI 예외는 없습니다. 새 표면·CSS·공통 화면 변경은 없습니다.
+`--screenshots`의 Jira 수동 검토 이미지는 tmp/jira-1350에 생성합니다. 0.0.2 이전 근거는 [1440px](../../docs/design/assets/jira-1345/issues-1440.png)와 [640px 한국어 Dark](../../docs/design/assets/jira-1345/issues-640-ko-dark.png)에 보존하며 이번 버전의 근거로 간주하지 않습니다.
 
-0.0.1의 이전 화면 근거는 [1440px](../../docs/design/assets/jira-1328/issues-1440.png)와 [640px](../../docs/design/assets/jira-1328/issues-640.png)에 보존합니다. 0.0.2의 근거로 간주하지 않습니다.
+0.0.3 수동 검토: [1440px](../../docs/design/assets/jira-1350/issues-1440.png), [640px 한국어 Dark](../../docs/design/assets/jira-1350/issues-640-ko-dark.png). 합성 데이터·마스킹된 Host 정보로 폼 정렬, 한국어 줄바꿈, 기본 7열, 키 링크와 표 가로 스크롤을 확인했습니다.
 
-0.0.2 수동 검토: [1440px](../../docs/design/assets/jira-1345/issues-1440.png), [640px 한국어 Dark](../../docs/design/assets/jira-1345/issues-640-ko-dark.png). 계정·상태·번호 입력, 기존 마지막 행 버튼, 표 정렬·가로 스크롤과 짧은 행 안내를 확인했습니다. 로컬 식별자는 마스킹하고 합성 이슈만 사용했습니다.
+아이콘: [Lucide Ticket](https://lucide.dev/icons/ticket), lucide-react 1.47.0, ISC License ([고지](LICENSE-icon.txt)); 앱의 기존 아이콘 세트에서 가져와 선 색만 조정한 일반 티켓 SVG이며 Jira/Atlassian 로고를 사용하지 않습니다.
+
+아이콘 수동 검토: [설정 목록 1440px](../../docs/design/assets/jira-1350/settings-1440.png), [한국어 Dark 640px](../../docs/design/assets/jira-1350/settings-640-ko-dark.png). 위 조회 캡처의 사이드바·탭과 함께 세 진입점의 티켓 SVG를 확인했습니다. 설정 목록 촬영용 임시 body는 캡처 후 제거했으며 자동 검사에 촬영 순회를 추가하지 않습니다.
