@@ -690,3 +690,27 @@ test("plugin service shutdown waits for startup and confirms the started child e
   assert.equal(cleanup.mock.callCount(), 1);
   assert.throws(() => process.kill(pid, 0), "shutdown confirms the exact child has exited");
 });
+
+test("health check publication enforces the SDK result even with a permissive plugin schema", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-health-"));
+  const host = new PluginHost(path.join(root, "state.json"), { officialPlugins: [] });
+  try {
+    const directory = lifecycleFixture(root, "fixture.health", `export function activate(c){return {operations:{connection:()=>c.settings.invalid ? {ok:true,message:'fixed',raw:'private service response'} : {ok:false,message:'Service unavailable'}},status:()=>({available:true,message:'ready',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+    const file = path.join(directory, "litzio-plugin.json"), manifest = JSON.parse(readFileSync(file, "utf8"));
+    manifest.requiresSdk = ">=0.3.0 <1.0.0";
+    manifest.settingsSchema = { type: "object", properties: { invalid: { type: "boolean" } } };
+    manifest.contributes = { healthCheck: "connection", operations: [{ id: "connection", version: 1, effect: "read", scope: "host", inputSchema: { type: "object" }, outputSchema: { type: "object" } }] };
+    writeFileSync(file, JSON.stringify(manifest));
+    await host.invoke("register", { directory });
+    await host.invoke("trust", { id: manifest.id, digest: (await host.list())[0]!.digest });
+    await host.invoke("enable", { id: manifest.id });
+    const valid = await host.invokeOperation("fixture.health.connection", {});
+    assert.deepEqual(valid.result, { ok: false, message: "Service unavailable" });
+    assert.equal(valid.receipt.outcome, "success");
+    await host.invoke("settings", { id: manifest.id, settings: { invalid: true } });
+    const invalid = await host.invokeOperation("fixture.health.connection", {});
+    assert.equal(invalid.receipt.outcome, "failure");
+    assert.equal(invalid.result, undefined);
+    assert.ok(!JSON.stringify(invalid).includes("private service response"));
+  } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
+});

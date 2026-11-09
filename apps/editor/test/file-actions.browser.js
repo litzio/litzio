@@ -16,6 +16,31 @@ async (page, { openFolderPicker, screenshots = false, fileActionsRoot, expect, r
   await openFolderPicker(page);
   await page.getByTestId('folder-path').fill(root + sep);
   await page.getByTestId('folder-open').click(); await row('a.md').waitFor();
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  await row('a.md').click({button:'right'});
+  await page.getByRole('menuitem', {name:'Copy path', exact:true}).click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe(file('a.md'));
+  await row('a.md').click({button:'right'});
+  await page.getByRole('menuitem', {name:'Copy relative path', exact:true}).click();
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('a.md');
+  if (screenshots) {
+    await page.getByRole('button', {name:'Settings', exact:true}).click();
+    await page.getByRole('button', {name:'Appearance & language', exact:true}).click();
+    await page.getByTestId('ui-language').selectOption('ko');
+    for (const width of [1440, 640]) {
+      await page.setViewportSize({width, height:900});
+      if (await page.locator('html').getAttribute('data-theme') !== 'dark')
+        await page.getByRole('button', {name:/^색상 모드:/}).click();
+      await row('a.md').click({button:'right'});
+      await expect(page.getByRole('menuitem', {name:'상대 경로 복사', exact:true})).toBeVisible();
+      // Mask Host addresses in evidence intended for public review.
+      await page.screenshot({path:`tmp/file-actions-evidence/copy-path-${width}-ko-dark.png`, mask:[page.getByTestId('current-file'), page.locator('.sidebar-folder-name'), page.locator('.sidebar-host-account')]});
+      await page.keyboard.press('Escape'); await menu.waitFor({state:'hidden'});
+    }
+    await page.getByTestId('ui-language').selectOption('en');
+    await page.setViewportSize({width:1440,height:900});
+    await page.getByRole('tab', {name:'technical-document.md',exact:true}).click();
+  }
   const nativeMenu = locator => locator.evaluate(node => node.dispatchEvent(new MouseEvent('contextmenu', {bubbles:true,cancelable:true})));
   // Child-folder product menus are covered by folder-navigation (#1064).
   expect(await nativeMenu(activeDocument(page))).toBe(true);
