@@ -1,12 +1,14 @@
 # Docling community plugin
 
-소유자 개인 작업을 위한 실험 플러그인입니다. Litzio 공식 공급·번들·기본 활성 플러그인이 아닙니다. 이 디렉터리만 독립 저장소로 옮길 수 있으며 pnpm workspace에 속하지 않습니다.
+소유자 개인 작업을 위한 실험 플러그인입니다. Litzio 공식 공급·기본 활성 플러그인이 아닙니다. #1391 지정 커뮤니티로 앱에 포함됩니다. 이 디렉터리만 독립 저장소로 옮길 수 있으며 pnpm workspace에 속하지 않습니다.
 
 ## 사용
 
 외부 scaffold와 같은 plain ESM artifact입니다. 설치·빌드 없이 대상 Host가 공개 SDK를 제공합니다. `host.js`, manifest, package.json, 편집기용 starter 타입 힌트가 함께 있습니다. SDK를 npm 설치하거나 내부 패키지를 import하지 않습니다.
 
 아래 명령의 `<origin>`, `<artifact>`, `<settings.json>`, `<input.json>`은 실제 대상에 맞게 지정합니다. CLI에는 `--host <origin> --json`을 항상 붙입니다.
+
+앱 포함 복사본은 추가 절차 없이 목록에 꺼짐·미신뢰로 표시됩니다. 설정과 필요한 secret을 저장하고 처음 켤 때 신뢰 확인을 합니다. 이후 앱 업데이트에도 신뢰와 사용자 설정을 유지하며, 포함 복사본은 제거 대신 끕니다. 아래 validate/register는 개발용 외부 폴더 등록 절차입니다. 같은 ID의 폴더 등록이 포함 복사본보다 우선하고, 그 등록을 제거하면 다음 Host 시작에 포함 복사본이 다시 나타납니다.
 
 1. `litzio plugins validate <artifact> --host <origin> --json`
 2. `litzio plugins register <artifact> --host <origin> --json`
@@ -18,7 +20,7 @@
 
 설정 파일은 `{"serverUrl":"http://127.0.0.1:5001"}`, 입력 파일은 `{}`입니다. 이 파일들은 artifact 밖에 둡니다. 기본 주소는 `http://127.0.0.1:5001`이며 서버 base path도 지원합니다. HTTP(S)만 허용하며 URL 안 자격 증명·query·fragment는 거부합니다. 주소는 대상 Host에서 접근합니다.
 
-API 키가 걸린 docling-serve는 지원하지 않음. 설정에는 서버 URL만 있습니다. 활성 상태에서도 설정을 저장·reload할 수 있지만 K1 작업이 running/uncertain이면 변경을 거부하고 기존 값을 보존합니다. artifact 변경은 validate → 새 digest 신뢰 → reload → 실제 호출이 필요합니다.
+API 키가 걸린 docling-serve는 지원하지 않음. 설정에는 서버 URL만 있습니다. 활성 상태에서도 설정을 저장·reload할 수 있지만 K1 작업이 running/uncertain이면 변경을 거부하고 기존 값을 보존합니다. 같은 등록의 artifact 변경은 validate → reload → 실제 호출로 확인하며, 등록을 교체하면 새 registrationId로 다시 신뢰합니다.
 
 사이드바 **Docling** 한 화면에서 공통 작업 패널을 사용합니다. 연결은 설정 → 플러그인 → Docling 톱니 → **연결 확인**으로 검사합니다. 별도 연결 표는 같은 health/ready 결과를 중복 표시하므로 제거했습니다. 작업은 열린 Host Root를 선택해야 하며, 연결 확인은 폴더 없이도 가능합니다.
 

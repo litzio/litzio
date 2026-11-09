@@ -255,6 +255,16 @@ OneDrive 빌드는 공용 artifact digest 계산으로 artifact 밖 `digest.json
 
 기본값 전환·명시적 선택·변조 차단은 Host 단위 검사, 첫 실행 표시·토글·외부 폴더 선택 연결은 `http-plugins`, 배포물 안 공급·실행은 CI packaged 검사에서 확인한다. 수동 1440 캡처는 `pnpm browser:test http-plugins --screenshots`의 `docs/design/assets/bundled-plugins-1279/bundled-1440.png`에 남긴다. 이는 localhost와 fixture 검증이며 실제 OneDrive 계정 동기화의 증거는 아니다.
 
+### 지정 커뮤니티 공급 (#1391)
+
+제품 고정 `DESIGNATED_COMMUNITY_PLUGINS` 한 곳에서 지정 ID·폴더·실행 파일 목록을 관리한다. 초기 Docling·Jira는 개발 실행·CLI·Desktop에 포함되어 등록 없이 목록에 나타나며 계속 커뮤니티로 표시한다. 사용자·비서·설정으로 지정 목록을 바꾸지 않는다. 처음에는 꺼짐·미신뢰이며 기존 신뢰 확인을 거친 뒤에만 entry를 실행한다. 같은 등록의 신뢰·켜기/끄기·설정·secret은 재시작과 앱 업데이트에도 유지한다. 공식 공급 id·publisher·digest 검증은 별도로 유지한다.
+
+지정 복사본은 unregister를 거부하고 끄기만 허용한다. 같은 ID를 폴더에서 등록하면 그 등록이 우선한다(활성이면 먼저 끈다). 등록 교체는 새 registrationId로 다시 신뢰하며, 외부 등록을 제거하면 다음 Host 시작에 꺼짐·미신뢰 지정 복사본을 다시 표시한다. 외부 등록 제거의 기존 설정·secret 삭제 계약은 유지한다. 지정 복사본이 시작 시 복귀할 때 기존 등록과 operation ID가 충돌하면 목록에 `Plugin operation ID collision` 오류로 남기고 활성화도 거부하며, 먼저 등록된 플러그인의 실행은 유지한다. 공용 plugins 작업·CLI list·비서 도구가 같은 상태를 사용하며 새 명령은 없다.
+
+CLI는 지정 목록의 실행 파일·아이콘 고지만 복사하고 fixtures·개발 타입·설명서는 포함하지 않는다. npm files에 community-plugins를 포함하며 Desktop 빌드는 지정 파일 누락을 거부한다. Host 단위 검사는 신뢰 차단·등록 교체/복귀·업데이트를, 기존 http-plugins는 확인창 연결을, packaged 검사는 배포 파일과 목록을 보호한다. 실제 설치본 실행은 이 작업의 로컬 검증 범위 밖이다.
+
+시각 검토는 기존 PluginSettings 목록·토글·신뢰 Dialog·FolderDialog를 재사용하며 새 공통 구현 예외는 없다. Windows persistent Chrome의 1440px English/Light와 640px 한국어/Dark에서 행 중심·여백·줄바꿈·스크롤·잘림을 확인했다. [1440px 이전](assets/designated-plugins-1391/before-1440.png)·[이후](assets/designated-plugins-1391/after-1440.png), [640px 이전](assets/designated-plugins-1391/before-640.png)·[이후](assets/designated-plugins-1391/after-640.png)는 지정 복사본이 꺼져 있는 목록이며 외부 서비스 성공이나 실제 설치본의 근거가 아니다.
+
 ### 읽기 전용 대조 자료 (#1317)
 
 review 기여는 read가 필수이며 propose/approve/reject/undo는 선택이다. Host는 선언하지 않은 변경을 plugin 호출 전에 거부한다. 기존 review 화면·Read·Button·Notice를 재사용하며 새 화면이나 공통 상호작용 예외는 없다.

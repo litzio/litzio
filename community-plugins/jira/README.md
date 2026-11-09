@@ -2,13 +2,15 @@
 
 Jira Data Center 9.12.28 대상 읽기 전용 커뮤니티 플러그인입니다. JQL 검색이 기본이며 간편 검색은 같은 검색 경로 위에서 JQL을 조립합니다. 보고서 작성에 활용할 목록·설명·최근 댓글을 조회합니다. Jira 쓰기와 저장 필터 불러오기는 제공하지 않습니다.
 
-이 폴더는 독립 배포 전 plain ESM artifact이며 공식 공급 목록·Desktop 번들·pnpm workspace에 포함하지 않습니다. 공개 `@litzio/plugin-sdk`만 사용하고 별도 빌드는 필요 없습니다. 최소 SDK는 `>=0.3.0 <1.0.0`입니다.
+이 폴더는 독립 배포 전 plain ESM artifact이며 공식 공급 목록·pnpm workspace에 포함하지 않습니다. #1391 지정 커뮤니티로 CLI·Desktop에 포함됩니다. 공개 `@litzio/plugin-sdk`만 사용하고 별도 빌드는 필요 없습니다. 최소 SDK는 `>=0.3.0 <1.0.0`입니다.
 
 ## 설정과 실행
 
 대상 Host의 Plugins 설정에서 BASE_URL(예: `https://jira.example.com/jira`)과 필수 `pat` secret을 저장합니다. API URL을 비우면 BASE_URL/rest/api/2를 사용합니다. context path를 유지합니다. URL은 절대 HTTP(S)이며 자격 증명·query·fragment를 거부합니다. API URL은 다른 origin도 허용하므로 PAT를 보낼 대상인지 확인하세요. PAT는 비밀번호 입력으로만 저장하며 일반 설정·대화·명령 인자·입력 JSON에 넣지 않습니다. Windows Host secret 저장소와 Bearer 인증을 사용합니다.
 
 설정·입력 JSON은 artifact 밖에 둡니다. 아래 placeholder를 실제 대상으로 바꿉니다.
+
+앱 포함 복사본은 추가 절차 없이 목록에 꺼짐·미신뢰로 표시됩니다. 설정과 필요한 secret을 저장하고 처음 켤 때 신뢰 확인을 합니다. 이후 앱 업데이트에도 신뢰와 사용자 설정을 유지하며, 포함 복사본은 제거 대신 끕니다. 아래 validate/register는 개발용 외부 폴더 등록 절차입니다. 같은 ID의 폴더 등록이 포함 복사본보다 우선하고, 그 등록을 제거하면 다음 Host 시작에 포함 복사본이 다시 나타납니다.
 
 1. `litzio plugins validate <artifact> --host <origin> --json`
 2. `litzio plugins register <artifact> --host <origin> --json`

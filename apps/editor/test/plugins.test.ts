@@ -1052,7 +1052,7 @@ test("suggestion admission and generic CLI invocation share validated results", 
 test("registration trust survives updates and restart, but not removal", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "litzio-registration-trust-"));
   const file = path.join(root, "state.json");
-  let host = new PluginHost(file, { officialPlugins: [] });
+  let host = new PluginHost(file, { officialPlugins: [], designatedPlugins: [] });
   try {
     const directory = lifecycleFixture(root, "fixture.trust"), id = "fixture.trust";
     await host.invoke("register", { directory });
@@ -1066,7 +1066,7 @@ test("registration trust survives updates and restart, but not removal", async (
     writeFileSync(path.join(directory, "update.txt"), "updated");
     assert.equal((await host.list())[0]!.trusted, true);
     await host.invoke("reload", { id });
-    await host.close(); host = new PluginHost(file, { officialPlugins: [] });
+    await host.close(); host = new PluginHost(file, { officialPlugins: [], designatedPlugins: [] });
     await host.start();
     assert.equal((await host.list())[0]!.running, true);
     assert.equal((await host.list())[0]!.registrationId, originalRegistration);
@@ -1111,4 +1111,102 @@ test("row result envelopes validate coverage and preserve only declared public f
     assert.deepEqual(publicOperationResult(op, { rows, ...meta }, []), { rows: clean, ...meta });
   }
   for (const meta of [{}, { truncated: "yes" }, { truncated: true, total: 0 }, { truncated: true, total: 1 }, { truncated: false, total: 2 }, { truncated: true, total: -1 }, { truncated: true, total: 1.5 }]) assert.throws(() => publicOperationResult(op, { rows, ...meta }, []));
+});
+
+// Supply/trust policy is exercised here; HTTP browser coverage owns the confirmation UI.
+test("designated community supply requires trust, persists across updates and yields to folder registration", async () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-designated-"));
+  const directory = lifecycleFixture(root, "fixture.designated");
+  const manifestFile = path.join(directory, "litzio-plugin.json");
+  const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+  manifest.contributes.operations = [{ id: "read", version: 1, effect: "read", scope: "host", inputSchema: {}, outputSchema: { type: "string" } }];
+  manifest.settingsSchema = { type: "object", properties: { label: { type: "string" } }, additionalProperties: false };
+  writeFileSync(manifestFile, JSON.stringify(manifest));
+  const marker = path.join(root, "imported.txt");
+  const entry = path.join(directory, "host.js");
+  writeFileSync(entry, `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(marker)}, 'imported');\n` + readFileSync(entry, "utf8").replace("operations:{}", "operations:{read:()=>'designated'}"));
+  const designatedPlugins = [{ id: "fixture.designated", directory }];
+  const state = path.join(root, "state.json");
+  const options = { officialPlugins: [], designatedPlugins };
+  let host = new PluginHost(state, options);
+  const item = async () => (await host.list()).find(p => p.id === "fixture.designated")!;
+  try {
+    await host.start();
+    assert.ok(await item(), "designated supply is present without registration");
+    assert.equal((await item()).bundled, true);
+    assert.equal((await item()).official, false);
+    assert.equal((await item()).trusted, false);
+    assert.equal((await item()).enabled, false);
+    await assert.rejects(host.invoke("enable", { id: "fixture.designated" }), /trust/);
+    await assert.rejects(host.invoke("unregister", { id: "fixture.designated" }), /disabled/);
+    assert.equal(existsSync(marker), false, "listing and rejected enable never import the community entry");
+    await host.invoke("settings", { id: "fixture.designated", settings: { label: "saved" } });
+    const registrationId = (await item()).registrationId;
+    await assert.rejects(host.invoke("enable", { id: "fixture.designated", trust: true, registrationId: "00000000-0000-0000-0000-000000000000" }), /registration/i);
+    await host.invoke("enable", { id: "fixture.designated", trust: true, registrationId });
+    assert.equal((await item()).running, true);
+    assert.equal(readFileSync(marker, "utf8"), "imported");
+    await host.close();
+    writeFileSync(path.join(directory, "updated.txt"), "app update changes digest");
+    const { cpSync } = await import("node:fs");
+    const updated = path.join(root, "updated-app"); cpSync(directory, updated, { recursive: true });
+    designatedPlugins[0]!.directory = updated;
+    host = new PluginHost(state, options); await host.start();
+    assert.deepEqual((await item()).settings, { label: "saved" });
+    assert.equal((await item()).registrationId, registrationId);
+    assert.equal((await item()).running, true);
+    await host.invoke("disable", { id: "fixture.designated" });
+    await host.invoke("register", { directory });
+    assert.equal((await item()).bundled, false);
+    assert.equal((await item()).trusted, false);
+    await host.close(); host = new PluginHost(state, options); await host.start();
+    assert.equal((await item()).bundled, false);
+    await host.invoke("unregister", { id: "fixture.designated" });
+    await host.close(); host = new PluginHost(state, options); await host.start();
+    assert.equal((await item()).bundled, true);
+    assert.equal((await item()).trusted, false);
+    assert.equal((await item()).enabled, false);
+    // Remove an override, then admit a different plugin whose dotted operation
+    // occupies the returning supply's full name before the next Host start.
+    await host.invoke("register", { directory });
+    await host.invoke("unregister", { id: "fixture.designated" });
+    const rivalDirectory = lifecycleFixture(root, "fixture", "export function activate(){return {operations:{'designated.read':()=> 'rival'},status:()=>({available:true,message:'rival',folders:[],decorations:[],accounts:[]}),dispose(){}}}");
+    const rivalFile = path.join(rivalDirectory, "litzio-plugin.json");
+    const rivalManifest = JSON.parse(readFileSync(rivalFile, "utf8"));
+    rivalManifest.contributes.operations = [{ ...manifest.contributes.operations[0], id: "designated.read" }];
+    writeFileSync(rivalFile, JSON.stringify(rivalManifest));
+    await host.invoke("register", { directory: rivalDirectory });
+    const rival = (await host.list()).find(p => p.id === "fixture")!;
+    await host.invoke("enable", { id: rival.id, registrationId: rival.registrationId, trust: true });
+    await host.close();
+    const { unlinkSync } = await import("node:fs"); unlinkSync(marker);
+    host = new PluginHost(state, options); await host.start();
+    assert.equal((await item()).error, "Plugin operation ID collision");
+    assert.equal((await item()).running, false);
+    assert.equal(existsSync(marker), false, "conflicting supply is not imported on startup");
+    assert.equal((await host.list()).find(p => p.id === rival.id)!.running, true);
+    await assert.rejects(host.invoke("enable", { id: "fixture.designated", registrationId: (await item()).registrationId, trust: true }), /Plugin operation ID collision/);
+    assert.equal((await item()).running, false);
+    assert.equal(existsSync(marker), false, "rejected enable cannot import the conflicting entry");
+    assert.equal((await host.invokeOperation("fixture.designated.read", {})).result, "rival");
+    await host.invoke("unregister", { id: rival.id });
+    await host.invoke("enable", { id: "fixture.designated" });
+    assert.equal((await host.invokeOperation("fixture.designated.read", {})).result, "designated");
+    await assert.rejects(host.invoke("register", { directory: rivalDirectory }), /Plugin operation ID collision/);
+  } finally { await host.close(); }
+});
+
+test("designated distribution payload check rejects a missing runtime file", async () => {
+  const { DESIGNATED_COMMUNITY_PLUGINS, assertDesignatedPluginPayload } = await import("../server/plugins/designated-plugins.ts");
+  const root = mkdtempSync(path.join(os.tmpdir(), "litzio-supply-check-"));
+  assert.throws(() => assertDesignatedPluginPayload(root), /community.docling/);
+  for (const item of DESIGNATED_COMMUNITY_PLUGINS) {
+    const folder = path.join(root, "community-plugins", item.folder); mkdirSync(folder, { recursive: true });
+    assert.ok(!item.files.some(file => file.includes("fixtures")));
+    for (const file of item.files) writeFileSync(path.join(folder, file), "payload");
+  }
+  assertDesignatedPluginPayload(root);
+  const { unlinkSync } = await import("node:fs");
+  unlinkSync(path.join(root, "community-plugins", "docling", "conversion.js"));
+  assert.throws(() => assertDesignatedPluginPayload(root), /conversion.js/);
 });

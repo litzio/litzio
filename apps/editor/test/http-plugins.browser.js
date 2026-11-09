@@ -35,6 +35,16 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
     await route.fulfill({ response, json: value });
   });
   await openSettings();
+  const designated = pluginFixture.cli(["plugins", "list"]).plugins.filter(p => ["community.docling", "community.jira"].includes(p.id));
+  expect(designated).toHaveLength(2);
+  for (const plugin of designated) {
+    expect(plugin.bundled).toBe(true); expect(plugin.official).toBe(false);
+    expect(plugin.enabled).toBe(false); expect(plugin.trusted).toBe(false);
+  }
+  await page.getByRole("switch", { name: "Enable Docling", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Trust and enable Docling?", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByRole("switch", { name: "Enable Docling", exact: true })).not.toBeChecked();
   const official = page.getByRole("switch", { name: "Enable OneDrive", exact: true });
   await expect(official).not.toBeChecked();
   expect(pluginFixture.cli(["plugins", "list"]).plugins.find(p => p.id === "litzio.onedrive").official).toBe(true);
@@ -202,7 +212,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker, reloadDocum
   const reloaded = pluginFixture.cli(["plugins", "reload", "fixture.drive"]);
   expect(reloaded.receipt.operation).toBe("plugins.reload");
   expect(reloaded.plugins.find(p => p.id === "fixture.drive").running).toBe(true);
-  await expect(page.getByText("Community plugin", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Drive fixture", exact: true }).getByText("Community plugin", { exact: true })).toBeVisible();
   await expect(page.getByText("Account: Fixture account (Isolated fixture)", { exact: true })).toBeVisible();
   for (const width of [1440, 640]) {
     await page.setViewportSize({ width, height: 900 });

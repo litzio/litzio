@@ -1,3 +1,4 @@
+import { designatedPluginDirectories } from "./designated-plugins.ts";
 import { PLUGIN_REGISTRATION_CHANGED, inputHintResultSchema, inputSuggestionResultsSchema } from "@litzio/plugin-sdk";
 import { readPluginIcon } from "./plugin-icon.ts";
 import { artifactDigest } from "./artifact-digest.mjs";
@@ -42,8 +43,10 @@ export class PluginHost {
   }
   private access: FileAccess;
   private supply: OfficialPlugin[];
-  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; secrets?: PluginSecretStore; officialPlugins?: OfficialPlugin[] } = {}) {
+  private designated: { id: string; directory: string }[];
+  constructor(private file = hostPaths().settingsFile("plugins"), options: { access?: FileAccess; secrets?: PluginSecretStore; officialPlugins?: OfficialPlugin[]; designatedPlugins?: { id: string; directory: string }[] } = {}) {
     this.supply = options.officialPlugins ?? OFFICIAL_PLUGINS;
+    this.designated = options.designatedPlugins ?? designatedPluginDirectories();
     this.access = options.access ?? LOCAL_FILE_ACCESS;
     this.secrets = options.secrets ?? new WindowsPluginSecretStore(`${file}.secrets`);
     this.generatedDocuments = new GeneratedDocuments(this.access, (plugin, job) => {
@@ -104,6 +107,15 @@ export class PluginHost {
     return structuredClone({ manifest, digest, entry });
   }
   private official(m: PluginManifest, digest: string) { return m.tier === "official" && this.supply.some(p => p.id === m.id && p.publisher === m.publisher.id && p.digest === digest); }
+  private verifiedBundle(m: PluginManifest, digest: string) {
+    return this.official(m, digest) || m.tier === "community" && this.designated.some(p => p.id === m.id);
+  }
+  private assertOperationNamesAvailable(id: string, names: string[]) {
+    const requested = new Set(names);
+    for (const [otherId, other] of Object.entries(this.installed)) {
+      if (otherId !== id && other.operationNames.some(name => requested.has(name))) throw new Error("Plugin operation ID collision");
+    }
+  }
   async start() {
     for (const item of this.supply) {
       const previous = this.installed[item.id];
@@ -116,6 +128,23 @@ export class PluginHost {
       } catch { this.errors.set(item.id, "Bundled plugin artifact verification failed"); }
     }
 
+    for (const item of this.designated) {
+      const previous = this.installed[item.id];
+      if (previous && !previous.bundled) continue;
+      const record: Installed = { registrationId: previous?.registrationId ?? randomUUID(), directory: item.directory, digest: "", trusted: previous?.trusted, enabled: previous?.enabled ?? false, enabledChoice: previous?.enabledChoice, bundled: true, settings: previous?.settings ?? {}, operationNames: [] };
+      this.installed[item.id] = record;
+      try {
+        const artifact = this.artifact(item.directory);
+        if (artifact.manifest.id !== item.id || artifact.manifest.tier !== "community") throw new Error();
+        record.digest = artifact.digest;
+        const names = artifact.manifest.contributes.operations.map(op => `${item.id}.${op.id}`);
+        this.assertOperationNamesAvailable(item.id, names);
+        record.operationNames = names;
+      } catch (error) {
+        this.errors.set(item.id, error instanceof Error && error.message === "Plugin operation ID collision" ? error.message : "Bundled plugin artifact verification failed");
+      }
+    }
+    this.save();
     for (const [id, record] of Object.entries(this.installed)) if (record.enabled && !this.errors.has(id)) {
       try { await this.enable(id); } catch (error) { this.errors.set(id, "Plugin activation failed"); }
     }
@@ -157,13 +186,16 @@ export class PluginHost {
   private async enable(id: string): Promise<void> {
     const r = this.record(id), a = this.artifact(r.directory);
     if (a.manifest.id !== id) throw new Error("Artifact ID changed");
-    if (r.bundled && !this.official(a.manifest, a.digest)) throw new Error("Bundled plugin artifact verification failed");
+    if (r.bundled && !this.verifiedBundle(a.manifest, a.digest)) throw new Error("Bundled plugin artifact verification failed");
+    const names = a.manifest.contributes.operations.map(op => `${id}.${op.id}`);
+    this.assertOperationNamesAvailable(id, names);
     if (a.digest !== r.digest) {
       if (!r.trusted) throw new Error("Plugin trust is required");
       await this.reload(id);
       return;
     }
     if (!this.official(a.manifest, a.digest) && !r.trusted) throw new Error("Explicit plugin trust is required");
+    r.operationNames = names;
     if (this.loaded.has(id)) return;
     if (!compileSchema(a.manifest.settingsSchema)(r.settings)) throw new Error("Stored settings do not satisfy this artifact schema");
     const secrets = await this.runtimeSecrets(id, a.manifest);
@@ -234,10 +266,10 @@ export class PluginHost {
       await this.disable(id);
       const a = this.artifact(r.directory);
       if (a.manifest.id !== id) throw new Error("Artifact ID changed");
-      if (r.bundled && !this.official(a.manifest, a.digest)) throw new Error("Bundled plugin artifact verification failed");
+      if (r.bundled && !this.verifiedBundle(a.manifest, a.digest)) throw new Error("Bundled plugin artifact verification failed");
       if (!this.official(a.manifest, a.digest) && !r.trusted) throw new Error("Explicit plugin trust is required");
       const names = a.manifest.contributes.operations.map(op => `${id}.${op.id}`);
-      for (const [otherId, other] of Object.entries(this.installed)) if (otherId !== id && other.operationNames.some(name => names.includes(name))) throw new Error("Plugin operation ID collision");
+      this.assertOperationNamesAvailable(id, names);
       r.digest = a.digest; r.operationNames = names;
       await this.enable(id); r.enabled = true; r.enabledChoice = true;
     } catch (error) { this.errors.set(id, String(error)); this.save(); throw error; }
@@ -340,16 +372,15 @@ export class PluginHost {
         id = a.manifest.id;
         if (this.supply.some(p => p.id === id)) throw new Error("Official plugins update with the app only");
         const names = new Set(a.manifest.contributes.operations.map(operation => `${a.manifest.id}.${operation.id}`));
-        for (const [otherId, other] of Object.entries(this.installed)) {
-          if (otherId !== a.manifest.id && (other.operationNames ?? []).some(name => names.has(name))) throw new Error("Plugin operation ID collision");
-        }
+        this.assertOperationNamesAvailable(id, [...names]);
         const previous = Object.hasOwn(this.installed, a.manifest.id) ? this.installed[a.manifest.id] : undefined;
         if (previous?.enabled) throw new Error("Disable the plugin before replacing its registration");
         this.installed[a.manifest.id] = { registrationId: randomUUID(), directory, digest: a.digest, enabled: false, settings: previous?.settings ?? {}, operationNames: [...names] };
       } else {
         const r = this.record(id);
-        if (r.bundled && ["unregister", "trust"].includes(action)) throw new Error("Official plugins can only be disabled");
-        if (!r.bundled && (action === "trust" || action === "enable" && (args.trust || args.registrationId !== undefined))) {
+        if (r.bundled && action === "unregister") throw new Error("Bundled plugins can only be disabled");
+        if (r.bundled && action === "trust" && this.supply.some(p => p.id === id)) throw new Error("Official plugins can only be disabled");
+        if (!this.supply.some(p => p.id === id) && (action === "trust" || action === "enable" && (args.trust || args.registrationId !== undefined))) {
           if (!args.registrationId || args.registrationId !== r.registrationId) throw new Error(PLUGIN_REGISTRATION_CHANGED);
         }
         if (action === "unregister") {
@@ -371,7 +402,7 @@ export class PluginHost {
           r.trusted = true;
         } else if (action === "enable") {
           if (args.trust) {
-            if (r.bundled) throw new Error("Official plugins can only be disabled");
+            if (this.supply.some(p => p.id === id)) throw new Error("Official plugins can only be disabled");
             if (this.artifact(r.directory).manifest.id !== id) throw new Error("Artifact ID changed");
             r.trusted = true;
           }
