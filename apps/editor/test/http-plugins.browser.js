@@ -577,8 +577,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
         const ui = await (await queried).json();
         expect(ui.errorKind).toBe(kind);
         expect(JSON.stringify(ui)).not.toMatch(/RAW-JIRA-SENTINEL|mock-jira-token/);
-        await expect(page.getByText(advice, { exact: false })).toBeVisible();
-        await expect(page.getByText(/Previous query result/)).toBeVisible();
+        await expect(page.getByRole("alert").filter({ hasText: advice })).toBeVisible();
+        await expect(page.getByRole("status").filter({ hasText: /Previous query result/ })).toBeVisible();
         expect(await page.locator("body").innerText()).not.toMatch(/RAW-JIRA-SENTINEL|mock-jira-token/);
       }
       expect(jira.redirects()).toBe(0);
