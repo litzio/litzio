@@ -10,7 +10,7 @@ function httpUrl(value) {
   } catch { throw new PluginOperationError("failed"); }
 }
 const text = value => typeof value === "string" && value.trim() ? value : "—";
-const missing = (key, issueUrl) => ({ key, issueUrl, summary: "—", status: "이슈를 찾을 수 없습니다. 번호와 접근 권한을 확인하세요. (404)", assignee: "—", priority: "—", updated: "—" });
+const missing = (key, issueUrl) => ({ key, issueUrl, summary: "—", status: "없음 (404)", assignee: "—", priority: "—", updated: "—" });
 
 /** @param {import("@litzio/plugin-sdk").PluginContext} context */
 export function activate(context) {
@@ -41,7 +41,7 @@ export function activate(context) {
         finally { clearTimeout(timer); requests.delete(controller); }
       },
       async issues(input) {
-        if (typeof input?.keys !== "string" || input.keys.length > 512 || !/^\s*[A-Z][A-Z0-9_]*-[1-9][0-9]*(?:\s*,\s*[A-Z][A-Z0-9_]*-[1-9][0-9]*){0,19}\s*$/.test(input.keys)) throw new PluginOperationError("failed");
+        if (input?.keys !== undefined && (typeof input.keys !== "string" || input.keys.length > 512 || !/^\s*[A-Z][A-Z0-9_]*-[1-9][0-9]*(?:\s*,\s*[A-Z][A-Z0-9_]*-[1-9][0-9]*){0,19}\s*$/.test(input.keys))) throw new PluginOperationError("failed");
         const base = httpUrl(String(context.settings.baseUrl ?? ""));
         const api = context.settings.apiUrl ? httpUrl(String(context.settings.apiUrl)) : base + "/rest/api/2";
         const pat = context.secrets?.pat;
@@ -51,6 +51,32 @@ export function activate(context) {
         const timer = setTimeout(() => controller.abort(), DEADLINE_MS);
         try {
           const rows = [];
+          if (input.keys === undefined) {
+            // Escape the complete JQL string literal, backslashes before quotes.
+            const account = input.account?.trim();
+            const assignee = account ? '"' + account.replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"' : "currentUser()";
+            const status = input.status ?? "미해결";
+            const jql = "assignee = " + assignee + (status === "전체" ? "" : status === "해결됨" ? " AND resolution IS NOT EMPTY" : " AND resolution = Unresolved") + " ORDER BY updated DESC";
+            let startAt = 0;
+            while (rows.length < 500) {
+              const query = new URLSearchParams({ jql, startAt: String(startAt), maxResults: String(Math.min(100, 500 - rows.length)) });
+              const response = await fetch(api + "/search?" + query, { headers: { Authorization: `Bearer ${pat}`, Accept: "application/json" }, signal: controller.signal, redirect: "error" });
+              if (!response.ok) {
+                await response.body?.cancel();
+                throw new PluginOperationError(response.status === 401 ? "auth" : response.status === 403 ? "forbidden" : response.status === 404 ? "not_found" : response.status >= 500 ? "unavailable" : "failed");
+              }
+              const body = await response.json();
+              if (!Array.isArray(body?.issues) || !Number.isSafeInteger(body.total) || body.total < 0 || body.startAt !== startAt || (!body.issues.length && startAt < body.total)) throw new PluginOperationError("failed");
+              for (const issue of body.issues.slice(0, 500 - rows.length)) {
+                if (typeof issue?.key !== "string" || !/^[A-Z][A-Z0-9_]*-[1-9][0-9]*$/.test(issue.key) || !issue.fields || typeof issue.fields !== "object" || Array.isArray(issue.fields)) throw new PluginOperationError("failed");
+                const f = issue.fields;
+                rows.push({ key: issue.key, issueUrl: base + "/browse/" + encodeURIComponent(issue.key), summary: text(f.summary), status: text(f.status?.name), assignee: text(f.assignee?.displayName), priority: text(f.priority?.name), updated: text(f.updated) });
+              }
+              startAt += body.issues.length;
+              if (startAt >= body.total) break;
+            }
+            return rows;
+          }
           for (const key of [...new Set(input.keys.split(",").map(value => value.trim()))]) {
             const issueUrl = base + "/browse/" + encodeURIComponent(key);
             const response = await fetch(api + "/issue/" + encodeURIComponent(key), {
@@ -75,7 +101,7 @@ export function activate(context) {
         } finally { clearTimeout(timer); requests.delete(controller); }
       },
     },
-    status: () => ({ available: true, message: "이슈 번호를 입력하고 수동 조회하세요.", folders: [], decorations: [], accounts: [] }),
+    status: () => ({ available: true, message: "계정·해결 여부로 수동 조회하세요. 번호 입력 시 번호로 조회합니다.", folders: [], decorations: [], accounts: [] }),
     dispose() { for (const controller of requests) controller.abort(); },
   };
 }

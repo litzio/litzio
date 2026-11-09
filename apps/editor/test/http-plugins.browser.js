@@ -261,7 +261,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
           await expect(page.getByRole("cell", { name: "연결됨", exact: true })).toBeVisible();
         }
         await page.setViewportSize({ width, height: 900 });
-        await page.screenshot({ path: `docs/design/assets/plugin-screen-1329/after-${width}${width === 640 ? "-ko-dark" : ""}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".view-workspace-favorites select"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
+        await page.screenshot({ path: `docs/design/assets/plugin-screen-1329/after-${width}${width === 640 ? "-ko-dark" : ""}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
       }
       await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
       await page.reload(); await openSettings();
@@ -400,6 +400,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await docling.cli(["plugins", "unregister", id]);
     }
   }
+  let assignedQueryMs;
   const jira = pluginFixture.jira;
   expect((await jira.cli(["plugins", "validate", jira.directory])).valid).toBe(true);
   await jira.cli(["plugins", "register", jira.directory]);
@@ -433,7 +434,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
             await expect(page.getByRole("status").filter({ hasText: "Jira 연결과 PAT 인증을 확인했습니다." })).toBeVisible();
           }
           await page.setViewportSize({ width, height: 900 });
-          await page.screenshot({ path: `tmp/jira-1328/connection-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
+          await page.screenshot({ path: `tmp/jira-1345/connection-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
         }
         await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
         await page.reload(); await openSettings();
@@ -454,6 +455,44 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
       await page.reload(); await openSettings();
       await page.keyboard.press("Escape");
       await page.locator(".sidebar").getByRole("button", { name: "Jira", exact: true }).click();
+      const assignedStart = Date.now();
+      const queryButton = page.getByRole("button", { name: "조회", exact: true });
+      const queryRows = async value => {
+        jira.setQuery(value);
+        const cli = await invoke();
+        expect(cli.receipt.outcome).toBe("success");
+        return cli.result;
+      };
+      const mine = await queryRows({});
+      expect(mine.map(row => row.key)).toEqual(["MOCK-1", "MOCK-8"]);
+      expect(jira.searches()).toEqual([{ jql: "assignee = currentUser() AND resolution = Unresolved ORDER BY updated DESC", startAt: 0 }]);
+      await queryButton.click();
+      await expect(page.getByRole("cell", { name: "MOCK-8", exact: true })).toBeVisible();
+      const account = 'someone"\\else';
+      const all = await queryRows({ account, status: "전체" });
+      expect(all.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-6", "MOCK-8"]);
+      expect(jira.searches().map(v => v.startAt)).toEqual([0, 2]);
+      expect(jira.searches()[0].jql).toBe('assignee = "someone\\"\\\\else" ORDER BY updated DESC');
+      await page.getByRole("textbox", { name: "계정", exact: false }).fill(account);
+      await page.getByRole("combobox", { name: "해결 여부", exact: false }).selectOption("전체");
+      await queryButton.click();
+      await expect(page.getByRole("cell", { name: "MOCK-6", exact: true })).toBeVisible();
+      expect((await queryRows({ status: "해결됨" })).map(row => row.key)).toEqual(["MOCK-2"]);
+      jira.setLarge(true);
+      const capped = await queryRows({});
+      expect(capped).toHaveLength(500);
+      expect(capped.at(-1).key).toBe("MOCK-500");
+      expect(jira.searches().map(v => v.startAt)).toEqual([0, 100, 200, 300, 400]);
+      await queryButton.click();
+      await expect(page.getByText("500 / 500", { exact: true })).toBeVisible();
+      if (screenshots) {
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.getByRole("table").scrollIntoViewIfNeeded();
+        await page.screenshot({ path: "tmp/jira-1345/assigned-500-1440.png", mask: [page.locator(".sidebar-host-account"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
+      }
+      assignedQueryMs = Date.now() - assignedStart;
+      jira.setLarge(false);
+      jira.setInput("MOCK-1, MOCK-2, MOCK-404");
       await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("MOCK-1, MOCK-2, MOCK-404");
       const search = page.getByRole("button", { name: "조회", exact: true });
       await search.click();
@@ -480,7 +519,7 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
           }
           await page.setViewportSize({ width, height: 900 });
           await page.getByRole("table").scrollIntoViewIfNeeded();
-        await page.screenshot({ path: `tmp/jira-1328/issues-${width}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".view-workspace-favorites select"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
+        await page.screenshot({ path: `tmp/jira-1345/issues-${width}.png`, mask: [page.locator(".sidebar-host-account"), page.locator(".view-controls select"), page.locator(".views-page > header p")], maskColor: "#a1a1aa" });
         }
         await page.evaluate(() => { localStorage.setItem("litzio.uiLanguage", "en"); localStorage.setItem("litzio.theme", "light"); });
         await page.reload(); await openSettings();
@@ -490,6 +529,8 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
         await search.click();
         await expect(page.getByRole("cell", { name: "MOCK-1", exact: true })).toBeVisible();
       }
+      jira.setQuery({});
+      await page.getByRole("textbox", { name: "이슈 번호", exact: false }).fill("");
       for (const [status, kind, advice] of [[401, "auth", "Authentication required."], [403, "forbidden", "Access denied."], [500, "unavailable", "Service unavailable."], [302, "failed", "View operation failed."], [408, "timeout", "Operation timed out."]]) {
         jira.setFault(status);
         const failed = await invoke();
@@ -527,6 +568,9 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
         await jira.cli(["plugins", "settings", "community.jira", "--file", jira.settings]);
         const healthResult = await jira.cli(["operation", "invoke", "community.jira.connection", "--input", jira.healthInput]);
         expect(healthResult.result).toEqual({ ok: true, message: "Jira 연결과 PAT 인증을 확인했습니다." });
+        const mockAll = await queryRows({ status: "전체" });
+        expect(mockAll.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-6", "MOCK-8"]);
+        jira.setInput("MOCK-1, MOCK-2, MOCK-404");
         const mock = await invoke();
         expect(mock.result.map(row => row.key)).toEqual(["MOCK-1", "MOCK-2", "MOCK-404"]);
         expect(mock.result[2].status).toContain("404");
@@ -557,5 +601,5 @@ async (page, { expect, pluginFixture, screenshots, openFolderPicker }) => {
     }
   }
 
-  return { secretSaves };
+  return { secretSaves, assignedQueryMs };
 }
