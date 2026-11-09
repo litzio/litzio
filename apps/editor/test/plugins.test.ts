@@ -136,6 +136,20 @@ test("Windows DPAPI uses an isolated Host/account namespace, persists ciphertext
     await assert.rejects(unsupported.set("p", "token", "value"), /unsupported/);
     await assert.rejects(unsupported.read("p", "token"), /unsupported/);
     await assert.rejects(unsupported.delete("p"), /unsupported/);
+    const { createHash } = await import("node:crypto");
+    const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+    const file = path.join(root, hash("p"), hash("token"));
+    // File-only status validation is testable on every OS without DPAPI.
+    const envelopeStore = new WindowsPluginSecretStore(root, "win32");
+    mkdirSync(path.dirname(file), { recursive: true });
+    // Exact independent-review reproduction: a header with empty mandatory fields.
+    const emptyEnvelope = Buffer.alloc(84);
+    emptyEnvelope.writeUInt32LE(1, 0);
+    Buffer.from("d08c9ddf0115d1118c7a00c04fc297eb", "hex").copy(emptyEnvelope, 4);
+    emptyEnvelope.writeUInt32LE(1, 20);
+    writeFileSync(file, emptyEnvelope);
+    await assert.rejects(envelopeStore.status("p", "token"), /unavailable/);
+    await envelopeStore.delete("p", "token");
     if (process.platform !== "win32") return;
     const store = new WindowsPluginSecretStore(root), value = 'isolated-token-"-한글';
     await store.set("p", "token", value);
@@ -149,10 +163,26 @@ test("Windows DPAPI uses an isolated Host/account namespace, persists ciphertext
     assert.equal(await new WindowsPluginSecretStore(root).read("p", "token"), value);
     const { readdirSync } = await import("node:fs");
     for (const name of readdirSync(root, { recursive: true, withFileTypes: true })) if (name.isFile()) assert.equal(readFileSync(path.join(name.parentPath, name.name)).includes(Buffer.from(value)), false);
-    const { createHash } = await import("node:crypto");
-    const hash = (s: string) => createHash("sha256").update(s).digest("hex");
-    const file = path.join(root, hash("p"), hash("token"));
     const ciphertext = readFileSync(file);
+    // Mutate the real Protect output, retaining the rest of its envelope.
+    const cipherOffset = 48 + ciphertext.readUInt32LE(44);
+    const saltOffset = cipherOffset + 8;
+    const hmacKeyOffset = saltOffset + 4 + ciphertext.readUInt32LE(saltOffset);
+    const hashOffset = hmacKeyOffset + 4 + ciphertext.readUInt32LE(hmacKeyOffset);
+    const hmacOffset = hashOffset + 8;
+    const dataOffset = hmacOffset + 4 + ciphertext.readUInt32LE(hmacOffset);
+    const signatureOffset = dataOffset + 4 + ciphertext.readUInt32LE(dataOffset);
+    for (const [offset, value] of [[cipherOffset, 0], [cipherOffset + 4, 0], [hashOffset, 0], [hashOffset + 4, 0], [saltOffset, 0], [hmacOffset, 0], [dataOffset, 0], [signatureOffset, 0], [dataOffset, 0xffffffff]]) {
+      const invalid = Buffer.from(ciphertext); invalid.writeUInt32LE(value!, offset!);
+      writeFileSync(file, invalid);
+      await assert.rejects(store.status("p", "token"), /unavailable/);
+    }
+    for (const invalid of [ciphertext.subarray(0, -1), Buffer.concat([ciphertext, Buffer.from([0])])]) {
+      writeFileSync(file, invalid);
+      await assert.rejects(store.status("p", "token"), /unavailable/);
+    }
+    writeFileSync(file, ciphertext);
+    assert.equal(await store.status("p", "token"), true);
     const damaged = Buffer.from(ciphertext); damaged[damaged.length - 1]! ^= 1;
     writeFileSync(file, damaged);
     assert.equal(await store.status("p", "token"), true);

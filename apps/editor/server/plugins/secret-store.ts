@@ -33,18 +33,36 @@ function crypt(mode: string, data: Buffer, entropy: string): Promise<Buffer> {
     child.stdin.end(JSON.stringify({ mode, data: data.toString('base64'), entropy }));
   });
 }
-// DPAPI blob envelope only; checking configuration must never launch PowerShell.
+// Envelope only: never launch PowerShell here. Field order: DPAPI_BLOB in
+// https://github.com/fortra/impacket/blob/master/impacket/dpapi.py
+// Algorithm IDs: https://learn.microsoft.com/en-us/windows/win32/seccrypto/alg-id
+// DPAPI uses 3DES/SHA1 or AES-256/SHA512; integrity still requires Unprotect.
 function validBlob(blob: Buffer): boolean {
   try {
     if (blob.readUInt32LE(0) !== 1 || blob.subarray(4, 20).toString("hex") !== "d08c9ddf0115d1118c7a00c04fc297eb" || blob.readUInt32LE(20) !== 1) return false;
+    if (blob.length < 44 || blob.subarray(24, 40).every(byte => byte === 0)) return false;
     let offset = 44;
-    const field = () => { const length = blob.readUInt32LE(offset); offset += 4 + length; if (offset > blob.length) throw new Error(); };
-    field(); // description
-    offset += 8; // encryption algorithm and key length
-    field(); field(); // salt and HMAC key
-    offset += 8; // hash algorithm and length
-    field(); field(); field(); // HMAC, ciphertext and signature
-    return offset === blob.length;
+    const word = () => { const value = blob.readUInt32LE(offset); offset += 4; return value; };
+    const field = (minimum: number) => {
+      const length = word();
+      if (length < minimum || length > blob.length - offset) throw new Error();
+      const value = blob.subarray(offset, offset + length); offset += length; return value;
+    };
+    const description = field(0);
+    if (description.length % 2 || description.length && description.readUInt16LE(description.length - 2) !== 0) return false;
+    const cipher = word(), keyBits = word();
+    const blockBytes = cipher === 0x6603 && keyBits === 192 ? 8 : cipher === 0x6610 && keyBits === 256 ? 16 : 0;
+    if (!blockBytes) return false;
+    field(16); // salt
+    const hmacKey = field(0); // optional strong-protection key
+    if (hmacKey.length && hmacKey.length < 16) return false;
+    const hash = word(), hashBits = word();
+    if (!(hash === 0x8004 && hashBits === 160 || hash === 0x800e && hashBits === 512)) return false;
+    field(16); // HMAC seed
+    const ciphertext = field(blockBytes);
+    if (ciphertext.length % blockBytes) return false;
+    const signature = field(hashBits / 8);
+    return signature.length === hashBits / 8 && offset === blob.length;
   } catch { return false; }
 }
 export class WindowsPluginSecretStore implements PluginSecretStore {
