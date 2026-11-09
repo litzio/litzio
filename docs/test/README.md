@@ -31,12 +31,12 @@ CI quality는 문서 전용 PR과 merge group에서 문서·checker tests, diff/
 pnpm editor                          # 별도 터미널, 개발 서버
 pnpm browser:test                    # stable 전체
 pnpm browser:test save-session       # 관련 시나리오만 선택
-pnpm browser:test --shard=1/4         # CI의 4개 shard 중 하나
+pnpm browser:test --shard=1/8         # CI의 8개 shard 중 하나
 ```
 
-CI의 4개 shard는 stable 목록을 순환 분배하며 각 시나리오는 전체 shard에서 정확히 한 번 실행된다. `pnpm --filter @litzio/editor exec tsx --test test/browser-fixtures.test.ts`가 누락·중복·빈 shard 없이 분할되는지 검사한다. CI 로그에는 각 shard의 시나리오 배정이 출력되고 실패 artifact는 `editor-browser-ci-logs-1`부터 `editor-browser-ci-logs-4`까지 구분된다. 로컬에서 전체를 분할 실행하려면 `1/4`부터 `4/4`까지 순서대로 실행한다.
+CI의 8개 shard는 stable 목록을 순환 분배하며 각 시나리오는 전체 shard에서 정확히 한 번 실행된다. `pnpm --filter @litzio/editor exec tsx --test test/browser-fixtures.test.ts`가 누락·중복·빈 shard 없이 분할되는지 검사한다. CI 로그에는 각 shard의 시나리오 배정이 출력되고 실패 artifact는 `editor-browser-ci-logs-1`부터 `editor-browser-ci-logs-8`까지 구분된다. 로컬에서 전체를 분할 실행하려면 `1/8`부터 `8/8`까지 순서대로 실행한다.
 
-2026-11-05 재배치: [CI run 41946600342](https://github.com/litzio/litzio/actions/runs/41946600342)의 반올림된 시나리오 시간을 기준으로 긴 시나리오부터 합계가 가장 작은 shard에 배치했다. 같은 91개 시나리오의 합계는 413.0/375.9/498.6/263.5초에서 388.7/388.6/388.6/385.1초로 바뀐다. setup과 실행 변동은 제외한 예상치다. Playwright 다운로드 캐시는 OS·아키텍처와 설치된 `playwright-core/browsers.json` 해시를 사용하고, Chromium 설치 검증은 매번 유지한다.
+2026-11-10 8분할: 기존 순환 배치를 유지한다. 최근 [PR 실행](https://github.com/litzio/litzio/actions/runs/42705604581)과 [queue 실행](https://github.com/litzio/litzio/actions/runs/42707709775)의 동일 96개 시나리오 시간을 8분할로 계산하면 합계는 각각 206.0/244.4/289.1/245.6/281.4/197.0/292.3/206.1초와 217.2/199.7/291.7/199.5/297.7/155.7/298.3/168.6초다. 로그의 반올림과 setup·실행 변동을 제외한 예상치이며 실제 8-shard 성능 보장은 아니다. 최대 약 5분에 준비·종료 예산 60~110초를 더해 목표 6~8분 범위이므로 파일 재배치는 하지 않는다. 새 stable 시나리오도 같은 순환 규칙에 자동 포함된다. Playwright 다운로드 캐시와 매번 Chromium 설치 검증은 유지한다.
 
 runner는 원본 fixture의 scratch 사본을 준비한다. `file-actions`의 실제 파일 삭제·이름 변경은 저장소 밖 OS 임시 폴더의 checkout별 사본에서만 실행하며, runner의 `/api/file` guard가 저장소 내부 경로를 거부하는지도 확인한다. 테스트 실행을 위해 `apps/editor/document/`나 `apps/editor/test/browser/fixtures/`의 원본을 직접 수정하지 않는다. fixture 자체를 바꾸는 작업이라면 의도한 변경으로 검토하고 관련 regression을 실행한다. Windows에서는 [persistent profile과 session 규칙](../contributing/windows-browser-automation.md)을 따른다. 작업 후 직접 시작한 서버와 세션을 종료한다.
 
@@ -285,11 +285,13 @@ pnpm --filter @litzio/cli test:packaged
 
 The archive test installs outside the checkout with no runtime dependencies and runs Node-only CLI/daemon run, real writes, port conflict and shutdown. The separate HTTP browser scenario starts the built Host with two scratch roots and verifies real Save/Reload, New file/folder, images, dirty/draft guards, revision conflict and SVG script blocking. Do not combine it with Vite scenarios. Windows uses the existing persistent browser profile. `pnpm browser:test http-host --screenshots` saves optional wide/narrow/saved-document manual captures under `tmp/http-host-capture/`. CI runs without this option and uploads only browser failure diagnostics from `tmp/browser-results/`; all DOM and Save/Reload assertions remain enabled.
 
-HTTP boundary tests are included in `pnpm test`; targeted command: `pnpm --filter @litzio/editor exec tsx --test test/http-host.test.ts`. When the HTTP job is selected, CI requires the archive and HTTP browser paths on Windows and Linux. Windows unit/integration coverage, including `file-identity.test.ts`, belongs to the Desktop full `pnpm test`; `http ⇒ desktop` path selection prevents a coverage gap. PR path selection and full checks on master pushes follow the [Verification matrix](../../CONTRIBUTING.md#verification-matrix), with [ci.yml](../../.github/workflows/ci.yml) as the path-rule source of truth. See [HTTP contract](../design/http-host-v1.md) for scope and deployment limitations.
+Windows HTTP는 host(`http-host http-plugins`)와 plugins(`plugin-jobs plugin-views`) 두 독립 runner에서 실행한다. 각각 package·test:packaged 및 crash recovery를 유지하며 runner별 checkout·fixture·daemon·포트를 공유하지 않는다. Linux는 기존 전체 묶음을 유지한다.
+
+HTTP boundary tests are included in `pnpm test`; targeted command: `pnpm --filter @litzio/editor exec tsx --test test/http-host.test.ts`. When the HTTP job is selected, CI requires the archive and HTTP browser paths on Windows and Linux. Windows unit/integration coverage, including `file-identity.test.ts`, belongs to the two Desktop unit partitions (together `pnpm test`); `http ⇒ desktop` path selection prevents a coverage gap. PR path selection and full checks on master pushes follow the [Verification matrix](../../CONTRIBUTING.md#verification-matrix), with [ci.yml](../../.github/workflows/ci.yml) as the path-rule source of truth. See [HTTP contract](../design/http-host-v1.md) for scope and deployment limitations.
 
 ## Windows Desktop regression
 
-Windows Desktop CI는 artifact 전달 없는 독립 Windows runner 5개로 실행한다: unit(`desktop`), published beta.6(`desktop && update`), Stable update(`desktop && fullLifecycle`), Beta update(`desktop && update`), package+verify+packaged+uninstall(`desktop`; uninstall은 `update`). 각 설치 검사의 정리 단언과 `fullLayout`/`fullLifecycle` 범위를 유지하며, 필수 aggregate는 선택된 다섯 job 모두의 성공을 요구한다. 진단 artifact는 job별 고유 이름을 사용한다.
+Windows Desktop CI는 artifact 전달 없는 독립 Windows runner 6개로 실행한다: unit foundation·editor 두 묶음(`desktop`; foundation은 SDK·OneDrive·boundary·Core·File commit·CLI·Desktop, editor는 Editor/Host), published beta.6(`desktop && update`), Stable update(`desktop && fullLifecycle`), Beta update(`desktop && update`), package+verify+packaged+uninstall(`desktop`; uninstall은 `update`). 각 설치 검사의 정리 단언과 `fullLayout`/`fullLifecycle` 범위를 유지하며, 필수 aggregate는 선택된 모든 job 모두의 성공을 요구한다. 진단 artifact는 job별 고유 이름을 사용한다.
 
 공개 beta.6 fixture는 `GH_TOKEN`이 있으면 GitHub Releases asset API에 인증하여 다운로드하고, 토큰이 없으면 공개 URL을 사용한다. 두 경로 모두 기존 크기·SHA-256·업데이트 SHA-512 검증과 HTTP 504 재시도 횟수를 유지한다. 인증 여부와 요청 URL은 Actions 로그에 남기며 토큰은 출력하지 않는다. 다운로드 캐시의 실제 경로·키·master 저장 정책은 [Verification matrix](../../CONTRIBUTING.md#verification-matrix)를 따른다.
 

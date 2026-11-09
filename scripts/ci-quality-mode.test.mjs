@@ -206,11 +206,11 @@ test('workflow consumes event policy outputs and preserves selected-job gates', 
   assert.equal(desktop.steps.find(step => step.name === 'Validate installer and update metadata').if, undefined);
   const release = load(readFileSync(new URL('../.github/workflows/desktop-release.yml', import.meta.url), 'utf8'));
   assert.equal(desktop['runs-on'], release.jobs.build['runs-on']);
-  const unitTests = workflow.jobs['desktop-unit'].steps.find(step => step.run === 'pnpm test');
-  assert.ok(unitTests, 'Windows PR and merge queue CI must run the release unit-test suite');
+  const unitTests = workflow.jobs['desktop-unit'].steps.find(step => step.run === 'pnpm test:unit:${{ matrix.group }}');
+  assert.ok(unitTests, 'Windows PR and merge queue CI must run every unit partition');
   assert.equal(unitTests.if, undefined);
-  assert.ok(release.jobs.build.steps.some(step => step.run === unitTests.run));
-  assert.deepEqual(http.strategy.matrix.os, ['ubuntu-latest', 'windows-latest']);
+  assert.ok(release.jobs.build.steps.some(step => step.run === 'pnpm test'));
+  assert.deepEqual(new Set(http.strategy.matrix.include.map(entry => entry.os)), new Set(['ubuntu-latest', 'windows-latest']));
   assert.equal(aggregate.name, 'Core, CLI, Editor, and browser regressions');
   assert.deepEqual(new Set(aggregate.needs), new Set(['changes', 'quality', 'browser', 'http', 'desktop', 'desktop-unit', 'desktop-published', 'desktop-stable', 'desktop-beta', 'cache-warm']));
   assert.equal(aggregate.if, '${{ always() }}');
