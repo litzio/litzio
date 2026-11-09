@@ -23,7 +23,7 @@ import "./views.css";
 import { ViewChart } from "./ViewChart.tsx";
 import { ViewPanels } from "./ViewPanels.tsx";
 
-export type ViewTab = { id: string; hostId: string; root: string; view?: CatalogView; basic?: boolean; jobs?: boolean; label?: string; screen?: import("./view-api.ts").ViewScreen };
+export type ViewTab = { id: string; hostId: string; root: string; pdf?: string; view?: CatalogView; basic?: boolean; jobs?: boolean; label?: string; screen?: import("./view-api.ts").ViewScreen };
 export function ViewRenderer({ view, rows, fields, fieldTypes }: { view: Extract<CatalogView, {profile: "query"}>; rows?: ViewRow[]; fields?: Record<string, string>; fieldTypes?: Record<string, TableField> }) {
   const valid = allQueryViewSchema.parse(view);
   const label = (field: string, value: ViewRow[string]) => valid.sources.stats.kind === "operation" && valid.sources.stats.operation === "folder.statistics" && value === "." && (field === "folder" || field === "group" && valid.sources.stats.groupBy?.field === "folder")

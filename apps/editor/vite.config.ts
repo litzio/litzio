@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import { prepareSampleDocuments } from "./server/sample-documents.ts";
 import { randomBytes } from "node:crypto";
@@ -15,7 +15,7 @@ import { ResetGuard } from "./server/reset-guard.ts";
 export default defineConfig({
   // Prebundle the lazy renderer/worker dependencies without fetching them until needed.
   // First-use dependency discovery must not reload the development editor and lose drafts.
-  optimizeDeps: { include: ["mermaid", "diff"] },
+  optimizeDeps: { include: ["mermaid", "diff", "pdfjs-dist"] },
   // Resolve extensionless imports in the parser's published ESM entry during Host SSR.
   ssr: { noExternal: ["jsonc-parser"] },
   resolve: {
@@ -26,6 +26,23 @@ export default defineConfig({
     },
   },
   plugins: [
+    {
+      name: "pdf-font-assets",
+      configureServer(server) {
+        server.middlewares.use("/pdf-assets/", (req, res, next) => {
+          const match = /^\/(cmaps|standard_fonts)\/([\w.-]+)$/.exec(req.url ?? "");
+          if (!match) return next();
+          try { res.end(readFileSync(new URL(`./node_modules/pdfjs-dist/${match[1]}/${match[2]}`, import.meta.url))); }
+          catch { next(); }
+        });
+      },
+      generateBundle() {
+        for (const directory of ["cmaps", "standard_fonts"]) {
+          const base = new URL(`./node_modules/pdfjs-dist/${directory}/`, import.meta.url);
+          for (const name of readdirSync(base)) this.emitFile({ type: "asset", fileName: `pdf-assets/${directory}/${name}`, source: readFileSync(new URL(name, base)) });
+        }
+      },
+    },
     {
       name: "third-party-notices",
       generateBundle() {

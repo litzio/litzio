@@ -711,3 +711,7 @@ D3가 공통 부품·갤러리·이 패턴의 구현 근거를 함께 갱신한�
 ## 플러그인·동적 뷰의 내용 우선 표시 (#1329)
 
 기존 작업 탭·우측 보기의 ViewWorkspace/QueryViews와 Button·Notice·native details/summary를 재사용한다. Host 선택은 복수 Host일 때, 기본 뷰 선택은 복수 후보 또는 다른 뷰에서 돌아올 때 표시한다. 즐겨찾기 목록 관리는 접어 두며 내용 안의 수동 조회·즐겨찾기 추가는 유지한다. 폴더 source만 폴더 선택을 한 번 표시한다. 일반 생성 뷰에도 같은 기준을 적용하며 별도 표면·공통 상호작용 예외는 없다. 출처·원자료를 접는 AssistantDataDetails/ViewChart의 기존 패턴과 일치한다. 실행·캡처 근거와 Host/CLI 범위는 [생성 뷰 계약](generated-views-v1.md#플러그인동적-뷰-화면-간소화-1329)을 따른다.
+
+## PDF reading (#1337)
+
+Multi-page PDF reading uses the existing task tab and DocumentTabs, while transient images retain FilePreviewDialog. The viewer reuses Button ghost/sm and icon-sm, Tooltip, Input and Notice, with Lucide zoom icons and existing theme surfaces. No new common interaction is introduced; PDF page surfaces are white to preserve source colors. The toolbar shows reading controls and page state only. 1440px light and 640px Korean dark are the manual visual checks in `pnpm browser:test file-preview --screenshots`.

@@ -264,3 +264,7 @@ Theme·Example state는 기존 ChoiceGroup을 유지하며, 반복 상태 안내
 ### 플러그인 화면 간소화 (#1329)
 
 작업 탭·문서 우측 보기의 기존 ViewWorkspace/QueryViews를 유지한다. Button secondary/ghost, Notice, native details/summary와 기존 간격·글자 토큰을 재사용한다. 즐겨찾기 관리의 접기는 AssistantDataDetails·ViewChart와 같은 native 패턴이다. 새로운 공통 구현이나 예외는 없다. 단일 선택 장치 숨김과 source별 폴더 표시의 범위는 [생성 뷰 계약](generated-views-v1.md#플러그인동적-뷰-화면-간소화-1329)을 따른다.
+
+## PDF reading choice (#1337)
+
+Explorer PDF activation uses the existing task tab rather than the transient image dialog: multiple pages require sustained reading and navigation. DocumentTabs, Button, Tooltip, Input and Notice are reused. The source paper remains white in dark mode; only the surrounding surface follows theme. This source-color exception does not add theme tokens or a new common interaction. Behavior and limits: [shell contract](editor-ux-shell-v1.md#read-only-pdf-tabs-1337), [Host boundary](filesystem-host-boundary-v1.md#pdf-byte-preview-1337).

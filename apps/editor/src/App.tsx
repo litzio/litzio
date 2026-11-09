@@ -87,6 +87,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { SaveTemplateDialog } from "./shell/SaveTemplateDialog.tsx";
 import type { TemplateSummary } from "../shared/template-protocol.ts";
 import { templateLanguage } from "./template-api.ts";
+const PdfViewer = lazy(() => import("./shell/PdfViewer.tsx").then(module => ({ default: module.PdfViewer })));
 const TemplateGallery = lazy(() => import("./shell/TemplateGallery.tsx").then(module => ({ default: module.TemplateGallery })));
 const SaveCompare = lazy(() => import("./shell/SaveCompare.tsx"));
 
@@ -255,7 +256,8 @@ function EditorApp() {
   const galleryGroup = navigation.groups.find(group => group.tabs.includes("templates"));
   const galleryOpen = galleryGroup?.active === "templates";
   const galleryFocused = activeId === "templates";
-  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.root, hostId: tab.hostId, title: tab.jobs ? i18n.t("Plugin jobs") : tab.basic ? i18n.t("Document statistics") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
+  const activePdf = viewTabs.find(tab => tab.id === activeId && tab.pdf);
+  const allTabs = [...viewTabs.map(tab => ({ id: tab.id, path: tab.pdf ?? tab.root, hostId: tab.hostId, title: tab.jobs ? i18n.t("Plugin jobs") : tab.basic ? i18n.t("Document statistics") : tab.label ?? tab.view!.title })), ...(galleryGroup ? [{ id: "templates", path: "templates", title: i18n.t("Template gallery") }] : []), ...(settingsGroup ? [{ id: "settings", path: "settings", title: i18n.t("Settings") }] : []), ...tabs];
   const split = navigation.groups.length === 2;
   const [canSplit, setCanSplit] = useState(false);
   const splitAvailable = useRef(false);
@@ -758,6 +760,15 @@ function EditorApp() {
   async function openFile(path: string, openedNotice = "", group = navigation.focused, hostId = LOCAL_HOST_ID): Promise<string | null> {
     const requestedPath = unquotePath(path);
     if (!requestedPath) return i18n.t("Enter a Markdown file path.");
+    if (/\.pdf$/i.test(requestedPath)) {
+      if (busy || continuation) return i18n.t("Wait for the current operation to finish.");
+      const root = (hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(hostId)).find(root => folderChain(root, requestedPath).length > 0);
+      if (!root) return i18n.t("The created file is outside the opened folders.");
+      const id = viewTabs.find(tab => tab.hostId === hostId && tab.pdf === requestedPath)?.id ?? `pdf-${++nextId.current}`;
+      setViewTabs(previous => previous.some(tab => tab.id === id) ? previous : [...previous, { id, hostId, root, pdf: requestedPath, label: splitDocumentPath(requestedPath).name }]);
+      placeTab(id, group, hostId);
+      return "";
+    }
     if (!/\.(md|txt)$/i.test(requestedPath)) return i18n.t("Only .md and .txt files can be opened.");
     if (operationRef.current || fileOperationPending || sessions.current.get(navigation.groups.find(item => item.id === group)?.active ?? "")?.busyRef.current || continuation) return i18n.t("Wait for the current operation to finish.");
     markStartupOverride({ hostId, path: requestedPath });
@@ -1228,9 +1239,9 @@ function EditorApp() {
   ];
 
   return (<>
-    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !settingsFocused && !galleryFocused && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
+    <div ref={shell} style={{ "--assistant-width": assistantSize ? `${assistantSize}px` : undefined, "--sidebar-width": sidebarSize ? `${sidebarSize}px` : undefined, "--document-panel-width": documentPanelSize ? `${documentPanelSize}px` : undefined } as React.CSSProperties} className={`app-shell${assistantOpen ? " app-shell--assistant" : ""}${sidebarOpen ? "" : " app-shell--collapsed"}${panelOpen && !settingsFocused && !galleryFocused && !activePdf && session?.kind !== "text" ? "" : " app-shell--panel-closed"}${documentWidth === "wide" ? " app-shell--wide" : ""}${split ? " app-shell--split" : ""}`}>
       <Sidebar
-        documentHostId={session?.hostId ?? LOCAL_HOST_ID}
+        documentHostId={activePdf?.hostId ?? session?.hostId ?? LOCAL_HOST_ID}
         onHostOpen={(hostId, path) => openFile(path, "", navigation.focused, hostId).then(message => { if (message) setError(message); })}
         onHostCreate={(hostId, client, path, root) => createFile(path, { hostId, client, root })}
         createdDocumentFocus={() => editorRef.current?.getFocusTarget() ?? null}
@@ -1243,7 +1254,7 @@ function EditorApp() {
         isFileDirty={path => { const tab = tabs.find(tab => sameLocator(tab, { hostId: LOCAL_HOST_ID, path })); return !!(tab && sessions.current.get(tab.id)?.editorRef.current?.hasUnsavedChanges()); }}
         onWidth={setSidebarSize}
         open={sidebarOpen}
-        documentPath={openedPath}
+        documentPath={activePdf?.pdf ?? openedPath}
         toggleRef={sidebarToggle}
         onToggle={() => {
           setSidebarOpen((value) => !value);
@@ -1300,10 +1311,10 @@ function EditorApp() {
           {sidebarOpen ? <span aria-hidden="true">{productName(i18n.language)}</span> : null}
         </div>
         <div className="top-bar-container">
-          <TopBar onOpenCommandCenter={() => openCommandCenter()} documentPath={openedPath}
+          <TopBar onOpenCommandCenter={() => openCommandCenter()} documentPath={activePdf?.pdf ?? openedPath}
             onAssistant={assistantAvailable ? toggleAssistant : undefined} assistantOpen={assistantOpen}
             hostLabel={session && hostRegistry.list().length > 1 ? hostLabel(session.hostId) : undefined}
-            location={documentLocation(openedPath, folders.rootOf(openedPath))} />
+            location={documentLocation(activePdf?.pdf ?? openedPath, activePdf?.root ?? folders.rootOf(openedPath))} />
         </div>
       </div>
       <div className="app-main" ref={main}>
@@ -1399,7 +1410,7 @@ function EditorApp() {
               hidden={group?.active !== tab.id} inert={group?.active !== tab.id} data-document-tab={tab.id} data-active={activeId === tab.id ? "true" : "false"}
               data-group-index={groupIndex} style={{ "--editor-group-index": groupIndex } as React.CSSProperties}
               onFocusCapture={() => focusDocument(tab.id)} onPointerDownCapture={() => focusDocument(tab.id)}>
-              {tab.screen ? <ViewWorkspace provenanceRoots={provenanceRoots} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} view={tab.view} onHost={hostId => {destinations.current.invalidate(tab.id); setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item));}} onSelect={() => destinations.current.invalidate(tab.id)} onOpenReview={view=>openGeneratedView(view,tab.root,tab.hostId)} onOpenDocument={openViewDocument} onGenerate={(root,view) => requestView({kind:"screen",id:tab.id,hostId:tab.hostId,owner:tab.screen!.plugin,root},view,{kind:"screen",plugin:tab.screen!.plugin,id:tab.screen!.id})} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} /> : <Views provenanceRoots={provenanceRoots} onGenerate={view=>requestView({kind:"tab",id:tab.id,hostId:tab.hostId,owner:view?.profile==="query"?view.owner:"litzio.statistics",root:tab.root},view)} tab={tab} client={getHostClient(tab.hostId)} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} onOpen={openGeneratedView} onOpenDocument={openViewDocument} onRoot={root => {destinations.current.invalidate(tab.id); setViewTabs(previous => previous.map(item => item.id === tab.id ? { ...item, root } : item));}} />}
+              {tab.pdf ? <Suspense fallback={null}><PdfViewer client={getHostClient(tab.hostId)} root={tab.root} path={tab.pdf} active={group?.active === tab.id} /></Suspense> : tab.screen ? <ViewWorkspace provenanceRoots={provenanceRoots} key={`${tab.id}:${tab.hostId}`} id={tab.id} hostId={tab.hostId} root={tab.root} owner={tab.screen.plugin} screen={tab.screen} view={tab.view} onHost={hostId => {destinations.current.invalidate(tab.id); setViewTabs(previous => previous.map(item => item.id === tab.id ? {...item,hostId,view:undefined,root:(hostId===LOCAL_HOST_ID?openedFolderPaths:readOpenFolders(hostId))[0]??""} : item));}} onSelect={() => destinations.current.invalidate(tab.id)} onOpenReview={view=>openGeneratedView(view,tab.root,tab.hostId)} onOpenDocument={openViewDocument} onGenerate={(root,view) => requestView({kind:"screen",id:tab.id,hostId:tab.hostId,owner:tab.screen!.plugin,root},view,{kind:"screen",plugin:tab.screen!.plugin,id:tab.screen!.id})} /> : tab.jobs ? <PluginJobs client={getHostClient(tab.hostId)} hostId={tab.hostId} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} active={group?.active === tab.id} onOpen={async path => { const problem = await openFile(path, "", navigation.focused, tab.hostId); if (problem) throw new Error(problem); }} /> : <Views provenanceRoots={provenanceRoots} onGenerate={view=>requestView({kind:"tab",id:tab.id,hostId:tab.hostId,owner:view?.profile==="query"?view.owner:"litzio.statistics",root:tab.root},view)} tab={tab} client={getHostClient(tab.hostId)} roots={tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)} onOpen={openGeneratedView} onOpenDocument={openViewDocument} onRoot={root => {destinations.current.invalidate(tab.id); setViewTabs(previous => previous.map(item => item.id === tab.id ? { ...item, root } : item));}} />}
             </div>;
           })}
           {galleryGroup ? <div className="shell-tab" role="tabpanel" tabIndex={-1} id="panel-templates" aria-labelledby="tab-templates"
@@ -1447,7 +1458,7 @@ function EditorApp() {
       </div>
 
         <DocumentPanel
-          visible={panelOpen && !assistantOpen && !settingsFocused && !galleryFocused && session?.kind !== "text"}
+          visible={panelOpen && !assistantOpen && !settingsFocused && !galleryFocused && !activePdf && session?.kind !== "text"}
           viewContent={tabs.filter(tab => tab.file.kind !== "text").map(tab => {
             const ownerSession = sessions.current.get(tab.id);
             const root = (tab.hostId === LOCAL_HOST_ID ? openedFolderPaths : readOpenFolders(tab.hostId)).find(root => folderChain(root, tab.path).length > 0) ?? "";
@@ -1611,7 +1622,7 @@ function EditorApp() {
     </div>
     <ShellNotificationCenter sidebarWidth={sidebarSize} documentPanelWidth={documentPanelSize} panelWidth={assistantOpen
       ? (assistantSize ? `${assistantSize}px` : "var(--layout-assistant-width)")
-      : panelOpen && !settingsFocused && !galleryFocused && session?.kind !== "text" ? "var(--document-panel-effective-width)" : "0px"} />
+      : panelOpen && !settingsFocused && !galleryFocused && !activePdf && session?.kind !== "text" ? "var(--document-panel-effective-width)" : "0px"} />
   </>);
 }
 
