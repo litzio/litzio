@@ -319,8 +319,13 @@ test("subprocess isolation, fresh artifact reload, trust failure recovery and cr
     assert.match((await host.list())[0]!.status!.message, /^recovered:/);
     writeFileSync(path.join(directory, "host.js"), code("crash", true));
     await trust(); await host.invoke("reload", { id: "fixture.reload" });
-    await new Promise(r => setTimeout(r, 200));
-    const failed = (await host.list())[0]!;
+    // Process exit notification can follow a rejected status RPC on a busy Host.
+    const deadline = Date.now() + 5000;
+    let failed = (await host.list())[0]!;
+    while (!/process failed/.test(failed.error ?? "") && Date.now() < deadline) {
+      await new Promise(r => setTimeout(r, 25));
+      failed = (await host.list())[0]!;
+    }
     assert.equal(failed.running, false); assert.match(failed.error!, /process failed/);
     await new Promise(r => setTimeout(r, 100)); assert.equal((await host.list())[0]!.running, false);
     writeFileSync(path.join(directory, "host.js"), code("final"));
