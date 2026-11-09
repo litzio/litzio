@@ -6,6 +6,7 @@
 // Nothing is published: the release workflow uploads the verified artifacts.
 import path from "node:path";
 import { rmSync } from "node:fs";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { Arch, build, Platform, type Configuration } from "electron-builder";
 import semver from "semver";
@@ -45,6 +46,9 @@ export function packageConfiguration(appVersion: string, release: boolean): Conf
       { from: "build/prepare-installation.cjs", to: "prepare-installation.cjs" }, { from: "build/reset-helper.cjs", to: "reset-helper.cjs" }],
     // RunAsNode is intentionally kept at Electron's enabled default (ADR-0004 #604).
     npmRebuild: false,
+    // Same official checksums used by Electron's installer; retain validation without a fresh GET.
+    // Explicit default force=false also selects the builder adapter that retains checksum options.
+    electronDownload: { force: false, checksums: createRequire(import.meta.url)("electron/checksums.json") },
     electronLanguages: ["en-US", "ko"],
     forceCodeSigning: release,
     // GitHub provider: the metadata file is named by this channel only.

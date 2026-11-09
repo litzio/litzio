@@ -1,11 +1,11 @@
 // Real shared Host, textarea input, Save acknowledgement and kind-specific local recovery.
 async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, textFixture }) => {
   const origin = page.url().split('/').slice(0,3).join('/');
-  const initial = await (await page.request.get(origin + '/api/document')).json();
+  const initial = await (await page.request.get(origin + '/api/document', { headers: { Connection: "close" } })).json();
   const sep = initial.path.includes('\\') ? '\\' : '/';
   const root = [...initial.path.split(sep).slice(0,-4), 'tmp', 'text-mode'].join(sep);
   const file = name => root + sep + name;
-  const read = async path => (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(path))).json();
+  const read = async path => (await page.request.get(origin + '/api/document?path=' + encodeURIComponent(path), { headers: { Connection: "close" } })).json();
   const input = () => activeDocument(page).getByTestId('text-editor');
   const save = async () => {
     const response = page.waitForResponse(r => r.request().method() === 'POST' && r.url().split('?')[0].endsWith('/api/document'));
@@ -202,7 +202,7 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   const started = new Promise(resolve => { arrived = resolve; });
   const hold = async route => {
     if (route.request().method() !== 'POST') return route.fallback();
-    const response = await route.fetch(); arrived(); await gate; await route.fulfill({response});
+    const response = await route.fetch({ headers: { ...route.request().headers(), Connection: "close" } }); arrived(); await gate; await route.fulfill({response});
   };
   await input().fill('submitted text');
   await page.route('**/api/document',hold);
@@ -231,7 +231,7 @@ async (page, { openPath, activeDocument, expect, recoveryRecords, screenshots, t
   const checkpoint = await read(file('notes.txt'));
   await input().fill('local recovery after conflict');
   await expect.poll(async () => (await recoveryRecords(page)).some(r => r.path === file('notes.txt') && r.recoveryText === 'local recovery after conflict')).toBe(true);
-  const external = await page.request.post(origin + '/api/document',{data:{kind:'text',path:file('notes.txt'),revision:checkpoint.revision,source:'external writer'}});
+  const external = await page.request.post(origin + '/api/document',{ headers: { Connection: "close" },data:{kind:'text',path:file('notes.txt'),revision:checkpoint.revision,source:'external writer'}});
   expect(external.status()).toBe(200);
   page.once('dialog',dialog => dialog.accept()); await page.reload();
   await expect(page.getByTestId('recovery-prompt')).toBeVisible();

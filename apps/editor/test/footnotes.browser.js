@@ -13,11 +13,11 @@ async (page, { screenshots = false, openPath, reloadDocument, expect, recoveryRe
   const saved = () => page.locator('[data-testid="status"][data-operation="saved"]').waitFor({state:'attached'});
   await ready();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const defaultPath = (await (await page.request.get(`${origin}/api/document`)).json()).path;
+  const defaultPath = (await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json()).path;
   const sep = defaultPath.includes('\\') ? '\\' : '/';
   const root = defaultPath.split(sep).slice(0, -4).join(sep);
   const fixture = name => [root, 'tmp', 'footnotes', name].join(sep);
-  const reader = path => async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(path)}`)).json()).source.replaceAll('\r\n', '\n');
+  const reader = path => async () => (await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(path)}`, { headers: { Connection: "close" } })).json()).source.replaceAll('\r\n', '\n');
   const file = fixture('footnotes.md');
   const read = reader(file);
   const assert = (condition, message) => { if (!condition) throw new Error(message); };

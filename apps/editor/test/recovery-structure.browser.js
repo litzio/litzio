@@ -3,7 +3,7 @@ async (page, { openFolderPicker, openDocument, reloadDocument, screenshots }) =>
   if (screenshots) await page.setViewportSize({width:1280,height:1000});
   await page.unrouteAll();
   const origin = page.url().split('/').slice(0,3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const folder = [...loaded.path.split(sep).slice(0, -4), 'tmp', 'new-document'].join(sep);
   const check = (ok, reason) => { if (!ok) throw Error(reason); };
@@ -66,12 +66,12 @@ async (page, { openFolderPicker, openDocument, reloadDocument, screenshots }) =>
   await page.getByTestId('save').click();
   await page.locator('[data-testid="status"][data-operation^="save"]').waitFor({state:'attached'});
   check(await page.getByTestId('status').getAttribute('data-operation')==='saved', await page.locator('body').innerText());
-  const saved = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json();
+  const saved = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json();
   check(saved.document.title==='Recovery paper' && saved.document.blocks.some(b=>b.block==='equation') && saved.document.blocks.some(b=>b.block==='table') && saved.document.blocks.some(b=>b.block==='figure'),'Save lost a structured block');
   for (const text of ['Recovery paper','New paragraph','Opening paragraph','x^2 + y^2 = z^2','Cell 1','Measured results','Pending figure caption']) check(saved.source.includes(text),`Save lost ${text}`);
   await reloadDocument(page);
   check(await page.locator('[data-document-tab][data-active=true]').getByRole('textbox',{name:'Title',exact:true}).inputValue() === 'Recovery paper', 'Reload lost title');
-  const again = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`)).json();
+  const again = await (await page.request.get(`${origin}/api/document?path=${encodeURIComponent(file)}`, { headers: { Connection: "close" } })).json();
   check(saved.source===again.source,'Reload changed canonical source');
   // Refuse a different invalid path, retain readable fallback, and translate an already open dialog.
   await page.evaluate(async record => {

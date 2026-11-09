@@ -6,7 +6,7 @@ async (page, { openPath, activeDocument, expect, screenshots }) => {
   // Common harness isolation must survive the scenario's reload.
   await expect(page.locator('.notification-center')).toBeHidden();
   const origin = page.url().split('/').slice(0, 3).join('/');
-  const loaded = await (await page.request.get(`${origin}/api/document`)).json();
+  const loaded = await (await page.request.get(`${origin}/api/document`, { headers: { Connection: "close" } })).json();
   const sep = loaded.path.includes('\\') ? '\\' : '/';
   const file = [...loaded.path.split(sep).slice(0, -4), 'tmp', 'selection-toolbar', 'overlays.md'].join(sep);
   await openPath(page, file);
