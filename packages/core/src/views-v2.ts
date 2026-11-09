@@ -258,7 +258,7 @@ function publicInputSchema(schema: Record<string, unknown>): Record<string, unkn
 }
 export function createCatalogV2(operations: readonly ViewOperation[] = builtinViewOperations) {
   return { schema: z.toJSONSchema(catalogViewSchema), limits: VIEW_LIMITS, operations: operations.map(op => ({ operation: op.operation, version: op.version,
-    inputSchema: publicInputSchema(op.inputSchema),
+    inputSchema: publicInputSchema(op.inputSchema), ...(op.inputSuggestions ? { inputSuggestions: op.inputSuggestions } : {}),
     rowSchema: Object.fromEntries(Object.entries(op.rowSchema).filter(([, p]) => !p.secret)) })) };
 }
 // Snapshot-local Core read-model path; never a DOM node or ProseMirror position.

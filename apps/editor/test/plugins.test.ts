@@ -804,3 +804,24 @@ test("registered icons enforce image bounds, artifact links and digest trust", a
     writeFileSync(path.join(directory, "icon.png"), "not png"); await assert.rejects(host.invoke("register", { directory }), /PNG/);
   } finally { await host.close(); rmSync(root, { recursive: true, force: true }); }
 });
+
+test("suggestion admission and generic CLI invocation share validated results", async () => {
+ const root=mkdtempSync(path.join(os.tmpdir(),"litzio-suggestions-"));
+ const host=new PluginHost(path.join(root,"state.json"),{officialPlugins:[]});
+ const directory=path.join(root,"artifact");mkdirSync(directory);
+ const operations=[{id:"search",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{person:{type:"string"}}},outputSchema:{type:"array"},rowSchema:{name:{type:"string",label:"Name"}},inputSuggestions:{person:"people"}},{id:"people",version:1,effect:"read",scope:"host",inputSchema:{type:"object",properties:{query:{type:"string"}},required:["query"],additionalProperties:false},outputSchema:{type:"array"}}];
+ writeFileSync(path.join(directory,"litzio-plugin.json"),JSON.stringify({schemaVersion:1,id:"fixture.people",tier:"community",publisher:{id:"fixture",name:"Fixture"},name:"Fixture",version:"0.1.0",requiresSdk:"^0.3.0",entry:"host.js",contributes:{operations}}));
+ writeFileSync(path.join(directory,"package.json"),JSON.stringify({type:"module",version:"0.1.0"}));
+ writeFileSync(path.join(directory,"host.js"),`export function activate(){return {operations:{search:()=>[],people:({query})=>query==='bad'?[{value:'missing label'}]:[{value:'id',label:'Example person'}]},status:()=>({available:true,message:'',folders:[],decorations:[],accounts:[]}),dispose(){}}}`);
+ try {
+  await host.invoke("register",{directory});
+  await host.invoke("trust",{id:"fixture.people",digest:(await host.list())[0]!.digest});
+  await host.invoke("enable",{id:"fixture.people"});
+  assert.deepEqual(host.viewOperations().find(op=>op.operation==='fixture.people.search')?.inputSuggestions,{person:{operation:'fixture.people.people',version:1}});
+  const input={operation:"fixture.people.people",version:1,input:{query:"ex"}};
+  for(const action of ["invoke","suggest"]) assert.deepEqual((await host.invoke(action,input) as any).result,[{value:"id",label:"Example person"}]);
+  await assert.rejects(host.invoke("suggest",{...input,version:2}),/unavailable/);
+  assert.equal((await host.invoke("invoke",{...input,input:{query:"bad"}}) as any).receipt.outcome,"failure");
+  await assert.rejects(host.invoke("suggest",{operation:"fixture.people.search",input:{}}),/unavailable/);
+ } finally { await host.close();rmSync(root,{recursive:true,force:true}); }
+});
