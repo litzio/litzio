@@ -55,7 +55,7 @@ export function PluginSettings() {
     </section>)}
     <Dialog open={!!trust} onOpenChange={open => { if (!open) setTrust(undefined); }}><DialogContent><DialogHeader><DialogTitle>Trust {trust?.name ?? trust?.id}?</DialogTitle><DialogDescription>This code runs with the Host OS account permissions. Trust only an artifact you have reviewed.</DialogDescription></DialogHeader><p style={{ overflowWrap: "anywhere" }}>{trust?.digest}</p><Button disabled={busy} onClick={() => { if (trust) void run("trust", { id: trust.id, digest: trust.digest }).then(() => setTrust(undefined)); }}>Trust this artifact</Button><Button variant="secondary" onClick={() => setTrust(undefined)}>Cancel</Button></DialogContent></Dialog>
     <Dialog open={!!current} onOpenChange={open => { if (!open) setSelected(undefined); }}>
-      <DialogContent>
+      <DialogContent className="plugin-settings-dialog">
         <DialogHeader>
           <DialogTitle>{current?.name ?? current?.id}</DialogTitle>
           <p className="settings-status">{current?.version}</p>
@@ -67,7 +67,7 @@ export function PluginSettings() {
             onChange={value => void run("settings", { id: current?.id, settings: { ...current?.settings, [key]: value } })} /> :
           ["string", "number", "integer"].includes(field.type ?? "") ?
             <label key={key}><SettingLabel title={field.title ?? key} description={field.description} />
-              <Input disabled={busy} type={field.type === "string" ? "text" : "number"} defaultValue={String(current?.settings?.[key] ?? "")} onBlur={event => {
+              <Input key={String(current?.settings?.[key] ?? "")} disabled={busy} type={field.type === "string" ? "text" : "number"} defaultValue={String(current?.settings?.[key] ?? "")} onBlur={event => {
                 if (String(current?.settings?.[key] ?? "") === event.target.value) return;
                 const value = field.type === "string" ? event.target.value : Number(event.target.value);
                 if (current?.settings?.[key] !== value) void run("settings", { id: current?.id, settings: { ...current?.settings, [key]: value } });

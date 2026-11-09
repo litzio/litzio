@@ -46,8 +46,11 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await expect(page.getByRole("button", { name: /^Open view ·/ })).toHaveCount(0);
   await external.getByRole("button", { name: "Vite fixture settings", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  const check = dialog.getByRole("button", { name: "Check connection", exact: true });
   await expect(page.getByText("Simulates service availability", { exact: true })).not.toBeVisible();
+  const serviceUrl = dialog.getByRole("textbox", { name: "docling-serve URL", exact: true });
+  await serviceUrl.fill("https://docling.example.test/service");
+  await serviceUrl.press("Tab");
+  const check = dialog.getByRole("button", { name: "Check connection", exact: true });
   await dialog.getByText("Simulate failure", { exact: true }).hover();
   await expect(page.locator('[data-slot="tooltip-content"]')).toHaveText("Simulates service availability");
   await check.click();
@@ -55,7 +58,7 @@ async (page, { expect, pluginFixture, screenshots }) => {
   await dialog.getByRole("switch", { name: "Simulate failure", exact: true }).click();
   await expect(check).toBeEnabled();
   await check.click();
-  await expect(dialog.getByRole("status").filter({ hasText: /^Fixture unavailable$/ })).toBeVisible();
+  await expect(dialog.getByRole("status").filter({ hasText: /^연결하지 못했습니다\./ })).toBeVisible();
   await page.keyboard.press("Escape");
   await toggle.click();
   await external.getByRole("button", { name: "Vite fixture settings", exact: true }).click();
@@ -78,7 +81,7 @@ async (page, { expect, pluginFixture, screenshots }) => {
       await page.screenshot({ path: `tmp/plugin-settings-1334/after-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
       await page.getByRole("button", { name: width === 640 ? "Vite fixture 설정" : "Vite fixture settings", exact: true }).click();
       await page.getByRole("button", { name: width === 640 ? "연결 확인" : "Check connection", exact: true }).click();
-      await expect(page.getByRole("dialog").getByText("Fixture unavailable", { exact: true })).toBeVisible();
+      await expect(page.getByRole("dialog").getByText("연결하지 못했습니다. 저장된 서버 주소와 자격 증명을 확인한 뒤 다시 시도하세요.", { exact: true })).toBeVisible();
       await page.screenshot({ path: `tmp/plugin-settings-1334/detail-${width}.png`, mask: [page.locator(".sidebar-host-account")] });
       await page.keyboard.press("Escape");
     }

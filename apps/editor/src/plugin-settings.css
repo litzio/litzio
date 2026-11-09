@@ -6,3 +6,5 @@
 .plugin-account { margin: 0; overflow-wrap: anywhere; }
 
 .plugin-secret-form { display: grid; gap: var(--space-2); }
+
+.plugin-settings-dialog[data-slot="dialog-content"] { max-width: min(var(--layout-settings-content-width), calc(100vw - 2rem)); }
