@@ -156,6 +156,8 @@ Host는 `packages/file-commit`의 `createFileFromPath`로 staging을 크기가 �
 
 ### SDK 버전과 호환 판정
 
+SDK `0.3.0`은 Litzio `v0.0.2-beta.9`와 함께 공개한다([준비 기록](../releases/v0.0.2-beta.9.md)). 현재 공개 beta.8에 포함된 SDK는 `0.1.0`이다. SDK는 별도 npm 패키지 게시 없이 해당 Host가 제공한다.
+
 공개 SDK 기능의 버전은 공개 릴리스 사이에 한 번만 올린다. 릴리스 뒤 첫 SDK 기능 PR이 다음 minor를 열고, 다음 공개 릴리스 전까지 들어오는 기능은 모두 그 번호를 함께 쓴다. `SDK_VERSION`과 `packages/plugin-sdk/package.json`을 일치시키며 기능별 최소 SDK 요구 검사는 각 기능에 유지한다. 버그 수정은 patch다. 호환되지 않는 변경의 표시 방법은 실제로 그런 변경이 필요할 때 정한다. 현재 Host는 이전 계약을 계속 지원한다.
 
 `requiresSdk`는 필요한 기능이 처음 제공된 계약 버전 이상의 범위를 선언한다. 현재 권장 표기는 `>=최소기능버전 <1.0.0`이다. 새 scaffold의 기본은 `>=0.3.0 <1.0.0`이며 일반 파일 결과를 쓰는 플러그인도 최소 `0.2.0`을 요구한다. Host는 file 기여가 있으면 해당 기능을 제공하는 지원 계약(`0.2.0` 이상)도 requiresSdk가 허용하는지 검사한다. 현재 `0.1.0` 또는 `^0.1.0`만 허용하는 file manifest는 SDK 요구 오류로 validate·등록·활성화에서 거부한다. 기존 native-document 등 이전 기능만 쓰는 exact·caret `0.1.0` 선언은 계속 허용한다. 기존 기능만 쓰는 플러그인은 해당 기능의 최소 계약 버전을 유지할 수 있다(예: `>=0.1.0 <1.0.0`).
@@ -297,7 +299,7 @@ Core `authorDocument(input)`을 공개 `@litzio/plugin-sdk`에서 제공한다. 
 
 ## 공용 문서 이미지·긴 문서 확장 (#1371)
 
-미릴리스 SDK `0.3.0`에 포함한다(마지막 공개 제품 v0.0.2-beta.8의 SDK는 0.1.0). Word/HTML 가져오기, CLI 및 비서의 구조화 문서 작성이 같은 의미·저장 작업을 사용할 수 있다. 기존 K1 start/running·status/completed·Root·원본 보존·새 파일 충돌 거부 계약은 유지한다. 원문 source 완료도 UTF-8 4 MiB로 제한한다.
+beta.9와 함께 공개하는 SDK `0.3.0`에 포함한다(마지막 공개 제품 v0.0.2-beta.8의 SDK는 0.1.0). Word/HTML 가져오기, CLI 및 비서의 구조화 문서 작성이 같은 의미·저장 작업을 사용할 수 있다. 기존 K1 start/running·status/completed·Root·원본 보존·새 파일 충돌 거부 계약은 유지한다. 원문 source 완료도 UTF-8 4 MiB로 제한한다.
 
 - `images`는 key가 유일한 최대 256개다. Figure의 imageAsset 참조와 정확히 일치해야 한다. MIME은 PNG/JPEG/GIF/WebP이며 정규 base64, 디코딩 후 이미지당 10 MiB와 기존 complete-container 검증을 사용한다. SVG는 이 저장 경로로 받지 않는다.
 - 전체 완료 document JSON은 `JOB_DOCUMENT_MAX_BYTES` 32 MiB다. child가 IPC 전 검사하고 Host가 다시 검사한다. 문서 authoring JSON과 canonical source는 별도로 각각 4 MiB다. K1 HTTP 요청은 기존 작은 요청이며 응답에는 문서 바이트가 아닌 작업 snapshot/저장 receipt만 싣는다. 기존 10초 RPC는 접수·관찰 한 번의 예산이고 문서 작성은 계속 start에서 접수한 background 작업에서 해야 한다.
@@ -332,7 +334,7 @@ manifest 화면은 기존 ViewWorkspace로 기본 뷰 내용을 바로 표시하
 
 ## 플러그인 화면 작업 패널 (#1340)
 
-SDK의 미릴리스 `0.3.0`에 `screens[].jobs`를 함께 제공한다. SDK 기능 추가는 릴리스 사이 한 번 버전을 올리고 같은 미릴리스 버전에 합친다. 이 기능은 `requiresSdk`가 0.3.0 이상 구현 계약을 허용해야 한다.
+SDK `0.3.0`(beta.9와 함께 공개)에 `screens[].jobs`를 함께 제공한다. SDK 기능 추가는 릴리스 사이 한 번 버전을 올리고 같은 미릴리스 버전에 합친다. 이 기능은 `requiresSdk`가 0.3.0 이상 구현 계약을 허용해야 한다.
 
 ```json
 {"id":"dashboard","title":"Dashboard","icon":"LayoutDashboard","jobs":["convert","document"],"defaultViewIds":["status"],"primary":true}
@@ -378,7 +380,7 @@ Visual evidence: [screen 1440](assets/plugin-icon-1346/screen-1440.png), [settin
 조회 operation은 `inputSuggestions: { person: "people" }`로 각 입력 필드의 후보 작업 ID를
 선언할 수 있다. 필드는 해당 operation inputSchema의 공개 자유 문자열이며 query form의
 TextInput에서 사용한다. 후보 작업은 같은 manifest에 등록한 독립 host read operation이다.
-job/review 작업은 사용할 수 없다. SDK 버전은 미릴리스 0.3.0을 유지한다.
+job/review 작업은 사용할 수 없다. SDK 버전은 beta.9와 함께 공개하는 0.3.0을 유지한다.
 
 후보 작업 입력은 `{query: string}`, 결과는 `[{value: string, label: string}]`이다.
 최대 32개이며 value는 중복 없는 1~512자의 한 줄 문자열, label은 1~512자다.
@@ -416,7 +418,7 @@ IME를 모사하며 나머지는 일반 입력·클릭을 사용한다. 전수 �
 
 ### 공통 조회 입력 안내 (#1370)
 
-미릴리스 SDK 0.3.0의 `inputHints`는 조회 operation의 공개 자유 문자열 입력을 같은 플러그인의 독립 host read 작업에 연결한다. 빈 객체 입력, `{text}` 출력(1–512자), 현재 version·trust·secret 정리·공용 CLI invoke를 사용한다. 입력값을 채우거나 조회를 실행하지 않는다. 상세는 [플러그인 화면 계약](plugin-screens-v1.md#collapsible-query-inputs-and-dynamic-guidance-1370)을 따른다.
+beta.9와 함께 공개하는 SDK 0.3.0의 `inputHints`는 조회 operation의 공개 자유 문자열 입력을 같은 플러그인의 독립 host read 작업에 연결한다. 빈 객체 입력, `{text}` 출력(1–512자), 현재 version·trust·secret 정리·공용 CLI invoke를 사용한다. 입력값을 채우거나 조회를 실행하지 않는다. 상세는 [플러그인 화면 계약](plugin-screens-v1.md#collapsible-query-inputs-and-dynamic-guidance-1370)을 따른다.
 
 ## Generated document correction and regeneration (#1364)
 
@@ -442,7 +444,7 @@ Official replacement also resolves Windows targets using native realpath, retain
 
 ## 플러그인 조회 표 열과 결과 범위 (#1351)
 
-미릴리스 SDK `0.3.0`의 read `rowSchema` 필드에 선택적 `hidden:boolean`을 제공한다. `true`는 기본 숨김 후보, `false`는 기본 표시다. 생략하면 manifest의 해당 Table.columns 기본 표시를 유지한다. 이 선언은 `requiresSdk`가 실제 지원하는 0.3.0 계약을 허용해야 한다. secret 필드는 계속 공개하지 않는다. 기본 숨김은 접근 권한이 아니며 공개 행 데이터는 CLI에도 포함된다.
+beta.9와 함께 공개하는 SDK `0.3.0`의 read `rowSchema` 필드에 선택적 `hidden:boolean`을 제공한다. `true`는 기본 숨김 후보, `false`는 기본 표시다. 생략하면 manifest의 해당 Table.columns 기본 표시를 유지한다. 이 선언은 `requiresSdk`가 실제 지원하는 0.3.0 계약을 허용해야 한다. secret 필드는 계속 공개하지 않는다. 기본 숨김은 접근 권한이 아니며 공개 행 데이터는 CLI에도 포함된다.
 
 rowSchema 작업은 기존 행 배열 또는 `{rows, truncated, total?}`를 반환한다. 플러그인의 `outputSchema`도 실제 반환 형태를 선언해야 한다. SDK의 `OperationRowResult` 타입과 `operationRowResultSchema`를 제공하며 Host 공용 반환 경계에서 행 제한·공개 필드·잘림 정보를 검증한다. truncated는 필수 boolean, total은 선택적 0 이상의 safe integer다. total을 알면 반환 행 수 이상이어야 하며 truncated=true면 더 크고 false면 같아야 한다. 배열은 범위 정보 미제공이며 전체 결과라고 보증하지 않는다. 별도 paging·재조회 API는 추가하지 않는다.
 
