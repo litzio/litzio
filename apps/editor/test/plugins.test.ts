@@ -6,7 +6,7 @@ import path from "node:path";
 import { artifactDigest } from "../server/plugins/artifact-digest.mjs";
 import { PluginHost } from "../server/plugins/plugin-host.ts";
 import { executePluginTool } from "../server/assistant-plugin-tools.ts";
-import { getEditableDocument, parse } from "@litzio/core";
+import { DOCUMENT_AUTHORING_LIMITS as limits, getEditableDocument, parse } from "@litzio/core";
 
 // Interpretation/loss/limit tests stay in-process. Existing http-plugins owns
 // SDK runtime admission, official K1 storage and the browser result boundary.
@@ -74,11 +74,11 @@ test("Docling converter refuses whole input on limits and invalid graph/grid ins
   await rejects(d => { d.body.children[0].$ref = "#/texts/999"; }, /Invalid source reference/);
   await rejects(d => { d.texts[4].text = "x".repeat(16385); }, /16384/);
   await rejects(d => {
-    for (let i = 0; i < 200; i++) d.texts.push({ self_ref: `#/texts/${d.texts.length}`, label: "text", text: "Orphan" });
-  }, /input limit.*200/);
+    for (let i = 0; i < limits.inputs; i++) d.texts.push({ self_ref: `#/texts/${d.texts.length}`, label: "text", text: "Orphan" });
+  }, new RegExp(`input limit.*${limits.inputs}`));
   await rejects(d => {
-    for (let i = 0; i < 20; i++) { const ref = `#/texts/${d.texts.length}`; d.texts.push({ self_ref: ref, label: "text", text: "x".repeat(16000) }); d.body.children.push({ $ref: ref }); }
-  }, /byte limit.*262144/);
+    for (let i = 0; i < Math.ceil(limits.bytes / 16000); i++) { const ref = `#/texts/${d.texts.length}`; d.texts.push({ self_ref: ref, label: "text", text: "x".repeat(16000) }); d.body.children.push({ $ref: ref }); }
+  }, new RegExp(`byte limit.*${limits.bytes}`));
 });
 test("Docling envelope keeps original PDF/JSON hashes independent of the reserved opaque review entry", async () => {
   const archive = await import(new URL("../../../community-plugins/docling/archive.js", import.meta.url).href);

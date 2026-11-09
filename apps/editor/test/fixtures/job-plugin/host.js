@@ -25,7 +25,7 @@ export function activate() {
           else if (input.resultFile) {
             writeFileSync(input.resultFile.path, Buffer.from([0, 255, 1, 128]));
             Object.assign(job, { state: "completed", phase: "Complete", file: { path: input.resultFile.path } });
-          } else Object.assign(job, { state: "completed", phase: "Complete", document: { source: "---\nlitzio: 1\n---\n\n" + text } });
+          } else Object.assign(job, { state: "completed", phase: "Complete", document: text.startsWith("AUTHORING:") ? JSON.parse(text.slice(10)) : { source: "---\nlitzio: 1\n---\n\n" + text } });
         })().catch(() => Object.assign(job, { state: "failed", phase: "Failed", errorKind: "failed" }));
         return structuredClone(job);
       },
