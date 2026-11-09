@@ -2,6 +2,7 @@ import type { ViewRow } from "@litzio/core/views";
 export type TableField = {
   type: "string" | "number" | "boolean";
   date?: boolean;
+  linkField?: string;
 };
 export type TableFilter = {
   mode: string;

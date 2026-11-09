@@ -66,6 +66,12 @@ export function validateManifest(input: unknown): PluginManifest {
     const check = m.contributes.operations.find(op => op.id === m.contributes.healthCheck);
     if (!check || check.effect !== "read" || check.scope !== "host" || !compileSchema(check.inputSchema)({}) || check.rowSchema || m.contributes.jobs.some(job => [job.start, job.status, job.stop].includes(check.id)) || m.contributes.reviews.some(review => review.read.operation === `${m.id}.${check.id}`)) throw new Error("Health check must bind a standalone host read operation accepting empty input");
   }
+  const linkSchemas = [
+    ...m.contributes.operations.flatMap(op => op.rowSchema ? [op.rowSchema] : []),
+    ...m.contributes.views.flatMap(view => view.definition.sources.stats.kind === "assistant" ? [view.definition.sources.stats.rowSchema] : []),
+  ];
+  if (linkSchemas.some(fields => Object.values(fields).some(field => field.linkField)) &&
+      !supportedSdkVersions.some(version => semver.gte(version, "0.3.0") && semver.satisfies(version, m.requiresSdk))) throw new Error("Link columns require SDK 0.3.0 or later in requiresSdk");
   compileSchema(m.settingsSchema);
   for (const operation of m.contributes.operations) { if (operation.rowSchema && operation.effect !== "read") throw new Error("Only read operations can declare row schema"); compileViewInputSchema(operation.inputSchema); compileSchema(operation.outputSchema); }
   const viewOperations: ViewOperation[] = m.contributes.operations.filter(op => op.effect === "read" && op.rowSchema).map(op => ({
