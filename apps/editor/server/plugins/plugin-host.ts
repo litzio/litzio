@@ -20,6 +20,7 @@ type Installed = { directory: string; digest: string; trustedDigest?: string; en
 type Loaded = { manifest: PluginManifest; instance: PluginInstance; pending: Set<Promise<unknown>> };
 export class PluginHost {
   private installed: Record<string, Installed>;
+  private artifacts = new Map<string, { manifest: PluginManifest; digest: string; entry: string }>();
   private loaded = new Map<string, Loaded>();
   private processes = new Map<string, PluginInstance>();
   private errors = new Map<string, string>();
@@ -66,6 +67,12 @@ export class PluginHost {
   private artifact(directory: string, inspecting: (file: string) => void = () => {}) {
     directory = realpathSync(directory);
     const digest = artifactDigest(directory);
+    const cached = this.artifacts.get(directory);
+    if (cached?.digest === digest) {
+      for (const file of ["litzio-plugin.json", "package.json", "host entry"]) inspecting(file);
+      return structuredClone(cached);
+    }
+    this.artifacts.delete(directory);
     inspecting("litzio-plugin.json");
     const manifest = validateManifest(JSON.parse(readFileSync(path.join(directory, "litzio-plugin.json"), "utf8")));
     inspecting("package.json");
@@ -75,7 +82,8 @@ export class PluginHost {
     if (path.relative(directory, entry).startsWith("..") || !statSync(entry).isFile()) throw new Error("Invalid entry");
     compileSchema(manifest.settingsSchema);
     for (const op of manifest.contributes.operations) { compileSchema(op.inputSchema); compileSchema(op.outputSchema); }
-    return { manifest, digest, entry };
+    this.artifacts.set(directory, { manifest, digest, entry });
+    return structuredClone({ manifest, digest, entry });
   }
   private official(m: PluginManifest, digest: string) { return m.tier === "official" && this.supply.some(p => p.id === m.id && p.publisher === m.publisher.id && p.digest === digest); }
   async start() {
@@ -341,6 +349,7 @@ export class PluginHost {
     const results = await Promise.allSettled([...this.processes.keys()].map(id => this.disable(id)));
     const errors = results.filter(result => result.status === "rejected").map(result => result.reason);
     this.redactionSecrets.clear();
+    this.artifacts.clear();
     if (errors.length) throw new AggregateError(errors, "Plugin cleanup failed");
   }
 }
